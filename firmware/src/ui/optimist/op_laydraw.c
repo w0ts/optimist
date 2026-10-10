@@ -199,7 +199,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         str_cpy(sub, "Mute solo FX tap", n);
 #endif
         fmt_int(b, song.g[G_BPM]);
-        tile_set(&tl[15], b, song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : C_LINE, song.playing && clk_pos < BEAT_U / 4u ? C_BLACK : C_WHITE, 0);
+        tile_set(&tl[15], b, song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : OP_SURF, song.playing && clk_pos < BEAT_U / 4u ? C_BLACK : C_WHITE, 0);
         tile_set(&tl[14], "TAP >", C_BLACK, C_DIM, 0);
         break;
     case LY_SONG: {
@@ -255,7 +255,7 @@ static void lay_paint(void)
     for (i = 0; i < 16u; i++) {
         int32_t x = CARD_X(i % 4u), y = 2 + (int32_t)(i / 4u) * TILE_H;
         const tile_t *t = &lay_tl[i];
-        cv_rect(x, y, CARD_W, TILE_H - 2, t->bg);
+        cv_box(x, y, CARD_W, TILE_H - 2, t->bg);
         if (t->top)
             cv_rect(x, y, CARD_W, 3, t->top);
         op_case(b, t->lab, sizeof b);
@@ -315,14 +315,14 @@ static void tempo_draw(int32_t h)
     x = cv_text(8, 6 + dy, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
     cv_text(x + 6, 20 + dy, &FONT_S, "BPM", C_GRAY);
     for (i = 0; i < 4u; i++)                            /* the beat */
-        cv_rect(150 + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_LINE);
+        cv_box(150 + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
     if (clk_nudge)
         cv_text(150, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;
     param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);   /* the clock followed: "A:USB" */
     cv_text(8, 40 + dy + bs - 16, &FONT_S, b, C_GRAY);
-    cv_rect(80, 42 + dy + bs - 16, 16, 8, sy.src ? C_OK : C_LINE);     /* RX: an external clock heard */
+    cv_box(80, 42 + dy + bs - 16, 16, 8, sy.src ? C_OK : C_BLACK);     /* RX: an external clock heard */
     cv_text(100, 40 + dy + bs - 16, &FONT_S, "RX", sy.src ? C_OK : C_DIM);
 }
 
@@ -346,12 +346,12 @@ static void song_grid_draw(int32_t h)
         int32_t y = 2 + (int32_t)k * rh;
         uint16_t tc = trk_col(k);
         if (k == song.sel)
-            cv_rect(0, y - 1, 240, rh, C_LINE);         /* (the selected track: its keys launch) */
+            cv_rect(0, y - 2, 240, 1, C_DIM), cv_rect(0, y + rh - 2, 240, 1, C_DIM);   /* (the selected track, its keys launch: lined) */
         cv_text(3, y + (rh - 12) / 2, &FONT_S, trk_tag(k), k == song.sel ? C_WHITE : tc);
         for (i = 0; i < PAT_N; i++) {
             int32_t x = 26 + (int32_t)i * 13;
             uint16_t c = pat_cur[k] == i ? C_OK : pat_req[k] == i ? C_WARN : pat_has(k, i) ? col_shade(tc, 4u) : OP_SURF;
-            cv_rect(x, y, 11, rh - 3, c);
+            cv_box(x, y, 11, rh - 3, c);
             if (pat_cur[k] == i && ((lay.pchg >> k) & 1u))
                 cv_rect(x + 4, y + (rh - 3) / 2 - 1, 3, 3, C_WHITE);   /* (changed since its source) */
         }

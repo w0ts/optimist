@@ -318,8 +318,10 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
 {
     int32_t k;
     for (k = 0; k < 3; k++)
-        cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1),
-                (uint32_t)k < n ? (on ? C_BLACK : C_GRAY) : (on ? col_shade(bdp.bar, 5u) : C_LINE));
+        if ((uint32_t)k >= n && !on)                    /* (unlit: outlined on black) */
+            cv_frame(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), C_LINE);
+        else
+            cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? C_BLACK : C_GRAY) : col_shade(bdp.bar, 5u));
 }
 /* a row's text: NONE's is our words (sentence case), a device's name stays as it advertises itself */
 static void dev_row_text(char *out, uint32_t room, uint32_t row, const char *nm)
@@ -372,7 +374,7 @@ static void dev_paint(void)                             /* the panel's band in i
         cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? C_BLACK : chosen ? C_HI : C_GRAY);
     }
     if (bdp.n > bdp.shown) {                            /* where the window is in the list */
-        cv_rect(237, 0, 3, (int32_t)rows_h, C_LINE);
+        cv_rect(238, 0, 1, (int32_t)rows_h, C_LINE);
         cv_rect(237, (int32_t)(rows_h * bdp.first / bdp.n), 3, (int32_t)(rows_h * bdp.shown / bdp.n), C_GRAY);
     }
     cv_rect(0, (int32_t)rows_h, 240, 1, C_LINE);

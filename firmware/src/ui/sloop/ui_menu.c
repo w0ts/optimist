@@ -439,7 +439,7 @@ static void draw_menu(void)
             for (i = 0; i < MS_COUNT; i++) {        /* the sections as tabs: this one lit */
                 int32_t w = text_w(&FONT_S, MS_NAME[i]);
                 if (i == sec)
-                    cv_rect(x - 2, 3, w + 4, 18, C_LINE);
+                    cv_frame(x - 2, 3, w + 4, 18, C_DIM);
                 cv_text(x, 4, &FONT_S, MS_NAME[i], i == sec ? C_WHITE : C_DIM);
                 x += w + 10;
             }

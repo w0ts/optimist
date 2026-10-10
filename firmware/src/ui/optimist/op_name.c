@@ -366,7 +366,7 @@ static void name_draw_field(void)
     const char *src = empty ? nm.ph : nm.s;
     op_case(b, src, sizeof b);                          /* (sentence case as drawn: "Super saw") */
     cv_begin(240, OH_CARD, C_BLACK);
-    cv_rect(3, 0, 234, OH_CARD - 1, OP_SURF);
+    cv_box(3, 0, 234, OH_CARD - 1, OP_SURF);
     cv_text(9, 1, &FONT_S, nm.cur ? "Save done  Home delete" : "Save done  Home cancel", C_GRAY);
     {
         char n[8];
@@ -410,7 +410,7 @@ static void name_draw_keys(void)
         for (i = 0; i < n; i++) {
             int32_t x = 6 + 22 * (int32_t)i;
             c[0] = g[i];
-            cv_rect(x, 1, 20, 20, i == nm.tap ? tc : OP_SURF);
+            cv_box(x, 1, 20, 20, i == nm.tap ? tc : OP_SURF);
             cv_text(x + 6, 3, &FONT_S, c, i == nm.tap ? C_BLACK : C_HI);
         }
         cv_text(12 + 22 * (int32_t)n, 3, &FONT_S, "Tap again: next", C_GRAY);
@@ -422,13 +422,13 @@ static void name_draw_keys(void)
         int32_t x = 6 + 29 * (int32_t)(i % 8u), y = i < 8u ? 25 : 48;
         uint32_t act = nm.key == i + 1u;
         const char *g = nm_group(i);
-        cv_rect(x, y, 27, 20, act ? tc : OP_SURF);
+        cv_box(x, y, 27, 20, act ? tc : OP_SURF);
         cv_text(x + 14 - text_w(&FONT_S, g) / 2, y + 2, &FONT_S, g, act ? C_BLACK : C_HI);
     }
     for (i = 0; i < 5u; i++) {                         /* the black keys, by name */
         int32_t x = 6 + 46 * (int32_t)i, y = 74;
         const char *d = i == NMK_MODE ? (nm.num ? "ABC" : "123") : DO[i];
-        cv_rect(x, y, 44, 44, C_LINE);
+        cv_box(x, y, 44, 44, C_BLACK);
         cv_text(x + 22 - text_w(&FONT_S, FN[i]) / 2, y + 3, &FONT_S, FN[i], C_GRAY);
         cv_text(x + 22 - text_w(&FONT_S, d) / 2, y + 23, &FONT_S, d, C_WHITE);
     }

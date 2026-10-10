@@ -122,10 +122,13 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
     for (op = 0; op < 6u; op++) {
         char n[2] = {(char)('1' + op), 0};
         int on = op == sel, mute = !v[FM6_OPB(op + 1u) + FO_OL] || !v[FV_ON + op];
-        uint16_t box = on ? C_WHITE : (car >> op) & 1u ? (mute ? col_shade(ec, 2u) : ec) : mute ? OP_SURF : C_LINE;
+        uint16_t box = on ? C_WHITE : (car >> op) & 1u ? (mute ? col_shade(ec, 2u) : ec) : C_BLACK;
         if (nd[op].row < 0)
             continue;
-        cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, box);
+        if (box == C_BLACK)                             /* a modulator: outlined on black, brighter when it sounds */
+            cv_frame(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, mute ? C_LINE : C_GRAY);
+        else
+            cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, box);
         cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
     }
     str_cpy(b, "Alg ", sizeof b);                       /* "Alg 5", the feedback */
@@ -172,7 +175,7 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
                       (KT[i] == FMT_GLO && kd == 2u) || (KT[i] == FMT_MONO && (voice == V_MONO || voice == V_LEGATO)) ||
                       (KT[i] == FMT_POLY && voice == V_POLY);
         int32_t x = 6 + (int32_t)i * 21 + (int32_t)GROUP[i] * 6;
-        cv_rect(x, F6_MAP_Y + 2, 19, 22, on ? C_WHITE : C_LINE);
+        cv_box(x, F6_MAP_Y + 2, 19, 22, on ? C_WHITE : C_BLACK);
         cv_text(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_MAP_Y + 5, &FONT_S, KEYS[i], on ? C_BLACK : ec);
     }
 }

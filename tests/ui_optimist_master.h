@@ -7,6 +7,39 @@
  * Included by ui_optimist_test.c after ui_optimist_cards.h. */
 static void layout_tests(void);
 static void held_page_tests(void);
+/* ALGORITHM drawn in place (the user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"): a
+ * track change, the mixer's walk and the step to MASTER and back repaint every band over itself, never through a
+ * clear of the whole screen to black; the header shows the new track's colour at once */
+static int algo_step_inplace(int32_t d)
+{
+    uint32_t n;
+    frames(2);
+    n = full_fills;
+    turn(EN_ALGO, d);
+    frames(2);
+    return full_fills == n;
+}
+static void algo_inplace_tests(void)
+{
+    uint32_t ok;
+    reset_ui();
+    song.sel = 0;
+    frames(2);
+    ok = algo_step_inplace(1) && song.sel == 1u && px_in(2, 3, 4, 19, trk_col(1));
+    check(ok, "ALGORITHM on the mixer: the next track drawn in place (no full clear), its colour in the header");
+    tap(B_ENV);
+    ok = algo_step_inplace(1) && song.sel == 2u && ui.scr == SCR_SOUND && px_in(2, 3, 4, 19, trk_col(2));
+    ok &= (uint32_t)algo_step_inplace(-1) && song.sel == 1u;
+    check(ok, "ALGORITHM on SOUND (ENV): the track changes in place, both ways");
+    ok = algo_step_inplace(-1) && song.sel == 0u && algo_step_inplace(-1) && ui.scr == SCR_FX;
+    ok &= (uint32_t)algo_step_inplace(1) && ui.scr == SCR_SOUND && song.sel == 0u;
+    check(ok, "ALGORITHM to MASTER (the FX screen) and back: in place");
+    tap(B_SEQ);
+    ok = ui.scr == SCR_STEP && algo_step_inplace(1) && song.sel == 1u && algo_step_inplace(1) && algo_step_inplace(1) &&
+         song.sel == TRK_DRUM;
+    check(ok, "ALGORITHM on STEP: synth to synth to the drum track, in place");
+    reset_ui();
+}
 static void master_tests(void)
 {
     layout_tests();

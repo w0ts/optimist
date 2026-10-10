@@ -158,14 +158,40 @@ static uint32_t ov_graph(void)
            fam == FAM_EDIT && is_drum(TSEL) ? GR_DSND : GR_NONE;   /* (the drum track: SOUND, when there is room) */
 }
 
+/* The overview drawn last frame (another track, another page, ALGORITHM turning) is drawn again over itself, not
+ * cleared to black first (the user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"):
+ * every cell, the bar and the graph redraw whole, so only what the new layout leaves uncovered is cleared, the room
+ * under its rows (but the graph's own band, which the graph covers). In from elsewhere: the whole body cleared.
+ * ov_lay the layout last framed, ov_top where its rows ended, ov_drawn the frame the overview was last drawn in */
+static uint32_t ov_lay, ov_top, ov_drawn;
+static void ov_clear_under(uint32_t n, uint32_t top)
+{
+    uint32_t y0 = OV_Y + n * OV_RH - 2u, g = ov_graph(), i;
+    for (i = 1; i < 4u && n; i++)                     /* (a longer layout's column rules: their stubs) */
+        lcd_fill(i * 60u - 1u, OV_Y + n * OV_RH - 5u, 1, 2, C_BLACK);
+    if (g != GR_NONE && (uint32_t)(Y_FOOT - 3) - y0 >= 40u) {   /* the graph covers y0 .. Y_FOOT - 4 */
+        if (top < y0)
+            lcd_fill(0, top, 240, y0 - top, C_BLACK);
+        lcd_fill(0, Y_FOOT - 3, 240, 1, C_BLACK);
+    } else {
+        lcd_fill(0, top, 240, (uint32_t)(Y_FOOT - 2) - top, C_BLACK);
+    }
+}
 static void ov_frame(void)
 {
-    uint32_t i, act, n, h, page, npages;
+    uint32_t i, act, n, h, page, npages, lay, top;
     uint8_t idx[OV_ROWS];
     n = ov_rows(idx, &act, &page, &npages);
     ov.grid_sig = n + page * 8u + cur_page()->fam * 64u + song.sel * 1024u;
     h = n * OV_RH;
-    lcd_fill(0, H_HEAD + 1, 240, Y_FOOT - 2 - H_HEAD - 1, C_BLACK);
+    lay = n + page * 8u + cur_page()->fam * 64u + ov_graph() * 4096u;
+    top = n ? OV_Y + h - 3u : OV_Y;                     /* (under the last row's cells) */
+    if (ov_drawn + 1u != ui.frame)
+        lcd_fill(0, H_HEAD + 1, 240, Y_FOOT - 2 - H_HEAD - 1, C_BLACK);
+    else if (lay != ov_lay)
+        ov_clear_under(n, ov_top < top ? ov_top : top);
+    ov_lay = lay;
+    ov_top = top;
     lcd_fill(0, H_HEAD, 240, 1, C_LINE);
     lcd_fill(0, Y_FOOT - 2, 240, 1, C_LINE);
     for (i = 1; i < 4u; i++)                          /* the column rules through the rows */
@@ -353,6 +379,7 @@ static void ov_draw(void)
         ov_row(r, &PAGES[idx[r]], r == act);
     ov_bar(n, act);
     ov_draw_graph(n);
+    ov_drawn = ui.frame;
 }
 
 #if FELUCCA_FM6_KEYS

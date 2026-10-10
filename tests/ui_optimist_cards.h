@@ -3,16 +3,23 @@
  * SLOOP 2.4's big values 2 x 2 (docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6), on every screen with cards.
  * Included by ui_optimist_test.c after its helpers and ui_optimist_drummix.h (the settings word). */
 
-/* the cards' band as drawn for the mode: 1x4 has black under its cards (band row 44), 2x2 its two rows of big
- * values (the second row's surface at band rows 47..92) */
+/* the cards are black, outlined in C_LINE (no grey surface, the user 2026-10-10): a card is told by its outline's
+ * right edge, at two heights (a roll's C line, horizontal, cannot be both) */
+static int card_edge(uint32_t x, uint32_t y) { return px_at(x, y + 10u, C_LINE) && px_at(x, y + 30u, C_LINE); }
+static int card0_up(void)                               /* the first card drawn, as CARDS sets them */
+{
+    return card_edge(cards_2x2() ? 3u + BIG_W - 1u : (uint32_t)CARD_X(0) + CARD_W - 1u, OY_CARD);
+}
+/* the cards' band as drawn for the mode: 1x4 one row of cards (the gap under it black: no big value's outline at band row 45),
+ * 2x2 its two rows of big values (the second row at band rows 47..92) */
 static int cards_band_is(uint32_t mode)
 {
     uint32_t k, ok = 1;
     if (mode == CARDS_LINE)
-        return px_in(4, OY_CARD + 2u, 50, 20, OP_SURF) && !px_in(0, OY_CARD + OH_CARD, 240, 2, OP_SURF);
-    for (k = 0; k < 4u; k++) {                          /* each quadrant's surface, where the knob sits */
+        return card_edge((uint32_t)CARD_X(0) + CARD_W - 1u, OY_CARD) && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE);
+    for (k = 0; k < 4u; k++) {                          /* each quadrant's outline */
         uint32_t x = k & 1u ? 121u : 3u, y = OY_CARD + (k & 2u ? BIG_H + 1u : 0u);
-        ok &= (uint32_t)px_in(x + BIG_W - 6u, y + BIG_H - 2u, 4, 1, OP_SURF);
+        ok &= (uint32_t)card_edge(x + BIG_W - 1u, y);
     }
     return (int)ok;
 }

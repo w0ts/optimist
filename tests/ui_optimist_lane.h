@@ -26,9 +26,19 @@ static void lane_preview_tests(void)
     frame();
     aud_lanes = 0;
     turn(EN_ALGO, 1);
-    check(lane_selected() == 4u && aud_lanes == 1u << 4, "stopped: a lane selected previews its sound once");
+    check(lane_selected() == 4u && aud_lanes == 0u, "stopped, the mixer's ALGORITHM walk: silent (the user, 2026-10-10)");
+    op_enter(SCR_STEP);                                 /* STEP, the clip editor: a lane change previews, stopped */
+    frame();
+    aud_lanes = 0;
+    turn(EN_PRESET, 1);
+    check(lane_selected() == 5u && aud_lanes == 1u << 5, "stopped, STEP: a lane picked (PRESETS) previews its sound once");
     frame();
     check(aud_lanes == 0u, "... played by the next block, once");
+    go_home();
+    frame();
+    ui.row[SCR_HOME] = MXR_LANE0 + 4u;
+    lane_select(4);
+    frame();
     lane_transport(1);
     aud_lanes = 0;
     turn(EN_ALGO, 1);
@@ -87,7 +97,7 @@ static void lane_preview_tests(void)
 
 /* STEP's pages: PATTERN first on every track (the user: "the first SEQ menu should have the length of the pattern"),
  * then the drum track's 16 lanes (SELECT walks them: the lane encoder on STEP) or a synth track's ARP rows; SEQ tapped
- * again pages on, stopping at the last; ALGORITHM still switches tracks there */
+ * again pages on, past the last the first; ALGORITHM still switches tracks there */
 static void step_pages_tests(void)
 {
     cell_t c;
@@ -104,7 +114,7 @@ static void step_pages_tests(void)
         tap(B_SEQ);
     check(n >= 2u && ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (ARP, ARP 2)");
     tap(B_SEQ);
-    check(ui.row[SCR_STEP] == n - 1u, "... on the last page it stays (nothing wraps)");
+    check(ui.row[SCR_STEP] == 0u, "... past the last page: PATTERN again (a button again wraps)");
     ui.row[SCR_STEP] = 0;
     turn(EN_ALGO, 1);
     check(song.sel == 1 && ui.scr == SCR_STEP, "ALGORITHM on STEP: the next track, as ever");

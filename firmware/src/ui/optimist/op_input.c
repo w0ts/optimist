@@ -5,7 +5,7 @@
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
- *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, stopping at the last); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
+ *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer [provisional]: SAVE tapped (no cell picked) PROJECT, HOME held alone (past the hold) SYSTEM
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -27,7 +27,10 @@ static void op_rows_fix(void)                          /* the cursor inside the 
 }
 static void op_row_pick(uint32_t r)
 {
-    step_cards_show();                                  /* (STEP: a page change shows the cards) */
+    if (!(ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0 && ui.row[SCR_STEP] >= STP_LANE0))
+        step_cards_show();                              /* (STEP: a page change shows the cards; from a lane page to another
+                                                         * lane's, the lane switched, none: the header names it, the user
+                                                         * 2026-10-10) */
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
@@ -96,7 +99,7 @@ static int snd_has_fam(uint32_t fam)                    /* the selected track ha
 static void op_jump_sound(uint32_t fam)
 {
     if (ui.scr == SCR_SOUND && snd_fam == fam) {        /* again: the next row, round */
-        op_row_pick(ui.row[SCR_SOUND] + 1u < SCR->rows() ? ui.row[SCR_SOUND] + 1u : ui.row[SCR_SOUND]);   /* (the last: stays) */
+        op_row_pick(ui.row[SCR_SOUND] + 1u < SCR->rows() ? ui.row[SCR_SOUND] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
     if (ui.scr != SCR_SOUND)
@@ -130,7 +133,7 @@ static void op_jump(uint32_t fam)
     }
     if (first == 0xFF)
         return;                                         /* (none on this track: the drum track has no ENV) */
-    op_row_pick(next != 0xFF ? next : on ? cur : first);   /* (on the last row of the family: stays) */
+    op_row_pick(next != 0xFF ? next : first);          /* (past the family's last row: its first again) */
 }
 
 /* ---- undo / redo: the message says which and where (as SLOOP's ui.c undo_say) */
@@ -276,16 +279,17 @@ static void track_select(uint32_t i)
     rec_follow(i);                                      /* recording follows the selected track */
     op_disarm();
     sync_reload = 1;
-    ui.force = 1;
+    op_repaint();                                       /* (in place: no clear, no flash) */
 }
 /* the drum lane l selected (the pick, the mixer's lane rows, STEP's SELECT): SOUND's rows, STEP's header and grid
- * follow. A change previews the sound once while the transport is stopped, never while it plays (the user, on the
- * FM-1). key: the pick's own key did it (stopped it sounded as a key does; playing it was kept silent: pick_silent) */
+ * follow. A change previews the sound once on STEP (the clip editor) while the transport is stopped, never while it
+ * plays and never elsewhere: the mixer's ALGORITHM walk is silent (the user, 2026-10-10). key: the pick's own key did
+ * it (stopped it sounded as a key does; playing it was kept silent: pick_silent) */
 static void lane_pick_from(uint32_t l, int key)
 {
     uint32_t was = lane_selected();
     lane_select(l);
-    if (!key && (l & 15u) != was && !song.playing && !transport_req)
+    if (!key && ui.scr == SCR_STEP && (l & 15u) != was && !song.playing && !transport_req)
         audition_lane(l);                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
 static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
@@ -401,7 +405,7 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_GLO)
         mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
-        op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : ui.row[SCR_FX]);   /* the global FX: its next page */
+        op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : 0u);   /* the global FX: its next page, round */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
         op_jump(JUMP_FAM[b]);
 }
@@ -410,6 +414,13 @@ static void op_tap(uint32_t b, uint32_t id)
  * duck, filter: the one place the master FX rows are defined), as MASTER above T1 on the mixer; the family and row it
  * left are kept. On it, turned right: back to T1 where it was; left: stays (the user, 2026-10-10: "algo to always go
  * to master when it makes sense"). STEP and the screens with no track page do not take it. 1: taken */
+/* SOUND and the FX screen share the bands (header, cards, panel): the step between them, an ALGORITHM detent, is drawn
+ * in place like a track change (op_state.c op_repaint), not through op_enter's clear to black */
+static void fx_algo_inplace(void)
+{
+    ui.force = 0;
+    op_repaint();
+}
 static int fx_algo(int32_t s)
 {
     if (ui.scr == SCR_SOUND && song.sel == 0 && s < 0) {
@@ -417,6 +428,7 @@ static int fx_algo(int32_t s)
         op_enter(SCR_FX);
         ui.m_fam = fam;
         ui.m_row = row;
+        fx_algo_inplace();
         return 1;
     }
     if (ui.scr != SCR_FX)
@@ -430,6 +442,7 @@ static int fx_algo(int32_t s)
         if (row < SCR->rows())
             op_row_pick(row);
         ui.m_fam = SND_ALL;
+        fx_algo_inplace();
     }
     return 1;
 }
@@ -444,8 +457,7 @@ static int op_presets_turn(void)
     if (ui.scr == SCR_STEP && is_drum(TSEL) && !op_armed() && !rh.ring) {   /* STEP on the drum track: the lane (the
                                                          * user, 2026-10-10), stopping at the ends; previewed when stopped */
         uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
-        lane_pick(l);
-        step_cards_show();                              /* (the lane's cards) */
+        lane_pick(l);                                   /* (no overlay: the header names the lane, the user 2026-10-10) */
         if (ui.row[SCR_STEP] >= STP_LANE0)
             ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
@@ -714,8 +726,9 @@ static void ui_draw(void)
         ui.toast_t--;
     if (ui.cards_t)
         ui.cards_t--;
-    if (st.held)
-        step_cards_show();                              /* (a step held: the cards stay up; the timer runs once it is let go) */
+    if (step_held_long())
+        step_cards_show();                              /* (a step held, past the hold time: the cards up while it is held;
+                                                         * the timer runs once it is let go; a tap: none) */
     op_dsnd_tick();                                     /* the drum lanes (user kits, user samples) */
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;

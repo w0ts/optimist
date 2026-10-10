@@ -323,7 +323,7 @@ static void drum_step_tests(void)
     song.playing = 0; frames(2);
     drum_lane = 2; pen_lane = 2; drum_cursor = 0; aud_lanes = 0;
     encs[panel.enc[EN_ALGO]] = 2; frame();
-    check(drum_lane == 4 && pen_lane == 4 && aud_lanes == (1u << 4) && song.sel == TRK_DRUM, "grid ALGORITHM: walks the lanes, heard (stopped)");
+    check(drum_lane == 4 && pen_lane == 4 && aud_lanes == 0 && song.sel == TRK_DRUM, "grid ALGORITHM: walks the lanes, silent even stopped (the user, 2026-10-10)");
     frames(30);
     encs[panel.enc[EN_ALGO]] = -1; frame();
     encs[panel.enc[EN_ALGO]] = -1; frame();

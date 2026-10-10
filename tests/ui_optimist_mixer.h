@@ -128,9 +128,11 @@ static void mixer_sets_tests(void)
     check(mx_set(MXR_T1) == 0u, "... and at the first");
     tap(B_GLO);
     check(ui.scr == SCR_HOME && mx_set(MXR_T1) == 1u, "GLO tapped on the mixer: the next set");
-    for (n = 0; n < mx_sets(MXR_T1); n++)
+    for (n = 0; n < mx_sets(MXR_T1) && mx_set(MXR_T1) != last; n++)
         tap(B_GLO);
-    check(mx_set(MXR_T1) == last, "GLO again and again: it stops at the last set (nothing wraps)");
+    check(mx_set(MXR_T1) == last, "GLO again and again: up to the last set");
+    tap(B_GLO);
+    check(mx_set(MXR_T1) == 0u, "... past the last: the first set again (a button again wraps)");
     op_enter(SCR_SOUND);
     tap(B_GLO);
     check(ui.scr == SCR_HOME, "GLO tapped elsewhere: the mixer");
@@ -225,8 +227,11 @@ static void mixer_rows_tests(void)
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
     y = mx_row_y(MXR_LANE0 + 2u);
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(2)), "the snare lane's row: its own hit");
+    turn(EN_ALGO, 1);                                   /* (the clap row on the screen: the view scrolls to it) */
+    frame();
     y = mx_row_y(MXR_LANE0 + 3u);
-    check(!px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
+    check(y + MXL_SY + MXL_SH <= 240u && !px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
+    turn(EN_ALGO, -1);
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     song.sel = 0;
     reset_ui();
@@ -286,7 +291,7 @@ static void mixer_rows_tests(void)
         reset_ui();
         ui.force = 1;
         frame();
-        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_in(0, OY_CARD + OH_CARD, 240, 2, OP_SURF),
+        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
               "CARDS 2x2: the mixer keeps the 1x4 cards and its four 41 px rows (the other screens go 2x2)");
         ppm("opt-mixer-h-2x2");
         op_cards = CARDS_LINE;

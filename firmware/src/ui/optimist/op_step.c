@@ -14,7 +14,7 @@
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
  *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
- *                         family's next page, stopping at the last
+ *                         family's next page, past the last the first
  *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance)
  *   SEQ held + keys       the pick: the keys play (ly_lock is let go while SEQ is down); a drum key picks the lane
  *                         (lane_sel), a synth's notes become the next steps' (the core's pen: seq.c key_down)
@@ -33,6 +33,7 @@ static struct {
     uint16_t held;                      /* the step keys down (white key w: step 16 page + w) */
     uint16_t pend;                      /* set steps tapped: cleared when let go, unless edited meanwhile */
     uint32_t sess;                      /* the undo session of the step key pressed last */
+    uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
@@ -210,6 +211,8 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         sync_reload = 1;
         return;
     }
+    if (!st.held)
+        st.t_down = fm1_ms;                             /* (the press that may become a hold) */
     st.held |= (uint16_t)bit;
     if (step_has(t, idx)) {
         st.pend |= (uint16_t)bit;                       /* set: cleared when let go, unless edited */
@@ -235,6 +238,10 @@ static void held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
     fm1_irq_on();
     sync_reload = 1;
 }
+/* a step held past the hold time (op_hold_ms, SYSTEM HOLD: what makes it a held step): only then do the cards show
+ * by themselves; a quick tap toggles the step and shows none (the user, 2026-10-10: "in seq, we should show the plock
+ * overlay only after some time"). An edit or a page change while it is held shows them at once (step_cards_show) */
+static int step_held_long(void) { return st.held && fm1_ms - st.t_down >= op_hold_ms(); }
 static int32_t held_first(void)                         /* the first step held (its values on the cards), -1 none */
 {
     uint32_t w;
@@ -357,9 +364,7 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
         if (st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam && i > st.lock_pg && next == LOCK_NONE)
             next = i;
     }
-    if (next == LOCK_NONE && st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam)
-        next = st.lock_pg;                              /* (the last page: stays) */
-    st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);
+    st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);   /* (past the family's last page: its first) */
     hp_sync();
     step_cards_show();                                  /* (a page button: the p-lock page) */
     if (first == LOCK_NONE)
@@ -797,7 +802,7 @@ static int step_knobs(void)                             /* a step held: SELECT i
     return turned;
 }
 static void op_row_pick(uint32_t r);                    /* op_input.c */
-/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, stopping at the last (section 2's
+/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, past the last the first (section 2's
  * paging rule); held alone past HOLD (long), the keys between steps and playing */
 static void step_seq_tap(uint32_t lng)
 {
@@ -807,7 +812,7 @@ static void step_seq_tap(uint32_t lng)
     }
     if (!lng) {
         uint32_t n = step_rows();
-        op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : n ? n - 1u : 0u);
+        op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
     st.play = (uint8_t)!st.play;

@@ -944,7 +944,7 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
             uint32_t m;
-            cv_rect(x, 2, 56, 32, t->bg);
+            cv_box(x, 2, 56, 32, t->bg);
             if (t->top)
                 cv_rect(x, 2, 56, 3, t->top);
             te_text_c(x + 28, 9, t->lab, t->fg);
@@ -988,7 +988,7 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         cv_rect(236 - w, 4, w, 15, C_WHITE);
         cv_text(240 - w, 4, &FONT_S, "LOCK", C_BLACK);
     }
-    cv_rect(0, 38, 240, 1, TE_G1);
+    cv_rect(0, 38, 240, 1, C_LINE);
     cv_blit(0, 0);
 }
 
@@ -1265,7 +1265,7 @@ static void layer_screen_draw(void)
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(tl[i].lab, "mute 1", 8);
             tl[i].lab[5] = (char)('1' + i);
-            tl[i].bg = m ? TE_G2 : trk_col(i);
+            tl[i].bg = m ? TE_G1 : trk_col(i);
             tl[i].fg = m ? TE_G3 : C_BLACK;
             str_cpy(tl[4 + i].lab, "solo 1", 8);
             tl[4 + i].lab[5] = (char)('1' + i);
@@ -1275,7 +1275,7 @@ static void layer_screen_draw(void)
             if (i == 3u && cur_page()->scope == SC_TRK && mix_lane() >= 0) {   /* a lane row: its MUTE and SOLO */
                 uint32_t l = (uint32_t)mix_lane();
                 str_cpy(tl[3].lab, LANE_SHORT[l], 8);
-                tl[3].bg = dlm_muted(l) ? TE_G2 : lane_col(l);
+                tl[3].bg = dlm_muted(l) ? TE_G1 : lane_col(l);
                 tl[3].fg = dlm_muted(l) ? TE_G3 : C_BLACK;
                 str_cpy(tl[7].lab, LANE_SHORT[l], 8);
                 tl[7].bg = dlm_soloed(l) ? C_WHITE : TE_G1;
@@ -1302,7 +1302,7 @@ static void layer_screen_draw(void)
         tl[9].top = fill_arm ? C_WHITE : 0;
 #endif
         fmt_int(tl[15].lab, song.g[G_BPM]);
-        tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;
+        tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G1;
         tl[15].fg = tl[15].bg == C_WHITE ? C_BLACK : C_WHITE;
         str_cpy(tl[14].lab, "tap>", 8);
         tl[14].bg = C_BLACK;
@@ -1370,7 +1370,7 @@ static void layer_screen_draw(void)
             tl[4 + i].fg = sec_armed == s + 1u ? C_BLACK : TE_G4;
         }
         str_cpy(tl[12].lab, arrangement_enabled ? "song" : "loop", 8);
-        tl[12].bg = arrangement_enabled ? C_WHITE : TE_G2;
+        tl[12].bg = arrangement_enabled ? C_WHITE : TE_G1;
         tl[12].fg = arrangement_enabled ? C_BLACK : C_WHITE;
         str_cpy(tl[13].lab, "rec", 8);
         tl[13].bg = srec == 2u ? TE_RED : TE_G1;
@@ -1428,7 +1428,8 @@ static void hold_screen_draw(void)
             int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
             uint16_t c = a <= end ? (ui.hold_kind == 1u ? TE_RED : C_WHITE) : TE_G2;
             for (rr = 30; rr <= 36; rr++)
-                cv_pset(120 + ((si * rr) >> 15), 80 + ((co * rr) >> 15), c);
+                if (a <= end || rr == 33)               /* (the part to come: a thin line on black) */
+                    cv_pset(120 + ((si * rr) >> 15), 80 + ((co * rr) >> 15), c);
         }
     }
     cv_blit(0, 20);

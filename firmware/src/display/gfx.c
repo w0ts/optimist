@@ -31,18 +31,20 @@ static int32_t cv_oy;            /* y offset for graph drawing */
 #define C_WARN COL_ST_WARN           /* a notice: another build, MISSING, EXPERIMENTAL */
 #define C_ERR COL_ST_ERR             /* an error: damaged, full, clipping; recording */
 static const uint16_t C_STATUS[4] = {0, C_OK, C_WARN, C_ERR};
-/* The screen is five steps of one colour, darkest to brightest, plus white.
+/* The screen is five steps of one colour, darkest to brightest, plus white, on black: nothing fills a background
+ * with grey (the user, 2026-10-10: "the grey background is just too bright. use black"). Step 1 draws lines and
+ * outlines only, so it is bright enough to read as a line on black; step 2 (dim text, units) stays legible there.
  * Palettes are picked in the HOME-hold menu (COLOR). */
 typedef struct {
     const char *name;
     uint16_t c[5];
 } palette_t;
 static const palette_t PALETTES[] = {
-    {"GREEN", {RGB(0, 40, 12), RGB(0, 84, 30), RGB(16, 140, 54), RGB(56, 200, 92), RGB(120, 255, 146)}},
-    {"AMBER", {RGB(60, 26, 0), RGB(110, 50, 0), RGB(170, 82, 0), RGB(225, 120, 8), RGB(255, 166, 40)}},
-    {"CYAN", {RGB(0, 30, 50), RGB(0, 62, 96), RGB(16, 112, 160), RGB(56, 172, 222), RGB(140, 222, 255)}},
-    {"RED", {RGB(52, 8, 8), RGB(100, 18, 14), RGB(170, 36, 26), RGB(226, 64, 48), RGB(255, 112, 92)}},
-    {"MONO", {RGB(40, 40, 40), RGB(80, 80, 80), RGB(130, 130, 130), RGB(186, 186, 186), RGB(226, 226, 226)}},
+    {"GREEN", {RGB(0, 58, 18), RGB(0, 104, 38), RGB(16, 150, 58), RGB(56, 200, 92), RGB(120, 255, 146)}},
+    {"AMBER", {RGB(84, 36, 0), RGB(136, 62, 0), RGB(180, 88, 0), RGB(225, 120, 8), RGB(255, 166, 40)}},
+    {"CYAN", {RGB(0, 44, 72), RGB(0, 78, 120), RGB(16, 120, 170), RGB(56, 172, 222), RGB(140, 222, 255)}},
+    {"RED", {RGB(74, 12, 12), RGB(124, 24, 18), RGB(180, 40, 28), RGB(226, 64, 48), RGB(255, 112, 92)}},
+    {"MONO", {RGB(58, 58, 58), RGB(104, 104, 104), RGB(146, 146, 146), RGB(190, 190, 190), RGB(228, 228, 228)}},
 };
 #define NPALETTES (sizeof(PALETTES) / sizeof(PALETTES[0]))
 static uint16_t pal[5];
@@ -106,6 +108,23 @@ static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
     for (; y < y1; y++)
         for (i = x; i < x1; i++)
             cv_px[(uint32_t)y * cv_w + (uint32_t)i] = sc;
+}
+
+static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a 1 px outline */
+{
+    cv_rect(x, y, w, 1, c);
+    cv_rect(x, y + h - 1, w, 1, c);
+    cv_rect(x, y, 1, h, c);
+    cv_rect(x + w - 1, y, 1, h, c);
+}
+/* a tile, a card, a cell: filled in its colour when it has one; black (empty, off) is an outline in C_LINE on the
+ * black ground, never a grey fill */
+static void cv_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
+{
+    if (c == C_BLACK)
+        cv_frame(x, y, w, h, C_LINE);
+    else
+        cv_rect(x, y, w, h, c);
 }
 
 static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)

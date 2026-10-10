@@ -463,7 +463,10 @@ static void fm6k_draw_graph(const int16_t *v, uint32_t y0, int32_t h, int big)
             uint16_t fg = sel ? C_BLACK : (car >> op) & 1u ? COL_ENG_FM6 : TE_G4;
             if (nd[op].row < 0)
                 continue;
-            cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, sel ? C_WHITE : mute ? TE_G1 : TE_G2);
+            if (sel)
+                cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, C_WHITE);
+            else                                        /* outlined on black, brighter when it sounds */
+                cv_frame(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, mute ? C_LINE : TE_G3);
             if (big && (car >> op) & 1u && !sel)         /* a carrier: its box outlined in the engine's colour */
                 cv_rect(px[op] - bw, py[op] + bh - 2, 2 * bw, 2, COL_ENG_FM6);
             cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, mute && !sel ? TE_G3 : fg);
@@ -517,7 +520,10 @@ static void fm6k_draw_info(const int16_t *v, uint32_t y, int keys_only)
         int on = KT[i] == fm6ui.target || (KT[i] == FMT_MONO && (voice == V_MONO || voice == V_LEGATO)) ||
                  (KT[i] == FMT_POLY && voice == V_POLY);
         int32_t x = 12 + (int32_t)i * 21 + (int32_t)GROUP[i] * 5;
-        cv_rect(x, 22, 19, 18, on ? C_WHITE : ui.layer == LY_OPS ? TE_G2 : TE_G1);
+        if (on)
+            cv_rect(x, 22, 19, 18, C_WHITE);
+        else
+            cv_frame(x, 22, 19, 18, ui.layer == LY_OPS ? TE_G3 : C_LINE);
         te_text_c(x + 10, 23, KEYS[i], on ? C_BLACK : TE_G4);
     }
     cv_oy = 0;

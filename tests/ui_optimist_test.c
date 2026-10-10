@@ -32,10 +32,12 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
             screen[(y + j) * 240 + x + i] = p[j * w + i];
 }
 #include "../firmware/src/display/gfx.c"
+static uint32_t full_fills;                             /* the whole screen cleared (ui_optimist_master.h: ALGORITHM in place) */
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
+    full_fills += w == 240u && h == 240u;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = swap16(c);
@@ -462,9 +464,11 @@ static void key_tests(void)
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strncmp(h, "FX MASTER", 9), "its header names it (FX master)");
         n = SCR->rows();
-        for (r = 1; r < n + 2u; r++)
+        for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);
-        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, stopping at the last");
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, up to the last");
+        tap(B_FX);
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
         turn(EN_ALGO, 1);
@@ -521,6 +525,7 @@ static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)  
                 return 1;
     return 0;
 }
+static int px_at(uint32_t x, uint32_t y, uint16_t col) { return screen[y * 240u + x] == swap16(col); }   /* that pixel */
 /* ---- the confirm idiom */
 static void confirm_tests(void)
 {
@@ -729,7 +734,7 @@ static void family_tests(void)
         tap(B_ENV);
     check(ui.row[SCR_SOUND] == n - 1u, "ENV again: the family's next rows, in order");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == n - 1u, "ENV at the family's last row: it stays (nothing wraps)");
+    check(ui.row[SCR_SOUND] == 0u, "ENV at the family's last row: its first again (a button again wraps)");
     turn(EN_SELECT, 50);
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
     mix_to_sound();
@@ -1074,7 +1079,7 @@ static void layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-fx");
-    check(px_in(CARD_X(0), OY_PANEL + 4u, CARD_W, 20, OP_SURF) && 2 + 4 * TILE_H <= LAY_SUB_Y && LAY_SUB_Y + 16 <= OH_BODY,
+    check(px_at(CARD_X(0), OY_PANEL + 12u, C_LINE) && 2 + 4 * TILE_H <= LAY_SUB_Y && LAY_SUB_Y + 16 <= OH_BODY,
           "the 16 tiles drawn within the panel's band (124 rows)");
     kdown(WK(1));
     check(punch.req == 1, "FX + key 2: punch-in effect 2 (seq.c, the ISR)");
@@ -1928,7 +1933,7 @@ static void fm6_tests(void)
     }
     check(px_in(4, OY_PANEL + 4, 232, GRAPH_H - 8, C_WHITE), "the algorithm drawn over the rows, the operator white");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == F6_ROWS - 1u, "ENV again on the last row: it stays (nothing wraps)");
+    check(ui.row[SCR_SOUND] == 0u, "ENV again on the last row: the first again (a button again wraps)");
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
@@ -1939,7 +1944,8 @@ static void fm6_tests(void)
     tap(B_OCTUP);
     check(f6.row == F6_PIT0 + 1u, "OCT+: the next page");
     tap(B_OCTUP);
-    check(f6.row == F6_PIT0 + 1u, "OCT+ on the kind's last page: it stays (nothing wraps)");
+    check(f6.row == F6_PIT0, "OCT+ on the kind's last page: its first again (a button again wraps)");
+    tap(B_OCTUP);
     v = f6_ed()[FV_PL + 1];
     turn(EN_K2, -2);
     check(f6_ed()[FV_PL + 1] != v, "KNOB 2 in the layer: the page's value");
@@ -2073,6 +2079,7 @@ int main(int argc, char **argv)
     cards_tests();
     step_cards_tests();
     master_tests();
+    algo_inplace_tests();
     knobcol_tests();
     hold_tests();
     lane_preview_tests();

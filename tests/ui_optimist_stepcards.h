@@ -5,10 +5,9 @@
  * when they go. Included by ui_optimist_test.c after ui_optimist_cards.h. */
 
 /* two probes that tell the grid from the cards: lane row 2's white strip at x 2 (the cards' band is black there), and
- * x 4, y 30 (a card's surface; the grid has nothing but a lane's strip or black there) */
-static int sc_grid_up(void) { return px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && !px_in(4, 30, 1, 1, OP_SURF); }
-static int sc_cards_up(void) { return !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && px_in(4, 30, 1, 1, OP_SURF) &&
-                                       px_in(4, OY_CARD + 2, 50, 20, OP_SURF); }
+ * the first card's outline (ui_optimist_cards.h card0_up; the grid has no such edge there) */
+static int sc_grid_up(void) { return px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && !card0_up(); }
+static int sc_cards_up(void) { return !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && card0_up(); }
 static uint32_t sc_hash(uint32_t y, uint32_t h)         /* the screen rows y .. y + h, hashed */
 {
     uint32_t i, a = 2166136261u;
@@ -48,15 +47,59 @@ static void step_cards_tests(void)
         tap(B_SEQ);
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
         frames(OP_CARDS_FRAMES + 5u);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "... and they go");
-        /* PRESETS on the drum track: the lane's cards */
-        turn(EN_PRESET, 1);
-        check(ui.cards_t > 0u, "STEP overlay: PRESETS picks the drum lane, the cards show");
-        frames(OP_CARDS_FRAMES + 5u);
-        /* a held step: SELECT pages its cards */
+        check(ui.cards_t == 0u && !card0_up(), "... and they go");
+        /* another drum lane, whichever way: no overlay (the user, 2026-10-10: "and NOT when switching drum lane"; the
+         * header names the lane) */
+        {
+            uint32_t l = lane_selected(), ok;
+            turn(EN_PRESET, 1);
+            frames(2);
+            ok = lane_selected() != l && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: PRESETS picks the drum lane, no overlay");
+            l = lane_selected();
+            press(B_SEQ);
+            kdown(WK(6));
+            kup(WK(6));
+            release(B_SEQ);
+            frames(2);
+            ok = lane_selected() == 6u && l != 6u && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: SEQ + a key picks the drum lane, no overlay");
+            ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + lane_selected());
+            frames(2);
+            turn(EN_SELECT, 1);
+            frames(2);
+            ok = lane_selected() == 7u && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: SELECT on the lane pages picks the next lane, no overlay");
+            ui.row[SCR_STEP] = 0;
+            lane_select(2);
+            frames(2);
+        }
+        /* a quick tap: the step toggled, no overlay at all (the user, 2026-10-10: "in seq, we should show the plock
+         * overlay only after some time") */
+        {
+            uint32_t ok = 1, i;
+            kdown(WK(5));
+            for (i = 0; i < 3u; i++, frame())
+                ok &= (uint32_t)(ui.cards_t == 0u && !card0_up());
+            kup(WK(5));
+            frames(OP_CARDS_FRAMES + 5u);
+            ok &= (uint32_t)(ui.cards_t == 0u && !card0_up());
+            check(ok, "STEP overlay: a step tapped, no overlay, during or after");
+            kdown(WK(5));                               /* (the step back as it was) */
+            kup(WK(5));
+            frames(OP_CARDS_FRAMES + 5u);
+        }
+        /* a held step: the cards once the press is a hold; SELECT pages them */
         kdown(WK(3));
         frames(2);
-        check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held shows the cards");
+        {
+            char h[40];
+            head_title(SCR_STEP, 0, h, sizeof h);
+            check(ui.cards_t == 0u && !card0_up() && !strncmp(h, "STEPS ", 6),
+                  "STEP overlay: a step pressed, before the hold time: no overlay yet, the header still the window's");
+        }
+        frames(HOLD_FRAMES);
+        check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held past the hold time shows the cards");
         frames(2u * OP_CARDS_FRAMES);
         check(ui.cards_t > 0u && sc_cards_up(), "... they stay up the whole time it is held");
         check(px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_HI) || px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_GRAY),
@@ -77,7 +120,7 @@ static void step_cards_tests(void)
         check(sc_hash(OY_CARD, 45) != held_h, "... an edit after the release shows the live cards");
         frames(OP_CARDS_FRAMES + 5u);
         frames(OP_CARDS_FRAMES);
-        check(ui.cards_t == 0u && ui.scr == SCR_STEP && !px_in(4, 30, 1, 1, OP_SURF), "... gone about 2 s after the release, the grid whole");
+        check(ui.cards_t == 0u && ui.scr == SCR_STEP && !card0_up(), "... gone about 2 s after the release, the grid whole");
         /* the screen left: the overlay's timer is dropped, the other screens keep their cards */
         turn(EN_K1, 1);
         op_enter(SCR_SOUND);
@@ -90,11 +133,11 @@ static void step_cards_tests(void)
         song.sel = 0;
         tap(B_SEQ);
         frames(3);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, idle: the roll alone");
+        check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, idle: the roll alone");
         turn(EN_K1, 1);
-        check(ui.cards_t > 0u && px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, a knob turned: the cards");
+        check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, a knob turned: the cards");
         frames(OP_CARDS_FRAMES + 5u);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, gone: the roll whole");
+        check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, gone: the roll whole");
     }
     op_cards = CARDS_LINE;
     reset_ui();

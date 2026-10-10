@@ -116,6 +116,16 @@ static uint32_t msg_status(const char *a)
 #define OP_CARDS_FRAMES 90u           /* STEP's card overlay: the same ~1.5 s, restarted by every page change or edit */
 static uint8_t cards_snap_use;                          /* STEP: the cards show what was held (op_stepdraw.c step_frame) */
 static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES, cards_snap_use = 0; }
+/* another track (ALGORITHM, the mixer's walk): every band drawn again over itself, in place. Not ui.force: that
+ * clears the whole LCD to black first and the bands follow one blit at a time, a black flash on every detent (the
+ * user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"). The layout is the screen's,
+ * the same for every track, so the gaps between the bands stay as they are */
+static void mx_redraw(void);
+static void op_repaint(void)
+{
+    memset(ui.sig, 0, sizeof ui.sig);
+    mx_redraw();
+}
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
