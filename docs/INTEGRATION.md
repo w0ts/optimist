@@ -38,9 +38,8 @@ Every step runs even after one failed, so one run lists everything that is wrong
 FAIL. The gate tests the tree as it is: it says so when there are uncommitted changes, and a gate result belongs
 to the commit it names (`gate: PASSED on <hash>`).
 
-The host tests' BLE build needs the radio's start-up tables, `config/ble/ble_rf_tables.h`: git-ignored, captured
-once from your stock V15 firmware (docs/BLE-STACK.md, section 12). A new worktree has none: copy `config/ble/`
-from a checkout that has it, or set `FM1_STOCK_FWSC`.
+The BLE build's radio start-up tables are committed (`firmware/hal/ble_rf_tables_v15.h`, docs/BLE-STACK.md, section
+12): a new worktree needs nothing. `FM1_STOCK_FWSC` makes a fresh capture from your stock V15 instead (same content).
 
 ## Pushing
 

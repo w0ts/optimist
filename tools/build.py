@@ -605,11 +605,11 @@ def setup_config(path):
 
 
 def ble_rf_tables():
-    """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as the user's own stock V15
-    performs it in the emulator (tools/ble_rf_capture.py; docs/BLE-STACK.md section 12). The repository carries no
-    vendor table. The capture is kept locally, git-ignored, in config/ble/ (it survives a clean of build/): a cache
-    that matches is used as it is; it is made again only when missing, stale, or FM1_STOCK_FWSC names another
-    firmware file. Without the cache the build needs FM1_STOCK_FWSC (and the emulator) and says so"""
+    """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as stock V15 performs it
+    (tools/ble_rf_capture.py; docs/BLE-STACK.md section 12). The tables are committed (firmware/hal/ble_rf_tables_v15.h)
+    and used when there is neither FM1_STOCK_FWSC nor a matching local cache. A local cache (config/ble/, git-ignored,
+    survives a clean of build/) that matches is used as it is; FM1_STOCK_FWSC makes it again when it is missing, stale,
+    or made from another firmware file (the same content)"""
     v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
     if str(v) != "1":
         return
@@ -619,8 +619,10 @@ def ble_rf_tables():
     except cap.CaptureError as e:
         raise SystemExit(f"build: BLE: {e}")
     GEN.mkdir(parents=True, exist_ok=True)
-    for a, b in ((src, GEN / src.name), (src.parent / cap.SIDE / "vm_emu.bin", GEN / cap.SIDE / "vm_emu.bin"),
-                 (src.parent / cap.SIDE / "expected.txt", GEN / cap.SIDE / "expected.txt")):
+    pairs = [(src, GEN / "ble_rf_tables.h")]
+    if src.name == cap.OUT.name:            # (the cache: also the emulator's side outputs, for tests/ble_emu_test.py)
+        pairs += [(src.parent / cap.SIDE / n, GEN / cap.SIDE / n) for n in ("vm_emu.bin", "expected.txt")]
+    for a, b in pairs:
         if not b.is_file() or b.read_bytes() != a.read_bytes():
             b.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(a, b)           # (build/gen: what the compiler and tests/ble_emu_test.py read)
