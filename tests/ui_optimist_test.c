@@ -32,10 +32,12 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
             screen[(y + j) * 240 + x + i] = p[j * w + i];
 }
 #include "../firmware/src/display/gfx.c"
+static uint32_t full_fills;                             /* the whole screen cleared (ui_optimist_master.h: ALGORITHM in place) */
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
+    full_fills += w == 240u && h == 240u;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = swap16(c);
@@ -2074,6 +2076,7 @@ int main(int argc, char **argv)
     cards_tests();
     step_cards_tests();
     master_tests();
+    algo_inplace_tests();
     knobcol_tests();
     hold_tests();
     lane_preview_tests();

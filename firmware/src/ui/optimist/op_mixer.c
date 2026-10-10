@@ -284,7 +284,7 @@ static void mx_apply(uint32_t r)                        /* the cursor on row r: 
     track_select(mx_trk_of(r));
     if (r >= MXR_LANE0)
         lane_pick(r - MXR_LANE0);
-    ui.force = 1;
+    op_repaint();                                       /* (the walk: in place, no clear) */
 }
 static void mx_walk(int32_t d)                          /* ALGORITHM: a row a detent, stopping at the ends */
 {

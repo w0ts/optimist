@@ -225,8 +225,11 @@ static void mixer_rows_tests(void)
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
     y = mx_row_y(MXR_LANE0 + 2u);
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(2)), "the snare lane's row: its own hit");
+    turn(EN_ALGO, 1);                                   /* (the clap row on the screen: the view scrolls to it) */
+    frame();
     y = mx_row_y(MXR_LANE0 + 3u);
-    check(!px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
+    check(y + MXL_SY + MXL_SH <= 240u && !px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
+    turn(EN_ALGO, -1);
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     song.sel = 0;
     reset_ui();

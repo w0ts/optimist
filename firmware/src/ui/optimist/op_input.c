@@ -276,7 +276,7 @@ static void track_select(uint32_t i)
     rec_follow(i);                                      /* recording follows the selected track */
     op_disarm();
     sync_reload = 1;
-    ui.force = 1;
+    op_repaint();                                       /* (in place: no clear, no flash) */
 }
 /* the drum lane l selected (the pick, the mixer's lane rows, STEP's SELECT): SOUND's rows, STEP's header and grid
  * follow. A change previews the sound once on STEP (the clip editor) while the transport is stopped, never while it
@@ -411,6 +411,13 @@ static void op_tap(uint32_t b, uint32_t id)
  * duck, filter: the one place the master FX rows are defined), as MASTER above T1 on the mixer; the family and row it
  * left are kept. On it, turned right: back to T1 where it was; left: stays (the user, 2026-10-10: "algo to always go
  * to master when it makes sense"). STEP and the screens with no track page do not take it. 1: taken */
+/* SOUND and the FX screen share the bands (header, cards, panel): the step between them, an ALGORITHM detent, is drawn
+ * in place like a track change (op_state.c op_repaint), not through op_enter's clear to black */
+static void fx_algo_inplace(void)
+{
+    ui.force = 0;
+    op_repaint();
+}
 static int fx_algo(int32_t s)
 {
     if (ui.scr == SCR_SOUND && song.sel == 0 && s < 0) {
@@ -418,6 +425,7 @@ static int fx_algo(int32_t s)
         op_enter(SCR_FX);
         ui.m_fam = fam;
         ui.m_row = row;
+        fx_algo_inplace();
         return 1;
     }
     if (ui.scr != SCR_FX)
@@ -431,6 +439,7 @@ static int fx_algo(int32_t s)
         if (row < SCR->rows())
             op_row_pick(row);
         ui.m_fam = SND_ALL;
+        fx_algo_inplace();
     }
     return 1;
 }
