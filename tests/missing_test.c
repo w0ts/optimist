@@ -82,9 +82,6 @@ static void settings_save(void) {}
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/miss.c"
 #include "../firmware/src/ui/sloop/ui_draw.c"
-#if FELUCCA_SCOPE
-#include "../firmware/src/ui/sloop/ui_scope.c"
-#endif
 #include "../firmware/src/ui/sloop/ui_overview.c"
 #include "../firmware/src/ui/sloop/ui_layers.c"
 #include "../firmware/src/ui/sloop/ui_menu.c"

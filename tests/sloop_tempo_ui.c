@@ -282,9 +282,6 @@ static void home_tests(void)
     tap(B_HOME); frames(2);
     check(!ui.menu, "a second tap 300 ms+ later: no menu");
     frames(30);
-#if FELUCCA_SCOPE
-    scope_on = 0;
-#endif
 #if FELUCCA_VIS
     vis_on = 0;
 #endif
@@ -334,23 +331,13 @@ static void home_tests(void)
     ui.menu = 0; go_home(); frames(40);
 }
 
+/* the scope screen is gone (the user, 2026-10-09): HOME tapped on TRACKS leaves the TRACKS screen up */
 static void scope_tests(void)
 {
-#if FELUCCA_SCOPE
-    int16_t sw = song.g[G_SWING];
-    go_home(); frames(3);
-    frames(20); tap(B_HOME); frames(3);
-    check(scope_on && scope_shown(), "HOME tapped on TRACKS: the scope screen");
-    ui.force = 1; frame(); ppm("scope");
-    encs[panel.enc[EN_K1]] = 3; frames(2);
-    check(song.g[G_SWING] == sw, "scope: KNOB 1..4 edit nothing");
-    frames(20); tap(B_HOME); frames(3);
-    check(!scope_on && !scope_shown() && cur_page()->scope == SC_TRK, "HOME again: back to TRACKS");
-    frames(20); tap(B_HOME); frames(3);
-    open_family(FAM_ENV); frames(3);
-    check(!scope_shown(), "a page opened: the scope is gone");
-    go_home(); frames(3);
-#endif
+    go_home(); frames(30);
+    tap(B_HOME); frames(3);
+    check(cur_page()->scope == SC_TRK && !ui.menu, "no scope: HOME tapped on TRACKS, the TRACKS screen stays");
+    frames(30);
 }
 
 static void sloop_tempo_tests(void)

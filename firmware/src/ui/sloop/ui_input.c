@@ -693,7 +693,7 @@ static void seq_entry(uint32_t pressed)
 }
 
 /* HOME, three gestures (the user's ruling, 2026-10-09; no 700 ms hold any more):
- *   short tap   released before HOLD_MS (core/hold.h): BT_TAP, on the release (go home; on TRACKS the scope); no waiting
+ *   short tap   released before HOLD_MS (core/hold.h): BT_TAP, on the release (go home; on TRACKS the dial page flips); no waiting
  *   double tap  a second press within HOME_DOUBLE_MS of the first release: BT_DOUBLE, on that press: opens the SYSTEM
  *               menu (closes it when it is open). The first tap has already acted. The second release does nothing
  *   held        past HOLD_MS HOME is SHIFT (home_shift). Let go with nothing else pressed it does nothing: BT_SHIFTUP,
@@ -1238,13 +1238,6 @@ static void ui_input(void)
             vis_on = 0;                                 /* (HOME again: back to the TRACKS screen) */
             go_home();
         }
-#elif FELUCCA_SCOPE
-        if (cur_page()->scope == SC_TRK && !scope_on) {
-            scope_open();                               /* HOME on TRACKS: the scope screen (ui_scope.c) */
-        } else {
-            scope_on = 0;                               /* (HOME again: back to the TRACKS screen) */
-            go_home();
-        }
 #else
         go_home();
 #endif
@@ -1313,11 +1306,6 @@ static void ui_input(void)
         for (k = 0; k < 4u; k++)
             panel_enc(EN_K1 + k);
     }
-#endif
-#if FELUCCA_SCOPE
-    if (scope_shown() && !rec_wait && !ft_on)           /* the scope: KNOB 1..4 (the TRACKS screen's, out of sight) do nothing */
-        for (k = 0; k < 4u; k++)
-            panel_enc(EN_K1 + k);
 #endif
 #if FELUCCA_SEL_PAGES
     if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || ft_on || !page_walk(s)))   /* SELECT: the pages of the family */
