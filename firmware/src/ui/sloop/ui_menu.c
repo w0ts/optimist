@@ -229,6 +229,21 @@ static void mdev_bars(int32_t x, int32_t y, uint32_t n)
 /* the status line cut at its end to the room: a device's name in it goes first, then the words */
 static void mdev_fit(char *st)
 {
+    uint32_t i, n = str_len(st);
+    if (text_w(&FONT_S, st) > MDEV_LINE_W)          /* (too long: the " (TRY n/6)" counter goes before any cut) */
+        for (i = 0; i + 8u < n; i++)
+            if (st[i] == ' ' && st[i + 1u] == '(' && st[i + 2u] == 'T' && st[i + 3u] == 'R' && st[i + 4u] == 'Y' && st[i + 5u] == ' ') {
+                uint32_t e = i + 6u;
+                while (st[e] && st[e] != ')')
+                    e++;
+                if (st[e] == ')') {
+                    uint32_t j = i;
+                    for (e++; st[e]; e++)
+                        st[j++] = st[e];
+                    st[j] = 0;
+                }
+                break;
+            }
     while (st[0] && text_w(&FONT_S, st) > MDEV_LINE_W)
         st[str_len(st) - 1u] = 0;
 }
@@ -322,8 +337,11 @@ static void devices_input(uint32_t ok)
             mdev_cur = 0;
         } else if (mdev_key_ok && mdev_cur == mdev_key_row)
             ble_dev_pick_key(&mdev_key);           /* (the row the user saw: that device, not that place) */
-        else
-            ble_dev_pick(mdev_cur);
+        else {                                     /* (the cursor moved since the draw: the key of this row, now) */
+            struct ble_dev_key k;
+            ble_dev_key_of(mdev_cur, &k);
+            ble_dev_pick_key(&k);
+        }
         mdev_forget_ms = 0;
     }
     enc_drop();

@@ -235,7 +235,10 @@ static void ble_devices_review_tests(void)
           ble_dev_line_name_at() == 21u, "review: the TRY line: the name starts at 21");
     snprintf(st, sizeof st, "%s", "CONNECTING (TRY 2/6) Roland Aerophone");
     mdev_fit(st);
-    check(text_w(&FONT_S, st) <= MDEV_LINE_W && !strncmp(st, "CONNECTING (TRY 2/6) R", 22), "review: ... and a long name is cut to the 232 px");
+    check(text_w(&FONT_S, st) <= MDEV_LINE_W && !strncmp(st, "CONNECTING Roland Aero", 22), "review: ... and a long line drops the (TRY n/6) first, then is cut to the 232 px");
+    snprintf(st, sizeof st, "%s", "CONNECTING (TRY 2/6) Retry Keys");
+    mdev_fit(st);
+    check(text_w(&FONT_S, st) <= MDEV_LINE_W && !strcmp(st, "CONNECTING Retry Keys"), "review: \"CONNECTING (TRY 2/6) Retry Keys\" loses the (TRY 2/6), not its last letters");
     for (i = 3; i <= 6u; i++) {
         cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
         ble_devices_poll();
@@ -303,6 +306,29 @@ static void ble_devices_review_tests(void)
     }
     tap(B_OCTUP); frames(2);
     check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x03, "review: a device aging out above the cursor: OCT+ connects to the highlighted one (Bravo)");
+    {                                                /* a nearby device that has become LAST is still there, not GONE */
+        int last;
+        uint8_t near[BLE_SCAN_N];
+        uint32_t nn, row;
+        struct ble_dev_key k;
+        const struct ble_found *e;
+        ble_dev_rows(&last, near, &nn);
+        row = 2u;                                    /* NONE, Bravo, Charlie */
+        ble_dev_key_of(row, &k);
+        e = &ble_found.e[near[row - 1u]];
+        check(k.kind == 2u && k.addr[0] == 0x05 && e->used, "review: the key of the third row is Charlie (nearby)");
+        memcpy(ble_store.dev.addr, e->addr, 6);
+        ble_store.dev.info = (uint8_t)(BLE_DEV_USED | BLE_DEV_CENTRAL | (e->addr_rand ? BLE_DEV_RANDOM : 0u));
+        ble_dev_rows(&last, near, &nn);
+        check(last >= 0 && ble_dev_key_row(&k) == last, "review: Charlie became LAST: its nearby key finds the LAST row");
+        ble_dev_msg = 0;
+        ble_dev_pick_key(&k);
+        check(!ble_dev_message() || strcmp(ble_dev_message(), "DEVICE GONE") != 0, "review: ... and YES on it does not say DEVICE GONE");
+        ble_dev_msg = 0;
+        ble_dev_pick(nn + 3u);
+        check(ble_dev_message() && !strcmp(ble_dev_message(), "DEVICE GONE"), "review: a row past the end (the list shrank): DEVICE GONE, not silence");
+        ble_store_reset(&ble_store);
+    }
     ble_connect_none();
     menu_close();
     ble_store_reset(&ble_store);
