@@ -118,6 +118,13 @@ src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)
 src/ui/optimist/op_mixdraw.c:mx_steps:np | guarded "if (np > 1u)"
 src/ui/optimist/op_input.c:step_leds:len | TLEN
 src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
+src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "else if (n && n <= shown)": n >= 1
+src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[rate % 6]: TABLE DIV_DEN {1,2,4,8,3,6}, so >= 4
+src/ui/optimist/op_graph.c:graph_arp:(hi+1) | hi = 12 * (oct - 1) + 7 with oct clamped 1..4: hi >= 7
+src/ui/optimist/op_graph.c:graph_arp:hi | hi >= 7 (as above)
+src/ui/optimist/op_graph.c:graph_arp:cyc | cyc = len > 1 ? 2 * len - 2 : 1: >= 1
+src/ui/optimist/op_graph.c:graph_arp:len | len = 3 * oct with oct clamped 1..4: >= 3
+src/ui/optimist/op_graph.c:graph_steps:rows | rows = len > 32 ? 2 : 1
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
