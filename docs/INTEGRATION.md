@@ -41,6 +41,13 @@ to the commit it names (`gate: PASSED on <hash>`).
 The BLE build's radio start-up tables are committed (`firmware/hal/ble_rf_tables_v15.h`, docs/BLE-STACK.md, section
 12): a new worktree needs nothing. `FM1_STOCK_FWSC` makes a fresh capture from your stock V15 instead (same content).
 
+In a linked worktree the builder and the tests read the config/profiles of the MAIN checkout (`tools/shared.py`),
+not the worktree's own. A branch that changes a profile must therefore be gated with `OPTIMIST_LOCAL_PROFILES=1`
+exported for every step, or the gate measures and tests the old profile. The test order matters too: a plain
+`tests/run_tests.sh` skips the BLE emulator tests, while `python tools/optimist.py test` builds their packages first.
+After `optimist.py test`, rebuild user-default before running `emu-check`, because `build/` then holds another
+build.
+
 ## Pushing
 
 - Only the integrator pushes, and only `optimist` (and the integration branch, when someone else must see it),
