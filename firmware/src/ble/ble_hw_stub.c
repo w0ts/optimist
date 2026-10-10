@@ -35,3 +35,9 @@ BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
     while (n--)
         *out++ = 0;
 }
+#if BLE_CENTRAL
+BLE_API void ble_hw_scan_start(const struct ble_hw_scan *s) { (void)s; }
+BLE_API void ble_hw_scan_stop(void) {}
+BLE_API void ble_hw_init_start(const struct ble_hw_init *i) { (void)i; }
+BLE_API void ble_hw_init_stop(void) {}
+#endif

@@ -38,8 +38,8 @@ static void op_row_pick(uint32_t r)
 }
 static void op_enter(uint32_t scr)
 {
-    if (ui.scr == SCR_SYSTEM && scr != SCR_SYSTEM)
-        sys_leave();
+    if (scr != SCR_SYSTEM && (ui.scr == SCR_SYSTEM || (tp.on && tp.prev == SCR_SYSTEM)))
+        sys_leave();                                    /* (the TEMPO page over SYSTEM: ui.scr is SCR_TEMPO, its list too) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
@@ -188,6 +188,12 @@ static void op_no(void)
         op_disarm();                                    /* cancel */
         return;
     }
+#if FELUCCA_BLE
+    if (dev_listing()) {                                /* the BLE devices: back to SYSTEM's BLUETOOTH row (op_project.c) */
+        dev_close();
+        return;
+    }
+#endif
     if (ui.scr == SCR_STEP && st.held) {                /* a step held, HOME tapped: the step cleared */
         held_clear();
         return;

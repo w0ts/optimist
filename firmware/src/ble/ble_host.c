@@ -20,21 +20,54 @@ static struct {
     uint8_t sig_id, fast;                      /* our last signalling identifier; 0 / 1 asked / 2 retried / 3 done */
 } bhs;
 
+/* the advertised name and the GAP Device Name: BLE_DEVICE_NAME, then " XXXX" = the last four hex digits of the device
+ * address (its two least significant octets, as an address is written: "FM-1 A1B2" for ..:A1:B2; docs/
+ * BLE-DEVICES-DESIGN.md §3.4) */
+#define BLE_GAP_NAME_MAX 29u
+static struct {
+    char s[BLE_GAP_NAME_MAX];
+    uint8_t n;
+} bgap;
+
+static void gap_name(const uint8_t addr[6])
+{
+    static const char base[] = BLE_DEVICE_NAME, HEX[] = "0123456789ABCDEF";
+    uint32_t n = sizeof base - 1u;
+    if (n > BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u))
+        n = BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u);
+    ble_cpy((uint8_t *)bgap.s, (const uint8_t *)base, n);
+#if BLE_NAME_HEX
+    bgap.s[n++] = ' ';
+    bgap.s[n++] = HEX[addr[1] >> 4];
+    bgap.s[n++] = HEX[addr[1] & 15u];
+    bgap.s[n++] = HEX[addr[0] >> 4];
+    bgap.s[n++] = HEX[addr[0] & 15u];
+#else
+    (void)addr, (void)HEX;
+#endif
+    bgap.n = (uint8_t)n;
+}
+
+BLE_API uint8_t ble_gap_name(const uint8_t **p)
+{
+    *p = (const uint8_t *)bgap.s;
+    return bgap.n;
+}
+
 BLE_API void ble_init(const uint8_t addr[6], uint8_t addr_random)
 {
-    static const char name[] = BLE_DEVICE_NAME;
-    uint8_t ad[3 + 18], sr[31], n = (uint8_t)(sizeof name - 1u);
+    uint8_t ad[3 + 18], sr[31], n;
     ad[0] = 2;                                 /* flags: LE General Discoverable, BR/EDR not supported */
     ad[1] = 0x01;
     ad[2] = 0x06;
     ad[3] = 17;                                /* complete list of 128-bit service UUIDs: BLE-MIDI */
     ad[4] = 0x07;
     ble_cpy(ad + 5, BLE_UUID_MIDI_SVC, 16);
-    if (n > 29u)
-        n = 29u;
+    gap_name(addr);
+    n = bgap.n;
     sr[0] = (uint8_t)(n + 1u);
-    sr[1] = n == sizeof name - 1u ? 0x09 : 0x08;   /* complete (or shortened) local name */
-    ble_cpy(sr + 2, (const uint8_t *)name, n);
+    sr[1] = 0x09;                              /* complete local name */
+    ble_cpy(sr + 2, (const uint8_t *)bgap.s, n);
     ble_ll_init(addr, addr_random);
     ble_ll_set_adv_data(ad, sizeof ad, sr, (uint8_t)(n + 2u));
     ble_att_reset();
@@ -51,6 +84,9 @@ BLE_API void ble_host_connected(void)
     bhs.fast = 0;
     ble_att_reset();
     ble_smp_connected();
+#if BLE_CENTRAL
+    ble_central_connected();                   /* (as master: the GATT client, the bond's encryption) */
+#endif
     ble_app_state();
 }
 
@@ -60,6 +96,9 @@ BLE_API void ble_host_disconnected(uint8_t reason)
     bhs.have = bhs.need = bhs.skip = 0;
     ble_att_reset();
     ble_smp_reset();
+#if BLE_CENTRAL
+    ble_central_disconnected(reason);
+#endif
     ble_app_state();
 }
 
@@ -90,6 +129,10 @@ static void sig_conn_params(uint16_t lo, uint16_t hi)
 BLE_API void ble_sig_want_fast(void)
 {
     uint16_t iv = ble_ll_interval();
+#if BLE_CENTRAL
+    if (ble_ll_central())
+        return;                                /* (as master the interval is ours: BLE_CENTRAL_INTERVAL) */
+#endif
     if (bhs.fast || !iv)
         return;
     bhs.fast = 3;
@@ -122,6 +165,15 @@ static void sig_rx(const uint8_t *p, uint16_t n)
         return;
     case 0x07: case 0x15: case 0x16: case 0x18: case 0x1A:   /* responses and indications: nothing to do */
         return;
+#if BLE_CENTRAL
+    case 0x12:                                 /* Connection Parameter Update Request: ours to answer as master */
+        if (ble_ll_central()) {
+            d[0] = ble_central_sig(p + 4, (uint16_t)(n - 4u));   /* the result: 0 accepted, 1 rejected */
+            sig_send(0x13, id, d, 2);
+        } else
+            sig_send(0x01, id, d, 2);
+        return;
+#endif
     default:                                   /* anything else: Command Reject, "command not understood" */
         sig_send(0x01, id, d, 2);
         return;
@@ -171,7 +223,13 @@ BLE_API void ble_host_rx(const uint8_t *p, uint8_t len, uint8_t start)
     }
 }
 
-BLE_API void ble_host_event(void) { ble_att_event(); }
+BLE_API void ble_host_event(void)
+{
+#if BLE_CENTRAL
+    ble_central_event();                       /* (as master: the GATT client's and SMP's timeouts) */
+#endif
+    ble_att_event();
+}
 
 #if BLE_LL_ENC
 /* one key slot: the bond SMP made (ble_smp.c), or the one the firmware kept across a power-off (ble_host_set_key at

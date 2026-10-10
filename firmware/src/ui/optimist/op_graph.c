@@ -317,14 +317,28 @@ static const felucca_font_t *font_big(void)
 }
 /* the question in the large font: one line, "Clear DR?", its target in its colour, when it fits; else the verb
  * ("Save?") over its target ("Project 1", in the small font when even that is too wide); sentence case as drawn */
+static void modal_words(char *v, char *a, char *q)      /* the verb, its target and the one-line question as drawn */
+{
+    op_case(v, ui.arm_verb, sizeof ui.arm_verb);
+    if (ui.arm_raw) {                                   /* a device's name: as advertised, only the verb is cased */
+        uint32_t n;
+        str_cpy(a, ui.arm_arg, sizeof ui.arm_arg);
+        str_cpy(q, v, sizeof ui.arm_q);
+        n = str_len(q);
+        q[n - 1u] = ' ';                                /* ("Forget? " + name + "?") */
+        str_cpy(q + n, a, sizeof ui.arm_q - n);
+        str_cpy(q + str_len(q), "?", sizeof ui.arm_q - str_len(q));
+    } else {
+        op_case(a, ui.arm_arg, sizeof ui.arm_arg);
+        op_case(q, ui.arm_q, sizeof ui.arm_q);
+    }
+}
 static void draw_modal(void)
 {
     char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
     const felucca_font_t *fl = font_big(), *ft;
     uint16_t fr = ui.arm_danger ? C_ERR : C_WARN, tc = target_col(ui.arm_arg);
-    op_case(v, ui.arm_verb, sizeof v);
-    op_case(a, ui.arm_arg, sizeof a);
-    op_case(q, ui.arm_q, sizeof q);
+    modal_words(v, a, q);
     ft = text_w(fl, a) <= MODAL_W ? fl : &FONT_S;
     cv_begin(240, MODAL_H, C_BLACK);
     cv_rect(8, 1, 224, MODAL_H - 2, fr);               /* the frame: red destroys, amber the rest */

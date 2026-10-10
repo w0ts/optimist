@@ -31,6 +31,59 @@ BLE_API void ble_app_state(void);
 /* a central bonded: its key (Rand, EDIV, LTK least significant octet first) to keep across power-offs and give back
  * with ble_host_set_key (ble_host.h) after ble_init. BLE interrupts' context: copy it and save it later */
 BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]);
+/* the bonded peer's identity (SMP Identity Information + Identity Address Information): its IRK and identity address
+ * (least significant octet first; addr_rand 1 random static, 0 public). BLE interrupts' context: copy it */
+BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand);
+#endif
+
+#if BLE_CENTRAL
+/* ---- connecting out as central (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md P3 / P4; ble_central.c) */
+struct ble_peer {
+    uint8_t addr[6], addr_rand;          /* its AdvA as heard now (least significant octet first; an RPA stays one) */
+    uint8_t bonded;                      /* ltk / rand / ediv are its bond: the link is encrypted with them */
+    uint8_t sec;                         /* BLE_PEER_*: what is known of its security */
+    uint8_t ltk[16], rand[8];
+    uint16_t ediv;
+};
+#define BLE_PEER_AUTH 1u                 /* the bond is authenticated (a passkey pairing: MITM protection) */
+#define BLE_PEER_MITM 2u                 /* it needs an authenticated link: a pairing goes straight to the passkey */
+/* the keys a pairing as initiator took from the peripheral (Core Vol 3 Part H 3.6) */
+#define BLE_KEYS_LTK 1u                  /* ltk / rand / ediv: the bond (Encryption Information, Master Identification) */
+#define BLE_KEYS_ID 2u                   /* irk / id / id_rand: its identity (Identity Information + Address) */
+#define BLE_KEYS_AUTH 4u                 /* the pairing was authenticated (passkey entry): the LTK has MITM protection */
+struct ble_keys {
+    uint8_t has;                         /* BLE_KEYS_* */
+    uint8_t ltk[16], rand[8];
+    uint16_t ediv;
+    uint8_t irk[16], id[6], id_rand;
+};
+enum { BLE_CS_IDLE, BLE_CS_CONNECTING, BLE_CS_SETUP, BLE_CS_READY };   /* ble_central_state */
+enum { BLE_CF_NONE, BLE_CF_LOST, BLE_CF_NO_MIDI, BLE_CF_PAIRING, BLE_CF_AUTH, BLE_CF_GATT,
+       BLE_CF_NEED_MITM, BLE_CF_KEY };   /* ble_central_fail; NEED_MITM: it needs a passkey and refused the pairing
+                              * with MITM on the link (Just Works refused before): connect again with BLE_PEER_MITM,
+                              * without the unauthenticated bond; KEY: it left while our encryption with p's bond was
+                              * starting (MIC Failure 0x3D, Key Missing 0x06: the bond is no good to it) */
+/* initiate to p (advertising or scanning stop: one link) -> 1 started, 0 not now (off, or a link is up). From there:
+ * connected as master, the BLE-MIDI characteristic found and subscribed (pairing or encrypting with p's bond when the
+ * peripheral asks, or wants it), MIDI both ways: BLE_CS_READY. Called like ble_enable (the BLE interrupts held) */
+BLE_API int ble_central_connect(const struct ble_peer *p);
+BLE_API void ble_central_cancel(void);   /* stop initiating, or leave our central link (a peripheral link stays) */
+BLE_API uint8_t ble_central_state(void);
+BLE_API uint8_t ble_central_fail(void);  /* why the last connection out ended before / after READY (BLE_CF_*) */
+BLE_API uint8_t ble_central_code(void);  /* ... its code: the LL reason, the ATT error or the SMP reason */
+BLE_API int ble_central_pairing(void);   /* 1: a pairing of ours runs on the link */
+BLE_API int ble_central_prompted(void);  /* 1: a pairing of ours started on the last attempt's link (a phone asked its
+                                          * user): the firmware does not make that link again by itself */
+BLE_API int ble_central_mitm(void);      /* 1: the last attempt's peer needs an authenticated link (a passkey) */
+/* the passkey to show while a passkey pairing waits for the peer's user (Core Vol 3 Part H 2.3.5.3: we display, the
+ * phone's user types it), 0..999999; BLE_NO_PASSKEY when there is none */
+#define BLE_NO_PASSKEY 0xFFFFFFFFu
+BLE_API uint32_t ble_central_passkey(void);
+/* 1: addr is a resolvable private address made from irk (ah, Core Vol 3 Part H 2.2.2; least significant first) */
+BLE_API int ble_rpa_resolve(const uint8_t irk[16], const uint8_t addr[6]);
+/* the firmware implements: a pairing as initiator ended with these keys of the peripheral (BLE interrupts' context:
+ * copy them) */
+BLE_API void ble_app_central_keys(const struct ble_keys *k);
 #endif
 
 #endif

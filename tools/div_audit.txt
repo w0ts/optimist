@@ -131,6 +131,7 @@ src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
 src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
+src/ui/optimist/op_project.c:dev_paint:bdp.n | drawn only when bdp.n > bdp.shown (the scroll bar), so bdp.n >= 1; ble_dev_rows is at least 1 (NONE)
 src/ui/optimist/op_preset.c:pre_draw:total | guarded by the loop's condition "i < 3u && total"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
@@ -220,3 +221,6 @@ src/fx/fx.c:__attribute__:((r*r)>>15) | room_long: r = 32768 - c with PARAM G_RD
 src/fx/fx.c:__attribute__:((2u*q+32768u+(room_isqrt((4u*q+32768u)<<9)<<3))>>8) | room_long: >= 32768 >> 8 = 128 (every term non-negative; q <= 15.4 x 2^15, no wrap)
 src/seq/seq.c:trk_len:(len) | TLEN: the TRK_IDX macro (both definitions; the scanner names the function before it): every use passes trk_len(t), a local copy of it, or what pat_switch returns (its len argument or trk_len(t)); rec_hit, rec_note, seq_tick, micro_units, motion, macro_ui, pat_switch
 src/ble/ble_prim.c:ble_csa1_next:m->n | CSA #1 remapping: returned before the divide when m->n is 0 (`!m->n`); a valid map has n >= 2 (ble_chmap_set), the link layer refuses any other
+src/ble/ble_hw_wl82_central.c:hw_scan_backoff:drv.bo_upper | the active-scan backoff's upperLimit: 1 at every scan start (hw_scan_backoff_reset), doubled only below 256, halved only when above 1 (else 1): always 1..256
+src/ble/ble_scan.c:ble_scan_bars:(hi-lo) | returned before the divide when hi == lo (3 bars); hi is the largest metric and lo the smallest of the same list, so otherwise hi > lo
+src/ble/ble_ll_central.c:llc_cind:(iv-iv/2u) | iv is BLE_CENTRAL_INTERVAL, a build constant of 6..3200 (ble_cfg.h checks it; 9 by default): iv - iv / 2 >= 3
