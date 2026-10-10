@@ -26,6 +26,9 @@ static struct {
     char msg[30];                     /* (29 characters: the header's width) */
     /* the grammar */
     uint8_t scr;                      /* the screen shown (SCR_*) */
+    uint8_t master;                   /* MASTER selected in a layer (op_layers.c): a UI state, song.sel stays T1; on SOUND
+                                       * it is the FX screen (SCR_FX), which m_fam / m_row lead back from */
+    uint8_t m_fam, m_row;             /* the SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
     uint8_t row[SCR_N];               /* each screen's cursor row */
     uint8_t hot;                      /* the hot cell of the cursor row: the one PRESETS and YES act on */
     uint8_t hot_lit;                  /* drawn white: a knob or PRESETS touched it since the row was picked */
@@ -45,7 +48,7 @@ static struct {
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
     uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
-} ui = {.page = 0, .arm_scr = ARM_NONE};
+} ui = {.page = 0, .arm_scr = ARM_NONE, .m_fam = 0xFFu};
 
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
  * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held

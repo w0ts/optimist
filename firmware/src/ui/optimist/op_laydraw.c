@@ -36,6 +36,12 @@ static void lay_cell(uint32_t k, cell_t *c)
     int16_t *vp;
     const param_desc_t *d = lay_desc(l, k, &vp);
     cell_clear(c);
+    if (ui.master && d && lay_master_ok(l)) {                               /* MASTER: the master FX's four values, in any layer */
+        static const char *const LABM[4] = {"FILTER", "DUST", "DUCK", "COMP"};
+        cell_param(c, d, vp);
+        c->label = LABM[k & 3u];
+        return;
+    }
     if (l == LY_OPS) {
         fm6_lay_cell(k, c);                             /* the FM6 page's four values (op_fm6.c) */
         return;
@@ -303,20 +309,21 @@ static void tempo_draw(int32_t h)
     char b[16];
     const char *u;
     uint32_t i, beat = song.playing ? clk_beat % 4u : 9u;
-    int32_t x, short_ = h < 58;                         /* (CARDS 2x2: 40 rows, no clock line; SYNC is a card) */
+    int32_t x, short_ = h < 58, dy = h > 58 ? (h - 58) / 2 : 0, bs = h >= 100 ? 28 : 16;   /* (CARDS 2x2: 40 rows, no clock
+                                                         * line; SYNC is a card; taller: the same, in the middle, the beat larger) */
     fmt_int(b, song.g[G_BPM]);
-    x = cv_text(8, 6, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
-    cv_text(x + 6, 20, &FONT_S, "BPM", C_GRAY);
+    x = cv_text(8, 6 + dy, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
+    cv_text(x + 6, 20 + dy, &FONT_S, "BPM", C_GRAY);
     for (i = 0; i < 4u; i++)                            /* the beat */
-        cv_rect(150 + (int32_t)i * 22, 8, 16, 16, i == beat ? (i ? C_WHITE : C_OK) : C_LINE);
+        cv_rect(150 + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_LINE);
     if (clk_nudge)
-        cv_text(150, short_ ? 25 : 32, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
+        cv_text(150, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;
     param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);   /* the clock followed: "A:USB" */
-    cv_text(8, 40, &FONT_S, b, C_GRAY);
-    cv_rect(80, 42, 16, 8, sy.src ? C_OK : C_LINE);     /* RX: an external clock heard */
-    cv_text(100, 40, &FONT_S, "RX", sy.src ? C_OK : C_DIM);
+    cv_text(8, 40 + dy + bs - 16, &FONT_S, b, C_GRAY);
+    cv_rect(80, 42 + dy + bs - 16, 16, 8, sy.src ? C_OK : C_LINE);     /* RX: an external clock heard */
+    cv_text(100, 40 + dy + bs - 16, &FONT_S, "RX", sy.src ? C_OK : C_DIM);
 }
 
 /* ---- the PATTERNS row's panel: the 4 x 16 session grid (PATTERNS-DESIGN 6.2), h rows from the panel's top */

@@ -47,11 +47,11 @@ static void cards_tests(void)
     reset_ui();
     song.sel = 0;
     frame();
-    check(op_cards == CARDS_LINE && ROWS_SHOWN == 8u && GRAPH_H == 58 && OP_PY == OY_PANEL,
+    check(op_cards == CARDS_LINE && ROWS_SHOWN == 8u && GRAPH_MIN == 58 && OP_PY == OY_PANEL,
           "CARDS: four in a line by default, the panel at 76, 8 rows, the graph 58");
     op_enter(SCR_SOUND);                                /* (the mixer keeps 1x4: another screen) */
     op_cards = CARDS_2X2;
-    check(ROWS_SHOWN == 5u && GRAPH_H == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
+    check(ROWS_SHOWN == 5u && GRAPH_MIN == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
           4 * TILE_H + 2 + 16 <= OP_PH && SG_INFO_Y + SG_INFO_DY + 13 <= OP_PH && MODAL_H == OP_PH,
           "CARDS 2x2: the band 93, the panel 117: 5 rows, graph 40, STEP, tiles, scope and modal inside");
     op_cards = CARDS_LINE;

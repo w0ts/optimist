@@ -238,11 +238,7 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (!mx_item(r, k, &m))
         return;
     if (m.kind == MI_SOUND) {
-        if (fine && s != OP_RESET && r < MXR_LANE0) {
-            op_preset_step(s);                          /* PRESETS browses the row's sounds (its track is selected) */
-            pre_toast();
-        }
-        return;
+        return;                                         /* (the names are read-outs; PRESETS is op_input.c's) */
     }
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)

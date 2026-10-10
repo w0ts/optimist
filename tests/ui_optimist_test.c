@@ -431,7 +431,7 @@ static void key_tests(void)
             turn(EN_SELECT, -1);                        /* (back by SELECT: the button stops at the family's last row) */
         ui.hot = 0;
         turn(EN_PRESET, 2);
-        check(TSEL->p[P_ATK] == a + 2 && TSEL->preset == p2, "ENV row: PRESETS the hot cell (ATK +2), the sound stays");
+        check(TSEL->p[P_ATK] == a && TSEL->preset != p2, "ENV row: PRESETS the sound (the next preset), ATK stays (2026-10-10)");
         fm1_in.buttons |= BT(B_HOME);
         turn(EN_K1, 1);
         fm1_in.buttons &= ~BT(B_HOME);
@@ -992,8 +992,8 @@ static void step_synth_tests(void)
 #endif
 #if FELUCCA_CHANCE
     turn(EN_PRESET, -4);
-    check(step_chance_ev(t, 3) == 80u && step_chance(&t->step[3]) == 100u,
-          "a step held + PRESETS: its chance (80 %), an event of the automation store (the step's bits untouched)");
+    check(step_chance_ev(t, 3) == 100u && step_chance(&t->step[3]) == 100u,
+          "a step held + PRESETS: no chance edit any more (2026-10-10: PRESETS is the sound only)");
 #endif
 #if FELUCCA_FILLS
     tap(B_SAVE);
@@ -1003,7 +1003,9 @@ static void step_synth_tests(void)
     frame();
     ppm("opt-step-extras");
     kup(WK(3));
+#if FELUCCA_MICRO || FELUCCA_FILLS
     check(step_on(&t->step[3]), "edited: kept when let go");
+#endif
 #endif
 #if FELUCCA_PLOCK
     kdown(WK(3));
@@ -1090,7 +1092,7 @@ static void layer_tests(void)
         check(song.g[G_FILT] < f && song.g[G_DUST] > d, "FX held: KNOB 1 FILTER, KNOB 2 DUST");
         d = song.g[G_DUST];
         turn(EN_PRESET, 1);
-        check(song.g[G_DUST] == d + 1, "FX held: PRESETS the hot knob (DUST) one unit");
+        check(song.g[G_DUST] == d, "FX held: PRESETS no longer edits the hot knob (DUST)");
     }
     release(B_FX);
     frames(2);
@@ -1517,11 +1519,11 @@ static void song_tests(void)
         tap(B_HOME);
         ui.hot = 0;
         for (r = 0; r < 20u; r++)
-            turn(EN_PRESET, -1);                        /* (down to "--": none) */
+            turn(EN_K1, -1);                            /* (down to "--": none; KNOB 1, PRESETS is the sound only) */
         {
             cell_t cc;
             song_cell(c, 0, &cc);
-            check(sg.ed_s == 2 && cc.col == C_WARN, "PRESETS on its T1 cell: the reference edited (amber until written)");
+            check(sg.ed_s == 2 && cc.col == C_WARN, "KNOB 1 on its T1 cell: the reference edited (amber until written)");
         }
         frames(60);
         check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] == PAT_NONE, "... written once it rests: T1 none");
@@ -1791,7 +1793,7 @@ static void auto_step_tests(void)
     {
         char h[40], k[40];
         step_foot(h, k, sizeof h);
-        check(step_chance_ev(t, 2) == 70u && strstr(h, "Chance 70%") != 0, "drums: a step held + PRESETS: its chance (70 %), an event");
+        check(step_chance_ev(t, 2) == 100u && strstr(h, "Chance 100%") != 0, "drums: a step held + PRESETS: no chance edit any more, the chance stays 100 %");
     }
     kup(WK(2));
     track_defaults_steps(t);
@@ -2022,6 +2024,7 @@ static void preset_engine_tests(void)
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
+#include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
@@ -2073,6 +2076,7 @@ int main(int argc, char **argv)
     preset_engine_tests();
     len_tests();
     cards_tests();
+    master_tests();
     knobcol_tests();
     hold_tests();
     lane_preview_tests();
