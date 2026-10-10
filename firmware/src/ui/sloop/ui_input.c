@@ -698,8 +698,8 @@ static void seq_entry(uint32_t pressed)
  *               menu (closes it when it is open). The first tap has already acted. The second release does nothing
  *   held        past HOLD_MS HOME is SHIFT (home_shift). Let go with nothing else pressed it does nothing: BT_SHIFTUP,
  *               which only a held layer button takes (the layer locks, as with a tap)
- * home_shift is the one place shifted functions hook into: HOME held, then a button / knob. Today it has none (HOME then
- * SAVE is redo: undo_chord, a pair of its own). t0 = press time | 1, bit 1 = swallowed (a chord, the second tap, a
+ * home_shift is the one place shifted functions hook into: HOME held, then a button / knob. Today: PLAY opens the TEMPO
+ * page (ui_tempo.c tempo_frame; no transport). HOME then SAVE is redo (undo_chord, a pair of its own). t0 = press time | 1, bit 1 = swallowed (a chord, the second tap, a
  * shift): its release is no tap. ui.home_t0 is non-zero while HOME is down (menu_input waits for it). */
 #define HOME_DOUBLE_MS 300u
 enum { BT_NONE, BT_TAP, BT_DOUBLE, BT_SHIFTUP };

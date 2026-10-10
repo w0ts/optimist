@@ -1,31 +1,46 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SLOOP UI stream "tempo", included by ui_pages_test.c after hold_ui.c:
- *   the TEMPO page (ui_tempo.c): PLAY held opens it, a tap still plays / stops (on its release), OCT- / OCT+ nudge
+ *   the TEMPO page (ui_tempo.c): HOME shift + PLAY opens it (no transport), SELECT is the BPM alone (never the page),
+ *   PLAY alone plays / stops on the press, OCT- / OCT+ nudge
  *   undo / redo on SAVE + HOME (besides EDIT + OCT-), neither doing its own work
  *   the layer knob gate (knob_gate.h): one detent of jitter neither uses the layer nor takes the tap, two net do */
 static void oct_press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void sel_turn(int32_t n) { encs[panel.enc[EN_SELECT]] = n; frame(); }
+/* HOME held past HOLD_MS (shift), then PLAY pressed; *tr: transport_req right after the PLAY press. Both let go */
+static void tempo_shift(uint32_t *tr)
+{
+    press(B_HOME); frames(40);
+    transport_req = 0;
+    press(B_PLAY);
+    if (tr)
+        *tr = transport_req;
+    release(B_PLAY); frames(2);
+    release(B_HOME); frames(2);
+}
 static void play_taps_tests(void)
 {
     int16_t oct = song.octave, bpm, sw, sync;
+    uint32_t tr = 9, was;
     song.playing = 0; transport_req = 0; go_home(); frames(3);
     /* PLAY acts on the press, instantly, as ever */
     press(B_PLAY);
     check(transport_req == 1u && !tp.on, "PLAY pressed: play at once (no wait for the release), no page");
     frames(30);
     release(B_PLAY);
-    check(!tp.on && song.playing, "PLAY held a second: nothing opens (the page is SELECT's)");
+    check(!tp.on && song.playing, "PLAY held a second: nothing opens");
     tap(B_PLAY); frames(3);
     check(!song.playing, "PLAY again: stop");
-    /* SELECT opens it */
+    /* SELECT: the BPM only, never the page */
     bpm = song.g[G_BPM];
-    if (FELUCCA_BPM_LOCK) {                             /* (SELECT is the tempo only with GLO held: no page) */
-        sel_turn(2);
-        check(!tp.on && song.g[G_BPM] == bpm, "BPM LOCK: SELECT on TRACKS: locked, no TEMPO page");
-        return;
-    }
     sel_turn(2);
-    check(tp.on && song.g[G_BPM] > bpm, "SELECT on TRACKS: the BPM changes and the TEMPO page shows");
+    check(!tp.on && (FELUCCA_BPM_LOCK ? song.g[G_BPM] == bpm : song.g[G_BPM] > bpm),
+          "SELECT on TRACKS: the BPM changes (BPM LOCK: locked), no TEMPO page");
+    frames(30);
+    /* HOME shift + PLAY opens it, the transport untouched */
+    was = song.playing;
+    tempo_shift(&tr);
+    check(tp.on && tr == 0u && song.playing == was, "HOME held + PLAY: the TEMPO page, no PLAY / STOP");
+    check(tp.on && !ui.menu && cur_page()->scope == SC_TRK, "... HOME let go: the page stays (no tap, no menu)");
     ui.force = 1; frame(); ppm("tempo-page");
     /* KNOB 1..4 */
     bpm = song.g[G_BPM]; sw = song.g[G_SWING];
@@ -60,35 +75,37 @@ static void play_taps_tests(void)
     oct_press(B_OCTUP); release(B_OCTUP);
     frames(150);
     check(tp.on, "an OCT press restarts the time");
+    if (!FELUCCA_BPM_LOCK) {                            /* (BPM LOCK: SELECT sets nothing, so it keeps nothing up) */
+        sel_turn(1);
+        frames(150);
+        check(tp.on, "a SELECT turn keeps it up too");
+    }
     frames(60);
     check(!tp.on && clk_nudge == 0, "3 s after the last activity: the page closes");
     frames(2);
     check(!tp.shown, "... and the screen is the one before");
     /* another button closes it, and still acts */
-    sel_turn(1);
-    check(tp.on, "SELECT again: the page");
+    tempo_shift(0);
+    check(tp.on, "HOME shift + PLAY again: the page");
+    transport_req = 0;
     press(B_PLAY);
-    check(!tp.on && transport_req == 1u, "PLAY pressed with the page up: it closes, and PLAY plays");
+    check(!tp.on && transport_req == 1u, "PLAY pressed with the page up (HOME up): it closes, and PLAY plays");
     release(B_PLAY); frames(3); tap(B_PLAY); frames(3);
-    sel_turn(1);
+    tempo_shift(0);
     press(B_EDIT);
-    check(!tp.on && ui.layer == LY_ERASE || !tp.on, "EDIT pressed: the page closes");
+    check(!tp.on, "EDIT pressed: the page closes");
     release(B_EDIT); frames(2);
     go_home(); frames(2);
-    sel_turn(1);
+    tempo_shift(0);
     tap(B_ENV); frames(2);
     check(!tp.on && cur_fam() == FAM_ENV, "ENV tapped with the page up: it closes and the ENV pages open");
     go_home(); frames(2);
     /* a key does not close it */
-    sel_turn(1);
+    tempo_shift(0);
     key(4);
     check(tp.on, "a key played: the page stays");
     frames(200);
-    /* a layer held: SELECT is the layer's tempo, no page */
-    press(B_FX); frames(3);
-    sel_turn(1);
-    check(!tp.on, "FX held + SELECT: the tempo as ever, no page");
-    release(B_FX); frames(20);
+    check(!tp.on, "(timed out)");
     /* pages where SELECT pages: unchanged */
     open_family(FAM_ENV); frames(2);
     sel_turn(1);
@@ -96,17 +113,16 @@ static void play_taps_tests(void)
     go_home(); frames(2);
     /* BPM stays within the range */
     song.g[G_BPM] = 90; song.octave = oct;
+    song.playing = 0; transport_req = 0;
 }
 
 /* the drum track with the TEMPO page up: OCT- / OCT+ held only nudge, a key plays a plain hit (seq.c key_lvl's
  * ghost / hard is off: dyn_off); with the page closed they are ghost / hard again */
 static void drum_oct_tests(void)
 {
-    if (FELUCCA_BPM_LOCK)
-        return;                                         /* (no page from SELECT alone) */
     song.sel = TRK_DRUM; song.playing = 0; transport_req = 0; go_home(); frames(3);
-    sel_turn(1);
-    check(tp.on, "drums: SELECT opens the TEMPO page");
+    tempo_shift(0);
+    check(tp.on, "drums: HOME shift + PLAY opens the TEMPO page");
     oct_press(B_OCTDN);
     check(clk_nudge == -10 && key_lvl() == LV_NORM, "drums, page up, OCT- held: the nudge only, a key hits plain (no ghost)");
     release(B_OCTDN);
