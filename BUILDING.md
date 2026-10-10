@@ -467,6 +467,48 @@ cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended ch
 the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`
 does the same for the cost files.
 
+### The emulator checks
+
+```
+make emu-check                            # every check on build/felucca.fwsc (the last build)
+make emu-check ONLY=fx,persist            # some of them (python3 tests/emu/run.py --list)
+make emu-check PKG=../other/build/felucca.fwsc   # another build (its ELF beside it)
+python tools/optimist.py emu-check [FIRMWARE] [--only C] [--mhz N]   # the same without make
+```
+
+Opt-in, not part of `test` or CI: they need Rust (`cargo`) and the emulator (the one `make emu` uses, or
+`EMU_DIR`, `FM1_EMU`, `EMU_REPO` naming a local checkout). `tests/emu/drv` is a small driver on the emulator's
+library, built once into `build/emu-drv/`; `tests/emu/session.py` keeps it running, so a check plays the panel
+(keys, knobs, held layers), records the audio, reads the firmware's own state through the ELF's symbols and
+reads or seeds the serial NOR. The checks play SLOOP's UI (`FELUCCA_UI 0`, user-default); a build of the
+Optimist UI runs `boot`, `upfm6` (without its preset save) and `timing` only.
+
+| check | what | |
+|---|---|---|
+| `boot` | a clean boot: no crash record, the boot guard cleared after 30 s, 172.3 audio halves a second, no late half, the screen, a note | 10 |
+| `patterns` | pattern launches at the end, the bar and now, two tracks, a live scene, the song chain (played once, the loop back after), CLEAR; every step played against its pattern, the audio onsets against the hits | 33 |
+| `fx` | COMP in a slot heard (transparent at 0, ordered), the FX bypass, a slot swap, COMP in no slot, the drum bus's COMP and a sound's COMP insert; a snapshot and the autosave over a power cycle bring all of it back, the same samples | 31 |
+| `persist` | patterns, scenes (with their FX), the song chain and the working copy over a power cycle; PROJECT > SAVE / LOAD; the song played from the flash | 19 |
+| `scenefx` | F1: a scene stored from the SAVE layer (stopped, and playing) keeps its FX, in the log at its own id; over a power cycle | 9 |
+| `upfm6` | UP_FM6's voices moved off the SDK VM to 0x95000 (a seeded old copy at 0xE7000), a preset save to copy B, a power cycle; 0xE7000..0xE9FFF byte-identical to the seed throughout | 10 |
+| `timing` | `tests/emu_boot_check.py` at 48, 96 and 192 MHz | 3 |
+
+The last column: the PASS lines on user-default (2026-10-10). Each check works in `build/emu-check/<check>/`
+(its copy of the package, its flash state, the WAVs, the screens); the whole run takes about 7.5 minutes
+(115 checks). A capture
+of a held note starts on an audio half boundary, so the same setting gives the same samples and the checks
+compare them exactly (the synthesized drum sounds have noise of their own: `fx` uses sound 6, a sample). Exit 1
+on any FAIL. `scenefx` fails on the builds before ac354af (the FX record at id 88, none at 105) and `upfm6` on
+those before 716bf52 (OBJ_UPFM6 at 0xE7000 / 0xE8000, the SDK VM written).
+
+### The gate
+
+`make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) is what the integrator runs before a push
+(docs/INTEGRATION.md): the builder costs check, every published profile built, `CONFIG=file` and
+`SET="KEY=V ..."` builds if given, the host tests, then user-default built again last so `build/` holds its
+package and ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even
+after a failed one. About 15 minutes (the host tests most of it).
+
 ## Install
 
 The web installer (Chrome or Edge) is on the project's GitHub Pages site once that is enabled (see
