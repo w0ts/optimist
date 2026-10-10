@@ -113,7 +113,8 @@ static uint32_t msg_status(const char *a)
  * of an action the user just confirmed (op_input.c op_yes sets toast_next around it) */
 #define OP_TOAST_FRAMES 90u           /* ~1.5 s */
 #define OP_CARDS_FRAMES 90u           /* STEP's card overlay: the same ~1.5 s, restarted by every page change or edit */
-static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES; }
+static uint8_t cards_snap_use;                          /* STEP: the cards show what was held (op_stepdraw.c step_frame) */
+static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES, cards_snap_use = 0; }
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;

@@ -9,6 +9,13 @@
 static int sc_grid_up(void) { return px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && !px_in(4, 30, 1, 1, OP_SURF); }
 static int sc_cards_up(void) { return !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && px_in(4, 30, 1, 1, OP_SURF) &&
                                        px_in(4, OY_CARD + 2, 50, 20, OP_SURF); }
+static uint32_t sc_hash(uint32_t y, uint32_t h)         /* the screen rows y .. y + h, hashed */
+{
+    uint32_t i, a = 2166136261u;
+    for (i = y * 240u; i < (y + h) * 240u; i++)
+        a = (a ^ screen[i]) * 16777619u;
+    return a;
+}
 static void sc_open_drums(void)
 {
     reset_ui();
@@ -19,7 +26,7 @@ static void sc_open_drums(void)
 }
 static void step_cards_tests(void)
 {
-    uint32_t m;
+    uint32_t m, held_h = 0, held_i = 0;
     for (m = 0; m < CARDS_N; m++) {
         op_cards = (uint8_t)m;
         sc_open_drums();
@@ -35,6 +42,8 @@ static void step_cards_tests(void)
         check(ui.cards_t > 0u, "... another edit restarts the timer");
         frames(15);
         check(ui.cards_t == 0u && sc_grid_up(), "... after the timeout the grid is drawn whole again");
+        check(px_in(2, SP_Y + SG_LY(15), 6, SG_LY(16) - SG_LY(15) - 1, lane_col(15)) && px_in(0, SP_Y + SG_LY(15), 240, 1, C_BLACK) &&
+              SP_Y + SG_PH_Y + 4 == 240 && SG_LY(16) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip at y 236)");
         /* a page change: SEQ tapped to the next STEP page */
         tap(B_SEQ);
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
@@ -50,11 +59,23 @@ static void step_cards_tests(void)
         check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held shows the cards");
         frames(2u * OP_CARDS_FRAMES);
         check(ui.cards_t > 0u && sc_cards_up(), "... they stay up the whole time it is held");
+        check(px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_HI) || px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_GRAY),
+              "... with the held step's two lines over the grid's foot");
+        held_h = sc_hash(OY_CARD, 45);
         turn(EN_SELECT, 1);
-        check(ui.cards_t > 0u, "STEP overlay: SELECT pages the held step's cards, shown");
+        frames(2);
+        check(ui.cards_t > 0u && (hp_count() < 2u || sc_hash(OY_CARD, 45) != held_h), "STEP overlay: SELECT pages the held step's cards, shown");
+        held_h = sc_hash(OY_CARD, 45);
+        held_i = sc_hash(SP_Y + SG_INFO_Y, SG_INFO_H);
         kup(WK(3));
         frames(OP_CARDS_FRAMES / 2u);
         check(ui.cards_t > 0u, "... after the release they wait the idle time");
+        check(sc_hash(OY_CARD, 45) == held_h && sc_hash(SP_Y + SG_INFO_Y, SG_INFO_H) == held_i,
+              "... still the page and the lines that were held, not the PATTERN row's");
+        turn(EN_K1, 1);
+        frames(2);
+        check(sc_hash(OY_CARD, 45) != held_h, "... an edit after the release shows the live cards");
+        frames(OP_CARDS_FRAMES + 5u);
         frames(OP_CARDS_FRAMES);
         check(ui.cards_t == 0u && ui.scr == SCR_STEP && !px_in(4, 30, 1, 1, OP_SURF), "... gone about 2 s after the release, the grid whole");
         /* the screen left: the overlay's timer is dropped, the other screens keep their cards */

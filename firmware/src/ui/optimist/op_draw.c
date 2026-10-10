@@ -276,10 +276,15 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
 }
 static void draw_cards(void)
 {
+    static cell_t snap[4];                              /* the cells last drawn (STEP: what a step let go still shows) */
     cell_t c[4];
     uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
-        SCR->cell(ui.row[ui.scr], k, &c[k]);
+        if (cards_snap_use)
+            c[k] = snap[k];
+        else
+            SCR->cell(ui.row[ui.scr], k, &c[k]);
+        snap[k] = c[k];
         sig = hc(sig, &c[k]);
     }
     if (sig == ui.sig[1])

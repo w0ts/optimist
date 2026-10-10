@@ -14,12 +14,14 @@
 #define SG_TOP 1
 #define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
 #define SP_H (240 - SP_Y)
-#define SG_LH 10                        /* a lane's row (its cell SG_LH - 1) */
-#define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
+#define SG_H 204                        /* the 16 lanes' rows; the roll's height: the panel less the marks and the playhead */
+#define SG_LY(l) (SG_TOP + (int32_t)(l) * SG_H / 16)   /* lane l's row: 12 or 13 px, the remainder spread out */
+#define SG_LH (SG_H / 16)               /* (the least a row is) */
 #define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
-#define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel */
+#define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel's last 4 rows */
+#define SG_INFO_H 38                    /* a held step's two lines: part of the overlay, over the grid's foot */
 #define SG_INFO_DY 18                   /* the two lines' pitch */
-#define SG_INFO_Y (SG_PH_Y + 7)        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
+#define SG_INFO_Y (SG_MK_Y - 2 - SG_INFO_H)
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
@@ -51,20 +53,20 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
 static void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
-    cv_rect(0, SG_TOP + (int32_t)sel * SG_LH - 1, 240, SG_LH + 1, C_LINE);   /* the selected lane's row */
+    cv_rect(0, SG_LY(sel) - 1, 240, SG_LY(sel + 1u) - SG_LY(sel) + 1, C_LINE);   /* the selected lane's row */
     sg_ground(t);
     for (l = 0; l < DRUM_LANES; l++) {
-        int32_t y = SG_TOP + (int32_t)l * SG_LH;
+        int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
         uint16_t c = lane_col(l);
-        cv_rect(2, y, l == sel ? 10 : 6, SG_LH - 1, l == sel ? C_WHITE : c);
+        cv_rect(2, y, l == sel ? 10 : 6, lh - 1, l == sel ? C_WHITE : c);
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
             int32_t x = SG_X + (int32_t)w * SG_CW;
             if (idx >= len || !dstep_has(d, l))
                 continue;
-            cv_rect(x, y, SG_CW - 2, SG_LH - 1, lvl_col(c, dstep_lvl(d, l)));
-            sg_notches(x, y, SG_LH - 1, dstep_rat(d, l));
+            cv_rect(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
+            sg_notches(x, y, lh - 1, dstep_rat(d, l));
         }
     }
 }
@@ -96,7 +98,7 @@ static void sg_roll(const track_t *t)
     uint16_t c = trk_col(song.sel);
     roll_range(t, &lo, &hi);
     rh = SG_H / (hi - lo + 1);
-    rh = rh > 8 ? 8 : rh;
+    rh = rh > 16 ? 16 : rh;
     sg_ground(t);
 #define NY(nt) (SG_TOP + (hi - (nt)) * rh)
     for (n = lo; n <= hi; n++)                          /* the Cs, faint */
@@ -180,7 +182,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         h = hu(h, pen_n ? pen_note[0] : last_note);
     return hu(h, settings.palette);
 }
-/* a held step's two lines under the grid, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
+/* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
  * the footer's before there was none); empty when no step is held */
 static char sg_info[2][32];
 static void step_info(void)
@@ -198,15 +200,12 @@ static void sg_paint(void)
 #if FELUCCA_AUTO
     sg_marks(TSEL);
 #endif
-    cv_text(4, SG_INFO_Y, &FONT_S, sg_info[0], C_HI);
-    cv_text(4, SG_INFO_Y + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
 }
 static void draw_step_panel(void)
 {
     const track_t *t = TSEL;
     uint32_t sig, len = trk_len(t), at = t->seq_idx % len, key;
-    step_info();
-    sig = hs(hs(step_sig(), sg_info[0]), sg_info[1]);
+    sig = step_sig();
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
         cv_tall(SP_Y, SP_H, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
@@ -223,19 +222,44 @@ static void draw_step_panel(void)
         cv_rect(key == 16u ? 0 : 236, 0, 4, 4, C_DIM);  /* outside the window (FOLLOW off): which side */
     cv_blit(0, SP_Y + SG_PH_Y);
 }
-/* STEP's frame: the grid on the whole panel, the four cards over its top while ui.cards_t runs (a page change, a value
- * edited: step_cards_show); when they go the grid is drawn again whole, and a grid drawn again under them brings them back */
+/* STEP's frame: the grid on the whole panel, the four cards over its top and a held step's two lines over its foot
+ * while ui.cards_t runs (a page change, a value edited, a step held: step_cards_show); when they go the grid is drawn
+ * again whole, and a grid drawn again under them brings them back. A step let go: the cards and the lines go on
+ * showing the page that was held until the timer ends (cards_snap_use, op_draw.c draw_cards) */
 static void step_frame(void)
 {
-    static uint8_t on;
-    uint32_t want = ui.cards_t != 0u, under;
-    if (!want && on)
+    static uint8_t on, info, was_held;
+    static uint32_t isig;
+    static char snap[2][32];
+    uint32_t want = ui.cards_t != 0u, under, inf;
+    if (was_held && !st.held && want)
+        cards_snap_use = 1;
+    was_held = (uint8_t)(st.held != 0u);
+    step_info();
+    if (sg_info[0][0])
+        memcpy(snap, sg_info, sizeof snap);
+    else if (cards_snap_use)
+        memcpy(sg_info, snap, sizeof sg_info);
+    inf = want && sg_info[0][0];
+    if ((!want && on) || (!inf && info))
         ui.sig[2] = 0;
     under = ui.sig[2];
     draw_step_panel();
     if (want && (!on || ui.sig[2] != under))
         ui.sig[1] = 0;
+    if (ui.sig[2] != under || !inf)
+        isig = 0;
     on = (uint8_t)want;
+    info = (uint8_t)inf;
     if (want)
         draw_cards();
+    if (inf && hs(hs(1u, sg_info[0]), sg_info[1]) != isig) {
+        isig = hs(hs(1u, sg_info[0]), sg_info[1]);
+        cv_begin(240, SG_INFO_H, C_BLACK);
+        cv_text(4, 2, &FONT_S, sg_info[0], C_HI);
+        cv_text(4, 2 + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
+        cv_blit(0, SP_Y + SG_INFO_Y);
+        if (ui.toast_t)
+            ui.sig[4] = 0;                              /* (a toast over it is drawn again) */
+    }
 }
