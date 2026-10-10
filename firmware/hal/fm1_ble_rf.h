@@ -3,9 +3,9 @@
  * init runs first (docs/BLE-HW-FACTS.md §5.2, §16; branch feat/ble-facts d907ce3, "HW §n" below). Included by
  * hal/fm1_ble.h in a BLE build with the real driver.
  *
- * The long constant parts (§16.1 groups 2-6, 8-13: about 34,000 register words on a second boot) are not in this
- * repository. tools/ble_rf_capture.py observes the user's own stock V15 doing them in the emulator and writes
- * build/gen/ble_rf_tables.h (git-ignored): a small program this file runs, in boot-2 order:
+ * The long constant parts (§16.1 groups 2-6, 8-13: about 34,000 register words on a second boot) are a small program
+ * in ble_rf_tables_v15.h, captured by tools/ble_rf_capture.py from the stock V15 firmware in the emulator and committed
+ * (tools/build.py puts it, or a fresh capture, at build/gen/ble_rf_tables.h). This file runs it, in boot-2 order:
  *
  *   register write           §16.1 groups 2, 3, 5, 6, 8, 9, 12 (0x11900-0x11964, 0x14040-0x1405C, the MAC window);
  *                            bit 14 of 0x11900 kept as found (§16.2: a periodic routine's bit, not a trim)
@@ -42,10 +42,10 @@
 #include "fm1_cc.h"
 #include "fm1_irq.h"
 #include "fm1_time.h"
-#include "ble_rf_tables.h"   /* build/gen: tools/ble_rf_capture.py (tools/build.py runs it or says how) */
+#include "ble_rf_tables.h"   /* build/gen: tools/build.py copies firmware/hal/ble_rf_tables_v15.h or a fresh capture there */
 
 #if !defined(BLE_RF_TABLES_FORMAT) || BLE_RF_TABLES_FORMAT != 2
-#error "build/gen/ble_rf_tables.h is from another tools/ble_rf_capture.py: run it again"
+#error "build/gen/ble_rf_tables.h is from another tools/ble_rf_capture.py: capture it again or update ble_rf_tables_v15.h"
 #endif
 
 #define FM1_RF_REG(a)     (*(volatile uint32_t *)(uintptr_t)(a))

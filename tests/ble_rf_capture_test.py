@@ -271,12 +271,16 @@ def cache_tests():
         saved = {k: os.environ.pop(k, None) for k in ("FM1_STOCK_FWSC",)}
         try:
             if not (C.ROOT / "firmwares" / "FM-1.fwsc").is_file():
+                check("a stale cache and no stock firmware: the committed tables are used",
+                      C.ensure(cache, say=lambda *_: None) == C.COMMITTED)
+                bad = Path(d) / "bad.h"
+                bad.write_text("#define BLE_RF_TABLES_FORMAT 0\n")
                 try:
-                    C.ensure(cache, say=lambda *_: None)
-                    check("a stale cache and no stock firmware: the error says how to provide it", False)
+                    C.ensure(cache, say=lambda *_: None, committed=bad)
+                    check("... and without a usable committed copy the error says how to capture (FM1_STOCK_FWSC)", False)
                 except C.CaptureError as e:
-                    check("a stale cache and no stock firmware: the error says how to provide it (FM1_STOCK_FWSC)",
-                          "FM1_STOCK_FWSC" in str(e) and "config/ble" in str(e), e)
+                    check("... and without a usable committed copy the error says how to capture (FM1_STOCK_FWSC)",
+                          "FM1_STOCK_FWSC" in str(e), e)
                 (cache / C.OUT.name).write_text(hdr)
                 check("ensure() on a matching cache captures nothing and returns its header",
                       C.ensure(cache, say=lambda *_: None) == cache / C.OUT.name)
@@ -286,11 +290,41 @@ def cache_tests():
                     os.environ[k] = v
 
 
+def strip_comment(text):
+    """the file without its leading comment (the only part a regeneration may word differently)"""
+    import re
+    return re.sub(r"\A\s*/\*.*?\*/\s*", "", text, count=1, flags=re.S)
+
+
+def committed_tests():
+    """firmware/hal/ble_rf_tables_v15.h: tracked, the tool's format and pinned hash, the short comment, and (when the V15
+    file and the emulator are there) identical to a fresh capture apart from the comment"""
+    import os
+    check("the committed tables are this tool's format and the pinned ones", C.committed_reason() is None,
+          C.committed_reason())
+    text = C.COMMITTED.read_text()
+    check("... with the one-line provenance comment and no GENERATED / do-not-commit wording",
+          text.startswith("/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md). */\n")
+          and "GENERATED" not in text and "do not commit" not in text)
+    try:
+        stock = C.find_stock(os.environ.get("FM1_STOCK_FWSC") or str(Path.home() / "GitHub" / "fm1-firmware" / "FM-1.fwsc"))
+        diag = C.find_diagnose(None)
+    except C.CaptureError as e:
+        print(f"SKIP a fresh capture equals the committed tables: {e}")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d) / "fresh.h"
+        C.capture(stock, diag, out, Path(d) / "keep")
+        check("a fresh capture from stock V15 equals the committed tables (comment ignored)",
+              strip_comment(out.read_text()) == strip_comment(text))
+
+
 check("the modules under test are this repository's tools/", Path(C.__file__).parent == TOOLS and
       Path(ble_vm.__file__).parent == TOOLS)
 vm_tests()
 capture_tests()
 input_tests()
 cache_tests()
+committed_tests()
 print("BLE RF CAPTURE: all passed" if not fails else f"BLE RF CAPTURE: {fails} FAILED")
 sys.exit(1 if fails else 0)
