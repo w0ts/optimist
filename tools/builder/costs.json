@@ -1132,14 +1132,6 @@
     "ramtext": 0
    }
   },
-  "VIS": {
-   "1": {
-    "flash": 9664,
-    "ram": 3952,
-    "pool": 13696,
-    "ramtext": 112
-   }
-  },
   "BIGVALS": {
    "0": {
     "flash": -688,

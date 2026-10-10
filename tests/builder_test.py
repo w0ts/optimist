@@ -43,6 +43,21 @@ try:
 except C.ConfigError:
     refused = True
 check("... a .config naming it is refused", refused)
+# the dropped visualiser (registry.py RETIRED): a .config that still names VIS loads, says "dropped", builds as VIS = 0
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nVIS=1\nICONS=0\n")
+_h, _ = C.flags(_cfg)
+check("a .config naming the dropped VIS loads, warns \"dropped\" and keeps its other keys",
+      "VIS" not in _cfg and "VIS" not in R.ITEMS and "dropped" in _w.getvalue() and "VIS" in _w.getvalue() and
+      _cfg["ICONS"] == 0)
+check("... and builds as FELUCCA_VIS 0 (the header has no such switch on)", not _h.get("FELUCCA_VIS", 0))
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _c2, _ = C.parse("VIS=1\n", strict=False)
+    _a = argparse.Namespace(config=None, profile=None, set=["VIS=1"], name=None, ble_drop=None)
+    _c3, _ = C.resolve_cli(_a)[:2]
+check("... also non-strict and as --set VIS=1: a warning, no error", _w.getvalue().count("warning:") == 2 and "VIS" not in _c3)
 ported = [it for it in items.values() if it.provenance]
 check(f"ported items ({len(ported)}) carry project, author and licence",
       all(it.provenance.project and it.provenance.author and it.provenance.licence for it in ported))
