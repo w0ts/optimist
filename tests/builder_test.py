@@ -83,6 +83,15 @@ bad = dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0)
 check("no drum source: an error", any("drum source" in e for e in C.validate(bad)[0]))
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
 check("FM6 without editor and SysEx: a warning (preset-only)", any("preset-only" in x for x in C.validate(w)[1]))
+check("DRUM_STEP is on by default (the user-default build has the drum steps on the keys), the store's switches stay off",
+      C.defaults()["DRUM_STEP"] == 1 and not any(C.defaults().get(k) for k in ("MICRO", "FILLS", "PLOCK", "CHANCE", "MOTION", "SL24_XSTEP")))
+sx = dict(C.defaults(), MICRO=1, FILLS=1, PLOCK=1, CHANCE=1, MOTION=1)
+check("the store's switches need SL24_XSTEP: the validation says why (the CLI prints it, it used to exit 1 silently)",
+      any("SL24_XSTEP" in e for e in C.validate(sx)[0]) and not C.validate(dict(sx, SL24_XSTEP=1))[0])
+_err = io.StringIO()
+with contextlib.redirect_stderr(_err):
+    _r = C.build(sx, "x", echo=True)
+check("build() of that invalid configuration builds nothing and says why on stderr", not _r[0] and "SL24_XSTEP" in _err.getvalue())
 if "MOTION" in items:
     check("motion recording with 4, 8 or 16 sections: valid (its data in the section records)",
           all(not C.validate(dict(C.defaults(), MOTION=1, SECTIONS=s))[0] for s in (4, 8, 16)))

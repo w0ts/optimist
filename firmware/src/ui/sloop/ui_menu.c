@@ -17,7 +17,7 @@
 #define FELUCCA_BLE 0                              /* (a host test without the BLE code) */
 #endif
 enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_HOLD, MI_OUT, MI_IN, MI_SYNC, MI_CLK,
-       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT,
+       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT, MI_KCOL,
 #if FELUCCA_BLE
        MI_BLE,                                     /* BLUETOOTH: with the radio built in (FELUCCA_BLE) */
 #endif
@@ -27,6 +27,7 @@ static const char *const MI_NAME[MI_COUNT] = {
     [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_HOLD] = "HOLD", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
     [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT",
+    [MI_KCOL] = "KNOB COLORS",
 #if FELUCCA_BLE
     [MI_BLE] = "BLUETOOTH",
 #endif
@@ -49,7 +50,7 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CLOCK, MI_CLK)}},
     {MS_SYSTEM, {MI_IF(FELUCCA_MIDI_CH, MI_CH1), MI_IF(FELUCCA_MIDI_CH, MI_CH2), MI_IF(FELUCCA_MIDI_CH, MI_CH3),
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
-    {MS_SYSTEM, {MI_HOLD, MI_NONE, MI_NONE, MI_NONE}},
+    {MS_SYSTEM, {MI_HOLD, MI_KCOL, MI_NONE, MI_NONE}},   /* (KNOB COLORS: core/knobcol.h) */
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 #if FELUCCA_BLE
     {MS_SYSTEM, {MI_BLE, MI_NONE, MI_NONE, MI_NONE}},      /* (the last screen: the radio, ON by default) */
@@ -138,6 +139,7 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
 #else
         return settings.lowcut ? "ON" : "OFF";
 #endif
+    case MI_KCOL: return knob_colors ? "ON" : "OFF";
     case MI_HOLD:                                     /* ms: 250 / 350 / 500 */
         v[0] = (char)('0' + HOLD_MS / 100u);
         v[1] = (char)('0' + HOLD_MS / 10u % 10u);
@@ -204,7 +206,7 @@ static void draw_menu(void)
             sig = sig * 31u + (uint8_t)*p;
         sig = sig * 31u + vcol[i];
     }
-    sig += settings.palette * 1009u + hold_sel * 7919u;
+    sig += settings.palette * 1009u + hold_sel * 7919u + knob_colors * 104729u;
 #if FELUCCA_CDC
     sig += (usb_serial != usb_cdc_on) * 86028121u;
 #endif
@@ -354,6 +356,9 @@ static void mi_set(uint32_t i, int32_t s)
         settings.lowcut = s > 0 ? 1u : s < 0 ? 0u : !settings.lowcut;
         fx_lowcut = (uint8_t)(settings.lowcut != 0);
 #endif
+        break;
+    case MI_KCOL:                                      /* right ON, left OFF (the caps' colours: core/knobcol.h) */
+        knob_colors = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !knob_colors);
         break;
     case MI_HOLD: {                                    /* 250 / 350 / 500 ms, in order (hold_sel 1, 0, 2) */
         static const uint8_t ORD[HOLD_N] = {1, 0, 2}, POS[HOLD_N] = {1, 0, 2};

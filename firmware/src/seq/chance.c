@@ -13,7 +13,8 @@
  * stay silent. A step at 100 % calls no random number: a pattern without chance plays (and renders) exactly as
  * before. Drum steps have no free bits (dstep_t: 16 lanes x on / level / ratchet): their chance is an event of the
  * automation store (auto.h AUTO_CHANCE, phase 3), on synth steps too, where it wins over the bits; the Optimist UI
- * writes events only, SLOOP's UI the bits as before. */
+ * writes events only, and so does SLOOP's (chance_put: STEP 2, on a synth or a drum step; KNOB 2 on a held grid step); the bits
+ * are read still (projects written before), an edit turns them into an event. */
 #define SF_CH_SHIFT 2u
 #define SF_CH_MASK (31u << SF_CH_SHIFT)
 #define CH_STEP 5u                                 /* % per detent */
@@ -48,6 +49,25 @@ static int chance_drop(const track_t *t, const step_t *s)
         c = step_chance(s);
     }
     return !c || rng() % 100u >= c;
+}
+/* the chance of step idx of track t as SLOOP's UI shows and edits it (0..100): its event, else a synth step's bits */
+static uint32_t chance_of(const track_t *t, uint32_t idx)
+{
+    uint32_t c = step_chance_ev(t, idx);
+    if (c >= 100u && !is_drum(t))
+        c = step_chance(&t->step[idx % NSTEP]);
+    return c;
+}
+/* set it (percent, rounded to the 5 % grid) as an event of the automation store; a synth step's bits are cleared
+ * (the event is then its one chance). 0 = the list is full, nothing changed. The IRQ off */
+static int chance_put(track_t *t, uint32_t idx, uint32_t pct)
+{
+    uint32_t k = pct >= 100u ? 0u : (100u - pct + CH_STEP / 2u) / CH_STEP;
+    if (!step_chance_set(t, idx, k >= CH_MAX ? 0u : 100u - k * CH_STEP))
+        return 0;
+    if (!is_drum(t))
+        step_set_chance(&t->step[idx % NSTEP], 100u);
+    return 1;
 }
 /* a drum step's chance (an event only: the drum step has no free bit), every lane together: 1 = the step stays
  * silent, its ratchets too (seq_ratchets) */

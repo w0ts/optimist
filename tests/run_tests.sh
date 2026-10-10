@@ -54,6 +54,8 @@ $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=1 -o "$OUT/keys_test1" tests/keys_test
 run "keys: read with their column (SLOOP 2.3, FELUCCA_KEYS_FAST=1): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test1"
 $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
 run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
+$CC -o "$OUT/knob_gate_test" tests/knob_gate_test.c
+run "layer knob gate: one detent of jitter is nothing, two net detents from the press are a turn" "$OUT/knob_gate_test"
 run "divides by a variable: each listed with why it cannot be 0 (a wrong value; the div0 trap is off)" python3 tools/div_audit.py
 run "built for size: every firmware source in one list (main-loop files get minsize, tools/size_fns.py)" python3 tools/size_fns.py --check
 
@@ -183,6 +185,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/auto_test" tests/auto_test.c -lm
 run "the automation store: 128 events, both kinds on one parameter, fills, drum chance, the old forms read and written (MOTN, extras, V1 patterns), V2 and the new extras form, a scene and the autosave, 2.4 export / import, undo, AUTO_GET / AUTO_SET, HOLD, SL24_GET's lost words (v12: motion bit 13, chance the second word; the v11 reply unchanged)" "$OUT/auto_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON $SEC4 -o "$OUT/ui_pages_sl24_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.4 sequencer switches on (tests/sl24seq_ui.c: nudge, fill conditions, GLO fills, FX bypass on black keys)" "$OUT/ui_pages_sl24_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_pages_auto_test" tests/ui_pages_test.c -lm
+run "live UI, SLOOP's step automation through the store (tests/sloop_auto_ui.c: locks, nudges, fills, motion cleared, STEP 2's drum chance on steps 1 / 64, the 128 limit, undo, FOLLOW)" "$OUT/ui_pages_auto_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dsauto_test" tests/ui_pages_test.c -lm
+run "live UI, DRUM STEP with the store on (tests/drum_step_ui.c: the grid's held steps, nudge / lock / chance / fill / clear on steps 1 and 64, tap vs hold, motion cleared; sloop_auto_ui.c again)" "$OUT/ui_pages_dsauto_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_QCHAIN=1 $SEC4 -o "$OUT/sl24_chain_test" tests/sl24_chain_test.c -lm
 run "SLOOP 2.4 quick chain (FELUCCA_QCHAIN): sections in order, each for its bars, looped; STOP ends it" "$OUT/sl24_chain_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
@@ -220,6 +226,12 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_slots_test" tests/fx_slots_test.
 run "FX slots: the layout, a type in no slot unheard (the mix with it at 0, sample for sample), the FX record (sections, arena, autosave, keys)" "$OUT/fx_slots_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/fx_slots_tf_test" tests/fx_slots_test.c -lm
 run "FX slots with the track FILTER built (D6: a slot type): a project without a record and a FILTER in use plays it in the slot it silences least" "$OUT/fx_slots_tf_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_lanemix_test" tests/drum_lanemix_test.c -lm
+run "drum lanes PAN / MUTE / SOLO: the mix (sample for sample), the lanes' meters, the FX record TLV, PROJECT SAVE / LOAD" "$OUT/drum_lanemix_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
+run "drum lanes PAN / MUTE / SOLO with the X0X kits and GLIDE built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
+$CC -O1 -Wall -o "$OUT/edge_walk_test" tests/edge_walk_test.c
+run "stop-at-edge walk (edge_walk.c): the mixer (DR / lane 1) and the DRUMS grid (kick / T3), a fresh turn crosses, list_top" "$OUT/edge_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm

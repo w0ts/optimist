@@ -52,12 +52,10 @@ static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
-#if FELUCCA_UI == 1
-/* the Optimist UI's TEMPO page (ui/optimist/op_tempo.c): OCT- / OCT+ held nudge the clock a few percent slower /
- * faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in events_block to the
- * internal clock only */
+/* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
+ * few percent slower / faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in
+ * events_block to the internal clock only */
 static volatile int8_t clk_nudge;
-#endif
 static volatile uint8_t panic_req;       /* bit per track: release every sounding note (preset / engine change) */
 
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
@@ -80,6 +78,7 @@ static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of e
  * (the UI sets this once a frame); elsewhere ENV is a plain button that opens its pages */
 static volatile uint8_t ly_ops_on;
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
+static uint8_t dyn_off;                  /* the TEMPO page is up (ui_tempo.c): OCT- / OCT+ held are its nudge, not ghost / hard */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
 static volatile uint8_t ly_lock = LY_PLAY;
@@ -1189,10 +1188,10 @@ static void roll_block(uint32_t adv)
 }
 
 /* ---------------------------------------------------------- keyboard --- */
-/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard */
+/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard (not while the TEMPO page is up: they nudge) */
 static uint32_t key_lvl(void)
 {
-    uint32_t b = fm1_in.buttons;
+    uint32_t b = dyn_off ? 0u : fm1_in.buttons;
     return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
 }
 
@@ -1448,6 +1447,8 @@ static void key_up(uint32_t k)
 static volatile uint32_t aud_lanes, aud_lvl;
 static void audition_req(uint32_t lanes, uint32_t lvls)
 {
+    if (song.playing)                 /* a pick or a step set previews only while the transport is stopped */
+        return;
     fm1_irq_off();
     aud_lvl = lvls;
     aud_lanes = lanes & 0xFFFFu;
@@ -2104,10 +2105,8 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
-#if FELUCCA_UI == 1
     if (clk_nudge)                                    /* (the TEMPO page's nudge: an external clock overrides adv below) */
         adv = (uint32_t)((int32_t)adv + (((int32_t)adv * clk_nudge) >> 8));   /* (q8: 10 = 3.9 %, no divide) */
-#endif
     undo_isr = 1;                                    /* (undo.c: the ISR's own marks switch no IRQ) */
     ev_map.on = 0;
     seq_out_check();                                  /* MIDI OUT back to KEYS, or a channel changed: they end */
