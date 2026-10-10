@@ -1041,6 +1041,19 @@ at the last rf_init group, `RR` that group (§12.1: 15 = rf_init done).
 A hang at step 0C with `prev_ble_irqs` small points at the main loop; with it in the hundreds of thousands, at the BLE
 interrupts. Steps 07-0A repeat for every advertising restart (after a connection), so they can also show up later.
 
+`prev_ble_stop` / `ble_stop`: the last link stop (`ble_hw_wl82.c` `hw_stop`, every path: advertising, scanning,
+initiating, a connection's end, the stop before a link opens). `5DPP0000` while it waits for `0x28038` bit1 (`PP` the
+path, `BDS_*`: 00 adv, 01 scan, 02 init, 03 conn, 04 open), `5EPPUUUU` once done (`UUUU` the microseconds waited). The
+wait is bounded by TIMER4 (40 ms on the main loop's stops, 3 ms on a connection's end, 0.2 ms before a link opens)
+and by a count of reads, so a TIMER4 that does not count cannot hold it either.
+
+**The rescue screen** (OPTIMIST USB RESCUE, `recovery.c`) prints what the failed start-ups left in RAM, in grey under
+the instructions: `BOOT SSSSPPPP FFFFFFFF` (the last start-up's `felucca_dbg.stage` and the one before: 1-9 a
+main-loop stage, 41-4B a start-up step of `main.c` `BOOT_STAGE`: 41 persist, 42 stores, 43 settings, 44 LCD, 45 input,
+46 synth, 47 audio, 48 USB, 49 BLE, 4A interrupts on, 4B splash; then its UI frames, 0 = the UI never ran), `BLE
+<ble_step> <ble_stop>` (BLE builds) and `CRASH CCCCVVVV <pc>` (a CPU exception's count, vector and PC, when the record
+is valid). A photo of that screen is the crash report when the FM-1 cannot reach the console.
+
 **2026-10-08, 1f0ab85**: the menu's first ON froze the FM-1 until the watchdog reset it (`prev_rst 04`, `prev_stage 9`:
 the main loop, the menu's ON runs in its `ui_input`), where 1cc6e04 advertised. The only new engine accesses on that
 path were three column reads (op 2) issued straight after the start command (column 14 = 0x8000) in
@@ -1375,3 +1388,26 @@ with MITM), `tests/ble_f2f_test.c`, `tests/ble_store_test.c` (`sec`), `tests/men
 screen, the reconnection with the passkey, the failure held for a minute with no new attempt, the user acting; the
 link retries, CONNECTING (TRY n/6), no retry after a prompt, the passkey at once for a device that needed it),
 `tests/ble_emu_central_test.py` (§13.5).
+
+### 13.10 61ee4ee did not come up on the FM-1 (2026-10-10) [M:hw for the facts; the cause not found]
+
+Installed over 697a2e9 (BLE, USB_MODE, BLE_BOND, BLE_CENTRAL, BLE_DIAG, BLUETOOTH saved ON), the installer's restart
+never came back; after a power cycle the boot guard showed OPTIMIST USB RESCUE, and no record of the failure
+survived. What was checked, in the emulator (fm1-emulator feat/ble-engine 9fb535c), with the same package:
+
+- BLUETOOTH saved ON, no LAST: the UI runs, advertising from boot, a central connects (96 MHz).
+- LAST an iPhone-like peripheral (an RPA with its IRK, the authenticated bond, the passkey level), the phone there
+  (reconnected with the LTK) or away (the search), other advertisers around, at 24, 48 and 96 MHz, interrupt nesting
+  on, spin skipping off.
+- An engine whose `0x28038` bit1 never clears after a stop: every stop gives up at its bound, the boot goes on.
+- A start-up with the radio left off as after a failed one (`boot_failed`), with and without LAST.
+- 697a2e9 under the same conditions; the link maps: the same `.noinit` (bootguard, `fm1_ble_bc`), the same stacks.
+
+None of them failed. [Reading, not measured: the boot guard reaches RESCUE only after two warm resets with no
+30 s of health in between, and the second start-up after a failed one leaves the radio off, so either the power cycle
+was not a power-on for the chip, or a start-up with the radio off failed as well.] What changed after it: the link-stop
+wait is bounded by a read count as well as by TIMER4 (§11, `fm1_ble_link_stop`), the start-up steps leave a
+breadcrumb (`main.c` `BOOT_STAGE`), the link stops another (`fm1_ble_bc.stop`), and the rescue screen prints them
+with the last exception (§12, the BLE breadcrumb): a photo of that screen says where the next such start-up stopped.
+`tests/ble_emu_boot_test.py` starts the full option set with BLUETOOTH saved ON (no LAST, LAST there, LAST away, the
+engine never idle) and requires the UI, the watchdog fed and advertising (`tools/optimist.py test`).
