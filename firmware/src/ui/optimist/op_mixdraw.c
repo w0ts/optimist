@@ -6,26 +6,30 @@
  * and sequencer", so the name is a code at the left and the rest of the width is the row's:
  *   x 0..21    a colour chip and the row's code (T1 T2 T3 DR, a lane's BD SD CH ..., M for MASTER), its M / S badge
  *              under it; the selected row's full name is the header's ("Snare levels", op_draw.c head_title)
- *   x 24..237  the VU meter (y +3, 16 px): the level filling from the left, its peak falling 4 px a frame; the
- *              compressor's gain reduction pushing in from the right in amber, 3 px a dB, only on a row whose
- *              compressor works (a part's COMP insert: fx.c tcomp_gr_q4; MASTER: THRS or CEIL set, mc_gr_view);
- *              under it (y +22, 14 px) the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page playing
+ *   x 24..237  three lines. The text line (y +1): the engine's name in the row's colour (ANALOG, TRIO, DRUMS, a
+ *              lane's name, MASTER), then the preset (the kit for DR, a user preset's name), cut to the room left;
+ *              under it (y +20, 6 px) the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page playing
  *              (13 px a step: the steps set in the row's colour, past LEN empty, the playhead white), and under the
  *              steps a thin bar a page when LEN > 16 (the one playing lit); DR all the lanes merged, a lane its own
- *              hits; MASTER none
+ *              hits; MASTER none; at the foot (y +34) the VU meter, a 3 px bar: the level filling from the left, its
+ *              peak falling 4 px a frame; the compressor's gain reduction pushing in from the right in amber, 3 px a
+ *              dB, only on a row whose compressor works (a part's COMP insert: fx.c tcomp_gr_q4; MASTER: THRS or
+ *              CEIL set, mc_gr_view)
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show
  * the selected row's values. A lane's meter is its hits (drums.hits), full at the hit and falling over 12 frames:
  * the drum voices have no level of their own to read. Each row's meter and steps are canvases of their own, drawn
  * again only when they change. */
 #define MXL_N 4u                        /* rows a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a row: 41 px (the panel 164, the mixer's cards 1x4) */
-#define MXL_VX 24                       /* the meter and the steps: the width left of the code */
-#define MXL_VW 214
-#define MXL_VY 3                        /* the meter in its row */
-#define MXL_VH 16
-#define MXL_SY 22                       /* the steps in their row */
-#define MXL_SH 14
+#define MXL_VX 28                       /* the meter and the steps: the width left of the code */
+#define MXL_VW 210
+#define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
+                                         * name and the preset", so the meter and the steps went thin) */
+#define MXL_SY 20                       /* the steps in their row: small cells, 6 px, the page bars under them */
+#define MXL_SH 6
 #define MXL_SP 13                       /* a step's pitch, its cell 11 */
+#define MXL_VY 34                       /* the meter in its row: a thin bar */
+#define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
 static const char *const LANE_CODE[DRUM_LANES] = {"BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS",
                                                   "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
@@ -51,9 +55,27 @@ static const char *mx_code(uint32_t r)                  /* the row's code at its
 {
     return r == MXR_MASTER ? "M" : r >= MXR_LANE0 ? LANE_CODE[r - MXR_LANE0] : trk_tag(mx_trk_of(r));
 }
+/* the row's sound as two words: the engine (DRUMS for the drum track, MASTER, a lane's name) and the preset (the kit
+ * for the drum track and its lanes, a user preset's name); each cut to the room it has */
+static void mx_names(uint32_t r, char *eng, char *pre)
+{
+    pre[0] = 0;
+    if (r == MXR_MASTER) {
+        str_cpy(eng, "MASTER", 9);
+    } else if (r >= MXR_LANE0) {
+        str_cpy(eng, LANE_NAME[r - MXR_LANE0], 9);
+        str_cpy(pre, drum_kit_name(), 14);
+    } else {
+        uint32_t k = mx_trk_of(r);
+        str_cpy(eng, is_drum(&trk[k]) ? "DRUMS" : ENGINES[trk[k].eng_req % NENGINES]->name, 9);
+        snd_name(k, pre);
+    }
+}
 static void mx_paint(void)                              /* the rows' grounds, chips and codes (cv_tall) */
 {
     uint32_t i, cur = mx_row();
+    char en[10], pr[16], b[16];
+    int32_t x;
     for (i = mxd.first; i < MXR_N && i < (uint32_t)mxd.first + MXL_N; i++) {
         int32_t y = (int32_t)(i - mxd.first) * MXL_H;
         uint16_t c = mx_col(i);
@@ -64,21 +86,28 @@ static void mx_paint(void)                              /* the rows' grounds, ch
             cv_rect(0, y, 240, MXL_H - 1, i >= MXR_LANE0 ? C_BLACK : OP_SURF);
         }
         cv_rect(2, y + 3, 3, MXL_H - 7, c);             /* the colour chip */
-        cv_text(6, y + 3, &FONT_S, mx_code(i), i == cur ? C_WHITE : c);
+        cv_text(6, y + MXL_TY, &FONT_S, mx_code(i), i == cur ? C_WHITE : c);
+        mx_names(i, en, pr);
+        x = cv_text(MXL_VX, y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
+        if (pr[0])
+            cv_text(x + 8, y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), i == cur ? C_WHITE : C_GRAY);   /* ... then the preset */
         if (i >= MXR_T1 && i <= MXR_DR) {
             uint32_t k = mx_trk_of(i);
             if (trk[k].p[P_MUTE])
-                cv_text(6, y + 21, &FONT_S, "M", C_WARN);
+                cv_text(6, y + 18, &FONT_S, "M", C_WARN);
             else if ((song.solo >> k) & 1u)
-                cv_text(6, y + 21, &FONT_S, "S", C_OK);
+                cv_text(6, y + 18, &FONT_S, "S", C_OK);
         }
     }
 }
 static uint32_t mx_static_sig(void)
 {
     uint32_t i, sig = hu(hu(hu(0x3A1u, settings.palette), mx_row()), mxd.first);
+    char en[10], pr[16];
     for (i = mxd.first; i < MXR_N && i < (uint32_t)mxd.first + MXL_N; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
+        mx_names(i, en, pr);
+        sig = hs(hs(sig, en), pr);
         if (i >= MXR_T1 && i <= MXR_DR)
             sig = hu(sig, (uint32_t)trk[mx_trk_of(i)].p[P_MUTE] * 2u + ((song.solo >> mx_trk_of(i)) & 1u));
     }
@@ -136,7 +165,7 @@ static void mx_vu(uint32_t r, int32_t y, uint32_t lv)
     cv_begin(MXL_VW, MXL_VH, C_LINE);
     cv_rect(0, 0, (int32_t)pk, MXL_VH, pk > MXL_VW - 8u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : C_OK);
     if (gr)
-        cv_rect(MXL_VW - (int32_t)gr, 2, (int32_t)gr, MXL_VH - 4, C_WARN);   /* the reduction, from the right */
+        cv_rect(MXL_VW - (int32_t)gr, 0, (int32_t)gr, MXL_VH, C_WARN);   /* the reduction, from the right */
     cv_blit(MXL_VX, (uint32_t)(OP_PY + y + MXL_VY));
 }
 static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row r */
@@ -159,7 +188,7 @@ static void mx_steps(uint32_t r, int32_t y)
     if (sig == mxd.stp[r])
         return;
     mxd.stp[r] = sig;
-    cv_begin(16u * MXL_SP, MXL_SH + 3, bg);
+    cv_begin(16u * MXL_SP, MXL_SH + 4, bg);
     for (i = 0; i < 16u; i++) {
         uint32_t s = page + i;
         if (s >= len)
@@ -169,7 +198,7 @@ static void mx_steps(uint32_t r, int32_t y)
     np = (len + 15u) / 16u;
     if (np > 1u)                                        /* the pattern's pages: a thin bar each, the one playing lit */
         for (i = 0; i < np; i++)
-            cv_rect((int32_t)(i * 16u * MXL_SP / np), MXL_SH + 1, (int32_t)(16u * MXL_SP / np) - 2, 2,
+            cv_rect((int32_t)(i * 16u * MXL_SP / np), MXL_SH + 2, (int32_t)(16u * MXL_SP / np) - 2, 2,
                     i == page / 16u ? C_WHITE : C_DIM);
     cv_blit(MXL_VX, (uint32_t)(OP_PY + y + MXL_SY));
 }

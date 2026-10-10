@@ -18,6 +18,7 @@
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
+static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
 static void lay_draw_cards(void);
 static void lay_draw_tiles(void);
@@ -73,6 +74,10 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     const char *s = SCR_NAME[scr % SCR_N];
     char r[16];
     uint32_t k;
+    if (scr == SCR_STEP && st.held) {                   /* a step held: its card page, "STEP 3/9 LFO" */
+        hp_title(t, n);
+        return;
+    }
     if (scr == SCR_STEP) {                              /* the window: "STEPS 17-32" */
         uint32_t a = st.page * 16u + 1u, b = a + 15u < trk_len(TSEL) ? a + 15u : trk_len(TSEL);
         str_cpy(t, "STEPS ", n);
@@ -124,6 +129,10 @@ static void draw_head(void)
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
+    if (ui.scr == SCR_FX || ui.master) {                /* MASTER: its badge in C_HI, as the mixer's M row */
+        eng = "MASTER";
+        tc = C_HI;
+    }
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
@@ -136,7 +145,7 @@ static void draw_head(void)
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
-    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP) {   /* STEP: the window, then the pick (no footer): */
+    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !st.held) {   /* STEP: the window, then the pick (no footer): */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
             str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
         else
@@ -267,10 +276,15 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
 }
 static void draw_cards(void)
 {
+    static cell_t snap[4];                              /* the cells last drawn (STEP: what a step let go still shows) */
     cell_t c[4];
     uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
-        SCR->cell(ui.row[ui.scr], k, &c[k]);
+        if (cards_snap_use)
+            c[k] = snap[k];
+        else
+            SCR->cell(ui.row[ui.scr], k, &c[k]);
+        snap[k] = c[k];
         sig = hc(sig, &c[k]);
     }
     if (sig == ui.sig[1])
@@ -280,13 +294,17 @@ static void draw_cards(void)
 }
 
 /* ---- the panel: the rows, each value a number over its form; SOUND: the cursor row's graph on top */
-static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide)
+/* a row rh px high (ROW_H, or taller when a page's few rows fill the panel: its text and gauge stay together, in the
+ * middle of the row, the gauge thicker) */
+static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide, int32_t rh)
 {
     char nm[12], b[16];
     uint32_t k, j, w;
     cell_t c, e;
+    int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
-        cv_rect(0, y, wide, ROW_H - 1, bar);            /* the cursor row: a bar, ink on it */
+        cv_rect(0, y, wide, rh - 1, bar);               /* the cursor row: a bar, ink on it */
+    y += (rh - ROW_H) / 2;
     SCR->name(i, nm);
     cv_text(4, y + 1, &FONT_S, op_case(b, cut(nm, nm, 9), sizeof b), on ? C_BLACK : C_GRAY);   /* "ENV dest" */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
@@ -303,7 +321,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
             cv_text(x, y + 1, &FONT_S, cut(b, op_label(b, c.label, sizeof b), w > 7u ? 7u : w), on ? C_BLACK : C_DIM);
         else if (c.val[0])
             cv_text(x, y + 1, &FONT_S, cut(b, c.val, c.gk != GK_NONE ? 4u : w > 13u ? 13u : w), on ? C_BLACK : C_HI);
-        draw_gauge(x, y + 16, 36, 2, &c, on ? C_BLACK : c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
+        draw_gauge(x, y + 16, 36, gh, &c, on ? C_BLACK : c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
     }
 }
 /* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in
@@ -323,7 +341,7 @@ static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void))
 static struct {
     const page_t *gp;
     uint32_t pic, first, shown, n, cur;
-    int32_t top;
+    int32_t top, rh;
     uint16_t bar;
 } lst;                                                  /* what list_paint draws (draw_list) */
 static void list_paint(void)
@@ -344,7 +362,7 @@ static void list_paint(void)
     if (lst.pic)
         cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
-        draw_row(i, lst.top + (int32_t)(i - lst.first) * ROW_H, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240);
+        draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.n > lst.shown) {                            /* where the window is in the list */
         int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
         cv_rect(237, lst.top, 3, OH_BODY - lst.top, C_LINE);
@@ -356,7 +374,7 @@ static void draw_list(void)
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
     const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
-    int32_t top = 0;
+    int32_t top = 0, rh = ROW_H;
     uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
                                                          * grid (SONG's PATTERNS row), 3 the tempo */
     char nm[12];
@@ -370,14 +388,20 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
-    if (pic) {
-        top = GRAPH_H + 3;                              /* the picture, then five rows */
-        shown = (uint32_t)(OH_BODY - top) / ROW_H;
+    if (pic) {                                          /* the picture takes the height the rows leave: they sit at the foot */
+        uint32_t fit = (uint32_t)(OH_BODY - GRAPH_MIN - 3) / ROW_H;
+        shown = n < fit ? n : fit;
+        top = OH_BODY - (int32_t)shown * ROW_H;
+        gr_h = top - 3;
+    } else if (n && n <= shown) {                       /* no picture, rows to spare: taller rows fill the panel */
+        shown = n;
+        rh = OH_BODY / (int32_t)n;
+        rh = rh > 40 ? 40 : rh;                         /* (a few rows, no picture: at most 40 px a row, at the top) */
     }
     if (cur >= shown / 2u)
         first = cur - shown / 2u;
-    if (n > shown && first > n - shown)
-        first = n - shown;
+    if (first + shown > n)
+        first = n > shown ? n - shown : 0u;
     sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(gp - PAGES));
     for (i = first; i < n && i < first + shown; i++) {
         SCR->name(i, nm);
@@ -393,13 +417,14 @@ static void draw_list(void)
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
 #endif
+    sig = hu(sig, (uint32_t)(top * 256 + rh));
     if (ui.scr == SCR_SONG)
         for (i = first; i < n && i < first + shown; i++)
             sig = hu(sig, song_row_col(i));
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top;
+    lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top, lst.rh = rh;
     lst.bar = bar;
     cv_tall(OP_PY, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
 }
@@ -484,6 +509,17 @@ static void op_frame_draw(void)
         ui.sig[3] = 0;                                  /* (the band under a question) */
         mx_redraw();
     }
+    {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
+                                                         * that changes (a layer on STEP, the NAME screen) */
+        static uint8_t was_full;
+        uint32_t full = ui.scr == SCR_STEP && lay.shown == LY_PLAY && !name_on();
+        if (full != was_full && !ui.force) {
+            lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
+            ui.sig[1] = ui.sig[2] = ui.sig[3] = ui.sig[4] = 0;
+            mx_redraw();
+        }
+        was_full = (uint8_t)full;
+    }
     draw_head();
     if (name_on()) {                                    /* NAME: the field and the keyboard (op_name.c), no footer */
         name_draw();
@@ -492,8 +528,8 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else
-        draw_cards();                                   /* (the mixer too: its knobs are the selected row's) */
+    else if (ui.scr != SCR_STEP)
+        draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
     if (ov == 1u || ov == 3u) {
         draw_overlay(ov);                               /* the modal, the REC ring: the whole panel */
     } else {
@@ -505,7 +541,7 @@ static void op_frame_draw(void)
         else if (ui.scr == SCR_SCOPE)
             scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
-            draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */
+            step_frame();                               /* the grid / the roll, the cards over it: op_stepdraw.c */
 #if FELUCCA_BLE
         else if (dev_listing())
             dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */
