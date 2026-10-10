@@ -195,6 +195,10 @@ static int ble_dev_key_row(const struct ble_dev_key *k)   /* the row of that dev
         if (c.kind == k->kind && (k->kind != 2u || (c.rnd == k->rnd && !memcmp(c.addr, k->addr, 6))))
             return (int)r;
     }
+#if BLE_CENTRAL
+    if (k->kind == 2u && last >= 0 && rc_is_last(k->addr, k->rnd))
+        return last;                             /* (it became LAST: nearby leaves it out, the LAST row is it) */
+#endif
     return -1;
 }
 
@@ -204,8 +208,10 @@ static void ble_dev_pick(uint32_t row)
     int last;
     uint8_t near[16];
     uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
-    if (row >= n)
+    if (row >= n) {
+        ble_dev_say("DEVICE GONE", BDL_WARN);
         return;
+    }
     if (row == 0) {                              /* NONE: visible, no auto-connect (a connected Mac stays) */
 #if BLE_CENTRAL
         ble_connect_none();                      /* (our central link and the search end) */

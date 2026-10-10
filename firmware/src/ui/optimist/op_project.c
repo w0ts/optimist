@@ -289,8 +289,11 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect;
     }
     if (bdv.key_ok && (r == bdv.key_row || (r < bdv.key_row && r + 1u == dev_rows())))   /* (a shrunk list clamps the row) */
         ble_dev_pick_key(&bdv.key);                     /* (the row the user saw: that device, not that place) */
-    else
-        ble_dev_pick(r);
+    else {                                              /* (the cursor moved since the draw: the key of this row, now) */
+        struct ble_dev_key k;
+        ble_dev_key_of(r, &k);
+        ble_dev_pick_key(&k);
+    }
     return 1;
 }
 static int dev_home_combo(void)                         /* HOME + a button on the list: FORGET LAST, asked (op_combos.c) */
