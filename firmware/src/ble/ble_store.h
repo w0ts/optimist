@@ -57,6 +57,8 @@ BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], 
                                 int auth);
 /* it needs an authenticated link (learned from its refusal after Just Works): kept until FORGET or another LAST */
 BLE_API void ble_store_set_mitm(struct ble_dev_store *s);
+/* its bond refused by it (KEY: it forgot it, or never kept it): the next link pairs afresh */
+BLE_API void ble_store_drop_bond(struct ble_dev_store *s);
 /* its IRK and identity address (SMP Identity Information / Identity Address Information) */
 BLE_API void ble_store_set_id(struct ble_dev_store *s, const uint8_t irk[16], const uint8_t id[6], uint8_t id_rand);
 BLE_API void ble_store_select(struct ble_dev_store *s, uint8_t sel);

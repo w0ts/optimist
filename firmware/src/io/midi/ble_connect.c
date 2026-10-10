@@ -19,6 +19,9 @@
  *                any pairing started on it is made again at once, up to RC_TRIES attempts per user action (or per
  *                try of the search): "CONNECTING (TRY n/6) <name>" meanwhile, FAILED only after the last. These are
  *                link attempts: one that had a pairing (a prompt on the phone) is never made again by itself;
+ *   KEY          LAST leaving while our encryption with its bond starts (MIC Failure / Key Missing: the phone forgot
+ *                the bond) is tried on RC_KEY_TRIES links, then the bond is dropped and "FAILED: KEY" held (no loop):
+ *                LAST picked again pairs afresh;
  *   LAST         while BLUETOOTH is ON, LAST is the choice, DEVICES is closed and no link of either role is up: search
  *                for it (initiate 2 s, advertise 1 s, for 30 s; then initiate 1 s every 10 s). A LAST with an IRK
  *                (it uses resolvable private addresses: iOS, macOS) is found by scanning and resolving each AdvA
@@ -39,6 +42,7 @@ enum { RC_OFF, RC_WAIT, RC_SCAN, RC_TRY, RC_PICK, RC_LINK, RC_HELD };
 #define RC_PICK_MS 10000u                         /* a pick that is not heard in this long: NOT FOUND */
 #define RC_TRIES 6u                               /* link attempts per user action (a link not made, or lost early) */
 #define RC_RETRY_MS 2000u                         /* an attempt made again: its time to hear the device advertising */
+#define RC_KEY_TRIES 3u                           /* links on which LAST refused its bond (KEY) before it is dropped */
 enum { RCS_NONE, RCS_INFO, RCS_GOOD, RCS_BAD };   /* ble_connect_status: nothing to say, under way, connected, failed */
 
 static struct {
@@ -238,6 +242,7 @@ static const char *rc_why(uint8_t f)
     case BLE_CF_AUTH:
     case BLE_CF_NEED_MITM: return "AUTH";
     case BLE_CF_GATT: return "GATT ERROR";
+    case BLE_CF_KEY: return "KEY";
     default: return ble_central_code() == 0x3Eu ? "NO LINK" : "LINK LOST";   /* (0x3E: not established) */
     }
 }
@@ -333,8 +338,14 @@ static void rc_link(void)
         return;
     if (f == BLE_CF_LOST && !ble_central_prompted() && rc_retry())
         return;                                   /* (a link attempt again: no pairing was started on it) */
+    if (f == BLE_CF_KEY && brc.tries < RC_KEY_TRIES && rc_retry())
+        return;                                   /* (its bond refused: again, RC_KEY_TRIES links in all) */
+    if (f == BLE_CF_KEY && brc.to_last) {         /* (then dropped: LAST picked again pairs afresh) */
+        ble_store_drop_bond(&ble_store);
+        ble_store_changed();
+    }
     rc_failed_why(rc_why(f));
-    if (f == BLE_CF_PAIRING || f == BLE_CF_AUTH || f == BLE_CF_NEED_MITM)
+    if (f == BLE_CF_PAIRING || f == BLE_CF_AUTH || f == BLE_CF_NEED_MITM || f == BLE_CF_KEY)
         rc_phase(RC_HELD);                        /* (no new attempt, no new prompt on the phone, until the user acts) */
     else if (brc.phase == RC_LINK && brc.search_t0)
         rc_wait();                                /* (the search goes on) */

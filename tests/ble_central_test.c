@@ -149,6 +149,14 @@ static struct {
     int late_after, late_pending;              /* its late Pairing Failed only after its next ATT error */
     long typed;                                /* the passkey its user typed (-1: not yet) */
     uint8_t tk[16];
+    /* the encryption start (Core Vol 6 Part B 5.1.3.1) as the iPhone kept it (blell-dev6): from our LL_ENC_REQ to our
+     * LL_START_ENC_RSP no other PDU of ours, else it leaves with MIC Failure (0x3D), as NimBLE / Zephyr do */
+    int enc_start, dying, mic_terms;           /* in the start; its TERMINATE_IND queued; those sent */
+    int own_len, len_always, len_done;         /* its LL_LENGTH_REQ on our LL_ENC_REQ when no length exchange was
+                                                * made yet (the iPhone, blell-dev6) / always; one was made */
+    int enc_wait, mic_on_enc;                  /* events until its LL_ENC_RSP (its host's LTK lookup); it leaves
+                                                * with 0x3D on our LL_ENC_REQ (a key it cannot use) */
+    uint8_t enc_req[23];
 } P;
 
 static void p_reset(void)
@@ -198,6 +206,17 @@ static void p_att_err(uint8_t op, uint16_t h, uint8_t e)
     p_att(d, 5);
 }
 
+/* it leaves with MIC Failure (0x3D): its TERMINATE_IND, then nothing more from it */
+static void p_mic_term(void)
+{
+    static const uint8_t t[2] = {LL_TERMINATE_IND, 0x3D};
+    p_ctrl(t, 2);
+    P.mic_terms++;
+    P.dying = 1;
+    P.enc_start = P.enc_wait = 0;
+}
+static void p_enc_answer(const uint8_t *p);
+
 /* its LL: the master's control PDUs */
 static void p_ll(const uint8_t *p, int n)
 {
@@ -215,46 +234,31 @@ static void p_ll(const uint8_t *p, int n)
         p_ctrl(d, 9);
         return;
     case LL_LENGTH_REQ:
+        P.len_done = 1;
         d[0] = LL_LENGTH_RSP, d[1] = 251, d[2] = 0, d[3] = 0x48, d[4] = 0x08, d[5] = 251, d[6] = 0, d[7] = 0x48, d[8] = 0x08;
         p_ctrl(d, 9);
         return;
-    case LL_ENC_REQ: {
-        uint8_t key[16], skd[16], i;
-        static const uint8_t zero[8] = {0};
-        uint16_t ediv = (uint16_t)(p[9] | p[10] << 8);
-        if (!memcmp(p + 1, zero, 8) && !ediv && P.smp_st == 4) {
-            memcpy(key, P.stk, 16);
-            P.enc_auth = P.pk;
-            P.enc_stk = 1;
-        } else if (!P.lost_bond && ediv == P.ediv && !memcmp(p + 1, P.rand, 8) && P.ediv) {
-            memcpy(key, P.ltk, 16);
-            P.ltk_used++;
-            P.enc_auth = P.ltk_auth;
-        } else {
-            d[0] = LL_REJECT_EXT_IND, d[1] = LL_ENC_REQ, d[2] = 0x06;
-            p_ctrl(d, 3);
+    case LL_LENGTH_RSP:
+        P.len_done = 1;
+        return;
+    case LL_ENC_REQ:
+        if (P.mic_on_enc) {
+            p_mic_term();
             return;
         }
-        d[0] = LL_ENC_RSP;
-        for (i = 0; i < 12; i++)
-            d[1 + i] = (uint8_t)(0x90 + i);     /* SKDs, IVs */
-        p_ctrl(d, 13);
-        for (i = 0; i < 8; i++)
-            skd[i] = d[1 + 7 - i], skd[8 + i] = p[11 + 7 - i];
-        for (i = 0; i < 16; i++)
-            P.ctx.key[i] = key[15 - i];
-        ble_aes128(P.ctx.key, skd, P.ctx.key);
-        memcpy(P.ctx.iv, p + 19, 4);
-        memcpy(P.ctx.iv + 4, d + 9, 4);
-        P.ctx.ctr = 0, P.ctx.ctr_hi = 0;
-        P.crx = P.ctx;
-        P.ctx.dir = 0, P.crx.dir = 1;
-        d[0] = LL_START_ENC_REQ;
-        p_ctrl(d, 1);
-        P.enc_rx = 1;
+        P.enc_start = 1;
+        if ((P.own_len && !P.len_done) || P.len_always) {
+            d[0] = LL_LENGTH_REQ, d[1] = 251, d[2] = 0, d[3] = 0x48, d[4] = 0x08, d[5] = 251, d[6] = 0, d[7] = 0x48,
+            d[8] = 0x08;
+            p_ctrl(d, 9);                      /* (its own, crossing ours) */
+            memcpy(P.enc_req, p, 23);
+            P.enc_wait = 3;                    /* (its LL_ENC_RSP a few events later: the LTK from its host) */
+            return;
+        }
+        p_enc_answer(p);
         return;
-    }
     case LL_START_ENC_RSP:
+        P.enc_start = 0;
         P.enc_tx = 1;
         d[0] = LL_START_ENC_RSP;
         p_ctrl(d, 1);
@@ -279,6 +283,45 @@ static void p_ll(const uint8_t *p, int n)
     default:
         return;
     }
+}
+
+/* its answer to our LL_ENC_REQ (p): the key by EDIV / Rand (the STK, its bond) or Key Missing */
+static void p_enc_answer(const uint8_t *p)
+{
+    uint8_t d[32], key[16], skd[16], i;
+    static const uint8_t zero[8] = {0};
+    uint16_t ediv = (uint16_t)(p[9] | p[10] << 8);
+    if (!memcmp(p + 1, zero, 8) && !ediv && P.smp_st == 4) {
+        memcpy(key, P.stk, 16);
+        P.enc_auth = P.pk;
+        P.enc_stk = 1;
+    } else if (!P.lost_bond && ediv == P.ediv && !memcmp(p + 1, P.rand, 8) && P.ediv) {
+        memcpy(key, P.ltk, 16);
+        P.ltk_used++;
+        P.enc_auth = P.ltk_auth;
+    } else {
+        d[0] = LL_REJECT_EXT_IND, d[1] = LL_ENC_REQ, d[2] = 0x06;
+        p_ctrl(d, 3);
+        P.enc_start = 0;
+        return;
+    }
+    d[0] = LL_ENC_RSP;
+    for (i = 0; i < 12; i++)
+        d[1 + i] = (uint8_t)(0x90 + i);     /* SKDs, IVs */
+    p_ctrl(d, 13);
+    for (i = 0; i < 8; i++)
+        skd[i] = d[1 + 7 - i], skd[8 + i] = p[11 + 7 - i];
+    for (i = 0; i < 16; i++)
+        P.ctx.key[i] = key[15 - i];
+    ble_aes128(P.ctx.key, skd, P.ctx.key);
+    memcpy(P.ctx.iv, p + 19, 4);
+    memcpy(P.ctx.iv + 4, d + 9, 4);
+    P.ctx.ctr = 0, P.ctx.ctr_hi = 0;
+    P.crx = P.ctx;
+    P.ctx.dir = 0, P.crx.dir = 1;
+    d[0] = LL_START_ENC_REQ;
+    p_ctrl(d, 1);
+    P.enc_rx = 1;
 }
 
 /* its SMP responder (legacy Just Works, bonding): c1 / s1 from the stack's primitives (checked against the Core
@@ -483,6 +526,10 @@ static void p_take(uint8_t *pdu, int len)
         }
         n = (uint8_t)(n - 4);
     }
+    if (P.enc_start && n && (llid != 3 || (p[0] != LL_START_ENC_RSP && p[0] != LL_TERMINATE_IND))) {
+        p_mic_term();                          /* (anything else of ours during the start: it leaves) */
+        return;
+    }
     if (llid == 3) {
         p_ll(p, n);
         return;
@@ -521,6 +568,8 @@ static void p_event(void)
             ble_ll_hw_tx_acked();
         }
     }
+    if (P.enc_wait && !--P.enc_wait)
+        p_enc_answer(P.enc_req);               /* (its host's LTK came) */
     if (P.smp_st == 10 && P.typed >= 0)
         p_sconfirm();                          /* (its user typed the passkey) */
     if (P.smp_st == 4 && P.enc_tx && P.enc_stk)
@@ -533,6 +582,8 @@ static void p_event(void)
         return;
     now_us += 9u * 1250u;
     ble_ll_hw_event_end(P.evt++, (uint8_t)P.alive);
+    if (P.dying)
+        P.alive = P.dying = 0;                 /* (its TERMINATE_IND went: gone) */
 }
 static void p_events(int n)
 {
@@ -768,7 +819,7 @@ static void p_events_watch(int n)
  * Works pairing; a passkey pairing (we display, its user types) is what it takes */
 static void iphone(void)
 {
-    P.need_auth = P.mitm_need = P.iphone = 1;
+    P.need_auth = P.mitm_need = P.iphone = P.own_len = 1;
 }
 
 static void test_passkey(void)
@@ -812,6 +863,26 @@ static void test_passkey(void)
     p_events_watch(60);
     check("reconnect with the authenticated bond: encrypted with its LTK, accepted, ready, no pairing, nothing shown",
           P.ltk_used == 1 && P.enc_auth && ble_central_state() == BLE_CS_READY && ble_dgc.si_pair_req == pr0 && !shown);
+    check("... the data length exchanged before our LL_ENC_REQ (the iPhone sends its own LL_LENGTH_REQ otherwise, "
+          "and our answer during the encryption start made it leave with MIC Failure, blell-dev6)",
+          P.mic_terms == 0 && p_ctrl_seen(LL_LENGTH_REQ) && p_ctrl_seen(LL_LENGTH_REQ) < p_ctrl_seen(LL_ENC_REQ) &&
+              ble_dgc.m_len_done >= 1);
+    leave();
+    connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
+    iphone();
+    P.len_always = 1;
+    p_events(60);
+    check("its LL_LENGTH_REQ crossing our LL_ENC_REQ: held while the encryption starts (5.1.3.1: no other PDU of "
+          "ours), answered once encrypted: no MIC Failure, ready", P.mic_terms == 0 && P.ltk_used == 1 && P.enc_auth &&
+              ble_dgc.m_held >= 1 && P.len_done && ble_central_state() == BLE_CS_READY && ble_dgc.si_pair_req == pr0);
+    leave();
+    connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
+    iphone();
+    P.mic_on_enc = 1;
+    p_events(30);
+    check("it leaves with MIC Failure (0x3D) on our LL_ENC_REQ with the bond: KEY (3D), not a link lost, no pairing",
+          !ble_connected() && ble_central_fail() == BLE_CF_KEY && ble_central_code() == 0x3D &&
+              ble_dgc.si_pair_req == pr0 && P.mic_terms == 1);
     leave();
     P.lost_bond = 1;
     connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);

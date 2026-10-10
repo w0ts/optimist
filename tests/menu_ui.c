@@ -107,6 +107,48 @@ static void ble_devices_security_tests(void)
     check(!strcmp(dev_status(), "") && ble_connect_phase() == 0u, "security: OCT+ on LAST (the user acts): the failure "
           "cleared, the search may start again");
     tap(B_OCTDN); frames(2);
+    /* its bond refused (blell-dev6: the iPhone left with MIC Failure while our encryption with the bond started) */
+    c0 = (uint32_t)cenfk.connects;
+    for (i = 0; i < 4u && ble_connect_phase() != 2u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    ble_fake_rep(0, 0x77, 1, 0, 0x0A12);
+    ble_devices_poll();
+    for (i = 0; i < 3u; i++) {
+        check(cenfk.connects == (int)(c0 + i + 1u) && cenfk.p.bonded && cenfk.p.ltk[0] == 0x31,
+              "security KEY: LAST connected to with its bond");
+        cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+        ble_devices_poll();
+        cenfk.code = 0x3D;
+        cen_gone(BLE_CF_KEY);
+        ble_devices_poll();
+    }
+    check(cenfk.connects == (int)c0 + 3 && !strcmp(dev_status(), "FAILED: KEY (3 TRIES)") && ble_status() == 8u &&
+          ble_connect_phase() == 6u && !(ble_store.dev.info & BLE_DEV_BONDED) && ble_store.dev.sec == BLE_DEV_SEC_MITM &&
+          (ble_store.dev.info & BLE_DEV_IRK), "security KEY: the bond refused on 3 links: FAILED: KEY (3 TRIES), held, "
+          "the bond dropped (its IRK and the passkey level kept)");
+    for (i = 0; i < 60u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    check(cenfk.connects == (int)c0 + 3, "security KEY: a minute later no new attempt (blell-dev6 made 75)");
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);       /* (LAST's row) */
+    tap(B_OCTUP); frames(2);
+    tap(B_OCTDN); frames(2);
+    for (i = 0; i < 4u && ble_connect_phase() != 2u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    ble_fake_rep(0, 0x77, 1, 0, 0x0A12);
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 4 && !cenfk.p.bonded && (cenfk.p.sec & BLE_PEER_MITM),
+          "security KEY: LAST picked again: connected without the bond, a passkey pairing to come");
+    cenfk.code = 0;
+    cen_gone(BLE_CF_LOST);
+    ble_connect_none();
     menu_close();
     ble_connect_none();
     ble_store_reset(&ble_store);
