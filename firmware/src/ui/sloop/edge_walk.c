@@ -2,7 +2,7 @@
 /* The stop-at-edge walk (the user's ruling for the mixer and the step screen): ALGORITHM walks a list of rows, one a
  * detent, that has an edge inside it. A turn that reaches the row next to the edge stops there; only a fresh turn
  * (the knob at rest EW_GAP_MS or more before the detent) crosses it. The ends of the list stop too (no wrap).
- *   the mixer (ui_studio.c mix_algo):    T1 T2 T3 DR | the 16 drum lanes; a fast spin down from T1 stops on DR, a
+ *   the mixer (ui_studio.c mix_algo):    MASTER T1 T2 T3 DR | the 16 drum lanes; a fast spin down from T1 stops on DR, a
  *                                        fast spin up through the lanes stops on lane 1 (kick)
  *   the DRUMS grid (ui_drumstep.c):      T3 | the 16 lanes; a fast spin up stops on the kick, a fresh turn goes to T3
  * The one implementation of the trick (it replaced core/lane_walk.h). Pure: tests/edge_walk_test.c. */
