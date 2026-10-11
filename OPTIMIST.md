@@ -606,6 +606,10 @@ USB audio replaces the USB serial console (they share the USB endpoints); MIDI, 
 
 Underneath is the Felucca engine set, up to fourteen synthesis engines in all (ten in the core, plus SLICE, PHYS, ACID and CZ, which a build may include; see Optional features): ANALOG 2 (analog with SLOOP's osc 2 interval and hard sync, a filter envelope, filter modes, self-oscillation and a supersaw swarm), 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular, and FM6 (Melodee's six-operator FM that plays DX7 voices as Dexed does, engine 9); envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
 
+### LFO RATE in time with the tempo
+
+Turn the LFO's **RATE** down past its slowest free rate (0.05 Hz) and it locks to the tempo: one LFO cycle lasts a note value, **4BAR**, **2BAR**, **1BAR**, **1/2**, **1/4**, **1/8**, **8T**, **1/16**, **16T**, **1/32** (the further down, the shorter). It follows the tempo, the TEMPO page's nudge and an external MIDI clock while playing, so it stays with the steps; stopped, it runs at the tempo shown. As with a free rate, a note played when none of the track's notes sounds starts the LFO again at **PHS**; notes over a held one let it run on. The macros never move a synced RATE (MOTN turns only a free one, and never into the synced values); motion recording and locks keep the note value. These are SLOOP 2.6's LFO 2 **SYNC** values (after Felucca 1.4, Leo Kuroshita), in its order. Exported for SLOOP 2.4, which has no sync, a synced RATE becomes the free rate nearest that note value at the project's tempo (the editor lists *the LFO's sync* as left out). Projects and presets made before keep their sound: their RATE is one of the free rates. Always built (about 0.3 KB of flash).
+
 ## Optional features (build switches)
 
 Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
@@ -658,7 +662,7 @@ While a track records (REC, playing), turning a knob of a sound parameter on its
 | Macro | Turned right (+) | Turned left (−) |
 | --- | --- | --- |
 | **COLOR** (dark … bright) | each synth track's brightness up: ANALOG / SAMPLE / TRIO / ACID **CUT**, DIGITAL **IDX**, PHASE **DCW**, LOFI / GRAIN / SLICE **TONE**, VOICE **BUZZ**, WHEEL **TOP**, FM6 **MOD**, PHYS **BRIT**; the delay's **COLR** | the same down |
-| **MOTN** (still … alive) | the LFO's depths (filter, shape, amplitude, a touch of pitch), its **RATE**, ANALOG's **DRFT**, the chorus depth | the LFO's depths and the chorus depth fade to 0, the LFO slower |
+| **MOTN** (still … alive) | the LFO's depths (filter, shape, amplitude, a touch of pitch), its **RATE**, ANALOG's **DRFT**, the chorus depth | the LFO's depths and the chorus depth fade to 0, the LFO slower (a RATE synced to the tempo stays on its note value, either way; a free one never turns into a synced one) |
 | **SPACE** (close … huge) | the chorus, delay and reverb sends of tracks 1–3, every drum sound's REV (as it moved DRUMS REV), the reverb **SIZE**, the delay **FDBK** (never past 100 %), tracks 1 and 3 spread left and right | the sends fade to 0, the pans close to the centre (mono), a smaller reverb, a shorter echo |
 | **ENRGY** (sparse … intense) | brightness a little up, **DIST** on tracks 1–3, the drums' level | brightness down, DIST to 0, the drums softer |
 

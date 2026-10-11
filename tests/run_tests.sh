@@ -169,6 +169,11 @@ run "performance macros: mapping per engine, storage, ENERGY bands, motion, audi
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/macro_test_off" tests/macro_test.c -lm
 run "macros at home: the 4-track mix renders bit-identical with and without the switch" sh -c \
     "[ \"\$('$OUT/macro_test' hash)\" = \"\$('$OUT/macro_test_off' hash)\" ]"
+# the LFO's RATE synced to the tempo (voice.c lfo_inc, SLOOP 2.6's LFO 2 SYNC): with the macros and without
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $MACROS_ON $SEC4 -o "$OUT/lfo_sync_test" tests/lfo_sync_test.c -lm
+run "LFO RATE below 0: SLOOP 2.6's SYNC note values, free rates as before, with the transport clock (tempo, nudge), stopped at the tempo, PHS retrigger, macros leave it" "$OUT/lfo_sync_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_sync_test_nomac" tests/lfo_sync_test.c -lm
+run "LFO RATE below 0, without the macros" "$OUT/lfo_sync_test_nomac"
 BP23_ON="-DFELUCCA_MONO_RELEASE=1 -DFELUCCA_ST_STRICT=1 -DFELUCCA_USB_FLOW=1 -DFELUCCA_SHED_FADE=1 -DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
 run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"

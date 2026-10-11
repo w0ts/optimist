@@ -2,6 +2,13 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Parameter descriptors, formatting and the page table. */
 static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
+/* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
+ * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
+ * heard. LRATE_OF_SLOOP: its SYNC and RATE -> our RATE; SLOOP_LSYNC_OF: our RATE -> its SYNC (its RATE: ours, 0..127) */
+#define LSYNC_N 10
+static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
+#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
+#define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
@@ -73,7 +80,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ED_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
-    [P_LRATE] = PD("RATE", F_LFOHZ, 0, 127, 60),
+    [P_LRATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* (< 0: synced, N_LSYNC) */
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
     [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
@@ -390,6 +397,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     }
     case F_LFOHZ: {
         uint32_t h = LFO_HZ_X100[v & 127];
+        if (v < 0) {                                  /* (RATE: a note value of the tempo) */
+            str_cpy(val, N_LSYNC[(uint32_t)(-v - 1) < LSYNC_N ? (uint32_t)(-v - 1) : 0u], 6);
+            break;
+        }
         if (h < 1000u)
             fmt_fix(val, (int32_t)h, 2);
         else

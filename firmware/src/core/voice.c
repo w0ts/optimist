@@ -40,10 +40,32 @@ AINL int32_t lfo_wave(track_t *t, uint32_t ph)
  * single-core order (dual_lfo_draw): the same samples as the single-core build */
 static uint32_t dual_lfo_rnd[NPART];
 #endif
+/* RATE below 0: one cycle per note value of the tempo, SLOOP 2.6's LFO 2 SYNC (after Felucca 1.4 by Leo Kuroshita;
+ * its P_LSYNC n is our RATE -n, params.c N_LSYNC / LSYNC_N: -1 4BAR .. -10 1/32). Its cycle in 24ths of a beat as SLOOP's
+ * LSYNC_PULSES; the phase moves by what the transport clock moves (clk_blk: the tempo, the nudge, an external
+ * clock), so it stays with the steps; LSYNC_KT: 2^48 / the cycle in clock units (a beat is BEAT_U = FS x 60), the
+ * step (clk_blk x K) >> 16, no divide in the ISR. A fresh phrase restarts it at PHS as before (SLOOP's TRIG NOTE) */
+#define LSYNC_U (FS * 5u / 2u)                         /* a 24th of a beat, in clock units */
+#define LSYNC_ONE 281474976710656ull                    /* 2^48 */
+_Static_assert(BEAT_U == LSYNC_U * 24u, "a cycle of P 24ths of a beat is LSYNC_U x P units");
+static const uint32_t LSYNC_KT[LSYNC_N] = {           /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32: P 384 .. 3 */
+    (uint32_t)((LSYNC_ONE + LSYNC_U * 192u) / (LSYNC_U * 384u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 96u) / (LSYNC_U * 192u)),
+    (uint32_t)((LSYNC_ONE + LSYNC_U * 48u) / (LSYNC_U * 96u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 24u) / (LSYNC_U * 48u)),
+    (uint32_t)((LSYNC_ONE + LSYNC_U * 12u) / (LSYNC_U * 24u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 6u) / (LSYNC_U * 12u)),
+    (uint32_t)((LSYNC_ONE + LSYNC_U * 4u) / (LSYNC_U * 8u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u) / (LSYNC_U * 6u)),
+    (uint32_t)((LSYNC_ONE + LSYNC_U * 2u) / (LSYNC_U * 4u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u / 2u) / (LSYNC_U * 3u))};
+/* the phase step of t's LFO this block (track_lfo_tick; dual.c dual_lfo_draw: the same) */
+AINL uint32_t lfo_inc(const track_t *t)
+{
+    int32_t r = t->p[P_LRATE];
+    if (r >= 0)
+        return LFO_INC[r & 127];
+    return (uint32_t)(((uint64_t)clk_blk * LSYNC_KT[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u]) >> 16);
+}
 static HOT void track_lfo_tick(track_t *t)
 {
     uint32_t old = t->lfo_ph;
-    t->lfo_ph += LFO_INC[t->p[P_LRATE] & 127];
+    t->lfo_ph += lfo_inc(t);
     if (t->lfo_ph < old)
 #if FELUCCA_DUAL >= 2
         t->lfo_rnd = dual_lfo_rnd[t - trk];

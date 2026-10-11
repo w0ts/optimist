@@ -130,6 +130,8 @@ All little endian.
 v5 formats: **SWING** 0..100 shown as the MPC swing, 50 % (straight) + value / 4 (so 75 % at 100);
 **FILT** −64..63: 0 OFF, below 0 a low-pass closing (LP 1..100 %), above 0 a high-pass (HP 1..100 %).
 **PCT** is the share of the range: value × 100 / max (rounded).
+**LFOHZ** below 0 (the LFO's RATE, −10..127): a note value of the tempo, one LFO cycle each, −1 4BAR, −2 2BAR, −3 1BAR,
+−4 1/2, −5 1/4, −6 1/8, −7 8T, −8 1/16, −9 16T, −10 1/32 (SLOOP 2.6's LFO 2 SYNC values 1..10, negated); no unit.
 
 The editor should show the value with the unit; formatting it exactly like the device does
 is not required.
@@ -596,7 +598,9 @@ the editor shows no button. Nothing is written to flash.
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
   bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
   events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second
-  word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not.
+  word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not; bit 1 (the mask's bit 15): an LFO RATE
+  synced to the tempo (below 0, also in a lock), written as the free rate nearest that note value at the project's tempo
+  (2.4 has no sync). A v11 request does not report it.
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two

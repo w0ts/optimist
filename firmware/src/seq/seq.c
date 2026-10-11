@@ -2397,6 +2397,7 @@ static void events_block(uint32_t n)
         if (song.playing)
             adv = a;                                  /* (stopped: the arp and rolls at the tempo shown) */
     }
+    clk_blk = adv;                                    /* (the synced LFOs this block: voice.c lfo_inc) */
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
     click_tick();

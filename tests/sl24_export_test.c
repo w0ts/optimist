@@ -417,6 +417,45 @@ static void fx_slots24(void)
     trk[1].p[P_TCOMP] = 0, TDRUM->p[P_REV] = TDRUM->p[P_DLY] = 0, dins_amt[0][2] = 0;
 }
 
+/* the LFO's RATE synced (< 0: a note value, SLOOP 2.6's SYNC; 2.4 has none) -> the free rate nearest that note value's
+ * at the project's tempo (log scale), its locks too; lost: LSYNC. A free RATE as it is */
+static int32_t near_rate(int32_t bpm, double beats)
+{
+    double hz = bpm / 60.0 / beats, best = 1e9;
+    int32_t i, r = 0;
+    for (i = 0; i < 128; i++) {
+        double e = fabs(log(LFO_HZ_X100[i] / 100.0 / hz));
+        if (e < best)
+            best = e, r = i;
+    }
+    return r;
+}
+static void lsync24(void)
+{
+    static project_t q, r;
+    static stepx_t x[NTRK], y[NTRK];
+    const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
+    int16_t v[P_COUNT];
+    uint32_t lost, base, ok;
+    ours(&q, x);
+    base = proj_to_sl24(&q, xp, out, 0);
+    check("LFO sync: a free RATE everywhere: LSYNC not lost", !(base & SX24_LSYNC));
+    pj_to_p(v, q.t[0].p), v[P_LRATE] = -5, pj_from_p(q.t[0].p, v);      /* 1/4 at 123 BPM: 2.05 Hz */
+    pj_to_p(v, q.t[2].p), v[P_LRATE] = -1, pj_from_p(q.t[2].p, v);      /* 4BAR: 0.128 Hz */
+    stepx_lock_set(&x[1], 7, P_LRATE, -10);             /* 1/32: 16.4 Hz */
+    stepx_lock_set(&x[1], 8, P_LRATE, 33);
+    q.sum = proj_sum(&q);
+    lost = proj_to_sl24(&q, xp, out, 0);
+    ok = lost == (base | SX24_LSYNC) && p24(out, 0, P_LRATE) == near_rate(123, 1.0) &&
+         p24(out, 2, P_LRATE) == near_rate(123, 16.0) && p24(out, 1, P_LRATE) == (int16_t)(11u + P_LRATE * 3u) - 20 &&
+         has24(out, 1, 7, P_LRATE, (int16_t)near_rate(123, 0.125)) && has24(out, 1, 8, P_LRATE, 33);
+    check("LFO sync -> 2.4: 1/4, 4BAR, a 1/32 lock -> the nearest free rates at 123 BPM; free ones as they are; "
+          "lost LSYNC", ok);
+    ok = proj_from_sl24(&r, out, sizeof out, y, 0) && proj_ok(&r);
+    pj_to_p(v, r.t[0].p);
+    check("... and back in: the free rate (2.4 has no sync)", ok && v[P_LRATE] == near_rate(123, 1.0));
+}
+
 int main(int argc, char **argv)
 {
     FILE *f = fopen("tests/sl24_fun5.bin", "rb");
@@ -431,6 +470,7 @@ int main(int argc, char **argv)
     fm6_voices();
     settings24(argc > 1 ? argv[1] : 0);
     fx_slots24();
+    lsync24();
     printf("sl24 export test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

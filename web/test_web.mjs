@@ -850,6 +850,11 @@ async function editorV5() {
   ok(fv(E.F.SWING, 0, 100) === "50%" && fv(E.F.SWING, 50, 100) === "63%" && fv(E.F.SWING, 100, 100) === "75%"
     && fv(E.F.FILT, 0, 63, -64) === "OFF" && fv(E.F.FILT, -64, 63, -64) === "LP100%" && fv(E.F.FILT, -32, 63, -64) === "LP50%" && fv(E.F.FILT, 63, 63, -64) === "HP100%"
     && fv(E.F.PCT, 127) === "100%" && fv(E.F.PCT, 64) === "50%" && fv(E.F.PCT, 60, 120) === "50%", "v5: SWING 50..75 %, FILT LP / OFF / HP, PCT of the range");
+  /* the LFO's RATE below 0: a note value of the tempo (params.c N_LSYNC, SLOOP 2.6's SYNC), the mock's range as params.c's */
+  ok(fv(E.F.LFOHZ, -1, 127, -10) === "4BAR" && fv(E.F.LFOHZ, -7, 127, -10) === "8T" && fv(E.F.LFOHZ, -10, 127, -10) === "1/32"
+    && fv(E.F.LFOHZ, 0, 127, -10) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -10) === "40.0Hz"
+    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(pc)
+    && html.includes('D("RATE", F.LFOHZ, -10, 127, 60)'), "LFO RATE: -1..-10 4BAR .. 1/32 (synced), 0..127 Hz; the mock's range -10..127 as params.c");
   /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
      part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
   const eng = { fmt: E.F.ENUM, min: 0, max: 2, names: ["", "MARK I", "OPL"] };
@@ -1688,6 +1693,8 @@ async function editorSl24Lost2() {
     ok(p.ext === false && p.lost2 === 0 && p.lost === (0x22 | 8192) && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === "fm6,locks,motionchance",
       "sl24 v12 editor on v11 firmware: the missing second word is 0, bit 13 reads 'motion or chance', the data whole");
     ok(E.sl24Lost(0x22).join() === "fm6,locks" && E.sl24Lost(0x22 | 8192, 0, false).join() === "fm6,locks,motionchance", "sl24Lost: a bare first word as before");
+    ok(E.sl24Lost(0, 2, true).join() === "lsync" && E.sl24Lost(0, 3, true).join() === "chance,lsync" && html.includes("s24L_lsync:"),
+      "sl24Lost: the second word's bit 1 is the LFO's sync (sl24_export.c SX24_LSYNC), with its text");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {

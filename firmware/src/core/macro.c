@@ -126,6 +126,11 @@ static int32_t mac_apply(int32_t v, int32_t sc, int32_t add, int32_t lo, int32_t
     return clamp(v + add, lo, hi);
 }
 
+/* a part value's bottom under a macro: the LFO's RATE only over its free rates (0..127, never into the synced ones) */
+static int32_t mac_lo(uint32_t id) { return id == P_LRATE ? 0 : TP[id].min; }
+/* a part value no macro moves: a synced LFO RATE (< 0, params.c N_LSYNC: a note value stays that note value) */
+static int mac_fixed(uint32_t id, int32_t v) { return id == P_LRATE && v < 0; }
+
 /* the delay feedback's top: never past MAC_DFDBK_MAX by a macro (a base already past it stays where it is) */
 static int32_t mac_glob_hi(uint32_t id, int32_t base)
 {
@@ -165,7 +170,7 @@ static void mac_pre(void)
         mac_rows(x);
     for (i = 0; i < MAC_NROWS; i++) {
         const mac_row_t *r = &MAC_ROWS[i];
-        int32_t sc = mrow.sc[i], add = mrow.add[i], lo = TP[r->id].min, hi = TP[r->id].max;
+        int32_t sc = mrow.sc[i], add = mrow.add[i], lo = mac_lo(r->id), hi = TP[r->id].max;
         if (!add && sc == 64)
             continue;                                  /* (no macro off home moves this one) */
         if (r->kind == MK_DREV) {                      /* every drum lane's REV, as the voices take it */
@@ -184,7 +189,7 @@ static void mac_pre(void)
                 const param_desc_t *d = &ENGINES[t->engine % NENGINES]->edit[b & 7u];
                 if (b != 0xFFu)
                     mac_put(&t->p[P_E0 + (b & 7u)], sc, add >> (b >> 4), d->min, d->max);
-            } else {
+            } else if (!mac_fixed(r->id, t->p[r->id])) {
                 mac_put(&t->p[r->id], sc, r->kind == MK_SPREAD ? add * ((int32_t)k - 1) : add, lo, hi);
             }
         }
@@ -230,8 +235,10 @@ static int32_t mac_effective(uint32_t k, uint32_t id, int32_t base)
             return mac_apply(base, sc, add >> (b >> 4), d->min, d->max);
         }
         if ((r->kind == MK_PART || r->kind == MK_SPREAD) && r->id == id) {
+            if (mac_fixed(id, base))
+                return base;
             mac_amt(r, x, &sc, &add);
-            return mac_apply(base, sc, r->kind == MK_SPREAD ? add * ((int32_t)k - 1) : add, TP[id].min, TP[id].max);
+            return mac_apply(base, sc, r->kind == MK_SPREAD ? add * ((int32_t)k - 1) : add, mac_lo(id), TP[id].max);
         }
     }
     return base;

@@ -219,7 +219,7 @@ static HOT void dual_lfo_draw(void)
     uint32_t p;
     for (p = 0; p < NPART; p++) {
         const track_t *t = &trk[p];
-        if ((uint32_t)(t->lfo_ph + LFO_INC[t->p[P_LRATE] & 127]) < t->lfo_ph)
+        if ((uint32_t)(t->lfo_ph + lfo_inc(t)) < t->lfo_ph)   /* (voice.c: the same step) */
             dual_lfo_rnd[p] = rng();
     }
 }
