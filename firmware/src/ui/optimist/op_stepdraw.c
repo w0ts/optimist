@@ -86,7 +86,7 @@ static void roll_range(const track_t *t, int32_t *lo, int32_t *hi)
             a = s->note[i] < a ? s->note[i] : a, b = s->note[i] > b ? s->note[i] : b;
     }
     if (a > b)                                          /* (an empty window: around the pick) */
-        a = b = pen_n ? pen_note[0] : last_note;
+        a = b = (int32_t)pick_note(0);
     while (b - a < 12)
         a > 0 ? a-- : 0, b < 127 ? b++ : 0;
     if (b - a > 55)                                     /* (2 px a semitone at least: the lowest notes kept) */
@@ -182,7 +182,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         for (i = 0; i < DRUM_LANES; i++)
             h = hu(h, lane_col(i));
     else
-        h = hu(h, pen_n ? pen_note[0] : last_note);
+        h = hu(h, pick_note(0));
     return hu(h, settings.palette);
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,

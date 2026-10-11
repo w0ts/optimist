@@ -2029,6 +2029,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
+#include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 int main(int argc, char **argv)
@@ -2079,6 +2080,7 @@ int main(int argc, char **argv)
     cards_tests();
     step_cards_tests();
     step_cards_leak_tests();
+    s35_entry_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();

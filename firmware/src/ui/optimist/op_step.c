@@ -77,7 +77,14 @@ static void step_reset(void)                            /* STEP entered or left:
     st.lock_pg = LOCK_NONE, st.hp = 0;
 }
 
-/* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last) */
+/* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last),
+ * moved by the octaves OCT- / OCT+ turned since it was played (the user, 2026-10-11: step entry follows the keyboard
+ * octave, as live playing does) */
+static uint32_t pick_note(uint32_t i)                   /* the pick's note i (0..3) */
+{
+    int32_t n = pen_n ? pen_note[i & 3u] : last_note;
+    return (uint32_t)clamp(n + 12 * ((int32_t)song.octave - pen_oct), 0, 127);
+}
 static void note_name(char *b, uint32_t n)              /* "C#4" (b holds 5) */
 {
     str_cpy(b, N_NOTE[n % 12u], 3);
@@ -94,7 +101,7 @@ static void step_pick_name(char *b, uint32_t n)         /* "KICK", "C4 E4+" (b h
     for (i = 0; i < k && i < 2u; i++) {
         if (i)
             str_cpy(b + str_len(b), " ", n - str_len(b));
-        note_name(b + str_len(b), pen_n ? pen_note[i] : last_note);
+        note_name(b + str_len(b), pick_note(i));
     }
     if (k > 2u)
         str_cpy(b + str_len(b), "+", n - str_len(b));
@@ -137,7 +144,7 @@ static void step_set(track_t *t, uint32_t idx)          /* an empty step takes t
         uint32_t i, n = pen_n ? pen_n : 1u;
         memset(s, 0, sizeof *s);
         for (i = 0; i < n && i < 4u; i++)
-            s->note[i] = pen_n ? pen_note[i] : last_note;
+            s->note[i] = (uint8_t)pick_note(i);
         s->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? n : 1u);
         s->time = ST_NOTE;
         s->vel = 100;

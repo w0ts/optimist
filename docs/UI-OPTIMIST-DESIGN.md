@@ -298,7 +298,9 @@ on the rows: the cards show the selected row's values.
 SEQ tapped. **The keys are the 16 steps of the page shown**, nothing held (the ISR's `ly_lock` LY_STEP, or KB_GRID,
 already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll the window** over a longer pattern:
 1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. OCT alone
-keeps the octave and ghost / hard, so the pick can be auditioned. FOLLOW (the window follows the playhead, as
+keeps the octave and ghost / hard, so the pick can be auditioned. **The pick follows the octave** (2026-10-11): a note
+played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
+at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). FOLLOW (the window follows the playhead, as
 FELUCCA_DRUM_STEP) is the default while playing [D]; a scroll turns it off, and **HOME + OCT- + OCT+ together
 resumes it** [D]. **PRESETS pages the window too** (2026-10-11, the user: "in the step sequencer it scroll pages thru
 the piano roll, in mixer it select preset indeed"): a page a detent on every track, stopping at the first and the last

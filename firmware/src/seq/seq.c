@@ -50,6 +50,9 @@ static uint8_t kb_root[27];                    /* KS_NOTE in chord mode: the key
 #endif
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
+#if FELUCCA_UI == 1
+static int8_t pen_oct;                          /* song.octave when the pen was written (STEP entry follows OCT) */
+#endif
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 /* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
@@ -1388,6 +1391,9 @@ static void key_down(uint32_t k)
             pen_n = 0;
         for (i = 0; i < kb_n[k] && pen_n < 4u; i++)
             pen_note[pen_n++] = kb_nt[k][i];
+#if FELUCCA_UI == 1
+        pen_oct = (int8_t)song.octave;
+#endif
     }
 }
 
