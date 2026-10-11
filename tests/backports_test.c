@@ -418,8 +418,24 @@ static void t_bassplus(void)
     r1 = master_render(1, 55, 8000, 1.0, &t1, &z1);
     r2 = master_render(2, 55, 8000, 1.0, &t2, &z2);
     printf("backports: bass+: 55 Hz sine RMS out: OFF %.0f, LOWCUT %.0f, BASS+ %.0f; tails %.2f %.2f %.2f\n", r0, r1, r2, t0, t1, t2);
-    check(r1 < r0 && r2 > 1.5 * r1, "bass+: a 55 Hz bass: LOWCUT takes it down, BASS+ gives it back as harmonics");
+    check(r1 < r0 && r2 > 1.3 * r1, "bass+: a 55 Hz bass: LOWCUT takes it down, BASS+ gives it back as harmonics");
     check(z2, "bass+: silence after: exactly 0 out");
+    {   /* Felucca 1.4 #180 (hugelton/Felucca v1.4 fx.c spk_bass, GPL-3.0-only): the harmonics x1.5, not x3. A full-scale
+         * kick (a sine gliding 150 -> 50 Hz, decaying over 0.3 s, peak 32000): the harmonics' peak (spk_bass) over the
+         * kick's. At x3 they peaked above the kick itself (Felucca measured 1.5 .. 3.5 x on its kicks) and the limiter
+         * pulled the whole mix down on every hit; at x1.5 they stay under it */
+        uint32_t i;
+        double ph = 0, pk = 0;
+        spk_bass_reset();
+        for (i = 0; i < FS / 2u; i++) {
+            double t = (double)i / FS, f = 50.0 + 100.0 * exp(-t / 0.03);
+            int32_t x = (int32_t)(32000.0 * exp(-t / 0.3) * sin(ph)), b = spk_bass(x);
+            ph += 2.0 * M_PI * f / FS;
+            pk = fabs((double)b) > pk ? fabs((double)b) : pk;
+        }
+        printf("backports: bass+: a full-scale kick: the harmonics peak at %.2f x the kick (1.21 at x3)\n", pk / 32000.0);
+        check(pk < 32000.0, "bass+: a full-scale kick's harmonics stay under the kick (Felucca #180: x1.5, not x3)");
+    }
 }
 #endif
 #if FELUCCA_DLY_HALVE
