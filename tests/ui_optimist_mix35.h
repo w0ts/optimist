@@ -34,7 +34,29 @@ static void preset_inplace_tests(void)
     check(ok, "PRESETS on SOUND: the preset (another engine's rows maybe) in place");
     reset_ui();
 }
+/* the mixer shows the cursor's group only: MASTER alone, the four channels, the 16 drum sounds; the step from one view
+ * to the next is drawn in place */
+static void mixer_views_tests(void)
+{
+    uint32_t ok;
+    reset_ui();
+    song.sel = 0;
+    frames(2);
+    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER && mxd.first == MXR_MASTER && mxd.last == MXR_T1;
+    check(ok, "ALGORITHM past T1: MASTER alone, drawn in place");
+    ok = algo_step_inplace(1) && mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
+    check(ok, "... back: the four channels, in place");
+    while (mx_row() < MXR_DR)
+        turn(EN_ALGO, 1);
+    ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_N &&
+         px_in(0, OP_PY, 120, 10, col_shade(lane_col(0), 3u));
+    check(ok, "past DR: the 16 drum sounds, in place, the kick's cell tinted");
+    ok = algo_step_inplace(-1) && mx_row() == MXR_DR && mxd.first == MXR_T1;
+    check(ok, "... back up: the channels, DR selected");
+    reset_ui();
+}
 static void mix35_tests(void)
 {
     preset_inplace_tests();
+    mixer_views_tests();
 }

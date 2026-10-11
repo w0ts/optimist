@@ -256,9 +256,9 @@ HOME (NO at the root) shows the mixer. **It is horizontal** [D, after the merge 
 shown on the cards (1x4 or 2x2, section 3) like any other screen's cursor row. It replaces the vertical strips of
 phases 2 to 5b (one track a column, KNOB k track k) and the DRUM MIXER screen.
 
-**The rows**, **four a screen** [D], each a quarter of the panel
-(41 px): T1 T2 T3 DR when the mixer opens; ALGORITHM past DR scrolls the window a row at a time through the lanes,
-past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
+**The rows**, shown **one group at a time** (section 13, 2026-10-11): the four channels T1 T2 T3 DR when the mixer
+opens, four rows of 41 px; ALGORITHM past DR shows the 16 drum sounds at once (two columns of eight), past T1 up MASTER
+alone on the whole panel. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
@@ -1875,3 +1875,19 @@ as long as what follows still fits the 20 cells (MX_MAXI); the header names the 
 The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), not the slots' order; an effect
 in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
 INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).
+
+**The mixer in three views.** The user: the mixer shows one group at a time, MASTER alone, or the four channels (T1 T2
+T3 and DR, the drum bus as a whole), or the drum sounds, and the view follows ALGORITHM. ALGORITHM walks the rows as
+before (MASTER, T1 .. DR, the 16 lanes, stopping at the ends); the panel shows only the cursor's group (`mx_view`:
+`mxd.first` .. `mxd.last`), redrawn in place by the panel's `cv_tall` when the group changes (no clear to black: the
+host test counts full-screen fills, and the emulator measurement of section 13's PRESETS applies to the walk too).
+`mx_rect` gives each row its place, steps and meter in its view; the live parts (meters, steps) are canvases of their
+own per row as before.
+
+| View | Rows | Each row |
+|---|---|---|
+| MASTER | the master alone, 240 x 164 | its name; a tall VU meter (14 px, 224 px wide) over a dB scale (a tick each 6 dB, 0 -12 -24 -48 named); the compressor's reduction as an amber bar from the right with its dB ("off" while THRS and CEIL are 0); then the four channels' meters (T1 T2 T3 DR, each in its colour): what feeds the master |
+| CHANNELS | T1 T2 T3 DR, 240 x 41 each | as before (section 12): the code and M / S badge, the engine and the preset, the 16 steps of the page playing with the page bars, the 3 px VU with the compressor's reduction |
+| SOUNDS | the 16 lanes, two columns of eight (1-8 left, 9-16 right), 120 x 20 each | the colour chip and code (BD SD CH ...), the lane's own hits on the page playing (6 px a step; an empty step a foot line, the playhead white), its hit meter (drums.hits, falling over 12 frames). The selected lane is framed and tinted; the header names it (*Snare mix*) |
+
+The levels are kept on a 0 .. 255 scale (`MX_LV`) and drawn to each view's meter width.

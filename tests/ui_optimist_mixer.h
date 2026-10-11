@@ -3,7 +3,8 @@
  * engine and no footer (11.5). Included by ui_optimist_test.c after its helpers. */
 #include "../firmware/src/storage/settings_word.c"     /* the settings word (project.c's, not in PROJ_HOST) */
 
-static uint32_t mx_row_y(uint32_t r) { return (uint32_t)OP_PY + (r - mxd.first) * MXL_H; }   /* row r on the screen */
+static uint32_t mx_row_y(uint32_t r) { mrect_t q; mx_rect(r, &q); return (uint32_t)(OP_PY + q.y); }   /* row r on the screen */
+static uint32_t mx_row_x(uint32_t r) { mrect_t q; mx_rect(r, &q); return (uint32_t)q.x; }
 static int mx_labels(uint32_t r, uint32_t set, const char *a, const char *b, const char *c, const char *d)
 {
     const char *want[4] = {a, b, c, d};
@@ -41,20 +42,24 @@ static void mixer_walk_tests(void)
     check(ok && mx_row() == MXR_N - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
     ui.force = 1;
     frame();
-    check(mxd.first + MXL_N == MXR_N && px_in(0, mx_row_y(MXR_N - 1u), 240, MXL_H - 1, col_shade(lane_col(15), 3u)),
-          "the four rows scroll with it, a row at a time; the selected row tinted in its colour (the 16th lane's)");
+    check(mxd.first == MXR_LANE0 && mxd.last == MXR_N && mx_row_x(MXR_N - 1u) == 120u && mx_row_y(MXR_N - 1u) > mx_row_y(MXR_N - 2u) &&
+              px_in(120, mx_row_y(MXR_N - 1u), 120, 10, col_shade(lane_col(15), 3u)),
+          "past DR the view is the 16 drum sounds, two columns of eight; the selected lane tinted in its colour (the 16th, right)");
     ppm("opt-mixer-h-lane16");
     for (i = 0, ok = 1; i < DRUM_LANES; i++) {          /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
         ok &= mx_row() == MXR_N - 2u - i;
     }
     check(ok && mx_row() == MXR_DR && song.sel == TRK_DRUM, "ALGORITHM back: the lanes, then DR");
+    frame();
+    check(mxd.first == MXR_T1 && mxd.last == MXR_LANE0, "on DR the view is the four channels again (T1 T2 T3 DR)");
     turn(EN_ALGO, -3);
     check(mx_row() == MXR_T1 && song.sel == 0, "... T3, T2, T1");
     turn(EN_ALGO, -1);
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_MASTER && song.sel == 0 && mxd.first == 0, "past T1 up: the MASTER row, in view now (the track stays)");
+    check(mx_row() == MXR_MASTER && song.sel == 0 && mxd.first == 0 && mxd.last == MXR_T1,
+          "past T1 up: MASTER alone on the panel (the track stays)");
     turn(EN_ALGO, -1);
     check(mx_row() == MXR_MASTER, "... and it stops there");
     ppm("opt-mixer-h-master");
@@ -233,19 +238,19 @@ static void mixer_rows_tests(void)
     reset_ui();
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     dstep_set(&dr->dstep[0], 2u, 2u, 0);                    /* lane 2 (snare) on step 1 */
-    while (mx_row() < MXR_LANE0 + 2u)
+    while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
     ui.force = 1;
     frame();
     y = mx_row_y(MXR_DR);
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
-    y = mx_row_y(MXR_LANE0 + 2u);
-    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(2)), "the snare lane's row: its own hit");
-    turn(EN_ALGO, 1);                                   /* (the clap row on the screen: the view scrolls to it) */
+    turn(EN_ALGO, 3);
     frame();
+    y = mx_row_y(MXR_LANE0 + 2u);
+    check(mx_row() == MXR_LANE0 + 2u && px_in(MXS_VX, y + MXS_SY, 5, MXS_SH, lane_col(2)), "the snare lane's cell: its own hit");
     y = mx_row_y(MXR_LANE0 + 3u);
-    check(y + MXL_SY + MXL_SH <= 240u && !px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
-    turn(EN_ALGO, -1);
+    check(y + MXS_SY + MXS_SH <= 240u && !px_in(MXS_VX, y + MXS_SY, 5, MXS_SH, lane_col(3)), "the clap lane's cell: none");
+    ppm("opt-mixer-sounds");
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     song.sel = 0;
     reset_ui();
@@ -261,20 +266,20 @@ static void mixer_rows_tests(void)
     }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
-        uint32_t x = MXL_VX + MXL_VW;
-        turn(EN_ALGO, -1);                              /* MASTER, in view */
+        uint32_t x = MXM_GX + MXM_GW;
+        turn(EN_ALGO, -1);                              /* MASTER, alone */
         song.g[G_CTHR] = -10;
         mc_gr_view = -6;                                /* 6 dB: 18 px from the right */
         frame();
-        y = mx_row_y(MXR_MASTER);
-        check(px_in(x - 17u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(x - 22u, y + MXL_VY, 3, MXL_VH, C_WARN),
-              "MASTER's row: the compressor's 6 dB as an amber bar pushing in from the right (18 px)");
+        y = OP_PY + MXM_GY;
+        check(px_in(x - 17u, y, 4, MXM_GH, C_WARN) && !px_in(x - 22u, y, 3, MXM_GH, C_WARN),
+              "MASTER alone: the compressor's 6 dB as an amber bar pushing in from the right (18 px)");
         ui.force = 1;
         frame();
         ppm("opt-mixer-h-master-gr");
         song.g[G_CTHR] = 0;
         frame();
-        check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "THRS and CEIL off: no compressor, no bar");
+        check(!px_in(MXM_GX, y, MXM_GW, MXM_GH, C_WARN), "THRS and CEIL off: no compressor, no bar");
         mc_gr_view = 0;
         turn(EN_ALGO, 1);
         fxs_load(0, FXT_COMP);                          /* T1's COMP insert, reducing 8 dB */
@@ -282,6 +287,7 @@ static void mixer_rows_tests(void)
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
         ui_draw();                                      /* (no audio block between: the reduction as set) */
         y = mx_row_y(MXR_T1);
+        x = MXL_VX + MXL_VW;
         check(px_in(x - 23u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
               "T1's COMP insert: its reduction on T1's row (8 dB: 24 px), none on T2's");
         trk[0].p[P_TCOMP] = 0;

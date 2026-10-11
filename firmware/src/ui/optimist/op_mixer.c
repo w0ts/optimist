@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The mixer, horizontal (docs/UI-OPTIMIST-DESIGN.md section 4.1; the user, 2026-10-08: "Horizontal mixer is better"):
  * the rows are the tracks, the four knobs four values of the SELECTED row, shown on the cards (1x4 or 2x2).
- *   rows       MASTER (above T1, out of view until the cursor goes up to it), T1 T2 T3, DR, then the drum track's 16
- *              lanes (indented, each named in its source's colour); each row its VU meter (the compressor's
- *              reduction pushing in from the right) and its sequence (op_mixdraw.c)
+ *   rows       MASTER (above T1), T1 T2 T3, DR, then the drum track's 16 lanes; the panel shows the cursor's group
+ *              only (the user, 2026-10-11): MASTER alone, the four channels, or the 16 drum sounds; each row its VU
+ *              meter (the compressor's reduction pushing in from the right) and its sequence (op_mixdraw.c)
  *   ALGORITHM  walks the rows, T1 .. DR .. the 16th lane and back, MASTER above T1 (it stops at the ends): the track
  *              selected follows (song.sel), a lane row selects the lane (lane_sel; its sound previews when stopped)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
