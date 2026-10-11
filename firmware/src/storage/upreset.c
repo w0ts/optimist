@@ -101,8 +101,8 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
-/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1 until a slot of the bank
- * is saved: the bank then goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
+/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1, every time: up_put_v1 saves a
+ * slot into it as it is there; without FELUCCA_SL24_SAFE the bank goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
  * analog2_from_super: SUPER LEAD's ANALOG version, the record has no preset number), DX7 / FM6 (10) -> FM6 (9),
  * SLICE (11) -> 10. A SUPER record is rewritten with today's P_COUNT values. (Test builds of feat/analog2 also
  * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
@@ -393,6 +393,31 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #endif
 }
 
+#if UP_FROM_V1 && FELUCCA_SL24_SAFE && FELUCCA_FLASH
+/* bank k / 16 in flash is "UPB1" (SLOOP 2.4 .. 2.6's, or SLOOP plus's): record k = *r (0: erased) into it as it is in
+ * flash (in st_buf), the bank kept UPB1 and every other record byte for byte, so SLOOP still reads all of its own. Ours
+ * is an UP_VER 2 record (up_vals_put): SLOOP skips it (its up_valid: UP_VER 1 only; to it an empty slot, which it may
+ * save over), up_bank_from_v1 leaves it as it is. Before, the bank went out as UPB2 (RAM's, converted) and SLOOP
+ * then read every slot of it as empty. -> 1 done (*rc: 0 ok, 2 flash error), 0 not such a bank (written as ours) */
+static int up_put_v1(uint32_t k, const up_rec_t *r, int *rc)
+{
+    up_bank_t *f = (up_bank_t *)(void *)st_buf;
+    uint32_t obj = OBJ_UPRESET0 + k / UP_PER_BANK;
+    if (st_load(obj, st_buf, sizeof *f) != (int)sizeof *f || f->magic != UP_BANK_MAGIC_V1 || f->rsize != sizeof(up_rec_t) ||
+        f->nslot != UP_PER_BANK)
+        return 0;
+    if (r)
+        f->r[k % UP_PER_BANK] = *r;
+    else
+        memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec_t));
+    *rc = st_save(obj, st_buf, sizeof *f) ? 2 : 0;     /* (storage.c: a source in st_buf, ST_SRC_BUF) */
+    return 1;
+}
+#define UP_KEEP_V1 1
+#else
+#define UP_KEEP_V1 0
+#endif
+
 /* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM) */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
@@ -413,8 +438,14 @@ static int up_put(uint32_t k, const up_rec_t *r)
     up_gen++;
     upf_set(k, 0);                                      /* (UP_FM6: a voice kept for the old record goes) */
 #if FELUCCA_FLASH
-    if (flash_ok)
+    if (flash_ok) {
+#if UP_KEEP_V1
+        int rc;
+        if (up_put_v1(k, r, &rc))                       /* (SLOOP's bank: kept UPB1, its records untouched) */
+            return rc;
+#endif
         return st_save(OBJ_UPRESET0 + k / UP_PER_BANK, bk, sizeof *bk) ? 2 : 0;
+    }
 #endif
     return 3;
 }

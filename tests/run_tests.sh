@@ -505,6 +505,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_edimport_test" tests/sl24_edim
 run "a SLOOP 2.4 backup file's project through the editor (SL24_EDIMPORT, cmds 90 / 91): chunks and CRCs, the FM6 parts' bank patches, every refusal, 2.4's bank read out, nothing written" "$OUT/sl24_edimport_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl25_safety_test" tests/sl25_safety_test.c -lm
 run "started on SLOOP 2.5 / 2.6's flash (SL24_SAFE): their settings (88 B + the SYN kits + 2.6's MIDI part) never read as ours, never written over; each firmware reads its own" "$OUT/sl25_safety_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl25_upreset_test" tests/sl25_upreset_test.c -lm
+run "SLOOP 2.5 / 2.6's user preset banks (golden UPB1 from their up_parse): read (np 61 / 71), a save or erase keeps the bank UPB1, their records byte for byte" "$OUT/sl25_upreset_test"
 for x in "0 0 0" "1 1 1" "1 0 0"; do
     set -- $x
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl26_import_test$1$2$3" tests/sl26_import_test.c -lm

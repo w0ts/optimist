@@ -110,6 +110,9 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 }
 
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
+/* st_save may be given st_buf itself (an object built or patched there: UP_FM6's, CZ's, upreset.c up_put_v1's SLOOP
+ * bank) */
+#define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE))
 #define ST_E_MAP (-8)                                  /* a sector outside the store's allow-list (st_save) */
 
 #if FELUCCA_SL24_SAFE
@@ -267,7 +270,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     if (len > ST_PAYLOAD_MAX)
 #endif
         return -1;
-#if FELUCCA_UP_FM6 || CZ_NUSER
+#if ST_SRC_BUF
     if (src == st_buf) {                              /* (built in st_buf: st_current would read over it) the newest */
         st_hdr_t b;                                   /* valid header is the current copy */
         int va = st_head(obj, 0, &h) == 0, vb = st_head(obj, 1, &b) == 0;
