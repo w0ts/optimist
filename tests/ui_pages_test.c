@@ -1403,6 +1403,20 @@ int main(int argc, char **argv)
         for (j = 0; j < 16u; j += 4u) { trk[1].step[j].n = 3; trk[1].step[j].time = ST_NOTE; }
         drum_lane = 4; drum_cursor = 6; drum_page = 0; ui.force = 1; ui.msg_t = 0;
         drums.hits = 1u | 1u << 4; frame(); ppm("live-grid");
+        {   /* the lanes' codes at the grid's left (the user, 2026-10-11): "SD" on lane 3 in its colour, the picked lane's white */
+            uint32_t y2 = 84u + 2u * 6u + 2u, y4 = 84u + 4u * 6u + 2u;
+#if DL_UI
+            uint16_t c2 = lane_col(2);
+#else
+            uint16_t c2 = TE_G3;
+#endif
+            /* S = 011 100 010 001 110: its top row lit at x 3, 4, not 2; C = 011 100 100 100 011 (lane 5, "CH", picked) */
+            check(screen[y2 * 240u + 3u] == swap16(c2) && screen[y2 * 240u + 4u] == swap16(c2) && screen[y2 * 240u + 2u] != swap16(c2) &&
+                  screen[(y2 + 4u) * 240u + 2u] == swap16(c2) && screen[(y2 + 2u) * 240u + 6u] == swap16(c2) && screen[(y2 + 2u) * 240u + 7u] != swap16(c2),
+                  "DRUMS grid: a lane's two-letter code at its left (SD, 3 x 5 px), in its colour");
+            check(screen[y4 * 240u + 3u] == swap16(C_WHITE) && screen[y4 * 240u + 2u] != swap16(C_WHITE) && screen[(y4 + 1u) * 240u + 2u] == swap16(C_WHITE),
+                  "DRUMS grid: the picked lane's code (CH) white");
+        }
         drum_page = 1; ui.force = 1; drums.hits = 1u | 1u << 4; frame(); ppm("live-kit");
         drum_page = 0; song.sel = 1; go_home(); ui.force = 1;
         transport_req = 1; frames(30); song.rec = 2u; frame(); ui.force = 1; frame(); ppm("live-tracks");

@@ -53,6 +53,7 @@ static void op_enter(uint32_t scr)
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.cards_t = 0;
+    cards_snap_use = 0;                                 /* (STEP's held-step snapshot goes with its cards) */
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
@@ -354,7 +355,10 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     case B_OCTDN:
     case B_OCTUP:
-        if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
+        if (ui.scr == SCR_STEP && st.held) {            /* a step held: its notes an octave (synths), nothing else */
+            if (!is_drum(TSEL))
+                held_octave(b == B_OCTDN ? -1 : 1);
+        } else if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
             uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
             if ((held & both) == both)
                 st.follow = 1;
@@ -446,20 +450,20 @@ static int fx_algo(int32_t s)
     }
     return 1;
 }
-/* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen (the user,
- * 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
+/* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
+ * where it pages the window (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
 static int op_presets_turn(void)
 {
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && !op_armed() && !rh.ring) {   /* STEP on the drum track: the lane (the
-                                                         * user, 2026-10-10), stopping at the ends; previewed when stopped */
-        uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
-        lane_pick(l);                                   /* (no overlay: the header names the lane, the user 2026-10-10) */
-        if (ui.row[SCR_STEP] >= STP_LANE0)
-            ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
+    if (ui.scr == SCR_STEP) {                           /* STEP: the window's pages, every track (the user, 2026-10-11:
+                                                         * "in the step sequencer it scroll pages thru the piano roll"),
+                                                         * stopping at the ends; a step held: nothing (the held keys are
+                                                         * the window's) */
+        if (!op_armed() && !rh.ring && !st.held)
+            step_scroll(s > 0 ? 1 : -1);
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
         op_preset_step(s);
         pre_toast();
@@ -661,10 +665,50 @@ static uint32_t step_leds(uint32_t blink)
     }
     return m;
 }
+/* ---- the buttons' half light (the user, 2026-10-11: "the buttons that are available should be half lit, for instance
+ * no LFO on a drum lane"): a button that does something now glows dim (fm1_led_dim: the HAL's glow layer, under the
+ * full light of the active button), one that does nothing stays dark. "Does something" is what ui_input would do with
+ * a tap: the page buttons need rows of their family on the selected track (op_jump), or a layer of their own held
+ * (lay_bits: none on MASTER's ERASE / ARP, the steps' locks on a held step); the NAME screen takes only HOME, SAVE
+ * and PLAY. LFO is the exception: its held layer (patterns) does not count, so the drum track's LFO is dark. */
+static uint32_t op_fam_mask(void)                       /* a bit per family the selected track has SOUND rows of */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < NPAGES; i++)
+        if (sound_page(&PAGES[i]))
+            m |= 1u << (PAGES[i].fam % 32u);
+    return m;
+}
+static uint32_t op_btn_avail(void)                      /* a bit per panel button (B_*) that has a function now */
+{
+    static const uint8_t PAGE_BTN[] = {B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_ARP};
+    static const uint8_t PAGE_FAM[] = {FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_ARP};
+    uint32_t m = 1u << B_HOME | 1u << B_SAVE | 1u << B_PLAY, fam, i, l;
+    if (name_on())
+        return m;
+    m |= 1u << B_REC | 1u << B_OCTDN | 1u << B_OCTUP | 1u << B_GLO | 1u << B_SEQ;
+    fam = op_fam_mask();
+    for (i = 0; i < sizeof PAGE_BTN; i++) {
+        uint32_t b = PAGE_BTN[i];
+        int on = (fam >> PAGE_FAM[i]) & 1u;
+        if (b == B_ENV && fm6_sel())
+            on = 1;                                     /* (an FM6 track: its operators, held: their pages) */
+        if (b == B_FX && ui.scr == SCR_FX)
+            on = 1;                                     /* (the global FX: its next page) */
+        if (ui.scr == SCR_STEP && st.held && b != B_EDIT)
+            on = 1;                                     /* (a step held: the page buttons lock their page) */
+        l = b == B_LFO ? LY_PLAY : lay_btn_layer(b);
+        if (l != LY_PLAY && ly_bit[l])
+            on = 1;
+        if (on)
+            m |= 1u << b;
+    }
+    return m;
+}
 static void ui_leds(void)
 {
-    uint8_t nl[FM1_NCOL] = {0};
-    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed();
+    uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0};
+    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail();
     static uint8_t ready;
     if (!ready) {
         uint32_t id, p, r;
@@ -677,6 +721,8 @@ static void ui_leds(void)
         }
         ready = 1;
     }
+    for (c = 0; c < NB; c++)
+        led_put(dl, panel.btn[c], (int)((avail >> c) & 1u));   /* (the half light: under the full light below) */
     led_put(nl, panel.btn[op_screen_btn()], 1);
     if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
         led_put(nl, panel.btn[LAYER_BTN[lay.shown]], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
@@ -711,9 +757,11 @@ static void ui_leds(void)
         fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
     }
 #endif
-    for (c = 0; c < FM1_NCOL; c++) {
-        fm1_led[c] = nl[c];
-        fm1_led_dim[c] = 0;
+    for (c = 0; c < FM1_NCOL; c++) {                    /* (written on a change only) */
+        if (fm1_led[c] != nl[c])
+            fm1_led[c] = nl[c];
+        if (fm1_led_dim[c] != dl[c])
+            fm1_led_dim[c] = dl[c];
     }
 }
 

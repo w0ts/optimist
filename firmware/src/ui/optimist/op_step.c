@@ -2,9 +2,9 @@
 /* STEP (docs/UI-OPTIMIST-DESIGN.md section 4.2, phase 2): one screen for drums and synths. SEQ tapped opens it; the
  * 16 white keys are the 16 steps of the window with nothing held (the ISR's ly_lock LY_STEP: seq.c sends the keys
  * to lk_q, they play nothing). The window is 1-16, 17-32, 33-48, 49-64 up to the track's LEN; it follows the
- * playhead while playing (FOLLOW, the default); HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
- * OCT+ together resumes it. OCT alone keeps its job (the octave; on the drum track ghost / hard, which a tapped drum
- * step takes too).
+ * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
+ * OCT+ together resumes it. OCT alone keeps its job (the octave, which the pick follows; on the drum track ghost /
+ * hard, which a tapped drum step takes too); with a synth step held it moves the step's notes an octave instead.
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
  *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL, as
@@ -69,6 +69,7 @@ static void step_scroll(int32_t d)                      /* HOME + OCT- / OCT+ */
 {
     st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(TSEL) - 1);
     st.follow = 0;
+    ui.cards_t = 0;                                     /* (the grid is what is looked at: the cards go, the header names the window) */
 }
 static void step_reset(void)                            /* STEP entered or left: nothing held, the keys are steps */
 {
@@ -77,7 +78,14 @@ static void step_reset(void)                            /* STEP entered or left:
     st.lock_pg = LOCK_NONE, st.hp = 0;
 }
 
-/* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last) */
+/* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last),
+ * moved by the octaves OCT- / OCT+ turned since it was played (the user, 2026-10-11: step entry follows the keyboard
+ * octave, as live playing does) */
+static uint32_t pick_note(uint32_t i)                   /* the pick's note i (0..3) */
+{
+    int32_t n = pen_n ? pen_note[i & 3u] : last_note;
+    return (uint32_t)clamp(n + 12 * ((int32_t)song.octave - pen_oct), 0, 127);
+}
 static void note_name(char *b, uint32_t n)              /* "C#4" (b holds 5) */
 {
     str_cpy(b, N_NOTE[n % 12u], 3);
@@ -94,7 +102,7 @@ static void step_pick_name(char *b, uint32_t n)         /* "KICK", "C4 E4+" (b h
     for (i = 0; i < k && i < 2u; i++) {
         if (i)
             str_cpy(b + str_len(b), " ", n - str_len(b));
-        note_name(b + str_len(b), pen_n ? pen_note[i] : last_note);
+        note_name(b + str_len(b), pick_note(i));
     }
     if (k > 2u)
         str_cpy(b + str_len(b), "+", n - str_len(b));
@@ -155,7 +163,7 @@ static void step_set(track_t *t, uint32_t idx)          /* an empty step takes t
         uint32_t i, n = pen_n ? pen_n : 1u;
         memset(s, 0, sizeof *s);
         for (i = 0; i < n && i < 4u; i++)
-            s->note[i] = pen_n ? pen_note[i] : last_note;
+            s->note[i] = (uint8_t)pick_note(i);
         s->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? n : 1u);
         s->time = ST_NOTE;
         s->vel = 100;
@@ -329,6 +337,19 @@ static void held_edit(uint32_t k, int32_t s)
     if (s != OP_RESET)
         s = clamp(s, -16, 16);
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
+}
+/* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
+ * to 0..127; the keyboard octave and FM6's paging stay. The cards come to the step's page, NOTE lit */
+static void held_octave(int32_t d)
+{
+    if (held_first() < 0)
+        return;
+    st.hp = 0;
+    st.lock_pg = LOCK_NONE;
+    held_edit(0, 12 * d);
+    step_cards_show();
+    ui.hot = 0;
+    ui.hot_lit = 1;
 }
 
 /* the extras: the nudge, the fill condition, the chance (the held step's second card page) */
@@ -569,18 +590,10 @@ static void hp_sync(void)                               /* the page of st.lock_p
         if (ix[i] == st.lock_pg)
             st.hp = (uint8_t)(HP_BASE + i);
 }
-static void hp_title(char *t, uint32_t n)               /* "STEP 3/9 LFO" */
+static void hp_title(char *t, uint32_t n)               /* the held step's card page: "STEP", "EXTRA", "LFO" */
 {
     uint8_t ix[OP_MAXROWS];
-    const char *nm = st.hp == 0u ? "" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title;
-    str_cpy(t, "STEP ", n);
-    fmt_int(t + str_len(t), (int32_t)st.hp + 1);
-    str_cpy(t + str_len(t), "/", n - str_len(t));
-    fmt_int(t + str_len(t), (int32_t)hp_count());
-    if (nm[0]) {
-        str_cpy(t + str_len(t), " ", n - str_len(t));
-        str_cpy(t + str_len(t), nm, n - str_len(t));
-    }
+    str_cpy(t, st.hp == 0u ? "STEP" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title, n);
 }
 static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's extras */
 {
