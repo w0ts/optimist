@@ -69,6 +69,7 @@ static struct {
     uint16_t help;               /* the knob's help line: its offset in PH_BLOB, 0 = none (param_help.c; in what
                                   * was the struct's padding after midi_view: no RAM) */
 #endif
+    uint32_t step_t0[16];        /* SEQ layer: fm1_ms when each step key went down (a tap: let go before HOLD_MS) */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

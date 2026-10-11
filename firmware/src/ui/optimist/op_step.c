@@ -5,8 +5,11 @@
  * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
  * OCT+ together resumes it. OCT alone keeps its job (the octave, which the pick follows; on the drum track ghost /
  * hard, which a tapped drum step takes too); with a synth step held it moves the step's notes an octave instead.
- *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
- *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
+ *   a step key tapped     an empty step: set with the pick; a set step: cleared. Both when the key is let go, and
+ *                         only after a tap: a press held past the hold time (op_hold_ms) or one during which a knob
+ *                         turned, a value or a lock was edited or a card page changed leaves the step as it was
+ *                         (the user, 2026-10-11: "long press on step to open plock, should not toggle the step")
+ *   a step key held       the cards are the step's (an empty step held: its cards, no note made): drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL, as
  *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS),
  *                         HOME the clear
@@ -31,9 +34,10 @@ static struct {
     uint8_t lock_pg;                    /* the held step's p-lock page: a PAGES row (a page button, or SELECT), LOCK_NONE else */
     uint8_t hp;                         /* the held step's card page: 0 the step, 1 its extras, then the p-lock pages */
     uint16_t held;                      /* the step keys down (white key w: step 16 page + w) */
-    uint16_t pend;                      /* set steps tapped: cleared when let go, unless edited meanwhile */
+    uint16_t pend;                      /* the step keys down that toggle their step when let go: a short press, nothing edited */
     uint32_t sess;                      /* the undo session of the step key pressed last */
     uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
+    uint32_t t_key[16];                 /* fm1_ms when each step key went down (a tap: let go before op_hold_ms) */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
@@ -210,10 +214,13 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         if (!(st.held & bit))
             return;
         st.held &= (uint16_t)~bit;
-        if ((st.pend & bit) && idx < trk_len(t) && step_has(t, idx)) {   /* tapped: cleared */
+        if ((st.pend & bit) && fm1_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
             undo_mark(t, st.sess);
             fm1_irq_off();
-            step_wipe(t, idx, 0);
+            if (step_has(t, idx))
+                step_wipe(t, idx, 0);
+            else
+                step_set(t, idx);
             fm1_irq_on();
             sync_reload = 1;
         }
@@ -240,15 +247,8 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     if (!st.held)
         st.t_down = fm1_ms;                             /* (the press that may become a hold) */
     st.held |= (uint16_t)bit;
-    if (step_has(t, idx)) {
-        st.pend |= (uint16_t)bit;                       /* set: cleared when let go, unless edited */
-        return;
-    }
-    undo_mark(t, st.sess);
-    fm1_irq_off();
-    step_set(t, idx);
-    fm1_irq_on();
-    sync_reload = 1;
+    st.t_key[w] = fm1_ms;
+    st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
 }
 /* the steps held, one by one: f(t, idx) for each within LEN (IRQ off, one undo level, edited: kept when let go) */
 static void held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
@@ -404,6 +404,7 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
             next = i;
     }
     st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);   /* (past the family's last page: its first) */
+    st.pend &= (uint16_t)~st.held;                      /* (a page changed: no tap) */
     hp_sync();
     step_cards_show();                                  /* (a page button: the p-lock page) */
     if (first == LOCK_NONE)

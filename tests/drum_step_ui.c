@@ -39,11 +39,14 @@ static void dh_fresh(void)
     ds_open_grid();
     drum_lane = 2; pen_lane = 2; drum_cursor = 0; ui.force = 1; frames(2);
 }
-/* the page of step idx, then its key down past HOLD_MS (a held step) */
+/* the page of step idx, then its key down past HOLD_MS (a held step); an empty step is set by a tap first (a press or a
+ * hold sets nothing: only a tap toggles) */
 static void dh_hold(uint32_t idx)
 {
     static const uint8_t PAGE_KEY[4] = {1, 3, 5, 8};
     key(PAGE_KEY[(idx / 16u) & 3u]);
+    if (!dstep_has(&TDRUM->dstep[idx], drum_lane))
+        key(key_of_white(idx % 16u));
     fm1_in.notes = 1u << key_of_white(idx % 16u); frame(); frames(HOLD_FRAMES);
 }
 static void dh_let_go(void) { fm1_in.notes = 0; frames(2); }
@@ -55,7 +58,7 @@ static void drum_hold_one(uint32_t idx)
     uint32_t w = idx % 16u, first_par;
     dh_fresh();
     dh_hold(idx);
-    snprintf(what, sizeof what, "grid step %u held: set at the press, a held step on its page", idx + 1u);
+    snprintf(what, sizeof what, "grid step %u tapped, then held: set, a held step on its page", idx + 1u);
     check(dstep_has(&TDRUM->dstep[idx], 2) && ((gh_held >> w) & 1u) && ((ui.step_held >> w) & 1u) && ui.step_page == idx / 16u, what);
     first_par = lock_par;
     encs[panel.enc[EN_ALGO]] = 1; frame();
@@ -108,6 +111,33 @@ static void drum_hold_tests(void)
     check(dstep_has(&TDRUM->dstep[5], 2) && !gh_held, "let go with no edit: the step stays (a hold is not a tap)");
     key(key_of_white(5));
     check(!dstep_has(&TDRUM->dstep[5], 2), "and a tap clears it as before");
+    /* the user, 2026-10-11: "long press on step to open plock, should not toggle the step on/off" */
+    fm1_in.notes = 1u << key_of_white(6); frame();
+    check(!dstep_has(&TDRUM->dstep[6], 2), "an empty step pressed: nothing yet (set when let go, after a tap)");
+    frames(HOLD_FRAMES);
+    check(!dstep_has(&TDRUM->dstep[6], 2) && ((gh_held >> 6) & 1u), "an empty step held past HOLD_MS: a held step, no hit made");
+    fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[6], 2) && !gh_held, "let go: still empty");
+    key(key_of_white(6));
+    fm1_in.notes = 1u << key_of_white(6); frame();
+    encs[panel.enc[EN_K4]] = 1; frame();                        /* (a short press, a knob turned: no tap) */
+    fm1_in.notes = 0; frames(2);
+    check(dstep_has(&TDRUM->dstep[6], 2), "a set step, a short press + a knob: kept");
+    fm1_in.notes = 1u << key_of_white(7); frame();
+    encs[panel.enc[EN_K4]] = 1; frame();
+    fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[7], 2), "an empty step, a short press + a knob: no hit made");
+    fm1_in.notes = 1u << key_of_white(6); frame();
+    key(3);                                                     /* (black key 2: another page) */
+    fm1_in.notes = 0; frames(2);
+    check(dstep_has(&TDRUM->dstep[6], 2) && !dstep_has(&TDRUM->dstep[22], 2), "a set step, a short press + a page key: kept, nothing on the new page");
+    key(1);                                                     /* (back to page 1) */
+    fm1_in.notes = 1u << key_of_white(6); frames(HOLD_FRAMES);
+    fm1_in.notes |= 1u << key_of_white(9); frame();
+    fm1_in.notes &= ~(1u << key_of_white(9)); frames(2);
+    check(dstep_has(&TDRUM->dstep[9], 2) && ((gh_held >> 6) & 1u), "a step held + another key tapped: that one set");
+    fm1_in.notes = 0; frames(2);
+    check(dstep_has(&TDRUM->dstep[6], 2) && dstep_has(&TDRUM->dstep[9], 2), "... the one held let go: still set");
 
     /* several keys held edit together */
     dh_fresh();
@@ -141,17 +171,21 @@ static void drum_hold_tests(void)
     check(motion_count(TDRUM) == 0u && !auto_step_marks(TDRUM, 7) && step_micro(TDRUM, 7) == 0, "held + OCT-: the motion goes with the rest");
     dh_let_go();
 
-    /* undo: one hold's step, lock and nudge are one level (EDIT + OCT-), redo brings them back */
+    /* undo: one hold's lock and nudge are one level (EDIT + OCT-), redo brings them back; the tap that set the step is
+     * a level of its own, before */
     dh_fresh();
+    key(5);                                                     /* (black key 3: page 3) */
+    key(key_of_white(8));                                       /* step 41 set by a tap */
+    frames(2);
     undo_close();
     dh_hold(40);
     encs[panel.enc[EN_PRESET]] = 2; frame();
     encs[panel.enc[EN_K4]] = -3; frame();
     dh_let_go();
-    check(dstep_has(&TDRUM->dstep[40], 2) && lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == -3, "undo: a hold wrote a step, a lock and a nudge on step 41");
+    check(dstep_has(&TDRUM->dstep[40], 2) && lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == -3, "undo: a tap set step 41, a hold wrote a lock and a nudge on it");
     press(B_EDIT); frames(10);
     dh_oct(B_OCTDN);
-    check(!dstep_has(&TDRUM->dstep[40], 2) && !lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == 0, "undo: EDIT + OCT-: all three gone, one level");
+    check(dstep_has(&TDRUM->dstep[40], 2) && !lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == 0, "undo: EDIT + OCT-: the hold's lock and nudge gone, one level (the tapped step stays)");
     dh_oct(B_OCTUP);
     check(dstep_has(&TDRUM->dstep[40], 2) && lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == -3, "undo: EDIT + OCT+: redo, back");
     release(B_EDIT); frames(2);
@@ -168,8 +202,9 @@ static void drum_hold_tests(void)
     go_home(); frames(2);
 }
 #elif FELUCCA_DRUM_STEP && !FELUCCA_AUTO
-/* the default build: DRUM_STEP on (user-default since this batch), the store's switches off: a tap toggles, a long press is
- * no held step (nothing to edit it with), the picked lane's step is as the 2.4 grid had it */
+/* the default build: DRUM_STEP on (user-default since this batch), the store's switches off: a tap toggles; a long press is
+ * no held step (nothing to edit it with) and toggles nothing either (the user, 2026-10-11: only a short untouched tap
+ * toggles, the same rule everywhere) */
 static void drum_hold_tests(void)
 {
     ds_clear_drums(64);
@@ -180,7 +215,17 @@ static void drum_hold_tests(void)
     fm1_in.notes = 1u << key_of_white(3); frames(HOLD_FRAMES);
     check(!gh_held && !ui.step_held && dstep_has(&TDRUM->dstep[3], 2), "a long press: no held step (the store is off), the step stays while down");
     fm1_in.notes = 0; frames(2);
-    check(!dstep_has(&TDRUM->dstep[3], 2) && !gh_held, "let go: the set step is cleared, as a tap");
+    check(dstep_has(&TDRUM->dstep[3], 2) && !gh_held, "let go after a long press: still set (no tap)");
+    fm1_in.notes = 1u << key_of_white(4); frames(HOLD_FRAMES);
+    fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[4], 2), "an empty step pressed long, let go: still empty");
+    fm1_in.notes = 1u << key_of_white(4); frame();
+    encs[panel.enc[EN_K1]] = 1; frame();                        /* (a short press, a knob turned: no tap) */
+    encs[panel.enc[EN_K1]] = -1; frame();
+    fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[4], 2) && drum_lane == 2, "an empty step, a short press + a knob: no hit made");
+    key(key_of_white(3));
+    check(!dstep_has(&TDRUM->dstep[3], 2), "a tap clears the set step");
     encs[panel.enc[EN_K4]] = 2; frame();
     check(drum_cursor == 3 && !gh_held, "knobs as before: KNOB 4 is the level of the cursor's step");
     ds_clear_drums(16);
@@ -217,11 +262,12 @@ static void drum_step_tests(void)
     check(kb_kind[key_of_white(0)] == KS_NONE && ds_count(0, 0, 64) == 0, "a step key plays no pad and sets no other sound");
     key(key_of_white(3));
     check(!dstep_has(&TDRUM->dstep[3], 2) && dstep_has(&TDRUM->dstep[0], 2), "a set step pressed again: cleared");
-    {   /* the sound heard when a key sets a step */
+    {   /* the sound heard at the press of an empty step; the step set when the key is let go (a tap) */
         aud_lanes = 0;
         fm1_in.notes = 1u << key_of_white(10); frame();
-        check(dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == (1u << 2), "a key sets a step: the sound is heard (audition)");
+        check(!dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == (1u << 2), "a key on an empty step: the sound heard at the press (audition), no step yet");
         fm1_in.notes = 0; frames(2);
+        check(dstep_has(&TDRUM->dstep[10], 2), "... let go (a tap): the step set");
         aud_lanes = 0;
         fm1_in.notes = 1u << key_of_white(10); frame();
         check(dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == 0, "a key on a set step: it stays while the key is down");

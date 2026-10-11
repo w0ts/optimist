@@ -13,12 +13,14 @@
  *   FOLLOW                          the SEQ layer's page is the playhead's (synth too); a page key stops it */
 #if FELUCCA_PLOCK && FELUCCA_MICRO && FELUCCA_FILLS && FELUCCA_CHANCE
 static void sa_oct(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); fm1_in.buttons &= ~BT(b); frame(); }
-/* the SEQ layer on track t at the page of step idx, that step held (its key down) */
+/* the SEQ layer on track t at the page of step idx, that step set (a tap: a press sets nothing) and held (its key down) */
 static void sa_hold(uint32_t idx)
 {
     static const uint8_t PAGE_KEY[4] = {1, 3, 5, 8};   /* (C#, D#, F#, G#: pages 1..4) */
     press(B_SEQ); frames(HOLD_FRAMES);
     key(PAGE_KEY[(idx / 16u) & 3u]);
+    if (!step_is_on(TSEL, idx))
+        key(key_of_white(idx % 16u));
     fm1_in.notes = 1u << key_of_white(idx % 16u); frame();
 }
 static void sa_let_go(void) { fm1_in.notes = 0; frame(); release(B_SEQ); frames(2); }
@@ -39,7 +41,7 @@ static void sloop_auto_synth_step(uint32_t idx)
     int32_t v = 0;
     lock_par = P_ED_FLT;
     sa_hold(idx);
-    snprintf(what, sizeof what, "synth step %u: SEQ + its page key + the step held: the page", idx + 1u);
+    snprintf(what, sizeof what, "synth step %u: SEQ + its page key + the step tapped, then held: the page", idx + 1u);
     check(ui.step_page == idx / 16u && step_on(&t->step[idx]), what);
     encs[panel.enc[EN_PRESET]] = 3; frame();
     snprintf(what, sizeof what, "synth step %u held + PRESETS +3: a lock event at the track's value + 3", idx + 1u);

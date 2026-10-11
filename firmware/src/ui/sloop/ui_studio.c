@@ -8,10 +8,11 @@
  * signature changed. */
 static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
 #if FELUCCA_DRUM_STEP
-/* the grid's step keys (ui_drumstep.c): down, held past HOLD_MS (a held step: steps_held_* edit it), and the set steps
- * that clear when let go; when each went down. The grid's held steps need the store (one of its switches) */
+/* the grid's step keys (ui_drumstep.c): down, held past HOLD_MS (a held step: steps_held_* edit it), and the keys
+ * that toggle their step when let go (a tap); when each went down. The grid's held steps need the store (one of its switches) */
 static uint16_t gh_down, gh_held, gh_off;
 static uint32_t gh_t0[16];
+#define GRID_TOUCHED() (gh_off = 0)                    /* a knob turned while a step key is down: no tap (ui_drumstep.c) */
 static uint32_t ds_held_first(void)                    /* the step of the first held key (the grid's page: the cursor's) */
 {
     uint32_t w;
@@ -22,6 +23,7 @@ static uint32_t ds_held_first(void)                    /* the step of the first 
 #else
 #define gh_held 0u
 #define gh_down 0u
+#define GRID_TOUCHED() ((void)0)
 #endif
 static void trk_short_name(uint32_t c, char *b);
 static int on_drum_page(void) { return cur_page()->scope == SC_DRUM; }
@@ -1125,6 +1127,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
 #endif
     if ((s = panel_enc(EN_ALGO)) && !ft_on) {
 #if FELUCCA_DRUM_STEP
+        GRID_TOUCHED();
         if (ds_algo_walk(s) < 0) {                     /* the lanes end at the kick: a fresh turn goes up to T3 */
             track_select(TRK_DRUM - 1u);
             go_home();
@@ -1138,8 +1141,9 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         }
 #endif
     }
-    if ((s = panel_enc(EN_PRESET))) { PH_CLEAR(); drum_kit_step(s); }
+    if ((s = panel_enc(EN_PRESET))) { PH_CLEAR(); drum_kit_step(s); GRID_TOUCHED(); }
     for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
+        GRID_TOUCHED();
         ui.hot_col = (uint8_t)k;
         ui.hot_t = PH_HOT;
         PH_SLOT(drum_page ? "DRUM KIT" : "DRUM GRID", k);   /* its help line (param_help.c) */
