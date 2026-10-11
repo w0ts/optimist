@@ -126,6 +126,24 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
         step_clear(&t->step[(start + i) % len]);
         t->step[(start + i) % len].time = ST_TIE;
     }
+#if FELUCCA_PLOCK
+    if (n != old)                                   /* whole steps now: a recorded fraction goes */
+        lock_drop(t, (start + old - 1u) % len, P_SGATE);
+#endif
+}
+/* the note at start (n steps with its ties) as it plays, in tenths of a step, when its last step has a GATE lock (a
+ * live-recorded length: seq.c rec_len_end; a TIE ends half a step + GATE in), else -1 */
+static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
+{
+#if FELUCCA_PLOCK
+    int32_t g;
+    if (lock_get(t, (start + n - 1u) % trk_len(t), P_SGATE, &g))
+        return (int32_t)(n - 1u) * 10 + (n > 1u ? 5 : 0) + (g * 10 + 64) / 128;
+#endif
+    (void)t;
+    (void)start;
+    (void)n;
+    return -1;
 }
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
@@ -704,10 +722,15 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         }
         if (k == 3u) {
             uint32_t n = step_note_len(t, (uint32_t)i);
+            int32_t f = step_note_len10(t, (uint32_t)i, n);   /* (a recorded length: 1.8) */
             c->label = "LENGTH";
-            fmt_int(c->val, (int32_t)n);
+            fmt_int(c->val, f < 0 ? (int32_t)n : f / 10);
+            if (f >= 0) {
+                char d[3] = {'.', (char)('0' + f % 10), 0};
+                str_cpy(c->val + str_len(c->val), d, sizeof c->val - str_len(c->val));
+            }
             c->unit = "ST";
-            cell_gauge(c, 0, 0, (int32_t)trk_len(t), (int32_t)n);
+            cell_gauge(c, 0, 0, (int32_t)trk_len(t) * 10, f < 0 ? (int32_t)n * 10 : f);
             return;
         }
         k--;

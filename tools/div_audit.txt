@@ -86,6 +86,8 @@ src/seq/seq.c:erase_now:len | TLEN
 src/seq/seq.c:ft_bpm10:den | guarded: "den ? ... : 0"
 src/seq/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
 src/seq/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when ft_fit found none)
+src/seq/seq.c:ft_close:T | T = ft_t >= FS / CTL / 2 (checked before ft_fit): the PLOCK length lock (x = d x len x 128 / T)
+src/seq/seq.c:rec_gate:u | u = slen >> 7, guarded (u <= 0 returns): slen is a step of the grid (trk_grid), BEAT_U / DIV_DEN units, far above 128 at any DIV
 src/seq/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
 src/seq/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
 src/seq/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
@@ -128,6 +130,7 @@ src/ui/optimist/op_graph.c:graph_arp:len | len = 3 * oct with oct clamped 1..4: 
 src/ui/optimist/op_graph.c:graph_steps:rows | rows = len > 32 ? 2 : 1
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
+src/ui/optimist/op_step.c:step_note_len10:trk_len(t) | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
 src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
