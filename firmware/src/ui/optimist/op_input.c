@@ -106,7 +106,7 @@ static void op_jump_sound(uint32_t fam)
     if (ui.scr != SCR_SOUND)
         op_enter(SCR_SOUND);
     if (!snd_has_fam(fam))
-        return;                                         /* (none on this track, the drum track's ENV: every row) */
+        return;                                         /* (none on this track: every row; the drum track's ENV: its lane's) */
     snd_fam = (uint8_t)fam;
     ui.row[SCR_SOUND] = 0xFF;                           /* (so that the pick below is a change) */
     op_row_pick(0);
@@ -133,7 +133,7 @@ static void op_jump(uint32_t fam)
             next = r;
     }
     if (first == 0xFF)
-        return;                                         /* (none on this track: the drum track has no ENV) */
+        return;                                         /* (none on this track; the drum track's ENV is its lane's) */
     op_row_pick(next != 0xFF ? next : first);          /* (past the family's last row: its first again) */
 }
 

@@ -3,7 +3,8 @@
  *   draw_gauge   one primitive set for every value, chosen from its range (op_cells.c cell_gauge): a bar from the
  *                left, a bar from the centre (bipolar), a row of dots (a short list), a tick (a long list), a pill
  *   sound graph  the cursor row's picture on SOUND where the core has one: the envelope (ENV, ENV2), the LFO's wave,
- *                the FX sends, the scale on a keyboard, the pattern's steps, the drum lane; the maths written here
+ *                the FX sends, the scale on a keyboard, the pattern's steps, the drum lane (its ENV row: the lane's
+ *                envelope); the maths written here
  *                afresh (SLOOP's ui_draw.c is not called)
  *   the modal    a question over the panel: the verb big, its target big in its colour, "SAVE yes" / "HOME no";
  *                a red frame when it destroys or replaces the work, amber otherwise. The toast: a result, small */
@@ -253,6 +254,151 @@ static void graph_lane(void)                             /* the drum lane: its n
     else                                                /* (2x2: beside the name, at the right) */
         cv_text(236 - text_w(&FONT_S, drum_kit_name()), 22, &FONT_S, drum_kit_name(), C_GRAY);
 }
+/* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
+ * copied: this UI does not call into ui/sloop). The level over the sound's length in the lane's colour (synthesised:
+ * the body and the noise as they hold and decay, CLICK a tick at the start; a sample: its peaks with DECAY; an X0X
+ * model: a sketch of its decay as set), the pitch drop (BEND) in white, the length at the right. A LEVEL-only sound
+ * (the 909's rim shot) says so */
+#define DENV_W 232
+static void denv_head(uint32_t l, const char *right)
+{
+    cv_text(4, GR_TOP, &FONT_S, LANE_NAME[l], lane_col(l));
+    cv_text(236 - text_w(&FONT_S, right), GR_TOP, &FONT_S, right, C_GRAY);
+}
+static void denv_time(uint32_t ms)
+{
+    char b[12];
+    fmt_int(b, (int32_t)ms);
+    str_cpy(b + str_len(b), "ms", 4);
+    cv_text(236 - text_w(&FONT_S, b), GR_BOT - 14, &FONT_S, b, C_DIM);
+}
+#if DRUM_X0X
+static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
+{
+    int32_t dk = (o ? o[DE_DECAY] : 0) + (int32_t)x0x_var_decay(kit, l), w = 6 + (64 + dk) * 3 / 4, x, y;
+    for (x = 0; x < DENV_W; x++) {
+        y = h * 1024 / (1024 + x * 1024 / (w > 1 ? w : 1));   /* (1 / (1 + t / w): no exp here) */
+        cv_line(x + 4, y0 + h, x + 4, y0 + h - y * y / h, c);
+    }
+}
+#endif
+static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
+{
+    const smp_zone_t *z = 0;
+    uint32_t pos = 0, end = 0, k = o && o[DE_DECAY] < 0 ? DECAY_K[clamp(127 + 2 * o[DE_DECAY], 0, 127)] : 0u;
+    uint32_t i, n, per, rate, x;
+    int32_t e = 32767, pk[DENV_W], mx = 1;
+    voice_t v;
+    int32_t (*next)(const smp_zone_t *, voice_t *, int) = FAR(sample_next);
+#if FELUCCA_DRUM_USR
+    if (usr)
+        z = dl_usr_zone(l, usr, &pos, &end);
+#endif
+    if (!usr && drum_set() >= 0) {
+        const smp_set_t *set = &SMP_SETS[drum_set()];
+        for (i = 0; i < set->nz; i++)
+            if (LANE_NOTE[l] >= SMP_ZONES[set->z0 + i].lo && LANE_NOTE[l] <= SMP_ZONES[set->z0 + i].hi)
+                z = &SMP_ZONES[set->z0 + i];
+        end = z ? z->n : 0u;
+    }
+    if (!z || end <= pos)
+        return;
+    memset(&v, 0, sizeof v);
+    for (i = 0; i < pos; i++)                           /* (the start: decoded as dl_tick does) */
+        next(z, &v, 0);
+    n = end - pos;
+    per = (n + DENV_W - 1u) / DENV_W;
+    for (x = 0; x < DENV_W; x++) {
+        int32_t m = 0;
+        for (i = 0; i < per && pos < end; i++, pos++) {
+            int32_t s = next(z, &v, 0);
+            s = mulq15(s < 0 ? -s : s, e);
+            m = s > m ? s : m;
+            if (k)
+                e = (int32_t)(((uint32_t)e * k) >> 16);
+        }
+        pk[x] = m;
+        mx = m > mx ? m : mx;
+    }
+    for (x = 0; x < DENV_W; x++)
+        if (pk[x])
+            cv_line((int32_t)x + 4, y0 + h, (int32_t)x + 4, y0 + h - pk[x] * h / mx, c);
+    rate = ((z->rate ? z->rate : 65536u) >> 4) * FS >> 12;   /* the length played: n samples at its rate, TUNE */
+    denv_time(n * 1000u / (rate ? rate : 1u) * 65536u / pow2_q16(dl_tune(l) * 16));
+}
+static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
+{
+    int32_t semi;
+    const dsnd_t *d = &DS_KITS[kit - DRUM_SAMPLED].s[ds_lane(LANE_NOTE[l], &semi)];
+    uint32_t ka, kn, kp, j, blocks, per, hold, nhold, bend, x;
+    int32_t a0, n0, pk, a, n, pe = 32767, px = 4, py = y0 + h, bot = y0 + h;
+#if FELUCCA_DRUM_EDIT
+    dsnd_t ed;                                          /* (on the stack: no RAM kept for a picture) */
+    if (o) {
+        de_synth(&ed, d, o);
+        d = &ed;
+    }
+#else
+    (void)o;
+#endif
+    ka = ds_k32(d->decay), kn = ds_k32(d->ndec), kp = ds_k32(d->btime);
+    a0 = d->wave ? (int32_t)d->tlev * 258 : 0, n0 = (d->src & 15u) ? (int32_t)d->nlev * 258 : 0;
+    pk = a0 > n0 ? a0 : n0;
+    pk = pk ? pk : 1;
+    bend = d->bend > 36u ? 36u : d->bend;
+    a = a0, n = n0, hold = ds_blocks(d->hold), nhold = ds_blocks(d->nhold);
+    for (blocks = 0; blocks < FS * 4u / CTL && (hold || nhold || a > pk / 64 || n > pk / 64); blocks++) {
+        if (hold) hold--; else a = (int32_t)(((uint32_t)a * ka) >> 16);
+        if (nhold) nhold--; else n = (int32_t)(((uint32_t)n * kn) >> 16);
+    }
+    per = blocks / DENV_W + 1u;
+    a = a0, n = n0, hold = ds_blocks(d->hold), nhold = ds_blocks(d->nhold);
+    for (x = 0; x < DENV_W; x++) {
+        int32_t lv = a > n ? a : n, yp = bot - pe * h / 32767 * (int32_t)bend / 36;
+        cv_line((int32_t)x + 4, bot, (int32_t)x + 4, bot - lv * h / pk, c);
+        if (bend && x)
+            cv_line(px, py, (int32_t)x + 4, yp, C_WHITE);
+        px = (int32_t)x + 4;
+        py = yp;
+        for (j = 0; j < per; j++) {
+            if (hold) hold--; else a = (int32_t)(((uint32_t)a * ka) >> 16);
+            if (nhold) nhold--; else n = (int32_t)(((uint32_t)n * kn) >> 16);
+            pe = (int32_t)(((uint32_t)pe * kp) >> 16);
+        }
+    }
+    if (d->click)                                       /* CLICK: the attack's tick, as tall as it is loud */
+        cv_rect(4, bot - (int32_t)d->click * h / 127, 2, (int32_t)d->click * h / 127, C_WHITE);
+    denv_time(per * DENV_W * CTL * 1000u / FS);
+}
+static void graph_denv(void)
+{
+    uint32_t l = lane_selected(), usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
+    const int8_t *o = dl_ofs(l);
+    const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : kit < DRUM_SYNTH_END ? "SYN" : "X0X";
+    int32_t y0 = GR_TOP + 16, h = GR_BOT - y0;
+    uint16_t c = lane_col(l);
+    cv_line(0, GR_BOT + 1, 239, GR_BOT + 1, C_LINE);
+    denv_head(l, tg);
+    if (!dsnd_has_env(l)) {
+        cv_text(4, y0 + (h > 14 ? (h - 14) / 2 : 0), &FONT_S, "No envelope: level only", C_GRAY);
+        return;
+    }
+    if (h < 8)
+        return;
+#if DRUM_X0X
+    if (!usr && x0x_show(kit, l)) {
+        denv_x0x(l, kit, o, y0, h, c);
+        return;
+    }
+    if (!usr && kit >= DRUM_UID_X909)
+        kit = x0x_standin(kit);                         /* (a note the machine lacks: the stand-in's sound) */
+#endif
+    if (usr || kit < DRUM_SAMPLED || !FELUCCA_DRUM_SYNTH)
+        denv_sample(l, usr, o, y0, h, c);
+    else
+        denv_synth(l, kit, o, y0, h, c);
+}
+
 /* what the graphs read beyond the cursor row's cells (those are in the list's signature already): the scale, the
  * FX bypass and the slots' sends, the LFO's wave and phase, the lane, the pattern's steps */
 static uint32_t graph_sig(void)
@@ -267,6 +413,9 @@ static uint32_t graph_sig(void)
         h = h * 31u + (fxs_amt(i) == 0xFFu ? 0u : (uint16_t)t->p[fxs_amt(i)]);
     for (i = 0; i < NSTEP; i++)
         h = h * 3u + trk_on_step(song.sel, i);
+    h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
+    for (i = 0; i < DE_N; i++)
+        h = h * 31u + (uint8_t)dl.ofs[lane_selected()][i];
     return h;
 }
 static void draw_sound_graph(const page_t *pg)
@@ -293,7 +442,10 @@ static void draw_sound_graph(const page_t *pg)
         graph_arp(col);
         break;
     default:
-        graph_lane();
+        if (pg->scope == SC_DSND && pg->fam == FAM_ENV)
+            graph_denv();                               /* (the drum track's ENV: the lane's envelope) */
+        else
+            graph_lane();
         break;
     }
 }

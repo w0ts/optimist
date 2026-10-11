@@ -230,7 +230,8 @@ when this UI draws (ui/optimist `op_case`), so the shared tables and the core's 
 
 On SOUND the cursor row's picture is drawn over the list where the core has one: the envelope (ENV, ENV2), the LFO's
 wave as it runs, the FX slots' sends as needles under their cards (SLOOP's graph maths, copied), the scale on an
-octave of keys (the root white), the pattern's steps, the drum lane's name in its source's colour. Felucca's
+octave of keys (the root white), the pattern's steps, the drum lane's name in its source's colour (on the drum
+track's ENV row: the lane's envelope). Felucca's
 270-degree rings are phase 5's (with its font); phase 1b draws bars (section 11.1).
 
 What we take from Felucca [P]: the layout above, the SURF cards and panels, the theme tokens (ours already name
@@ -363,12 +364,27 @@ ENV the envelopes and their DEST rows, FX the track's effects (FX, FILTER, SLICE
 SCL and ARP theirs (the families are PAGES' `fam`); SELECT moves within the family, the button again goes to the
 family's next row and from its last to its first. **The whole list stays on HOME > Sound** (the mixer's SOUND row):
 every row, the SOUND row first. On the drum track the page buttons narrow the lane's rows the same way where a
-family has rows there (EDIT: the lane's SOUND rows); a family with none there (ENV) leaves the rows as they are.
+family has rows there (EDIT: the lane's SOUND rows, ENV the lane's ENV row); a family with none there leaves the rows as
+they are.
+
+**The drum track's ENV** [D, 2026-10-11: "most of the drum sounds have env parameters decay, attack. put them on the
+env page"]: ENV opens the selected lane's ENV row (params.c PAGES, `SC_DSND` in the ENV family; the lane picked as
+ever, HOME held + its key): CLICK (the attack's transient), DECAY, BEND (the pitch drop), LEVEL (its peak). They are
+the SOUND rows' own values (drum_edit.c `DE_*`, the same storage: no new value, no format change), so SOUND keeps them
+too. What a sound has, it shows: a synthesised kit all four, a sampled kit or a user sample DECAY and LEVEL, an X0X
+voice what its model has (`x0x_show`); none of them has an attack time, CLICK is the nearest. Its graph is the lane's
+envelope as the drums run it (`graph_denv`: the level over the sound's length, the body and the noise as they hold
+and decay, CLICK a white tick at the start, the pitch drop in white, a sample's peaks with DECAY, an X0X model's decay
+sketched; the length at the right). A sound with LEVEL only (the X0X 909's rim shot) shows "-" in the other three
+cells and *No envelope: level only* as its graph. A build without the drum editor (FELUCCA_DRUM_EDIT 0) has no such
+row: ENV leaves the rows as they are, as before. The synth's ENV pages are not shown on the drum track
+(`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`: on the drum track ENV now has a function).
 
 The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
 
-On the drum track the rows are the **selected lane's**: SOUND, SOUND 2, SOUND 3 (the sends), SOURCE, KIT, then
+On the drum track the rows are the **selected lane's**: ENV (its envelope values, section 4.3's drum ENV), SOUND,
+SOUND 2, SOUND 3 (the sends), SOURCE, KIT, then
 the track rows it has today (FX FILTER, SLICER, PATTERN). HOME held + a key picks the lane (the keys play on
 this screen, so you hear it). On an FM6 track ENV held stays the operator editor as built
 (ui_fm6.c): its own screen, the black keys OP1..OP6 PIT GLO MONO POLY.
@@ -965,7 +981,7 @@ something gives (section 8's ways out).
 | FOLLOW when stopped | the window stays where it is; a scroll turns FOLLOW off playing or stopped, only HOME + OCT- + OCT+ resumes it (no indicator in the header; the playhead strip marks the side when it is outside) | `step_tick` |
 | STEP's drum rows | the 16 lanes with LANE_SHORT's names, the cards LEVEL TUNE DECAY REV; synth rows PATTERN, ARP, ARP 2 | `step_rows` |
 | The roll's range | the window's notes, at least 13 semitones, at most 56 (2 px each) | `roll_range` |
-| SOUND's family on the drum track with no such family (ENV) | from another screen: every row; on SOUND: the rows stay as they are | `op_jump_sound` |
+| SOUND's family on the drum track with no such family | from another screen: every row; on SOUND: the rows stay as they are (ENV has the lane's ENV row since 2026-10-11, with the drum editor built) | `op_jump_sound` |
 | SOUND's family shown | without the SOUND row (preset, engine, INIT, SAVE AS): that row is only on HOME > Sound | `snd_first` |
 | The mixer's walk | the strips' controls, MASTER, then SOUND FX PROJECT SYSTEM; the cursor rests on VOLUME | `MIX[]` |
 | The mixer's master values | at the strips' foot, label, value and bar under each knob, lit on the MASTER row | `draw_strip` |
@@ -1962,7 +1978,7 @@ under the full light, so a blinking button swings between full and half. The LIG
 | FX on the global FX screen | its next page |
 | any page button, STEP with a step held | the step's page lock (all but EDIT and GLO) |
 
-So on the drum track ENV and LFO are dark (the drum track has no envelope or LFO page); EDIT, FX, SCL, GLO, SEQ stay
+So on the drum track LFO is dark (no LFO page); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
 half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
 track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
 saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-

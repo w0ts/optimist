@@ -154,7 +154,7 @@ static void ov_foot_label(char *b)
 static uint32_t ov_graph(void)
 {
     uint32_t fam = cur_page()->fam;
-    return fam == FAM_ENV ? GR_ADSR : fam == FAM_LFO ? GR_LFO : fam == FAM_SCL ? GR_SCALE : fam == FAM_ARP ? GR_ARP :
+    return fam == FAM_ENV ? (is_drum(TSEL) ? GR_DSND : GR_ADSR) : fam == FAM_LFO ? GR_LFO : fam == FAM_SCL ? GR_SCALE : fam == FAM_ARP ? GR_ARP :
            fam == FAM_EDIT && is_drum(TSEL) ? GR_DSND : GR_NONE;   /* (the drum track: SOUND, when there is room) */
 }
 

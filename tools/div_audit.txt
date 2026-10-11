@@ -159,6 +159,13 @@ src/ui/sloop/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
 src/ui/sloop/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
 src/ui/sloop/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
 src/ui/sloop/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253)
+src/ui/optimist/op_graph.c:denv_x0x:(1024+x*1024/(w>1?w:1)) | the X0X sketch (graph_dsnd's, copied): x >= 0 and the inner divisor >= 1, so >= 1024
+src/ui/optimist/op_graph.c:denv_x0x:(w>1?w:1) | "w > 1 ? w : 1"
+src/ui/optimist/op_graph.c:denv_x0x:h | graph_denv returns before the graph when h < 8
+src/ui/optimist/op_graph.c:denv_sample:(rate?rate:1u) | "rate ? rate : 1"
+src/ui/optimist/op_graph.c:denv_sample:mx | only for pk[x] != 0, and mx >= every pk[x] (mx starts at 1)
+src/ui/optimist/op_graph.c:denv_sample:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253), as graph_dsnd
+src/ui/optimist/op_graph.c:denv_synth:pk | "pk = pk ? pk : 1"
 src/ui/sloop/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
 src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
 src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)

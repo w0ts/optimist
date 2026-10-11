@@ -749,7 +749,8 @@ static void family_tests(void)
         only &= snd_page(r)->fam == FAM_EDIT;
     check(only && snd_page(0)->scope == SC_DSND, "the drum track, EDIT: the lane's rows only");
     tap(B_ENV);
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT, "the drum track, ENV (no such family): the rows stay");
+    check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
+          "the drum track, ENV: the lane's ENV row (no drum editor built: the rows stay)");
     song.sel = 0;
     reset_ui();
 }
@@ -2110,6 +2111,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
+#include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
@@ -2131,7 +2133,7 @@ static void led_tests(void)
           "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
     song.sel = TRK_DRUM;
     frames(2);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track: no LFO, no ENV (dark)");
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "LEDs, the drum track: no LFO; ENV half lit (its lane's envelope)");
     check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
           "LEDs, the drum track: EDIT FX GLO SEQ half lit");
     for (b = 0; b < NB; b++)
@@ -2227,6 +2229,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    drum_env_tests();
     mix35_tests();
     led_tests();
 #if FELUCCA_BLE

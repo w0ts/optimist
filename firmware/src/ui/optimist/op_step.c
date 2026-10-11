@@ -816,7 +816,7 @@ static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
         return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
     op_enter(SCR_SOUND);                                /* the drum lane: its SOUND rows */
     for (i = 1, n = snd_rows(); i < n; i++)
-        if (snd_page(i)->scope == SC_DSND) {
+        if (snd_page(i)->scope == SC_DSND && snd_page(i)->fam == FAM_EDIT) {   /* (SOUND, not its ENV row above) */
             ui.row[SCR_SOUND] = (uint8_t)i;
             break;
         }

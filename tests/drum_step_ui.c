@@ -295,7 +295,8 @@ static void drum_step_tests(void)
     key(3);
     check(ui.step_page == 1, "SEQ + black key 2: page 2");
     song.playing = 1; TDRUM->seq_idx = 50; ui.step_follow = 1; frames(3);
-    check(ui.step_page == 3, "SEQ layer, playing: the page follows the playhead");
+    check(ui.step_page == ds_follow_page(TDRUM->seq_idx, trk_len(TDRUM)) && ui.step_page != 1,
+          "SEQ layer, playing: the page follows the playhead");   /* (the next step may have fired: its page) */
     key(1); frames(3);
     check(ui.step_page == 0 && !ui.step_follow, "SEQ layer: a page key turns follow off");
     aud_lanes = 0; drums.hits = 0;

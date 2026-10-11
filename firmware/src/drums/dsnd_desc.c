@@ -168,6 +168,12 @@ static const param_desc_t *dsnd_desc_lane(uint32_t l, uint32_t id, int16_t **vp)
     }
     return &DSD[id];
 }
+/* lane l has an envelope value (the ENV page's CLICK DECAY BEND); 0: LEVEL only (the 909's rim shot), or no editor */
+static int dsnd_has_env(uint32_t l)
+{
+    int16_t *vp;
+    return dsnd_desc_lane(l, DE_CLICK, &vp) || dsnd_desc_lane(l, DE_DECAY, &vp) || dsnd_desc_lane(l, DE_BEND, &vp);
+}
 #else
 #define drum_kit_step(s) (TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + (s), 0, DRUM_KITS - 1))
 #define drum_kit_name() DRUM_KIT_NAMES[drum_kit()]

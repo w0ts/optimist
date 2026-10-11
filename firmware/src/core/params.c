@@ -498,6 +498,12 @@ static const page_t PAGES[] = {
     {"ENV2", FAM_ENV, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},   /* ANALOG only: page_shown */
     {"ENV2 DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2}},   /* (SDTN: SWARM) */
 #endif
+#if DL_ANY
+    /* the drum track's ENV: the picked lane's envelope values, the SOUND pages' own (drum_edit.c DE_*, the same storage):
+     * CLICK the attack, DECAY, BEND the pitch drop, LEVEL its peak; a sound without one shows "-" (page_shown: the
+     * drum track's only ENV page, in place of the synth's; the user, 2026-10-11) */
+    {"ENV", FAM_ENV, SC_DSND, GR_DSND, {DE_CLICK, DE_DECAY, DE_BEND, DE_LEVEL}},
+#endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* (the ids: the slots', page_id) */
@@ -581,6 +587,8 @@ static const page_t PAGES[] = {
     {"FM6", FAM_ENV, SC_FM6K, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
+/* the drum track has an ENV page (its lanes' envelopes, the editor's values): ENV does something there (the LEDs) */
+#define DSND_ENV (DL_ANY && FELUCCA_DRUM_EDIT)
 /* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
 static uint32_t page_id(const page_t *pg, uint32_t k)
 {
@@ -650,8 +658,10 @@ static int page_shown(const page_t *pg)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
 #endif
 #if DL_ANY
-    if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
+    if ((pg->fam == FAM_EDIT || pg->scope == SC_DSND) && (pg->scope == SC_DSND) != is_drum(TSEL))
         return 0;
+    if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && is_drum(TSEL) && DSND_ENV)
+        return 0;                                     /* (the drum track's ENV: the lane's, not the synth's pages) */
     if (pg->scope == SC_DSND)                         /* SOUND 1, 2: the editor; SOURCE: samples or kits; KIT */
         return pg->id[0] >= 16u ? 1 : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
                pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
