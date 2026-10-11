@@ -1846,3 +1846,15 @@ user-default build has none of those switches, so its held step has the one page
 **ARP draws its pattern** (the same day): ARP's graph is the arpeggiator over a C major chord, OCT octaves, a mark a step of
 RATE, GATE long, every other step SWG late, the notes by MODE, a step PROB would skip dim; OFF the chord held. It fills
 the height the rows leave, as ENV's envelope does, the rows at ROW_H. Remaining screens with no picture and few rows (PROJECT, checked; any other list that fits the panel) keep a row pitch capped at 40 px, at the top of the panel.
+
+## 13. Requests of 2026-10-11 (batch 35: the mixer)
+
+**PRESETS repaints in place.** The user: "the screen flashes in mixer when i select drum lane presets". PRESETS on the
+drum track steps the kit (`drum_kit_step`) and on a synth the preset (`op_preset_go`); both used to set `ui.force`,
+which clears the whole LCD to black before the bands come back one blit at a time (and the user-preset and native-bank
+loads of the core ask for it too). Both now end in `op_preset_shown`: `ui.force` back to what it was before the load
+(a clear asked already stays), the rows fixed (another engine may have other rows) and `op_repaint`, every band drawn
+again over itself, as a track change has done since batch 34. Measured on the emulator (play_check, 96 MHz, a capture
+every 2 ms for 50 ms after each detent, counting pixels drawn before and after but black in between): PRESETS on the
+mixer's kick lane, 3 detents, worst capture 14,862 blanked pixels before, 0 after; on T1, 2 detents, 13,413 before,
+937 after (the toast's frame redrawn over the row, not a clear).

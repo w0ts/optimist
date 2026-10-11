@@ -81,33 +81,43 @@ static int op_global_go(uint32_t id)
         return 0;
     }
 }
+/* another sound on the same screen (PRESETS, the SOUND row's KNOB 1): every band drawn again over itself, in place
+ * (op_state.c op_repaint), never ui.force's clear to black: that flashed the whole screen on every detent (the user,
+ * 2026-10-11: "the screen flashes in mixer when i select drum lane presets"). The rows may change (another engine):
+ * they are fixed before the panel draws again */
+static void op_rows_fix(void);                          /* op_input.c */
+static void op_preset_shown(uint32_t was)               /* was: ui.force before the load (a clear asked already stays) */
+{
+    ui.force = (uint8_t)was;
+    op_rows_fix();
+    op_repaint();
+}
 /* list index n of the preset list (model.c BANK, the user presets) into the selected track */
 static void op_preset_go(uint32_t n)
 {
-    uint32_t k, e = preset_at(n, &k);
+    uint32_t k, e = preset_at(n, &k), was = ui.force;
     if (is_drum(TSEL))
         return;
-    if (e == NENGINES) {
-        up_load(k);
-        return;
-    }
+    if (e == NENGINES)
+        up_load(k);                                     /* (the stores ask for ui.force: the screen stays, repainted below) */
 #if FELUCCA_NATIVE_BANKS
-    if (e == NB_LIST) {
+    else if (e == NB_LIST)
         nb_load(k);
-        return;
-    }
 #endif
-    if (e != TSEL->eng_req)
-        set_engine(e);
-    apply_preset(k);
-    ui.force = 1;
+    else {
+        if (e != TSEL->eng_req)
+            set_engine(e);
+        apply_preset(k);
+    }
+    op_preset_shown(was);
 }
 static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
 {
     uint32_t total, cur;
     if (is_drum(TSEL)) {
+        uint32_t was = ui.force;
         drum_kit_step(s);                               /* (the kits, then the user kits) */
-        ui.force = 1;
+        op_preset_shown(was);
         return;
     }
     cur = preset_pos(&total);

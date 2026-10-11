@@ -2031,6 +2031,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+#include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -2085,6 +2086,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    mix35_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif
