@@ -275,7 +275,11 @@ static void open_family(uint32_t fam)
     } else {
         ui.page = ui.fam_last[fam] && PAGES[ui.fam_last[fam]].fam == fam ? ui.fam_last[fam]
                                                                           : (uint8_t)page_first(fam);
-    }                                                  /* (ANALOG 2: a page not shown on this track: ui_draw turns to EDIT 1) */
+#if PAGE_SHOWN_FN
+        while (!page_shown(&PAGES[ui.page]) && ui.page + 1u < NPAGES && PAGES[ui.page + 1u].fam == fam)
+            ui.page++;                                 /* (the drum track's ENV: its lane's page, after the synth's) */
+#endif
+    }                                                /* (ANALOG 2: a page not shown on this track: ui_draw turns to EDIT 1) */
     ui.fam_last[fam] = ui.page;
     page_entered();
 }

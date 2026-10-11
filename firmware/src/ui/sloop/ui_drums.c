@@ -9,6 +9,8 @@
  *                                            sound; HIT START LEN on a user sample)
  *   KIT      SLOT  SAVE   ERASE  RESET      (FELUCCA_DRUM_KITS: the user kit bank, drum_kits.c; RESET:
  *                                            the sound back to the kit's)
+ * ENV on the drum track opens the same sound's envelope values (the ENV page, SC_DSND in the ENV family: CLICK DECAY
+ * BEND LEVEL, the values above, the same storage), its graph the envelope below ("NO ENVELOPE" on a LEVEL-only sound).
  * They are ordinary pages (params.c page_desc -> dsnd_desc), so the one-page layout and VIEW ALL (a row
  * per page) both show them; the graph: the sound's name and source, its envelope and pitch drop.
  * The values' descriptors and the kit list are model, shared with the other UI and the editor: drums/dsnd_desc.c. */
@@ -157,6 +159,10 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
     if (h < 8)
         return;
+    if (cur_page()->fam == FAM_ENV && !dsnd_has_env(l)) {   /* ENV, a sound with LEVEL only (the 909's rim shot) */
+        cv_text(4, top + 16 + h / 3, &FONT_S, "NO ENVELOPE: LEVEL ONLY", C_GRAY);
+        return;
+    }
 #if DRUM_X0X
     if (!usr && x0x_show(kit, l)) {                     /* an X0X sound: its name, the decay as set (a sketch) */
         int32_t dk = (o ? o[DE_DECAY] : 0) + (int32_t)x0x_var_decay(kit, l), w = 6 + (64 + dk) * 3 / 4, y = 0;

@@ -247,6 +247,9 @@ run "live UI without the chord names (FELUCCA_CHORD_NAMES=0): the STEP page as b
 mkdir -p "$OUT/nb"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_ENG_CZ=1 -DFELUCCA_NATIVE_BANKS=1 $SEC4 -o "$OUT/ui_pages_nb_test" tests/ui_pages_test.c -lm
 run "live UI with FELUCCA_NATIVE_BANKS=1 (CZ on): pages, PRESETS, fuzz as before (tests/nbank_test.c: its rows)" "$OUT/ui_pages_nb_test" "$OUT/nb"
+mkdir -p "$OUT/x0x-ui"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
+run "live UI with the X0X kits: pages, drums, fuzz as before; the drum ENV of a LEVEL-only sound (the 909's rim shot)" "$OUT/ui_pages_x0x_test" "$OUT/x0x-ui"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dstep_test" tests/ui_pages_test.c -lm
 run "live UI with FELUCCA_DRUM_STEP=1: the TR step sequencer (key -> step, pages, FOLLOW, the sound pick), screens, fuzz" "$OUT/ui_pages_dstep_test" "$OUT"
@@ -263,6 +266,9 @@ run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of th
 mkdir -p "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
 run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
+mkdir -p "$OUT/optimist-x0x"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_optimist_x0x_test" tests/ui_optimist_test.c -lm
+run "Optimist UI with the X0X kits: the same; the drum ENV of a LEVEL-only sound (the 909's rim shot)" "$OUT/ui_optimist_x0x_test" "$OUT/optimist-x0x"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 $SEC4 -o "$OUT/ui_optimist_bp_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with the backports (ACID GEN, BRIGHT, BASS+, MOTION, MACRO)" "$OUT/ui_optimist_bp_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_PLOCK=1 $SEC4 -o "$OUT/ui_optimist_bp23_test" tests/ui_optimist_test.c -lm

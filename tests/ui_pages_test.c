@@ -420,7 +420,8 @@ static void drum_sound_tests(void)
                     ok &= ed_out[p + 3 + k] == (page_id(pg, k) == 0xFFu ? 127u : page_id(pg, k));   /* (FX, SOUND 3: the slots') */
                 ok &= !strcmp((const char *)ed_out + p + 7, pg->title);
                 shown_dsnd |= pg->scope == SC_DSND && ed_out[p + 2];
-                shown_env |= pg->scope == SC_TRACK && pg->id[0] == P_ATK && ed_out[p + 2];
+                shown_env |= pg->fam == FAM_ENV && ed_out[p + 2] &&
+                             (pg->scope == SC_DSND) == !!(DSND_ENV);   /* (the drum track's ENV: the lane's) */
                 p += 7 + str_len(pg->title) + 1u;
             }
             seen += n;
@@ -453,6 +454,7 @@ static void drum_sound_tests(void)
     check(!on_dsnd_page(), "another track: no SOUND page");
     view_set(1);
 }
+#include "drum_env_ui.c"          /* the drum track's ENV: the lane's envelope values (the user, 2026-10-11) */
 #endif
 
 /* the FM6 operator editor (ui_fm6.c): ENV on an FM6 track. The black keys (F#3 = key 1 ..): OP1..OP6 at
@@ -1423,6 +1425,7 @@ int main(int argc, char **argv)
 
 #if DL_UI
     drum_sound_tests();
+    drum_env_tests();
 #endif
     fm6_editor_tests();
     fm6_engine_tests();

@@ -749,7 +749,8 @@ static void family_tests(void)
         only &= snd_page(r)->fam == FAM_EDIT;
     check(only && snd_page(0)->scope == SC_DSND, "the drum track, EDIT: the lane's rows only");
     tap(B_ENV);
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT, "the drum track, ENV (no such family): the rows stay");
+    check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
+          "the drum track, ENV: the lane's ENV row (no drum editor built: the rows stay)");
     song.sel = 0;
     reset_ui();
 }
@@ -2030,6 +2031,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
+#include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 int main(int argc, char **argv)
 {
@@ -2085,6 +2087,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    drum_env_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

@@ -160,7 +160,7 @@ static void snd_family(uint32_t fam)                    /* the rows of family fa
     }
     snd_fam = (uint8_t)fam;
     if (fam != SND_ALL && !page_rows(snd_row_page, snd_ix))
-        snd_fam = SND_ALL;                              /* (none on this track: the drum track has no ENV) */
+        snd_fam = SND_ALL;                              /* (none on this track: every row) */
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
