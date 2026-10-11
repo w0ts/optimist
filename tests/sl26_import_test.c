@@ -167,7 +167,7 @@ static void sl26_flow(void)
     host_tracks_init();
     song.playing = 0, transport_req = 0;
     project_load(1);
-    ok = project_state(1) == PJ_SL24 && !strcmp(last_msg, "SLOOP 2.4: LOAD = IMPORT");
+    ok = project_state(1) == PJ_SL24 && !strcmp(last_msg, "SLOOP: LOAD = IMPORT");
     check("flash: a 2.6 slot shows as SLOOP's (never EMPTY); LOAD offers", ok);
     fm1_ms += 500;
     project_load(1);

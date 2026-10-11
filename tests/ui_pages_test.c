@@ -723,6 +723,9 @@ int main(int argc, char **argv)
 {
     uint32_t i;
     outdir = argc > 1 ? argv[1] : "build/host";
+#if FELUCCA_SL24_SAFE
+    check(!strcmp(SLOT_ST[2], "SLOOP") && !strcmp(SLOT_ST[3], "NOT OURS"), "a SLOOP 2.4 .. 2.6 project kept in a slot: SLOOP");
+#endif
     {   /* the preset list by kind (ui.c BANK): every factory preset of every engine once, every name found */
         uint32_t e, k, n, hits;
         bank_resolve();

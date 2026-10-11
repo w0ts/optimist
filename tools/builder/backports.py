@@ -137,7 +137,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
 }
 DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP 2.4, 2.5 or 2.6: Optimist never erases or writes over what SLOOP left that it cannot read: the"
-    " four project slots and the autosave (2.4 / 2.5's FUN5 and 2.6's FUN6 projects, shown as SLOOP 2.4 on the "
+    " four project slots and the autosave (2.4 / 2.5's FUN5 and 2.6's FUN6 projects, shown as SLOOP on the "
     "PROJECT page and in the editor, not EMPTY), 2.4's FM6 bank and a user sample longer than ours (USR3, USR4); "
     "2.4's settings word and 2.4 .. 2.6's user presets are read right (2.5's engine numbers, 2.6's ANALOG filter "
     "TYPE); a user preset Optimist saves into SLOOP's bank leaves SLOOP's presets there byte for byte (to SLOOP that "
@@ -152,7 +152,7 @@ DESC["FELUCCA_SL24_XSTEP"] = (
     "sequencer features that play them come with their own switches. A section with none costs nothing. About 1.6 KB of flash, "
     "0.9 KB of RAM and 4.2 KB of pool.")
 DESC["FELUCCA_SL24_IMPORT"] = (
-    "A SLOOP 2.4, 2.5 or 2.6 project left in a slot shows as SLOOP 2.4 on the PROJECT page; LOAD it twice and it "
+    "A SLOOP 2.4, 2.5 or 2.6 project left in a slot shows as SLOOP on the PROJECT page; LOAD it twice and it "
     "becomes the working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras "
     "storage), then SAVE puts it in a section; PROJECT > A24 (twice) does the same with 2.4's autosave. 2.4's "
     "original stays in flash. An FM6 part keeps its sound: its patch (2.4's factory one, or the one in 2.4's FM6 "

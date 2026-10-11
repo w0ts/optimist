@@ -276,12 +276,12 @@ static void sl24_load(uint32_t slot)
         } else {
             sl24_armed = (int8_t)slot;
             sl24_armed_ms = fm1_ms;
-            ui_message("SLOOP 2.4: LOAD = IMPORT");
+            ui_message("SLOOP: LOAD = IMPORT");
             return;
         }
     }
 #endif
-    ui_message(st == PJ_SL24 ? "SLOOP 2.4 PROJECT" : st == PJ_ALIEN ? "NOT OURS: KEPT" : "EMPTY SLOT");
+    ui_message(st == PJ_SL24 ? "SLOOP PROJECT" : st == PJ_ALIEN ? "NOT OURS: KEPT" : "EMPTY SLOT");
 }
 
 /* PROJECT > A24 (twice): SLOOP 2.4's autosave -> the working project, as a slot's (sl24_import_obj) */

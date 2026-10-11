@@ -2234,6 +2234,8 @@ function editorTabs() {
   for (const k of ["needDevice", "smpNone", "bankConnect", "bankNone", "selectedTrack", "selectTrack", "drumHelp", "notesHelp", "live", "polling"]) used.add(k);
   const miss = [...used].filter((k) => typeof TEXT[k] !== "string");
   ok(!miss.length && !("ja" in TEXT) && !("en" in TEXT), `editor: every string has its English text (${used.size} used${miss.length ? ", missing " + miss : ""})`);
+  ok(TEXT.sl24 === "SLOOP (kept)" && TEXT.keptSlot.includes("(SLOOP)") && !/2\.4/.test(TEXT.sl24 + TEXT.keptSlot),
+    "editor: a kept SLOOP 2.4 / 2.5 / 2.6 project slot says SLOOP");
   const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "index_pkg.html"), "utf8");
   ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en"[ >]/.test(html),
     "editor + installer: English only (no Japanese text, no language switch)");

@@ -595,6 +595,7 @@ static void confirm_tests(void)
     release(B_HOME);
     frames(OP_ARM_MS / 16u + 2u);
     check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 1, "asked, 3 s: let go");
+    check(!strcmp(PRJ_NAME[PR_A24], "SLOOP"), "PROJECT: SLOOP 2.4 .. 2.6's autosave row named SLOOP");
     op_enter(SCR_PROJECT);
     ui.row[SCR_PROJECT] = 0;
     frame();
