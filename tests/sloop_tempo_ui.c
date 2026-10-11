@@ -57,6 +57,25 @@ static void play_taps_tests(void)
     encs[panel.enc[EN_K4]] = 3; frame();
     check(song.g[G_BPM] == bpm && tp.on, "TEMPO + KNOB 4: a read-out, nothing edited");
     song.g[G_SYNC] = sync; song.g[G_SWING] = sw;
+    /* page 2: HOME shift + PLAY again; KNOB 1 QUANT (REC QUANTIZE); again: page 1, round */
+    tempo_shift(&tr);
+    check(tp.on && tp.page == 1u && tr == 0u, "HOME + PLAY again with the page up: page 2 (REC QUANTIZE), no PLAY / STOP");
+    check(song.g[G_RECQ] == 1, "... QUANT ON by default");
+    encs[panel.enc[EN_K1]] = -1; frame();
+    check(song.g[G_RECQ] == 0, "page 2 + KNOB 1 left: QUANT OFF");
+    encs[panel.enc[EN_K2]] = 3; frame(); encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K4]] = 2; frame();
+    check(song.g[G_BPM] == bpm && song.g[G_SWING] == sw && song.g[G_SYNC] == sync && song.g[G_RECQ] == 0 && tp.on,
+          "page 2 + KNOB 2..4: nothing (BPM, SWING, SYNC and NUDGE are page 1's)");
+    ui.force = 1; frame(); ppm("tempo-page2");
+    encs[panel.enc[EN_K1]] = 1; frame();
+    check(song.g[G_RECQ] == 1, "... KNOB 1 right: ON");
+    tempo_shift(0);
+    check(tp.on && tp.page == 0u, "HOME + PLAY again: page 1 (round)");
+    press(B_HOME); frames(2); release(B_HOME); frames(2);
+    check(!tp.on, "HOME tapped with the page up: it closes");
+    go_home(); frames(40);
+    tempo_shift(0);
+    check(tp.on && tp.page == 0u, "HOME + PLAY: the page, from page 1");
     /* the nudge */
     oct_press(B_OCTUP);
     check(clk_nudge == 10 && song.octave == oct, "OCT+ held on the page: +3.9 %, no octave step");

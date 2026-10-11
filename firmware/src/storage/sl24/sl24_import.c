@@ -116,6 +116,7 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const 
     q->size = sizeof *q;
     memcpy(q->g, c + 8, sizeof q->g);
     q->g[G_VIEW] = GP[G_VIEW].def;                      /* (their G_ROUTE) */
+    q->g[G_INFO] = 0;                                   /* (ours: REC QUANTIZE ON, project.c RECQ_PACK; 2.4's: unknown) */
     q->sel = c[8u + sizeof q->g];
     for (i = 0; i < NTRK; i++) {
         const uint8_t *s = c + 12u + sizeof q->g + i * SL24_TRK;

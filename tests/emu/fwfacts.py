@@ -76,6 +76,7 @@ class Facts:
         for k, v in _defines(core).items():
             self.env.setdefault(k, v)
         self.P = self._params(core)
+        self.G_COUNT = self._globals(core)
 
     def define(self, rel, name):
         """a number #defined in a source file of the tree that built the package (rel: from firmware/src), with
@@ -116,6 +117,14 @@ class Facts:
                 n += 1
         ids["P_COUNT"] = n
         return ids
+
+    def _globals(self, core):
+        """G_COUNT: the global parameters (song_t's g[], its first member)"""
+        m = re.search(r"enum\s*\{[^\n]*global parameters[^\n]*\n(.*?)\n\s*G_COUNT", core, re.S)
+        if not m:
+            raise RuntimeError("core.h: no global parameter enum")
+        body = re.sub(r"/\*.*?\*/", " ", m.group(1), flags=re.S)
+        return len(re.findall(r"\b(G_\w+)\b", body))
 
     @property
     def ui(self):

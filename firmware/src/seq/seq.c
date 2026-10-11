@@ -494,6 +494,25 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
  * The length runs from the start of the note's step (where it was quantised to) to the release, as heard. */
 #define REC_LEGATO_JOIN 1    /* a held note cut by the next note (legato; overdub reaching it) locks 127: joins it */
 #define REC_GATE_NEAR 4      /* (GATE points) */
+/* REC QUANTIZE OFF (G_RECQ 0, the TEMPO screen's second page): the lengths kept here, the starts as nudges (MICRO:
+ * rec_nudge); ON (the default): the notes snap to the grid and whole steps, as before this */
+#define rec_exact() (!song.g[G_RECQ])
+#if FELUCCA_MICRO
+/* a note recorded into grid step abs (rec_target) of track t: its start as heard, kept as step idx's nudge (1/64 of a
+ * step, MICRO_MIN .. MICRO_MAX: half a step either way, as far as rec_target moves a note); -> the nudge */
+static int32_t rec_nudge(track_t *t, uint32_t idx, uint32_t abs)
+{
+    uint32_t into, slen, gabs = trk_grid(t, &into, &slen), lat = REC_LAT * (uint32_t)song.g[G_BPM];
+    int32_t u = (int32_t)(slen >> 6), e, m;
+    if (u <= 0)
+        return 0;
+    lat = lat < slen / 2u ? lat : slen / 2u;
+    e = (int32_t)into - (int32_t)lat - (gabs != abs ? (int32_t)slen : 0);   /* (recorded ahead: before its step) */
+    m = clamp((e + (e < 0 ? -u / 2 : u / 2)) / u, MICRO_MIN, MICRO_MAX);
+    (void)step_micro_set(t, idx, m);                /* (0: none; the list full: on the grid) */
+    return step_micro(t, idx);
+}
+#endif
 /* step L of track t plays its note at GATE g (own: the step is the recorded note's alone) */
 static void rec_gate_set(track_t *t, uint32_t L, int32_t g, uint32_t own)
 {
@@ -525,6 +544,10 @@ static void rec_gate(track_t *t, uint32_t L, int32_t r, uint32_t slen, uint32_t 
 static void rec_len_end(track_t *t, int32_t r, uint32_t slen, int cut)
 {
     uint32_t L = TRK_IDX(t, t->rh_start_abs + t->rh_ties, trk_len(t)), own = t->rh_ties ? 1u : t->rh_own;
+    if (!rec_exact())
+        return;                                     /* REC QUANTIZE ON: whole steps, as ever */
+    if (!t->rh_ties)
+        r -= (int32_t)(slen / 64u) * t->rh_nudge;   /* (the NOTE sounds from its nudge: micro_units) */
     if (cut)
         rec_gate_set(t, L, REC_LEGATO_JOIN ? 127 : 0, REC_LEGATO_JOIN ? own : 0u);
     else
@@ -567,6 +590,11 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
         t->rh_start_abs = abs;
         t->rh_own = (uint8_t)!had;
         t->rh_ties = 0;
+        t->rh_nudge = 0;
+#if FELUCCA_PLOCK && FELUCCA_MICRO
+        if (rec_exact() && !had)                    /* REC QUANTIZE OFF: its start as played (own steps only) */
+            t->rh_nudge = (int8_t)rec_nudge(t, idx, abs);
+#endif
     }
     for (k = 0; k < t->rh_n && t->rh_note[k] != note; k++)
         ;
@@ -638,7 +666,8 @@ static void rec_release(track_t *t, uint32_t note)
     lat = REC_LAT * (uint32_t)song.g[G_BPM];
     lat = lat < half ? lat : half;
 #if FELUCCA_PLOCK
-    half /= 2u;                                     /* (a TIE kept from a quarter in: the nearer length, rec_gate) */
+    if (rec_exact())                                /* OFF: a TIE kept from a quarter in, the nearer length (rec_gate: */
+        half /= 2u;                                 /* a NOTE, nudged or not, ends by its step's end, a TIE from 0.5) */
 #endif
     if (t->rh_ties && abs == t->rh_last_abs && into <= half + lat && t->step[t->rh_last].time == ST_TIE) {
         t->step[t->rh_last] = t->rh_bak;            /* released early in it: not held into this step */
@@ -793,11 +822,27 @@ static void ft_note_off(uint32_t note)
         }
 }
 
+#if FELUCCA_PLOCK && FELUCCA_MICRO
+/* REC QUANTIZE OFF: free-take note i's start, quantised into step idx of a loop of len steps in T blocks, kept as the
+ * step's nudge (1/64 of a step; the last note into a step sets it); -> the nudge */
+static int32_t ft_nudge(track_t *t, uint32_t i, uint32_t idx, uint32_t T, uint32_t len)
+{
+    int32_t at = (int32_t)((ft_ev[i].t * len * 128u + T) / (2u * T));   /* where it was played, 1/64 steps */
+    int32_t on = (int32_t)((ft_ev[i].t * len * 2u + T) / (2u * T) * 64u);   /* its step (unwrapped) */
+    (void)step_micro_set(t, idx, clamp(at - on, MICRO_MIN, MICRO_MAX));
+    return step_micro(t, idx);
+}
+#else
+#define ft_nudge(t, i, idx, T, len) 0
+#endif
 /* REC on the downbeat: the loop is the time from the first note to now */
 static void ft_close(void)
 {
     track_t *t = &trk[ft_trk % NTRK];
     uint32_t T = ft_t, bars, bpm = 0, len, i, k;
+#if FELUCCA_PLOCK
+    uint32_t ex;                                      /* REC QUANTIZE OFF: the starts and lengths as played */
+#endif
     ft_on = 0;
     ft_close_ms = fm1_ms;
     ft_closed = 1;
@@ -820,14 +865,22 @@ static void ft_close(void)
         else
             step_add(t, idx, ft_ev[i].note, ft_ev[i].vel, vel_lvl(ft_ev[i].vel), 0);
     }
+#if FELUCCA_PLOCK
+    ex = rec_exact();
+#endif
     if (!is_drum(t))
         for (i = 0; i < ft_n; i++) {                  /* their lengths: TIE steps, up to the next note */
             uint32_t d = ft_ev[i].d == FT_OPEN || ft_ev[i].t + ft_ev[i].d > T ? T - ft_ev[i].t : ft_ev[i].d;
             uint32_t idx = (ft_ev[i].t * len * 2u + T) / (2u * T) % len;
             uint32_t steps = (d * len * 2u + T) / (2u * T);
 #if FELUCCA_PLOCK
-            uint32_t x = d * len * 128u / T;           /* its length in 1/128 steps (d < 2^16, len <= 64) */
-            steps = x < 128u ? 1u : x / 128u + (x % 128u >= 32u);   /* (k TIEs: k + 0.5 .. k + 1: rec_gate) */
+            int32_t x = 0, xe = 0;                     /* (REC QUANTIZE OFF) its length, its end from its step: 1/128 */
+            if (ex) {                                  /* (a NOTE ends by its step's end, k TIEs k + 0.5 .. k + 1) */
+                x = (int32_t)(d * len * 128u / T);     /* (d < 2^16, len <= 64) */
+                xe = x + 2 * ft_nudge(t, i, idx, T, len);
+                xe = xe > 0 ? xe : 0;
+                steps = xe < 128 ? 1u : (uint32_t)xe / 128u + ((uint32_t)xe % 128u >= 32u);
+            }
 #endif
             for (k = 1; k < steps && k < len; k++) {
                 step_t *s = &t->step[(idx + k) % len];
@@ -837,11 +890,11 @@ static void ft_close(void)
                 s->time = ST_TIE;
             }
 #if FELUCCA_PLOCK
-            if (k < steps && k < len)                 /* cut by the next note: joins it */
+            if (ex && k < steps && k < len)           /* cut by the next note: joins it */
                 rec_gate_set(t, (idx + k - 1u) % len, REC_LEGATO_JOIN ? 127 : 0, REC_LEGATO_JOIN);
-            else if (k == steps)                      /* (as long as it was held; not past the loop) */
+            else if (ex && k == steps)                /* (as long as it was held; not past the loop) */
                 rec_gate_set(t, (idx + k - 1u) % len,       /* (the project was empty: every step its own) */
-                             k > 1u ? clamp((int32_t)(x - (k - 1u) * 128u) - 64, 1, 64) : (int32_t)x, 1u);
+                             k > 1u ? clamp(xe - (int32_t)(k - 1u) * 128 - 64, 1, 64) : x, 1u);
 #endif
         }
     t->seq_active = 1;

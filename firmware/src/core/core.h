@@ -177,6 +177,10 @@ enum {                          /* global parameters */
      * mc_pack). Projects from before read 0 there: THRS OFF, CEIL OFF, the master as before */
     G_CTHR, G_CRAT, G_CATK, G_CREL,   /* THRS (0 OFF, 1..30: -1..-30 dB), RATIO, ATK, REL (enums) */
     G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF) */
+    /* REC QUANTIZE (the TEMPO screen's second page; seq.c rec_exact): ON (1, the default) a recorded note snaps to the
+     * grid, its start and its length (whole steps); OFF keeps the start as a nudge (MICRO) and the length as a GATE
+     * lock (PLOCK). Per project, in its G_INFO slot as !QUANT (project.c RECQ_PACK: 0 = ON in every older one) */
+    G_RECQ,
     G_COUNT
 };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
@@ -364,6 +368,7 @@ typedef struct track {
     uint8_t rh_ties;             /* TIE steps written after it */
     uint8_t rh_last;             /* the last of them; rh_bak: what it held (an early release puts it back) */
     uint8_t rh_own;              /* rh_start held no note before: its GATE lock is the recorded note's (PLOCK) */
+    int8_t rh_nudge;             /* the nudge its start was kept as (REC QUANTIZE OFF, MICRO), 1/64 of a step */
     uint32_t rh_last_abs;        /* (its step of the transport grid) */
     uint32_t rh_start_abs;       /* rh_start's step of the transport grid (the length lock: seq.c rec_len_end) */
     step_t rh_bak;

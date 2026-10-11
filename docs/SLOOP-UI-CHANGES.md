@@ -35,9 +35,11 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 - HOME held past the hold time (shift), then PLAY, opens the tempo page. That PLAY press does not start or stop the transport. With a layer button held there is no page, and PLAY plays.
 - SELECT only changes the BPM, as in stock SLOOP. It never opens the page; while the page is up, a turn keeps it up.
-- On the page: KNOB 1 BPM, KNOB 2 swing, KNOB 3 sync (INT, USB, TRS, AUTO), KNOB 4 a read-out of the nudge.
+- The page has two pages. HOME shift + PLAY again while it is up goes to the next one, and past the last back to the first. The header says *Tempo 1/2* or *Tempo 2/2*; it always opens on page 1.
+- Page 1: KNOB 1 BPM, KNOB 2 swing, KNOB 3 sync (INT, USB, TRS, AUTO), KNOB 4 a read-out of the nudge. The BPM and the nudge stay together here.
+- Page 2: KNOB 1 QUANT, the project's REC QUANTIZE (right ON, left OFF; ON by default). ON snaps a recorded note to the grid and to whole steps, as before. OFF keeps its start as a nudge (with MICRO) and its length as a GATE lock (with PLOCK), so it plays back as played. KNOB 2 to 4 do nothing yet.
 - OCT- / OCT+ held on the page nudge the clock 3.9 % slower or faster. The BPM itself does not change, and the nudge ends when you let go. There is no octave step, and on the drum track no ghost or hard hits. While an external clock is followed there is no nudge ("NUDGE: EXTERNAL CLOCK").
-- The page stays up until 3 s after the last SELECT, knob, OCT or HOME + PLAY, or until any other button is pressed, which then does its usual job. Letting HOME go does not close it, and playing keys keeps it open.
+- The page stays up until 3 s after the last SELECT, knob, OCT or HOME + PLAY, or until any other button is pressed, which then does its usual job. HOME pressed while it is up waits: with PLAY it pages, let go alone it closes the page. Letting HOME go after HOME + PLAY does not close it, and playing keys keeps it open.
 - PLAY alone acts at once on the press, as before.
 
 ## HOME, undo and redo
@@ -74,7 +76,7 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 - Mixer dials on two pages, flipped by a HOME tap on TRACKS: VOL / INSERT / SEND, then SEND 2 / INSERT 2 / PAN / COMP.
 - A MASTER row above T1. The drum lanes come after DR. Stop at the edge (lane 1 up, DR down), and only a fresh turn crosses. The fresh-turn gap is 350 ms.
 - A lane preview plays only when stopped, and never from the mixer.
-- The tempo page has BPM, swing, sync and nudge (OCT, 3.9 %). It opens with HOME shift + PLAY, never on SELECT.
+- The tempo page has BPM, swing, sync and nudge (OCT, 3.9 %) on page 1 and REC QUANTIZE on page 2. It opens with HOME shift + PLAY, never on SELECT; HOME shift + PLAY again pages.
 - No scope screen.
 - Undo and redo: EDIT + OCT stays, plus SAVE-then-HOME and HOME-then-SAVE.
 - Knob jitter must not count: two detents before a held button shows its map.

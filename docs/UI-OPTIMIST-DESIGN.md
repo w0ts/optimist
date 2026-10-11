@@ -415,7 +415,7 @@ stop):
 | cards | BPM · FINE (0.1) · SWING · SYNC (AUTO INT USB TRS) |
 | OCT- / OCT+ held | **nudge** [D]: the clock runs a few percent slower / faster while held and comes back when let go; the BPM value never changes (DJ beat-matching; a no-op while following an external clock) |
 | a white key | tap tempo (two taps or more) |
-| SELECT | the rows: TEMPO, REC (MODE · LENGTH · START · CLICK: the REC MODES screen's dials) |
+| SELECT | the rows (the screen's pages): TEMPO (BPM · NUDGE · SWING · SYNC: the tempo and its nudge together), REC (MODE · LENGTH · START · CLICK: the REC MODES screen's dials), REC 2 (QUANT · - · - · -: REC QUANTIZE, section 5; the free cells for what joins it) |
 | the panel | the beat as a big number, the clock source it follows (A:USB ...), the RX light |
 
 Why PLAY: it is the one button whose hold does nothing today, and tempo is transport. The alternative is GLO held
@@ -459,7 +459,14 @@ mix): one ring, not five [E]; four always-on taps would cost four rings.
 - **Live ("real record")**: REC as today. Playing: records the selected track at once, REC again stops. Stopped:
   arms; the first note starts the loop, or the free take on an empty project, or the count-in (REC MODES). A take
   ends at a pattern switch (PATTERNS-DESIGN §5.4). Overdub, latency-compensated, chords and ties, as today.
-- **Recorded lengths** (2026-10-11, feat/rec-length; FELUCCA_PLOCK, both UIs, every input and the free take): the
+- **REC QUANTIZE** (2026-10-11, feat/rec-quant; per project, the TEMPO screen's REC 2 row, SLOOP's tempo page 2):
+  **ON** (the default, new and old projects) a recorded note snaps to the grid, its start and its length in whole
+  steps (TIEs, the half-step rule, no lock: as before the recorded lengths below); **OFF** keeps how it was played:
+  its start as its step's nudge (MICRO, 1/64 of a step, own steps only; without MICRO on the grid) and its length
+  as below, from where it starts (the time held). Saved in the project's G_INFO slot (bit 0 = OFF, project.c
+  RECQ_PACK: the slot is the CPU read-out's, 0 in every project before, clamped to 0 by an older build); a SLOOP
+  2.4 import or export clears it.
+- **Recorded lengths** (2026-10-11, feat/rec-length; with REC QUANTIZE OFF; FELUCCA_PLOCK, both UIs, every input and the free take): the
   whole steps a note is held stay TIE steps, the rest of its length a GATE lock on its last step (seq.c
   `rec_len_end`): a NOTE step plays GATE / 128 of a step, the last TIE of a chain half a step + GATE / 128. Held 0.9
   steps locks 116 and plays 0.9; 1.8 locks 39 on its TIE and plays 1.8. A TIE never sounds past its own step (a REST
@@ -1010,7 +1017,8 @@ SAVE / HOME + a button, all in SIZE_FILES):
   the layer's button. The map says *FX locked*, the button blinks; any button but PLAY, REC and OCT lets it go and
   does only that.
 - **TEMPO** [D]: PLAY held 400 ms shows the page (a key while PLAY is down: at once), let go the screen before comes
-  back. Rows TEMPO (BPM · NUDGE · SWING · SYNC) and REC (MODE · LENGTH · START · CLICK). OCT- / OCT+ held nudge the
+  back. Rows TEMPO (BPM · NUDGE · SWING · SYNC), REC (MODE · LENGTH · START · CLICK) and REC 2 (QUANT · - · - · -,
+  2026-10-11: REC QUANTIZE, SELECT down to it; BPM and NUDGE stay together on TEMPO). OCT- / OCT+ held nudge the
   clock 3.9 % slower / faster, the BPM value unchanged, nothing while an external clock is followed (*Nudge: external
   clock*); a white key taps the tempo. The panel: the tempo large (amber while nudged), the four beats, the clock
   followed (*A:INT*, *A:USB*) and its RX light.

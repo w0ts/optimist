@@ -78,7 +78,7 @@ class Panel:
         return self.e.peekb(f"song+{self.song_play_off()}")[0]
 
     def song_play_off(self):
-        return 76                                              # (song_t: playing at 76, seq_mode, rec, sel)
+        return 2 * self.f.G_COUNT                              # (song_t: g[G_COUNT], then playing, seq_mode, rec, sel)
 
     def slots(self):
         w = self.e.peek("fxs_slot")[0]
@@ -92,7 +92,7 @@ class Panel:
         return bytes(self.e.peekb(f"{title:#x}", 16)).split(b"\0")[0].decode("latin1")
 
     def logsyms(self, tracks=(0, 1)):
-        s = ["clk_beat:2", "pat_cur:1", "pat_req:1", f"song+{self.song_play_off()}:1"]
+        s = ["clk_beat:2", "pat_cur:1", "pat_req:1", f"song+{self.song_play_off() & ~3}:1"]   # (the log reads words)
         for t in tracks:
             s += [f"{self.L.at(t, self.L.abs)}:3", f"{self.L.at(t, self.L.org)}:1"]
         return s
@@ -104,7 +104,8 @@ class Panel:
         pc, pr = row["pat_cur"][0], row["pat_req"][0]
         d["cur"] = [(pc >> (8 * i)) & 255 for i in range(4)]
         d["req"] = [(pr >> (8 * i)) & 255 for i in range(4)]
-        d["playing"] = row[f"song+{self.song_play_off()}"][0] & 255
+        o = self.song_play_off()
+        d["playing"] = row[f"song+{o & ~3}"][0] >> (8 * (o & 3)) & 255
         d["trk"] = []
         for t in tracks:
             a, b, c = row[self.L.at(t, self.L.abs)]

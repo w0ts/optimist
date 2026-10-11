@@ -173,8 +173,10 @@ int main(void)
           fm6_baked(q.fm6[1], SL24_FM6_F[2], 4, 2, -3, 2, 1));
     pj_to_p(v, q.t[3].p);
     check("drum track: kit 7 (606) stays 7", v[P_E0] == 7);
-    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[PJ_NG - 1] == (int16_t)PJ_NG && q.sel == 2;
-    check("globals as stored but their G_ROUTE (our G_VIEW): the default; the selected track", ok);
+    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[PJ_NG - 1] == (int16_t)PJ_NG && q.sel == 2 &&
+         fun5[8 + 2 * G_INFO] && q.g[G_INFO] == 0;
+    check("globals as stored but G_ROUTE (our G_VIEW): the default, slot 15 (16 there; our REC QUANTIZE): 0, ON; the track",
+          ok);
     ok = !memcmp(q.t[2].step, fun5 + 12 + 64 + 2 * 940 + 124, sizeof q.t[2].step);
     check("steps: byte for byte (2.4's 10-byte steps are ours)", ok);
     for (k = 0, ok = 1; k < NTRK; k++)

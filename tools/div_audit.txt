@@ -88,6 +88,8 @@ src/seq/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
 src/seq/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when ft_fit found none)
 src/seq/seq.c:ft_close:T | T = ft_t >= FS / CTL / 2 (checked before ft_fit): the PLOCK length lock (x = d x len x 128 / T)
 src/seq/seq.c:rec_gate:u | u = slen >> 7, guarded (u <= 0 returns): slen is a step of the grid (trk_grid), BEAT_U / DIV_DEN units, far above 128 at any DIV
+src/seq/seq.c:rec_nudge:u | u = slen >> 6, guarded (u <= 0 returns): slen a step of the grid (trk_grid), far above 64 units at any DIV
+src/seq/seq.c:ft_nudge:(2u*T) | T = ft_close's ft_t >= FS / CTL / 2 (checked before ft_fit; ft_nudge runs only after it)
 src/seq/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
 src/seq/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
 src/seq/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
