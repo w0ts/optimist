@@ -26,7 +26,10 @@
  *   44 BK_READ    i, off (3 x 7)   -> i, off, CRC-32 of the chunk (5 x 7), pack7 bytes (<= 256; fewer at the end)
  *   45 BK_BEGIN   i, len (3 x 7), CRC-32 (5 x 7) -> i, rc
  *   46 BK_DATA    i, off (3 x 7), CRC-32 (5 x 7), pack7 bytes (<= 256, in order) -> i, off (3 x 7), rc
- *   47 BK_COMMIT  i                -> i, rc (the object written: power-safe, the old copy stays until done)
+ *   47 BK_COMMIT  i [, 1]          -> i, rc (the object written: power-safe, the old copy stays until done; with the
+ *                                     second byte 1 (version 4) only checked as a COMMIT checks it, nothing written: a
+ *                                     restore first checks every storage object this way, so a set holding one the
+ *                                     firmware would not load (rc 8) is refused before anything is written)
  *   48 BK_END     0 abort / 1 done -> rc; done: the FM-1 restarts once the reply is out, and loads it all
  * rc: 0 ok, 1 arguments, 2 CRC (a chunk, or the whole object at COMMIT), 3 the transport plays, 4 no flash,
  * 5 not in this build (never written blindly), 6 too long, 7 the storage write failed (the old copy stays),
@@ -47,7 +50,8 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #else
 #define BK_SNAP_ON 0
 #endif
-#define BK_VERSION 3u                         /* 2: BK_LIST ends with what the build holds (bk_caps); 3: paged */
+#define BK_VERSION 4u                         /* 2: BK_LIST ends with what the build holds (bk_caps); 3: paged;
+                                               * 4: BK_COMMIT's second byte 1 = check only (the editor checks every object first) */
 #define BK_CHUNK 256u
 #ifdef FM6_BANK_N                             /* (fm6_store.c: the firmware; host tests may leave it out) */
 #define BK_FM6_ON (FELUCCA_ENG_FM6 && FELUCCA_FM6_STORE)
@@ -597,7 +601,7 @@ static void bk_close(void)
 /* a backup / restore command; 0 = not one of them: no reply */
 static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
-    uint32_t i, off, n, crc, rc = 0;
+    uint32_t i, off, n, crc, rc = 0, dry = 0;
     if (cmd < ED_BK_LIST || cmd > ED_BK_END)
         return 0;
     if (proj_tmp_lent)
@@ -707,6 +711,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (na < 1u || a[0] >= BK_N)
             return 0;
         i = a[0];
+        dry = na >= 2u && a[1] == 1u;                          /* (version 4: 1 = check only, write nothing) */
         if (!proj_tmp_lent || bk.obj != (int8_t)i)
             rc = 1;
         else if (song.playing || transport_req)
@@ -717,11 +722,13 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         else if (!BK_ST_OK(i))
             rc = 8;                                            /* the firmware would not load it: not written */
 #endif
+        else if (dry)
+            rc = 0;                                            /* a check only: the object stays unwritten */
         else if (BK_OBJS[i].kind >= BK_SEC)
             rc = bk_commit_sec(i);
         else if (BK_OBJS[i].kind == BK_FM6 ? fm6_bank_save(BK_BUF) != 0 : st_save(BK_OBJS[i].id, BK_BUF, bk.len) != 0)
             rc = 7;
-        if (BK_OBJS[i].kind == BK_FM6)
+        if (BK_OBJS[i].kind == BK_FM6 && !dry)
             fm6_bank_find();                                   /* (VOICE U01..U32: the bank as written) */
         bk.obj = -1;
         ed_b(i);

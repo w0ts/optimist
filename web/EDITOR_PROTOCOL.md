@@ -538,11 +538,11 @@ settings record before the song chain it names):
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 43 BK_LIST | 3 (the version the editor speaks), first (the object to start from) | 3, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), first, count, then per object first..first + count − 1: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit); the page that ends the list (first + count = n) ends with what the build holds |
+| 43 BK_LIST | 4 (the version the editor speaks; 3 and 2 still answered), first (the object to start from) | 4 (3 from an older firmware), n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), first, count, then per object first..first + count − 1: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit); the page that ends the list (first + count = n) ends with what the build holds |
 | 44 BK_READ | i, offset (3 × 7 bit) | i, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256; fewer at the end) |
 | 45 BK_BEGIN | i, length (3 × 7 bit), CRC-32 (5 × 7 bit) | i, rc |
 | 46 BK_DATA | i, offset (3 × 7 bit), CRC-32 of the chunk, pack7 bytes (≤ 256, in order) | i, offset, rc |
-| 47 BK_COMMIT | i | i, rc |
+| 47 BK_COMMIT | i [, 1: version 4, check only] | i, rc |
 | 48 BK_END | 1 done / 0 abort | rc (0); done: the device restarts about 150 ms later |
 
 rc: 0 ok, 1 arguments (an unknown object, a sample slot, out of order), 2 CRC (a chunk: send it again; the whole
@@ -550,6 +550,13 @@ object at COMMIT), 3 the transport plays, 4 no flash, 5 not in this build (never
 object, 7 the flash write failed (the old copy stays), 8 at COMMIT: not an object the firmware would load (today's formats
 checked in full: a project's size and sum, the settings' calibration a permutation, a bank's shape; older formats by their
 magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
+
+**Check before writing (version 4).** `BK_COMMIT i 1` runs the same checks as a COMMIT (length, CRC, rc 8) and writes
+nothing. A restore sends every storage object (kind 0) through BEGIN / DATA / `COMMIT i 1` first, and writes only when
+none is refused: a set holding an object the firmware would not load (rc 8) stops before the first write, not halfway
+(the editor's `bkCheckAll`; against a firmware that answers version 3 it is skipped, as a check-only COMMIT would write).
+The other kinds (sections, samples, the FM6 bank, snapshots) are not checked this way. The check costs a second
+transfer of the storage objects.
 
 - **CRC-32** is zlib's (as `SMP_END` and the storage headers). A storage object's CRC is its header's; a sample slot's
   is computed over its length.

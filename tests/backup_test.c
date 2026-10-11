@@ -175,6 +175,7 @@ static int read_obj(uint32_t i)          /* -> objs[i].data, CRC-checked per chu
 }
 /* object i := n bytes at d (BEGIN, DATA chunks, COMMIT); cut: stop after that many chunks (no COMMIT); the rc of
  * COMMIT (or of the step that failed, + 10) */
+static uint32_t commit_dry;                        /* 1: COMMIT's second byte 1 (version 4): a check, nothing written */
 static int write_obj(uint32_t i, const uint8_t *d, uint32_t n, int cut, int bad_chunk)
 {
     uint8_t a[400];
@@ -204,7 +205,8 @@ static int write_obj(uint32_t i, const uint8_t *d, uint32_t n, int cut, int bad_
         off += c;
         k++;
     }
-    cmd(ED_BK_COMMIT, a, 1);
+    a[1] = 1;
+    cmd(ED_BK_COMMIT, a, commit_dry ? 2u : 1u);
     return ed_out[1];
 }
 static int find(const char *tag)
@@ -426,6 +428,24 @@ int main(void)
             ok &= write_obj(id, dls, objs[id].len, -1, -1) == 8 && write_obj(id, objs[id].data, objs[id].len, -1, -1) == 0;
         }
         check("restore check: a kit bank or drum record object of the wrong shape refused (rc 8)", ok && objs[ik].len && objs[id].len);
+        /* version 4: a restore checks every storage object first (COMMIT with the second byte 1: nothing written),
+         * so a set holding one the firmware would not load is refused before anything is written */
+        {
+            ok = obj_is(OBJ_PROJECT0, (const uint8_t *)&P, sizeof P);   /* (the one the check above wrote last) */
+            commit_dry = 1;
+            B = P;
+            B.sum ^= 1u;
+            ok &= write_obj((uint32_t)find("PRJ1"), (const uint8_t *)&B, sizeof B, -1, -1) == 8;
+            memcpy(junk, "XXXX", 4);
+            ok &= write_obj((uint32_t)find("PRJ1"), junk, sizeof junk, -1, -1) == 8;
+            B = P;
+            B.t[0].p[0] ^= 1;                            /* a good project, other than the stored one */
+            B.sum = proj_sum(&B);
+            ok &= write_obj((uint32_t)find("PRJ1"), (const uint8_t *)&B, sizeof B, -1, -1) == 0;
+            commit_dry = 0;
+            ok &= obj_is(OBJ_PROJECT0, (const uint8_t *)&P, sizeof P);
+            check("restore check, dry: a bad object rc 8, a good one rc 0, and NOTHING written either way", ok);
+        }
         cmd(ED_BK_END, (const uint8_t *)"\0", 1);
     }
 #endif
