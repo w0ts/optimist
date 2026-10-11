@@ -235,8 +235,8 @@ static void t_project(void)
             proj_capture(&pj, &dl0);
             rev_defaults();
             proj_apply(&pj, &dl0, 1);
-            snprintf(what, sizeof what, "project: %s saved (rsv[0] %u) and loaded back", LONG[c], pj.rsv[0]);
-            check(pj.rsv[0] == BYTE[c] && rev_sel() == (uint32_t)i && rev_orph == 0xFF, what);
+            snprintf(what, sizeof what, "project: %s saved (rsv[0] %u) and loaded back", LONG[c], pj.rsv[0] & 7u);
+            check((pj.rsv[0] & 7u) == BYTE[c] && rev_sel() == (uint32_t)i && rev_orph == 0xFF, what);
             miss_scan();
             snprintf(what, sizeof what, "project: %s built: nothing missing", LONG[c]);
             check(miss_cnt == 0, what);
@@ -253,15 +253,15 @@ static void t_project(void)
                   !strcmp(nm, c == RT_ROOM ? "REVERB ROOM" : c == RT_SPRING ? "REVERB SPRING" :
                               c == RT_PLATE ? "REVERB PLATE" : c == RT_FDN8 ? "REVERB FDN8" : "REVERB VTINY"), what);
             proj_capture(&pj, &dl0);
-            snprintf(what, sizeof what, "... a save keeps %s (rsv[0] %u)", LONG[c], pj.rsv[0]);
-            check(pj.rsv[0] == BYTE[c], what);
+            snprintf(what, sizeof what, "... a save keeps %s (rsv[0] %u)", LONG[c], pj.rsv[0] & 7u);
+            check((pj.rsv[0] & 7u) == BYTE[c], what);   /* (bits 3..7: the master COMP / LIMIT, project.c mc_pack) */
             if (REV_NLIST > 1u) {
                 TYPE_SET(1);                           /* TYPE turned: the user's choice now */
                 miss_scan();
                 TYPE_SET(0);
                 proj_capture(&pj, &dl0);
                 miss_scan();
-                check(miss_cnt == 0 && pj.rsv[0] == BYTE[REV_ALGO[0]],
+                check(miss_cnt == 0 && (pj.rsv[0] & 7u) == BYTE[REV_ALGO[0]],
                       "... TYPE turned away and back: no longer missing, saved as playing");
             }
         }

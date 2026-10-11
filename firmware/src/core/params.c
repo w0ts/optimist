@@ -234,7 +234,11 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CATK] = PE("ATK", N_CATK, 4),
     [G_CREL] = PE("REL", N_CREL, 6),
     [G_CGAIN] = {"GAIN", F_INT, 0, 15, 0, 0, "dB"},  /* make-up, after the compressor */
-    [G_CCEIL] = PE("CEIL", N_CCEIL, 0),              /* dB below the output's full scale; OFF: the old limiter */
+    [G_CCEIL] = PE("CEIL", N_CCEIL, FELUCCA_MASTER_COMP ? 6 : 0),   /* dB below the output's full scale; OFF: the old
+                                                       * limiter. The default -3.0 dB (2026-10-11, the user's ruling: our
+                                                       * CEIL as the default limiter; project.c mc_pack keeps OFF as its 0).
+                                                       * A build without the limiter: OFF (miss.c says a set CEIL is not
+                                                       * heard; a new project has none) */
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */

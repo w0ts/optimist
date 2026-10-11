@@ -326,7 +326,7 @@ static void t_spring(void)
         proj_capture(&pj, &bp_dl);
         bp_set[BPS_RTYPE] = 0;
         proj_apply(&pj, &bp_dl, 1);
-        check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == rev_index(RT_SPRING), "spring: TYPE saved in the project (rsv[0]) and loaded back");
+        check((pj.rsv[0] & 7u) == 1u && bp_set[BPS_RTYPE] == rev_index(RT_SPRING), "spring: TYPE saved in the project (rsv[0]) and loaded back");
         pj.rsv[0] = 0;
         proj_apply(&pj, &bp_dl, 1);
         check(bp_set[BPS_RTYPE] == 0 && (rev_orph == 0xFF) == (T == RT_ROOM),

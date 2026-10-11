@@ -685,15 +685,20 @@ static void proj_patch(int16_t *v, uint32_t k)
  *   rsv[2]  bits 0..2 ATK (0..5), 3..5 REL (0..6), 6..7 GAIN's bits 0..1
  *   rsv[0]  bits 0..2 the reverb's algorithm (rev_type.c rev_pack), 3..4 GAIN's bits 2..3 (0..15), 5..7 CEIL (0..7)
  * Each field holds the value minus its default (modulo the field): a 0 field is the default, so a project from
- * before has every one at its default (RATIO 2:1, ATK 10 ms, REL AUTO) with THRS and CEIL OFF.
+ * before has every one at its default (RATIO 2:1, ATK 10 ms, REL AUTO) with THRS and CEIL OFF. CEIL's field holds the
+ * value itself (mc_base: its default was OFF until 2026-10-11, -3.0 dB since; the stored values keep their meaning).
  * Every reserved bit is now taken: a sidechain SOURCE (master_comp.h) needs a format change.
  * Kept in every build (a build without MASTER_COMP keeps the values it loads; miss.c says they are not heard). */
 static const uint8_t MC_SHIFT[6] = {0, 5, 8, 11, 14, 18}, MC_MASK[6] = {31, 7, 7, 7, 15, 7};   /* (w: rsv[1], rsv[2], rsv[0] >> 3) */
+/* the value field i counts from: its default, but CEIL's OFF. CEIL's default became -3.0 dB (2026-10-11: the lookahead
+ * limiter by default, a new project's); the format stays: CEIL is stored as it is (0 OFF, as every project saved
+ * before, with or without MASTER_COMP, reads and plays as it did) */
+static int32_t mc_base(uint32_t i) { return G_CTHR + i == G_CCEIL ? 0 : GP[G_CTHR + i].def; }
 static void mc_pack(project_t *p)
 {
     uint32_t w = 0, i;
     for (i = 0; i < 6u; i++)
-        w |= ((uint32_t)(song.g[G_CTHR + i] - GP[G_CTHR + i].def) & MC_MASK[i]) << MC_SHIFT[i];
+        w |= ((uint32_t)(song.g[G_CTHR + i] - mc_base(i)) & MC_MASK[i]) << MC_SHIFT[i];
     p->rsv[1] = (uint8_t)w;
     p->rsv[2] = (uint8_t)(w >> 8);
     p->rsv[0] = (uint8_t)((p->rsv[0] & 7u) | (w >> 16) << 3);   /* (bits 0..2: rev_pack, written before) */
@@ -703,7 +708,7 @@ static void mc_unpack(const project_t *p)
     uint32_t w = p->rsv[1] | (uint32_t)p->rsv[2] << 8 | (uint32_t)(p->rsv[0] >> 3) << 16, i;
     for (i = 0; i < 6u; i++) {
         const param_desc_t *d = &GP[G_CTHR + i];
-        int32_t v = (int32_t)(((w >> MC_SHIFT[i]) + (uint32_t)d->def) & MC_MASK[i]);
+        int32_t v = (int32_t)(((w >> MC_SHIFT[i]) + (uint32_t)mc_base(i)) & MC_MASK[i]);
         song.g[G_CTHR + i] = (int16_t)clamp(v > d->max ? v - MC_MASK[i] - 1 : v, d->min, d->max);   /* (THRS: < 0) */
     }
 }

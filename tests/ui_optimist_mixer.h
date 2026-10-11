@@ -258,9 +258,10 @@ static void mixer_rows_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-mixer-h-master-gr");
-        song.g[G_CTHR] = 0;
+        song.g[G_CTHR] = 0, song.g[G_CCEIL] = 0;        /* (CEIL is on by default since 2026-10-11) */
         frame();
         check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "THRS and CEIL off: no compressor, no bar");
+        song.g[G_CCEIL] = GP[G_CCEIL].def;
         mc_gr_view = 0;
         turn(EN_ALGO, 1);
         fxs_load(0, FXT_COMP);                          /* T1's COMP insert, reducing 8 dB */

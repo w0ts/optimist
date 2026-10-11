@@ -323,9 +323,30 @@ static void t_project(void)
     song.g[G_CTHR] = -5, song.g[G_CCEIL] = 3;
     proj_apply(&pj, &dl, 1);
     ok = song.g[G_CTHR] == 0 && song.g[G_CCEIL] == 0 && song.g[G_CGAIN] == 0;
-    for (i = 0; i < 6u; i++)
+    for (i = 0; i < 5u; i++)
         ok &= song.g[G_CTHR + i] == GP[G_CTHR + i].def;
-    check(ok && GP[G_CTHR].def == 0 && GP[G_CCEIL].def == 0, "a project from before: THRS OFF, CEIL OFF, GAIN 0, RATIO / ATK / REL their defaults");
+    check(ok && GP[G_CTHR].def == 0, "a project from before: THRS OFF, CEIL OFF, GAIN 0, RATIO / ATK / REL their defaults");
+    check(GP[G_CCEIL].def == (FELUCCA_MASTER_COMP ? 6 : 0) && FELUCCA_MASTER_COMP && !strcmp(N_CCEIL[GP[G_CCEIL].def], "-3.0"),
+          "CEIL's default is -3.0 dB (a new project limits with it, 2026-10-11); a saved OFF stays OFF (above)");
+    {   /* the format kept: CEIL is stored as its value (0 OFF), each other field as its value minus its default */
+        static const uint8_t SH[6] = {0, 5, 8, 11, 14, 18}, MK[6] = {31, 7, 7, 7, 15, 7};
+        static project_t q;
+        uint32_t c, w;
+        int same = 1;
+        for (c = 0; c < 8u; c++) {
+            for (i = 0; i < 6u; i++)
+                song.g[G_CTHR + i] = GP[G_CTHR + i].def;
+            song.g[G_CCEIL] = (int16_t)c;
+            q.rsv[0] = q.rsv[1] = q.rsv[2] = 0;
+            mc_pack(&q);
+            w = q.rsv[1] | (uint32_t)q.rsv[2] << 8 | (uint32_t)(q.rsv[0] >> 3) << 16;
+            same &= ((w >> SH[5]) & MK[5]) == c && (w & ~((uint32_t)MK[5] << SH[5])) == 0u;
+            song.g[G_CCEIL] = 5;
+            mc_unpack(&q);
+            same &= song.g[G_CCEIL] == (int16_t)c;
+        }
+        check(same, "project: CEIL stored as before (its value, OFF = 0), read back the same; the others at their defaults: 0");
+    }
     song.g[G_CTHR] = -9;
     proj_apply(&pj, &dl, 0);
     check(song.g[G_CTHR] == -9, "a song section (globals but the drum level kept): the COMP stays");

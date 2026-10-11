@@ -176,7 +176,8 @@ enum {                          /* global parameters */
      * (PJ_NG: the project format does not grow); a project keeps them packed in its reserved bytes (project.c
      * mc_pack). Projects from before read 0 there: THRS OFF, CEIL OFF, the master as before */
     G_CTHR, G_CRAT, G_CATK, G_CREL,   /* THRS (0 OFF, 1..30: -1..-30 dB), RATIO, ATK, REL (enums) */
-    G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF) */
+    G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF; -3.0 dB in a new
+                                 * project since 2026-10-11, a saved one keeps its own) */
     G_COUNT
 };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
