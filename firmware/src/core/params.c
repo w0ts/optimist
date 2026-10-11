@@ -288,6 +288,15 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 }
 #endif
 
+/* the LFO's RATE turned (steps detents, accelerated): a fast turn down stops at 0 first, the slowest free rate; below 0
+ * (the synced note values, N_LSYNC) one value a detent, whatever the speed; above 0 as every value */
+static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
+{
+    if (!steps || (v >= 0 && v + steps >= 0))
+        return clamp(v + steps, d->min, d->max);
+    return v > 0 ? 0 : clamp(v + (steps < 0 ? -1 : 1), d->min, d->max);
+}
+
 #if FELUCCA_DIV_ORDER
 /* #48 (after Felucca 1.0.2, hugelton/Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo
  * Kuroshita, GPL-3.0-only): the note divisions in the order of their length, longest first (the triplets between
@@ -327,11 +336,11 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
     const uint8_t *o = enum_order(d);
     if (o)
         return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
-    return param_step0(d, v, steps);
+    return d == &TP[P_LRATE] ? lrate_step(d, v, steps) : param_step0(d, v, steps);
 }
 #else
 #define enum_rank(d, v) (v)
-#define param_step(d, v, steps) param_step0(d, v, steps)
+#define param_step(d, v, steps) ((d) == &TP[P_LRATE] ? lrate_step(d, v, steps) : param_step0(d, v, steps))
 #endif
 
 /* value string (<= 5 chars) and unit for a parameter value */

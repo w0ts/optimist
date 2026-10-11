@@ -52,6 +52,10 @@ static void t_range_format(void)
         ok &= !strcmp(v, W[i - 1]) && !strcmp(u, "");
     }
     check(ok, "format: -1..-10 = 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 (SLOOP 2.6's names)");
+    ok = param_step(d, 60, -8) == 52 && param_step(d, 5, -8) == 0 && param_step(d, 0, -8) == -1 && param_step(d, -1, -8) == -2
+         && param_step(d, -10, -3) == -10 && param_step(d, -1, 5) == 0 && param_step(d, -4, 2) == -3 && param_step(d, 0, 5) == 5
+         && param_step(d, -3, 0) == -3 && param_step(d, 120, 30) == 127;
+    check(ok, "knob: a fast turn down stops at 0 first; below 0 one note value a detent; above 0 as before");
     param_format(d, 60, v, &u);
     check(!strcmp(u, "Hz"), "format: 60 in Hz as before");
     param_format(&GP[G_CRATE], 40, v, &u);
