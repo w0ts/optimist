@@ -142,3 +142,44 @@ static void step_cards_tests(void)
     op_cards = CARDS_LINE;
     reset_ui();
 }
+/* the user, 2026-10-11: "on many pages, the 4 top cards dont show the values of the current page, it seems to be a
+ * plock card from step seq". A step let go while its cards were up made them show the page that was held (a snapshot)
+ * until the next edit on STEP; leaving STEP in that time left the snapshot on: every other screen's cards were the
+ * step's. The cards of a page left to must be that page's, at once and after the timer, whichever way STEP is left */
+static uint32_t leak_cards(uint32_t via, uint32_t wait)  /* the cards band after: a step held, paged, let go, STEP left */
+{
+    reset_ui();
+    song.sel = 0;
+    tap(B_SEQ);
+    frames(3);
+    kdown(WK(4));
+    frames(HOLD_FRAMES + 2u);
+    turn(EN_SELECT, 1);                                 /* (its next card page, a p-lock page when built) */
+    frames(2);
+    kup(WK(4));
+    frames(wait);
+    tap(via);
+    frames(OP_CARDS_FRAMES + 5u);
+    return sc_hash(OY_CARD, 45);
+}
+static uint32_t clean_cards(uint32_t via)               /* the same screen's cards, STEP never opened */
+{
+    reset_ui();
+    song.sel = 0;
+    tap(via);
+    frames(OP_CARDS_FRAMES + 5u);
+    return sc_hash(OY_CARD, 45);
+}
+static void step_cards_leak_tests(void)
+{
+    static const uint8_t VIA[3] = {B_ENV, B_LFO, B_FX};
+    uint32_t i, ok = 1, ok2 = 1;
+    for (i = 0; i < 3u; i++) {
+        uint32_t c = clean_cards(VIA[i]);
+        ok &= (uint32_t)(leak_cards(VIA[i], 2u) == c && ui.scr == SCR_SOUND);
+        ok2 &= (uint32_t)(leak_cards(VIA[i], OP_CARDS_FRAMES + 5u) == c);
+    }
+    check(ok, "STEP left by ENV / LFO / FX just after a held step was let go: the page's own cards, not the step's");
+    check(ok2, "... and left after the step's cards timed out: the page's own cards");
+    reset_ui();
+}

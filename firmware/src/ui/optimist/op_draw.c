@@ -281,7 +281,7 @@ static void draw_cards(void)
     cell_t c[4];
     uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
-        if (cards_snap_use)
+        if (cards_snap_use && ui.scr == SCR_STEP)       /* (the snapshot is STEP's only: elsewhere a page's own cells) */
             c[k] = snap[k];
         else
             SCR->cell(ui.row[ui.scr], k, &c[k]);

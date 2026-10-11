@@ -849,6 +849,9 @@ byte for byte as before (measured below).
   makes that family's first page on this track the cards, as the held steps' locks; a turn writes a lock on every
   step held (from its lock value, else the track's), a locked cell shows a padlock and its value in amber; HOME + the
   knob drops the lock; the button again: the family's next page; the last step let go: the cards come back.
+- **A step let go**: its cards keep showing the page that was held until their timer ends, on STEP only. The
+  snapshot goes with the cards and with STEP: every other screen's cards are its own page's (2026-10-11 fix: a step
+  let go just before leaving STEP left its p-lock / extra cards on every page).
 - **The pick**: SEQ held + keys. Drums: a white key picks the lane (`lane_sel`) and plays it. Synths: the keys play
   and the core's pen (seq.c `pen_note` / `pen_n`, which `key_down` keeps: the keys down together, a chord) is what the
   next tapped steps carry; letting SEQ go keeps it. The footer names it (*Keys steps SNARE*, *Pick C4 E4+*).

@@ -53,6 +53,7 @@ static void op_enter(uint32_t scr)
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.cards_t = 0;
+    cards_snap_use = 0;                                 /* (STEP's held-step snapshot goes with its cards) */
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();

@@ -2078,6 +2078,7 @@ int main(int argc, char **argv)
     len_tests();
     cards_tests();
     step_cards_tests();
+    step_cards_leak_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();

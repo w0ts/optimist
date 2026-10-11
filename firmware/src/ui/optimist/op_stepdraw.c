@@ -237,6 +237,8 @@ static void step_frame(void)
     uint32_t want = ui.cards_t != 0u, under, inf;
     if (was_held && !st.held && want)
         cards_snap_use = 1;
+    else if (!want)
+        cards_snap_use = 0;                             /* (the cards gone: no snapshot left over for later) */
     was_held = (uint8_t)(st.held != 0u);
     step_info();
     if (sg_info[0][0])
