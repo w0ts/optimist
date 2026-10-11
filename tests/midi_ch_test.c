@@ -213,6 +213,29 @@ static void t_keys(void)
     check(ons[3] >= 1u && all_ended(), "the drum keys send on the drum channel (4)");
 }
 
+/* Felucca #137 (hugelton/Felucca v1.5.1, GPL-3.0-only): under the splash (kb_boot_hold, main.c) the keys play
+ * nothing; one held across its end stays silent until it is let go and pressed again. MIDI plays under it */
+static void t_boot_hold(void)
+{
+    reset();
+    kb_boot_hold = 1;
+    fm1_in.notes = 1u << 7;                               /* a key pressed under the splash */
+    blocks(2);
+    check(total_ons() == 0u && ngated(&trk[0]) == 0u, "#137: a key under the splash plays nothing (nor sends)");
+    kb_boot_hold = 0;                                     /* the splash ends with it held */
+    blocks(2);
+    check(total_ons() == 0u && ngated(&trk[0]) == 0u, "#137: held across the splash's end: still silent");
+    fm1_in.notes = 0;
+    blocks(2);
+    check(out_n == 0u, "#137: its release sends nothing either");
+    fm1_in.notes = 1u << 7;
+    blocks(2);
+    check(total_ons() == 1u && ngated(&trk[0]) == 1u, "#137: pressed again after the splash: it plays");
+    fm1_in.notes = 0;
+    blocks(2);
+    check(all_ended(), "#137: and ends");
+}
+
 static void t_project(void)
 {
     static project_t q;
@@ -250,6 +273,7 @@ int main(void)
     t_defaults();
     t_in();
     t_keys();
+    t_boot_hold();
     t_project();
     printf("midi_ch: %d failed\n", fails);
     return fails;

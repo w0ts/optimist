@@ -152,6 +152,22 @@ enum { BOOT_STAGE_PERSIST = 0x41, BOOT_STAGE_STORES, BOOT_STAGE_SETTINGS, BOOT_S
        BOOT_STAGE_SYNTH, BOOT_STAGE_AUDIO, BOOT_STAGE_USB, BOOT_STAGE_BLE, BOOT_STAGE_IRQS, BOOT_STAGE_SPLASH };
 #define BOOT_STAGE(s) (felucca_dbg.stage = BOOT_STAGE_##s)
 
+/* MASTER from its pot: knob is the pot x16, smoothed an eighth of the way a call (the main loop), or set at once
+ * (glide 0: power-on). Felucca #137 (hugelton/Felucca v1.5.1 master.c master_boot, GPL-3.0-only): the pot is read
+ * before the audio starts and through the splash, so the first block plays at its level (it was 2048, about 70 % of
+ * the knob, until the main loop's first read: keys or MIDI under the splash sounded loud with the knob turned down).
+ * A bench keeps its level (main-loop timing) */
+static __attribute__((noinline)) void master_pot(int32_t *knob, int glide)
+{
+    int32_t a = fm1_adc_read(FM1_ADC_MASTER);
+    uint32_t k10;
+    if (a < 0 || FELUCCA_BENCH)
+        return;
+    *knob = glide ? *knob + (a * 16 - *knob) / 8 : a * 16;
+    k10 = (uint32_t)(*knob / 16);
+    song.master_q12 = (k10 * k10) >> 8;                 /* 0 .. ~4096 */
+}
+
 static BOOT_ORDER void fm1_main(void)
 {
     int32_t knob = 512 * 16;
@@ -213,6 +229,9 @@ static BOOT_ORDER void fm1_main(void)
                                                          * waits 50 ms) and before the vectors are locked */
     fm1_guard_enable(FM1_GUARD_BUS | FM1_GUARD_PC);
 #endif
+    master_pot(&knob, 0);                               /* the knob as it stands, before the first block (#137; the */
+    master_pot(&knob, 0);                               /* first conversion after the pin setup: read again) */
+    kb_boot_hold = 1;                                   /* #137: no notes from the keys before the UI (seq.c) */
     BOOT_STAGE(AUDIO);
     audio_init();
     BOOT_STAGE(USB);
@@ -238,8 +257,15 @@ static BOOT_ORDER void fm1_main(void)
         settings_save();
     }
 #if FELUCCA_SPLASH
-    fm1_delay_ms(900);                                  /* (the logo stays a moment) */
+    {
+        uint32_t ms;
+        for (ms = 0; ms < 900u; ms += 10u) {            /* (the logo stays a moment; the pot followed: MIDI plays) */
+            fm1_delay_ms(10);
+            master_pot(&knob, 1);
+        }
+    }
 #endif
+    kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, C_BLACK);
 
     healthy_since = fm1_ms;
@@ -255,15 +281,7 @@ static BOOT_ORDER void fm1_main(void)
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
-        {
-            int32_t a = fm1_adc_read(FM1_ADC_MASTER);
-            if (a >= 0 && !FELUCCA_BENCH) {             /* (a bench keeps its level: main-loop timing) */
-                uint32_t k10;
-                knob += (a * 16 - knob) / 8;
-                k10 = (uint32_t)(knob / 16);
-                song.master_q12 = (k10 * k10) >> 8;            /* 0 .. ~4096 */
-            }
-        }
+        master_pot(&knob, 1);                           /* MASTER */
         {   /* OCT- + OCT+ held 5 s, stopped: enter UBOOT with RAM intact (debug / update); a countdown
              * shows from 2 s, letting go cancels it. Not while playing: on the drum track these are the
              * ghost / hard modifiers, held for a long time */
