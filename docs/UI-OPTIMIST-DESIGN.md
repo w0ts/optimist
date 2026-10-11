@@ -1867,3 +1867,8 @@ what reaches this UI:
   the keys played (seq.c `held_key`, `held_dt`) and maps them again on every step through `kb_pitch`, so a latched chord
   moves with TRN or a new scale. Each key keeps the octave OCT had when it went down; a key a new QNT silences drops
   out; MIDI in notes play as they came. Shared sequencer code: both UIs. Test: tests/arp_follow_test.c.
+- **SEQ never lands on SONG here** (SLOOP #33 / #107). The user's ruling ("Follow SLOOP in the SLOOP UI") keeps SLOOP's
+  convention in the SLOOP UI only, where SONG is the SEQ family's last page. In this UI SEQ tapped is STEP, also after
+  the SONG screen was visited (SAVE held + SELECT). Unchanged; tests/ui_optimist_test.c `seq_never_song_tests` pins it.
+- **Chord mode on STEP** (SLOOP #41) was the SLOOP UI's bug: here the step pick is the chord as it sounds (seq.c's pen),
+  so a tapped step takes the whole chord. Unchanged; tests/ui_optimist_test.c checks it.

@@ -2,7 +2,9 @@
 /* SLOOP fixes backported into the SLOOP UI (isod89/sloop-fm1), included by tests/ui_pages_test.c:
  *   #41 (2.5 fa9ce57)   chord mode: a key on the STEP page writes the whole chord as it sounds, not only its root;
  *                       MONO writes one note as before
- *   #64 (2.5 fa9ce57)   the DRUMS grid's LEVEL dial runs ghost (left) .. hard (right) */
+ *   #64 (2.5 fa9ce57)   the DRUMS grid's LEVEL dial runs ghost (left) .. hard (right)
+ *   #33 / #107          SLOOP's SEQ convention, kept (the user's ruling): SONG is the SEQ family's last page, a tap of
+ *                       SEQ walks into it, and SEQ from TRACKS comes back to it (the SAVE LED lit there) */
 static void bp_step_page(void)
 {
     song.sel = 0;
@@ -59,8 +61,36 @@ static void bp_level_dial_tests(void)
           "#64: the DRUMS LEVEL dial: ghost left, soft, norm, hard right");
 }
 
+static void bp_seq_song_tests(void)
+{
+    uint32_t i, song_pg = NPAGES;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].scope == SC_SONG)
+            song_pg = i;
+    check(song_pg < NPAGES && PAGES[song_pg].fam == FAM_SEQ, "#33: SONG is a page of the SEQ family (SLOOP's order)");
+    bp_step_page();
+    for (i = 0; i < 8u && cur_page()->scope != SC_SONG; i++)
+        tap(B_SEQ);
+    check(cur_page()->scope == SC_SONG, "#33: SEQ tapped again and again: it walks into SONG");
+    check(cur_btn() == B_SAVE, "#33: on SONG the SAVE LED is lit (SLOOP)");
+    go_home();
+    frame();
+    tap(B_SEQ);
+    check(cur_page()->scope == SC_SONG, "#33: SEQ from TRACKS: back on SONG, the family's last page");
+    ppm("bp-seq-song");
+    tap(B_SEQ);
+    check(cur_page()->scope == SC_STEP, "#33: SEQ on SONG: round to STEP");
+    go_home();
+    frame();
+    tap(B_SEQ);
+    check(cur_page()->scope == SC_STEP, "#33: SEQ from TRACKS after STEP: STEP");
+    go_home();
+    frame();
+}
+
 static void sloop_bp_tests(void)
 {
     bp_chord_entry_tests();
     bp_level_dial_tests();
+    bp_seq_song_tests();
 }

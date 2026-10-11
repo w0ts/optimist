@@ -907,6 +907,28 @@ static void step_keys_tests(void)
     reset_ui();
 }
 
+/* SLOOP #33 / #107: the SLOOP UI keeps SLOOP's SEQ convention (SONG is SEQ's last page, tests/sloop_bp_ui.c); this UI
+ * keeps its own: SEQ tapped is STEP, from anywhere, the SONG screen visited or not, and never SONG */
+static void seq_never_song_tests(void)
+{
+    uint32_t i, song_seen = 0;
+    reset_ui();
+    press(B_SAVE);
+    frames(HOLD_FRAMES);
+    turn(EN_SELECT, 1);
+    release(B_SAVE);
+    check(ui.scr == SCR_SONG, "SEQ vs SONG: the SONG screen visited (SAVE held + SELECT)");
+    reset_ui();
+    tap(B_SEQ);
+    check(ui.scr == SCR_STEP, "SEQ tapped after SONG was visited: STEP, not SONG (SLOOP #33 is the SLOOP UI's)");
+    for (i = 0; i < 8u; i++) {
+        tap(B_SEQ);
+        song_seen |= ui.scr == SCR_SONG;
+    }
+    check(!song_seen, "SEQ tapped again and again: never the SONG screen");
+    reset_ui();
+}
+
 static void step_synth_tests(void)
 {
     track_t *t = TSEL;
@@ -2103,6 +2125,7 @@ int main(int argc, char **argv)
     scope_tests();
     step_keys_tests();
     step_synth_tests();
+    seq_never_song_tests();
     layer_tests();
     save_layer_tests();
     tempo_tests();
