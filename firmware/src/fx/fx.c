@@ -1054,6 +1054,7 @@ static HOT void duck_block(uint32_t adv)
 typedef struct {
     int32_t cut;                                        /* now, 0..127 << 8 (CUTOFF_HZ index) */
     int8_t mode;                                        /* -1 LP, 1 HP, 0 off */
+    uint8_t seed;                                       /* bit per state: the LP starts from its next input (tflt_run) */
     int32_t z[5][2];                                    /* the SVF states: a part's [0]; the drums' L R REV DLY CHO */
 } tflt_t;
 static tflt_t tflt[NTRK];
@@ -1074,10 +1075,13 @@ static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
         f->mode = -1;
         f->cut = 127 << 8;
         tflt_clear(f);
+        f->seed = 31;                                   /* (SLOOP 2.6: from rest the LP's output began at 0 under a
+                                                         * sounding note, a click; it starts where the signal is) */
     } else if (v > 0 && f->mode <= 0) {
         f->mode = 1;
         f->cut = 0;
         tflt_clear(f);
+        f->seed = 0;                                    /* (the HP from 0: its output is in - LP, 0 from rest) */
     }
     if (!f->mode)
         return 0;
@@ -1095,6 +1099,13 @@ static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uin
 {
     uint32_t i;
     int32_t *z = f->z[ch], lp = f->mode < 0;
+    if ((f->seed >> ch) & 1u) {                         /* (SLOOP 2.6 d30d655 fx.c djf_run, GPL-3.0-only) the LP's first */
+        f->seed &= (uint8_t)~(1u << ch);                /* block: at rest on its input, the output is the input (DC: */
+        if (lp && n) {                                  /* exact), not 0 */
+            z[0] = 0;
+            z[1] = clamp(b[0] >> sh, -140000, 140000);
+        }
+    }
     for (i = 0; i < n; i++) {
         int32_t x = clamp(b[i] >> sh, -140000, 140000), y = tsvf_lp(c, x, &z[0], &z[1]);
         b[i] = (lp ? y : x - y) << sh;
@@ -1564,19 +1575,27 @@ static struct {
     int32_t l1, l2, r1, r2;
 } djf;
 
+/* a side starts (from open, or the other side): in flash, a block now and then (FAR from djf_process, RAM code) */
+static __attribute__((noinline)) void djf_start(int32_t v, int32_t l0, int32_t r0)
+{
+    djf.l1 = djf.r1 = 0;
+    if (v < 0) {
+        djf.mode = -1;
+        djf.cut = 127 << 8;
+        djf.l2 = clamp(l0, -140000, 140000);            /* (SLOOP 2.6 d30d655 fx.c djf_run, GPL-3.0-only) the LP starts */
+        djf.r2 = clamp(r0, -140000, 140000);            /* at rest on its input: its output is the input (DC: exact), */
+    } else {                                            /* not 0 under a sounding mix (a click) */
+        djf.mode = 1;
+        djf.cut = 0;
+        djf.l2 = djf.r2 = 0;
+    }
+}
 static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
 {
     int32_t v = song.g[G_FILT], to, i;
     tsvf_t c;
-    if (v < 0 && djf.mode >= 0) {                       /* (switching side: from open) */
-        djf.mode = -1;
-        djf.cut = 127 << 8;
-        djf.l1 = djf.l2 = djf.r1 = djf.r2 = 0;
-    } else if (v > 0 && djf.mode <= 0) {
-        djf.mode = 1;
-        djf.cut = 0;
-        djf.l1 = djf.l2 = djf.r1 = djf.r2 = 0;
-    }
+    if ((v < 0 && djf.mode >= 0) || (v > 0 && djf.mode <= 0))   /* (switching side: from open) */
+        FAR(djf_start)(v, l[0], r[0]);                  /* (n > 0: a block) */
     if (!djf.mode)
         return;
     to = djf.mode < 0 ? (v < 0 ? (127 << 8) + v * 90 * 4 : 127 << 8) : (v > 0 ? v * 90 * 4 : 0);
