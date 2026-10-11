@@ -1052,7 +1052,7 @@ static void step_synth_tests(void)
         song.sel = 0;
         check(!bad, "STEP's held-step lines under the grid fit (232 px)");
     }
-    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240,
+    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240 && RL_X + 16 * RL_CW <= 240,
           "the grid, its marks and playhead to the screen's foot, the held step's two lines over its foot, its width");
     {   /* the keys' lights: the set steps of the window */
         uint32_t m;
@@ -1761,8 +1761,8 @@ static void auto_step_tests(void)
         ui.force = 1;
         frame();
         {
-            uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = SG_X + 3u * SG_CW + (SG_CW - 2u) / 2u,
-                     xt = SG_X + 6u * SG_CW + 2u, x9 = SG_X + 9u * SG_CW + (SG_CW - 2u) / 2u;
+            uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = RL_X + 3u * RL_CW + (RL_CW - 2u) / 2u,
+                     xt = RL_X + 6u * RL_CW + 2u, x9 = RL_X + 9u * RL_CW + (RL_CW - 2u) / 2u;   /* (a synth track: the roll's columns) */
             check(screen[y * 240u + x3] == swap16(trk_col(0)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
                   screen[y * 240u + x9] != swap16(trk_col(0)),
                   "the marks under the steps: a dot under step 4, its hold's tail on to LEN; step 10 (no event) none");
@@ -2029,6 +2029,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
+#include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -2079,6 +2080,10 @@ int main(int argc, char **argv)
     len_tests();
     cards_tests();
     step_cards_tests();
+    step_cards_leak_tests();
+    s35_entry_tests();
+    s35_transpose_tests();
+    s35_roll_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();

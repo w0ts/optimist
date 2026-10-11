@@ -122,7 +122,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
 | **ALGORITHM** | the track, T1 T2 T3 DR. Every screen retargets to it, the colour follows |
-| **PRESETS** | **browses the selected track's presets** (the drum track: its kits), one a detent, on every screen (2026-10-10, section 12). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
+| **PRESETS** | **browses the selected track's presets** (the drum track: its kits), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
 | **YES** (SAVE tapped) | act on the cursor row: enter a ▸ row, toggle an on / off cell, **do** an action cell, confirm an armed action |
@@ -298,22 +298,40 @@ on the rows: the cards show the selected row's values.
 SEQ tapped. **The keys are the 16 steps of the page shown**, nothing held (the ISR's `ly_lock` LY_STEP, or KB_GRID,
 already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll the window** over a longer pattern:
 1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. OCT alone
-keeps the octave and ghost / hard, so the pick can be auditioned. FOLLOW (the window follows the playhead, as
+keeps the octave and ghost / hard, so the pick can be auditioned. **The pick follows the octave** (2026-10-11): a note
+played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
+at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). **A step
+held + OCT- / OCT+ transposes it** (2026-10-11): every note of the synth steps held an octave down / up, each clamped
+to 0..127; while a step is held OCT changes neither the keyboard octave nor FM6's paging (on the drum track it does
+nothing). The cards come to the step's page with NOTE lit, so the new note shows (`held_octave`). FOLLOW (the window follows the playhead, as
 FELUCCA_DRUM_STEP) is the default while playing [D]; a scroll turns it off, and **HOME + OCT- + OCT+ together
-resumes it** [D].
+resumes it** [D]. **PRESETS pages the window too** (2026-10-11, the user: "in the step sequencer it scroll pages thru
+the piano roll, in mixer it select preset indeed"): a page a detent on every track, stopping at the first and the last
+(no wrap), the follow off as a scroll; with a step held it does nothing (the held keys are the window's). It replaces
+batch 33's PRESETS = the drum lane on STEP: the lane is picked with SEQ + a key or SELECT on the lane rows.
 
 **The keys' lights** [P]: on STEP the set steps of the window are lit (the selected lane's on the drum track) and
 the playhead's key blinks, as FELUCCA_DRUM_STEP lights them today; with the keys toggled to playing, the played
 notes as KEYLIT; in a held layer its map, as today.
 
 The panel on the drum track: the 16 lanes x the 16 steps of the page, levels as shades, ratchets as notches
-(today's DRUMS grid), the selected lane highlighted. On a synth track: the page's 16 steps as a mini roll (notes
-stacked, ties as lines, the chords of CHORD), as Felucca's GR_ROLL.
+(today's DRUMS grid), the selected lane highlighted. On a synth track: the page's 16 steps as a piano roll
+(2026-10-11, the user: "looks a bit sad compared to sloop. could we have the note names on the left, and more
+details ?"): the note names in a 24-px gutter on the left, the Cs with their octave (*C4*, C_HI); every row named when
+the rows are 11 px or taller (a row with a note amber, a black key dim, a white key grey), else the Cs and the rows
+with a note where they do not touch; the black keys' rows a faint tint (C_LINE at 2/8, the gutter too); each octave
+ruled under its C; the bar's start and the end of LEN in C_DIM, the beats in C_LINE, a foot tick a step; each note a
+bar as long as its ties (joined over the column gaps), its level the shade (ghost dim .. hard full), an accent a white
+top edge, the ratchet as notches; the chords stacked; the steps held framed white; the playhead's column white while
+it plays (only the two columns it left and reached are painted again, on a canvas of their own, never under the
+cards); the window's page lit in the gutter of the playhead strip (1-16, 17-32 ...). The rows cover the whole
+pattern's notes (every page on the same rows), 13 semitones at least, as tall as fit (16 px at most). The columns
+are 13 px from x 26 (the drum grid keeps 14 px from x 16). Black ground, C_LINE lines, no grey fills.
 
 | State | Cards (KNOB 1..4) | SELECT | PRESETS | YES | HOME |
 |---|---|---|---|---|---|
-| no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the hot cell | — | tapped: back |
-| no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the hot cell | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
+| no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the window's page (2026-10-11) | — | tapped: back |
+| no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the window's page (2026-10-11) | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
 | **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
@@ -849,6 +867,9 @@ byte for byte as before (measured below).
   makes that family's first page on this track the cards, as the held steps' locks; a turn writes a lock on every
   step held (from its lock value, else the track's), a locked cell shows a padlock and its value in amber; HOME + the
   knob drops the lock; the button again: the family's next page; the last step let go: the cards come back.
+- **A step let go**: its cards keep showing the page that was held until their timer ends, on STEP only. The
+  snapshot goes with the cards and with STEP: every other screen's cards are its own page's (2026-10-11 fix: a step
+  let go just before leaving STEP left its p-lock / extra cards on every page).
 - **The pick**: SEQ held + keys. Drums: a white key picks the lane (`lane_sel`) and plays it. Synths: the keys play
   and the core's pen (seq.c `pen_note` / `pen_n`, which `key_down` keeps: the keys down together, a chord) is what the
   next tapped steps carry; letting SEQ go keeps it. The footer names it (*Keys steps SNARE*, *Pick C4 E4+*).
