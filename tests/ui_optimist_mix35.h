@@ -55,8 +55,40 @@ static void mixer_views_tests(void)
     check(ok, "... back up: the channels, DR selected");
     reset_ui();
 }
+/* a track change shows its name in the header for ~1.5 s (TRACK 2, its engine, its preset), on every screen, synth
+ * tracks only; drawn in place */
+static void title_flash_tests(void)
+{
+    uint32_t ok, n;
+    reset_ui();
+    song.sel = 0;
+    frames(OP_TFLASH_FRAMES + 2u);
+    n = full_fills;
+    turn(EN_ALGO, 1);
+    frame();
+    ok = song.sel == 1u && tf.t > 0u && px_in(2, 3, 4, 19, trk_col(1)) && px_in(120, 4, 116, 16, C_WHITE) && full_fills == n;
+    check(ok, "ALGORITHM to T2 on the mixer: TRACK 2, its engine and preset in the header, in place");
+    ppm("opt-title-flash-mix");
+    frames(OP_TFLASH_FRAMES);
+    check(tf.t == 0u && !px_in(120, 4, 116, 16, C_WHITE) && full_fills == n, "... ~1.5 s later the normal header again");
+    tap(B_ENV);
+    frames(2);
+    turn(EN_ALGO, 1);
+    frame();
+    check(ui.scr == SCR_SOUND && song.sel == 2u && tf.t > 0u && px_in(120, 4, 116, 16, C_WHITE), "on SOUND (ENV) too: TRACK 3");
+    ppm("opt-title-flash-env");
+    turn(EN_ALGO, 1);
+    frame();
+    check(song.sel == TRK_DRUM && tf.t == 0u, "the drum track: no name flash (the header at once)");
+    song.sel = 0;
+    frames(2);
+    check(tf.t > 0u, "a track selected another way (the editor, the mixer's follow): the flash too");
+    reset_ui();
+    frames(OP_TFLASH_FRAMES + 2u);
+}
 static void mix35_tests(void)
 {
     preset_inplace_tests();
     mixer_views_tests();
+    title_flash_tests();
 }

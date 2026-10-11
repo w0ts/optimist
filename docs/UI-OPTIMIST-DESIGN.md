@@ -1891,3 +1891,11 @@ own per row as before.
 | SOUNDS | the 16 lanes, two columns of eight (1-8 left, 9-16 right), 120 x 20 each | the colour chip and code (BD SD CH ...), the lane's own hits on the page playing (6 px a step; an empty step a foot line, the playhead white), its hit meter (drums.hits, falling over 12 frames). The selected lane is framed and tinted; the header names it (*Snare mix*) |
 
 The levels are kept on a 0 .. 255 scale (`MX_LV`) and drawn to each view's meter width.
+
+**The track's name on a track change.** The user: when the selected track changes (ALGORITHM or any other way), the
+title bar shows briefly the full track name, engine and preset, the three synth tracks only, on every page. `draw_head`
+watches `song.sel` once a frame (`tflash_tick`): a change to T1, T2 or T3 starts ~1.5 s (`OP_TFLASH_FRAMES`, 90
+frames) in which the header reads the badge *TRACK 2* in the track's colour, then the engine in that colour and the
+preset in white (sentence case, cut to the room), with no position or tempo; then the normal header comes back. The
+drum track, MASTER (`ui.master`) and power-on show none; a message (`ui.msg_t`) and the NAME screen keep the header.
+It is drawn as the header always is, when its signature changes: in place, never a clear.

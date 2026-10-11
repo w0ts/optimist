@@ -124,6 +124,44 @@ static const char *head_engine(void)
 {
     return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
 }
+/* the track's name on a track change (the user, 2026-10-11): ~1.5 s in the header, on every screen, the badge "TRACK 2"
+ * in the track's colour, then its engine in that colour and its preset; a synth track only (the drum track and MASTER:
+ * none). Then the normal header comes back. Drawn as the header always is, by its signature: in place, no clear */
+#define OP_TFLASH_FRAMES 90u
+static struct {
+    uint8_t t;                          /* frames the name stays */
+    uint8_t sel;                        /* the track seen last */
+    uint8_t seen;                       /* (the first frame: no flash at power-on) */
+} tf;
+static void tflash_tick(void)
+{
+    if (!tf.seen || song.sel != tf.sel) {
+        tf.t = (uint8_t)(tf.seen && song.sel < NPART && !ui.master ? OP_TFLASH_FRAMES : 0u);
+        tf.sel = song.sel;
+        tf.seen = 1;
+    } else if (tf.t) {
+        tf.t--;
+    }
+    if (ui.master)
+        tf.t = 0;                                       /* (MASTER picked meanwhile: its own badge) */
+}
+static void draw_head_flash(uint16_t tc)                /* the header while tf.t runs: TRACK 2, ANALOG, the preset */
+{
+    char b[16], c[32], nm[16];
+    int32_t x, bw;
+    uint32_t room;
+    const char *eng = ENGINES[TSEL->eng_req % NENGINES]->name;
+    str_cpy(b, "TRACK ", sizeof b);
+    fmt_int(b + 6, (int32_t)song.sel + 1);
+    bw = text_w(&FONT_S, b) + 8;
+    cv_rect(2, 3, bw, 19, tc);
+    cv_text(6, 4, &FONT_S, b, C_BLACK);
+    x = cv_text(bw + 8, 4, &FONT_S, eng, tc);
+    snd_name(song.sel, nm);
+    op_case(c, nm, sizeof c);
+    room = x + 8 < 228 ? (uint32_t)(236 - x - 8) / 8u : 1u;
+    cv_text(x + 8, 4, &FONT_S, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
+}
 static void draw_head(void)
 {
     char t[32], c[32], r[16], bpm[8];
@@ -160,11 +198,18 @@ static void draw_head(void)
     fmt_int(bpm, song.g[G_BPM]);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm), eng);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
+    tflash_tick();
+    if (tf.t && !ui.msg_t && !name_on()) {
+        snd_name(song.sel, c);
+        sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
+    }
     if (sig == ui.sig[0])
         return;
     ui.sig[0] = sig;
     cv_begin(240, OH_HEAD, C_BLACK);
-    if (ui.msg_t) {
+    if (tf.t && !ui.msg_t && !name_on()) {
+        draw_head_flash(tc);
+    } else if (ui.msg_t) {
         cv_text(4, 4, &FONT_S, op_case(c, ui.msg, sizeof c), mc);   /* (sentence case: "T1 cleared") */
     } else {
         cv_rect(2, 3, bw, 19, tc);                      /* the track's engine, in its colour */
