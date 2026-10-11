@@ -25,7 +25,7 @@ static int sl24_find(uint32_t obj, st_hdr_t *h)
     first = ok[1] && (!ok[0] || hd[1].seq > hd[0].seq);
     for (c = 0; c < 2; c++) {
         int k = first ^ c;
-        if (ok[k] && st_body(obj, (uint32_t)k, &hd[k]) == 0 && sl24_is(st_buf, (int)hd[k].len)) {
+        if (ok[k] && st_body(obj, (uint32_t)k, &hd[k]) == 0 && sl24_any(st_buf, (int)hd[k].len)) {
             *h = hd[k];
             return k;
         }
@@ -50,7 +50,7 @@ static void sl24_boot_scan(void)
         pj_alien[i] = 0;
         if (cur < 0 || proj_import(&proj_tmp.cur, st_buf, (int)h.len))
             continue;
-        pj_alien[i] = (uint8_t)(sl24_is(st_buf, (int)h.len) ? PJ_SL24 : PJ_ALIEN);
+        pj_alien[i] = (uint8_t)(sl24_any(st_buf, (int)h.len) ? PJ_SL24 : PJ_ALIEN);
         st_keep(st_sector(obj, (uint32_t)cur));
     }
     {   /* the autosave: a 2.4 copy that is not the current one (Optimist wrote its other copy since) is kept too, and
@@ -60,6 +60,52 @@ static void sl24_boot_scan(void)
         if (c >= 0)
             st_keep(st_sector(OBJ_AUTOSAVE, (uint32_t)c));
     }
+}
+#endif
+
+/* SLOOP 2.5 / 2.6's settings object (isod89/sloop-fm1 v2.5 fa9ce57, v2.6 d30d655: project.c settings_write, storage.c
+ * st_save2 / st_save3): their persist_t (88 B: magic .. the lights word, the same as 2.4's and the start of ours), then
+ * their SYN1..SYN4 drum kits (drum_synth.c dsu_bank_t, 1464 B: "DSU1", version 1, 4 kits), then in 2.6 a MIDI part
+ * (0, 32, 36 or 40 B: MIDI LEARN, the channels, BEND). Read as ours before (a record of 1552 B and more: the kits'
+ * bytes taken as BRIGHT, the settings word and the BLE fields), and the first settings save wrote over the kits. Now
+ * told apart by the kits' header past the 88 bytes (none of our records is that long: our BRIGHT word sits there) */
+#define SL25_PERSIST 88u                               /* their persist_t */
+#define SL25_DSU_MAGIC 0x31555344u                     /* "DSU1" */
+#define SL25_DSU_LEN 1464u                             /* dsu_bank_t: magic, version 1, 4 kits of 364 B */
+static int sl25_set_is(const uint8_t *b, uint32_t n)
+{
+    uint32_t m, v;
+    if (n < SL25_PERSIST + SL25_DSU_LEN)
+        return 0;
+    memcpy(&m, b + SL25_PERSIST, 4), memcpy(&v, b + SL25_PERSIST + 4u, 4);
+    return m == SL25_DSU_MAGIC && v == (1u | 4u << 16);
+}
+#if FELUCCA_FLASH
+/* at start, before the settings are read: each copy of the settings object that holds SLOOP 2.5 / 2.6's record is
+ * marked (storage.c st_set_sl: never ours), the newest one kept (st_set_cur: never erased, ours written below it) */
+static void sl25_set_scan(void)
+{
+    uint32_t c;
+    st_set_sl = 0, st_set_cur = 0, st_set_seq = 0;
+    for (c = 0; c < 2u; c++) {
+        st_hdr_t h;
+        if (st_head(OBJ_SETTINGS, c, &h) || st_body(OBJ_SETTINGS, c, &h) || !sl25_set_is(st_buf, h.len))
+            continue;
+        if (!st_set_sl || h.seq > st_set_seq)
+            st_set_cur = (uint8_t)c, st_set_seq = h.seq;
+        st_set_sl |= (uint8_t)(1u << c);
+    }
+}
+/* no settings record of ours: SLOOP 2.5 / 2.6's first 88 bytes (at most max) -> p, as 2.4's record (project.c
+ * persist_boot reads its lights word); -> their length, or -1 none */
+static int sl25_set_load(void *p, uint32_t max)
+{
+    st_hdr_t h;
+    uint32_t n = max < SL25_PERSIST ? max : SL25_PERSIST;
+    if (!st_set_sl || st_head(OBJ_SETTINGS, st_set_cur, &h) || st_body(OBJ_SETTINGS, st_set_cur, &h))
+        return -1;
+    memcpy(p, st_buf, n);
+    return (int)n;
 }
 #endif
 
@@ -151,11 +197,12 @@ _Static_assert(sizeof proj_tmp >= SL24_FV_AT + NPART * 128u, "2.4's FM6 patches 
 #if FELUCCA_AUTO
 static stepx_t sl24_x[NTRK] __attribute__((section(".pool")));   /* (2.4's extras on their way into the store) */
 #endif
-/* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 project (sl24_is; not in proj_tmp) -> the working project
+/* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 / 2.5 project (sl24_is; not in proj_tmp), or a 2.6 one (sl26_is: made
+ * a 2.5 one first, in place: b holds SL24_SIZE bytes) -> the working project
  * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
  * past a signed byte clamped, said so; else dropped, said so), its FM6 parts' bank patches from fv[] (0: from 2.4's
  * bank in flash), its USR kit as lanes. Nothing is written: SAVE puts the import in a section. -> 1 imported */
-static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *fv)
+static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
 {
 #if SEC_LOGGED
     dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is, or its USR lanes) */
@@ -167,7 +214,11 @@ static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *f
                                                         * parts use: in proj_tmp past the project it receives) */
     const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    uint32_t lost, k, at = 0, r = 0;
+    uint32_t lost, k, at = 0, r = 0, ft = 0;
+    if (sl26_is(b, (int)n)) {                          /* (2.6: as 2.5's, its parts' filter TYPE aside) */
+        ft = sl26_to_sl24(b);
+        n = SL24_SIZE;
+    }
     if (!fv) {                                         /* (2.4's bank, where it left it) */
         for (k = 0; k < NPART; k++) {
             int pt = sl24_ptch(b, k);
@@ -182,6 +233,8 @@ static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *f
     lost = !x && sl24_has_extras(b);
     if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
         return 0;
+    if (ft)
+        sl26_ftype_in(&proj_tmp.cur, ft);
     if (sl24_usr_lanes(b, d)) {                        /* (its USR kit: the lanes' record) */
         proj_tmp.cur.dl_hash = dlrec_hash(d);
         proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);

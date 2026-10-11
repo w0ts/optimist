@@ -37,7 +37,7 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl24BankRecords, sl24ReadFile, sl24ImportObject, sl24Send, sl24ReadBank, sl24IntoUserBank, b64enc,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl26ToFun5, sl24BankRecords, sl24ReadFile, sl24ImportObject, sl24Send, sl24ReadBank, sl24IntoUserBank, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
@@ -1733,6 +1733,16 @@ async function editorSl24In() {
   let bad = false;
   try { E.sl24ReadFile({ ...file, objects: [{ ...file.objects[0], crc: 1 }] }); } catch (e) { bad = true; }
   ok(bad && !E.sl24IsFun5(Uint8Array.from(p0).fill(1, 100, 101)), "sl24 in: a damaged object or project refused");
+  {   /* a SLOOP 2.6 backup (tests/sl26_fun6.bin: FUN6 from 2.6's own types, tests/sl25_gen.c) -> its project as 2.5's */
+    const f6 = Uint8Array.from(readFileSync(join(HERE, "../tests/sl26_fun6.bin")));
+    const g = E.sl24ReadFile(JSON.parse(JSON.stringify({ format: "sloop-backup", version: 1, objects: [obj(2, f6), obj(1, new Uint8Array(88))] })));
+    const d = g.projects.length === 1 && g.projects[0].id === 2 ? g.projects[0].data : null, T = (k) => 76 + 940 * k;
+    const lk = (k, step) => { for (let i = 0; i < 24; i++) if (d[T(k) + 828 + 4 * i] === step) return d[T(k) + 829 + 4 * i]; return -1; };
+    ok(d && E.sl24IsFun5(d) && d[T(1) + 122] === 10 && d[T(2) + 122] === 6 && (d[T(0) + 764 + 3] << 24 >> 24) === -5 &&
+      d[T(0) + 924] === (1 << 2 | 2 << 4) && lk(0, 5) === 54 && lk(0, 2) === 39 && lk(0, 7) === -1 && lk(0, 8) === -1 &&
+      d[73] === 77 && (d[8 + 48] | d[9 + 48] << 8) === 10 && !E.sl26ToFun5(Uint8Array.from(f6).fill(1, 100, 101)),
+      "sl24 in: a 2.6 backup's FUN6 -> 2.5's FUN5 (engines, nudges, fills, locks moved back, 2.6's own dropped, TEXTURE's globals)");
+  }
   const o = E.sl24ImportObject(p0, f.bank), o3 = E.sl24ImportObject(p3, f.bank);
   ok(o.length === 4225 && o[3840] === 1 && eq(Array.from(o.subarray(3841, 3841 + 128)), Array.from(rec)) && o3.length === 3840,
     "sl24 in: the object: the FUN5, then part 1's B3 patch (bit 0); F2: the project alone");

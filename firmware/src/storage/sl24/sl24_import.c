@@ -8,7 +8,11 @@
  *   - values 0..49 (P_LEVEL .. P_CHORD): ours, as they are; 50 P_TFLT, 51 P_STRUM, 52 P_VLEAD -> our P_TFLT, P_STRUM,
  *     P_VLEAD (FELUCCA_TRK_FILT: FILT; FELUCCA_CHORDPLUS: STRUM and VLEAD, the parts'; packed by px_pack, locks too),
  *     without those switches LOST (their defaults); 53..60 P_E0..P_E7 -> our P_E0..P_E7; ours past 49 (P_FXOFF, ANALOG 2, ENV2's extras): defaults;
- *   - engines: 2.4's 0..10 are our UIDs (ANALOG .. GRAIN, FM6 9, SLICE 10): as they are;
+ *   - engines: 2.4's 0..9 are our UIDs (ANALOG .. GRAIN, FM6 9): as they are. 2.5 (v2.5 fa9ce57, core.h ENGI_*) added
+ *     PHYS 10 and NOISE 11 (FUN5 unchanged: a 2.5 project reads as 2.4's), and moved SLICE (never in a shipped SLOOP)
+ *     past them: 10 -> our PHYS (the same EDIT: MODEL STRC BRIT DAMP POS ACC BOW EXC; 2.5's PHYS presets 0..8 ours,
+ *     renamed), 11 NOISE and anything past it -> ANALOG at its EDIT defaults, their locks dropped (LOST: the engine);
+ *     2.5's byte 73 (G_DRDLY, the drums' delay send; 2.4's spare): LOST (our drum lanes have their own sends);
  *   - FM6 parts: 2.4's EDIT is ALG FB MLVL MRAT MEG VMOD DTUN PTCH, macros over the patch PTCH picks (F1..F8 its
  *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE with the voice in the project.
  *     The patch itself becomes the part's voice (sl24_fm6.c: F1..F8 2.4's own, a bank slot's record from fv[] (the
@@ -22,20 +26,40 @@
  *   - globals: as they are but g[14], 2.4's G_ROUTE (MIDI IN = CLOCK; our G_VIEW): our default; DTIME 1/8D 1/16D and
  *     DIV 1/2..2BAR (appended values) are clamped by proj_apply until ours has them;
  *   - the step extras: nudges and fills as they are; locks with their param converted (as the values above; one on
- *     an FM6 part's EDIT, or on TFLT STRUM VLEAD without their switches: dropped). Into x[NTRK] (stepx.h; 0: dropped). */
+ *     an FM6 part's EDIT, or on TFLT STRUM VLEAD without their switches: dropped). Into x[NTRK] (stepx.h; 0: dropped).
+ *
+ * A SLOOP 2.6 project (v2.6 d30d655: "FUN6", 3816 B, its project.c project_t) is made a 2.5 one first, in place
+ * (sl26_to_sl24, as 2.6's own proj_from_v5 backwards), then imported as above. FUN6 is FUN5 with 2.6's ten parameters
+ * P_ITYPE .. P_LPOL (ids 53..62, P_E0 63) in a byte each after P_E7, and each step's nudge (6 bits) and fill (2 bits)
+ * in one byte. Translated: the values, steps, nudges, fills and locks as FUN5's (a lock on P_E0.. back to 2.5's id);
+ * the ANALOG filter TYPE (P_FTYPE: LP BP HP) of an ANALOG part -> our ANALOG 2's FTYP (LP: as 2.4, BP, HP). LOST:
+ *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's SYNC, TRIG and POL (P_LSYNC ..
+ *     P_LPOL): not ours; their values and their locks dropped;
+ *   - FTYPE on a part that is not ANALOG (2.6 plays it on ANALOG only);
+ *   - GLO > TEXTURE (SRC LEVEL TONE MOVE RATE WHEN DUCK, in the spare bytes and the slots of G_DRCH and G_INFO):
+ *     those two globals take our defaults;
+ *   - the drums' delay send (G_DRDLY, byte 73), as 2.5's; the SYN1..SYN4 kits (2.5's 42..45): our default kit. */
 #define SL24_MAGIC 0x46554E35u                         /* "FUN5", as our SLOOP plus format, told apart by size */
 #define SL24_SIZE 3840u
+#define SL26_MAGIC 0x46554E36u                         /* "FUN6": SLOOP 2.6 (ours used it in test builds, other sizes) */
+#define SL26_SIZE 3816u
 
-/* n bytes at b are a SLOOP 2.4 project (project.c proj_import there: magic, size, FNV-1a sum) */
-static int sl24_is(const void *b, int n)
+/* n bytes at b are a SLOOP project of magic m and size z (project.c proj_import there: magic, size, FNV-1a sum) */
+static int sl24_is_of(const void *b, int n, uint32_t m0, uint32_t z0)
 {
     const uint8_t *c = (const uint8_t *)b;
     uint32_t m, z, s;
-    if (n != (int)SL24_SIZE)
+    if (n != (int)z0)
         return 0;
-    memcpy(&m, c, 4), memcpy(&z, c + 4, 4), memcpy(&s, c + SL24_SIZE - 4u, 4);
-    return m == SL24_MAGIC && z == SL24_SIZE && s == proj_hash(c, SL24_SIZE - 4u);
+    memcpy(&m, c, 4), memcpy(&z, c + 4, 4), memcpy(&s, c + z0 - 4u, 4);
+    return m == m0 && z == z0 && s == proj_hash(c, z0 - 4u);
 }
+/* a SLOOP 2.4 / 2.5 project (FUN5) */
+static int sl24_is(const void *b, int n) { return sl24_is_of(b, n, SL24_MAGIC, SL24_SIZE); }
+/* a SLOOP 2.6 project (FUN6) */
+static int sl26_is(const void *b, int n) { return sl24_is_of(b, n, SL26_MAGIC, SL26_SIZE); }
+/* either: one PROJECT shows as SLOOP's, and imports when asked */
+static int sl24_any(const void *b, int n) { return sl24_is(b, n) || sl26_is(b, n); }
 #if FELUCCA_SL24_IMPORT
 #define SL24_NP 61u                                     /* 2.4's P_COUNT */
 #define SL24_TFLT 50u                                   /* its P_TFLT, P_STRUM, P_VLEAD (ours: P_TFLT + 0, 1, 2) */
@@ -54,6 +78,16 @@ _Static_assert(P_CHORD == SL24_COMMON - 1u && NTRK == 4u && PJ_NG == 32u, "2.4's
  * pad), FM MARIMBA, DRAWBARS, HARP */
 static const uint8_t SL24_FM6V[8] = {0, 3, 2, 1, 8, 4, 6, 10};
 
+#define SL24_ENG_LOST 0xFFu                             /* (sl24_eng_in: no engine of ours) */
+/* SLOOP's engine number (2.4: 0..9; 2.5 and 2.6: PHYS 10, NOISE 11) -> our UID, SL24_ENG_LOST: none (NOISE, past it) */
+static uint32_t sl24_eng_in(uint32_t e)
+{
+#ifdef ENG_UID_PHYS
+    if (e == 10u)
+        return ENG_UID_PHYS;
+#endif
+    return e <= ENG_UID_FM6 ? e : SL24_ENG_LOST;
+}
 static int16_t sl24_kit(int32_t k) { return (int16_t)(k >= 0 && k < (int32_t)SL24_KITS ? k : (int32_t)DRUM_DEFAULT_KIT); }
 /* 2.4's parameter id on track trk (engine eng) -> ours, -1 none */
 static int32_t sl24_param(uint32_t id, uint32_t trk, uint32_t eng)
@@ -68,8 +102,9 @@ static int32_t sl24_param(uint32_t id, uint32_t trk, uint32_t eng)
     if (id == SL24_STRUM || id == SL24_VLEAD)
         return trk != TRK_DRUM ? (int32_t)(P_TFLT + id - SL24_TFLT) : -1;   /* (the parts' only) */
 #endif
-    if (id < SL24_E0 || id >= SL24_NP || (trk != TRK_DRUM && eng == ENG_UID_FM6))
-        return -1;                                      /* (TFLT STRUM VLEAD without their switches; FM6's macros) */
+    if (id < SL24_E0 || id >= SL24_NP || (trk != TRK_DRUM && (eng == ENG_UID_FM6 || eng == SL24_ENG_LOST)))
+        return -1;                                      /* (TFLT STRUM VLEAD without their switches; FM6's macros; the EDIT
+                                                         * of an engine not ours) */
     return (int32_t)(P_E0 + id - SL24_E0);
 }
 
@@ -85,6 +120,75 @@ static int sl24_has_extras(const uint8_t *b)
     }
     return 0;
 }
+/* SLOOP 2.6's FUN6 track (its project.c proj_trk_t): p[53] (P_LEVEL .. P_VLEAD) and e[8] (P_E0 .. P_E7) as FUN5's
+ * p[61], x[10] (P_ITYPE .. P_LPOL), engine, preset, the steps, mf[64] (nudge | fill << 6), lock[NLOCK] */
+#define SL26_TRK 934u
+#define SL26_NX 10u                                     /* its parameters in a byte (2.6's own ids 53..62) */
+#define SL26_FTYPE 5u                                   /* x[5]: P_FTYPE, ANALOG's filter (LP BP HP) */
+#define SL26_STEPS (2u * SL24_NP + SL26_NX + 2u)        /* 134: where its steps start */
+#define SL26_MF (SL26_STEPS + 640u)                     /* 774 */
+#define SL24_MICRO (2u * SL24_NP + 2u + 640u)           /* FUN5: micro[64] (764), lock[NLOCK] (828), fill[16] (924) */
+#define SL24_LOCKS (SL24_MICRO + 64u)
+#define SL24_FILLS (SL24_LOCKS + 4u * NLOCK)
+_Static_assert(SL26_MF + 64u + 4u * NLOCK == SL26_TRK && 12u + 2u * PJ_NG + NTRK * SL26_TRK + 4u == SL26_SIZE &&
+               SL24_FILLS + 16u == SL24_TRK && sizeof(plock_t) == 4u && NLOCK == 24u,
+               "SLOOP 2.6's FUN6 (tests/sl26_gen.c, with its own types)");
+/* a SLOOP 2.6 project (sl26_is) at b, in place -> a 2.5 one (sl24_is; b holds SL24_SIZE bytes). Each track from the
+ * last, each part of it from its end (FUN5's are 6 bytes longer: nothing is read after it is written over). -> the
+ * parts' ANALOG filter TYPE, 2 bits each (1 BP, 2 HP; 0: LP or not an ANALOG part) */
+static uint32_t sl26_to_sl24(uint8_t *b)
+{
+    uint32_t i, k, ft = 0, w;
+    for (i = NTRK; i-- > 0;) {
+        const uint8_t *s = b + 12u + 2u * PJ_NG + i * SL26_TRK;
+        uint8_t *d = b + 12u + 2u * PJ_NG + i * SL24_TRK, mf[NSTEP], eng = s[SL26_STEPS - 2u], pre = s[SL26_STEPS - 1u];
+        if (i < NPART && !eng && s[2u * SL24_NP + SL26_FTYPE] <= 2u)
+            ft |= (uint32_t)s[2u * SL24_NP + SL26_FTYPE] << (2u * i);
+        memcpy(mf, s + SL26_MF, sizeof mf);
+        memmove(d + SL24_LOCKS, s + SL26_MF + 64u, 4u * NLOCK);
+        for (k = 0; k < NLOCK; k++) {                   /* its ids: P_E0.. at 63 (2.5's 53), its ten own (53..62) LOST */
+            uint8_t *l = d + SL24_LOCKS + 4u * k;
+            if (l[0] == LOCK_FREE)
+                continue;
+            if (l[1] >= SL24_E0 + SL26_NX)
+                l[1] = (uint8_t)(l[1] - SL26_NX);
+            else if (l[1] >= SL24_E0)
+                l[0] = LOCK_FREE, l[1] = l[2] = l[3] = 0;
+        }
+        memmove(d + 2u * SL24_NP + 2u, s + SL26_STEPS, 640u);
+        d[2u * SL24_NP] = eng, d[2u * SL24_NP + 1u] = pre;
+        memmove(d, s, 2u * SL24_NP);
+        memset(d + SL24_FILLS, 0, 16u);
+        for (k = 0; k < NSTEP; k++) {
+            d[SL24_MICRO + k] = (uint8_t)((mf[k] & 63u) >= 32u ? (mf[k] & 63u) + 192u : mf[k] & 63u);   /* (6 bits, signed) */
+            if (mf[k] >> 6 != 3u)                       /* (3: none, as 2.6's proj_apply reads it) */
+                d[SL24_FILLS + k / 4u] |= (uint8_t)((mf[k] >> 6) << (2u * (k % 4u)));
+        }
+    }
+    if (b[8u + 2u * PJ_NG + 2u] & 0x80u) {              /* GLO > TEXTURE in G_DRCH's and G_INFO's slots and the spare bytes */
+        b[8u + 2u * G_DRCH] = (uint8_t)GP[G_DRCH].def, b[9u + 2u * G_DRCH] = (uint8_t)((uint16_t)GP[G_DRCH].def >> 8);
+        b[8u + 2u * G_INFO] = (uint8_t)GP[G_INFO].def, b[9u + 2u * G_INFO] = (uint8_t)((uint16_t)GP[G_INFO].def >> 8);
+    }
+    b[8u + 2u * PJ_NG + 2u] = b[8u + 2u * PJ_NG + 3u] = 0;
+    w = SL24_MAGIC, memcpy(b, &w, 4);
+    w = SL24_SIZE, memcpy(b + 4, &w, 4);
+    w = proj_hash(b, SL24_SIZE - 4u), memcpy(b + SL24_SIZE - 4u, &w, 4);
+    return ft;
+}
+/* the parts' ANALOG filter TYPE (sl26_to_sl24) -> q's ANALOG parts (ANALOG 2's FTYP: LP12 LP24 BP HP) */
+static void sl26_ftype_in(project_t *q, uint32_t ft)
+{
+#if FELUCCA_ANALOG2
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        if ((ft >> (2u * k)) & 3u && !q->t[k].engine)
+            q->t[k].p[P_A2FTYP] = (int16_t)(((ft >> (2u * k)) & 3u) == 1u ? 2 : 3);
+    q->sum = proj_sum(q);
+#else
+    (void)q, (void)ft;
+#endif
+}
+
 /* track k of a SLOOP 2.4 project (sl24_is) at b: its PTCH when it is an FM6 part, else -1 */
 static int sl24_ptch(const uint8_t *b, uint32_t k)
 {
@@ -120,7 +224,7 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const 
     for (i = 0; i < NTRK; i++) {
         const uint8_t *s = c + 12u + sizeof q->g + i * SL24_TRK;
         int16_t e[SL24_NP];
-        uint32_t eng = s[2u * SL24_NP];
+        uint32_t eng = sl24_eng_in(s[2u * SL24_NP]);
         memcpy(e, s, sizeof e);
         for (k = 0; k < P_COUNT; k++)
             v[k] = k < SL24_COMMON ? e[k] : k >= P_E0 && k < P_ENG_END ? e[SL24_E0 + k - P_E0] : TP[k].def;
@@ -150,10 +254,13 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const 
             v[P_E0] = pt >= 0 && pt < 8 ? SL24_FM6V[pt] : 0;
             v[P_E0 + 1u] = sl24_mod_in(e[SL24_E0 + 2u]);
             v[P_E0 + 4u] = 1;
+        } else if (eng == SL24_ENG_LOST) {              /* (2.5's NOISE: ANALOG at its EDIT defaults) */
+            for (k = 0; k < 8u; k++)
+                v[P_E0 + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
         }
         pj_from_p(q->t[i].p, v);
-        q->t[i].engine = (uint8_t)eng;
-        q->t[i].preset = s[2u * SL24_NP + 1u];
+        q->t[i].engine = (uint8_t)(eng == SL24_ENG_LOST ? 0u : eng);
+        q->t[i].preset = eng == SL24_ENG_LOST ? 0u : s[2u * SL24_NP + 1u];
         memcpy(q->t[i].step, s + 2u * SL24_NP + 2u, sizeof q->t[i].step);
         if (x) {
             stepx_t *d = &x[i];

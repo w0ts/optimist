@@ -589,8 +589,10 @@ the editor shows no button. Nothing is written to flash.
 
 - **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
   the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
-  operators on) is that PTCH; MOD becomes 2.4's MLVL. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their
-  fallback), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
+  operators on) is that PTCH; MOD becomes 2.4's MLVL. Engines are numbered as SLOOP 2.5 and 2.6 number them (FUN5 did
+  not change in 2.5, and 2.6 reads it): our PHYS is their 10 with its EDIT values; SLOOP 2.4 has no 10 and plays such a
+  part as ANALOG (its engine % 10), PHYS's EDIT values on ANALOG's knobs. **lost**, bit 0 an engine SLOOP has not
+  (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
   other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
   drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
@@ -633,8 +635,10 @@ firmware without it does not answer: the editor shows no button. Nothing is writ
 | | 2 (commit) | 2, rc (0: imported, the working project now) |
 | 91 SL24_BANK | offset (3 × 7 bit) | rc (0 ok, 4 none kept), length (3 × 7 bit: 3472), CRC-32 of it all (5 × 7 bit), offset (3 × 7 bit), pack7 bytes (≤ 256) |
 
-- **The object** (90): a SLOOP 2.4 project (FUN5, 3840 bytes, with its sum) of a 2.4 backup file (its object 0, the
-  working project, or 2..5, A..D), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
+- **The object** (90): a SLOOP 2.4 / 2.5 project (FUN5, 3840 bytes, with its sum) of a SLOOP backup file (its object 0,
+  the working project, or 2..5, A..D); a SLOOP 2.6 project (FUN6, 3816 bytes) is made a FUN5 by the editor first
+  (`sl26ToFun5`, as the FM-1's `sl24_import.c sl26_to_sl24`: 2.6's ten new parameters, its TEXTURE and, on this path, the
+  ANALOG filter TYPE left out), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
   bytes: each FM6 part's bank patch (PTCH B1..B27) from the file's object 8, packed DX7. 3840 or 4225 bytes. A part
   on a bank patch the object has not: 2.4's INIT, as 2.4 plays an empty slot. The commit imports it as PROJECT > LOAD
   twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.

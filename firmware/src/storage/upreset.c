@@ -111,8 +111,16 @@ static void up_bank_from_v1(up_bank_t *bk)
         if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
             continue;                                   /* (UPB1: UP_VER 1 records only) */
 #if FELUCCA_SL24_SAFE
-        if (r->np == UP_NP_SL24)
-            continue;                                   /* (SLOOP 2.4's: our engine numbers, FM6 9, SLICE 10) */
+        if (r->np == UP_NP_SL24) {                      /* (SLOOP 2.4 / 2.5's: 0..9 our engine numbers, FM6 9; 2.5's */
+            if (r->engine == 10u)                       /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
+                r->engine = ENG_UID_PHYS;               /* defaults: sl24_import.c sl24_eng_in) */
+            else if (r->engine > ENG_UID_FM6) {
+                r->engine = 0;
+                for (k = 0; k < 8u; k++)
+                    r->p[UP_NP_SL24 - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
+            }
+            continue;
+        }
 #endif
         if (r->engine == 10u || r->engine == 11u)
             r->engine--;
