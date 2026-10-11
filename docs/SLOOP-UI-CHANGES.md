@@ -67,6 +67,7 @@ From upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only), ported to our code:
 
 - Chord mode on the STEP page (SLOOP #41, from 2.5 fa9ce57): a key writes the whole chord as it sounds (with CHORD+ modifiers and VLEAD when built), not only its root. Several keys together add their chords, up to the step's four notes. A MONO track still writes the root alone. The Optimist UI already wrote the chord (its pick is the chord played), and a test now covers it.
 - The DRUMS grid's LEVEL dial (SLOOP #64, from 2.5 fa9ce57): the needle runs from ghost on the left through soft and norm to hard on the right, the order KNOB 4 steps through. It followed the stored order (norm, ghost, soft, hard), so hard sat on the left.
+- A held or latched arp follows TRN, ROOT, SCALE and QNT (SLOOP #191, from 2.6 d30d655, after Felucca 1.5): the arp keeps the keys you played, not the notes they made, and maps them again on every step, so turning TRN or changing the scale reaches a latched chord. Each key keeps the octave the OCT buttons had when it went down. A key that a new QNT makes silent (a black key under WHITE) drops out. Notes from MIDI in play as they came. This is the sequencer's code, so the Optimist UI gets it too.
 
 ## User rulings this batch follows
 

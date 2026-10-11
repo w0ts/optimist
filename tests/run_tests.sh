@@ -359,6 +359,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/midi_expression_test" tests/midi_ex
 run "MIDI expression: bend, RPN 0, mod wheel, sustain, CC120 / 121 / 123 (USB and TRS)" "$OUT/midi_expression_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/midi_scale_test" tests/midi_scale_test.c -lm
 run "MIDI in through the key layouts: WHITE, SNAP, chords, releases after a key change" "$OUT/midi_scale_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/arp_follow_test" tests/arp_follow_test.c -lm
+run "arp follows TRN, ROOT, SCALE, QNT on held and latched notes (SLOOP #191)" "$OUT/arp_follow_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/arp_follow_cp_test" tests/arp_follow_test.c -lm
+run "arp follows TRN on latched notes, CHORD+ built (SLOOP #191)" "$OUT/arp_follow_cp_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/midi_ch_test" tests/midi_ch_test.c -lm
 run "MIDI channels per track (SLOOP 2.4 phase 3): defaults, in, keys, OFF, the project round trip" "$OUT/midi_ch_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -o "$OUT/midi_seq_test" tests/midi_seq_test.c -lm

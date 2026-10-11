@@ -1857,3 +1857,13 @@ user-default build has none of those switches, so its held step has the one page
 **ARP draws its pattern** (the same day): ARP's graph is the arpeggiator over a C major chord, OCT octaves, a mark a step of
 RATE, GATE long, every other step SWG late, the notes by MODE, a step PROB would skip dim; OFF the chord held. It fills
 the height the rows leave, as ENV's envelope does, the rows at ROW_H. Remaining screens with no picture and few rows (PROJECT, checked; any other list that fits the panel) keep a row pitch capped at 40 px, at the top of the panel.
+
+## 13. SLOOP backports (feat/sloop-backports, 2026-10-11)
+
+Fixes ported from upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only). Most are the SLOOP UI's (docs/SLOOP-UI-CHANGES.md);
+what reaches this UI:
+
+- **A held or latched arp follows TRN, ROOT, SCALE and QNT** (SLOOP #191, 2.6 d30d655, after Felucca 1.5). The arp keeps
+  the keys played (seq.c `held_key`, `held_dt`) and maps them again on every step through `kb_pitch`, so a latched chord
+  moves with TRN or a new scale. Each key keeps the octave OCT had when it went down; a key a new QNT silences drops
+  out; MIDI in notes play as they came. Shared sequencer code: both UIs. Test: tests/arp_follow_test.c.
