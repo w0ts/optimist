@@ -76,6 +76,10 @@ static volatile uint32_t so_w, so_r;
 #define MQ 64u
 static uint32_t midi_in_q[MQ], midi_out_q[MQ];
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
+/* The USB rescue (system/recovery.c) has no audio ISR and no events_block: nothing drains the input ring. With
+ * midi_in_unread set, channel and clock events are dropped as they arrive and no EP1 packet is held for room, so
+ * a DAW's clock or notes cannot fill the ring and NAK the installer's SysEx for ever (Jangada 0835cc4) */
+static uint8_t midi_in_unread;
 
 /* MIDI in, timestamped (after Melodee, Kerem Kilic: clock and transport queued in order with the notes,
  * with their source and arrival time). Time: TIMER4 ticks (SYNC_NOW), so clock_sync.c can follow 24 PPQN
@@ -89,7 +93,7 @@ static uint32_t midi_in_t[MQ];
 static uint8_t midi_in_src[MQ];
 static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
 {
-    if (mi_w - mi_r >= MQ)
+    if (midi_in_unread || mi_w - mi_r >= MQ)
         return 0;
     midi_in_q[mi_w % MQ] = pkt;
     midi_in_t[mi_w % MQ] = t;
@@ -630,7 +634,7 @@ static void sysex_byte(uint8_t b)
  * of the MIDI ring free; else it stays in the endpoint, the host is NAKed and sends it again: a burst from a DAW
  * never drops a note-off (hanging notes). 8 slots stay for the TRS input, which shares the ring and cannot wait */
 #define EP1_ROOM (16u + 8u)
-static int ep1_room(void) { return MQ - (mi_w - mi_r) >= EP1_ROOM; }
+static int ep1_room(void) { return midi_in_unread || MQ - (mi_w - mi_r) >= EP1_ROOM; }
 #endif
 static void ep1_rx(void)
 {

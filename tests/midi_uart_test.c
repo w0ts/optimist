@@ -246,6 +246,23 @@ static int test_usb_flow(void)
     ok &= !usb.sx_on;
     bad += check("usb flow: SysEx: realtime skipped, another status or a note ends it", ok);
     mi_r = mi_w;
+    /* the USB rescue (recovery.c sets midi_in_unread): nothing drains the ring, so a full ring must not hold EP1 */
+    mi_w += MQ;                                       /* full, and it stays full */
+    bad += check("usb rescue: a full, undrained ring holds EP1 (the lock-up, before the flag)", !ep1_room());
+    midi_in_unread = 1;
+    w0 = mi_w;
+    bad += check("usb rescue: no room is needed: EP1 is never held", ep1_room());
+    usb_midi_rx_packet(0x0000F80Fu, 0);               /* clock */
+    usb_midi_rx_packet(0x643C9009u, 0);               /* note on */
+    bad += check("usb rescue: channel and clock events are dropped, the ring does not move", mi_w == w0);
+    usb.sx_on = 0;
+    sysex_byte(0xF0);
+    sysex_byte(0x7D);
+    ok = usb.sx_on && usb.sx_len == 2u;
+    sysex_byte(0xF7);
+    bad += check("usb rescue: SysEx still collects", ok && !usb.sx_on);
+    midi_in_unread = 0;
+    mi_r = mi_w;
     return bad;
 }
 #endif
