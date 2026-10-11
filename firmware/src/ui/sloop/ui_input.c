@@ -682,7 +682,21 @@ static void seq_entry(uint32_t pressed)
             st->lvl = st->rat = 0;
             st->time = ST_NOTE;
         }
-        if (t->p[P_VOICE]) {
+        if (t->p[P_CHORD] && t->p[P_VOICE] == V_POLY) {  /* chord mode: the chord as it sounds (CHORD+, VLEAD), not
+                                                          * only its root (SLOOP 2.5 fa9ce57, #41; not played yet:
+                                                          * built here) */
+            uint8_t c[4];
+            uint32_t m, j;
+#if FELUCCA_CHORDPLUS
+            if (kb_kind[k] == KS_NOTE && kb_n[k] && kb_root[k] == note) {
+                m = kb_n[k] > 4u ? 4u : kb_n[k];
+                memcpy(c, kb_nt[k], m);
+            } else
+#endif
+                m = chord_notes(t, note, c);
+            for (j = 0; j < m && st->n < 4u; j++)
+                st->note[st->n++] = c[j];
+        } else if (t->p[P_VOICE]) {
             st->note[0] = (uint8_t)note;
             st->n = 1;
         } else if (st->n < 4u) {
