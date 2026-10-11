@@ -1920,3 +1920,34 @@ frames) in which the header reads the badge *TRACK 2* in the track's colour, the
 preset in white (sentence case, cut to the room), with no position or tempo; then the normal header comes back. The
 drum track, MASTER (`ui.master`) and power-on show none; a message (`ui.msg_t`) and the NAME screen keep the header.
 It is drawn as the header always is, when its signature changes: in place, never a clear.
+## 14. Button LEDs: what can be pressed is half lit (batch 35, feat/ui-b35-led)
+
+The user, 2026-10-11: "the buttons that are available should be half lit (for instance no LFO on a drum lane)".
+**Three levels.** Full: the active button, as before (the screen's button, the layer shown, SAVE blinking on a question,
+PLAY on the beat, REC armed or recording, OCT while ghost / hard or the octave is shifted). Half: a button that does
+something now. Dark: one that does nothing. The half light is the HAL's glow layer (`fm1_led_dim`, hal/fm1_input.h: the
+landmark glow SLOOP's UI lights on the drum track's keys; one frame in four, or the GLOW pulse with LIGHTS), which sits
+under the full light, so a blinking button swings between full and half. The LIGHTS backlight stays under both.
+
+**What counts as available** (`op_btn_avail`, op_input.c, the conditions ui_input uses):
+
+| Button | Half lit when |
+|---|---|
+| HOME, SAVE, PLAY | always (NAME: the only buttons with a job besides the keys) |
+| REC, OCT-, OCT+, GLO, SEQ | always (NAME: dark) |
+| ENV, LFO | the selected track has SOUND rows of that family (`sound_page`, the rows `op_jump` opens); ENV also on an FM6 track (the operators) |
+| FX, SCL, EDIT, ARP | the track has rows of the family, or the button's held layer works (FX punch, SCL key, EDIT erase, ARP repeat: `ly_bit`, off on MASTER's EDIT and ARP) |
+| FX on the global FX screen | its next page |
+| any page button, STEP with a step held | the step's page lock (all but EDIT and GLO) |
+
+So on the drum track ENV and LFO are dark (the drum track has no envelope or LFO page); EDIT, FX, SCL, GLO, SEQ stay
+half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
+track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
+saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
+and OCT+ are never dark (a tap always shifts, or is ghost / hard on the drums).
+
+**Writes.** The levels are rebuilt each pass with the key LEDs and copied into `fm1_led` / `fm1_led_dim` only when a
+byte differs, so nothing is written while nothing changes; a track, lane, page or engine change is seen on the next pass.
+The code is in op_input.c next to `ui_leds`, not in HOT / ramtext. SLOOP's UI (ui/sloop/ui_input.c) lights buttons full
+only (the layer, PLAY, REC, OCT) and uses `fm1_led_dim` for the keys' landmarks; it shares none of this code and is
+unchanged.
