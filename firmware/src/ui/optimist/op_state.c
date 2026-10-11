@@ -68,11 +68,12 @@ static struct {
 } rh;
 
 /* SYSTEM > SCREEN > CARDS (the user, 2026-10-08): how the cursor row's four values are shown, 0 the four cards in a
- * line, 1 SLOOP 2.4's big values 2 x 2 as the knobs sit (op_draw.c draw_big); the panel under them shrinks. Kept
- * in the settings word, bit 23 (storage/settings_word.c) */
+ * line, 1 SLOOP 2.4's big values 2 x 2 as the knobs sit (op_draw.c draw_big); the panel under them shrinks, and a
+ * picture takes it alone, no rows (2026-10-12). 2x2 is the default (the user, 2026-10-12). Kept in the settings word,
+ * bit 23, set for 1x4 (storage/settings_word.c: a word without it, every older one, is 2x2) */
 enum { CARDS_LINE, CARDS_2X2, CARDS_N };
-static uint8_t op_cards = CARDS_LINE;
-static int cards_2x2(void) { return op_cards == CARDS_2X2 && ui.scr != SCR_HOME; }   /* (the mixer: 1x4 always, its rows want the height) */
+static uint8_t op_cards = CARDS_2X2;
+static int cards_2x2(void);                             /* op_layers.c (it reads the layer shown) */
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within

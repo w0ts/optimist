@@ -66,7 +66,8 @@ static void scope_tick(void)
 }
 
 /* ---- the trace */
-#define SC_H (OH_BODY - 23)                       /* the trace (two canvases: op_draw.c cv_tall); the tabs under it */
+#define SC_H (OH_BODY - (cards_2x2() ? 0 : 23))   /* the trace (two canvases: op_draw.c cv_tall); the tabs under it (CARDS
+                                                 * 2x2: no tabs, the trace to the foot, the header names the source and its n/N) */
 #define SC_TAB_Y (OP_PY + SC_H + 1)
 #define SC_TAB_H (OH_BODY - SC_H - 1)
 #define SC_N 236u                       /* points across, one every SC_DEC frames: 10.7 ms */
@@ -140,7 +141,7 @@ static void scope_tabs(void)                            /* the sources under the
 {
     uint32_t r, cur = ui.row[SCR_SCOPE] % (1u + NTRK);
     char nm[12], b[12];
-    if (sc.tabs_row == cur)
+    if (sc.tabs_row == cur || cards_2x2())
         return;
     sc.tabs_row = (uint8_t)cur;
     cv_begin(240, SC_TAB_H, C_BLACK);

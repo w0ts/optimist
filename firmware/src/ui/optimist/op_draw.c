@@ -15,7 +15,7 @@
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
 #define OH_BODY OP_PH                 /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
-#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 */
+#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 (a list with no picture) */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
@@ -137,8 +137,8 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
         return;
     else if (scr == SCR_HOME)
         at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
-    else if (scr == SCR_TEMPO || scr == SCR_SCOPE)
-        return;
+    else if ((scr == SCR_TEMPO || scr == SCR_SCOPE) && !cards_2x2())
+        return;                                         /* (1x4: TEMPO's rows and SCOPE's tabs show it; 2x2 has neither) */
     else
         at = row, n = SCREENS[scr % SCR_N].rows();
     if (n < 2u)
@@ -456,11 +456,11 @@ static void list_paint(void)
     else if (lst.pic == 2u)
         song_grid_draw(GRAPH_H);
 #endif
-    if (lst.pic)
-        cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
+    if (lst.pic && lst.shown)
+        cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);   /* (the rule over the rows; the picture alone: none) */
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
-    if (lst.n > lst.shown) {                            /* where the window is in the list */
+    if (lst.shown && lst.n > lst.shown) {               /* where the window is in the list */
         int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
         cv_rect(238, lst.top, 1, OH_BODY - lst.top, C_LINE);
         cv_rect(237, lst.top + (OH_BODY - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
@@ -485,7 +485,13 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
-    if (pic) {                                          /* the picture takes the height the rows leave: they sit at the foot */
+    if (pic && cards_2x2() && ui.scr != SCR_SONG) {    /* CARDS 2x2: the picture alone, the whole panel (the user, 2026-10-12:
+                                                         * "drop the row list"; the header names the row and its n/N). SONG
+                                                         * keeps its rows: its list is the content */
+        shown = 0;
+        top = OH_BODY;
+        gr_h = OH_BODY;
+    } else if (pic) {                                   /* the picture takes the height the rows leave: they sit at the foot */
         uint32_t fit = (uint32_t)(OH_BODY - GRAPH_MIN - 3) / ROW_H;
         shown = n < fit ? n : fit;
         top = OH_BODY - (int32_t)shown * ROW_H;
@@ -506,6 +512,16 @@ static void draw_list(void)
         for (k = 0; k < 4u; k++) {
             SCR->cell(i, k, &c);
             sig = hc(sig, &c);
+        }
+    }
+    if (!shown && n) {                                  /* the picture alone: the values it reads, the cursor row's and its graph page's */
+        for (k = 0; k < 4u; k++) {
+            SCR->cell(cur, k, &c);
+            sig = hc(sig, &c);
+            if (gp) {
+                page_cell(gp, k, &c);
+                sig = hc(sig, &c);
+            }
         }
     }
     sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic == 4u ? f6_graph_sig() : pic == 5u ? pre_sig() :

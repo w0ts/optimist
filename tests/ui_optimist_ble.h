@@ -61,8 +61,8 @@ static void ble_word_tests(void)
     check(hold_sel == 2u && op_cards == CARDS_2X2 && ble_on == 1u && knob_colors == 0u, "... clearing bit 25 leaves the rest");
     bp23_from_word(all & ~(1u << SETTINGS_BLE_ON_BIT));
     check(hold_sel == 2u && op_cards == CARDS_2X2 && ble_on == 0u && knob_colors == 1u, "... clearing bit 24 leaves the rest");
-    bp23_from_word(all & ~(1u << 23));
-    check(hold_sel == 2u && op_cards == CARDS_LINE && ble_on == 1u && knob_colors == 1u, "... clearing bit 23 leaves the rest");
+    bp23_from_word(all | (1u << 23));
+    check(hold_sel == 2u && op_cards == CARDS_LINE && ble_on == 1u && knob_colors == 1u, "... setting bit 23 (1x4) leaves the rest");
     bp23_from_word(all & ~(3u << 21));
     check(hold_sel == 0u && op_cards == CARDS_2X2 && ble_on == 1u && knob_colors == 1u, "... clearing bits 21..22 leaves the rest");
     hold_sel = 0;
