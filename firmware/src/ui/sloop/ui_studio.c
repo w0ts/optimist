@@ -806,6 +806,9 @@ static void steps_held_chance(int32_t s);
 #endif
 #endif
 #endif
+static uint32_t lvl_rank(uint32_t lvl);                 /* (below) ghost 0, soft 1, norm 2, hard 3 */
+/* the DRUMS grid's level dial needle: ghost left .. hard right (SLOOP 2.5 fa9ce57, #64: it followed the stored order) */
+static int32_t lvl_dial(uint32_t lvl) { return (int32_t)lvl_rank(lvl) * 333; }
 static void drum_screen_draw(void)
 {
     static uint32_t head, title_sig, body_sig, footer;
@@ -964,7 +967,7 @@ static void drum_screen_draw(void)
             ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
             ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
             ratio[2] = dstep_has(s, drum_lane) ? (int32_t)(1u + dstep_rat(s, drum_lane)) * 250 : 0;
-            ratio[3] = dstep_has(s, drum_lane) ? (int32_t)((dstep_lvl(s, drum_lane) + 1u) % 4u) * 333 : 0;
+            ratio[3] = dstep_has(s, drum_lane) ? lvl_dial(dstep_lvl(s, drum_lane)) : 0;
 #if FELUCCA_DRUM_STEP && FELUCCA_AUTO
             if (gh_held) {                             /* a step held: KNOB 2 its chance, KNOB 4 its nudge (when built) */
                 static const char *lh[4] = {"sound", "step", "hit", "level"};

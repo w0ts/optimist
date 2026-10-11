@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SLOOP fixes backported into the SLOOP UI (isod89/sloop-fm1), included by tests/ui_pages_test.c:
  *   #41 (2.5 fa9ce57)   chord mode: a key on the STEP page writes the whole chord as it sounds, not only its root;
- *                       MONO writes one note as before */
+ *                       MONO writes one note as before
+ *   #64 (2.5 fa9ce57)   the DRUMS grid's LEVEL dial runs ghost (left) .. hard (right) */
 static void bp_step_page(void)
 {
     song.sel = 0;
@@ -51,7 +52,15 @@ static void bp_chord_entry_tests(void)
     frame();
 }
 
+static void bp_level_dial_tests(void)
+{
+    check(lvl_dial(LV_GHOST) == 0 && lvl_dial(LV_SOFT) < lvl_dial(LV_NORM) && lvl_dial(LV_GHOST) < lvl_dial(LV_SOFT) &&
+              lvl_dial(LV_NORM) < lvl_dial(LV_HARD) && lvl_dial(LV_HARD) == 999,
+          "#64: the DRUMS LEVEL dial: ghost left, soft, norm, hard right");
+}
+
 static void sloop_bp_tests(void)
 {
     bp_chord_entry_tests();
+    bp_level_dial_tests();
 }
