@@ -59,9 +59,6 @@ static void dual_flash_enter(void);
 #ifndef FELUCCA_ID
 #define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 7XY) */
 #endif
-#ifndef FELUCCA_IDLE
-#define FELUCCA_IDLE 1           /* main loop: wait for an interrupt (idle) between UI frames */
-#endif
 #ifndef FELUCCA_UNDO_HISTORY
 #define FELUCCA_UNDO_HISTORY 1   /* undo / redo: a history of many levels in the memory left over (undo.c,
                                   * app.ld _undo_*; FELUCCA_UNDO_CAP caps it); 0 = the single level */

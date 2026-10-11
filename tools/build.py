@@ -211,7 +211,7 @@ def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
                  "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
-                 "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
+                 "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
                  "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY",
@@ -254,11 +254,9 @@ def build_app():
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
     # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions
     # (UI, stores, editor) are marked minsize (tools/size_fns.py), then the IR is compiled at -Os.
-    # FELUCCA_SIZE=0: -Os everywhere; FELUCCA_SIZE=ir: the IR round trip without marks (a check)
-    size = os.environ.get("FELUCCA_SIZE", "1")
-    cmain = (("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o") if size == "0" else
-             ("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
-              FW / "src" / "felucca.c", "-o", OUT / "felucca.ll"))
+    # (always: the SIZE builder choice, bit 70, is retired; tools/size_fns.py never marks the audio path)
+    cmain = ("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
+             FW / "src" / "felucca.c", "-o", OUT / "felucca.ll")
     units = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
              ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
              ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"), cmain]
@@ -281,15 +279,14 @@ def build_app():
                       FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
     tc_all(*units)
-    if size != "0":
-        subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
-                        OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
-        sync_view(OUT / "felucca_size.ll")      # (written here, read by the next tool)
-        ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
-        if "-include" in ir:                # (the IR is preprocessed already: no header to include)
-            del ir[ir.index("-include"):ir.index("-include") + 2]
-        tc("cc", *ir, "-c",
-           OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
+    subprocess.run([sys.executable, SRC / "tools" / "size_fns.py",
+                    OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
+    sync_view(OUT / "felucca_size.ll")      # (written here, read by the next tool)
+    ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
+    if "-include" in ir:                # (the IR is preprocessed already: no header to include)
+        del ir[ir.index("-include"):ir.index("-include") + 2]
+    tc("cc", *ir, "-c",
+       OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)

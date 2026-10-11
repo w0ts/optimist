@@ -27,6 +27,8 @@ MIGRATE = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
+    "SIZE": "the UI, stores and editor are always built for size (minsize; retired 2026-10, no -Os-everywhere choice)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
 }
 
@@ -539,20 +541,13 @@ _add("OTA", "FELUCCA_OTA", "web editor and firmware updates (M-UPGRADE)", Y, 54,
           "leave it on unless you update through the UBOOT rescue path.",
      off_warning="without it there is no web editor (so no backup / restore from it) and no M-UPGRADE updates: "
                  "updating needs the UBOOT rescue path")
-_add("IDLE", "FELUCCA_IDLE", "sleep the CPU between main-loop polls (power, heat)", Y, 55,
-     desc="Sleep the CPU (wait for an interrupt) between main-loop polls instead of spinning. Saves power and heat on "
-          "the device and makes the emulator much faster (it skips the idle time); no effect on sound (audio and "
-          "the panel run from interrupts, 100 us latency at most). No flash cost. Keep on; off only for debugging.")
+# (bit 55, IDLE, retired 2026-10: the CPU sleeps between main-loop polls in every build; never reuse the bit)
 _add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84,
      desc="everything in flash to one .optimist-backup file and back (editor cmds 43..48); a restore onto another "
           "build reports what it skips and what plays a stand-in", off_warning="no backup: export projects and kits "
           "one by one before an update")
-_add("SIZE", "", "smaller UI and storage code (size-optimised)", Y, 70, default=1, choices=((1, "minsize (UI, stores, editor)"),
-     (0, "-Os everywhere")), desc="Builds the UI, storage and editor code for minimum size, about 6.8 KB of flash "
-     "less than normal -Os, at no cost to sound: the audio path is never size-optimised (tools/size_fns.py guards "
-     "it). Choose '-Os everywhere' only to compare.",
-     provenance=Provenance("Felucca 1.0.1 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only",
-                           "20c275e", FELUCCA_URL))
+# (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
+#  audio path out of it; never reuse the bit)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "
