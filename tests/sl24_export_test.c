@@ -117,9 +117,9 @@ static void golden(void)
                   : "... it reports the FM6 part (its voice: the closest factory patch) and nothing else",
           lost == (SX24_FM6 | (FILT_IN ? SX24_SLOTS : 0u)) && (gone != 0xFFu) == FILT_IN);
     ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_MIDI) && r16(out, 8u + 2u * G_MIDI) == 0 &&
-         r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 &&
-         !memcmp(out + 8u + 2u * (G_VIEW + 1u), gold + 8u + 2u * (G_VIEW + 1u), 2u * (PJ_NG - G_VIEW - 1u) + 4u);
-    check("globals as 2.4 wrote them but MIDI (13 -> 0), SYNC (14, past TRS -> INT) and ROUTE (1 -> 0): its devices'", ok);
+         r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 && r16(out, 8u + 2u * G_INFO) == 0 &&
+         !memcmp(out + 8u + 2u * (G_INFO + 1u), gold + 8u + 2u * (G_INFO + 1u), 2u * (PJ_NG - G_INFO - 1u) + 4u);
+    check("globals as 2.4 wrote them but MIDI (13 -> 0), SYNC (14, past TRS -> INT), ROUTE (1 -> 0), slot 15 (-> 0)", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *a = T24(out, k), *g = T24(gold, k);
         for (i = 0; i < SL24_COMMON; i++)                                          /* values 0..49 */
@@ -163,6 +163,7 @@ static void ours(project_t *q, stepx_t *x)
     for (i = 0; i < PJ_NG; i++)
         q->g[i] = GP[i].def;
     q->g[G_BPM] = 123, q->g[G_MIDI] = 0x0421, q->g[G_VIEW] = 2, q->g[G_SYNC] = SYNC_AUTO, q->g[G_DRREV] = DRREV_MOVED;
+    q->g[G_INFO] = 1;                                   /* (REC QUANTIZE OFF, project.c RECQ_PACK: never to 2.4) */
     q->sel = 1, q->rsv[0] = 2;                          /* (the reverb's algorithm) */
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_COUNT; i++)
@@ -212,8 +213,9 @@ static void native(const char *dir)
     check("... lost, reported: ENGINE (CZ), FM6, FX OFF, ANALOG 2, KIT, LOCKS, the drum LANES, the MASTER (rsv)",
           lost == (SX24_ENGINE | SX24_FM6 | SX24_FXOFF | SX24_A2 | SX24_KIT | SX24_LOCK | SX24_LANES | SX24_MASTER));
     ok = r16(out, 8u) == 123 && r16(out, 8u + 2u * G_MIDI) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 &&
-         r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_DRREV) == 16 && out[8u + 2u * PJ_NG] == 1;
-    check("globals: BPM; our MIDI channels and VIEW -> 0; SYNC AUTO -> INT; the lanes' REV -> 16; the selection", ok);
+         r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_DRREV) == 16 && out[8u + 2u * PJ_NG] == 1 &&
+         r16(out, 8u + 2u * G_INFO) == 0;
+    check("globals: BPM; MIDI channels, VIEW, QUANT (G_INFO) -> 0; SYNC AUTO -> INT; the lanes' REV -> 16; selection", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
         for (i = 0; i < SL24_COMMON; i++)
             ok &= p24(out, k, i) == (int16_t)(k * 11u + i * 3u) - 20;

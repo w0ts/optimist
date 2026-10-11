@@ -134,12 +134,12 @@ static int32_t sl24_param_out(uint32_t id, uint32_t trk, int e)
     return -1;
 }
 static void sl24_w16(uint8_t *o, int32_t v) { o[0] = (uint8_t)v, o[1] = (uint8_t)((uint32_t)v >> 8); }
-/* global i of q as 2.4 keeps it: G_MIDI (our MIDI channels) and G_VIEW (2.4's G_ROUTE) 0, SYNC AUTO -> INT, the drum
- * reverb our lanes took (DRREV_MOVED) -> 2.4's default 16 */
+/* global i of q as 2.4 keeps it: G_MIDI (our MIDI channels), G_VIEW (2.4's G_ROUTE) and G_INFO (our REC QUANTIZE) 0,
+ * SYNC AUTO -> INT, the drum reverb our lanes took (DRREV_MOVED) -> 2.4's default 16 */
 static int32_t sl24_g_out(const project_t *q, uint32_t i)
 {
     int32_t v = q->g[i];
-    if (i == G_MIDI || i == G_VIEW || (i == G_SYNC && (v < 0 || v > 2)))
+    if (i == G_MIDI || i == G_VIEW || i == G_INFO || (i == G_SYNC && (v < 0 || v > 2)))
         return 0;
     return i == G_DRREV && v < 0 ? 16 : v;
 }

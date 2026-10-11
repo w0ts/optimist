@@ -708,6 +708,12 @@ static void mc_unpack(const project_t *p)
     }
 }
 
+/* REC QUANTIZE (core.h G_RECQ) in the project's G_INFO slot: the CPU read-out, a value no build stores (0..0: every
+ * project so far holds 0 there, and a build from before clamps whatever it finds to 0 on a load, so ON); bit 0 = OFF.
+ * The read-outs draw the CPU (cpu_info), never the slot; a SLOOP 2.4 import / export clears it (sl24_import.c,
+ * sl24_export.c sl24_g_out) */
+#define RECQ_PACK() ((int16_t)(song.g[G_RECQ] ? 0 : 1))
+#define RECQ_UNPACK(v) ((int16_t)!((v) & 1))
 #if FELUCCA_MIDI_CH
 /* the synth tracks' MIDI channels in the project's G_MIDI slot (a status, never saved before: 0 in every older project,
  * and SLOOP 2.4's MIDI OUT flag 0 / 1 there, which reads as channel 1 for part 1: its own): five bits a track, 0 = the
@@ -800,6 +806,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_MIDI_CH
     p->g[G_MIDI] = midi_ch_pack();                      /* (G_MIDI's slot: the synth tracks' MIDI channels) */
 #endif
+    p->g[G_INFO] = RECQ_PACK();                         /* (G_INFO's slot, the CPU read-out: REC QUANTIZE) */
     p->sel = song.sel;
     p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
     mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
@@ -879,6 +886,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
     if (all)
         mc_unpack(p);                                   /* (older projects: 0, COMP and LIMIT off) */
+    if (all)
+        song.g[G_RECQ] = RECQ_UNPACK(p->g[G_INFO]);     /* (older projects: 0, ON) */
 #if FELUCCA_MIDI_CH
     if (all)
         midi_ch_unpack(p->g[G_MIDI]);                   /* the synth tracks' channels (older projects: 0, the defaults) */

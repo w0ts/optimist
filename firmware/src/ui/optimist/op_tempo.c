@@ -3,6 +3,9 @@
  * shows it, let go the screen before comes back; a tap of PLAY stays start / stop (on its release: a press cannot
  * know yet that it is a tap). A key while PLAY is down opens it at once.
  *   rows       TEMPO: BPM · NUDGE · SWING · SYNC     REC: MODE · LENGTH · START · CLICK (the REC MODES dials)
+ *              REC 2: QUANT · - · - · - (REC QUANTIZE, the project's: ON snaps a recorded note to the grid, OFF keeps its
+ *              start as a nudge and its length as a GATE lock, seq.c rec_exact; the free cells for what joins it).
+ *              SELECT walks them (the screen's pages); BPM and NUDGE stay together on the first (the user)
  *   OCT- / +   held: the nudge, the clock a few percent slower / faster while held (seq.c clk_nudge, the BPM value
  *              never changes; nothing while an external clock is followed)
  *   white key  tap tempo (two taps or more)
@@ -75,11 +78,19 @@ static uint32_t rec_len_ix(void)                        /* the selected track's 
     int32_t len = TSEL->p[P_SLEN];
     return len > 32 ? 2u : len > 16 ? 1u : 0u;
 }
-static uint32_t tp_rows(void) { return 2u; }
-static void tp_name(uint32_t r, char *b) { str_cpy(b, r ? "REC" : "TEMPO", 12); }
+enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };
+static uint32_t tp_rows(void) { return TPR_N; }
+static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
 static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     static const char *const LEN[3] = {"1 BAR", "2 BARS", "4 BARS"};
+    if (r == TPR_REC2) {                                /* QUANT, then free cells */
+        if (k == 0u)
+            cell_param(c, &GP[G_RECQ], &song.g[G_RECQ]);
+        else
+            cell_clear(c);
+        return;
+    }
     if (!r) {
         if (k == 0u)
             cell_param(c, &GP[G_BPM], &song.g[G_BPM]);
@@ -123,6 +134,11 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
+    if (r == TPR_REC2) {
+        if (k == 0u)
+            val_turn(&GP[G_RECQ], &song.g[G_RECQ], k, s, fine);
+        return;
+    }
     if (!r) {
         if (k == 0u)
             val_turn(&GP[G_BPM], &song.g[G_BPM], k, s, fine);

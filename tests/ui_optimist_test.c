@@ -1373,7 +1373,23 @@ static void tempo_tests(void)
     song.g[G_BPM] = bpm;
     turn(EN_SELECT, 1);
     check(ui.row[SCR_TEMPO] == 1, "TEMPO: SELECT the REC row");
-    turn(EN_SELECT, -1);
+    turn(EN_SELECT, 1);
+    {   /* REC 2: QUANT (REC QUANTIZE), ON by default; BPM and NUDGE stay together on the TEMPO row */
+        cell_t c, b, n;
+        tp_cell(2, 0, &c);
+        tp_cell(0, 0, &b);
+        tp_cell(0, 1, &n);
+        check(ui.row[SCR_TEMPO] == 2 && c.label && !strcmp(c.label, "QUANT") && song.g[G_RECQ] == 1 &&
+              !strcmp(b.label, "BPM") && !strcmp(n.label, "NUDGE"), "TEMPO: SELECT again, REC 2: QUANT, ON (BPM NUDGE on TEMPO)");
+        turn(EN_K1, -1);
+        check(song.g[G_RECQ] == 0, "TEMPO REC 2: KNOB 1 QUANT OFF");
+        ui.force = 1;
+        frame();
+        ppm("opt-tempo-rec2");
+        turn(EN_K1, 1);
+        check(song.g[G_RECQ] == 1, "... and ON");
+    }
+    turn(EN_SELECT, -2);
     key(WK(0));
     frames(29);
     key(WK(0));

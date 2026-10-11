@@ -235,6 +235,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CREL] = PE("REL", N_CREL, 6),
     [G_CGAIN] = {"GAIN", F_INT, 0, 15, 0, 0, "dB"},  /* make-up, after the compressor */
     [G_CCEIL] = PE("CEIL", N_CCEIL, 0),              /* dB below the output's full scale; OFF: the old limiter */
+    [G_RECQ] = PE("QUANT", N_ONOFF, 1),              /* REC QUANTIZE: ON snaps the recorded notes (seq.c rec_exact) */
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */

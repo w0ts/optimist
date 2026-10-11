@@ -6,8 +6,11 @@
  *   HOME + PLAY  HOME held past HOLD_MS (home_shift, ui_input.c home_gesture), then PLAY: the page opens; that PLAY
  *                press neither starts nor stops the transport (the first shift function). Not with a layer held
  *   SELECT       the BPM as ever, never the page; while the page is up a turn keeps it up
- *   KNOB 1..4    on the page: BPM (beat lights), SWING (the timing of the off-beat 16th), SYNC (INT USB TRS AUTO, the
- *                clock followed lit), NUDGE (a read-out of OCT- / OCT+)
+ *   HOME + PLAY  again while it is up: its next page, past the last the first (SLOOP's page buttons: ui.c open_family)
+ *   KNOB 1..4    page 1: BPM (beat lights), SWING (the timing of the off-beat 16th), SYNC (INT USB TRS AUTO, the clock
+ *                followed lit), NUDGE (a read-out of OCT- / OCT+): the tempo and its nudge together (the user)
+ *                page 2: QUANT (REC QUANTIZE, the project's: ON snaps a recorded note to the grid, OFF keeps its start
+ *                as a nudge and its length as a GATE lock: seq.c rec_exact); KNOB 2..4 free for what joins it
  *   OCT- / OCT+  held on the page: the clock 3.9 % slower / faster (seq.c clk_nudge; G_BPM never changes, it is back
  *                when let go; nothing while an external clock is followed); the press is no octave step
  *   closes       TEMPO_IDLE_MS (3 s) after the last SELECT / KNOB / OCT / HOME + PLAY, or at once on any other button
@@ -15,10 +18,13 @@
  * Included by felucca.c after ui_studio.c (its dials, header and look). */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
 #define TEMPO_IDLE_MS 3000u
+#define TP_PAGES 2u
 static struct {
     uint8_t on;                         /* the page is up */
     uint8_t shown;                      /* drawn last frame (ui_draw.c clears the screen when it goes) */
     uint8_t ext_said;                   /* "external clock" said for this showing */
+    uint8_t page;                       /* 0 the tempo, 1 the recording (TP_PAGES) */
+    uint8_t home;                       /* HOME pressed with the page up, no PLAY yet */
     uint32_t t;                         /* the last SELECT / KNOB / OCT (ms) */
 } tp;
 static int32_t accel_range(const param_desc_t *d);      /* ui_input.c */
@@ -41,11 +47,17 @@ static int tempo_open(void)
         if (layer_button_down() || ui.hold_kind || ui.menu)
             return 0;                                   /* (a layer's knobs are the layer's) */
         tp.on = 1;
+        tp.page = 0;
+        tp.home = 0;
         dyn_off = 1;                                    /* (seq.c key_lvl: OCT- / OCT+ held nudge, no ghost / hard) */
         tp.ext_said = 0;
         ui.hot_t = 0;
         ui.msg_t = 0;
         ui.force = 1;
+    } else {                                            /* up already: its next page, round */
+        tp.page = (uint8_t)((tp.page + 1u) % TP_PAGES);
+        tp.shown = 0;                                   /* (cleared and drawn again) */
+        ui.hot_t = 0;
     }
     tp.t = fm1_ms;
     return 1;
@@ -71,13 +83,22 @@ static void tempo_close(void)
 static void tempo_frame(uint32_t *pressed)
 {
     uint32_t oct = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-    uint32_t play = 1u << panel.btn[B_PLAY];
-    if (home_shift && (*pressed & play) && tempo_open())
+    uint32_t play = 1u << panel.btn[B_PLAY], home = 1u << panel.btn[B_HOME];
+    if (home_shift && (*pressed & play) && tempo_open()) {
         *pressed &= ~play;                              /* (no PLAY / STOP: the shift's) */
+        tp.home = 0;                                    /* (HOME's press was the shift's: no close when let go) */
+    }
     dyn_off = tp.on;                                    /* (the drum track's ghost / hard off while the page is up) */
     if (!tp.on)
         return;
-    if (*pressed & ~oct) {
+    if (*pressed & home)
+        tp.home = 1;                                    /* HOME down, the page up: + PLAY pages, alone it closes */
+    if (tp.home && !(fm1_in.buttons & home)) {
+        tp.home = 0;                                    /* let go with no PLAY: it closes (as any other button) */
+        tempo_close();
+        return;
+    }
+    if (*pressed & ~oct & ~home) {
         tempo_close();
         return;
     }
@@ -105,20 +126,29 @@ static void tempo_input(void)
     uint32_t held = fm1_in.buttons;
     if (!tp.on)
         return;
-    if ((s = panel_enc(EN_K1)) != 0) {
+    if (tp.page) {                                      /* page 2: KNOB 1 QUANT (right ON, left OFF) */
+        if ((s = panel_enc(EN_K1)) != 0) {
+            song.g[G_RECQ] = (int16_t)(s > 0);
+            tempo_hot(0);
+        }
+        for (s = EN_K2; s <= EN_K4; s++)
+            if (panel_enc((uint32_t)s) != 0)
+                tempo_hot((uint32_t)(s - EN_K1));
+        s = 0;
+    } else if ((s = panel_enc(EN_K1)) != 0) {
         tempo_bpm(EN_K1, s);
         tempo_hot(0);
     }
-    if ((s = panel_enc(EN_K2)) != 0) {
+    if (!tp.page && (s = panel_enc(EN_K2)) != 0) {
         song.g[G_SWING] = (int16_t)clamp(song.g[G_SWING] + accel(EN_K2, s, accel_range(&GP[G_SWING])), GP[G_SWING].min, GP[G_SWING].max);
         tempo_hot(1);
     }
-    if ((s = panel_enc(EN_K3)) != 0) {
+    if (!tp.page && (s = panel_enc(EN_K3)) != 0) {
         if (FELUCCA_MIDI_CLOCK)
             song.g[G_SYNC] = (int16_t)clamp(song.g[G_SYNC] + (s > 0 ? 1 : -1), 0, SYNC_AUTO);
         tempo_hot(2);
     }
-    if (panel_enc(EN_K4) != 0)
+    if (!tp.page && panel_enc(EN_K4) != 0)
         tempo_hot(3);                                   /* (a read-out: OCT- / OCT+ are the nudge) */
     if ((held & dyn_bit[0]) && !(held & dyn_bit[1]))
         n = -TEMPO_NUDGE;
@@ -209,6 +239,30 @@ static void tempo_picture(uint32_t i)
     }
     }
 }
+/* page 2, the recording: QUANT in the first row (the picture: a played note, its start off the grid, snapped ON or kept
+ * OFF), the other rows free for what joins it */
+static void tempo_draw_rec(void)
+{
+    static uint32_t head, row, footer;
+    static const char *const LAB[4] = {"Quant", "", "", ""};
+    const char *val[4] = {song.g[G_RECQ] ? "ON" : "OFF", "", "", ""};
+    int32_t ratio[4] = {song.g[G_RECQ] ? 1000 : 0, 0, 0, 0};
+    uint32_t k, hot = ui.hot_t && !ui.hot_col, h = studio_hash((uint32_t)song.g[G_RECQ] * 7u + hot * 5003u, val[0]);
+    te_header("Tempo 2/2", C_WHITE, &head);
+    if (ui.force || h != row) {
+        int32_t x = TP_X + (song.g[G_RECQ] ? 36 : 48);     /* the note: on the 16th (ON) or where it was played */
+        row = h;
+        cv_begin(240, 36, C_BLACK);
+        cv_text(4, 1, &FONT_S, "Quant", hot ? C_WHITE : TE_G3);
+        cv_text(4, 17, &FONT_S, val[0], hot ? C_WHITE : TE_G4);
+        cv_rect(TP_X, 28, TP_W, 1, TE_G2);
+        for (k = 0; k < 5u; k++)                       /* the 16ths of a beat */
+            cv_rect(TP_X + (int32_t)k * 36, 6, 2, 22, k % 4u ? TE_G2 : C_WHITE);
+        cv_box(x, 12, song.g[G_RECQ] ? 72 : 58, 10, TE_G4);   /* its length: whole steps ON, as held OFF */
+        cv_blit(0, 40u);
+    }
+    te_dials(184, LAB, val, ratio, 0x5A1u, &footer, C_WHITE, 0x1u);
+}
 static void tempo_draw(void)
 {
     static uint32_t head, rows[4], footer;
@@ -222,7 +276,11 @@ static void tempo_draw(void)
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }
-    te_header("Tempo", C_WHITE, &head);
+    if (tp.page) {
+        tempo_draw_rec();
+        return;
+    }
+    te_header("Tempo 1/2", C_WHITE, &head);
     for (i = 0; i < 4u; i++) {
         uint32_t h = (hot == i) * 5003u + (uint32_t)(song.g[G_BPM] * 31 + song.g[G_SWING] * 7 + song.g[G_SYNC]) * 131u;
         tempo_val(i, v[i]);
