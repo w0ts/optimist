@@ -43,7 +43,7 @@ const E = vm.runInNewContext(proto + `
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO })`,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, SetGate })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -822,6 +822,26 @@ async function editorTrackParam() {
   const pv = await E.mixer.setPan(o.rq, 2, 0, PAN, 5, false);
   ok(on === 1 && tp === "none" && pv === 5 && o.ev.timeouts === 0 && !o.ev.unknown.length, "v4: v3 firmware -> WATCH 1, no TRACK_PARAM (pan by select / restore)");
   o.done();
+}
+
+/* ------------------------------------- SET coalescing (SetGate; isod89/sloop-fm1 #97, PR #98, SLOOP 2.6) --- */
+function editorSetGate() {
+  const g = new E.SetGate(), k = "0:30";            /* (a per-track key: DIV, no track in it) */
+  const first = g.user(k, 3, false, 1);
+  g.get(k).sent = 3;                                /* (sendSet: requested 1/8) */
+  const dupPending = g.user(k, 3, true, 2);         /* the same value while that request is still out: carried by it */
+  const dupDone = g.user(k, 3, false, 3);           /* answered; the controls now under another track: sent again */
+  g.get(k).sent = 3;
+  const other = g.user(k, 4, true, 4);              /* another value while pending: sent (Link keeps the latest) */
+  ok(first && !dupPending && dupDone && other && g.get(k).last === 4,
+    "SetGate: a SET equal to the last one is dropped only while it is pending (#97: DIV 1/8 on another track)");
+  g.clear();
+  ok(g.get(k) === undefined && g.user(k, 3, true, 5), "SetGate: clear() (another track / sound / FM-1): nothing remembered");
+  const usesGate = /const sets = new SetGate\(\);/.test(html) && /if \(!sets\.user\(k, v, pendingSet\(k\), performance\.now\(\)\)\) return;/.test(html)
+    && !/if \(v === st\.sent\) return;/.test(html);
+  const clears = (html.match(/sets\.clear\(\);/g) || []).length >= 2
+    && /async function afterSoundChange\(msg = "ready"\) \{\n[^\n]*\n  sets\.clear\(\);/.test(html);
+  ok(usesGate && clears, "SetGate: userSet goes through it; a connect and every sound / track change clear it");
 }
 
 /* ------------------------------------- editor v5 (SLOOP 2.0): lanes, levels, ratchets --- */
@@ -2794,6 +2814,7 @@ await editorPatterns();
 await editorV9();
 editorTabs();
 editorKeys();
+editorSetGate();
 await masterStrip();
 await reverbType();
 await midiSettings();

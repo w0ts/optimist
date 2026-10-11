@@ -5057,6 +5057,24 @@ function makeMockDevice(opt = {}) {
     access: { sysexEnabled: true, inputs: new Map([[input.id, input]]), outputs: new Map([[output.id, output]]), onstatechange: null },
   };
 }
+
+/* SET coalescing (userSet), per control key: last = when the user last changed it (touched()), sent = the value last
+   requested. A value equal to the last request is skipped only while that request is still pending (queued or in
+   flight): it carries it already. Once answered, the device may hold something else under the same key (the key has
+   no track: another track or sound under the controls, a knob turned on the FM-1), so the same value is sent again.
+   (isod89/sloop-fm1 #97, PR #98 by dkappe, SLOOP 2.6 d30d655 web/editor.html SetGate, GPL-3.0-only: DIV 1/8 on the
+   drums, then 1/8 on track 1 sent nothing the second time.) clear(): another track / sound / device */
+class SetGate {
+  constructor() { this.m = new Map(); }
+  get(k) { return this.m.get(k); }
+  user(k, v, pending, now) {
+    let st = this.m.get(k);
+    if (!st) this.m.set(k, (st = { last: 0, sent: null }));
+    st.last = now;
+    return !(pending && v === st.sent);
+  }
+  clear() { this.m.clear(); }
+}
 /*PROTO-END*/
 
 /* ===================================================================== UI === */
@@ -5532,7 +5550,7 @@ let dragging = null;   /* key of the slider being dragged */
 let wantConnected = false;
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const macKnobs = new Set();   /* the knobs a macro can move (knob(): o.eff), redrawn when what plays changes */
-const sets = new Map(); /* key -> {last: time of the user's last change, sent: the value last requested} */
+const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
 let lastDump = 0;      /* Date.now() of the last DUMP */
 /* the device also pushes RELOAD after loads the editor asked for (PROJECT load, UP_LOAD; firmware without INFO tag
@@ -5633,6 +5651,7 @@ async function connect() {
     if (input.open) await input.open().catch(() => {});
     dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
       keys: null, watch: false, bank: null, fm6: null };
+    sets.clear();                                    /* (another FM-1, maybe) */
     await load(dev);
   } catch (e) {
     console.error(e);
@@ -6059,8 +6078,10 @@ function touched(k) {
   if (dragging === k) return true;
   if (c && c.input.tagName === "SELECT" && document.activeElement === c.input) return true;
   if (st && performance.now() - st.last < 600) return true;
-  return !!dev && (dev.link.hasQueued(k) || (!!dev.link.cur && dev.link.cur.key === k));
+  return pendingSet(k);
 }
+/* a SET of this control queued or in flight */
+function pendingSet(k) { return !!dev && (dev.link.hasQueued(k) || (!!dev.link.cur && dev.link.cur.key === k)); }
 
 window.addEventListener("pointerup", () => { if (dragging) { const k = dragging; dragging = null; const c = ctl.get(k); if (c) userSet(c.scope, c.id, +c.input.value, true); } });
 window.addEventListener("pointercancel", () => { dragging = null; });
@@ -6073,10 +6094,7 @@ function userSet(s, id, v, final) {
   (s ? dev.dump.g : dev.dump.p)[id] = v;
   showValue(k, v, false);
   mixFromDump();
-  let st = sets.get(k);
-  if (!st) sets.set(k, (st = { last: 0, sent: null }));
-  st.last = performance.now();
-  if (v === st.sent) return;                        /* the last request already carries it */
+  if (!sets.user(k, v, pendingSet(k), performance.now())) return;   /* the pending request already carries it */
   sendSet(s, id, k);
 }
 async function sendSet(s, id, k) {
@@ -6108,6 +6126,8 @@ async function choosePreset(e, p) {
 }
 async function afterSoundChange(msg = "ready") {
   needReload = false;                               /* this re-reads everything a RELOAD asks for */
+  sets.clear();                                     /* another track / sound under the controls: a value equal to the one
+                                                       sent before is sent again (SetGate) */
   dev.dump = await getDump();
   await rereadEngineDesc();
   updateBrowser();
