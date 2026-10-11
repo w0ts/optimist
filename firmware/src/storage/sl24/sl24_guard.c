@@ -214,7 +214,7 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
                                                         * parts use: in proj_tmp past the project it receives) */
     const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    uint32_t lost, k, at = 0, r = 0, ft = 0;
+    uint32_t lost, k, at = 0, r = 0, ft = 0, ln;
     if (sl26_is(b, (int)n)) {                          /* (2.6: as 2.5's, its parts' filter TYPE aside) */
         ft = sl26_to_sl24(b);
         n = SL24_SIZE;
@@ -235,7 +235,9 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
         return 0;
     if (ft)
         sl26_ftype_in(&proj_tmp.cur, ft);
-    if (sl24_usr_lanes(b, d)) {                        /* (its USR kit: the lanes' record) */
+    ln = (uint32_t)sl24_usr_lanes(b, d);               /* (its USR kit: the lanes' record; d cleared first) */
+    ln |= (uint32_t)sl25_drdly_in(b, d);               /* (2.5's drums' delay send: the lanes' DLY) */
+    if (ln) {
         proj_tmp.cur.dl_hash = dlrec_hash(d);
         proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
     }

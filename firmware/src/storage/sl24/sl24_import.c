@@ -12,7 +12,9 @@
  *     PHYS 10 and NOISE 11 (FUN5 unchanged: a 2.5 project reads as 2.4's), and moved SLICE (never in a shipped SLOOP)
  *     past them: 10 -> our PHYS (the same EDIT: MODEL STRC BRIT DAMP POS ACC BOW EXC; 2.5's PHYS presets 0..8 ours,
  *     renamed), 11 NOISE and anything past it -> ANALOG at its EDIT defaults, their locks dropped (LOST: the engine);
- *     2.5's byte 73 (G_DRDLY, the drums' delay send; 2.4's spare): LOST (our drum lanes have their own sends);
+ *     2.5's byte 73 (G_DRDLY, the drums' delay send, 0..127; 2.4's spare, 0): every drum lane's DLY send, the nearest
+ *     of the lanes' 32 levels (sl25_drdly_in: the caller's drum record; as 2.4's G_DRREV becomes the lanes' REV);
+ *     APPROXIMATE: 2.5 sends the drums' sum, each lane here sends its own, at 4v + v / 8 (77 -> level 19 = 78);
  *   - FM6 parts: 2.4's EDIT is ALG FB MLVL MRAT MEG VMOD DTUN PTCH, macros over the patch PTCH picks (F1..F8 its
  *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE with the voice in the project.
  *     The patch itself becomes the part's voice (sl24_fm6.c: F1..F8 2.4's own, a bank slot's record from fv[] (the
@@ -38,8 +40,9 @@
  *   - FTYPE on a part that is not ANALOG (2.6 plays it on ANALOG only);
  *   - GLO > TEXTURE (SRC LEVEL TONE MOVE RATE WHEN DUCK, in the spare bytes and the slots of G_DRCH and G_INFO):
  *     those two globals take our defaults;
- *   - the drums' delay send (G_DRDLY, byte 73), as 2.5's; the SYN1..SYN4 kits (2.5's 42..45): our default kit. */
+ *   - the SYN1..SYN4 kits (2.5's 42..45): our default kit (the drums' delay send, byte 73: as 2.5's, the lanes' DLY). */
 #define SL24_MAGIC 0x46554E35u                         /* "FUN5", as our SLOOP plus format, told apart by size */
+#define SL25_DRDLY (8u + 2u * PJ_NG + 1u)               /* 2.5's G_DRDLY, the byte after sel (its project.c drdly) */
 #define SL24_SIZE 3840u
 #define SL26_MAGIC 0x46554E36u                         /* "FUN6": SLOOP 2.6 (ours used it in test builds, other sizes) */
 #define SL26_SIZE 3816u
@@ -317,6 +320,18 @@ static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
     (void)b;
 #endif
     return r;
+}
+/* 2.5's drums' delay send (byte 73: G_DRDLY 0..127, as a track's send; 0 in 2.4's) -> every lane's DLY in d, the
+ * nearest level (drum_sends.c dsend_near); REV and CHO as they are (bit 15 too: dlrec_migrate still gives a TRK lane
+ * 2.4's G_DRREV). -> 1 a lane was set */
+static int sl25_drdly_in(const uint8_t *b, dlrec_t *d)
+{
+    uint32_t l, v = dsend_near(b[SL25_DRDLY] > 127u ? 127 : (int32_t)b[SL25_DRDLY]);
+    if (!v)
+        return 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        d->snd[l] = (uint16_t)((d->snd[l] & ~(31u << 5)) | v << 5);
+    return 1;
 }
 #if FELUCCA_AUTO
 /* 2.4's extras x[NTRK] (proj_from_sl24) -> store m (emptied first: m is the imported project's), as step-only events;

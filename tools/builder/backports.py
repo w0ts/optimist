@@ -158,8 +158,8 @@ DESC["FELUCCA_SL24_IMPORT"] = (
     "original stays in flash. An FM6 part keeps its sound: its patch (2.4's factory one, or the one in 2.4's FM6 "
     "bank) becomes the part's voice, with 2.4's macros in it; a USR1..USR3 kit plays the same user sample slot from "
     "the drum lanes. Lost: the track filter, strum and voice-leading values (without their switches), FM6's DTUN, a "
-    "USR4 kit (the default kit); from 2.5: a NOISE part (ANALOG at its defaults), a SYN1..SYN4 kit (the default kit),"
-    " the drums' delay send; from 2.6 also: the INSERT, ENV SYNC, LFO 2's SYNC / TRIG / POL, GLO > TEXTURE (its "
+    "USR4 kit (the default kit); from 2.5: a NOISE part (ANALOG at its defaults), a SYN1..SYN4 kit (the default kit)"
+    " (2.5's drums' delay send becomes every drum lane's DLY, the nearest level); from 2.6 also: the INSERT, ENV SYNC, LFO 2's SYNC / TRIG / POL, GLO > TEXTURE (its "
     "ANALOG filter TYPE goes to ANALOG 2's). About 3.3 KB of flash.")
 DESC["FELUCCA_MICRO"] = (
     "Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late "
@@ -197,7 +197,7 @@ DESC["FELUCCA_SL24_EXPORT"] = (
     "carries it: restoring it replaces 2.4's bank, kept as it was with the voices added). Lossy: what 2.4 has not is "
     "left out and the editor lists it (FX OFF, ANALOG 2, SLICE / ACID / CZ parts play their fallback, an FM6 voice "
     "not sent to the bank becomes the closest 2.4 factory patch, X0X and user kits become 808, the drum lanes' edits "
-    "and sends, the reverb type, COMP / LIMIT, locks on those); sections, the song, motion and samples stay behind. "
+    "and sends but their DLY, which becomes 2.5's drums' delay send (the level most lanes have), the reverb type, COMP / LIMIT, locks on those); sections, the song, motion and samples stay behind. "
     "About 2 KB of flash.")
 DESC["FELUCCA_SL24_EDIMPORT"] = (
     "Adds Import a SLOOP 2.4 backup to the web editor's Projects screen: a project of a SLOOP 2.4, 2.5 or 2.6 backup "

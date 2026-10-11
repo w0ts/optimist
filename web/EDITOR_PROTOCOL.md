@@ -594,7 +594,7 @@ the editor shows no button. Nothing is written to flash.
   part as ANALOG (its engine % 10), PHYS's EDIT values on ANALOG's knobs. **lost**, bit 0 an engine SLOOP has not
   (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
   other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
-  drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
+  drum lanes' record (but their DLY: the level most lanes have is 2.5's drums' delay send, byte 73, which 2.4 ignores), 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
   bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
   events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second

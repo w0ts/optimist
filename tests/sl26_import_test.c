@@ -7,7 +7,10 @@
  *   - 2.6: told apart (not ours, not 2.4's FUN5), shown as SLOOP's under an empty slot, LOAD twice imports it: values,
  *     engines (PHYS), steps, nudges, fills, locks (P_E0.. moved back, 2.6's own dropped), the ANALOG filter TYPE, the
  *     TEXTURE's globals at our defaults; its original untouched;
- *   - the export (SL24_EXPORT, tests/sl24_export_test.c has the rest): our PHYS as 2.5's 10, SLICE as its fallback.
+ *   - 2.5 / 2.6's drums' delay send (G_DRDLY, byte 73; 77 in both goldens): every drum lane's DLY at the nearest level
+ *     (19: a send of 78), REV and CHO as before; 0 (2.4's spare): the lanes as they were;
+ *   - the export (SL24_EXPORT, tests/sl24_export_test.c has the rest): our PHYS as 2.5's 10, SLICE as its fallback; the
+ *     drum lanes' DLY as 2.5's drums' delay send (the level most lanes have, a tie the lower; 0 with DLY in no slot).
  * With -DSL25_OLD only the checks the firmware before had the functions for are built (the RED run).
  * Run by tests/run_tests.sh (XSTEP / TRK_FILT / CHORDPLUS 0 and 1). */
 #define FELUCCA_ARRANGER 1
@@ -148,6 +151,16 @@ static void sl26_convert(void)
 }
 #endif
 
+/* every working drum lane's DLY at level v, its CHO 0 (drum_sends.c dsend[]) */
+static int lanes_dly(uint32_t v)
+{
+    uint32_t l;
+    int ok = 1;
+    for (l = 0; l < DRUM_LANES; l++)
+        ok &= dsend_dly(dsend[l]) == v && dsend_cho(dsend[l]) == 0u;
+    return ok;
+}
+
 static void sl26_flow(void)
 {
     static uint8_t keep[4096], b[3840];
@@ -178,6 +191,18 @@ static void sl26_flow(void)
 #endif
     check("... LOAD again imports it: PHYS, TRIO; ANALOG's filter TYPE HP -> ANALOG 2's HP", ok);
     check("... 2.6's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
+    check("... its drums' delay send (77): every lane's DLY level 19 (78), no chorus", lanes_dly(19));
+    memcpy(b, f25, sizeof f25);
+    ok = sl24_import_buf(b, sizeof f25, 0) && lanes_dly(19);
+    check("2.5's drums' delay send (77) imported: every lane's DLY level 19", ok);
+    memcpy(b, f25, sizeof f25);
+    b[73] = 0;                                    /* (2.4's: its spare byte, 0) */
+    {
+        uint32_t s = proj_hash(b, 3836u);
+        memcpy(b + 3836, &s, 4);
+    }
+    ok = sl24_import_buf(b, sizeof f25, 0) && lanes_dly(0);
+    check("... a drums' delay send of 0 (2.4's spare byte): the lanes' DLY 0, as before", ok);
 }
 
 #if FELUCCA_SL24_EXPORT
@@ -198,6 +223,33 @@ static void export_engines(void)
           out[76 + 940 + 122] == 4 && (lost & SX24_ENGINE) &&
           (int16_t)(out[76 + 940 + 2 * 53] | out[76 + 940 + 2 * 53 + 1] << 8) == ENGINES[eng_slot_built(4)]->edit[0].def);
     check("... and back: 10 imports as our PHYS", proj_from_sl24(&r, out, sizeof out, 0, 0) && r.t[0].engine == ENG_UID_PHYS);
+    {   /* the drum lanes' DLY -> 2.5's drums' delay send (byte 73) */
+        static uint16_t keep[DRUM_LANES];
+        uint8_t live = fxs_live;
+        uint32_t l, ok;
+        memcpy(keep, dsend, sizeof keep);
+        fxs_live |= (uint8_t)(1u << FXT_DLY);
+        for (l = 0; l < DRUM_LANES; l++)
+            dsend[l] = dsend_word(l % 3u + 3u, 19, l % 2u);
+        (void)proj_to_sl24(&q, 0, out, 0);
+        ok = out[73] == 78 && sl24_is(out, sizeof out);
+        for (l = 0; l < DRUM_LANES; l++)
+            dsend[l] = dsend_word(4, l < 10u ? 0u : 31u, 0);
+        (void)proj_to_sl24(&q, 0, out, 0);
+        ok &= out[73] == 0;
+        for (l = 0; l < DRUM_LANES; l++)
+            dsend[l] = dsend_word(4, l < 8u ? 7u : 5u, 0);
+        (void)proj_to_sl24(&q, 0, out, 0);
+        ok &= out[73] == 20;
+        check("export: 2.5's drums' delay send = the lanes' DLY most have (19 -> 78; 10 x 0 + 6 x 31 -> 0; 8 + 8: the lower)", ok);
+        for (l = 0; l < DRUM_LANES; l++)
+            dsend[l] = dsend_word(4, 19, 0);
+        fxs_live &= (uint8_t)~(1u << FXT_DLY);
+        (void)proj_to_sl24(&q, 0, out, 0);
+        check("... 0 while DLY is in no FX slot (the lanes send nothing here)", out[73] == 0);
+        fxs_live = live;
+        memcpy(dsend, keep, sizeof keep);
+    }
 }
 #endif
 
