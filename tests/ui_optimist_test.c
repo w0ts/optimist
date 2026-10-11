@@ -2081,6 +2081,7 @@ int main(int argc, char **argv)
     step_cards_tests();
     step_cards_leak_tests();
     s35_entry_tests();
+    s35_transpose_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();

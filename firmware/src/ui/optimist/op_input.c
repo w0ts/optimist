@@ -355,7 +355,10 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     case B_OCTDN:
     case B_OCTUP:
-        if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
+        if (ui.scr == SCR_STEP && st.held) {            /* a step held: its notes an octave (synths), nothing else */
+            if (!is_drum(TSEL))
+                held_octave(b == B_OCTDN ? -1 : 1);
+        } else if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
             uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
             if ((held & both) == both)
                 st.follow = 1;

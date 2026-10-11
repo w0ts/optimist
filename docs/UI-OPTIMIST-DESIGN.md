@@ -300,7 +300,10 @@ already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll
 1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. OCT alone
 keeps the octave and ghost / hard, so the pick can be auditioned. **The pick follows the octave** (2026-10-11): a note
 played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
-at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). FOLLOW (the window follows the playhead, as
+at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). **A step
+held + OCT- / OCT+ transposes it** (2026-10-11): every note of the synth steps held an octave down / up, each clamped
+to 0..127; while a step is held OCT changes neither the keyboard octave nor FM6's paging (on the drum track it does
+nothing). The cards come to the step's page with NOTE lit, so the new note shows (`held_octave`). FOLLOW (the window follows the playhead, as
 FELUCCA_DRUM_STEP) is the default while playing [D]; a scroll turns it off, and **HOME + OCT- + OCT+ together
 resumes it** [D]. **PRESETS pages the window too** (2026-10-11, the user: "in the step sequencer it scroll pages thru
 the piano roll, in mixer it select preset indeed"): a page a detent on every track, stopping at the first and the last

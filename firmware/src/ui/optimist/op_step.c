@@ -3,8 +3,8 @@
  * 16 white keys are the 16 steps of the window with nothing held (the ISR's ly_lock LY_STEP: seq.c sends the keys
  * to lk_q, they play nothing). The window is 1-16, 17-32, 33-48, 49-64 up to the track's LEN; it follows the
  * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
- * OCT+ together resumes it. OCT alone keeps its job (the octave; on the drum track ghost / hard, which a tapped drum
- * step takes too).
+ * OCT+ together resumes it. OCT alone keeps its job (the octave, which the pick follows; on the drum track ghost /
+ * hard, which a tapped drum step takes too); with a synth step held it moves the step's notes an octave instead.
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
  *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL, as
@@ -318,6 +318,19 @@ static void held_edit(uint32_t k, int32_t s)
     if (s != OP_RESET)
         s = clamp(s, -16, 16);
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
+}
+/* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
+ * to 0..127; the keyboard octave and FM6's paging stay. The cards come to the step's page, NOTE lit */
+static void held_octave(int32_t d)
+{
+    if (held_first() < 0)
+        return;
+    st.hp = 0;
+    st.lock_pg = LOCK_NONE;
+    held_edit(0, 12 * d);
+    step_cards_show();
+    ui.hot = 0;
+    ui.hot_lit = 1;
 }
 
 /* the extras: the nudge, the fill condition, the chance (the held step's second card page) */
