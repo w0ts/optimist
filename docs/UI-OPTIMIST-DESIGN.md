@@ -315,7 +315,10 @@ the playhead's key blinks, as FELUCCA_DRUM_STEP lights them today; with the keys
 notes as KEYLIT; in a held layer its map, as today.
 
 The panel on the drum track: the 16 lanes x the 16 steps of the page, levels as shades, ratchets as notches
-(today's DRUMS grid), the selected lane highlighted. On a synth track: the page's 16 steps as a piano roll
+(today's DRUMS grid), the selected lane highlighted; at the left each lane's colour chip and its two-letter code
+(2026-10-11, the user: "put the name of the instrument (two letters) on the drum piano roll"; `LANE_CODE`, BD .. CB,
+the mixer's, now in drums.c), the selected lane's white; the 16 lanes fit, nothing scrolls. SLOOP's DRUMS grid shows
+the same codes in a 3 x 5 pixel font (its rows are 6 px), in the lane's colour, white when picked or hit. On a synth track: the page's 16 steps as a piano roll
 (2026-10-11, the user: "looks a bit sad compared to sloop. could we have the note names on the left, and more
 details ?"): the note names in a 24-px gutter on the left, the Cs with their octave (*C4*, C_HI); every row named when
 the rows are 11 px or taller (a row with a note amber, a black key dim, a white key grey), else the Cs and the rows
@@ -326,7 +329,7 @@ top edge, the ratchet as notches; the chords stacked; the steps held framed whit
 it plays (only the two columns it left and reached are painted again, on a canvas of their own, never under the
 cards); the window's page lit in the gutter of the playhead strip (1-16, 17-32 ...). The rows cover the whole
 pattern's notes (every page on the same rows), 13 semitones at least, as tall as fit (16 px at most). The columns
-are 13 px from x 26 (the drum grid keeps 14 px from x 16). Black ground, C_LINE lines, no grey fills.
+are 13 px from x 26, the drum grid's too (since the lanes' codes, 2026-10-11). Black ground, C_LINE lines, no grey fills.
 
 | State | Cards (KNOB 1..4) | SELECT | PRESETS | YES | HOME |
 |---|---|---|---|---|---|

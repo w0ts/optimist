@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* STEP's panel (docs/UI-OPTIMIST-DESIGN.md section 4.2): the window's 16 steps as columns under the keys.
  *   the drum track   the 16 lanes x the 16 steps: a hit in its lane's colour, its level as the shade (ghost dim ..
- *                    hard full), its ratchet as notches; the selected lane's row lit, its colour strip at the left
+ *                    hard full), its ratchet as notches; the selected lane's row lit; at the left each lane's colour
+ *                    chip and two-letter code (LANE_CODE, as the mixer), the selected lane's white
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
  * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; under the
@@ -9,8 +10,9 @@
  * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
  * strip (a canvas of its own, so a playing grid is drawn again only when a step changes; when the playhead is outside
  * the window, a mark at the side it is on). One 240 x 123 canvas: gfx.c's band. */
-#define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
-#define SG_CW 14
+#define SG_X 26                         /* the first column's x (the gutter left of it: the lanes' codes, the note names);
+                                         * a column is SG_CW wide, its cell SG_CW - 2 (the roll's note SG_CW - 1) */
+#define SG_CW 13
 #define SG_TOP 1
 #define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
 #define SP_H (240 - SP_Y)
@@ -61,7 +63,8 @@ static void sg_drums(const track_t *t)
     for (l = 0; l < DRUM_LANES; l++) {
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
         uint16_t c = lane_col(l);
-        cv_rect(2, y, l == sel ? 10 : 6, lh - 1, l == sel ? C_WHITE : c);
+        cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
+        cv_text(6, y + (lh - 16) / 2, &FONT_S, LANE_CODE[l], l == sel ? C_WHITE : c);   /* (the user, 2026-10-11) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
@@ -80,8 +83,8 @@ static void sg_drums(const track_t *t)
  * start and the end of LEN in C_DIM, the beats in C_LINE, each note a bar as long as its ties, its level the shade,
  * an accent a white top edge, the ratchet as notches, the playhead's column white (its own canvas: a column is
  * painted again, not the band) */
-#define RL_X 26                         /* the roll's first column (the gutter left of it: the note names) */
-#define RL_CW 13
+#define RL_X SG_X                       /* the roll's columns: the drum grid's */
+#define RL_CW SG_CW
 static int32_t sg_ox;                   /* the x the canvas starts at: 0 the band, a column's for its own canvas */
 static int32_t sg_ph = -1;              /* the roll's playhead column as painted (-1 none) */
 #define RR(x, y, w, h, c) cv_rect((x)-sg_ox, y, w, h, c)
@@ -241,8 +244,8 @@ static void roll_col(int32_t w)                         /* column w of the roll 
     cv_blit((uint32_t)sg_ox, SP_Y);
     sg_ox = 0;
 }
-#define GX (is_drum(TSEL) ? SG_X : RL_X)               /* the panel's columns: the drum grid's or the roll's */
-#define GCW (is_drum(TSEL) ? SG_CW : RL_CW)
+#define GX SG_X                                         /* the panel's columns (the drum grid's and the roll's) */
+#define GCW SG_CW
 #if FELUCCA_AUTO
 /* the events of the window's steps: a dot each, a hold event's tail to the next hold event of its parameter (or LEN) */
 static void sg_marks(const track_t *t)

@@ -31,8 +31,6 @@
 #define MXL_VY 34                       /* the meter in its row: a thin bar */
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
-static const char *const LANE_CODE[DRUM_LANES] = {"BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS",
-                                                  "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
 static struct {
     uint8_t first;                      /* the first row in view */
     uint8_t vu[MXR_N], gr[MXR_N];       /* the meters as drawn (0xFF: again) */

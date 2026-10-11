@@ -738,6 +738,24 @@ static uint16_t lvl_col(uint32_t lvl)                   /* a hit's colour by its
 {
     return lvl == LV_GHOST ? col_shade(TE_DRUM, 3u) : lvl == LV_SOFT ? col_shade(TE_DRUM, 5u) : lvl == LV_HARD ? C_WHITE : TE_DRUM;
 }
+/* the lanes' two-letter codes (LANE_CODE, drums.c) in a 3 x 5 pixel font: the grid's rows are 6 px (the user,
+ * 2026-10-11: "put the name of the instrument (two letters) on the drum piano roll") */
+static const char TINY_CH[] = "BDSCPHORLTG2";
+static const uint16_t TINY_GL[] = {   /* 5 rows of 3 bits, the top row in bits 14..12 */
+    0x6BAE, 0x6B6E, 0x388E, 0x3923, 0x6BA4, 0x5BED, 0x2B6A, 0x6BAD, 0x4927, 0x7492, 0x396B, 0x62A7};
+static void tiny_text(int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    uint32_t i, b;
+    for (; *s; s++, x += 4) {
+        for (i = 0; TINY_CH[i] && TINY_CH[i] != *s; i++)
+            ;
+        if (!TINY_CH[i])
+            continue;
+        for (b = 0; b < 15u; b++)
+            if ((TINY_GL[i] >> (14u - b)) & 1u)
+                cv_rect(x + (int32_t)(b % 3u), y + (int32_t)(b / 3u), 1, 1, c);
+    }
+}
 static uint16_t pad_lit[DRUM_LANES];                   /* pads and key LEDs: frames left lit */
 #if FELUCCA_LIGHTS && FELUCCA_KEYLIT
 static uint8_t key_lit[27];                             /* menu NOTES, a synth track: frames its key stays lit */
@@ -895,8 +913,13 @@ static void drum_screen_draw(void)
                 int32_t y = (int32_t)i * 6 + 2;
                 if (i == drum_lane)                    /* the picked lane: its row tinted in the drum colour, a bar at the left */
                     cv_rect(0, y - 1, 240, 7, col_shade(TE_DRUM, 2u));
-                cv_rect(i == drum_lane ? 0 : 2, i == drum_lane ? y - 1 : y, i == drum_lane ? 8 : 6, i == drum_lane ? 7 : 5,
-                        pad_lit[i] ? C_WHITE : i == drum_lane ? TE_DRUM : TE_G2);
+                if (i == drum_lane)
+                    cv_rect(0, y - 1, 1, 7, TE_DRUM);
+#if DL_UI
+                tiny_text(2, y, LANE_CODE[i], pad_lit[i] || i == drum_lane ? C_WHITE : lane_col(i));   /* "BD": its code, lit on a hit */
+#else
+                tiny_text(2, y, LANE_CODE[i], pad_lit[i] || i == drum_lane ? C_WHITE : TE_G3);
+#endif
                 for (j = 0; j < 16u; j++) {
                     uint32_t p = bank * 16u + j;
                     const dstep_t *s = &TDRUM->dstep[p < NSTEP ? p : 0];

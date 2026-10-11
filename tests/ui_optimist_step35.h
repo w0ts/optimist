@@ -170,3 +170,24 @@ static void s35_roll_tests(void)
     TSEL->p[P_SLEN] = len0;
     s35_open();
 }
+/* the drum grid's lanes named (the user, 2026-10-11: "put the name of the instrument (two letters) on the drum piano
+ * roll"): each lane's colour chip and code (LANE_CODE, the mixer's) at the left, the selected lane's white */
+static void s35_drum_codes_tests(void)
+{
+    uint32_t l, ok = 1;
+    reset_ui();
+    song.sel = TRK_DRUM;
+    tap(B_SEQ);
+    lane_select(3);
+    ui.sig[2] = 0;
+    frames(3);
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint32_t y = (uint32_t)(SP_Y + SG_LY(l)), h = (uint32_t)(SG_LY(l + 1u) - SG_LY(l)) - 1u;
+        uint16_t c = l == 3u ? C_WHITE : lane_col(l);
+        ok &= (uint32_t)(px_in(6, y, 18, h, c) && px_in(2, y, 3, h, c) && !px_in(6, y, 18, h, l == 3u ? lane_col(l) : C_WHITE));
+    }
+    check(ok && SG_X >= 6 + 16 + 2 && SG_X + 16 * SG_CW <= 240, "the drum grid: each lane's two-letter code and chip at its left, in its colour, the selected lane's white");
+    check(!strcmp(LANE_CODE[0], "BD") && !strcmp(LANE_CODE[15], "CB") && mx_code(MXR_LANE0 + 2u) == LANE_CODE[2],
+          "... the codes are the mixer's (LANE_CODE: BD .. CB)");
+    reset_ui();
+}
