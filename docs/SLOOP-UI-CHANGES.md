@@ -61,6 +61,13 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 - When on, everything a knob drives takes that knob's cap colour: 1 blue, 2 yellow, 3 pink, 4 orange. This covers the labels, values, gauges and big values, and every dial strip (mixer, layers, held steps, drums, FM6, tempo page).
 - Optimist UI: the COLORS cell on SYSTEM > SCREEN.
 
+## Clock out
+
+- HOME menu > SYSTEM, the HOLD screen, row 3: CLOCK OUT, off by default (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c). OCT+
+  toggles it, and KNOB 3 right turns it on, left off; amber when on while USB is the clock followed (nothing is sent back
+  to USB then). Kept in the settings word (bit 26), not carried into a SLOOP 2.4 export.
+- Optimist UI: a CLOCK OUT row on SYSTEM (CLK OUT, KNOB 1).
+
 ## User rulings this batch follows
 
 - Mixer row: SLOOP's row with a thin VU and an opposing GR bar.

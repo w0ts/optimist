@@ -295,6 +295,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_MIDI_CLOCK
 #define FELUCCA_MIDI_CLOCK 1               /* follow a MIDI clock (GLO > SYSTEM SYNC: AUTO TRS > USB > INT) */
 #endif
+#ifndef FELUCCA_MIDI_CLKOUT
+#define FELUCCA_MIDI_CLKOUT 1              /* send MIDI clock (HOME menu CLOCK OUT: F8 24 PPQN, FA / FB + F2 / FC, on USB,
+                                            * timed as the audio leaves; io/midi/clock_out.c) */
+#endif
 #ifndef FELUCCA_MIDI_EXPR
 #define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0
                                             * (0: notes and the panics CC 120..123 only) */

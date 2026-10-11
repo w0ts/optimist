@@ -434,6 +434,15 @@ _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,
 _add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in (SYNC AUTO TRS > USB > INT)", M, 49,
      desc="Follow an external MIDI clock and start / stop (GLO > SYSTEM SYNC: AUTO takes the TRS jack, else USB, "
           "else the internal tempo). About 4.2 KB of flash; off: the FM-1 always runs on its own tempo.")
+_add("MIDI_CLKOUT", "FELUCCA_MIDI_CLKOUT", "MIDI clock out (HOME menu CLOCK OUT)", M, 198,
+     desc="Sends MIDI clock on USB so a computer, drum machine or sequencer can follow the FM-1: 24 ticks a beat (also "
+          "while stopped, so the other side has the tempo first), Start, Stop, and Song Position + Continue when the FM-1 "
+          "itself continues an external song. Each tick leaves with the sound of its beat (latency-compensated, no "
+          "jitter of its own), follows tempo changes and the nudge, and never swings. Switched on in the HOME menu "
+          "(CLOCK OUT, off by default). While the FM-1 follows a USB clock nothing is sent back to USB; following the "
+          "TRS jack, the clock is passed on to USB. The TRS jack is input only (no MIDI out on the FM-1's board). "
+          "About 2.5 KB of flash and 0.2 KB of RAM; off: no clock is sent.",
+     symbols=("clko_block",))
 _add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host clock", M, 71, default=0,
      experimental=True, desc="Experimental, only with USB audio: the audio sent to the computer is resampled to follow "
      "the computer's clock instead of using packet-size feedback. CPU-heavy (a resampler in the audio path); "

@@ -13,8 +13,9 @@
  * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (core/hold.h hold_sel: 0 350 ms, 1 250,
  * 2 500; shared with the main UI), bit 23 the Optimist UI's cards (FELUCCA_UI 1) (0 four in a line, 1 2 x 2 big; op_state.c
  * op_cards), bit SETTINGS_BLE_ON_BIT (24) BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it,
- * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bits
- * 26.. free; a build without a switch keeps its bit as read */
+ * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bit
+ * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, so a record without it reads OFF, the default;
+ * not in a 2.4 export), bits 27.. free; a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -50,6 +51,9 @@ static uint32_t bp23_word(void)
     w = (w & ~(1u << SETTINGS_BLE_ON_BIT)) | (uint32_t)(ble_on != 0u) << SETTINGS_BLE_ON_BIT;       /* BLUETOOTH: ON is 1 (io/midi/midi_ble.c) */
 #endif
     w = (w & ~(1u << 25)) | (uint32_t)(knob_colors != 0u) << 25;       /* KNOB COLORS (core/knobcol.h) */
+#if FELUCCA_MIDI_CLKOUT
+    w = (w & ~(1u << 26)) | (uint32_t)(clko_on != 0u) << 26;           /* CLOCK OUT (io/midi/clock_out.c) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -82,6 +86,9 @@ static void bp23_from_word(uint32_t w)
     ble_on = (uint8_t)((w >> SETTINGS_BLE_ON_BIT) & 1u);             /* (ON: the radio started at boot, ble_midi_init) */
 #endif
     knob_colors = (uint8_t)((w >> 25) & 1u);          /* (a word without the bit: the colours as they were) */
+#if FELUCCA_MIDI_CLKOUT
+    clko_on = (uint8_t)((w >> 26) & 1u);              /* (a word without the bit: no clock sent) */
+#endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;
 }

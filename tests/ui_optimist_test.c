@@ -2027,6 +2027,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
+#include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
@@ -2081,6 +2082,7 @@ int main(int argc, char **argv)
     master_tests();
     algo_inplace_tests();
     knobcol_tests();
+    clkout_tests();
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
