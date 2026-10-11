@@ -190,10 +190,19 @@ def cmd_cpu(a):
 
 
 BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
-# the automation store, which the BLE test packages do not exercise: out of them so that BLE_DIAG and the whole option
-# set fit beside user-default's store (the user, 2026-10-10: "remove anything you want from ble test"); the shipped
-# profiles keep it
-BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0")
+# items the BLE test packages do not exercise, out of them so that BLE_DIAG and the whole option set fit beside
+# user-default's store and the flash the queued branches add (the user, 2026-10-10: "remove anything you want from
+# ble test"); the shipped profiles keep all of them. The tests (ble_emu_test.py, ble_emu_central_test.py,
+# ble_emu_boot_test.py) run the BLE link, BLE-MIDI both ways (a panel key out, a note in playing the default
+# synth), the DEVICES list, bonding and boot; none of them touches:
+#  - the automation store (CHANCE, MOTION, SL24_XSTEP, MICRO, FILLS, PLOCK)
+#  - the synth engines GRAIN, TRIO, DRAWBAR, DIGITAL, PHASE (the default patch plays none of them)
+#  - the SLOOP 2.4 project importer and its safety checks (SL24_IMPORT, SL24_SAFE)
+#  - MIDI clock out (MIDI_CLKOUT: its BLE hook is empty); MIDI_NOTEOUT stays, a panel key goes out through it
+# measured 2026-10-11 on user-default with the whole BLE set: flash 560,596 of 581,564 B, 20,968 B free
+BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0",
+                 "ENG_GRAIN=0", "ENG_TRIO=0", "ENG_DRAWBAR=0", "ENG_DIGITAL=0", "ENG_PHASE=0",
+                 "SL24_IMPORT=0", "SL24_SAFE=0", "MIDI_CLKOUT=0")
 
 
 def prepare_tests():
@@ -225,7 +234,7 @@ def prepare_tests():
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
     # (no --ble-drop here: the estimate adds the five items' measured costs and overcounts what they share, so it puts
     # this set a few hundred bytes over the slot while the real build fits: measured 2026-10-10 on user-default, whose
-    # FLUTE is already off, with BLE_TEST_ROOM's store out, flash 578,844 of 581,564 B, 2,720 B (2.7 KB) free; the
+    # FLUTE is already off, with BLE_TEST_ROOM's store out, flash 578,844 of 581,564 B, 2,720 B (2.7 KB) free; with BLE_TEST_ROOM's later additions 20,968 B free; the
     # build itself refuses an image that does not fit)
     full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
                                                  set=[*BLE_FULL_SET, *BLE_TEST_ROOM], name=None, ble_drop=None))
