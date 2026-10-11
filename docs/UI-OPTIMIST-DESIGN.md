@@ -262,10 +262,10 @@ past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
-| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
-| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND) | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
-| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **MASTER** (above T1) | FILT · DUST · DUCK, then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
+| **T1 · T2 · T3** | the mix VOLUME · PAN; the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
+| **DR** | VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
 The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
 SAVE held + SELECT, PROJECT by SAVE tapped and SYSTEM by HOME held alone (both provisional), SCOPE by HOME tapped on the
@@ -276,7 +276,7 @@ SOUND rows (a lane: that lane's; MASTER: the FX screen); with no cell picked it 
 (MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
 the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
 2's paging rule), and so does **GLO tapped again** (GLO tapped elsewhere opens the mixer); the header names the set
-(*Mix levels*, *Mix more*, *Mix screens*, *Mix master*). PRESETS browses the sound (section 12); on SOUND / KIT it
+(*T2 mix*, *T2 insert*, *T2 sends*, *T2 sound*, *Mix master*, *Mix comp*). PRESETS browses the sound (section 12); on SOUND / KIT it
 browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
 
 **Each row** [D: each row has a VU meter and its sequence below, like in SLOOP, with more space for the
@@ -1858,3 +1858,20 @@ again over itself, as a track change has done since batch 34. Measured on the em
 every 2 ms for 50 ms after each detent, counting pixels drawn before and after but black in between): PRESETS on the
 mixer's kick lane, 3 detents, worst capture 14,862 blanked pixels before, 0 after; on T1, 2 detents, 13,413 before,
 937 after (the toast's frame redrawn over the row, not a clear).
+
+**The mixer's knob sets in one order.** The user: the sets in a logical order, the same on every row: the mix first, then
+the insert effects, then the send effects, then the rest. Each row's items now carry their group (`mitem_t.grp`: MG_MIX,
+MG_INS, MG_SEND, MG_LAST) and `mx_items` starts each group on a set of its own, padding the set before with empty cells
+as long as what follows still fits the 20 cells (MX_MAXI); the header names the set by its first item's group (*T1 mix*,
+*T1 insert*, *T1 sends*, *T1 sound*; DR's last *Kit*; MASTER *Mix master*, *Mix comp*).
+
+| Row | Mix | Inserts | Sends | Last |
+|---|---|---|---|---|
+| T1 T2 T3 | VOLUME PAN | DRIVE (DIST when it is in a slot), FILTER (FELUCCA_TRK_FILT), COMP (in a slot) | REV DLY CHO, each in a slot | FX ON, SOUND |
+| DR | VOLUME (GLO > DRUMS) | FILTER | (none) | FX ON, KIT |
+| a lane | LEVEL CUT | DRIVE | REV DLY CHO, each in a slot | SOUND |
+| MASTER | FILT DUST DUCK | THRS RATIO GAIN CEIL (FELUCCA_MASTER_COMP) | | |
+
+The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), not the slots' order; an effect
+in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
+INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).

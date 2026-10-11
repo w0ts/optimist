@@ -6,21 +6,27 @@
  *              reduction pushing in from the right) and its sequence (op_mixdraw.c)
  *   ALGORITHM  walks the rows, T1 .. DR .. the 16th lane and back, MASTER above T1 (it stops at the ends): the track
  *              selected follows (song.sel), a lane row selects the lane (lane_sel; its sound previews when stopped)
- *   SELECT     the row's knob sets, its pages: a track VOLUME INSERT SEND PAN, then the rest (the other effects in
- *              their slots' order, FILTER, FX on / dry, SOUND); a lane LEVEL DRIVE REV CUT, then DLY CHO SOUND;
- *              MASTER FILT THRS RATIO DUCK, then DUST GAIN CEIL. Values only: the screens are not sets.
+ *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
+ *              (VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
+ *              SOUND; a lane LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR VOLUME | FILTER | FX on, KIT; MASTER FILT
+ *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
  *              GLO tapped: the mixer; again, the next set (past the last, the first). The header names the set
  *   PRESETS    the hot cell one unit (on SOUND: the next / previous sound)
  *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
- * INSERT is the track's first insert effect in the slots' order (DIST, COMP, FILTER: fx_slots.c FXT_INSERT), its
- * amount (the slot's one value, FXT_AMT: the core's "main parameter"); with none in a slot, DRIVE. SEND is REV when
- * it is in a slot, else the first send in the slots' order. The drum track's row: its LEVEL (GLO > DRUMS), FILTER,
- * FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets and the sends). */
+ * The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP): DRIVE when DIST is in no slot (the
+ * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
+ * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
+ * and the sends). */
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_LANES };
 enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND };
+/* the knob sets' groups, in this order on every row (the user, 2026-10-11): the mix (VOLUME PAN; a lane LEVEL CUT;
+ * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
+ * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
+enum { MG_MIX, MG_INS, MG_SEND, MG_LAST };
 typedef struct {
     const char *label;                                  /* 0: the descriptor's */
     uint8_t kind, id;                                   /* MI_*; a P_* / G_* / lane value id / screen */
+    uint8_t grp;                                        /* MG_* */
 } mitem_t;
 #define MX_MAXI 20u
 static struct {
@@ -35,97 +41,101 @@ static uint16_t mx_col(uint32_t r)                      /* the row's colour: its
     return r == MXR_MASTER ? C_HI : r >= MXR_LANE0 ? lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
 }
 
-/* the track's INSERT and SEND amounts (P_* ids; 0xFF none) */
-static uint32_t mx_insert(void)
-{
-    uint32_t k;
-    for (k = 0; k < FX_NSLOT; k++)
-        if ((FXT_INSERT >> fxs_slot[k] & 1u) && FXS_ON(fxs_slot[k]) && fxs_amt(k) != 0xFFu)
-            return fxs_amt(k);
-    return FELUCCA_FX_DIST ? (uint32_t)P_DIST : 0xFFu;  /* (no insert in a slot: DRIVE) */
-}
-static uint32_t mx_send(void)
-{
-    uint32_t k;
-    if (FXS_ON(FXT_REV))
-        return P_REV;
-    for (k = 0; k < FX_NSLOT; k++)
-        if (!(FXT_INSERT >> fxs_slot[k] & 1u) && FXS_ON(fxs_slot[k]) && fxs_amt(k) != 0xFFu)
-            return fxs_amt(k);
-    return FELUCCA_FX_REVERB ? (uint32_t)P_REV : 0xFFu;
-}
-static uint32_t mx_add(mitem_t *it, uint32_t n, const char *label, uint32_t kind, uint32_t id)
+static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
 {
     if (n < MX_MAXI) {
         it[n].label = label;
         it[n].kind = (uint8_t)kind;
         it[n].id = (uint8_t)id;
+        it[n].grp = (uint8_t)grp;
     }
     return n + 1u;
 }
-static uint32_t mx_pad(mitem_t *it, uint32_t n)         /* to the end of a set of four */
-{
-    while (n % 4u)
-        n = mx_add(it, n, 0, MI_NONE, 0);
-    return n;
-}
+/* a synth track: VOLUME PAN | DRIVE (DIST in a slot) FILTER COMP (in a slot) | the sends in a slot, REV DLY CHO |
+ * FX ON, SOUND. The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), whatever the slots */
 static uint32_t mx_items_synth(mitem_t *it)
 {
-    uint32_t n = 0, k, ins = mx_insert(), snd = mx_send();
-    n = mx_add(it, n, "VOLUME", MI_TRK, P_LEVEL);
-    n = mx_add(it, n, ins == P_DIST && !FXS_ON(FXT_DIST) ? "DRIVE" : 0, ins == 0xFFu ? MI_NONE : MI_TRK, ins);
-    n = mx_add(it, n, 0, snd == 0xFFu ? MI_NONE : MI_TRK, snd);
-    n = mx_add(it, n, "PAN", MI_TRK, P_PAN);
-    for (k = 0; k < FX_NSLOT; k++) {                    /* the rest: the other effects in their slots' order */
-        uint32_t a = fxs_amt(k);
-        if (a != 0xFFu && a != ins && a != snd && FXS_ON(fxs_slot[k]))
-            n = mx_add(it, n, 0, MI_TRK, a);
-    }
-#if FELUCCA_TRK_FILT
-    if (ins != P_TFLT && !FXS_ON(FXT_FILT))
-        n = mx_add(it, n, "FILTER", MI_TRK, P_TFLT);
+    uint32_t n = 0;
+    n = mx_add(it, n, MG_MIX, "VOLUME", MI_TRK, P_LEVEL);
+    n = mx_add(it, n, MG_MIX, "PAN", MI_TRK, P_PAN);
+#if FELUCCA_FX_DIST
+    n = mx_add(it, n, MG_INS, FXS_ON(FXT_DIST) ? 0 : "DRIVE", MI_TRK, P_DIST);
 #endif
-    n = mx_add(it, n, "FX ON", MI_TRK, P_FXOFF);
-    return mx_add(it, n, "SOUND", MI_SOUND, 0);
+#if FELUCCA_TRK_FILT
+    n = mx_add(it, n, MG_INS, FXS_ON(FXT_FILT) ? 0 : "FILTER", MI_TRK, P_TFLT);
+#endif
+#if FELUCCA_MASTER_COMP
+    if (FXS_ON(FXT_COMP))
+        n = mx_add(it, n, MG_INS, 0, MI_TRK, P_TCOMP);
+#endif
+    if (FXS_ON(FXT_REV))
+        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_REV);
+    if (FXS_ON(FXT_DLY))
+        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_DLY);
+    if (FXS_ON(FXT_CHO))
+        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_CHOR);
+    n = mx_add(it, n, MG_LAST, "FX ON", MI_TRK, P_FXOFF);
+    return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
 }
-static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items (before the screens) */
+static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
-    if (r == MXR_MASTER) {
-        n = mx_add(it, n, "FILT", MI_GLOB, G_FILT);
+    if (r == MXR_MASTER) {                              /* filter, dust, duck; then the compressor */
+        n = mx_add(it, n, MG_MIX, "FILT", MI_GLOB, G_FILT);
+        n = mx_add(it, n, MG_MIX, "DUST", MI_GLOB, G_DUST);
+        n = mx_add(it, n, MG_MIX, "DUCK", MI_GLOB, G_DUCK);
 #if FELUCCA_MASTER_COMP
-        n = mx_add(it, n, "THRS", MI_GLOB, G_CTHR);
-        n = mx_add(it, n, "RATIO", MI_GLOB, G_CRAT);
-        n = mx_add(it, n, "DUCK", MI_GLOB, G_DUCK);
-        n = mx_add(it, n, "DUST", MI_GLOB, G_DUST);
-        n = mx_add(it, n, "GAIN", MI_GLOB, G_CGAIN);
-        return mx_add(it, n, "CEIL", MI_GLOB, G_CCEIL);
-#else
-        n = mx_add(it, n, "DUST", MI_GLOB, G_DUST);
-        return mx_add(it, n, "DUCK", MI_GLOB, G_DUCK);
+        n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
+        n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
+        n = mx_add(it, n, MG_INS, "GAIN", MI_GLOB, G_CGAIN);
+        n = mx_add(it, n, MG_INS, "CEIL", MI_GLOB, G_CCEIL);
 #endif
+        return n;
     }
-    if (r >= MXR_LANE0) {                               /* a lane: the sound's own values */
-        n = mx_add(it, n, "LEVEL", MI_LANE, DE_LEVEL);
-        n = mx_add(it, n, "DRIVE", FELUCCA_FX_DIST ? MI_LANE : MI_NONE, DE_DRIVE);
-        n = mx_add(it, n, "REV", FELUCCA_FX_REVERB ? MI_LANE : MI_NONE, 16u);
-        n = mx_add(it, n, "CUT", MI_LANE, DE_CUT);      /* (PAN's place: a sound has no pan) */
-        n = mx_add(it, n, "DLY", FELUCCA_FX_DELAY ? MI_LANE : MI_NONE, 17u);
-        n = mx_add(it, n, "CHO", FELUCCA_FX_CHORUS ? MI_LANE : MI_NONE, 18u);
-        return mx_add(it, n, "SOUND", MI_SOUND, 0);
+    if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
+        n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
+        n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
+#if FELUCCA_FX_DIST
+        n = mx_add(it, n, MG_INS, "DRIVE", MI_LANE, DE_DRIVE);
+#endif
+        if (FXS_ON(FXT_REV))
+            n = mx_add(it, n, MG_SEND, "REV", MI_LANE, 16u);
+        if (FXS_ON(FXT_DLY))
+            n = mx_add(it, n, MG_SEND, "DLY", MI_LANE, 17u);
+        if (FXS_ON(FXT_CHO))
+            n = mx_add(it, n, MG_SEND, "CHO", MI_LANE, 18u);
+        return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
     }
-    if (r == MXR_DR) {                                  /* the drum track: its level, FILTER, FX, the kit */
-        n = mx_add(it, n, "VOLUME", MI_GLOB, G_DRLVL);
-        n = mx_add(it, n, "FILTER", FELUCCA_TRK_FILT ? MI_TRK : MI_NONE, FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0);
-        n = mx_add(it, n, "FX ON", MI_TRK, P_FXOFF);
-        return mx_add(it, n, "KIT", MI_SOUND, 0);
+    if (r == MXR_DR) {                                  /* the drum track: its level | FILTER | FX, the kit */
+        n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
+#if FELUCCA_TRK_FILT
+        n = mx_add(it, n, MG_INS, "FILTER", MI_TRK, P_TFLT);
+#endif
+        n = mx_add(it, n, MG_LAST, "FX ON", MI_TRK, P_FXOFF);
+        return mx_add(it, n, MG_LAST, "KIT", MI_SOUND, 0);
     }
     return mx_items_synth(it);
 }
-/* row r's items, in sets of four: its values only (the screens have their own gestures, op_input.c op_tap) */
+static uint32_t mx_pad(mitem_t *it, uint32_t n, uint32_t grp)   /* empty cells to the end of a set of four */
+{
+    while (n % 4u)
+        n = mx_add(it, n, grp, 0, MI_NONE, 0);
+    return n;
+}
+/* row r's items, in sets of four: its values only (the screens have their own gestures, op_input.c op_tap); a group
+ * starts a new set when the empty cells that takes still leave room for the items after it */
 static uint32_t mx_items(uint32_t r, mitem_t *it)
 {
-    uint32_t n = mx_pad(it, mx_items_value(r, it));
+    mitem_t raw[MX_MAXI];
+    uint32_t nr = mx_items_value(r, raw), i, n = 0;
+    nr = nr < MX_MAXI ? nr : MX_MAXI;
+    for (i = 0; i < nr; i++) {
+        if (i && raw[i].grp != raw[i - 1u].grp && n % 4u && n + (4u - n % 4u) + (nr - i) <= MX_MAXI)
+            n = mx_pad(it, n, raw[i - 1u].grp);
+        if (n < MX_MAXI)
+            it[n++] = raw[i];
+    }
+    n = mx_pad(it, n, nr ? raw[nr - 1u].grp : MG_MIX);
     return n < MX_MAXI ? n : MX_MAXI;
 }
 static uint32_t mx_sets(uint32_t r)
@@ -186,15 +196,20 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 
 /* ---- the screen's rows */
 static uint32_t mix_rows(void) { return MXR_N; }
-/* the set's name ("LEVELS", "MORE"; MASTER's "MASTER", "MASTER 2"): the header's "Mix levels" */
+/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "MASTER" "COMP": the
+ * header's "T2 insert", "Mix comp" */
 static void mix_name(uint32_t r, char *b)
 {
-    uint32_t s = mx_set(r % MXR_N), n = mx_sets(r % MXR_N);
-    (void)n;
-    if (r % MXR_N == MXR_MASTER)
-        str_cpy(b, s ? "MASTER 2" : "MASTER", 12);
+    static const char *const G[4] = {"MIX", "INSERT", "SENDS", "SOUND"};
+    mitem_t it[MX_MAXI];
+    uint32_t g;
+    r %= MXR_N;
+    mx_items(r, it);
+    g = it[mx_set(r) * 4u].grp & 3u;
+    if (r == MXR_MASTER)
+        str_cpy(b, g ? "COMP" : "MASTER", 12);
     else
-        str_cpy(b, s ? "MORE" : "LEVELS", 12);
+        str_cpy(b, r == MXR_DR && g == MG_LAST ? "KIT" : G[g], 12);
 }
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {

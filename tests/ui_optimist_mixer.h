@@ -72,8 +72,8 @@ static void mixer_sets_tests(void)
     reset_ui();
     n = mx_sets(MXR_T1);
     last = n - 1u;
-    check(mx_labels(MXR_T1, 0, "VOLUME", 0, 0, "PAN") && n >= 2u,
-          "a track: VOLUME INSERT SEND PAN, then the rest");
+    check(mx_labels(MXR_T1, 0, "VOLUME", "PAN", 0, 0) && n >= 3u,
+          "a track: VOLUME PAN (the mix), then the inserts, the sends, FX ON and SOUND");
     {   /* values only: no knob set of any row holds a screen */
         uint32_t r, s, k, bad = 0, keep = mx.set;
         cell_t e;
@@ -91,24 +91,38 @@ static void mixer_sets_tests(void)
     }
     {
         cell_t c;
-        mx.set = 0;
+        mx.set = 1;
+        mix_cell(MXR_T1, 0, &c);
+        check(c.d == &TP[P_DIST], "the second set, the inserts: DIST first (in a slot by default)");
         mix_cell(MXR_T1, 1, &c);
-        check(c.d == &TP[FXS_ON(FXT_DIST) ? P_DIST : P_DIST], "INSERT: the first insert in the slots (DIST by default)");
-        mix_cell(MXR_T1, 2, &c);
-        check(!FELUCCA_FX_REVERB || c.d == &TP[P_REV], "SEND: REV (in a slot)");
+        check(!FELUCCA_TRK_FILT || c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0], "... then the track's FILTER");
+        mx.set = 2;
+        mix_cell(MXR_T1, 0, &c);
+        check(!FELUCCA_FX_REVERB || c.d == &TP[P_REV], "the third set, the sends: REV first (in a slot), then DLY CHO");
 #if FELUCCA_MASTER_COMP
-        fxs_load(0, FXT_COMP);                          /* COMP in the first slot: the insert is its amount */
-        mix_cell(MXR_T1, 1, &c);
-        check(c.d == &TP[P_TCOMP], "INSERT: COMP loaded in a slot before DIST, its amount (the slot's main value)");
+        fxs_load(0, FXT_COMP);                          /* COMP in the first slot (DIST out): DRIVE, FILTER, COMP */
+        check(mix_find("DRIVE") && mx.set == 1u && ui.hot == 0u,
+              "COMP loaded in DIST's slot: the inserts DRIVE (the engine's), then COMP's amount");
+        mx.set = 1;
+        mix_cell(MXR_T1, FELUCCA_TRK_FILT ? 2u : 1u, &c);
+        check(c.d == &TP[P_TCOMP], "... COMP after DRIVE (and FILTER): the order the audio runs them");
         fxs_load(0, FXT_DIST);
+        mx.set = 0;
 #endif
     }
-    check(mx_labels(MXR_DR, 0, "VOLUME", FELUCCA_TRK_FILT ? "FILTER" : 0, "FX ON", "KIT"), "DR: VOLUME FILTER FX KIT");
-    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "DRIVE", "REV", "CUT") && mx_labels(MXR_LANE0 + 2u, 1, "DLY", "CHO", "SOUND", 0),
-          "a lane: LEVEL DRIVE REV CUT, then DLY CHO SOUND");
+#if FELUCCA_TRK_FILT
+    check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "FILTER", 0, 0, 0) &&
+              mx_labels(MXR_DR, 2, "FX ON", "KIT", 0, 0), "DR: VOLUME, then FILTER, then FX ON KIT");
+#else
+    check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "FX ON", "KIT", 0, 0), "DR: VOLUME, then FX ON KIT");
+#endif
+    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", 0, 0) && mx_labels(MXR_LANE0 + 2u, 1, FELUCCA_FX_DIST ? "DRIVE" : "REV", 0, 0, 0),
+          "a lane: LEVEL CUT, then DRIVE");
+    check(!FELUCCA_FX_DIST || (mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0) && mx_labels(MXR_LANE0 + 2u, 3, "SOUND", 0, 0, 0)),
+          "... then REV DLY CHO, then SOUND");
 #if FELUCCA_MASTER_COMP
-    check(mx_labels(MXR_MASTER, 0, "FILT", "THRS", "RATIO", "DUCK") && mx_labels(MXR_MASTER, 1, "DUST", "GAIN", "CEIL", 0),
-          "MASTER: FILT THRS RATIO DUCK, then DUST GAIN CEIL");
+    check(mx_labels(MXR_MASTER, 0, "FILT", "DUST", "DUCK", 0) && mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL"),
+          "MASTER: FILT DUST DUCK, then the compressor THRS RATIO GAIN CEIL");
 #else
     check(mx_labels(MXR_MASTER, 0, "FILT", "DUST", "DUCK", 0), "MASTER: FILT DUST DUCK");
 #endif
@@ -117,7 +131,7 @@ static void mixer_sets_tests(void)
     {
         char h[40];
         head_title(SCR_HOME, mx_row(), h, sizeof h);
-        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 MORE"), "SELECT: the next knob set; the header names the row and the set (T1 more)");
+        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 INSERT"), "SELECT: the next knob set; the header names the row and the set (T1 insert)");
     }
     ui.force = 1;
     frame();
