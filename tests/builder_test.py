@@ -58,6 +58,15 @@ with contextlib.redirect_stderr(_w):
     _a = argparse.Namespace(config=None, profile=None, set=["VIS=1"], name=None, ble_drop=None)
     _c3, _ = C.resolve_cli(_a)[:2]
 check("... also non-strict and as --set VIS=1: a warning, no error", _w.getvalue().count("warning:") == 2 and "VIS" not in _c3)
+# SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nSIZE=0\nIDLE=0\nICONS=0\n")
+_h, _e = C.flags(_cfg)
+check("a .config with the retired SIZE=0 / IDLE=0 loads, warns \"dropped\" for each and keeps its other keys",
+      "SIZE" not in R.ITEMS and "IDLE" not in R.ITEMS and "SIZE" not in _cfg and "IDLE" not in _cfg and
+      _w.getvalue().count("dropped") == 2 and _cfg["ICONS"] == 0)
+check("... and the build has no switch for them (FELUCCA_IDLE, FELUCCA_SIZE)", "FELUCCA_IDLE" not in _h and "FELUCCA_SIZE" not in _e)
 ported = [it for it in items.values() if it.provenance]
 check(f"ported items ({len(ported)}) carry project, author and licence",
       all(it.provenance.project and it.provenance.author and it.provenance.licence for it in ported))

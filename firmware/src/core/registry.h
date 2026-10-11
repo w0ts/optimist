@@ -313,6 +313,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #undef FELUCCA_MIDI_OUT
 #define FELUCCA_MIDI_OUT 1                 /* HOME menu > MIDI OUT = SEQ: the sequencer, the arp and the rolls go to
                                             * MIDI OUT too (SLOOP 2.4; seq_midi.c) */
+/* (retired 2026-10, always built: the CPU sleeps (fm1_idle) between main-loop polls; no build choice any more) */
+#if defined(FELUCCA_IDLE) && !FELUCCA_IDLE
+#error "FELUCCA_IDLE is retired: the main loop always waits for an interrupt (system/main.c) between UI frames"
+#endif
+#undef FELUCCA_IDLE
+#define FELUCCA_IDLE 1                     /* main loop: wait for an interrupt (idle) between UI frames */
 #if defined(FELUCCA_MIDI_INCLK) && !FELUCCA_MIDI_INCLK
 #error "FELUCCA_MIDI_INCLK is retired: MIDI IN = CLOCK (HOME menu > MIDI IN) is always built"
 #endif
