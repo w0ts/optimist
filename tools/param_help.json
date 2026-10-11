@@ -2,7 +2,9 @@
   "about": "One short plain name per parameter: the device's help line (builder item PARAM_HELP) and the web editor's tooltips. tools/gen_param_help.py makes the firmware header and the editor's copy; tests/param_help_ui.c checks every value a knob reaches has its line and that it fits the top bar (232 px, 29 characters of the UI font). kind page: a page title (params.c PAGES) or a live screen, its values by label, or by knob (slots) where the page has no descriptors; eng: an engine's EDIT values by engine name; fm6: the FM6 operator editor's pages. if: the C condition the lines compile under (their feature); 0: the web editor's own controls only (LEVEL, BYPASS).",
   "groups": [
     {"kind": "page", "ctx": "ENV", "params": {
-      "ATK": "Attack time", "DEC": "Decay time", "SUS": "Sustain level", "REL": "Release time"}},
+      "ATK": "Attack time", "DEC": "Decay time", "SUS": "Sustain level", "REL": "Release time",
+      "CLICK": {"text": "Drum click (attack)", "if": "DL_ANY"}, "DECAY": {"text": "Drum decay", "if": "DL_ANY"},
+      "BEND": {"text": "Pitch drop after the hit", "if": "DL_ANY"}, "LEVEL": {"text": "Drum level (dB)", "if": "DL_ANY"}}},
     {"kind": "page", "ctx": "ENV DEST", "params": {
       "FLT": "Envelope to filter", "PIT": "Envelope to pitch", "SHP": "Envelope to shape"}},
     {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {

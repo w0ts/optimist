@@ -247,9 +247,6 @@ run "live UI without the chord names (FELUCCA_CHORD_NAMES=0): the STEP page as b
 mkdir -p "$OUT/nb"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_ENG_CZ=1 -DFELUCCA_NATIVE_BANKS=1 $SEC4 -o "$OUT/ui_pages_nb_test" tests/ui_pages_test.c -lm
 run "live UI with FELUCCA_NATIVE_BANKS=1 (CZ on): pages, PRESETS, fuzz as before (tests/nbank_test.c: its rows)" "$OUT/ui_pages_nb_test" "$OUT/nb"
-mkdir -p "$OUT/x0x-ui"
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
-run "live UI with the X0X kits: pages, drums, fuzz as before; the drum ENV of a LEVEL-only sound (the 909's rim shot)" "$OUT/ui_pages_x0x_test" "$OUT/x0x-ui"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dstep_test" tests/ui_pages_test.c -lm
 run "live UI with FELUCCA_DRUM_STEP=1: the TR step sequencer (key -> step, pages, FOLLOW, the sound pick), screens, fuzz" "$OUT/ui_pages_dstep_test" "$OUT"
@@ -292,7 +289,7 @@ for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; 
 done
 run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN) and the help line, fuzz" "$OUT/ui_pages_bp_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
-run "live UI with the X0X kits built (their SOUND pages), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
+run "live UI with the X0X kits built (their SOUND pages; the drum ENV of a LEVEL-only sound, the 909 rim shot), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
 # the Felucca 1.0.2 / 1.0.3 small options (tests/fel102_ui.c), all on
 FEL102_ON="-DFELUCCA_BPM_LOCK=1 -DFELUCCA_DIV_ORDER=1 -DFELUCCA_PUNCH_LATCH=1 -DFELUCCA_MOTION=1 -DFELUCCA_MOTION_MARK=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $FEL102_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_fel102_test" tests/ui_pages_test.c -lm
