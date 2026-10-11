@@ -256,16 +256,16 @@ HOME (NO at the root) shows the mixer. **It is horizontal** [D, after the merge 
 shown on the cards (1x4 or 2x2, section 3) like any other screen's cursor row. It replaces the vertical strips of
 phases 2 to 5b (one track a column, KNOB k track k) and the DRUM MIXER screen.
 
-**The rows**, **four a screen** [D], each a quarter of the panel
-(41 px): T1 T2 T3 DR when the mixer opens; ALGORITHM past DR scrolls the window a row at a time through the lanes,
-past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
+**The rows**, shown **one group at a time** (section 13, 2026-10-11): the four channels T1 T2 T3 DR when the mixer
+opens, four rows of 41 px; ALGORITHM past DR shows the 16 drum sounds at once (two columns of eight), past T1 up MASTER
+alone on the whole panel. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
-| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
-| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND) | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
-| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **MASTER** (above T1) | FILT · DUST · DUCK, then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
+| **T1 · T2 · T3** | the mix VOLUME · PAN; the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
+| **DR** | VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
 The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
 SAVE held + SELECT, PROJECT by SAVE tapped and SYSTEM by HOME held alone (both provisional), SCOPE by HOME tapped on the
@@ -276,7 +276,7 @@ SOUND rows (a lane: that lane's; MASTER: the FX screen); with no cell picked it 
 (MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
 the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
 2's paging rule), and so does **GLO tapped again** (GLO tapped elsewhere opens the mixer); the header names the set
-(*Mix levels*, *Mix more*, *Mix screens*, *Mix master*). PRESETS browses the sound (section 12); on SOUND / KIT it
+(*T2 mix*, *T2 insert*, *T2 sends*, *T2 sound*, *Mix master*, *Mix comp*). PRESETS browses the sound (section 12); on SOUND / KIT it
 browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
 
 **Each row** [D: each row has a VU meter and its sequence below, like in SLOOP, with more space for the
@@ -1870,3 +1870,87 @@ user-default build has none of those switches, so its held step has the one page
 **ARP draws its pattern** (the same day): ARP's graph is the arpeggiator over a C major chord, OCT octaves, a mark a step of
 RATE, GATE long, every other step SWG late, the notes by MODE, a step PROB would skip dim; OFF the chord held. It fills
 the height the rows leave, as ENV's envelope does, the rows at ROW_H. Remaining screens with no picture and few rows (PROJECT, checked; any other list that fits the panel) keep a row pitch capped at 40 px, at the top of the panel.
+
+## 13. Requests of 2026-10-11 (batch 35: the mixer)
+
+**PRESETS repaints in place.** The user: "the screen flashes in mixer when i select drum lane presets". PRESETS on the
+drum track steps the kit (`drum_kit_step`) and on a synth the preset (`op_preset_go`); both used to set `ui.force`,
+which clears the whole LCD to black before the bands come back one blit at a time (and the user-preset and native-bank
+loads of the core ask for it too). Both now end in `op_preset_shown`: `ui.force` back to what it was before the load
+(a clear asked already stays), the rows fixed (another engine may have other rows) and `op_repaint`, every band drawn
+again over itself, as a track change has done since batch 34. Measured on the emulator (play_check, 96 MHz, a capture
+every 2 ms for 50 ms after each detent, counting pixels drawn before and after but black in between): PRESETS on the
+mixer's kick lane, 3 detents, worst capture 14,862 blanked pixels before, 0 after; on T1, 2 detents, 13,413 before,
+937 after (the toast's frame redrawn over the row, not a clear).
+
+**The mixer's knob sets in one order.** The user: the sets in a logical order, the same on every row: the mix first, then
+the insert effects, then the send effects, then the rest. Each row's items now carry their group (`mitem_t.grp`: MG_MIX,
+MG_INS, MG_SEND, MG_LAST) and `mx_items` starts each group on a set of its own, padding the set before with empty cells
+as long as what follows still fits the 20 cells (MX_MAXI); the header names the set by its first item's group (*T1 mix*,
+*T1 insert*, *T1 sends*, *T1 sound*; DR's last *Kit*; MASTER *Mix master*, *Mix comp*).
+
+| Row | Mix | Inserts | Sends | Last |
+|---|---|---|---|---|
+| T1 T2 T3 | VOLUME PAN | DRIVE (DIST when it is in a slot), FILTER (FELUCCA_TRK_FILT), COMP (in a slot) | REV DLY CHO, each in a slot | FX ON, SOUND |
+| DR | VOLUME (GLO > DRUMS) | FILTER | (none) | FX ON, KIT |
+| a lane | LEVEL CUT | DRIVE | REV DLY CHO, each in a slot | SOUND |
+| MASTER | FILT DUST DUCK | THRS RATIO GAIN CEIL (FELUCCA_MASTER_COMP) | | |
+
+The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), not the slots' order; an effect
+in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
+INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).
+
+**The mixer in three views.** The user: the mixer shows one group at a time, MASTER alone, or the four channels (T1 T2
+T3 and DR, the drum bus as a whole), or the drum sounds, and the view follows ALGORITHM. ALGORITHM walks the rows as
+before (MASTER, T1 .. DR, the 16 lanes, stopping at the ends); the panel shows only the cursor's group (`mx_view`:
+`mxd.first` .. `mxd.last`), redrawn in place by the panel's `cv_tall` when the group changes (no clear to black: the
+host test counts full-screen fills, and the emulator measurement of section 13's PRESETS applies to the walk too).
+`mx_rect` gives each row its place, steps and meter in its view; the live parts (meters, steps) are canvases of their
+own per row as before.
+
+| View | Rows | Each row |
+|---|---|---|
+| MASTER | the master alone, 240 x 164 | its name; a tall VU meter (14 px, 224 px wide) over a dB scale (a tick each 6 dB, 0 -12 -24 -48 named); the compressor's reduction as an amber bar from the right with its dB ("off" while THRS and CEIL are 0); then the four channels' meters (T1 T2 T3 DR, each in its colour): what feeds the master |
+| CHANNELS | T1 T2 T3 DR, 240 x 41 each | as before (section 12): the code and M / S badge, the engine and the preset, the 16 steps of the page playing with the page bars, the 3 px VU with the compressor's reduction |
+| SOUNDS | the 16 lanes, two columns of eight (1-8 left, 9-16 right), 120 x 20 each | the colour chip and code (BD SD CH ...), the lane's own hits on the page playing (6 px a step; an empty step a foot line, the playhead white), its hit meter (drums.hits, falling over 12 frames). The selected lane is framed and tinted; the header names it (*Snare mix*) |
+
+The levels are kept on a 0 .. 255 scale (`MX_LV`) and drawn to each view's meter width.
+
+**The track's name on a track change.** The user: when the selected track changes (ALGORITHM or any other way), the
+title bar shows briefly the full track name, engine and preset, the three synth tracks only, on every page. `draw_head`
+watches `song.sel` once a frame (`tflash_tick`): a change to T1, T2 or T3 starts ~1.5 s (`OP_TFLASH_FRAMES`, 90
+frames) in which the header reads the badge *TRACK 2* in the track's colour, then the engine in that colour and the
+preset in white (sentence case, cut to the room), with no position or tempo; then the normal header comes back. The
+drum track, MASTER (`ui.master`) and power-on show none; a message (`ui.msg_t`) and the NAME screen keep the header.
+It is drawn as the header always is, when its signature changes: in place, never a clear.
+## 14. Button LEDs: what can be pressed is half lit (batch 35, feat/ui-b35-led)
+
+The user, 2026-10-11: "the buttons that are available should be half lit (for instance no LFO on a drum lane)".
+**Three levels.** Full: the active button, as before (the screen's button, the layer shown, SAVE blinking on a question,
+PLAY on the beat, REC armed or recording, OCT while ghost / hard or the octave is shifted). Half: a button that does
+something now. Dark: one that does nothing. The half light is the HAL's glow layer (`fm1_led_dim`, hal/fm1_input.h: the
+landmark glow SLOOP's UI lights on the drum track's keys; one frame in four, or the GLOW pulse with LIGHTS), which sits
+under the full light, so a blinking button swings between full and half. The LIGHTS backlight stays under both.
+
+**What counts as available** (`op_btn_avail`, op_input.c, the conditions ui_input uses):
+
+| Button | Half lit when |
+|---|---|
+| HOME, SAVE, PLAY | always (NAME: the only buttons with a job besides the keys) |
+| REC, OCT-, OCT+, GLO, SEQ | always (NAME: dark) |
+| ENV, LFO | the selected track has SOUND rows of that family (`sound_page`, the rows `op_jump` opens); ENV also on an FM6 track (the operators) |
+| FX, SCL, EDIT, ARP | the track has rows of the family, or the button's held layer works (FX punch, SCL key, EDIT erase, ARP repeat: `ly_bit`, off on MASTER's EDIT and ARP) |
+| FX on the global FX screen | its next page |
+| any page button, STEP with a step held | the step's page lock (all but EDIT and GLO) |
+
+So on the drum track ENV and LFO are dark (the drum track has no envelope or LFO page); EDIT, FX, SCL, GLO, SEQ stay
+half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
+track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
+saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
+and OCT+ are never dark (a tap always shifts, or is ghost / hard on the drums).
+
+**Writes.** The levels are rebuilt each pass with the key LEDs and copied into `fm1_led` / `fm1_led_dim` only when a
+byte differs, so nothing is written while nothing changes; a track, lane, page or engine change is seen on the next pass.
+The code is in op_input.c next to `ui_leds`, not in HOT / ramtext. SLOOP's UI (ui/sloop/ui_input.c) lights buttons full
+only (the layer, PLAY, REC, OCT) and uses `fm1_led_dim` for the keys' landmarks; it shares none of this code and is
+unchanged.
