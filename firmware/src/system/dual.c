@@ -228,7 +228,7 @@ static HOT void dual_lfo_draw(void)
 static HOT void mix_block_dual(int32_t *out, uint32_t n)
 {
     mixacc_t *A = &dual_acc[0], *B = &dual_acc[1];
-    uint32_t i, p, mask = 0, req = 0, got = 0;
+    uint32_t i, p, mask = 0, req = 0, got = 0, sw;
 #if FELUCCA_USB_AUDIO
     capture_clear(n);                              /* the stems (each part writes its own; fx.c) */
 #endif
@@ -244,6 +244,8 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         duck_block(n * (uint32_t)song.g[G_BPM]);
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
     dual_lfo_draw();                               /* the LFOs' random values (the render draws none) */
+    sw = pold_any() ? FAR(pold_in)() : 0u;         /* (SLOOP 2.6) the parts fading after a sound load: their old
+                                                    * sound for this block, on both cores (voice.c sound_change) */
     if (dual.up && n == CTL) {
         mask = DUAL_PARTS;
         req = fm1_dual_mb.req + 1u;
@@ -287,6 +289,8 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
             mix_l[i] += B->mix_l[i];
             mix_r[i] += B->mix_r[i];
         }
+    if (sw)
+        FAR(pold_out)(sw);                         /* (and the new one back) */
     mix_finish(out, n);
 #if FELUCCA_MACROS
     FAR(mac_post)();

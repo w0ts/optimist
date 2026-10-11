@@ -2294,7 +2294,14 @@ static void events_block(uint32_t n)
         track_t *t = &trk[i];
         if ((pr >> i) & 1u) {
             midi_forget_track(i);
-            trk_all_off(t);
+            if (t->pold) {                            /* (SLOOP 2.6) a sound loaded: the notes keep sounding as they */
+#if FELUCCA_CHORDPLUS                                 /* are and fade out with the old sound (voice.c sound_change): */
+                strum_cancel(t, 0, 1);                /* no release cut short or played with the new sound's */
+#endif
+                t->nmono = 0, t->mono_note = 0, t->xp_n = 0;
+            } else {
+                trk_all_off(t);
+            }
             seq_out_track_off(t);                     /* (MIDI OUT: what this track sent ends too) */
             t->bend_target = t->bend_q8 = t->wheel_target = t->wheel_q8 = 0;
             t->nheld = 0;

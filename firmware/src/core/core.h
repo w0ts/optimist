@@ -386,6 +386,7 @@ typedef struct track {
     int16_t armp, aholdp;        /* P_AMODE / P_AHOLD as last seen by the ISR */
     /* engine switch (voice.c engine_block): the old engine's voices fade out, then it switches */
     uint8_t xf_on, xf;           /* fading; blocks of the fade still to render */
+    uint8_t pold;                /* SLOOP 2.6: a sound loaded, the sounding voices fade out with p_old first (voice.c) */
     int16_t pe_old[8];           /* P_E0..P_E7 of the sounding engine: the fade renders with these */
     uint8_t xp_n, xp_note[4], xp_vel[4];   /* note-ons during the fade, played on the new engine */
 #if FELUCCA_PATTERNS

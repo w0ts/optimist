@@ -429,7 +429,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     if ((uint32_t)(t - trk) < NPART && note < 128u)
         note_hits[t - trk][note >> 5] |= 1u << (note & 31u);
 #endif
-    if (t->xf_on || t->eng_req != t->engine) {          /* engine switch under way: after the fade */
+    if (t->xf_on || t->eng_req != t->engine || t->pold) {   /* engine switch / sound load under way: after the fade */
         for (i = 0; i < t->xp_n && t->xp_note[i] != note; i++)
             ;
         if (i == t->xp_n && t->xp_n < 4u)
@@ -602,11 +602,67 @@ static void strum_block(uint32_t n)
  * parameters (pe_old: an engine never reads another engine's values, which index its tables); only
  * then the engine switches and the notes that came during the fade start on it. A part with nothing
  * sounding switches at once. */
-#define XF_BLOCKS 4u                                    /* 4 x 32 samples: 2.9 ms */
+#define XF_BLOCKS 8u                                    /* 8 x 32 samples: 5.8 ms (SLOOP 2.6, as Clipper: a bass
+                                                         * fades without a thump; 2.9 ms before) */
+/* SLOOP 2.6 (isod89/sloop-fm1 v2.6 d30d655 voice.c sound_change, GPL-3.0-only): a sound (a factory or user preset, a
+ * native bank tone, an engine, NEW) about to load on part t: the sound as it is now kept for the fade (main loop,
+ * before the new values are written). The voices sounding then fade out over XF_BLOCKS rendered with these values,
+ * the part's DIST, FX slots, level and sends included (fx.c mix_part swaps them in), as for an engine switch: no jump
+ * of a filter, a drive or a release in the middle of a note (a click). A fade under way keeps the sound it started
+ * from. Not on a part that plays FM6: its patch lives in a buffer of its own (fm6_ed, swapped by fm6_sync on VOICE),
+ * which the fade cannot keep; its notes stop with Dexed's one-block fade, as before */
+static int16_t p_old[NPART][P_COUNT];
+static void sound_change(track_t *t)
+{
+    uint32_t k = (uint32_t)(t - trk);
+    if (k >= NPART || t->pold || ENG_IS(ENGINES[t->engine % NENGINES], FM6))
+        return;
+    memcpy(p_old[k], t->p, sizeof p_old[k]);           /* (the ISR reads p_old only once pold is set) */
+    __asm__ volatile("" ::: "memory");
+    t->pold = 1;
+}
+/* the sound before the load <-> part k's: an exchange (twice: as it was) */
+static void pold_swap(uint32_t k)
+{
+    int16_t *a = trk[k].p, *b = p_old[k];
+    uint32_t i;
+    for (i = 0; i < P_COUNT; i++) {
+        int16_t x = a[i];
+        a[i] = b[i];
+        b[i] = x;
+    }
+}
+/* the mix of the parts (fx.c mix_block, dual.c mix_block_dual), a block of a fade (in flash: 8 blocks a load):
+ * pold_in swaps each part fading after a sound load to its old sound and returns their mask; pold_out(mask) swaps
+ * them back after the parts are mixed (track_render counts the fade down meanwhile: the mask, not the state) */
+AINL uint32_t pold_any(void)
+{
+    uint32_t k, a = 0;
+    for (k = 0; k < NPART; k++)
+        a |= trk[k].pold;
+    return a;
+}
+static __attribute__((noinline)) uint32_t pold_in(void)
+{
+    uint32_t k, m = 0;
+    for (k = 0; k < NPART; k++)
+        if (trk[k].pold && trk[k].xf_on && trk[k].xf) {
+            pold_swap(k);
+            m |= 1u << k;
+        }
+    return m;
+}
+static __attribute__((noinline)) void pold_out(uint32_t m)
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        if ((m >> k) & 1u)
+            pold_swap(k);
+}
 static void engine_block(track_t *t)
 {
     uint32_t i, any = 0;
-    if (t->xf_on || t->eng_req != t->engine) {
+    if (t->xf_on || t->eng_req != t->engine || t->pold) {
         if (!t->xf_on) {
             for (i = 0; i < NVOICE; i++)
                 any |= t->v[i].active;
@@ -626,6 +682,7 @@ static void engine_block(track_t *t)
         }
         t->engine = t->eng_req % NENGINES;
         t->xf_on = 0;
+        t->pold = 0;
         t->nmono = 0;
         t->mono_note = 0;
         {

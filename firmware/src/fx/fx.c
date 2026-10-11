@@ -1512,7 +1512,6 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #endif
     }
 }
-
 /* ---- DUST: the master through an old sampler and a record. G_DUST 0..127 turns up together: drive
  * into a soft clip, a lower sample rate (held samples, 44.1 -> 11 kHz), fewer bits (15 -> 8), a
  * one-pole low-pass (open -> ~3 kHz), a little hiss and crackle. The hiss and the crackle are the
@@ -1751,8 +1750,13 @@ static HOT void mix_block(int32_t *out, uint32_t n)
 #endif
     dbus_run(n);                                        /* its inserts and its own sends (above) */
     SCOPE_DRUMS(scope_drums_take);
-    for (i = 0; i < NPART; i++)
-        mix_part(&trk[i], n);
+    {
+        uint32_t sw = pold_any() ? FAR(pold_in)() : 0u; /* (SLOOP 2.6) the parts fading out after a sound load: this */
+        for (i = 0; i < NPART; i++)                     /* block with their old sound (voice.c sound_change) */
+            mix_part(&trk[i], n);
+        if (sw)
+            FAR(pold_out)(sw);                          /* (and the new one back) */
+    }
     mix_finish(out, n);
 #if FELUCCA_MACROS
     FAR(mac_post)();                                    /* the authored values back */
