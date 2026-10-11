@@ -55,7 +55,7 @@ static void cards_tests(void)
     song.sel = 0;
     frame();
     check(op_cards == CARDS_LINE && ROWS_SHOWN == 8u && GRAPH_MIN == 58 && OP_PY == OY_PANEL,
-          "CARDS: four in a line by default, the panel at 76, 8 rows, the graph 58");
+          "CARDS 1x4 (the tests' mode, main): the panel at 76, 8 rows, the graph 58");
     op_enter(SCR_SOUND);                                /* (the mixer keeps 1x4: another screen) */
     op_cards = CARDS_2X2;
     check(ROWS_SHOWN == 5u && GRAPH_MIN == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
@@ -134,11 +134,14 @@ static void cards_tests(void)
         frame();
         turn(EN_K3, 1);
         w = bp23_word();
-        check(op_cards == CARDS_2X2 && ((w >> 23) & 1u), "SYSTEM SCREEN: KNOB 3 CARDS to 2x2, kept in the settings word (bit 23)");
+        check(op_cards == CARDS_2X2 && !((w >> 23) & 1u), "SYSTEM SCREEN: KNOB 3 CARDS to 2x2, kept in the settings word (bit 23 clear)");
+        turn(EN_K3, -1);
+        w = bp23_word();
+        check(op_cards == CARDS_LINE && ((w >> 23) & 1u), "... back to 1x4: bit 23 set (2026-10-12: 2x2 is the default)");
         bp23_from_word(w & ~(1u << 23));
-        check(op_cards == CARDS_LINE, "... a word without the bit: four in a line");
+        check(op_cards == CARDS_2X2, "... a word without the bit: 2x2 (every older record)");
         bp23_from_word(w);
-        check(op_cards == CARDS_2X2, "... read back: 2x2");
+        check(op_cards == CARDS_LINE, "... read back: 1x4");
         op_cards = CARDS_LINE;
     }
     op_cards = CARDS_2X2;                               /* random use in 2x2: every draw on the screen */

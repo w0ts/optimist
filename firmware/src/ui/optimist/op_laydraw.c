@@ -309,15 +309,16 @@ static void tempo_draw(int32_t h)
     char b[16];
     const char *u;
     uint32_t i, beat = song.playing ? clk_beat % 4u : 9u;
-    int32_t x, short_ = h < 58, dy = h > 58 ? (h - 58) / 2 : 0, bs = h >= 100 ? 28 : 16;   /* (CARDS 2x2: 40 rows, no clock
+    int32_t x, bx, short_ = h < 58, dy = h > 58 ? (h - 58) / 2 : 0, bs = h >= 100 ? 28 : 16;   /* (CARDS 2x2: 40 rows, no clock
                                                          * line; SYNC is a card; taller: the same, in the middle, the beat larger) */
     fmt_int(b, song.g[G_BPM]);
     x = cv_text(8, 6 + dy, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
     cv_text(x + 6, 20 + dy, &FONT_S, "BPM", C_GRAY);
+    bx = 236 - 4 * bs - 18 < 150 ? 236 - 4 * bs - 18 : 150;   /* (the larger beat: its four boxes inside the screen) */
     for (i = 0; i < 4u; i++)                            /* the beat */
-        cv_box(150 + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
+        cv_box(bx + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
     if (clk_nudge)
-        cv_text(150, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
+        cv_text(bx, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;
     param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);   /* the clock followed: "A:USB" */

@@ -212,10 +212,10 @@ static void layout_tests(void)
     op_cards = CARDS_2X2;
     ui.force = 1;
     frames(3);
-        check(lst.pic == 1u && lst.rh == ROW_H, "... and with CARDS 2x2");
+        check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "... and with CARDS 2x2: the picture alone (2026-10-12)");
     tap(B_LFO);
     frames(3);
-    check(lst.pic == 1u && GRAPH_H >= GRAPH_MIN && lst.top + (int32_t)lst.shown * ROW_H == OH_BODY, "SOUND LFO with CARDS 2x2: the picture and the rows fill the panel");
+    check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND LFO with CARDS 2x2: the picture fills the panel, no rows");
     op_cards = CARDS_LINE;
     op_enter(SCR_PROJECT);
     frames(3);

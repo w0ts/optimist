@@ -2056,6 +2056,7 @@ static void preset_engine_tests(void)
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
+#include "ui_optimist_cardspic.h"                  /* CARDS 2x2 the default, the picture alone */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
@@ -2138,6 +2139,9 @@ int main(int argc, char **argv)
     }
     panel = PANEL_DEFAULT;
     settings_init();
+    cards_boot = op_cards;                              /* (the default, checked in cards_pic_tests; the tests below
+                                                         * were written for 1x4 and set 2x2 where they test it) */
+    op_cards = CARDS_LINE;
     layers_init();
     go_home();
     frames(3);
@@ -2165,6 +2169,7 @@ int main(int argc, char **argv)
     preset_engine_tests();
     len_tests();
     cards_tests();
+    cards_pic_tests();
     step_cards_tests();
     step_cards_leak_tests();
     s35_entry_tests();

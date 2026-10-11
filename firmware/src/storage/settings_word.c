@@ -11,8 +11,8 @@
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
  * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (core/hold.h hold_sel: 0 350 ms, 1 250,
- * 2 500; shared with the main UI), bit 23 the Optimist UI's cards (FELUCCA_UI 1) (0 four in a line, 1 2 x 2 big; op_state.c
- * op_cards), bit SETTINGS_BLE_ON_BIT (24) BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it,
+ * 2 500; shared with the main UI), bit 23 the Optimist UI's cards (FELUCCA_UI 1) (0 2 x 2 big, the default, 1 four in a line: set
+ * only by a choice of 1x4, so every older word reads 2x2; op_state.c op_cards; until 2026-10-12 1 was 2x2), bit SETTINGS_BLE_ON_BIT (24) BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it,
  * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bit
  * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, so a record without it reads OFF, the default;
  * not in a 2.4 export), bits 27.. free; a build without a switch keeps its bit as read */
@@ -45,7 +45,7 @@ static uint32_t bp23_word(void)
 #endif
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
 #if FELUCCA_UI == 1
-    w = (w & ~(1u << 23)) | (uint32_t)(op_cards == CARDS_2X2) << 23;   /* the cards 1x4 / 2x2 (op_state.c) */
+    w = (w & ~(1u << 23)) | (uint32_t)(op_cards != CARDS_2X2) << 23;   /* the cards: 1 = 1x4, 0 = 2x2 (op_state.c) */
 #endif
 #if FELUCCA_BLE
     w = (w & ~(1u << SETTINGS_BLE_ON_BIT)) | (uint32_t)(ble_on != 0u) << SETTINGS_BLE_ON_BIT;       /* BLUETOOTH: ON is 1 (io/midi/midi_ble.c) */
@@ -80,7 +80,7 @@ static void bp23_from_word(uint32_t w)
 #endif
     hold_sel = (uint8_t)(((w >> 21) & 3u) % HOLD_N);
 #if FELUCCA_UI == 1
-    op_cards = (uint8_t)((w >> 23) & 1u);             /* (a word without the bit: the four cards in a line) */
+    op_cards = (uint8_t)((w >> 23) & 1u ? CARDS_LINE : CARDS_2X2);   /* (a word without the bit: 2x2, the default) */
 #endif
 #if FELUCCA_BLE
     ble_on = (uint8_t)((w >> SETTINGS_BLE_ON_BIT) & 1u);             /* (ON: the radio started at boot, ble_midi_init) */
