@@ -50,6 +50,9 @@ static uint8_t kb_root[27];                    /* KS_NOTE in chord mode: the key
 #endif
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
+#if FELUCCA_UI == 1
+static int8_t pen_oct;                          /* song.octave when the pen was written (STEP entry follows OCT) */
+#endif
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 /* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
@@ -478,15 +481,75 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
         s->vel = (uint8_t)vel;
 }
 
+#if FELUCCA_PLOCK
+/* The length of a live-recorded note, kept as a GATE lock on its last step (the automation store: no new parameter,
+ * nothing new saved). The TIE steps keep the whole steps; the lock the rest: a NOTE step plays GATE / 128 of a step,
+ * the last TIE of a chain slen / 2 + GATE / 128 of one (seq_step), so a note held r units into its last step L locks
+ *   L a NOTE: g = r x 128 / slen (1 .. 127)        L a TIE: g = (r - slen / 2) x 128 / slen (1 .. 64)
+ * (a TIE's note ends at the next step anyway: a REST or a note there releases it, so 64 is its whole step). So a note
+ * and k TIEs play k + 0.5 .. k + 1 steps, a NOTE alone up to 1: in the gaps the nearer one (rec_release keeps a TIE
+ * from a quarter into it, not the middle; 1.4 plays 1.5, 2.1 plays 2). Within REC_GATE_NEAR of the track's GATE: no
+ * lock (and a stale one on that step goes). Never on a ratchet step, never on a step that held notes before (overdub:
+ * the locks of the notes already there stay as they are). Every input (keys, MIDI, BLE MIDI) and the free take.
+ * The length runs from the start of the note's step (where it was quantised to) to the release, as heard. */
+#define REC_LEGATO_JOIN 1    /* a held note cut by the next note (legato; overdub reaching it) locks 127: joins it */
+#define REC_GATE_NEAR 4      /* (GATE points) */
+/* step L of track t plays its note at GATE g (own: the step is the recorded note's alone) */
+static void rec_gate_set(track_t *t, uint32_t L, int32_t g, uint32_t own)
+{
+    const step_t *s = &t->step[L % NSTEP];
+    int32_t base = lock_base_of(t, P_SGATE, t->p[P_SGATE]), d;
+    if (!own || s->time == ST_REST || (s->time == ST_NOTE && s->rat))
+        return;
+    g = clamp(g, 1, 127);
+    d = g - base;
+    if (d <= REC_GATE_NEAR && d >= -REC_GATE_NEAR)
+        lock_drop(t, L % NSTEP, P_SGATE);           /* plays at the track's GATE */
+    else
+        (void)lock_set(t, L % NSTEP, P_SGATE, g);   /* (the list full: the GATE plays, as before) */
+}
+/* ... held r units into it (slen: a step) */
+static void rec_gate(track_t *t, uint32_t L, int32_t r, uint32_t slen, uint32_t own)
+{
+    int32_t u = (int32_t)(slen >> 7);               /* (units per GATE point) */
+    if (u <= 0)
+        return;
+    if (t->step[L % NSTEP].time == ST_TIE) {
+        r -= (int32_t)(slen / 2u);
+        r = r < 64 * u ? r : 64 * u;                /* (its whole step: the next one ends it) */
+    }
+    rec_gate_set(t, L, r / u, own);
+}
+/* the hold of track t ends: its last step (grid step rh_start_abs + rh_ties) as long as r units, or (cut) joined to
+ * the next note */
+static void rec_len_end(track_t *t, int32_t r, uint32_t slen, int cut)
+{
+    uint32_t L = TRK_IDX(t, t->rh_start_abs + t->rh_ties, trk_len(t)), own = t->rh_ties ? 1u : t->rh_own;
+    if (cut)
+        rec_gate_set(t, L, REC_LEGATO_JOIN ? 127 : 0, REC_LEGATO_JOIN ? own : 0u);
+    else
+        rec_gate(t, L, r, slen, own);
+}
+#endif
+
 /* live recording into a synth part: the nearest step (rec_target). Held on: each further step the
  * sequencer enters while the note is held becomes a TIE (rec_hold), up to the pattern length and
  * never over a step with notes (overdub keeps them); a release before the middle of the last one
  * puts that step back (rec_release), so a short note stays one step. A note recorded into another
- * step ends the hold before (the step model ties the notes of one step only). */
+ * step ends the hold before (the step model ties the notes of one step only). With PLOCK the time
+ * held into the last step is kept too (rec_len_end). */
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
     uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
+    uint32_t had = t->step[idx].time == ST_NOTE && t->step[idx].n;   /* (overdub: notes there already) */
     undo_mark(t, UNDO_REC(t));
+#if FELUCCA_PLOCK
+    if (hold && t->rh_n && t->rh_start != idx) {    /* a held note cut by this one: joins it */
+        if (t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
+            t->rh_ties--;                           /* (this one goes into its last TIE: the step before is) */
+        rec_len_end(t, 0, 0, 1);
+    }
+#endif
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
     t->seq_active = 1;
     if (later) {                                    /* it sounds now: the step must not trigger it again */
@@ -501,6 +564,8 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
     if (!t->rh_n || t->rh_start != idx) {           /* a new hold (one in another step ends) */
         t->rh_n = 0;
         t->rh_start = (uint8_t)idx;
+        t->rh_start_abs = abs;
+        t->rh_own = (uint8_t)!had;
         t->rh_ties = 0;
     }
     for (k = 0; k < t->rh_n && t->rh_note[k] != note; k++)
@@ -532,6 +597,13 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
         return;
     if (!((song.rec >> trk_index(t)) & 1u) || t->rh_ties + 1u >= len) {
         t->rh_n = 0;                                /* disarmed, or the whole pattern is this note */
+#if FELUCCA_PLOCK
+        {
+            uint32_t into, slen;
+            (void)trk_grid(t, &into, &slen);
+            rec_len_end(t, (int32_t)slen, slen, 0); /* (held through its last step) */
+        }
+#endif
         return;
     }
     if (idx == t->rh_start)
@@ -539,6 +611,9 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     s = &t->step[idx];
     if (s->time == ST_NOTE && s->n) {
         t->rh_n = 0;                                /* a step with notes: the hold ends before it */
+#if FELUCCA_PLOCK
+        rec_len_end(t, 0, 0, 1);                    /* (and joins that note) */
+#endif
         return;
     }
     t->rh_bak = *s;
@@ -552,18 +627,30 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
 /* a key of a recorded note is up: the hold ends with the last one */
 static void rec_release(track_t *t, uint32_t note)
 {
-    uint32_t i, k = 0, into, slen, half, lat;
+    uint32_t i, k = 0, into, slen, half, lat, abs;
     for (i = 0; i < t->rh_n; i++)
         if (t->rh_note[i] != note)
             t->rh_note[k++] = t->rh_note[i];
     if (k == t->rh_n || (t->rh_n = (uint8_t)k))
         return;                                     /* not one of them, or others still held */
-    if (!t->rh_ties || trk_grid(t, &into, &slen) != t->rh_last_abs)
-        return;
+    abs = trk_grid(t, &into, &slen);
     half = slen / 2u;
     lat = REC_LAT * (uint32_t)song.g[G_BPM];
-    if (into <= half + (lat < half ? lat : half) && t->step[t->rh_last].time == ST_TIE)
+    lat = lat < half ? lat : half;
+#if FELUCCA_PLOCK
+    half /= 2u;                                     /* (a TIE kept from a quarter in: the nearer length, rec_gate) */
+#endif
+    if (t->rh_ties && abs == t->rh_last_abs && into <= half + lat && t->step[t->rh_last].time == ST_TIE) {
         t->step[t->rh_last] = t->rh_bak;            /* released early in it: not held into this step */
+        t->rh_ties--;
+    }
+#if FELUCCA_PLOCK
+    {
+        int32_t d = (int32_t)(abs - (t->rh_start_abs + t->rh_ties));   /* steps from its last (-1: recorded ahead) */
+        d = clamp(d, -1, 2);
+        rec_len_end(t, d * (int32_t)slen + (int32_t)into - (int32_t)lat, slen, 0);
+    }
+#endif
 }
 
 /* LIVE recording, no click needed (REC: ui_input.c rec_toggle).
@@ -738,6 +825,10 @@ static void ft_close(void)
             uint32_t d = ft_ev[i].d == FT_OPEN || ft_ev[i].t + ft_ev[i].d > T ? T - ft_ev[i].t : ft_ev[i].d;
             uint32_t idx = (ft_ev[i].t * len * 2u + T) / (2u * T) % len;
             uint32_t steps = (d * len * 2u + T) / (2u * T);
+#if FELUCCA_PLOCK
+            uint32_t x = d * len * 128u / T;           /* its length in 1/128 steps (d < 2^16, len <= 64) */
+            steps = x < 128u ? 1u : x / 128u + (x % 128u >= 32u);   /* (k TIEs: k + 0.5 .. k + 1: rec_gate) */
+#endif
             for (k = 1; k < steps && k < len; k++) {
                 step_t *s = &t->step[(idx + k) % len];
                 if (s->time == ST_NOTE && s->n)
@@ -745,6 +836,13 @@ static void ft_close(void)
                 memset(s, 0, sizeof *s);
                 s->time = ST_TIE;
             }
+#if FELUCCA_PLOCK
+            if (k < steps && k < len)                 /* cut by the next note: joins it */
+                rec_gate_set(t, (idx + k - 1u) % len, REC_LEGATO_JOIN ? 127 : 0, REC_LEGATO_JOIN);
+            else if (k == steps)                      /* (as long as it was held; not past the loop) */
+                rec_gate_set(t, (idx + k - 1u) % len,       /* (the project was empty: every step its own) */
+                             k > 1u ? clamp((int32_t)(x - (k - 1u) * 128u) - 64, 1, 64) : (int32_t)x, 1u);
+#endif
         }
     t->seq_active = 1;
     song.g[G_BPM] = (int16_t)bpm;
@@ -1388,6 +1486,9 @@ static void key_down(uint32_t k)
             pen_n = 0;
         for (i = 0; i < kb_n[k] && pen_n < 4u; i++)
             pen_note[pen_n++] = kb_nt[k][i];
+#if FELUCCA_UI == 1
+        pen_oct = (int8_t)song.octave;
+#endif
     }
 }
 
@@ -1669,6 +1770,9 @@ static void seq_reset_tracks(uint32_t pos)
 static void song_backup(void);                     /* project.c: song mode keeps the loop you made */
 static void song_restore(void);
 
+#if FELUCCA_MIDI_CLKOUT
+static uint8_t clko_started;                       /* seq_start ran since the last block (io/midi/clock_out.c: FA) */
+#endif
 static void seq_start(void)
 {
 #if FELUCCA_ARRANGER
@@ -1682,6 +1786,9 @@ static void seq_start(void)
     if (!arrangement_start()) return;
 #endif
     seq_reset_tracks(0);
+#if FELUCCA_MIDI_CLKOUT
+    clko_started = 1;                              /* (a restart while playing: FA again) */
+#endif
 }
 
 static void seq_release(track_t *t)
@@ -2098,6 +2205,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 #include "../io/midi/midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */
 
 #include "../io/midi/clock_sync.c"           /* MIDI clock in (GLO > SYSTEM SYNC) */
+#include "../io/midi/clock_out.c"            /* MIDI clock out (HOME menu CLOCK OUT; FELUCCA_MIDI_CLKOUT) */
 
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples
@@ -2242,6 +2350,7 @@ static void events_block(uint32_t n)
     roll_block(adv);
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
+    clko_block(n, adv, ext);                          /* MIDI clock out: the ticks of this block, timed as heard */
     if (song.playing) {
         song.tick++;
         if (!ext) {

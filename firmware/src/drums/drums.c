@@ -115,6 +115,8 @@ static const char *const LANE_NAME[DRUM_LANES] = {
 static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: tiles, dials */
     "kick", "kick2", "snare", "clap", "c.hat", "o.hat", "p.hat", "rim",
     "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
+static const char *const LANE_CODE[DRUM_LANES] = {     /* 2 characters: the mixer's rows, the drum grids' lanes */
+    "BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS", "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
     /* 35 */ 1, 0, 7, 2, 3, 8, 9, 4, 9, 6,

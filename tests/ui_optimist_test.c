@@ -52,7 +52,7 @@ static uint8_t fm1_led_bg[16];
 static uint16_t fm1_led_bg_ns;
 #endif
 #define FM1_NCOL 16u
-static const int8_t FM1_KEYMAP[5][16];
+static int8_t FM1_KEYMAP[5][16];                      /* (filled in main: every button and key one LED place) */
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static uint32_t edges_btn, notes_seen;
 static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
@@ -955,6 +955,22 @@ static void step_synth_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-step-roll");
+#if FELUCCA_PLOCK
+    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): LENGTH shows it; KNOB 4 whole steps */
+        cell_t c;
+        int32_t v;
+        (void)lock_set(t, 6, P_SGATE, 39);           /* 3 NOTE, 4 .. 6 TIE: 6 ends 0.5 + 39 / 128 in, 3.8 steps */
+        kdown(WK(3));
+        step_cell(0, 3, &c);
+        check(!strcmp(c.val, "3.8"), "synth: LENGTH of a recorded note: the fraction (3.8)");
+        turn(EN_K4, -1);
+        step_cell(0, 3, &c);
+        check(!strcmp(c.val, "3") && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
+              "synth: KNOB 4 on it: whole steps, the fraction goes");
+        turn(EN_K4, 1);
+        kup(WK(3));
+    }
+#endif
     kdown(WK(8));
     kdown(WK(9));
     turn(EN_K2, -1);
@@ -1053,7 +1069,7 @@ static void step_synth_tests(void)
         song.sel = 0;
         check(!bad, "STEP's held-step lines under the grid fit (232 px)");
     }
-    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240,
+    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240 && RL_X + 16 * RL_CW <= 240,
           "the grid, its marks and playhead to the screen's foot, the held step's two lines over its foot, its width");
     {   /* the keys' lights: the set steps of the window */
         uint32_t m;
@@ -1762,8 +1778,8 @@ static void auto_step_tests(void)
         ui.force = 1;
         frame();
         {
-            uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = SG_X + 3u * SG_CW + (SG_CW - 2u) / 2u,
-                     xt = SG_X + 6u * SG_CW + 2u, x9 = SG_X + 9u * SG_CW + (SG_CW - 2u) / 2u;
+            uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = RL_X + 3u * RL_CW + (RL_CW - 2u) / 2u,
+                     xt = RL_X + 6u * RL_CW + 2u, x9 = RL_X + 9u * RL_CW + (RL_CW - 2u) / 2u;   /* (a synth track: the roll's columns) */
             check(screen[y * 240u + x3] == swap16(trk_col(0)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
                   screen[y * 240u + x9] != swap16(trk_col(0)),
                   "the marks under the steps: a dot under step 4, its hold's tail on to LEN; step 10 (no event) none");
@@ -2028,14 +2044,70 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
+#include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
+#include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+#include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
+/* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
+static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
+{
+    uint8_t q = led_pos[panel.btn[b]];
+    if (q == 0xFF)
+        return 9;
+    return (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+}
+static void led_tests(void)
+{
+    uint32_t b;
+    reset_ui();
+    song.sel = 0;
+    frames(2);
+    check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == 1 && led_lvl(B_FX) == 1, "LEDs, a synth track: ENV LFO FX are half lit");
+    check(led_lvl(B_HOME) == 2 && led_lvl(B_SAVE) == 1 && led_lvl(B_PLAY) == 1 && led_lvl(B_REC) == 1,
+          "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
+    song.sel = TRK_DRUM;
+    frames(2);
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "LEDs, the drum track: no LFO; ENV half lit (its lane's envelope)");
+    check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
+          "LEDs, the drum track: EDIT FX GLO SEQ half lit");
+    for (b = 0; b < NB; b++)
+        if (led_lvl(b) == 9)
+            break;
+    check(b == NB, "LEDs: every button has an LED place in the test");
+    tap(B_SEQ);
+    frames(2);
+    check(ui.scr == SCR_STEP && led_lvl(B_SEQ) == 2 && led_lvl(B_LFO) == 0, "LEDs: on STEP the SEQ button is full, LFO stays dark");
+    song.sel = 0;
+    tap(B_LFO);
+    frames(2);
+    check(ui.scr == SCR_SOUND && led_lvl(B_LFO) == 2 && led_lvl(B_ENV) == 1, "LEDs: on the LFO page its button is full, ENV half");
+    tap(B_HOME);
+    frames(2);
+    {
+        uint8_t d0[16], d1[16];
+        memcpy(d0, fm1_led_dim, sizeof d0);
+        frames(5);
+        memcpy(d1, fm1_led_dim, sizeof d1);
+        check(!memcmp(d0, d1, sizeof d0), "LEDs: nothing changes while nothing changes");
+    }
+    song.sel = 0;
+    reset_ui();
+}
+
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
+    {
+        uint32_t i;
+        for (i = 0; i < 5u * 16u; i++)
+            FM1_KEYMAP[i / 16u][i % 16u] = -1;
+        for (i = 0; i < 41u; i++)
+            FM1_KEYMAP[1u + i / 16u][i % 16u] = (int8_t)i;
+    }
     host_tracks_init();
 #if FELUCCA_PATTERNS
     memset(nor, 0xFF, sizeof nor);                      /* an erased NOR: the section log empty */
@@ -2080,14 +2152,23 @@ int main(int argc, char **argv)
     len_tests();
     cards_tests();
     step_cards_tests();
+    step_cards_leak_tests();
+    s35_entry_tests();
+    s35_transpose_tests();
+    s35_roll_tests();
+    s35_drum_codes_tests();
+    s35_pages_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();
+    clkout_tests();
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
     drum_env_tests();
+    mix35_tests();
+    led_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

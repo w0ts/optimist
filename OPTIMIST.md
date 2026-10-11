@@ -549,7 +549,31 @@ Measured in the emulator, a note to the first sample out:
 
 None of this is measured on a real FM-1 yet: the codec's own delay is not known, so it is not included
 (`SYNC_DAC_US` in `clock_sync.c`, 0), and the 10 kHz USB check (one register read a tick) is untried on the
-hardware. Optimist does not send MIDI clock.
+hardware.
+
+### Clock out (CLOCK OUT)
+
+**HOME menu > SYSTEM, the HOLD screen, row 3: CLOCK OUT** (Optimist UI: SYSTEM > CLOCK OUT), **off** by default; OCT+
+toggles it, KNOB 3 right turns it on, left off. A setting of the FM-1, kept over project loads (settings word bit 26).
+On, the FM-1 sends MIDI clock **on USB** (the TRS jack is MIDI in only: the board has no MIDI out on it):
+
+- **F8 at 24 a beat, always**, also while stopped, so the other side has the tempo before the start;
+- **Start (FA)** when PLAY starts from the top, then the downbeat's F8; **Stop (FC)** at STOP; a restart from the top
+  sends Start again; when the FM-1 itself continues an external song (following a clock, Continue), **Song Position
+  (F2, in 16ths) + Continue (FB)**;
+- each pulse leaves **when the sound of its position does** (the same output latency allowance as the steps), with no
+  jitter of its own; it follows tempo changes and the TEMPO page's nudge, and **never swings** (swing moves steps, not
+  the beat);
+- following an external clock: following **USB**, nothing is sent back to USB (no loop through a host that echoes;
+  the menu shows CLOCK OUT amber); following **TRS**, the clock goes on to USB at the followed tempo, filtered (a
+  TRS-to-USB clock bridge).
+
+Measured in the host simulation (`tests/clock_out_test.c`; usb.c's own queue, the 10 kHz send): on the internal
+tempo every pulse within 0.0002 ms of its period at 40, 97, 120, 173 and 240 BPM; each beat's pulse against the onset
+of a hat on that beat: mean within ±0.13 ms, worst 0.39 ms (a step starts at the first 32-sample block at or past it,
+so steps are up to 0.73 ms late, 0.36 ms on average: the pulses take that mean); following a TRS clock, within
+0.08 ms of the sound. The USB host polls the device's MIDI endpoint on its own schedule (at most once a USB frame,
+1 ms, on many hosts), which a receiving computer adds to this. Not yet run on a real FM-1.
 
 ## The web editor
 
@@ -784,7 +808,7 @@ Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Fel
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo (many levels, in the memory the build leaves over), 32 user presets, autosave of the working project, song of 16 sections (A–P, compressed) × 64 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
-| MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; pitch bend (RPN 0 range), mod wheel, sustain, CC120 / 121 / 123; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) |
+| MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; pitch bend (RPN 0 range), mod wheel, sustain, CC120 / 121 / 123; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) and out (USB, HOME menu CLOCK OUT) |
 | USB audio (experimental) | class-compliant (UAC1), 44.1 kHz, 16 / 24 bit: 4 mono track inputs to the computer, stereo playback into the FM-1 |
 | Update | over USB from the browser (package SHA-256 and CRC checked) |
 

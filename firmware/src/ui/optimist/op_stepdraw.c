@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* STEP's panel (docs/UI-OPTIMIST-DESIGN.md section 4.2): the window's 16 steps as columns under the keys.
  *   the drum track   the 16 lanes x the 16 steps: a hit in its lane's colour, its level as the shade (ghost dim ..
- *                    hard full), its ratchet as notches; the selected lane's row lit, its colour strip at the left
+ *                    hard full), its ratchet as notches; the selected lane's row lit; at the left each lane's colour
+ *                    chip and two-letter code (LANE_CODE, as the mixer), the selected lane's white
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
  * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; under the
@@ -9,8 +10,9 @@
  * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
  * strip (a canvas of its own, so a playing grid is drawn again only when a step changes; when the playhead is outside
  * the window, a mark at the side it is on). One 240 x 123 canvas: gfx.c's band. */
-#define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
-#define SG_CW 14
+#define SG_X 26                         /* the first column's x (the gutter left of it: the lanes' codes, the note names);
+                                         * a column is SG_CW wide, its cell SG_CW - 2 (the roll's note SG_CW - 1) */
+#define SG_CW 13
 #define SG_TOP 1
 #define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
 #define SP_H (240 - SP_Y)
@@ -28,11 +30,11 @@ static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its
     static const uint8_t SH[4] = {3, 5, 7, 8};
     return col_shade(c, SH[lvl_rank(lv)]);
 }
-static void sg_notches(int32_t x, int32_t y, int32_t h, uint32_t rat)   /* ratchet x2..x4: 1..3 cuts in the cell */
+static void sg_notches(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rat)   /* ratchet x2..x4: 1..3 cuts in the cell */
 {
     uint32_t i;
     for (i = 1; i <= rat; i++)
-        cv_rect(x + (int32_t)i * (SG_CW - 2) / (int32_t)(rat + 1u), y, 1, h, C_BLACK);
+        cv_rect(x + (int32_t)i * w / (int32_t)(rat + 1u), y, 1, h, C_BLACK);
 }
 static void sg_ground(const track_t *t)                 /* the beats, the steps past LEN, the columns held */
 {
@@ -61,7 +63,8 @@ static void sg_drums(const track_t *t)
     for (l = 0; l < DRUM_LANES; l++) {
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
         uint16_t c = lane_col(l);
-        cv_rect(2, y, l == sel ? 10 : 6, lh - 1, l == sel ? C_WHITE : c);
+        cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
+        cv_text(6, y + (lh - 16) / 2, &FONT_S, LANE_CODE[l], l == sel ? C_WHITE : c);   /* (the user, 2026-10-11) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
@@ -69,74 +72,180 @@ static void sg_drums(const track_t *t)
             if (idx >= len || !dstep_has(d, l))
                 continue;
             cv_rect(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
-            sg_notches(x, y, lh - 1, dstep_rat(d, l));
+            sg_notches(x, y, SG_CW - 2, lh - 1, dstep_rat(d, l));
         }
     }
 }
-/* the roll's note range: the window's notes (and the tie origins), at least an octave and a bit, the pick inside */
-static void roll_range(const track_t *t, int32_t *lo, int32_t *hi)
+/* ---- the synth roll (the user, 2026-10-11: "looks a bit sad compared to sloop. could we have the note names on the
+ * left, and more details ?"): the note names in a gutter on the left (the Cs with their octave, C4; every row when
+ * the rows are tall enough, else the Cs and the rows with a note), the black keys' rows a faint tint (C_LINE at 2/8,
+ * from the gutter on, as a keyboard's), the octaves ruled under each C, the bar's
+ * start and the end of LEN in C_DIM, the beats in C_LINE, each note a bar as long as its ties, its level the shade,
+ * an accent a white top edge, the ratchet as notches, the playhead's column white (its own canvas: a column is
+ * painted again, not the band) */
+#define RL_X SG_X                       /* the roll's columns: the drum grid's */
+#define RL_CW SG_CW
+static int32_t sg_ox;                   /* the x the canvas starts at: 0 the band, a column's for its own canvas */
+static int32_t sg_ph = -1;              /* the roll's playhead column as painted (-1 none) */
+#define RR(x, y, w, h, c) cv_rect((x)-sg_ox, y, w, h, c)
+static int is_black(int32_t n) { return (0x54Au >> (n % 12)) & 1; }   /* C# D# F# G# A# */
+static struct {
+    int32_t lo, hi, rh;
+} rg;
+/* the rows: the pattern's notes (every page alike), 13 semitones at least, the pick's around an empty one; the rows as
+ * tall as fit (16 px at most), then as many more as the height holds, half above, half below */
+static void roll_range(const track_t *t)
 {
-    uint32_t w, i, len = trk_len(t);
-    int32_t a = 127, b = 0;
-    for (w = 0; w < 16u; w++) {
-        const step_t *s = &t->step[(st.page * 16u + w) % NSTEP];
-        if (st.page * 16u + w >= len || !step_on(s))
+    uint32_t i, j, len = trk_len(t);
+    int32_t a = 127, b = 0, rows, ex;
+    for (i = 0; i < len && i < NSTEP; i++) {
+        const step_t *s = &t->step[i];
+        if (!step_on(s))
             continue;
-        for (i = 0; i < s->n && i < 4u; i++)
-            a = s->note[i] < a ? s->note[i] : a, b = s->note[i] > b ? s->note[i] : b;
+        for (j = 0; j < s->n && j < 4u; j++)
+            a = s->note[j] < a ? s->note[j] : a, b = s->note[j] > b ? s->note[j] : b;
     }
-    if (a > b)                                          /* (an empty window: around the pick) */
-        a = b = pen_n ? pen_note[0] : last_note;
+    if (a > b)                                          /* (an empty pattern: around the pick) */
+        a = b = (int32_t)pick_note(0);
     while (b - a < 12)
         a > 0 ? a-- : 0, b < 127 ? b++ : 0;
-    if (b - a > 55)                                     /* (2 px a semitone at least: the lowest notes kept) */
-        b = a + 55;
-    *lo = a;
-    *hi = b;
+    if (b - a > 50)                                     /* (4 px a row at least: the lowest notes kept) */
+        b = a + 50;
+    rg.rh = SG_H / (b - a + 1);
+    rg.rh = rg.rh > 16 ? 16 : rg.rh;
+    rows = SG_H / rg.rh;                                /* (rh >= 4: no divide by 0) */
+    ex = rows - (b - a + 1);
+    a -= ex / 2;
+    b += ex - ex / 2;
+    if (a < 0)
+        b -= a, a = 0;
+    if (b > 127)
+        a -= b - 127, b = 127;
+    rg.lo = a < 0 ? 0 : a;
+    rg.hi = b;
+}
+#define NY(nt) (SG_TOP + (rg.hi - (nt)) * rg.rh)
+static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
+{
+    uint32_t k, len = trk_len(t);
+    for (k = 0; k < len && t->step[idx % NSTEP].time == ST_TIE; k++)
+        idx = (idx + len - 1u) % len;
+    return idx;
+}
+static void roll_label(int32_t n, uint16_t c)           /* a row's name, "C4" for a C, in the gutter */
+{
+    char b[6];
+    if (n % 12 == 0)
+        note_name(b, (uint32_t)n);
+    else
+        str_cpy(b, N_NOTE[n % 12], 3);
+    cv_text(2 - sg_ox, NY(n) + (rg.rh - 16) / 2, &FONT_S, b, c);
+}
+/* the gutter: every row named when the rows are tall enough (11 px), else the Cs, then the rows with a note in the
+ * window where they do not touch a name above */
+static void roll_names(uint64_t used)
+{
+    int32_t n, last = -100;
+    if (rg.rh >= 11) {
+        for (n = rg.lo; n <= rg.hi; n++)
+            roll_label(n, n % 12 == 0 ? C_HI : ((used >> (n - rg.lo)) & 1u) ? C_AMB : is_black(n) ? C_DIM : C_GRAY);
+        return;
+    }
+    for (n = rg.hi; n >= rg.lo; n--) {
+        int32_t y = NY(n), c = n % 12 == 0, near = 0, m;
+        if (!c && !((used >> (n - rg.lo)) & 1u))
+            continue;
+        for (m = n - 1; !c && m >= rg.lo && m > n - 12; m--)   /* (a C just under it keeps its place) */
+            near |= m % 12 == 0 && NY(m) - y < 11;
+        if (y - last < 11 || near)
+            continue;
+        roll_label(n, c ? C_HI : C_AMB);
+        last = y;
+    }
+}
+static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octaves, the beats; the gutter's keys */
+{
+    int32_t n, w, ye = SG_TOP + (rg.hi - rg.lo + 1) * rg.rh, xe;
+    uint32_t end = len > st.page * 16u ? len - st.page * 16u : 0u;
+    (void)t;
+    end = end > 16u ? 16u : end;
+    xe = RL_X + (int32_t)end * RL_CW - 1;               /* (the gap right of the last step within LEN) */
+    for (n = rg.lo; n <= rg.hi; n++) {
+        int32_t y = NY(n);
+        if (is_black(n))
+            RR(0, y, xe, rg.rh, col_shade(C_LINE, 2u));  /* (a tint, the gutter's name on it: the line colour at 2/8) */
+        if (n % 12 == 0)
+            RR(0, y + rg.rh - 1, xe, 1, C_LINE);           /* the octave: ruled under its C */
+    }
+    for (w = 0; w < (int32_t)end; w++) {
+        int32_t x = RL_X + w * RL_CW;
+        if (!(w & 3))
+            RR(x - 1, SG_TOP, 1, ye - SG_TOP, w ? C_LINE : C_DIM);   /* the bar's start, the beats */
+        RR(x, SG_TOP + SG_H - 1, RL_CW - 2, 1, C_LINE);  /* every step: a foot tick */
+    }
+    if (end)
+        RR(xe, SG_TOP, 1, ye - SG_TOP, end < 16u || st.page * 16u + 16u >= len ? C_DIM : C_LINE);   /* LEN's end */
 }
 static void sg_roll(const track_t *t)
 {
     uint32_t w, i, len = trk_len(t);
-    int32_t lo, hi, rh, n;
+    uint64_t used = 0;
     uint16_t c = trk_col(song.sel);
-    roll_range(t, &lo, &hi);
-    rh = SG_H / (hi - lo + 1);
-    rh = rh > 16 ? 16 : rh;
-    sg_ground(t);
-#define NY(nt) (SG_TOP + (hi - (nt)) * rh)
-    for (n = lo; n <= hi; n++)                          /* the Cs, faint */
-        if (n % 12 == 0)
-            cv_rect(SG_X - 4, NY(n) + rh - 1, 240 - SG_X + 4, 1, C_LINE);
+    int32_t m, h, ye;
+    roll_range(t);
+    m = rg.rh >= 6 ? 1 : 0;
+    h = rg.rh >= 6 ? rg.rh - 2 : rg.rh - 1;
+    ye = SG_TOP + (rg.hi - rg.lo + 1) * rg.rh;
+    roll_ground(t, len);
     for (w = 0; w < 16u; w++) {
-        uint32_t idx = st.page * 16u + w, org = idx;
-        const step_t *s = &t->step[idx % NSTEP];
-        int32_t x = SG_X + (int32_t)w * SG_CW;
+        uint32_t idx = st.page * 16u + w, tie;
+        const step_t *s;
+        int32_t x = RL_X + (int32_t)w * RL_CW;
         if (idx >= len)
-            continue;
-        if (s->time == ST_TIE) {                        /* a tie: its note's line, at the note's height */
-            uint32_t k;
-            for (k = 0; k < len && t->step[org % NSTEP].time == ST_TIE; k++)
-                org = (org + len - 1u) % len;
-            s = &t->step[org % NSTEP];
-            if (!step_on(s))
-                continue;
-            for (i = 0; i < s->n && i < 4u; i++)
-                if (s->note[i] >= lo && s->note[i] <= hi)
-                    cv_rect(x - 2, NY(s->note[i]) + (rh - 2) / 2, SG_CW, 2, col_shade(c, 5u));
-            continue;
-        }
+            break;
+        tie = t->step[idx % NSTEP].time == ST_TIE;
+        s = &t->step[roll_org(t, idx) % NSTEP];
         if (!step_on(s))
             continue;
         for (i = 0; i < s->n && i < 4u; i++) {
-            int32_t nt = s->note[i], y = NY(nt), h = rh > 2 ? rh - 1 : rh;
-            if (nt < lo || nt > hi)
+            int32_t nt = s->note[i], y = NY(nt);
+            uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : lvl_col(c, (s->lvl >> (2u * i)) & 3u);
+            if (nt < rg.lo || nt > rg.hi)
                 continue;
-            cv_rect(x, y, SG_CW - 2, h, lvl_col(c, (s->lvl >> (2u * i)) & 3u));
-            sg_notches(x, y, h, (s->rat >> (2u * i)) & 3u);
+            used |= (uint64_t)1u << (nt - rg.lo);
+            if (tie) {                                  /* (a tie: the bar on, over the gap before it) */
+                RR(x - 1, y + m, RL_CW, h, nc);
+                continue;
+            }
+            RR(x, y + m, RL_CW - 1, h, nc);             /* (a note: its head, a gap from the note before) */
+            if ((s->flags & SF_ACCENT) && h > 2)
+                RR(x, y + m, RL_CW - 1, 1, C_WHITE);
+            if ((s->rat >> (2u * i)) & 3u)
+                sg_notches(x - sg_ox, y + m, RL_CW - 1, h, (s->rat >> (2u * i)) & 3u);
         }
     }
-#undef NY
+    roll_names(used);
+    for (w = 0; w < 16u; w++) {                         /* the steps held: framed white */
+        int32_t x = RL_X + (int32_t)w * RL_CW;
+        if (!((st.held >> w) & 1u) || st.page * 16u + w >= len)
+            continue;
+        RR(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, RL_CW, 1, C_WHITE);
+        RR(x - 1, ye, RL_CW, 1, C_WHITE);
+        RR(x - 1, SG_TOP, 1, ye - SG_TOP, C_WHITE);
+        RR(x + RL_CW - 2, SG_TOP, 1, ye - SG_TOP, C_WHITE);
+    }
 }
+#undef NY
+static void roll_col(int32_t w)                         /* column w of the roll again, on a canvas of its own */
+{
+    sg_ox = RL_X + w * RL_CW - 1;
+    cv_begin(RL_CW, SG_TOP + SG_H, C_BLACK);
+    sg_roll(TSEL);
+    cv_blit((uint32_t)sg_ox, SP_Y);
+    sg_ox = 0;
+}
+#define GX SG_X                                         /* the panel's columns (the drum grid's and the roll's) */
+#define GCW SG_CW
 #if FELUCCA_AUTO
 /* the events of the window's steps: a dot each, a hold event's tail to the next hold event of its parameter (or LEN) */
 static void sg_marks(const track_t *t)
@@ -158,11 +267,11 @@ static void sg_marks(const track_t *t)
             a = s > lo ? s : lo;                        /* (the tail inside the window) */
             b = nx < hi ? nx : hi;
             if (a < b)
-                cv_rect(SG_X + (int32_t)(a - lo) * SG_CW + (s >= lo ? (SG_CW - 2) / 2 : -2), SG_MK_Y + 1,
-                        (int32_t)(b - a) * SG_CW - (s >= lo ? (SG_CW - 2) / 2 : -2) - 2, 1, col_shade(c, 5u));
+                cv_rect(GX + (int32_t)(a - lo) * GCW + (s >= lo ? (GCW - 2) / 2 : -2), SG_MK_Y + 1,
+                        (int32_t)(b - a) * GCW - (s >= lo ? (GCW - 2) / 2 : -2) - 2, 1, col_shade(c, 5u));
         }
         if (s >= lo && s < hi)
-            cv_rect(SG_X + (int32_t)(s - lo) * SG_CW + (SG_CW - 2) / 2 - 1, SG_MK_Y, 3, 3, c);
+            cv_rect(GX + (int32_t)(s - lo) * GCW + (GCW - 2) / 2 - 1, SG_MK_Y, 3, 3, c);
     }
 }
 #endif
@@ -182,7 +291,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         for (i = 0; i < DRUM_LANES; i++)
             h = hu(h, lane_col(i));
     else
-        h = hu(h, pen_n ? pen_note[0] : last_note);
+        h = hu(h, pick_note(0));
     return hu(h, settings.palette);
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
@@ -204,26 +313,45 @@ static void sg_paint(void)
     sg_marks(TSEL);
 #endif
 }
+static void step_strip(uint32_t key)                    /* the playhead's strip, the window's page in the gutter */
+{
+    uint32_t i, n = step_pages(TSEL), gw = (uint32_t)GX - 4u, sw;
+    cv_begin(240, 4, C_BLACK);
+    if (key < 16u)
+        cv_rect(GX + (int32_t)key * GCW, 0, GCW - 2, 4, C_WHITE);   /* the playhead's column */
+    else if (key != 0xFEu)
+        cv_rect(key == 16u ? 0 : 236, 0, 4, 4, C_DIM);  /* outside the window (FOLLOW off): which side */
+    sw = n > 1u ? gw / n : 0u;                          /* (n >= 1: LEN >= 1) */
+    for (i = 0; sw > 1u && i < n && key != 16u; i++)    /* the pages, the window's lit (1-16, 17-32, ...) */
+        cv_rect(1 + (int32_t)(i * sw), 1, (int32_t)sw - 1, 2, i == st.page ? C_HI : C_LINE);
+    cv_blit(0, SP_Y + SG_PH_Y);
+}
 static void draw_step_panel(void)
 {
     const track_t *t = TSEL;
     uint32_t sig, len = trk_len(t), at = t->seq_idx % len, key;
+    int32_t col;
+    key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
+    col = key < 16u ? (int32_t)key : -1;
     sig = step_sig();
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
+        sg_ph = col;                                    /* (the roll's playing column, white) */
         cv_tall(SP_Y, SP_H, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
         st.ph_drawn = 0xFF;
     }
-    key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
     if (key == st.ph_drawn || ui.overlay == 2u)         /* (still under a toast) */
         return;
     st.ph_drawn = (uint8_t)key;
-    cv_begin(240, 4, C_BLACK);
-    if (key < 16u)
-        cv_rect(SG_X + (int32_t)key * SG_CW, 0, SG_CW - 2, 4, C_WHITE);   /* the playhead's column */
-    else if (key != 0xFEu)
-        cv_rect(key == 16u ? 0 : 236, 0, 4, 4, C_DIM);  /* outside the window (FOLLOW off): which side */
-    cv_blit(0, SP_Y + SG_PH_Y);
+    step_strip(key);
+    if (!is_drum(t) && col != sg_ph && !ui.cards_t) {   /* the roll: the columns the playhead left and reached */
+        int32_t old = sg_ph;                            /* (not under the cards: the band again when they go) */
+        sg_ph = col;
+        if (old >= 0)
+            roll_col(old);
+        if (col >= 0)
+            roll_col(col);
+    }
 }
 /* STEP's frame: the grid on the whole panel, the four cards over its top and a held step's two lines over its foot
  * while ui.cards_t runs (a page change, a value edited, a step held: step_cards_show); when they go the grid is drawn
@@ -237,6 +365,8 @@ static void step_frame(void)
     uint32_t want = ui.cards_t != 0u, under, inf;
     if (was_held && !st.held && want)
         cards_snap_use = 1;
+    else if (!want)
+        cards_snap_use = 0;                             /* (the cards gone: no snapshot left over for later) */
     was_held = (uint8_t)(st.held != 0u);
     step_info();
     if (sg_info[0][0])

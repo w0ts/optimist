@@ -363,7 +363,9 @@ typedef struct track {
     uint8_t rh_start;            /* the step they were recorded into */
     uint8_t rh_ties;             /* TIE steps written after it */
     uint8_t rh_last;             /* the last of them; rh_bak: what it held (an early release puts it back) */
+    uint8_t rh_own;              /* rh_start held no note before: its GATE lock is the recorded note's (PLOCK) */
     uint32_t rh_last_abs;        /* (its step of the transport grid) */
+    uint32_t rh_start_abs;       /* rh_start's step of the transport grid (the length lock: seq.c rec_len_end) */
     step_t rh_bak;
     uint32_t pass;               /* loops played since PLAY (a recording pass: one undo) */
     /* mono */

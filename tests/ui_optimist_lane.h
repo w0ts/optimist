@@ -28,10 +28,11 @@ static void lane_preview_tests(void)
     turn(EN_ALGO, 1);
     check(lane_selected() == 4u && aud_lanes == 0u, "stopped, the mixer's ALGORITHM walk: silent (the user, 2026-10-10)");
     op_enter(SCR_STEP);                                 /* STEP, the clip editor: a lane change previews, stopped */
+    ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + 4u);      /* (the lane rows: SELECT picks the lane; PRESETS pages the window) */
     frame();
     aud_lanes = 0;
-    turn(EN_PRESET, 1);
-    check(lane_selected() == 5u && aud_lanes == 1u << 5, "stopped, STEP: a lane picked (PRESETS) previews its sound once");
+    turn(EN_SELECT, 1);
+    check(lane_selected() == 5u && aud_lanes == 1u << 5, "stopped, STEP: a lane picked (SELECT on the lane rows) previews its sound once");
     frame();
     check(aud_lanes == 0u, "... played by the next block, once");
     go_home();

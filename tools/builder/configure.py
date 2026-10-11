@@ -225,8 +225,6 @@ def apply_env(cfg, env):
             cfg[k] = int(env[it.flag].rstrip("u"))
     if env.get("FELUCCA_LCD_BAUD", "") in ("0", "1", "2", "3", "4"):
         cfg["LCD_BAUD"] = int(env["FELUCCA_LCD_BAUD"])
-    if env.get("FELUCCA_SIZE") in ("0", "1"):
-        cfg["SIZE"] = int(env["FELUCCA_SIZE"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):
         cfg["ENG_SLICE"] = int(env["FELUCCA_SLICE"])
     if "FELUCCA_USB_AUDIO" in env or "FELUCCA_CDC" in env:
@@ -357,8 +355,7 @@ def flags(cfg):
     skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
-           "FELUCCA_SIZE": str(cfg["SIZE"])}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
     return out, env
 
 

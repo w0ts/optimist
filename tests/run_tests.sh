@@ -197,6 +197,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_UNDO_HISTORY=0 -o "$OUT/undo_test1
 run "undo: the single level (FELUCCA_UNDO_HISTORY=0)" "$OUT/undo_test1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
 run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm
+run "MIDI clock out: 24 PPQN at 5 tempos, with the sound, FA / FC / F2 + FB, OFF, tempo change, no swing, ext follow" "$OUT/clock_out_test"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
@@ -431,6 +433,11 @@ run "BLE start-ups in the emulator, the full option set (BLE USB_MODE BLE_BOND B
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PLOCK=1 -o "$OUT/hostsim_plock" tests/hostsim.c -lm
+run "recorded lengths as GATE locks (PLOCK): 0.9 / 1.4 / 1.8 steps, the GATE, pattern end, overdub, ratchet, legato, free take, undo" env RECLEN=1 "$OUT/hostsim_plock" 0 0 1 "$OUT/reclen.wav"
+mkdir -p "$OUT/tracks_pl"; run "TRACKS with PLOCK (the recording lengths as before)" env TRACKS="$OUT/tracks_pl" "$OUT/hostsim_plock" 0 0 1 "$OUT/tracks_pl.wav"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -DFELUCCA_CHANCE=1 -o "$OUT/hostsim_sl24" tests/hostsim.c -lm
+run "recorded lengths as GATE locks with MICRO, FILLS, MOTION, CHANCE" env RECLEN=1 "$OUT/hostsim_sl24" 0 0 1 "$OUT/reclen_sl24.wav"
 $CC -w -I"$HGEN" -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
 run "project formats (FUN6 x2 / FUN5 / FUN4 / FUN3 / FUN2 / FUN1 -> FUN7), FM6 voices, capture / apply, autosave" "$OUT/project_test"
 $CC -w -I"$HGEN" -Ifirmware/src -o "$OUT/brt_full" tests/builder_rt_test.c -lm

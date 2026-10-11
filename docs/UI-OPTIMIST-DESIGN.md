@@ -122,7 +122,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
 | **ALGORITHM** | the track, T1 T2 T3 DR. Every screen retargets to it, the colour follows |
-| **PRESETS** | **browses the selected track's presets** (the drum track: its kits), one a detent, on every screen (2026-10-10, section 12). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
+| **PRESETS** | **browses the selected track's presets** (the drum track: its kits), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
 | **YES** (SAVE tapped) | act on the cursor row: enter a ▸ row, toggle an on / off cell, **do** an action cell, confirm an armed action |
@@ -257,16 +257,16 @@ HOME (NO at the root) shows the mixer. **It is horizontal** [D, after the merge 
 shown on the cards (1x4 or 2x2, section 3) like any other screen's cursor row. It replaces the vertical strips of
 phases 2 to 5b (one track a column, KNOB k track k) and the DRUM MIXER screen.
 
-**The rows**, **four a screen** [D], each a quarter of the panel
-(41 px): T1 T2 T3 DR when the mixer opens; ALGORITHM past DR scrolls the window a row at a time through the lanes,
-past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
+**The rows**, shown **one group at a time** (section 13, 2026-10-11): the four channels T1 T2 T3 DR when the mixer
+opens, four rows of 41 px; ALGORITHM past DR shows the 16 drum sounds at once (two columns of eight), past T1 up MASTER
+alone on the whole panel. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
-| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
-| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND) | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
-| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **MASTER** (above T1) | FILT · DUST · DUCK, then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
+| **T1 · T2 · T3** | the mix VOLUME · PAN; the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
+| **DR** | VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
 The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
 SAVE held + SELECT, PROJECT by SAVE tapped and SYSTEM by HOME held alone (both provisional), SCOPE by HOME tapped on the
@@ -277,7 +277,7 @@ SOUND rows (a lane: that lane's; MASTER: the FX screen); with no cell picked it 
 (MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
 the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
 2's paging rule), and so does **GLO tapped again** (GLO tapped elsewhere opens the mixer); the header names the set
-(*Mix levels*, *Mix more*, *Mix screens*, *Mix master*). PRESETS browses the sound (section 12); on SOUND / KIT it
+(*T2 mix*, *T2 insert*, *T2 sends*, *T2 sound*, *Mix master*, *Mix comp*). PRESETS browses the sound (section 12); on SOUND / KIT it
 browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
 
 **Each row** [D: each row has a VU meter and its sequence below, like in SLOOP, with more space for the
@@ -299,23 +299,44 @@ on the rows: the cards show the selected row's values.
 SEQ tapped. **The keys are the 16 steps of the page shown**, nothing held (the ISR's `ly_lock` LY_STEP, or KB_GRID,
 already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll the window** over a longer pattern:
 1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. OCT alone
-keeps the octave and ghost / hard, so the pick can be auditioned. FOLLOW (the window follows the playhead, as
+keeps the octave and ghost / hard, so the pick can be auditioned. **The pick follows the octave** (2026-10-11): a note
+played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
+at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). **A step
+held + OCT- / OCT+ transposes it** (2026-10-11): every note of the synth steps held an octave down / up, each clamped
+to 0..127; while a step is held OCT changes neither the keyboard octave nor FM6's paging (on the drum track it does
+nothing). The cards come to the step's page with NOTE lit, so the new note shows (`held_octave`). FOLLOW (the window follows the playhead, as
 FELUCCA_DRUM_STEP) is the default while playing [D]; a scroll turns it off, and **HOME + OCT- + OCT+ together
-resumes it** [D].
+resumes it** [D]. **PRESETS pages the window too** (2026-10-11, the user: "in the step sequencer it scroll pages thru
+the piano roll, in mixer it select preset indeed"): a page a detent on every track, stopping at the first and the last
+(no wrap), the follow off as a scroll; with a step held it does nothing (the held keys are the window's). It replaces
+batch 33's PRESETS = the drum lane on STEP: the lane is picked with SEQ + a key or SELECT on the lane rows.
 
 **The keys' lights** [P]: on STEP the set steps of the window are lit (the selected lane's on the drum track) and
 the playhead's key blinks, as FELUCCA_DRUM_STEP lights them today; with the keys toggled to playing, the played
 notes as KEYLIT; in a held layer its map, as today.
 
 The panel on the drum track: the 16 lanes x the 16 steps of the page, levels as shades, ratchets as notches
-(today's DRUMS grid), the selected lane highlighted. On a synth track: the page's 16 steps as a mini roll (notes
-stacked, ties as lines, the chords of CHORD), as Felucca's GR_ROLL.
+(today's DRUMS grid), the selected lane highlighted; at the left each lane's colour chip and its two-letter code
+(2026-10-11, the user: "put the name of the instrument (two letters) on the drum piano roll"; `LANE_CODE`, BD .. CB,
+the mixer's, now in drums.c), the selected lane's white; the 16 lanes fit, nothing scrolls. SLOOP's DRUMS grid shows
+the same codes in a 3 x 5 pixel font (its rows are 6 px), in the lane's colour, white when picked or hit. On a synth track: the page's 16 steps as a piano roll
+(2026-10-11, the user: "looks a bit sad compared to sloop. could we have the note names on the left, and more
+details ?"): the note names in a 24-px gutter on the left, the Cs with their octave (*C4*, C_HI); every row named when
+the rows are 11 px or taller (a row with a note amber, a black key dim, a white key grey), else the Cs and the rows
+with a note where they do not touch; the black keys' rows a faint tint (C_LINE at 2/8, the gutter too); each octave
+ruled under its C; the bar's start and the end of LEN in C_DIM, the beats in C_LINE, a foot tick a step; each note a
+bar as long as its ties (joined over the column gaps), its level the shade (ghost dim .. hard full), an accent a white
+top edge, the ratchet as notches; the chords stacked; the steps held framed white; the playhead's column white while
+it plays (only the two columns it left and reached are painted again, on a canvas of their own, never under the
+cards); the window's page lit in the gutter of the playhead strip (1-16, 17-32 ...). The rows cover the whole
+pattern's notes (every page on the same rows), 13 semitones at least, as tall as fit (16 px at most). The columns
+are 13 px from x 26, the drum grid's too (since the lanes' codes, 2026-10-11). Black ground, C_LINE lines, no grey fills.
 
 | State | Cards (KNOB 1..4) | SELECT | PRESETS | YES | HOME |
 |---|---|---|---|---|---|
-| no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the hot cell | — | tapped: back |
-| no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the hot cell | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
-| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
+| no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the window's page (2026-10-11) | — | tapped: back |
+| no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the window's page (2026-10-11) | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
+| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties; a recorded fraction in tenths, section 5) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
 
@@ -454,6 +475,17 @@ mix): one ring, not five [E]; four always-on taps would cost four rings.
 - **Live ("real record")**: REC as today. Playing: records the selected track at once, REC again stops. Stopped:
   arms; the first note starts the loop, or the free take on an empty project, or the count-in (REC MODES). A take
   ends at a pattern switch (PATTERNS-DESIGN §5.4). Overdub, latency-compensated, chords and ties, as today.
+- **Recorded lengths** (2026-10-11, feat/rec-length; FELUCCA_PLOCK, both UIs, every input and the free take): the
+  whole steps a note is held stay TIE steps, the rest of its length a GATE lock on its last step (seq.c
+  `rec_len_end`): a NOTE step plays GATE / 128 of a step, the last TIE of a chain half a step + GATE / 128. Held 0.9
+  steps locks 116 and plays 0.9; 1.8 locks 39 on its TIE and plays 1.8. A TIE never sounds past its own step (a REST
+  or a note after it releases it), so a NOTE and k TIEs play k + 0.5 .. k + 1 steps and a NOTE alone up to 1: in the
+  gaps the nearer one (a TIE is kept from a quarter into it: 1.4 plays 1.5, 1.1 plays 1, 2.1 plays 2). The length
+  runs from the start of the step the note was quantised to, to the release as heard (a note pressed late gets
+  longer by as much). Within 4 of the track's GATE: no lock. A note cut by the next one (legato, or overdub reaching a note) locks 127 and joins it
+  (`REC_LEGATO_JOIN`). Never on a ratchet step or a step that held notes before (overdub keeps their locks). The
+  STEP card LENGTH shows the length in tenths (*1.8 ST*) when the last step has the lock; KNOB 4 resizes in whole
+  steps and drops the fraction (the note then plays at the track's GATE).
 - **Step entry**: section 4.2.
 - **Automation**: section 6. Two gestures, one store.
 - **Undo / redo**: SAVE then HOME, HOME then SAVE, and EDIT held + OCT- / OCT+ as SLOOP [D]; many levels as
@@ -819,7 +851,7 @@ about 6 KB [E: the two numbers added, not built together] before phases 2..4.
 | Red or amber | red: clear, erase, reset, INIT, NEW, LOAD, an overwrite (a project or user preset SAVE over a used slot, a user kit SAVE), ACID GEN, the 2.4 import; amber: a snapshot SAVE into an empty slot (the only question that destroys nothing) | the `danger` argument of `op_arm` |
 | The modal's extent | over the panel only, the panel around the box black; no countdown drawn (3 s still let it go) | `draw_modal` |
 | Casing: what is not cased | values (OFF, SIN, ANALOG, YES: the descriptors' names, as SLOOP shows them), preset, kit and lane names, the mixer's M / S / R, the boot and setup screens' names (op_input.c) | `op_case` callers |
-| The header | the screen and its row as one sentence (*Mix master*, *Sound ENV*, *Project snapshot*); a row that starts with the screen's name stands alone (*Project*, *Sound*), so no header repeats a word (a host check over every screen and row); the font has no middle dot for *Sound · ENV* | `head_title` |
+| The header | the screen and its row as one sentence (*Mix master*, *Sound ENV*, *Project snapshot*); a row that starts with the screen's name stands alone (*Project*, *Sound*), so no header repeats a word (a host check over every screen and row); the font has no middle dot for *Sound · ENV* ; **the page's n/N after it** (2026-10-11, the user: "when i page thru with select ... display the name of the page and the 1/4 (current/total pages). ideally everywhere"): permanent wherever SELECT walks pages, *Sound ENV dest 2/4*, *T1 insert 2/4* (the mixer's sets), *ENV2 5/22* (a held step's card pages: *Step*, *Extra*, then the p-lock pages), *ARP 2/3* (STEP's pages while their cards show; the window's *Steps 1-16* otherwise, and a window scroll takes the cards away); the n/N always whole, a long name losing the screen's word first, then cut (`head_fit`); the same button's repeat walks the same pages; the track-name flash and a message win while they show | `head_title`, `head_pos` |
 | Casing: the exception list | the agreed list (DR, T1..T3 through the digit rule, FX, LFO, ENV, MIDI, USB, BPM, CPU, OCT) and ENV2, GLO, ARP, SCL, UI, CC, ACID, GEN, MHZ; a message's lane name is cased with it (*Reset pedal hat*) | `case_keep` |
 | The footer under the modal | its first line (the YES / NO hint) blank, its KEYS line kept: the keys still play while a question waits | `draw_foot` |
 | The toast over the panel | the panel keeps drawing under it and the toast is drawn again on top when it does; the mixer's meters hold still while it shows (it covers two of them) | `op_frame_draw`, `draw_mixer` |
@@ -865,6 +897,9 @@ byte for byte as before (measured below).
   makes that family's first page on this track the cards, as the held steps' locks; a turn writes a lock on every
   step held (from its lock value, else the track's), a locked cell shows a padlock and its value in amber; HOME + the
   knob drops the lock; the button again: the family's next page; the last step let go: the cards come back.
+- **A step let go**: its cards keep showing the page that was held until their timer ends, on STEP only. The
+  snapshot goes with the cards and with STEP: every other screen's cards are its own page's (2026-10-11 fix: a step
+  let go just before leaving STEP left its p-lock / extra cards on every page).
 - **The pick**: SEQ held + keys. Drums: a white key picks the lane (`lane_sel`) and plays it. Synths: the keys play
   and the core's pen (seq.c `pen_note` / `pen_n`, which `key_down` keeps: the keys down together, a chord) is what the
   next tapped steps carry; letting SEQ go keeps it. The footer names it (*Keys steps SNARE*, *Pick C4 E4+*).
@@ -1862,3 +1897,87 @@ user-default build has none of those switches, so its held step has the one page
 **ARP draws its pattern** (the same day): ARP's graph is the arpeggiator over a C major chord, OCT octaves, a mark a step of
 RATE, GATE long, every other step SWG late, the notes by MODE, a step PROB would skip dim; OFF the chord held. It fills
 the height the rows leave, as ENV's envelope does, the rows at ROW_H. Remaining screens with no picture and few rows (PROJECT, checked; any other list that fits the panel) keep a row pitch capped at 40 px, at the top of the panel.
+
+## 13. Requests of 2026-10-11 (batch 35: the mixer)
+
+**PRESETS repaints in place.** The user: "the screen flashes in mixer when i select drum lane presets". PRESETS on the
+drum track steps the kit (`drum_kit_step`) and on a synth the preset (`op_preset_go`); both used to set `ui.force`,
+which clears the whole LCD to black before the bands come back one blit at a time (and the user-preset and native-bank
+loads of the core ask for it too). Both now end in `op_preset_shown`: `ui.force` back to what it was before the load
+(a clear asked already stays), the rows fixed (another engine may have other rows) and `op_repaint`, every band drawn
+again over itself, as a track change has done since batch 34. Measured on the emulator (play_check, 96 MHz, a capture
+every 2 ms for 50 ms after each detent, counting pixels drawn before and after but black in between): PRESETS on the
+mixer's kick lane, 3 detents, worst capture 14,862 blanked pixels before, 0 after; on T1, 2 detents, 13,413 before,
+937 after (the toast's frame redrawn over the row, not a clear).
+
+**The mixer's knob sets in one order.** The user: the sets in a logical order, the same on every row: the mix first, then
+the insert effects, then the send effects, then the rest. Each row's items now carry their group (`mitem_t.grp`: MG_MIX,
+MG_INS, MG_SEND, MG_LAST) and `mx_items` starts each group on a set of its own, padding the set before with empty cells
+as long as what follows still fits the 20 cells (MX_MAXI); the header names the set by its first item's group (*T1 mix*,
+*T1 insert*, *T1 sends*, *T1 sound*; DR's last *Kit*; MASTER *Mix master*, *Mix comp*).
+
+| Row | Mix | Inserts | Sends | Last |
+|---|---|---|---|---|
+| T1 T2 T3 | VOLUME PAN | DRIVE (DIST when it is in a slot), FILTER (FELUCCA_TRK_FILT), COMP (in a slot) | REV DLY CHO, each in a slot | FX ON, SOUND |
+| DR | VOLUME (GLO > DRUMS) | FILTER | (none) | FX ON, KIT |
+| a lane | LEVEL CUT | DRIVE | REV DLY CHO, each in a slot | SOUND |
+| MASTER | FILT DUST DUCK | THRS RATIO GAIN CEIL (FELUCCA_MASTER_COMP) | | |
+
+The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), not the slots' order; an effect
+in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
+INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).
+
+**The mixer in three views.** The user: the mixer shows one group at a time, MASTER alone, or the four channels (T1 T2
+T3 and DR, the drum bus as a whole), or the drum sounds, and the view follows ALGORITHM. ALGORITHM walks the rows as
+before (MASTER, T1 .. DR, the 16 lanes, stopping at the ends); the panel shows only the cursor's group (`mx_view`:
+`mxd.first` .. `mxd.last`), redrawn in place by the panel's `cv_tall` when the group changes (no clear to black: the
+host test counts full-screen fills, and the emulator measurement of section 13's PRESETS applies to the walk too).
+`mx_rect` gives each row its place, steps and meter in its view; the live parts (meters, steps) are canvases of their
+own per row as before.
+
+| View | Rows | Each row |
+|---|---|---|
+| MASTER | the master alone, 240 x 164 | its name; a tall VU meter (14 px, 224 px wide) over a dB scale (a tick each 6 dB, 0 -12 -24 -48 named); the compressor's reduction as an amber bar from the right with its dB ("off" while THRS and CEIL are 0); then the four channels' meters (T1 T2 T3 DR, each in its colour): what feeds the master |
+| CHANNELS | T1 T2 T3 DR, 240 x 41 each | as before (section 12): the code and M / S badge, the engine and the preset, the 16 steps of the page playing with the page bars, the 3 px VU with the compressor's reduction |
+| SOUNDS | the 16 lanes, two columns of eight (1-8 left, 9-16 right), 120 x 20 each | the colour chip and code (BD SD CH ...), the lane's own hits on the page playing (6 px a step; an empty step a foot line, the playhead white), its hit meter (drums.hits, falling over 12 frames). The selected lane is framed and tinted; the header names it (*Snare mix*) |
+
+The levels are kept on a 0 .. 255 scale (`MX_LV`) and drawn to each view's meter width.
+
+**The track's name on a track change.** The user: when the selected track changes (ALGORITHM or any other way), the
+title bar shows briefly the full track name, engine and preset, the three synth tracks only, on every page. `draw_head`
+watches `song.sel` once a frame (`tflash_tick`): a change to T1, T2 or T3 starts ~1.5 s (`OP_TFLASH_FRAMES`, 90
+frames) in which the header reads the badge *TRACK 2* in the track's colour, then the engine in that colour and the
+preset in white (sentence case, cut to the room), with no position or tempo; then the normal header comes back. The
+drum track, MASTER (`ui.master`) and power-on show none; a message (`ui.msg_t`) and the NAME screen keep the header.
+It is drawn as the header always is, when its signature changes: in place, never a clear.
+## 14. Button LEDs: what can be pressed is half lit (batch 35, feat/ui-b35-led)
+
+The user, 2026-10-11: "the buttons that are available should be half lit (for instance no LFO on a drum lane)".
+**Three levels.** Full: the active button, as before (the screen's button, the layer shown, SAVE blinking on a question,
+PLAY on the beat, REC armed or recording, OCT while ghost / hard or the octave is shifted). Half: a button that does
+something now. Dark: one that does nothing. The half light is the HAL's glow layer (`fm1_led_dim`, hal/fm1_input.h: the
+landmark glow SLOOP's UI lights on the drum track's keys; one frame in four, or the GLOW pulse with LIGHTS), which sits
+under the full light, so a blinking button swings between full and half. The LIGHTS backlight stays under both.
+
+**What counts as available** (`op_btn_avail`, op_input.c, the conditions ui_input uses):
+
+| Button | Half lit when |
+|---|---|
+| HOME, SAVE, PLAY | always (NAME: the only buttons with a job besides the keys) |
+| REC, OCT-, OCT+, GLO, SEQ | always (NAME: dark) |
+| ENV, LFO | the selected track has SOUND rows of that family (`sound_page`, the rows `op_jump` opens); ENV also on an FM6 track (the operators) |
+| FX, SCL, EDIT, ARP | the track has rows of the family, or the button's held layer works (FX punch, SCL key, EDIT erase, ARP repeat: `ly_bit`, off on MASTER's EDIT and ARP) |
+| FX on the global FX screen | its next page |
+| any page button, STEP with a step held | the step's page lock (all but EDIT and GLO) |
+
+So on the drum track LFO is dark (no LFO page); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
+half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
+track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
+saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
+and OCT+ are never dark (a tap always shifts, or is ghost / hard on the drums).
+
+**Writes.** The levels are rebuilt each pass with the key LEDs and copied into `fm1_led` / `fm1_led_dim` only when a
+byte differs, so nothing is written while nothing changes; a track, lane, page or engine change is seen on the next pass.
+The code is in op_input.c next to `ui_leds`, not in HOT / ramtext. SLOOP's UI (ui/sloop/ui_input.c) lights buttons full
+only (the layer, PLAY, REC, OCT) and uses `fm1_led_dim` for the keys' landmarks; it shares none of this code and is
+unchanged.

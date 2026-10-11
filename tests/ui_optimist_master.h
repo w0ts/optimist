@@ -111,17 +111,52 @@ static void master_tests(void)
         turn(EN_PRESET, -1);
         check(drum_kit_pos() != kit, "PRESETS on the drum track: the next kit");
     }
-    /* STEP on the drum track: PRESETS selects the lane, stopping at the ends, the kit stays */
-    reset_ui();
-    song.sel = TRK_DRUM;
-    op_enter(SCR_STEP);
+    /* STEP: PRESETS pages the window on every track (the user, 2026-10-11: "in the step sequencer it scroll pages thru
+     * the piano roll, in mixer it select preset indeed"), stopping at the ends; the lane, the kit and the preset stay */
     {
-        uint32_t kit = drum_kit_pos();
-        lane_select(0);
+        uint32_t tr, ok = 1, ok2 = 1, ok3 = 1;
+        for (tr = 0; tr < 2u; tr++) {
+            uint32_t kit, pre2, eng2;
+            int16_t len0;
+            reset_ui();
+            song.sel = tr ? TRK_DRUM : 0u;
+            len0 = TSEL->p[P_SLEN];
+            TSEL->p[P_SLEN] = 48;                       /* (three pages) */
+            op_enter(SCR_STEP);
+            frame();
+            lane_select(0);
+            kit = drum_kit_pos();
+            pre2 = TSEL->preset;
+            eng2 = TSEL->eng_req;
+            turn(EN_PRESET, 1);
+            ok &= (uint32_t)(st.page == 1u && lane_selected() == 0u && drum_kit_pos() == kit && TSEL->preset == pre2 && TSEL->eng_req == eng2);
+            turn(EN_PRESET, 1);
+            turn(EN_PRESET, 1);
+            ok2 &= (uint32_t)(st.page == 2u);
+            turn(EN_PRESET, -1);
+            turn(EN_PRESET, -1);
+            turn(EN_PRESET, -1);
+            ok3 &= (uint32_t)(st.page == 0u);
+            TSEL->p[P_SLEN] = len0;
+        }
+        check(ok, "PRESETS on STEP, a synth and the drum track: the next page; the lane, the kit, the preset stay");
+        check(ok2, "... turned right past the last page: it stops there (no wrap)");
+        check(ok3, "... turned left past the first: it stops at 1-16");
+        int16_t len1;
+        reset_ui();
+        song.sel = 0;
+        len1 = TSEL->p[P_SLEN];
+        TSEL->p[P_SLEN] = 32;
+        op_enter(SCR_STEP);
+        frame();
+        kdown(WK(2));
+        frames(2);
         turn(EN_PRESET, 1);
-        check(lane_selected() == 1u && drum_kit_pos() == kit, "PRESETS on STEP, the drum track: the next lane, the kit stays");
-        turn(EN_PRESET, -3);
-        check(lane_selected() == 0u, "... turned left past the first lane: it stops at lane 1");
+        check(st.page == 0u && st.held, "PRESETS on STEP with a step held: the window stays (the held keys are its)");
+        kup(WK(2));
+        kdown(WK(2));                                   /* (the step back as it was) */
+        kup(WK(2));
+        TSEL->p[P_SLEN] = len1;
     }
     /* the layers: FX held, MASTER by ALGORITHM, the master FX in its cards */
     reset_ui();
