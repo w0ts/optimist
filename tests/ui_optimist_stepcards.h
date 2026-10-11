@@ -52,11 +52,10 @@ static void step_cards_tests(void)
          * header names the lane) */
         {
             uint32_t l = lane_selected(), ok;
-            turn(EN_PRESET, 1);
+            turn(EN_PRESET, 1);                         /* (PRESETS pages the window: one page here, nothing) */
             frames(2);
-            ok = lane_selected() != l && ui.cards_t == 0u && !card0_up();
-            check(ok, "STEP overlay: PRESETS picks the drum lane, no overlay");
-            l = lane_selected();
+            ok = lane_selected() == l && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: PRESETS leaves the drum lane, no overlay");
             press(B_SEQ);
             kdown(WK(6));
             kup(WK(6));

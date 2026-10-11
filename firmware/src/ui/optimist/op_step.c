@@ -2,7 +2,7 @@
 /* STEP (docs/UI-OPTIMIST-DESIGN.md section 4.2, phase 2): one screen for drums and synths. SEQ tapped opens it; the
  * 16 white keys are the 16 steps of the window with nothing held (the ISR's ly_lock LY_STEP: seq.c sends the keys
  * to lk_q, they play nothing). The window is 1-16, 17-32, 33-48, 49-64 up to the track's LEN; it follows the
- * playhead while playing (FOLLOW, the default); HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
+ * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
  * OCT+ together resumes it. OCT alone keeps its job (the octave; on the drum track ghost / hard, which a tapped drum
  * step takes too).
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)

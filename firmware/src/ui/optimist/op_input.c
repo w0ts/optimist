@@ -447,20 +447,20 @@ static int fx_algo(int32_t s)
     }
     return 1;
 }
-/* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen (the user,
- * 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
+/* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
+ * where it pages the window (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
 static int op_presets_turn(void)
 {
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && !op_armed() && !rh.ring) {   /* STEP on the drum track: the lane (the
-                                                         * user, 2026-10-10), stopping at the ends; previewed when stopped */
-        uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
-        lane_pick(l);                                   /* (no overlay: the header names the lane, the user 2026-10-10) */
-        if (ui.row[SCR_STEP] >= STP_LANE0)
-            ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
+    if (ui.scr == SCR_STEP) {                           /* STEP: the window's pages, every track (the user, 2026-10-11:
+                                                         * "in the step sequencer it scroll pages thru the piano roll"),
+                                                         * stopping at the ends; a step held: nothing (the held keys are
+                                                         * the window's) */
+        if (!op_armed() && !rh.ring && !st.held)
+            step_scroll(s > 0 ? 1 : -1);
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
         op_preset_step(s);
         pre_toast();
