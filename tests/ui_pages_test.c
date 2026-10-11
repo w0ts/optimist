@@ -193,6 +193,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
 #include "drum_step_ui.c"         /* DRUM STEP: the drum track's SEQ layer as a step sequencer (FELUCCA_DRUM_STEP) */
 #include "macro_show_ui.c"        /* GLO > MACRO on the screens: what plays, marked (FELUCCA_MACROS) */
+#include "sloop_bp_ui.c"           /* SLOOP fixes backported into the SLOOP UI (each names its SLOOP issue) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -1446,6 +1447,7 @@ int main(int argc, char **argv)
     drum_step_tests();
 #endif
     macro_show_tests();
+    sloop_bp_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");

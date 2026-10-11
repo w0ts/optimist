@@ -929,6 +929,30 @@ static void step_synth_tests(void)
     key(WK(5));
     check(t->step[5].n == 3 && t->step[5].note[0] == pen_note[0] && t->step[5].note[2] == pen_note[2],
           "synth: the next tapped step takes the chord");
+    {   /* SLOOP #41 (2.5 fa9ce57) is the SLOOP UI's: here the pick is the chord as it sounds (seq.c key_down's pen) */
+        uint8_t c[4];
+        uint32_t m, j, same;
+        t->p[P_CHORD] = 1;                              /* TRIAD */
+        press(B_SEQ);
+        fm1_in.notes |= 1u << WK(2);                    /* one key */
+        frame();
+        fm1_in.notes = 0;
+        frame();
+        release(B_SEQ);
+        m = chord_notes(t, kb_map(t, WK(2)), c);
+        same = pen_n == m && m == 3u;
+        for (j = 0; same && j < m; j++)
+            same = pen_note[j] == c[j];
+        check(same, "synth, chord mode: SEQ held + one key: the pick is the whole chord");
+        memset(&t->step[7], 0, sizeof t->step[7]);
+        key(WK(7));
+        same = t->step[7].n == 3u;
+        for (j = 0; same && j < 3u; j++)
+            same = t->step[7].note[j] == pen_note[j];
+        check(same, "synth, chord mode: the tapped step takes the whole chord, not only its root (SLOOP #41)");
+        memset(&t->step[7], 0, sizeof t->step[7]);
+        t->p[P_CHORD] = 0;
+    }
     kdown(WK(3));
     vlast = t->step[3].note[0];
     turn(EN_K1, 2);

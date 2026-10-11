@@ -61,6 +61,12 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 - When on, everything a knob drives takes that knob's cap colour: 1 blue, 2 yellow, 3 pink, 4 orange. This covers the labels, values, gauges and big values, and every dial strip (mixer, layers, held steps, drums, FM6, tempo page).
 - Optimist UI: the COLORS cell on SYSTEM > SCREEN.
 
+## SLOOP fixes backported
+
+From upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only), ported to our code:
+
+- Chord mode on the STEP page (SLOOP #41, from 2.5 fa9ce57): a key writes the whole chord as it sounds (with CHORD+ modifiers and VLEAD when built), not only its root. Several keys together add their chords, up to the step's four notes. A MONO track still writes the root alone. The Optimist UI already wrote the chord (its pick is the chord played), and a test now covers it.
+
 ## User rulings this batch follows
 
 - Mixer row: SLOOP's row with a thin VU and an opposing GR bar.
