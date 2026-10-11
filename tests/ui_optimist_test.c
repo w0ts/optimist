@@ -954,6 +954,22 @@ static void step_synth_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-step-roll");
+#if FELUCCA_PLOCK
+    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): LENGTH shows it; KNOB 4 whole steps */
+        cell_t c;
+        int32_t v;
+        (void)lock_set(t, 6, P_SGATE, 39);           /* 3 NOTE, 4 .. 6 TIE: 6 ends 0.5 + 39 / 128 in, 3.8 steps */
+        kdown(WK(3));
+        step_cell(0, 3, &c);
+        check(!strcmp(c.val, "3.8"), "synth: LENGTH of a recorded note: the fraction (3.8)");
+        turn(EN_K4, -1);
+        step_cell(0, 3, &c);
+        check(!strcmp(c.val, "3") && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
+              "synth: KNOB 4 on it: whole steps, the fraction goes");
+        turn(EN_K4, 1);
+        kup(WK(3));
+    }
+#endif
     kdown(WK(8));
     kdown(WK(9));
     turn(EN_K2, -1);

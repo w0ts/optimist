@@ -335,7 +335,7 @@ are 13 px from x 26, the drum grid's too (since the lanes' codes, 2026-10-11). B
 |---|---|---|---|---|---|
 | no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the window's page (2026-10-11) | — | tapped: back |
 | no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the window's page (2026-10-11) | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
-| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
+| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties; a recorded fraction in tenths, section 5) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
 
@@ -459,6 +459,17 @@ mix): one ring, not five [E]; four always-on taps would cost four rings.
 - **Live ("real record")**: REC as today. Playing: records the selected track at once, REC again stops. Stopped:
   arms; the first note starts the loop, or the free take on an empty project, or the count-in (REC MODES). A take
   ends at a pattern switch (PATTERNS-DESIGN §5.4). Overdub, latency-compensated, chords and ties, as today.
+- **Recorded lengths** (2026-10-11, feat/rec-length; FELUCCA_PLOCK, both UIs, every input and the free take): the
+  whole steps a note is held stay TIE steps, the rest of its length a GATE lock on its last step (seq.c
+  `rec_len_end`): a NOTE step plays GATE / 128 of a step, the last TIE of a chain half a step + GATE / 128. Held 0.9
+  steps locks 116 and plays 0.9; 1.8 locks 39 on its TIE and plays 1.8. A TIE never sounds past its own step (a REST
+  or a note after it releases it), so a NOTE and k TIEs play k + 0.5 .. k + 1 steps and a NOTE alone up to 1: in the
+  gaps the nearer one (a TIE is kept from a quarter into it: 1.4 plays 1.5, 1.1 plays 1, 2.1 plays 2). The length
+  runs from the start of the step the note was quantised to, to the release as heard (a note pressed late gets
+  longer by as much). Within 4 of the track's GATE: no lock. A note cut by the next one (legato, or overdub reaching a note) locks 127 and joins it
+  (`REC_LEGATO_JOIN`). Never on a ratchet step or a step that held notes before (overdub keeps their locks). The
+  STEP card LENGTH shows the length in tenths (*1.8 ST*) when the last step has the lock; KNOB 4 resizes in whole
+  steps and drops the fraction (the note then plays at the track's GATE).
 - **Step entry**: section 4.2.
 - **Automation**: section 6. Two gestures, one store.
 - **Undo / redo**: SAVE then HOME, HOME then SAVE, and EDIT held + OCT- / OCT+ as SLOOP [D]; many levels as
