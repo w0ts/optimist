@@ -715,6 +715,8 @@ static int rec_len_test(void)
     rl_hold(t1, 67, 10, 10, 10, 60);                /* 0.50: the GATE (64) as it is: no lock */
     rl_hold(t1, 69, 12, 10, 0, 80);                 /* 12.1 .. 16.8: across the pattern end */
     rl_hold(t2, 72, 6, 10, 6, 40);                  /* overdub onto the ratchet step: nothing locked */
+    rl_hold(t2, 74, 0, 10, 2, 20);                  /* 2.1: NOTE TIE (the 2nd TIE put back), the TIE whole: 2 */
+    rl_hold(t2, 76, 9, 10, 10, 20);                 /* 1.1: the NOTE, 127 (1.0, nearer than 1.5) */
     rec_run_to(t3, 10, 10);                         /* MONO legato: A from 10, B in 12, A up, B up in 13 */
     input_on(t3, 60, 100);
     rec_run_to(t3, 12, 10);
@@ -728,6 +730,8 @@ static int rec_len_test(void)
     fail += rl_case("NOTE (0.9 step)", 0.90, rl_gate(t1, 1), 114, 118, rl_played(t1, 1), 0.907);
     fail += rl_case("NOTE TIE, the TIE from 0.25 in (1.4)", 1.40, rl_gate(t1, 6), 1, 1, rl_played(t1, 5), 1.508);
     fail += rl_case("NOTE TIE (1.8)", 1.80, rl_gate(t1, 8), 37, 41, rl_played(t1, 7), 1.807);
+    fail += rl_case("NOTE TIE, the TIE whole (2.1)", 2.10, rl_gate(t2, 1), -1, -1, rl_played(t2, 0), 2.0);
+    fail += rl_case("NOTE at 127 (1.1)", 1.10, rl_gate(t2, 9), 127, 127, rl_played(t2, 9), 0.992);
     fail += rl_case("0.5 = the track's GATE: no lock", 0.50, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.507);
     fail += rl_case("across the pattern end (lock on 0)", 4.70, rl_gate(t1, 0), 24, 28, rl_played(t1, 12), 4.707);
     ok = rec_step_is(t1, 12, ST_NOTE, 1, 69) && rec_step_is(t1, 13, ST_TIE, 0, 0) && rec_step_is(t1, 15, ST_TIE, 0, 0) &&

@@ -441,9 +441,11 @@ mix): one ring, not five [E]; four always-on taps would cost four rings.
 - **Recorded lengths** (2026-10-11, feat/rec-length; FELUCCA_PLOCK, both UIs, every input and the free take): the
   whole steps a note is held stay TIE steps, the rest of its length a GATE lock on its last step (seq.c
   `rec_len_end`): a NOTE step plays GATE / 128 of a step, the last TIE of a chain half a step + GATE / 128. Held 0.9
-  steps locks 116 and plays 0.9; 1.8 locks 39 on its TIE and plays 1.8. Between 1 and 1.5 steps the step model has
-  nothing: the nearer one (the first TIE is kept from a quarter into it: 1.4 plays 1.5). Within 4 of the track's
-  GATE: no lock. A note cut by the next one (legato, or overdub reaching a note) locks 127 and joins it
+  steps locks 116 and plays 0.9; 1.8 locks 39 on its TIE and plays 1.8. A TIE never sounds past its own step (a REST
+  or a note after it releases it), so a NOTE and k TIEs play k + 0.5 .. k + 1 steps and a NOTE alone up to 1: in the
+  gaps the nearer one (a TIE is kept from a quarter into it: 1.4 plays 1.5, 1.1 plays 1, 2.1 plays 2). The length
+  runs from the start of the step the note was quantised to, to the release as heard (a note pressed late gets
+  longer by as much). Within 4 of the track's GATE: no lock. A note cut by the next one (legato, or overdub reaching a note) locks 127 and joins it
   (`REC_LEGATO_JOIN`). Never on a ratchet step or a step that held notes before (overdub keeps their locks). The
   STEP card LENGTH shows the length in tenths (*1.8 ST*) when the last step has the lock; KNOB 4 resizes in whole
   steps and drops the fraction (the note then plays at the track's GATE).

@@ -482,12 +482,14 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
 /* The length of a live-recorded note, kept as a GATE lock on its last step (the automation store: no new parameter,
  * nothing new saved). The TIE steps keep the whole steps; the lock the rest: a NOTE step plays GATE / 128 of a step,
  * the last TIE of a chain slen / 2 + GATE / 128 of one (seq_step), so a note held r units into its last step L locks
- *   L a NOTE: g = r x 128 / slen        L a TIE: g = (r - slen / 2) x 128 / slen        (1 .. 127)
- * A NOTE step can hold up to 1 step and a NOTE + TIE from 1.5 steps: in between, the nearer one (rec_release keeps
- * the first TIE from a quarter into it, not the middle). Within REC_GATE_NEAR of the track's GATE: no lock (and a
- * stale one on that step goes). Never on a ratchet step, never on a step that held notes before (overdub: the locks
- * of the notes already there stay as they are). Every input (keys, MIDI, BLE MIDI) and the free take. */
-#define REC_LEGATO_JOIN 1    /* a held note cut by the next note (legato; overdub reaching a note) locks 127: joins it */
+ *   L a NOTE: g = r x 128 / slen (1 .. 127)        L a TIE: g = (r - slen / 2) x 128 / slen (1 .. 64)
+ * (a TIE's note ends at the next step anyway: a REST or a note there releases it, so 64 is its whole step). So a note
+ * and k TIEs play k + 0.5 .. k + 1 steps, a NOTE alone up to 1: in the gaps the nearer one (rec_release keeps a TIE
+ * from a quarter into it, not the middle; 1.4 plays 1.5, 2.1 plays 2). Within REC_GATE_NEAR of the track's GATE: no
+ * lock (and a stale one on that step goes). Never on a ratchet step, never on a step that held notes before (overdub:
+ * the locks of the notes already there stay as they are). Every input (keys, MIDI, BLE MIDI) and the free take.
+ * The length runs from the start of the note's step (where it was quantised to) to the release, as heard. */
+#define REC_LEGATO_JOIN 1    /* a held note cut by the next note (legato; overdub reaching it) locks 127: joins it */
 #define REC_GATE_NEAR 4      /* (GATE points) */
 /* step L of track t plays its note at GATE g (own: the step is the recorded note's alone) */
 static void rec_gate_set(track_t *t, uint32_t L, int32_t g, uint32_t own)
@@ -509,8 +511,10 @@ static void rec_gate(track_t *t, uint32_t L, int32_t r, uint32_t slen, uint32_t 
     int32_t u = (int32_t)(slen >> 7);               /* (units per GATE point) */
     if (u <= 0)
         return;
-    if (t->step[L % NSTEP].time == ST_TIE)
+    if (t->step[L % NSTEP].time == ST_TIE) {
         r -= (int32_t)(slen / 2u);
+        r = r < 64 * u ? r : 64 * u;                /* (its whole step: the next one ends it) */
+    }
     rec_gate_set(t, L, r / u, own);
 }
 /* the hold of track t ends: its last step (grid step rh_start_abs + rh_ties) as long as r units, or (cut) joined to
@@ -631,8 +635,7 @@ static void rec_release(track_t *t, uint32_t note)
     lat = REC_LAT * (uint32_t)song.g[G_BPM];
     lat = lat < half ? lat : half;
 #if FELUCCA_PLOCK
-    if (t->rh_ties == 1u)
-        half /= 2u;                                 /* (the first TIE: from a quarter in, the nearer length) */
+    half /= 2u;                                     /* (a TIE kept from a quarter in: the nearer length, rec_gate) */
 #endif
     if (t->rh_ties && abs == t->rh_last_abs && into <= half + lat && t->step[t->rh_last].time == ST_TIE) {
         t->step[t->rh_last] = t->rh_bak;            /* released early in it: not held into this step */
@@ -821,7 +824,7 @@ static void ft_close(void)
             uint32_t steps = (d * len * 2u + T) / (2u * T);
 #if FELUCCA_PLOCK
             uint32_t x = d * len * 128u / T;           /* its length in 1/128 steps (d < 2^16, len <= 64) */
-            steps = x < 160u ? 1u : x < 192u ? 2u : (x - 64u) / 128u + 1u;   /* (as live: the nearer, rec_gate) */
+            steps = x < 128u ? 1u : x / 128u + (x % 128u >= 32u);   /* (k TIEs: k + 0.5 .. k + 1: rec_gate) */
 #endif
             for (k = 1; k < steps && k < len; k++) {
                 step_t *s = &t->step[(idx + k) % len];
@@ -834,8 +837,8 @@ static void ft_close(void)
             if (k < steps && k < len)                 /* cut by the next note: joins it */
                 rec_gate_set(t, (idx + k - 1u) % len, REC_LEGATO_JOIN ? 127 : 0, REC_LEGATO_JOIN);
             else if (k == steps)                      /* (as long as it was held; not past the loop) */
-                rec_gate_set(t, (idx + k - 1u) % len, k > 1u ? (int32_t)(x - (k - 1u) * 128u) - 64 : (int32_t)x,
-                             1u);              /* (the project was empty: every step its own) */
+                rec_gate_set(t, (idx + k - 1u) % len,       /* (the project was empty: every step its own) */
+                             k > 1u ? clamp((int32_t)(x - (k - 1u) * 128u) - 64, 1, 64) : (int32_t)x, 1u);
 #endif
         }
     t->seq_active = 1;

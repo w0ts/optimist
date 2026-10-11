@@ -127,7 +127,7 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
         t->step[(start + i) % len].time = ST_TIE;
     }
 #if FELUCCA_PLOCK
-    if (n != old)                                       /* whole steps now: a recorded fraction goes (step_note_len10) */
+    if (n != old)                                   /* whole steps now: a recorded fraction goes */
         lock_drop(t, (start + old - 1u) % len, P_SGATE);
 #endif
 }
