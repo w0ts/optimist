@@ -63,9 +63,12 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## Clock out
 
-- HOME menu > SYSTEM, the HOLD screen, row 3: CLOCK OUT, off by default (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c). OCT+
-  toggles it, and KNOB 3 right turns it on, left off; amber when on while USB is the clock followed (nothing is sent back
+- HOME menu > SYSTEM, the MIDI extras screen (after the MIDI channels, before HOLD), row 1: CLOCK OUT, off by default (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c). OCT+
+  toggles it, and KNOB 1 right turns it on, left off; amber when on while USB is the clock followed (nothing is sent back
   to USB then). Kept in the settings word (bit 26), not carried into a SLOOP 2.4 export.
+- It has a screen of its own so HOLD and KNOB COLORS stay as they were. MIDI OUT (KEYS / SEQ) stays on the MIDI screen with
+  MIDI IN, SYNC and CLOCK, where it pairs with them. A build without MIDI_CLKOUT has no such screen: SELECT and the
+  SYSTEM n/m count skip a screen with no rows, so there is never an empty one. Settings bits and saved format unchanged.
 - Optimist UI: a CLOCK OUT row on SYSTEM (CLK OUT, KNOB 1).
 
 ## User rulings this batch follows

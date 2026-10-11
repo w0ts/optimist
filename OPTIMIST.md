@@ -551,7 +551,7 @@ hardware.
 
 ### Clock out (CLOCK OUT)
 
-**HOME menu > SYSTEM, the HOLD screen, row 3: CLOCK OUT** (Optimist UI: SYSTEM > CLOCK OUT), **off** by default; OCT+
+**HOME menu > SYSTEM, the MIDI extras screen (after the MIDI channels): CLOCK OUT** (Optimist UI: SYSTEM > CLOCK OUT), **off** by default; OCT+
 toggles it, KNOB 3 right turns it on, left off. A setting of the FM-1, kept over project loads (settings word bit 26).
 On, the FM-1 sends MIDI clock **on USB** (the TRS jack is MIDI in only: the board has no MIDI out on it):
 

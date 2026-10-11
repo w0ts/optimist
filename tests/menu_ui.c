@@ -661,7 +661,7 @@ static void menu_ui_tests(void)
         ble_devices_review_tests();
     }
 #else
-    check(MI_NSCR == 7 && MI_COUNT == MI_KCOL + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was, KNOB COLORS the last row)");
+    check(MI_NSCR == 8 && MI_COUNT == MI_KCOL + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was, KNOB COLORS the last row)");
 #endif
     menu_open(MI_CPU);
     ui.force = 1; frame();
@@ -690,18 +690,39 @@ static void menu_ui_tests(void)
         hold_sel = was_hold;
     }
 #if FELUCCA_MIDI_CLKOUT
-    menu_open(MI_CLKOUT);                            /* CLOCK OUT (io/midi/clock_out.c): the HOLD screen's row 3, OFF by default */
+    menu_open(MI_CLKOUT);                            /* CLOCK OUT (io/midi/clock_out.c): the MIDI extras screen, OFF by default */
     {
-        char cv[12]; uint16_t cc; uint8_t was = clko_on;
+        char cv[12]; uint16_t cc; uint8_t was = clko_on; uint8_t cit[4];
+        uint32_t cs = mi_screen_of(MI_CLKOUT);
         clko_on = 0;
-        check(!strcmp(mi_value(MI_CLKOUT, cv, &cc), "OFF") && menu_screen() == mi_screen_of(MI_HOLD) && mi_row(MI_CLKOUT) == 2u,
-              "menu: CLOCK OUT shows OFF, row 3 of the HOLD / KNOB COLORS screen");
+        check(!strcmp(mi_value(MI_CLKOUT, cv, &cc), "OFF") && menu_screen() == cs && mi_row(MI_CLKOUT) == 0u &&
+              mi_rows(cs, cit) == 1u && MI_SCR[cs].sec == MS_SYSTEM,
+              "menu: CLOCK OUT shows OFF, alone on its own SYSTEM screen (the MIDI extras)");
+        check(cs != mi_screen_of(MI_HOLD) && cs != mi_screen_of(MI_KCOL) && cs != mi_screen_of(MI_OUT) &&
+              cs > mi_screen_of(MI_CHD) && cs < mi_screen_of(MI_HOLD),
+              "menu: ... after the MIDI channels, before HOLD; not on the MIDI, HOLD or KNOB COLORS screens");
+        check(mi_screen_of(MI_HOLD) == mi_screen_of(MI_KCOL) && mi_row(MI_HOLD) == 0u && mi_row(MI_KCOL) == 1u &&
+              mi_rows(mi_screen_of(MI_HOLD), cit) == 2u, "menu: HOLD and KNOB COLORS stay together on their screen, two rows");
         encs[MKNOB()] = 1; frames(2);
-        check(clko_on == 1u && !strcmp(mi_value(MI_CLKOUT, cv, &cc), "ON") && cc == C_HI, "menu: CLOCK OUT, knob 3 right: ON");
+        check(clko_on == 1u && !strcmp(mi_value(MI_CLKOUT, cv, &cc), "ON") && cc == C_HI, "menu: CLOCK OUT, knob 1 right: ON");
         tap(B_OCTUP); frames(2);
-        check(clko_on == 0u, "menu: CLOCK OUT, OCT+ toggles: OFF");
+        check(clko_on == 0u, "menu: CLOCK OUT, OCT+ toggles: OFF (clko_on is settings word bit 26: tests/midi_seq_test.c)");
         ui.force = 1; frame(); ppm("menu-clkout");
         clko_on = was;
+    }
+#else
+    {   /* no CLOCK OUT in the build: its row is not on any screen, and no screen is empty (SELECT and the tabs skip them) */
+        uint32_t sc, nrow = 0, seen = 0;
+        uint8_t cit[4];
+        for (sc = 0; sc < MI_NSCR; sc++) {
+            uint32_t k;
+            nrow += mi_rows(sc, cit) == 0u;
+            for (k = 0; k < 4u; k++)
+                seen += MI_SCR[sc].item[k] == MI_CLKOUT;
+        }
+        check(seen == 0u, "menu: no CLOCK OUT row in a build without MIDI_CLKOUT");
+        check(mi_screen_of(MI_HOLD) == mi_screen_of(MI_CHD) + 2u && mi_rows(mi_screen_of(MI_CHD) + 1u, cit) == 0u, "menu: ... its screen has no rows, so SELECT and the tabs skip it (HOLD next after the channels)");
+        (void)nrow;
     }
 #endif
     menu_open(MI_LOWCUT);

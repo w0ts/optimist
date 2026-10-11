@@ -4,8 +4,8 @@
  * SELECT turns them, the knobs set their rows, the values in large type) */
 /* The HOME-held menu, in sections as SLOOP 2.4 groups it: SCREEN (COLOR, ZOOM, BRIGHT, VIEW), LIGHTS (LIGHTS, KEYS,
  * NOTES), AUDIO (LOWCUT) and SYSTEM, which has these screens: the MIDI and the clock (OUT, IN, SYNC, CLK), the MIDI
- * channels of the tracks (TRK 1..3, DRUMS), HOLD, KNOB COLORS and CLOCK OUT (MIDI clock sent), and USB SERIAL, CPU,
- * HARDWARE CALIBRATION, ABOUT. Only what the build has
+ * channels of the tracks (TRK 1..3, DRUMS), the MIDI extras (CLOCK OUT: MIDI clock sent; no screen when the build lacks
+ * it), HOLD and KNOB COLORS, and USB SERIAL, CPU, HARDWARE CALIBRATION, ABOUT. Only what the build has
  * is shown. SELECT goes to the screen before / after (stopping at the ends), KNOB 1..4 set the rows in order (the
  * cursor follows the knob turned), PRESETS moves the cursor, OCT+ steps the cursor's setting round or opens it
  * (CALIBRATION, ABOUT), OCT- closes (from ABOUT: back to the menu). All of it is settings of the FM-1 (kept over
@@ -42,7 +42,7 @@ static const char *const MI_NAME[MI_COUNT] = {
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
 static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SYSTEM"};
 #define MI_IF(c, i) ((c) ? (uint8_t)(i) : MI_NONE)
-#define MI_NSCR (7 + FELUCCA_BLE)
+#define MI_NSCR (8 + FELUCCA_BLE)
 static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
     {MS_SCREEN, {MI_COLOR, MI_ZOOM, MI_IF(FELUCCA_BRIGHT, MI_BRIGHT), MI_IF(FELUCCA_OVERVIEW, MI_VIEW)}},
     {MS_LIGHTS, {MI_IF(FELUCCA_LIGHTS, MI_LIGHTS), MI_IF(FELUCCA_LIGHTS, MI_KEYS),
@@ -52,8 +52,9 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CLOCK, MI_CLK)}},
     {MS_SYSTEM, {MI_IF(FELUCCA_MIDI_CH, MI_CH1), MI_IF(FELUCCA_MIDI_CH, MI_CH2), MI_IF(FELUCCA_MIDI_CH, MI_CH3),
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
-    {MS_SYSTEM, {MI_HOLD, MI_KCOL, MI_IF(FELUCCA_MIDI_CLKOUT, MI_CLKOUT), MI_NONE}},   /* (KNOB COLORS: core/knobcol.h; CLOCK
-                                                    * OUT: io/midi/clock_out.c) */
+    {MS_SYSTEM, {MI_IF(FELUCCA_MIDI_CLKOUT, MI_CLKOUT), MI_NONE, MI_NONE, MI_NONE}},   /* (MIDI extras: CLOCK OUT, io/midi/
+                                                    * clock_out.c; no row, no screen: SELECT and the tabs skip it) */
+    {MS_SYSTEM, {MI_HOLD, MI_KCOL, MI_NONE, MI_NONE}},   /* (KNOB COLORS: core/knobcol.h) */
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 #if FELUCCA_BLE
     {MS_SYSTEM, {MI_BLE, MI_BLEDEV, MI_NONE, MI_NONE}},    /* (the last screen: the radio, OFF by default; the list) */
