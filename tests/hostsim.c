@@ -642,6 +642,151 @@ static int rec_test(void)
     return fail;
 }
 
+#if FELUCCA_PLOCK
+/* live-recorded lengths kept as GATE locks (seq.c rec_len_end; RECLEN=1, built with PLOCK): what each case stores and
+ * how long the step then plays. 120 BPM, 1/16 steps, GATE 64; a key goes down 0.10 into its step (REC_LAT, 512
+ * samples = 0.093 step, is taken back: the note starts 0.007 late, so 0.10 .. 1.00 is a note 0.907 long). */
+#define RL_STEP ((double)FS * 60.0 / 120.0 / 4.0)  /* samples a step */
+static int32_t rl_gate(const track_t *t, uint32_t idx)   /* its GATE lock, -1 none */
+{
+    int32_t v;
+    return lock_get(t, idx, P_SGATE, &v) ? v : -1;
+}
+static int rl_sounds(const track_t *t, uint32_t note)
+{
+    uint32_t i;
+    for (i = 0; i < t->seq_n; i++)
+        if (t->seq_notes[i] == note)
+            return 1;
+    return 0;
+}
+/* track t playing (not recording): how many steps step idx's (first) note sounds for, from its start */
+static double rl_played(track_t *t, uint32_t idx)
+{
+    int32_t o[2 * CTL];
+    uint32_t guard = 0, n = 0, at, len = trk_len(t), note = t->step[idx].note[0];
+    while (++guard < 200000u && at_step(t, &at) != (idx + len - 1u) % len)
+        mix_block(o, CTL);
+    while (++guard < 200000u && !(t->seq_idx == idx && rl_sounds(t, note)))
+        mix_block(o, CTL);
+    while (++guard < 200000u && rl_sounds(t, note)) {
+        mix_block(o, CTL);
+        n++;
+    }
+    return n * (double)CTL / RL_STEP;
+}
+/* key note down at (step a, q1 %), up at (step b, q2 %) */
+static void rl_hold(track_t *t, uint32_t note, uint32_t a, uint32_t q1, uint32_t b, uint32_t q2)
+{
+    rec_run_to(t, a, q1);
+    input_on(t, note, 100);
+    rec_run_to(t, b, q2);
+    input_off(t, note);
+}
+static int rl_case(const char *what, double held, int32_t gate, int32_t want_lo, int32_t want_hi, double played,
+                   double want)
+{
+    int ok = gate >= want_lo && gate <= want_hi && fabs(played - want) < 0.04;
+    printf("reclen: %-38s held %.2f -> GATE lock %4d (want %d..%d), plays %.2f steps (want %.2f) %s\n", what, held,
+           (int)gate, (int)want_lo, (int)want_hi, played, want, ok ? "ok" : "FAIL");
+    return !ok;
+}
+static int rec_len_test(void)
+{
+    track_t *t1 = &trk[0], *t2 = &trk[1], *t3 = &trk[2];
+    int fail = 0, ok;
+    int32_t old;
+    host_tracks_init();
+    host_preset(t1, 0, 1);                          /* POLY pad */
+    host_preset(t2, 0, 1);
+    host_preset(t3, 0, 0);                          /* SAW LEAD */
+    t1->p[P_VOICE] = t2->p[P_VOICE] = V_POLY;
+    t3->p[P_VOICE] = V_MONO;
+    put_step(t1, 4, 1, (const uint8_t[]){48}, ST_NOTE, 0);   /* an older note: overdub reaches it */
+    (void)lock_set(t1, 4, P_SGATE, 30);             /* (with a lock of its own: it stays) */
+    put_step(t2, 6, 1, (const uint8_t[]){50}, ST_NOTE, 0);   /* a ratchet step (x3) */
+    t2->step[6].rat = 2;
+    song.rec = 0x07u;
+    transport_req = 1;
+    rl_hold(t1, 60, 1, 10, 2, 0);                   /* 0.90: one NOTE */
+    rl_hold(t1, 62, 2, 10, 4, 30);                  /* held into step 4 (a note): cut there, joins it */
+    rl_hold(t1, 64, 5, 10, 6, 50);                  /* 1.40: NOTE TIE (the TIE from a quarter in) */
+    rl_hold(t1, 65, 7, 10, 8, 90);                  /* 1.80: NOTE TIE */
+    rl_hold(t1, 67, 10, 10, 10, 60);                /* 0.50: the GATE (64) as it is: no lock */
+    rl_hold(t1, 69, 12, 10, 0, 80);                 /* 12.1 .. 16.8: across the pattern end */
+    rl_hold(t2, 72, 6, 10, 6, 40);                  /* overdub onto the ratchet step: nothing locked */
+    rec_run_to(t3, 10, 10);                         /* MONO legato: A from 10, B in 12, A up, B up in 13 */
+    input_on(t3, 60, 100);
+    rec_run_to(t3, 12, 10);
+    input_on(t3, 62, 100);
+    rec_run_to(t3, 12, 40);
+    input_off(t3, 60);
+    rec_run_to(t3, 13, 70);
+    input_off(t3, 62);
+    rec_run_to(t1, 14, 50);
+    song.rec = 0;
+    fail += rl_case("NOTE (0.9 step)", 0.90, rl_gate(t1, 1), 114, 118, rl_played(t1, 1), 0.907);
+    fail += rl_case("NOTE TIE, the TIE from 0.25 in (1.4)", 1.40, rl_gate(t1, 6), 1, 1, rl_played(t1, 5), 1.508);
+    fail += rl_case("NOTE TIE (1.8)", 1.80, rl_gate(t1, 8), 37, 41, rl_played(t1, 7), 1.807);
+    fail += rl_case("0.5 = the track's GATE: no lock", 0.50, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.507);
+    fail += rl_case("across the pattern end (lock on 0)", 4.70, rl_gate(t1, 0), 24, 28, rl_played(t1, 12), 4.707);
+    ok = rec_step_is(t1, 12, ST_NOTE, 1, 69) && rec_step_is(t1, 13, ST_TIE, 0, 0) && rec_step_is(t1, 15, ST_TIE, 0, 0) &&
+         rec_step_is(t1, 0, ST_TIE, 0, 0) && rec_step_is(t1, 1, ST_NOTE, 1, 60);
+    fail += !ok;
+    printf("reclen: across the pattern end: 12 NOTE, 13 .. 15 and 0 TIE, 1 its NOTE %s\n", ok ? "ok" : "FAIL");
+    fail += rl_case("overdub, cut by a note: joins it", 2.20, rl_gate(t1, 3), 127, 127, rl_played(t1, 2), 2.0);
+    old = rl_gate(t1, 4);
+    ok = old == 30 && rec_step_is(t1, 4, ST_NOTE, 1, 48);
+    fail += !ok;
+    printf("reclen: overdub: the note reached keeps its own lock (%d, want 30) %s\n", (int)old, ok ? "ok" : "FAIL");
+    ok = rl_gate(t2, 6) == -1 && t2->step[6].n == 2u && t2->step[6].rat;
+    fail += !ok;
+    printf("reclen: overdub onto a ratchet step: no lock %s\n", ok ? "ok" : "FAIL");
+    fail += rl_case("MONO legato: A cut by B, joins it", 2.0, rl_gate(t3, 11), 127, 127, rl_played(t3, 10), 2.0);
+    fail += rl_case("MONO legato: B (1.6)", 1.6, rl_gate(t3, 13), 11, 15, rl_played(t3, 12), 1.607);
+    return fail;
+}
+/* the free take: each note's length onto its last step (seq.c ft_close) */
+static int rec_len_free_test(void)
+{
+    track_t *t1 = &trk[0];
+    int32_t o[2 * CTL];
+    uint32_t b, i, T = 2u * FS / CTL;               /* 2 s: one bar at 120 */
+    double sb = (double)T / 16.0;                   /* blocks a step */
+    static const double ON[4] = {0.0, 4.0, 8.0, 10.0}, LEN[4] = {0.9, 1.8, 3.4, 0.5};   /* (8 + 3.4 > 10: cut) */
+    int fail = 0, ok;
+    host_tracks_init();
+    host_preset(t1, 0, 1);
+    t1->p[P_VOICE] = V_POLY;
+    song.sel = 0;
+    song.playing = 0;
+    song.rec = 0;
+    rec_wait = 1;
+    for (b = 0; b < T; b++) {
+        for (i = 0; i < 4u; i++) {
+            if (b == (uint32_t)(ON[i] * sb + 0.5))
+                input_on(t1, 60u + 2u * i, 100);
+            if (b == (uint32_t)((ON[i] + LEN[i]) * sb + 0.5))
+                input_off(t1, 60u + 2u * i);
+        }
+        mix_block(o, CTL);
+    }
+    ok = ft_on;
+    ft_close();
+    ok = ok && ft_bars == 1u;
+    fail += !ok;
+    printf("reclen: free take closed: 1 bar %s\n", ok ? "ok" : "FAIL");
+    fail += rl_case("free take: NOTE (0.9)", 0.9, rl_gate(t1, 0), 113, 117, rl_played(t1, 0), 0.9);
+    fail += rl_case("free take: NOTE TIE (1.8)", 1.8, rl_gate(t1, 5), 36, 40, rl_played(t1, 4), 1.8);
+    fail += rl_case("free take: cut by the next note, joins", 3.4, rl_gate(t1, 9), 127, 127, rl_played(t1, 8), 2.0);
+    fail += rl_case("free take: 0.5 = the GATE, no lock", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.5);
+    ok = undo_apply(0) && rl_gate(t1, 0) == -1 && rl_gate(t1, 5) == -1 && t1->step[0].n == 0u;
+    fail += !ok;
+    printf("reclen: undo takes the locks with the notes %s\n", ok ? "ok" : "FAIL");
+    return fail;
+}
+#endif
+
 /* TRS MIDI IN (midi_uart.c, untested on hardware): bytes through its parser into the same queue as
  * USB, routed by channel: 1..3 -> parts 1..3, 10 -> drums, others -> the selected track; running
  * status, note-on velocity 0 = note-off; a note-off on a "selected track" channel reaches the track
@@ -859,6 +1004,15 @@ int main(int argc, char **argv)
         transport_req = 1;
     }
     song.master_q12 = 4096;
+#if FELUCCA_PLOCK
+    if (getenv("RECLEN")) {                             /* RECLEN=1: the recorded lengths as GATE locks */
+        int fail = rec_len_test() + rec_len_free_test();
+        fclose(w);
+        remove(out);
+        printf("reclen: %s\n", fail ? "FAILED" : "all checks ok");
+        return fail;
+    }
+#endif
     if (getenv("TRACKS")) {
         fclose(w);
         remove(out);
