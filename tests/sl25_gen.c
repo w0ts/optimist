@@ -10,12 +10,16 @@
  *
  * 2.5 writes tests/sl25_fun5.bin (a project: FUN5, 3840 B) and tests/sl25_settings.bin (the settings object: persist_t,
  * 88 B, then the SYN kits, 1464 B); 2.6 tests/sl26_fun6.bin (FUN6, 3816 B) and tests/sl26_settings.bin (and the MIDI
- * part, 40 B). What each holds: see main (the tests check it). */
+ * part, 40 B). Each also writes its user preset bank 0 (tests/sl25_upb1.bin, sl26_upb1.bin: "UPB1", 3080 B), its
+ * records made by SLOOP's own upreset.c (up_parse, -DUP_HOST) as its editor's UP_PUT makes them. What each holds: see
+ * main (the tests check it). */
 #include <stdio.h>
 #include <string.h>
 #include "core.h"                               /* SLOOP's: P_*, G_*, ENGI_*, step_t, plock_t, NLOCK, FC_*, MICRO_* */
 #include "arranger.h"
 #include "sl25_types.h"                         /* SLOOP's panel_t, dsu_bank_t, proj_trk_t, project_t, persist_t */
+#define UP_HOST 1
+#include "upreset.c"                            /* SLOOP's: up_rec_t, up_bank_t, up_parse (its bank part only) */
 #if SL_VER == 25
 _Static_assert(sizeof(project_t) == 3840u && P_COUNT == 61 && P_E0 == 53 && ENGI_PHYS == 10u && ENGI_NOISE == 11u,
                "SLOOP 2.5's FUN5, its engines");
@@ -94,8 +98,44 @@ static size_t settings(uint8_t *o)
     return sizeof p + sizeof k;
 }
 
+/* user preset bank 0 as SLOOP stores it (its up_put: magic, rsize, nslot, the records), records from SLOOP's up_parse
+ * (the editor's UP_PUT): slot 0 ANALOG "BASS A" (2.6: filter TYPE HP), 1 FM6, 2 PHYS, 3 NOISE, 5 GRAIN; 4 and 6..15
+ * empty. Record j's value i: (i * 5 + j) % 90 - 30, E0..E7 100 + 10 j + i; its pattern note 36 + j + step on even
+ * steps, accent on step 0 */
+static void ubank(up_bank_t *bk)
+{
+    static const uint8_t SLOT[5] = {0, 1, 2, 3, 5}, ENG[5] = {0, ENGI_FM6, ENGI_PHYS, ENGI_NOISE, ENGI_GRAIN};
+    static const char *const NAME[5] = {"BASS A", "FM KEYS", "PHYS PLUCK", "NOISE HAT", "GRAIN PAD"};
+    uint8_t a[400];
+    uint32_t j, i, n, slot;
+    memset(bk, 0, sizeof *bk);
+    bk->magic = UP_BANK_MAGIC, bk->rsize = sizeof(up_rec_t), bk->nslot = UP_PER_BANK;
+    for (j = 0; j < 5u; j++) {
+        up_rec_t r;
+        n = 0;
+        a[n++] = SLOT[j], a[n++] = ENG[j];
+        for (i = 0; NAME[j][i]; i++)
+            a[n++] = (uint8_t)NAME[j][i];
+        a[n++] = 0;
+        for (i = 0; i < P_COUNT; i++) {
+            int32_t v = i >= P_E0 ? (int32_t)(100u + 10u * j + i - P_E0) : (int32_t)((i * 5u + j) % 90u) - 30;
+#if SL_VER == 26
+            if (i == P_FTYPE)
+                v = j == 0 ? 2 : 0;
+#endif
+            a[n++] = (uint8_t)((v + 8192) & 127), a[n++] = (uint8_t)(((v + 8192) >> 7) & 127);
+        }
+        for (i = 0; i < 16u; i++)
+            a[n++] = (uint8_t)(i % 2u ? 0u : 36u + j + i), a[n++] = (uint8_t)(i == 0 ? SF_ACCENT : 0u);
+        if (up_parse(a, n, &r, &slot) || slot != SLOT[j])
+            printf("up_parse refused record %u\n", (unsigned)j);
+        bk->r[slot] = r;
+    }
+}
+
 int main(int argc, char **argv)
 {
+    static up_bank_t ub;
     static project_t q;
     static uint8_t set[4096];
     const char *dir = argc > 1 ? argv[1] : ".";
@@ -165,9 +205,12 @@ int main(int argc, char **argv)
 #endif
     q.sum = fnv(&q, sizeof q - 4u);
     n = settings(set);
+    ubank(&ub);
 #if SL_VER == 25
-    return put(dir, "sl25_fun5.bin", &q, sizeof q) || put(dir, "sl25_settings.bin", set, n);
+    return put(dir, "sl25_fun5.bin", &q, sizeof q) || put(dir, "sl25_settings.bin", set, n) ||
+           put(dir, "sl25_upb1.bin", &ub, sizeof ub);
 #else
-    return put(dir, "sl26_fun6.bin", &q, sizeof q) || put(dir, "sl26_settings.bin", set, n);
+    return put(dir, "sl26_fun6.bin", &q, sizeof q) || put(dir, "sl26_settings.bin", set, n) ||
+           put(dir, "sl26_upb1.bin", &ub, sizeof ub);
 #endif
 }

@@ -700,6 +700,46 @@ int main(void)
         bad += check("SLOOP 2.4 / 2.5 user presets (np 61): FM6 stays FM6, 2.5's PHYS (10) ours, its NOISE (11) ANALOG at its EDIT defaults; TFLT.. not read as FX OFF; E0..E7", ok);
         memset(up_bank, 0, sizeof up_bank);
     }
+    {   /* SLOOP 2.6's user presets (UPB1, UP_VER 1, np 71: 2.5's 61 and P_ITYPE .. P_LPOL at 53..62, P_FTYPE 58, P_E0 at
+         * 63; 2.5's engine numbers): mapped as np 61's, E0..E7 from 63, an ANALOG's filter TYPE BP / HP -> FTYP 2 / 3.
+         * Before: read as a SLOOP plus record of 71 values (their INSERT as our ANALOG 2, PHYS as SLICE) */
+        static up_bank_t bk;
+        int16_t v[P_COUNT], def[P_COUNT];
+        memset(&bk, 0, sizeof bk);
+        bk.magic = UP_BANK_MAGIC_V1, bk.rsize = sizeof(up_rec_t), bk.nslot = UP_PER_BANK;
+        for (i = 0; i < P_COUNT; i++)
+            def[i] = TP[i].def;
+        for (i = 0; i < 5u; i++) {
+            static const uint8_t E[5] = {0, 9, 10, 11, 0}, FT[5] = {2, 0, 0, 1, 1};
+            up_rec_t *r = &bk.r[i];
+            uint32_t k;
+            r->used = UP_USED, r->ver = 1, r->np = 71, r->name[0] = (char)('Q' + i), r->engine = E[i];
+            for (k = 0; k < 71u; k++)
+                r->p[k] = (int16_t)(k + 3u * i);
+            r->p[50] = -40;                              /* their TFLT: not our P_FXOFF */
+            r->p[53] = 5;                                /* their INSERT TYPE: not our ANALOG 2's */
+            r->p[58] = FT[i];                            /* their FTYPE: HP, -, -, BP (NOISE: not heard), BP */
+        }
+        memcpy(&up_bank[0], &bk, sizeof bk);
+        up_bank_check(0, (int)sizeof bk);
+        ok = up_rec(0)->engine == 0u && up_rec(1)->engine == 9u && up_rec(2)->engine == ENG_UID_PHYS &&
+             up_rec(3)->engine == 0u && up_valid(up_rec(0)) && up_valid(up_rec(2)) && up_valid(up_rec(3));
+        for (i = 0; i < 8u; i++)
+            ok &= up_rec(3)->p[63u + i] == (eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[i].def : 0);
+        bad += check("SLOOP 2.6 user presets (np 71): FM6 stays, PHYS (10) ours, NOISE (11) ANALOG at its EDIT defaults", ok);
+        up_params(up_rec(2), v, def);
+        ok = v[P_LEVEL] == 6 && v[P_CHORD] == 49 + 6 && v[P_FXOFF] == def[P_FXOFF] && v[P_A2WAVE] == def[P_A2WAVE] &&
+             v[P_E0] == 63 + 6 && v[P_E7] == 70 + 6 && v[P_A2FTYP] == def[P_A2FTYP];
+        bad += check("SLOOP 2.6 user preset: 0..49 as stored, TFLT / INSERT .. not read as ours, E0..E7 from 63", ok);
+        up_params(up_rec(0), v, def);
+        ok = v[P_A2FTYP] == 3 && v[P_E0] == 63;
+        up_params(up_rec(4), v, def);
+        ok &= v[P_A2FTYP] == 2;
+        up_params(up_rec(3), v, def);
+        ok &= v[P_A2FTYP] == def[P_A2FTYP];
+        bad += check("SLOOP 2.6 user preset on ANALOG: filter TYPE HP -> FTYP HP, BP -> BP; a NOISE one's: none", ok);
+        memset(up_bank, 0, sizeof up_bank);
+    }
 #endif
     {   /* UP_VER 1 records of np 72 (SUS2 REL2 DST2 a word each): DST2 with AMT2 -> that amount; UP_VER 2: ENV2's
          * extras packed, a round trip of every value */

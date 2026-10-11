@@ -36,7 +36,11 @@
 #endif
 #if FELUCCA_SL24_SAFE
 #define UP_NP_SL24 61u                           /* SLOOP 2.4's P_COUNT (UPB1, UP_VER 1: P_TFLT P_STRUM P_VLEAD at 50..52) */
+#define UP_NP_SL26 71u                           /* SLOOP 2.6's (v2.6 d30d655: + P_ITYPE .. P_LPOL at 53..62, P_E0 63). No
+                                                  * SLOOP plus stored it (its P_COUNTs: 53 57 58 59, ANALOG 2's 69 72) */
+#define UP_SL26_FTYPE 58u                        /* 2.6's P_FTYPE: ANALOG's filter LP / BP / HP */
 #define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
+#define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
 #endif
 #if FELUCCA_ANALOG2
 #define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
@@ -111,13 +115,15 @@ static void up_bank_from_v1(up_bank_t *bk)
         if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
             continue;                                   /* (UPB1: UP_VER 1 records only) */
 #if FELUCCA_SL24_SAFE
-        if (r->np == UP_NP_SL24) {                      /* (SLOOP 2.4 / 2.5's: 0..9 our engine numbers, FM6 9; 2.5's */
+        if (UP_IS_SL(r)) {                              /* (SLOOP 2.4 .. 2.6's: 0..9 our engine numbers, FM6 9; 2.5's */
             if (r->engine == 10u)                       /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
-                r->engine = ENG_UID_PHYS;               /* defaults: sl24_import.c sl24_eng_in) */
-            else if (r->engine > ENG_UID_FM6) {
+                r->engine = ENG_UID_PHYS;               /* defaults: sl24_import.c sl24_eng_in; 2.6's filter TYPE */
+            else if (r->engine > ENG_UID_FM6) {         /* was not its: LP) */
                 r->engine = 0;
                 for (k = 0; k < 8u; k++)
-                    r->p[UP_NP_SL24 - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
+                    r->p[r->np - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
+                if (r->np == UP_NP_SL26)
+                    r->p[UP_SL26_FTYPE] = 0;
             }
             continue;
         }
@@ -165,11 +171,15 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[i] = def[i];
 #endif
 #if FELUCCA_SL24_SAFE
-    if (r->ver == 1u && r->np == UP_NP_SL24) {  /* SLOOP 2.4 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM VLEAD */
-        for (i = 0; i < P_E0; i++)              /* (not ours yet: their defaults), P_E0.. at 53 */
-            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];
-        for (i = 0; i < 8u; i++)
-            out[P_E0 + i] = r->p[UP_NP_SL24 - 8u + i];
+    if (UP_IS_SL(r)) {                          /* SLOOP 2.4 / 2.5 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM */
+        for (i = 0; i < P_E0; i++)              /* VLEAD (not a sound's here: their defaults), P_E0.. at 53; 2.6 (71): */
+            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];   /* its ten more (INSERT, FTYPE, ENV SYNC, LFO 2: LOST */
+        for (i = 0; i < 8u; i++)                /* but an ANALOG's filter TYPE, as a 2.6 project's: sl26_ftype_in), */
+            out[P_E0 + i] = r->p[r->np - 8u + i];   /* P_E0.. at 63 */
+#if FELUCCA_ANALOG2
+        if (r->np == UP_NP_SL26 && !r->engine && (r->p[UP_SL26_FTYPE] == 1 || r->p[UP_SL26_FTYPE] == 2))
+            out[P_A2FTYP] = (int16_t)(r->p[UP_SL26_FTYPE] + 1);   /* (BP 2, HP 3; LP: ours as it is) */
+#endif
         return;
     }
 #endif

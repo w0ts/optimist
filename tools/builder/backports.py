@@ -139,7 +139,8 @@ DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP 2.4, 2.5 or 2.6: Optimist never erases or writes over what SLOOP left that it cannot read: the"
     " four project slots and the autosave (2.4 / 2.5's FUN5 and 2.6's FUN6 projects, shown as SLOOP 2.4 on the "
     "PROJECT page and in the editor, not EMPTY), 2.4's FM6 bank and a user sample longer than ours (USR3, USR4); "
-    "2.4's settings word and user presets are read right. SLOOP 2.5 / 2.6's settings (their SYN1..SYN4 drum kits and "
+    "2.4's settings word and 2.4 .. 2.6's user presets are read right (2.5's engine numbers, 2.6's ANALOG filter "
+    "TYPE). SLOOP 2.5 / 2.6's settings (their SYN1..SYN4 drum kits and "
     "2.6's MIDI LEARN after them) are never read as Optimist's and never written over: Optimist keeps its own "
     "settings beside them, so each firmware finds its own after a switch (a cut while Optimist saves its settings: "
     "their 88 bytes again, as at the first start). Off, the first start erases 2.4's projects. About 0.7 KB of flash.")
