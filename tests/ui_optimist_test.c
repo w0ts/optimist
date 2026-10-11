@@ -2138,6 +2138,7 @@ int main(int argc, char **argv)
     s35_transpose_tests();
     s35_roll_tests();
     s35_drum_codes_tests();
+    s35_pages_tests();
     master_tests();
     algo_inplace_tests();
     knobcol_tests();

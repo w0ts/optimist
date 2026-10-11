@@ -191,3 +191,74 @@ static void s35_drum_codes_tests(void)
           "... the codes are the mixer's (LANE_CODE: BD .. CB)");
     reset_ui();
 }
+/* the page and its n/N in the header (the user, 2026-10-11: "when i page thru with select (for plock or normal pages)
+ * we should display the name of the page and the 1/4 (current/total pages). ideally everywhere") */
+static int s35_pos_is(uint32_t at, uint32_t n)          /* the header's n/N now: " at/n" */
+{
+    char p[12], e[12];
+    head_pos(ui.scr, ui.row[ui.scr], p);
+    snprintf(e, sizeof e, " %u/%u", at, n);
+    if (strcmp(p, e))
+        printf("  pos [%s] want [%s]\n", p, e);
+    return !strcmp(p, e);
+}
+static void s35_pages_tests(void)
+{
+    char t[32], nm[16];
+    uint32_t n;
+    reset_ui();
+    song.sel = 0;
+    tap(B_ENV);                                         /* SOUND, the ENV family */
+    n = SCR->rows();
+    check(ui.scr == SCR_SOUND && n >= 2u && s35_pos_is(ui.row[SCR_SOUND] + 1u, n), "SOUND ENV: the header's n/N (the family's rows)");
+    turn(EN_SELECT, 1);
+    head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
+    SCR->name(ui.row[ui.scr], nm);
+    check(s35_pos_is(ui.row[SCR_SOUND] + 1u, n) && strstr(t, nm) != 0, "... SELECT: the next page's name and its n/N");
+    tap(B_ENV);                                         /* (the same button: the family's next, round) */
+    check(s35_pos_is(ui.row[SCR_SOUND] + 1u, n), "... ENV again (the repeat): the n/N follows");
+    strcpy(t, "SOUND ENV2 DEST");
+    head_fit(t, " 3/12", 12);
+    check(!strcmp(t, "ENV2 DE 3/12"), "a title too long: the screen's word goes first, the name cut, the n/N whole");
+    strcpy(t, "SOUND LFO");
+    head_fit(t, " 2/4", 14);
+    check(!strcmp(t, "SOUND LFO 2/4"), "a title that fits: whole, then the n/N");
+    /* the mixer: the row's sets */
+    go_home();
+    frames(2);
+    n = mx_sets(mx_row());
+    turn(EN_SELECT, -8);                                /* (the first set) */
+    turn(EN_SELECT, 1);
+    check(n < 2u || s35_pos_is(2u, n), "the mixer: SELECT, the set's n/N (T1 INSERT 2/4)");
+    /* STEP: its pages while their cards show; the window's header otherwise */
+    reset_ui();
+    song.sel = 0;
+    tap(B_SEQ);
+    frames(2);
+    {
+        char p[12];
+        head_pos(SCR_STEP, ui.row[SCR_STEP], p);
+        check(!p[0], "STEP, nothing shown over the grid: no n/N (the header names the window)");
+    }
+    n = SCR->rows();
+    tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */
+    head_title(SCR_STEP, ui.row[SCR_STEP], t, sizeof t);
+    SCR->name(ui.row[SCR_STEP], nm);
+    check(ui.cards_t > 0u && !strcmp(t, nm) && s35_pos_is(2u, n), "STEP, SEQ again: the page's name and n/N (ARP 2/3)");
+    /* a held step: its card pages */
+    s35_open();
+    s35_note(3, 60, LV_NORM);
+    kdown(WK(3));
+    frames(HOLD_FRAMES);
+    head_title(SCR_STEP, 0, t, sizeof t);
+    check(!strcmp(t, "STEP") && (hp_count() < 2u || s35_pos_is(1u, hp_count())), "a held step: STEP 1/N");
+    if (hp_count() >= 2u) {
+        turn(EN_SELECT, 1);
+        head_title(SCR_STEP, 0, t, sizeof t);
+        check((!strcmp(t, "EXTRA") || !strcmp(t, PAGES[st.lock_pg % NPAGES].title)) && s35_pos_is(2u, hp_count()),
+              "... SELECT: the next card page's name and 2/N");
+    }
+    kup(WK(3));
+    frames(2);
+    s35_open();
+}

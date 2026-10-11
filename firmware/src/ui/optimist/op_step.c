@@ -69,6 +69,7 @@ static void step_scroll(int32_t d)                      /* HOME + OCT- / OCT+ */
 {
     st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(TSEL) - 1);
     st.follow = 0;
+    ui.cards_t = 0;                                     /* (the grid is what is looked at: the cards go, the header names the window) */
 }
 static void step_reset(void)                            /* STEP entered or left: nothing held, the keys are steps */
 {
@@ -571,18 +572,10 @@ static void hp_sync(void)                               /* the page of st.lock_p
         if (ix[i] == st.lock_pg)
             st.hp = (uint8_t)(HP_BASE + i);
 }
-static void hp_title(char *t, uint32_t n)               /* "STEP 3/9 LFO" */
+static void hp_title(char *t, uint32_t n)               /* the held step's card page: "STEP", "EXTRA", "LFO" */
 {
     uint8_t ix[OP_MAXROWS];
-    const char *nm = st.hp == 0u ? "" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title;
-    str_cpy(t, "STEP ", n);
-    fmt_int(t + str_len(t), (int32_t)st.hp + 1);
-    str_cpy(t + str_len(t), "/", n - str_len(t));
-    fmt_int(t + str_len(t), (int32_t)hp_count());
-    if (nm[0]) {
-        str_cpy(t + str_len(t), " ", n - str_len(t));
-        str_cpy(t + str_len(t), nm, n - str_len(t));
-    }
+    str_cpy(t, st.hp == 0u ? "STEP" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title, n);
 }
 static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's extras */
 {

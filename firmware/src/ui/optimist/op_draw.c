@@ -79,6 +79,10 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
         hp_title(t, n);
         return;
     }
+    if (scr == SCR_STEP && ui.cards_t && !st.held) {    /* a page changed, the cards up: the page ("PATTERN 1/3") */
+        SCREENS[SCR_STEP].name(row, t);
+        return;
+    }
     if (scr == SCR_STEP) {                              /* the window: "STEPS 17-32" */
         uint32_t a = st.page * 16u + 1u, b = a + 15u < trk_len(TSEL) ? a + 15u : trk_len(TSEL);
         str_cpy(t, "STEPS ", n);
@@ -117,6 +121,49 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     str_cpy(t, s, n);
     str_cpy(t + str_len(t), " ", n - str_len(t));
     str_cpy(t + str_len(t), r, n - str_len(t));
+}
+/* where SELECT is among the pages its turns walk, " 2/4" after the title (the user, 2026-10-11: "when i page thru
+ * with select (for plock or normal pages) we should display the name of the page and the 1/4 (current/total pages).
+ * ideally everywhere"): a held step's card pages, STEP's pages while their cards show, the mixer's sets of the row, a
+ * screen's rows (SOUND, its families, FX, PROJECT, SYSTEM, SONG). The same button's repeat walks the same pages.
+ * Empty when there is one page, or the title is not a page's (STEP's window) */
+static void head_pos(uint32_t scr, uint32_t row, char *p)
+{
+    uint32_t at, n;
+    p[0] = 0;
+    if (scr == SCR_STEP && st.held && ui.cards_t)
+        at = st.hp, n = hp_count();
+    else if (scr == SCR_STEP && !ui.cards_t)
+        return;
+    else if (scr == SCR_HOME)
+        at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
+    else if (scr == SCR_TEMPO || scr == SCR_SCOPE)
+        return;
+    else
+        at = row, n = SCREENS[scr % SCR_N].rows();
+    if (n < 2u)
+        return;
+    p[0] = ' ';
+    fmt_int(p + 1, (int32_t)(at < n ? at : n - 1u) + 1);
+    str_cpy(p + str_len(p), "/", 2);
+    fmt_int(p + str_len(p), (int32_t)n);
+}
+/* the title t (32 bytes) and the page's n/N in w characters: the n/N always whole, the name cut before it; a name too
+ * long loses the screen's word first ("Sound ENV dest 3/12" -> "ENV dest 3/12") */
+static void head_fit(char *t, const char *pos, int32_t w)
+{
+    char c[32];
+    int32_t k = w - (int32_t)str_len(pos), i;
+    const char *nm = t;
+    for (i = 0; t[i] && t[i] != ' '; i++)
+        ;
+    if ((int32_t)str_len(t) > k && t[i])
+        nm = t + i + 1;
+    cut(c, nm, (uint32_t)(k < 1 ? 1 : k > 24 ? 24 : k));
+    for (i = (int32_t)str_len(c); i > 1 && c[i - 1] == ' '; i--)
+        c[i - 1] = 0;
+    str_cpy(c + str_len(c), pos, sizeof c - str_len(c));
+    str_cpy(t, c, 32);
 }
 /* the header's badge: the selected track's engine (the drum track: DRUMS), in its colour (the user, 2026-10-08: the
  * track tag "brings no value, put the algo there"; the track is the colour and the strips) */
@@ -164,7 +211,7 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
 }
 static void draw_head(void)
 {
-    char t[32], c[32], r[16], bpm[8];
+    char t[32], c[32], r[16], bpm[8], pos[12];
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
@@ -173,6 +220,7 @@ static void draw_head(void)
         tc = C_HI;
     }
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
+    pos[0] = 0;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
     } else if (name_on()) {
@@ -181,10 +229,11 @@ static void draw_head(void)
         lay_title(t, sizeof t);                         /* a layer: its name ("Scenes", "FX locked") */
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
+        head_pos(ui.scr, ui.row[ui.scr], pos);
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
-    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !(st.held && ui.cards_t)) {   /* STEP: the window, then the pick: */
+    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !ui.cards_t) {   /* STEP: the window, then the pick: */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
             str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
         else
@@ -196,6 +245,10 @@ static void draw_head(void)
     if (ui.scr == SCR_STEP)
         r[0] = 0;                                       /* (STEP: the grid shows the playhead; the room is the pick's) */
     fmt_int(bpm, song.g[G_BPM]);
+    tx = bw + 8;                                        /* the title's room, left of the position and the tempo */
+    room = 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - tx;
+    if (pos[0])
+        head_fit(t, pos, room > 8 ? room / 8 : 1);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm), eng);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     tflash_tick();
@@ -214,8 +267,6 @@ static void draw_head(void)
     } else {
         cv_rect(2, 3, bw, 19, tc);                      /* the track's engine, in its colour */
         cv_text(6, 4, &FONT_S, eng, C_BLACK);
-        tx = bw + 8;                                    /* the title, cut to the room left of the position */
-        room = 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - tx;
         cv_text(tx, 4, &FONT_S, cut(c, t, room > 8 ? (uint32_t)room / 8u : 1u), mc);   /* (cased above) */
         cv_text(236 - text_w(&FONT_S, bpm), 4, &FONT_S, bpm, C_HI);
         if (r[0])
