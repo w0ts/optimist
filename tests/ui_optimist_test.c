@@ -52,7 +52,7 @@ static uint8_t fm1_led_bg[16];
 static uint16_t fm1_led_bg_ns;
 #endif
 #define FM1_NCOL 16u
-static const int8_t FM1_KEYMAP[5][16];
+static int8_t FM1_KEYMAP[5][16];                      /* (filled in main: every button and key one LED place) */
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static uint32_t edges_btn, notes_seen;
 static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
@@ -2031,9 +2031,62 @@ static void preset_engine_tests(void)
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+/* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
+static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
+{
+    uint8_t q = led_pos[panel.btn[b]];
+    if (q == 0xFF)
+        return 9;
+    return (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+}
+static void led_tests(void)
+{
+    uint32_t b;
+    reset_ui();
+    song.sel = 0;
+    frames(2);
+    check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == 1 && led_lvl(B_FX) == 1, "LEDs, a synth track: ENV LFO FX are half lit");
+    check(led_lvl(B_HOME) == 2 && led_lvl(B_SAVE) == 1 && led_lvl(B_PLAY) == 1 && led_lvl(B_REC) == 1,
+          "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
+    song.sel = TRK_DRUM;
+    frames(2);
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track: no LFO, no ENV (dark)");
+    check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
+          "LEDs, the drum track: EDIT FX GLO SEQ half lit");
+    for (b = 0; b < NB; b++)
+        if (led_lvl(b) == 9)
+            break;
+    check(b == NB, "LEDs: every button has an LED place in the test");
+    tap(B_SEQ);
+    frames(2);
+    check(ui.scr == SCR_STEP && led_lvl(B_SEQ) == 2 && led_lvl(B_LFO) == 0, "LEDs: on STEP the SEQ button is full, LFO stays dark");
+    song.sel = 0;
+    tap(B_LFO);
+    frames(2);
+    check(ui.scr == SCR_SOUND && led_lvl(B_LFO) == 2 && led_lvl(B_ENV) == 1, "LEDs: on the LFO page its button is full, ENV half");
+    tap(B_HOME);
+    frames(2);
+    {
+        uint8_t d0[16], d1[16];
+        memcpy(d0, fm1_led_dim, sizeof d0);
+        frames(5);
+        memcpy(d1, fm1_led_dim, sizeof d1);
+        check(!memcmp(d0, d1, sizeof d0), "LEDs: nothing changes while nothing changes");
+    }
+    song.sel = 0;
+    reset_ui();
+}
+
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
+    {
+        uint32_t i;
+        for (i = 0; i < 5u * 16u; i++)
+            FM1_KEYMAP[i / 16u][i % 16u] = -1;
+        for (i = 0; i < 41u; i++)
+            FM1_KEYMAP[1u + i / 16u][i % 16u] = (int8_t)i;
+    }
     host_tracks_init();
 #if FELUCCA_PATTERNS
     memset(nor, 0xFF, sizeof nor);                      /* an erased NOR: the section log empty */
@@ -2085,6 +2138,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    led_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif
