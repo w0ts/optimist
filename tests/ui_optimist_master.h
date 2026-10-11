@@ -230,6 +230,7 @@ static void held_page_tests(void)
     reset_ui();
     song.sel = 0;
     tap(B_SEQ);
+    key(WK(3));                                         /* (set by a tap: a press no longer sets the step) */
     kdown(WK(3));
     t = TSEL;
     check(st.held && st.hp == 0u && hp_count() >= 1u, "a step held: card page 1, the step");

@@ -1027,6 +1027,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
+            step_pend_off = 0;                            /* (a step key down meanwhile: no tap) */
 #if FELUCCA_AUTO                                         /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
                                                            * fill; OCT+ cycles its fill condition) */
             if ((press & ob) && ui.step_held)

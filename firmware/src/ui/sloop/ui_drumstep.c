@@ -144,7 +144,9 @@ static int grid_keys_on(void) { return on_drum_page() && !drum_page && song.sel 
 
 /* THE HELD STEPS of the grid (the store's switches on): a step key held past HOLD_MS (core/hold.h) is a held step for the
  * picked lane, as in the SEQ layer: ui.step_held / ui.step_page carry it, so steps_held_* (ui_layers.c) edit it with no
- * copy. gh_down the keys down, gh_held those that became held, gh_off the set steps that clear when let go (a tap) */
+ * copy. gh_down the keys down, gh_held those that became held, gh_off the keys that toggle their step when let go (a
+ * tap: let go before HOLD_MS, no knob turned; the user, 2026-10-11: "long press on step to open plock, should not toggle
+ * the step on/off") */
 static void grid_hold_drop(void)                       /* every key forgotten (a page key, a layer, the page left) */
 {
     ui.step_held &= (uint16_t)~gh_held;
@@ -186,13 +188,13 @@ static void grid_hold_tick(void)
 }
 
 /* a key down on the GRID page: the white keys are the 16 steps of this page for the sound of KNOB 1 (an empty one is
- * set at NORM and the sound heard, at once; a set one goes when its key is let go, unless it was held: a held step is
- * edited, SEQ layer style); the first four black keys pick the page. The cursor follows */
+ * heard at once and set at NORM when its key is let go; a set one goes when its key is let go; both only after a tap:
+ * a held step is edited, SEQ layer style, and stays as it was); the first four black keys pick the page. The cursor
+ * follows */
 static void grid_key(uint32_t k)
 {
     uint32_t len = trk_len(TDRUM), idx;
     int32_t w = punch_key(k), pg;
-    dstep_t *st;
     if (w < 0) {
         if ((pg = ds_page_key(k, len)) >= 0) {
             grid_hold_drop();                           /* (a held step keeps its page: a page key lets go of them) */
@@ -215,21 +217,12 @@ static void grid_key(uint32_t k)
     }
     gh_down |= (uint16_t)(1u << w);
     gh_t0[w] = fm1_ms;
-    st = &TDRUM->dstep[idx];
-    if (dstep_has(st, drum_lane)) {
-        gh_off |= (uint16_t)(1u << w);                  /* (cleared when let go, unless held) */
-        return;
-    }
-    undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
-    fm1_irq_off();
-    dstep_set(st, drum_lane, LV_NORM, 0);
-    TDRUM->seq_active = 1;
-    fm1_irq_on();
-    audition_lane(drum_lane);
-    sync_reload = 1;
+    gh_off |= (uint16_t)(1u << w);                      /* (toggled when let go, unless held) */
+    if (!dstep_has(&TDRUM->dstep[idx], drum_lane))
+        audition_lane(drum_lane);                       /* (an empty step: its sound heard at the press) */
 }
 
-/* a step key let go: a tap on a set step clears it (a held one stays) */
+/* a step key let go: a tap toggles its step (a held one stays) */
 static void grid_key_up(uint32_t k)
 {
     int32_t w = punch_key(k);
@@ -247,16 +240,21 @@ static void grid_key_up(uint32_t k)
         return;
     gh_off &= (uint16_t)~bit;
     idx = (drum_cursor / 16u) * 16u + (uint32_t)w;
-    if (idx >= trk_len(TDRUM) || !dstep_has(&TDRUM->dstep[idx], drum_lane))
-        return;
+    if (idx >= trk_len(TDRUM) || fm1_ms - gh_t0[w] >= HOLD_MS)
+        return;                                         /* (a long press: no tap, with or without held steps) */
     st = &TDRUM->dstep[idx];
     undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
     fm1_irq_off();
-    dstep_clr(st, drum_lane);
+    if (!dstep_has(st, drum_lane)) {
+        dstep_set(st, drum_lane, LV_NORM, 0);
+        TDRUM->seq_active = 1;
+    } else {
+        dstep_clr(st, drum_lane);
 #if FELUCCA_AUTO
-    if (!dstep_mask(st))                                /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
-        (void)auto_step_clear(TDRUM, idx, AUTO_ONLYS);
+        if (!dstep_mask(st))                            /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
+            (void)auto_step_clear(TDRUM, idx, AUTO_ONLYS);
 #endif
+    }
     fm1_irq_on();
     sync_reload = 1;
 }

@@ -345,8 +345,18 @@ several for a chord) become what the next tapped steps carry. Letting SEQ go kee
 (today's rule: "the sound shown / the note you played last"); a set step tapped is cleared; a held step is edited
 and kept, several held together (as today).
 
+**Only a tap toggles a step** (2026-10-11, the user: "long press on step to open plock, should not toggle the step
+on/off"). The toggle happens **when the key is let go**, and only if it was let go before the hold time (SYSTEM HOLD,
+`op_hold_ms`) with nothing done meanwhile: a knob turned (a value, a lock, PRESETS, SELECT paging the cards) or a page
+button (the step's locks) makes the press no tap, and the step stays as it was. **An empty step held long opens its
+cards and makes no note**: the step values show "-", and a lock written there is a step-only event on the rest
+(`lock_turn`, as before): the sequencer applies it whenever the playhead enters the step, note or not (`auto_step`),
+so the notes still ringing follow it until the next step without it. A step held + another key tapped toggles the other
+(the one held stays). The feedback is immediate: the key's LED is lit and its column framed white from the press;
+the note itself appears when the key is let go, so a tap's latency is the tap's length (about 100 ms).
+
 What a step key does when nothing is held, in short: tap an empty step, it is set with the pick; tap a set step, it
-is cleared; hold it and turn, it is edited. **SEQ tapped again goes to STEP's next page** (the paging rule; STEP
+is cleared (both when let go); hold it, its cards open and the step stays as it was; hold it and turn, it is edited. **SEQ tapped again goes to STEP's next page** (the paging rule; STEP
 opens on PATTERN); **SEQ held alone past HOLD and let go** toggles the keys to playing with the STEP screen still up
 (to audition while the grid follows the playhead); the same again, steps [D, 11.6].
 

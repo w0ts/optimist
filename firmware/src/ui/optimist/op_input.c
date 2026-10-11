@@ -525,6 +525,7 @@ static void op_knobs(uint32_t home)
             lay.quiet = 1;                              /* (LFO held + a knob: SHIFT, the screen under, no map) */
 #endif
         op_clean &= ~op_held;                           /* (a button held while a knob turned: no tap) */
+        st.pend &= (uint16_t)~st.held;                  /* (STEP: a step key held while a knob turned: no tap either) */
         lay.chord = 0;
         tp.pend = 0;
     }

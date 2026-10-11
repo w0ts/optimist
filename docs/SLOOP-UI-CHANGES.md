@@ -31,6 +31,14 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 - A full pattern (128 events) says "Pattern full: 128 events".
 - FOLLOW works in the SEQ layer on every track: while playing, the page follows the playhead. A page key or SEQ + OCT- / OCT+ turns it off, and the fifth black key (D#) toggles it.
 
+## Step keys: only a tap toggles (2026-10-11)
+
+- The user: "long press on step to open plock, should not toggle the step on/off". In the SEQ layer and on the DRUMS grid, a step key now toggles its step when it is let go, and only after a tap: let go before the hold time, with no knob turned and no page changed meanwhile.
+- A press held past the hold time leaves the step as it was. An empty step gets no note, and a set step is no longer cleared when let go. Its held-step edits (locks, nudge, chance, fill) work as before. A lock written on an empty step is kept on that rest and applies when the playhead reaches it.
+- A knob turned (level, ratchet, note, length, the lock and its parameter, the grid's lane, cursor or level) or a page change (a page key, SEQ + OCT- / OCT+) while the key is down cancels the tap.
+- A step held + another key tapped toggles the other one.
+- On the grid an empty step's sound is still heard at the press; the step is set when the key is let go. Without the automation store (no held steps on the grid) a long press toggles nothing either: the same rule everywhere (the user, 2026-10-11).
+
 ## Tempo page
 
 - HOME held past the hold time (shift), then PLAY, opens the tempo page. That PLAY press does not start or stop the transport. With a layer button held there is no page, and PLAY plays.

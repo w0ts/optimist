@@ -162,10 +162,12 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
 }
 
 /* ------------------------------------------------------------- SEQ --- */
-/* a step key (white key w) of the SEQ layer, Elektron style: an empty step is set at once (drums: the
- * sound's lane; synth: the pen, the chord / note played last); a set one goes when its key is let go,
- * unless a knob changed it meanwhile (level, ratchet, note) */
-static uint16_t step_pend_off;                         /* the step keys that clear their step when let go */
+/* a step key (white key w) of the SEQ layer: a tap toggles its step when the key is let go (an empty step takes the
+ * pen: drums the sound's lane, synth the chord / note played last; a set one is cleared). A press held past HOLD_MS, or
+ * one during which a knob changed the steps held (level, ratchet, note, a lock, the length), toggles nothing: the step
+ * stays as it was, an empty one gets no note (the user, 2026-10-11: "long press on step to open plock, should not
+ * toggle the step on/off") */
+static uint16_t step_pend_off;                         /* the step keys that toggle their step when let go (a tap) */
 static int step_is_on(const track_t *t, uint32_t idx)
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], pen_lane) : step_on(&t->step[idx]);
@@ -180,12 +182,11 @@ static void step_down(uint32_t w)
         ui_message("STOP THE SONG FIRST");
         return;
     }
-    if (step_is_on(t, idx)) {
-        step_pend_off |= (uint16_t)(1u << w);
-        return;
-    }
-    layer_undo_mark(t);
-    fm1_irq_off();
+    step_pend_off |= (uint16_t)(1u << w);
+    ui.step_t0[w] = fm1_ms;
+}
+static void step_put(track_t *t, uint32_t idx)         /* an empty step takes the pen (IRQ off) */
+{
     if (is_drum(t)) {
         dstep_set(&t->dstep[idx], pen_lane, LV_NORM, 0);
     } else {
@@ -199,8 +200,6 @@ static void step_down(uint32_t w)
         s->vel = 100;
     }
     t->seq_active = 1;
-    fm1_irq_on();
-    sync_reload = 1;
 }
 static void step_up(uint32_t w)
 {
@@ -209,18 +208,22 @@ static void step_up(uint32_t w)
     if (!((step_pend_off >> w) & 1u))
         return;
     step_pend_off &= (uint16_t)~(1u << w);
-    if (idx >= trk_len(t) || !step_is_on(t, idx))
-        return;
+    if (idx >= trk_len(t) || fm1_ms - ui.step_t0[w] >= HOLD_MS)
+        return;                                         /* (held: not a tap, the step stays) */
     layer_undo_mark(t);
     fm1_irq_off();
-    if (is_drum(t))
-        dstep_clr(&t->dstep[idx], pen_lane);
-    else
-        step_clear(&t->step[idx]);
+    if (!step_is_on(t, idx)) {
+        step_put(t, idx);
+    } else {
+        if (is_drum(t))
+            dstep_clr(&t->dstep[idx], pen_lane);
+        else
+            step_clear(&t->step[idx]);
 #if FELUCCA_AUTO
-    if (!is_drum(t) || !dstep_mask(&t->dstep[idx]))   /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
-        (void)auto_step_clear(t, idx, AUTO_ONLYS);
+        if (!is_drum(t) || !dstep_mask(&t->dstep[idx]))   /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
+            (void)auto_step_clear(t, idx, AUTO_ONLYS);
 #endif
+    }
     fm1_irq_on();
     sync_reload = 1;
 }
@@ -592,6 +595,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 #endif
         if (w < 0) {                                    /* the first four black keys: pages 1..4; the fifth FOLLOW */
             static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
+            step_pend_off = 0;                          /* (a step key down meanwhile: no tap) */
             if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < trk_len(TSEL)) {
                 ui.step_page = (uint8_t)PG[k];
                 step_follow_hand();
@@ -796,6 +800,7 @@ static void layer_knobs(uint32_t layer)
         }
         if ((s = panel_enc(EN_ALGO)) != 0) {
             ui.layer_used = 1;
+            step_pend_off &= (uint16_t)~ui.step_held;    /* (another lock parameter: no tap) */
             lock_par_step(s);
         }
     }
@@ -813,6 +818,8 @@ static void layer_knobs(uint32_t layer)
         if (!ui.layer_used && (s = knob_gate(&lk_pos[EN_K1 + k], s)) == 0)
             continue;                                   /* (one detent: jitter, no layer used yet; two net: a turn) */
         ui.layer_used = 1;
+        if (layer == LY_STEP)
+            step_pend_off &= (uint16_t)~ui.step_held;    /* (a step key held while a knob turned: no tap) */
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
         PH_CLEAR();                                     /* (no help line on a layer: not the page's last one either) */

@@ -185,6 +185,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "sloop_mixer_ui.c"        /* SLOOP's mixer: the dial pages (HOME on TRACKS), the MASTER row, the lanes */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
+#include "sloop_stephold_ui.c"      /* the SEQ layer's step keys: a tap toggles, a hold or a knob does not */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_big_ui.c"        /* SLOOP 2.4 phase 5: bigger values (FELUCCA_BIGVALS) */
 #include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
@@ -1452,6 +1453,7 @@ int main(int argc, char **argv)
     sl24_ui_tests();
     sl24seq_ui_tests();
     sloop_auto_ui_tests();
+    sloop_step_hold_tests();
     sl24p5_ui_tests();
     fm6_view_tests();
     param_help_tests();
