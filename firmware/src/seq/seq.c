@@ -1764,6 +1764,9 @@ static void seq_reset_tracks(uint32_t pos)
 static void song_backup(void);                     /* project.c: song mode keeps the loop you made */
 static void song_restore(void);
 
+#if FELUCCA_MIDI_CLKOUT
+static uint8_t clko_started;                       /* seq_start ran since the last block (io/midi/clock_out.c: FA) */
+#endif
 static void seq_start(void)
 {
 #if FELUCCA_ARRANGER
@@ -1777,6 +1780,9 @@ static void seq_start(void)
     if (!arrangement_start()) return;
 #endif
     seq_reset_tracks(0);
+#if FELUCCA_MIDI_CLKOUT
+    clko_started = 1;                              /* (a restart while playing: FA again) */
+#endif
 }
 
 static void seq_release(track_t *t)
@@ -2193,6 +2199,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 #include "../io/midi/midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */
 
 #include "../io/midi/clock_sync.c"           /* MIDI clock in (GLO > SYSTEM SYNC) */
+#include "../io/midi/clock_out.c"            /* MIDI clock out (HOME menu CLOCK OUT; FELUCCA_MIDI_CLKOUT) */
 
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples
@@ -2337,6 +2344,7 @@ static void events_block(uint32_t n)
     roll_block(adv);
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
+    clko_block(n, adv, ext);                          /* MIDI clock out: the ticks of this block, timed as heard */
     if (song.playing) {
         song.tick++;
         if (!ext) {

@@ -3,8 +3,9 @@
  * Copyright (C) 2026 isod89 (SLOOP 2.4, github.com/isod89/sloop-fm1 v2.4 8d3823f, ui_menu.c: the menu in sections,
  * SELECT turns them, the knobs set their rows, the values in large type) */
 /* The HOME-held menu, in sections as SLOOP 2.4 groups it: SCREEN (COLOR, ZOOM, BRIGHT, VIEW), LIGHTS (LIGHTS, KEYS,
- * NOTES), AUDIO (LOWCUT) and SYSTEM, which has three screens: the MIDI and the clock (OUT, IN, SYNC, CLK), the MIDI
- * channels of the tracks (TRK 1..3, DRUMS), and USB SERIAL, CPU, HARDWARE CALIBRATION, ABOUT. Only what the build has
+ * NOTES), AUDIO (LOWCUT) and SYSTEM, which has these screens: the MIDI and the clock (OUT, IN, SYNC, CLK), the MIDI
+ * channels of the tracks (TRK 1..3, DRUMS), HOLD, KNOB COLORS and CLOCK OUT (MIDI clock sent), and USB SERIAL, CPU,
+ * HARDWARE CALIBRATION, ABOUT. Only what the build has
  * is shown. SELECT goes to the screen before / after (stopping at the ends), KNOB 1..4 set the rows in order (the
  * cursor follows the knob turned), PRESETS moves the cursor, OCT+ steps the cursor's setting round or opens it
  * (CALIBRATION, ABOUT), OCT- closes (from ABOUT: back to the menu). All of it is settings of the FM-1 (kept over
@@ -17,7 +18,7 @@
 #define FELUCCA_BLE 0                              /* (a host test without the BLE code) */
 #endif
 enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_HOLD, MI_OUT, MI_IN, MI_SYNC, MI_CLK,
-       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT, MI_KCOL,
+       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT, MI_CLKOUT, MI_KCOL,
 #if FELUCCA_BLE
        MI_BLE,                                     /* BLUETOOTH: with the radio built in (FELUCCA_BLE) */
        MI_BLEDEV,                                  /* DEVICES: NONE / LAST / nearby (io/midi/ble_devices.c) */
@@ -28,7 +29,7 @@ static const char *const MI_NAME[MI_COUNT] = {
     [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_HOLD] = "HOLD", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
     [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT",
-    [MI_KCOL] = "KNOB COLORS",
+    [MI_KCOL] = "KNOB COLORS", [MI_CLKOUT] = "CLOCK OUT",
 #if FELUCCA_BLE
     [MI_BLE] = "BLUETOOTH", [MI_BLEDEV] = "DEVICES",
 #endif
@@ -51,7 +52,8 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CLOCK, MI_CLK)}},
     {MS_SYSTEM, {MI_IF(FELUCCA_MIDI_CH, MI_CH1), MI_IF(FELUCCA_MIDI_CH, MI_CH2), MI_IF(FELUCCA_MIDI_CH, MI_CH3),
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
-    {MS_SYSTEM, {MI_HOLD, MI_KCOL, MI_NONE, MI_NONE}},   /* (KNOB COLORS: core/knobcol.h) */
+    {MS_SYSTEM, {MI_HOLD, MI_KCOL, MI_IF(FELUCCA_MIDI_CLKOUT, MI_CLKOUT), MI_NONE}},   /* (KNOB COLORS: core/knobcol.h; CLOCK
+                                                    * OUT: io/midi/clock_out.c) */
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 #if FELUCCA_BLE
     {MS_SYSTEM, {MI_BLE, MI_BLEDEV, MI_NONE, MI_NONE}},    /* (the last screen: the radio, OFF by default; the list) */
@@ -138,6 +140,11 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
         return settings.lowcut ? "ON" : "OFF";
 #endif
     case MI_KCOL: return knob_colors ? "ON" : "OFF";
+#if FELUCCA_MIDI_CLKOUT
+    case MI_CLKOUT:
+        *c = clko_blocked() ? C_AMB : C_HI;           /* (amber: ON, but USB is the clock followed: nothing sent) */
+        return clko_on ? "ON" : "OFF";
+#endif
     case MI_HOLD:                                     /* ms: 250 / 350 / 500 */
         v[0] = (char)('0' + HOLD_MS / 100u);
         v[1] = (char)('0' + HOLD_MS / 10u % 10u);
@@ -535,6 +542,11 @@ static void mi_set(uint32_t i, int32_t s)
     case MI_KCOL:                                      /* right ON, left OFF (the caps' colours: core/knobcol.h) */
         knob_colors = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !knob_colors);
         break;
+#if FELUCCA_MIDI_CLKOUT
+    case MI_CLKOUT:                                    /* right ON, left OFF (io/midi/clock_out.c) */
+        clko_on = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !clko_on);
+        break;
+#endif
     case MI_HOLD: {                                    /* 250 / 350 / 500 ms, in order (hold_sel 1, 0, 2) */
         static const uint8_t ORD[HOLD_N] = {1, 0, 2}, POS[HOLD_N] = {1, 0, 2};
         hold_sel = ORD[(uint32_t)mi_step((int32_t)POS[hold_sel % HOLD_N], s, (int32_t)HOLD_N - 1)];

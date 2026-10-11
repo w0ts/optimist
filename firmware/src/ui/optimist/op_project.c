@@ -430,7 +430,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE, SI_KCOL };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_CARDS, SI_KCOL}},   /* (SI_CARDS: 1x4 or 2x2; SI_KCOL: KNOB COLORS) */
@@ -440,6 +440,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
     {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
               SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
+#if FELUCCA_MIDI_CLKOUT
+    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
+#endif
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
@@ -589,6 +592,14 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         str_cpy(c->val, knob_colors ? "ON" : "OFF", sizeof c->val);
         cell_gauge(c, 1, 0, 1, knob_colors != 0u);
         break;
+#if FELUCCA_MIDI_CLKOUT
+    case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
+        c->label = "CLK OUT";
+        str_cpy(c->val, clko_on ? "ON" : "OFF", sizeof c->val);
+        c->col = clko_blocked() ? C_AMB : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
+        cell_gauge(c, 1, 0, 1, clko_on != 0u);
+        break;
+#endif
     case SI_CALIB:
         c->label = "PANEL";
         c->kind = CK_ACT;
@@ -638,6 +649,11 @@ static void sys_set(uint32_t it, int32_t s)
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.force = 1;                                   /* (every band's colours move) */
         break;
+#if FELUCCA_MIDI_CLKOUT
+    case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
+        clko_on = (uint8_t)sys_step(clko_on, s, 1);
+        break;
+#endif
     case SI_LOWCUT:
 #if FELUCCA_BASSPLUS
         settings.lowcut = (uint32_t)sys_step((int32_t)(settings.lowcut % 3u), s, 2);   /* OFF / LOWCUT / BASS+ */

@@ -76,7 +76,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
-               "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/midi_uart.c",
+               "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
                "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",

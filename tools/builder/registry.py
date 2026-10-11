@@ -434,6 +434,15 @@ _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,
 _add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in (SYNC AUTO TRS > USB > INT)", M, 49,
      desc="Follow an external MIDI clock and start / stop (GLO > SYSTEM SYNC: AUTO takes the TRS jack, else USB, "
           "else the internal tempo). About 4.2 KB of flash; off: the FM-1 always runs on its own tempo.")
+_add("MIDI_CLKOUT", "FELUCCA_MIDI_CLKOUT", "MIDI clock out (HOME menu CLOCK OUT)", M, 198,
+     desc="Sends MIDI clock on USB so a computer, drum machine or sequencer can follow the FM-1: 24 ticks a beat (also "
+          "while stopped, so the other side has the tempo first), Start, Stop, and Song Position + Continue when the FM-1 "
+          "itself continues an external song. Each tick leaves with the sound of its beat (latency-compensated, no "
+          "jitter of its own), follows tempo changes and the nudge, and never swings. Switched on in the HOME menu "
+          "(CLOCK OUT, off by default). While the FM-1 follows a USB clock nothing is sent back to USB; following the "
+          "TRS jack, the clock is passed on to USB. The TRS jack is input only (no MIDI out on the FM-1's board). "
+          "About 2.5 KB of flash and 0.2 KB of RAM; off: no clock is sent.",
+     symbols=("clko_block",))
 _add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host clock", M, 71, default=0,
      experimental=True, desc="Experimental, only with USB audio: the audio sent to the computer is resampled to follow "
      "the computer's clock instead of using packet-size feedback. CPU-heavy (a resampler in the audio path); "
@@ -443,8 +452,15 @@ _add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host cloc
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI,
      desc="Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and "
           "pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work.")
-# (bits 195, 196, 197 -- MIDI_CH, MIDI_OUT, MIDI_INCLK -- retired 2026-10: a MIDI channel for each track, MIDI OUT = SEQ and
-#  MIDI IN = CLOCK are always built; the user's setting is the HOME menu, SYSTEM 1/3 and 2/3; never reuse the bits)
+_add("MIDI_NOTEOUT", "FELUCCA_MIDI_OUT", "MIDI note out of the sequencer (HOME menu MIDI OUT = SEQ)", M, 199,
+     provenance=SLOOP_24,
+     desc="MIDI OUT = SEQ (SLOOP 2.4): what the sequencer, the arp and the rolls play also goes to MIDI out, each track on "
+          "its channel, every note ended (STOP, a channel changed, back to KEYS). Switched in the HOME menu (MIDI OUT "
+          "KEYS / SEQ). About 1.2 to 2.5 KB of flash, by build; off: the menu row goes and only the panel's keys go out.")
+# (bits 195, 196, 197 -- MIDI_CH, MIDI_OUT, MIDI_INCLK -- retired 2026-10: a MIDI channel for each track and MIDI IN = CLOCK
+#  are always built, the user's setting is the HOME menu, SYSTEM 1/3 and 2/3; MIDI OUT = SEQ is a builder item again since
+#  2026-10-11 as MIDI_NOTEOUT on bit 199 (the user: one item for note and clock out if both are small, two if either is
+#  big; clock out measured 2.5 KB). Never reuse 195..197)
 
 # ---- UI
 U = "UI"

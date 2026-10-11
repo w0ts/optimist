@@ -202,6 +202,20 @@ static void t_word(void)
     check(((bp23_word() >> 25) & 1u) == 0u, "settings word: KNOB COLORS off clears bit 25");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
+#if FELUCCA_MIDI_CLKOUT
+    /* bit 26 CLOCK OUT (io/midi/clock_out.c): OFF in a word without it, its own bit */
+    check(clko_on == 0u && ((bp23_word() >> 26) & 1u) == 0u, "settings word: an empty word: CLOCK OUT OFF, bit 26 written 0");
+    clko_on = 1;
+    w = bp23_word();
+    check((w >> 26) == 1u && (w & ((1u << 26) - 1u)) == (((uint32_t)(song.g[G_SYNC] & 3) ^ SYNC_AUTO) << 11),
+          "settings word: bit 26 CLOCK OUT alone, no other bit moves");
+    clko_on = 0;
+    bp23_from_word(w);
+    check(clko_on == 1u && knob_colors == 0u, "settings word: bit 26 gives CLOCK OUT ON back at boot");
+    bp23_from_word(1u << 25);
+    check(clko_on == 0u && knob_colors == 1u, "settings word: bit 25 alone: CLOCK OUT stays OFF");
+    bp23_from_word(0);
+#endif
 }
 
 /* HOME > BLUETOOTH (FELUCCA_BLE): bit SETTINGS_BLE_ON_BIT (24) of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none

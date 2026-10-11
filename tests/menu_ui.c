@@ -689,6 +689,21 @@ static void menu_ui_tests(void)
         ui.force = 1; frame(); ppm("menu-hold");
         hold_sel = was_hold;
     }
+#if FELUCCA_MIDI_CLKOUT
+    menu_open(MI_CLKOUT);                            /* CLOCK OUT (io/midi/clock_out.c): the HOLD screen's row 3, OFF by default */
+    {
+        char cv[12]; uint16_t cc; uint8_t was = clko_on;
+        clko_on = 0;
+        check(!strcmp(mi_value(MI_CLKOUT, cv, &cc), "OFF") && menu_screen() == mi_screen_of(MI_HOLD) && mi_row(MI_CLKOUT) == 2u,
+              "menu: CLOCK OUT shows OFF, row 3 of the HOLD / KNOB COLORS screen");
+        encs[MKNOB()] = 1; frames(2);
+        check(clko_on == 1u && !strcmp(mi_value(MI_CLKOUT, cv, &cc), "ON") && cc == C_HI, "menu: CLOCK OUT, knob 3 right: ON");
+        tap(B_OCTUP); frames(2);
+        check(clko_on == 0u, "menu: CLOCK OUT, OCT+ toggles: OFF");
+        ui.force = 1; frame(); ppm("menu-clkout");
+        clko_on = was;
+    }
+#endif
     menu_open(MI_LOWCUT);
     ppm("menu-audio");
     ui.menu_sel = MI_ABOUT; tap(B_OCTUP); frames(2);
