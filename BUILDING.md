@@ -461,13 +461,21 @@ cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended ch
 the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`
 does the same for the cost files.
 
+`tests/run_tests.sh` runs its tests in parallel: each test with its compile is a unit, `JOBS` of them at once
+(default: three quarters of the CPUs; `JOBS=1`: one at a time). A unit's output is buffered
+(`build/host/jobs/N.out`) and printed whole, in the script's order, so the log reads as a serial run's; the
+verdicts are the same either way. The slowest tests (the BLE emulator runs, the builder, the web pages) start
+first and print in their place. `GOLDEN_UPDATE` and `BUDGET_UPDATE` run one at a time. No host test is timed by
+the wall clock (the CPU budgets count instructions, the same within 0.3 % under load; the ns lines are for
+information), so the other units do not change a result. On a 16-core Mac: about 3 minutes, 19 one at a time.
+
 ### The emulator checks
 
 ```
 make emu-check                            # every check on build/felucca.fwsc (the last build)
 make emu-check ONLY=fx,persist            # some of them (python3 tests/emu/run.py --list)
 make emu-check PKG=../other/build/felucca.fwsc   # another build (its ELF beside it)
-python tools/optimist.py emu-check [FIRMWARE] [--only C] [--mhz N]   # the same without make
+python tools/optimist.py emu-check [FIRMWARE] [--only C] [--mhz N] [--jobs N]   # the same without make
 ```
 
 Opt-in, not part of `test` or CI: they need Rust (`cargo`) and the emulator (the one `make emu` uses, or
@@ -488,8 +496,9 @@ Optimist UI runs `boot`, `upfm6` (without its preset save) and `timing` only.
 | `timing` | `tests/emu_boot_check.py` at 48, 96 and 192 MHz | 3 |
 
 The last column: the PASS lines on user-default (2026-10-10). Each check works in `build/emu-check/<check>/`
-(its copy of the package, its flash state, the WAVs, the screens); the whole run takes about 7.5 minutes
-(115 checks). A capture
+(its copy of the package, its flash state, the WAVs, the screens); the checks run at once, each in a process of its own with its own emulator and
+state (`--jobs N`; `--jobs 1`: one after the other), `timing` alone after them, each one's lines printed whole in
+the list's order: about 2.5 minutes for the 115 checks (7.5 one at a time). A capture
 of a held note starts on an audio half boundary, so the same setting gives the same samples and the checks
 compare them exactly (the synthesized drum sounds have noise of their own: `fx` uses sound 6, a sample). Exit 1
 on any FAIL. `scenefx` fails on the builds before ac354af (the FX record at id 88, none at 105) and `upfm6` on
@@ -501,7 +510,7 @@ those before 716bf52 (OBJ_UPFM6 at 0xE7000 / 0xE8000, the SDK VM written).
 (docs/INTEGRATION.md): the builder costs check, every published profile built, `CONFIG=file` and
 `SET="KEY=V ..."` builds if given, the host tests, then user-default built again last so `build/` holds its
 package and ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even
-after a failed one. About 15 minutes (the host tests most of it).
+after a failed one. About 5 minutes (the host tests most of it; 20 with `JOBS=1`).
 
 ## Install
 
