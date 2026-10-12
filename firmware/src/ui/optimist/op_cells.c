@@ -168,9 +168,13 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
         return 0;
     return page_shown(pg) && (!is_drum(TSEL) || page_for_drum(pg));
 }
-static int fx_page(const page_t *pg)                 /* a row of the FX screen: the global effects, the master */
+/* a row of the master FX screen, MASTER: the global effects, the master. Not PAGES' GLOBAL (BPM SWING CLICK TUNE: the
+ * first three are GLOBAL's TEMPO and REC rows, TUNE is on LIMIT, op_screens.c) nor DRUMS (the level: the mixer's DR row):
+ * the user, 2026-10-12, D3 */
+static int fx_page(const page_t *pg)
 {
-    if (!page_shown(pg) || pg->fam == FAM_SAVE)
+    if (!page_shown(pg) || pg->fam == FAM_SAVE ||
+        (pg->scope == SC_GLOBAL && pg->fam == FAM_GLO && (pg->id[0] == G_BPM || pg->id[0] == G_DRLVL)))
         return 0;
     return (pg->scope == SC_GLOBAL && (pg->fam == FAM_FX || pg->fam == FAM_GLO)) || pg->scope == SC_FXSLOT
 #if BP_SET_ANY

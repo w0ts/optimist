@@ -476,7 +476,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
-        check(!strncmp(h, "FX MASTER", 9), "its header names it (FX master)");
+        check(!strcmp(h, "MASTER DELAY"), "its header names it (MASTER DELAY, D3)");
         n = SCR->rows();
         for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);
@@ -2342,6 +2342,7 @@ int main(int argc, char **argv)
     step_pitch_tests();
     led_tests();
     pages_nav_tests();
+    pages_master_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

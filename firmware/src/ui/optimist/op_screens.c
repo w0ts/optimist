@@ -291,10 +291,30 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
-/* ---- FX: the global effects' pages */
+/* ---- MASTER (SCR_FX): the global effects' pages (the user, 2026-10-12, D3): DELAY REVERB SLOTS TONE COMP LIMIT MACRO.
+ * PAGES keeps SLOOP's titles (its UI draws them: ui/sloop/ui_draw.c); the names shown are this table's. TUNE, whose
+ * page (PAGES' GLOBAL) is gone, sits on LIMIT's free card: GAIN CEIL TUNE GR */
+static const char *const FX_ALIAS[][2] = {{"DLY", "DELAY"}, {"REV/CHO", "REVERB"}, {"REVERB", "REV TYPE"},
+                                          {"MASTER", "TONE"}, {"CMP", "INS COMP"}};
+static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_TUNE, G_CGR}};
 static uint8_t fx_ix[OP_MAXROWS];
+static const page_t *fx_pg(uint32_t r)
+{
+    const page_t *pg = &PAGES[fx_ix[r % OP_MAXROWS]];
+    return pg->scope == SC_GLOBAL && pg->id[0] == G_CGAIN ? &FX_LIMIT : pg;
+}
 static uint32_t fxs_rows(void) { return page_rows(fx_page, fx_ix); }
-static void fxs_name(uint32_t r, char *b) { str_cpy(b, PAGES[fx_ix[r % OP_MAXROWS]].title, 12); }
-static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(&PAGES[fx_ix[r % OP_MAXROWS]], k, c); }
-static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(&PAGES[fx_ix[r % OP_MAXROWS]], k, s, fine); }
-static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, &PAGES[fx_ix[r % OP_MAXROWS]], k, ok); }
+static void fxs_name(uint32_t r, char *b)
+{
+    const char *t = fx_pg(r)->title;
+    uint32_t i;
+    for (i = 0; i < sizeof FX_ALIAS / sizeof FX_ALIAS[0]; i++)
+        if (str_eq(t, FX_ALIAS[i][0])) {
+            t = FX_ALIAS[i][1];
+            break;
+        }
+    str_cpy(b, t, 12);
+}
+static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(fx_pg(r), k, c); }
+static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(fx_pg(r), k, s, fine); }
+static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, fx_pg(r), k, ok); }
