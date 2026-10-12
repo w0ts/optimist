@@ -496,8 +496,9 @@ Optimist UI runs `boot`, `upfm6` (without its preset save) and `timing` only.
 | `timing` | `tests/emu_boot_check.py` at 48, 96 and 192 MHz | 3 |
 
 The last column: the PASS lines on user-default (2026-10-10). Each check works in `build/emu-check/<check>/`
-(its copy of the package, its flash state, the WAVs, the screens); the whole run takes about 7.5 minutes
-(115 checks). A capture
+(its copy of the package, its flash state, the WAVs, the screens); the checks run at once, each in a process of its own with its own emulator and
+state (`--jobs N`; `--jobs 1`: one after the other), `timing` alone after them, each one's lines printed whole in
+the list's order: about 2.5 minutes for the 115 checks (7.5 one at a time). A capture
 of a held note starts on an audio half boundary, so the same setting gives the same samples and the checks
 compare them exactly (the synthesized drum sounds have noise of their own: `fx` uses sound 6, a sample). Exit 1
 on any FAIL. `scenefx` fails on the builds before ac354af (the FX record at id 88, none at 105) and `upfm6` on

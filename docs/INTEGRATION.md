@@ -32,7 +32,7 @@ branches together, merges them on an integration branch, runs the gate once, fix
 | config F / set | the `CONFIG=` file and the `SET=` variant of user-default, when given | 10 s each |
 | test | the host tests (`optimist.py test`: a BLE build, user-default, a measurement build of the defaults, `tests/run_tests.sh` with the web tests, its units `JOBS` at once) | 4 min (19 serial) |
 | final | user-default built again, last: `build/` holds its package and ELF for `make emu-check` and `make flash` | 10 s |
-| emu | `EMU=1`: the emulator checks on that build (BUILDING.md, The emulator checks) | 7.5 min |
+| emu | `EMU=1`: the emulator checks on that build (BUILDING.md, The emulator checks) | 2.5 min (7.5 serial) |
 
 Every step runs even after one failed, so one run lists everything that is wrong; the exit status is 1 on any
 FAIL. The gate tests the tree as it is: it says so when there are uncommitted changes, and a gate result belongs
