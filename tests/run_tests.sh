@@ -131,7 +131,7 @@ t_ble_rf() { python3 tests/ble_rf_capture_test.py; }
 t_ble_emu() { python3 tests/ble_emu_test.py; }
 t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
-t_builder() { python3 tests/builder_test.py && python3 tests/builder_flash_guard_test.py; }
+t_builder() { python3 tests/builder_test.py; }
 t_web() { node web/test_web.mjs; }
 early t_ble_emu
 early t_ble_central
@@ -1156,6 +1156,9 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" early_out t_builder
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    run "builder flash guard: no flash of a stale or other build, the package's source shown" python3 tests/builder_flash_guard_test.py
 ) >"$U.out" 2>&1 & jobbg
 # (the menu needs Textual: tools/menuconfig makes this venv; BUILDER_VENV, ./tools/builder/venv, in a git worktree the main checkout's)
 job; ( jobin
