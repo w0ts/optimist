@@ -242,6 +242,9 @@ static const param_desc_t GP[G_COUNT] = {
                                                        * A build without the limiter: OFF (miss.c says a set CEIL is not
                                                        * heard; a new project has none) */
     [G_RECQ] = PE("QUANT", N_ONOFF, 1),              /* REC QUANTIZE: ON snaps the recorded notes (seq.c rec_exact) */
+    [G_CRET] = PD("CRET", F_PCT, 0, 127, 127),       /* the FX returns (core.h): CHO DLY REV, 127 unity, 0 off */
+    [G_DRET] = PD("DRET", F_PCT, 0, 127, 127),
+    [G_RRET] = PD("RRET", F_PCT, 0, 127, 127),
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */

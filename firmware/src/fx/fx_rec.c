@@ -10,13 +10,33 @@
  *   stored form (version 1)  u8 version, u8 flags, u8 slot[4] (type ids: fx_slots.c FXT_*), then TLVs: u8 type,
  *                            u8 length, the bytes. A reader skips a TLV it does not know (new types need no version
  *                            bump); a newer version is ignored as a whole (the defaults play). TLV DLM_TLV (0x40):
- *                            the drum lanes' PAN, MUTE, SOLO (drums/drum_mix.c), not an FX type.
+ *                            the drum lanes' PAN, MUTE, SOLO (drums/drum_mix.c), not an FX type. TLV FXRET_TLV
+ *                            (0x41): the FX returns CHO DLY REV (below).
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
 #define FXR_MAX 96u                                    /* the stored form at its longest (FXR_HEAD + the TLVs) */
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(DLM_TLV >= FXT_N, "the drum lanes' mix TLV (drum_mix.c): an id no FX type takes");
+/* TLV FXRET_TLV (0x41, 2026-10-12): the FX returns, CHO DLY REV (core.h G_CRET G_DRET G_RRET, 0..127), only when one is
+ * not at unity (127); none: every return at unity, as every project from before. A load's (`all`), as the layout: a
+ * song section keeps the returns playing */
+#define FXRET_TLV 0x41u
+#define FXRET_N 3u
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns': ids no FX type takes");
+_Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
+static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < FXRET_N; k++)
+        any |= (uint32_t)((o[k] = (uint8_t)song.g[G_CRET + k]) != 127u);
+    return any ? FXRET_N : 0u;
+}
+static void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every return at unity; a shorter one: as none) */
+{
+    uint32_t k;
+    for (k = 0; k < FXRET_N; k++)
+        song.g[G_CRET + k] = (int16_t)(n >= FXRET_N && a[k] < 127u ? a[k] : 127u);
+}
 #define FXR_AUX 4u
 typedef struct {
     uint32_t psum;                                     /* the project this belongs to (0: none) */
@@ -69,6 +89,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the FX returns (above), as the drum lanes' */
+        uint32_t m = fxret_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)FXRET_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     return any || n > FXR_HEAD ? n : 0u;
 }
 /* n bytes at a (0: none) -> the working FX state; all: the slot layout too (a load; a song section keeps it).
@@ -84,10 +111,15 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             at += 2u + a[at + 1u];
     fxs_untlv_none(all);
     dlm_none();                                        /* (none: every drum lane at the centre, heard) */
+    if (all)
+        fxret_untlv(0, 0);                             /* (none: every return at unity) */
     for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
         if (a[at] == DLM_TLV)
             dlm_untlv(a + at + 2u, a[at + 1u]);
-        else
+        else if (a[at] == FXRET_TLV) {
+            if (all)
+                fxret_untlv(a + at + 2u, a[at + 1u]);
+        } else
             fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (all && ok)
         fxs_set(a + 2);

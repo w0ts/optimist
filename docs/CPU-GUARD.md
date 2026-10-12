@@ -48,6 +48,11 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
      432 halves late; on the user's FM-1: "crackles whenever the reverb is on"). Now one late half steps here and
      the rest of the mix plays on clean (24 MHz: 2 late halves in 5 s). Its saving is measured as any level's, so
      it stays off until the reverb would fit again.
+     The FX returns (2026-10-12, `fx.c fx_ret_block`): REV RET (the mixer's MASTER row, Returns) scales the reverb's
+     wet together with this fade (the fade's gain times the return, so at unity the fade is the one above, sample
+     for sample). REV RET at 0 turns the bus off the same way at once (no fade: its gain is 0), in every build with
+     the reverb, the guard built or not; the tank is then not run, so the guard has nothing to ease there
+     (`rev_live` 0). CHO RET and DLY RET at 0 stop their buses too, their lines cleared 512 samples a block.
   4. **Notes**: as before, a half over 85 % sheds one voice before the next. A half predicted late fades out at
      once (2 blocks) as many voices as bring the prediction under 85 %, at most 4. Shedding never touches:
      - a MONO, LEGATO or UNISON part (the bass and the lead);

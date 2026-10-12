@@ -249,6 +249,8 @@ static void t_record(void)
     uint32_t n;
     fxs_set(FXS_DEF);
     dlm_none();
+    song.g[G_CRET] = song.g[G_DRET] = song.g[G_RRET] = 127;   /* (the FX returns at unity, as at power-on: this process
+                                                               * never ran felucca_init; fx_rec.c FXRET_TLV) */
     check("every lane as before: no record (a project as before writes nothing new)", fxr_encode(b) == 0u);
     lanes_set();
     n = fxr_encode(b);
