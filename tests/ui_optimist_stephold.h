@@ -8,6 +8,7 @@ static void sh_open(uint32_t drum)
     reset_ui();
     song.sel = drum ? TRK_DRUM : 0;
     track_defaults_steps(TSEL);
+    TSEL->p[P_SLEN] = 16;                               /* (a LEN left by an earlier test or the fuzz: one bar) */
     if (drum)
         lane_select(2);
     tap(B_SEQ);

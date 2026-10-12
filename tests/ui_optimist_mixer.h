@@ -340,15 +340,13 @@ static void mixer_rows_tests(void)
         check(lay.held == LY_PLAY && trk[2].p[P_LEVEL] < lv && ui.scr == SCR_HOME, "GLO held: KNOB 3 T3's level (the balance)");
         trk[2].p[P_LEVEL] = lv;
     }
-    {   /* 2x2: the list keeps the four tracks in view */
-        op_cards = CARDS_2X2;
+    {   /* the mixer keeps its 1x4 cards: the list keeps the four tracks in view */
         reset_ui();
         ui.force = 1;
         frame();
         check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
-              "CARDS 2x2: the mixer keeps the 1x4 cards and its four 41 px rows (the other screens go 2x2)");
+              "the mixer keeps the 1x4 cards and its four 41 px rows (every other screen is 2x2)");
         ppm("opt-mixer-h-2x2");
-        op_cards = CARDS_LINE;
         reset_ui();
     }
 }
@@ -380,8 +378,8 @@ static void scope_tests(void)
     frame();
     frame();
     ppm("opt-scope-t2");
-    check(px_in(0, OY_PANEL, 240, SC_H, trk_col(1)) && px_in(0, SC_TAB_Y, 240, SC_TAB_H, trk_col(1)),
-          "SCOPE T2: the trace and its tab in T2's colour");
+    check(px_in(0, (uint32_t)OP_PY, 240, SC_H, trk_col(1)),
+          "SCOPE T2: the trace in T2's colour (no tabs under the 2x2 cards: the header names it)");
     turn(EN_SELECT, -1);                                /* T1: silent, nothing written */
     frames(2);
     w0 = vis_wr;
@@ -436,7 +434,7 @@ static void header_footer_tests(void)
     check(px_in(60, 4, 170, 16, C_HI), "STEP: the header says the window and the pick (Steps 1-16 c.hat)");
     tap(B_HOME);
     song.sel = 0;
-    op_enter(SCR_SOUND);
+    tap(B_EDIT);                                        /* (EDIT: no picture, its rows under the 2x2 cards) */
     ui.force = 1;
     frame();
     check(px_in(0, 202, 240, 38, C_GRAY) || px_in(0, 202, 240, 38, C_HI),

@@ -430,10 +430,10 @@ static void dev_draw(uint32_t y, uint32_t h)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_CARDS, SI_KCOL}},   /* (SI_CARDS: 1x4 or 2x2; SI_KCOL: KNOB COLORS) */
+    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
@@ -582,11 +582,6 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->unit = "ms";
         cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
         break;
-    case SI_CARDS:                                      /* the cursor row's values: 1x4 cards or 2x2 big (op_draw.c) */
-        c->label = "CARDS";
-        str_cpy(c->val, op_cards == CARDS_2X2 ? "2x2" : "1x4", sizeof c->val);
-        cell_gauge(c, 1, 0, CARDS_N - 1, op_cards % CARDS_N);
-        break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         c->label = "COLORS";                            /* (KNOB COLORS: a card holds 7 characters) */
         str_cpy(c->val, knob_colors ? "ON" : "OFF", sizeof c->val);
@@ -640,10 +635,6 @@ static void sys_set(uint32_t it, int32_t s)
 #endif
     case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
         hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
-        break;
-    case SI_CARDS:                                      /* (kept in the settings word: settings_word.c) */
-        op_cards = (uint8_t)sys_step(op_cards % CARDS_N, s, CARDS_N - 1);
-        ui.force = 1;                                   /* (every band moves: the whole screen again) */
         break;
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);

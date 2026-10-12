@@ -26,8 +26,7 @@ static void sc_open_drums(void)
 static void step_cards_tests(void)
 {
     uint32_t m, held_h = 0, held_i = 0;
-    for (m = 0; m < CARDS_N; m++) {
-        op_cards = (uint8_t)m;
+    for (m = 0; m < 1u; m++) {                         /* (once: the cards are 2x2, there is no other mode) */
         sc_open_drums();
         check(ui.scr == SCR_STEP && ui.cards_t == 0u && sc_grid_up(), "STEP overlay: idle, the grid alone");
         check(SP_Y == 25 && SG_TOP + SG_H <= SP_H && px_in(2, SP_Y + SG_TOP, 6, SG_LH - 1, lane_col(0)), "STEP overlay: the panel starts under the header and runs to the foot");
@@ -124,7 +123,7 @@ static void step_cards_tests(void)
         turn(EN_K1, 1);
         op_enter(SCR_SOUND);
         frames(3);
-        check(ui.cards_t == 0u && cards_band_is(m), "other screens: their cards stay as they were");
+        check(ui.cards_t == 0u && cards_band_is(BAND_2X2), "other screens: their cards stay as they were");
         turn(EN_K1, 1);
         check(ui.cards_t == 0u, "other screens: a knob turn starts no overlay timer");
         /* a synth track's roll: same */
@@ -138,7 +137,6 @@ static void step_cards_tests(void)
         frames(OP_CARDS_FRAMES + 5u);
         check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, gone: the roll whole");
     }
-    op_cards = CARDS_LINE;
     reset_ui();
 }
 /* the user, 2026-10-11: "on many pages, the 4 top cards dont show the values of the current page, it seems to be a

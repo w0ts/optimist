@@ -96,7 +96,7 @@ static void lay_cell(uint32_t k, cell_t *c)
 static void lay_draw_cards(void)
 {
     cell_t c[4];
-    uint32_t k, sig = hu(hu(hu(0x1A7u + lay.shown, lay.hot), settings.palette + lay.used * 8u), op_cards);
+    uint32_t k, sig = hu(hu(hu(0x1A7u + lay.shown, lay.hot), settings.palette + lay.used * 8u), cards_2x2());
     for (k = 0; k < 4u; k++) {
         lay_cell(k, &c[k]);
         sig = hc(sig, &c[k]);
@@ -104,7 +104,7 @@ static void lay_draw_cards(void)
     if (sig == ui.sig[1])
         return;
     ui.sig[1] = sig;
-    draw_card_band(c, lay.used ? lay.hot : 4u);         /* (1x4 or 2x2, as CARDS sets them: op_draw.c) */
+    draw_card_band(c, lay.used ? lay.hot : 4u);         /* (2x2: op_draw.c) */
 }
 
 /* ---- the tiles */

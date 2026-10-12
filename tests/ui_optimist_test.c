@@ -2089,7 +2089,7 @@ static void preset_engine_tests(void)
     cur = preset_pos(&total);
     e = pre_entry(cur, nm);
     check(e == TSEL->eng_req && nm[0], "the SOUND row: the preset playing and its engine");
-    check(px_in(4, OY_PANEL + 24, 10, 10, ENG_COL[e]), "... its engine's colour chip drawn");
+    check(px_in(4, (uint32_t)OP_PY, 10, (uint32_t)OP_PH, ENG_COL[e]), "... its engine's colour chip drawn");
     go_home();
     frame();
     mix_find("SOUND");
@@ -2136,8 +2136,8 @@ static void preset_engine_tests(void)
 }
 
 #include "ui_optimist_len.h"                      /* LEN in powers of two, SHIFT = LFO held */
-#include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
-#include "ui_optimist_cardspic.h"                  /* CARDS 2x2 the default, the picture alone */
+#include "ui_optimist_cards.h"                     /* the cards 2x2 but on the mixer, no CARDS setting */
+#include "ui_optimist_cardspic.h"                  /* under the cards: the picture alone, else the rows */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
@@ -2224,9 +2224,6 @@ int main(int argc, char **argv)
     }
     panel = PANEL_DEFAULT;
     settings_init();
-    cards_boot = op_cards;                              /* (the default, checked in cards_pic_tests; the tests below
-                                                         * were written for 1x4 and set 2x2 where they test it) */
-    op_cards = CARDS_LINE;
     layers_init();
     go_home();
     frames(3);

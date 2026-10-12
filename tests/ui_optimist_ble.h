@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c with FELUCCA_BLE=1: SYSTEM > BLUETOOTH (the radio's ON / OFF, as SLOOP's HOME menu has it), and
- * the settings word's bits 21..22 HOLD, 23 CARDS, 24 BLUETOOTH (SETTINGS_BLE_ON_BIT), 25 KNOB COLORS, which must not collide
+ * the settings word's bits 21..22 HOLD, 23 reserved (CARDS until 2026-10-12), 24 BLUETOOTH (SETTINGS_BLE_ON_BIT), 25 KNOB COLORS, which must not collide
  * (storage/settings_word.c), and the BLE devices list (ble_dev_tests: YES on the BLE row opens it; op_project.c).
  * Included after the helpers. The radio itself is the stub in ui_optimist_test.c (midi_ble.c is host-tested apart). */
 
@@ -24,19 +24,15 @@ static void ble_word_tests(void)
 {
     uint32_t w0, w, all;
     hold_sel = 0;
-    op_cards = CARDS_LINE;
     ble_on = 0;
     knob_colors = 0;
+    bp23_from_word(0);
     check(SETTINGS_BLE_ON_BIT == 24u, "settings word: BLUETOOTH is bit 24 (SETTINGS_BLE_ON_BIT)");
     w0 = bp23_word();
     hold_sel = 2;
     w = bp23_word();
     check((w ^ w0) == (2u << 21), "settings word: HOLD moves bits 21..22 only");
     hold_sel = 0;
-    op_cards = CARDS_2X2;
-    w = bp23_word();
-    check((w ^ w0) == (1u << 23), "settings word: CARDS moves bit 23 only");
-    op_cards = CARDS_LINE;
     ble_on = 1;
     w = bp23_word();
     check((w ^ w0) == (1u << SETTINGS_BLE_ON_BIT), "settings word: BLUETOOTH moves bit 24 only");
@@ -46,29 +42,29 @@ static void ble_word_tests(void)
     check((w ^ w0) == (1u << 25), "settings word: KNOB COLORS moves bit 25 only");
     knob_colors = 0;
     hold_sel = 2;
-    op_cards = CARDS_2X2;
     ble_on = 1;
     knob_colors = 1;
     all = bp23_word();
+    check(((all >> 23) & 1u) == 0u, "settings word: bit 23 (the CARDS of before 2026-10-12) is not written");
     hold_sel = 0;
-    op_cards = CARDS_LINE;
     ble_on = 0;
     knob_colors = 0;
     bp23_from_word(all);
-    check(hold_sel == 2u && op_cards == CARDS_2X2 && ble_on == 1u && knob_colors == 1u,
-          "settings word: HOLD, CARDS, BLUETOOTH and KNOB COLORS all set read back each as itself (21..22, 23, 24, 25)");
+    check(hold_sel == 2u && ble_on == 1u && knob_colors == 1u,
+          "settings word: HOLD, BLUETOOTH and KNOB COLORS all set read back each as itself (21..22, 24, 25)");
     bp23_from_word(all & ~(1u << 25));
-    check(hold_sel == 2u && op_cards == CARDS_2X2 && ble_on == 1u && knob_colors == 0u, "... clearing bit 25 leaves the rest");
+    check(hold_sel == 2u && ble_on == 1u && knob_colors == 0u, "... clearing bit 25 leaves the rest");
     bp23_from_word(all & ~(1u << SETTINGS_BLE_ON_BIT));
-    check(hold_sel == 2u && op_cards == CARDS_2X2 && ble_on == 0u && knob_colors == 1u, "... clearing bit 24 leaves the rest");
+    check(hold_sel == 2u && ble_on == 0u && knob_colors == 1u, "... clearing bit 24 leaves the rest");
     bp23_from_word(all | (1u << 23));
-    check(hold_sel == 2u && op_cards == CARDS_LINE && ble_on == 1u && knob_colors == 1u, "... setting bit 23 (1x4) leaves the rest");
+    check(hold_sel == 2u && ble_on == 1u && knob_colors == 1u && ((bp23_word() >> 23) & 1u) == 1u,
+          "... a word with bit 23 set (an old 1x4) leaves the rest, and the bit is kept as read");
     bp23_from_word(all & ~(3u << 21));
-    check(hold_sel == 0u && op_cards == CARDS_2X2 && ble_on == 1u && knob_colors == 1u, "... clearing bits 21..22 leaves the rest");
+    check(hold_sel == 0u && ble_on == 1u && knob_colors == 1u, "... clearing bits 21..22 leaves the rest");
     hold_sel = 0;
-    op_cards = CARDS_LINE;
     ble_on = 0;
     knob_colors = 0;
+    bp23_from_word(0);
 }
 /* ---- the BLE devices list (SYSTEM > BLUETOOTH, YES on the BLE row): NONE and LAST pinned at the top, the nearby
  * BLE-MIDI devices with signal bars, no wrap; SAVE picks / connects, HOME goes back, SELECT moves, HOME + a button asks
@@ -277,12 +273,10 @@ static void ble_dev_tests(void)
     dev_select(-1);
     tap(B_SAVE);
     check(ble_store.sel == BLE_SEL_NONE && ble_store_has_last(&ble_store), "devices: SAVE on NONE chooses it, LAST kept");
-    op_cards = CARDS_2X2;
     ui.force = 1;
     frames(3);
     dev_screen("opt-ble-devices-2x2");
-    check(px_in(0, (uint32_t)OP_PY, 236, 19, trk_col(song.sel)), "devices: CARDS 2x2: the list under the big values, the cursor bar drawn");
-    op_cards = CARDS_LINE;
+    check(px_in(0, (uint32_t)OP_PY, 236, 19, trk_col(song.sel)), "devices: the list under the 2x2 cards, the cursor bar drawn");
     frames(2);
     tap(B_HOME);
     check(!dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == sys_row && !ble_devs_open && blefk.want == 0u,
