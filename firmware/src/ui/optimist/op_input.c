@@ -277,6 +277,30 @@ static int pick_mod(uint32_t held)
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
 static int pick_silent(uint32_t held) { return song.playing && pick_mod(held); }
+/* a drum key played while the keys play selects its lane, DR itself included (the user, 2026-10-12: "when i play a note
+ * for the drums on the keyboard it should switch to that instrument in all the relevant pages"), as HOME + a key and
+ * ALGORITHM do: the mixer's lane row, the drum SOUND / ENV / FX pages, STEP's LANE page, PRESETS by the lane's SOURCE.
+ * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
+ * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
+ * key down, from the main loop's note edges: nothing in seq.c's key ISR. The lowest key of a chord wins */
+#define HIT_KNOB_MS 300u
+static void drum_hit_pick(uint32_t notes)
+{
+    uint32_t k, now = fm1_ticks();
+    if (!is_drum(TSEL) || master_sel() || ui.scr == SCR_STEP)
+        return;                                         /* (STEP: step_played picks the last hit, the keys playing) */
+    for (k = 0; k < 4u; k++)
+        if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
+            return;
+    for (k = 0; k < 27u && !((notes >> k) & 1u); k++)
+        ;
+    if (k == 27u || (ui.lane && lane_of_key(k) == lane_selected()))
+        return;
+    lane_pick_from(lane_of_key(k), 1);
+    if (ui.scr == SCR_HOME)
+        ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its lane row) */
+    op_repaint();                                       /* (in place: the cards, the badge, the pictures follow) */
+}
 
 /* the layers the keyboard knows (seq.c): the performance layers' buttons (op_layers.c lay_bits), OCT- / OCT+ the
  * drums' ghost / hard, REC closes a free take, PLAY drops it */
@@ -555,6 +579,7 @@ static void ui_input(void)
         op_clean &= ~BIT(B_HOME);
     } else if (notes) {
         op_clean &= ~held;
+        drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
     }
     op_knobs((held & BIT(B_HOME)) != 0u);
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */

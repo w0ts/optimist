@@ -526,3 +526,54 @@ static void pages_select_tests(void)
     ui.lane = 0;
     reset_ui();
 }
+
+/* a drum key played selects its lane on every page where the keys play (the user, 2026-10-12: "when i play a note for
+ * the drums on the keyboard it should switch to that instrument in all the relevant pages"); DR itself included */
+static void pages_hit_tests(void)
+{
+    uint32_t snare = lane_of_key(WK(2)), kick = lane_of_key(WK(0));
+    reset_ui();
+    song.sel = TRK_DRUM;
+    ui.lane = 0;
+    lane_select(kick);
+    frames(30);                                         /* (no knob in the last 300 ms) */
+    ui.row[SCR_HOME] = MXR_DR;
+    frame();
+    key(WK(2));
+    check(lane_selected() == snare && ui.lane == 1u && mx_row() == MXR_LANE0 + snare,
+          "drum key: on the mixer with DR itself selected, the key's lane selected, the cursor on its row");
+    tap(B_EDIT);
+    tap(B_EDIT);
+    key(WK(0));
+    check(ui.scr == SCR_SOUND && lane_selected() == kick && ui.lane == 1u, "drum key: on the drum SOUND pages, the lane follows");
+    tap(B_FX);
+    key(WK(2));
+    check(lane_selected() == snare, "drum key: on the drum FX page too");
+    ui.hot = 0;
+    turn(EN_K1, 1);
+    turn(EN_K1, -1);
+    key(WK(0));
+    check(lane_selected() == snare, "drum key: a knob turned in the last 300 ms: the lane stays (the cards do not move)");
+    frames(30);
+    key(WK(0));
+    check(lane_selected() == kick, "... later: the lane follows again");
+    tap(B_HOME);
+    press(B_FX);
+    frames(HOLD_FRAMES);
+    key(WK(2));
+    release(B_FX);
+    frames(2);
+    check(lane_selected() == kick, "drum key: the FX layer held, the key is an effect: no lane change");
+    reset_ui();
+    song.sel = TRK_DRUM;
+    tap(B_SEQ);
+    frames(30);
+    key(WK(2));
+    check(lane_selected() == kick, "drum key: STEP, the keys steps: no lane change");
+    tap(B_HOME);
+    song.sel = 0;
+    lane_select(0);
+    ui.lane = 0;
+    track_defaults_steps(&trk[TRK_DRUM]);
+    reset_ui();
+}
