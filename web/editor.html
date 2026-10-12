@@ -1997,10 +1997,13 @@ const parse = {
   },
   [CMD.LANE](a) { return parse[CMD.DRUM_LANE](a); },
   /* v10 FX (86) and its push (87): {op, slots: 4 type ids (FXT), cset: RATIO ATK REL (null: no COMP built), dist, comp: the 16
-     drum sounds' inserts} */
+     drum sounds' inserts; from the track insert slots on (2026-10-12; null before): ins: T1 T2 T3 DR's [S1, S2] type ids,
+     tcset: each track's RATIO ATK REL, kit: the drum track's send levels REV DLY CHO (0..127)} */
   [CMD.FX](a) {
-    const cs = a.slice(5, 8);
-    return { op: a[0], slots: a.slice(1, 5), cset: cs.every((x) => x === 127) ? null : cs, dist: a.slice(8, 24), comp: a.slice(24, 40) };
+    const cs = a.slice(5, 8), t = a.length >= 63;
+    return { op: a[0], slots: a.slice(1, 5), cset: cs.every((x) => x === 127) ? null : cs, dist: a.slice(8, 24), comp: a.slice(24, 40),
+             ins: t ? [0, 1, 2, 3].map((k) => a.slice(40 + 2 * k, 42 + 2 * k)) : null,
+             tcset: t ? [0, 1, 2, 3].map((k) => a.slice(48 + 3 * k, 51 + 3 * k)) : null, kit: t ? a.slice(60, 63) : null };
   },
   [CMD.FX_PUSH](a) { return parse[CMD.FX](a); },
   [CMD.TRACKS](a) { return parse[CMD.TRACK](a); },

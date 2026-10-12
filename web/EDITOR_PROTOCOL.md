@@ -798,10 +798,13 @@ the scenes.
 
 ## v10: FX slots (commands 86, 87; INFO tag 56)
 
-The FX page's four knobs are four **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
-docs/FX-SLOTS-INSERTS-DESIGN.md). A slot is empty or holds one effect **type**, and a type sits in one slot at most:
-loading a type another slot holds swaps the two slots (FX > SLOTS on the device). Default, and every project from before:
-DST CHO DLY REV. The amounts belong to the type, not the slot: a type in no slot is not heard and keeps its amounts.
+Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
+docs/FX-SLOTS-INSERTS-DESIGN.md) hold the **send** types (CHO DLY REV), default ---- CHO DLY REV; each track (T1 T2 T3
+DR) has two **insert slots**, S1 then S2, holding DIST, FILT or COMP, default S1 DIST, S2 FILT (2026-10-12). A slot is
+empty or holds one effect **type**, and a type sits in one slot at most (a track's: in one of its two): loading a type
+another slot holds swaps the two slots. The amounts belong to the type, not the slot: a type not heard on a track (no
+slot of the track holds the insert, no master slot the send) keeps its amounts. Each track's COMP has its own RATIO
+ATK REL; the drum track has send levels REV DLY CHO (0..127, 127 = 100 %) that scale every lane's send of that bus.
 
 `INFO` tag `56 len 01 n` then n × 4 bytes, one per type built: **type id** (stored by the firmware, never reused: 1 DIST,
 2 CHO, 3 DLY, 4 REV, 5 COMP, 6 FILT; 0 is an empty slot), **kind** (0 a send bus, 1 an insert), the **amount id** (a
@@ -813,7 +816,7 @@ amount ids in slot order, SOUND 3 the slots' sound ids.
 
 | Cmd | Request | Reply |
 |---|---|---|
-| 86 FX | op [args]: 0 get; 1 the four slots (type ids; a type twice leaves its later slot empty, an id past the table an empty slot: send the layout after the swap); 2 the COMP inserts' RATIO ATK REL (the master COMP's value lists: GLO > COMP's DESC names them; clamped); 3 a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged) | op, then the state: 4 slots (type ids), RATIO ATK REL (127 127 127: no COMP built), 16 × the drum sounds' DIST, 16 × their COMP. A bad op, lane or kind: no reply |
+| 86 FX | op [args]: 0 get; 1 the four master slots (type ids, the sends only: an insert id, a type twice (its later slot), an id past the table: an empty slot; send the layout after the swap); 2 every track's COMP RATIO ATK REL (the master COMP's value lists: GLO > COMP's DESC names them; clamped); 3 a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged); 4 a track's insert slots: track 0..3 (T1 T2 T3 DR), S1, S2 (insert type ids or 0; the same type twice: S2 empty; send the pair after the swap); 5 a track's COMP settings: track, RATIO ATK REL; 6 the drum track's send levels REV DLY CHO (0..127) | op, then the state: 4 master slots (type ids), RATIO ATK REL (T1's; 127 127 127: no COMP built), 16 × the drum sounds' DIST, 16 × their COMP; then (the track insert slots, 2026-10-12; an older editor reads the first 39 bytes) 8 type ids (T1 S1 S2, T2 .., DR), 12 × RATIO ATK REL (T1 .. DR), 3 × the drum send levels REV DLY CHO. A bad op, lane, kind or track: no reply |
 | 87 FX_PUSH (push, v9 `WATCH` bit 2) | — | as the FX reply with op 0, when any of it changed on the device (FX > SLOTS, FX > CMP, SOUND 3, a project or snapshot loaded); the editor's own `FX` writes are not echoed |
 
 The web editor (web/editor.html): the strips' four FX knobs are the slots' amounts, named after them; the drum strip has
