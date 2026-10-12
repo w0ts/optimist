@@ -1169,6 +1169,9 @@ job; ( jobin
     run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    run "emu-check --jobs: the driver built once by the parent, the checks' processes never run cargo (integration57's race)" python3 tests/emu_driver_once_test.py
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
 ) >"$U.out" 2>&1 & jobbg
 
