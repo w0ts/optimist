@@ -2280,6 +2280,7 @@ int main(int argc, char **argv)
     glo_tests();
     lforate_tests();
     step_hold_tests();
+    step_pitch_tests();
     led_tests();
 #if FELUCCA_BLE
     ble_tests();
