@@ -210,22 +210,24 @@ static union {
 } dlp;
 _Static_assert(DE_N == 8u && sizeof dl.ofs[0] == 8u, "a lane's offsets: two words");
 #define dlp_o dlp.o
-/* lane l's offsets for this hit (drum_on, the ISR): the patch, then only the values that have something: the holds, the
- * locks over them (both stored clamped), the LFO's pairs on top (clamped) */
-static void dl_play_hit(uint32_t l)
+/* lane l's offsets a hit now plays, into w (two words: DE_N bytes), the one formula of the hit (dl_play_hit, the ISR) and
+ * of the UIs' live values (the Optimist cards' actual bar: the main loop reads the same RAM, writes nothing): the patch,
+ * then only the values that have something: the holds, the locks over them (both stored clamped), the LFO's pairs on top
+ * (clamped). -> 0 nothing acts on l (w untouched: the patch, dl_ofs, as before) */
+AINL uint32_t dl_play_ofs(uint32_t l, uint32_t *w)
 {
+    int8_t *o = (int8_t *)w;
     uint32_t v, m;
-    dlp_l = 0xFFu;
     if (l >= DRUM_LANES || !(DLA_ANY(l) | ((uint32_t)(dlfo_on >> l) & 1u)))
-        return;                            /* (none on l: dl_ofs, as before) */
-    __builtin_memcpy(dlp.w, __builtin_assume_aligned(dl.ofs[l], 4), sizeof dlp.w);   /* (two words: dl is aligned; libc.c memcpy copies bytes) */
+        return 0;                          /* (none on l: dl_ofs, as before) */
+    __builtin_memcpy(w, __builtin_assume_aligned(dl.ofs[l], 4), DE_N);   /* (two words: dl is aligned; libc.c memcpy copies bytes) */
 #if DLA_ON
     for (m = dla.hm[l], v = 0; m; m >>= 1, v++)
         if (m & 1u)
-            dlp_o[v] = dla.hv[l][v];
+            o[v] = dla.hv[l][v];
     for (m = dla.lm[l], v = 0; m; m >>= 1, v++)
         if (m & 1u)
-            dlp_o[v] = dla.lv[l][v];
+            o[v] = dla.lv[l][v];
 #endif
 #if DLFO_ON
     if ((dlfo_on >> l) & 1u) {
@@ -233,10 +235,18 @@ static void dl_play_hit(uint32_t l)
         uint32_t d[LFO_NSLOT], n = lfo ? lfo_slots_pairs(dlfo[l].s, d, a) : 0u, k;
         for (k = 0; k < n; k++) {
             v = d[k] - 1u;
-            dlp_o[v] = (int8_t)clamp(dlp_o[v] + lfo_slot_mod(lfo, a[k], DE_MAX[v] - DE_MIN[v]), DE_MIN[v], DE_MAX[v]);
+            o[v] = (int8_t)clamp(o[v] + lfo_slot_mod(lfo, a[k], DE_MAX[v] - DE_MIN[v]), DE_MIN[v], DE_MAX[v]);
         }
     }
 #endif
+    return 1;
+}
+/* lane l's offsets for this hit (drum_on, the ISR): dl_play_ofs's, kept for the hit's voice (dl_ofs_play) */
+static void dl_play_hit(uint32_t l)
+{
+    dlp_l = 0xFFu;
+    if (!dl_play_ofs(l, dlp.w))
+        return;
     dlp_p = dlp.w[0] | dlp.w[1] ? dlp_o : 0;       /* (all 0: the kit as it is, dl_ofs's contract) */
     dlp_l = (uint8_t)l;
 }

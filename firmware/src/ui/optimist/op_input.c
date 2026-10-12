@@ -68,8 +68,8 @@ static void go_home(void)                               /* power-on, a new proje
 static uint32_t op_cursor_page(void)
 {
     uint32_t r = ui.row[ui.scr];
-    if (ui.scr == SCR_SOUND && snd_page(r))
-        return (uint32_t)(snd_page(r) - PAGES);
+    if (ui.scr == SCR_SOUND && snd_page(r))             /* (a lane's LFO, this UI's own page: PAGES' LFO) */
+        return lane_lfo_pg(snd_page(r)) ? page_first(FAM_LFO) : (uint32_t)(snd_page(r) - PAGES);
     if (ui.scr == SCR_FX)
         return fx_ix[r % OP_MAXROWS];
     if (ui.scr == SCR_PROJECT && prj_kind(r) == PR_TOOLS)
@@ -332,7 +332,7 @@ static void op_press(uint32_t b, uint32_t held)
     if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / HOME + it */
         return;
     if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
-        if (b != B_EDIT && b != B_GLO)
+        if ((b != B_EDIT || is_drum(TSEL)) && b != B_GLO)   /* (EDIT: the drum lane's SOUND pages, its locks) */
             step_lock_page(JUMP_FAM[b]);
         op_clean &= ~BIT(b);
         return;
@@ -662,9 +662,9 @@ static uint32_t step_leds(uint32_t blink)
 static uint32_t op_fam_mask(void)                       /* a bit per family the selected track has SOUND rows of */
 {
     uint32_t i, m = 0;
-    for (i = 0; i < NPAGES; i++)
-        if (sound_page(&PAGES[i]))
-            m |= 1u << (PAGES[i].fam % 32u);
+    for (i = 0; i < OP_NPG; i++)                        /* (a lane's LFO too: LFO half lit on a lane, dark on DR) */
+        if (sound_page(op_pg(i)))
+            m |= 1u << (op_pg(i)->fam % 32u);
     return m;
 }
 static uint32_t op_btn_avail(void)                      /* a bit per panel button (B_*) that has a function now */
@@ -683,7 +683,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
             on = 1;                                     /* (an FM6 track: its operators, held: their pages) */
         if (b == B_FX && ui.scr == SCR_FX)
             on = 1;                                     /* (the global FX: its next page) */
-        if (ui.scr == SCR_STEP && st.held && b != B_EDIT)
+        if (ui.scr == SCR_STEP && st.held && (b != B_EDIT || is_drum(TSEL)))
             on = 1;                                     /* (a step held: the page buttons lock their page) */
         l = b == B_LFO ? LY_PLAY : lay_btn_layer(b);
         if (l != LY_PLAY && ly_bit[l])

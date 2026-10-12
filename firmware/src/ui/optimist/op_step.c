@@ -185,10 +185,14 @@ static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
 {
     if (is_drum(t)) {
         dstep_t *d = &t->dstep[idx];
-        if (all)
+        if (all) {
             memset(d, 0, sizeof *d);
-        else
+        } else {
             dstep_clr(d, lane_selected());
+#if DLA_ON
+            (void)lane_step_drop(t, idx, lane_selected());   /* (the lane's hit gone: its locks there, D4) */
+#endif
+        }
         if (dstep_mask(d))
             return;
     } else {
@@ -423,12 +427,20 @@ static void held_fill(void)                             /* normal -> fill only -
 #endif
 
 /* ---- locks: a page button with a step held makes that page's cells the steps' events (the automation store) */
+/* page pg's cells are locks on this track: its sound pages; on the drum track the selected lane's SOUND, SOUND 2 and
+ * ENV too (their values TUNE .. LEVEL: lane locks, DLA_ON), not SOUND 3, SOURCE, KIT nor the lane's LFO */
+static int lock_pg_ok(const page_t *pg)
+{
+    if (!sound_page(pg))
+        return 0;
+    return pg->scope != SC_DSND || (DLA_ON && pg->id[0] < DE_N);
+}
 static void step_lock_page(uint32_t fam)                /* the family's first page shown on this track, again: its next */
 {
 #if FELUCCA_PLOCK
     uint32_t i, first = LOCK_NONE, next = LOCK_NONE;
     for (i = 0; i < NPAGES; i++) {
-        if (PAGES[i].fam != fam || !sound_page(&PAGES[i]) || PAGES[i].scope == SC_DSND)
+        if (PAGES[i].fam != fam || !lock_pg_ok(&PAGES[i]))
             continue;
         if (first == LOCK_NONE)
             first = i;
@@ -449,24 +461,39 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
 #endif
 }
 #if FELUCCA_PLOCK
-/* page pg's cell k as a lockable value of the selected track: its P_* id and descriptor, -1 when it is not one */
+/* page pg's cell k as a lockable value of the selected track: its P_* id and descriptor, -1 when it is not one. On the
+ * drum track's SOUND, SOUND 2 and ENV pages the selected lane's value v: LOCK_LANE | v (seq/auto_lane.c, the lane's
+ * locks and motion events, heard at its hits) */
+#define LOCK_LANE 0x100
 static int32_t lock_param(const page_t *pg, uint32_t k, const param_desc_t **d)
 {
     int16_t *vp;
     *d = page_desc(pg, k, &vp);
-    if (!*d || !vp || vp < TSEL->p || vp >= TSEL->p + P_COUNT || PARAM_HIDDEN(*d) || is_go(*d) || (*d)->max <= (*d)->min)
+    if (!*d || !vp || PARAM_HIDDEN(*d) || is_go(*d) || (*d)->max <= (*d)->min)
+        return -1;
+#if DLA_ON
+    if (pg->scope == SC_DSND)
+        return page_id(pg, k) < DE_N ? (int32_t)(LOCK_LANE | page_id(pg, k)) : -1;
+#endif
+    if (vp < TSEL->p || vp >= TSEL->p + P_COUNT)
         return -1;
     return lock_ok(TSEL, (uint32_t)(vp - TSEL->p)) ? (int32_t)(vp - TSEL->p) : -1;
 }
 /* the first step held's event of cell k: 1 step-only (a lock), 2 a hold event (motion), 0 none; its value into *v */
 static uint32_t lock_kind(uint32_t id, int32_t i, int32_t *v)
 {
+#if DLA_ON
+    if (id & LOCK_LANE)
+        return lane_lock_get(TSEL, (uint32_t)i, lane_selected(), id & 7u, v) ? 1u :
+               lane_hold_get(TSEL, (uint32_t)i, lane_selected(), id & 7u, v) ? 2u : 0u;
+#endif
     return lock_get(TSEL, (uint32_t)i, id, v) ? 1u : hold_get(TSEL, (uint32_t)i, id, v) ? 2u : 0u;
 }
-static void lock_cell(uint32_t k, cell_t *c)            /* the event of the first step held, else the track's value */
+/* the cell of lockable id (lock_param's) with descriptor d: the event of the first step held, else the track's value (a
+ * lane's: its patch) */
+static void lock_cell_id(int32_t id, const param_desc_t *d, cell_t *c)
 {
-    const param_desc_t *d;
-    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d), i = held_first(), v;
+    int32_t i = held_first(), v;
     uint32_t q;
     cell_clear(c);
     if (!d)
@@ -476,24 +503,79 @@ static void lock_cell(uint32_t k, cell_t *c)            /* the event of the firs
         str_cpy(c->val, "-", sizeof c->val);            /* (not a lockable value: the mixer's, a GO button) */
         return;
     }
-    if ((q = lock_kind((uint32_t)id, i, &v)) == 0)
-        v = TSEL->p[id];
+    q = lock_kind((uint32_t)id, i, &v);
     c->kind = CK_VAL;
     c->d = d;
-    c->vp = &TSEL->p[id];
+#if DLA_ON
+    if (id & LOCK_LANE) {
+        if (!q)
+            v = dl.ofs[lane_selected()][id & 7];
+        c->vp = &dsv[id & 7];
+    } else
+#endif
+    {
+        if (!q)
+            v = TSEL->p[id];
+        c->vp = &TSEL->p[id];
+    }
     c->mark = (uint8_t)q;                               /* (op_draw.c: 1 a padlock, 2 a hold's arrow) */
     c->col = q == 1u ? C_WARN : q ? C_AMB : 0;
     param_format(d, v, c->val, &c->unit);
     cell_gauge_d(c, d, v);
 }
-/* a turn writes the step-only event on every step held (a hold event alone there: its value); OP_RESET (HOME + the
- * knob) drops the step's events of the cell, both kinds */
-static void lock_turn(uint32_t k, int32_t s, int fine)
+static void lock_cell(uint32_t k, cell_t *c)
 {
     const param_desc_t *d;
+    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d);
+    lock_cell_id(id, d, c);
+}
+/* step idx's event of lockable id set a turn of step on (OP_RESET: its events of id gone, both kinds); r: bit 0 the
+ * list full, bit 1 the lane has no hit there (D4: no lock), bit 2 written (IRQ off) */
+static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_desc_t *d, int32_t step, uint32_t *r)
+{
+    int32_t v;
+#if DLA_ON
+    if (id & LOCK_LANE) {
+        uint32_t l = lane_selected(), dv = id & 7u;
+        int rc;
+        if (step == OP_RESET) {
+            lane_lock_drop(t, idx, l, dv);
+            (void)lane_hold_drop(t, idx, l, dv);
+            return;
+        }
+        if (!lane_lock_get(t, idx, l, dv, &v) && lane_hold_get(t, idx, l, dv, &v)) {
+            (void)auto_put(AL(t), idx % NSTEP, AUTO_LANE(l, dv), clamp(param_step(d, v, step), DE_MIN[dv], DE_MAX[dv]));
+            *r |= 4u;                                   /* (the hold event's value) */
+            return;
+        }
+        if (!lane_lock_get(t, idx, l, dv, &v))
+            v = dl.ofs[l][dv];
+        rc = lane_lock_set(t, idx, l, dv, param_step(d, v, step));
+        *r |= rc == LANE_NOHIT ? 2u : rc ? 4u : 1u;
+        return;
+    }
+#endif
+    if (step == OP_RESET) {
+        lock_drop(t, idx, id);
+        (void)auto_step_hold_drop(t, idx, id);
+        return;
+    }
+    if (!lock_get(t, idx, id, &v) && hold_get(t, idx, id, &v)) {
+        (void)auto_put(AL(t), idx, mot_sid(id), param_step(d, v, step));   /* (the hold event's value) */
+        *r |= 4u;
+        return;
+    }
+    if (!lock_get(t, idx, id, &v))
+        v = t->p[id];
+    *r |= lock_set(t, idx, id, param_step(d, v, step)) ? 4u : 1u;
+}
+/* a turn of knob k writes lockable id's step-only event on every step held (a hold event alone there: its value);
+ * OP_RESET (HOME + the knob) drops the step's events of the cell, both kinds */
+static void lock_turn_id(int32_t id, const param_desc_t *d, uint32_t k, int32_t s, int fine)
+{
     track_t *t = TSEL;
-    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d), step;
-    uint32_t w, full = 0;
+    int32_t step;
+    uint32_t w, r = 0;
     if (id < 0) {
         if (d)
             ui_message("NOT LOCKABLE");
@@ -503,48 +585,66 @@ static void lock_turn(uint32_t k, int32_t s, int fine)
     st.pend &= (uint16_t)~st.held;
     undo_mark(t, st.sess);                              /* (a lock written or dropped: undone with the step, undo.c) */
     fm1_irq_off();
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = st.page * 16u + w;
-        int32_t v;
-        if (!((st.held >> w) & 1u) || idx >= trk_len(t))
-            continue;
-        if (s == OP_RESET) {
-            lock_drop(t, idx, (uint32_t)id);
-            (void)auto_step_hold_drop(t, idx, (uint32_t)id);
-            continue;
-        }
-        if (!lock_get(t, idx, (uint32_t)id, &v) && hold_get(t, idx, (uint32_t)id, &v)) {
-            (void)auto_put(AL(t), idx, mot_sid((uint32_t)id), param_step(d, v, step));   /* (the hold event's value) */
-            continue;
-        }
-        if (!lock_get(t, idx, (uint32_t)id, &v))
-            v = t->p[id];
-        full |= !lock_set(t, idx, (uint32_t)id, param_step(d, v, step));
-    }
+    for (w = 0; w < 16u; w++)
+        if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
+            lock_step_put(t, st.page * 16u + w, (uint32_t)id, d, step, &r);
     fm1_irq_on();
     sync_reload = 1;
-    if (full)
+    if (r & 1u)
         ui_message("NO LOCK LEFT");
+    else if ((r & 2u) && !(r & 4u))
+        ui_message("NO HIT ON THIS STEP");               /* (the lane does not play there: a lock would never be heard) */
+}
+static void lock_turn(uint32_t k, int32_t s, int fine)
+{
+    const param_desc_t *d;
+    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d);
+    lock_turn_id(id, d, k, s, fine);
+}
+/* the held drum step's first page, KNOB 3 and 4 (the user, 2026-10-12, D3: LEVEL RATCHET TUNE DECAY): the selected
+ * lane's TUNE and DECAY on the steps held, as a lock page's cells */
+static int32_t held_lane_param(uint32_t k, const param_desc_t **d)
+{
+#if DLA_ON
+    int16_t *vp;
+    uint32_t v = k == 2u ? DE_TUNE : DE_DECAY;
+    *d = dsnd_desc_lane(lane_selected(), v, &vp);
+    return *d ? (int32_t)(LOCK_LANE | v) : -1;
+#else
+    (void)k;
+    *d = 0;
+    return -1;
+#endif
 }
 #endif
-/* YES with a step held: the lock page's hot cell, its event's kind on every step held (step-only <-> HOLD); without
- * a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
+/* YES with a step held: the lock page's hot cell (the held drum step's TUNE, DECAY too), its event's kind on every step
+ * held (step-only <-> HOLD); without a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
 static void held_yes(void)
 {
     step_cards_show();
 #if FELUCCA_PLOCK
     const param_desc_t *d;
-    int32_t id, v, i = held_first();
-    if (st.lock_pg != LOCK_NONE && i >= 0 && (id = lock_param(&PAGES[st.lock_pg], ui.hot & 3u, &d)) >= 0 &&
-        lock_kind((uint32_t)id, i, &v)) {
+    int32_t id = -1, v, i = held_first();
+    if (st.lock_pg != LOCK_NONE)
+        id = lock_param(&PAGES[st.lock_pg], ui.hot & 3u, &d);
+    else if (st.hp == 0u && is_drum(TSEL) && (ui.hot & 3u) >= 2u)
+        id = held_lane_param(ui.hot & 3u, &d);
+    if (i >= 0 && id >= 0 && lock_kind((uint32_t)id, i, &v)) {
         track_t *t = TSEL;
         uint32_t w, r = 0;
         undo_mark(t, st.sess);
         st.pend &= (uint16_t)~st.held;
         fm1_irq_off();
         for (w = 0; w < 16u; w++)
-            if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
+            if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t)) {
+#if DLA_ON
+                if ((uint32_t)id & LOCK_LANE) {
+                    r |= lane_kind_toggle(t, st.page * 16u + w, lane_selected(), (uint32_t)id & 7u);
+                    continue;
+                }
+#endif
                 r |= auto_kind_toggle(t, st.page * 16u + w, (uint32_t)id);
+            }
         fm1_irq_on();
         sync_reload = 1;
         ui_message(r & 1u ? "HOLD: UNTIL THE NEXT" : r & 2u ? "THIS STEP ONLY" : "NO HOLD HERE");
@@ -588,7 +688,7 @@ static uint32_t hp_locks(uint8_t *ix)                   /* the p-lock pages of t
     uint32_t i, n = 0;
 #if FELUCCA_PLOCK
     for (i = 0; i < NPAGES && n < OP_MAXROWS; i++)
-        if (sound_page(&PAGES[i]) && PAGES[i].scope != SC_DSND)
+        if (lock_pg_ok(&PAGES[i]))
             ix[n++] = (uint8_t)i;
 #else
     (void)ix;
@@ -745,8 +845,17 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
     int32_t i = held_first();
     uint32_t lv, rt;
     cell_clear(c);
-    if (i < 0 || (is_drum(t) && k > 1u))
-        return;                                         /* (the drum step: LEVEL RATCHET - -) */
+    if (i >= 0 && is_drum(t) && k > 1u) {               /* (the drum step: LEVEL RATCHET TUNE DECAY, the lane's locks: D3) */
+#if FELUCCA_PLOCK
+        const param_desc_t *d;
+        int32_t id = held_lane_param(k, &d);
+        if (id >= 0)
+            lock_cell_id(id, d, c);
+#endif
+        return;
+    }
+    if (i < 0)
+        return;
     c->kind = CK_VAL;
     if (is_drum(t)) {
         const dstep_t *d = &t->dstep[i];
@@ -831,10 +940,18 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             return;
         }
 #endif
-        if (EX_N ? st.hp == 1u : 0)
+        if (EX_N ? st.hp == 1u : 0) {
             extra_turn(k, s);
-        else
+        } else if (is_drum(TSEL) && k > 1u) {           /* (the drum step's TUNE, DECAY: the lane's locks) */
+#if FELUCCA_PLOCK
+            const param_desc_t *d;
+            int32_t id = held_lane_param(k, &d);
+            if (d)
+                lock_turn_id(id, d, k, s, fine);
+#endif
+        } else {
             held_edit(k, s);
+        }
         return;
     }
     if (!stp_is_lane(r))
