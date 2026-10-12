@@ -10,7 +10,7 @@
 static bootguard_t bootguard;
 static uint32_t ticks, fm1_ms, polls, feeds, retries, services, sessions, rom, detached, scans;
 static uint32_t jedec = 0x856014u, jedec_reads, lcd_calls, font;
-static uint8_t recovery_active, flash_ok;
+static uint8_t recovery_active, flash_ok, midi_in_unread;
 static struct { uint8_t ota_req, uboot_req; } usb;
 static struct { uint32_t buttons; } fm1_in;
 static uint32_t input_buttons, stop_at_retry;
@@ -131,6 +131,7 @@ int main(void)
     assert(!strcmp(drawn[2], "CRASH 00020001 0201ABCD"));
     assert(strlen(drawn[0]) <= 30 && strlen(drawn[2]) <= 30);   /* (30 characters: the screen's width in FONT_S) */
     assert(recovery_active && bootguard.pending == 2 && flash_ok);
+    assert(midi_in_unread);                  /* nothing drains the MIDI ring in rescue: events are dropped (usb.c) */
     assert(jedec_reads == 1 && lcd_calls == 1);
     assert(services == 7 && sessions == 2);  /* idle startup starts no update */
     assert(bootguard_begin(&bootguard) == BOOT_ROM);

@@ -257,12 +257,19 @@ int main(int argc, char **argv)
         record_cleared = 0;
         corrupt_at = nfo + 0x30123u;
         corrupt_once = 0;
+        erases = 0;
         rc = ldr_session();
         bad += check("a damaged package: refused after 3 passes, the record stays", rc == -12 && !record_cleared
                      && nor[0xE4F06] == r6);
+        bad += check("... and the working app was never erased or written (checked before anything is erased)",
+                     erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = nfo + 0x100u;                   /* in the head: never written, still checked */
         rc = ldr_session();
-        bad += check("... also when the damage is in the head", rc == -12 && !record_cleared);
+        bad += check("... also when the damage is in the head", rc == -12 && !record_cleared && erases == 0
+                     && !memcmp(nor, old + ofo, 0x93000));
+        corrupt_at = nfo + 0x91000u;                 /* the last app sector */
+        rc = ldr_session();
+        bad += check("... and in the last app sector", rc == -12 && erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = 0;
         /* no "success" from the host: the record stays (the host can finish later) */
         no_finish = 1;

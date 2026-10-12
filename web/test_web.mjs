@@ -36,7 +36,7 @@ const E = vm.runInNewContext(proto + `
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
-   emptySnd, sndBytes, sndFrom, BK, bkListAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
+   emptySnd, sndBytes, sndFrom, BK, bkListAll, bkCheckAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl24BankRecords, sl24ReadFile, sl24ImportObject, sl24Send, sl24ReadBank, sl24IntoUserBank, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
@@ -1869,7 +1869,7 @@ async function editorBackup() {
   st.bk.objs.UKIT = Uint8Array.from({ length: 3784 }, (_, i) => (i * 5) & 255);
   st.bk.objs.SETT = Uint8Array.from({ length: 120 }, (_, i) => i);
   let L = await E.bkListAll(rq);
-  ok(L.version === 3 && L.n === 14 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
+  ok(L.version === 4 && L.n === 14 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
     L.objs[2].crc === E.crc32(st.bk.objs.PRJ1) && L.objs[10].tag === "FM6B" && L.objs[10].kind === "fm6" &&
     L.objs.slice(11).every((o) => o.kind === "usr") && L.caps && L.caps.usrCap[2] === 65536 && L.caps.trk === 780,
     "backup: BK_LIST v3 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
@@ -1879,7 +1879,7 @@ async function editorBackup() {
     pm.m.state.bk.objs = st.bk.objs;
     const LP = await E.bkListAll((r, o) => { seen.push(r[1][1]); return pm.rq(r, o); });
     const P0 = E.parse[C.BK_LIST](await pm.rq(E.req.bkList(0)));
-    ok(/#define BK_VERSION 3u/.test(fw) && E.BK.VERSION === 3 && js(seen) === js([0, 5, 10]) && P0.first === 0 && P0.count === 5 && !P0.caps &&
+    ok(/#define BK_VERSION 4u/.test(fw) && E.BK.VERSION === 4 && js(seen) === js([0, 5, 10]) && P0.first === 0 && P0.count === 5 && !P0.caps &&
       js(LP.objs) === js(L.objs) && js(LP.caps) === js(L.caps),
       "backup: BK_LIST in pages of 5 (first 0, 5, 10): the same 14 objects and caps as one reply");
     ok(await pm.rq(E.req.bkList(0).map((x, k) => (k ? [2] : x)), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none",
@@ -1945,6 +1945,30 @@ async function editorBackup() {
   ok(!L.objs[iK].inBuild && E.parse[C.BK_BEGIN](await y.rq(E.req.bkBegin(iK, 10, 0))).rc === 5 &&
     js(plan.map((x) => x.why)) === js(["bkNotInBuild", "", "bkUnknown"]), "restore: an object the build has not: rc 5, the editor skips it (and unknown tags)");
   y.done();
+  {   /* a restore checks every storage object before it writes any (BK_VERSION 4: COMMIT with the second byte 1) */
+    const mk = (tag) => ({ o: { tag, kind: "st", data: saved[tag] }, d: null });
+    const bad = attachMock({ bkBad: ["UKIT"] });
+    bad.m.state.bk.objs = { SETT: new Uint8Array(saved.SETT).fill(7), PRJ1: new Uint8Array(saved.PRJ1).fill(8), UKIT: new Uint8Array(saved.UKIT).fill(9) };
+    const before = js(Object.values(bad.m.state.bk.objs).map((d) => [...d]));
+    const LB = await E.bkListAll(bad.rq);
+    const set = ["SETT", "PRJ1", "UKIT"].map((tag) => ({ ...mk(tag), d: LB.objs.find((x) => x.tag === tag) }));
+    const refused = await E.bkCheckAll(bad.rq, LB, set);
+    ok(LB.version === 4 && js(refused) === js(["UKIT"]) && js(Object.values(bad.m.state.bk.objs).map((d) => [...d])) === before &&
+      bad.m.state.bk.dry === 2 && bad.m.state.bk.reboots === 0,
+      "restore: every object checked first (check-only COMMITs): the set with a bad one (UKIT, rc 8) is found, nothing written");
+    bad.done();
+    const good = attachMock({});
+    good.m.state.bk.objs = { SETT: new Uint8Array(saved.SETT).fill(7) };
+    const LG = await E.bkListAll(good.rq);
+    const none = await E.bkCheckAll(good.rq, LG, [{ ...mk("SETT"), d: LG.objs.find((x) => x.tag === "SETT") }]);
+    ok(none.length === 0 && good.m.state.bk.objs.SETT[0] === 7, "restore: a set that would all load passes the check, and the check wrote nothing");
+    good.done();
+    const old = attachMock({ bkVersion: 3, bkBad: ["UKIT"] });
+    const LO = await E.bkListAll(old.rq);
+    const o0 = await E.bkCheckAll(old.rq, LO, [{ ...mk("UKIT"), d: LO.objs.find((x) => x.tag === "UKIT") }]);
+    ok(LO.version === 3 && o0.length === 0 && !old.sent[E.CMD.BK_BEGIN], "restore: an older firmware (v3) has no check-only COMMIT: not asked, nothing sent");
+    old.done();
+  }
   /* the FM6 bank's slot (always backed up) and a sample slot's parts */
   const z = attachMock({});
   z.m.state.smp[1].flash.set([0x46, 0x4D, 0x36, 0x42], 0);

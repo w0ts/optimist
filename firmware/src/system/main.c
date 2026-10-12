@@ -11,6 +11,9 @@ void fm1_timer5_irq(void)
 {
     static uint32_t sub;
     fm1_timer5_ack();
+#if FELUCCA_BRIGHT
+    fm1_lcd_bl_scan();                          /* PA2 is the key matrix's /OE too: low before the scan reads the rows */
+#endif
     felucca_dbg.timer_irqs++;
     if (felucca_dbg.in_audio)
         felucca_dbg.nested++;                      /* a tick inside the audio render (it outranks ALNK0) */

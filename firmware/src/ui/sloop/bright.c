@@ -5,7 +5,8 @@
  *
  * EXPERIMENTAL, not tried on a real FM-1 here. On X0X a real FM-1 froze at level 1 (duty 1/16) and, the
  * level being saved, froze again at every boot until reflashed (X0X issue #2; X0X removed the feature in
- * c6f2bf6; the cause was never found, the PWM is suspected by elimination). So here:
+ * c6f2bf6). The cause: PA2 is also the /OE of the key matrix's 595s (Felucca 1.1.5.1), so with it high no key read; the
+ * tick now pulls PA2 low before the scan (fm1_lcd_bl_scan). Still not tried on hardware, so here:
  *   - every boot starts at full (bright_boot, from project.c persist_boot): the level is never restored, the
  *     settings record stores 0 (= full) in its persist_t.bright slot, so an older build reading it is full too;
  *   - the lowest step is 4/16, not 1/16 (BL_DUTY), until a hardware test clears the low duties.

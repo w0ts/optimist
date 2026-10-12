@@ -92,6 +92,7 @@ static void recovery_crumbs(void)
 static BOOT_ORDER void recovery_main(void)
 {
     recovery_active = 1;
+    midi_in_unread = 1;                      /* no events_block here: MIDI events are dropped, SysEx passes (usb.c) */
     bootguard.pending = 2;                   /* WDT/exception here falls back to ROM */
     recovery_last = recovery_usb_last = fm1_ticks();
     recovery_fraction = fm1_ms = 0;
