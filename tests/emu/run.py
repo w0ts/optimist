@@ -70,7 +70,7 @@ def run_child(n, fw, a):
     res.unlink(missing_ok=True)
     p = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(fw), "--only", n, "--mhz", str(a.mhz),
                         "--out", a.out, "--child-result", str(res)],
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT)
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT, env=a.child_env)
     try:
         passed, failed = (int(v) for v in res.read_text().split()[:2])
         res.unlink()
@@ -83,10 +83,15 @@ def run_child(n, fw, a):
 def run_parallel(names, fw, a):
     """the checks a.jobs at a time (ALONE after the others, by itself), each one's lines printed whole, in order
     -> {name: (passed, failed, seconds)}"""
+    # the driver: built once here; the children get its path and never run cargo themselves (a cargo build in one
+    # relinks the binary while another starts it: FileNotFoundError, integration57). Not built: each child stops
+    # on the missing path, none tries to build it
     try:
-        session.driver()                                # (built once here, not by every check at once)
-    except Exception as x:                              # (each check then stops on it and says so)
+        drv = str(session.driver())
+    except Exception as x:
         print(f"emu-check: the driver: {type(x).__name__}: {x}", flush=True)
+        drv = str(ROOT / "build" / "emu-drv" / "not-built")
+    a.child_env = dict(os.environ, **{session.DRIVER_ENV: drv})
     Path(a.out).mkdir(parents=True, exist_ok=True)
     done = {}
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:

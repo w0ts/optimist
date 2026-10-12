@@ -58,12 +58,19 @@ def checkout_dir():
 
 
 _DRIVER = None
+DRIVER_ENV = "EMU_CHECK_DRIVER"     # a driver already built: used as it is, never built again (run.py's children)
 
 
 def driver():
     """-> the emu-drv executable, built (cargo, release) into build/emu-drv/ against emulator_dir()"""
     global _DRIVER
     if _DRIVER:
+        return _DRIVER
+    pre = os.environ.get(DRIVER_ENV)
+    if pre:                                             # (tests/emu/run.py --jobs: built once by the parent; a
+        if not Path(pre).is_file():                     #  child never runs cargo, which would relink it under
+            raise EmuError(f"{DRIVER_ENV}={pre}: no such driver")   # the others' feet)
+        _DRIVER = Path(pre)
         return _DRIVER
     if not shutil.which("cargo"):
         raise EmuError("the emulator checks need Rust (cargo): https://rustup.rs")
