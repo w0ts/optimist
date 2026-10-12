@@ -26,6 +26,8 @@ typedef struct {
     uint8_t mark;                       /* an event on the step held (STEP: op_step.c): 1 a lock, 2 a hold, a mark */
     uint8_t gk;                         /* its form (GK_*) over gmin..gmax, at gv */
     int16_t gmin, gmax, gv;
+    uint8_t ak;                         /* the actual value's bar (op_effval.c, the cards only): its form, GK_NONE none */
+    int16_t amin, amax, av;             /* ... over amin..amax, at av */
 } cell_t;
 
 static void cell_clear(cell_t *c)

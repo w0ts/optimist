@@ -2359,3 +2359,39 @@ events, section 6.1).
 
 Tests: tests/ui_optimist_laneui.h (`lane_rec_tests`, `lane_held_tests`, `lane_lfo_tests`), in the automation switch
 set; tests/ui_optimist_test.c's held drum step check follows D3.
+
+## 19. Live effective values: one number, two bars (feat/lane-ui, 2026-10-12)
+
+The user: *"for the destination %age (instrument setting) and the +/- (lfo, env, plock etc) values we should have a
+visualisation of the current effective values (moving in real time)"*; then the decisions (optimist-work/effval
+DECISIONS.md): *"one number, two bars. the number is what i enter. one bar is what i enter, the other is the actual
+value"*, the same for modulated values and for the +/- cards; POLY: the last note played still sounding.
+
+**On every card** (2x2 and the mixer's 1x4): the big number is the value as entered, the knob's own, as before. Under it
+the entered bar, as before; and, while the actual value differs from it, a second bar: the actual value now, white
+(amber on the hot card), 2 px, no trough. In a big card it sits 3 px above the entered bar (under the digits' foot); in
+a 1x4 card the entered bar becomes 2 px at y 37 and the actual bar is at y 41. A bar whose value comes back to the
+entered one stays 400 ms, so an LFO crossing it does not make the cards blink.
+
+| Card | The actual value |
+|---|---|
+| A drum lane's value (SOUND, SOUND 2, ENV, STEP's LANE page, the mixer's lane rows) | What a hit now plays: the patch, the lane's motion and locks in force, its LFO now. The hit's own formula: drums/lane_play.c `dl_play_ofs`, which `dl_play_hit` now calls too (one code, no drift; drums_mix untouched). On a synthesised kit DECAY, CLICK, BEND and DRIVE are the absolute value the sound gets (`de_synth` on the kit's own sound: kit + offset, 0..127, BEND 0..96), always shown: DRIVE -5 on a sound whose drive is 67 shows -7 % big (the offset, as stored) with the actual bar at 57 of 127 (45 %). TUNE, SNAP, CUT, LEVEL and every sampled, user-sample and X0X sound: the offset a hit plays, shown when it differs (motion, a lock, the LFO) |
+| A synth part's cutoff and shape cards (the engine's: ANALOG CUT, TRIO CUT and DUTY, GRAIN TONE and POS, FM6 MOD, VOICE BUZZ, PHASE DPTH, LOFI / SAMPLE / SLICE TONE or CUT, PHYS BRIT; `EFFV_DEST`) | The card's value + the part's cutoff (shape) modulation now, as track_render computes it: the LFO now (`lfo_val` x `lfo_fade`), the envelope of the newest active voice (`v->env`), the accent; with the macros as they play (`mac_effective`) |
+| Any synth value a macro moves (FELUCCA_MACROS) | `mac_effective` |
+| LFO DEST and ENV DEST's FLT and SHP | The destination card's actual value, on its scale (an engine without such a card: what the source adds, on -64..63), shown while the amount is not 0 |
+| ... PIT | The pitch now from the LFO and the pitch envelope, in 1/16 semitones on +-12 |
+| ... AMP (LFO) | The newest voice's level now (`env_out`: envelope, velocity, the LFO's dip), 0..127 |
+| A lane LFO's AMT / AMT2 | Its destination's actual value (as the lane value above), while the slot acts |
+
+Not on a held step's cards (they describe the step, not now), nor on the layers' cards. An ANALOG 2 part's own ENV2 and
+keytrack are not in the cutoff bar (they are per voice inside the engine); CZ's amplitude curve is not in the envelope
+term. **How**: the UI recomputes from RAM the audio side already keeps (ui/optimist/op_effval.c, `effv_cell`), as
+`mac_effective` does; nothing is published, nothing added to the ISR, to HOT or to RAM code. The cards' band is drawn
+again only when a bar appears or goes (or anything else on it changes); a moving bar alone is its 2 px strip, at most
+every 33 ms (op_draw.c `effv_strips`). No builder switch: the flash cost is small (the report has the sizes).
+
+Tests: tests/ui_optimist_effval.h: the lane's offsets and absolute values equal `dl_play_hit`'s and `de_synth`'s
+(patch, a hold, a lock over it, the LFO playing, stopped and synced); ANALOG 2's cutoff as rendered (`v->s[6]` after
+`track_render`: the LFO, the envelope, both, an accent) equals op_effval.c's, block after block; the bars (DRIVE -5,
+a value nothing moves, a hold in force and its linger, the lane LFO's AMT, a synth CUT moving with the LFO between two
+frames while its number stays, the LFO amount FLT on the cutoff's scale, SHP at 0).
