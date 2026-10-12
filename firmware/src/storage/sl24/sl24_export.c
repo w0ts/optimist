@@ -8,8 +8,11 @@
  *   - values 0..49 (P_LEVEL .. P_CHORD) as they are; our P_E0..P_E7 -> its 53..60; its 50 TFLT, 51 STRUM, 52 VLEAD
  *     from our P_TFLT P_STRUM P_VLEAD when built (SL24_TP: px_unpack), else 0 (their default: off). LOST: P_FXOFF,
  *     ANALOG 2's pages and ENV2's extras (2.4 has none);
- *   - engines: our UIDs 0..10 are 2.4's numbers; PHYS, ACID, CZ (11..13) -> their fallback (registry.h: ANALOG,
- *     ANALOG, PHASE) with that engine's EDIT defaults (LOST: the engine);
+ *   - engines, as SLOOP 2.5 and 2.6 number them (v2.5 fa9ce57 core.h ENGI_*; FUN5 did not change, 2.6 reads it): our
+ *     UIDs 0..9 (ANALOG .. GRAIN, FM6) are theirs, our PHYS (11) is their 10 with its EDIT values (the same eight);
+ *     SLICE, ACID, CZ (10, 12, 13) -> their fallback (registry.h: SAMPLE, ANALOG, PHASE) with that engine's EDIT
+ *     defaults (LOST: the engine). SLOOP 2.4 has no 10: it plays a PHYS part as ANALOG (its proj_apply: engine %
+ *     NENGINES), PHYS's EDIT values on ANALOG's knobs (web/EDITOR_PROTOCOL.md: the export is for 2.5 and later);
  *   - FM6 parts (sl24_fm6.c): a voice that is one of 2.4's F1..F8 exactly (an import of one with its macros at 0)
  *     -> that PTCH; else, when the caller gives 2.4's bank (the editor's "FM6 voices into 2.4's bank": 2.4's bank
  *     kept in flash, or an empty one), the voice into it (the slot holding it, else the first free one: B1..B27;
@@ -18,7 +21,9 @@
  *     ALG FB MRAT MEG VMOD DTUN 0 (in the voice already); preset = PTCH (F1..F8, else 0). LOST: M.TIM, C.TIM, an
  *     ENGINE other than MARK I (2.4's), operators switched off;
  *   - the drum track: kits 0..36 as they are; ours past 36 (X0X, user kits) -> 808 (LOST); its lanes' record (sends,
- *     per-lane edits, dl_hash) LOST;
+ *     per-lane edits, dl_hash) LOST but the lanes' DLY: SLOOP 2.5's drums' delay send (G_DRDLY, byte 73; 2.4 ignores
+ *     it) is the DLY level most lanes have (a tie: the lower), as a send (dsend_lvl), 0 while DLY is in no FX slot.
+ *     APPROXIMATE: one send of the drums' sum for all lanes, so lanes of another level take it too (sl25_drdly_out);
  *   - globals as they are but g[12] (our MIDI channels; 2.4's MIDI OUT flag) and g[14] (our G_VIEW; 2.4's MIDI IN
  *     route), 0 = 2.4's defaults (a 2.4 load never reads them: settings of the FM-1), and G_SYNC AUTO -> INT;
  *     the reserved bytes (reverb type, master COMP / LIMIT) LOST;
@@ -46,8 +51,10 @@
 #define SL24_HDR (12u + 2u * PJ_NG)                     /* where its tracks start (magic, size, g[32], sel, 3 spare) */
 _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + NTRK * SL24_TRK + 4u == SL24_SIZE &&
                sizeof(step_t) * NSTEP == 640u && sizeof(stepx_t) == 176u && P_CHORD == SL24_COMMON - 1u &&
-               DRUM_SAMPLED == 5u && ENG_UID_FM6 == 9u && ENG_UID_SLICE == 10u,
-               "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..10 our UIDs");
+               DRUM_SAMPLED == 5u && ENG_UID_FM6 == 9u && ENG_UID_PHYS == 11u,
+               "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..9 our UIDs");
+#define SL25_PHYS 10u                                   /* SLOOP 2.5's PHYS (core.h ENGI_PHYS) */
+#define SL25_DRDLY (8u + 2u * PJ_NG + 1u)               /* (as sl24_import.c) 2.5's G_DRDLY, the byte after sel */
 #define SL24_PERSIST 88u                                /* 2.4's persist_t (its settings, BACKUP object 1) */
 
 enum {                                                  /* what an export lost (the wire: 2 words of 2 x 7 bits) */
@@ -112,13 +119,13 @@ static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, int32_t voice, uin
 }
 
 static int16_t sl24_kit_out(int32_t k) { return (int16_t)(k >= 0 && k < (int32_t)SL24_KITS ? k : (int32_t)DRUM_SAMPLED); }
-/* the UID 2.4 plays for ours: its own, or the first fallback within 2.4's 0..10 */
+/* the engine number SLOOP 2.5 / 2.6 play for our UID: its own (0..9; PHYS 10), else the first fallback that is one */
 static uint32_t sl24_eng_out(uint32_t uid)
 {
     uint32_t n;
-    for (n = 0; n < 4u && uid >= ENG_UID_SLICE + 1u && uid < ENG_UID_N; n++)
+    for (n = 0; n < 4u && uid > ENG_UID_FM6 && uid != ENG_UID_PHYS && uid < ENG_UID_N; n++)
         uid = ENG_FALLBACK[uid];
-    return uid <= ENG_UID_SLICE ? uid : 0u;
+    return uid == ENG_UID_PHYS ? SL25_PHYS : uid <= ENG_UID_FM6 ? uid : 0u;
 }
 /* our parameter id on track trk -> 2.4's, -1 none. e: the track's E0..E7 mean what 2.4's do (not FM6, no fallback) */
 static int32_t sl24_param_out(uint32_t id, uint32_t trk, int e)
@@ -186,7 +193,7 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
         *e_ok = 0;
         return lost | (v[P_E2] || v[P_E3] || v[P_E4] != 1 ? SX24_FM6 : 0u);   /* (M.TIM, C.TIM, ENGINE: not 2.4's) */
     }
-    if (eng != uid) {                                   /* (2.4 has not this engine: its fallback, at its defaults) */
+    if (eng != (uid == ENG_UID_PHYS ? SL25_PHYS : uid)) {   /* (SLOOP has not this engine: its fallback, at its defaults) */
         for (i = 0; i < 8u; i++)
             sl24_w16(o + 2u * (SL24_E0 + i), eng_built(eng) ? ENGINES[eng_slot_built(eng)]->edit[i].def : 0);
         o[2u * SL24_NP + 1u] = 0;
@@ -252,6 +259,24 @@ static uint32_t sl24_fx_out(uint8_t *o)
     return lost;
 }
 
+/* SLOOP 2.5's drums' delay send (byte 73, G_DRDLY 0..127: a send of the drums' sum) from the working lanes' DLY
+ * (drum_sends.c dsend[]): the level most lanes have, a tie the lower one, as a track's send (dsend_lvl: 31 -> 127);
+ * 0 while DLY is in no FX slot (the lanes send nothing here: fx_slots.c fxs_lm) */
+static uint8_t sl25_drdly_out(void)
+{
+    uint8_t n[DSEND_MAX + 1u];
+    uint32_t l, v, best = 0;
+    if (!FXS_ON(FXT_DLY))
+        return 0;
+    memset(n, 0, sizeof n);
+    for (l = 0; l < DRUM_LANES; l++)
+        n[dsend_dly(dsend[l])]++;
+    for (v = 1; v <= DSEND_MAX; v++)
+        if (n[v] > n[best])
+            best = v;
+    return (uint8_t)dsend_lvl(best);
+}
+
 #if FELUCCA_AUTO
 /* track k's automation (seq/auto.h) as 2.4's extras x: its nudges, fills and first NLOCK step-only events of a value;
  * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, LOCK (more than NLOCK) */
@@ -282,6 +307,7 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
     for (i = 0; i < PJ_NG; i++)
         sl24_w16(o + 8u + 2u * i, sl24_g_out(q, i));
     o[8u + 2u * PJ_NG] = q->sel < NTRK ? q->sel : 0u;
+    o[SL25_DRDLY] = sl25_drdly_out();                   /* (2.5's drums' delay send; 2.4's spare, which it ignores) */
     lost |= q->rsv[0] | q->rsv[1] | q->rsv[2] ? SX24_MASTER : 0u;
 #if FELUCCA_ANALOG2
     lost |= q->dl_hash ? SX24_LANES : 0u;

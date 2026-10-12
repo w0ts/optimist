@@ -227,7 +227,7 @@ int main(void)
         host_tracks_init();
         song.playing = 0, transport_req = 0;
         project_load(1);
-        ok = project_state(1) == PJ_SL24 && !strcmp(last_msg, "SLOOP 2.4: LOAD = IMPORT");
+        ok = project_state(1) == PJ_SL24 && !strcmp(last_msg, "SLOOP: LOAD = IMPORT");
         fm1_ms += 500;
         project_load(1);
         ok &= !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) &&
@@ -257,7 +257,7 @@ int main(void)
 #endif
         fm1_ms += 5000;
         project_load(1);
-        check("LOAD after 4 s: offered again, not imported", !strcmp(last_msg, "SLOOP 2.4: LOAD = IMPORT"));
+        check("LOAD after 4 s: offered again, not imported", !strcmp(last_msg, "SLOOP: LOAD = IMPORT"));
     }
     /* SLOOP 2.4's AUTOSAVE (PROJECT > A24, twice): found at start, kept after Optimist's own autosaves, imported */
     {

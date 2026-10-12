@@ -110,6 +110,9 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 }
 
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
+/* st_save may be given st_buf itself (an object built or patched there: UP_FM6's, CZ's, upreset.c up_put_v1's SLOOP
+ * bank) */
+#define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE))
 #define ST_E_MAP (-8)                                  /* a sector outside the store's allow-list (st_save) */
 
 #if FELUCCA_SL24_SAFE
@@ -168,6 +171,13 @@ static void st_keep_sample(uint32_t k, uint32_t hdr, uint32_t first)
     if (s > first)
         st_keep_lo[k] = first, st_keep_hi[k] = s;
 }
+/* SLOOP 2.5 / 2.6's settings object (sl24_guard.c sl25_set_scan, at start): their persist_t (88 B, the start of ours)
+ * then their SYN drum kits (1464 B, "DSU1") and, in 2.6, a MIDI part. Bit c of st_set_sl: copy c holds such a record;
+ * st_set_cur: the copy SLOOP reads (its newest), with its seq st_set_seq. Optimist never reads one as its own
+ * (st_current skips them), never erases SLOOP's current one, and writes its own record in the other copy with a seq
+ * below it (st_save): SLOOP keeps finding its settings and kits as it left them, Optimist its own */
+static uint8_t st_set_sl, st_set_cur;
+static uint32_t st_set_seq;
 #endif
 
 static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record valid: 0 */
@@ -201,6 +211,10 @@ static int st_current(uint32_t obj, st_hdr_t *h)
 {
     st_hdr_t a, b;
     int va = st_head(obj, 0, &a) == 0, vb = st_head(obj, 1, &b) == 0;
+#if FELUCCA_SL24_SAFE
+    if (obj == OBJ_SETTINGS)                          /* (SLOOP 2.5 / 2.6's record: not ours, never read as ours) */
+        va &= !(st_set_sl & 1u), vb &= !(st_set_sl & 2u);
+#endif
     if (vb && (!va || b.seq > a.seq)) {
         if (st_body(obj, 1, &b) == 0) {
             *h = b;
@@ -256,7 +270,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     if (len > ST_PAYLOAD_MAX)
 #endif
         return -1;
-#if FELUCCA_UP_FM6 || CZ_NUSER
+#if ST_SRC_BUF
     if (src == st_buf) {                              /* (built in st_buf: st_current would read over it) the newest */
         st_hdr_t b;                                   /* valid header is the current copy */
         int va = st_head(obj, 0, &h) == 0, vb = st_head(obj, 1, &b) == 0;
@@ -269,7 +283,12 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     seq = cur < 0 ? 0u : h.seq;
     c = cur == 0 ? 1u : 0u;                           /* write the other copy */
 #if FELUCCA_SL24_SAFE
-    if (st_off_limits(obj, c)) {                      /* (another firmware's there: our current copy, written over in */
+    if (obj == OBJ_SETTINGS && st_set_sl) {           /* (SLOOP 2.5 / 2.6's settings kept: ours in the other copy, in */
+        if (!st_set_seq)                              /* place, below theirs: SLOOP still reads its own; a cut loses */
+            return ST_E_KEPT;                         /* ours, read from theirs again at the next start) */
+        c = st_set_cur ^ 1u;
+        seq = st_set_seq - 2u;                        /* (written: st_set_seq - 1) */
+    } else if (st_off_limits(obj, c)) {               /* (another firmware's there: our current copy, written over in */
         c ^= 1u;                                      /* place, a cut loses it; none: the other empty copy) */
         if (st_off_limits(obj, c))
             return ST_E_KEPT;
@@ -306,6 +325,10 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
 #endif
             return -7;
     }
+#if FELUCCA_SL24_SAFE
+    if (obj == OBJ_SETTINGS)
+        st_set_sl &= (uint8_t)~(1u << c);             /* (SLOOP's stale copy written over: ours now) */
+#endif
     return 0;
 }
 

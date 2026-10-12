@@ -36,7 +36,11 @@
 #endif
 #if FELUCCA_SL24_SAFE
 #define UP_NP_SL24 61u                           /* SLOOP 2.4's P_COUNT (UPB1, UP_VER 1: P_TFLT P_STRUM P_VLEAD at 50..52) */
+#define UP_NP_SL26 71u                           /* SLOOP 2.6's (v2.6 d30d655: + P_ITYPE .. P_LPOL at 53..62, P_E0 63). No
+                                                  * SLOOP plus stored it (its P_COUNTs: 53 57 58 59, ANALOG 2's 69 72) */
+#define UP_SL26_FTYPE 58u                        /* 2.6's P_FTYPE: ANALOG's filter LP / BP / HP */
 #define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
+#define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
 #endif
 #if FELUCCA_ANALOG2
 #define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
@@ -97,8 +101,8 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
-/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1 until a slot of the bank
- * is saved: the bank then goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
+/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1, every time: up_put_v1 saves a
+ * slot into it as it is there; without FELUCCA_SL24_SAFE the bank goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
  * analog2_from_super: SUPER LEAD's ANALOG version, the record has no preset number), DX7 / FM6 (10) -> FM6 (9),
  * SLICE (11) -> 10. A SUPER record is rewritten with today's P_COUNT values. (Test builds of feat/analog2 also
  * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
@@ -111,8 +115,18 @@ static void up_bank_from_v1(up_bank_t *bk)
         if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
             continue;                                   /* (UPB1: UP_VER 1 records only) */
 #if FELUCCA_SL24_SAFE
-        if (r->np == UP_NP_SL24)
-            continue;                                   /* (SLOOP 2.4's: our engine numbers, FM6 9, SLICE 10) */
+        if (UP_IS_SL(r)) {                              /* (SLOOP 2.4 .. 2.6's: 0..9 our engine numbers, FM6 9; 2.5's */
+            if (r->engine == 10u)                       /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
+                r->engine = ENG_UID_PHYS;               /* defaults: sl24_import.c sl24_eng_in; 2.6's filter TYPE */
+            else if (r->engine > ENG_UID_FM6) {         /* was not its: LP) */
+                r->engine = 0;
+                for (k = 0; k < 8u; k++)
+                    r->p[r->np - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
+                if (r->np == UP_NP_SL26)
+                    r->p[UP_SL26_FTYPE] = 0;
+            }
+            continue;
+        }
 #endif
         if (r->engine == 10u || r->engine == 11u)
             r->engine--;
@@ -157,11 +171,15 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[i] = def[i];
 #endif
 #if FELUCCA_SL24_SAFE
-    if (r->ver == 1u && r->np == UP_NP_SL24) {  /* SLOOP 2.4 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM VLEAD */
-        for (i = 0; i < P_E0; i++)              /* (not ours yet: their defaults), P_E0.. at 53 */
-            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];
-        for (i = 0; i < 8u; i++)
-            out[P_E0 + i] = r->p[UP_NP_SL24 - 8u + i];
+    if (UP_IS_SL(r)) {                          /* SLOOP 2.4 / 2.5 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM */
+        for (i = 0; i < P_E0; i++)              /* VLEAD (not a sound's here: their defaults), P_E0.. at 53; 2.6 (71): */
+            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];   /* its ten more (INSERT, FTYPE, ENV SYNC, LFO 2: LOST */
+        for (i = 0; i < 8u; i++)                /* but an ANALOG's filter TYPE, as a 2.6 project's: sl26_ftype_in), */
+            out[P_E0 + i] = r->p[r->np - 8u + i];   /* P_E0.. at 63 */
+#if FELUCCA_ANALOG2
+        if (r->np == UP_NP_SL26 && !r->engine && (r->p[UP_SL26_FTYPE] == 1 || r->p[UP_SL26_FTYPE] == 2))
+            out[P_A2FTYP] = (int16_t)(r->p[UP_SL26_FTYPE] + 1);   /* (BP 2, HP 3; LP: ours as it is) */
+#endif
         return;
     }
 #endif
@@ -375,6 +393,31 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #endif
 }
 
+#if UP_FROM_V1 && FELUCCA_SL24_SAFE && FELUCCA_FLASH
+/* bank k / 16 in flash is "UPB1" (SLOOP 2.4 .. 2.6's, or SLOOP plus's): record k = *r (0: erased) into it as it is in
+ * flash (in st_buf), the bank kept UPB1 and every other record byte for byte, so SLOOP still reads all of its own. Ours
+ * is an UP_VER 2 record (up_vals_put): SLOOP skips it (its up_valid: UP_VER 1 only; to it an empty slot, which it may
+ * save over), up_bank_from_v1 leaves it as it is. Before, the bank went out as UPB2 (RAM's, converted) and SLOOP
+ * then read every slot of it as empty. -> 1 done (*rc: 0 ok, 2 flash error), 0 not such a bank (written as ours) */
+static int up_put_v1(uint32_t k, const up_rec_t *r, int *rc)
+{
+    up_bank_t *f = (up_bank_t *)(void *)st_buf;
+    uint32_t obj = OBJ_UPRESET0 + k / UP_PER_BANK;
+    if (st_load(obj, st_buf, sizeof *f) != (int)sizeof *f || f->magic != UP_BANK_MAGIC_V1 || f->rsize != sizeof(up_rec_t) ||
+        f->nslot != UP_PER_BANK)
+        return 0;
+    if (r)
+        f->r[k % UP_PER_BANK] = *r;
+    else
+        memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec_t));
+    *rc = st_save(obj, st_buf, sizeof *f) ? 2 : 0;     /* (storage.c: a source in st_buf, ST_SRC_BUF) */
+    return 1;
+}
+#define UP_KEEP_V1 1
+#else
+#define UP_KEEP_V1 0
+#endif
+
 /* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM) */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
@@ -395,8 +438,14 @@ static int up_put(uint32_t k, const up_rec_t *r)
     up_gen++;
     upf_set(k, 0);                                      /* (UP_FM6: a voice kept for the old record goes) */
 #if FELUCCA_FLASH
-    if (flash_ok)
+    if (flash_ok) {
+#if UP_KEEP_V1
+        int rc;
+        if (up_put_v1(k, r, &rc))                       /* (SLOOP's bank: kept UPB1, its records untouched) */
+            return rc;
+#endif
         return st_save(OBJ_UPRESET0 + k / UP_PER_BANK, bk, sizeof *bk) ? 2 : 0;
+    }
 #endif
     return 3;
 }

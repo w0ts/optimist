@@ -20,7 +20,7 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 #endif
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP 2.4", "MEMORY"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
 #if SEC_LOGGED
 static void sec_mem(uint32_t *pct, uint32_t *more);    /* sections.c: the section log's MEM gauge */
 static void prj_mem(cell_t *c, uint32_t k)             /* MEMORY: USED (a bar) and MORE (sections that fit) */
@@ -134,9 +134,9 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         if (k)
             return 0;
         if (!ok)
-            op_arm(SCR_PROJECT, r, k, "IMPORT", "SLOOP 2.4", 1);
+            op_arm(SCR_PROJECT, r, k, "IMPORT", "SLOOP", 1);
         else
-            sl24_auto_import();                         /* SLOOP 2.4's autosave into the work (sl24_guard.c) */
+            sl24_auto_import();                         /* SLOOP 2.4 .. 2.6's autosave into the work (sl24_guard.c) */
         return 1;
     }
 #endif

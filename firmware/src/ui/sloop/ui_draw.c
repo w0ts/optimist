@@ -632,6 +632,11 @@ static void graph_user(void)
     }
 }
 
+#if FELUCCA_SL24_SAFE
+/* a slot's state (project_state): another firmware's project kept under an empty section (sl24_guard.c), said so,
+ * never EMPTY; SLOOP 2.4, 2.5 and 2.6's alike */
+static const char *const SLOT_ST[4] = {"EMPTY", "USED", "SLOOP", "NOT OURS"};
+#endif
 /* project slots: used / empty, the selected one in white */
 static void graph_slots(void)
 {
@@ -647,10 +652,9 @@ static void graph_slots(void)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
         cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
 #if FELUCCA_SL24_SAFE
-        {   /* another firmware's project kept under an empty section (sl24_guard.c): said so, never EMPTY */
-            static const char *const ST[4] = {"EMPTY", "USED", "SLOOP 2.4", "NOT OURS"};
+        {
             uint32_t st = project_state(s);
-            cv_text(40, y, &FONT_S, ST[st & 3u], st == PJ_USED ? (sel ? C_WHITE : C_HI) : st ? C_GRAY : C_DIM);
+            cv_text(40, y, &FONT_S, SLOT_ST[st & 3u], st == PJ_USED ? (sel ? C_WHITE : C_HI) : st ? C_GRAY : C_DIM);
         }
 #else
         cv_text(40, y, &FONT_S, project_used(s) ? "USED" : "EMPTY", project_used(s) ? (sel ? C_WHITE : C_HI) : C_DIM);

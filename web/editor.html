@@ -1590,6 +1590,45 @@ function sl24IsFun5(d) {
   for (let i = 0; i < S24.SIZE - 4; i++) s = Math.imul(s ^ d[i], 16777619) >>> 0;
   return v.getUint32(0, true) === 0x46554E35 && v.getUint32(4, true) === S24.SIZE && v.getUint32(S24.SIZE - 4, true) === s;
 }
+/* a SLOOP 2.6 project (FUN6, 3816 B with its sum) -> a 2.5 one (FUN5), as the FM-1 makes it (sl24_import.c
+   sl26_to_sl24): values, E0..E7, engine, preset, steps as they are; each step's byte -> its nudge (6 bits, signed) and
+   fill (3: none); a lock on P_E0.. (2.6's 63..) back to 53..; 2.6's own ten (53..62: INSERT, FTYPE, ESYNC, LFO 2) and
+   GLO > TEXTURE (its two globals: our defaults, CH 10 and 0) left out; null when d is not one */
+function sl26ToFun5(d) {
+  const N = 3816, T6 = 934, T5 = 940, H = 76;
+  if (!d || d.length !== N) return null;
+  const v = new DataView(d.buffer, d.byteOffset, d.length);
+  let s = 0x811C9DC5;
+  for (let i = 0; i < N - 4; i++) s = Math.imul(s ^ d[i], 16777619) >>> 0;
+  if (v.getUint32(0, true) !== 0x46554E36 || v.getUint32(4, true) !== N || v.getUint32(N - 4, true) !== s) return null;
+  const o = new Uint8Array(S24.SIZE), w = new DataView(o.buffer);
+  o.set(d.subarray(8, 74), 8);
+  if (d[74] & 0x80) { w.setInt16(8 + 2 * 24, 10, true); w.setInt16(8 + 2 * 15, 0, true); }   /* (G_DRCH, G_INFO: the TEXTURE's) */
+  for (let k = 0; k < 4; k++) {
+    const a = H + T6 * k, b = H + T5 * k;
+    o.set(d.subarray(a, a + 122), b);
+    o[b + 122] = d[a + 132], o[b + 123] = d[a + 133];
+    o.set(d.subarray(a + 134, a + 774), b + 124);
+    for (let i = 0; i < 64; i++) {
+      const m = d[a + 774 + i], f = m >> 6;
+      o[b + 764 + i] = (m & 63) >= 32 ? (m & 63) + 192 : m & 63;
+      if (f !== 3) o[b + 924 + (i >> 2)] |= f << (2 * (i & 3));
+    }
+    for (let i = 0; i < 24; i++) {
+      const l = a + 838 + 4 * i, e = b + 828 + 4 * i;
+      if (d[l] === 255) { o.set(d.subarray(l, l + 4), e); continue; }
+      if (d[l + 1] >= 53 && d[l + 1] < 63) { o[e] = 255; continue; }   /* (2.6's own: left out) */
+      o.set(d.subarray(l, l + 4), e);
+      if (d[l + 1] >= 63) o[e + 1] = d[l + 1] - 10;
+    }
+  }
+  w.setUint32(0, 0x46554E35, true);
+  w.setUint32(4, S24.SIZE, true);
+  s = 0x811C9DC5;
+  for (let i = 0; i < S24.SIZE - 4; i++) s = Math.imul(s ^ o[i], 16777619) >>> 0;
+  w.setUint32(S24.SIZE - 4, s, true);
+  return o;
+}
 /* 2.4's FM6 bank (its fm6_bank_t, object 8) -> 27 packed records (null: an empty slot), null when it is not one */
 function sl24BankRecords(b) {
   if (!b || b.length !== S24.BANK_LEN) return null;
@@ -1600,8 +1639,9 @@ function sl24BankRecords(b) {
     return (used >>> k) & 1 && r.every((x) => x < 128) ? Uint8Array.from(r) : null;
   });
 }
-/* a SLOOP 2.4 backup file (its editor.html backupFile; the objects' lengths and CRCs checked) -> {projects: [{id, data}]
-   (FUN5 only: 2.4's working project 0 and A..D 2..5), bank: 27 records or null}; throws when it is not one */
+/* a SLOOP 2.4 / 2.5 / 2.6 backup file (its editor.html backupFile; the objects' lengths and CRCs checked) -> {projects:
+   [{id, data}] (FUN5, a 2.6 FUN6 made FUN5 by sl26ToFun5: the working project 0 and A..D 2..5), bank: 27 records or null};
+   throws when it is not one */
 function sl24ReadFile(file) {
   if (!file || file.format !== "sloop-backup" || !(file.version >= 1) || !Array.isArray(file.objects)) throw new Error("not a SLOOP backup file");
   const m = new Map();
@@ -1610,7 +1650,8 @@ function sl24ReadFile(file) {
     if (d.length !== o.len || crc32(d) !== (o.crc >>> 0)) throw new Error(`object ${o.id}: damaged`);
     m.set(o.id, d);
   }
-  const projects = S24.PROJ.filter((id) => sl24IsFun5(m.get(id))).map((id) => ({ id, data: m.get(id) }));
+  const fun5 = (d) => (sl24IsFun5(d) ? d : sl26ToFun5(d));   /* (a 2.6 backup: its FUN6 projects as 2.5's) */
+  const projects = S24.PROJ.filter((id) => fun5(m.get(id))).map((id) => ({ id, data: fun5(m.get(id)) }));
   return { projects, bank: sl24BankRecords(m.get(8)) };
 }
 /* what the device's import takes (ed_sl24.c 90): the FUN5, then (when an FM6 part plays a bank patch the file has) a byte
@@ -5176,8 +5217,8 @@ const TEXT = {
   sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
   track: "Track", drum: "Drums",
   saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
-  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP 2.4 (kept)", notOurs: "not ours (kept)",
-  keptSlot: "Not loaded: another firmware's project is kept there (SLOOP 2.4), slot ",
+  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP (kept)", notOurs: "not ours (kept)",
+  keptSlot: "Not loaded: another firmware's project is kept there (SLOOP), slot ",
   steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
   notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
   rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
@@ -5346,14 +5387,14 @@ const TEXT = {
   bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
   bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
   bkReport: "On this device:",
-  s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
+  s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP backup file for SLOOP 2.5 and later (2.4 reads it too, a PHYS part as ANALOG): in SLOOP's editor, BACKUP > Restore it, then SAVE the project there. What SLOOP has not is left out.",
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
-  s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
+  s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends (their DLY: one delay send for all drums, 2.5 and later)", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
   s24L_motion: "the motion (2.4 has none)", s24L_chance: "the steps' chance (2.4 has none)", s24L_motionchance: "the motion or the steps' chance (2.4 has neither)",
   s24L_comp: "the COMP inserts (tracks, drum bus, drum sounds)", s24L_dins: "the drum sounds' DIST", s24L_dbus: "the drum bus's DST CHO DLY REV",
   s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
-  s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4 backup file becomes the working project (with its FM6 patches); SAVE it in a section. Nothing else is written.",
+  s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4, 2.5 or 2.6 backup file becomes the working project (with its FM6 patches; 2.6's new sound settings are left out); SAVE it in a section. Nothing else is written.",
   s24FlashBank: "SLOOP 2.4's FM6 bank to the user bank", s24BadFile: "Not a SLOOP 2.4 backup file: ", s24NoProject: "No SLOOP 2.4 project (FUN5) in that file.",
   s24Work: "working", s24Pick: "Which project? ({list})", s24Imported: "Imported as the working project: SAVE it in a section.",
   s24BankAsk: "The file has SLOOP 2.4's FM6 bank. Put its patches in the free slots of the FM6 user bank too? (No voice of yours is replaced.)",

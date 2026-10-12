@@ -1306,7 +1306,14 @@ static void persist_boot(void)                    /* before settings_init / pane
             smp_user_scan(k);
     }
     {
+#if FELUCCA_SL24_SAFE
+        sl25_set_scan();                           /* (SLOOP 2.5 / 2.6's record: never read as ours, never erased) */
+#endif
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
+#if FELUCCA_SL24_SAFE
+        if (n < 0)
+            n = sl25_set_load(&p, sizeof p);       /* (none of ours yet: their 88 bytes, read as 2.4's) */
+#endif
 #if FELUCCA_BLE
         if (n == (int)__builtin_offsetof(persist_t, ble_dev)) {   /* saved by a BLE build before the device store */
             memset(p.ble_dev, 0, sizeof p.ble_dev);
@@ -1346,6 +1353,12 @@ static void persist_boot(void)                    /* before settings_init / pane
             if (n > PERSIST_NO_VIEW && p.magic == PERSIST_MAGIC)
                 n = (int)sizeof p;                 /* (the rest as ours) */
         }
+#if FELUCCA_SL24_SAFE
+        else if (p.bright == SL25_DSU_MAGIC && p.magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
+            p.bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
+            p.bp23 = p.view > 1u ? sl_word_in(p.view) : 0u;   /* word; the word as 2.4's record gives it */
+        }
+#endif
 #else
 #if FELUCCA_BRIGHT
         if (n < (int)sizeof p)
@@ -1487,6 +1500,9 @@ static void settings_save(void)
 #if FELUCCA_FLASH
 _Static_assert(sizeof(project_t) <= ST_PAYLOAD_MAX, "project does not fit one flash sector");
 _Static_assert(sizeof(persist_t) <= ST_PAYLOAD_MAX, "the settings record fits one flash sector");
+#if FELUCCA_SL24_SAFE
+_Static_assert(sizeof(persist_t) < SL25_PERSIST + SL25_DSU_LEN, "SLOOP 2.5 / 2.6's settings are longer than any of ours");
+#endif
 #endif
 #if FELUCCA_ARRANGER
 static void arrangement_save(void)
