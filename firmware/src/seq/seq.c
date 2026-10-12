@@ -752,6 +752,32 @@ static void step_del(step_t *s, uint32_t x)
     for (; k < 4u; k++)
         s->ngate[k] = 0;
 }
+/* how long note k of NOTE step idx of track t sounds, in 1/128 steps: through the TIEs after it and the carry steps
+ * (SF_CARRY) that name it, to its own end there (ngate), else that last step's end. The displays' one measure of a
+ * note (the Optimist UI's STEP card LENGTH and piano roll; the web editor's noteSpan is the same walk) */
+static uint32_t note_span(const track_t *t, uint32_t idx, uint32_t k)
+{
+    uint32_t len = trk_len(t), j = idx % len, n = 0, x = t->step[j].note[k & 3u], guard, i, c;
+    for (guard = 0; guard < len; guard++) {
+        const step_t *s = &t->step[j];
+        uint32_t g = ngate_of(s, k);
+        if (g)
+            return n * 128u + g;
+        for (i = 1; n + i < len && t->step[(j + i) % len].time == ST_TIE; i++)
+            ;
+        n += i;
+        s = &t->step[(j + i) % len];
+        if (n >= len || s->time != ST_NOTE || !(s->flags & SF_CARRY) || s->rat)
+            return n * 128u;
+        for (c = 0; c < s->n && s->note[c] != x; c++)
+            ;
+        if (c == s->n)
+            return n * 128u;
+        j = (j + i) % len;
+        k = c;
+    }
+    return len * 128u;
+}
 /* POLY: held note x, started in step at, is up while others are still down: it ends at the nearest step start (the
  * key-to-ear latency taken back), the rest go on from there. One started with it (a chord): held until its last key */
 static void rec_drop(track_t *t, uint32_t x, uint32_t at)

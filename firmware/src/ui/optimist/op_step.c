@@ -147,6 +147,8 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
     if (n != old)                                   /* whole steps now: a recorded fraction goes */
         lock_drop(t, (start + old - 1u) % len, P_SGATE);
 #endif
+    if (n != old && t->step[(start + old - 1u) % len].time == ST_NOTE)   /* (and the notes' own ends there) */
+        memset(t->step[(start + old - 1u) % len].ngate, 0, sizeof t->step[0].ngate);
 }
 /* the note at start (n steps with its ties) as it plays, in tenths of a step, when its last step has a GATE lock (a
  * live-recorded length: seq.c rec_len_end; a TIE ends half a step + GATE in), else -1 */
@@ -769,8 +771,10 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
             return;
         }
         if (k == 3u) {
-            uint32_t n = step_note_len(t, (uint32_t)i);
+            uint32_t n = step_note_len(t, (uint32_t)i), sp = note_span(t, (uint32_t)i, 0);
             int32_t f = step_note_len10(t, (uint32_t)i, n);   /* (a recorded length: 1.8) */
+            if (sp != n * 128u)                         /* (its own end, or on through carry steps: seq.c note_span) */
+                f = (int32_t)((sp * 10u + 64u) / 128u);
             c->label = "LENGTH";
             fmt_int(c->val, f < 0 ? (int32_t)n : f / 10);
             if (f >= 0) {

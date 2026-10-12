@@ -73,8 +73,10 @@ enum {                                                  /* what an export lost (
                                                          * second word's bit 2; a v11 editor gets it as MOTION) */
     SX24_DLFO = 131072,                                 /* (a drum lane's LFO acting, drums/lane_play.c: 2.4's drums have
                                                          * none; the second word's bit 3; a v11 editor: MOTION) */
-    SX24_FXRET = 262144                                 /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
+    SX24_FXRET = 262144,                                /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
                                                          * second word's bit 4: 2.4 plays each return at full) */
+    SX24_NGATE = 524288                                 /* (a POLY note's own end, seq/ngate.h: 2.4 has one GATE a step, the
+                                                         * step's goes; the second word's bit 5: ed_sl24.c) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,

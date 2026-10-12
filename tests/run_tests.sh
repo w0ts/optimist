@@ -387,6 +387,11 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DDLA_ON=0 -o "$OUT/lane_auto_old" tests/lane_auto_test.c -lm
     run "drum lane motion and locks read by a build that does not play them (DLA_ON 0): kept through every form, none heard, the render as without them, the track's own events played, MISS: LANE MOTION" "$OUT/lane_auto_old"
 ) >"$U.out" 2>&1 & jobbg
+# POLY notes' own ends (seq/ngate.h) beside the drum lanes' events: the stored forms, save / load, patterns, the editor, 2.4
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/ngate_store_test" tests/ngate_store_test.c -lm
+    run "POLY notes' own ends + drum lane events: ids apart, events only in the stored forms (capture / apply), an older project, a scene, the autosave, a pattern copied and launched, TRACK_STEP v12, AUTO_GET / SET, the 2.4 lost bit 5, a full list" "$OUT/ngate_store_test"
+) >"$U.out" 2>&1 & jobbg
 # the drum lanes' LFOs (drums/lane_play.c, core/lfo_slot.h, storage/dlfo_rec.c, sections/dlfo_rec_log.c), and a build that does not play them
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lane_lfo_test" tests/lane_lfo_test.c -lm

@@ -10,6 +10,20 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
+v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
+step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
+
+**A note's own end (v12).** A synth step holds, per note k, its own end: 0 = the step's GATE (as every note before), 1..127
+= the note ends k's value / 128 of the step after the step's start (POLY notes recorded over each other with REC QUANTIZE
+OFF, `firmware/src/seq/ngate.h`). `STEP_GET`, `STEP_SET` and `TRACK_STEP` replies append e0..e3 after rat (a reply only
+grows at its end: an older editor reads what it knew). A write with the four bytes after rat sets them; a write without
+them (an older editor) keeps each note's own end where the note at that place is unchanged, else 0. The `STEPS` push (60)
+packs steps back to back, so it carries them only for an editor that asks: `WATCH` bit 4 (16; a firmware before v12
+grants at most 15), then a synth step is 15 bytes there. The hi byte's bit 2 is `SF_CARRY` (a carry step: its notes
+already sounding go on, not struck again; seq.c `seq_carry`); a write with the v5 bytes sets or clears it from that bit.
+The automation store never holds an own end in a working list: `AUTO_GET` lists none, `AUTO_SET` refuses their stored ids
+(0x78..0x7B, rc 1); they exist only in the stored forms (a section, a pattern record, a snapshot, the autosave), as
+step-only events of id 0x78 + k, read back into the steps at a load. A drum lane's id (0x7C..) is never one of them.
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -77,7 +91,7 @@ An absent status byte retains the original reply format.
 | 19 UP_STORE | slot, name | slot, rc (0 ok, 1 args or the drum track selected, 2 flash, 3 the transport plays). Stores the current sound: engine, parameters, the first 16 sequencer steps as the pattern (TIE steps → flag 4) |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty/invalid). Applies it |
 | 21 UP_ERASE | slot | slot, rc (0 ok, 1 args, 2 flash, 3 the transport plays) |
-| 22 WATCH | on (0/1; v4: 3 = also `TRACK_CHANGED`; v9: + 4 every track's changes, + 8 the status stream) | the bits granted (v4 firmware: 3 when 3 was asked for; v8 and older answer 3 to 15, v9 15). While on, the device pushes cmds 23, 24, 26 (and 32 with bit 1); with bit 2: 24 and 59..63 instead (v9); with bit 3: 58 |
+| 22 WATCH | on (0/1; v4: 3 = also `TRACK_CHANGED`; v9: + 4 every track's changes, + 8 the status stream; v12: + 16 the `STEPS` push with each note's own end) | the bits granted (v4 firmware: 3 when 3 was asked for; v8 and older answer 3 to 15, v9 15, v12 31). While on, the device pushes cmds 23, 24, 26 (and 32 with bit 1); with bit 2: 24 and 59..63 instead (v9); with bit 3: 58 |
 | 23 CHANGED (push) | — | scope, id, v14 |
 | 24 RELOAD (push) | — | engine, preset, then (v3) the selected track |
 | 25 PING | — | 0 |
@@ -400,7 +414,7 @@ request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves o
 | cmd (push) | Bytes |
 | --- | --- |
 | 59 PARAMS | n × (where, id, v14): where 0..NTRK−1 a track's `P_*` (any track, the selected one too), 127 a global `G_*` |
-| 60 STEPS | track, first index, count, then count steps: a synth track's as `TRACK_STEP` gives them after the index (n, note0..3, time, flags, vel, lvl, hi, rat: 11 bytes), the drum track's as `DRUM_STEP` (on 3, lvl 5, rat 5: 13 bytes); a run of changed steps |
+| 60 STEPS | track, first index, count, then count steps: a synth track's as `TRACK_STEP` gives them after the index (n, note0..3, time, flags, vel, lvl, hi, rat: 11 bytes; with `WATCH` bit 4 (v12) + e0..e3, each note's own end: 15 bytes), the drum track's as `DRUM_STEP` (on 3, lvl 5, rat 5: 13 bytes); a run of changed steps |
 | 61 LANE | as the `DRUM_LANE` (37) reply: lane + 0x40 (its 3 send bytes follow: every build since 2026-10), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
 | 62 TRACKS | as the `TRACK` (27) reply: selected, NTRK, per track engine, preset, level, mute, armed; the solo mask (an engine, preset, arm or solo moved) |
 | 63 SONG | the sections stored (3 × 7 bit, bit n = section A + n), the song's parts, loop, then a change count of the snapshot list (7 bit: re-read `SN_LIST` when it moved) |
@@ -615,7 +629,8 @@ the editor shows no button. Nothing is written to flash.
   (2.4 has no sync). A v11 request does not report it. Bit 2 (the mask's bit 16): the drum lanes' motion and locks (the
   automation store's lane ids, below), which 2.4 has not: left out; bit 3 (the mask's bit 17): a drum lane's LFO acting
   (one LFO a lane, the DLFO object below), which 2.4's drums have not: left out. A v11 request gets bits 2 and 3 on bit 13
-  (motion).
+  (motion). Bit 4 (the mask's bit 18): an FX return below unity. Bit 5 (the mask's bit 19, `SX24_NGATE`): a POLY note's own
+  end (above, "A note's own end"): 2.4 has one GATE a step, so the step's own GATE is exported and the note ends there.
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two

@@ -251,3 +251,5 @@ src/ble/ble_prim.c:ble_csa1_next:m->n | CSA #1 remapping: returned before the di
 src/ble/ble_hw_wl82_central.c:hw_scan_backoff:drv.bo_upper | the active-scan backoff's upperLimit: 1 at every scan start (hw_scan_backoff_reset), doubled only below 256, halved only when above 1 (else 1): always 1..256
 src/ble/ble_scan.c:ble_scan_bars:(hi-lo) | returned before the divide when hi == lo (3 bars); hi is the largest metric and lo the smallest of the same list, so otherwise hi > lo
 src/ble/ble_ll_central.c:llc_cind:(iv-iv/2u) | iv is BLE_CENTRAL_INTERVAL, a build constant of 6..3200 (ble_cfg.h checks it; 9 by default): iv - iv / 2 >= 3
+src/seq/seq.c:rec_chord_share:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1
+src/seq/seq.c:rec_up_at:u | guarded: the divide runs only when u (slen >> 7) is not 0 (`u ? ... : 64`)

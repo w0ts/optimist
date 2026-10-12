@@ -13,6 +13,7 @@
  * Built twice: FELUCCA_UNDO_HISTORY=1 (the default) and 0 (the single level: its own checks).
  * Exit status: the number of failed checks. */
 #define main hostsim_main
+#define UNDO_HOST_ARENA 24576u                  /* (a synth step is 14 B with its own note ends: 300 levels need more) */
 #include "hostsim.c"
 #undef main
 
@@ -88,7 +89,7 @@ static void session(uint32_t t, uint32_t nsteps, int params)
             tr->p[P_SDIV] = (int16_t)(rnd() % 6u);
     }
 }
-/* the same, every step it touches different from before (a known record size: steps x 11 + 4 B) */
+/* the same, every step it touches different from before (a known record size: steps x 15 + 4 B) */
 static void session_exact(uint32_t t, uint32_t nsteps)
 {
     uint32_t k, base = rnd() % NSTEP;
@@ -115,7 +116,7 @@ static void t_chain(void)
         state_get(&S[i]);
     }
     undo_status(&n, &m, &tk);
-    check(n == NCHAIN && m == NCHAIN, "300 sessions over the four tracks: 300 levels in a 16 KiB ring");
+    check(n == NCHAIN && m == NCHAIN, "300 sessions over the four tracks: 300 levels in a 24 KiB ring");
     for (i = NCHAIN; i > 0; i--) {
         ok &= undo_apply(0) == 1;
         ok &= state_is(&S[i - 1]);
@@ -233,22 +234,22 @@ static void t_evict(void)
     check(undo_arena_set(small, small + sizeof small, 0, 0, 0) == 2048u, "a 2 KiB ring");
     state_get(&S[0]);
     for (i = 1; i <= 100u; i++) {
-        session_exact(rnd() % NTRK, 10);                /* 114 B a level: 17 fit */
+        session_exact(rnd() % NTRK, 10);                /* 154 B a level: 13 fit */
         undo_close();
         state_get(&S[i]);
     }
     undo_status(&n, &m, &tk);
-    if (m != 17u)
+    if (m != 13u)
         printf("undo:   evict: %u/%u levels\n", n, m);
-    check(n == 17u && m == 17u, "100 levels of 114 B into 2 KiB: the newest 17 kept");
-    for (i = 0; i < 17u; i++)
+    check(n == 13u && m == 13u, "100 levels of 154 B into 2 KiB: the newest 13 kept");
+    for (i = 0; i < 13u; i++)
         ok &= undo_apply(0) && state_is(&S[99u - i]);
-    check(ok, "undo x17: the newest levels, bit-exact");
-    check(!undo_apply(0) && state_is(&S[83]), "the 18th: nothing (the oldest are forgotten)");
+    check(ok, "undo x13: the newest levels, bit-exact");
+    check(!undo_apply(0) && state_is(&S[87]), "the 14th: nothing (the oldest are forgotten)");
     ok = 1;
-    for (i = 0; i < 17u; i++)
-        ok &= undo_apply(1) && state_is(&S[84u + i]);
-    check(ok, "redo x17: back to the end");
+    for (i = 0; i < 13u; i++)
+        ok &= undo_apply(1) && state_is(&S[88u + i]);
+    check(ok, "redo x13: back to the end");
     /* the biggest record (64 steps + LEN + DIV) still fits a 1 KiB ring; nothing is lost for it */
     {
         static uint8_t kb[UNDO_MIN];
@@ -262,8 +263,8 @@ static void t_evict(void)
         trk[0].p[P_SDIV] = (int16_t)((trk[0].p[P_SDIV] + 1) % 6);
         undo_close();
         undo_status(&n, &m, &tk);
-        check(UREC_MAX == 712u && m == 1u && undo_apply(0) && state_is(&S[0]),
-              "a whole pattern + LEN + DIV (712 B) in the 1 KiB minimum ring: undone");
+        check(UREC_MAX == 968u && m == 1u && undo_apply(0) && state_is(&S[0]),
+              "a whole pattern + LEN + DIV (968 B) in the minimum ring (1,408 B): undone");
     }
 }
 

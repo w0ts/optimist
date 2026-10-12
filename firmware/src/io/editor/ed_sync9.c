@@ -20,6 +20,9 @@
  * push; what did not fit stays different from its shadow and goes in a later window. The editor's own writes update
  * the shadows (ed9_known_*): nothing echoes back. Main loop only. */
 enum { ED_PARAMS = 59, ED_STEPS, ED_LANE_PUSH, ED_TRACKS_PUSH, ED_SONG_PUSH, ED_SYNC_STATS };
+#ifndef ED9_ENDS
+#define ED9_ENDS (ed_w.ends)                     /* v12: a synth step pushed with its notes' own ends (WATCH bit 4) */
+#endif
 #define ED9_WIN 20u                                     /* ms: the coalescing window */
 #define ED9_SLOW 250u                                   /* ms: the song / snapshot signatures (proj_ok sums) */
 #define ED9_FRAMES 4u                                   /* frames a window at most */
@@ -175,7 +178,7 @@ static int ed9_steps(void)
     uint32_t j, t, i, first, cnt, per, room;
     for (j = 0; j < NTRK; j++) {
         t = (e9.spos + j) % NTRK;
-        per = t == TRK_DRUM ? 13u : 11u;
+        per = t == TRK_DRUM ? 13u : ED9_ENDS ? 15u : 11u;   /* (v12: a synth step's own note ends) */
         for (i = 0; i < NSTEP && e9.st[t][i] == ed9_step_sig(t, i); i++)
             ;
         if (i == NSTEP)
@@ -195,7 +198,7 @@ static int ed9_steps(void)
             if (t == TRK_DRUM)
                 ed_dstep_out(&trk[t].dstep[i]);
             else
-                ed_step_out(&trk[t], i);
+                ed_step_out(&trk[t], i, ED9_ENDS);
             cnt++;
         }
         ed_out[7] = (uint8_t)cnt;

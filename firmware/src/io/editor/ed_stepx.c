@@ -35,6 +35,8 @@ static int ed_auto_ok(const track_t *t, uint32_t place, uint32_t sp, const param
         return 0;
     if (AUTO_PSEUDO(sp))
         return (place & AUTO_ONLY) != 0;
+    if (AUTO_IS_NGATE(sp))
+        return 0;                                         /* (a note's own end: the step's bytes, never a working list's) */
     if (AUTO_IS_LANE(sp)) {                               /* (a drum lane's value: the drum track only, auto.h) */
 #if DLA_ON
         if (is_drum(t) && ((place & AUTO_ONLY) ? FELUCCA_PLOCK : FELUCCA_MOTION))

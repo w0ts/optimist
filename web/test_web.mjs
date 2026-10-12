@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
@@ -1733,6 +1733,8 @@ async function editorSl24Lost2() {
       "sl24Lost: the second word's bit 3 is a drum lane's LFO (SX24_DLFO), with its text");
     ok(E.sl24Lost(0, 16, true).join() === "fxret" && E.sl24Lost(0, 31, true).join() === "chance,lsync,lauto,dlfo,fxret" && html.includes("s24L_fxret:"),
       "sl24Lost: the second word's bit 4 is an FX return below unity (SX24_FXRET), with its text");
+    ok(E.sl24Lost(0, 32, true).join() === "ngate" && E.sl24Lost(0, 63, true).join() === "chance,lsync,lauto,dlfo,fxret,ngate" && html.includes("s24L_ngate:"),
+      "sl24Lost: the second word's bit 5 is a POLY note's own end (SX24_NGATE), with its text");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {
@@ -2301,6 +2303,38 @@ async function editorCZ() {
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
+/* protocol v12: a synth step's carry flag (hi bit 2) and each note's own end (4 bytes after rat; WATCH bit 4: in the STEPS
+   push too); the piano roll draws each note as long as it sounds (noteSpan: TIEs, carry steps, its own end) */
+function editorNoteEnds() {
+  const C = E.CMD;
+  const st = E.parse[C.STEP_GET]([6, 2, 64, 60, 0, 0, 0, 0, 100, 0, 4, 0, 0, 52, 0, 0]);
+  ok(st.flags === 0x80 && js(st.ends) === js([0, 52, 0, 0]), "v12: a step's carry flag (hi bit 2) and its notes' own ends");
+  const old = E.parse[C.STEP_GET]([6, 1, 60, 0, 0, 0, 0, 0, 100, 0, 0, 0]);
+  ok(old.ends === undefined && old.flags === 0, "v12: an older firmware's step: no own ends, no carry");
+  const w = E.req.stepSet(6, { n: 2, notes: [64, 60, 0, 0], time: 0, flags: 0x80, vel: 100, lvl: 0, rat: 0, ends: [0, 52, 0, 0] })[1];
+  ok(w.length === 16 && w[7] === 0 && w[10] === 4 && js(w.slice(12)) === js([0, 52, 0, 0]),
+    "v12: STEP_SET sends the carry flag (hi bit 2) and the own ends after rat");
+  ok(E.req.stepSet(1, { n: 0, notes: [], time: 2, flags: 0, vel: 0 })[1].length === 9, "v12: a plain step: as before (9 bytes)");
+  const b11 = [1, 60, 0, 0, 0, 0, 0, 100, 0, 0, 0], b15 = [2, 64, 60, 0, 0, 0, 0x80 & 0x7F, 100, 0, 4, 0, 0, 52, 0, 0];
+  const p11 = E.parse[C.STEPS]([0, 4, 1, ...b11], { ntrk: 4 }), p15 = E.parse[C.STEPS]([0, 5, 2, ...b11, 0, 0, 0, 0, ...b15], { ntrk: 4 }, true);
+  ok(p11.steps.length === 1 && p11.steps[0].ends === undefined && p15.steps.length === 2 && p15.steps[1].index === 6 &&
+     js(p15.steps[1].ends) === js([0, 52, 0, 0]) && p15.steps[1].flags === 0x80, "v12: STEPS: 11 bytes a synth step, 15 with WATCH ENDS");
+  ok(E.WATCH.ENDS === 16 && js(E.req.watch(31)) === js([22, [31]]) && E.watchCaps(31).ends && !E.watchCaps(15).ends,
+    "v12: WATCH bit 4 asks for the own ends in the STEPS push");
+  /* A 60 at 2 over B 64 at 4 (the recording of seq.c rec_own_end): 4 a carry step {64 60}, 6 {64 60} with A's own end
+     52 / 128, 7 {64} a carry step, 8 a TIE */
+  const R = (i) => ({ index: i, n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 });
+  const N = (i, notes, carry, ends) => ({ index: i, n: notes.length, notes: [...notes, 0, 0, 0, 0].slice(0, 4), time: 0,
+    flags: carry ? 0x80 : 0, vel: 100, lvl: 0, rat: 0, ...(ends ? { ends } : {}) });
+  const T = (i) => ({ index: i, n: 0, notes: [0, 0, 0, 0], time: 1, flags: 0, vel: 0, lvl: 0, rat: 0 });
+  const steps = Array.from({ length: 16 }, (_, i) => R(i));
+  steps[2] = N(2, [60]); steps[3] = T(3); steps[4] = N(4, [64, 60], true); steps[5] = T(5);
+  steps[6] = N(6, [64, 60], true, [0, 52, 0, 0]); steps[7] = N(7, [64], true); steps[8] = T(8);
+  const ns = E.rollNotes(steps, 16), a = ns.find((n) => n.pitch === 60), b = ns.find((n) => n.pitch === 64);
+  ok(ns.length === 2 && a.step === 2 && Math.abs(a.span - (4 + 52 / 128)) < 1e-9 && b.step === 4 && b.span === 5,
+    "piano roll: A 2 .. 6 + 52/128 (its own end), B 4 .. 8 through the carry steps; carried notes not drawn twice");
+  ok(E.noteSpan(steps, 16, 2, 60).last === 6 && E.noteSpan(steps, 16, 4, 64).last === 8, "noteSpan: the step each ends in");
+}
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
@@ -2891,6 +2925,7 @@ await editorSl24Lost2();
 await editorSl24In();
 await editorPatterns();
 await editorV9();
+editorNoteEnds();
 editorTabs();
 editorKeys();
 editorSetGate();

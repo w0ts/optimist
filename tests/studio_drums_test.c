@@ -58,7 +58,7 @@ int main(int argc,char **argv)
     {
         uint32_t period, b, k0 = 7u, half, c;            /* key 7 = C4 */
         host_tracks_init();song.g[G_BPM]=120;song.g[G_CLOCK]=0;song.sel=0;song.playing=0;
-        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
+        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;c!=TRK_DRUM&&j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
         for(c=0;c<NTRK;c++)steps_clear(&trk[c]);
         dstep_set(&TDRUM->dstep[3],0,LV_NORM,0);
         rec_wait=1;
@@ -99,7 +99,7 @@ int main(int argc,char **argv)
             double beat=60.0/T[ti].bpm;
             uint32_t nb=T[ti].bars*4u, blk=0, bi, len=16u*(uint32_t)T[ti].want_bars;
             host_tracks_init();song.g[G_BPM]=120;song.g[G_CLOCK]=0;song.sel=0;song.playing=0;song.rec=0;
-            for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
+            for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;c!=TRK_DRUM&&j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
             trk[0].step[40].time=ST_TIE;                 /* (an old tie: no effect) */
             ft_btn_mask=rb;fm1_in.buttons=0;ft_bars=0;
             rec_wait=1;mix_block(out,CTL);
@@ -137,7 +137,7 @@ int main(int argc,char **argv)
         /* STOP during a free take drops it (so does the PLAY button); a PLAY from elsewhere (the editor)
          * closes it like REC */
         host_tracks_init();song.g[G_BPM]=120;song.playing=0;song.rec=0;song.sel=0;
-        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
+        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;c!=TRK_DRUM&&j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
         ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
         assert(ft_on);
         for(j=0;j<100;j++)mix_block(out,CTL);
@@ -156,7 +156,7 @@ int main(int argc,char **argv)
         ft_drop_mask=0;
         /* the longest take closes by itself (24 s) */
         transport_req=2;mix_block(out,CTL);
-        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
+        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;c!=TRK_DRUM&&j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
         ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
         while(ft_on)mix_block(out,CTL);
         assert(ft_bars==4 && song.g[G_BPM]==40 && song.playing);
