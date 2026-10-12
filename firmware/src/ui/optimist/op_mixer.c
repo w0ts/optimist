@@ -7,8 +7,8 @@
  *   ALGORITHM  walks the rows, MASTER, T1 .. DR .. the 16th lane and back (it stops at the ends; op_walk.c, the same
  *              walk as every page's): the track selected follows (song.sel), a lane row selects the lane (lane_sel, ui.lane)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
- *              (VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
- *              SOUND; a lane LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR VOLUME | FILTER | FX on, KIT; MASTER FILT
+ *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
+ *              SOUND; a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR MUTE VOLUME | FILTER | FX on, KIT; MASTER FILT
  *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
@@ -18,7 +18,7 @@
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_LANES };
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE };   /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute) */
 /* the knob sets' groups, in this order on every row (the user, 2026-10-11): the mix (VOLUME PAN; a lane LEVEL CUT;
  * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
@@ -79,6 +79,7 @@ static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label,
 static uint32_t mx_items_synth(mitem_t *it)
 {
     uint32_t n = 0;
+    n = mx_add(it, n, MG_MIX, "MUTE", MI_TRK, P_MUTE);   /* (the user, 2026-10-12: "a card for muting the track, first card") */
     n = mx_add(it, n, MG_MIX, "VOLUME", MI_TRK, P_LEVEL);
     n = mx_add(it, n, MG_MIX, "PAN", MI_TRK, P_PAN);
 #if FELUCCA_FX_DIST
@@ -116,6 +117,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
         return n;
     }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
+        n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
         n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
 #if FELUCCA_FX_DIST
@@ -130,6 +132,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
         return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
     }
     if (r == MXR_DR) {                                  /* the drum track: its level | FILTER | FX, the kit */
+        n = mx_add(it, n, MG_MIX, "MUTE", MI_TRK, P_MUTE);
         n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
 #if FELUCCA_TRK_FILT
         n = mx_add(it, n, MG_INS, "FILTER", MI_TRK, P_TFLT);
@@ -180,6 +183,8 @@ static int mx_item(uint32_t r, uint32_t k, mitem_t *out)   /* row r's cell k in 
     *out = it[i];
     return out->kind != MI_NONE;
 }
+static const param_desc_t MX_LMUTE = PE("MUTE", N_ONOFF, 0);
+static int16_t mx_lmute_v;
 /* an item's descriptor and value on row r (0: none) */
 static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
 {
@@ -195,6 +200,10 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_LANE:
         d = dsnd_desc_lane(r - MXR_LANE0, m->id, vp);
         return d && !PARAM_HIDDEN(d) ? d : 0;
+    case MI_LMUTE:                                      /* (a copy of the mask's bit: mx_lane_mute writes it) */
+        mx_lmute_v = (int16_t)dlm_muted(r - MXR_LANE0);
+        *vp = &mx_lmute_v;
+        return &MX_LMUTE;
     default:
         return 0;
     }
@@ -281,7 +290,9 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)
         return;
-    if (m.kind == MI_LANE)
+    if (m.kind == MI_LMUTE)
+        dlm_set_mute(r - MXR_LANE0, s == OP_RESET ? 0 : param_step(d, *vp, s) != 0);
+    else if (m.kind == MI_LANE)
         mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
     else
         val_turn(d, vp, k, s, fine);
@@ -306,7 +317,11 @@ static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
     r %= MXR_N;
     if (mx_item(r, k, &m)) {
         if ((m.kind == MI_TRK || m.kind == MI_GLOB) && val_toggle(mx_desc(r, &m, &vp), vp))
-            return 1;                                   /* (FX: on / dry) */
+            return 1;                                   /* (FX: on / dry, MUTE) */
+        if (m.kind == MI_LMUTE) {
+            dlm_set_mute(r - MXR_LANE0, !dlm_muted(r - MXR_LANE0));
+            return 1;
+        }
     }
     mx_open_sound(r);
     return 1;

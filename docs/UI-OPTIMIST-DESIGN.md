@@ -267,9 +267,9 @@ alone on the whole panel. The mixer keeps its 1x4 cards (every other screen is 2
 | Row | Its knob sets (SELECT) | Notes |
 |---|---|---|
 | **MASTER** (above T1) | FILT · DUST · DUCK, then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
-| **T1 · T2 · T3** | the mix VOLUME · PAN; the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
-| **DR** | VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **T1 · T2 · T3** | the mix MUTE · VOLUME · PAN (MUTE: 2026-10-12, section 16); the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
+| **DR** | MUTE · VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | MUTE (the lane's own) · LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
 The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
 SAVE held + SELECT, PROJECT by SAVE tapped and SYSTEM by HOME held alone (both provisional) or GLOBAL's SYSTEM row,
@@ -2134,12 +2134,13 @@ what reaches this UI:
   list form, one of the ten divisions lit, 4BAR at the left. The text comes from the core. The LFO graph reads no rate, so
   it does not change with it. Test: tests/ui_optimist_lforate.h.
 
-## 16. Requests of 2026-10-12: one ALGORITHM walk, a lane's PRESETS, the ARP picture (feat/algo-lanes)
+## 16. Requests of 2026-10-12: one ALGORITHM walk, a lane's PRESETS, the ARP picture, the mixer's MUTE (feat/algo-lanes)
 
 The user: *"the algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then
 individual drum lanes (if it makes sense)."*, *"the preset on a drum lane should change the drum lane preset, not the
 kit."*, then *"SLOT: kit, or specific instrument. if Slot=kit. preset knob changes the preset kit, if Slot=something else
-preset changes the preset for the drum lane."* and *"arp is the same as lfo/env. no list"*.
+preset changes the preset for the drum lane."*, *"arp is the same as lfo/env. no list"* and *"in the mixer page add a
+card for muting the track, first card."*
 
 **The walk** (op_walk.c `algo_walk`, the one function every page and layer calls). The user, after the first rulings:
 *"really the algo knob should select the track and drum sub track every where. step seq, edit, env, etc."*, then *"i
@@ -2185,7 +2186,13 @@ at each pitch; the top line names MODE and RATE at the left and the notes at the
 step of RATE, GATE long, SWG late, by MODE, PROB's skips dim; MODE OFF draws the pattern UP would play, shaded, with
 "OFF" on the top line. STEP's ARP card page keeps the roll under its cards (the cards are a 1.5 s overlay there).
 
+**The mixer's MUTE card** (op_mixer.c). KNOB 1 of the first knob set is MUTE (OFF / ON, YES toggles it), VOLUME and PAN
+move to KNOB 2 and 3: on T1 T2 T3 and DR the track's mute (P_MUTE: GLO held + keys 1-4, the row's M badge), on a lane
+the lane's own (drum_mix.c `dlm_mute`, SLOOP's kit pads; a muted lane's code is drawn in the M badge's amber), MASTER
+none. One storage each, so the card, the M badge and the GLO layer's mute keys agree with every other way of
+muting.
+
 Tests: tests/ui_optimist_algo.h (the same walk on the mixer, SOUND's families, STEP, GLOBAL, PROJECT, SYSTEM, SONG,
 SCOPE and the FX ARP SCL EDIT GLO layers; STEP's lane pages; PRESETS on DR, on a lane on KIT and on an instrument,
 HOME + PRESETS on each, the mixer's lane row; HOME + a key;
-the ARP picture off and held).
+the ARP picture off and held), tests/ui_optimist_mute.h.

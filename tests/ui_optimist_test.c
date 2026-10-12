@@ -387,7 +387,7 @@ static void mix_to_sound(void)                          /* the mixer, YES on the
     go_home();
     frame();
     mx.set = 0;
-    ui.hot = 0;
+    ui.hot = 1;                                         /* (VOLUME: a value; KNOB 1 is MUTE, which YES toggles) */
     ui.hot_lit = 1;
     frame();
     tap(B_SAVE);
@@ -2169,6 +2169,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
+#include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2288,6 +2289,7 @@ int main(int argc, char **argv)
     c2_roll_tests();
     glo_tests();
     algo_tests();
+    mute_tests();
     lforate_tests();
     step_hold_tests();
     led_tests();

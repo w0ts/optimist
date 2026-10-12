@@ -20,8 +20,8 @@
  *                           left, its peak falling; the compressor's gain reduction pushing in from the right in amber,
  *                           3 px a dB, only on a row whose compressor works (a part's COMP insert: fx.c tcomp_gr_q4)
  *   SOUNDS     past DR: the 16 drum lanes at once, two columns of eight (lanes 1-8 left, 9-16 right), 120 x 20 px a
- *              lane: its colour chip and code (BD SD CH ...), its own hits on the 16 steps of the page playing (6 px a
- *              step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
+ *              lane: its colour chip and code (BD SD CH ...; muted: the code in the M badge's colour), its own hits
+ *              on the 16 steps of the page playing (6 px a step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
  *              have no level of their own to read). The header names the lane ("Snare mix")
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
  * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
@@ -179,7 +179,8 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mx_rect(i, &q);
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
-    cv_text(q.x + 6, q.y + (i >= MXR_LANE0 ? 2 : MXL_TY), &FONT_S, mx_code(i), i == mx_row() ? C_WHITE : c);
+    cv_text(q.x + 6, q.y + (i >= MXR_LANE0 ? 2 : MXL_TY), &FONT_S, mx_code(i),   /* (a muted lane: its code in the */
+            i >= MXR_LANE0 && dlm_muted(i - MXR_LANE0) ? C_WARN : i == mx_row() ? C_WHITE : c);   /* M badge's colour) */
     if (i < MXR_LANE0) {                                /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
         x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
@@ -211,8 +212,10 @@ static uint32_t mx_static_sig(void)
     char en[10], pr[16];
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
-        if (i >= MXR_LANE0)
-            continue;                                   /* (a lane: its code; the kit is the header's) */
+        if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
+            sig = hu(sig, (uint32_t)dlm_muted(i - MXR_LANE0));
+            continue;
+        }
         mx_names(i, en, pr);
         sig = hs(hs(sig, en), pr);
         if (i >= MXR_T1 && i <= MXR_DR)
