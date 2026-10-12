@@ -27,6 +27,10 @@ static void reset(void)
 {
     uint32_t i;
     host_tracks_init();
+#if FELUCCA_MASTER_COMP
+    song.g[G_CCEIL] = 0;                        /* (the master as 2907501 had it: LIMIT's CEIL on by default since
+                                                 * 2026-10-11; this checks the timing, not the master) */
+#endif
     for (i = 0; i < NTRK; i++) {
         steps_clear(&trk[i]);
         trk[i].seq_abs = SEQ_NONE;

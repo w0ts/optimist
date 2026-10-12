@@ -42,6 +42,9 @@ static const uint16_t SCALE_MASK[] = {
 
 #define KB_SILENT 255u
 static uint32_t kb_prev;
+/* Felucca #137 (hugelton/Felucca v1.5.1 seq.c kb_boot_hold, GPL-3.0-only): set from power-on to the end of the splash
+ * (main.c): the keys sound nothing, and one held across its end stays silent until it is let go and pressed again */
+static volatile uint8_t kb_boot_hold;
 /* per key: what its press started, so its release ends the same (whatever the layer or track is now) */
 enum { KS_NONE, KS_NOTE, KS_DRUM, KS_ROLL, KS_ERASE, KS_FX, KS_UI, KS_MOD };   /* KS_MOD: a CHORD+ modifier */
 static uint8_t kb_kind[27], kb_trk[27], kb_n[27], kb_nt[27][4];
@@ -1681,6 +1684,10 @@ static void keyboard_block(void)
                 roll_end(r);
     if (!ch)
         return;
+    if (kb_boot_hold) {                                 /* #137: under the splash (their release: KS_NONE, silent too) */
+        kb_prev = cur;
+        return;
+    }
     for (k = 0; k < 27u; k++) {
         if (!((ch >> k) & 1u))
             continue;
@@ -2393,7 +2400,14 @@ static void events_block(uint32_t n)
         track_t *t = &trk[i];
         if ((pr >> i) & 1u) {
             midi_forget_track(i);
-            trk_all_off(t);
+            if (t->pold) {                            /* (SLOOP 2.6) a sound loaded: the notes keep sounding as they */
+#if FELUCCA_CHORDPLUS                                 /* are and fade out with the old sound (voice.c sound_change): */
+                strum_cancel(t, 0, 1);                /* no release cut short or played with the new sound's */
+#endif
+                t->nmono = 0, t->mono_note = 0, t->xp_n = 0;
+            } else {
+                trk_all_off(t);
+            }
             seq_out_track_off(t);                     /* (MIDI OUT: what this track sent ends too) */
             t->bend_target = t->bend_q8 = t->wheel_target = t->wheel_q8 = 0;
             t->nheld = 0;

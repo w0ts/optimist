@@ -5,7 +5,10 @@
  * (mc_master, a block); while CEIL is set, mix_finish's output loop is mlim_block: the volume, the DC blocker and the
  * low cut as master_out has them (master_pre), then the limiter instead of the old peak limiter + tanh knee. With THRS
  * OFF, GAIN 0 and CEIL OFF (every project from before: project.c mc_pack) nothing here touches a sample: the master is
- * as before.
+ * as before. CEIL's default is -3.0 dB (2026-10-11, the user's ruling "make our CEIL the default"): a new project
+ * (power-on without an autosave, NEW) limits with it; a saved project keeps the CEIL it was saved with. At -3.0 dB its
+ * peaks stay under what the old limiter's knee let through (23.1k against ~24.9k on the tracks_demo song) and the mix
+ * is about 1 dB louder (no pumping after each kick).
  *
  * COMPRESSOR, a feed-forward "glue" bus compressor (D. Giannoulis, M. Massberg, J. D. Reiss, "Digital Dynamic Range
  * Compressor Design - A Tutorial and Analysis", JAES 60(6), 2012: the formulas, no code taken):

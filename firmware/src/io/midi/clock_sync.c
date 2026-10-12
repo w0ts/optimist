@@ -70,6 +70,12 @@
 #define SYNC_DAC_T (SYNC_DAC_US * FM1_TICKS_PER_US)
 #define SY_TICK_U (BEAT_U / 24u)                           /* units of a MIDI clock tick */
 #define SY_TPS_Q8 ((uint32_t)((uint64_t)FM1_TICKS_PER_US * 256000000u / FS))   /* TIMER4 ticks a sample, Q8 */
+#if FELUCCA_MASTER_COMP                                   /* LIMIT > CEIL (master_comp.c, on by default since
+                                                          * 2026-10-11): the mix leaves MLIM_N samples (1.45 ms) later */
+#define SYNC_LIM_T (mlim.on ? (uint32_t)((MLIM_N * SY_TPS_Q8) >> 8) : 0u)
+#else
+#define SYNC_LIM_T 0u
+#endif
 #define SY_PMIN (8u * 1000u * FM1_TICKS_PER_US)            /* periods accepted: 8 .. 130 ms (312 .. 19 BPM) */
 #define SY_PMAX (130u * 1000u * FM1_TICKS_PER_US)
 #define SY_LOST (500u * 1000u * FM1_TICKS_PER_US)          /* no F8 for that long: gone (Melodee) */
@@ -334,7 +340,7 @@ static void clk_set(int64_t u)                            /* (u >= 0) */
  * position is, for the steps' samples); returns the units it moved */
 static uint32_t sync_follow(uint32_t n)
 {
-    uint32_t t0 = sync_out_t + SYNC_DAC_T;
+    uint32_t t0 = sync_out_t + SYNC_DAC_T + SYNC_LIM_T;
     int64_t p0, p1, c;
     if (sy.stop) {
         sy.stop = 0;

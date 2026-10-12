@@ -366,8 +366,8 @@ _add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46,
 _add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, brickwall limiter)", F, 155,
      desc="A compressor and a brickwall limiter on the master (GLO > COMP: THRS, RATIO, ATK, REL; GLO > LIMIT: "
           "GAIN, CEIL and a GR readout) to glue the mix and keep its peaks under a ceiling; a Comp button and a GR "
-          "meter in the web mixer. Projects that leave it off sound as before. About 2 KB of flash and 2.5 KB of "
-          "RAM.",
+          "meter in the web mixer. A new project limits at CEIL -3.0 dB (a look-ahead limiter in place of the old "
+          "one); saved projects keep their own CEIL (OFF: as before). About 2 KB of flash and 2.5 KB of RAM.",
      symbols=("mc", "mlim"))
 _add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
      desc="A DJ-style filter on each track: FX > FILTER (one knob, FILT: left low-pass, right high-pass, centre off) and "

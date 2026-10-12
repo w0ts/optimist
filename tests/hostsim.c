@@ -535,6 +535,71 @@ static int xfade_test(const char *dir)
     return bad || !late_ok;
 }
 
+/* a preset loaded over sounding notes on the same engine must not click (SLOOP 2.6 voice.c sound_change, isod89/
+ * sloop-fm1 v2.6 d30d655, GPL-3.0-only): part 1 as the plain sine pad of xfade_test, a chord held, then (as ui.c
+ * apply_preset_to: sound_change, the new values, panic_req) an ANALOG preset with the other extreme of everything
+ * the voices' sound reads: DIST full, the filter shut, a short release, the level trim up. (a) with the chord held,
+ * (b) in its release tail. The largest sample step in the 10 ms after, over the largest in the 0.1 s before: without
+ * the fade the held voices are released with the new sound (a DIST and filter jump at once: several x) */
+static void pfade_new(track_t *t)
+{
+    sound_change(t);                               /* (model.c apply_preset_to: before the new values) */
+    host_preset_req(t, 0, 1);
+    t->p[P_E0] = 0;                                /* (a saw, whichever preset that is) */
+    t->p[P_E4] = 10;                               /* the filter nearly shut */
+    t->p[P_DIST] = 120;
+    t->p[P_REL] = 0;
+    t->p[P_ED_FX] = 12;
+    t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+    t->p[P_LEVEL] = 100;
+    panic_req |= 1u;
+}
+static int pfade_test(void)
+{
+    static const uint8_t CH[3] = {57, 60, 64};
+    const uint32_t B = FS / 10u / CTL * CTL, frames = 30u * B;
+    const uint32_t sw[2] = {8u * B, 22u * B};
+    int32_t *L = calloc(frames, sizeof *L);
+    uint32_t f, i, k, bad = 0;
+    double worst = 0;
+    track_t *t = &trk[0];
+    if (!L)
+        return 1;
+    host_tracks_init();
+    xfade_sine(t);
+    for (f = 0; f < frames; f += CTL) {
+        int32_t o[2 * CTL];
+        if (f == B || f == 15u * B) {
+            xfade_sine(t);
+            for (i = 0; i < 3u; i++)
+                trk_note_on(t, CH[i], 100);
+        }
+        if (f == 20u * B)
+            for (i = 0; i < 3u; i++)
+                trk_note_off(t, CH[i]);            /* (b): the release tail rings */
+        if (f == sw[0] || f == sw[1])
+            pfade_new(t);
+        mix_block(o, CTL);
+        for (i = 0; i < CTL; i++)
+            L[f + i] = o[2 * i];
+    }
+    for (k = 0; k < 2u; k++) {
+        int32_t calm = 1, at = 0;
+        for (i = sw[k] - FS / 10u; i < sw[k]; i++)
+            calm = abs(L[i] - L[i - 1]) > calm ? abs(L[i] - L[i - 1]) : calm;
+        for (i = sw[k]; i < sw[k] + FS / 100u; i++)
+            at = abs(L[i] - L[i - 1]) > at ? abs(L[i] - L[i - 1]) : at;
+        printf("tracks: preset load over %s: largest sample step %d in the 10 ms after, %d in the 0.1 s before (%.2f x)\n",
+               k ? "a release tail" : "a held chord", at, calm, (double)at / calm);
+        worst = (double)at / calm > worst ? (double)at / calm : worst;
+        bad += at > calm * 3 / 2;
+    }
+    printf("tracks: preset load over sounding notes: at most %.2f x the step before (no fade: several x) %s\n", worst,
+           bad ? "FAIL" : "ok");
+    free(L);
+    return bad != 0;
+}
+
 /* live recording: held lengths (TIE steps) and swing-aware quantising. Blocks are rendered until track t
  * is at fraction q (1/100) into step idx (its swung length); the keys go in between, as events_block
  * takes them. */
@@ -901,6 +966,16 @@ static int tracks_test(const char *dir)
         pid = fork();
         if (!pid) {
             int rc = xfade_test(dir);
+            fflush(stdout);
+            _exit(rc);
+        }
+        waitpid(pid, &st, 0);
+        if (!WIFEXITED(st) || WEXITSTATUS(st))
+            fail++;
+        fflush(stdout);
+        pid = fork();
+        if (!pid) {
+            int rc = pfade_test();
             fflush(stdout);
             _exit(rc);
         }

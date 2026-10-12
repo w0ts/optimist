@@ -217,8 +217,13 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
 {
     const dsnd_t *d = s->d;
     uint32_t i, src = d->src & 15u, wave = d->wave, fmode = s->fmode & 3u, fall = s->fmode & DF_ALL;
-    int32_t da = (s->amp_to - s->amp) >> CTL_LOG2, dn = (s->nz_to - s->nz) >> CTL_LOG2;   /* (no divide) */
-    int32_t dc = (s->ck_to - s->ck) >> CTL_LOG2;
+    /* (SLOOP 2.6, isod89/sloop-fm1 v2.6 d30d655 drum_synth.c ds_render, GPL-3.0-only: a whistle on the kicks) the levels
+     * glide to their targets exactly, a0 + r (i + 1) / CTL. A step of r >> CTL_LOG2 a sample fell up to CTL - 1 short
+     * and jumped the rest at every block: a click 1378 times a second under the kick's long sine (tones at 1.4 / 2.8
+     * kHz). Here as a sum at CTL times the level (an add and a shift a sample, no multiply; a0 CTL is a multiple of CTL,
+     * so the floor is 2.6's to the bit). The pitch keeps its step (a frequency, no jump) */
+    int32_t ra = s->amp_to - s->amp, rn = s->nz_to - s->nz, rc = s->ck_to - s->ck;   /* (|r| < 2^17: no overflow) */
+    int32_t sa = s->amp << CTL_LOG2, sz = s->nz << CTL_LOG2, sc = s->ck << CTL_LOG2;
     int32_t di = (int32_t)(s->inc_to - s->inc) >> CTL_LOG2;
     int32_t a = s->amp, z = s->nz, c = s->ck, inc = (int32_t)s->inc;
     int32_t drive = 16 + d->drive, bits = s->crush & 15, hold = (s->crush >> 4) + 1;
@@ -299,9 +304,9 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
             x = s->held;
         }
         out[i] = ((mulq15(x, s->gain) >> 2) * s->lg) >> 8;
-        a += da;
-        z += dn;
-        c += dc;
+        a = (sa += ra) >> CTL_LOG2;
+        z = (sz += rn) >> CTL_LOG2;
+        c = (sc += rc) >> CTL_LOG2;
         inc += di;
     }
     s->t += n;

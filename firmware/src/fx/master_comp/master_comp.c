@@ -171,6 +171,18 @@ AINL void mlim_step(int32_t *l, int32_t *r)
 {
     int32_t al = *l < 0 ? -*l : *l, ar = *r < 0 ? -*r : *r, a = al > ar ? al : ar, q = 0, h16, e, s8, ol, orr;
     uint32_t p = mlim.pos;
+    if (a <= mlim.clin && !(mlim.hold | mlim.env16 | mlim.sum)) {   /* at rest (no need now, none held, released or in
+                                                                    * the box; m2 is 0 with hold): the delay only, bit
+                                                                    * for bit what the steps below give (CEIL is on by
+                                                                    * default since 2026-10-11: the idle mix's cost) */
+        ol = mlim.dl[p], orr = mlim.dr[p];
+        mlim.dl[p] = *l, mlim.dr[p] = *r;
+        mlim.pos = (p + 1u) & (MLIM_N - 1u);
+        mlim.cnt = MLIM_HOLD;
+        *l = clamp(ol, -32767, 32767);
+        *r = clamp(orr, -32767, 32767);
+        return;
+    }
     if (a > mlim.clin) {
         q = mc_log2((uint32_t)a) - mlim.c8;
         q = q < 0 ? 0 : q;

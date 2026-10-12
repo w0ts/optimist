@@ -102,6 +102,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     uint32_t i;
     if (is_drum(t))
         return;
+    sound_change(t);                                  /* (SLOOP 2.6: what sounds fades out with the old sound, no click) */
     panic_req |= (uint8_t)(1u << trk_index(t));       /* MONO/POLY may change: release what sounds */
     t->user = 0;
     if (t == TSEL)
@@ -155,6 +156,7 @@ static void set_engine_of(track_t *t, uint32_t ei)
 #if FELUCCA_PLOCK
     locks_restore(t);                                 /* (a lock in force: its base first, then the new sound) */
 #endif
+    sound_change(t);                                  /* (SLOOP 2.6: the sound as it is, before anything new is written) */
     t->eng_req = (uint8_t)(ei % NENGINES);
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;

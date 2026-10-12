@@ -94,6 +94,7 @@ static void nb_load(uint32_t k)
     uint32_t kind = nb_kind(t), i;
     if (!nb_used(kind, k))
         return;
+    sound_change(t);                                    /* (SLOOP 2.6: what sounds fades out with the old sound) */
     fm1_irq_off();
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;

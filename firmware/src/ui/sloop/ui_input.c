@@ -412,6 +412,7 @@ static void project_new(void)
         track_t *t = &trk[i];
         undo_mark(t, sess);
         fm1_irq_off();
+        sound_change(t);                                /* (SLOOP 2.6: what sounds fades out with its own sound) */
         track_defaults(t);
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));

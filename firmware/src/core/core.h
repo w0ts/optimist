@@ -176,7 +176,8 @@ enum {                          /* global parameters */
      * (PJ_NG: the project format does not grow); a project keeps them packed in its reserved bytes (project.c
      * mc_pack). Projects from before read 0 there: THRS OFF, CEIL OFF, the master as before */
     G_CTHR, G_CRAT, G_CATK, G_CREL,   /* THRS (0 OFF, 1..30: -1..-30 dB), RATIO, ATK, REL (enums) */
-    G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF) */
+    G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF; -3.0 dB in a new
+                                 * project since 2026-10-11, a saved one keeps its own) */
     /* REC QUANTIZE (the TEMPO screen's second page; seq.c rec_exact): ON (1, the default) a recorded note snaps to the
      * grid, its start and its length (whole steps); OFF keeps the start as a nudge (MICRO) and the length as a GATE
      * lock (PLOCK). Per project, in its G_INFO slot as !QUANT (project.c RECQ_PACK: 0 = ON in every older one) */
@@ -391,6 +392,7 @@ typedef struct track {
     int16_t armp, aholdp;        /* P_AMODE / P_AHOLD as last seen by the ISR */
     /* engine switch (voice.c engine_block): the old engine's voices fade out, then it switches */
     uint8_t xf_on, xf;           /* fading; blocks of the fade still to render */
+    uint8_t pold;                /* SLOOP 2.6: a sound loaded, the sounding voices fade out with p_old first (voice.c) */
     int16_t pe_old[8];           /* P_E0..P_E7 of the sounding engine: the fade renders with these */
     uint8_t xp_n, xp_note[4], xp_vel[4];   /* note-ons during the fade, played on the new engine */
 #if FELUCCA_PATTERNS

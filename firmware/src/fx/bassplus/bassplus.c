@@ -38,7 +38,7 @@ AINL int32_t spk_bass(int32_t m)
     sb_h2 += (u - sb_h2) >> 5;
     u -= sb_h2;
     sb_hl += (u - sb_hl) >> 3;
-    return sb_hl * 3;
+    return sb_hl + (sb_hl >> 1);   /* x1.5 (Felucca 1.4 #180: x3 peaked at 1.5 .. 3.5 x a full-scale kick and the limiter pumped) */
 }
 
 #define lowcut5(x, lc, err) lowcut_ef(x, lc, err, 5)     /* x minus its one-pole low-pass (~220 Hz; dsp_common.h) */

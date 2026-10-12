@@ -156,6 +156,73 @@ static void t_drums(void)
 }
 
 #endif
+
+/* SLOOP 2.6 (isod89/sloop-fm1 v2.6 d30d655 fx.c djf_run, GPL-3.0-only): a low-pass that starts under a sounding note
+ * starts where the signal is, not at 0 (a click). A 110 Hz sine at about a held note's level (the filter's own range)
+ * already sounding, then the filter turned to -1 from off (a low-pass, still fully open): the largest difference of
+ * its first block from the sine, over the sine's peak. From 0 the output lacks the sine's level for its first samples
+ * (a step of up to the whole level: the click); started from its input it differs by what the open filter takes off.
+ * which: 0 a part's FILTER (tflt, the part's 3-bit range), 1 the drum track's (its 5 states, the 2-bit range), 2 the
+ * master's DJ filter (djf_process, both sides) */
+static double start_jump(uint32_t which)
+{
+    int32_t x[CTL], y[CTL], z[CTL];
+    uint32_t i, ch, nch = which == 1 ? 5u : which == 2 ? 2u : 1u, sh = which == 1 ? 2u : 3u;
+    double d = 0;
+    for (i = 0; i < CTL; i++)
+        x[i] = (int32_t)(60000.0 * sin(2.0 * M_PI * 110.0 * (i + 40) / FS)) << (which == 2 ? 0 : sh);   /* (mid-swing) */
+    if (which == 2) {
+#if FELUCCA_FX_DJF
+        memset(&djf, 0, sizeof djf);
+        song.g[G_FILT] = -1;
+        memcpy(y, x, sizeof y), memcpy(z, x, sizeof z);
+        djf_process(y, z, CTL);
+        song.g[G_FILT] = 0;
+        for (i = 0; i < CTL; i++) {
+            double e = fabs((double)y[i] - x[i]), f = fabs((double)z[i] - x[i]);
+            d = e > d ? e : d;
+            d = f > d ? f : d;
+        }
+#endif
+        return d / 60000.0;
+    }
+#if FELUCCA_TRK_FILT
+    {
+        tflt_t t;
+        tsvf_t c;
+        memset(&t, 0, sizeof t);
+        if (!tflt_block(&t, -1, &c))
+            return 99;
+        for (ch = 0; ch < nch; ch++) {
+            memcpy(y, x, sizeof y);
+            tflt_run(&t, &c, y, CTL, ch, sh);
+            for (i = 0; i < CTL; i++) {
+                double e = fabs((double)y[i] - x[i]);
+                d = e > d ? e : d;
+            }
+        }
+    }
+#endif
+    return d / (60000.0 * (1 << sh));
+}
+static void t_start_click(void)
+{
+    static const char *const W[3] = {"a part's FILTER", "the drum track's FILTER", "the master's DJ FILT"};
+    uint32_t w;
+    for (w = 0; w < 3u; w++) {
+        double r;
+        if (w < 2u && !FELUCCA_TRK_FILT)
+            continue;
+        if (w == 2u && !FELUCCA_FX_DJF)
+            continue;
+        r = start_jump(w);
+        printf("trk_filt: %s turned to a low-pass under a sounding sine: its first block off the sine by %.3f of its peak at most\n", W[w], r);
+        check(r < 0.05, w == 0 ? "a part: a low-pass starting under a held note does not click (SLOOP 2.6)"
+                     : w == 1 ? "the drum track: a low-pass starting under the drums does not click (SLOOP 2.6)"
+                              : "the master DJ FILT: a low-pass starting under the mix does not click (SLOOP 2.6)");
+    }
+}
+
 static uint32_t mix_hash(void)
 {
     uint32_t f, i, h = 2166136261u;
@@ -272,6 +339,7 @@ int main(int argc, char **argv)
     t_drums();
     t_project();
     t_cost();
+    t_start_click();
     if (dir)
         sweep(dir);
 #else
