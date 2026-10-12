@@ -2344,6 +2344,7 @@ int main(int argc, char **argv)
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();
+    pages_head_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

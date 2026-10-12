@@ -330,3 +330,125 @@ static void pages_keys_tests(void)
     name_close();
     reset_ui();
 }
+
+/* D11: the headers as drawn: cut, then cased (no lower-case start); full names; a continuation's digit never next to n/N */
+static void head_now(char *t)                           /* the header's title now, as draw_head makes it */
+{
+    char r[16], bpm[8], pos[12];
+    const char *eng = head_engine();
+    if (ui.scr == SCR_FX || ui.master || (lay.shown == LY_PLAY && mx_on_master()))
+        eng = "MASTER";
+    head_title(ui.scr, ui.row[ui.scr], t, 32);
+    head_pos(ui.scr, ui.row[ui.scr], pos);
+    loop_pos(TSEL, r);
+    if (ui.scr == SCR_STEP)
+        r[0] = 0;
+    fmt_int(bpm, song.g[G_BPM]);
+    head_finish(t, pos, head_room(text_w(&FONT_S, eng) + 8, bpm, r));
+}
+static uint32_t head_bad;
+static void head_ok(const char *where)                  /* the header now: a capital first, no "n n/N" */
+{
+    char t[32];
+    uint32_t i, n;
+    head_now(t);
+    n = str_len(t);
+    for (i = 0; i + 2u < n && t[i + 2u] != '/'; i++)
+        ;
+    if (!(t[0] >= 'A' && t[0] <= 'Z') || (i >= 2u && i + 2u < n && t[i - 1u] >= '0' && t[i - 1u] <= '9' && t[i - 2u] == ' ' &&
+                                          !(i >= 5u && (!strncmp(t + i - 5u, "OSC", 3) || !strncmp(t + i - 5u, "FLT", 3) ||
+                                                        !strncmp(t + i - 5u, "Osc", 3) || !strncmp(t + i - 5u, "Flt", 3) ||
+                                                        !strncmp(t + i - 6u, "Part", 4))))) {
+        printf("  header %s: '%s'\n", where, t);
+        head_bad++;
+    }
+    if (getenv("HEADS"))
+        printf("  head %-10s '%s'\n", where, t);
+}
+static void heads_of(uint32_t scr, const char *where)   /* every row of screen scr */
+{
+    uint32_t r, n;
+    ui.scr = (uint8_t)scr;
+    n = SCREENS[scr].rows();
+    for (r = 0; r < n; r++) {
+        ui.row[scr] = (uint8_t)r;
+        head_ok(where);
+    }
+    ui.row[scr] = 0;
+}
+static void heads_fam(uint32_t b, const char *where)    /* a family's rows, by its button */
+{
+    uint32_t r, n;
+    go_home();
+    frame();
+    tap(b);
+    if (ui.scr != SCR_SOUND)
+        return;
+    n = SCR->rows();
+    for (r = 0; r < n; r++) {
+        ui.row[SCR_SOUND] = (uint8_t)r;
+        head_ok(where);
+    }
+}
+static int head_is(const char *want)
+{
+    char t[32];
+    head_now(t);
+    return !strcmp(t, want);
+}
+static void pages_head_tests(void)
+{
+    static const uint8_t FAMB[] = {B_ENV, B_LFO, B_FX, B_EDIT, B_ARP, B_SCL};
+    uint32_t i, tr;
+    reset_ui();
+    head_bad = 0;
+    for (tr = 0; tr < NTRK; tr++) {
+        song.sel = (uint8_t)tr;
+        for (i = 0; i < sizeof FAMB; i++)
+            heads_fam(FAMB[i], "SOUND");
+    }
+    song.sel = 0;
+    heads_of(SCR_GLOBAL, "GLOBAL");
+    heads_of(SCR_SYSTEM, "SYSTEM");
+    heads_of(SCR_PROJECT, "PROJECT");
+    heads_of(SCR_FX, "MASTER");
+    heads_of(SCR_SONG, "SONG");
+    heads_of(SCR_SCOPE, "SCOPE");
+    ui.scr = SCR_HOME;
+    ui.row[SCR_HOME] = MXR_MASTER;
+    head_ok("mixer M");
+    reset_ui();
+    check(head_bad == 0u, "D11: every header of SOUND (every track, family), GLOBAL, SYSTEM, PROJECT, MASTER, SONG, SCOPE: "
+                          "a capital first, no digit before n/N");
+    op_enter(SCR_GLOBAL);
+    check(head_is("Tempo 1/6") || head_is("Tempo 1/5"), "D11: GLOBAL TEMPO: \"Tempo 1/6\" (was \"tempo 1/7\")");
+    ui.row[SCR_GLOBAL] = TPR_REC2;
+    check(head_is("Rec 3/6") || head_is("Rec 3/5"), "D11: GLOBAL REC 2: \"Rec 3/6\" (was \"rec 2 3/7\")");
+    op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = (uint8_t)glo_find(SCR_SYSTEM, "SCREEN");
+    {
+        char t[32];
+        head_now(t);
+        check(!strncmp(t, "Screen 2/", 9), "D11: SYSTEM SCREEN: \"Screen 2/n\" (was \"screen 1/6\")");
+    }
+    reset_ui();
+    turn(EN_ALGO, -1);
+    tap(B_FX);
+    check(head_is("Delay 1/7") || head_is("Delay 1/6") || head_is("Delay 1/8") || head_is("Delay 1/9"),
+          "D11: MASTER DELAY: \"Delay 1/7\" (was \"master dl 1/9\")");
+    ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "TONE");
+    {
+        char t[32];
+        head_now(t);
+        check(!strncmp(t, "Tone ", 5), "D11: MASTER TONE: \"Tone n/N\" (was \"FX master 5/9\")");
+    }
+    reset_ui();
+    tap(B_EDIT);
+    tap(B_EDIT);
+    {
+        char t[32];
+        head_now(t);
+        check(!strncmp(t, "Edit 2/", 7), "D11: EDIT 1: \"Edit 2/N\" (was \"edit 1 1/7\")");
+    }
+    reset_ui();
+}
