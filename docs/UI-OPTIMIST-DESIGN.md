@@ -2134,12 +2134,12 @@ what reaches this UI:
   list form, one of the ten divisions lit, 4BAR at the left. The text comes from the core. The LFO graph reads no rate, so
   it does not change with it. Test: tests/ui_optimist_lforate.h.
 
-## 16. Requests of 2026-10-12: one ALGORITHM walk, a lane's PRESETS (feat/algo-lanes)
+## 16. Requests of 2026-10-12: one ALGORITHM walk, a lane's PRESETS, the ARP picture (feat/algo-lanes)
 
 The user: *"the algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then
 individual drum lanes (if it makes sense)."*, *"the preset on a drum lane should change the drum lane preset, not the
 kit."*, then *"SLOT: kit, or specific instrument. if Slot=kit. preset knob changes the preset kit, if Slot=something else
-preset changes the preset for the drum lane."*
+preset changes the preset for the drum lane."* and *"arp is the same as lfo/env. no list"*.
 
 **The walk** (op_walk.c `algo_walk`, the one function every page and layer calls). The user, after the first rulings:
 *"really the algo knob should select the track and drum sub track every where. step seq, edit, env, etc."*, then *"i
@@ -2179,6 +2179,13 @@ The kit and the other lanes stay. The mixer's lane rows follow the same rules; t
 the lane's sound (the kit's name while it plays KIT). The SOUND row's picture on the drum track: DR the kit big and
 its style, a lane its name big and its sound.
 
+**The ARP picture** (op_graph.c `graph_arp`), on ARP and ARP 2 (every ARP row shows it, no list): never blank. The notes
+are those held (the latch's too), else a reference chord C4 E4 G4 (E C G with ORD PLAY), over OCT octaves, a guide line
+at each pitch; the top line names MODE and RATE at the left and the notes at the right ("HELD C4 E4 ..."). The marks: a
+step of RATE, GATE long, SWG late, by MODE, PROB's skips dim; MODE OFF draws the pattern UP would play, shaded, with
+"OFF" on the top line. STEP's ARP card page keeps the roll under its cards (the cards are a 1.5 s overlay there).
+
 Tests: tests/ui_optimist_algo.h (the same walk on the mixer, SOUND's families, STEP, GLOBAL, PROJECT, SYSTEM, SONG,
 SCOPE and the FX ARP SCL EDIT GLO layers; STEP's lane pages; PRESETS on DR, on a lane on KIT and on an instrument,
-HOME + PRESETS on each, the mixer's lane row; HOME + a key).
+HOME + PRESETS on each, the mixer's lane row; HOME + a key;
+the ARP picture off and held).

@@ -5,6 +5,7 @@
  *   16 lanes, the same on every page and layer
  *   "the preset on a drum lane should change the drum lane preset, not the kit": PRESETS on DR the kit; on a lane with
  *   SRC KIT the kit too, on a lane on an instrument that lane's sound only; HOME + PRESETS the same split
+ *   ARP "is the same as lfo/env. no list": its picture is never blank, the arp off or notes held
  * Included after ui_optimist_glo.h. */
 static uint32_t al_walk(int32_t d)                      /* ALGORITHM d detents, then where the walk is (a mixer row) */
 {
@@ -255,10 +256,56 @@ static void algo_presets_tests(void)
     song.sel = 0;
     reset_ui();
 }
+/* ARP: its picture is never blank (the user, 2026-10-12) */
+static uint32_t arp_pic_px(void)                        /* lit pixels of the panel under the cards */
+{
+    uint32_t x, y, n = 0;
+    for (y = (uint32_t)OP_PY; y < 240u; y++)
+        for (x = 0; x < 240u; x++)
+            n += screen[y * 240u + x] != swap16(C_BLACK);
+    return n;
+}
+static void algo_arp_tests(void)
+{
+    uint32_t off, held;
+    int16_t mode;
+    reset_ui();
+    song.sel = 0;
+    tap(B_ARP);
+    mode = TSEL->p[P_AMODE];
+    TSEL->p[P_AMODE] = 0;
+    ui.force = 1;
+    frames(3);
+    off = arp_pic_px();
+    ppm("opt-algo-arp-off");
+    check(off > 1500u && px_in(2, OP_PY + 20u, 236, GRAPH_H - 30u, col_shade(trk_col(0), 3u)),
+          "ARP off, nothing held: a picture (the pattern UP would play, shaded), not two lines");
+    ui.row[SCR_SOUND] = 1;                              /* ARP 2 */
+    ui.force = 1;
+    frames(3);
+    check(arp_pic_px() > 1500u, "ARP 2, the arp off: the same picture");
+    ui.row[SCR_SOUND] = 0;
+    TSEL->p[P_AMODE] = 1;
+    TSEL->nheld = 0;                                    /* (nothing left held or latched by an earlier test) */
+    TSEL->arp_phys = 0;
+    kdown(WK(0));
+    kdown(WK(4));
+    ui.force = 1;
+    frames(3);
+    held = arp_pic_px();
+    ppm("opt-algo-arp-held");
+    check(TSEL->nheld >= 2u && held > 1500u && px_in(2, OP_PY + 20u, 236, GRAPH_H - 30u, trk_col(0)),
+          "ARP on, two keys held (their chord notes): the pattern of those notes in the track's colour");
+    kup(WK(0));
+    kup(WK(4));
+    TSEL->p[P_AMODE] = mode;
+    reset_ui();
+}
 static void algo_tests(void)
 {
     algo_mixer_tests();
     algo_sound_tests();
     algo_every_tests();
     algo_presets_tests();
+    algo_arp_tests();
 }
