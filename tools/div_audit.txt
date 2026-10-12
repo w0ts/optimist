@@ -253,3 +253,5 @@ src/ble/ble_scan.c:ble_scan_bars:(hi-lo) | returned before the divide when hi ==
 src/ble/ble_ll_central.c:llc_cind:(iv-iv/2u) | iv is BLE_CENTRAL_INTERVAL, a build constant of 6..3200 (ble_cfg.h checks it; 9 by default): iv - iv / 2 >= 3
 src/seq/seq.c:rec_chord_share:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1
 src/seq/seq.c:rec_up_at:u | guarded: the divide runs only when u (slen >> 7) is not 0 (`u ? ... : 64`)
+src/seq/seq.c:note_span:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1
+src/ui/optimist/op_stepdraw.c:roll_carried:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1

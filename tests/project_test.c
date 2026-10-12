@@ -85,7 +85,7 @@ static int steps_ok(const proj_trk_t *n, const step8_t *o, int drum)
                 if ((want >> i) & 1u && dstep_lvl(d, i) != ((o[k].flags & SF_ACCENT) ? LV_HARD : vel_lvl(o[k].vel)))
                     return 0;
         } else {
-            const step_t *s = &n->step[k];
+            const pstep_t *s = &n->step[k];
             if (memcmp(s->note, o[k].note, 4) || s->n != o[k].n || s->time != o[k].time || s->flags != o[k].flags ||
                 s->vel != o[k].vel || s->lvl || s->rat)
                 return 0;
@@ -256,7 +256,7 @@ int main(void)
 
 #if FELUCCA_ANALOG2
     {   /* format 5 (SLOOP plus): every value at its id, ANALOG 2's parameters their defaults, E0.. moved */
-        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t5_t;
+        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; pstep_t step[NSTEP]; } t5_t;
         typedef struct { uint32_t magic, size; int16_t g[PJ_NG]; uint8_t sel, rsv[3]; t5_t t[NTRK]; uint32_t sum; } p5_t;
         static p5_t v5;
         static union { p5_t v5; project_t q; } b5;
@@ -308,7 +308,7 @@ int main(void)
         bad += check("SUPER's presets 0..4 = ANALOG's 16..20 (old SUPER tracks)", ok);
     }
     {   /* FM6's FUN6 (test builds): format 5 + the FM6 voices, SUPER 9, FM6 10 */
-        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t6_t;
+        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; pstep_t step[NSTEP]; } t6_t;
         typedef struct {
             uint32_t magic, size; int16_t g[PJ_NG]; uint8_t sel, rsv[3]; t6_t t[NTRK];
             uint8_t fm6[NPART][128]; uint8_t fm6_on[NPART], fm6_has; int8_t fm6_fn[NPART][16]; uint32_t sum;
