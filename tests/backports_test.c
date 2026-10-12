@@ -664,6 +664,74 @@ static void t_acid(void)
 }
 #endif
 
+#if FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID && FELUCCA_ENG_FM6
+/* the part's engine memory (engines.c part_mem): FM6, PHYS and ACID share part 1's; the switch (engine_block, after
+ * the fade) claims it. Each engine after another one that used it: a note audible, bounded, its voices free after the
+ * release (garbage left by the other engine would not be: ACID's floats, PHYS's lines); a detour through ANALOG
+ * (no engine memory) leaves FM6's state as it was */
+static int pm_play(uint32_t e, uint32_t pi, uint32_t note)
+{
+    track_t *t = &trk[0];
+    int32_t out[CTL * 2], pk = 0;
+    double acc = 0;
+    uint32_t b, i, busy = 0;
+    host_preset_req(t, e, pi);
+    for (b = 0; b < 64u && t->engine != e; b++) {   /* the switch: after the old engine's fade */
+        events_block(CTL);
+        mix_block(out, CTL);
+    }
+    if (t->engine != e)
+        return 0;
+    trk_note_on(t, note, 110);
+    for (b = 0; b < 4u * FS / CTL; b++) {             /* (0.5 s held, 3.5 s: as t_phys, the longest PHYS tails) */
+        if (b == FS / 2u / CTL)
+            trk_note_off(t, note);
+        events_block(CTL);
+        mix_block(out, CTL);
+        for (i = 0; i < 2u * CTL; i++) {
+            int32_t a = out[i] < 0 ? -out[i] : out[i];
+            acc += (double)out[i] * out[i];
+            pk = a > pk ? a : pk;
+        }
+    }
+    for (i = 0; i < NVOICE; i++)
+        busy |= t->v[i].active;
+    printf("backports: part memory: %-6s rms %6.0f peak %5d owner %u%s\n", ENGINES[e]->name, sqrt(acc / (4.0 * FS * 2)),
+           pk, part_mem_owner[0], busy ? " STILL SOUNDING" : "");
+    return acc > 0 && pk <= 32767 && !busy && part_mem_owner[0] == (e == 0u ? part_mem_owner[0] : e + 1u);
+}
+static void t_part_mem(void)
+{
+    static part_mem_t keep;
+    int ok;
+    reset(120);
+    check(sizeof part_mem[0] >= sizeof(fm6_mem_t) && sizeof part_mem[0] >= PHYS_POLY * sizeof(phys_slot_t) &&
+          sizeof part_mem[0] < sizeof(fm6_mem_t) + PHYS_POLY * sizeof(phys_slot_t),
+          "part memory: one per part, the largest engine's, not the sum");
+    ok = pm_play(ENG_IX_FM6, 0, 60);
+    ok &= pm_play(ENG_IX_PHYS, 3, 48);                /* (SYMP-like presets fill the lines) */
+    ok &= pm_play(ENG_IX_ACID, 0, 36);
+    ok &= pm_play(ENG_IX_FM6, 1, 60);
+    ok &= pm_play(ENG_IX_ACID, 0, 40);
+    ok &= pm_play(ENG_IX_PHYS, 0, 52);
+    check(ok, "part memory: FM6, PHYS, ACID, FM6, ACID, PHYS on one part: each audible, bounded, free after the release");
+    ok = pm_play(ENG_IX_FM6, 0, 60);
+    keep = part_mem[0];
+    {
+        int32_t out[CTL * 2];
+        uint32_t b;
+        host_preset_req(&trk[0], 0, 0);              /* ANALOG (slot 0): nothing in the part's memory */
+        for (b = 0; b < 64u; b++) {
+            events_block(CTL);
+            mix_block(out, CTL);
+        }
+        ok &= trk[0].engine == 0u && part_mem_owner[0] == ENG_IX_FM6 + 1u && !memcmp(&keep, &part_mem[0], sizeof keep);
+    }
+    ok &= pm_play(ENG_IX_FM6, 0, 60);
+    check(ok, "part memory: FM6 -> ANALOG keeps FM6's state untouched, FM6 again plays");
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -690,6 +758,9 @@ int main(void)
 #endif
 #if FELUCCA_ENG_ACID
     t_acid();
+#endif
+#if FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID && FELUCCA_ENG_FM6
+    t_part_mem();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;
