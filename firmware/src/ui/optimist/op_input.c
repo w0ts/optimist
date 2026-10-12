@@ -742,6 +742,9 @@ static void ui_leds(void)
         uint32_t m = name_on() ? name_leds() : lay.shown == LY_OPS ? fm6_keys_lit() : step_leds((fm1_ms / 250u) & 1u), k;
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((m >> k) & 1u));
+        if (lay.shown == LY_OPS)                        /* ENV held on FM6: every key with a function glows dim */
+            for (k = 0; k < 27u; k++)                   /* (the user, 2026-10-12: "keys should lit up when they */
+                led_put(dl, 14u + k, (int)((FM6_KEYS_FN >> k) & 1u));   /* have a function in the selected mode") */
     }
 #if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit */

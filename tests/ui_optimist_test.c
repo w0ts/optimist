@@ -2017,6 +2017,18 @@ static void fm6_tests(void)
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
+    {   /* every key with a function lit (the selected full, the others dim), the others dark (the user, 2026-10-12) */
+        uint32_t k, ok = 1, lit = fm6_keys_lit();
+        frame();
+        for (k = 0; k < 27u; k++) {
+            uint8_t q = led_pos[14u + k];
+            uint32_t lv = q == 0xFF ? 9u : (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+            uint32_t want = (lit >> k) & 1u ? 2u : (FM6_KEYS_FN >> k) & 1u ? 1u : 0u;
+            if (q != 0xFF && lv != want)
+                ok = 0;
+        }
+        check(ok, "ENV held on FM6: OP1..OP6 PIT GLO MONO POLY lit (the one edited and the mode full, the rest dim), the other keys dark");
+    }
     key(3);                                             /* G#: OP2 */
     check(f6.target == 1u && f6_kind(f6.row) == 0u, "a black key (G#): OP2");
     key(15);                                            /* PIT */
