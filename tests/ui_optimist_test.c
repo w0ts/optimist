@@ -2133,6 +2133,24 @@ static void preset_engine_tests(void)
         check(ok, "... every turn a new instrument, round the list");
         reset_ui();
     }
+    {   /* the master FX slots name their role by type, not place (the user, 2026-10-12: "slot 1 is insert, right ?") */
+        cell_t c;
+        int16_t *vp;
+        uint8_t keep[FX_NSLOT];
+        uint32_t k, ok = 1;
+        static const uint8_t TY[FX_NSLOT] = {FXT_REV, FXT_NONE, FXT_DIST, FXT_CHO};
+        static const char *const ROLE[FX_NSLOT] = {"SEND", "", "INS", "SEND"};
+        memcpy(keep, fxs_slot, sizeof keep);
+        memcpy(fxs_slot, TY, sizeof TY);
+        for (k = 0; k < FX_NSLOT; k++) {
+            const param_desc_t *d = fxs_desc(k, &vp);
+            cell_param(&c, d, vp);
+            if (d != &FXS_DESC[k] || strcmp(c.unit, ROLE[k]))
+                ok = 0;
+        }
+        memcpy(fxs_slot, keep, sizeof keep);
+        check(ok, "the master FX slots: each card says INS or SEND by its type (REV SEND, empty none, DST INS, CHO SEND)");
+    }
 }
 
 #include "ui_optimist_len.h"                      /* LEN in powers of two, SHIFT = LFO held */

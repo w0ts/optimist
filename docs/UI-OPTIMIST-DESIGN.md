@@ -2065,6 +2065,11 @@ The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTE
 in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
 INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).
 
+The master FX's SLOTS cards (S1..S4) name each slot's role in the unit's place, **INS** or **SEND**, from its type
+(DST FILT COMP an insert, CHO DLY REV a send, an empty slot nothing), never from its place (2026-10-12, the user: "on
+edit master i have slot 1, 2, 3, 4 for the effects, but slot 1 is insert, right ? it is not clear in the ui";
+`cell_param`). The mixer's insert and send sets already name the effects (DST, Filter; REV DLY CHO).
+
 **The mixer in three views.** The user: the mixer shows one group at a time, MASTER alone, or the four channels (T1 T2
 T3 and DR, the drum bus as a whole), or the drum sounds, and the view follows ALGORITHM. ALGORITHM walks the rows as
 before (MASTER, T1 .. DR, the 16 lanes, stopping at the ends); the panel shows only the cursor's group (`mx_view`:
