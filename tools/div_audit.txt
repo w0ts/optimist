@@ -194,6 +194,7 @@ src/core/voice.c:track_render:(int32_t)(n-o) | o <= n - 1 (o = ofs < n ? ofs : n
 src/core/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else NPOLY
 src/engines/acid/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
 src/seq/motion.c:motion_knob:trk_len(t) | TLEN
+src/seq/auto_lane.c:lane_knob:trk_len(t) | TLEN
 src/engines/phys/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
 src/engines/phys/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
 src/engines/phys/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"

@@ -68,7 +68,9 @@ enum {                                                  /* what an export lost (
                                                          * of the first word) */
     SX24_CHANCE = 16384,                                /* (the steps' chance: the first bit of the second word, which an
                                                          * editor asks for with SL24_GET's flag; ed_sl24.c) */
-    SX24_LSYNC = 32768                                  /* (the LFO's RATE synced: the second word's bit 1) */
+    SX24_LSYNC = 32768,                                 /* (the LFO's RATE synced: the second word's bit 1) */
+    SX24_LAUTO = 65536                                  /* (the drum lanes' motion and locks, seq/auto.h AUTO_LANE: the
+                                                         * second word's bit 2; a v11 editor gets it as MOTION) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -306,11 +308,13 @@ static uint8_t sl25_drdly_out(void)
 
 #if FELUCCA_AUTO
 /* track k's automation (seq/auto.h) as 2.4's extras x: its nudges, fills and first NLOCK step-only events of a value;
- * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, LOCK (more than NLOCK) */
+ * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, LOCK (more than NLOCK), LAUTO (a drum lane's
+ * value, either kind: left out) */
 static uint32_t sl24_auto_out(stepx_t *x, const auto_list_t *l)
 {
     uint32_t r = auto_to_stepx(x, l);
-    return (r & AUTO_X_HOLD ? SX24_MOTION : 0u) | (r & AUTO_X_CHANCE ? SX24_CHANCE : 0u) | (r & AUTO_X_LOCKS ? SX24_LOCK : 0u);
+    return (r & AUTO_X_HOLD ? SX24_MOTION : 0u) | (r & AUTO_X_CHANCE ? SX24_CHANCE : 0u) | (r & AUTO_X_LOCKS ? SX24_LOCK : 0u) |
+           (r & AUTO_X_LANE ? SX24_LAUTO : 0u);
 }
 #endif
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);

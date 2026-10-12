@@ -609,7 +609,8 @@ the editor shows no button. Nothing is written to flash.
   events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second
   word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not; bit 1 (the mask's bit 15): an LFO RATE
   synced to the tempo (below 0, also in a lock), written as the free rate nearest that note value at the project's tempo
-  (2.4 has no sync). A v11 request does not report it.
+  (2.4 has no sync). A v11 request does not report it. Bit 2 (the mask's bit 16): the drum lanes' motion and locks (the
+  automation store's lane ids, below), which 2.4 has not: left out; a v11 request gets it on bit 13 (motion).
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two
@@ -725,6 +726,15 @@ parameter's range; a hold event switches its track's PLAY on; a pseudo-parameter
 the event); **1 DEL** place, param (2 x 7 bit); **2 CLEAR** which (1 the hold events, 2 the step-only ones, 3 all);
 **3 PLAY** on (0 / 1). A track takes a step-only event of a lockable value (`FELUCCA_PLOCK`), a hold event of a value
 motion records (`FELUCCA_MOTION`), and the pseudo-parameters as step-only events.
+
+**The drum lanes' values** (2026-10-12; no version change: the param was already a stored id). On the drum track (track 3)
+only, param **0x7C + (lane << 3 | value)**, 0x7C..0xFB, is lane 0..15's value 0..7: TUNE DECAY SNAP CLICK BEND CUT DRIVE
+LEVEL (drum_edit.c DE_*, an order that is stored and never changes), the value its offset as the lane's SOUND page keeps
+it (ranges -24..24, -64..63 x 3, -24..24, -64..63 x 2, -24..6; AUTO_SET clamps to them). A step-only event is the lane's
+lock on that step (heard by every hit of the lane during the step), a hold event the lane's motion; both are heard at the
+lane's hits (a sounding hit keeps the values it started with), over the lane's own values, never written into them. A part
+refuses them (rc 1). A firmware before them keeps such events in the list and in every stored form, and plays none.
+0xFC stays free; the stored track ids end below 0x7C in every build. The editor's `autoLane(param)` reads an id.
 
 ## SLOOP 2.4's step extras (commands 72..77)
 

@@ -438,6 +438,7 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #if FELUCCA_AUTO
 #include "auto.c"             /* the automation store: motion, locks, nudges, fills, chance (phase 3) */
 #endif
+#include "../drums/lane_play.c"   /* the drum lanes at the hit: their automation and LFOs (drum_edit.c dl_ofs_play) */
 
 /* ------------------------------------------------------------- undo --- */
 /* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c */
@@ -1847,6 +1848,9 @@ static void seq_reset_tracks(uint32_t pos)
         lk_n[i] = 0;                               /* (a section just loaded: its own values; nothing in force) */
 #endif
     }
+#if DLA_ON
+    dla_locks_off();                               /* (the lanes' locks: none in force; their holds: motion_begin) */
+#endif
     for (i = 0; i < NROLL; i++)
         roll[i].last = SEQ_NONE - 1u;               /* (a roll held over the start: on the grid from here) */
     clk_beat = 0;

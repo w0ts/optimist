@@ -4,9 +4,10 @@
  * meaning:
  *
  *   byte 0  place: bits 0..5 the step (0..63), bit 6 STEP-ONLY (AUTO_ONLY), bit 7 0 (reserved)
- *   byte 1  the parameter: a stored id (motion.c mot_sid: build-independent), or a pseudo-parameter past every
- *           build's P_COUNT: AUTO_NUDGE (-32..31, 1/64 of a step), AUTO_FILL (1 FILL ONLY, 2 NO FILL), AUTO_CHANCE
- *           (0..99 %; none: 100 %), always STEP-ONLY
+ *   byte 1  the parameter: a stored id (motion.c mot_sid: build-independent), a drum lane's value (the drum track
+ *           only: AUTO_LANE0 + (lane << 3 | value), 0x7C..0xFB, the value drum_edit.c's DE_* TUNE .. LEVEL), or a
+ *           pseudo-parameter past every build's P_COUNT: AUTO_NUDGE (-32..31, 1/64 of a step), AUTO_FILL (1 FILL
+ *           ONLY, 2 NO FILL), AUTO_CHANCE (0..99 %; none: 100 %), always STEP-ONLY
  *   byte 2  the value, a signed byte (every lockable and recordable value fits: tests/auto_int8_check.c)
  *
  * A step-only event is a lock (Elektron style: it holds its step, the parameter goes back at the next step without
@@ -30,6 +31,17 @@
 #define AUTO_FILL 0xFEu
 #define AUTO_CHANCE 0xFFu
 #define AUTO_PSEUDO(p) ((uint32_t)(p) >= AUTO_NUDGE)
+/* a drum lane's value (drum_edit.c DE_*: TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL), its offset as dl.ofs keeps it, heard
+ * at the lane's hits (the overlay dla, never the patch). Lane-major: lane and value with one shift and one mask. An
+ * older build keeps these events and plays none of them (a hold: motion_param false; a lock: lock_ok false): ids past
+ * every build's stored track ids (auto.c MOT_TAIL_END) and below the pseudo-parameters; 0xFC kept spare */
+#define AUTO_LANE0 0x7Cu
+#define AUTO_LANE_N 128u                 /* 16 lanes x 8 values: 0x7C .. 0xFB */
+#define AUTO_IS_LANE(p) ((uint32_t)(p) - AUTO_LANE0 < AUTO_LANE_N)
+#define AUTO_LANE(l, v) (AUTO_LANE0 + (((uint32_t)(l) & 15u) << 3 | ((uint32_t)(v) & 7u)))
+#define AUTO_LANE_L(p) (((uint32_t)(p) - AUTO_LANE0) >> 3)
+#define AUTO_LANE_V(p) (((uint32_t)(p) - AUTO_LANE0) & 7u)
+_Static_assert(AUTO_LANE0 + AUTO_LANE_N < AUTO_NUDGE, "lane ids below the pseudo-parameters (0xFC kept spare)");
 #define AUTO_HOLDS 1u                    /* auto_drop_*: which kinds */
 #define AUTO_ONLYS 2u
 
@@ -144,7 +156,8 @@ static inline uint32_t auto_count(const auto_list_t *l, uint32_t which)
  * stored ids for every lockable value (they differ only past P_E7, where the one lockable value, 2.4's FILT, is
  * P_ENG_END in both) */
 enum { AUTO_CUT = 1, AUTO_CLAMP = 2 };   /* auto_from_stepx: the list was full, a lock's value clamped to int8 */
-enum { AUTO_X_HOLD = 1, AUTO_X_CHANCE = 2, AUTO_X_LOCKS = 4 };   /* auto_to_stepx: not in the stepx form */
+enum { AUTO_X_HOLD = 1, AUTO_X_CHANCE = 2, AUTO_X_LOCKS = 4, AUTO_X_LANE = 8 };   /* auto_to_stepx: not in the stepx
+                                                                                      * form (LANE: a drum lane's value) */
 /* x's nudges, locks and fills added to l as step-only events (in that order, the locks in slot order) */
 static inline uint32_t auto_from_stepx(auto_list_t *l, const stepx_t *x)
 {
@@ -167,7 +180,8 @@ static inline uint32_t auto_from_stepx(auto_list_t *l, const stepx_t *x)
     return r;
 }
 /* l's step-only nudges, fills and its first NLOCK step-only parameter events -> x (cleared first); what x cannot
- * hold: AUTO_X_HOLD (hold events), AUTO_X_CHANCE, AUTO_X_LOCKS (step-only events past the 24th) */
+ * hold: AUTO_X_HOLD (hold events), AUTO_X_CHANCE, AUTO_X_LOCKS (step-only events past the 24th), AUTO_X_LANE (a drum
+ * lane's value, either kind: 2.4 has none) */
 static inline uint32_t auto_to_stepx(stepx_t *x, const auto_list_t *l)
 {
     uint32_t i, m = 0, r = 0;
@@ -175,7 +189,9 @@ static inline uint32_t auto_to_stepx(stepx_t *x, const auto_list_t *l)
     for (i = 0; i < l->n; i++) {
         const auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP;
-        if (!(e->place & AUTO_ONLY))
+        if (AUTO_IS_LANE(e->param))
+            r |= AUTO_X_LANE;
+        else if (!(e->place & AUTO_ONLY))
             r |= AUTO_X_HOLD;
         else if (e->param == AUTO_NUDGE)
             x->micro[s] = e->value;

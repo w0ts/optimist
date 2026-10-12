@@ -47,6 +47,7 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
  * pseudo-parameters come after every stored id (auto.h) */
 #define MOT_TAIL_END (P_ENG_END + 4u)                        /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP) */
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
+_Static_assert(MOT_TAIL_END <= AUTO_LANE0, "the drum lanes' ids (auto.h): past every build's stored track ids");
 #if FELUCCA_MASTER_COMP && !SL24_TP
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
 {
@@ -88,7 +89,9 @@ static void auto_touch_all(void)
         auto_touch(k);
 }
 
-/* the old motion form <-> the lists. A list's hold events (track order) into m: 1 all fitted */
+/* the old motion form <-> the lists. A list's hold events (track order) into m: 1 all fitted. A drum lane's (auto.h
+ * AUTO_LANE) is left out: an older motion_valid refuses the whole form for it; it goes in the new forms only (the
+ * extras record's AUTO_ENC_TAG form, a V2 pattern record: auto_trk_old_ok is 0 with one) */
 static int auto_to_motion(motion_store_t *m, const auto_list_t *l, uint32_t on)
 {
     uint32_t k, i, all = 1;
@@ -98,7 +101,7 @@ static int auto_to_motion(motion_store_t *m, const auto_list_t *l, uint32_t on)
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < l[k].n; i++) {
             const auto_ev_t *e = &l[k].ev[i];
-            if (e->place & AUTO_ONLY)
+            if ((e->place & AUTO_ONLY) || AUTO_IS_LANE(e->param))
                 continue;
             if (m->count >= MOTION_MAX) {
                 all = 0;
@@ -131,6 +134,27 @@ static int auto_from_motion(auto_list_t *l, const motion_store_t *m)
 #if FELUCCA_CHANCE
 static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100: none (chance.c, seq_tick) */
 #endif
+#if DLA_ON
+/* a drum lane's event e of the step entered (auto_step, the ISR; the drum track only): a hold event (its motion plays:
+ * mo) holds until the next of its value or the pass's end, a step-only one (a lock) its step; heard at the lane's next
+ * hits (drum_edit.c dla, lane_play.c), never in dl.ofs */
+static void dla_event(const auto_ev_t *e, uint32_t mo)
+{
+    uint32_t l = AUTO_LANE_L(e->param), v = AUTO_LANE_V(e->param);
+    int8_t x = (int8_t)clamp(e->value, DE_MIN[v], DE_MAX[v]);
+    if (e->place & AUTO_ONLY) {
+#if FELUCCA_PLOCK
+        dla.lv[l][v] = x;
+        dla.lm[l] |= (uint8_t)(1u << v);
+        dla.lany = 1;
+#endif
+    } else if (mo) {
+        dla.hv[l][v] = x;
+        dla.hm[l] |= (uint8_t)(1u << v);
+    }
+    (void)x;
+}
+#endif
 
 /* the sequencer enters step idx of track t (seq_tick, the ISR): its events. -> 1 the step plays, 0 its fill
  * condition fails (it plays as a REST) */
@@ -151,10 +175,25 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #if FELUCCA_CHANCE
     auto_ch[k] = 100;
 #endif
+#if DLA_ON
+    if (k == TRK_DRUM)
+        dla_locks_off();                             /* (the last step's lane locks let go) */
+#endif
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         const auto_ev_t *e = &l->ev[i];
         if ((e->place & AUTO_STEP) != idx)
             continue;
+#if DLA_ON
+        if (AUTO_IS_LANE(e->param)) {                /* (a drum lane's value: before mot_id, which has no such id) */
+            if (k == TRK_DRUM)
+#if FELUCCA_MOTION
+                dla_event(e, mo);
+#else
+                dla_event(e, 0);
+#endif
+            continue;
+        }
+#endif
         if (!(e->place & AUTO_ONLY)) {
 #if FELUCCA_MOTION
             if (mo)
@@ -180,6 +219,10 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
 #if FELUCCA_PLOCK
     lock_apply(t, lp, lv, plays ? m : 0u);           /* (a fill-skipped step: its locks do not apply) */
+#endif
+#if DLA_ON
+    if (!plays && k == TRK_DRUM)
+        dla_locks_off();                             /* (nor its lane locks: its lane holds stay) */
 #endif
     return plays;
 }
@@ -309,3 +352,6 @@ static uint32_t auto_kind_toggle(track_t *t, uint32_t idx, uint32_t id)
     (void)v;
     return 0;
 }
+#if DLA_ON
+#include "auto_lane.c"         /* the drum lanes' motion and locks: the UIs' calls */
+#endif

@@ -50,6 +50,22 @@ int main(void)
                    TP[id].label ? TP[id].label : "-", TP[id].min, TP[id].max);
         }
     }
+    /* the drum lanes' values (seq/auto.h AUTO_LANE, drum_edit.c DE_*): recordable and lockable on the drum track, their
+     * ranges DE_MIN..DE_MAX, the editor's (auto_lane.c DLA_DESC) the same; the id block below the pseudo-parameters */
+    for (id = 0; id < DE_N; id++) {
+        seen++;
+        if (DE_MIN[id] < -128 || DE_MAX[id] > 127 || DLA_DESC[id].min != DE_MIN[id] || DLA_DESC[id].max != DE_MAX[id]) {
+            printf("lane value %u %d..%d (editor %d..%d)\n", (unsigned)id, DE_MIN[id], DE_MAX[id], DLA_DESC[id].min,
+                   DLA_DESC[id].max);
+            bad++;
+        }
+    }
+    if (AUTO_LANE(15, 7) != 0xFBu || AUTO_LANE(0, 0) != AUTO_LANE0 || AUTO_LANE(15, 7) >= AUTO_NUDGE ||
+        !AUTO_IS_LANE(0x7C) || !AUTO_IS_LANE(0xFB) || AUTO_IS_LANE(0x7B) || AUTO_IS_LANE(0xFC) || MOT_TAIL_END > AUTO_LANE0) {
+        printf("lane ids: 0x%02X..0x%02X, the tail ends at %u\n", (unsigned)AUTO_LANE(0, 0), (unsigned)AUTO_LANE(15, 7),
+               (unsigned)MOT_TAIL_END);
+        bad++;
+    }
     printf("int8 check: %u descriptors, %u lockable / recordable ranges outside -128..127\n", (unsigned)seen,
            (unsigned)bad);
     return (int)bad;

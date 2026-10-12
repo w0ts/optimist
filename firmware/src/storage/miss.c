@@ -29,14 +29,19 @@ enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV, MS_PAT };   /*
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
-       MF_CHANCE, MF_COMP };
+       MF_CHANCE, MF_COMP, MF_LAUTO };
+#if DLA_ON                                            /* (drum_edit.c: the drum lanes' motion and locks played) */
+#define MISS_LAUTO 1
+#else
+#define MISS_LAUTO 0
+#endif
 /* their names, one string, MF_* order: only those of the switches this build leaves out (the others: "") */
 #define MF_S(f, s) FIF(FNOT(f))(s) "\0"
 static const char MF_NAMES[] = MF_S(FELUCCA_FX_DELAY, "DELAY") MF_S(FELUCCA_FX_REVERB, "REVERB")
     MF_S(FELUCCA_FX_CHORUS, "CHORUS") MF_S(FELUCCA_FX_DIST, "DIST") MF_S(FELUCCA_FX_SLICER, "SLICER")
     MF_S(FELUCCA_FX_DJF, "FILT") MF_S(FELUCCA_FX_DUST, "DUST") MF_S(FELUCCA_FX_DUCK, "DUCK")
     MF_S(FELUCCA_DRUM_EDIT, "SOUND EDIT") MF_S(FELUCCA_DRUM_USR, "LANE SMP") MF_S(FELUCCA_DRUM_KITS, "LANE KIT")
-    MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP");
+    MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP") MF_S(MISS_LAUTO, "LANE MOTION");
 #undef MF_S
 static uint16_t miss_m[MISS_MAX];                     /* the last scan's items */
 static uint32_t miss_cnt;
@@ -162,6 +167,11 @@ static uint32_t miss_scan(void)
 #endif
     if (!FELUCCA_MASTER_COMP && (song.g[G_CTHR] || song.g[G_CGAIN] || song.g[G_CCEIL]))
         MFX(MF_COMP, TRK_DRUM);
+#if FELUCCA_AUTO && !MISS_LAUTO
+    for (k = 0; k < AUTO_L(TRK_DRUM)->n; k++)          /* (the drum lanes' motion and locks: kept, not played here) */
+        if (AUTO_IS_LANE(AUTO_L(TRK_DRUM)->ev[k].param))
+            MFX(MF_LAUTO, TRK_DRUM);
+#endif
     return miss_cnt;
 }
 #undef MFX

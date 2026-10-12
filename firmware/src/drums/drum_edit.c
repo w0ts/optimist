@@ -99,6 +99,56 @@ static void dl_fix(dlanes_t *d)
     }
     d->ukit = d->ukit > 16u ? 0u : d->ukit;
 }
+_Static_assert(DE_N == 8 && DE_TUNE == 0 && DE_LEVEL == 7, "the lane event ids (seq/auto.h AUTO_LANE): the DE_* order is stored, never reorder");
+
+/* ---- what the lanes play at a hit beside the patch (the user, 2026-10-12: D2): the automation's values (DLA_ON: a lane's
+ * motion and locks, seq/auto.h AUTO_LANE) and the lanes' LFOs (DLFO_ON, lane_play.c), over dl.ofs, never written into
+ * it (dl.ofs is what a user saves, a user kit copies and dl_hash keys). The hit path reads dl_ofs_play (each hit keeps
+ * the values it started with, as a knob turned on these pages: "next hit hears it"); the UIs read dl_ofs, the patch. A
+ * lane with none of them plays dl_ofs as before, sample for sample */
+#ifndef DLA_ON                             /* (tests/lane_auto_test.c: 0, as a build before them reads and plays) */
+#define DLA_ON (FELUCCA_DRUM_EDIT && FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
+#endif
+#define DLFO_ON 0                  /* (the lanes' LFOs: the next commit) */
+#if DLA_ON
+/* the lanes' automation in force (the ISR writes it: auto.c auto_step; STOP, PLAY, step 0 of a pass, a pattern switch
+ * let the holds go: motion_restore; each step lets its locks go: auto_step, locks_restore) */
+static struct {
+    int8_t hv[DRUM_LANES][DE_N];          /* a hold event's value (motion) */
+    int8_t lv[DRUM_LANES][DE_N];          /* a lock's value (the step playing) */
+    uint8_t hm[DRUM_LANES], lm[DRUM_LANES];   /* bit v: in force */
+    uint8_t lany;                         /* a lock in force on some lane */
+} dla __attribute__((section(".pool")));
+static void dla_holds_off(void) { memset(dla.hm, 0, sizeof dla.hm); }
+static void dla_locks_off(void)
+{
+    if (dla.lany)
+        memset(dla.lm, 0, sizeof dla.lm);
+    dla.lany = 0;
+}
+#define DLA_ANY(l) (dla.hm[l] | dla.lm[l])
+#else
+#define DLA_ANY(l) 0u
+#endif
+#if DLA_ON || DLFO_ON
+static uint16_t dlfo_on;                   /* bit l: lane l's LFO has a live slot (lane_play.c computes it) */
+static uint8_t dlp_l = 0xFFu;              /* the lane of the hit drum_on computed (dl_play_hit), 0xFF none */
+static const int8_t *dlp_p;                /* its offsets then (0: as the kit) */
+static void dl_play_hit(uint32_t l);       /* drum_on, the ISR: lane l's offsets for this hit (lane_play.c) */
+#define DL_PLAY_HIT(l) dl_play_hit(l)
+#else
+#define DL_PLAY_HIT(l) ((void)0)
+#endif
+/* the offsets lane l plays at this hit (0: none, the kit as it is) */
+static const int8_t *dl_ofs_play(uint32_t l)
+{
+#if DLA_ON || DLFO_ON
+    if (l == dlp_l)
+        return dlp_p;
+#endif
+    return dl_ofs(l);
+}
+static int32_t dl_tune_play(uint32_t l) { const int8_t *x = dl_ofs_play(l); return x ? x[DE_TUNE] : 0; }
 
 /* ---- synthesised sounds: the offsets on a copy of the kit's dsnd_t */
 #if FELUCCA_DRUM_EDIT
@@ -155,7 +205,7 @@ static struct {
 
 static void dl_smp_fx(uint32_t vi, uint32_t l)
 {
-    const int8_t *x = dl_ofs(l);
+    const int8_t *x = dl_ofs_play(l);
     dv.on[vi] = 0;
     if (!x)
         return;
@@ -169,7 +219,7 @@ static void dl_smp_fx(uint32_t vi, uint32_t l)
 static void dl_ds_on(dsv_t *s, uint32_t vi, const dkit_t *k, uint32_t note, uint32_t vel, uint32_t l)
 {
 #if FELUCCA_DRUM_EDIT
-    const int8_t *x = dl_ofs(l);
+    const int8_t *x = dl_ofs_play(l);
     if (x) {
         int32_t semi;
         de_synth(&dv.d[vi], &k->s[ds_lane(note, &semi)], x);
@@ -276,7 +326,7 @@ static void dl_usr_hit(uint32_t l, uint32_t usr, uint32_t note, uint32_t vel)
     }
     v->ph[2] = end;
     v->s[3] = FAR(sample_next)(zp, v, 0);
-    v->s[5] = (int32_t)((pow2_q16(dl_tune(l) * 16) >> 8) * (zp->rate >> 8));   /* at its own pitch */
+    v->s[5] = (int32_t)((pow2_q16(dl_tune_play(l) * 16) >> 8) * (zp->rate >> 8));   /* at its own pitch */
     drums.kit[vi] = 0;
     drums.synth[vi] = 0;
     drums.filter[vi] = 0;

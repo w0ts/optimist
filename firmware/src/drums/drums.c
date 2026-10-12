@@ -256,6 +256,7 @@ static void drum_on(uint32_t note, uint32_t vel)
         drums.hits |= (uint16_t)(1u << lane);
     if (note == 35u || note == 36u)
         drums.kick = 1;                             /* (DUCK) */
+    DL_PLAY_HIT(lane);                              /* (its automation and LFO for this hit: drum_edit.c dl_ofs_play) */
 #if DL_ANY
     kit = dl_kit_of(lane, kit);                     /* (the lane may play another kit's sound, a user sample) */
 #if FELUCCA_DRUM_USR
@@ -302,7 +303,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     v->s[0] = v->s[1] = v->s[2] = 0;
     v->s[3] = FAR(sample_next)(&SMP_ZONES[zi], v, 0);  /* (a hit: XIP calls the RAM code) */
     shift = kit == 1u ? (note <= 36u ? -5 : -2) : kit == 3u ? 2 : kit == 4u ? -1 : 0;
-    shift += dl_tune(lane);
+    shift += dl_tune_play(lane);
     v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 + shift * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
     drums.kit[vi] = (uint8_t)kit;
     drums.synth[vi] = 0;

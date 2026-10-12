@@ -582,6 +582,15 @@ pseudo-parameter CHANCE, an id past P_COUNT that is never a sound value, on drum
 chance bits (chance.c) stay readable, an event wins over them, and the new UI writes events only. The drum step gets
 chance with no format change.
 
+**A drum lane's value is an event too** (the user, 2026-10-12): on the drum track, the parameter **0x7C + (lane << 3 |
+value)** (0x7C..0xFB, seq/auto.h `AUTO_LANE`) is lane 0..15's TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL (drum_edit.c
+DE_*: a stored order), its value the lane's offset. A step-only one is the lane's lock on the step (it needs the lane's
+hit there; every hit of the lane during the step hears it), a hold one its motion. Both apply **at the hit** through an
+overlay (drum_edit.c `dla`, drums/lane_play.c): a sounding hit keeps what it started with, and the lane's own values
+(dl.ofs, what SAVE keeps) are never written. A build before them keeps the events and plays none; they never go into
+the old MOTN or stepx forms (a list with one is stored in the new forms), and a 2.4 export reports them lost (LANE
+MOTION NOT IN 2.4). The UIs' calls: seq/auto_lane.c.
+
 **Nudge and the fill condition are events too** [D]: the pseudo-parameters NUDGE (-32..31, in 1/64 of a step) and
 FILL (1 FILL ONLY, 2 NO FILL), step-only. One list then holds every per-step extra, and SLOOP 2.4's stepx record
 (seq/stepx.h, 176 B a track) is only the import / export form: its micro, lock and fill arrays become events on
