@@ -200,6 +200,31 @@ static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
     (void)auto_step_clear(t, idx, all ? AUTO_HOLDS | AUTO_ONLYS : AUTO_ONLYS);   /* (HOME: its motion too) */
 #endif
 }
+/* a synth step tapped off keeps its pitch, tapped on again it comes back at that pitch (the user, 2026-10-12: "click a
+ * step remove the note, clicking again add the note at the same pitch for that step"): the cleared step is a rest
+ * (silent, seq.c plays no rest) that keeps note[] and n; everything else of it goes as step_wipe says (IRQ off) */
+static void step_off_keep(track_t *t, uint32_t idx)
+{
+    step_t *s = &t->step[idx];
+    uint8_t nt[4], n = s->n;
+    memcpy(nt, s->note, sizeof nt);
+    step_wipe(t, idx, 0);
+    memcpy(s->note, nt, sizeof nt);
+    s->n = n;
+}
+static int step_kept(const track_t *t, uint32_t idx)     /* a rest that remembers a note */
+{
+    return !is_drum(t) && t->step[idx].time == ST_REST && t->step[idx].n;
+}
+static void step_back(track_t *t, uint32_t idx)          /* the remembered note again, as step_set makes one (IRQ off) */
+{
+    step_t *s = &t->step[idx];
+    if (t->p[P_VOICE] != V_POLY)
+        s->n = 1;
+    s->time = ST_NOTE;
+    s->vel = 100;
+    t->seq_active = 1;
+}
 static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it: the lane's hit, the note */
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
@@ -223,7 +248,9 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             undo_mark(t, st.sess);
             fm1_irq_off();
             if (step_has(t, idx))
-                step_wipe(t, idx, 0);
+                is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
+            else if (step_kept(t, idx))
+                step_back(t, idx);                      /* (the pitch it had) */
             else
                 step_set(t, idx);
             fm1_irq_on();

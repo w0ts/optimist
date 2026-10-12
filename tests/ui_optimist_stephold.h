@@ -93,3 +93,27 @@ static void step_hold_tests(void)
 #endif
     reset_ui();
 }
+/* a synth step tapped off keeps its pitch; tapped on again it comes back at that pitch, not the pick's (the user,
+ * 2026-10-12: "click a step remove the note, clicking again add the note at the same pitch for that step") */
+static void step_pitch_tests(void)
+{
+    uint8_t n0;
+    sh_open(0);
+    song.octave = 0;
+    key(WK(3));
+    n0 = TSEL->step[3].note[0];
+    TSEL->step[3].note[0] = (uint8_t)(n0 + 5u);         /* (the note moved, as a turn of its NOTE card would) */
+    key(WK(3));
+    check(!sh_on(3) && TSEL->step[3].time == ST_REST, "step pitch: a set step tapped: off (a rest, silent)");
+    song.octave = 1;                                    /* (the pick elsewhere meanwhile) */
+    key(WK(3));
+    check(sh_on(3) && TSEL->step[3].note[0] == n0 + 5u, "step pitch: ... tapped again: back at the pitch it had, not the pick's");
+    song.octave = 0;
+    key(WK(4));
+    check(sh_on(4) && TSEL->step[4].note[0] == n0, "step pitch: a step never set: the pick, as before");
+    press(B_HOME);
+    key(WK(3));
+    release(B_HOME);
+    key(WK(3));
+    check(sh_on(3) && TSEL->step[3].note[0] == n0, "step pitch: HOME + the step (cleared, everything): a tap after it takes the pick");
+}

@@ -355,6 +355,11 @@ several for a chord) become what the next tapped steps carry. Letting SEQ go kee
 (today's rule: "the sound shown / the note you played last"); a set step tapped is cleared; a held step is edited
 and kept, several held together (as today).
 
+**A synth step remembers its pitch** (2026-10-12, the user: "click a step remove the note, clicking again add the note
+at the same pitch for that step"): a set step tapped off becomes a rest that keeps its notes (silent; saved with the
+project, as any non-empty step), and tapped on again it comes back at those notes, not the pick's; a step never set,
+or cleared whole with HOME + it, takes the pick as before (`step_off_keep`, `step_back`). The drum lanes are unchanged.
+
 **Only a tap toggles a step** (2026-10-11, the user: "long press on step to open plock, should not toggle the step
 on/off"). The toggle happens **when the key is let go**, and only if it was let go before the hold time (SYSTEM HOLD,
 `op_hold_ms`) with nothing done meanwhile: a knob turned (a value, a lock, PRESETS, SELECT paging the cards) or a page
