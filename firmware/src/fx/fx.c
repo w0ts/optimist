@@ -601,17 +601,14 @@ AINL void room_skip(uint32_t n)                          /* idle: the indices mo
     fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
 }
 #endif
-/* every built tank's cells and filters to 0 (the bus then idle): the shared line, the ROOM's diffusers and
- * low-passes, PLATE / FDN8's low-passes */
-static void rev_tank_clear(void)
+/* every built tank's cells and filters but the shared line to 0: the ROOM's diffusers and low-passes, PLATE / FDN8's
+ * low-passes and allpasses, AIRWIN's */
+static void rev_cells_clear(void)
 {
     uint32_t i;
 #if REV_ALT
-    rv_clear();
+    rv_cells_clear();
     rva_clear();
-#else
-    for (i = 0; i < sizeof rev_line / 2u; i++)
-        rev_line[i] = 0;
 #endif
 #if FELUCCA_REV_ROOM
     for (i = 0; i < sizeof rev_ap / 2u; i++)
@@ -620,6 +617,14 @@ static void rev_tank_clear(void)
         fx.line_lp[i] = 0;
 #endif
     (void)i;
+}
+/* every built tank's cells and filters to 0 (the bus then idle): the shared line and the rest */
+static void rev_tank_clear(void)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof rev_line / 2u; i++)
+        rev_line[i] = 0;
+    rev_cells_clear();
 }
 
 #if REV_TANK_HALF
@@ -908,6 +913,63 @@ REV_BUS_FN void rev_bus(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_
 #endif
 }
 
+#if FELUCCA_CPU_GUARD && FELUCCA_FX_REVERB
+/* The CPU guard's REVERB level (cpuguard.h CG_L_REVERB; docs/CPU-GUARD.md). An overloaded half is late, and a late
+ * half clicks: with the reverb on, the tank alone costs about as much as the rest of an idle mix (FDN8 at SIZE 124
+ * in the emulator at 96 MHz: 584 -> 1524 us a half), and a tail sounds on with nothing left to shed. From this level
+ * on the bus' wet fades out over one half (REV_GFADE blocks, as the TYPE change), then the bus is off: its send not
+ * heard, its tank not run; the line is cleared a chunk a block (REV_GCHUNK samples, from XIP: no 16 or 32 KB clear in
+ * one half of an overloaded interrupt), then its filters. When the level comes off (the load the reverb saved fits
+ * again: cpuguard.c, its gain) the send comes back into a silent tank, its tail building up anew. rev_live: what the
+ * bus runs, or would, now (cpuguard.c cg_useful) */
+#define CG_REV 1
+#define REV_GFADE (HALF_FRAMES / CTL)
+#define REV_GCHUNK 512u
+_Static_assert(REV_GFADE * CTL == 256u, "the guard's fade: a shift");
+enum { RG_ON, RG_FADE, RG_CLEAR, RG_OFF };
+static struct {
+    uint8_t st;                  /* RG_*: on, fading out, off while the line is cleared, off */
+    uint8_t fade;                /* the fade's blocks left */
+    uint32_t clr;                /* the line cleared up to here (RG_CLEAR) */
+} rgd;
+static volatile uint8_t rev_live;
+static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while RG_CLEAR) */
+{
+    uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = sizeof rev_line / 2u;
+    e = e < len ? e : len;
+    for (; i < e; i++)
+        rev_line[i] = 0;
+    rgd.clr = e;
+    if (e < len)
+        return;
+    rev_cells_clear();
+#if REV_TANK_HALF
+    rev_half_clear();
+#endif
+#if FELUCCA_SPRING
+    spring_clear();
+#endif
+    fx.rev_q = FX_Q_MAX;                                /* (idle: every cell 0) */
+    rgd.st = RG_OFF;
+}
+/* a block's start: the state from the level (cpuguard.h) and what the bus would run -> RG_* for this block. Not
+ * before the line is clear does the bus come back on */
+AINL uint32_t rev_guard(int run)
+{
+    rev_live = (uint8_t)run;
+    if (CG_LEVEL >= CG_L_REVERB) {
+        if (rgd.st == RG_ON) {                          /* (an idle tank: every cell 0 already, nothing to clear) */
+            rgd.st = run ? RG_FADE : RG_OFF;
+            rgd.fade = REV_GFADE;
+        }
+    } else if (rgd.st == RG_OFF) {
+        rgd.st = RG_ON;
+    }
+    return rgd.st;
+}
+#else
+#define CG_REV 0
+#endif
 #if FELUCCA_UI == 1
 /* the mixer's MASTER page (op_mixdraw.c): the FX returns' levels, CHO DLY REV. One sample of each return a block (its
  * last: the chorus' right, the delay's, the reverb's right as what it added to wet_r), the largest |value| kept, never
@@ -938,6 +1000,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
+#if CG_REV
+    uint32_t rg;
+#endif
 #if FELUCCA_UI == 1
     yr = x = 0;                                         /* (the returns' tap: a bus idle reads 0) */
 #endif
@@ -964,6 +1029,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
                                   REV_HALF_BUSY() || fx_any(rev_in, n));   /* (REV_HALF: its filters too) */
+#if CG_REV
+    rg = rev_guard(run_r);
+    run_r = rg == RG_ON || rg == RG_FADE ? run_r : 0;   /* (off: no tank run, the wet not written by the bus) */
+#endif
 #define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r))   /* (SPRING: its own state) */
     if (run_c) {
         for (i = 0; i < n; i++) {
@@ -986,7 +1055,37 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     } else {
         fx.dly_w += n;
     }
+#if CG_REV
+    {   /* the guard (rev_guard): fading, the tank's block into tl / tr, then added going down; off, no tank */
+        int32_t tl[CTL], tr[CTL], *dl = wet_l, *dr = wet_r;
+        if (rg == RG_FADE) {
+            for (i = 0; i < n; i++)
+                tl[i] = tr[i] = 0;
+            dl = tl, dr = tr;
+        }
+        if (rg == RG_ON || rg == RG_FADE)
+            rev_bus(rev_in, dl, dr, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+        if (rg == RG_FADE) {
+            uint32_t f = rgd.fade;
+            for (i = 0; i < n; i++) {
+                uint32_t gg = ((f << CTL_LOG2) - i) << 8;   /* 65536 .. 256 over the REV_GFADE x CTL samples */
+                wet_l[i] += mulq16(tl[i], gg);
+                wet_r[i] += mulq16(tr[i], gg);
+            }
+            if (--rgd.fade == 0) {
+                rgd.st = RG_CLEAR;
+                rgd.clr = 0;
+            }
+            wv = 1;                                     /* (the line holds the tail until it is cleared) */
+        } else if (rg != RG_ON) {
+            if (rg == RG_CLEAR)
+                FAR(rev_gclear)();
+            wv = 0;
+        }
+    }
+#else
     rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+#endif
 #if FELUCCA_UI == 1
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
         fx_ret_tap(yr, x, wet_r[n - 1u]);
