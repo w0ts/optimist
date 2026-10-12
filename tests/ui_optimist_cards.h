@@ -134,6 +134,7 @@ static void cards_tests(void)
         bp23_from_word(w);
     }
     fuzz(3000, 777);                                    /* random use: every draw on the screen */
+    tracks_default();                                   /* (what the random run changed goes: the tests after start alike) */
     check(1, "3000 frames of random use with the 2x2 cards: every draw on the screen");
     reset_ui();
 }

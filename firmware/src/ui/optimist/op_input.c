@@ -21,22 +21,15 @@ static void op_rows_fix(void)                          /* the cursor inside the 
     if (ui.scr == SCR_SOUND && snd_fam != SND_ALL)
         snd_family(snd_fam);                            /* (another track: the family may have no rows there) */
     n = SCR->rows();
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && ui.row[SCR_STEP] >= STP_LANE0)
-        ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + lane_selected());   /* (a lane page follows the lane picked) */
     if (ui.row[ui.scr] >= n)
         ui.row[ui.scr] = (uint8_t)(n ? n - 1u : 0u);
 }
 static void op_row_pick(uint32_t r)
 {
-    if (!(ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0 && ui.row[SCR_STEP] >= STP_LANE0))
-        step_cards_show();                              /* (STEP: a page change shows the cards; from a lane page to another
-                                                         * lane's, the lane switched, none: the header names it, the user
-                                                         * 2026-10-10) */
+    step_cards_show();                                  /* (STEP: a page change shows the cards) */
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0)
-        lane_pick(r - STP_LANE0);                       /* (SELECT on STEP's lane pages: the lane encoder) */
     ui.hot = 0;                                         /* (the SOUND row: PRESETS is the preset again) */
     ui.hot_lit = 0;
     op_disarm();                                        /* (the question was about the other row) */

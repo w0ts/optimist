@@ -485,3 +485,44 @@ static void pages_head_tests(void)
     }
     reset_ui();
 }
+
+/* SELECT is the page of the four knobs, ALGORITHM the track or the lane (the user, 2026-10-12: "in step seq: select should
+ * always select the page for the 4 knobs, and algo always the track/drum sub track"), on every page but the mixer */
+static void pages_select_tests(void)
+{
+    uint32_t i, ok = 1;
+    cell_t c;
+    reset_ui();
+    song.sel = TRK_DRUM;
+    ui.lane = 1;
+    lane_select(3);
+    frame();
+    tap(B_SEQ);
+    for (i = 0; i < 6u; i++) {
+        turn(EN_SELECT, i & 1u ? -1 : 1);
+        ok &= lane_selected() == 3u && ui.lane == 1u;
+    }
+    check(ok && SCR->rows() == STP_LANE0 + 1u, "rule: SELECT on the drum STEP pages PATTERN / LANE, never ui.lane or the lane");
+    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
+    turn(EN_ALGO, 1);
+    check(lane_selected() == 4u && ui.lane == 1u && ui.row[SCR_STEP] == STP_LANE0, "rule: ALGORITHM on the drum STEP: the next lane");
+    turn(EN_ALGO, -5);
+    check(lane_selected() == 4u && ui.lane == 0u, "rule: ALGORITHM back past the first lane: DR itself (ui.lane 0)");
+    tap(B_HOME);
+    ui.lane = 1;
+    lane_select(3);
+    tap(B_EDIT);                                        /* the drum SOUND row: KIT, LANE (a read-out) */
+    SCR->cell(0, 1, &c);
+    turn(EN_K2, 2);
+    check(c.kind == CK_RO && !strcmp(c.label, "LANE") && lane_selected() == 3u, "rule: the drum SOUND row's LANE is a read-out; KNOB 2 leaves the lane");
+    ok = 1;
+    for (i = 0; i < 5u; i++) {
+        turn(EN_SELECT, 1);
+        ok &= lane_selected() == 3u;
+    }
+    check(ok, "rule: SELECT on the drum SOUND pages: the pages, never the lane");
+    song.sel = 0;
+    lane_select(0);
+    ui.lane = 0;
+    reset_ui();
+}

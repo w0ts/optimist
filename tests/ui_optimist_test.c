@@ -828,7 +828,7 @@ static void step_keys_tests(void)
     {
         cell_t c;
         step_cell(0, 2, &c);
-        check(SCR->rows() == STP_LANE0 + DRUM_LANES && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        check(SCR->rows() == STP_LANE0 + 1u && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
         ui.force = 1;
         frame();
         ppm("opt-step-drum-held");
@@ -853,7 +853,7 @@ static void step_keys_tests(void)
     seq_long();
     check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
     turn(EN_SELECT, 9);
-    check(lane_selected() == 8 && ui.row[SCR_STEP] == STP_LANE0 + 8u, "drums, no step held: SELECT walks PATTERN, then the lanes (lane 9)");
+    check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_LANE0, "drums, no step held: SELECT walks PATTERN, then LANE (the lane stays 8)");
     {
         cell_t c;
         step_cell(ui.row[SCR_STEP], 0, &c);
@@ -876,7 +876,7 @@ static void step_keys_tests(void)
         frame();
         ppm("opt-step-window");
         key(WK(0));
-        check(dstep_has(&t->dstep[16], 8), "the window 17-32: the first key is step 17");
+        check(dstep_has(&t->dstep[16], lane_selected()), "the window 17-32: the first key is step 17");
         press(B_HOME);
         press(B_OCTUP);
         release(B_OCTUP);
@@ -2345,6 +2345,7 @@ int main(int argc, char **argv)
     pages_master_tests();
     pages_keys_tests();
     pages_head_tests();
+    pages_select_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

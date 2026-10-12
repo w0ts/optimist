@@ -216,7 +216,7 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         if (k > 1u)
             return;
         c->label = L[k];
-        c->kind = CK_VAL;
+        c->kind = k ? CK_RO : CK_VAL;                   /* (LANE: the selected lane, ALGORITHM's or HOME + a key's) */
         str_cpy(c->val, k ? LANE_NAME[lane_selected()] : drum_kit_name(), sizeof c->val);
         c->col = k ? lane_col(lane_selected()) : kit_col();
         cell_gauge(c, 1, 0, k ? DRUM_LANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
@@ -260,10 +260,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     if (k == 0u) {
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
-    } else if (k == 1u && is_drum(TSEL)) {
-        lane_select((uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1));
-        ui.lane = 1;                                    /* (a lane selected: PRESETS its sound) */
-    } else if (k == 1u) {
+    } else if (k == 1u && !is_drum(TSEL)) {
         uint32_t e = TSEL->eng_req;
         do                                              /* (stepping over the numbers kept free: engines.c) */
             e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
