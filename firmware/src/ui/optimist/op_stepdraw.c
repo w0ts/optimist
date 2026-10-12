@@ -289,10 +289,11 @@ static void sg_marks(const track_t *t)
 {
     const auto_list_t *l = AL(t);
     uint32_t i, j, len = trk_len(t), lo = st.page * 16u, hi = lo + 16u;
-    uint16_t c = is_drum(t) ? lane_col(lane_selected()) : trk_col(song.sel);
+    uint16_t c0 = is_drum(t) ? lane_col(lane_selected()) : trk_col(song.sel);
     for (i = 0; i < l->n; i++) {
         const auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP, nx = len, a, b;
+        uint16_t c = AUTO_IS_LANE(e->param) ? lane_col(AUTO_LANE_L(e->param)) : c0;   /* (a lane's event: its colour, D9) */
         if (s >= len)
             continue;
         if (!(e->place & AUTO_ONLY)) {

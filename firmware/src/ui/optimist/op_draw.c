@@ -314,6 +314,17 @@ static void draw_head(void)
 }
 
 /* ---- the cards: label, value and unit, the value's form under them */
+/* the actual value's bar (op_effval.c: the user, 2026-10-12, "one number, two bars"): 2 px, white (amber on the hot
+ * card, whose entered bar is white), no trough; in a 1x4 card under the entered bar (both 2 px), in a big card 3 px
+ * over it (below the digits' foot) */
+#define EFFV_Y1 41                      /* a 1x4 card's: y (the entered bar at 37) */
+#define EFFV_Y2 (BIG_H - 6)             /* a big card's, from its top */
+static void effv_bar(int32_t x, int32_t y, int32_t w, const cell_t *c, uint32_t hot)
+{
+    cell_t a = *c;
+    a.gk = c->ak, a.gmin = c->amin, a.gmax = c->amax, a.gv = c->av;
+    draw_gauge(x, y, w, 2, &a, hot ? C_AMB : C_WHITE, OP_SURF);
+}
 static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
     char b[16];
@@ -346,7 +357,12 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     vx = cv_text(x + 3, 20, &FONT_S, cut(b, c->val, 6), vc);
     if (c->unit[0] && vx + text_w(&FONT_S, c->unit) <= x + CARD_W - 1)
         cv_text(vx, 20, &FONT_S, c->unit, C_DIM);
-    draw_gauge(x + 4, 38, CARD_W - 8, 4, c, vc, C_LINE);
+    if (c->ak) {                                        /* two bars: entered, then the actual value (op_effval.c) */
+        draw_gauge(x + 4, EFFV_Y1 - 4, CARD_W - 8, 2, c, vc, C_LINE);
+        effv_bar(x + 4, EFFV_Y1, CARD_W - 8, c, hot);
+    } else {
+        draw_gauge(x + 4, 38, CARD_W - 8, 4, c, vc, C_LINE);
+    }
 }
 /* the cards 2x2 (the user, 2026-10-08; SLOOP 2.4's big values, ui/sloop/ui_draw.c graph_big's layout, copied): value k
  * in large type in a 2 x 2 block placed as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom
@@ -392,6 +408,8 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     else
         cv_text(x + 5, y + 20, &FONT_S, cut(b, c->val, 13), vc);
     draw_gauge(x + 5, y + BIG_H - 3, BIG_W - 10, 2, c, vc, C_LINE);
+    if (c->ak)                                          /* the actual value's bar, over the entered one (op_effval.c) */
+        effv_bar(x + 5, y + EFFV_Y2, BIG_W - 10, c, hot);
 }
 /* the cards' band: the four cells c, hot the one white (4: none), 2x2 but on the mixer (op_layers.c cards_2x2) */
 static void draw_card_band(const cell_t *c, uint32_t hot)
@@ -406,23 +424,70 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
     }
     cv_blit(0, OY_CARD);
 }
+/* the actual values' bars (op_effval.c): computed every frame for the four cards shown; the band is drawn again only when
+ * what it shows besides them changes (a bar appearing or going is such a change), a moving bar alone is its own 2 px
+ * strip, at most every EFFV_MS (~30 Hz). A bar whose value comes back to the entered one stays EFFV_LINGER_MS, so an LFO
+ * crossing it does not make the band blink */
+#define EFFV_MS 33u
+#define EFFV_LINGER_MS 400u
+static struct {
+    int16_t *vp[4];                                     /* the value whose bar shows (the cell's) */
+    uint32_t t_on[4];                                   /* when it last differed (fm1_ms) */
+    int16_t av[4];                                      /* the bars as drawn */
+    uint32_t t;                                         /* the last strips drawn */
+} ev;
+static void effv_take(uint32_t k, cell_t *c)
+{
+    uint32_t r = effv_cell(c);
+    if (r == 1u)
+        ev.t_on[k] = fm1_ms, ev.vp[k] = c->vp;
+    else if (r == 2u && !(ev.vp[k] == c->vp && fm1_ms - ev.t_on[k] < EFFV_LINGER_MS))
+        c->ak = GK_NONE;
+    if (!r)
+        ev.vp[k] = 0;
+}
+static void effv_strips(const cell_t *c, uint32_t hot)
+{
+    uint32_t k;
+    if (fm1_ms - ev.t < EFFV_MS)
+        return;
+    for (k = 0; k < 4u; k++) {
+        int32_t x = CARD_X(k) + 4, y = EFFV_Y1, w = CARD_W - 8;
+        if (!c[k].ak || c[k].av == ev.av[k])
+            continue;
+        if (cards_2x2())
+            x = (k & 1u ? 121 : 3) + 5, y = (k & 2u ? BIG_H + 1 : 0) + EFFV_Y2, w = BIG_W - 10;
+        cv_begin((uint32_t)w, 2, OP_SURF);
+        effv_bar(0, 0, w, &c[k], k == hot);
+        cv_blit((uint32_t)x, (uint32_t)(OY_CARD + y));
+        ev.av[k] = c[k].av;
+    }
+    ev.t = fm1_ms;
+}
 static void draw_cards(void)
 {
     static cell_t snap[4];                              /* the cells last drawn (STEP: what a step let go still shows) */
     cell_t c[4];
     uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), cards_2x2() + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
-        if (cards_snap_use && ui.scr == SCR_STEP)       /* (the snapshot is STEP's only: elsewhere a page's own cells) */
+        if (cards_snap_use && ui.scr == SCR_STEP) {     /* (the snapshot is STEP's only: elsewhere a page's own cells) */
             c[k] = snap[k];
-        else
+        } else {
             SCR->cell(ui.row[ui.scr], k, &c[k]);
+            effv_take(k, &c[k]);                        /* (right after the cell: a lane value's dsv is the cell's) */
+        }
         snap[k] = c[k];
-        sig = hc(sig, &c[k]);
+        sig = hu(hc(sig, &c[k]), (c[k].ak | (uint32_t)(uint16_t)c[k].amin << 4) ^ (uint32_t)(uint16_t)c[k].amax << 16);
     }
-    if (sig == ui.sig[1])
+    if (sig == ui.sig[1]) {
+        effv_strips(c, ui.hot_lit ? ui.hot : 4u);
         return;
+    }
     ui.sig[1] = sig;
     draw_card_band(c, ui.hot_lit ? ui.hot : 4u);
+    for (k = 0; k < 4u; k++)
+        ev.av[k] = c[k].av;
+    ev.t = fm1_ms;
 }
 
 /* ---- the panel: the rows, each value a number over its form; SOUND: the cursor row's graph on top */
@@ -543,7 +608,7 @@ static void draw_list(void)
         first = cur - shown / 2u;
     if (first + shown > n)
         first = n > shown ? n - shown : 0u;
-    sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(gp - PAGES));
+    sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(uintptr_t)gp);
     for (i = first; i < n && i < first + shown; i++) {
         SCR->name(i, nm);
         sig = hs(sig, nm);
