@@ -40,6 +40,7 @@
 #include "op_screens.c"
 #include "op_mixer.c"
 #include "op_step.c"
+#include "op_effval.c"
 #include "op_layers.c"
 #include "op_tempo.c"
 #include "op_walk.c"

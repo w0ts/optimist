@@ -246,6 +246,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         return &GP[mx_ret_id(m->id)];
     case MI_LANE:
         d = dsnd_desc_lane(r - MXR_LANE0, m->id, vp);
+        if (d)
+            dsv_rec(r - MXR_LANE0, m->id);              /* (recording: the hold the knob goes on from) */
         return d && !PARAM_HIDDEN(d) ? d : 0;
     case MI_INST:                                       /* (an index into fx_slots.c ins_list: mix_turn loads it) */
         return ins_desc(mx_trk_of(r), m->id, vp);
@@ -335,7 +337,7 @@ static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value 
 {
     if (id >= 16u)
         dsend_set(l, id - 16u, v);
-    else if (id < DE_N)
+    else if (id < DE_N && !lane_value_rec(l % DRUM_LANES, id, v))   /* (REC playing: the row's lane's motion, D12) */
         dl.ofs[l % DRUM_LANES][id] = (int8_t)v;
 }
 static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)

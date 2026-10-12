@@ -155,10 +155,19 @@ static void graph_lfo(uint16_t col)
 {
     track_t *t = TSEL;
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
-    uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25;
+    uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[P_LWAVE];
+#if LANE_LFO_UI
+    const dlfo_t *dc = is_drum(t) ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
+    if (dc)
+        ph = (uint32_t)dc->phase << 25, w = dc->wave;
+#endif
     for (x = 0; x < 240; x++) {
         int32_t y = mid - lfo_wave(t, ph + (uint32_t)x * (0xFFFFFFFFu / 120u)) * amp / 32768;
-        if (t->p[P_LWAVE] == 4)
+#if LANE_LFO_UI
+        if (dc)
+            y = mid - lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0) * amp / 32768;
+#endif
+        if (w == 4)
             y = mid - ((int32_t)((x / 20 * 2654435761u) >> 16) - 32768) * amp / 32768;
         if (x)
             cv_line(x - 1, py, x, y, col);
@@ -476,6 +485,7 @@ static uint32_t graph_sig(void)
     h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
     for (i = 0; i < DE_N; i++)
         h = h * 31u + (uint8_t)dl.ofs[lane_selected()][i];
+    h = h * 31u + dlfo_get(lane_selected())->wave * 128u + dlfo_get(lane_selected())->phase;   /* (a lane's LFO wave) */
     return h;
 }
 static void draw_sound_graph(const page_t *pg)

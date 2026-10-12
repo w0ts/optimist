@@ -306,6 +306,79 @@ static void t_stores(void)
     rets(127, 127, 127);
 }
 
+
+/* ---- long runs (2026-10-12, the user's FM-1: "once after some time the reverb stops producing any sound"): ten
+ * minutes of blocks with the reverb sent all along, REV RET to 0 and back (and to a half) now and then, and in a
+ * FELUCCA_CPU_GUARD build the guard's REVERB level held for 2 s now and then (as cpuguard.c would): whenever the return
+ * is up and the level off, the reverb must be heard again within 1 s, and never silent longer */
+static void t_longrun(void)
+{
+    pid_t c = fork();
+    if (c == 0) {
+        static int32_t s[CTL], z[CTL], wl[CTL], wr[CTL];
+        const uint32_t BPS = FS / CTL, NBL = 600u * BPS;   /* blocks a second, ten minutes */
+        uint32_t b, i, rnd = 99u, gate = 0, quiet = 0, longest = 0, toggles = 0, guards = 0, fails = 0;
+        uint32_t ret_until = 0, guard_until = 0;
+        host_tracks_init();
+        song.g[G_RRET] = 127;
+        for (b = 0; b < NBL; b++) {
+            int on;
+            if (b % (17u * BPS) == 5u * BPS && b) {       /* every 17 s: REV RET 0 for 1 s (or a half for 1 s) */
+                song.g[G_RRET] = (int16_t)(toggles & 1u ? 64 : 0);
+                ret_until = b + BPS;
+                toggles++;
+            }
+            if (ret_until && b == ret_until) {
+                song.g[G_RRET] = 127;
+                ret_until = 0;
+            }
+#if FELUCCA_CPU_GUARD
+            if (b % (23u * BPS) == 11u * BPS && b) {      /* every 23 s: the guard's REVERB level for 2 s */
+                cg.level = CG_L_REVERB;
+                guard_until = b + 2u * BPS;
+                guards++;
+            }
+            if (guard_until && b == guard_until) {
+                cg.level = CG_L_OFF;
+                guard_until = 0;
+            }
+#endif
+            for (i = 0; i < CTL; i++) {
+                rnd = rnd * 1664525u + 1013904223u;
+                s[i] = ((int32_t)(rnd >> 16) - 32768) >> 2;
+                z[i] = 0;
+            }
+            if (!fx_buses(z, z, s, wl, wr, CTL))
+                memset(wl, 0, sizeof wl), memset(wr, 0, sizeof wr);
+            on = 0;
+            for (i = 0; i < CTL; i++)
+                on |= wl[i] | wr[i];
+            if (song.g[G_RRET] && !guard_until && !ret_until) {
+                gate++;
+                quiet = on ? 0 : quiet + 1;
+                longest = quiet > longest ? quiet : longest;
+                if (quiet == BPS) {
+                    printf("fx_returns: the reverb silent 1 s at block %u (REV RET %d, rg %u)\n", b, song.g[G_RRET],
+                           rgd.st);
+                    fails++;
+                }
+            } else {
+                quiet = 0;
+            }
+        }
+        printf("fx_returns: long run: %u blocks, %u REV RET changes, %u guard levels, the longest silence with the "
+               "return up and the guard off %u blocks\n", NBL, toggles, guards, longest);
+        fflush(stdout);
+        _exit(fails || !gate || toggles < 30u ? 1 : 0);
+    }
+    {
+        int st = 0;
+        waitpid(c, &st, 0);
+        check("long run: the reverb heard again within 1 s after every REV RET 0 -> up and guard level, never silent "
+              "longer", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+    }
+}
+
 int main(void)
 {
     R = mmap(0, sizeof *R, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
@@ -314,6 +387,7 @@ int main(void)
     t_audio();
     t_record();
     t_stores();
+    t_longrun();
     printf(bad ? "fx_returns: %d FAILED\n" : "fx_returns: all ok\n", bad);
     return bad != 0;
 }

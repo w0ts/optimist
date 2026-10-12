@@ -27,8 +27,10 @@
 #include "cpuguard_costs.h"
 #if CG_REV
 #define REV_LIVE() ((int)rev_live)
+#define REV_ON() (rgd.st == RG_ON)
 #else
 #define REV_LIVE() 0
+#define REV_ON() 0
 #endif
 
 #define CG_CEIL 218u                     /* 85 % of a half, 1/256 */
@@ -232,7 +234,8 @@ static void cg_step(void)
     cg.under = 0;
     cg.steps++;
     cg.gpend = cg.level < CG_TOP ? cg.level : 0u;   /* (the top sheds: nothing comes back when it comes off) */
-    cg.gpre = cg.meas;
+    cg.smeas = cg.meas;
+    cg.gpre = cg.avg;                   /* (the load before: a spike's own half would make the level stay for ever) */
     cg.gn = 0;
     cg.gsum = 0;
     if (cg.level == CG_L_UNISON)         /* UNISON parts: their voices past the second fade out now */
@@ -258,7 +261,7 @@ static CG_FAR void cg_pre(void)
     pred = (int32_t)cg.meas + (int32_t)e - (int32_t)cg.model;
     pred = pred < 0 ? 0 : pred < 0xFFFF ? pred : 0xFFFF;
     cg.model = (uint16_t)(e < 0xFFFFu ? e : 0xFFFFu);
-    if (pred >= (int32_t)CG_FULL && cg.meas > CG_CEIL && !(cg.gpend && !cg.gn)) {   /* predicted late after a half
+    if (pred >= (int32_t)CG_FULL && cg.meas > CG_CEIL && cg.meas < CG_FULL && !(cg.gpend && !cg.gn)) {   /* predicted late after a half
                                           * over the ceiling (the model alone counts the voices of a half that started
                                           * them twice): before it renders, a step; at the top voices fade out. Not in
                                           * the half right after a step (gpend, none measured since: what the step
@@ -304,15 +307,16 @@ static volatile uint32_t cg_trace[1024] __attribute__((section(".pool")));   /* 
 /* audio ISR, a half's end: it took us microseconds */
 static CG_FAR void cg_post(uint32_t us)
 {
-    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est;
+    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est, prev = cg.meas, c;
     m = m < 0xFFFFu ? m : 0xFFFFu;
     load = load < 0xFFFFu ? load : 0xFFFFu;
+    c = m < CG_FULL ? m : CG_FULL;
     cg.meas = (uint16_t)m;
     cg.load = (uint16_t)load;
     CG_BENCH(m);
     if (cg.gpend) {                      /* what the last step saved: the measured load before it less the next
                                           * halves' */
-        cg.gsum += m;
+        cg.gsum += c;
         if (++cg.gn >= CG_HOLD) {
             uint32_t after = cg.gsum / CG_HOLD;
             cg.gain[cg.gpend] = (uint8_t)(cg.gpre > after ? (cg.gpre - after < 255u ? cg.gpre - after : 255u) : 0u);
@@ -324,20 +328,25 @@ static CG_FAR void cg_post(uint32_t us)
         if (cg.level >= CG_TOP) {
             cg.over = 0;
             cg.shed = m > CG_CEIL;       /* (as audio.c: a half over 85 % sheds one voice before the next) */
-        } else if (m >= CG_FULL || ++cg.over >= CG_HOLD) {
+        } else if ((m >= CG_FULL && prev > CG_CEIL) || ++cg.over >= CG_HOLD) {   /* (a late half after one over
+                                          * the ceiling; a lone late half, a flash write or another interrupt's
+                                          * burst, is not a load: as audio.c FELUCCA_SHED_FADE) */
             cg_step();
         }
-        return;
-    }
-    cg.over = 0;
-    if (cg.level && load + cg.gain[cg.level] < CG_REL) {
-        if (++cg.under >= CG_RELEASE) {  /* one level off, and the ones under it with nothing to ease now */
-            do
-                cg.level--;
-            while (cg.level && !cg_useful(cg.level));
+    } else {
+        cg.over = 0;
+        if (cg.level && load + cg.gain[cg.level] < CG_REL) {
+            if (++cg.under >= CG_RELEASE) {   /* one level off, and the ones under it with nothing to ease now; the
+                                          * reverb's level only if the reverb is off already (on the way down it
+                                          * would turn it off, though it was not what had to go) */
+                do
+                    cg.level--;
+                while (cg.level && (!cg_useful(cg.level) || (cg.level == CG_L_REVERB && REV_ON())));
+                cg.under = 0;
+            }
+        } else {
             cg.under = 0;
         }
-    } else {
-        cg.under = 0;
     }
+    cg.avg = (uint16_t)((cg.avg * 7u + c + 4u) >> 3);   /* (after the step: its load before is the one before) */
 }

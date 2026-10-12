@@ -181,7 +181,7 @@ static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_ED
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
 {
-    return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? &PAGES[snd_ix[(r - snd_first()) % OP_MAXROWS]] : 0;
+    return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? op_pg(snd_ix[(r - snd_first()) % OP_MAXROWS]) : 0;
 }
 static void snd_name_row(uint32_t r, char *b)
 {
