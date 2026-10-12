@@ -178,16 +178,14 @@ static void mixer_sets_tests(void)
     check(mx_set(MXR_T1) == last, "SELECT stops at the last set");
     turn(EN_SELECT, -20);
     check(mx_set(MXR_T1) == 0u, "... and at the first");
-    tap(B_GLO);
-    check(ui.scr == SCR_HOME && mx_set(MXR_T1) == 1u, "GLO tapped on the mixer: the next set");
     for (n = 0; n < mx_sets(MXR_T1) && mx_set(MXR_T1) != last; n++)
-        tap(B_GLO);
-    check(mx_set(MXR_T1) == last, "GLO again and again: up to the last set");
+        turn(EN_SELECT, 1);
+    check(mx_set(MXR_T1) == last && n + 1u == mx_sets(MXR_T1), "SELECT alone walks every knob set (2026-10-12: GLO tapped no longer does)");
+    turn(EN_SELECT, -20);
     tap(B_GLO);
-    check(mx_set(MXR_T1) == 0u, "... past the last: the first set again (a button again wraps)");
-    op_enter(SCR_SOUND);
-    tap(B_GLO);
-    check(ui.scr == SCR_HOME, "GLO tapped elsewhere: the mixer");
+    check(ui.scr == SCR_GLOBAL && mx_set(MXR_T1) == 0u, "GLO tapped on the mixer: GLOBAL, the mixer's set untouched");
+    tap(B_HOME);
+    check(ui.scr == SCR_HOME, "... HOME tapped: back to the mixer");
     mx.set = 0;
     {   /* the knobs on the selected row */
         int16_t lv;

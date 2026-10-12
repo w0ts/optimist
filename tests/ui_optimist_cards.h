@@ -79,15 +79,15 @@ static void cards_tests(void)
     frame();
     check(cards_screen_ok(SCR_TEMPO, "tempo"), "cards 2x2: TEMPO");
     {
-        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_SCOPE};
+        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_SCOPE, SCR_GLOBAL};
         uint32_t i, ok = 1;
         for (i = 0; i < sizeof S; i++) {
             reset_ui();
             op_enter(S[i]);
             frame();
-            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : 0);
+            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : S[i] == SCR_GLOBAL ? "global" : 0);
         }
-        check(ok, "cards 2x2: SONG, FX, PROJECT, SYSTEM, SCOPE");
+        check(ok, "cards 2x2: SONG, FX, PROJECT, SYSTEM, SCOPE, GLOBAL");
     }
     reset_ui();
     op_enter(SCR_SOUND);

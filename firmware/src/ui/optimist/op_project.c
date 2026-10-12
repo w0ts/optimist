@@ -438,12 +438,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
-    {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
-              SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
-#if FELUCCA_MIDI_CLKOUT
-    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
-#endif
-    {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
@@ -453,16 +447,26 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CPU", {SI_CPU, SI_MHZ, SI_NONE, SI_NONE}},
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
+    /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
+     * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
+    {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
+              SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
+#if FELUCCA_MIDI_CLKOUT
+    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
+#endif
+    {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM is left */
+#define NSYS_GLO (FELUCCA_MIDI_CLKOUT ? 3u : 2u)          /* the global rows at SYS's end: MIDI, CLOCK OUT, CHANNELS */
+#define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
+static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
 {
 #if FELUCCA_BLE
     if (bdv.open)
         return dev_rows();                              /* (the BLE devices list: its rows) */
 #endif
-    return NSYS;
+    return NSYS_SETUP;
 }
 static void sys_name(uint32_t r, char *b)
 {
@@ -733,16 +737,3 @@ static void sys_leave(void)                             /* SYSTEM left: the sett
     else
         settings_save();
 }
-
-static const screen_t SCREENS[SCR_N] = {
-    {mix_rows, mix_name, mix_cell, mix_turn, mix_yes},
-    {snd_rows, snd_name_row, snd_cell, snd_turn, snd_yes},
-    {fxs_rows, fxs_name, fxs_cell, fxs_turn, fxs_yes},
-    {prj_rows, prj_name, prj_cell, prj_turn, prj_yes},
-    {sys_rows, sys_name, sys_cell, sys_turn, sys_yes},
-    {step_rows, step_name, step_cell, step_turn, step_yes},
-    {song_rows, song_name, song_cell, song_turn, song_yes},
-    {tp_rows, tp_name, tp_cell, tp_turn, tp_yes},
-    {scope_rows, scope_name, scope_cell, scope_turn, scope_yes},
-};
-#define SCR (&SCREENS[ui.scr % SCR_N])
