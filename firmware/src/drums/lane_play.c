@@ -218,7 +218,7 @@ static void dl_play_hit(uint32_t l)
     dlp_l = 0xFFu;
     if (l >= DRUM_LANES || !(DLA_ANY(l) | ((uint32_t)(dlfo_on >> l) & 1u)))
         return;                            /* (none on l: dl_ofs, as before) */
-    memcpy(dlp.w, dl.ofs[l], sizeof dlp.w);
+    __builtin_memcpy(dlp.w, __builtin_assume_aligned(dl.ofs[l], 4), sizeof dlp.w);   /* (two words: dl is aligned; libc.c memcpy copies bytes) */
 #if DLA_ON
     for (m = dla.hm[l], v = 0; m; m >>= 1, v++)
         if (m & 1u)
