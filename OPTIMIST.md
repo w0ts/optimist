@@ -593,7 +593,7 @@ The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (
 
 ## USB audio (experimental)
 
-> **EXPERIMENTAL, not yet tried on a real FM-1.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in Optimist it has only run in the FM-1 emulator so far.
+> **EXPERIMENTAL, and off by default: builds with USB audio failed to boot on a real FM-1 (2026-10-12; the firmware went to its USB rescue mode). Under investigation; do not install one on the FM-1 for now.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in Optimist it has only run in the FM-1 emulator so far.
 
 On the same USB cable as MIDI, the computer sees two class-compliant audio devices (USB Audio Class 1, no driver):
 
@@ -602,7 +602,7 @@ On the same USB cable as MIDI, the computer sees two class-compliant audio devic
 
 Both run at **44.1 kHz** (the FM-1's own rate, no conversion); choose **16 or 24 bit** in the computer's audio settings (on macOS: Audio MIDI Setup). 24 bit adds no precision (the synth is 16 bit inside). For a DAW that wants one device for both directions, make an aggregate device (macOS: Audio MIDI Setup, +, Create Aggregate Device) with drift correction on the one that is not the clock. Avoid saving or loading presets and projects while recording: a flash write pauses the audio.
 
-USB audio replaces the USB serial console (they share the USB endpoints); MIDI, the web editor and updates work as before. A build without it: `FELUCCA_USB_AUDIO=0` (see BUILDING.md).
+USB audio replaces the USB serial console (they share the USB endpoints); MIDI, the web editor and updates work as before. The builder's USB port item (`USB_MODE`) chooses it; the default is MIDI only (docs/BUILDER.md).
 
 ## Sound design pages
 

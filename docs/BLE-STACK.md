@@ -842,7 +842,7 @@ not replayed (`0x10010` bit 10 is our UART's clock, `0x10008` bit 3 the second c
 - **Precedence**: the VM's complete set → the copy → none. **None**: the radio is never started (no RF, BT or
   baseband write), nothing advertises, HOME > SYSTEM > BLUETOOTH shows **NO RF CAL** under ON / OFF (the switch only
   changes the setting), and the console says why.
-- **Console**: read-only commands, in CDC builds (`USB_MODE` 1; user-default has USB audio and no console) with BLE;
+- **Console**: read-only commands, in CDC builds (`USB_MODE` 1; user-default is MIDI only, no console) with BLE;
   the exact hardware session is §12.7. `blevm` prints every candidate's first word (in the order tried), every
   valid record (offset, id, length), the live area and its size, the log end, which records are there, 187's CRC and
   their data, as the firmware reads them; `blevmdump` every candidate area raw (`0x0E8000` and `0x0E7000`, 4 KiB
