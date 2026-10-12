@@ -283,6 +283,9 @@ static void fm6_lay_turn(uint32_t k, int32_t s, int fine)   /* a knob in the lay
     fm6_turn(f6.row, k, s, fine);
     f6.picked = 1;
 }
+/* the keys fm6_lay_key acts on: OP1..OP6, PIT, GLO, MONO, POLY (the black keys of BK above) */
+#define FM6_KEYS_FN (1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | 1u << 10 | 1u << 13 | 1u << 15 | \
+                     1u << 17 | 1u << FMT_MONO | 1u << FMT_POLY)
 static uint32_t fm6_keys_lit(void)                      /* the keys' lights with ENV held: what is edited, the mode */
 {
     static const uint8_t KEY[8] = {1, 3, 5, 8, 10, 13, 15, 17};
@@ -304,4 +307,5 @@ static void fm6_lay_select(int32_t d) { (void)d; }
 static void fm6_lay_turn(uint32_t k, int32_t s, int fine) { (void)k; (void)s; (void)fine; }
 static void fm6_lay_cell(uint32_t k, cell_t *c) { (void)k; cell_clear(c); }
 static uint32_t fm6_keys_lit(void) { return 0; }
+#define FM6_KEYS_FN 0u
 #endif

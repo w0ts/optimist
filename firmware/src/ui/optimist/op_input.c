@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The panel (docs/UI-OPTIMIST-DESIGN.md sections 2, 2.1) and the entry points the core calls (system/main.c).
- *   SELECT       the cursor: the row               ALGORITHM   the track, on every screen
- *   PRESETS      the hot cell, one unit a detent    KNOB 1..4   the cursor row's cells; a turn makes its cell hot
+ *   SELECT       the cursor: the row               ALGORITHM   the walk MASTER T1..DR the lanes, the page's part (op_walk.c)
+ *   PRESETS      the sound (DR: the kit; a lane: its own sound)   KNOB 1..4   the cursor row's cells; a turn makes its cell hot
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
@@ -50,6 +50,8 @@ static void op_enter(uint32_t scr)
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
+    if (scr == SCR_FX)                                  /* (the master FX opened: right goes to SOUND T1, unless the walk */
+        ui.m_scr = SCR_SOUND, ui.m_fam = SND_ALL, ui.m_row = 0;   /* sets where it came from: op_walk.c) */
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
     if (scr == SCR_STEP)
         ui.row[SCR_STEP] = 0;                           /* (STEP opens on PATTERN: LEN first, the user) */
@@ -66,6 +68,7 @@ static void op_enter(uint32_t scr)
 static void go_home(void)                               /* power-on, a new project: the mixer, MASTER */
 {
     op_enter(SCR_HOME);
+    ui.lane = 0;                                        /* (the drum track: DR itself, its kit) */
     ui.row[SCR_HOME] = (uint8_t)(MXR_T1 + song.sel);   /* (the mixer opens on the track: MASTER is above it) */
 }
 /* the PAGES entry the cursor is on (main.c's breadcrumb; miss.c counts on TOOLS) */
@@ -266,6 +269,7 @@ static void lane_pick_from(uint32_t l, int key)
 {
     uint32_t was = lane_selected();
     lane_select(l);
+    ui.lane = 1;                                        /* (a lane selected, not DR itself: PRESETS its sound) */
     if (!key && ui.scr == SCR_STEP && (l & 15u) != was && !song.playing && !transport_req)
         audition_lane(l);                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
@@ -401,42 +405,6 @@ static void op_tap(uint32_t b, uint32_t id)
         op_jump(JUMP_FAM[b]);
 }
 
-/* ALGORITHM on SOUND, T1 turned left, on any family: MASTER, the FX screen (the delay, reverb, master compressor, dust,
- * duck, filter: the one place the master FX rows are defined), as MASTER above T1 on the mixer; the family and row it
- * left are kept. On it, turned right: back to T1 where it was; left: stays (the user, 2026-10-10: "algo to always go
- * to master when it makes sense"). STEP and the screens with no track page do not take it. 1: taken */
-/* SOUND and the FX screen share the bands (header, cards, panel): the step between them, an ALGORITHM detent, is drawn
- * in place like a track change (op_state.c op_repaint), not through op_enter's clear to black */
-static void fx_algo_inplace(void)
-{
-    ui.force = 0;
-    op_repaint();
-}
-static int fx_algo(int32_t s)
-{
-    if (ui.scr == SCR_SOUND && song.sel == 0 && s < 0) {
-        uint8_t fam = snd_fam, row = ui.row[SCR_SOUND];
-        op_enter(SCR_FX);
-        ui.m_fam = fam;
-        ui.m_row = row;
-        fx_algo_inplace();
-        return 1;
-    }
-    if (ui.scr != SCR_FX)
-        return 0;
-    if (s > 0) {
-        uint8_t fam = ui.m_fam, row = ui.m_row;
-        op_enter(SCR_SOUND);
-        track_select(0);
-        if (fam != SND_ALL && (fam == SND_FM6 ? fm6_sel() : snd_has_fam(fam)))
-            op_jump_sound(fam);
-        if (row < SCR->rows())
-            op_row_pick(row);
-        ui.m_fam = SND_ALL;
-        fx_algo_inplace();
-    }
-    return 1;
-}
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
  * where it pages the window (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
@@ -447,7 +415,10 @@ static int op_presets_turn(void)
         return 0;
     if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
-        op_engine_step(s);                              /* HOME held (the shift) + PRESETS: the instruments */
+        if (lane_presets())
+            lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
+        else
+            op_engine_step(s);                          /* HOME held (the shift) + PRESETS: the instruments (DR: its kits) */
         pre_toast();
         op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO, no SYSTEM) */
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
@@ -457,7 +428,10 @@ static int op_presets_turn(void)
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master()) {   /* (MASTER, the mixer's too: nothing) */
-        op_preset_step(s);
+        if (lane_presets())
+            lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
+        else
+            op_preset_step(s);                          /* (DR, a lane on KIT: the kit) */
         pre_toast();
     }
     return 1;
@@ -475,11 +449,7 @@ static void op_knobs(uint32_t home)
     }
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
-    if (ui.scr == SCR_HOME) {                           /* the mixer: ALGORITHM its rows, SELECT its knob sets */
-        if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
-            mx_walk(s);
-            turned = 1;
-        }
+    if (ui.scr == SCR_HOME) {                           /* the mixer: SELECT its knob sets */
         if ((s = panel_enc(EN_SELECT)) != 0) {
             mx_page(s);
             turned = 1;
@@ -489,9 +459,9 @@ static void op_knobs(uint32_t home)
         op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
     }
-    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the track (not in a free take) */
-        if (!fx_algo(s))
-            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
+                                                         * not in a free take) */
+        algo_walk(s, 0);
         turned = 1;
     }
     op_rows_fix();
@@ -697,7 +667,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         if (on)
             m |= 1u << b;
     }
-    if (mx_on_master()) {                               /* the mixer's MASTER: no track button; FX the master FX */
+    if (master_sel()) {                                 /* MASTER (any page): no track button; FX the master FX */
         for (i = 0; i < NB; i++)
             if (mx_master_dead(i))
                 m &= ~(1u << i);
@@ -742,6 +712,9 @@ static void ui_leds(void)
         uint32_t m = name_on() ? name_leds() : lay.shown == LY_OPS ? fm6_keys_lit() : step_leds((fm1_ms / 250u) & 1u), k;
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((m >> k) & 1u));
+        if (lay.shown == LY_OPS)                        /* ENV held on FM6: every key with a function glows dim */
+            for (k = 0; k < 27u; k++)                   /* (the user, 2026-10-12: "keys should lit up when they */
+                led_put(dl, 14u + k, (int)((FM6_KEYS_FN >> k) & 1u));   /* have a function in the selected mode") */
     }
 #if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit */

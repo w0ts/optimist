@@ -33,12 +33,30 @@ static void pre_engine(uint32_t e, char *b)             /* "ANALOG", "USER" when
 {
     str_cpy(b, e < NENGINES ? ENGINES[e]->name : "USER", 10);
 }
-/* the mixer's PRESETS: what it now plays, a toast framed in its engine's colour */
+/* the mixer's PRESETS: what it now plays, a toast framed in its engine's colour; the drum track: "KIT 808 TRAP" in the
+ * kit's kind colour, a lane "SNARE: X9 SD" in its source's (the user, 2026-10-12: a lane's PRESETS is its own sound) */
+static void pre_toast_drum(void)
+{
+    char m[30];
+    uint32_t l = lane_selected(), on = (uint32_t)lane_presets();
+    str_cpy(m, on ? LANE_NAME[l] : "KIT", sizeof m);
+    str_cpy(m + str_len(m), on ? ": " : " ", sizeof m - str_len(m));
+    str_cpy(m + str_len(m), on ? lane_sound_name(l) : drum_kit_name(), sizeof m - str_len(m));
+    ui.toast_next = 1;
+    ui_message(m);
+    ui.toast_next = 0;
+    ui.toast_col = on ? lane_col(l) : kit_col();
+}
 static void pre_toast(void)
 {
     char nm[16], m[30], en[10];
-    uint32_t total, cur = preset_pos(&total), e;
-    if (is_drum(TSEL) || !total)
+    uint32_t total, cur, e;
+    if (is_drum(TSEL)) {
+        pre_toast_drum();
+        return;
+    }
+    cur = preset_pos(&total);
+    if (!total)
         return;
     e = pre_entry(cur, nm);
     pre_engine(e, en);
@@ -54,8 +72,9 @@ static void pre_toast(void)
 static uint32_t pre_sig(void)
 {
     uint32_t total, cur = preset_pos(&total);
-    return ((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
-           (TSEL->eng_req * 64u + (uint32_t)user_of(TSEL) + settings.palette * 4096u);
+    return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
+            (TSEL->eng_req * 64u + (uint32_t)user_of(TSEL) + settings.palette * 4096u)) * 31u +
+           (is_drum(TSEL) ? drum_kit_pos() * 977u + (uint32_t)lane_picked() * 7u + lane_sel * 131u + dl.src[lane_selected()] : 0u);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a drum track: its kit (graph_lane) */
@@ -64,7 +83,7 @@ static void pre_draw(void)
     uint32_t total, cur = preset_pos(&total), i;
     int32_t p = (GRAPH_H - 2) / 3, y0;                  /* the three rows' pitch: 19 up to the picture's height / 3 */
     if (is_drum(TSEL)) {
-        graph_lane();
+        graph_lane_of(!lane_picked());                      /* (DR: the kit; a lane: its sound) */
         return;
     }
     p = p < 19 ? 19 : p > 44 ? 44 : p;

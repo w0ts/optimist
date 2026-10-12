@@ -57,7 +57,7 @@ static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static uint32_t edges_btn, notes_seen;
 static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
 static uint32_t fm1_input_note_edges(void) { uint32_t e = fm1_in.notes & ~notes_seen; notes_seen = fm1_in.notes; return e; }
-static void fm1_wdt_feed(void) {}
+static void fm1_wdt_feed(void) { fm1_ms++; }              /* (time passes while the firmware waits: SYSTEM > CALIBRATE's idle timeout, met by fuzz) */
 static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 #include "../firmware/src/ui/panel.c"
 #include "../firmware/src/core/model.c"
@@ -387,7 +387,7 @@ static void mix_to_sound(void)                          /* the mixer, YES on the
     go_home();
     frame();
     mx.set = 0;
-    ui.hot = 0;
+    ui.hot = 1;                                         /* (VOLUME: a value; KNOB 1 is MUTE, which YES toggles) */
     ui.hot_lit = 1;
     frame();
     tap(B_SAVE);
@@ -1713,6 +1713,21 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
 #undef R
 }
 
+/* the synth tracks' default sounds (power-on), and the drum lanes as the kit has them: what a random run changed goes, so
+ * the tests after one start where the suite began (2026-10-12: the walk reaching the lanes changed fuzz's path) */
+static void tracks_default(void)
+{
+    uint32_t i;
+    for (i = 0; i < NPART; i++) {
+        set_engine_of(&trk[i], trk_def_engine(i));
+        apply_preset_to(&trk[i], trk_def_preset(i));
+        trk[i].engine = trk[i].eng_req;
+    }
+    memset(&dl, 0, sizeof dl);
+    lane_select(0);
+    ui.lane = 0;
+}
+
 /* ---- the loose ends (section 11.4): the SONG shortcut, undo of the step extras, NAME, FM6's editor, the graphs on
  * every row of a family, the presets' engines */
 static void name_type(uint32_t place, uint32_t taps)    /* white key place tapped taps times, then the letter kept */
@@ -2017,6 +2032,18 @@ static void fm6_tests(void)
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
+    {   /* every key with a function lit (the selected full, the others dim), the others dark (the user, 2026-10-12) */
+        uint32_t k, ok = 1, lit = fm6_keys_lit();
+        frame();
+        for (k = 0; k < 27u; k++) {
+            uint8_t q = led_pos[14u + k];
+            uint32_t lv = q == 0xFF ? 9u : (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+            uint32_t want = (lit >> k) & 1u ? 2u : (FM6_KEYS_FN >> k) & 1u ? 1u : 0u;
+            if (q != 0xFF && lv != want)
+                ok = 0;
+        }
+        check(ok, "ENV held on FM6: OP1..OP6 PIT GLO MONO POLY lit (the one edited and the mode full, the rest dim), the other keys dark");
+    }
     key(3);                                             /* G#: OP2 */
     check(f6.target == 1u && f6_kind(f6.row) == 0u, "a black key (G#): OP2");
     key(15);                                            /* PIT */
@@ -2171,6 +2198,8 @@ static void preset_engine_tests(void)
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
+#include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
+#include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2237,14 +2266,7 @@ int main(int argc, char **argv)
     sec_pend_clear();
     sec_boot();
 #endif
-    {
-        uint32_t i;
-        for (i = 0; i < NPART; i++) {
-            set_engine_of(&trk[i], trk_def_engine(i));
-            apply_preset_to(&trk[i], trk_def_preset(i));
-            trk[i].engine = trk[i].eng_req;
-        }
-    }
+    tracks_default();
     panel = PANEL_DEFAULT;
     settings_init();
     layers_init();
@@ -2296,6 +2318,8 @@ int main(int argc, char **argv)
     c2_master_tests();
     c2_roll_tests();
     glo_tests();
+    algo_tests();
+    mute_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();

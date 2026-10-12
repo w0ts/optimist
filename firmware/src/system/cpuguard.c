@@ -16,7 +16,7 @@
  *                cg_post asked for.
  *   cg_post(us)  after it: the measured load (its time in the interrupt); the load is the larger of the two.
  *                Over the ceiling (85 %) for CG_HOLD halves in a row, or one half that ran late (100 %): one
- *                level up (cpuguard.h: quality, UNISON, notes; a level with nothing to ease in what sounds
+ *                level up (cpuguard.h: quality, UNISON, the reverb, notes; a level with nothing to ease in what sounds
  *                now is passed). At the top, a half over the ceiling sheds a voice before the next (as audio.c
  *                did on its own), never from the bass or the lead, never a drum. The drums ease at quality: their
  *                tails end sooner (a synthesised voice under -40 dBFS, an X0X 808 voice 40 dB under its peak).
@@ -25,6 +25,11 @@
  *                only when the music it held back would fit again, so it does not come and go every 2 s.
  * Nothing else changes: below the ceiling the guard does nothing, and the host (no timer) never steps. */
 #include "cpuguard_costs.h"
+#if CG_REV
+#define REV_LIVE() ((int)rev_live)
+#else
+#define REV_LIVE() 0
+#endif
 
 #define CG_CEIL 218u                     /* 85 % of a half, 1/256 */
 #define CG_REL (CG_CEIL - CG_CEIL / 16u) /* 80 %: the release level (Flowstate: 1/16 under the ceiling) */
@@ -154,7 +159,8 @@ static int cg_tails(void)
 }
 
 /* the level would ease something that sounds now: ACID, ANALOG 2 with a swarm of more than 2 copies, or a drum
- * tail (quality); a UNISON part of more than 2 voices (UNISON); the top always (it sheds) */
+ * tail (quality); a UNISON part of more than 2 voices (UNISON); the reverb's tank running or sent something
+ * (REVERB); the top always (it sheds) */
 static int cg_useful(uint32_t level)
 {
     uint32_t p;
@@ -162,6 +168,8 @@ static int cg_useful(uint32_t level)
         return 1;
     if (level == CG_L_QUALITY && cg_tails())
         return 1;
+    if (level == CG_L_REVERB)                         /* the reverb bus runs (or would: fx.c rev_live) */
+        return REV_LIVE();
     for (p = 0; p < NPART; p++) {
         const track_t *t = &trk[p];
         const engine_t *e = ENGINES[t->engine];
@@ -217,9 +225,12 @@ static CG_FAR void cg_pre(void)
     pred = (int32_t)cg.meas + (int32_t)e - (int32_t)cg.model;
     pred = pred < 0 ? 0 : pred < 0xFFFF ? pred : 0xFFFF;
     cg.model = (uint16_t)(e < 0xFFFFu ? e : 0xFFFFu);
-    if (pred >= (int32_t)CG_FULL && cg.meas > CG_CEIL) {   /* predicted late after a half over the ceiling (the
-                                          * model alone counts the voices of a half that started them twice): before
-                                          * it renders, a step; at the top voices fade out */
+    if (pred >= (int32_t)CG_FULL && cg.meas > CG_CEIL && !(cg.gpend && !cg.gn)) {   /* predicted late after a half
+                                          * over the ceiling (the model alone counts the voices of a half that started
+                                          * them twice): before it renders, a step; at the top voices fade out. Not in
+                                          * the half right after a step (gpend, none measured since: what the step
+                                          * saved is not in cg.meas yet; a late half stepped twice, e.g. the reverb
+                                          * off and then voices shed) */
         cg.early++;
         if (cg.level < CG_TOP) {
             cg_step();
