@@ -299,6 +299,9 @@ typedef struct {
 enum { ST_NOTE, ST_TIE, ST_REST };
 #define SF_ACCENT 1u
 #define SF_SLIDE 2u
+/* (bits 2..6: chance.c) a NOTE step whose notes already sounding go on, not struck again; the others sounding end at
+ * its start (POLY: notes recorded over each other, seq.c rec_carry) */
+#define SF_CARRY 0x80u
 /* the dynamics of a note or a drum hit (2 bits each in the steps): played without velocity
  * (OCT- / OCT+ held on the drum track, the step page) or from a MIDI velocity */
 enum { LV_NORM, LV_GHOST, LV_SOFT, LV_HARD };
@@ -376,6 +379,8 @@ typedef struct track {
     uint8_t rh_last;             /* the last of them; rh_bak: what it held (an early release puts it back) */
     uint8_t rh_own;              /* rh_start held no note before: its GATE lock is the recorded note's (PLOCK) */
     int8_t rh_nudge;             /* the nudge its start was kept as (REC QUANTIZE OFF, MICRO), 1/64 of a step */
+    uint8_t rh_drop;             /* POLY: a held note is up, others not: the next step carries the rest (seq.c) */
+    uint8_t rh_at[4];            /* the step each of rh_note[] started in (a chord's keys share their length) */
     uint32_t rh_last_abs;        /* (its step of the transport grid) */
     uint32_t rh_start_abs;       /* rh_start's step of the transport grid (the length lock: seq.c rec_len_end) */
     step_t rh_bak;

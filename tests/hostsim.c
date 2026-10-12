@@ -804,7 +804,7 @@ static int rec_len_test(void)
          rec_step_is(t1, 0, ST_TIE, 0, 0) && rec_step_is(t1, 1, ST_NOTE, 1, 60);
     fail += !ok;
     printf("reclen: across the pattern end: 12 NOTE, 13 .. 15 and 0 TIE, 1 its NOTE %s\n", ok ? "ok" : "FAIL");
-    fail += rl_case("overdub, cut by a note: joins it", 2.20, rl_gate(t1, 3), 127, 127, rl_played(t1, 2), 2.0);
+    fail += rl_case("overdub, up early in an older note's step", 2.20, rl_gate(t1, 3), -1, -1, rl_played(t1, 2), 2.0);
     old = rl_gate(t1, 4);
     ok = old == 30 && rec_step_is(t1, 4, ST_NOTE, 1, 48);
     fail += !ok;
@@ -817,18 +817,18 @@ static int rec_len_test(void)
     return fail;
 }
 /* the free take: each note's length onto its last step (seq.c ft_close) */
-static int rec_len_free_test(void)
+static int rec_len_free_test(int16_t vm)
 {
     track_t *t1 = &trk[0];
     int32_t o[2 * CTL];
     uint32_t b, i, T = 2u * FS / CTL;               /* 2 s: one bar at 120 */
     double sb = (double)T / 16.0;                   /* blocks a step */
-    static const double ON[4] = {0.0, 4.0, 8.0, 10.0}, LEN[4] = {0.9, 1.8, 3.4, 0.5};   /* (8 + 3.4 > 10: cut) */
+    static const double ON[4] = {0.0, 4.0, 8.0, 10.0}, LEN[4] = {0.9, 1.8, 3.4, 0.5};   /* (8 + 3.4 > 10: over it) */
     int fail = 0, ok;
     host_tracks_init();
     song.g[G_RECQ] = 0;
     host_preset(t1, 0, 1);
-    t1->p[P_VOICE] = V_POLY;
+    t1->p[P_VOICE] = vm;
     song.sel = 0;
     song.playing = 0;
     song.rec = 0;
@@ -846,14 +846,175 @@ static int rec_len_free_test(void)
     ft_close();
     ok = ok && ft_bars == 1u;
     fail += !ok;
-    printf("reclen: free take closed: 1 bar %s\n", ok ? "ok" : "FAIL");
+    printf("reclen: free take (%s) closed: 1 bar %s\n", vm == V_POLY ? "POLY" : "MONO", ok ? "ok" : "FAIL");
     fail += rl_case("free take: NOTE (0.9)", 0.9, rl_gate(t1, 0), 113, 117, rl_played(t1, 0), 0.9);
     fail += rl_case("free take: NOTE TIE (1.8)", 1.8, rl_gate(t1, 5), 36, 40, rl_played(t1, 4), 1.8);
-    fail += rl_case("free take: cut by the next note, joins", 3.4, rl_gate(t1, 9), 127, 127, rl_played(t1, 8), 2.0);
-    fail += rl_case("free take: 0.5 = the GATE, no lock", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.5);
+    if (vm == V_POLY) {                             /* POLY: 8 goes on over 10 (a carry step), 11 a carry step of it */
+        fail += rl_case("free take POLY: over the next note, its own", 3.4, rl_gate(t1, 11), 49, 53, rl_played(t1, 8), 3.4);
+        fail += rl_case("free take POLY: 0.5 under it: its step", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 1.0);
+        ok = (t1->step[10].flags & SF_CARRY) && t1->step[10].n == 2u && (t1->step[11].flags & SF_CARRY) &&
+             t1->step[11].n == 1u && t1->step[11].note[0] == 64u && t1->step[9].time == ST_TIE;
+        fail += !ok;
+        printf("reclen: free take POLY: 9 TIE, 10 {66 64} carry, 11 {64} carry %s\n", ok ? "ok" : "FAIL");
+    } else {                                        /* MONO: one note a step, cut by the next, joins it */
+        fail += rl_case("free take MONO: cut by the next note, joins", 3.4, rl_gate(t1, 9), 127, 127, rl_played(t1, 8), 2.0);
+        fail += rl_case("free take MONO: 0.5 = the GATE, no lock", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.5);
+    }
     ok = undo_apply(0) && rl_gate(t1, 0) == -1 && rl_gate(t1, 5) == -1 && t1->step[0].n == 0u;
     fail += !ok;
     printf("reclen: undo takes the locks with the notes %s\n", ok ? "ok" : "FAIL");
+    return fail;
+}
+/* overlapping notes recorded live (user report 2026-10-12: "I hold a note, press another, the first is cut"): A down
+ * in step a, B down in step b while A is still held, A up, then B up. Measured on the voices (what is heard), live
+ * while recording and played back afterwards. */
+static int ov_gated(const track_t *t, uint32_t note)
+{
+    uint32_t v;
+    for (v = 0; v < NVOICE; v++)
+        if (t->v[v].active && t->v[v].gate && t->v[v].note == note)
+            return 1;
+    return 0;
+}
+/* run until (step idx, q %), counting the blocks note sounds (gated) -> *on */
+static void ov_run_to(track_t *t, uint32_t idx, uint32_t q, uint32_t note, uint32_t *on)
+{
+    int32_t o[2 * CTL];
+    uint32_t guard = 0, at;
+    do {
+        mix_block(o, CTL);
+        *on += (uint32_t)ov_gated(t, note);
+    } while (++guard < 100000u && !(at_step(t, &at) == idx && at >= q));
+}
+/* played back: how many steps note sounds for from step idx's start (its voice gated) */
+static double ov_played(track_t *t, uint32_t idx, uint32_t note)
+{
+    int32_t o[2 * CTL];
+    uint32_t guard = 0, n = 0, at, len = trk_len(t);
+    while (++guard < 200000u && at_step(t, &at) != (idx + len - 1u) % len)
+        mix_block(o, CTL);
+    while (++guard < 200000u && !(at_step(t, &at) == idx && ov_gated(t, note)))
+        mix_block(o, CTL);
+    while (++guard < 200000u && ov_gated(t, note)) {
+        mix_block(o, CTL);
+        n++;
+    }
+    return n * (double)CTL / RL_STEP;
+}
+static void ov_dump(const track_t *t, uint32_t from, uint32_t to)
+{
+    uint32_t i;
+    int32_t g;
+    printf("reclen:   steps");
+    for (i = from; i <= to; i++) {
+        const step_t *s = &t->step[i];
+        g = rl_gate(t, i);
+        printf(" %u:%s", (unsigned)i, s->time == ST_TIE ? "TIE" : s->time == ST_REST || !s->n ? "-" : "N");
+        if (s->time == ST_NOTE && s->n) {
+            uint32_t k;
+            printf("{");
+            for (k = 0; k < s->n; k++)
+                printf("%s%u", k ? "," : "", (unsigned)s->note[k]);
+            printf("}");
+        }
+        if (g >= 0)
+            printf("g%d", (int)g);
+    }
+    printf("\n");
+}
+/* a take on track t (voice mode vm, REC QUANTIZE q): keys down / up at (step, %), in order; -> the steps note `watch`
+ * sounds live (from its key) until the take ends */
+typedef struct { uint8_t step, q, note, on; } ov_ev_t;
+static double ov_take(track_t *t, uint32_t vm, uint32_t q, const ov_ev_t *ev, uint32_t n, uint32_t watch)
+{
+    uint32_t on = 0, i;
+    int32_t o[2 * CTL];
+    host_tracks_init();
+    host_preset(t, 0, 1);                           /* POLY pad */
+    t->p[P_VOICE] = (int16_t)vm;
+    t->p[P_SUS] = 127;                              /* (the voice gated = the note sounds) */
+    song.g[G_RECQ] = (int16_t)q;
+    song.sel = (uint8_t)trk_index(t);
+    song.rec = (uint8_t)(1u << trk_index(t));
+    transport_req = 1;
+    mix_block(o, CTL);
+    for (i = 0; i < n; i++) {
+        ov_run_to(t, ev[i].step, ev[i].q, watch, &on);
+        if (ev[i].on)
+            input_on(t, ev[i].note, 100);
+        else
+            input_off(t, ev[i].note);
+    }
+    ov_run_to(t, (ev[n - 1u].step + 2u) % trk_len(t), 50, watch, &on);
+    song.rec = 0;
+    return on * (double)CTL / RL_STEP;
+}
+static int ov_near(const char *what, double got, double want)
+{
+    int ok = fabs(got - want) < 0.04;
+    printf("reclen: %-58s %.2f steps (want %.2f) %s\n", what, got, want, ok ? "ok" : "FAIL");
+    return !ok;
+}
+/* step i of track t: n notes, with note (0: any), carry or not */
+static int ov_step(const track_t *t, uint32_t i, uint32_t n, uint32_t note, uint32_t carry)
+{
+    const step_t *s = &t->step[i];
+    uint32_t k;
+    for (k = 0; k < s->n && note && s->note[k] != note; k++)
+        ;
+    return s->time == ST_NOTE && s->n == n && k < s->n && !(s->flags & SF_CARRY) == !carry;
+}
+static int rec_overlap_test(void)
+{
+    static const char *const VM[] = {"POLY", "MONO", "LEGATO"};
+    static const int16_t VMV[] = {V_POLY, V_MONO, V_LEGATO};
+    /* (a) A 60 held 2.1 .. 6.5, B 64 pressed at 4.1 (A still down), up at 8.5: A held 4.4, overlapping B by 2.4 */
+    static const ov_ev_t OV[] = {{2, 10, 60, 1}, {4, 10, 64, 1}, {6, 50, 60, 0}, {8, 50, 64, 0}};
+    /* (b) nested: B 64 4.1 .. 5.3 inside A 60 2.1 .. 8.5 */
+    static const ov_ev_t NEST[] = {{2, 10, 60, 1}, {4, 10, 64, 1}, {5, 30, 64, 0}, {8, 50, 60, 0}};
+    /* (c) a chord A 60 + C 67 at 2.1, B 64 at 4.1, A up 6.5, C up 6.55, B up 8.5 */
+    static const ov_ev_t CH[] = {{2, 10, 60, 1}, {2, 10, 67, 1}, {4, 10, 64, 1}, {6, 50, 60, 0}, {6, 55, 67, 0},
+                                 {8, 50, 64, 0}};
+    track_t *t = &trk[0];
+    uint32_t q, m;
+    int fail = 0, ok;
+    double live;
+    char what[96];
+    for (q = 0; q < 2u; q++)
+        for (m = 0; m < 3u; m++) {
+            const char *qn = q ? "ON" : "OFF";
+            uint32_t poly = VMV[m] == V_POLY;
+            live = ov_take(t, (uint32_t)VMV[m], q, OV, 4, 60);
+            ov_dump(t, 1, 9);
+            snprintf(what, sizeof what, "overlap %s RECQ %s: A (held 4.4) live", VM[m], qn);
+            fail += ov_near(what, live, poly ? 4.40 : 2.0);   /* (MONO / LEGATO: B takes the voice) */
+            snprintf(what, sizeof what, "overlap %s RECQ %s: A played back", VM[m], qn);
+            fail += ov_near(what, ov_played(t, 2, 60), poly ? 4.0 : 2.0);   /* (POLY: to the nearest step, 6.4) */
+            snprintf(what, sizeof what, "overlap %s RECQ %s: B played back", VM[m], qn);
+            fail += ov_near(what, ov_played(t, 4, 64), q ? 4.0 : 4.51);
+            ok = poly ? ov_step(t, 4, 2, 60, 1) && ov_step(t, 6, 1, 64, 1) && t->step[5].time == ST_TIE
+                      : ov_step(t, 4, 1, 64, 0) && t->step[6].time == ST_TIE;
+            fail += !ok;
+            printf("reclen: overlap %s RECQ %s: steps %s %s\n", VM[m], qn,
+                   poly ? "4 {B A} carry, 5 TIE, 6 {B} carry" : "4 {B}, 6 TIE (one note a step)", ok ? "ok" : "FAIL");
+        }
+    for (q = 0; q < 2u; q++) {
+        const char *qn = q ? "ON" : "OFF";
+        (void)ov_take(t, V_POLY, q, NEST, 4, 60);
+        ov_dump(t, 1, 9);
+        snprintf(what, sizeof what, "nested POLY RECQ %s: B (4.1 .. 5.3) played back", qn);
+        fail += ov_near(what, ov_played(t, 4, 64), 1.0);
+        snprintf(what, sizeof what, "nested POLY RECQ %s: A (2.1 .. 8.5) played back", qn);
+        fail += ov_near(what, ov_played(t, 2, 60), q ? 6.0 : 6.51);
+        (void)ov_take(t, V_POLY, q, CH, 6, 60);
+        ov_dump(t, 1, 9);
+        snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: A of the chord played back", qn);
+        fail += ov_near(what, ov_played(t, 2, 60), 4.0);
+        snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: C of the chord played back", qn);
+        fail += ov_near(what, ov_played(t, 2, 67), 4.0);
+        snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: B played back", qn);
+        fail += ov_near(what, ov_played(t, 4, 64), q ? 4.0 : 4.51);
+    }
     return fail;
 }
 #endif
@@ -1087,7 +1248,7 @@ int main(int argc, char **argv)
     song.master_q12 = 4096;
 #if FELUCCA_PLOCK
     if (getenv("RECLEN")) {                             /* RECLEN=1: the recorded lengths as GATE locks */
-        int fail = rec_len_test() + rec_len_free_test();
+        int fail = rec_len_test() + rec_len_free_test(V_POLY) + rec_len_free_test(V_MONO) + rec_overlap_test();
         fclose(w);
         remove(out);
         printf("reclen: %s\n", fail ? "FAILED" : "all checks ok");

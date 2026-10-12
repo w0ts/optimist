@@ -500,7 +500,7 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
  * lock (and a stale one on that step goes). Never on a ratchet step, never on a step that held notes before (overdub:
  * the locks of the notes already there stay as they are). Every input (keys, MIDI, BLE MIDI) and the free take.
  * The length runs from the start of the note's step (where it was quantised to) to the release, as heard. */
-#define REC_LEGATO_JOIN 1    /* a held note cut by the next note (legato; overdub reaching it) locks 127: joins it */
+#define REC_LEGATO_JOIN 1    /* a held note cut by the next note (MONO / LEGATO; POLY: rec_carry) locks 127: joins it */
 #define REC_GATE_NEAR 4      /* (GATE points) */
 /* REC QUANTIZE OFF (G_RECQ 0, the TEMPO screen's second page): the lengths kept here, the starts as nudges (MICRO:
  * rec_nudge); ON (the default): the notes snap to the grid and whole steps, as before this */
@@ -568,37 +568,91 @@ static void rec_len_end(track_t *t, int32_t r, uint32_t slen, int cut)
  * never over a step with notes (overdub keeps them); a release before the middle of the last one
  * puts that step back (rec_release), so a short note stays one step. A note recorded into another
  * step ends the hold before (the step model ties the notes of one step only). With PLOCK the time
- * held into the last step is kept too (rec_len_end). */
+ * held into the last step is kept too (rec_len_end).
+ * POLY: notes played over each other keep their own lengths. A note recorded into another step while notes are held
+ * (or held into a step with notes, overdub) makes that step a chord of them all, SF_CARRY: the held ones go on through
+ * it, not struck again (seq_step). A held note up while others started in another step are still down ends at the
+ * nearest step start: from there a carry step of the rest (rec_drop). MONO / LEGATO / UNISON (one note a step): the
+ * held note ends where the next one starts, joined to it, as heard live. */
+#define rec_poly(t) ((t)->p[P_VOICE] == V_POLY)
+/* step abs of the grid must not strike note: it sounds already (from its key) */
+static void rec_skip(track_t *t, uint32_t abs, uint32_t note)
+{
+    uint32_t k;
+    if (t->rskip_abs != abs)
+        t->rskip_n = 0;
+    t->rskip_abs = abs;
+    for (k = 0; k < t->rskip_n && t->rskip[k] != note; k++)
+        ;
+    if (k == t->rskip_n && t->rskip_n < 4u)
+        t->rskip[t->rskip_n++] = (uint8_t)note;
+}
+/* the recorded notes still held go on through step idx (grid step abs) of track t: they join its notes, SF_CARRY.
+ * skip: it plays next (they sound from their keys: not struck there). -> 0: not POLY, a ratchet step or no room
+ * (4 notes): the hold ends before it, as in MONO */
+static int rec_carry(track_t *t, uint32_t idx, uint32_t abs, int skip)
+{
+    step_t *s = &t->step[idx];
+    uint32_t i, k, n = s->time == ST_NOTE ? s->n : 0u;
+    if (!rec_poly(t) || (n && s->rat))
+        return 0;
+    for (i = 0; i < t->rh_n; i++) {
+        for (k = 0; k < n && s->note[k] != t->rh_note[i]; k++)
+            ;
+        if (k < n)
+            return 0;                               /* (there already: that one is struck there, as before) */
+    }
+    if (n + t->rh_n > 4u)
+        return 0;
+    if (!n) {
+        memset(s, 0, sizeof *s);
+        s->time = ST_NOTE;
+    }
+    for (i = 0; i < t->rh_n; i++) {
+        for (k = 0; k < s->n && s->note[k] != t->rh_note[i]; k++)
+            ;
+        if (k == s->n)
+            s->note[s->n++] = t->rh_note[i];        /* (level NORM, no ratchet: struck only where a loop starts) */
+        if (skip)
+            rec_skip(t, abs, t->rh_note[i]);
+    }
+    s->flags |= SF_CARRY;
+    return 1;
+}
+/* the held notes' last step is now step idx (grid step abs): a hold of its own from there */
+static void rec_restart(track_t *t, uint32_t idx, uint32_t abs, uint32_t own)
+{
+    t->rh_start = (uint8_t)idx;
+    t->rh_start_abs = abs;
+    t->rh_own = (uint8_t)own;
+    t->rh_ties = 0;
+    t->rh_nudge = 0;
+    t->rh_drop = 0;
+}
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
     uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
     uint32_t had = t->step[idx].time == ST_NOTE && t->step[idx].n;   /* (overdub: notes there already) */
+    uint32_t over = hold && t->rh_n && t->rh_start != idx, carry = 0;   /* notes held, this one in another step */
     undo_mark(t, UNDO_REC(t));
-#if FELUCCA_PLOCK
-    if (hold && t->rh_n && t->rh_start != idx) {    /* a held note cut by this one: joins it */
-        if (t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
-            t->rh_ties--;                           /* (this one goes into its last TIE: the step before is) */
-        rec_len_end(t, 0, 0, 1);
-    }
-#endif
+    if (over && t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
+        t->rh_ties--;                               /* (this one goes into their last TIE: the step before is) */
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
+    if (over)
+        carry = (uint32_t)rec_carry(t, idx, abs, (int)later);   /* POLY: they go on through this one's step */
+#if FELUCCA_PLOCK
+    if (over && !carry)
+        rec_len_end(t, 0, 0, 1);                    /* a held note cut by this one: joins it */
+#endif
     t->seq_active = 1;
-    if (later) {                                    /* it sounds now: the step must not trigger it again */
-        if (t->rskip_abs != abs)
-            t->rskip_n = 0;
-        t->rskip_abs = abs;
-        if (t->rskip_n < 4u)
-            t->rskip[t->rskip_n++] = (uint8_t)note;
-    }
+    if (later)                                      /* it sounds now: the step must not trigger it again */
+        rec_skip(t, abs, note);
     if (!hold)
         return;
-    if (!t->rh_n || t->rh_start != idx) {           /* a new hold (one in another step ends) */
-        t->rh_n = 0;
-        t->rh_start = (uint8_t)idx;
-        t->rh_start_abs = abs;
-        t->rh_own = (uint8_t)!had;
-        t->rh_ties = 0;
-        t->rh_nudge = 0;
+    if (!t->rh_n || t->rh_start != idx) {           /* a new hold (one in another step ends, or goes on in it) */
+        if (!carry)
+            t->rh_n = 0;
+        rec_restart(t, idx, abs, !had);
 #if FELUCCA_PLOCK && FELUCCA_MICRO
         if (rec_exact() && !had)                    /* REC QUANTIZE OFF: its start as played (own steps only) */
             t->rh_nudge = (int8_t)rec_nudge(t, idx, abs);
@@ -606,8 +660,10 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
     }
     for (k = 0; k < t->rh_n && t->rh_note[k] != note; k++)
         ;
-    if (k == t->rh_n && t->rh_n < 4u)
+    if (k == t->rh_n && t->rh_n < 4u) {
+        t->rh_at[t->rh_n] = (uint8_t)idx;
         t->rh_note[t->rh_n++] = (uint8_t)note;      /* a chord: held until its last key is up */
+    }
 }
 
 /* live recording into the drum track: lane, level, ratchet */
@@ -629,6 +685,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
 static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
 {
     step_t *s;
+    uint32_t had, k;
     if (!t->rh_n)
         return;
     if (!((song.rec >> trk_index(t)) & 1u) || t->rh_ties + 1u >= len) {
@@ -645,7 +702,21 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     if (idx == t->rh_start)
         return;                                     /* (recorded ahead into the step now starting) */
     s = &t->step[idx];
-    if (s->time == ST_NOTE && s->n) {
+    had = s->time == ST_NOTE && s->n;
+    for (k = 0; k < t->rh_n && t->rh_at[k] != idx; k++)
+        ;
+    if (k < t->rh_n) {                              /* (round the pattern to where one of them started) */
+        t->rh_n = 0;
+#if FELUCCA_PLOCK
+        rec_len_end(t, 0, 0, 1);
+#endif
+        return;
+    }
+    if ((t->rh_drop || had) && rec_carry(t, idx, abs, 1)) {
+        rec_restart(t, idx, abs, !had);             /* POLY: one went up (rec_drop), or a step with notes: */
+        return;                                     /* they go on through it (its notes struck, theirs not) */
+    }
+    if (had) {
         t->rh_n = 0;                                /* a step with notes: the hold ends before it */
 #if FELUCCA_PLOCK
         rec_len_end(t, 0, 0, 1);                    /* (and joins that note) */
@@ -660,15 +731,60 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     s->time = ST_TIE;
 }
 
+/* note x of step s goes (its level and ratchet bits with it) */
+static void step_del(step_t *s, uint32_t x)
+{
+    uint32_t i, k = 0, lv = 0, rt = 0;
+    for (i = 0; i < s->n; i++)
+        if (s->note[i] != x) {
+            lv |= ((s->lvl >> (2u * i)) & 3u) << (2u * k);
+            rt |= ((s->rat >> (2u * i)) & 3u) << (2u * k);
+            s->note[k++] = s->note[i];
+        }
+    s->n = (uint8_t)k;
+    s->lvl = (uint8_t)lv;
+    s->rat = (uint8_t)rt;
+}
+/* POLY: held note x, started in step at, is up while others are still down: it ends at the nearest step start (the
+ * key-to-ear latency taken back), the rest go on from there. One started with it (a chord): held until its last key */
+static void rec_drop(track_t *t, uint32_t x, uint32_t at)
+{
+    uint32_t i, into, slen, abs, lat;
+    for (i = 0; i < t->rh_n && t->rh_at[i] == at; i++)
+        ;
+    if (i == t->rh_n || !rec_poly(t))
+        return;
+    abs = trk_grid(t, &into, &slen);
+    lat = REC_LAT * (uint32_t)song.g[G_BPM];
+    lat = lat < slen / 2u ? lat : slen / 2u;
+    if (into >= slen / 2u + lat) {
+        t->rh_drop = 1;                             /* the next step carries the rest */
+    } else if (t->rh_ties && abs == t->rh_last_abs && t->step[t->rh_last].time == ST_TIE) {
+        (void)rec_carry(t, t->rh_last, abs, 0);     /* their last TIE carries the rest (it plays already) */
+        rec_restart(t, t->rh_last, abs, 1);
+    } else if (!t->rh_ties && abs == t->rh_start_abs && at != t->rh_start && t->rh_own) {
+        step_del(&t->step[t->rh_start], x);         /* carried into the step playing: it ends before it */
+    } else {
+        t->rh_drop = 1;                             /* (started in it: one step at least) */
+    }
+}
 /* a key of a recorded note is up: the hold ends with the last one */
 static void rec_release(track_t *t, uint32_t note)
 {
-    uint32_t i, k = 0, into, slen, half, lat, abs;
+    uint32_t i, k = 0, into, slen, half, lat, abs, at = 0;
     for (i = 0; i < t->rh_n; i++)
-        if (t->rh_note[i] != note)
+        if (t->rh_note[i] != note) {
+            t->rh_at[k] = t->rh_at[i];
             t->rh_note[k++] = t->rh_note[i];
-    if (k == t->rh_n || (t->rh_n = (uint8_t)k))
-        return;                                     /* not one of them, or others still held */
+        } else {
+            at = t->rh_at[i];
+        }
+    if (k == t->rh_n)
+        return;                                     /* not one of them */
+    if ((t->rh_n = (uint8_t)k)) {
+        rec_drop(t, note, at);                      /* others still held */
+        return;
+    }
     abs = trk_grid(t, &into, &slen);
     half = slen / 2u;
     lat = REC_LAT * (uint32_t)song.g[G_BPM];
@@ -680,6 +796,22 @@ static void rec_release(track_t *t, uint32_t note)
     if (t->rh_ties && abs == t->rh_last_abs && into <= half + lat && t->step[t->rh_last].time == ST_TIE) {
         t->step[t->rh_last] = t->rh_bak;            /* released early in it: not held into this step */
         t->rh_ties--;
+    } else if (!t->rh_ties && abs == t->rh_start_abs && at != t->rh_start && into <= half + lat &&
+               (t->step[t->rh_start].flags & SF_CARRY)) {
+        step_t *s = &t->step[t->rh_start];          /* carried into this step (POLY), up early in it: not held */
+        step_del(s, note);                          /* into it either: it ends at its start */
+        if (!s->n) {
+            s->time = ST_REST;
+            s->flags = 0;
+        }
+#if FELUCCA_PLOCK
+        {
+            uint32_t p = TRK_IDX(t, abs - 1u, trk_len(t));
+            if (rec_exact() && t->step[p].time == ST_TIE)
+                rec_gate(t, p, (int32_t)slen, slen, 1);   /* (the TIE before: its whole step) */
+        }
+#endif
+        return;
     }
 #if FELUCCA_PLOCK
     {
@@ -843,6 +975,71 @@ static int32_t ft_nudge(track_t *t, uint32_t i, uint32_t idx, uint32_t T, uint32
 #else
 #define ft_nudge(t, i, idx, T, len) 0
 #endif
+/* the free take into a POLY part, its notes in their steps (ft_close: free-take note i now in step ft_ev[i].t, d its
+ * steps, vel its GATE lock): their lengths over each other (as live, rec_note). Note i sounds in step s, from (0)
+ * its own step or (1) a later one */
+static int ft_snd(uint32_t i, uint32_t s, uint32_t len, uint32_t from)
+{
+    uint32_t off = (s + len - ft_ev[i].t) % len;
+    return off >= from && off < (ft_ev[i].d ? ft_ev[i].d : 1u);
+}
+/* the notes sounding in step s (from: ft_snd) -> c, once each, up to 4 (c 0: counted only) -> how many */
+static uint32_t ft_sounding(uint32_t s, uint32_t len, uint32_t from, uint8_t *c)
+{
+    uint8_t m[4];
+    uint32_t i, k, n = 0;
+    if (!c)
+        c = m;
+    for (i = 0; i < ft_n; i++)
+        if (ft_snd(i, s, len, from)) {
+            for (k = 0; k < n && c[k] != ft_ev[i].note; k++)
+                ;
+            if (k == n && n < 4u)
+                c[n++] = ft_ev[i].note;
+        }
+    return n;
+}
+/* each step: notes start there: those going on join them (SF_CARRY); none: a TIE when all the notes of the step
+ * before go on, else a carry step of those that do. A note's GATE lock on its last step when none goes on over it */
+static void ft_poly(track_t *t, uint32_t len)
+{
+    uint32_t s, i, k, n;
+    uint8_t c[4];
+    for (s = 0; s < len; s++) {
+        step_t *st = &t->step[s];
+        if (!(n = ft_sounding(s, len, 1, c)))
+            continue;
+        if (st->time == ST_NOTE && st->n) {
+            uint32_t m = st->n;
+            for (i = 0; i < n; i++) {
+                for (k = 0; k < m && st->note[k] != c[i]; k++)
+                    ;
+                if (k == m && st->n < 4u) {
+                    st->note[st->n++] = c[i];
+                    st->flags |= SF_CARRY;          /* (no room: the others end here) */
+                }
+            }
+        } else if (n == ft_sounding((s + len - 1u) % len, len, 0, 0)) {
+            memset(st, 0, sizeof *st);
+            st->time = ST_TIE;
+        } else {
+            memset(st, 0, sizeof *st);
+            st->time = ST_NOTE;
+            st->flags = SF_CARRY;
+            st->n = (uint8_t)n;
+            memcpy(st->note, c, n);
+        }
+    }
+#if FELUCCA_PLOCK
+    for (i = 0; i < ft_n; i++)
+        if (ft_ev[i].vel) {
+            uint32_t e = (ft_ev[i].t + (ft_ev[i].d ? ft_ev[i].d : 1u) - 1u) % len;
+            int32_t v = ft_ev[i].vel;                   /* (its last step a TIE: 0.5 + GATE; a NOTE: GATE) */
+            if (!ft_sounding((e + 1u) % len, len, 1, 0))  /* (one going on over its end: it ends there) */
+                rec_gate_set(t, e, t->step[e].time == ST_TIE ? clamp(v - 64, 1, 64) : v, 1u);
+        }
+#endif
+}
 /* REC on the downbeat: the loop is the time from the first note to now */
 static void ft_close(void)
 {
@@ -890,6 +1087,16 @@ static void ft_close(void)
                 steps = xe < 128 ? 1u : (uint32_t)xe / 128u + ((uint32_t)xe % 128u >= 32u);
             }
 #endif
+            if (rec_poly(t)) {                         /* POLY: each its own length, over the others (ft_poly) */
+                ft_ev[i].t = (uint16_t)idx;
+                ft_ev[i].d = (uint16_t)(steps < len ? steps : len);
+                ft_ev[i].vel = 0;                      /* (its length into its last step, 1/128; 0: none) */
+#if FELUCCA_PLOCK
+                if (ex && steps >= 1u && steps <= len)
+                    ft_ev[i].vel = (uint8_t)clamp(steps > 1u ? xe - (int32_t)(steps - 1u) * 128 : x, 1, 255);
+#endif
+                continue;
+            }
             for (k = 1; k < steps && k < len; k++) {
                 step_t *s = &t->step[(idx + k) % len];
                 if (s->time == ST_NOTE && s->n)
@@ -905,6 +1112,8 @@ static void ft_close(void)
                              k > 1u ? clamp(xe - (int32_t)(k - 1u) * 128 - 64, 1, 64) : x, 1u);
 #endif
         }
+    if (!is_drum(t) && rec_poly(t))
+        ft_poly(t, len);
     t->seq_active = 1;
     song.g[G_BPM] = (int16_t)bpm;
     ft_bars = (uint8_t)bars;
@@ -1959,6 +2168,41 @@ static uint32_t step_vel(const step_t *s, uint32_t i)
     return lvl_vel((s->lvl >> (2u * i)) & 3u, base);
 }
 
+/* the notes sounding go on into step s: a TIE, or a carry step (SF_CARRY) that holds one of them */
+static uint32_t seq_goes_on(const track_t *t, const step_t *s)
+{
+    uint32_t i, k;
+    if (s->time == ST_TIE)
+        return 1;
+    if (s->time != ST_NOTE || !(s->flags & SF_CARRY) || s->rat)
+        return 0;
+    for (i = 0; i < t->seq_n; i++)
+        for (k = 0; k < s->n; k++)
+            if (s->note[k] == t->seq_notes[i])
+                return 1;
+    return 0;
+}
+/* a carry step s (SF_CARRY): its notes sounding go on (-> bit k: note k), the other notes sounding end. skip: its
+ * notes not played here */
+static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
+{
+    uint32_t i, k, n = 0, keep = 0;
+    for (i = 0; i < t->seq_n; i++) {
+        uint32_t x = t->seq_notes[i];
+        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u)); k++)
+            ;
+        if (k < s->n) {
+            keep |= 1u << k;
+            t->seq_notes[n++] = (uint8_t)x;
+        } else {
+            trk_note_off(t, x);
+            seq_out_off(t, x);
+        }
+    }
+    t->seq_n = n;
+    return keep;
+}
+
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
@@ -1971,13 +2215,13 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         s = &qs;
     }
 #endif
-    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u;
+    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0;
     uint32_t slide_in = t->seq_hold && t->seq_n;
-    uint32_t next_tie = t->step[(t->seq_idx + 1u) % trk_len(t)].time == ST_TIE;
+    const step_t *nx = &t->step[(t->seq_idx + 1u) % trk_len(t)];   /* (the next step: a TIE or a carry keeps them) */
     if (s->time == ST_TIE) {
         if (t->seq_n) {
             t->seq_off = gate + slen / 2u;
-            t->seq_hold = (s->flags & SF_SLIDE) != 0 || next_tie;   /* chains hold at any GATE / swing */
+            t->seq_hold = (s->flags & SF_SLIDE) != 0 || seq_goes_on(t, nx);   /* chains hold at any GATE / swing */
         }
         return;
     }
@@ -1999,14 +2243,18 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
                 hits = 1u + ((s->rat >> (2u * i)) & 3u);
         gate /= hits;
     }
+    if ((s->flags & SF_CARRY) && !s->rat) {
+        keep = seq_carry(t, s, skip);               /* its notes sounding go on, the others end */
+        slide_in = 0;
+    }
     t->slide_glide = (uint8_t)slide_in;
-    if (!slide_in)
+    if (!slide_in && !keep)
         seq_release(t);
     for (i = 0; i < s->n; i++)
         if (roll_has(t, s->note[i]))
             skip |= 1u << i;                        /* (a roll plays it) */
     for (i = 0; i < s->n; i++)
-        if (!((skip >> i) & 1u)) {
+        if (!(((skip | keep) >> i) & 1u)) {
 #if FELUCCA_CHORDPLUS
             if (!slide_in)                          /* (STRUM: a chord step's notes one after the other) */
                 trk_note_chord(t, s->note, s->n, i, step_vel(s, i));
@@ -2025,12 +2273,13 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
                 seq_out_off(t, t->seq_notes[i]);
             }
         }
-    t->seq_n = 0;
+    if (!keep)
+        t->seq_n = 0;                               /* (seq_carry kept the ones going on) */
     for (i = 0; i < s->n; i++)
-        if (!((skip >> i) & 1u))
+        if (!(((skip | keep) >> i) & 1u) && t->seq_n < 4u)
             t->seq_notes[t->seq_n++] = s->note[i];
     t->seq_off = gate;
-    t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || next_tie);   /* next step a TIE: keep the notes to it */
+    t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || seq_goes_on(t, nx));   /* next a TIE: keep the notes to it */
 }
 
 #if !FELUCCA_ENERGY

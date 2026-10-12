@@ -567,10 +567,25 @@ the drums' VOLUME (the mixer's DR row), the macros (MASTER). SYNC stays on both 
   or a note after it releases it), so a NOTE and k TIEs play k + 0.5 .. k + 1 steps and a NOTE alone up to 1: in the
   gaps the nearer one (a TIE is kept from a quarter into it: 1.4 plays 1.5, 1.1 plays 1, 2.1 plays 2). The length
   runs from the start of the step the note was quantised to, to the release as heard (a note pressed late gets
-  longer by as much). Within 4 of the track's GATE: no lock. A note cut by the next one (legato, or overdub reaching a note) locks 127 and joins it
+  longer by as much). Within 4 of the track's GATE: no lock. A note cut by the next one (MONO / LEGATO / UNISON, or a POLY step full: overlapping notes below) locks 127 and joins it
   (`REC_LEGATO_JOIN`). Never on a ratchet step or a step that held notes before (overdub keeps their locks). The
   STEP card LENGTH shows the length in tenths (*1.8 ST*) when the last step has the lock; KNOB 4 resizes in whole
   steps and drops the fraction (the note then plays at the track's GATE).
+- **Overlapping notes** (2026-10-12, fix/rec-overlap; POLY, REC QUANTIZE ON and OFF, both UIs, every input and the
+  free take; user report "I hold a note, press another, the first is cut"): a note keeps sounding while you play
+  others over it, live and played back. Before, the step model ended a held note where the next note's step began
+  (seq.c `seq_step` releases what sounds at every NOTE step). Now that step becomes a chord of the new note and the
+  held ones with the step flag `SF_CARRY` (step_t.flags bit 7, free until now; chance uses bits 2..6): the notes of a
+  carry step already sounding go on, not struck again, the others sounding end at its start (`seq_carry`). A held
+  note up while notes that started in another step are still down ends at the nearest step start (the key-to-ear
+  latency taken back): from there a carry step of the rest (`rec_drop`). One step is the precision of such an end
+  (one GATE a step); the last notes up keep the exact length above. Held into a step with older notes (overdub): they
+  join that step the same way (its notes struck, the held ones not). A chord's keys (same step) still share their
+  length until the last is up. MONO / LEGATO / UNISON keep one note a step: the held note ends where the next one
+  starts, joined to it, as heard live (the voice plays one note). A carry step at the start of the loop, or after a
+  REST, strikes all its notes. The STEP page and the piano roll show a carried note as a note of that step. A SLOOP
+  build ignores the bit (the carried notes are struck again there); the web editor keeps it when it writes the flags
+  byte back as it read it (editor.c).
 - **Step entry**: section 4.2.
 - **Automation**: section 6. Two gestures, one store.
 - **Undo / redo**: SAVE then HOME, HOME then SAVE, and EDIT held + OCT- / OCT+ as SLOOP [D]; many levels as
