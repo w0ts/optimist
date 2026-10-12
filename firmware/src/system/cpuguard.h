@@ -24,6 +24,9 @@ typedef struct {
     uint16_t est, meas, load;    /* the last half: predicted, measured, their larger; 1/256 of a half */
     uint16_t model;              /* the cost model's load at the last half's start (cpuguard_costs.h) */
     uint16_t gpre;               /* (the saving: the load before the step; gsum: the loads after it) */
+    uint16_t smeas;              /* the measured load of the half before the last step (the console: what set it off) */
+    uint16_t avg;                /* the measured load over the last ~8 halves (each held to a whole half): the load
+                                  * before a step, so a spike's own half never counts as what a level saves */
     uint32_t gsum;
     uint32_t steps, early, sheds; /* steps up (early: on a prediction, before the half), voices shed */
 } cg_t;
