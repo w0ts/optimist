@@ -58,6 +58,24 @@ with contextlib.redirect_stderr(_w):
     _a = argparse.Namespace(config=None, profile=None, set=["VIS=1"], name=None, ble_drop=None)
     _c3, _ = C.resolve_cli(_a)[:2]
 check("... also non-strict and as --set VIS=1: a warning, no error", _w.getvalue().count("warning:") == 2 and "VIS" not in _c3)
+# SIMD (bit 57) withdrawn 2026-10-12, wrong on the real FM-1: no longer offered; a .config or --set with SIMD=1 loads,
+# says why, and builds without it (FELUCCA_SIMD not in the header: the firmware's default, 0)
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nSIMD=1\nASM=1\nICONS=0\n")
+    _a = argparse.Namespace(config=None, profile=None, set=["SIMD=1"], name=None, ble_drop=None)
+    _c3, _ = C.resolve_cli(_a)[:2]
+_h, _ = C.flags(_cfg)
+check("SIMD: not offered (no item, not in the menu's JSON), its bit 57 not reused, no cost entry",
+      "SIMD" not in R.ITEMS and "SIMD" in R.RETIRED and all(it.bit != 57 for it in R.ITEMS.values()) and
+      all(d["key"] != "SIMD" for d in R.to_json()["items"]) and "SIMD" not in C.load_costs().get("deltas", {}))
+check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 2026-10-12\" each time, built without it",
+      "SIMD" not in _cfg and "SIMD" not in _c3 and _cfg["ICONS"] == 0 and
+      _w.getvalue().count("SIMD: wrong on the real FM-1, 2026-10-12") == 2 and "FELUCCA_SIMD" not in _h and
+      "FELUCCA_SIMD " not in C.header(_cfg))
+check("no shipped profile or estimate configuration names SIMD",
+      not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
+           if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):

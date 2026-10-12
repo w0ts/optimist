@@ -10,6 +10,9 @@
  * libraries (image, face detection, QR, an AEC) contain `rD.l = rA.h + rA.l`, dual and quad adds and
  * `rD = rA.h * imm (ssat)`; the Q15 form e543 below appears in none of them. Whether the FM-1's core runs
  * the forms below is NOT known: FELUCCA_SIMD_PROBE builds test it at boot (src/simd_probe.c).
+ * 2026-10-12: WRONG on the real FM-1: a SIMD=1 build crackles continuously (load 41 %, no late half), the
+ * same build without it is clean; so the builder no longer offers SIMD (tools/builder/registry.py RETIRED)
+ * until the forms' real meaning is measured on the device.
  *
  * FELUCCA_SIMD: 1 = sine_i (dsp.c) as asm_sine_pk below; 0 = the C (the default, and the only choice
  * on any other compiler). FELUCCA_SIMD_CHECK=1 (verification, not for release): every call also runs
