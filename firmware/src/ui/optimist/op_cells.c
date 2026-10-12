@@ -56,7 +56,7 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
  * (< 0, a division: 4BAR slowest .. 1/32) is the list form, one of ten cells lit, left to right slow to fast */
 static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
 {
-    if (d != &TP[P_LRATE])
+    if (d != &TP[P_LRATE] && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
         cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
     else if (v < 0)
         cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);
@@ -106,13 +106,83 @@ static void snd_name(uint32_t c, char *b)
 }
 
 /* ---- the drum lanes' values: the selected lane (SLOOP's ui_drums.c edits the lane played last) */
-static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp) { return dsnd_desc_lane(lane_selected(), id, vp); }
+/* the drum track recording (playing, its REC bit): a lane value's card shows the hold in force (the knob's motion, seq/
+ * auto_lane.c lane_knob: heard through the overlay, the patch dl.ofs not written), so the next detent goes on from it,
+ * as a synth card does from t->p (motion_knob); else the patch, as stored. dsv[id] already holds the patch */
+static void dsv_rec(uint32_t l, uint32_t id)
+{
+#if DLA_ON && FELUCCA_MOTION
+    if (id < DE_N && song.playing && ((song.rec >> TRK_DRUM) & 1u) && ((dla.hm[l % DRUM_LANES] >> id) & 1u))
+        dsv[id] = dla.hv[l % DRUM_LANES][id];
+#else
+    (void)l, (void)id;
+#endif
+}
+/* a lane knob set lane l's value id to v (the SOUND rows SOUND, SOUND 2, ENV; the mixer's LEVEL CUT DRIVE): REC on the
+ * drum track while playing records it as motion (lane_knob: a hold event, heard at once); 1 done so (the patch stays),
+ * 0 the caller writes the patch as ever (and a hold in force on it let go, so the knob is heard) */
+static int lane_value_rec(uint32_t l, uint32_t id, int32_t v)
+{
+#if DLA_ON && FELUCCA_MOTION
+    int rc;
+    if (id >= DE_N)
+        return 0;
+    rc = lane_knob(l, id, v);
+    if (rc == 2) {
+        motion_full = 0;                                /* (lane_knob raised it: said here, as page_set does) */
+        ui_message("MOTION FULL");
+    }
+    return rc == 1 || rc == 2;
+#else
+    (void)l, (void)id, (void)v;
+    return 0;
+#endif
+}
+/* a drum lane's LFO (drums/lane_play.c, the user's D6: one a lane): the LFO button with a lane selected (not DR itself)
+ * opens LFO (RATE WAVE PHS FADE) and LFO DEST (DEST AMT DEST2 AMT2). This UI's pages, not PAGES' (SLOOP's UI has none,
+ * and stays as it is): SC_DSND values DL_LFO0 + DLF_* (op_dsnd_desc), in the page lists as NPAGES + i (op_pg) */
+#define LANE_LFO_UI (DLFO_ON && DL_UI)
+#define DL_LFO0 24u
+#if LANE_LFO_UI
+static const page_t LANE_LFO_PG[2] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
+                                      {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}}};
+#define OP_NPG (NPAGES + 2u)
+static int16_t dlfv[DLF_N];                             /* the cells' values (dlfo_field: the lane's LFO, 8 bytes) */
+static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg == &LANE_LFO_PG[1]; }
+static const page_t *op_pg(uint32_t i) { return i < NPAGES ? &PAGES[i] : &LANE_LFO_PG[(i - NPAGES) & 1u]; }
+#else
+#define OP_NPG NPAGES
+#define lane_lfo_pg(pg) 0
+#define op_pg(i) (&PAGES[i])
+#endif
+_Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
+static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
+{
+    const param_desc_t *d;
+#if LANE_LFO_UI
+    if (id >= DL_LFO0 && id < DL_LFO0 + DLF_N) {
+        dlfv[id - DL_LFO0] = (int16_t)dlfo_field(lane_selected(), id - DL_LFO0);
+        *vp = &dlfv[id - DL_LFO0];
+        return &DLFO_DESC[id - DL_LFO0];
+    }
+#endif
+    d = dsnd_desc_lane(lane_selected(), id, vp);
+    if (d)
+        dsv_rec(lane_selected(), id & 31u);
+    return d;
+}
 static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp) = op_dsnd_desc;   /* (params.c page_desc) */
 
 static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.c dsnd_set, without its confirm */
 {
     uint32_t l = lane_selected();
     uint8_t *r = dl.ref[l];
+#if LANE_LFO_UI
+    if (id >= DL_LFO0) {                                /* the lane's LFO */
+        dlfo_field_set(l, id - DL_LFO0, v);
+        return;
+    }
+#endif
     if (id >= 16u) {                                    /* SOUND 3: the sends */
         dsend_set(l, id - 16u, v);
         return;
@@ -160,6 +230,8 @@ static void op_dsnd_tick(void)
 /* ---- rows made of PAGES */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
+    if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
+        return is_drum(TSEL) && lane_picked();
     if (pg->scope != SC_TRACK && pg->scope != SC_ENGINE && pg->scope != SC_DSND
 #if BP_SET_ANY
         && !(pg->scope == SC_BPSET && pg->fam == FAM_EDIT)   /* (ACID GEN; REVERB TYPE is the FX screen's) */
@@ -185,12 +257,12 @@ static int fx_page(const page_t *pg)
 #endif
         ;
 }
-/* the PAGES indexes of a screen's page rows, in their order; returns how many */
+/* the PAGES indexes of a screen's page rows, in their order (past NPAGES: this UI's own, op_pg); returns how many */
 static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 {
     uint32_t i, n = 0;
-    for (i = 0; i < NPAGES && n < OP_MAXROWS; i++)
-        if (want(&PAGES[i]))
+    for (i = 0; i < OP_NPG && n < OP_MAXROWS; i++)
+        if (want(op_pg(i)))
             ix[n++] = (uint8_t)i;
     return n;
 }
@@ -218,7 +290,7 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
 #endif                                                  /* (a MACRO's motion: SLOOP's macro_ui.c, not here yet) */
     if (pg->scope == SC_FXSLOT && id < FX_NSLOT)        /* FX > SLOTS: load the type (a type held elsewhere swaps) */
         fxs_load(id, fxs_list[v]);
-    if (pg->scope == SC_DSND)
+    if (pg->scope == SC_DSND && !lane_value_rec(lane_selected(), id, v))
         op_dsnd_set(id, v, steps);
 }
 

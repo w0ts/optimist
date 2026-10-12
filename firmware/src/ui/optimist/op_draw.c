@@ -543,7 +543,7 @@ static void draw_list(void)
         first = cur - shown / 2u;
     if (first + shown > n)
         first = n > shown ? n - shown : 0u;
-    sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(gp - PAGES));
+    sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(uintptr_t)gp);
     for (i = first; i < n && i < first + shown; i++) {
         SCR->name(i, nm);
         sig = hs(sig, nm);

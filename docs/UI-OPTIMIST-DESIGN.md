@@ -345,7 +345,7 @@ are 13 px from x 26, the drum grid's too (since the lanes' codes, 2026-10-11). B
 |---|---|---|---|---|---|
 | no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the window's page (2026-10-11) | — | tapped: back |
 | no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the window's page (2026-10-11) | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
-| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties; a recorded fraction in tenths, section 5) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
+| **a step held** | drums: LEVEL · RATCHET · TUNE · DECAY (the lane's locks, section 18); synth: NOTE · LEVEL · RATCHET · LENGTH (ties; a recorded fraction in tenths, section 5) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
 
@@ -2152,9 +2152,9 @@ under the full light, so a blinking button swings between full and half. The LIG
 | ENV, LFO | the selected track has SOUND rows of that family (`sound_page`, the rows `op_jump` opens); ENV also on an FM6 track (the operators) |
 | FX, SCL, EDIT, ARP | the track has rows of the family, or the button's held layer works (FX punch, SCL key, EDIT erase, ARP repeat: `ly_bit`, off on MASTER's EDIT and ARP) |
 | FX on the global FX screen | its next page |
-| any page button, STEP with a step held | the step's page lock (all but EDIT and GLO) |
+| any page button, STEP with a step held | the step's page lock (all but EDIT and GLO; EDIT too on the drum track: the lane's SOUND pages, section 18) |
 
-So on the drum track LFO is dark (no LFO page); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
+So on the drum track LFO is dark on DR itself and half lit with a lane selected (the lane's LFO, section 18); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
 half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
 track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
 saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
@@ -2336,3 +2336,26 @@ CPU warning (D2 said no).
 Tests: tests/ui_optimist_pages.h (pages_nav_tests D1 D2 D6 D7 D8 D9 P25 P28; pages_master_tests D3; pages_keys_tests
 D10; pages_head_tests D11; pages_select_tests, SELECT and ALGORITHM; pages_hit_tests, a drum key's lane), and the tests
 that reached SOUND by the mixer's YES or walked the lanes by SELECT updated.
+
+## 18. The drum lanes' gestures (feat/lane-ui, 2026-10-12)
+
+The lane-auto core (section 6.1: a lane's values as automation events, its own LFO) reached through this UI. The user's
+rulings are lanedes/DESIGN.md section 6 (D1..D12); what was built:
+
+| Gesture | Does | Code |
+|---|---|---|
+| REC + a lane knob, playing | On the drum SOUND, SOUND 2 and ENV rows, and the mixer's lane LEVEL, CUT and DRIVE (each row its own lane, D12): the lane's motion, a hold event on the step playing (`lane_knob`), heard at once at the lane's hits; the patch (dl.ofs, what SAVE keeps) is not written. While recording the card shows the value recorded, so the next detent goes on from it (as a synth card does from its motion). The list full: *MOTION FULL*, nothing written. Not recording: the patch as ever, and a hold in force on that value lets go so the knob is heard | op_cells.c `lane_value_rec`, `dsv_rec`; op_mixer.c `mx_lane_set` |
+| A drum step held | The cards are LEVEL · RATCHET · TUNE · DECAY (D3): TUNE and DECAY are the selected lane's locks on the steps held, a padlock when there is one, the arrow for a hold event; with no lock they show the patch | op_step.c `held_cell`, `held_lane_param`, `lock_cell_id` |
+| ... + EDIT or ENV | The lane's SOUND / SOUND 2 (EDIT, again for the next) or ENV page, its values as locks (SOUND 3, SOURCE, KIT and the LFO are not). EDIT locks only on the drum track; on a synth track it stays as it was | op_step.c `lock_pg_ok`, `lock_param` (`LOCK_LANE`); op_input.c `op_press` |
+| ... a turn on a step without the lane's hit | Nothing written, *NO HIT ON THIS STEP* (D4: a lock there would never be heard) | op_step.c `lock_step_put` |
+| ... YES | The hot lane cell's event: a lock becomes a hold event, a hold event a lock (`lane_kind_toggle`); HOME + the knob drops both | op_step.c `held_yes`, `lock_step_put` |
+| The lane's hit removed (a tap, other lanes still on the step) | Its locks on that step go with it (`lane_step_drop`, D4); HOME + the step clears everything as before | op_step.c `step_wipe` |
+| STEP's marks | A lane's event is a dot in that lane's colour (`lane_col`), whichever lane is selected (D9) | op_stepdraw.c `sg_marks` |
+| LFO with a lane selected | SOUND with the lane's LFO (RATE WAVE PHS FADE, its wave as the picture) and LFO DEST (DEST AMT DEST2 AMT2), drums/lane_play.c `dlfo_field` / `dlfo_field_set`. The LFO LED is half lit on a lane (full on these rows) and dark on DR itself, where LFO does nothing; walking from a lane to DR leaves the LFO rows (every drum row). These two pages are this UI's (`LANE_LFO_PG`, index NPAGES + i in the page lists), not PAGES': SLOOP's UI is unchanged | op_cells.c `op_dsnd_desc`, `op_pg`, `sound_page`; op_graph.c `graph_lfo` |
+
+Not built: the SLOOP UI's side of these gestures (lanedes section 3.3: `lock_par` as a stored id, `auto_marks_lane`), not
+trivial, left for a brief of its own. The lane LFO's values are not recordable or lockable (they are not automation
+events, section 6.1).
+
+Tests: tests/ui_optimist_laneui.h (`lane_rec_tests`, `lane_held_tests`, `lane_lfo_tests`), in the automation switch
+set; tests/ui_optimist_test.c's held drum step check follows D3.

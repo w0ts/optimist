@@ -828,7 +828,12 @@ static void step_keys_tests(void)
     {
         cell_t c;
         step_cell(0, 2, &c);
+#if DLA_ON && FELUCCA_PLOCK                               /* (the user, 2026-10-12, D3: the lane's TUNE and DECAY locks) */
+        check(SCR->rows() == STP_LANE0 + 1u && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
+              "drums: the held step's cards LEVEL RATCHET TUNE DECAY");
+#else
         check(SCR->rows() == STP_LANE0 + 1u && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+#endif
         ui.force = 1;
         frame();
         ppm("opt-step-drum-held");
@@ -2265,7 +2270,8 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
-#include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
+#include "ui_optimist_pages.h"
+#include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */                      /* 2026-10-12: the page organisation (D1..D11) */
 
 int main(int argc, char **argv)
 {
@@ -2347,6 +2353,7 @@ int main(int argc, char **argv)
     pages_head_tests();
     pages_select_tests();
     pages_hit_tests();
+    lane_ui_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif
