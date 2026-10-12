@@ -12,7 +12,7 @@
     {"kind": "page", "ctx": "ENV2 DEST", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "FLT": "Env 2 to filter", "PIT": "Env 2 to pitch", "SHP": "Env 2 to shape", "OSC2": "Env 2 to osc 2 pitch"}},
     {"kind": "page", "ctx": "LFO", "params": {
-      "RATE": "LFO rate", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
+      "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
     {"kind": "page", "ctx": "LFO DEST", "params": {
       "PIT": "LFO to pitch (vibrato)", "FLT": "LFO to filter", "SHP": "LFO to shape", "AMP": "LFO to level (tremolo)"}},
     {"kind": "page", "ctx": "FX", "params": {

@@ -20,6 +20,8 @@
  *     the importer's SL24_FM6V images map back to themselves), U01..U32 -> F1 (LOST: the voice). MOD -> MLVL;
  *     ALG FB MRAT MEG VMOD DTUN 0 (in the voice already); preset = PTCH (F1..F8, else 0). LOST: M.TIM, C.TIM, an
  *     ENGINE other than MARK I (2.4's), operators switched off;
+ *   - the LFO's RATE synced to the tempo (< 0, params.c N_LSYNC: SLOOP 2.6's, not 2.4's) -> the free rate nearest
+ *     that note value's at the project's tempo (sl24_rate_out), its locks too (LOST: LSYNC, the sync);
  *   - the drum track: kits 0..36 as they are; ours past 36 (X0X, user kits) -> 808 (LOST); its lanes' record (sends,
  *     per-lane edits, dl_hash) LOST but the lanes' DLY: SLOOP 2.5's drums' delay send (G_DRDLY, byte 73; 2.4 ignores
  *     it) is the DLY level most lanes have (a tie: the lower), as a send (dsend_lvl), 0 while DLY is in no FX slot.
@@ -64,8 +66,9 @@ enum {                                                  /* what an export lost (
     SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096,  /* (the FX slots: sl24_fx_out) */
     SX24_MOTION = 8192,                                 /* (the automation store: hold events, sl24_auto_out; the last bit
                                                          * of the first word) */
-    SX24_CHANCE = 16384                                 /* (the steps' chance: the first bit of the second word, which an
+    SX24_CHANCE = 16384,                                /* (the steps' chance: the first bit of the second word, which an
                                                          * editor asks for with SL24_GET's flag; ed_sl24.c) */
+    SX24_LSYNC = 32768                                  /* (the LFO's RATE synced: the second word's bit 1) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -118,6 +121,24 @@ static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, int32_t voice, uin
     return voice >= 0 && voice < 16 ? SL24_PTCH[voice] : 0u;
 }
 
+/* our LFO RATE r -> 2.4's: a synced one (< 0: a cycle of LSYNC_P 24ths of a beat) the free rate (LFO_HZ_X100, Hz x 100)
+ * nearest it at bpm, on a log scale (above the geometric mean of two neighbours: the upper one); a free one as it is */
+static int32_t sl24_rate_out(int32_t r, int32_t bpm)
+{
+    static const uint16_t LSYNC_P[LSYNC_N] = {384, 192, 96, 48, 24, 12, 8, 6, 4, 3};   /* (voice.c LSYNC_KT's) */
+    uint64_t p, t;
+    int32_t i;
+    if (r >= 0)
+        return r;
+    p = LSYNC_P[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u];
+    t = (uint64_t)(bpm > 0 ? bpm : 1) * 40u;           /* the note value's Hz x 100, times p */
+    for (i = 1; i < 128 && LFO_HZ_X100[i] * p < t; i++)
+        ;
+    if (i == 128)
+        return 127;
+    return t * t >= (uint64_t)LFO_HZ_X100[i - 1] * LFO_HZ_X100[i] * p * p ? i : i - 1;
+}
+
 static int16_t sl24_kit_out(int32_t k) { return (int16_t)(k >= 0 && k < (int32_t)SL24_KITS ? k : (int32_t)DRUM_SAMPLED); }
 /* the engine number SLOOP 2.5 / 2.6 play for our UID: its own (0..9; PHYS 10), else the first fallback that is one */
 static uint32_t sl24_eng_out(uint32_t uid)
@@ -159,6 +180,8 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     pj_to_p(v, q->t[k].p);
     for (i = 0; i < SL24_COMMON; i++)
         sl24_w16(o + 2u * i, v[i]);
+    sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));
+    lost |= v[P_LRATE] < 0 ? SX24_LSYNC : 0u;
     for (i = 0; i < 3u; i++)
         sl24_w16(o + 2u * (SL24_TFLT + i), px[i]);
     for (i = 0; i < 8u; i++)
@@ -203,7 +226,7 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     return lost;
 }
 /* track k's extras x (0: none) -> 2.4's tail at o, locks converted; -> SX24_* lost */
-static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, uint8_t *o)
+static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, int32_t bpm, uint8_t *o)
 {
     stepx_t d;
     uint32_t i, m = 0, lost = 0;
@@ -221,6 +244,10 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, uint8_t *o
             if (k == TRK_DRUM && l.param == P_E0) {
                 lost |= l.val != sl24_kit_out(l.val) ? SX24_KIT : 0u;
                 l.val = sl24_kit_out(l.val);
+            }
+            if (l.param == P_LRATE && l.val < 0) {
+                lost |= SX24_LSYNC;
+                l.val = (int16_t)sl24_rate_out(l.val, bpm);
             }
             l.param = (uint8_t)p;
             d.lock[m++] = l;
@@ -317,7 +344,7 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
         int e_ok;
         lost |= sl24_trk_out(q, k, px[k], t, &e_ok, bank);
         memcpy(t + 2u * SL24_NP + 2u, q->t[k].step, 640u);
-        lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, t + SL24_TAIL);
+        lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, q->g[G_BPM], t + SL24_TAIL);
     }
     lost |= sl24_fx_out(o);
     s = proj_hash(o, SL24_SIZE - 4u);

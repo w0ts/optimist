@@ -425,6 +425,9 @@ static song_t song;
 #endif
 #define BEAT_U ((uint32_t)FS * 60u)
 static volatile uint32_t clk_beat, clk_pos;
+/* the units the clock moves in the block being rendered (events_block: n x BPM, nudged, or what an external clock
+ * moved while playing; stopped: n x BPM): a synced LFO's step (voice.c lfo_inc) */
+static uint32_t clk_blk;
 static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* N_DIV: beats = 1 / DEN */
 #define NDIV_SHORT 6u            /* the divisions inside a beat (N_DIV: the arp's RATE, the delay's TIME) */
 #if FELUCCA_DIV_LONG
