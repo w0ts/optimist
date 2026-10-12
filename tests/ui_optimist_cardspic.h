@@ -68,7 +68,7 @@ static void cards_pic_tests(void)
         check(n >= 2u && ok, "2x2: every ARP row (ARP, ARP 2): the ARP picture alone, no rows, the n/N");
     }
     /* SOUND on a row with no picture: the rows under the big values */
-    mix_to_sound();
+    sound_all();
     {
         uint32_t r, n = SCR->rows(), row = 0xFF;
         for (r = 1; r < n && row == 0xFF; r++)
@@ -86,7 +86,7 @@ static void cards_pic_tests(void)
         for (t = 0; t < NTRK && ok; t++) {
             reset_ui();
             song.sel = (uint8_t)t;
-            mix_to_sound();
+            sound_all();
             n = SCR->rows();
             for (r = 0; r < n && ok; r++) {
                 ui.row[SCR_SOUND] = (uint8_t)r;
@@ -151,6 +151,7 @@ static void cards_pic_tests(void)
     reset_ui();
     song.sel = 0;
     tap(B_EDIT);
+    tap(B_EDIT);                                        /* (EDIT's first row is the SOUND row, D7: EDIT 1 is its second) */
     cp_draw();
     ppm("opt-cardspic-edit1");
     check(ui.scr == SCR_SOUND && cp_list(), "2x2: EDIT 1, the big values, its rows under them, the header's n/N");

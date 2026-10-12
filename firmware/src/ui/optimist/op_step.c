@@ -697,8 +697,10 @@ static int step_row_page(const page_t *pg)              /* a synth track's rows 
     return sound_page(pg) && ((pg->fam == FAM_SEQ && pg->scope == SC_TRACK) || pg->fam == FAM_ARP);
 }
 /* STEP's pages (the user: "the first SEQ menu should have the length of the pattern"): PATTERN first (LEN DIV SWING
- * GATE) on every track, then a synth track's ARP, ARP 2, the drum track's 16 lanes (STP_LANE0 + l: the lane's sound,
- * LEVEL TUNE DECAY REV; SELECT walks them and selects the lane: op_input.c op_row_pick). STEP opens on PATTERN */
+ * GATE) on every track, then a synth track's ARP, ARP 2, the drum track's LANE page (STP_LANE0: the selected lane's
+ * sound, LEVEL TUNE DECAY REV, named after it). SELECT pages the four knobs only and never changes the lane; the lane
+ * is ALGORITHM's (DR, then the lanes) or HOME + a key's (the user, 2026-10-12: "in step seq: select should always
+ * select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on PATTERN */
 #define STP_LANE0 1u
 static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM_SEQ, the track's: LEN first) */
 {
@@ -712,7 +714,7 @@ static uint32_t step_rows(void)
 {
     uint32_t n, i, p;
     if (is_drum(TSEL))
-        return STP_LANE0 + DRUM_LANES;
+        return STP_LANE0 + (DL_UI ? 1u : 0u);
     n = page_rows(step_row_page, stp_ix);
     for (i = 0, p = stp_pattern(); i < n && stp_ix[i] != p; i++)
         ;
@@ -731,7 +733,7 @@ static void step_name(uint32_t r, char *b)
         str_cpy(b, is_drum(TSEL) ? PAGES[stp_pattern()].title : PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
         return;
     }
-    str_cpy(b, LANE_SHORT[(r - STP_LANE0) % DRUM_LANES], 12);   /* "c.hat" -> "C.HAT": as a row's name */
+    str_cpy(b, LANE_SHORT[lane_selected()], 12);         /* the selected lane's: "c.hat" -> "C.HAT", as a row's name */
     for (i = 0; b[i]; i++)
         b[i] = (char)(b[i] >= 'a' && b[i] <= 'z' ? b[i] - 32 : b[i]);
 }
@@ -812,7 +814,7 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
 #if DL_UI
     {
         int16_t *vp;
-        cell_param(c, dsnd_desc_lane((r - STP_LANE0) % DRUM_LANES, STEP_LANE_PG.id[k & 3u], &vp), vp);
+        cell_param(c, dsnd_desc_lane(lane_selected(), STEP_LANE_PG.id[k & 3u], &vp), vp);
         if (!c->label)                                  /* (a value this lane's sound has not: "-") */
             str_cpy(c->val, "-", sizeof c->val);
     }
@@ -839,7 +841,7 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
 #if DL_UI
     else
-        page_turn(&STEP_LANE_PG, k, s, fine);           /* (the row is the selected lane: op_input.c op_row_pick) */
+        page_turn(&STEP_LANE_PG, k, s, fine);           /* (the selected lane's) */
 #endif
 }
 static int step_yes(uint32_t r, uint32_t k, uint32_t ok)

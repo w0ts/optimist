@@ -319,14 +319,15 @@ static void name_frame(uint32_t pressed, uint32_t held)
         name_ok();
 }
 
-/* the key LEDs: every key that does something lit, the key whose letters are cycling blinks */
-static uint32_t name_leds(void)
+/* the key LEDs (D10, op_keys.c): every key that does something dim (*d), the key whose letters are cycling full */
+static uint32_t name_leds(uint32_t *d)
 {
-    uint32_t k, m = 0, blink = ((fm1_ms / 250u) & 1u) == 0u;
+    uint32_t k, m = 0;
+    *d = 0;
     for (k = 0; k < 27u; k++) {
         int32_t w = punch_key(k);
-        uint32_t on = w < 0 ? nm_black(k) != NMK_NONE : nm.key != (uint32_t)(w & 15) + 1u || blink;
-        m |= on << k;
+        *d |= (uint32_t)(w >= 0 || nm_black(k) != NMK_NONE) << k;
+        m |= (uint32_t)(w >= 0 && nm.key == (uint32_t)(w & 15) + 1u) << k;
     }
     return m;
 }

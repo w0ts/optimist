@@ -204,21 +204,22 @@ static void mixer_sets_tests(void)
         check(dl.ofs[1][DE_LEVEL] < lv && lane_selected() == 1u, "a lane's row: KNOB 2 its LEVEL (the sound's offset)");
         dl.ofs[1][DE_LEVEL] = (int8_t)lv;
         tap(B_SAVE);
+        check(ui.scr == SCR_PROJECT && lane_selected() == 1u, "SAVE on a lane's row, a cell turned: PROJECT (no YES on the mixer, D6)");
+        tap(B_HOME);
+        tap(B_EDIT);
         check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]) == 0 && lane_selected() == 1u,
-              "YES on a lane's row: the SOUND rows of that lane");
+              "... EDIT: the SOUND row of that lane (D7)");
         reset_ui();
         mx.set = 0;
         ui.hot_lit = 0;
         tap(B_SAVE);
-        check(ui.scr == SCR_PROJECT && !op_armed(), "SAVE tapped on the mixer, no cell picked: PROJECT [provisional]");
+        check(ui.scr == SCR_PROJECT && !op_armed(), "SAVE tapped on the mixer, no cell picked: PROJECT");
         tap(B_HOME);
         check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
         press(B_HOME);
         frames(HOLD_FRAMES);
         release(B_HOME);
-        check(ui.scr == SCR_SYSTEM, "HOME held alone past HOLD on the mixer: SYSTEM [provisional]");
-        tap(B_HOME);
-        check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
+        check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
         tap(B_HOME);
@@ -243,8 +244,13 @@ static void mixer_sets_tests(void)
         mx.set = 1;
         check(mix_find("FX ON"), "a track's FX ON in its sets");
         lv = trk[0].p[P_FXOFF];
+        turn(EN_K1 + ui.hot, 1);                        /* (mix_find: the hot cell is FX ON's) */
+        if (trk[0].p[P_FXOFF] == lv)
+            turn(EN_K1 + ui.hot, -1);
+        check(trk[0].p[P_FXOFF] != lv && ui.scr == SCR_HOME, "FX ON: its knob toggles it (the mixer has no YES, D6)");
         tap(B_SAVE);
-        check(trk[0].p[P_FXOFF] != lv && ui.scr == SCR_HOME, "YES on FX ON toggles it (no SOUND)");
+        check(ui.scr == SCR_PROJECT, "... SAVE then: PROJECT");
+        tap(B_HOME);
         trk[0].p[P_FXOFF] = lv;
         mx.set = 0;
     }
@@ -432,7 +438,9 @@ static void header_footer_tests(void)
     check(px_in(60, 4, 170, 16, C_HI), "STEP: the header says the window and the pick (Steps 1-16 c.hat)");
     tap(B_HOME);
     song.sel = 0;
-    tap(B_EDIT);                                        /* (EDIT: no picture, its rows under the 2x2 cards) */
+    tap(B_EDIT);
+    tap(B_EDIT);                                        /* (EDIT 1: no picture, its rows under the 2x2 cards; the SOUND row
+                                                         * first has the presets' picture) */
     ui.force = 1;
     frame();
     check(px_in(0, 202, 240, 38, C_GRAY) || px_in(0, 202, 240, 38, C_HI),

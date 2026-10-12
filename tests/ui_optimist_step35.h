@@ -8,6 +8,7 @@ static void s35_open(void)                              /* a synth track's STEP,
     reset_ui();
     song.sel = 0;
     song.octave = 0;
+    st.roll_oct = 0;                                    /* (the roll's view: an earlier test's OCT may have moved it) */
     TSEL->p[P_SLEN] = 16;                               /* (a LEN left by an earlier test or the fuzz: one bar) */
     for (i = 0; i < NSTEP; i++)
         step_clear(&TSEL->step[i]);

@@ -71,13 +71,10 @@ static uint32_t walk_pos(int lay)                       /* where the walk is: a 
 }
 static void walk_sel(uint32_t p)                        /* the track, DR or a lane of row p selected */
 {
-    uint32_t was = ui.lane;
     ui.lane = (uint8_t)(p >= MXR_LANE0);
     track_select(mx_trk_of(p));
     if (p >= MXR_LANE0)
-        lane_pick(p - MXR_LANE0);                       /* (STEP: a change previews it, stopped) */
-    else if (was && ui.scr == SCR_STEP && is_drum(TSEL) && ui.row[SCR_STEP] >= STP_LANE0)
-        ui.row[SCR_STEP] = 0;                           /* (STEP, DR itself: PATTERN; the lane pages are the lanes') */
+        lane_pick(p - MXR_LANE0);                       /* (STEP: a change previews it, stopped; its LANE page shows it) */
     op_repaint();
 }
 static void walk_to(uint32_t p, int lay)

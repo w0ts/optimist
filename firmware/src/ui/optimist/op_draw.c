@@ -68,7 +68,7 @@ static void loop_pos(const track_t *t, char *b)
 
 /* ---- the header */
 /* the screen and its cursor row into t (n bytes): "SOUND ENV"; a row that starts with the screen's name carries it
- * already, so it stands alone ("PROJECT", not "PROJECT PROJECT"; "FX SLOTS" on FX) */
+ * already, so it stands alone ("PROJECT", not "PROJECT PROJECT"; "MASTER DELAY" on MASTER, the master FX) */
 static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
 {
     const char *s = SCR_NAME[scr % SCR_N];
@@ -92,15 +92,6 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
         return;
     }
     SCREENS[scr % SCR_N].name(row, r);
-    if (scr == SCR_FX) {                                /* the global FX: "FX MASTER", then the page ("FX MASTER DELAY") */
-        int ms = r[0] == 'M' && r[1] == 'A' && r[2] == 'S' && r[3] == 'T' && r[4] == 'E' && r[5] == 'R';   /* ("MASTER COMP") */
-        str_cpy(t, ms ? "FX" : "FX MASTER", n);
-        if (ms || r[0] != 'F' || r[1] != 'X') {
-            str_cpy(t + str_len(t), " ", n - str_len(t));
-            str_cpy(t + str_len(t), r, n - str_len(t));
-        }
-        return;
-    }
     if (scr == SCR_HOME && row % MXR_N != MXR_MASTER) { /* the mixer: the row's full name and the set, "SNARE LEVELS" */
         if (row % MXR_N >= MXR_LANE0)
             str_cpy(t, LANE_SHORT[(row % MXR_N - MXR_LANE0) % DRUM_LANES], n);
@@ -217,6 +208,40 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     room = x + 8 < 228 ? (uint32_t)(236 - x - 8) / 8u : 1u;
     cv_text(x + 8, 4, &FONT_S, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
 }
+/* a continuation page says its number once (the user, 2026-10-12, D11: "digits never collide with n/N"): with the n/N
+ * shown, "EDIT 1 1/8" is "EDIT 2/8". An Optimist-side table: PAGES keeps SLOOP's titles. OSC 2, FLT 2, ENV2 and a
+ * PART n keep theirs: they name a second unit, or a part */
+static const char *const HEAD_CONT[][2] = {{"EDIT 1", "EDIT"}, {"EDIT 2", "EDIT"}, {"REC 2", "REC"}, {"ARP 2", "ARP"},
+                                           {"SCL 2", "SCL"}, {"VOICE 2", "VOICE"}, {"SOUND 2", "SOUND"},
+                                           {"SOUND 3", "SOUND"}, {"STEP 2", "STEP"}, {"LFO 2", "LFO"}};
+static void head_cont(char *t)
+{
+    uint32_t i, n = str_len(t), m;
+    for (i = 0; i < sizeof HEAD_CONT / sizeof HEAD_CONT[0]; i++) {
+        m = str_len(HEAD_CONT[i][0]);
+        if (n >= m && str_eq(t + n - m, HEAD_CONT[i][0]) && (n == m || t[n - m - 1u] == ' ')) {
+            str_cpy(t + n - m, HEAD_CONT[i][1], 32u - (n - m));
+            return;
+        }
+    }
+}
+/* the title's room in pixels: right of the badge (bw wide), left of the loop position r and the tempo bpm */
+static int32_t head_room(int32_t bw, const char *bpm, const char *r)
+{
+    return 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - (bw + 8);
+}
+/* the title t (32 bytes, in capitals) as drawn: with the n/N pos, the continuation number dropped, then cut to the room
+ * (losing the screen's word first), then cased (D11: "cut then case", so what is left starts with a capital) */
+static void head_finish(char *t, const char *pos, int32_t room)
+{
+    char c[32];
+    if (pos[0]) {
+        head_cont(t);
+        head_fit(t, pos, room > 8 ? room / 8 : 1);
+    }
+    op_case(c, t, sizeof c);
+    str_cpy(t, c, 32);
+}
 static void draw_head(void)
 {
     char t[32], c[32], r[16], bpm[8], pos[12];
@@ -227,9 +252,13 @@ static void draw_head(void)
         || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
         eng = "MASTER";
         tc = C_HI;
+    } else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY) {   /* GLOBAL, SYSTEM: the badge names the screen (one GLO cycle) */
+        eng = SCR_NAME[ui.scr];
+        tc = C_HI;
     }
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     pos[0] = 0;
+    t[0] = 0;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
     } else if (name_on()) {
@@ -240,8 +269,13 @@ static void draw_head(void)
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
         head_pos(ui.scr, ui.row[ui.scr], pos);
     }
-    op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
-    str_cpy(t, c, sizeof t);
+    loop_pos(TSEL, r);
+    if (ui.scr == SCR_STEP)
+        r[0] = 0;                                       /* (STEP: the grid shows the playhead; the room is the pick's) */
+    fmt_int(bpm, song.g[G_BPM]);
+    tx = bw + 8;                                        /* the title's room, left of the position and the tempo */
+    room = head_room(bw, bpm, r);
+    head_finish(t, pos, room);                          /* ("Sound ENV", "Tempo 1/6") */
     if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !ui.cards_t) {   /* STEP: the window, then the pick: */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
             str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
@@ -250,14 +284,6 @@ static void draw_head(void)
         str_cpy(t + str_len(t), " ", sizeof t - str_len(t));
         str_cpy(t + str_len(t), c, sizeof t - str_len(t));
     }
-    loop_pos(TSEL, r);
-    if (ui.scr == SCR_STEP)
-        r[0] = 0;                                       /* (STEP: the grid shows the playhead; the room is the pick's) */
-    fmt_int(bpm, song.g[G_BPM]);
-    tx = bw + 8;                                        /* the title's room, left of the position and the tempo */
-    room = 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - tx;
-    if (pos[0])
-        head_fit(t, pos, room > 8 ? room / 8 : 1);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm), eng);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     tflash_tick();

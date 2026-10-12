@@ -25,7 +25,7 @@
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
- * entry points). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
+ * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
 #include "../sloop/ui_colors.c"         /* the colour language (engine, kit kind): shared with SLOOP's UI */
 #if FELUCCA_BRIGHT
@@ -57,3 +57,4 @@
 #include "op_laydraw.c"
 #include "op_fm6draw.c"
 #include "op_input.c"
+#include "op_keys.c"

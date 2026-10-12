@@ -169,13 +169,14 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 /* ---- SOUND: the SOUND row, then the track's pages */
 /* A page button tapped shows only its family's rows (the user, 2026-10-08: "why I see env2 and slicer on the lfo
  * screen?"): LFO the LFO and LFO DEST rows, ENV the envelopes and their DEST rows, FX the track's effects, EDIT the
- * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). The mixer's SOUND row opens every row, the
- * SOUND row first, as before. snd_fam: the family shown, SND_ALL every row */
+ * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). EDIT's rows start with the SOUND row (PRESET
+ * ENGINE INIT SAVE AS; the drum track KIT LANE: the user, 2026-10-12, D7), as does the whole list (ALGORITHM back from
+ * MASTER). snd_fam: the family shown, SND_ALL every row */
 #define SND_ALL 0xFFu
 static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
-static uint32_t snd_first(void) { return snd_fam == SND_ALL ? 1u : 0u; }   /* the SOUND row: only in the whole list */
+static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT ? 1u : 0u; }   /* the SOUND row */
 /* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
@@ -215,7 +216,7 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         if (k > 1u)
             return;
         c->label = L[k];
-        c->kind = CK_VAL;
+        c->kind = k ? CK_RO : CK_VAL;                   /* (LANE: the selected lane, ALGORITHM's or HOME + a key's) */
         str_cpy(c->val, k ? LANE_NAME[lane_selected()] : drum_kit_name(), sizeof c->val);
         c->col = k ? lane_col(lane_selected()) : kit_col();
         cell_gauge(c, 1, 0, k ? DRUM_LANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
@@ -259,10 +260,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     if (k == 0u) {
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
-    } else if (k == 1u && is_drum(TSEL)) {
-        lane_select((uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1));
-        ui.lane = 1;                                    /* (a lane selected: PRESETS its sound) */
-    } else if (k == 1u) {
+    } else if (k == 1u && !is_drum(TSEL)) {
         uint32_t e = TSEL->eng_req;
         do                                              /* (stepping over the numbers kept free: engines.c) */
             e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
@@ -290,10 +288,30 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
-/* ---- FX: the global effects' pages */
+/* ---- MASTER (SCR_FX): the global effects' pages (the user, 2026-10-12, D3): DELAY REVERB SLOTS TONE COMP LIMIT MACRO.
+ * PAGES keeps SLOOP's titles (its UI draws them: ui/sloop/ui_draw.c); the names shown are this table's. TUNE, whose
+ * page (PAGES' GLOBAL) is gone, sits on LIMIT's free card: GAIN CEIL TUNE GR */
+static const char *const FX_ALIAS[][2] = {{"DLY", "DELAY"}, {"REV/CHO", "REVERB"}, {"REVERB", "REV TYPE"},
+                                          {"MASTER", "TONE"}, {"CMP", "INS COMP"}};
+static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_TUNE, G_CGR}};
 static uint8_t fx_ix[OP_MAXROWS];
+static const page_t *fx_pg(uint32_t r)
+{
+    const page_t *pg = &PAGES[fx_ix[r % OP_MAXROWS]];
+    return pg->scope == SC_GLOBAL && pg->id[0] == G_CGAIN ? &FX_LIMIT : pg;
+}
 static uint32_t fxs_rows(void) { return page_rows(fx_page, fx_ix); }
-static void fxs_name(uint32_t r, char *b) { str_cpy(b, PAGES[fx_ix[r % OP_MAXROWS]].title, 12); }
-static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(&PAGES[fx_ix[r % OP_MAXROWS]], k, c); }
-static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(&PAGES[fx_ix[r % OP_MAXROWS]], k, s, fine); }
-static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, &PAGES[fx_ix[r % OP_MAXROWS]], k, ok); }
+static void fxs_name(uint32_t r, char *b)
+{
+    const char *t = fx_pg(r)->title;
+    uint32_t i;
+    for (i = 0; i < sizeof FX_ALIAS / sizeof FX_ALIAS[0]; i++)
+        if (str_eq(t, FX_ALIAS[i][0])) {
+            t = FX_ALIAS[i][1];
+            break;
+        }
+    str_cpy(b, t, 12);
+}
+static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(fx_pg(r), k, c); }
+static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(fx_pg(r), k, s, fine); }
+static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, fx_pg(r), k, ok); }

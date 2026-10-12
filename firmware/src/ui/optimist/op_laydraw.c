@@ -214,7 +214,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
             tile_set(&tl[i], b, used ? (playing ? C_OK : C_GRAY) : OP_SURF, used ? C_BLACK : C_DIM,
                      live_req == (int8_t)i ? C_WARN : 0);
         }
-        str_cpy(sub, srec == 2u ? "Song rec: recording" : srec ? "Song rec: armed" : "Rec + key store", n);
+        str_cpy(sub, srec == 2u ? "Song rec: recording" : srec ? "Song rec: armed" : "Rec+key store  Select: song", n);   /* (SONG: SAVE held + SELECT, D8) */
 #if FELUCCA_QCHAIN
         if (lay.chain_n >= 2u || chain_n) {
             uint32_t m = lay.chain_n >= 2u ? lay.chain_n : chain_n, k = 5;

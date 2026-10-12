@@ -129,11 +129,11 @@ static void algo_every_tests(void)
     frame();
     tap(B_SEQ);
     ok = al_walk(1) == MXR_LANE0 && lane_picked() && al_walk(2) == MXR_LANE0 + 2u;
-    ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + 2u);       /* (the lane's page) */
+    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;              /* (the LANE page: the selected lane's) */
     frame();
-    ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_LANE0 + 3u;
-    ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == 0u && !lane_picked();
-    check(ok, "STEP, the drum view: the walk into the lanes; on a lane page the page follows; DR itself: PATTERN");
+    ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_LANE0 && lane_selected() == 3u;
+    ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == STP_LANE0 && !lane_picked();
+    check(ok, "STEP, the drum view: the walk into the lanes and back to DR; the page stays (SELECT's), the LANE page shows the lane");
     /* HOME + a key: a lane straight away, on any page */
     reset_ui();
     song.sel = 0;

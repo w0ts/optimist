@@ -6,9 +6,9 @@
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
- *   GLO tapped: GLOBAL (op_global.c: tempo, REC, MIDI; again: its next row); the mixer's knob sets are SELECT's
+ *   GLO tapped: GLOBAL; again its next row, on through SYSTEM's, round (op_global.c); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
- *   On the mixer [provisional]: SAVE tapped (no cell picked) PROJECT, HOME held alone (past the hold) SYSTEM
+ *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
  * SAVE, HOME and the page buttons act when let go, and only when nothing else was pressed, turned or played while
  * they were down (a page button: and held less than LAY_TAP_MS): that is how a tap, a layer and a combination are
@@ -21,22 +21,15 @@ static void op_rows_fix(void)                          /* the cursor inside the 
     if (ui.scr == SCR_SOUND && snd_fam != SND_ALL)
         snd_family(snd_fam);                            /* (another track: the family may have no rows there) */
     n = SCR->rows();
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && ui.row[SCR_STEP] >= STP_LANE0)
-        ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + lane_selected());   /* (a lane page follows the lane picked) */
     if (ui.row[ui.scr] >= n)
         ui.row[ui.scr] = (uint8_t)(n ? n - 1u : 0u);
 }
 static void op_row_pick(uint32_t r)
 {
-    if (!(ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0 && ui.row[SCR_STEP] >= STP_LANE0))
-        step_cards_show();                              /* (STEP: a page change shows the cards; from a lane page to another
-                                                         * lane's, the lane switched, none: the header names it, the user
-                                                         * 2026-10-10) */
+    step_cards_show();                                  /* (STEP: a page change shows the cards) */
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
-    if (ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0)
-        lane_pick(r - STP_LANE0);                       /* (SELECT on STEP's lane pages: the lane encoder) */
     ui.hot = 0;                                         /* (the SOUND row: PRESETS is the preset again) */
     ui.hot_lit = 0;
     op_disarm();                                        /* (the question was about the other row) */
@@ -102,10 +95,10 @@ static void op_jump_sound(uint32_t fam)
         op_row_pick(ui.row[SCR_SOUND] + 1u < SCR->rows() ? ui.row[SCR_SOUND] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
+    if (!snd_has_fam(fam))
+        return;                                         /* (none on this track: nothing, as its dark LED says; P25) */
     if (ui.scr != SCR_SOUND)
         op_enter(SCR_SOUND);
-    if (!snd_has_fam(fam))
-        return;                                         /* (none on this track: every row; the drum track's ENV: its lane's) */
     snd_fam = (uint8_t)fam;
     ui.row[SCR_SOUND] = 0xFF;                           /* (so that the pick below is a change) */
     op_row_pick(0);
@@ -284,6 +277,30 @@ static int pick_mod(uint32_t held)
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
 static int pick_silent(uint32_t held) { return song.playing && pick_mod(held); }
+/* a drum key played while the keys play selects its lane, DR itself included (the user, 2026-10-12: "when i play a note
+ * for the drums on the keyboard it should switch to that instrument in all the relevant pages"), as HOME + a key and
+ * ALGORITHM do: the mixer's lane row, the drum SOUND / ENV / FX pages, STEP's LANE page, PRESETS by the lane's SOURCE.
+ * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
+ * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
+ * key down, from the main loop's note edges: nothing in seq.c's key ISR. The lowest key of a chord wins */
+#define HIT_KNOB_MS 300u
+static void drum_hit_pick(uint32_t notes)
+{
+    uint32_t k, now = fm1_ticks();
+    if (!is_drum(TSEL) || master_sel() || ui.scr == SCR_STEP)
+        return;                                         /* (STEP: step_played picks the last hit, the keys playing) */
+    for (k = 0; k < 4u; k++)
+        if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
+            return;
+    for (k = 0; k < 27u && !((notes >> k) & 1u); k++)
+        ;
+    if (k == 27u || (ui.lane && lane_of_key(k) == lane_selected()))
+        return;
+    lane_pick_from(lane_of_key(k), 1);
+    if (ui.scr == SCR_HOME)
+        ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its lane row) */
+    op_repaint();                                       /* (in place: the cards, the badge, the pictures follow) */
+}
 
 /* the layers the keyboard knows (seq.c): the performance layers' buttons (op_layers.c lay_bits), OCT- / OCT+ the
  * drums' ghost / hard, REC closes a free take, PLAY drops it */
@@ -380,9 +397,9 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     }
 }
-/* the mixer with nothing asked and no cell picked by a knob: SAVE tapped there opens PROJECT, HOME held alone SYSTEM
- * (provisional, section "Decisions open for review"); a cell turned last keeps YES (a toggle, the SOUND rows) */
-static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed() && !ui.hot_lit; }
+/* the mixer with nothing asked: SAVE tapped there opens PROJECT, always (the user, 2026-10-12, D6: the mixer has no YES;
+ * FX on and MUTE are knobs, the SOUND row is EDIT's first). HOME held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
+static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
 static void op_tap(uint32_t b, uint32_t id)
 {
     if (lay_btn_layer(b) != LY_PLAY && fm1_ms - op_t0[id % 14u] > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
@@ -392,13 +409,14 @@ static void op_tap(uint32_t b, uint32_t id)
     if (b == B_FX && mx_on_master())
         op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
     else if (b == B_SAVE)
-        mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer, no cell picked: PROJECT [provisional] */
-    else if (b == B_HOME)
-        ui.scr == SCR_HOME && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms() ? op_enter(SCR_SYSTEM) : op_no();   /* held alone: SYSTEM */
-    else if (b == B_SEQ)
+        mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
+    else if (b == B_HOME) {
+        if (!(mx_quiet() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()))
+            op_no();                                    /* (held alone on the mixer: nothing) */
+    } else if (b == B_SEQ)
         step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
-        glo_tap();                                      /* GLOBAL; on it, its next row (op_global.c) */
+        glo_tap();                                      /* GLOBAL, again SYSTEM, again GLOBAL (op_global.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
         op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : 0u);   /* the global FX: its next page, round */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
@@ -456,7 +474,10 @@ static void op_knobs(uint32_t home)
         }
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
-        op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
+        if (glo_cycle())
+            glo_step(s, 0);                             /* (GLOBAL and SYSTEM: one sequence, op_global.c) */
+        else
+            op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
@@ -558,6 +579,7 @@ static void ui_input(void)
         op_clean &= ~BIT(B_HOME);
     } else if (notes) {
         op_clean &= ~held;
+        drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
     }
     op_knobs((held & BIT(B_HOME)) != 0u);
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */
@@ -600,8 +622,10 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
         return B_ENV;
     if (ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]))
         return FAM_B[snd_page(ui.row[SCR_SOUND])->fam % FAM_COUNT];
-    return ui.scr == SCR_FX ? B_FX : ui.scr == SCR_STEP ? B_SEQ : ui.scr == SCR_GLOBAL ? B_GLO : B_HOME;   /* (GLO: full on
-                                                         * GLOBAL, half lit elsewhere: op_btn_avail) */
+    if (ui.scr == SCR_SOUND && snd_fam == FAM_EDIT)
+        return B_EDIT;                                  /* (EDIT's first row: the SOUND row, D7) */
+    return ui.scr == SCR_FX ? B_FX : ui.scr == SCR_STEP ? B_SEQ : sys_scr(ui.scr) ? B_GLO : B_HOME;   /* (GLO: full on
+                                                         * GLOBAL and SYSTEM, half lit elsewhere: op_btn_avail) */
 }
 /* the keys on STEP: the window's set steps (the drum track: the selected lane's), the playhead's key blinking, the
  * steps held; toggled to playing (or SEQ held): the keys down and the notes the track sounds (as KEYLIT) */
@@ -675,10 +699,11 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
     }
     return m;
 }
+static void keys_lit(uint32_t *f, uint32_t *d);         /* op_keys.c: the keys' lights */
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0};
-    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail();
+    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail(), kf, kd;
     static uint8_t ready;
     if (!ready) {
         uint32_t id, p, r;
@@ -699,27 +724,22 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_SAVE], armed && blink);     /* YES is asked for */
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink) || (armed && ui.arm_scr == ARM_TRACK && !blink));
-    if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard, the lane's key */
+    if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard */
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
-        if (ui.scr != SCR_STEP)
-            led_put(nl, 14u + key_of_lane(lane_selected()), 1);
     } else {
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     }
-    if (ui.scr == SCR_STEP || name_on() || lay.shown == LY_OPS) {
-        uint32_t m = name_on() ? name_leds() : lay.shown == LY_OPS ? fm6_keys_lit() : step_leds((fm1_ms / 250u) & 1u), k;
-        for (k = 0; k < 27u; k++)
-            led_put(nl, 14u + k, (int)((m >> k) & 1u));
-        if (lay.shown == LY_OPS)                        /* ENV held on FM6: every key with a function glows dim */
-            for (k = 0; k < 27u; k++)                   /* (the user, 2026-10-12: "keys should lit up when they */
-                led_put(dl, 14u + k, (int)((FM6_KEYS_FN >> k) & 1u));   /* have a function in the selected mode") */
+    keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
+    for (c = 0; c < 27u; c++) {
+        led_put(nl, 14u + c, (int)((kf >> c) & 1u));
+        led_put(dl, 14u + c, (int)((kd >> c) & 1u));
     }
 #if FELUCCA_LIGHTS
-    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit */
+    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
         uint8_t bl[FM1_NCOL] = {0};
-        uint32_t back = lights_keys_mask(), k;
+        uint32_t back = kf | kd ? 0u : lights_keys_mask(), k;
         for (k = 0; k < 27u; k++)
             led_put(bl, 14u + k, (int)((back >> k) & 1u));
         if (lights_lvl)
@@ -791,6 +811,7 @@ static void panel_setup(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
     draw_text_box(0, 10, 240, &FONT_S, "HARDWARE CALIBRATION", C_WHITE, 1);
     draw_text_box(0, 30, 240, &FONT_S, "TEACH EACH BUTTON AND KNOB", C_GRAY, 1);
+    draw_text_box(0, 200, 240, &FONT_S, "NO INPUT 30 S: CANCEL", C_GRAY, 1);   /* (the only way out: SETUP_IDLE_MS) */
     while (fm1_in.buttons) {                            /* wait for the buttons to be let go */
         fm1_wdt_feed();
         if (fm1_ms - t0 > SETUP_IDLE_MS)
