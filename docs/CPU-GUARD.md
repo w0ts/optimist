@@ -38,7 +38,17 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
        1 % of full scale, under a mix that is overloaded).
   2. **UNISON**: a UNISON part plays at most 2 voices. The extra voices fade out at the step, and new notes start
      2.
-  3. **Notes**: as before, a half over 85 % sheds one voice before the next. A half predicted late fades out at
+  3. **Reverb** (since 2026-10-12, `revcrack`): the reverb bus goes off (`fx.c rev_guard`). Its wet fades out
+     over one half (8 blocks, as a TYPE change), then the tank is not run and its send is not heard; its line is
+     cleared 512 samples a block (from XIP: no 16 or 32 KB clear in one overloaded half), then its filters. When
+     the level comes off, the send comes back into a silent tank and a new tail builds up. Why: a running reverb
+     costs about as much as the rest of an idle mix (the mots profile, FDN8 in the pool, SIZE 124, emulator at
+     96 MHz: 584 -> 1463 us a half for the tail alone), and a tail sounds on with nothing left to shed. Before this
+     level, a reverb that did not fit kept every half late: a click every block (the emulator at 24 MHz: 430 of
+     432 halves late; on the user's FM-1: "crackles whenever the reverb is on"). Now one late half steps here and
+     the rest of the mix plays on clean (24 MHz: 2 late halves in 5 s). Its saving is measured as any level's, so
+     it stays off until the reverb would fit again.
+  4. **Notes**: as before, a half over 85 % sheds one voice before the next. A half predicted late fades out at
      once (2 blocks) as many voices as bring the prediction under 85 %, at most 4. Shedding never touches:
      - a MONO, LEGATO or UNISON part (the bass and the lead);
      - a monophonic engine (ACID);
@@ -48,7 +58,10 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
   adds what that level saved to the load before it compares: the drop in the measured load over the 8 halves after
   the step. So a level comes off only when the music it held back would fit again, and it does not come and go
   every 2 s. Levels with nothing left to ease come off with it.
-- **On screen.** GLO > SYSTEM CPU shows `%G1`, `%G2` or `%G3` while a level holds. The CDC console prints
+- **No second step right after one.** The prediction before a half starts from the last half's measurement, which
+  does not show what the step just saved yet. So the half right after a step never steps early on a prediction
+  (a single late half used to step twice: the reverb off, then voices shed).
+- **On screen.** GLO > SYSTEM CPU shows `%G1` .. `%G4` while a level holds (SLOOP's UI). The CDC console prints
   `cpu_guard`, `cpu_guard_steps` and `cpu_guard_shed`.
 - **Under the ceiling the guard does nothing.**
   - The host never steps: it has no clock.

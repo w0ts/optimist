@@ -366,6 +366,75 @@ static void test_drums(void)
     (void)e0;
 }
 
+
+/* 8. the reverb (fx.c rev_guard, the REVERB level): a tail with nothing else to ease. Before it the guard went straight
+ * to the top with nothing to shed and the reverb kept every half late (the user's mots build on the FM-1: crackles
+ * whenever the reverb was on; the emulator at 24 MHz: every half late, a click every block). Now one step to REVERB:
+ * the wet fades out over one half with no step bigger than the tail's own, then exactly 0, the bus off (the line
+ * cleared a chunk a block); when the load it saved fits again the send is heard again from a silent tank */
+#define RV_BLOCKS(h) ((h) * (HALF_FRAMES / CTL))       /* the blocks of h halves */
+static int32_t rv_send[CTL], rv_zero[CTL], rv_wl[CTL], rv_wr[CTL];
+static uint32_t rv_ph = 1;
+static int32_t rv_run(uint32_t blocks, int send, int32_t *maxstep)   /* -> the largest |wet| of those blocks */
+{
+    static int32_t last;
+    uint32_t b, i;
+    int32_t pk = 0;
+    for (b = 0; b < blocks; b++) {
+        for (i = 0; i < CTL; i++) {                   /* (a noise burst: the tank full) */
+            rv_ph = rv_ph * 1103515245u + 12345u;
+            rv_send[i] = send ? (int32_t)(rv_ph >> 17) - 16384 : 0;
+        }
+        if (!fx_buses(rv_zero, rv_zero, rv_send, rv_wl, rv_wr, CTL))
+            for (i = 0; i < CTL; i++)
+                rv_wl[i] = rv_wr[i] = 0;              /* (every bus idle: nothing added) */
+        for (i = 0; i < CTL; i++) {
+            int32_t a = rv_wl[i] < 0 ? -rv_wl[i] : rv_wl[i], d = rv_wl[i] - last;
+            d = d < 0 ? -d : d;
+            pk = a > pk ? a : pk;
+            if (maxstep && d > *maxstep)
+                *maxstep = d;
+            last = rv_wl[i];
+        }
+    }
+    return pk;
+}
+static void test_reverb(void)
+{
+    uint32_t i;
+    int32_t pk, step0 = 0, step1 = 0;
+    reset();
+    song.g[G_RSIZE] = 124, song.g[G_RDAMP] = 30;      /* (a long tail: ~12 s) */
+    rv_run(RV_BLOCKS(40), 1, 0);                      /* the tank full */
+    pk = rv_run(RV_BLOCKS(20), 0, &step0);            /* the tail alone */
+    CHECK(pk > 1000, "the reverb's tail sounds (%d)", pk);
+    half(US(101));                                    /* a late half: nothing sounds but the tail */
+    CHECK(cg.level < CG_TOP, "a reverb tail and nothing else: a late half eases the reverb, not the top with nothing "
+          "to shed (level %u)", cg.level);
+    rv_run(RV_BLOCKS(1), 0, &step1);                  /* (the half after the step: the fade) */
+    for (i = 0; i < 40u; i++) {                       /* the reverb off: the load as the rest of the mix */
+        half(US(60));
+        rv_run(RV_BLOCKS(1), 0, 0);
+    }
+    CHECK(cg.level < CG_TOP, "60 %% once the reverb is off: no further step (level %u)", cg.level);
+    pk = rv_run(RV_BLOCKS(1), 0, 0);
+    CHECK(pk == 0, "the reverb's wet faded out to exactly 0 (%d)", pk);
+    CHECK(step1 <= step0 + 64, "the fade-out: no step bigger than the tail's own (%d, the tail %d)", step1, step0);
+    pk = rv_run(RV_BLOCKS(8), 1, 0);
+    CHECK(pk == 0, "at the level the send is not heard (%d)", pk);
+    for (i = 0; i < sizeof rev_line / 2u && !rev_line[i]; i++)
+        ;
+    CHECK(i == sizeof rev_line / 2u, "the line cleared while off (a cell %u of %u not 0)", i, (unsigned)(sizeof rev_line / 2u));
+    for (i = 0; i < 4u * CG_RELEASE; i++) {           /* a light load: the reverb's saving fits again */
+        half(US(20));
+        if (i % 64u == 0u)
+            rv_run(RV_BLOCKS(1), 1, 0);
+    }
+    CHECK(cg.level == CG_L_OFF, "the load fits again: the guard off (level %u)", cg.level);
+    pk = rv_run(RV_BLOCKS(8), 1, 0);
+    CHECK(pk > 1000, "the reverb heard again (%d)", pk);
+}
+
 int main(void)
 {
     test_quiet();
@@ -375,6 +444,7 @@ int main(void)
     test_late_and_gain();
     test_keep();
     test_drums();
+    test_reverb();
     printf("cpuguard_test: %s (%d failures)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
