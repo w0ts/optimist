@@ -105,6 +105,13 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
         steps_clear(&trk[k]);
     }
     song.master_q12 = 4096;
+    ins_defaults();                              /* (every track's insert slots: S1 DIST, S2 FILTER; fx_slots.c) */
+#if FELUCCA_MASTER_COMP
+    for (i = 0; i < 3u * NTRK; i++)              /* (each track's COMP settings, as at power-on) */
+        ins_cset[i / 3u][i % 3u] = GP[G_CRAT + i % 3u].def;
+#endif
+    for (i = 0; i < 3u; i++)
+        dsend_kit[i] = DKS_DEF;                  /* (the drum track's send levels at 100 %) */
 }
 
 /* the factory preset as ui.c apply_preset_to sets it (sound, sends, arp; not the pattern, not the mix);

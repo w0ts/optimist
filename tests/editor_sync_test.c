@@ -185,13 +185,13 @@ int main(void)
     n0 = nf;
     fxs_load(1, FXT_REV);                              /* (FX > SLOTS: REV into S2 swaps with CHO) */
     run_ms(ED9_WIN);
-    check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_DIST &&
+    check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_NONE &&
           fr[nf - 1][7] == FXT_REV && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_CHO,
           "v10 FX_PUSH: a slot loaded on the device (a swap): one frame, op 0, the four slots");
     n0 = nf;
     dins_amt[1][2] = 90;
 #if FELUCCA_MASTER_COMP
-    fxs_cset[0] = 5;
+    ins_cset[0][0] = 5;
 #endif
     run_ms(ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 1 && fr[nf - 1][6 + 4 + 3 + DRUM_LANES + 2] == 90u
@@ -211,6 +211,31 @@ int main(void)
         ed_begin(ED_FX); r3 = ed_fxs(ED_FX, BAD, sizeof BAD);
         ed_begin(ED_FX); r4 = ed_fxs(ED_FX, OP, sizeof OP);
         check(r2 && dins_amt[0][4] == (FELUCCA_FX_DIST ? 77u : 0u) && !r3 && !r4, "v10 FX op 3: a drum sound's DIST; lane 16 or op 9: no reply");
+    }
+    {   /* the track insert slots (2026-10-12): op 4 a track's S1 S2, op 5 its COMP settings, op 6 the drum send levels;
+         * the state's tail: T1..DR's slots, their RATIO ATK REL, the drum track's REV DLY CHO levels */
+        static const uint8_t I4[] = {4, 2, FXT_COMP, FXT_COMP}, I5[] = {5, 1, 3, 2, 5}, I6[] = {6, 64, 127, 200}, B4[] = {4, 4, 1, 1};
+        const uint32_t T = 6u + 4u + 3u + 2u * DRUM_LANES;   /* (ed_out: the tail's first byte) */
+        int r1, r2, r3, r4;
+        ed_begin(ED_FX); r1 = ed_fxs(ED_FX, I4, sizeof I4); ed9_known_fx();
+        check(r1 && ins_slot[2][0] == FXT_COMP && ins_slot[2][1] == FXT_NONE && ed_out[T + 4u] == FXT_COMP &&
+              ed_out[T + 5u] == FXT_NONE && ed_n == 6u + ED_FX_N,
+              "v10 FX op 4: T3's slots (the same type twice: S2 empty), the slots in the state's tail");
+        ed_begin(ED_FX); r2 = ed_fxs(ED_FX, I5, sizeof I5); ed9_known_fx();
+        ed_begin(ED_FX); r3 = ed_fxs(ED_FX, I6, sizeof I6); ed9_known_fx();
+        ed_begin(ED_FX); r4 = ed_fxs(ED_FX, B4, sizeof B4);
+        check(r2 && r3 && !r4 && dsend_kit[0] == 64 && dsend_kit[1] == 127 && dsend_kit[2] == 127 &&
+              ed_out[T + 8u + 3u * NTRK] == 64u
+#if FELUCCA_MASTER_COMP
+              && ins_cset[1][0] == 3 && ins_cset[1][2] == 5 && ins_cset[0][0] == 5 && ed_out[T + 8u + 3u] == 3u
+#endif
+              , "v10 FX op 5: T2's own COMP settings; op 6 the drum send levels (past 127: 127); track 4: no reply");
+        ins_defaults();
+        dsend_kit[0] = dsend_kit[1] = dsend_kit[2] = DKS_DEF;
+#if FELUCCA_MASTER_COMP
+        ins_cset[0][0] = ins_cset[1][0] = 1, ins_cset[1][1] = 4, ins_cset[1][2] = 6;
+#endif
+        ed9_known_fx();
     }
     run_ms(2 * ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 0, "v10 FX_PUSH: the editor's own FX writes are known");

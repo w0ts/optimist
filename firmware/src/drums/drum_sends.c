@@ -24,7 +24,12 @@
 static uint16_t dsend[DRUM_LANES];             /* the working project's */
 static uint8_t fxs_lm[3];                      /* (a tentative definition: fx_slots.c, after, sets it: REV DLY CHO's level
                                                 * masks, 0 while the type is in no FX slot) */
-static uint8_t fxs_ins;                        /* (tentative, as fxs_lm: bit 0 DIST, bit 1 COMP heard, each in a slot) */
+/* the drum track's send LEVELS, REV DLY CHO (2026-10-12, the user: "the main drum track as fx: on/off, not the normal
+ * send levels ... it should be like any other track"): every lane's send of that bus scaled by it, 0..127, 127 (100 %,
+ * the default: the sends as before, sample for sample). Kept in the FX record (fx_rec.c, the track slots' TLV); the
+ * drum track's SENDS page and the mixer's DR row turn them (fx_slots.c) */
+#define DKS_DEF 127
+static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
 /* each sound's DIST and COMP insert amounts (FX slots phase 5: dins_amt[0] DIST, [1] COMP, 0..127, 0 off), run per drum
  * voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the drum record (dlrec_t: unchanged) */
 #define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP)
@@ -74,19 +79,23 @@ static int16_t dsend_msc = 64, dsend_madd;
 #endif
 
 /* the sends of each level 0..31 (Q15) as the voices take them this block: dsend_rt the reverb (MACRO SPACE in it),
- * dsend_lt the delay and chorus; 0 with the FX bypassed. dsend_table refreshes them when the bypass or the macro
- * moved (drums_mix, once a block, XIP: the voices only read them: no multiply, no call in RAM code) */
-static int32_t dsend_rt[DSEND_MAX + 1u], dsend_lt[DSEND_MAX + 1u];
-static uint32_t dsend_key = 0xFFFFFFFFu;
+ * dsend_dt the delay, dsend_ct the chorus, each x the drum track's level of that send (dsend_kit; 127: x 1 exactly);
+ * 0 with the FX bypassed. dsend_table refreshes them when the bypass, the macro or a level moved (drums_mix, once a
+ * block, XIP: the voices only read them: no multiply, no call in RAM code) */
+static int32_t dsend_rt[DSEND_MAX + 1u], dsend_dt[DSEND_MAX + 1u], dsend_ct[DSEND_MAX + 1u];
+static uint32_t dsend_key = 0xFFFFFFFFu, dsend_kkey;
+#define DKS_KEY() ((uint32_t)(uint8_t)dsend_kit[0] | (uint32_t)(uint8_t)dsend_kit[1] << 8 | (uint32_t)(uint8_t)dsend_kit[2] << 16)
+AINL int32_t dks_of(int32_t s, int32_t lv) { return lv >= DKS_DEF ? s : s * clamp(lv, 0, DKS_DEF) / DKS_DEF; }
 static __attribute__((noinline)) void dsend_table(int32_t on)
 {
     uint32_t v, k = (uint32_t)(on != 0) | DSEND_MKEY;
-    if (k == dsend_key)
+    if (k == dsend_key && DKS_KEY() == dsend_kkey)
         return;
-    dsend_key = k;
+    dsend_key = k, dsend_kkey = DKS_KEY();
     for (v = 0; v <= DSEND_MAX; v++) {
-        dsend_lt[v] = on ? dsend_lvl(v) * 258 : 0;
-        dsend_rt[v] = on ? DSEND_RLVL(dsend_lvl(v)) * 258 : 0;
+        dsend_dt[v] = on ? dks_of(dsend_lvl(v) * 258, dsend_kit[1]) : 0;
+        dsend_ct[v] = on ? dks_of(dsend_lvl(v) * 258, dsend_kit[2]) : 0;
+        dsend_rt[v] = on ? dks_of(DSEND_RLVL(dsend_lvl(v)) * 258, dsend_kit[0]) : 0;
     }
 }
 /* the bus sends of a drum voice that plays note (Q15, 0 = none), from the tables (dsend_table this block). The click's
@@ -95,8 +104,8 @@ AINL void dsend_of(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
     *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
-    *d = dsend_lt[dsend_dly(w) & fxs_lm[1]];
-    *c = dsend_lt[dsend_cho(w) & fxs_lm[2]];
+    *d = dsend_dt[dsend_dly(w) & fxs_lm[1]];
+    *c = dsend_ct[dsend_cho(w) & fxs_lm[2]];
 }
 #if FELUCCA_GLIDE
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
@@ -104,8 +113,8 @@ static void dsend_lane(uint32_t l, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
     *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
-    *d = dsend_lt[dsend_dly(w) & fxs_lm[1]];
-    *c = dsend_lt[dsend_cho(w) & fxs_lm[2]];
+    *d = dsend_dt[dsend_dly(w) & fxs_lm[1]];
+    *c = dsend_ct[dsend_cho(w) & fxs_lm[2]];
 }
 #endif
 

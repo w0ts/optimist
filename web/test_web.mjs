@@ -1683,8 +1683,8 @@ async function editorSl24() {
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8"), sx = readFileSync(join(HERE, "../firmware/src/storage/sl24/sl24_export.c"), "utf8");
   const bits = [...sx.matchAll(/SX24_([A-Z0-9]+) = (\d+)/g)].map((x) => [x[1].toLowerCase(), +x[2]]);
   const names = [...E.S24.LOST, ...E.S24.LOST2];     /* the first word's 14 bits, then the second's (v12): bit 14 is its bit 0 */
-  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === names.length &&
-     bits.every(([n, v], i) => v === 1 << i && names[i] === ({ lock: "locks" }[n] || n)),
+  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === names.filter((k) => k).length &&
+     bits.every(([n, v]) => names[Math.log2(v)] === ({ lock: "locks" }[n] || n)),
     "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c (motion bit 13, chance bit 14 = the second word's bit 0)");
   {
     const { rq, done } = attachMock({});

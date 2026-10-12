@@ -1114,6 +1114,10 @@ job; ( jobin
     run "regression with the X0X kits built: the same goldens, their CPU (cpu/drums/x0x*; BUDGET_UPDATE=1 here keeps them)" "$OUT/regress_x0x" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/regress_tf" tests/regress.c -lm
+    run "regression with the track FILTER built (TRK_FILT, at 0 in the default slots): the same goldens, the FILTER inserts' CPU (cpu/fx/part_filt, dbus_filt; BUDGET_UPDATE=1 here keeps them)" "$OUT/regress_tf" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
     run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg

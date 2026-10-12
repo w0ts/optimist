@@ -15,3 +15,6 @@ static const uint16_t CG_X0X[24] = {204, 234, 185, 201, 200, 187, 169, 84, 85, 6
 #define CG_COST_DBCOMP 69u    /* the drum bus's COMP while it runs (fx.c dbus_comp_run) */
 #define CG_COST_DVDIST 96u    /* a drum voice's DIST while it runs (fx.c dins_post) */
 #define CG_COST_DVCOMP 142u    /* a drum voice's COMP while it runs (fx.c dins_post) */
+#define CG_COST_PDIST 46u     /* a part's DIST insert while it runs (fx.c ins_part) */
+#define CG_COST_PFILT 36u     /* a part's FILTER insert while it runs (fx.c tflt_part) */
+#define CG_COST_DBFILT 184u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */

@@ -35,11 +35,14 @@
  *     EDIT; more than 24: LOCK). Hold events (motion) and chance are not 2.4's (LOST: MOTION, which CHANCE shares;
  *     the editor says "motion not in 2.4");
  *   - the FX slots (fx_slots.c, the working project's: sl24_fx_out): 2.4 plays DST CHO DLY REV, and FILT with
- *     TRK_FILT, on every track whatever slot holds them: a type in no slot (not heard here) is written 0 so that 2.4
- *     plays what we do (LOST: SX24_SLOTS, its amounts, when one was not 0); heard here and not on 2.4 (LOST): COMP (a
- *     part's, the drum bus's, a drum sound's: SX24_COMP), a drum sound's DIST (SX24_DINS), the drum bus's DST CHO DLY
- *     REV (SX24_DBUS), an FX return below unity (SX24_FXRET: 2.4 has none, its wet comes back at unity). The import
- *     (sl24_import.c, proj_apply without an FX record: fx_slots.c fxs_auto) gives a FILT in use a slot.
+ *     TRK_FILT, on every track: a type not heard on a track here (an insert in none of its two slots, a send in no
+ *     master slot) is written 0 so that 2.4 plays what we do (LOST: SX24_SLOTS, its amounts, when one was not 0);
+ *     heard here and not on 2.4 (LOST): COMP (a part's, the drum bus's, a drum sound's: SX24_COMP), a drum sound's DIST
+ *     (SX24_DINS), the drum bus's DST CHO DLY REV and the drum track's send levels (SX24_DBUS), an FX return below
+ *     unity (SX24_FXRET: 2.4 has none, its wet comes back at unity), a part's FILTER before its DIST, both on
+ *     (SX24_INSORD). The import (sl24_import.c, proj_apply without an FX record: fx_rec.c ins_map) puts each part's
+ *     S1 DIST, S2 FILTER (2.4's order) and the drum track's FILTER in a slot: all four of DST CHO DLY REV and FILT
+ *     round-trip.
  * proj_to_sl24 says what was lost (SX24_*, the editor tells the user). */
 #define SL24_MAGIC 0x46554E35u                         /* (as sl24_import.c: identical definitions) */
 #define SL24_SIZE 3840u
@@ -73,8 +76,11 @@ enum {                                                  /* what an export lost (
                                                          * second word's bit 2; a v11 editor gets it as MOTION) */
     SX24_DLFO = 131072,                                 /* (a drum lane's LFO acting, drums/lane_play.c: 2.4's drums have
                                                          * none; the second word's bit 3; a v11 editor: MOTION) */
-    SX24_FXRET = 262144                                 /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
+    SX24_FXRET = 262144,                                /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
                                                          * second word's bit 4: 2.4 plays each return at full) */
+    SX24_INSORD = 1048576                               /* (a track with its FILTER before its DIST, both on: 2.4 plays
+                                                         * DIST then FILT; the second word's bit 6, bit 5 kept for the
+                                                         * note gates; sl24_fx_out) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -264,9 +270,11 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, int32_t bp
 }
 
 /* the FX slots at the export (fx_slots.c: RAM, the working project's: the only one exported, ed_sl24.c) over 2.4's
- * project at o: an amount of a type in no slot written 0 (2.4 would play it; SX24_SLOTS when it was not 0), and what is
- * heard here that 2.4 has not: COMP (the parts', the drum bus's, the drum sounds'), the drum sounds' DIST, the drum
- * bus's DST CHO DLY REV (each only while its type is in a slot); -> SX24_* lost */
+ * project at o, "as heard": an amount of a type not heard on its track (an insert in none of the track's two slots, a
+ * send in no master slot) written 0 (2.4 would play it; SX24_SLOTS when it was not 0), and what is heard here that 2.4
+ * has not: COMP (the parts', the drum bus's, the drum sounds'), the drum sounds' DIST, the drum bus's DST CHO DLY REV
+ * and its send levels, a part's FILTER before its DIST with both on (SX24_INSORD: 2.4 runs DIST, then FILT); the
+ * SLICER's place (first here, after DIST on 2.4) is not reported (the gate's 2.9 ms ramps); -> SX24_* lost */
 static uint32_t sl24_fx_out(uint8_t *o)
 {
     static const uint8_t T[] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_FILT};
@@ -274,22 +282,29 @@ static uint32_t sl24_fx_out(uint8_t *o)
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < sizeof T; i++) {
             uint8_t *a = o + SL24_HDR + k * SL24_TRK + 2u * (T[i] == FXT_FILT ? SL24_TFLT : (uint32_t)FXT_AMT[T[i]]);
-            if (FXS_ON(T[i]) || (T[i] == FXT_FILT && !FELUCCA_TRK_FILT) || !(a[0] | a[1]))
+            uint32_t heard = FXT_INSERT >> T[i] & 1u ? INS_ON(k, T[i]) : FXS_ON(T[i]);   /* (a track's slot, a send's) */
+            if (heard || (T[i] == FXT_FILT && !FELUCCA_TRK_FILT) || !(a[0] | a[1]))
                 continue;                               /* (heard; 2.4's FILT carried through a build without ours) */
             sl24_w16(a, 0);
             lost |= SX24_SLOTS;
         }
-    for (l = 0; l < DRUM_LANES; l++)
-        lost |= FXS_ON(FXT_DIST) && dins_amt[0][l] ? SX24_DINS : 0u;
-    for (i = 0; i < 4u; i++)                            /* (the drum bus: project_t's drum slots are stored 0, P4-2) */
+    for (k = 0; k < NPART; k++)                         /* (2.4: DIST, then FILT: a FILTER first, both on) */
+        lost |= ins_has(k, FXT_FILT) == 1u && ins_has(k, FXT_DIST) && trk[k].p[P_DIST] &&
+                FXT_AMT[FXT_FILT] != 0xFFu && trk[k].p[FXT_AMT[FXT_FILT]] ? SX24_INSORD : 0u;
+    for (l = 0; l < DRUM_LANES; l++)                    /* (a drum sound's DST: always heard, D7) */
+        lost |= FELUCCA_FX_DIST && dins_amt[0][l] ? SX24_DINS : 0u;
+    lost |= INS_ON(TRK_DRUM, FXT_DIST) && TDRUM->p[P_DIST] ? SX24_DBUS : 0u;   /* (the drum bus: project_t's drum slots
+                                                                               * are stored 0, P4-2) */
+    for (i = 1; i < 4u; i++) {
         lost |= FXS_ON(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
-    for (i = 1; i < 4u; i++)                            /* (the returns, core.h G_CRET..: 2.4 plays its wet at unity) */
-        lost |= FXS_ON(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;
+        lost |= FXS_ON(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
+        lost |= FXS_ON(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
+    }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
-        lost |= FXS_ON(FXT_COMP) && trk[k].p[P_TCOMP] ? SX24_COMP : 0u;
+        lost |= INS_ON(k, FXT_COMP) && trk[k].p[P_TCOMP] ? SX24_COMP : 0u;
     for (l = 0; l < DRUM_LANES; l++)
-        lost |= FXS_ON(FXT_COMP) && dins_amt[1][l] ? SX24_COMP : 0u;
+        lost |= dins_amt[1][l] ? SX24_COMP : 0u;
 #endif
     return lost;
 }
@@ -309,7 +324,7 @@ static uint8_t sl25_drdly_out(void)
     for (v = 1; v <= DSEND_MAX; v++)
         if (n[v] > n[best])
             best = v;
-    return (uint8_t)dsend_lvl(best);
+    return (uint8_t)(dsend_lvl(best) * clamp(dsend_kit[1], 0, DKS_DEF) / DKS_DEF);   /* (x the drum track's DLY level) */
 }
 
 #if FELUCCA_AUTO

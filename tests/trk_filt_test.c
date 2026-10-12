@@ -334,7 +334,7 @@ int main(int argc, char **argv)
         return 0;
     }
 #if FELUCCA_TRK_FILT
-    fxs_load(1, FXT_FILT);                              /* (decision D6: the FILTER is heard in an FX slot: S2's) */
+    ins_defaults();                                     /* (the FILTER is heard in a track's insert slot: S2, the default) */
     t_part();
     t_drums();
     t_project();
