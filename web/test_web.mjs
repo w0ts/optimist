@@ -873,7 +873,7 @@ async function editorV5() {
   /* the LFO's RATE below 0: a note value of the tempo (params.c N_LSYNC, SLOOP 2.6's SYNC), the mock's range as params.c's */
   ok(fv(E.F.LFOHZ, -1, 127, -10) === "4BAR" && fv(E.F.LFOHZ, -7, 127, -10) === "8T" && fv(E.F.LFOHZ, -10, 127, -10) === "1/32"
     && fv(E.F.LFOHZ, 0, 127, -10) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -10) === "40.0Hz"
-    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(pc)
+    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
     && html.includes('D("RATE", F.LFOHZ, -10, 127, 60)'), "LFO RATE: -1..-10 4BAR .. 1/32 (synced), 0..127 Hz; the mock's range -10..127 as params.c");
   /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
      part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
@@ -1769,6 +1769,22 @@ async function editorSl24In() {
       d[T(0) + 924] === (1 << 2 | 2 << 4) && lk(0, 5) === 54 && lk(0, 2) === 39 && lk(0, 7) === -1 && lk(0, 8) === -1 &&
       d[73] === 77 && (d[8 + 48] | d[9 + 48] << 8) === 10 && !E.sl26ToFun5(Uint8Array.from(f6).fill(1, 100, 101)),
       "sl24 in: a 2.6 backup's FUN6 -> 2.5's FUN5 (engines, nudges, fills, locks moved back, 2.6's own dropped, TEXTURE's globals)");
+    {   /* LFO 2's SYNC (x[7]) n 1..10 -> RATE -n (P_LRATE, value 9), 0 or past 10: the free RATE (sl26_to_sl24 on the FM-1) */
+      let good = true;
+      for (const n of [0, 1, 7, 10, 11]) {
+        const c = Uint8Array.from(f6);
+        for (let k = 0; k < 4; k++) c[76 + 934 * k + 129] = n;
+        let h = 0x811C9DC5;
+        for (let i = 0; i < c.length - 4; i++) h = Math.imul(h ^ c[i], 16777619) >>> 0;
+        new DataView(c.buffer).setUint32(c.length - 4, h, true);
+        const q = E.sl26ToFun5(c);
+        for (let k = 0; k < 4; k++) {
+          const free = f6[76 + 934 * k + 18] | f6[76 + 934 * k + 19] << 8, got = (q[76 + 940 * k + 18] | q[76 + 940 * k + 19] << 8) << 16 >> 16;
+          good = good && got === (n >= 1 && n <= 10 ? -n : free << 16 >> 16);
+        }
+      }
+      ok(good, "sl24 in: a 2.6 backup's LFO 2 SYNC n -> the part's RATE -n (0, 11: its free RATE)");
+    }
   }
   const o = E.sl24ImportObject(p0, f.bank), o3 = E.sl24ImportObject(p3, f.bank);
   ok(o.length === 4225 && o[3840] === 1 && eq(Array.from(o.subarray(3841, 3841 + 128)), Array.from(rec)) && o3.length === 3840,

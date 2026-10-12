@@ -648,8 +648,8 @@ firmware without it does not answer: the editor shows no button. Nothing is writ
 
 - **The object** (90): a SLOOP 2.4 / 2.5 project (FUN5, 3840 bytes, with its sum) of a SLOOP backup file (its object 0,
   the working project, or 2..5, A..D); a SLOOP 2.6 project (FUN6, 3816 bytes) is made a FUN5 by the editor first
-  (`sl26ToFun5`, as the FM-1's `sl24_import.c sl26_to_sl24`: 2.6's ten new parameters, its TEXTURE and, on this path, the
-  ANALOG filter TYPE left out), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
+  (`sl26ToFun5`, as the FM-1's `sl24_import.c sl26_to_sl24`: 2.6's ten new parameters but LFO 2's SYNC (it becomes the part's LFO RATE -n, as on the FM-1), its TEXTURE and, on this
+  path, the ANALOG filter TYPE left out), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
   bytes: each FM6 part's bank patch (PTCH B1..B27) from the file's object 8, packed DX7. 3840 or 4225 bytes. A part
   on a bank patch the object has not: 2.4's INIT, as 2.4 plays an empty slot. The commit imports it as PROJECT > LOAD
   twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.

@@ -38,6 +38,7 @@
 #define UP_NP_SL24 61u                           /* SLOOP 2.4's P_COUNT (UPB1, UP_VER 1: P_TFLT P_STRUM P_VLEAD at 50..52) */
 #define UP_NP_SL26 71u                           /* SLOOP 2.6's (v2.6 d30d655: + P_ITYPE .. P_LPOL at 53..62, P_E0 63). No
                                                   * SLOOP plus stored it (its P_COUNTs: 53 57 58 59, ANALOG 2's 69 72) */
+#define UP_SL26_LSYNC 60u                        /* 2.6's P_LSYNC: LFO 2's SYNC (0 OFF, 1..10), our RATE -n */
 #define UP_SL26_FTYPE 58u                        /* 2.6's P_FTYPE: ANALOG's filter LP / BP / HP */
 #define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
 #define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
@@ -173,9 +174,11 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 #if FELUCCA_SL24_SAFE
     if (UP_IS_SL(r)) {                          /* SLOOP 2.4 / 2.5 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM */
         for (i = 0; i < P_E0; i++)              /* VLEAD (not a sound's here: their defaults), P_E0.. at 53; 2.6 (71): */
-            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];   /* its ten more (INSERT, FTYPE, ENV SYNC, LFO 2: LOST */
+            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];   /* its ten more (INSERT, FTYPE, ENV SYNC, LFO 2 TRIG POL: LOST */
         for (i = 0; i < 8u; i++)                /* but an ANALOG's filter TYPE, as a 2.6 project's: sl26_ftype_in), */
             out[P_E0 + i] = r->p[r->np - 8u + i];   /* P_E0.. at 63 */
+        if (r->np == UP_NP_SL26)                /* (its LFO 2 SYNC n: our RATE -n; OFF: its free RATE, 0..49's) */
+            out[P_LRATE] = (int16_t)LRATE_OF_SLOOP(r->p[UP_SL26_LSYNC], r->p[P_LRATE]);
 #if FELUCCA_ANALOG2
         if (r->np == UP_NP_SL26 && !r->engine && (r->p[UP_SL26_FTYPE] == 1 || r->p[UP_SL26_FTYPE] == 2))
             out[P_A2FTYP] = (int16_t)(r->p[UP_SL26_FTYPE] + 1);   /* (BP 2, HP 3; LP: ours as it is) */
