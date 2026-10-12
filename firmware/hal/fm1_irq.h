@@ -86,6 +86,19 @@ static void fm1_irq_attach(uint32_t n, void (*h)(void), uint32_t prio)   /* IRQs
     FM1_ICFG(n) = (FM1_ICFG(n) & ~(0xFu << sh)) | ((((prio & 7u) << 1) | 1u) << sh);
 }
 static void fm1_irq_mask(uint32_t n) { FM1_ICFG(n) &= ~(1u << ((n & 7u) * 4u)); }
+/* one source held off (1) or let go (0) in the interrupt controller, its priority kept, the global enable (icfg
+ * bit 9) not touched: a pending one is taken when it is let go. For inside an interrupt: a cli / sti there reached
+ * the code the interrupt returned to on the FM-1 (USB audio builds hung, 2026-10-12; core/audio.c) */
+static inline void fm1_irq_hold(uint32_t n, int hold)
+{
+    uint32_t bit = 1u << ((n & 7u) * 4u);
+    if (hold) {
+        FM1_ICFG(n) &= ~bit;
+        __asm__ volatile("csync" ::: "memory");
+    } else {
+        FM1_ICFG(n) |= bit;
+    }
+}
 
 static void fm1_irq_enable_all(void)
 {

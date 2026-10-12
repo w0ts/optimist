@@ -320,8 +320,8 @@ def validate(cfg):
         err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
                          "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
     if cfg["USB_MODE"] == 2:
-        warn.append(Issue("USB audio: EXPERIMENTAL, failed to boot on the FM-1 (2026-10-12, under investigation; "
-                          "the CDC console goes; +12 KB pool)", ["USB_MODE"]))
+        warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (the CDC "
+                          "console goes; +12 KB pool)", ["USB_MODE"]))
     return err, warn, note
 
 
