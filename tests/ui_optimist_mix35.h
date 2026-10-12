@@ -23,10 +23,10 @@ static void preset_inplace_tests(void)
     while (mx_row() < MXR_LANE0 + 2u)
         turn(EN_ALGO, 1);
     kit = drum_kit_pos();
-    ok = presets_step_inplace(1) && drum_kit_pos() != kit;
-    ok &= (uint32_t)presets_step_inplace(-1) && drum_kit_pos() == kit;
+    ok = dl.src[2] == DL_KIT && presets_step_inplace(1) && drum_kit_pos() != kit;   /* (SRC KIT: the kit, 2026-10-12) */
+    ok &= (uint32_t)presets_step_inplace(-1) && drum_kit_pos() == kit && dl.src[2] == DL_KIT;
     check(ok && song.sel == TRK_DRUM && mx_row() == MXR_LANE0 + 2u,
-          "PRESETS on a drum lane's row: the kit changes in place both ways, the cursor stays on the lane");
+          "PRESETS on a drum lane's row (SRC KIT): the kit changes in place both ways, the cursor stays on the lane");
     tap(B_ENV);
     song.sel = 0;
     frames(2);

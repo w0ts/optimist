@@ -163,10 +163,20 @@ static void head_fit(char *t, const char *pos, int32_t w)
     str_cpy(c + str_len(c), pos, sizeof c - str_len(c));
     str_cpy(t, c, 32);
 }
-/* the header's badge: the selected track's engine (the drum track: DRUMS), in its colour (the user, 2026-10-08: the
- * track tag "brings no value, put the algo there"; the track is the colour and the strips) */
+/* the header's badge: the selected track's engine (the drum track: DRUMS; a lane selected: its name, "SNARE"), in its
+ * colour (the user, 2026-10-08: the track tag "brings no value, put the algo there"; the track is the colour and the
+ * strips) */
 static const char *head_engine(void)
 {
+    static char ln[8];
+    uint32_t i;
+    if (lane_picked()) {
+        const char *s = LANE_SHORT[lane_selected()];
+        for (i = 0; s[i] && i < sizeof ln - 1u; i++)
+            ln[i] = (char)(s[i] >= 'a' && s[i] <= 'z' ? s[i] - 32 : s[i]);
+        ln[i] = 0;
+        return ln;
+    }
     return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
 }
 /* the track's name on a track change (the user, 2026-10-11): ~1.5 s in the header, on every screen, the badge "TRACK 2"
@@ -211,7 +221,7 @@ static void draw_head(void)
 {
     char t[32], c[32], r[16], bpm[8], pos[12];
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
-    uint16_t tc = trk_col(song.sel), mc = C_HI;
+    uint16_t tc = lane_picked() ? lane_col(lane_selected()) : trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
     if (ui.scr == SCR_FX || ui.master                   /* MASTER: its badge in C_HI, as the mixer's M row; the mixer's */
         || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */

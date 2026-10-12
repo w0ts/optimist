@@ -122,8 +122,8 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | Control | Always means |
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
-| **ALGORITHM** | the track, T1 T2 T3 DR. Every screen retargets to it, the colour follows |
-| **PRESETS** | **browses the selected track's presets** (the drum track: its kits), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
+| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows |
+| **PRESETS** | **browses the selected track's presets** (the drum track: its kits; a drum lane on an instrument: that lane's sound, section 16), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
 | **YES** (SAVE tapped) | act on the cursor row: enter a ▸ row, toggle an on / off cell, **do** an action cell, confirm an armed action |
@@ -277,7 +277,7 @@ GLOBAL by GLO tapped, SCOPE by HOME tapped on the mixer. **YES** (SAVE tapped) w
 SOUND rows (a lane: that lane's; MASTER: the FX screen); with no cell picked it opens PROJECT.
 
 **The encoders** [D]: **ALGORITHM walks the rows**, T1 T2 T3 DR, then the 16 lanes, and back, stopping at the ends
-(MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
+(MASTER above T1; the same walk on every page and layer since 2026-10-12, section 16): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
 the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
 2's paging rule; GLO tapped paged them too until 2026-10-12, it opens GLOBAL now, section 4.11); the header names the set
 (*T2 mix*, *T2 insert*, *T2 sends*, *T2 sound*, *Mix master*, *Mix comp*). PRESETS browses the sound (section 12); on SOUND / KIT it
@@ -2133,3 +2133,52 @@ what reaches this UI:
   rate is the bar from 0 as before (`cell_gauge_d` in op_cells.c, also the step lock cells); a synced value is the
   list form, one of the ten divisions lit, 4BAR at the left. The text comes from the core. The LFO graph reads no rate, so
   it does not change with it. Test: tests/ui_optimist_lforate.h.
+
+## 16. Requests of 2026-10-12: one ALGORITHM walk, a lane's PRESETS (feat/algo-lanes)
+
+The user: *"the algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then
+individual drum lanes (if it makes sense)."*, *"the preset on a drum lane should change the drum lane preset, not the
+kit."*, then *"SLOT: kit, or specific instrument. if Slot=kit. preset knob changes the preset kit, if Slot=something else
+preset changes the preset for the drum lane."*
+
+**The walk** (op_walk.c `algo_walk`, the one function every page and layer calls). The user, after the first rulings:
+*"really the algo knob should select the track and drum sub track every where. step seq, edit, env, etc."*, then *"i
+want uniformity"*. One order, the mixer's rows, **identical on every page and layer: MASTER, T1, T2, T3, DR ("T4"),
+then the 16 lanes, stopping at both ends.** The only pages that do not take it are those that ate it before: NAME, a
+held step on STEP and a free take. HOME + a drum key still picks a lane straight away, on every page.
+
+| Where | MASTER is | A lane is | What changed |
+|---|---|---|---|
+| The mixer | its MASTER row | its lane row | nothing in the order; a lane row is now "a lane selected" (below) |
+| SOUND, every family | the master FX screen (SCR_FX), as `fx_algo` did from T1 | the drum track's pages for that lane (SOUND, SOUND 2, 3, SOURCE, KIT, ENV); a family the drum track has none of (LFO, ARP, SCL) shows every drum row (`snd_family`'s fallback) | MASTER from any track (it was T1 only); on past DR into the lanes |
+| STEP | the master FX screen; right comes back to STEP on its page | the drum view: the lane's steps on the grid; on a lane page the page follows the lane; back to DR from a lane page: PATTERN | it went T1 .. DR |
+| PROJECT, SYSTEM, SONG, SCOPE, GLOBAL | the master FX screen; right comes back to the page and row (the TEMPO page, PLAY held: it closes, right comes back to the screen under it) | the lane selected (the header's badge), nothing per lane on these pages | it went T1 .. DR |
+| The master FX screen itself | it is MASTER | - | right goes back to the page and row it was left from (SOUND T1 when it was opened by FX on the mixer's MASTER row), and on from there |
+| A layer (FX, ARP, SCL, EDIT, FM6's ENV, GLO, SAVE) | ui.master: the FX ARP SCL EDIT and FM6 ENV layers show the master FX's four cards (FILTER DUST DUCK COMP); GLO's levels and SAVE's song shortcut keep their own cards (they are not a track's) | the lane selected (the layers have nothing per lane: the FX layer's FILTER is DR's) | the walk went T1 .. DR with MASTER in FX ARP SCL EDIT FM6 |
+| NAME, a held step, a free take | eaten | eaten | unchanged |
+
+On MASTER, on every page, **the header's badge reads MASTER and the track buttons (ENV LFO EDIT ARP SCL SEQ) are dark
+and do nothing**, as on the mixer's MASTER row (op_mixer.c `master_sel`); FX stays lit (the master FX); PRESETS does
+nothing.
+
+**Selected: DR itself or a lane.** `ui.lane` says the drum track's selection is its lane `lane_selected()`, not DR;
+`lane_picked()` reads it (on the mixer the cursor row is the selection). The walk onto a lane, the mixer's lane rows,
+the pick (HOME + a key, SEQ + a key on STEP), STEP's lane pages and the SOUND row's LANE knob set it; the walk onto DR
+or a track clears it. The header's badge shows the lane ("SNARE") in its sound's colour while a lane is selected.
+
+**PRESETS on the drum track** (op_walk.c, op_input.c `op_presets_turn`), by the lane's SOURCE (SRC on the drum SOUND
+page's SOURCE row):
+
+| Selected | PRESETS | HOME held + PRESETS | The toast |
+|---|---|---|---|
+| DR itself | the kit (as before) | the kits (as before, 64a4174) | "KIT name" in the kit kind's colour |
+| a lane, SRC KIT | the kit, as on DR | the kits, as on DR | "KIT name" |
+| a lane on an instrument (any other SRC) | that lane's sound only: the next / previous source of the SOURCE list (USR1..3, each kit's sound for this lane, the X0X voices), round, those this build has; KIT is left out, so PRESETS never turns the lane back to the kit (the SOURCE row does) | the first sound of the next / previous kind, round: your samples (USR), a sampled kit's, a synthesised kit's, the X0X machines' (kits, styles and voices): the colour language's kinds (sloop/ui_colors.c `lane_col`) | "SNARE: X9 SD" in the lane's colour |
+
+The kit and the other lanes stay. The mixer's lane rows follow the same rules; their SOUND card and the row's name show
+the lane's sound (the kit's name while it plays KIT). The SOUND row's picture on the drum track: DR the kit big and
+its style, a lane its name big and its sound.
+
+Tests: tests/ui_optimist_algo.h (the same walk on the mixer, SOUND's families, STEP, GLOBAL, PROJECT, SYSTEM, SONG,
+SCOPE and the FX ARP SCL EDIT GLO layers; STEP's lane pages; PRESETS on DR, on a lane on KIT and on an instrument,
+HOME + PRESETS on each, the mixer's lane row; HOME + a key).

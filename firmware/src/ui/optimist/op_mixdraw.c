@@ -105,7 +105,7 @@ static const char *mx_code(uint32_t r)                  /* the row's code at its
     return r == MXR_MASTER ? "M" : r >= MXR_LANE0 ? LANE_CODE[r - MXR_LANE0] : trk_tag(mx_trk_of(r));
 }
 /* the row's sound as two words: the engine (DRUMS for the drum track, MASTER, a lane's name) and the preset (the kit
- * for the drum track and its lanes, a user preset's name); each cut to the room it has */
+ * for the drum track, a lane's own sound, a user preset's name); each cut to the room it has */
 static void mx_names(uint32_t r, char *eng, char *pre)
 {
     pre[0] = 0;
@@ -113,7 +113,7 @@ static void mx_names(uint32_t r, char *eng, char *pre)
         str_cpy(eng, "MASTER", 9);
     } else if (r >= MXR_LANE0) {
         str_cpy(eng, LANE_NAME[r - MXR_LANE0], 9);
-        str_cpy(pre, drum_kit_name(), 14);
+        str_cpy(pre, lane_sound_name(r - MXR_LANE0), 14);
     } else {
         uint32_t k = mx_trk_of(r);
         str_cpy(eng, is_drum(&trk[k]) ? "DRUMS" : ENGINES[trk[k].eng_req % NENGINES]->name, 9);

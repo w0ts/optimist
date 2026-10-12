@@ -4,14 +4,14 @@
  *   rows       MASTER (above T1), T1 T2 T3, DR, then the drum track's 16 lanes; the panel shows the cursor's group
  *              only (the user, 2026-10-11): MASTER alone, the four channels, or the 16 drum sounds; each row its VU
  *              meter (the compressor's reduction pushing in from the right) and its sequence (op_mixdraw.c)
- *   ALGORITHM  walks the rows, T1 .. DR .. the 16th lane and back, MASTER above T1 (it stops at the ends): the track
- *              selected follows (song.sel), a lane row selects the lane (lane_sel; its sound previews when stopped)
+ *   ALGORITHM  walks the rows, MASTER, T1 .. DR .. the 16th lane and back (it stops at the ends; op_walk.c, the same
+ *              walk as every page's): the track selected follows (song.sel), a lane row selects the lane (lane_sel, ui.lane)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
  *              (VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
  *              SOUND; a lane LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR VOLUME | FILTER | FX on, KIT; MASTER FILT
  *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
- *   PRESETS    the hot cell one unit (on SOUND: the next / previous sound)
+ *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
  *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
  * The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP): DRIVE when DIST is in no slot (the
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
@@ -39,11 +39,26 @@ static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
  * do nothing there, FX is the master FX (the user, 2026-10-12: "many buttons like env lfo are active while on master
  * and send to track 1. wrong") */
 static int mx_on_master(void) { return ui.scr == SCR_HOME && mx_row() == MXR_MASTER; }
+/* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
+ * layer's ui.master. The track buttons are dark and do nothing there */
+static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
 static int mx_master_dead(uint32_t b)
 {
-    return mx_on_master() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ);
+    return master_sel() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ);
 }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
+/* a drum lane selected, not DR itself (ui.lane): on the mixer its row says it (a lane row), elsewhere ui.lane while the
+ * drum track is selected. PRESETS then steps the lane's sound, not the kit (op_walk.c) */
+static int lane_picked(void)
+{
+    if (ui.scr == SCR_HOME)
+        return ui.row[SCR_HOME] % MXR_N >= MXR_LANE0;
+    return ui.lane && is_drum(TSEL);
+}
+static uint32_t mx_sel_row(void)                        /* the row of the selection (the track, DR or its lane) */
+{
+    return !is_drum(TSEL) ? MXR_T1 + song.sel : ui.lane ? MXR_LANE0 + lane_selected() : MXR_DR;
+}
 static uint16_t mx_col(uint32_t r)                      /* the row's colour: its engine's, its lane's source */
 {
     return r == MXR_MASTER ? C_HI : r >= MXR_LANE0 ? lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
@@ -231,7 +246,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     case MI_SOUND:
         c->kind = CK_RO;
         if (r >= MXR_LANE0)
-            str_cpy(c->val, LANE_NAME[r - MXR_LANE0], sizeof c->val);
+            str_cpy(c->val, lane_sound_name(r - MXR_LANE0), sizeof c->val);   /* (what PRESETS steps there) */
         else
             snd_name(mx_trk_of(r), c->val);
         break;
@@ -279,6 +294,7 @@ static void mx_open_sound(uint32_t r)                   /* the row's SOUND rows 
     }
     if (r >= MXR_LANE0)
         lane_select(r - MXR_LANE0);
+    ui.lane = (uint8_t)(r >= MXR_LANE0);                /* (SOUND on the lane, or on DR: its PRESETS the kit) */
     op_enter(SCR_SOUND);
     ui.row[SCR_SOUND] = 0;                              /* (the SOUND row first: the sound, then its pages) */
 }
@@ -304,16 +320,11 @@ static void mx_apply(uint32_t r)                        /* the cursor on row r: 
     ui.row[SCR_HOME] = (uint8_t)r;
     if (r == MXR_MASTER)
         return;
+    ui.lane = (uint8_t)(r >= MXR_LANE0);                /* (DR itself or a lane) */
     track_select(mx_trk_of(r));
     if (r >= MXR_LANE0)
         lane_pick(r - MXR_LANE0);
     op_repaint();                                       /* (the walk: in place, no clear) */
-}
-static void mx_walk(int32_t d)                          /* ALGORITHM: a row a detent, stopping at the ends */
-{
-    int32_t r = clamp((int32_t)mx_row() + d, 0, MXR_N - 1);
-    if ((uint32_t)r != mx_row())
-        mx_apply((uint32_t)r);
 }
 static void mx_page(int32_t d)                         /* SELECT: the knob sets, stopping at the ends (GLO tapped opens
                                                          * GLOBAL since 2026-10-12: op_global.c) */
@@ -337,10 +348,12 @@ static void mx_tick(void)
         mx.lit[i] = (uint8_t)((hits >> i) & 1u ? 12u : mx.lit[i] ? mx.lit[i] - 1u : 0u);
     if (r == MXR_MASTER)
         return;
-    if (mx_trk_of(r) != song.sel)
-        ui.row[SCR_HOME] = (uint8_t)(MXR_T1 + song.sel);
+    if (ui.scr != SCR_HOME || mx_trk_of(r) != song.sel)
+        ui.row[SCR_HOME] = (uint8_t)mx_sel_row();      /* (off the mixer, another track: the row follows the selection) */
     else if (r >= MXR_LANE0 && r - MXR_LANE0 != lane_selected())
         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());
+    if (ui.scr == SCR_HOME && is_drum(TSEL))
+        ui.lane = (uint8_t)(ui.row[SCR_HOME] % MXR_N >= MXR_LANE0);   /* (on the mixer its row is the selection) */
 }
 
 /* the SCOPE screen's rows (op_scope.c, after the renderer: its trace draws with it): for the screen table */

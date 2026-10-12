@@ -261,6 +261,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
     } else if (k == 1u && is_drum(TSEL)) {
         lane_select((uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1));
+        ui.lane = 1;                                    /* (a lane selected: PRESETS its sound) */
     } else if (k == 1u) {
         uint32_t e = TSEL->eng_req;
         do                                              /* (stepping over the numbers kept free: engines.c) */

@@ -244,16 +244,20 @@ static void graph_steps(uint16_t col)                    /* the pattern: every s
         cv_box(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_BLACK);
     }
 }
-static void graph_lane(void)                             /* the drum lane: its name big, its source's colour */
+/* the drum lane: its name big in its source's colour, its sound under it (the lane's pages: they edit it); the SOUND
+ * row on DR itself (kit): the kit big in its kind's colour, its style (what PRESETS steps there) */
+static void graph_lane_of(int kit)
 {
     uint32_t l = lane_selected();
     int32_t ny = GRAPH_H >= 58 ? 6 + (GRAPH_H - 58) / 2 : 6;     /* (a taller picture: the name and kit in the middle) */
-    cv_text(4, ny, &FONT_L, LANE_NAME[l], lane_col(l));
+    const char *sub = kit ? drum_kit_style() : lane_sound_name(l);
+    cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : LANE_NAME[l], kit ? kit_col() : lane_col(l));
     if (GRAPH_H >= 58)
-        cv_text(4, 40 + ny - 6, &FONT_S, drum_kit_name(), C_GRAY);
+        cv_text(4, 40 + ny - 6, &FONT_S, sub, C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
-        cv_text(236 - text_w(&FONT_S, drum_kit_name()), 22, &FONT_S, drum_kit_name(), C_GRAY);
+        cv_text(236 - text_w(&FONT_S, sub), 22, &FONT_S, sub, C_GRAY);
 }
+static void graph_lane(void) { graph_lane_of(0); }
 /* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
  * copied: this UI does not call into ui/sloop). The level over the sound's length in the lane's colour (synthesised:
  * the body and the noise as they hold and decay, CLICK a tick at the start; a sample: its peaks with DECAY; an X0X

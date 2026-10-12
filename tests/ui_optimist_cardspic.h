@@ -191,5 +191,6 @@ static void cards_pic_tests(void)
           "2x2: STEP, a held step's two lines sit under the big values, over the grid's foot");
     fuzz(3000, 4242);                                   /* random use: every draw on the screen */
     check(1, "3000 frames of random use with the picture alone or the rows");
+    tracks_default();                                   /* (what the random run changed goes) */
     reset_ui();
 }
