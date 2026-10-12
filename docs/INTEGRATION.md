@@ -30,7 +30,7 @@ branches together, merges them on an integration branch, runs the gate once, fix
 | costs | every builder item has a measured cost (`measure_costs.py --missing --check`, as CI) | 1 s |
 | profile P | every published profile builds, as CI's profiles job (`tools/gate.py --no-profiles`: user-default only, a quick run) | 10 s each |
 | config F / set | the `CONFIG=` file and the `SET=` variant of user-default, when given | 10 s each |
-| test | the host tests (`optimist.py test`: a BLE build, user-default, a measurement build of the defaults, `tests/run_tests.sh` with the web tests) | 14 min |
+| test | the host tests (`optimist.py test`: a BLE build, user-default, a measurement build of the defaults, `tests/run_tests.sh` with the web tests, its units `JOBS` at once) | 4 min (19 serial) |
 | final | user-default built again, last: `build/` holds its package and ELF for `make emu-check` and `make flash` | 10 s |
 | emu | `EMU=1`: the emulator checks on that build (BUILDING.md, The emulator checks) | 7.5 min |
 
