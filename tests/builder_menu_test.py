@@ -17,6 +17,7 @@ from builder_path import ROOT
 import configure as C  # noqa: E402
 import menu as M  # noqa: E402
 import room as RM
+import stamp as ST
 from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
 fails = 0
@@ -215,14 +216,16 @@ async def main():
                 check("f is bound: Flash to FM-1 in the footer", any(b.key == "f" and "flash" in b.description for b in app.BINDINGS))
                 await pilot.press("f")
                 await pilot.pause()
-                check("f with no build: says so, nothing asked, no device touched",
-                      type(app.screen).__name__ != "Pick" and not calls)
-                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, pkg)
-                check("a successful build offers it: the panel says so and remembers the package",
-                      app.built_pkg == pkg and "Flash to FM-1" in app.build_out)
+                check("f with no build: FLASH REFUSED (build first), nothing asked, no device touched",
+                      type(app.screen).__name__ != "Pick" and not calls and app.build_out.startswith("FLASH REFUSED")
+                      and "build first" in app.build_out)
+                built = ST.Stamp(pkg, C.cfg_hash(app.cfg), "default")      # (what run_build records: stamp.py)
+                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, built)
+                check("a successful build offers it: the panel says so and remembers the package (its stamp)",
+                      app.built is built and app.built.package == pkg and "Flash to FM-1" in app.build_out)
                 app.show_build("BUILD FAILED", {}, None)
-                check("a failed build forgets the package", app.built_pkg is None)
-                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, pkg)
+                check("a failed build forgets the package", app.built is None)
+                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, built)
                 await pilot.press("f")
                 for _ in range(40):
                     await pilot.pause(0.05)
