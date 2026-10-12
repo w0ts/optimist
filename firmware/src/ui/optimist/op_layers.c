@@ -176,10 +176,11 @@ static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again
     lay_undo_mark(t);
     fm1_irq_off();
     if (d > 0 && len * 2u <= NSTEP) {
-        for (i = 0; i < len; i++) {
-            t->step[len + i] = t->step[i];
-            t->dstep[len + i] = t->dstep[i];
-        }
+        for (i = 0; i < len; i++)                       /* (a drum step and a synth step differ in size) */
+            if (is_drum(t))
+                t->dstep[len + i] = t->dstep[i];
+            else
+                t->step[len + i] = t->step[i];
         t->p[P_SLEN] = (int16_t)(len * 2u);
     } else if (d < 0 && len >= 2u) {
         t->p[P_SLEN] = (int16_t)(len / 2u);

@@ -52,7 +52,7 @@
 #define SL24_TFLT 50u
 #define SL24_HDR (12u + 2u * PJ_NG)                     /* where its tracks start (magic, size, g[32], sel, 3 spare) */
 _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + NTRK * SL24_TRK + 4u == SL24_SIZE &&
-               sizeof(step_t) * NSTEP == 640u && sizeof(stepx_t) == 176u && P_CHORD == SL24_COMMON - 1u &&
+               STEP_SN * NSTEP == 640u && sizeof(stepx_t) == 176u && P_CHORD == SL24_COMMON - 1u &&
                DRUM_SAMPLED == 5u && ENG_UID_FM6 == 9u && ENG_UID_PHYS == 11u,
                "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..9 our UIDs");
 #define SL25_PHYS 10u                                   /* SLOOP 2.5's PHYS (core.h ENGI_PHYS) */

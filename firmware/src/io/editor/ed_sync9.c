@@ -57,7 +57,12 @@ static uint32_t ed9_sig(const uint8_t *b, uint32_t n)  /* FNV-1a */
         h = (h ^ *b++) * 16777619u;
     return h;
 }
-static uint32_t ed9_step_sig(uint32_t t, uint32_t i) { return ed9_sig((const uint8_t *)&trk[t].step[i], sizeof(step_t)); }
+static uint32_t ed9_step_sig(uint32_t t, uint32_t i)
+{
+    uint32_t n;
+    const uint8_t *b = trk_step_raw(&trk[t % NTRK], i, &n);   /* (a drum step, a synth step with its own note ends) */
+    return ed9_sig(b, n);
+}
 #if DL_ANY
 static uint32_t ed9_lane_sig(uint32_t l)
 {

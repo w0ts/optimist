@@ -111,7 +111,7 @@ static void pat_flatten(project_t *p, const uint8_t *refs)
 #endif
         if (r[k] == PAT_KEEP) {                        /* (the stage's ISR leaves the track alone: phase 2) */
             uint32_t i;
-            memcpy(t->step, trk[k].step, sizeof t->step);
+            steps_store(t->step, &trk[k], k);
             for (i = 0; i < 4u; i++)
                 t->p[P_SLEN + i] = trk[k].p[P_SLEN + i];
             continue;
@@ -449,7 +449,7 @@ static void pat_load_trk(uint32_t k, uint32_t s, project_t *p)
 static void pat_take(track_t *t, uint32_t k, const project_t *p)
 {
     uint32_t i;
-    memcpy(t->step, p->t[k].step, sizeof t->step);
+    steps_load(t, k, p->t[k].step);
     for (i = 0; i < 4u; i++)
         t->p[P_SLEN + i] = (int16_t)clamp(p->t[k].p[P_SLEN + i], TP[P_SLEN + i].min, TP[P_SLEN + i].max);
 #if FELUCCA_MOTION
@@ -457,6 +457,7 @@ static void pat_take(track_t *t, uint32_t k, const project_t *p)
 #endif
 #if FELUCCA_AUTO
     auto_put_trk(&auto_w, auto_for(p, 0), k);
+    ngate_apply_trk(k);                                /* (the notes' own ends: into its steps, seq/ngate.h) */
     auto_touch(k);
 #endif
 }
@@ -533,12 +534,14 @@ static void pat_scene_apply(int applied)
     for (k = 0; k < NTRK; k++)
         if (!applied && pat_bref[1][k] == PAT_KEEP) {
             uint32_t i;
-            memcpy(sec_stage_p.t[k].step, trk[k].step, sizeof trk[k].step);
+            steps_store(sec_stage_p.t[k].step, &trk[k], k);
             for (i = 0; i < 4u; i++)
                 sec_stage_p.t[k].p[P_SLEN + i] = trk[k].p[P_SLEN + i];
 #if FELUCCA_AUTO
-            if (auto_for(&sec_stage_p, 0))
+            if (auto_for(&sec_stage_p, 0)) {
                 auto_put_trk(auto_for(&sec_stage_p, 0), &auto_w, k);
+                ngate_capture_trk(auto_for(&sec_stage_p, 0), k);
+            }
 #endif
         } else if (applied && ((pat_staged >> k) & 1u)) {
             pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];

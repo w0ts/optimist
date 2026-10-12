@@ -158,12 +158,13 @@ static struct {
 } ed_w;
 
 static int16_t *ed_val(uint32_t i) { return i < P_COUNT ? &TSEL->p[i] : &song.g[i - P_COUNT]; }
-static uint32_t ed_step_sig(const step_t *s)              /* all 10 bytes (a drum step's lanes too) */
+static uint32_t ed_step_sig(const track_t *t, uint32_t i)   /* step i: all its bytes (a drum step's lanes, a synth
+                                                          * step's own note ends) */
 {
-    const uint8_t *b = (const uint8_t *)s;
-    uint32_t i, h = 0x811C9DC5u;
-    for (i = 0; i < sizeof *s; i++)
-        h = (h ^ b[i]) * 16777619u;
+    uint32_t n, h = 0x811C9DC5u;
+    const uint8_t *b = trk_step_raw(t, i, &n);
+    while (n--)
+        h = (h ^ *b++) * 16777619u;
     return h;
 }
 #include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes, DRUM_STEP bytes */
@@ -212,7 +213,7 @@ static void ed_shadow(void)                              /* the editor is in syn
     for (i = 0; i < ED_NV; i++)
         ed_w.v[i] = *ed_val(i);
     for (i = 0; i < NSTEP; i++)
-        ed_w.st[i] = ed_step_sig(&TSEL->step[i]);
+        ed_w.st[i] = ed_step_sig(TSEL, i);
     for (i = 0; i < ED_NT; i++)
         ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
     ed_w.eng = (uint8_t)ed_eng(TSEL);
@@ -289,7 +290,7 @@ static void ed_sync(void)                                /* main loop */
         return;
     }
     for (i = 0; i < NSTEP && n < ED_PUSH_MAX; i++) {
-        uint32_t h = ed_step_sig(&TSEL->step[i]);
+        uint32_t h = ed_step_sig(TSEL, i);
         if (h == ed_w.st[i])
             continue;
         if (!ed_room())
@@ -499,7 +500,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             fm1_irq_on();
             ui.force = 1;
         }
-        ed_w.st[a[0]] = ed_step_sig(&TSEL->step[a[0]]);
+        ed_w.st[a[0]] = ed_step_sig(TSEL, a[0]);
         ed9_known_step(song.sel, a[0]);
         ed_b(a[0]);
         ed_step_out(TSEL, a[0]);
@@ -647,7 +648,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ui.force = 1;
         }
         if (a[0] == song.sel)
-            ed_w.st[a[1]] = ed_step_sig(&trk[a[0]].step[a[1]]);
+            ed_w.st[a[1]] = ed_step_sig(&trk[a[0]], a[1]);
         ed9_known_step(a[0], a[1]);
         ed_b(a[0]);
         ed_b(a[1]);
@@ -672,7 +673,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             fm1_irq_on();
             ui.force = 1;
             if (song.sel == TRK_DRUM)
-                ed_w.st[a[0]] = ed_step_sig(&TDRUM->step[a[0]]);
+                ed_w.st[a[0]] = ed_step_sig(TDRUM, a[0]);
         }
         ed9_known_step(TRK_DRUM, a[0]);
         ed_b(a[0]);
