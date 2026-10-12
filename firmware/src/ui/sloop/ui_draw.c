@@ -207,7 +207,7 @@ static uint16_t mac_card(const param_desc_t *d, const int16_t *vp, uint32_t hot,
     if (e == *vp)
         return vc;
     col_mac = 1;
-    col_mac_r = (int16_t)(d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, e)));
+    col_mac_r = (int16_t)(d->fmt == F_ENUM && d->max < 2 ? -1 : gauge_ratio(d, enum_rank(d, e)));
     if (hot)
         return vc;
     param_format(d, e, val, unit);
@@ -288,11 +288,12 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vk);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
-        int32_t gy = Y_GAUGE - Y_LABEL;
-        fx = ratio * gw / 1000;
+        int32_t gy = Y_GAUGE - Y_LABEL, syn = ratio >= SYNCED_R;   /* (a synced LFO RATE: a tick on the line, no fill) */
+        fx = (syn ? (ratio - SYNCED_R) * (gw - 3) : ratio * gw) / 1000;
         cv_rect(0, gy + 1, gw, 1, C_LINE);
-        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
-        cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vk);
+        if (!syn)
+            cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
+        cv_rect(fx, gy - 1, syn ? 3 : 1, 5, vc == C_DIM ? C_HI : vk);
 #if FELUCCA_MACROS
         if (mac && col_mac_r >= 0)                      /* where the macro plays it: a notice-coloured tick */
             cv_rect(col_mac_r * gw / 1000 - 1, gy - 2, 3, 7, C_WARN);
@@ -1332,7 +1333,7 @@ static void draw_columns(void)
 #if FELUCCA_MACROS
         vc = mac_card(d, vp, c == ui.hot_col && ui.hot_t, val, &unit, vc);
 #endif
-        draw_column(c, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
+        draw_column(c, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : gauge_ratio(d, enum_rank(d, *vp)),
                     param_icon(d, *vp));
     }
 }

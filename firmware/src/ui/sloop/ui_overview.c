@@ -254,13 +254,15 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     x = cv_text(0, 17, &FONT_S, v, vk);
     cv_text(x + 3, 17, &FONT_S, u, C_DIM);
     if (ratio >= 0) {
-        int32_t fx = ratio * gw / 1000;
+        int32_t syn = ratio >= SYNCED_R, tw = syn ? 3 : 1;   /* (a synced LFO RATE: a tick on the line, no fill) */
+        int32_t fx = (syn ? (ratio - SYNCED_R) * (gw - 3) : ratio * gw) / 1000;
         cv_rect(0, 37, gw, 1, C_LINE);
         if (lit) {
-            cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
-            cv_rect(fx, 35, 1, 5, vc == C_DIM ? C_HI : vk);
+            if (!syn)
+                cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
+            cv_rect(fx, 35, tw, 5, vc == C_DIM ? C_HI : vk);
         } else {
-            cv_rect(fx, 35, 1, 5, C_DIM);             /* dimmed: the position only */
+            cv_rect(fx, 35, tw, 5, C_DIM);            /* dimmed: the position only */
         }
 #if FELUCCA_MACROS
         if (mac && col_mac_r >= 0)                    /* where the macro plays it */
@@ -306,7 +308,7 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
         if (vc == C_WARN && !lit)
             vc = C_GRAY;                              /* (a row the knobs do not edit: its own look, the M says it) */
 #endif
-        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
+        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : gauge_ratio(d, enum_rank(d, *vp)),
                 param_icon(d, *vp), lit);
     }
 }

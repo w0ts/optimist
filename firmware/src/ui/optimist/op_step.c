@@ -452,7 +452,7 @@ static void lock_cell(uint32_t k, cell_t *c)            /* the event of the firs
     c->mark = (uint8_t)q;                               /* (op_draw.c: 1 a padlock, 2 a hold's arrow) */
     c->col = q == 1u ? C_WARN : q ? C_AMB : 0;
     param_format(d, v, c->val, &c->unit);
-    cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
+    cell_gauge_d(c, d, v);
 }
 /* a turn writes the step-only event on every step held (a hold event alone there: its value); OP_RESET (HOME + the
  * knob) drops the step's events of the cell, both kinds */
