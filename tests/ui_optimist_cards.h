@@ -1,21 +1,24 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, SYSTEM > SCREEN > CARDS: the cursor row's values as four cards in a line (1x4) or as
- * SLOOP 2.4's big values 2 x 2 (docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6), on every screen with cards.
- * Included by ui_optimist_test.c after its helpers and ui_optimist_drummix.h (the settings word). */
+/* tests/ui_optimist_test.c, the cards (the user, 2026-10-12: "Cards are ALWAYS 2x2 on every screen with cards except the
+ * mixer"; docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6): the cursor row's values as SLOOP 2.4's big values 2 x 2 on
+ * every screen with cards, the mixer's four in a line (1x4). There is no CARDS setting any more: SYSTEM > SCREEN has no
+ * CARDS cell and the settings word's bit 23 is neither read nor written. Included by ui_optimist_test.c after its
+ * helpers and ui_optimist_drummix.h (the settings word). */
+enum { BAND_1X4, BAND_2X2 };                            /* the two bands the screens draw (the mixer's, every other) */
 
 /* the cards are black, outlined in C_LINE (no grey surface, the user 2026-10-10): a card is told by its outline's
  * right edge, at two heights (a roll's C line, horizontal, cannot be both) */
 static int card_edge(uint32_t x, uint32_t y) { return px_at(x, y + 10u, C_LINE) && px_at(x, y + 30u, C_LINE); }
-static int card0_up(void)                               /* the first card drawn, as CARDS sets them */
+static int card0_up(void)                               /* the first card drawn, as the screen has them */
 {
     return card_edge(cards_2x2() ? 3u + BIG_W - 1u : (uint32_t)CARD_X(0) + CARD_W - 1u, OY_CARD);
 }
-/* the cards' band as drawn for the mode: 1x4 one row of cards (the gap under it black: no big value's outline at band row 45),
- * 2x2 its two rows of big values (the second row at band rows 47..92) */
-static int cards_band_is(uint32_t mode)
+/* the cards' band as drawn: 1x4 one row of cards (the gap under it black: no big value's outline at band row 45), 2x2
+ * its two rows of big values (the second row at band rows 47..92) */
+static int cards_band_is(uint32_t band)
 {
     uint32_t k, ok = 1;
-    if (mode == CARDS_LINE)
+    if (band == BAND_1X4)
         return card_edge((uint32_t)CARD_X(0) + CARD_W - 1u, OY_CARD) && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE);
     for (k = 0; k < 4u; k++) {                          /* each quadrant's outline */
         uint32_t x = k & 1u ? 121u : 3u, y = OY_CARD + (k & 2u ? BIG_H + 1u : 0u);
@@ -23,30 +26,22 @@ static int cards_band_is(uint32_t mode)
     }
     return (int)ok;
 }
-/* screen scr drawn whole (forced) in both modes: the band as the mode, nothing of the panel above OP_PY */
+/* screen scr drawn whole (forced): the 2x2 band (STEP: the cards are an overlay, ui_optimist_stepcards.h) */
 static int cards_screen_ok(uint32_t scr, const char *shot)
 {
-    uint32_t m, ok = 1;
     char nm[48];
-    for (m = 0; m < CARDS_N; m++) {
-        op_cards = (uint8_t)m;
-        ui.force = 1;
-        frame();
-        frame();
-        ok &= (uint32_t)(scr == SCR_STEP || cards_band_is(m)) && ui.scr == scr;   /* (STEP: the cards are an overlay, ui_optimist_stepcards.h) */
-        if (!ok) {
-            printf("  cards: screen %u mode %u\n", scr, m);
-            break;
-        }
-        if (m == CARDS_2X2 && shot) {
-            snprintf(nm, sizeof nm, "opt-cards-2x2-%s", shot);
-            ppm(nm);
-        }
-    }
-    op_cards = CARDS_LINE;
+    int ok;
     ui.force = 1;
     frame();
-    return (int)ok;
+    frame();
+    ok = (scr == SCR_STEP || cards_band_is(BAND_2X2)) && ui.scr == scr && cards_2x2();
+    if (!ok)
+        printf("  cards: screen %u not 2x2\n", scr);
+    if (shot) {
+        snprintf(nm, sizeof nm, "opt-cards-2x2-%s", shot);
+        ppm(nm);
+    }
+    return ok;
 }
 static void cards_tests(void)
 {
@@ -54,16 +49,14 @@ static void cards_tests(void)
     reset_ui();
     song.sel = 0;
     frame();
-    check(op_cards == CARDS_LINE && ROWS_SHOWN == 8u && GRAPH_MIN == 58 && OP_PY == OY_PANEL,
-          "CARDS 1x4 (the tests' mode, main): the panel at 76, 8 rows, the graph 58");
-    op_enter(SCR_SOUND);                                /* (the mixer keeps 1x4: another screen) */
-    op_cards = CARDS_2X2;
-    check(ROWS_SHOWN == 5u && GRAPH_MIN == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
+    check(ui.scr == SCR_HOME && !cards_2x2() && OP_PY == OY_PANEL && cards_band_is(BAND_1X4),
+          "the mixer: its four cards in a line (1x4), the panel at 76");
+    op_enter(SCR_SOUND);
+    check(cards_2x2() && ROWS_SHOWN == 5u && GRAPH_MIN == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
           4 * TILE_H + 2 + 16 <= OP_PH && SG_INFO_Y + SG_INFO_DY + 13 <= SP_H && MODAL_H == OP_PH,
-          "CARDS 2x2: the band 93, the panel 117: 5 rows, graph 40, STEP, tiles, scope and modal inside");
-    op_cards = CARDS_LINE;
+          "the cards 2x2 off the mixer: the band 93, the panel 117: 5 rows, graph 40, STEP, tiles, scope and modal inside");
     tap(B_ENV);                                         /* SOUND with a graph (the envelope) */
-    check(cards_screen_ok(SCR_SOUND, "sound-env"), "CARDS both modes: SOUND with its graph (ENV)");
+    check(cards_screen_ok(SCR_SOUND, "sound-env"), "cards 2x2: SOUND with its graph (ENV)");
     mix_to_sound();                                     /* the mixer, YES on the track: every row */
     n = SCR->rows();
     for (r = 1; r < n && row_nograph == 0xFF; r++)
@@ -71,82 +64,76 @@ static void cards_tests(void)
             row_nograph = r;
     ui.row[SCR_SOUND] = (uint8_t)(row_nograph == 0xFF ? 0 : row_nograph);
     frame();
-    check(row_nograph != 0xFF && cards_screen_ok(SCR_SOUND, "sound-plain"), "CARDS both modes: SOUND on a row with no graph");
+    check(row_nograph != 0xFF && cards_screen_ok(SCR_SOUND, "sound-plain"), "cards 2x2: SOUND on a row with no graph");
     ui.row[SCR_SOUND] = 0;
-    check(cards_screen_ok(SCR_SOUND, 0), "CARDS both modes: SOUND's SOUND row (the presets' picture)");
+    check(cards_screen_ok(SCR_SOUND, 0), "cards 2x2: SOUND's SOUND row (the presets' picture)");
     reset_ui();
     tap(B_SEQ);
-    check(cards_screen_ok(SCR_STEP, "step"), "CARDS both modes: STEP, a synth track's roll");
+    check(cards_screen_ok(SCR_STEP, "step"), "cards 2x2: STEP, a synth track's roll");
     song.sel = TRK_DRUM;
     frame();
-    check(cards_screen_ok(SCR_STEP, "step-drums"), "CARDS both modes: STEP, the drum grid");
+    check(cards_screen_ok(SCR_STEP, "step-drums"), "cards 2x2: STEP, the drum grid");
     song.sel = 0;
     reset_ui();
     op_enter(SCR_TEMPO);
     frame();
-    check(cards_screen_ok(SCR_TEMPO, "tempo"), "CARDS both modes: TEMPO");
+    check(cards_screen_ok(SCR_TEMPO, "tempo"), "cards 2x2: TEMPO");
     {
-        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_SCOPE};
+        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_SCOPE, SCR_GLOBAL};
         uint32_t i, ok = 1;
         for (i = 0; i < sizeof S; i++) {
             reset_ui();
             op_enter(S[i]);
             frame();
-            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : 0);
+            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : S[i] == SCR_GLOBAL ? "global" : 0);
         }
-        check(ok, "CARDS both modes: SONG, FX, PROJECT, SYSTEM, SCOPE");
+        check(ok, "cards 2x2: SONG, FX, PROJECT, SYSTEM, SCOPE, GLOBAL");
     }
     reset_ui();
     op_enter(SCR_SOUND);
     press(B_FX);                                        /* a layer held (over SOUND): its cards and tiles */
     frames(HOLD_FRAMES);
-    {
-        uint32_t m, ok = lay.shown == LY_FX;
-        for (m = 0; m < CARDS_N && ok; m++) {
-            op_cards = (uint8_t)m;
-            ui.force = 1;
-            frame();
-            ok &= (uint32_t)cards_band_is(m);
-            if (m == CARDS_2X2)
-                ppm("opt-cards-2x2-layer-fx");
-        }
-        op_cards = CARDS_LINE;
-        check(ok, "CARDS both modes: a performance layer (FX held), its cards and its tiles");
-    }
+    ui.force = 1;
+    frame();
+    ppm("opt-cards-2x2-layer-fx");
+    check(lay.shown == LY_FX && cards_band_is(BAND_2X2), "cards 2x2: a performance layer (FX held), its cards and its tiles");
     release(B_FX);
     reset_ui();
     {   /* the hot value in white in its quadrant (KNOB 4: bottom right) */
         tap(B_ENV);
-        op_cards = CARDS_2X2;
         turn(EN_K4, 1);
         ui.force = 1;
         frame();
         check(ui.hot == 3u && px_in(126, OY_CARD + BIG_H + 13u, 110, 30, C_WHITE) &&
               !px_in(8, OY_CARD + 13u, 110, 28, C_WHITE),
-              "CARDS 2x2: KNOB 4 hot, its value white at the bottom right, KNOB 1's not");
-        op_cards = CARDS_LINE;
+              "cards 2x2: KNOB 4 hot, its value white at the bottom right, KNOB 1's not");
     }
     reset_ui();
-    {   /* the setting: SYSTEM > SCREEN's third cell, kept in the settings word (bit 23) */
-        uint32_t w;
+    {   /* no CARDS setting: SYSTEM > SCREEN's cells are COLOR, BRIGHT, -, KNOB COLORS; bit 23 ignored */
+        uint32_t k, none = 1, w;
+        cell_t c;
         op_enter(SCR_SYSTEM);
         ui.row[SCR_SYSTEM] = 0;
         frame();
-        turn(EN_K3, 1);
+        for (k = 0; k < 4u; k++) {
+            SCR->cell(0, k, &c);
+            none &= (uint32_t)!(c.label && !strcmp(c.label, "CARDS"));
+        }
+        SCR->cell(0, 2, &c);
+        check(none && c.kind == CK_NONE, "SYSTEM SCREEN: no CARDS cell (KNOB 3 empty)");
         w = bp23_word();
-        check(op_cards == CARDS_2X2 && !((w >> 23) & 1u), "SYSTEM SCREEN: KNOB 3 CARDS to 2x2, kept in the settings word (bit 23 clear)");
-        turn(EN_K3, -1);
-        w = bp23_word();
-        check(op_cards == CARDS_LINE && ((w >> 23) & 1u), "... back to 1x4: bit 23 set (2026-10-12: 2x2 is the default)");
+        bp23_from_word(w | 1u << 23);                   /* an old record that chose 1x4 */
+        op_enter(SCR_SOUND);
+        tap(B_ENV);
+        ui.force = 1;
+        frame();
+        check(cards_2x2() && cards_band_is(BAND_2X2) && ((bp23_word() >> 23) & 1u) == 1u,
+              "settings word bit 23 set (an old 1x4): not read, the cards 2x2; the bit kept as read");
         bp23_from_word(w & ~(1u << 23));
-        check(op_cards == CARDS_2X2, "... a word without the bit: 2x2 (every older record)");
+        check(((bp23_word() >> 23) & 1u) == 0u, "... a word without it writes it as 0: never written by the UI");
         bp23_from_word(w);
-        check(op_cards == CARDS_LINE, "... read back: 1x4");
-        op_cards = CARDS_LINE;
     }
-    op_cards = CARDS_2X2;                               /* random use in 2x2: every draw on the screen */
-    fuzz(3000, 777);
-    op_cards = CARDS_LINE;
-    check(1, "3000 frames of random use in CARDS 2x2: every draw on the screen");
+    fuzz(3000, 777);                                    /* random use: every draw on the screen */
+    check(1, "3000 frames of random use with the 2x2 cards: every draw on the screen");
     reset_ui();
 }

@@ -14,9 +14,9 @@
 #define OH_CARD 45
 #define OY_PANEL 76
 #define OH_PANEL 123
-#define OH_CARD_2X2 93                  /* CARDS 2x2: the big values' band, two rows of BIG_H + 1 */
+#define OH_CARD_2X2 93                  /* the cards 2x2: the big values' band, two rows of BIG_H + 1 */
 #define OY_PANEL_2X2 123                /* ... and the panel under it, 117 rows to the screen's foot */
-#define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel, as CARDS sets them */
+#define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel: 2x2, the mixer 1x4 */
 #define OP_PY (cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)
 #define OP_PH (240 - OP_PY)
 #define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */

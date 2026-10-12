@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The mixer, horizontal (docs/UI-OPTIMIST-DESIGN.md section 4.1; the user, 2026-10-08: "Horizontal mixer is better"):
- * the rows are the tracks, the four knobs four values of the SELECTED row, shown on the cards (1x4 or 2x2).
+ * the rows are the tracks, the four knobs four values of the SELECTED row, shown on the cards (1x4: the mixer keeps them).
  *   rows       MASTER (above T1), T1 T2 T3, DR, then the drum track's 16 lanes; the panel shows the cursor's group
  *              only (the user, 2026-10-11): MASTER alone, the four channels, or the 16 drum sounds; each row its VU
  *              meter (the compressor's reduction pushing in from the right) and its sequence (op_mixdraw.c)
@@ -10,7 +10,7 @@
  *              (VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
  *              SOUND; a lane LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR VOLUME | FILTER | FX on, KIT; MASTER FILT
  *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
- *              GLO tapped: the mixer; again, the next set (past the last, the first). The header names the set
+ *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the hot cell one unit (on SOUND: the next / previous sound)
  *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
  * The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP): DRIVE when DIST is in no slot (the
@@ -30,7 +30,7 @@ typedef struct {
 } mitem_t;
 #define MX_MAXI 20u
 static struct {
-    uint8_t set;                                        /* the knob set shown (SELECT, GLO again) */
+    uint8_t set;                                        /* the knob set shown (SELECT) */
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
 } mx;
 
@@ -296,7 +296,7 @@ static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
-/* ---- ALGORITHM, SELECT, GLO on the mixer (op_input.c) */
+/* ---- ALGORITHM, SELECT on the mixer (op_input.c) */
 static void lane_pick(uint32_t l);                      /* op_input.c: the lane selected (its preview) */
 static void track_select(uint32_t i);                   /* op_input.c */
 static void mx_apply(uint32_t r)                        /* the cursor on row r: the track (and the lane) selected */
@@ -315,24 +315,14 @@ static void mx_walk(int32_t d)                          /* ALGORITHM: a row a de
     if ((uint32_t)r != mx_row())
         mx_apply((uint32_t)r);
 }
-static void mx_page(int32_t d, int round)               /* SELECT (round 0: stops), GLO again (round 1: wraps) */
+static void mx_page(int32_t d)                         /* SELECT: the knob sets, stopping at the ends (GLO tapped opens
+                                                         * GLOBAL since 2026-10-12: op_global.c) */
 {
     uint32_t n = mx_sets(mx_row()), s = mx_set(mx_row());
-    if (round)
-        s = s + 1u < n ? s + 1u : 0u;
-    else
-        s = (uint32_t)clamp((int32_t)s + d, 0, (int32_t)n - 1);
+    s = (uint32_t)clamp((int32_t)s + d, 0, (int32_t)n - 1);
     mx.set = (uint8_t)s;
     ui.hot = 0;
     ui.hot_lit = 0;
-}
-static void mx_glo_tap(void)                            /* GLO tapped: the mixer; on it, the next set */
-{
-    if (ui.scr == SCR_HOME) {
-        mx_page(1, 1);
-        return;
-    }
-    op_enter(SCR_HOME);
 }
 /* once a frame: the cursor follows the track selected elsewhere (ALGORITHM on another screen, the editor) and the
  * lane picked (HOME + a key); the lanes' hits (drums.c drums.hits, as SLOOP's kit pads take them) */

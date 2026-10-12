@@ -203,23 +203,14 @@ static void layout_tests(void)
           "mixer row: the engine's name in the track's colour on its text line, the steps and a thin VU under it");
     tap(B_LFO);
     frames(3);
-    check(lst.pic == 1u && lst.top + (int32_t)lst.shown * ROW_H == OH_BODY && GRAPH_H == lst.top - 3 && GRAPH_H > GRAPH_MIN,
-          "SOUND LFO: the graph takes the height the rows leave, the rows at the panel's foot");
+    check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND LFO: the picture fills the panel, no rows (2026-10-12)");
     reset_ui();
     tap(B_ARP);
     frames(3);
-    check(lst.pic == 1u && lst.rh == ROW_H, "SOUND ARP: a picture (its pattern), the rows at ROW_H");
-    op_cards = CARDS_2X2;
-    ui.force = 1;
-    frames(3);
-        check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "... and with CARDS 2x2: the picture alone (2026-10-12)");
-    tap(B_LFO);
-    frames(3);
-    check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND LFO with CARDS 2x2: the picture fills the panel, no rows");
-    op_cards = CARDS_LINE;
+    check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND ARP: its picture alone, no rows (2026-10-12)");
     op_enter(SCR_PROJECT);
     frames(3);
-    check(lst.pic == 0u && lst.rh <= 40, "a page with no picture: the row pitch is capped at 40");
+    check(lst.pic == 0u && lst.shown > 0u && lst.rh <= 40, "a page with no picture: its rows, the row pitch capped at 40");
     reset_ui();
 }
 /* 2026-10-10: a step held, SELECT pages its cards (the step, its extras, the p-lock pages), stopping at both ends */

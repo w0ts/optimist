@@ -430,20 +430,14 @@ static void dev_draw(uint32_t y, uint32_t h)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_CARDS, SI_KCOL}},   /* (SI_CARDS: 1x4 or 2x2; SI_KCOL: KNOB COLORS) */
+    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
-    {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
-              SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
-#if FELUCCA_MIDI_CLKOUT
-    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
-#endif
-    {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
@@ -453,16 +447,26 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CPU", {SI_CPU, SI_MHZ, SI_NONE, SI_NONE}},
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
+    /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
+     * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
+    {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
+              SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
+#if FELUCCA_MIDI_CLKOUT
+    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
+#endif
+    {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM is left */
+#define NSYS_GLO (FELUCCA_MIDI_CLKOUT ? 3u : 2u)          /* the global rows at SYS's end: MIDI, CLOCK OUT, CHANNELS */
+#define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
+static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
 {
 #if FELUCCA_BLE
     if (bdv.open)
         return dev_rows();                              /* (the BLE devices list: its rows) */
 #endif
-    return NSYS;
+    return NSYS_SETUP;
 }
 static void sys_name(uint32_t r, char *b)
 {
@@ -582,11 +586,6 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->unit = "ms";
         cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
         break;
-    case SI_CARDS:                                      /* the cursor row's values: 1x4 cards or 2x2 big (op_draw.c) */
-        c->label = "CARDS";
-        str_cpy(c->val, op_cards == CARDS_2X2 ? "2x2" : "1x4", sizeof c->val);
-        cell_gauge(c, 1, 0, CARDS_N - 1, op_cards % CARDS_N);
-        break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         c->label = "COLORS";                            /* (KNOB COLORS: a card holds 7 characters) */
         str_cpy(c->val, knob_colors ? "ON" : "OFF", sizeof c->val);
@@ -640,10 +639,6 @@ static void sys_set(uint32_t it, int32_t s)
 #endif
     case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
         hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
-        break;
-    case SI_CARDS:                                      /* (kept in the settings word: settings_word.c) */
-        op_cards = (uint8_t)sys_step(op_cards % CARDS_N, s, CARDS_N - 1);
-        ui.force = 1;                                   /* (every band moves: the whole screen again) */
         break;
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
@@ -742,16 +737,3 @@ static void sys_leave(void)                             /* SYSTEM left: the sett
     else
         settings_save();
 }
-
-static const screen_t SCREENS[SCR_N] = {
-    {mix_rows, mix_name, mix_cell, mix_turn, mix_yes},
-    {snd_rows, snd_name_row, snd_cell, snd_turn, snd_yes},
-    {fxs_rows, fxs_name, fxs_cell, fxs_turn, fxs_yes},
-    {prj_rows, prj_name, prj_cell, prj_turn, prj_yes},
-    {sys_rows, sys_name, sys_cell, sys_turn, sys_yes},
-    {step_rows, step_name, step_cell, step_turn, step_yes},
-    {song_rows, song_name, song_cell, song_turn, song_yes},
-    {tp_rows, tp_name, tp_cell, tp_turn, tp_yes},
-    {scope_rows, scope_name, scope_cell, scope_turn, scope_yes},
-};
-#define SCR (&SCREENS[ui.scr % SCR_N])

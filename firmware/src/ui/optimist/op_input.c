@@ -6,6 +6,7 @@
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
+ *   GLO tapped: GLOBAL (op_global.c: tempo, REC, MIDI; again: its next row); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer [provisional]: SAVE tapped (no cell picked) PROJECT, HOME held alone (past the hold) SYSTEM
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -40,10 +41,12 @@ static void op_row_pick(uint32_t r)
     ui.hot_lit = 0;
     op_disarm();                                        /* (the question was about the other row) */
 }
+static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL; }   /* SYSTEM's settings shown */
 static void op_enter(uint32_t scr)
 {
-    if (scr != SCR_SYSTEM && (ui.scr == SCR_SYSTEM || (tp.on && tp.prev == SCR_SYSTEM)))
-        sys_leave();                                    /* (the TEMPO page over SYSTEM: ui.scr is SCR_TEMPO, its list too) */
+    if (scr != ui.scr && (sys_scr(ui.scr) || (tp.on && sys_scr(tp.prev))))
+        sys_leave();                                    /* (SYSTEM or GLOBAL left: their settings saved; the TEMPO page over
+                                                         * them: ui.scr is SCR_TEMPO) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
@@ -77,14 +80,7 @@ static uint32_t op_cursor_page(void)
         return (uint32_t)(tools_page() - PAGES);
     return page_first(FAM_TRK);
 }
-/* a page button tapped: SOUND with only its family's rows; again: the family's next row, from its last the first
- * (GLO: the FX screen's GLO rows, the next one again) */
-static uint32_t op_row_fam(uint32_t scr, uint32_t r)   /* the family of a SOUND / FX row's page, 0xFF none */
-{
-    if (scr == SCR_SOUND)
-        return snd_page(r) ? snd_page(r)->fam : 0xFFu;
-    return PAGES[fx_ix[r % OP_MAXROWS]].fam;
-}
+/* a page button tapped: SOUND with only its family's rows; again: the family's next row, from its last the first */
 static int snd_has_fam(uint32_t fam)                    /* the selected track has rows of family fam */
 {
     uint8_t keep = snd_fam;
@@ -114,27 +110,7 @@ static void op_jump_sound(uint32_t fam)
 }
 static void op_jump(uint32_t fam)
 {
-    uint32_t scr = fam == FAM_GLO ? SCR_FX : SCR_SOUND, n, r, first = 0xFF, next = 0xFF, cur, on;
-    if (scr == SCR_SOUND) {
-        op_jump_sound(fam == FAM_ENV && fm6_sel() ? SND_FM6 : fam);   /* (an FM6 track: its operators, op_fm6.c) */
-        return;
-    }
-    if (ui.scr != scr)
-        op_enter(scr);
-    n = SCR->rows();
-    cur = ui.row[scr];
-    on = op_row_fam(scr, cur) == fam;                   /* already on the family: its next row */
-    for (r = 0; r < n; r++) {
-        if (op_row_fam(scr, r) != fam)
-            continue;
-        if (first == 0xFF)
-            first = r;
-        if (on && r > cur && next == 0xFF)
-            next = r;
-    }
-    if (first == 0xFF)
-        return;                                         /* (none on this track; the drum track's ENV is its lane's) */
-    op_row_pick(next != 0xFF ? next : first);          /* (past the family's last row: its first again) */
+    op_jump_sound(fam == FAM_ENV && fm6_sel() ? SND_FM6 : fam);   /* (an FM6 track: its operators, op_fm6.c) */
 }
 
 /* ---- undo / redo: the message says which and where (as SLOOP's ui.c undo_say) */
@@ -378,7 +354,7 @@ static void op_press(uint32_t b, uint32_t held)
             fm6_lay_page(b == B_OCTDN ? -1 : 1);
             lay.used = 1;
             op_clean &= ~BIT(B_ENV);
-        } else if (tp.on || (held & BIT(B_PLAY))) {    /* (the TEMPO page: the nudge, op_tempo.c) */
+        } else if (tempo_nudging() || (held & BIT(B_PLAY))) {   /* (the TEMPO page, GLOBAL's TEMPO row: the nudge) */
             tp.pend = 0;
         } else if (lay_is(LY_FX) && b == B_OCTDN) {
 #if FELUCCA_PUNCH_LATCH
@@ -418,7 +394,7 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_SEQ)
         step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
-        mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
+        glo_tap();                                      /* GLOBAL; on it, its next row (op_global.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
         op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : 0u);   /* the global FX: its next page, round */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
@@ -505,7 +481,7 @@ static void op_knobs(uint32_t home)
             turned = 1;
         }
         if ((s = panel_enc(EN_SELECT)) != 0) {
-            mx_page(s, 0);
+            mx_page(s);
             turned = 1;
         }
     }
@@ -654,7 +630,8 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
         return B_ENV;
     if (ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]))
         return FAM_B[snd_page(ui.row[SCR_SOUND])->fam % FAM_COUNT];
-    return ui.scr == SCR_FX ? B_FX : ui.scr == SCR_STEP ? B_SEQ : B_HOME;
+    return ui.scr == SCR_FX ? B_FX : ui.scr == SCR_STEP ? B_SEQ : ui.scr == SCR_GLOBAL ? B_GLO : B_HOME;   /* (GLO: full on
+                                                         * GLOBAL, half lit elsewhere: op_btn_avail) */
 }
 /* the keys on STEP: the window's set steps (the drum track: the selected lane's), the playhead's key blinking, the
  * steps held; toggled to playing (or SEQ held): the keys down and the notes the track sounds (as KEYLIT) */

@@ -7,7 +7,7 @@
  *              with its dB (THRS or CEIL set: mc_gr_view), and under it the FX returns' meters, REV DLY CHO (those
  *              built; the user, 2026-10-12: the four channels' meters here were "useless", the channels' rows show
  *              them): what the effects give back to the master (fx.c fx_ret_tap, a sample a block)
- *   CHANNELS   T1 T2 T3 DR, the four rows of 41 px (the mixer keeps the 1x4 cards whatever CARDS says, op_state.c
+ *   CHANNELS   T1 T2 T3 DR, the four rows of 41 px (the mixer keeps the 1x4 cards, op_layers.c
  *              cards_2x2):
  *                x 0..21    a colour chip and the row's code (T1 T2 T3 DR), its M / S badge under it; the selected
  *                           row's full name is the header's ("T2 mix", op_draw.c head_title)

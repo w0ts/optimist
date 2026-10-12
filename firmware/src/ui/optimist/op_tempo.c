@@ -21,6 +21,7 @@ static struct {
     uint32_t t0;                        /* PLAY's press */
 } tp;
 static const uint8_t REC_LENS[3] = {16u, 32u, 64u};    /* LENGTH: 1, 2, 4 bars of 1/16 */
+enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };          /* the page's rows (GLOBAL's first three too: op_global.c) */
 
 static void tempo_open(void)
 {
@@ -53,13 +54,15 @@ static void tempo_key(int32_t w)                        /* a key while PLAY is h
     if (w >= 0)
         tap_tempo();
 }
+/* OCT- / OCT+ nudge the clock: on the TEMPO page, and on GLOBAL's TEMPO row (its NUDGE card, op_global.c) */
+static int tempo_nudging(void) { return tp.on || (ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == TPR_TEMPO); }
 /* once a frame (op_input.c): the page after the hold, the nudge while OCT- / OCT+ are held */
 static void tempo_frame(uint32_t held)
 {
     int8_t n = 0;
     if (tp.pend && (held & (1u << panel.btn[B_PLAY])) && fm1_ms - tp.t0 >= TEMPO_HOLD_MS)
         tempo_open();
-    if (tp.on) {
+    if (tempo_nudging()) {
         n = held & dyn_bit[0] ? -TEMPO_NUDGE : held & dyn_bit[1] ? TEMPO_NUDGE : 0;
         if (n && sy.src) {                              /* (an external clock: its tempo, no nudge) */
             if (!tp.ext_said)
@@ -78,7 +81,6 @@ static uint32_t rec_len_ix(void)                        /* the selected track's 
     int32_t len = TSEL->p[P_SLEN];
     return len > 32 ? 2u : len > 16 ? 1u : 0u;
 }
-enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };
 static uint32_t tp_rows(void) { return TPR_N; }
 static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
 static void tp_cell(uint32_t r, uint32_t k, cell_t *c)

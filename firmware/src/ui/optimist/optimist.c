@@ -5,7 +5,7 @@
  * SELECT is the cursor, ALGORITHM the track, PRESETS the hot cell's value one unit a detent; SAVE tapped is YES,
  * HOME tapped is NO. The screens: HOME (the mixer), SOUND (the track's pages as rows; a page button: its family's),
  * FX (the global effects), PROJECT, SYSTEM, STEP (the keys as the 16 steps of a window, the drum grid, the roll),
- * SONG (scenes, patterns, the chain), TEMPO (PLAY held), the DRUM MIXER (the 16 sounds as strips), SCOPE (the
+ * SONG (scenes, patterns, the chain), TEMPO (PLAY held), GLOBAL (GLO tapped), the DRUM MIXER (the 16 sounds as strips), SCOPE (the
  * master's or a track's wave). A page button held is a performance layer (its map).
  * Drawn with the Terminus font in Felucca 1.0's structure (the header 0..24, the cards 28..72, the panel 76..239,
  * no footer; the mixers' strips 27..239); the Felucca look is phase 5. Main loop only: nothing here runs in the audio
@@ -18,7 +18,8 @@
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
  * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO),
- * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM, the screen table),
+ * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM), op_global.c (GLOBAL, GLO
+ * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
@@ -43,6 +44,7 @@
 #include "op_song.c"
 #include "op_combos.c"
 #include "op_project.c"
+#include "op_global.c"
 #include "op_graph.c"
 #include "op_preset.c"
 #include "op_name.c"

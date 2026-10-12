@@ -3,9 +3,9 @@
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_N };
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
-                                            "SCOPE"};
+                                            "SCOPE", "GLOBAL"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
@@ -67,12 +67,10 @@ static struct {
     uint32_t t0, t1;                    /* the press, the ring's start */
 } rh;
 
-/* SYSTEM > SCREEN > CARDS (the user, 2026-10-08): how the cursor row's four values are shown, 0 the four cards in a
- * line, 1 SLOOP 2.4's big values 2 x 2 as the knobs sit (op_draw.c draw_big); the panel under them shrinks, and a
- * picture takes it alone, no rows (2026-10-12). 2x2 is the default (the user, 2026-10-12). Kept in the settings word,
- * bit 23, set for 1x4 (storage/settings_word.c: a word without it, every older one, is 2x2) */
-enum { CARDS_LINE, CARDS_2X2, CARDS_N };
-static uint8_t op_cards = CARDS_2X2;
+/* The cards (the user, 2026-10-12): the cursor row's four values are SLOOP 2.4's big values, 2 x 2 as the knobs sit
+ * (op_draw.c draw_big), on every screen with cards but the mixer, which keeps its compact 1x4 cards (op_layers.c
+ * cards_2x2). Under them the screen's picture alone, or its rows when it has none (op_draw.c draw_list). The SYSTEM >
+ * SCREEN > CARDS choice (1x4 or 2x2) is gone; its settings word bit 23 is no longer read (storage/settings_word.c) */
 static int cards_2x2(void);                             /* op_layers.c (it reads the layer shown) */
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at

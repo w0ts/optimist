@@ -2089,7 +2089,7 @@ static void preset_engine_tests(void)
     cur = preset_pos(&total);
     e = pre_entry(cur, nm);
     check(e == TSEL->eng_req && nm[0], "the SOUND row: the preset playing and its engine");
-    check(px_in(4, OY_PANEL + 24, 10, 10, ENG_COL[e]), "... its engine's colour chip drawn");
+    check(px_in(4, (uint32_t)OP_PY, 10, (uint32_t)OP_PH, ENG_COL[e]), "... its engine's colour chip drawn");
     go_home();
     frame();
     mix_find("SOUND");
@@ -2136,8 +2136,8 @@ static void preset_engine_tests(void)
 }
 
 #include "ui_optimist_len.h"                      /* LEN in powers of two, SHIFT = LFO held */
-#include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
-#include "ui_optimist_cardspic.h"                  /* CARDS 2x2 the default, the picture alone */
+#include "ui_optimist_cards.h"                     /* the cards 2x2 but on the mixer, no CARDS setting */
+#include "ui_optimist_cardspic.h"                  /* under the cards: the picture alone, else the rows */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
@@ -2152,6 +2152,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
+#include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2185,6 +2186,10 @@ static void led_tests(void)
     tap(B_LFO);
     frames(2);
     check(ui.scr == SCR_SOUND && led_lvl(B_LFO) == 2 && led_lvl(B_ENV) == 1, "LEDs: on the LFO page its button is full, ENV half");
+    check(led_lvl(B_GLO) == 1, "LEDs: GLO half lit off GLOBAL");
+    tap(B_GLO);
+    frames(2);
+    check(ui.scr == SCR_GLOBAL && led_lvl(B_GLO) == 2 && led_lvl(B_HOME) == 1, "LEDs: on GLOBAL the GLO button is full, HOME half");
     tap(B_HOME);
     frames(2);
     {
@@ -2224,9 +2229,6 @@ int main(int argc, char **argv)
     }
     panel = PANEL_DEFAULT;
     settings_init();
-    cards_boot = op_cards;                              /* (the default, checked in cards_pic_tests; the tests below
-                                                         * were written for 1x4 and set 2x2 where they test it) */
-    op_cards = CARDS_LINE;
     layers_init();
     go_home();
     frames(3);
@@ -2275,6 +2277,7 @@ int main(int argc, char **argv)
     mix35_tests();
     c2_master_tests();
     c2_roll_tests();
+    glo_tests();
     lforate_tests();
     step_hold_tests();
     led_tests();

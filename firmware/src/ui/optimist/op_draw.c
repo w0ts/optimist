@@ -15,7 +15,7 @@
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
 #define OH_BODY OP_PH                 /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
-#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows (CARDS 1x4; 2x2 shows none: draw_list) */
+#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 5 rows under the 2x2 cards (draw_list) */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
@@ -137,8 +137,6 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
         return;
     else if (scr == SCR_HOME)
         at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
-    else if ((scr == SCR_TEMPO || scr == SCR_SCOPE) && !cards_2x2())
-        return;                                         /* (1x4: TEMPO's rows and SCOPE's tabs show it; 2x2 has neither) */
     else
         at = row, n = SCREENS[scr % SCR_N].rows();
     if (n < 2u)
@@ -231,9 +229,6 @@ static void draw_head(void)
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
         head_pos(ui.scr, ui.row[ui.scr], pos);
-        if (ui.scr == SCR_SONG && cards_2x2() && song_row_col(ui.row[SCR_SONG]))
-            mc = song_row_col(ui.row[SCR_SONG]);       /* (2x2, no rows: the row's mark is the title's colour, the scene
-                                                         * playing green, queued amber, the part playing white) */
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
@@ -317,7 +312,7 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
         cv_text(vx, 20, &FONT_S, c->unit, C_DIM);
     draw_gauge(x + 4, 38, CARD_W - 8, 4, c, vc, C_LINE);
 }
-/* CARDS 2x2 (the user, 2026-10-08; SLOOP 2.4's big values, ui/sloop/ui_draw.c graph_big's layout, copied): value k
+/* the cards 2x2 (the user, 2026-10-08; SLOOP 2.4's big values, ui/sloop/ui_draw.c graph_big's layout, copied): value k
  * in large type in a 2 x 2 block placed as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom
  * right), its label and unit small above it, its form under it; the hot one white. A value too wide for the large
  * face (a name) is drawn in the small one */
@@ -362,7 +357,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         cv_text(x + 5, y + 20, &FONT_S, cut(b, c->val, 13), vc);
     draw_gauge(x + 5, y + BIG_H - 3, BIG_W - 10, 2, c, vc, C_LINE);
 }
-/* the cards' band: the four cells c, hot the one white (4: none), as CARDS sets them (op_state.c op_cards) */
+/* the cards' band: the four cells c, hot the one white (4: none), 2x2 but on the mixer (op_layers.c cards_2x2) */
 static void draw_card_band(const cell_t *c, uint32_t hot)
 {
     uint32_t k;
@@ -379,7 +374,7 @@ static void draw_cards(void)
 {
     static cell_t snap[4];                              /* the cells last drawn (STEP: what a step let go still shows) */
     cell_t c[4];
-    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards + knob_colors * 2u);
+    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), cards_2x2() + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
         if (cards_snap_use && ui.scr == SCR_STEP)       /* (the snapshot is STEP's only: elsewhere a page's own cells) */
             c[k] = snap[k];
@@ -489,10 +484,10 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
-    if (cards_2x2()) {                                  /* CARDS 2x2: no rows, ever (the user, 2026-10-12: "use 2 lines for
-                                                         * 4 bigger cards everywhere we can (not mixer screen) and remove the
-                                                         * bottom list"): the picture alone on the whole panel, or the panel
-                                                         * empty; the header names the row and its n/N, SELECT walks them */
+    if (pic && ui.scr != SCR_SONG) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
+                                                         * graph"; ARP "is the same as lfo/env. no list"); the header names
+                                                         * the row and its n/N, SELECT walks them. SONG keeps its rows under
+                                                         * the session grid: its list is the content */
         shown = 0;
         top = OH_BODY;
         gr_h = OH_BODY;
@@ -501,7 +496,9 @@ static void draw_list(void)
         shown = n < fit ? n : fit;
         top = OH_BODY - (int32_t)shown * ROW_H;
         gr_h = top - 3;
-    } else if (n && n <= shown) {                       /* no picture, rows to spare: taller rows fill the panel */
+    } else if (n && n <= shown) {                       /* no picture (EDIT, VOICE, PROJECT, SYSTEM, GLOBAL, the master FX: the
+                                                         * user, 2026-10-12, "we can keep the list below when there is nothing
+                                                         * to display besides the 4 cards"), rows to spare: taller rows */
         shown = n;
         rh = OH_BODY / (int32_t)n;
         rh = rh > 40 ? 40 : rh;                         /* (a few rows, no picture: at most 40 px a row, at the top) */
@@ -562,7 +559,7 @@ static void draw_under(void)
     if ((op_overlay() != 1u && op_overlay() != 3u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
-    if (OP_PH > MODAL_H) {                              /* (CARDS 2x2: the modal takes the whole panel) */
+    if (OP_PH > MODAL_H) {                              /* (2x2: the modal takes the whole panel) */
         cv_begin(240, (uint32_t)(OP_PH - MODAL_H), C_BLACK);
         cv_blit(0, (uint32_t)(OP_PY + MODAL_H));
     }
