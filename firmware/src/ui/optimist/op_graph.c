@@ -79,7 +79,7 @@ static int32_t gr_h = 58;
 #define GRAPH_H gr_h
 static int has_graph(const page_t *pg)
 {
-    return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
+    return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX || pg->graph == GR_INS || pg->graph == GR_BUS ||
            pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP;
 }
 /* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
@@ -166,8 +166,9 @@ static void graph_lfo(uint16_t col)
     }
     cv_line(0, mid, 239, mid, C_LINE);
 }
-/* FX: the four slots' sends as needles, one under each card (SLOOP's graph_fx, copied); grey when bypassed */
-static void graph_fx(uint16_t c)
+/* SENDS, INSERTS, BUS SENDS: the amounts as needles, one under each card (SLOOP's graph_fx, copied; params.c
+ * fx_needle: an INSERTS TYPE card, an empty slot: none); grey when bypassed */
+static void graph_fx(uint32_t g, uint16_t c)
 {
     const track_t *t = TSEL;
     uint32_t i;
@@ -175,8 +176,9 @@ static void graph_fx(uint16_t c)
     if (!fx_on(t))
         c = C_DIM;
     for (i = 0; i < 4u; i++) {
-        uint32_t id = fxs_amt(i);                       /* (the slot's amount: fx_slots.c; empty: none) */
-        int32_t v = id == 0xFFu ? 0 : t->p[id], h = (v < 0 ? -2 * v : v) * (bot - top) / 127, x = CARD_X(i) + CARD_W / 2;
+        int32_t v = fx_needle(g, i), h = (v < 0 ? 0 : v) * (bot - top) / 127, x = CARD_X(i) + CARD_W / 2;
+        if (v < 0)
+            continue;
         h = h > bot - top ? bot - top : h;
         cv_rect(x, top, 1, bot - top, C_LINE);
         cv_rect(x, bot - h, 1, h, c);
@@ -468,7 +470,7 @@ static uint32_t graph_sig(void)
     h = h * 31u + t->nheld;
     h ^= (uint32_t)t->p[P_FXOFF] << 24 ^ (uint32_t)t->p[P_LWAVE] << 26 ^ (uint32_t)t->p[P_LPHASE] << 12;
     for (i = 0; i < 4u; i++)
-        h = h * 31u + (fxs_amt(i) == 0xFFu ? 0u : (uint16_t)t->p[fxs_amt(i)]);
+        h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u;
     for (i = 0; i < NSTEP; i++)
         h = h * 3u + trk_on_step(song.sel, i);
     h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
@@ -488,7 +490,9 @@ static void draw_sound_graph(const page_t *pg)
         graph_lfo(col);
         break;
     case GR_FX:
-        graph_fx(col);
+    case GR_INS:
+    case GR_BUS:
+        graph_fx(pg->graph, col);
         break;
     case GR_SCALE:
         graph_scale(col);

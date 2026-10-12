@@ -835,8 +835,8 @@ static void layer_knobs(uint32_t layer)
             else                                        /* the selected track's FILTER (SLOOP 2.4) */
             {
                 t->p[P_TFLT] = (int16_t)clamp(t->p[P_TFLT] + accel(EN_K4, s, 127), -64, 63);
-                if (!FXS_ON(FXT_FILT))                  /* (decision D6: a slot type, heard only in a slot) */
-                    ui_message("FILT: IN NO FX SLOT");
+                if (!INS_ON(song.sel, FXT_FILT))        /* (heard only in one of the track's insert slots) */
+                    ui_message("FILT: NO SLOT");
             }
 #endif
             break;

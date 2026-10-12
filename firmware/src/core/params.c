@@ -503,9 +503,14 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LD_FLT};   /* (values the drum track never reads) */
 #endif
 #define SC_FXSLOT (SC_DSND + 8)  /* FX > SLOTS (fx_slots.c): S1..S4, the type each slot holds */
+/* a track page's cells that are not P_* values (page_id, page_desc): INSERTS' S1 / S2 TYPE (fx_slots.c ins_desc), the
+ * drum track's send levels REV DLY CHO on SENDS (drum_sends.c dsend_kit) */
+#define PID_INST 0xF0u
+#define PID_DKS 0xF4u
+_Static_assert(P_COUNT < PID_INST, "the page ids past the track values");
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP };
+       GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP, GR_INS, GR_BUS };
 
 typedef struct {
     const char *title;
@@ -528,7 +533,18 @@ static const page_t PAGES[] = {
 #endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
-    {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* (the ids: the slots', page_id) */
+#if FELUCCA_UI != 1
+    {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* S1's amount, the master sends (page_id) */
+#endif
+    /* the track's two insert slots: S1 TYPE, its amount, S2 TYPE, its amount (fx_slots.c; the ids: page_id) */
+    {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
+#if FELUCCA_MASTER_COMP
+    {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the track COMP's RATIO ATK REL (its own: fx_slots.c ins_cset) */
+#endif
+#if FELUCCA_UI == 1
+    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
+    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
+#endif
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
 #endif
@@ -537,9 +553,6 @@ static const page_t PAGES[] = {
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
-#endif
-#if FELUCCA_MASTER_COMP
-    {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the COMP insert's RATIO ATK REL (every track's) */
 #endif
     {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {0, 1, 2, 3}},   /* the type in each FX slot (fx_slots.c; last of FX) */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
@@ -612,10 +625,45 @@ static const page_t PAGES[] = {
 /* the drum track has an ENV page (its lanes' envelopes, the editor's values): ENV does something there (the LEDs) */
 #define DSND_ENV (DL_ANY && FELUCCA_DRUM_EDIT)
 /* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
+/*   INSERTS    S1 TYPE, S1's amount (its type's P_*), S2 TYPE, S2's amount
+ *   FX / SENDS the master sends in their slots' order (fx_slots.c fxs_send); SLOOP's FX: S1's amount first (with the
+ *              default slots DST CHO DLY REV, as SLOOP's page); the Optimist UI's drum track: its send levels
+ *   BUS SENDS  (the Optimist UI's drum track) the drum bus's own sends, in the same order */
 static uint32_t page_id(const page_t *pg, uint32_t k)
 {
-    return pg->graph == GR_FX ? fxs_amt(k) :
-           pg->scope == SC_DSND && pg->id[0] == 16u ? fxs_lane_id(k) : pg->id[k];   /* (SOUND 3: in the slots' order) */
+    k &= 3u;
+    if (pg->graph == GR_INS)
+        return k & 1u ? ins_amt(song.sel, k >> 1) : PID_INST + (k >> 1);
+#if FELUCCA_UI == 1
+    if (pg->graph == GR_FX && is_drum(TSEL)) {
+        uint32_t t = fxs_send(k);
+        return t == FXT_NONE ? 0xFFu : PID_DKS + (t == FXT_REV ? 0u : t == FXT_DLY ? 1u : 2u);
+    }
+    if (pg->graph == GR_FX || pg->graph == GR_BUS)
+        return fxs_send_amt(k);
+#else
+    if (pg->graph == GR_FX)
+        return k ? fxs_send_amt(k - 1u) : ins_amt(song.sel, 0);
+#endif
+    return pg->scope == SC_DSND && pg->id[0] == 16u ? fxs_lane_id(k) : pg->id[k];   /* (SOUND 3: in the slots' order) */
+}
+
+/* an FX page's (graph: GR_FX, GR_INS, GR_BUS) cell k as its needle shows it: the amount's size 0..127 (a FILTER's
+ * x 2), -1 none (an empty slot, a TYPE cell) */
+static int32_t fx_needle(uint32_t graph, uint32_t k)
+{
+    page_t pg = {"", FAM_FX, SC_TRACK, 0, {0xFF, 0xFF, 0xFF, 0xFF}};
+    uint32_t id;
+    int32_t v;
+    pg.graph = (uint8_t)graph;
+    id = page_id(&pg, k);
+    if (id >= PID_DKS && id < PID_DKS + 3u)
+        return dsend_kit[id - PID_DKS];
+    if (id >= P_COUNT)
+        return -1;
+    v = TSEL->p[id];
+    v = v < 0 ? -2 * v : v;
+    return v > 127 ? 127 : v;
 }
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
@@ -632,7 +680,7 @@ static int page_for_drum(const page_t *pg)
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
-                                      pg->graph == GR_FX   /* (FX: the drum bus's amounts, fx.c dbus_run) */
+                                      pg->graph == GR_FX || pg->graph == GR_INS || pg->graph == GR_BUS   /* (the drum bus: fx.c dbus_run) */
 #if FELUCCA_TRK_FILT
                                       || pg->id[0] == P_TFLT   /* (FX > FILTER: the drum bus and its sends) */
 #endif
@@ -670,11 +718,15 @@ static int page_shown(const page_t *pg)
         return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
-        return FXS_ON(FXT_COMP);                      /* CMP: while a slot holds the COMP insert */
+        return INS_ON(song.sel, FXT_COMP);            /* CMP: while one of the track's slots holds the COMP (its own) */
 #if FELUCCA_TRK_FILT
     if (pg->scope == SC_TRACK && pg->id[0] == P_TFLT)
-        return FXS_ON(FXT_FILT);                      /* FILTER: while a slot holds it (decision D6) */
+        return INS_ON(song.sel, FXT_FILT);            /* FILTER: while one of the track's slots holds it */
 #endif
+    if (pg->graph == GR_INS)
+        return (FXT_BUILT & FXT_INSERT) != 0u;        /* INSERTS: any insert built */
+    if (pg->graph == GR_BUS)
+        return is_drum(TSEL);                         /* BUS SENDS: the drum track's own */
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
@@ -736,6 +788,14 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->scope == SC_STEP || pg->scope == SC_TRK) {
         *valp = 0;
         return 0;
+    }
+    if (id >= PID_INST && id < PID_INST + INS_N)       /* INSERTS: S1 / S2 TYPE (fx_slots.c) */
+        return fxs_desc(FXS_ID_INS + id - PID_INST, valp);
+    if (id >= PID_DKS && id < PID_DKS + 3u) {          /* the drum track's send levels (drum_sends.c dsend_kit) */
+        static const param_desc_t DKS_DESC[3] = {PD("REV", F_PCT, 0, 127, DKS_DEF), PD("DLY", F_PCT, 0, 127, DKS_DEF),
+                                                 PD("CHO", F_PCT, 0, 127, DKS_DEF)};
+        *valp = &dsend_kit[id - PID_DKS];
+        return &DKS_DESC[id - PID_DKS];
     }
 #if FELUCCA_MOTION
     if (pg->scope == SC_MOTION) {                     /* (drawn and edited by ui_draw.c / ui_input.c) */

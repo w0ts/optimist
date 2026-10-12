@@ -86,11 +86,11 @@ static void macro_show_tests(void)
     song.g[G_VIEW] = 1; settings.view = 1; ui.force = 1; frames(3);
     ms_shot("view-all");
     {
-        uint32_t r, c, n = 0;
+        uint32_t r, c, n = 0, m = 0;
         for (r = 0; r < OV_ROWS; r++)
             for (c = 0; c < 4u; c++)
-                n += !strncmp(ov.key[r][c], "DST|40|", 7);
-        check(n == 1u, "macro show: VIEW ALL: the DST cell shows 40 as well");
+                n += !strncmp(ov.key[r][c], "DST|40|", 7), m += !strncmp(ov.key[r][c], "DST|", 4);
+        check(n >= 1u && n == m, "macro show: VIEW ALL: the DST cells (FX, INSERTS' S1) show 40 as well");
     }
     song.g[G_VIEW] = 0; settings.view = 0; ui.force = 1; frames(2);
     /* ENERGY on the drums' level, SPACE on the part's pan, in the dial strips */
