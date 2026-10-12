@@ -126,8 +126,8 @@ static void cards_pic_tests(void)
           "2x2: SCOPE, the trace to the foot, no tabs, the header's n/N");
     /* the list screens: their rows under the big values, on every row */
     {
-        static const uint8_t S[] = {SCR_PROJECT, SCR_SYSTEM, SCR_SONG, SCR_FX};
-        static const char *const NM[] = {"project", "system", "song", "fx"};
+        static const uint8_t S[] = {SCR_PROJECT, SCR_SONG, SCR_FX};   /* (SYSTEM: a list, no cards: ui_optimist_glo.h) */
+        static const char *const NM[] = {"project", "song", "fx"};
         uint32_t i, r, ok = 1;
         char nm[40];
         for (i = 0; i < sizeof S; i++) {
@@ -145,7 +145,7 @@ static void cards_pic_tests(void)
             snprintf(nm, sizeof nm, "opt-cardspic-%s", NM[i]);
             ppm(nm);
         }
-        check(ok, "2x2: PROJECT, SYSTEM, SONG and the master FX, every row: the big values, the rows under them, the n/N");
+        check(ok, "2x2: PROJECT, SONG and the master FX, every row: the big values, the rows under them, the n/N");
     }
     /* EDIT 1 and VOICE: their rows under the big values */
     reset_ui();

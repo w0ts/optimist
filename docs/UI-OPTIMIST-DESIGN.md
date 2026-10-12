@@ -61,7 +61,7 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | The footer (phase 5b) | **no footer anywhere**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
 | Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (decided): a general flag the cells can read, used by LEN only for now; PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
 | The cards (after the merge; settled 2026-10-12) | **always 2x2 on every screen with cards except the mixer** (2026-10-12, the user: "Cards are ALWAYS 2x2 on every screen with cards except the mixer"): SLOOP 2.4's big values, the four values in large type as a 2 x 2 block laid out like the knobs (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right), the hot one white, each with its form; on SOUND, STEP (an overlay), SONG, TEMPO, FX, PROJECT, SYSTEM, GLOBAL, the layers, SCOPE. **The mixer keeps its compact 1x4 cards.** **There is no CARDS setting**: SYSTEM > SCREEN > CARDS and the 1x4 path of those screens are gone (the user did not know the setting existed, and an FM-1 that came up 1x4 kept showing one line of small cards and a list); the settings word's bit 23 is no longer read (reserved). **Under the cards: the screen's picture when it has one, else its row list** (2026-10-12, the user: "Keep the graph"; "we can keep the list below when there is nothing to display besides the 4 cards"; "arp is the same as lfo/env. no list"): ENV, LFO, the FX needles, ARP (every ARP row), SCL, the drum lane, the SOUND row's presets, FM6's algorithm, TEMPO and SCOPE show their picture alone on the whole panel; EDIT, VOICE, PROJECT, SYSTEM, SONG, GLOBAL, the master FX and any other screen with no picture show their rows under the big values (this reverses e0b476e's "empty below"); SONG's PATTERNS row keeps its rows under the session grid. The header names the page and its n/N on every one. History: 1x4 was the default with 2x2 an option (2026-10-08), then 2x2 the default (2026-10-12 morning), then no list at all in 2x2 (e0b476e), all superseded (sections 3, 11.6) |
-| GLO tapped (2026-10-12) | **GLO tapped opens GLOBAL**, as SLOOP's GLO (the user: "what is supposed to be the GLO page ? i thought it would be the page where we have bpm, nudge, midi track settings etc"): the global, non-track settings a user changes while playing, as rows of 2x2 cards with the row list under them (no picture): TEMPO (BPM · NUDGE · SWING · SYNC), REC (MODE · LENGTH · START · CLICK), REC 2 (QUANT), MIDI (OUT · IN · SYNC · CLK), CLOCK OUT, CHANNELS (T1 · T2 · T3 · DR); GLO tapped again pages on through SYSTEM's rows and round (section 17, D1). Each row is TEMPO's or SYSTEM's own (one place each value lives); MIDI, CLOCK OUT and CHANNELS leave SYSTEM, which keeps the setup (SCREEN, LIGHTS, AUDIO, USB, BLUETOOTH, CPU, CALIBRATE, ABOUT). (GLO tapped again: superseded by section 17.) **GLO held stays the performance layer**, unchanged. The mixer's knob sets, which GLO tapped paged, are SELECT's alone (it already paged them). The mixer stays the HOME screen; HOME tapped goes back to it. TEMPO (PLAY held) stays: not a pure duplicate (held over any screen, tap tempo, its picture). The GLO LED: full on GLOBAL, half lit elsewhere (section 4.11) |
+| GLO tapped (2026-10-12) | **GLO tapped opens GLOBAL**, as SLOOP's GLO (the user: "what is supposed to be the GLO page ? i thought it would be the page where we have bpm, nudge, midi track settings etc"): the global, non-track settings a user changes while playing, as rows of 2x2 cards with the row list under them (no picture): TEMPO (BPM · NUDGE · SWING · SYNC), REC (MODE · LENGTH · START · CLICK), REC 2 (QUANT), MIDI (OUT · IN · SYNC · CLK), CLOCK OUT, CHANNELS (T1 · T2 · T3 · DR); GLO tapped again pages on through SYSTEM's rows and round (section 17, D1). Each row is TEMPO's or SYSTEM's own (one place each value lives); MIDI, CLOCK OUT and CHANNELS leave SYSTEM, which keeps the setup (SCREEN, LIGHTS, AUDIO, USB, BLUETOOTH, CPU, CALIBRATE, ABOUT). (GLO tapped again: superseded by section 17, then by section 20: GLOBAL and SYSTEM are two settings lists, GLO switches between them, no cards.) **GLO held stays the performance layer**, unchanged. The mixer's knob sets, which GLO tapped paged, are SELECT's alone (it already paged them). The mixer stays the HOME screen; HOME tapped goes back to it. TEMPO (PLAY held) stays: not a pure duplicate (held over any screen, tap tempo, its picture). The GLO LED: full on GLOBAL, half lit elsewhere (section 4.11) |
 | A click against a hold (found on the FM-1, after the merge) | **a click on a button showed the long-press screen about one time out of two**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, the shared HOLD setting (main's, settings word bits 21..22; CARDS is bit 23) 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
 | The mixer, horizontal (after the merge) | **the horizontal mixer is better**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: it starts on track one, but the cursor can go up to master), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on its 1x4 cards; **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT pages the knob sets** (GLO tapped did too until 2026-10-12: it opens GLOBAL now) (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
 | A drum lane picked (found on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
@@ -458,13 +458,12 @@ the letters [D]; kits keep numbers.
 
 ### 4.7 SYSTEM
 
-Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2)**, SCREEN (COLOR BRIGHT -
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2)**, SCREEN (COLOR BRIGHT -
 KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
 the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
-shown there only. **Reached by GLO's cycle** (section 17, D1): GLO tapped past GLOBAL's last row, or SELECT right past
-it, lands on SYSTEM's CPU row; GLO past SYSTEM's last row goes round to GLOBAL's first. HOME held alone on the mixer no
-longer opens it.
+shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
+held alone on the mixer no longer opens it.
 
 ### 4.8 TEMPO, a held page [D]
 
@@ -523,7 +522,8 @@ mix): one ring, not five [E]; four always-on taps would cost four rings.
 ### 4.11 GLOBAL, GLO tapped [D, 2026-10-12]
 
 The user: "what is supposed to be the GLO page ? i thought it would be the page where we have bpm, nudge, midi track
-settings etc". **GLO tapped opens GLOBAL**, as SLOOP's GLO page: the settings of the whole instrument, not of a track, a
+settings etc". **Since section 20 GLOBAL is a settings list** (one setting a line, pages of 4 lines, no cards; the
+rows below are its sections, their cells its lines); what follows is the first version. **GLO tapped opens GLOBAL**, as SLOOP's GLO page: the settings of the whole instrument, not of a track, a
 user changes while playing. 2x2 cards, the rows under them (no picture), the header *Global TEMPO 1/7*:
 
 | Row | KNOB 1 · 2 · 3 · 4 | Where it lives |
@@ -2272,7 +2272,7 @@ differs from the proposal's recommendation, the decision is what was built.
 
 | | Decision | Built |
 |---|---|---|
-| D1 (revised by the user the same day) | GLO tapped keeps paging through one cycle: GLOBAL's rows, then SYSTEM's (CPU first), then GLOBAL's first; SELECT walks the same sequence. HOME held on the mixer no longer opens SYSTEM | op_global.c `glo_step` / `glo_tap`, op_input.c `op_knobs` (SELECT stops at the cycle's two ends); GLOBAL's SYSTEM row gone (the cycle reaches SYSTEM); the badge reads GLOBAL or SYSTEM, the n/N counts within the screen ("CPU 1/7"), which keeps each list's numbers short and says when the screen changes; GLO on the BLE devices list closes it; `op_tap`: HOME held alone on the mixer does nothing; the GLO LED full on both |
+| D1 (revised by the user the same day; superseded by section 20: GLO switches GLOBAL / SYSTEM, SELECT and ALGORITHM stay within the screen) | GLO tapped keeps paging through one cycle: GLOBAL's rows, then SYSTEM's (CPU first), then GLOBAL's first; SELECT walks the same sequence. HOME held on the mixer no longer opens SYSTEM | op_global.c `glo_step` / `glo_tap`, op_input.c `op_knobs` (SELECT stops at the cycle's two ends); GLOBAL's SYSTEM row gone (the cycle reaches SYSTEM); the badge reads GLOBAL or SYSTEM, the n/N counts within the screen ("CPU 1/7"), which keeps each list's numbers short and says when the screen changes; GLO on the BLE devices list closes it; `op_tap`: HOME held alone on the mixer does nothing; the GLO LED full on both |
 | D2 | CPU in SYSTEM only: its first row is CLOCK (MHz) + LOAD. No header warning | op_project.c `SYS`: CPU first, CLOCK then LOAD (read-outs) |
 | D3 | the master FX is MASTER, 7 pages: DELAY REVERB SLOTS TONE COMP LIMIT MACRO; its GLOBAL and DRUMS pages go | section 4.4; op_cells.c `fx_page`, op_screens.c `FX_ALIAS` / `FX_LIMIT`, op_state.c `SCR_NAME` |
 | D4 / D5 | keep both: SYNC stays on TEMPO and MIDI; TUNE stays with the master | TUNE on MASTER's LIMIT page (GAIN CEIL TUNE GR): its page went with D3, TONE is full, LIMIT had the one free card |
@@ -2410,3 +2410,59 @@ Tests: tests/ui_optimist_effval.h: the lane's offsets and absolute values equal 
 `track_render`: the LFO, the envelope, both, an accent) equals op_effval.c's, block after block; the bars (DRIVE -5,
 a value nothing moves, a hold in force and its linger, the lane LFO's AMT, a synth CUT moving with the LFO between two
 frames while its number stays, the LFO amount FLT on the cutoff's scale, SHP at 0).
+
+## 20. GLOBAL and SYSTEM as settings lists (feat/settings-list, 2026-10-12)
+
+The user: "the system menu would be better and more readable as vertical list of options, we scroll thru them using
+select, change value using preset, and also using the 4 knobs, algo and preset should not change anything outside of
+systems settings (track presets and current track)"; then "select scroll by page", "algo one by one", "more inline with
+other pages", "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the
+page moves line by line)", and "glo still pages thru pages of glo and then system, it should switch between the two".
+
+**The look.** GLOBAL and SYSTEM have no cards. Under the header, to the screen's foot, one page of 4 lines; a line is one
+setting: its knob's number (1..4) at the left, the setting's name, its value on the right as the cards wrote it (the
+unit after it, small), the value's form (bar, dots, pill) under the value. A section's name, small and dim with a rule
+after it, stands over its first line on the page; a page that starts inside a section names it again. The cursor line
+is a bar in the track's colour, ink on it. A read-out (CPU's CLOCK and LOAD, Tempo's NUDGE, MIDI's CLK) has its value in
+amber and its number dim: no knob turns it. An action (Calibrate's PANEL, About's VERSION) shows YES in amber. With
+KNOB COLORS on, the numbers and values take the knob caps' colours. The header: the badge GLOBAL or SYSTEM, the cursor
+line's section and the page n/N within the screen ("Tempo 1/5", "Screen 2/4").
+
+| Screen | Sections and lines (what this build has) |
+|---|---|
+| GLOBAL | Tempo: BPM, NUDGE, SWING, SYNC. Rec: MODE, LENGTH, START, CLICK, QUANT (REC 2's). MIDI: OUT, IN, SYNC, CLK. Clock out: CLK OUT. Channels: TRK 1, TRK 2, TRK 3, DRUMS |
+| SYSTEM | CPU: CLOCK, LOAD. Screen: COLOR, BRIGHT, KNOB COLORS. Lights: LIGHTS, KEYS. Audio: LOWCUT. USB: SERIAL. Bluetooth: BLE. Calibrate: PANEL, HOLD. About: VERSION |
+
+A line is a cell of the rows the screens had (TEMPO's `tp_*`, SYSTEM's `sys_*` over the `SYS` table), called through
+their functions: each value still lives in one place and keeps its format; a cell this build lacks is no line. KNOB
+COLORS' label is the full name now (it was COLORS to fit a card).
+
+**The controls**, the same on both screens:
+
+| Control | What it does |
+|---|---|
+| KNOB 1..4 | the page's line 1..4 (its number at the left); the turn makes that line the cursor |
+| SELECT | the page: a page of 4 lines a detent, within the screen, stopping at its ends; the cursor on the page's first line |
+| ALGORITHM | the cursor, a line a detent within the screen, stopping at its ends; past the page's 4th line the next page shows, and back (the pages are SELECT's) |
+| PRESETS | the cursor line's value; HOME held + PRESETS: back to its default. Never the track or its sound on these screens |
+| SAVE (YES) | the cursor line: an action (PANEL asks first; VERSION says it; BLE opens the devices list), an on / off value toggled |
+| GLO tapped | from any other screen GLOBAL; on GLOBAL SYSTEM; on SYSTEM (the devices list too, which closes) GLOBAL. Each screen keeps its cursor line |
+| OCT- / OCT+ held | on a GLOBAL page with Tempo's lines: the nudge, as on the TEMPO page; elsewhere the octave |
+
+ALGORITHM and PRESETS never select a track, a lane or MASTER and never change a preset here. The BLE devices list
+(SYSTEM > Bluetooth > BLE, YES) is unchanged: its rows and cards, SELECT and now ALGORITHM move its cursor, PRESETS does
+nothing. The keys have no job on these screens: dark (section 17, D10). The GLO LED is full on both.
+
+**How.** op_global.c: the lines (`gl_build`, once: what a row shows depends on the build only), the screens' functions
+(a row is a line, a cell the 4 lines of its page; YES acts on the cursor line and a question asked there comes back to
+it), `glo_step` (SELECT), `gl_algo`, `gl_presets`, `gl_pick` (a knob's line the cursor), `glo_tap`, `gl_on_tempo`
+(op_tempo.c's nudge). op_gldraw.c draws the list (main-loop code, in size_fns' SIZE_FILES; nothing in HOT or RAM code).
+op_draw.c: no cards on these screens, the page n/N in the header. op_input.c: ALGORITHM, PRESETS and the knobs' pick.
+
+Tests: tests/ui_optimist_glo.h (the lines and their order against the rows' cells, the sections, every line named; the
+drawing: no cards, the 1..4 numbers, the cursor bar; ALGORITHM line by line with the page following, stopping at each
+screen's ends and never crossing; KNOB k the page's line k; PRESETS the cursor line, HOME + PRESETS its default;
+ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSION, PANEL's question, the BLE devices;
+GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_pages.h (D1 as now:
+GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
+the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.

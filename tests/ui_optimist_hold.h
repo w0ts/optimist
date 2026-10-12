@@ -21,6 +21,7 @@ static void hold_tests(void)
 {
     int map, tapped;
     uint32_t w;
+    hold_sel = 0u;                                      /* (the default: a fuzz run before may have turned SYSTEM's HOLD) */
     check(op_hold_ms() == 350u, "HOLD: 350 ms by default");
     hold_fx(200, &map, &tapped);
     check(!map && tapped, "a 200 ms click on FX: a tap (its rows), no map");
@@ -31,17 +32,10 @@ static void hold_tests(void)
     hold_fx(600, &map, &tapped);
     check(map && !tapped, "a 600 ms hold: the map, no tap");
     reset_ui();
-    op_enter(SCR_SYSTEM);
-    for (w = 0; w < SCR->rows(); w++) {                 /* the CALIBRATE row, KNOB 2 */
-        char nm[12];
-        SCR->name(w, nm);
-        if (!strcmp(nm, "CALIBRATE"))
-            break;
-    }
-    ui.row[SCR_SYSTEM] = (uint8_t)w;
+    w = line_named(SCR_SYSTEM, "HOLD");               /* Calibrate's HOLD line, its knob */
     frame();
-    turn(EN_K2, 1);
-    check(op_hold_ms() == 500u, "SYSTEM CALIBRATE: KNOB 2 HOLD to 500 ms");
+    turn(LINE_KNOB(w), 1);
+    check(op_hold_ms() == 500u, "SYSTEM Calibrate: the HOLD line's knob to 500 ms");
     hold_fx(420, &map, &tapped);
     check(!map && tapped, "... a 420 ms press is then a tap, no map");
     w = bp23_word();

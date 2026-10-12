@@ -5,20 +5,14 @@
  * Included after the helpers. The radio itself is the stub in ui_optimist_test.c (midi_ble.c is host-tested apart). */
 
 #if FELUCCA_BLE
-static void ble_sys_row(void)                           /* the BLUETOOTH row of SYSTEM, the cursor on it */
+static uint32_t ble_sys_row(void)                       /* SYSTEM's BLE line (Bluetooth), the cursor on it; its knob */
 {
     uint32_t w;
     reset_ui();
-    op_enter(SCR_SYSTEM);
-    for (w = 0; w < SCR->rows(); w++) {
-        char nm[12];
-        SCR->name(w, nm);
-        if (!strcmp(nm, "BLUETOOTH"))
-            break;
-    }
-    ui.row[SCR_SYSTEM] = (uint8_t)w;
+    w = line_named(SCR_SYSTEM, "BLE");
     ui.force = 1;
     frame();
+    return LINE_KNOB(w);
 }
 static void ble_word_tests(void)
 {
@@ -464,14 +458,16 @@ static void ble_dev_tests(void)
 #endif
 static void ble_tests(void)
 {
+    uint32_t kb;
     ble_word_tests();
-    ble_sys_row();
+    kb = ble_sys_row();
+    ble_sets = 0;                                       /* (the radio told: counted from here; a fuzz run before may have turned it) */
     check(!ble_on, "SYSTEM BLUETOOTH: OFF by default");
-    turn(EN_K1, 1);
-    check(ble_on == 1u && ble_sets == 1u, "SYSTEM BLUETOOTH: KNOB 1 right is ON, the radio told once");
-    turn(EN_K1, 1);
+    turn(kb, 1);
+    check(ble_on == 1u && ble_sets == 1u, "SYSTEM BLUETOOTH: the BLE line's knob right is ON, the radio told once");
+    turn(kb, 1);
     check(ble_on == 1u && ble_sets == 1u, "... right again: still ON, the radio not told again");
-    turn(EN_K1, -1);
+    turn(kb, -1);
     check(ble_on == 0u && ble_sets == 2u, "... left is OFF");
     tap(B_SAVE);
     check(dev_listing() && ble_on == 0u, "SYSTEM BLUETOOTH: YES opens the devices list (it does not switch the radio)");
