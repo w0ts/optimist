@@ -52,6 +52,18 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
                                         : min < 0 && max > 0 ? GK_BIP : GK_BAR;
 }
 
+/* the gauge of a parameter at v. LFO RATE (-LSYNC_N .. 127): a free rate (0 .. 127) is the bar from 0; a synced value
+ * (< 0, a division: 4BAR slowest .. 1/32) is the list form, one of ten cells lit, left to right slow to fast */
+static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
+{
+    if (d != &TP[P_LRATE])
+        cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
+    else if (v < 0)
+        cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);
+    else
+        cell_gauge(c, 0, 0, d->max, v);
+}
+
 /* a cell from a descriptor and its value: "-" when the page does not show it, an action for a GO button, a
  * read-out for a value with no range (LIMIT > GR) */
 static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
@@ -73,7 +85,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
     param_format(d, *vp, c->val, &c->unit);
-    cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, *vp);
+    cell_gauge_d(c, d, *vp);
 }
 
 /* the sound a track plays, by name (b holds 14) */

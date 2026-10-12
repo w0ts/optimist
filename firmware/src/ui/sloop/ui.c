@@ -5,6 +5,16 @@
 #define ACC C_HI                   /* amber everywhere; white is the only accent */
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)   /* a value: white while its knob turns (no colour per knob) */
 #define RATIO(d, v) ((d)->max > (d)->min ? ((int32_t)(v) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
+/* the gauge ratio of a parameter at v (a RATIO of 0 .. 1000). LFO RATE (-LSYNC_N .. 127): a free rate (0 .. 127) as it
+ * was, from 0; a synced value (< 0, a division) as SYNCED_R + its place among the ten (0 .. 1000, 4BAR slowest at 0):
+ * draw_column and ov_cell draw that as a tick on the line, no fill */
+#define SYNCED_R 1001
+static int32_t gauge_ratio(const param_desc_t *d, int32_t v)
+{
+    if (d == &TP[P_LRATE])
+        return v < 0 ? SYNCED_R + (-v - 1) * 1000 / (LSYNC_N - 1) : v * 1000 / 127;   /* (the free rate's top) */
+    return RATIO(d, v);
+}
 /* layout: four 60 px columns, 4 px inset */
 /* Terminus 8x16 (S) and 16x32 (L) */
 #define Y_HEAD 0

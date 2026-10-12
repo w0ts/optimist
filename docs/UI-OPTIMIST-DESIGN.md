@@ -2034,3 +2034,7 @@ what reaches this UI:
   the SONG screen was visited (SAVE held + SELECT). Unchanged; tests/ui_optimist_test.c `seq_never_song_tests` pins it.
 - **Chord mode on STEP** (SLOOP #41) was the SLOOP UI's bug: here the step pick is the chord as it sounds (seq.c's pen),
   so a tapped step takes the whole chord. Unchanged; tests/ui_optimist_test.c checks it.
+- **LFO RATE with tempo sync** (feat/lfo-rate-ui). RATE runs -10 .. 127 (-1 .. -10 are the divisions 4BAR .. 1/32). A free
+  rate is the bar from 0 as before (`cell_gauge_d` in op_cells.c, also the step lock cells); a synced value is the
+  list form, one of the ten divisions lit, 4BAR at the left. The text comes from the core. The LFO graph reads no rate, so
+  it does not change with it. Test: tests/ui_optimist_lforate.h.

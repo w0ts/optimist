@@ -103,6 +103,10 @@ From upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only), ported to our code:
 - In confirms, SAVE is yes and HOME is no. UI words are in sentence case, and short labels stay in capitals.
 - Flash is never a reason to drop a feature. Sizes are reported instead.
 
+## LFO RATE with tempo sync
+
+- LFO RATE runs -10 .. 127 since the LFO tempo sync. A free rate (0 .. 127) fills its gauge from 0 as before. A synced value (a division, 4BAR .. 1/32) draws a 3 px tick on the line, no fill, 4BAR at the left end and 1/32 at the right, and the card's icon is the division icon. The LFO wave preview reads no rate, so it draws the same at every value. Test: tests/lforate_ui.c.
+
 ## Open
 
 - What HOME shift does beyond the tempo page, the layer lock and redo is undecided.
