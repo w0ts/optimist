@@ -264,6 +264,16 @@ static void bank_resolve(void)
         if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
     }
+#if FELUCCA_UI == 1
+    for (i = 1; i < bank_n; i++) {                   /* the Optimist UI: by instrument, then as BANK has them (the user,
+                                                      * 2026-10-12: "presets should be sorted by instrument") */
+        uint8_t x = bank_ix[i];
+        uint32_t ex = eng_slot_built(BANK[x].e);
+        for (k = i; k > 0 && eng_slot_built(BANK[bank_ix[k - 1]].e) > ex; k--)
+            bank_ix[k] = bank_ix[k - 1];
+        bank_ix[k] = x;
+    }
+#endif
     for (i = 0; i < NENGINES; i++) {
         for (k = 0; k < bank_n && eng_slot_built(BANK[bank_ix[k]].e) != i; k++)
             ;

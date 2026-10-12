@@ -125,6 +125,32 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     if (total)
         op_preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
 }
+/* HOME held + PRESETS: the next / previous instrument, its first sound (the user, 2026-10-12: "home held (shift) +
+ * preset should navigate instruments, not presets"). The factory and INIT part of the list is grouped by engine
+ * (bank_resolve), so a step skips the selected engine's group, round; the drum track: its kits, as PRESETS */
+static uint32_t list_eng(uint32_t n)
+{
+    uint32_t k;
+    return preset_at(n, &k);
+}
+static void op_engine_step(int32_t s)
+{
+    uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST;
+    if (is_drum(TSEL) || n == 0u) {
+        op_preset_step(s);
+        return;
+    }
+    i = preset_pos(&total);
+    if (i >= n)                                         /* (a user sound: from its engine's group, or the top) */
+        for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
+            ;
+    for (j = 0; j < n && list_eng(i) == e0; j++)        /* past the selected engine's group */
+        i = s > 0 ? (i + 1u) % n : (i + n - 1u) % n;
+    et = list_eng(i);
+    for (j = 0; j < n && list_eng((i + n - 1u) % n) == et && (i + n - 1u) % n != i; j++)
+        i = (i + n - 1u) % n;                           /* (back to that group's first sound) */
+    op_preset_go(i);
+}
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */
 static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, int fine)
 {
