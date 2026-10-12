@@ -34,9 +34,11 @@
  * (sl26_to_sl24, as 2.6's own proj_from_v5 backwards), then imported as above. FUN6 is FUN5 with 2.6's ten parameters
  * P_ITYPE .. P_LPOL (ids 53..62, P_E0 63) in a byte each after P_E7, and each step's nudge (6 bits) and fill (2 bits)
  * in one byte. Translated: the values, steps, nudges, fills and locks as FUN5's (a lock on P_E0.. back to 2.5's id);
- * the ANALOG filter TYPE (P_FTYPE: LP BP HP) of an ANALOG part -> our ANALOG 2's FTYP (LP: as 2.4, BP, HP). LOST:
- *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's SYNC, TRIG and POL (P_LSYNC ..
- *     P_LPOL): not ours; their values and their locks dropped;
+ * the ANALOG filter TYPE (P_FTYPE: LP BP HP) of an ANALOG part -> our ANALOG 2's FTYP (LP: as 2.4, BP, HP); LFO 2's
+ * SYNC (P_LSYNC n, 1 4BAR .. 10 1/32) -> the part's LFO RATE -n (params.c LRATE_OF_SLOOP; OFF: its free RATE, kept;
+ * a lock on SYNC is dropped, below). LOST:
+ *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's TRIG and POL (P_LTRIG,
+ *     P_LPOL: our LFO restarts on a note, bipolar): not ours; their values and their locks dropped;
  *   - FTYPE on a part that is not ANALOG (2.6 plays it on ANALOG only);
  *   - GLO > TEXTURE (SRC LEVEL TONE MOVE RATE WHEN DUCK, in the spare bytes and the slots of G_DRCH and G_INFO):
  *     those two globals take our defaults;
@@ -128,6 +130,7 @@ static int sl24_has_extras(const uint8_t *b)
 #define SL26_TRK 934u
 #define SL26_NX 10u                                     /* its parameters in a byte (2.6's own ids 53..62) */
 #define SL26_FTYPE 5u                                   /* x[5]: P_FTYPE, ANALOG's filter (LP BP HP) */
+#define SL26_LSYNC 7u                                   /* x[7]: P_LSYNC, LFO 2's SYNC (0 OFF, 1 4BAR .. 10 1/32) */
 #define SL26_STEPS (2u * SL24_NP + SL26_NX + 2u)        /* 134: where its steps start */
 #define SL26_MF (SL26_STEPS + 640u)                     /* 774 */
 #define SL24_MICRO (2u * SL24_NP + 2u + 640u)           /* FUN5: micro[64] (764), lock[NLOCK] (828), fill[16] (924) */
@@ -145,6 +148,7 @@ static uint32_t sl26_to_sl24(uint8_t *b)
     for (i = NTRK; i-- > 0;) {
         const uint8_t *s = b + 12u + 2u * PJ_NG + i * SL26_TRK;
         uint8_t *d = b + 12u + 2u * PJ_NG + i * SL24_TRK, mf[NSTEP], eng = s[SL26_STEPS - 2u], pre = s[SL26_STEPS - 1u];
+        int32_t lr = LRATE_OF_SLOOP(s[2u * SL24_NP + SL26_LSYNC], (int16_t)(s[2u * P_LRATE] | s[2u * P_LRATE + 1u] << 8));
         if (i < NPART && !eng && s[2u * SL24_NP + SL26_FTYPE] <= 2u)
             ft |= (uint32_t)s[2u * SL24_NP + SL26_FTYPE] << (2u * i);
         memcpy(mf, s + SL26_MF, sizeof mf);
@@ -161,6 +165,7 @@ static uint32_t sl26_to_sl24(uint8_t *b)
         memmove(d + 2u * SL24_NP + 2u, s + SL26_STEPS, 640u);
         d[2u * SL24_NP] = eng, d[2u * SL24_NP + 1u] = pre;
         memmove(d, s, 2u * SL24_NP);
+        d[2u * P_LRATE] = (uint8_t)lr, d[2u * P_LRATE + 1u] = (uint8_t)((uint32_t)lr >> 8);   /* (SYNC n: our RATE -n) */
         memset(d + SL24_FILLS, 0, 16u);
         for (k = 0; k < NSTEP; k++) {
             d[SL24_MICRO + k] = (uint8_t)((mf[k] & 63u) >= 32u ? (mf[k] & 63u) + 192u : mf[k] & 63u);   /* (6 bits, signed) */

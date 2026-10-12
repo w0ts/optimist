@@ -1592,7 +1592,7 @@ function sl24IsFun5(d) {
 }
 /* a SLOOP 2.6 project (FUN6, 3816 B with its sum) -> a 2.5 one (FUN5), as the FM-1 makes it (sl24_import.c
    sl26_to_sl24): values, E0..E7, engine, preset, steps as they are; each step's byte -> its nudge (6 bits, signed) and
-   fill (3: none); a lock on P_E0.. (2.6's 63..) back to 53..; 2.6's own ten (53..62: INSERT, FTYPE, ESYNC, LFO 2) and
+   fill (3: none); a lock on P_E0.. (2.6's 63..) back to 53..; LFO 2's SYNC n (P_LSYNC, 1..10) the part's RATE -n; 2.6's other own (53..62: INSERT, FTYPE, ESYNC, LFO 2 TRIG POL; a lock on any, SYNC's too) and
    GLO > TEXTURE (its two globals: our defaults, CH 10 and 0) left out; null when d is not one */
 function sl26ToFun5(d) {
   const N = 3816, T6 = 934, T5 = 940, H = 76;
@@ -1607,6 +1607,8 @@ function sl26ToFun5(d) {
   for (let k = 0; k < 4; k++) {
     const a = H + T6 * k, b = H + T5 * k;
     o.set(d.subarray(a, a + 122), b);
+    const ls = d[a + 122 + 7];   /* (x[7], 2.6's P_LSYNC: n 1..10 is our RATE -n, params.c LRATE_OF_SLOOP; off: its free RATE) */
+    if (ls >= 1 && ls <= 10) w.setInt16(b + 2 * 9, -ls, true);   /* (P_LRATE is value 9) */
     o[b + 122] = d[a + 132], o[b + 123] = d[a + 133];
     o.set(d.subarray(a + 134, a + 774), b + 124);
     for (let i = 0; i < 64; i++) {

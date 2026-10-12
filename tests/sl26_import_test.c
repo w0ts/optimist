@@ -71,7 +71,8 @@ static int load(const char *path, uint8_t *b, uint32_t n)
         fclose(f);
     return ok;
 }
-#define T26(k) (f26 + 76u + (k) * 934u)                 /* FUN6's track k */
+#define T26(k) (f26 + 76u + (k) * 934u)
+#define T26W(b, k) ((b) + 76u + (k) * 934u)                 /* FUN6's track k */
 
 static void sl25_project(void)
 {
@@ -115,7 +116,7 @@ static void sl26_convert(void)
           sl24_is(b, 3840) && ft == 2u);
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *s = T26(k), *d = b + 76u + k * 940u;
-        ok &= !memcmp(d, s, 122) && d[122] == s[132] && d[123] == s[133] && !memcmp(d + 124, s + 134, 640);
+        ok &= !memcmp(d, s, 2u * P_LRATE) && !memcmp(d + 2u * P_LRATE + 2u, s + 2u * P_LRATE + 2u, 122u - 2u * P_LRATE - 2u) && d[122] == s[132] && d[123] == s[133] && !memcmp(d + 124, s + 134, 640);
     }
     ok &= !memcmp(b + 8, f26 + 8, 2u * 15u) && b[72] == f26[72] && b[73] == 77 && b[74] == 0 && b[75] == 0;
     check("... values, E0..E7, engine, preset, steps at FUN5's places; sel, drdly; the spare bytes 0", ok);
@@ -127,7 +128,7 @@ static void sl26_convert(void)
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p);
         for (i = 0; i < 50u; i++)
-            ok &= (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
+            ok &= i == P_LRATE || (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
                   v[i] == (int16_t)(k * 7u + i % 40u);
         if (k < NPART)
             for (i = 0; i < 8u; i++)
@@ -148,6 +149,40 @@ static void sl26_convert(void)
             ok &= !stepx_lock_used(&x[k].lock[i]) || (x[k].lock[i].step != 7u && x[k].lock[i].step != 8u);
     }
     check("... nudges (6 bits, signed), fills (3: none), locks (P_E0.. back to its id; INSERT, LFO 2: dropped)", ok);
+}
+
+/* 2.6's LFO 2 SYNC (x[7], P_LSYNC n: 0 OFF, 1 4BAR .. 10 1/32) -> our RATE -n (params.c LRATE_OF_SLOOP); off: its free RATE */
+static void sl26_lsync(void)
+{
+    static const uint8_t L[6] = {0, 1, 7, 10, 11, 255};
+    static uint8_t b[3840], c[3816];
+    static project_t q;
+    static stepx_t x[NTRK];
+    int16_t v[P_COUNT];
+    uint32_t n, k, ok1 = 1, ok2 = 1, h;
+    for (n = 0; n < 6u; n++) {
+        memcpy(c, f26, sizeof c);
+        for (k = 0; k < NTRK; k++)
+            T26W(c, k)[2u * 61u + 7u] = L[n];
+        h = proj_hash(c, sizeof c - 4u), memcpy(c + sizeof c - 4u, &h, 4);
+        memcpy(b, c, sizeof c);
+        (void)sl26_to_sl24(b);
+        for (k = 0; k < NTRK; k++) {
+            const uint8_t *d = b + 76u + k * 940u + 2u * P_LRATE;
+            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
+            ok1 &= (int16_t)(d[0] | d[1] << 8) == e;
+        }
+        memcpy(b, c, sizeof c);
+        ok2 &= sl24_import_buf(b, sizeof c, 0) != 0;
+        for (k = 0; k < NTRK; k++) {
+            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
+            pj_to_p(v, proj_tmp.cur.t[k].p);
+            ok2 &= v[P_LRATE] == e;
+        }
+        (void)q, (void)x;
+    }
+    check("2.6 LFO 2 SYNC (x[7] 0, 1, 7, 10; 11, 255 not a division) -> FUN5 RATE: -n, the free RATE when 0", ok1);
+    check("... imported: every part's P_LRATE is -n (0: its free rate kept; 11+: the free rate)", ok2);
 }
 #endif
 
@@ -265,6 +300,9 @@ int main(void)
     sl26_convert();
 #endif
     sl26_flow();
+#ifndef SL25_OLD
+    sl26_lsync();
+#endif
 #if FELUCCA_SL24_EXPORT
     export_engines();
 #endif

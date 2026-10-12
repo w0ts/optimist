@@ -1769,6 +1769,22 @@ async function editorSl24In() {
       d[T(0) + 924] === (1 << 2 | 2 << 4) && lk(0, 5) === 54 && lk(0, 2) === 39 && lk(0, 7) === -1 && lk(0, 8) === -1 &&
       d[73] === 77 && (d[8 + 48] | d[9 + 48] << 8) === 10 && !E.sl26ToFun5(Uint8Array.from(f6).fill(1, 100, 101)),
       "sl24 in: a 2.6 backup's FUN6 -> 2.5's FUN5 (engines, nudges, fills, locks moved back, 2.6's own dropped, TEXTURE's globals)");
+    {   /* LFO 2's SYNC (x[7]) n 1..10 -> RATE -n (P_LRATE, value 9), 0 or past 10: the free RATE (sl26_to_sl24 on the FM-1) */
+      let good = true;
+      for (const n of [0, 1, 7, 10, 11]) {
+        const c = Uint8Array.from(f6);
+        for (let k = 0; k < 4; k++) c[76 + 934 * k + 129] = n;
+        let h = 0x811C9DC5;
+        for (let i = 0; i < c.length - 4; i++) h = Math.imul(h ^ c[i], 16777619) >>> 0;
+        new DataView(c.buffer).setUint32(c.length - 4, h, true);
+        const q = E.sl26ToFun5(c);
+        for (let k = 0; k < 4; k++) {
+          const free = f6[76 + 934 * k + 18] | f6[76 + 934 * k + 19] << 8, got = (q[76 + 940 * k + 18] | q[76 + 940 * k + 19] << 8) << 16 >> 16;
+          good = good && got === (n >= 1 && n <= 10 ? -n : free << 16 >> 16);
+        }
+      }
+      ok(good, "sl24 in: a 2.6 backup's LFO 2 SYNC n -> the part's RATE -n (0, 11: its free RATE)");
+    }
   }
   const o = E.sl24ImportObject(p0, f.bank), o3 = E.sl24ImportObject(p3, f.bank);
   ok(o.length === 4225 && o[3840] === 1 && eq(Array.from(o.subarray(3841, 3841 + 128)), Array.from(rec)) && o3.length === 3840,

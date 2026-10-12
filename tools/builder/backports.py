@@ -159,8 +159,8 @@ DESC["FELUCCA_SL24_IMPORT"] = (
     "bank) becomes the part's voice, with 2.4's macros in it; a USR1..USR3 kit plays the same user sample slot from "
     "the drum lanes. Lost: the track filter, strum and voice-leading values (without their switches), FM6's DTUN, a "
     "USR4 kit (the default kit); from 2.5: a NOISE part (ANALOG at its defaults), a SYN1..SYN4 kit (the default kit)"
-    " (2.5's drums' delay send becomes every drum lane's DLY, the nearest level); from 2.6 also: the INSERT, ENV SYNC, LFO 2's SYNC / TRIG / POL, GLO > TEXTURE (its "
-    "ANALOG filter TYPE goes to ANALOG 2's). About 3.3 KB of flash.")
+    " (2.5's drums' delay send becomes every drum lane's DLY, the nearest level); from 2.6 also: the INSERT, ENV SYNC, LFO 2's TRIG / POL, GLO > TEXTURE (its "
+    "ANALOG filter TYPE goes to ANALOG 2's, LFO 2's SYNC to the LFO's tempo-synced RATE). About 3.3 KB of flash.")
 DESC["FELUCCA_MICRO"] = (
     "Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late "
     "(1/64 of a step a click; the step shows a dot). With it, KNOB 4 on a held step is the nudge and the note length "
@@ -201,7 +201,7 @@ DESC["FELUCCA_SL24_EXPORT"] = (
     "About 2 KB of flash.")
 DESC["FELUCCA_SL24_EDIMPORT"] = (
     "Adds Import a SLOOP 2.4 backup to the web editor's Projects screen: a project of a SLOOP 2.4, 2.5 or 2.6 backup "
-    "file (2.6's made a 2.5 one by the editor: its new sound settings and filter TYPE left out) (its working project "
+    "file (2.6's made a 2.5 one by the editor: its new sound settings and filter TYPE left out, LFO 2's SYNC kept as the LFO's RATE) (its working project "
     "or A..D) becomes the working project, as LOAD twice does with one left in flash, FM6 bank patches included; SAVE"
     " then keeps it in a section. The editor can also put 2.4's FM6 patches (from the file, or the bank 2.4 left in "
     "flash) in the free slots of the FM6 user bank. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash"

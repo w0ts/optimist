@@ -738,6 +738,16 @@ int main(void)
         up_params(up_rec(3), v, def);
         ok &= v[P_A2FTYP] == def[P_A2FTYP];
         bad += check("SLOOP 2.6 user preset on ANALOG: filter TYPE HP -> FTYP HP, BP -> BP; a NOISE one's: none", ok);
+        {   /* its LFO 2 SYNC (P_LSYNC, p[60]): n 1..10 -> our RATE -n; 0 (or past 10): its free RATE (p[P_LRATE]) */
+            static const uint8_t LS[5] = {0, 1, 7, 10, 11};
+            for (i = 0, ok = 1; i < 5u; i++) {
+                up_rec_t *r = up_rec(0);
+                r->p[60] = LS[i], r->p[P_LRATE] = 77;
+                up_params(r, v, def);
+                ok &= v[P_LRATE] == (LS[i] >= 1 && LS[i] <= 10 ? -(int)LS[i] : 77);
+            }
+            bad += check("SLOOP 2.6 user preset: its LFO 2 SYNC n -> RATE -n (0, 11: the free RATE)", ok);
+        }
         memset(up_bank, 0, sizeof up_bank);
     }
 #endif
