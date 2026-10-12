@@ -110,8 +110,8 @@ static void mixer_sets_tests(void)
     reset_ui();
     n = mx_sets(MXR_T1);
     last = n - 1u;
-    check(mx_labels(MXR_T1, 0, "VOLUME", "PAN", 0, 0) && n >= 3u,
-          "a track: VOLUME PAN (the mix), then the inserts, the sends, FX ON and SOUND");
+    check(mx_labels(MXR_T1, 0, "MUTE", "VOLUME", "PAN", 0) && n >= 3u,
+          "a track: MUTE VOLUME PAN (the mix), then the inserts, the sends, FX ON and SOUND");
     {   /* values only: no knob set of any row holds a screen */
         uint32_t r, s, k, bad = 0, keep = mx.set;
         cell_t e;
@@ -149,13 +149,13 @@ static void mixer_sets_tests(void)
 #endif
     }
 #if FELUCCA_TRK_FILT
-    check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "FILTER", 0, 0, 0) &&
-              mx_labels(MXR_DR, 2, "FX ON", "KIT", 0, 0), "DR: VOLUME, then FILTER, then FX ON KIT");
+    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "FILTER", 0, 0, 0) &&
+              mx_labels(MXR_DR, 2, "FX ON", "KIT", 0, 0), "DR: MUTE VOLUME, then FILTER, then FX ON KIT");
 #else
-    check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "FX ON", "KIT", 0, 0), "DR: VOLUME, then FX ON KIT");
+    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "FX ON", "KIT", 0, 0), "DR: MUTE VOLUME, then FX ON KIT");
 #endif
-    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", 0, 0) && mx_labels(MXR_LANE0 + 2u, 1, FELUCCA_FX_DIST ? "DRIVE" : "REV", 0, 0, 0),
-          "a lane: LEVEL CUT, then DRIVE");
+    check(mx_labels(MXR_LANE0 + 2u, 0, "MUTE", "LEVEL", "CUT", 0) && mx_labels(MXR_LANE0 + 2u, 1, FELUCCA_FX_DIST ? "DRIVE" : "REV", 0, 0, 0),
+          "a lane: MUTE LEVEL CUT, then DRIVE");
     check(!FELUCCA_FX_DIST || (mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0) && mx_labels(MXR_LANE0 + 2u, 3, "SOUND", 0, 0, 0)),
           "... then REV DLY CHO, then SOUND");
 #if FELUCCA_MASTER_COMP
@@ -191,8 +191,8 @@ static void mixer_sets_tests(void)
         int16_t lv;
         turn(EN_ALGO, 1);                               /* T2 */
         lv = trk[1].p[P_LEVEL];
-        turn(EN_K1, -3);
-        check(trk[1].p[P_LEVEL] < lv && ui.hot == 0u, "T2's row: KNOB 1 its VOLUME");
+        turn(EN_K2, -3);
+        check(trk[1].p[P_LEVEL] < lv && ui.hot == 1u, "T2's row: KNOB 2 its VOLUME (KNOB 1 MUTE, 2026-10-12)");
         trk[1].p[P_LEVEL] = lv;
         ui.force = 1;
         frame();
@@ -200,8 +200,8 @@ static void mixer_sets_tests(void)
         while (mx_row() < MXR_LANE0 + 1u)
             turn(EN_ALGO, 1);
         lv = dl.ofs[1][DE_LEVEL];
-        turn(EN_K1, -2);
-        check(dl.ofs[1][DE_LEVEL] < lv && lane_selected() == 1u, "a lane's row: KNOB 1 its LEVEL (the sound's offset)");
+        turn(EN_K2, -2);
+        check(dl.ofs[1][DE_LEVEL] < lv && lane_selected() == 1u, "a lane's row: KNOB 2 its LEVEL (the sound's offset)");
         dl.ofs[1][DE_LEVEL] = (int8_t)lv;
         tap(B_SAVE);
         check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]) == 0 && lane_selected() == 1u,

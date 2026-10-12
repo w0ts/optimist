@@ -724,7 +724,7 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
 #endif
 }
 /* the knobs while a layer is at work (held or locked): KNOB 1..4 the layer's, PRESETS its hot knob one unit,
- * ALGORITHM the track as ever, SELECT nothing (no rows). 0: no layer, 1: taken, nothing turned, 2: turned */
+ * ALGORITHM the walk (op_walk.c: T1..DR, MASTER in the FX layer), SELECT nothing (no rows). 0: no layer, 1: taken, nothing turned, 2: turned */
 static int op_presets_turn(void);                       /* op_input.c */
 static int lay_knobs(void)
 {
@@ -734,8 +734,8 @@ static int lay_knobs(void)
         ui.master = 0;                                  /* (the layer let go: the track under it) */
         return 0;
     }
-    if (mx_on_master() && lay_master_ok(lay_now()) && !ui.master) {
-        ui.master = 1;                                  /* (FX held on the mixer's MASTER: the master FX's cards) */
+    if ((mx_on_master() || ui.scr == SCR_FX) && lay_master_ok(lay_now()) && !ui.master) {
+        ui.master = 1;                                  /* (FX held on MASTER: the master FX's cards) */
         ui.force = 1;
     }
 #if FELUCCA_PATTERNS
@@ -750,15 +750,7 @@ static int lay_knobs(void)
     if (op_presets_turn())                              /* (PRESETS: the sound, as everywhere) */
         turned = 1;
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
-        if (ui.master) {
-            ui.master = s > 0 ? 0u : 1u;                /* (right: T1 again; left: stays) */
-            ui.force = 1;
-        } else if (song.sel == 0u && s < 0 && lay_master_ok(lay_now())) {
-            ui.master = 1;                              /* (T1, left: MASTER, its FX in the layer's cards) */
-            ui.force = 1;
-        } else {
-            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-        }
+        algo_walk(s, 1);                                /* (the walk: MASTER only in the FX layer, no lanes: op_walk.c) */
         turned = 1;
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {

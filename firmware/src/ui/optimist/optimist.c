@@ -17,7 +17,8 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO),
+ * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
+ * (ALGORITHM's walk, a lane's own sound),
  * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
@@ -41,6 +42,7 @@
 #include "op_step.c"
 #include "op_layers.c"
 #include "op_tempo.c"
+#include "op_walk.c"
 #include "op_song.c"
 #include "op_combos.c"
 #include "op_project.c"

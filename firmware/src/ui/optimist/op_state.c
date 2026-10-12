@@ -28,7 +28,9 @@ static struct {
     uint8_t scr;                      /* the screen shown (SCR_*) */
     uint8_t master;                   /* MASTER selected in a layer (op_layers.c): a UI state, song.sel stays T1; on SOUND
                                        * it is the FX screen (SCR_FX), which m_fam / m_row lead back from */
-    uint8_t m_fam, m_row;             /* the SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
+    uint8_t m_scr, m_fam, m_row;      /* the page, SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
+    uint8_t lane;                     /* the drum track's selection is its lane lane_selected(), not DR itself: ALGORITHM's
+                                       * walk past DR, the pick, a lane row (op_walk.c lane_picked; the mixer: its row) */
     uint8_t row[SCR_N];               /* each screen's cursor row */
     uint8_t hot;                      /* the hot cell of the cursor row: the one PRESETS and YES act on */
     uint8_t hot_lit;                  /* drawn white: a knob or PRESETS touched it since the row was picked */
@@ -50,7 +52,7 @@ static struct {
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
     uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
-} ui = {.page = 0, .arm_scr = ARM_NONE, .m_fam = 0xFFu};
+} ui = {.page = 0, .arm_scr = ARM_NONE, .m_scr = SCR_SOUND, .m_fam = 0xFFu};
 
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
  * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held
@@ -72,6 +74,12 @@ static struct {
  * cards_2x2). Under them the screen's picture alone, or its rows when it has none (op_draw.c draw_list). The SYSTEM >
  * SCREEN > CARDS choice (1x4 or 2x2) is gone; its settings word bit 23 is no longer read (storage/settings_word.c) */
 static int cards_2x2(void);                             /* op_layers.c (it reads the layer shown) */
+static int lane_picked(void);                               /* op_mixer.c: a drum lane selected, not DR itself */
+static void algo_walk(int32_t s, int lay);              /* op_walk.c: ALGORITHM, on every page and layer */
+static void lane_sound_step(int32_t s);                 /* op_walk.c: PRESETS on a lane, its own sound */
+static int lane_presets(void);
+static void lane_kind_step(int32_t s);
+static const char *lane_sound_name(uint32_t l);
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within

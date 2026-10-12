@@ -183,12 +183,12 @@ static void master_tests(void)
     check(!ui.master && song.sel == 0u, "ALGORITHM right: T1 again");
     release(B_FX);
     frames(2);
-    /* STEP: MASTER is not reachable (the store has no master target), ALGORITHM stops at T1 */
+    /* STEP: MASTER is the master FX screen, as on every page (2026-10-12: "i want uniformity"; ui_optimist_algo.h) */
     reset_ui();
     song.sel = 0;
     tap(B_SEQ);
     turn(EN_ALGO, -1);
-    check(ui.scr == SCR_STEP && !ui.master && song.sel == 0u, "STEP: ALGORITHM left from T1 stays on T1 (no master automation)");
+    check(ui.scr == SCR_FX && song.sel == 0u, "STEP: ALGORITHM left from T1, MASTER: the master FX (2026-10-12)");
     reset_ui();
 }
 /* the 2026-10-10 layouts: a mixer row names its sound; a SOUND page's picture or rows take the whole panel */
