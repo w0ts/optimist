@@ -83,6 +83,12 @@ static void mixer_walk_tests(void)
         check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
         if (op_armed())
             op_no();
+        {
+            uint32_t tot, p0 = preset_pos(&tot);
+            turn(EN_PRESET, 2);
+            check(song.sel == 0 && preset_pos(&tot) == p0 && mx_row() == MXR_MASTER,
+                  "... PRESETS turned: T1's sound unchanged (master has none)");
+        }
         tap(B_FX);
         check(ui.scr == SCR_FX, "... FX: the master FX");
         tap(B_HOME);

@@ -475,7 +475,7 @@ static int op_presets_turn(void)
                                                          * the window's) */
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
-    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
+    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master()) {   /* (MASTER, the mixer's too: nothing) */
         op_preset_step(s);
         pre_toast();
     }
