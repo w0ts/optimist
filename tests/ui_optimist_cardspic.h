@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, CARDS 2x2 by default and the picture alone (the user, 2026-10-12: "drop the row list";
- * docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6): in 2x2 a screen with a picture (SOUND's graphs, TEMPO, SCOPE) shows
- * it on the whole panel with no rows under it, the header naming the row and its n/N; the screens whose list is the
- * content (PROJECT, SYSTEM, SONG, a SOUND row with no picture) keep their rows under the big values; the mixer keeps
- * its 1x4 cards; 1x4 is drawn as before, the rows under the picture. Included by ui_optimist_test.c after
+/* tests/ui_optimist_test.c, CARDS 2x2 by default and no row list (the user, 2026-10-12: "drop the row list", then "use 2
+ * lines for 4 bigger cards everywhere we can (not mixer screen) and remove the bottom list"; docs/UI-OPTIMIST-DESIGN.md
+ * sections 3 and 11.6): in 2x2 a screen with a picture (SOUND's graphs, TEMPO, SCOPE, SONG's grid) shows it on the
+ * whole panel with no rows under it; a screen with no picture (EDIT, VOICE, PROJECT, SYSTEM, SONG, the master FX)
+ * shows the big values and an empty panel; the header names the row and its n/N on every one; the mixer keeps its 1x4
+ * cards; 1x4 is drawn as before, the rows under the picture or alone. Included by ui_optimist_test.c after
  * ui_optimist_cards.h. */
 static uint8_t cards_boot = 0xFF;                       /* op_cards as a fresh unit starts (main: before the 1x4 tests) */
 
@@ -26,9 +27,18 @@ static int cp_pic_alone(uint32_t pic, uint32_t y0)
     return lst.pic == pic && lst.shown == 0u && gr_h == OH_BODY && OP_PY == OY_PANEL_2X2 && cards_band_is(CARDS_2X2) &&
            px_in(0, y0, 240, 240 - y0, trk_col(song.sel)) && cp_pos(p);
 }
-static int cp_list(void)                                /* rows under the big values, the cursor's bar among them */
+static int cp_list(void)                                /* 1x4: rows under the cards, the cursor's bar among them */
 {
-    return lst.shown > 0u && cards_band_is(CARDS_2X2) && px_in(0, (uint32_t)OP_PY, 236, OP_PH, trk_col(song.sel));
+    return lst.shown > 0u && cards_band_is(CARDS_LINE) && px_in(0, (uint32_t)OP_PY, 236, OP_PH, trk_col(song.sel));
+}
+static int cp_empty(void)                               /* 2x2, no picture: the big values, the panel black, the n/N */
+{
+    char p[12];
+    uint32_t i;
+    for (i = (uint32_t)OP_PY * 240u; i < 240u * 240u; i++)
+        if (screen[i] != swap16(C_BLACK))
+            return 0;
+    return lst.pic == 0u && lst.shown == 0u && OP_PY == OY_PANEL_2X2 && cards_band_is(CARDS_2X2) && cp_pos(p);
 }
 static void cards_pic_tests(void)
 {
@@ -61,7 +71,7 @@ static void cards_pic_tests(void)
     cp_draw(CARDS_2X2);
     check(ui.scr == SCR_SOUND && lst.pic == 1u && lst.shown == 0u && gr_h == OH_BODY && cp_pos(p),
           "CARDS 2x2: SOUND FX, the slots' needles alone on the panel");
-    /* SOUND on a row with no picture: the rows stay (the list is all there is) */
+    /* SOUND on a row with no picture: the big values, the panel empty (1x4: the rows) */
     mix_to_sound();
     {
         uint32_t r, n = SCR->rows(), row = 0xFF;
@@ -70,7 +80,9 @@ static void cards_pic_tests(void)
                 row = r;
         ui.row[SCR_SOUND] = (uint8_t)(row == 0xFF ? 0 : row);
         cp_draw(CARDS_2X2);
-        check(row != 0xFF && lst.pic == 0u && cp_list(), "CARDS 2x2: SOUND on a row with no picture keeps its rows");
+        check(row != 0xFF && cp_empty(), "CARDS 2x2: SOUND on a row with no picture: no rows, the panel empty, the n/N");
+        cp_draw(CARDS_LINE);
+        check(cp_list(), "CARDS 1x4: the same row keeps its rows");
         ui.row[SCR_SOUND] = 0;
     }
     /* every SOUND row of every track: a picture alone, else the rows */
@@ -85,7 +97,7 @@ static void cards_pic_tests(void)
             for (r = 0; r < n && ok; r++) {
                 ui.row[SCR_SOUND] = (uint8_t)r;
                 cp_draw(CARDS_2X2);
-                ok &= (uint32_t)(lst.pic ? lst.shown == 0u && gr_h == OH_BODY && cp_pos(rn) : cp_list());
+                ok &= (uint32_t)(lst.pic ? lst.shown == 0u && gr_h == OH_BODY && cp_pos(rn) : cp_empty());
                 pics += lst.pic != 0u;
                 SCR->name(r, rn);
                 snprintf(nm, sizeof nm, "opt-cardspic-t%u-%02u-%s", t, r, rn);
@@ -96,7 +108,7 @@ static void cards_pic_tests(void)
                     printf("  cardspic: track %u SOUND row %u (%s): pic %u shown %u\n", t, r, rn, lst.pic, lst.shown);
             }
         }
-        check(ok && pics > 8u, "CARDS 2x2: every SOUND row of every track: a picture alone on the panel, or its rows");
+        check(ok && pics > 8u, "CARDS 2x2: every SOUND row of every track: a picture alone on the panel, or the panel empty");
         song.sel = 0;
         op_cards = CARDS_LINE;
     }
@@ -123,23 +135,54 @@ static void cards_pic_tests(void)
     cp_draw(CARDS_LINE);
     check(SC_H == OH_BODY - 23 && !cp_pos(p) && px_in(1, (uint32_t)SC_TAB_Y, 46, (uint32_t)SC_TAB_H, scope_col(ui.row[SCR_SCOPE] % (1u + NTRK))),
           "CARDS 1x4: SCOPE keeps its tabs");
-    /* the list pages keep their rows under the big values */
+    /* the list pages: no rows under the big values, on every row (2026-10-12); 1x4 keeps them */
     {
         static const uint8_t S[] = {SCR_PROJECT, SCR_SYSTEM, SCR_SONG, SCR_FX};
-        uint32_t i, ok = 1;
+        static const char *const NM[] = {"project", "system", "song", "fx"};
+        uint32_t i, r, ok = 1, ok1 = 1;
+        char nm[40];
         for (i = 0; i < sizeof S; i++) {
             reset_ui();
             op_enter(S[i]);
-            cp_draw(CARDS_2X2);
-            if (S[i] == SCR_PROJECT)
-                ppm("opt-cardspic-project");
-            ok &= (uint32_t)cp_list();
-            if (!ok) {
-                printf("  cardspic: list screen %u\n", S[i]);
-                break;
+            for (r = 0; r < SCR->rows() && ok; r++) {
+                ui.row[S[i]] = (uint8_t)r;
+                cp_draw(CARDS_2X2);
+                ok &= (uint32_t)(lst.pic ? lst.shown == 0u && gr_h == OH_BODY : cp_empty());
+                if (!ok)
+                    printf("  cardspic: screen %u row %u: pic %u shown %u\n", S[i], r, lst.pic, lst.shown);
             }
+            ui.row[S[i]] = 0;
+            cp_draw(CARDS_2X2);
+            snprintf(nm, sizeof nm, "opt-cardspic-%s", NM[i]);
+            ppm(nm);
+            cp_draw(CARDS_LINE);
+            ok1 &= (uint32_t)cp_list();
         }
-        check(ok, "CARDS 2x2: PROJECT, SYSTEM, SONG and FX keep their rows under the big values");
+        check(ok, "CARDS 2x2: PROJECT, SYSTEM, SONG and the master FX, every row: the big values, no rows under them, the n/N");
+        check(ok1, "CARDS 1x4: PROJECT, SYSTEM, SONG and the master FX keep their rows");
+    }
+    /* EDIT 1 and VOICE (the user's shots: the rows were still there) */
+    reset_ui();
+    song.sel = 0;
+    tap(B_EDIT);
+    cp_draw(CARDS_2X2);
+    ppm("opt-cardspic-edit1");
+    check(ui.scr == SCR_SOUND && cp_empty(), "CARDS 2x2: EDIT 1, the big values, no rows, the header's n/N");
+    {
+        uint32_t r, n = SCR->rows(), v = 0xFF;
+        char rn[12];
+        for (r = 0; r < n && v == 0xFF; r++) {
+            SCR->name(r, rn);
+            if (!strcmp(rn, "VOICE"))
+                v = r;
+        }
+        ui.row[SCR_SOUND] = (uint8_t)(v == 0xFF ? 0 : v);
+        cp_draw(CARDS_2X2);
+        ppm("opt-cardspic-voice");
+        check(v != 0xFF && cp_empty(), "CARDS 2x2: VOICE, the big values, no rows");
+        cp_draw(CARDS_LINE);
+        check(cp_list(), "CARDS 1x4: VOICE keeps its rows");
+        ui.row[SCR_SOUND] = 0;
     }
     /* the mixer: 1x4 whatever the setting */
     reset_ui();

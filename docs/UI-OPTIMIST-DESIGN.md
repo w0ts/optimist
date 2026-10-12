@@ -60,7 +60,7 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | The header's badge (phase 5b) | **the selected track's engine name, in its colour** (the drum track: *DRUMS*), where *T1* was: the track tag brings no value, so the algorithm goes there; the track is already the colour and the selected strip (section 3); **MASTER has no instrument**: on the master FX, a layer on MASTER and the mixer's MASTER row the badge is *MASTER* in C_HI, and on the MASTER row the track buttons ENV LFO EDIT ARP SCL SEQ (their layers and HOME + them too) are dark and do nothing, FX opens the master FX (FX held: the master FX cards) (the user, 2026-10-12) |
 | The footer (phase 5b) | **no footer anywhere**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
 | Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (decided): a general flag the cells can read, used by LEN only for now; PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
-| The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), because the screen is small, so large values help; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6). **2026-10-12, the user: 2x2 is the default, and "drop the row list"**: in 2x2 the header, the four big values, then the screen's picture on the whole rest of the panel, larger than before, with no rows under it (the header's page name and n/N say which row); the pages whose list is the content keep it under the big values (PROJECT, SYSTEM, SONG, a list of choices); everywhere with cards "but not in mixer !" (the mixer keeps its compact 1x4 cards); 1x4 stays an option, drawn exactly as before (sections 3, 11.6) |
+| The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), because the screen is small, so large values help; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6). **2026-10-12, the user: 2x2 is the default, and "drop the row list"**: in 2x2 the header, the four big values, then the screen's picture on the whole rest of the panel, larger than before, with no rows under it (the header's page name and n/N say which row); the pages whose list is the content keep it under the big values (PROJECT, SYSTEM, SONG, a list of choices); everywhere with cards "but not in mixer !" (the mixer keeps its compact 1x4 cards); 1x4 stays an option, drawn exactly as before (sections 3, 11.6). **2026-10-12, the user again** (tested on the FM-1): "use 2 lines for 4 bigger cards everywhere we can (not mixer screen) and remove the bottom list": in 2x2 **no screen shows a row list any more**, the list pages too (PROJECT, SYSTEM, SONG, the master FX, EDIT, VOICE ...): the big values, then the picture where the row has one, else the panel empty ("same cards, empty below"); the header names the row and its n/N, SELECT walks the rows; the BLE devices list stays (a picker: the device names are only there) (sections 3, 11.6) |
 | A click against a hold (found on the FM-1, after the merge) | **a click on a button showed the long-press screen about one time out of two**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, the shared HOLD setting (main's, settings word bits 21..22; CARDS is bit 23) 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
 | The mixer, horizontal (after the merge) | **the horizontal mixer is better**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: it starts on track one, but the cursor can go up to master), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on the cards (1x4 or 2x2); **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT and GLO tapped again page the knob sets** (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
 | A drum lane picked (found on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
@@ -131,7 +131,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **a page button, tapped** | jump the cursor to that family's rows (ENV: the envelope rows of SOUND); tapped again: its next row, past the last the first |
 | **HOME held + a key** where the keys play, **SEQ held + a key** on STEP | **pick** [D], "the current mode's button + a key": on the drum track the lane (the key plays the sound, so you hear what you picked); on a synth track, on STEP, the note or chord the next tapped steps carry. The selected lane is one value for the whole device, like the selected track: the mixer's drum column, SOUND and STEP all show it. On STEP the keys are steps, so there HOME + a key clears and the screen's own button picks |
 | **a page button, held** | the performance layers, as today (section 4.9) |
-| **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D] |
+| **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D]; **on STEP's roll (a synth track, the keys steps) the roll's view an octave down / up, the keyboard octave unchanged** (2026-10-12, section 4.2) |
 | **SAVE then HOME · HOME then SAVE** | **undo · redo** [D]: the order of the pair tells them apart; **EDIT held + OCT- / OCT+** do the same, as SLOOP (open question 12 holds a point to clarify) |
 | **PLAY, REC** | transport, as today, in every layer |
 
@@ -203,7 +203,7 @@ Felucca 1.0's screen structure carries the grammar as it is:
              (SOUND), or the scope; the mixers' strips take 27..239 (no cards)
 ```
 
-**CARDS 1x4 or 2x2** [D, SYSTEM > SCREEN; **2x2 the default** since 2026-10-12]: the layout above is 1x4. With 2x2 the cursor row's four values are drawn large, 2 x 2 as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label and unit small above the value, its form under it, the hot one white, a name too wide for the large face in the small one), in the band y 28..120; the panel then runs y 123..239 (117 rows). **In 2x2 a picture takes the whole panel and the rows under it go** (2026-10-12, the user: "drop the row list"): SOUND's graphs (the envelope, the LFO's wave, the FX slots' needles, the scale, the arpeggio, the pattern's steps, the drum lane, the SOUND row's presets, FM6's algorithm) and TEMPO's tempo and beat are 117 rows tall, SCOPE's trace runs to the foot with no source tabs (117 rows), and the header names the row and its n/N (*Sound ENV 2/21*, *Tempo REC 2/3*, *Scope T2 3/5*: in 2x2 TEMPO and SCOPE show it too). The screens whose list is the content keep their rows under the big values: PROJECT, SYSTEM, SONG (its PATTERNS row's grid with its rows, as in 1x4), the FX screen (the master's pages, no picture), the BLE devices, and a SOUND row with no picture (EDIT, VOICE, ARP 2 ...: the list is all there is), 5 rows, or taller ones when fewer. STEP's grid and roll have the whole panel from y 25 in both modes (section 4.2); its cards are an overlay, the 2 x 2 block over the grid's top while they show, a held step's two lines (y 192..229) under it. A layer's tiles are 24 px (a layer held over the mixer is the layer's screen, so it takes the big values too), and the modal takes the whole panel. The mixer keeps the 1x4 cards whatever CARDS says. 1x4 is drawn as before (the rows under the picture, TEMPO's rows, SCOPE's tabs). Kept in the settings word (bit 23: set for 1x4, so a word without it, every older one, is 2x2).
+**CARDS 1x4 or 2x2** [D, SYSTEM > SCREEN; **2x2 the default** since 2026-10-12]: the layout above is 1x4. With 2x2 the cursor row's four values are drawn large, 2 x 2 as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label and unit small above the value, its form under it, the hot one white, a name too wide for the large face in the small one), in the band y 28..120; the panel then runs y 123..239 (117 rows). **In 2x2 a picture takes the whole panel and the rows under it go** (2026-10-12, the user: "drop the row list"): SOUND's graphs (the envelope, the LFO's wave, the FX slots' needles, the scale, the arpeggio, the pattern's steps, the drum lane, the SOUND row's presets, FM6's algorithm) and TEMPO's tempo and beat are 117 rows tall, SCOPE's trace runs to the foot with no source tabs (117 rows), and the header names the row and its n/N (*Sound ENV 2/21*, *Tempo REC 2/3*, *Scope T2 3/5*: in 2x2 TEMPO and SCOPE show it too). **No rows under the big values on any screen** (2026-10-12, the user, on the FM-1: "use 2 lines for 4 bigger cards everywhere we can (not mixer screen) and remove the bottom list"): a row with no picture (PROJECT, SYSTEM, SONG's scenes, MODE and parts, the master FX, EDIT, VOICE, ARP 2 ...) shows the four big values and an empty panel under them, the big values keeping their size; SONG's PATTERNS row shows its session grid alone. The header names the row and its n/N on every one of them (*Project 1/6*, *Scene A 1/22*, *Master dl 1/9*, *Edit 1 1/7*), and SELECT walks the rows as before, so every row's values and actions are on the cards. On SONG the row's mark the list showed (the scene playing green, the one queued amber, the part playing white) colours the header's title instead. The BLE devices list (SYSTEM > BLUETOOTH) keeps its rows and status line: it is a picker, the devices' names and the pairing code are only there. STEP's grid and roll have the whole panel from y 25 in both modes (section 4.2); its cards are an overlay, the 2 x 2 block over the grid's top while they show, a held step's two lines (y 192..229) under it. A layer's tiles are 24 px (a layer held over the mixer is the layer's screen, so it takes the big values too), and the modal takes the whole panel. The mixer keeps the 1x4 cards whatever CARDS says. 1x4 is drawn as before (the rows under the picture, TEMPO's rows, SCOPE's tabs). Kept in the settings word (bit 23: set for 1x4, so a word without it, every older one, is 2x2).
 
 **No footer** [D, phase 5b: "no footer anywhere"]: the band that held the hints, the keys' meaning and the steps'
 playhead went; the panel runs to the screen's foot on every screen. **The header's badge is the selected track's
@@ -298,8 +298,14 @@ on the rows: the cards show the selected row's values.
 
 SEQ tapped. **The keys are the 16 steps of the page shown**, nothing held (the ISR's `ly_lock` LY_STEP, or KB_GRID,
 already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll the window** over a longer pattern:
-1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. OCT alone
-keeps the octave and ghost / hard, so the pick can be auditioned. **The pick follows the octave** (2026-10-11): a note
+1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. **OCT alone
+on a synth's roll moves the roll's view** (2026-10-12, the user: "the oct up / down keys in piano roll should actually
+shift the piano roll"; only the view): an octave down / up from the roll's fit (the pattern's notes, at least 13
+rows), the keyboard octave (`song.octave`, the entry octave) unchanged; OCT- + OCT+ together: the fit again; at 0 or
+127 the view stops and a press past it is not counted (one press back moves it); another track: its own fit, the
+offset gone (op_stepdraw.c `roll_range`, `roll_shift`; op_step.c `st.roll_oct`). While the keys play (SEQ tapped again,
+or SEQ held for the pick) OCT is the keyboard octave as elsewhere, so the pick can be auditioned an octave away; on the
+drum track OCT stays ghost / hard. **The pick follows the octave** (2026-10-11): a note
 played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
 at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). **A step
 held + OCT- / OCT+ transposes it** (2026-10-11): every note of the synth steps held an octave down / up, each clamped
@@ -901,7 +907,8 @@ byte for byte as before (measured below).
   mixer's HOME pick does. So section 7's "keys also play" flag in `keyboard_block` was not needed.
 - **The window**: 1-16 .. 49-64 up to LEN, the header *Steps 17-32*; FOLLOW (the default) moves it to the playhead
   while playing and no step is held; HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- + OCT+ resumes
-  it; OCT alone keeps the octave (synths) and ghost / hard (drums).
+  it; OCT alone moves a synth roll's view (2026-10-12, section 4.2; the keys playing: the octave) and is ghost / hard
+  on the drums.
 - **Step keys**: an empty step tapped is set with the pick at once; a set one is cleared when let go unless it was
   edited meanwhile (SLOOP's rule); HOME held + a step clears it all (notes, ties, nudge, locks, fill); a step held
   and HOME tapped clears the steps held. Every step key pressed opens an undo level (`undo_mark`, a new session).
@@ -1538,11 +1545,54 @@ to 1x4 and reads the bit both ways; the other UI tests still run in 1x4 (main se
 |---|---|---|
 | The default | ~~1x4~~ **2x2** (2026-10-12, the user): the values read at a distance, and the picture no longer shares the panel with rows, so it is larger than in 1x4's few-row pages; 1x4 is the option for a long list in view | `op_cards`' initial value (op_state.c) |
 | Old saved settings | **2x2**: bit 23 is inverted (1 = 1x4), no new bit and no format change: every record from before (the bit 0, the default then) comes up 2x2; a unit where 2x2 had been chosen (bit 1) comes up 1x4 once and is set back with SYSTEM > SCREEN > CARDS. A marker bit (27) would have kept that choice, at the cost of a new bit | settings_word.c `bp23_word` / `bp23_from_word` |
-| A screen with a picture, in 2x2 | **the picture alone on the whole panel**, the header naming the row and its n/N; SONG keeps its rows (its list is the content) | op_draw.c `draw_list` |
-| A screen with only a list, in 2x2 | **its rows under the big values** (PROJECT, SYSTEM, SONG, FX, the BLE devices, a SOUND row with no picture: EDIT, VOICE, ARP 2 ...): there is nothing else to show, and the neighbouring rows place the cursor | op_draw.c `draw_list` |
+| A screen with a picture, in 2x2 | **the picture alone on the whole panel**, the header naming the row and its n/N; ~~SONG keeps its rows~~ SONG's PATTERNS row too (2026-10-12) | op_draw.c `draw_list` |
+| A screen with only a list, in 2x2 | ~~its rows under the big values~~ **the big values and an empty panel** (2026-10-12, the user: "remove the bottom list"; "same cards, empty below"): PROJECT, SYSTEM, SONG, the master FX, a SOUND row with no picture (EDIT, VOICE, ARP 2 ...); the header's n/N places the cursor; **the BLE devices keep their list** (a picker) | op_draw.c `draw_list` |
 | SCOPE's source tabs, in 2x2 | **gone**: the trace to the foot (94 to 117 rows), the header *Scope T2 3/5* | op_scope.c `SC_H`, `scope_tabs` |
 | A layer held over the mixer, in 2x2 | **2x2**: the map is the layer's screen, not the mixer (the same layer over SOUND was already 2x2) | op_layers.c `cards_2x2` |
 | STEP in 2x2 | **unchanged**: its grid and roll already have the whole panel from y 25 in both modes (lanes 12-13 px, the roll 204 px); the cards are an overlay, a held step's two lines under the 2 x 2 block | op_stepdraw.c |
+
+**2026-10-12 (later): no list anywhere in 2x2, the MASTER page's returns, OCT on the roll.** The user tested firmware
+d31a7ae on the FM-1: EDIT 1..5, VOICE, PROJECT and SYSTEM still showed the rows under the big values, and the mixer's
+MASTER page showed the four channels' meters again. Rulings: "use 2 lines for 4 bigger cards everywhere we can (not
+mixer screen) and remove the bottom list"; the MASTER page "we have the level of the 4 instrument tracks vu meters,
+useless ... replace them with the fx return levels" (the GR line kept); "the oct up / down keys in piano roll should
+actually shift the piano roll" (only the view).
+
+- op_draw.c `draw_list`: in 2x2 `shown` is 0 on every screen (the picture, if any, on the whole panel; else nothing
+  drawn under the cards). `draw_head`: on SONG in 2x2 the title takes the cursor row's mark colour (`song_row_col`).
+- What the list alone showed, and where it went: a row's values and actions were always the cursor row's cards, so
+  every action stays on the cards and SELECT (PROJECT's LOAD / SAVE / NEW, the snapshots, the user presets, TOOLS;
+  SONG's scenes, MODE, the chain's parts with INSERT / DELETE; SYSTEM's settings; the master FX pages). Lost: the view
+  of the other rows' values at a glance (the header's n/N says where the cursor is), and SONG's marks of the scene
+  playing / queued and the part playing on rows other than the cursor's (the cursor row's mark is the title's colour;
+  the scenes layer and the session grid still show what plays). Kept as a list: the BLE devices (a picker: the
+  devices' names, the status line and the pairing code are drawn only there; its cards are CHOOSE / CONNECT and the
+  signal).
+- The MASTER page (op_mixdraw.c `mx_paint_master`, `mx_draw`, `mx_rets`): under GR the lines REV DLY CHO, each built
+  return only (`FELUCCA_FX_REVERB` / `_DELAY` / `_CHORUS`), names and meters in C_HI; the meters' state reuses the
+  channels' places (T1 + line), and the peaks are cleared when the view's group changes (`mxd.pk_first`). The levels:
+  fx.c `fx_ret_tap` (FELUCCA_UI == 1 only; UI=0 is byte-identical), called once a block at the end of `fx_buses` when
+  a bus ran: the chorus' right output of the block's last sample (`yr`), the delay's (`x`), the reverb's as
+  `wet_r[n - 1]` less those two; their |value| kept as a running maximum in `fx_ret_pk` (main RAM code, `HOT2`: no
+  per-sample work, the call costs 44 B of RAMTEXT), taken by ui/meters.c `meter_tap` like the tracks' peaks and read by
+  `meter_ret_take`. It is a sampled peak (one sample a block), not a scan of every sample; how
+  far under the true peak it reads has not been measured.
+- STEP's roll: `st.roll_oct` (octaves from the fit, kept per track: `st.roll_trk`), applied at the end of `roll_range`
+  and clamped there to 0..127; `roll_shift` (op_stepdraw.c) moves it and drops a press that moved nothing; op_input.c
+  routes OCT on a synth track with the keys as steps (`step_keys`) to it, after the held-step, HOME and EDIT cases,
+  which are unchanged. The roll's signature takes the offset.
+- SLOOP's UI is unchanged: its STEP page's roll (ui_draw.c `graph_roll`) fits the pattern's notes (an empty pattern
+  48..72) and OCT alone there is the keyboard octave; SEQ held + OCT pages the step bank.
+
+Tests (tests/ui_optimist_cardspic.h, tests/ui_optimist_cards2.h): in 2x2 every row of PROJECT, SYSTEM, SONG and the
+master FX, EDIT 1, VOICE and every SOUND row of every track: the picture alone or the panel black under the big
+values, with the header's n/N; 1x4 keeps the rows on the same screens; the MASTER page's three return names and no
+track colour under GR, the GR line, the REV meter filling alone; the tap seeing a reverb, a delay and a chorus send
+each on its own return, `meter_tap` and `meter_ret_take`; OCT+ / OCT- on the roll moving the view by 12 with
+`song.octave` untouched, both together back to the fit, the top stop, a track change, a held step + OCT still
+transposing, HOME + OCT the window and FOLLOW, the drum track. ui_optimist_step35.h's entry test sets the octave with
+SEQ held + OCT now. Sizes (user-default UI=1, before / after): flash 519,340 / 520,016, RAM 84,824 / 84,916, pool
+324,620 / 324,620, RAMTEXT 31,684 / 31,728 of 32,512; UI=0 byte-identical (530,176, 85,792, 316,428, 31,584).
 | The setting's values | *1x4* / *2x2* (fit a card; "4 IN LINE" does not) | `sys_cell` SI_CARDS |
 | A value too wide for the large face | the small face in its place (a preset name) | `draw_big` |
 
@@ -1975,7 +2025,7 @@ own per row as before.
 
 | View | Rows | Each row |
 |---|---|---|
-| MASTER | the master alone, 240 x 164 | its name; a tall VU meter (14 px, 224 px wide) over a dB scale (a tick each 6 dB, 0 -12 -24 -48 named); the compressor's reduction as an amber bar from the right with its dB ("off" while THRS and CEIL are 0); then the four channels' meters (T1 T2 T3 DR, each in its colour): what feeds the master |
+| MASTER | the master alone, 240 x 164 | its name; a tall VU meter (14 px, 224 px wide) over a dB scale (a tick each 6 dB, 0 -12 -24 -48 named); the compressor's reduction as an amber bar from the right with its dB ("off" while THRS and CEIL are 0); ~~then the four channels' meters (T1 T2 T3 DR, each in its colour)~~ then **the FX returns' meters, REV DLY CHO** (those built, in C_HI; 2026-10-12, the user: the four channels' meters were "useless", the channels' view shows them): what the effects give back to the master |
 | CHANNELS | T1 T2 T3 DR, 240 x 41 each | as before (section 12): the code and M / S badge, the engine and the preset, the 16 steps of the page playing with the page bars, the 3 px VU with the compressor's reduction |
 | SOUNDS | the 16 lanes, two columns of eight (1-8 left, 9-16 right), 120 x 20 each | the colour chip and code (BD SD CH ...), the lane's own hits on the page playing (6 px a step; an empty step a foot line, the playhead white), its hit meter (drums.hits, falling over 12 frames). The selected lane is framed and tinted; the header names it (*Snare mix*) |
 

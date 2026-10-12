@@ -908,6 +908,23 @@ REV_BUS_FN void rev_bus(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_
 #endif
 }
 
+#if FELUCCA_UI == 1
+/* the mixer's MASTER page (op_mixdraw.c): the FX returns' levels, CHO DLY REV. One sample of each return a block (its
+ * last: the chorus' right, the delay's, the reverb's right as what it added to wet_r), the largest |value| kept, never
+ * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
+ * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
+static volatile int32_t fx_ret_pk[3];
+static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int32_t w)
+{
+    int32_t v[3], k, a;
+    v[0] = c, v[1] = d, v[2] = w - c - d;
+    for (k = 0; k < 3; k++) {
+        a = v[k] < 0 ? -v[k] : v[k];
+        if (a > fx_ret_pk[k])
+            fx_ret_pk[k] = a;
+    }
+}
+#endif
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. Returns 0 when every bus was idle: wet_l / wet_r were not written (they would
@@ -921,6 +938,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
+#if FELUCCA_UI == 1
+    yr = x = 0;                                         /* (the returns' tap: a bus idle reads 0) */
+#endif
     {   /* the chorus' two read points (Q8 samples back) and line 0's extra length, at both ends of the block */
         int32_t s0 = osc_sine(fx.cho_ph), s1, m0 = osc_sine(fx.rev_ph), m1;
         fx.cho_ph += LFO_INC[song.g[G_CRATE] & 127];
@@ -967,6 +987,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         fx.dly_w += n;
     }
     rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+#if FELUCCA_UI == 1
+    if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
+        fx_ret_tap(yr, x, wet_r[n - 1u]);
+#endif
 #undef CHO_R0
 #undef CHO_R1
     fx.cho_q = fx_q(fx.cho_q, wc, n);
