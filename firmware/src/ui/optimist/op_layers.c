@@ -103,6 +103,8 @@ static void lay_bits(void)
         uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? 1u << panel.btn[LAYER_BTN[l]] : 0u;
         if (mst && (l == LY_ERASE || l == LY_ROLL || l == LY_OPS))
             v = 0;                                      /* (MASTER: no erase, repeat or operator keys on T1's data) */
+        if (l != LY_STEP && LAYER_BTN[l] < NB && mx_master_dead(LAYER_BTN[l]))
+            v = 0;                                      /* (the mixer's MASTER: no track button's layer) */
         if (l == LY_MIX && !off)
             v |= 1u << panel.btn[B_PLAY];
         if (ly_bit[l] != v)
@@ -731,6 +733,10 @@ static int lay_knobs(void)
     if (lay_now() == LY_PLAY) {
         ui.master = 0;                                  /* (the layer let go: the track under it) */
         return 0;
+    }
+    if (mx_on_master() && lay_master_ok(lay_now()) && !ui.master) {
+        ui.master = 1;                                  /* (FX held on the mixer's MASTER: the master FX's cards) */
+        ui.force = 1;
     }
 #if FELUCCA_PATTERNS
     if (lay_now() == LY_PAT)
