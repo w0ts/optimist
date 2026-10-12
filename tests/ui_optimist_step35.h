@@ -33,8 +33,12 @@ static void s35_entry_tests(void)
     kdown(WK(0));
     kup(WK(0));
     check(step_on(&TSEL->step[0]) && TSEL->step[0].note[0] == n, "STEP entry: a tapped step takes the note played");
+    press(B_SEQ);                                       /* (OCT alone on the roll moves its view, 2026-10-12: the */
+    frames(HOLD_FRAMES);                                /* keyboard octave is OCT while the keys play, SEQ held) */
     tap(B_OCTUP);
-    check(song.octave == 1, "STEP, OCT+ with no step held: the keyboard octave up");
+    release(B_SEQ);
+    frames(2);
+    check(song.octave == 1 && st.roll_oct == 0, "STEP, SEQ held + OCT+: the keyboard octave up, the roll's view as it was");
     kdown(WK(1));
     kup(WK(1));
     check(TSEL->step[1].note[0] == n + 12u, "STEP entry after OCT+: the note an octave up (it follows the keyboard octave)");
@@ -44,11 +48,10 @@ static void s35_entry_tests(void)
         note_name(e, n + 12u);
         check(!strncmp(b, e, strlen(e)) && (b[strlen(e)] == 0 || b[strlen(e)] == ' '), "... the pick's name says the octave too");
     }
-    tap(B_OCTDN);
-    tap(B_OCTDN);
+    song.octave = -1;                                   /* (as SEQ held + OCT- OCT- would) */
     kdown(WK(2));
     kup(WK(2));
-    check(TSEL->step[2].note[0] == n - 12u, "STEP entry after OCT- OCT-: the note an octave down");
+    check(TSEL->step[2].note[0] == n - 12u, "STEP entry at the keyboard octave -1: the note an octave down");
     n = s35_pick(WK(7));                                /* played at -1: the pen as heard, no second shift */
     kdown(WK(3));
     kup(WK(3));

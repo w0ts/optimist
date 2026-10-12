@@ -2118,6 +2118,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
+#include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2239,6 +2240,8 @@ int main(int argc, char **argv)
     rec_hold_tests();
     drum_env_tests();
     mix35_tests();
+    c2_master_tests();
+    c2_roll_tests();
     lforate_tests();
     step_hold_tests();
     led_tests();

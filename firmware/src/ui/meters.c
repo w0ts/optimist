@@ -22,6 +22,9 @@ static struct {
     uint8_t ui_out;                     /* the mixer's MASTER row is in view: scan the output for it */
     int32_t out_ui;                     /* for the TRACKS screen: the output's largest |sample| (abuf's scale) */
     int32_t lane[DRUM_LANES];           /* for the TRACKS screen: each drum lane (drum_mix.c dlm_pk) */
+#if FELUCCA_UI == 1
+    int32_t ret[3];                     /* for the mixer's MASTER page: the FX returns CHO DLY REV (fx.c fx_ret_pk) */
+#endif
 #if FELUCCA_MASTER_COMP
     uint8_t gr[NTRK + DRUM_LANES];      /* for the TRACKS screen: the COMP inserts' largest reduction, dB x 4: the
                                          * parts', the drum bus's, each lane's (its voices': fx.c dins_comp) */
@@ -65,6 +68,17 @@ static void meter_tap(void)
         if (pk > mt.lane[c])
             mt.lane[c] = pk;
     }
+#if FELUCCA_UI == 1
+    for (c = 0; c < 3u; c++) {          /* the FX returns (fx.c fx_ret_tap), as the tracks */
+        int32_t pk;
+        fm1_irq_off();
+        pk = fx_ret_pk[c];
+        fx_ret_pk[c] = 0;
+        fm1_irq_on();
+        if (pk > mt.ret[c])
+            mt.ret[c] = pk;
+    }
+#endif
 #if FELUCCA_MASTER_COMP
     {   /* the COMP inserts' gain reduction now (a word each, read only), the largest since the screen took it */
         uint32_t g;
@@ -118,6 +132,15 @@ static int32_t meter_ui_take(uint32_t c)
     mt.ui[c] = 0;
     return pk;
 }
+#if FELUCCA_UI == 1
+/* the mixer's MASTER page: FX return k's (0 CHO, 1 DLY, 2 REV) largest |output| since its last look */
+static int32_t meter_ret_take(uint32_t k)
+{
+    int32_t pk = mt.ret[k % 3u];
+    mt.ret[k % 3u] = 0;
+    return pk;
+}
+#endif
 /* the TRACKS screen: drum lane l's largest |output| since its last look */
 static int32_t meter_lane_take(uint32_t l)
 {

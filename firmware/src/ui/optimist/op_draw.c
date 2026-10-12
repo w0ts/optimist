@@ -15,7 +15,7 @@
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
 #define OH_BODY OP_PH                 /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
-#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 (a list with no picture) */
+#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows (CARDS 1x4; 2x2 shows none: draw_list) */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
@@ -231,6 +231,9 @@ static void draw_head(void)
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
         head_pos(ui.scr, ui.row[ui.scr], pos);
+        if (ui.scr == SCR_SONG && cards_2x2() && song_row_col(ui.row[SCR_SONG]))
+            mc = song_row_col(ui.row[SCR_SONG]);       /* (2x2, no rows: the row's mark is the title's colour, the scene
+                                                         * playing green, queued amber, the part playing white) */
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
@@ -486,9 +489,10 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
-    if (pic && cards_2x2() && ui.scr != SCR_SONG) {    /* CARDS 2x2: the picture alone, the whole panel (the user, 2026-10-12:
-                                                         * "drop the row list"; the header names the row and its n/N). SONG
-                                                         * keeps its rows: its list is the content */
+    if (cards_2x2()) {                                  /* CARDS 2x2: no rows, ever (the user, 2026-10-12: "use 2 lines for
+                                                         * 4 bigger cards everywhere we can (not mixer screen) and remove the
+                                                         * bottom list"): the picture alone on the whole panel, or the panel
+                                                         * empty; the header names the row and its n/N, SELECT walks them */
         shown = 0;
         top = OH_BODY;
         gr_h = OH_BODY;
