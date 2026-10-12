@@ -2100,9 +2100,42 @@ static void preset_engine_tests(void)
           "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
     turn(EN_PRESET, -1);
     reset_ui();
+    {   /* the list by instrument; HOME held + PRESETS: the next / previous instrument (the user, 2026-10-12) */
+        uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
+        for (i = 1; i < NBANK; i++)
+            if (preset_at(i, &k) < preset_at(i - 1u, &k))
+                sorted = 0;
+        check(sorted, "the preset list: grouped by instrument (engine order)");
+        song.sel = 0;
+        frame();
+        e0 = TSEL->eng_req;
+        for (i = 0; i < NENGINES; i++)
+            if (eng_built(i))
+                ne++;
+        press(B_HOME);
+        turn(EN_PRESET, 1);
+        e1 = TSEL->eng_req;
+        cur = preset_pos(&total);
+        check(e1 != e0 && (cur == 0u || preset_at(cur - 1u, &k) != e1),
+              "HOME held + PRESETS: the next instrument, its first sound");
+        turn(EN_PRESET, -1);
+        back = TSEL->eng_req;
+        release(B_HOME);
+        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; HOME let go: nothing else (no NO, no SYSTEM)");
+        press(B_HOME);
+        for (i = 0; i < ne + 1u && ok; i++) {
+            uint32_t was = TSEL->eng_req;
+            turn(EN_PRESET, 1);
+            if (ne > 1u && TSEL->eng_req == was)
+                ok = 0;
+        }
+        release(B_HOME);
+        check(ok, "... every turn a new instrument, round the list");
+        reset_ui();
+    }
 }
 
-#include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
+#include "ui_optimist_len.h"                      /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
 #include "ui_optimist_cardspic.h"                  /* CARDS 2x2 the default, the picture alone */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */

@@ -469,13 +469,18 @@ static int op_presets_turn(void)
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (ui.scr == SCR_STEP) {                           /* STEP: the window's pages, every track (the user, 2026-10-11:
+    if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
+        !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
+        op_engine_step(s);                              /* HOME held (the shift) + PRESETS: the instruments */
+        pre_toast();
+        op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO, no SYSTEM) */
+    } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
                                                          * stopping at the ends; a step held: nothing (the held keys are
                                                          * the window's) */
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
-    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
+    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master()) {   /* (MASTER, the mixer's too: nothing) */
         op_preset_step(s);
         pre_toast();
     }
