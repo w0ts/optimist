@@ -100,6 +100,10 @@ static void locks_restore(track_t *t)        /* every lock in force let go (STOP
         if (t->p[lk_param[k][i] % P_COUNT] == lk_set[k][i])
             lock_write(t, lk_param[k][i], lk_base[k][i]);
     lk_n[k] = 0;
+#if DLA_ON
+    if (is_drum(t))
+        dla_locks_off();                     /* (the lanes' locks too: drum_edit.c dla) */
+#endif
 }
 /* the sequencer enters a step (auto_step, the ISR) whose step-only events set our ids lp[] to lv[] (m of them; a
  * fill-skipped step: none): they take hold, the last step's that it does not share let go */

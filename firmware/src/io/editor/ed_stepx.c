@@ -35,6 +35,13 @@ static int ed_auto_ok(const track_t *t, uint32_t place, uint32_t sp, const param
         return 0;
     if (AUTO_PSEUDO(sp))
         return (place & AUTO_ONLY) != 0;
+    if (AUTO_IS_LANE(sp)) {                               /* (a drum lane's value: the drum track only, auto.h) */
+#if DLA_ON
+        if (is_drum(t) && ((place & AUTO_ONLY) ? FELUCCA_PLOCK : FELUCCA_MOTION))
+            return *d = &DLA_DESC[AUTO_LANE_V(sp)], 1;
+#endif
+        return 0;
+    }
     if (place & AUTO_ONLY) {
 #if FELUCCA_PLOCK
         if (lock_ok(t, id))

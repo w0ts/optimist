@@ -43,7 +43,7 @@ const E = vm.runInNewContext(proto + `
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, SetGate })`,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1175,6 +1175,16 @@ async function editorAuto() {
   ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.CLEAR, A.HOLDS))).n === 7 &&
      E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.PLAY, 0))).rc === 0 && !E.parse[C.AUTO_GET](await rq(E.req.autoGet(1))).on,
      "auto: CLEAR the hold events (the step-only ones stay), PLAY off");
+  {   /* the drum lanes' values (seq/auto.h AUTO_LANE): ids 0x7C + (lane << 3 | value), the drum track only, passed through as stored */
+    const id = A.LANE0 + (4 << 3 | 1);
+    ok(A.LANE0 === 0x7C && A.LANE_N === 128 && E.autoLane(id).lane === 4 && E.autoLane(id).value === 1 && E.autoLane(0x7B) === null &&
+       E.autoLane(0xFB).lane === 15 && E.autoLane(0xFB).value === 7 && E.autoLane(0xFC) === null, "auto: a lane id -> {lane, value} (0x7C..0xFB)");
+    r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(3, A.OP.SET, 5 | A.ONLY, id, -100)));
+    const g3 = E.parse[C.AUTO_GET](await rq(E.req.autoGet(3)));
+    ok(r.rc === 0 && r.v === -64 && g3.events.length === 1 && g3.events[0].param === id && g3.events[0].only && g3.events[0].step === 5 && g3.events[0].v === -64,
+      "auto: a lane lock on the drum track (CLOSED HAT DECAY -100): kept clamped to -64, read back with its id");
+    ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(0, A.OP.SET, 5 | A.ONLY, id, 10))).rc === 1, "auto: a lane id on a part: refused");
+  }
   done();
   const o = attachMock({ stepx: 7 });
   E.parse[C.INFO](await o.rq(E.req.info()));
@@ -1715,6 +1725,12 @@ async function editorSl24Lost2() {
     ok(E.sl24Lost(0x22).join() === "fm6,locks" && E.sl24Lost(0x22 | 8192, 0, false).join() === "fm6,locks,motionchance", "sl24Lost: a bare first word as before");
     ok(E.sl24Lost(0, 2, true).join() === "lsync" && E.sl24Lost(0, 3, true).join() === "chance,lsync" && html.includes("s24L_lsync:"),
       "sl24Lost: the second word's bit 1 is the LFO's sync (sl24_export.c SX24_LSYNC), with its text");
+    ok(E.sl24Lost(0, 4, true).join() === "lauto" && html.includes("s24L_lauto:"),
+      "sl24Lost: the second word's bit 2 is the drum lanes' motion and locks (SX24_LAUTO), with its text");
+    ok(typeof E.BK.NAMES.DLFO === "string" && E.bkPlan({ objects: [{ tag: "DLFO", kind: "log", data: [1] }] }, { objs: [], caps: {} })[0].why === "bkUnknown",
+      "backup: the DLFO object (drum lane LFOs) has its name; a firmware that does not list it (an older one): skipped, bkUnknown");
+    ok(E.sl24Lost(0, 8, true).join() === "dlfo" && E.sl24Lost(0, 12, true).join() === "lauto,dlfo" && html.includes("s24L_dlfo:"),
+      "sl24Lost: the second word's bit 3 is a drum lane's LFO (SX24_DLFO), with its text");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {

@@ -97,6 +97,10 @@ static void motion_restore(track_t *t)
             t->p[id] = motion_base[k][id];
     for (id = 0; id < MOTION_WORDS; id++)
         motion_active[k][id] = 0;
+#if DLA_ON
+    if (is_drum(t))
+        dla_holds_off();                                     /* (the lanes' motion too: drum_edit.c dla) */
+#endif
 }
 
 /* PLAY (seq.c seq_reset_tracks, the ISR): every track from its patch */

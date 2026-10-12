@@ -206,7 +206,7 @@ AINL uint32_t x0x_sounding(void) { return xc.live; }   /* (inlined: drums_mix ru
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
 {
     uint32_t c = x0x_code(k, l, note), ch, i, st = k;
-    const int8_t *u = dl_ofs(l), *v;
+    const int8_t *u = dl_ofs_play(l), *v;
     int8_t o[DE_N];
     if (c == XN_NONE)
         return 0;

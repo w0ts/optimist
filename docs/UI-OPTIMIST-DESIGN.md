@@ -582,6 +582,25 @@ pseudo-parameter CHANCE, an id past P_COUNT that is never a sound value, on drum
 chance bits (chance.c) stay readable, an event wins over them, and the new UI writes events only. The drum step gets
 chance with no format change.
 
+**A drum lane's value is an event too** (the user, 2026-10-12): on the drum track, the parameter **0x7C + (lane << 3 |
+value)** (0x7C..0xFB, seq/auto.h `AUTO_LANE`) is lane 0..15's TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL (drum_edit.c
+DE_*: a stored order), its value the lane's offset. A step-only one is the lane's lock on the step (it needs the lane's
+hit there; every hit of the lane during the step hears it), a hold one its motion. Both apply **at the hit** through an
+overlay (drum_edit.c `dla`, drums/lane_play.c): a sounding hit keeps what it started with, and the lane's own values
+(dl.ofs, what SAVE keeps) are never written. A build before them keeps the events and plays none; they never go into
+the old MOTN or stepx forms (a list with one is stored in the new forms), and a 2.4 export reports them lost (LANE
+MOTION NOT IN 2.4). The UIs' calls: seq/auto_lane.c.
+
+**Each drum lane has its own LFO** (the user, 2026-10-12): RATE (P_LRATE's range: free, or synced below 0), WAVE, PHS,
+FADE and two slots, each a DEST (OFF or one of the 8 lane values) and an AMT (-64..63). An LFO with no slot acting (DEST
+OFF or AMT 0) is off and costs nothing. A live one is sampled at the lane's hits (as the values above: the overlay, never
+dl.ofs), restarts at PLAY at PHS, and has no per-block tick: its value is figured at the hit from the blocks or the beats
+since PLAY. It is not an automation event: it is kept in a record of its own (storage/dlfo_rec.c; in flash: log ids
+122..138, sections/dlfo_rec_log.c; the snapshots' SNR_DLFO; the editor's backup object DLFO), which an older firmware
+skips (it loads the project with every LFO off, nothing else lost). A 2.4 export reports it (DRUM LFO NOT IN 2.4). The
+UIs' calls: drums/lane_play.c `dlfo_get`, `dlfo_set`, `dlfo_field`, `dlfo_field_set` (DLFO_DESC: the cells' ranges and
+names); the slot logic, shared with the synth LFO to come: core/lfo_slot.h.
+
 **Nudge and the fill condition are events too** [D]: the pseudo-parameters NUDGE (-32..31, in 1/64 of a step) and
 FILL (1 FILL ONLY, 2 NO FILL), step-only. One list then holds every per-step extra, and SLOOP 2.4's stepx record
 (seq/stepx.h, 176 B a track) is only the import / export form: its micro, lock and fill arrays become events on
@@ -1119,7 +1138,7 @@ SAVE / HOME + a button, all in SIZE_FILES):
 | Where | What |
 |---|---|
 | seq/seq.c, `clk_nudge` and `events_block` | `static volatile int8_t clk_nudge` (1/256 of the tempo); `adv = adv + ((int32_t)adv * clk_nudge >> 8)` before the transport, so the steps, the arp, the rolls, the click and the arranger move together; an external clock overrides `adv` after it as before. No divide in the ISR. G_BPM is never written |
-| storage/sections/pat.c, `pat_scene_ref_set` | scene s's reference of track k set to a slot, KEEP or none: stopped only; its record (the arena's or the log's) written again into the log with that byte changed, its FX record (`fx_rec_log.c`, paired by the record's hash) keyed again |
+| storage/sections/pat.c, `pat_scene_ref_set` | scene s's reference of track k set to a slot, KEEP or none: stopped only; its record (the arena's or the log's) written again into the log with that byte changed, its FX record (`fx_rec_log.c`, paired by the record's hash) and its drum lane LFO record (`dlfo_rec_log.c`) keyed again |
 | storage/sections/sections.c, `sec_scene_clear` | a scene / section cleared, stopped only: the arena's record, FX record and extras dropped, the log's written empty (`slg_put` of 0 bytes); `live_sec` let go; its patterns stay |
 
 Tests [M]: `tests/ui_optimist_test.c`, a fifth switch set in `tests/run_tests.sh` on the real section log with
