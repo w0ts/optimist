@@ -10,9 +10,17 @@
 #define BASS303_LITE FELUCCA_CPU_GUARD             /* the overload guard's lite mode: the CPU guard's (cpuguard.c) */
 #include "bass303.c"
 
+#include "acid_mem.h"
+
 #define ACID_PARTS 3
-static bass303_t acid_b[ACID_PARTS];
+_Static_assert(sizeof(bass303_t) <= ACID_MEM_BYTES, "acid_mem.h ACID_MEM_BYTES: a part's engine memory holds a bass303_t");
 static uint8_t acid_ready[ACID_PARTS], acid_gate[ACID_PARTS];
+
+void acid_forget(int k)                            /* (engines.c part_mem_claim: another engine had the memory) */
+{
+    if (k >= 0 && k < ACID_PARTS)
+        acid_ready[k] = acid_gate[k] = 0;
+}
 
 /* our 8 EDIT values -> the 303's pots: CUT RESO ENV DEC ACC WAVE DRV SLD (the rest: X0X's defaults; DRV > 0 runs
  * the Soft drive) */
@@ -24,10 +32,10 @@ static bass303_t *acid_part(int k)
     if (k < 0 || k >= ACID_PARTS)
         return 0;
     if (!acid_ready[k]) {
-        bass303_init(&acid_b[k]);
+        bass303_init((bass303_t *)acid_mem(k));
         acid_ready[k] = 1;
     }
-    return &acid_b[k];
+    return (bass303_t *)acid_mem(k);
 }
 
 void acid_pots(int k, const int16_t *e)

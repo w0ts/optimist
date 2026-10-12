@@ -661,7 +661,7 @@ _SYMS = {
     "ENG_PHASE": ("ENG_PHASE", "pd_wave"), "ENG_LOFI": ("ENG_LOFI", "lofi_render", "WRAM"),
     "ENG_SAMPLE": ("ENG_SAMPLE",), "ENG_FORMANT": ("ENG_FORMANT", "formant_render"),
     "ENG_TRIO": ("ENG_TRIO", "trio_render"), "ENG_DRAWBAR": ("ENG_DRAWBAR", "drawbar_render"),
-    "ENG_GRAIN": ("ENG_GRAIN", "gr_p"), "ENG_FM6": ("ENG_FM6", "fm6_v", "FM6_ROM", "fm6k_knob"),
+    "ENG_GRAIN": ("ENG_GRAIN", "grain_block"), "ENG_FM6": ("ENG_FM6", "fm6_pt", "FM6_ROM", "fm6k_knob"),
     "FM6_MARK1": ("FM6_MKI_LOG", "FM6_MKI_EXP", "FM6_MKI_LOGQ", "FM6_MKI_EXPF"),
     "FM6_OPL": ("FM6_OPL_LOG", "FM6_OPL_EXP"),
     "FM6_KEYS": ("fm6k_knob",), "FM6_VOICES": ("FM6_ROM",), "ENG_SLICE": ("ENG_SLICE",),

@@ -703,6 +703,7 @@ static void engine_block(track_t *t)
             v->env = v->env_out = 0;
         }
         t->engine = t->eng_req % NENGINES;
+        part_mem_claim((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
         t->xf_on = 0;
         t->pold = 0;
         t->nmono = 0;
