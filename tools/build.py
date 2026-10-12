@@ -241,7 +241,7 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
-    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13"):   # (bench.c scenarios 10..13: two digits, the loop below takes one)
+    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14"):   # (bench.c scenarios 10..14: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"),
@@ -412,6 +412,70 @@ def boot_refs(dis):
     return refs
 
 
+# CPU1's stack (FELUCCA_DUAL 2; hal/fm1_dual.h fm1_c1_stack, 6 KiB, docs/DUAL-CORE.md): whichever of usp / ssp / sp the
+# core's C code and its wake interrupt run on (not known on the FM-1; the emulator's reading: the main loop on usp's top
+# +2048, the interrupt with the job on +6144), the job finds at least 4 KiB below its top before another stack. Its
+# worst depth, static: the frames (the registers pushed, 4 B each, and every 'sp += -N') of the deepest call path
+# from the wake interrupt and from the spinning main loop; an indirect call ('call rN') resolves to the functions its
+# function loads the address of (FAR) and, in mix_part (track_render inlined), to every engine's hooks (the names in
+# its engine_t). Measured in the emulator 2026-10-12 (bench scenarios, parts 2-3 on CPU1): ACID 1,936 B (static
+# 2,452), PHYS 1,556 (1,556), ANALOG 680 (668), FM6 648 (856), PHASE 456 (456)
+CPU1_ROOTS = ("isr_c1_wake", "fm1_cpu1_main")
+CPU1_STACK_ROOM = 4096 - 256        # (256 B: the main loop's own frames and the interrupt's entry, above the job)
+
+
+def cpu1_stack(dis):
+    """-> (bytes, path) of CPU1's deepest stack, static (CPU1_ROOTS above)"""
+    frames, calls, refs, indirect, fn = {}, {}, {}, set(), None
+    for ln in dis.splitlines():
+        m = re.match(r"^([A-Za-z_$][\w.$]*):\s*$", ln)
+        if m:
+            fn = m.group(1)
+            frames.setdefault(fn, 0)
+            calls.setdefault(fn, set())
+            refs.setdefault(fn, set())
+            continue
+        if fn is None:
+            continue
+        m = re.search(r"\[--sp\] = \{([^}]*)\}", ln)
+        if m:
+            for part in m.group(1).split(","):
+                r = re.match(r"r(\d+)-r(\d+)", part.strip())
+                frames[fn] += 4 * (abs(int(r.group(1)) - int(r.group(2))) + 1 if r else 1)
+        m = re.search(r"\tsp \+= -(\d+)", ln)
+        if m:
+            frames[fn] += int(m.group(1))
+        m = re.search(r"\tcall -?\d+ <([\w.$]+)(?:\+0x[0-9A-Fa-f]+)? :", ln)
+        if m:
+            calls[fn].add(m.group(1))
+        elif re.search(r"\tcall r\d+", ln):
+            indirect.add(fn)
+        else:
+            refs[fn].update(re.findall(r"<([A-Za-z_$][\w.$]*) : [0-9a-f]+ >", ln))
+    hooks = set()
+    for f in (FW / "src" / "engines").rglob("*.c"):
+        for m in re.finditer(r"const engine_t ENG_\w+ = \{(.*?)\n\};", f.read_text(errors="replace"), re.S):
+            hooks.update(n for n in re.findall(r"\b([a-z]\w*)\b", m.group(1)) if n in frames)
+    memo = {}
+
+    def depth(f, stack):
+        if f in stack or f not in frames:
+            return 0, []
+        if f in memo:
+            return memo[f]
+        cands = set(calls[f])
+        if f in indirect:
+            cands |= {r for r in refs[f] if r in frames and r != f} | (hooks if f == "mix_part" else set())
+        best, path = 0, []
+        for c in cands:
+            d, p = depth(c, stack | {f})
+            if d > best:
+                best, path = d, p
+        memo[f] = (frames[f] + best, [f] + path)
+        return memo[f]
+    return max((depth(r, frozenset()) for r in CPU1_ROOTS if r in frames), default=(0, []))
+
+
 def boot_order(dis):
     """-> [message]: the second core starts before the boot safety checks (FELUCCA_DUAL builds; docs/DUAL-CORE.md).
     The start (fm1_dual_start, the only user of fm1_cpu1_entry) is reached only through dual_boot, that only from
@@ -465,6 +529,11 @@ def check(img, syms, dis, rt):
         errors.append(f"idle reached again within {IDLE_WAKE_SLOTS} instructions of an idle at {rewake[:4]}")
     if re.search(r"\sfm1_cpu1_entry$", syms, re.M):    # a DUAL build starts CPU1: only after the boot checks
         errors += boot_order(dis)
+    if re.search(r"\sdual_job$", syms, re.M):          # CPU1 renders parts: its stack (CPU1_STACK_ROOM)
+        c1, c1p = cpu1_stack(dis)
+        notes.append(f"CPU1 stack: {c1} B at most of {CPU1_STACK_ROOM} ({' > '.join(c1p[-4:])})")
+        if c1 > CPU1_STACK_ROOM:
+            errors.append(f"CPU1 stack {c1} B > {CPU1_STACK_ROOM} B: {' > '.join(c1p)} (hal/fm1_dual.h fm1_c1_stack)")
     m = re.search(r"^([0-9a-f]+) .*\s_start$", syms, re.M)
     if not m or int(m.group(1), 16) != APP_XIP:
         errors.append(f"_start is not at {APP_XIP:#x}")

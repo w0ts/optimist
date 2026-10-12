@@ -629,5 +629,36 @@ check("build.py boot order: an inlined dual_boot is refused", any("not found" in
 real = ROOT / "build" / "felucca.dis"
 if real.exists() and "fm1_dual_start:" in real.read_text():
     check("build.py boot order: the real DUAL build passes", BUILD.boot_order(real.read_text()) == [])
+
+# CPU1's stack (tools/build.py cpu1_stack): the deepest path from the wake interrupt, an engine's hook through mix_part's
+# indirect call, a FAR call through the address its function loads. A synthetic disassembly: {function: [line, ...]}
+def stack_dis(funcs):
+    out, pc = [], 0x1c00000
+    for f, lines in funcs.items():
+        out.append(f + ":")
+        for ln in lines + ["rts"]:
+            out.append(f" {pc:x}:    00 00             \t{ln}")
+            pc += 4
+    return "\n".join(out) + "\n"
+C1 = {"isr_c1_wake": ["[--sp] = {psr, rets, reti}", "[--sp] = {r3-r0}", "call 4 <fm1_cpu1_wake : 1c00100 >"],
+      "fm1_cpu1_wake": ["[--sp] = {rets, r7-r4}", "call 4 <dual_job : 1c00200 >"],
+      "dual_job": ["[--sp] = {rets, r7-r4}", "call 4 <mix_part : 1c00300 >"],
+      "mix_part": ["[--sp] = {rets, r15-r4}", "sp += -172", "r3 = 1 <tcomp_far : 1c00500 >", "call r3", "sp += 172"],
+      "phys_render": ["[--sp] = {rets, r7-r4}", "sp += -948"], "tcomp_far": ["[--sp] = {rets}", "sp += -60"],
+      "ui_draw": ["sp += -9000"]}
+d, path = BUILD.cpu1_stack(stack_dis(C1))
+check("build.py CPU1 stack: interrupt 28 + 20 + 20 + mix_part 224 + an engine's hook (PHYS 968): 1260 B",
+      d == 1260 and path[-1] == "phys_render")
+C1["tcomp_far"] = ["[--sp] = {rets}", "sp += -2000"]
+d, path = BUILD.cpu1_stack(stack_dis(C1))
+check("build.py CPU1 stack: a FAR call (the address mix_part loads) counts; a function nothing reaches (ui_draw) not",
+      d == 2296 and path[-1] == "tcomp_far")
+C1["phys_render"] = ["[--sp] = {rets, r7-r4}", "sp += -4000"]
+d, _ = BUILD.cpu1_stack(stack_dis(C1))
+check("build.py CPU1 stack: an engine deeper than CPU1_STACK_ROOM is over it", d > BUILD.CPU1_STACK_ROOM)
+if real.exists() and "dual_job:" in real.read_text():
+    d, path = BUILD.cpu1_stack(real.read_text())
+    check(f"build.py CPU1 stack: the real DUAL build's ({d} B, {path[-1]}) within {BUILD.CPU1_STACK_ROOM} B",
+          0 < d <= BUILD.CPU1_STACK_ROOM)
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
