@@ -2355,11 +2355,13 @@ async function masterStrip() {
     && js(E.fmtValue(thr, 0)) === js(["OFF", ""]) && js(E.fmtValue(thr, -12)) === js(["-12", "dB"])
     && rat && G.indexOf("RATIO") === 33 && cei && G.indexOf("CEIL") === 37 && G.indexOf("THRS") === 32,
     "master strip: Comp: THRS RATIO GAIN inline (its main knobs; THRS 0 = OFF), key O, its six globals G_CTHR..G_CCEIL at 32..37 (after the 32 a project stores)");
-  /* the return knob: the delay's MIX (fx.c dmix); the reverb and the chorus have none (SIZE, CDP stand in) */
+  /* the strip's knob beside each icon: the delay's MIX (fx.c dmix), the reverb's SIZE, the chorus' CDP. The firmware's FX
+     returns (2026-10-12: CRET DRET RRET, G_CRET.., the device's mixer MASTER row) are not on the strip yet: DLY RET scales
+     dmix, CHO / REV RET their wet (fx.c) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = song\.g\[G_DMIX\] \* 258/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
-    && !/song\.g\[G_R(MIX|LVL|RET)/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
-    "master strip: return knobs: Delay MIX (its wet level); Reverb SIZE and Chorus CDP (the firmware has no return level for them)");
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*G_DRET/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
+    && /song\.g\[G_RRET\]/.test(fxc) && /song\.g\[G_CRET\]/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
+    "master strip: Delay MIX, Reverb SIZE, Chorus CDP beside the icons; the firmware's FX returns (DLY RET in dmix, CHO / REV RET) not on the strip yet");
   /* Settings: only true settings; every parameter that left it is in the mixer */
   const l0 = html.indexOf("const A2_PAGES"), l1 = html.indexOf("\n];", html.indexOf("const LAYOUT = ")) + 3;
   const LAYOUT = vm.runInNewContext(html.slice(l0, l1) + "; LAYOUT");

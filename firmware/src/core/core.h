@@ -188,6 +188,11 @@ enum {                          /* global parameters */
      * grid, its start and its length (whole steps); OFF keeps the start as a nudge (MICRO) and the length as a GATE
      * lock (PLOCK). Per project, in its G_INFO slot as !QUANT (project.c RECQ_PACK: 0 = ON in every older one) */
     G_RECQ,
+    /* the FX returns (2026-10-12; fx.c fx_buses): each send effect's wet level into the master, CHO DLY REV, whatever
+     * slot holds it (fx_slots.c). 0..127, 127 unity (the default: the mix of before, sample for sample), 64 one half;
+     * 0: silent, that bus not run (its lines cleared). The delay's MIX (G_DMIX) stays its own. The mixer's MASTER row,
+     * Returns (op_mixer.c). A project keeps them in its FX record (fx_rec.c FXRET_TLV: none = unity), not in g[] */
+    G_CRET, G_DRET, G_RRET,
     G_COUNT
 };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */

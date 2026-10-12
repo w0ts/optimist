@@ -9,7 +9,8 @@
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
  *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
  *              SOUND; a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR MUTE VOLUME | FILTER | FX on, KIT; MASTER FILT
- *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
+ *              DUST DUCK | the returns, a card a FX slot (S1..S4: a send's return level, "-" else; 2026-10-12) | THRS
+ *              RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
  *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
@@ -18,7 +19,8 @@
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_LANES };
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE };   /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute) */
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET };   /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute);
+                                                                        * MI_RET: MASTER's FX slot id's return */
 /* the knob sets' groups, in this order on every row (the user, 2026-10-11): the mix (VOLUME PAN; a lane LEVEL CUT;
  * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
@@ -101,13 +103,40 @@ static uint32_t mx_items_synth(mitem_t *it)
     n = mx_add(it, n, MG_LAST, "FX ON", MI_TRK, P_FXOFF);
     return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
 }
+/* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
+ * tracks"): a card a FX slot, in the slots' order (FX > SLOTS), named after it: "S2 CHO"; a send's (CHO DLY REV) turns
+ * its return (core.h G_CRET G_DRET G_RRET, fx.c), an insert or an empty slot shows "-". One instance per type (fx_slots.c
+ * fxs_set): one return per send. No send in any slot: no set */
+static char mx_rlab[FX_NSLOT][8];
+static uint32_t mx_ret_id(uint32_t k)                   /* slot k's return (a G_* id), 0xFF: none (an insert, empty) */
+{
+    uint32_t t = fxs_slot[k % FX_NSLOT];
+    return (t == FXT_CHO || t == FXT_DLY || t == FXT_REV) && FXS_ON(t) ? G_CRET + (t - FXT_CHO) : 0xFFu;
+}
+static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < FX_NSLOT; k++)
+        any |= mx_ret_id(k) != 0xFFu;
+    for (k = 0; any && k < FX_NSLOT; k++) {
+        uint32_t t = fxs_slot[k], a = t < FXT_N && (FXT_BUILT >> t & 1u) ? FXT_AMT[t] : 0xFFu;
+        mx_rlab[k][0] = 'S', mx_rlab[k][1] = (char)('1' + k), mx_rlab[k][2] = 0;
+        if (a != 0xFFu) {
+            mx_rlab[k][2] = ' ';
+            str_cpy(mx_rlab[k] + 3, TP[a].label, sizeof mx_rlab[k] - 3u);
+        }
+        n = mx_add(it, n, MG_SEND, mx_rlab[k], MI_RET, k);
+    }
+    return n;
+}
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
-    if (r == MXR_MASTER) {                              /* filter, dust, duck; then the compressor */
+    if (r == MXR_MASTER) {                              /* filter, dust, duck; the returns; then the compressor */
         n = mx_add(it, n, MG_MIX, "FILT", MI_GLOB, G_FILT);
         n = mx_add(it, n, MG_MIX, "DUST", MI_GLOB, G_DUST);
         n = mx_add(it, n, MG_MIX, "DUCK", MI_GLOB, G_DUCK);
+        n = mx_items_ret(it, n);
 #if FELUCCA_MASTER_COMP
         n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
         n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
@@ -197,6 +226,11 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_GLOB:
         *vp = &song.g[m->id];
         return &GP[m->id];
+    case MI_RET:                                        /* (an insert, an empty slot: none, "-") */
+        if (mx_ret_id(m->id) == 0xFFu)
+            return 0;
+        *vp = &song.g[mx_ret_id(m->id)];
+        return &GP[mx_ret_id(m->id)];
     case MI_LANE:
         d = dsnd_desc_lane(r - MXR_LANE0, m->id, vp);
         return d && !PARAM_HIDDEN(d) ? d : 0;
@@ -228,8 +262,8 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 
 /* ---- the screen's rows */
 static uint32_t mix_rows(void) { return MXR_N; }
-/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "MASTER" "COMP": the
- * header's "T2 insert", "Mix comp" */
+/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "MASTER" "RETURNS"
+ * "COMP": the header's "T2 insert", "Mix returns", "Mix comp" */
 static void mix_name(uint32_t r, char *b)
 {
     static const char *const G[4] = {"MIX", "INSERT", "SENDS", "SOUND"};
@@ -239,7 +273,7 @@ static void mix_name(uint32_t r, char *b)
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp & 3u;
     if (r == MXR_MASTER)
-        str_cpy(b, g ? "COMP" : "MASTER", 12);
+        str_cpy(b, g == MG_SEND ? "RETURNS" : g ? "COMP" : "MASTER", 12);
     else
         str_cpy(b, r == MXR_DR && g == MG_LAST ? "KIT" : G[g], 12);
 }

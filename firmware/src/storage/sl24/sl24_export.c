@@ -38,8 +38,8 @@
  *     TRK_FILT, on every track whatever slot holds them: a type in no slot (not heard here) is written 0 so that 2.4
  *     plays what we do (LOST: SX24_SLOTS, its amounts, when one was not 0); heard here and not on 2.4 (LOST): COMP (a
  *     part's, the drum bus's, a drum sound's: SX24_COMP), a drum sound's DIST (SX24_DINS), the drum bus's DST CHO DLY
- *     REV (SX24_DBUS). The import (sl24_import.c, proj_apply without an FX record: fx_slots.c fxs_auto) gives a FILT in
- *     use a slot.
+ *     REV (SX24_DBUS), an FX return below unity (SX24_FXRET: 2.4 has none, its wet comes back at unity). The import
+ *     (sl24_import.c, proj_apply without an FX record: fx_slots.c fxs_auto) gives a FILT in use a slot.
  * proj_to_sl24 says what was lost (SX24_*, the editor tells the user). */
 #define SL24_MAGIC 0x46554E35u                         /* (as sl24_import.c: identical definitions) */
 #define SL24_SIZE 3840u
@@ -68,7 +68,9 @@ enum {                                                  /* what an export lost (
                                                          * of the first word) */
     SX24_CHANCE = 16384,                                /* (the steps' chance: the first bit of the second word, which an
                                                          * editor asks for with SL24_GET's flag; ed_sl24.c) */
-    SX24_LSYNC = 32768                                  /* (the LFO's RATE synced: the second word's bit 1) */
+    SX24_LSYNC = 32768,                                 /* (the LFO's RATE synced: the second word's bit 1) */
+    SX24_FXRET = 65536                                  /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
+                                                         * second word's bit 2) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -277,6 +279,8 @@ static uint32_t sl24_fx_out(uint8_t *o)
         lost |= FXS_ON(FXT_DIST) && dins_amt[0][l] ? SX24_DINS : 0u;
     for (i = 0; i < 4u; i++)                            /* (the drum bus: project_t's drum slots are stored 0, P4-2) */
         lost |= FXS_ON(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
+    for (i = 1; i < 4u; i++)                            /* (the returns, core.h G_CRET..: 2.4 plays its wet at unity) */
+        lost |= FXS_ON(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         lost |= FXS_ON(FXT_COMP) && trk[k].p[P_TCOMP] ? SX24_COMP : 0u;

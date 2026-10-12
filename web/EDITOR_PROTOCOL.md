@@ -171,6 +171,8 @@ added CHORD (id 49): P_COUNT 58, P_E0 50 (and G_COUNT 32: DUST, DUCK, FILT, ROLL
 editor takes them from `INFO`; older records load with the SLICER off and CHORD off. Optimist's master COMP / LIMIT
 (2026-10) made G_COUNT 38: THRS, RATIO, ATK, REL, GAIN, CEIL at 32..37 (the editor finds them by their DESC labels). A
 project still stores 32 globals; these six live in its reserved bytes (`project.c` mc_pack), so the format is unchanged.
+REC QUANTIZE (QUANT, 38) made G_COUNT 39; the FX returns (2026-10-12) make it 42: CRET, DRET, RRET at 39..41, the
+chorus', delay's and reverb's return level (0..127, 127 unity), kept in the project's FX record (`fx_rec.c`, TLV 0x41).
 
 ## v2: live sync
 

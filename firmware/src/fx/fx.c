@@ -321,13 +321,45 @@ AINL int32_t dly_fb(int32_t v)
     int32_t u = 120 - v;
     return v <= DLY_FB_KNEE ? v * 230 : 32768 - ((u * u * 7355) >> 8);   /* (7355 / 2^8 = 9308 / 18^2) */
 }
+/* a return level (core.h G_CRET G_DRET G_RRET, 0..127) -> its gain, Q15: 127 unity (32768: the mix of before, sample
+ * for sample), below it v / 128 (64: one half exactly) */
+#define FX_RETQ(v) ((v) >= 127 ? 32768 : (int32_t)(v) << 8)
+#define FX_ZCHUNK 512u           /* a return at 0: its bus' line cleared this many samples a block (fx_zclear) */
+static struct {
+    uint32_t cclr, dclr;         /* the chorus' and the delay's line cleared up to here (0: not clearing) */
+} fxz;
+/* a return at 0 (fx_buses): its bus is not run, and what its line holds is cleared, FX_ZCHUNK samples a block (XIP; no
+ * 64 KB clear in one half), before it may run again (no old echo when it comes back). b: the line, len samples; c:
+ * cleared so far; returns the new count, 0 when the line is clear */
+static __attribute__((noinline)) uint32_t fx_zclear(int16_t *b, uint32_t len, uint32_t c)
+{
+    uint32_t e = c + FX_ZCHUNK < len ? c + FX_ZCHUNK : len;
+    for (; c < e; c++)
+        b[c] = 0;
+    return e < len ? e : 0u;
+}
+static __attribute__((noinline)) void cho_zero(void)   /* (CHO RET 0: a block, the line not clear yet) */
+{
+    if (fx.cho_q < CHO_LEN || fxz.cclr)
+        if (!(fxz.cclr = fx_zclear(cho_buf, sizeof cho_buf / 2u, fxz.cclr)))
+            fx.cho_q = FX_Q_MAX;                        /* (idle: every cell 0) */
+}
+static __attribute__((noinline)) void dly_zero(void)   /* (DLY RET 0: the same, and its low-pass) */
+{
+    if (fx.dly_q < DLY_LEN || fx.dly_lp || fxz.dclr) {
+        fx.dly_lp = fx.dly_le = 0;
+        if (!(fxz.dclr = fx_zclear(dly_buf, sizeof dly_buf / 2u, fxz.dclr)))
+            fx.dly_q = FX_Q_MAX;
+    }
+}
 /* the delay's values for a block: from XIP, through FAR (RAMTEXT is full; once a block, for a running delay): the
- * loop gain, COLOR's low-pass step, the wet level (the master strip's return knob); returns the length */
+ * loop gain, COLOR's low-pass step, the wet level (its MIX times its return, DLY RET: exact at unity); returns the
+ * length */
 static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, int32_t *col, int32_t *dmix)
 {
     *fb = dly_fb(song.g[G_DFDBK]);
     *col = 2000 + song.g[G_DCOLOR] * 240;
-    *dmix = song.g[G_DMIX] * 258;
+    *dmix = (int32_t)((uint32_t)(song.g[G_DMIX] * 258) * (uint32_t)FX_RETQ(song.g[G_DRET]) >> 15);
     return delay_samples();
 }
 /* the loop's saturator (it was a clamp to int16): linear up to K = 28416 (-1.2 dB), above it a quadratic knee 8192
@@ -913,15 +945,19 @@ REV_BUS_FN void rev_bus(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_
 #endif
 }
 
-#if FELUCCA_CPU_GUARD && FELUCCA_FX_REVERB
-/* The CPU guard's REVERB level (cpuguard.h CG_L_REVERB; docs/CPU-GUARD.md). An overloaded half is late, and a late
+#if FELUCCA_FX_REVERB
+/* The reverb bus' off state, for the CPU guard and for REV RET at 0 (2026-10-12: every build with the reverb; the
+ * guard's level is the constant 0 without FELUCCA_CPU_GUARD).
+ * The CPU guard's REVERB level (cpuguard.h CG_L_REVERB; docs/CPU-GUARD.md). An overloaded half is late, and a late
  * half clicks: with the reverb on, the tank alone costs about as much as the rest of an idle mix (FDN8 at SIZE 124
  * in the emulator at 96 MHz: 584 -> 1524 us a half), and a tail sounds on with nothing left to shed. From this level
  * on the bus' wet fades out over one half (REV_GFADE blocks, as the TYPE change), then the bus is off: its send not
  * heard, its tank not run; the line is cleared a chunk a block (REV_GCHUNK samples, from XIP: no 16 or 32 KB clear in
  * one half of an overloaded interrupt), then its filters. When the level comes off (the load the reverb saved fits
  * again: cpuguard.c, its gain) the send comes back into a silent tank, its tail building up anew. rev_live: what the
- * bus runs, or would, now (cpuguard.c cg_useful) */
+ * bus runs, or would, now (cpuguard.c cg_useful): a REV RET at 0 runs nothing, nothing to shed there.
+ * REV RET at 0 (core.h G_RRET): the bus off at once (no fade: its gain is 0 already), the line cleared as the guard's,
+ * then off; turned up again, the bus comes back into a silent tank, as after the guard */
 #define CG_REV 1
 #define REV_GFADE (HALF_FRAMES / CTL)
 #define REV_GCHUNK 512u
@@ -956,20 +992,101 @@ static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while R
  * before the line is clear does the bus come back on */
 AINL uint32_t rev_guard(int run)
 {
-    rev_live = (uint8_t)run;
-    if (CG_LEVEL >= CG_L_REVERB) {
+    int z = !song.g[G_RRET];                            /* (REV RET at 0) */
+    rev_live = (uint8_t)(run && !z);
+    if (CG_LEVEL >= CG_L_REVERB || z) {
         if (rgd.st == RG_ON) {                          /* (an idle tank: every cell 0 already, nothing to clear) */
-            rgd.st = run ? RG_FADE : RG_OFF;
+            rgd.st = !run ? RG_OFF : z ? RG_CLEAR : RG_FADE;
             rgd.fade = REV_GFADE;
+            rgd.clr = 0;
         }
     } else if (rgd.st == RG_OFF) {
         rgd.st = RG_ON;
     }
     return rgd.st;
 }
+/* the reverb's block but the common one (the bus on, REV RET at unity: the tank straight into the wet), from main RAM
+ * (HOT2: RAMTEXT is full). rev_pre: the wet so far (the chorus, the delay) into tl / tr and the wet to 0, so that the
+ * tank's block (fx_buses, into the wet as ever) is the reverb's alone; rev_post: the guard fading (its gain down over
+ * REV_GFADE blocks) and REV RET (Q15) together on it, tl / tr added back; off: no tank, the line cleared a chunk a
+ * block. At REV RET unity the fade is the guard's as before, sample for sample */
+static HOT2 __attribute__((noinline)) void rev_pre(uint32_t rg, int32_t *tl, int32_t *tr, int32_t *wl, int32_t *wr,
+                                                   uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; (rg == RG_ON || rg == RG_FADE) && i < n; i++) {
+        tl[i] = wl[i], tr[i] = wr[i];
+        wl[i] = wr[i] = 0;
+    }
+}
+static HOT2 __attribute__((noinline)) void rev_post(uint32_t rg, const int32_t *tl, const int32_t *tr, int32_t *wl,
+                                                    int32_t *wr, uint32_t n, int32_t *wv)
+{
+    uint32_t i, f = rg == RG_FADE ? rgd.fade : 0u, rq = (uint32_t)FX_RETQ(song.g[G_RRET]);
+    if (rg != RG_ON && rg != RG_FADE) {
+        if (rg == RG_CLEAR)
+            FAR(rev_gclear)();
+        *wv = 0;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        uint32_t gg = f ? (((f << CTL_LOG2) - i) << 8) * rq >> 15 : rq << 1;   /* Q16: the fade 65536 .. 256, x REV RET */
+        wl[i] = tl[i] + mulq16(wl[i], gg);
+        wr[i] = tr[i] + mulq16(wr[i], gg);
+    }
+    if (f) {
+        if (--rgd.fade == 0) {
+            rgd.st = RG_CLEAR;
+            rgd.clr = 0;
+        }
+        *wv = 1;                                        /* (the line holds the tail until it is cleared) */
+    }
+}
 #else
 #define CG_REV 0
 #endif
+/* the returns' part of a block's plan (fx_buses), from main RAM (HOT2: RAMTEXT is full; a call a block): run, the buses
+ * with something to run (FXB_C the chorus, FXB_D the delay, FXB_R the reverb) -> those that run: a return at 0 not
+ * (core.h G_CRET G_DRET; its line cleared from XIP first, cho_zero / dly_zero), the reverb as rev_guard says (the CPU
+ * guard, REV RET at 0); FXB_CG: CHO RET below unity (cho_gain); FXB_RS: the reverb's slow path (rev_pre / rev_post);
+ * the reverb's RG_* from bit FXB_RG on */
+#define FXB_C 1u
+#define FXB_D 2u
+#define FXB_R 4u
+#define FXB_CG 8u
+#define FXB_RS 16u
+#define FXB_RG 8
+static HOT2 __attribute__((noinline)) uint32_t fx_ret_block(uint32_t run)
+{
+#if CG_REV
+    uint32_t rg = rev_guard((int)(run & FXB_R));
+    if (rg != RG_ON && rg != RG_FADE)
+        run &= ~FXB_R;                                  /* (off: no tank run, the wet not written by the bus) */
+    run |= rg << FXB_RG | (rg != RG_ON || song.g[G_RRET] < 127 ? FXB_RS : 0u);
+#endif
+    if ((run & FXB_C) && (!song.g[G_CRET] || fxz.cclr)) {
+        run &= ~FXB_C;
+        FAR(cho_zero)();
+    }
+    if ((run & FXB_D) && (!song.g[G_DRET] || fxz.dclr)) {
+        run &= ~FXB_D;
+        FAR(dly_zero)();
+    }
+    return run | ((run & FXB_C) && song.g[G_CRET] < 127 ? FXB_CG : 0u);
+}
+/* CHO RET between 0 and unity (fx_buses; core.h G_CRET): the chorus' block (the wet so far, its alone) times its
+ * return, Q15 (< 32768: no overflow), from main RAM (HOT2); returns the right's last (the returns' tap). Unity: not
+ * called, the chorus as before */
+static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr, uint32_t n)
+{
+    int32_t g = FX_RETQ(song.g[G_CRET]);
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        wl[i] = (wl[i] * g) >> 15;
+        wr[i] = (wr[i] * g) >> 15;
+    }
+    return wr[n - 1u];
+}
 #if FELUCCA_UI == 1
 /* the mixer's MASTER page (op_mixdraw.c): the FX returns' levels, CHO DLY REV. One sample of each return a block (its
  * last: the chorus' right, the delay's, the reverb's right as what it added to wet_r), the largest |value| kept, never
@@ -1000,6 +1117,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
+    uint32_t plan;
 #if CG_REV
     uint32_t rg;
 #endif
@@ -1029,16 +1147,16 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
                                   REV_HALF_BUSY() || fx_any(rev_in, n));   /* (REV_HALF: its filters too) */
-#if CG_REV
-    rg = rev_guard(run_r);
-    run_r = rg == RG_ON || rg == RG_FADE ? run_r : 0;   /* (off: no tank run, the wet not written by the bus) */
-#endif
+    plan = fx_ret_block((uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2);   /* (the returns, the guard) */
+    run_c = (plan & FXB_C) != 0, run_d = (plan & FXB_D) != 0, run_r = (plan & FXB_R) != 0;
 #define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r))   /* (SPRING: its own state) */
     if (run_c) {
         for (i = 0; i < n; i++) {
             wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
             wet_r[i] = yr;
         }
+        if (plan & FXB_CG)                              /* (CHO RET below unity: the chorus' wet alone so far) */
+            yr = cho_gain(wet_l, wet_r, n);
     } else {                                            /* idle: every cell holds 0, the output is 0 */
         if (!FX_ALL_IDLE)                               /* (all idle: the wet is not added, below) */
             for (i = 0; i < n; i++)
@@ -1056,32 +1174,17 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         fx.dly_w += n;
     }
 #if CG_REV
-    {   /* the guard (rev_guard): fading, the tank's block into tl / tr, then added going down; off, no tank */
-        int32_t tl[CTL], tr[CTL], *dl = wet_l, *dr = wet_r;
-        if (rg == RG_FADE) {
-            for (i = 0; i < n; i++)
-                tl[i] = tr[i] = 0;
-            dl = tl, dr = tr;
-        }
+    {   /* the bus on, REV RET at unity: the tank into the wet, as before; else (the guard fading or off, REV RET below
+         * unity) rev_pre / rev_post around it */
+        int32_t tl[CTL], tr[CTL];
+        int slow = (int)(plan & FXB_RS);
+        rg = plan >> FXB_RG;
+        if (slow)
+            rev_pre(rg, tl, tr, wet_l, wet_r, n);
         if (rg == RG_ON || rg == RG_FADE)
-            rev_bus(rev_in, dl, dr, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
-        if (rg == RG_FADE) {
-            uint32_t f = rgd.fade;
-            for (i = 0; i < n; i++) {
-                uint32_t gg = ((f << CTL_LOG2) - i) << 8;   /* 65536 .. 256 over the REV_GFADE x CTL samples */
-                wet_l[i] += mulq16(tl[i], gg);
-                wet_r[i] += mulq16(tr[i], gg);
-            }
-            if (--rgd.fade == 0) {
-                rgd.st = RG_CLEAR;
-                rgd.clr = 0;
-            }
-            wv = 1;                                     /* (the line holds the tail until it is cleared) */
-        } else if (rg != RG_ON) {
-            if (rg == RG_CLEAR)
-                FAR(rev_gclear)();
-            wv = 0;
-        }
+            rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+        if (slow)
+            rev_post(rg, tl, tr, wet_l, wet_r, n, &wv);
     }
 #else
     rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */

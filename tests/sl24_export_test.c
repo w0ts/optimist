@@ -415,6 +415,19 @@ static void fx_slots24(void)
     check("the default layout (COMP in no slot): its amount not heard, not lost; the drum bus's REV, the sound's DIST lost",
           proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
     trk[1].p[P_TCOMP] = 0, TDRUM->p[P_REV] = TDRUM->p[P_DLY] = 0, dins_amt[0][2] = 0;
+    /* the FX returns (2026-10-12, core.h G_CRET G_DRET G_RRET): 2.4 has none, its wet comes back at unity */
+    song.g[G_CRET] = song.g[G_DRET] = song.g[G_RRET] = 127;
+    base = proj_to_sl24(&q, 0, out, 0);
+    check("FX returns at unity: nothing lost for them", !(base & SX24_FXRET));
+    song.g[G_DRET] = 64;
+    check("DLY RET at one half: FXRET lost (2.4 plays it at unity)", proj_to_sl24(&q, 0, out, 0) == (base | SX24_FXRET));
+    fxs_set(NOREV);
+    song.g[G_DRET] = 127, song.g[G_RRET] = 0;
+    check("REV RET at 0 with REV in no slot: not heard here either, nothing more lost for it",
+          (proj_to_sl24(&q, 0, out, 0) & SX24_FXRET) == 0u);
+    fxs_set(FXS_DEF);
+    check("... REV back in its slot: FXRET lost", (proj_to_sl24(&q, 0, out, 0) & SX24_FXRET) != 0u);
+    song.g[G_RRET] = 127;
 }
 
 /* the LFO's RATE synced (< 0: a note value, SLOOP 2.6's SYNC; 2.4 has none) -> the free rate nearest that note value's
