@@ -490,6 +490,10 @@ job; ( jobin
     run "FX returns with the CPU guard built: the guard's REVERB fade at REV RET 64 is unity's halved, then off" "$OUT/fx_returns_cg_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -o "$OUT/fx_returns_fdn8_test" tests/fx_returns_test.c -lm
+    run "FX returns with FDN8 alone in the pool and the CPU guard (the mots profile): 10 minutes, the reverb back after every REV RET 0 and guard level" "$OUT/fx_returns_fdn8_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_lanemix_test" tests/drum_lanemix_test.c -lm
     run "drum lanes PAN / MUTE / SOLO: the mix (sample for sample), the lanes' meters, the FX record TLV, PROJECT SAVE / LOAD" "$OUT/drum_lanemix_test"
 ) >"$U.out" 2>&1 & jobbg

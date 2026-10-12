@@ -199,21 +199,29 @@ static void test_levels(void)
     CHECK(super_copies(6) == 6u, "off: the swarm whole (%u)", super_copies(6));
 }
 
-/* 4. a late half steps at once; a half predicted late steps before it renders; the saving counts at the release */
+/* 4. a late half after one over the ceiling steps at once (a lone late half does not: a flash write, another
+ * interrupt's burst); a half predicted late steps before it renders; the saving counts at the release, from the load
+ * of the halves before the step (never a spike's own) */
 static void test_late_and_gain(void)
 {
     uint32_t i;
     busy_setup();
     half(US(101));
-    CHECK(cg.level == CG_L_QUALITY, "one late half: a step at once (%u)", cg.level);
-    /* the step's saving: 90 % before, 60 % after: 30 % (77/256) */
+    CHECK(cg.level == CG_L_OFF, "a lone late half: no step (%u)", cg.level);
+    half(US(50));
+    half(US(90));
+    half(US(101));
+    CHECK(cg.level == CG_L_QUALITY, "a late half after one over the ceiling: a step at once (%u)", cg.level);
+    /* the step's saving: ~88 % before (84 % for a while, then 8 halves at 90 %), 60 % after: ~28 % */
     busy_setup();
+    for (i = 0; i < 50u; i++)
+        half(US(84));
     for (i = 0; i < 8u; i++)
         half(US(90));
     CHECK(cg.level == CG_L_QUALITY, "level %u", cg.level);
     for (i = 0; i < CG_HOLD; i++)
         half(US(60));
-    CHECK(cg.gain[CG_L_QUALITY] >= 75u && cg.gain[CG_L_QUALITY] <= 79u, "the saving measured: %u",
+    CHECK(cg.gain[CG_L_QUALITY] >= 66u && cg.gain[CG_L_QUALITY] <= 77u, "the saving measured: %u",
           cg.gain[CG_L_QUALITY]);
     for (i = 0; i < 2u * CG_RELEASE; i++)
         half(US(60));
@@ -290,6 +298,7 @@ static void test_keep(void)
     host_preset(&trk[0], ENG_IX_FM6, 0);
     hold(&trk[0], 4);
     half(US(101));
+    half(US(101));
     CHECK(cg.level == CG_TOP && cg.steps == 1u, "nothing to ease: straight to shedding (level %u)", cg.level);
 }
 
@@ -347,7 +356,8 @@ static void test_drums(void)
     trk[0].p[P_VOICE] = V_POLY;
     hold(&trk[0], 4);
     half(US(101));
-    CHECK(cg.level == CG_L_QUALITY, "an X0X 808 channel sounds: a late half steps to quality (level %u)", cg.level);
+    half(US(101));
+    CHECK(cg.level == CG_L_QUALITY, "an X0X 808 channel sounds: two late halves step to quality (level %u)", cg.level);
     half(US(50));
     CHECK(d8_tail_k > 5.0e-3f, "quality: the 808's tails end at -40 dB (%g)", (double)d8_tail_k);
     for (i = 0; i < 60u; i++) {
@@ -408,8 +418,9 @@ static void test_reverb(void)
     rv_run(RV_BLOCKS(40), 1, 0);                      /* the tank full */
     pk = rv_run(RV_BLOCKS(20), 0, &step0);            /* the tail alone */
     CHECK(pk > 1000, "the reverb's tail sounds (%d)", pk);
-    half(US(101));                                    /* a late half: nothing sounds but the tail */
-    CHECK(cg.level < CG_TOP, "a reverb tail and nothing else: a late half eases the reverb, not the top with nothing "
+    half(US(101));                                    /* late halves: nothing sounds but the tail */
+    half(US(101));
+    CHECK(cg.level < CG_TOP, "a reverb tail and nothing else: late halves ease the reverb, not the top with nothing "
           "to shed (level %u)", cg.level);
     rv_run(RV_BLOCKS(1), 0, &step1);                  /* (the half after the step: the fade) */
     for (i = 0; i < 40u; i++) {                       /* the reverb off: the load as the rest of the mix */
@@ -435,6 +446,56 @@ static void test_reverb(void)
     CHECK(pk > 1000, "the reverb heard again (%d)", pk);
 }
 
+
+/* 9. the reverb comes back (the user's FM-1, 2026-10-12: "once after some time the reverb stops producing any sound",
+ * at a load of ~41 % with a worst half of 63 %). Ten minutes of halves around 41 % with the reverb sent all along,
+ * a lone spike now and then (one half over its time: a flash write, a burst of another interrupt) and twice two in a
+ * row: after each the reverb must sound again within 3 s, the guard off again; at no time may it stay silent. */
+static uint32_t rr_seed = 7;
+static uint32_t rr_rand(uint32_t n)
+{
+    rr_seed = rr_seed * 1664525u + 1013904223u;
+    return (rr_seed >> 8) % n;
+}
+static void test_reverb_recover(void)
+{
+    uint32_t h, last_spike = 0, spikes = 0, worst = 0, silent = 0, longest = 0;
+    reset();
+    song.g[G_RSIZE] = 90, song.g[G_RDAMP] = 60;      /* (the default room) */
+    rv_run(RV_BLOCKS(40), 1, 0);
+    for (h = 0; h < 600u * 172u; h++) {               /* 10 minutes */
+        uint32_t pct = 30u + rr_rand(34u);            /* 30 .. 63 % */
+        int spike = h > 1000u && rr_rand(4000u) == 0u, pair = h == 30000u || h == 70000u;
+        int32_t pk;
+        if (spike || pair) {
+            pct = 150u;
+            spikes++;
+            last_spike = h;
+        }
+        half(US(pct));
+        if (pair) {
+            rv_run(RV_BLOCKS(1), 1, 0);
+            half(US(120));
+            h++;
+        }
+        pk = rv_run(RV_BLOCKS(1), 1, 0);
+        if (pk < 200) {
+            silent++;
+            longest = silent > longest ? silent : longest;
+        } else {
+            silent = 0;
+        }
+        if (h - last_spike == 3u * 172u && last_spike) {   /* 3 s after a spike: back */
+            worst = cg.level > worst ? cg.level : worst;
+            CHECK(cg.level == CG_L_OFF && pk >= 200, "3 s after the spike at half %u: the guard off (level %u) and "
+                  "the reverb heard (%d)", last_spike, cg.level, pk);
+        }
+    }
+    CHECK(spikes >= 10u, "the spikes came (%u)", spikes);
+    CHECK(longest < 3u * 172u, "the reverb never silent for 3 s or more (longest %u halves)", longest);
+    CHECK(cg.level == CG_L_OFF, "the end: the guard off (level %u)", cg.level);
+}
+
 int main(void)
 {
     test_quiet();
@@ -445,6 +506,7 @@ int main(void)
     test_keep();
     test_drums();
     test_reverb();
+    test_reverb_recover();
     printf("cpuguard_test: %s (%d failures)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
