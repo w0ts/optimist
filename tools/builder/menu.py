@@ -5,7 +5,8 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never user-default)
       | w write a .config file | l load | b build | e build and run it in the emulator
-      | f flash the last build to an FM-1 over USB-MIDI (shows both identities, asks first)
+      | f flash this menu's last build to an FM-1 over USB-MIDI (only a build of the configuration shown, by this
+        builder's code: else refused; shows both identities and the commit, asks first)
       | q or ctrl+c quit
       x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
@@ -29,6 +30,7 @@ import configure as C  # noqa: E402
 import flash as F  # noqa: E402
 import registry as R  # noqa: E402
 import room as RM  # noqa: E402
+import stamp as ST  # noqa: E402
 
 BAR_W = 34
 
@@ -136,7 +138,9 @@ class Builder(App):
         self.costs = C.load_costs()
         self.filter = ""
         self.build_out = ""
-        self.built_pkg = None                            # the package the last successful build made (f flashes it)
+        self.built = None                                # ST.Stamp of the last successful build (f flashes only it)
+        self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
+        self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
         self.over, self.savings = {}, {}
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
@@ -267,7 +271,7 @@ class Builder(App):
             return
         how = ("exact: the last real build of this selection" if b.get("exact")
                else "estimate from measured deltas; b = exact build")
-        lines = Text(f"{self.cfg_name}  ({how})\n", style="italic")
+        lines = Text(f"{self.cfg_name}  ({how})   {self.source}\n", style="italic")
         for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
@@ -307,8 +311,12 @@ class Builder(App):
             t.append(f"warn   {w}\n", style="yellow")
         for n in note:
             t.append(f"NOTICE {n}\n", style="bold yellow")
+        stale = ST.changed_code(self.code0)              # (a menu left open while the repo moved on: f refuses)
+        if stale:
+            t = Text(f"THIS BUILDER IS OUT OF DATE ({', '.join(stale)} changed since it started): {ST.RESTART}\n",
+                     style="bold red") + t
         if self.build_out:                               # the last build's result first: it stays until the next b
-            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD"))
+            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD", "FLASH REFUSED", "FLASH FAILED"))
             t = Text(self.build_out + "\n\n", style="bold red" if bad else "green") + t
         self.query_one("#msgs_t").update(t if t.plain else Text("no warnings", style="green"))
 
@@ -533,7 +541,9 @@ class Builder(App):
             self.refresh_msgs()
             self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
             return
-        self.build_out = "building... (about 10 s)" + (", then the emulator" if then_emu else "")
+        self.source = ST.source_line(C.ROOT)
+        self.build_out = ("building... (about 10 s)" + (", then the emulator" if then_emu else "") +
+                          f"\n  {self.source}")
         self.refresh_msgs()
         self.run_build(dict(self.cfg), self.cfg_name, then_emu)
 
@@ -559,19 +569,21 @@ class Builder(App):
         tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
         tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
         res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
-        text = res + "\n" + "\n".join(lines + tail)
+        text = res + "\n" + "\n".join(lines + tail) + f"\n  {self.source}"
         built = None
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
-            built = F.last_package()
-            if built and built.stat().st_mtime >= started - 1:
-                text += "\n  f: Flash to FM-1 (shows both identities, asks first)"
-            else:
-                built = None
+            named = F.last_package()
+            if named and named.stat().st_mtime >= started - 1:
+                built = ST.Stamp(named, C.cfg_hash(cfg), name)
+                text += "\n  f: Flash to FM-1 (this build only; shows both identities and its commit, asks first)"
             if then_emu:
                 text += "\n" + self.launch_emu()
         elif then_emu:
             text += "\n  emulator: not started (no package that fits)"
+        stale = ST.changed_code(self.code0)
+        if stale:
+            text += f"\n  WARNING: the builder's own code changed since it started ({', '.join(stale)}): {ST.RESTART}"
         self.call_from_thread(self.show_build, text, sizes, built)
 
     def launch_emu(self):
@@ -589,21 +601,25 @@ class Builder(App):
         return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
     def show_build(self, text, sizes, built=None):
-        self.built_pkg = built if text.startswith("BUILD OK") else None
+        self.built = built if text.startswith("BUILD OK") else None
         self.build_out = text                            # stays in the panel until the next b
         self.refresh_msgs()
         failed = not text.startswith("BUILD OK")
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
     def action_flash(self):
-        """F: Flash to FM-1. The last successful build's package (else the newest build/optimist-*.fwsc); the FM-1's
-        running identity is read first (fm1_install.py --info), then a confirmation screen; nothing is written
-        before the answer"""
-        pkg = self.built_pkg if self.built_pkg and Path(self.built_pkg).is_file() else F.last_package()
-        if pkg is None:
-            self.notify("no build to flash: build first (b)", title="flash", severity="error", timeout=8)
+        """F: Flash to FM-1. Only the package this menu's last successful build made, of the configuration shown now,
+        by the builder code running now (stamp.refusal; never an older build/optimist-*.fwsc); the FM-1's running
+        identity is read first (fm1_install.py --info), then a confirmation screen with the package's commit;
+        nothing is written before the answer"""
+        why = ST.refusal(self.built, C.cfg_hash(self.cfg), self.code0)
+        if why:
+            self.build_out = f"FLASH REFUSED\n  {why}"
+            self.refresh_msgs()
+            self.notify(why, title="flash refused", severity="error", timeout=10)
             return
-        self.build_out = f"flash: reading the FM-1's identity... ({Path(pkg).name})"
+        pkg = self.built.package
+        self.build_out = f"flash: reading the FM-1's identity... ({pkg.name})"
         self.refresh_msgs()
         self.run_flash_preflight(pkg)
 

@@ -28,12 +28,20 @@ its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its lice
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
 
 **Flash to FM-1.** After a build that fits, the panel says `f: Flash to FM-1`. `f` reads the running identity of the connected
-FM-1 (`tools/fm1_install.py --info`) and opens a confirmation screen with it, the package (the last build, `build/optimist-*.fwsc`)
-and how to recover (OPTIMIST.md, "Rescue, going back"); *Cancel* is the first line and escape cancels, so nothing is written
+FM-1 (`tools/fm1_install.py --info`) and opens a confirmation screen with it, the package (this menu's last build,
+`build/optimist-*.fwsc`), the commit and configuration it was built from (its SOURCE.txt; a NOTE when the checkout has
+moved on since), and how to recover (OPTIMIST.md, "Rescue, going back"); *Cancel* is the first line and escape cancels, so nothing is written
 before you pick *Flash to FM-1*. Then it runs `fm1_install.py PACKAGE --yes` (the web installer's update; never `--force`) and the
 panel shows the result. No FM-1 found, mido or python-rtmidi missing (`make setup` installs them into the venv), a package that is not an
-Optimist build: refused in the panel. The same without the menu: `python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash`
-(BUILDING.md).
+Optimist build: refused in the panel. `f` flashes only a package this menu built of the configuration it shows, with
+the builder code it runs (`tools/builder/stamp.py`): no build yet in this menu, a configuration changed since the build
+(a profile loaded or edited, an item toggled), the package replaced by another build in the checkout, or the builder's
+own files changed on disk since it started (the panel then says THIS BUILDER IS OUT OF DATE: quit and run `make builder`
+again): FLASH REFUSED, nothing read or written; never an older `build/optimist-*.fwsc`. (2026-10-12: a menu left open
+for 21 hours flashed a 4-hour-old build of another commit and an older profile as "the last build", and the FM-1 went to
+its USB rescue.) The builder builds the checkout it runs in, at the commit it is on (no branch choice); the top line
+and every build's result show `source: <path> <branch>@<commit>`. The same without the menu:
+`python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash` (BUILDING.md; it shows the package's commit too).
 
 A configuration error marks the lines of the items it concerns as soon as it holds, in red after the item
 (`✗ the drum track needs a drum source: …`; an option's error marks its parent too, in case it is folded),

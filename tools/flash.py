@@ -12,12 +12,15 @@ device access goes through run_tool() (fm1_install.py in a subprocess), which th
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(HERE / "builder"))               # (stamp: the commit a package was built from)
 import fm1_install as FI  # noqa: E402
+import stamp  # noqa: E402
 
 TOOL = HERE / "fm1_install.py"
 OPTIMIST_ID = re.compile(r"FM-1_7\d\d")                  # (Optimist's own identity; SLOOP / Felucca are FM-1_9XX)
@@ -34,12 +37,14 @@ class FlashError(Exception):
 
 
 class Plan:
-    def __init__(self, package, product, running, port):
+    def __init__(self, package, product, running, port, notes=()):
         self.package, self.product, self.running, self.port = Path(package), product, running, port
+        self.notes = list(notes)                         # where the package comes from, and what to know about it
 
     def lines(self):
         return [f"package:  {self.package.name}  ({self.product})",
                 f"          {self.package}",
+                *self.notes,
                 f"running:  {self.running}",
                 "",
                 "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
@@ -91,18 +96,56 @@ def check_package(path):
     return product
 
 
-def preflight(package, port=None):
+SOURCE_RE = re.compile(r"at ([0-9a-f]{7,40})( \(with uncommitted changes\))?.*\nbuild configuration: (\S+)"
+                       r"(?: hash ([0-9a-f]{8}))?")
+
+
+def package_source(path):
+    """-> {"commit", "dirty", "name", "hash"} of a build's package, read from the SOURCE.txt of the -ui.zip that
+    tools/build.py leaves beside it, or None (no sidecar: a download, a copy)"""
+    p = Path(path)
+    ui = p.with_name(p.stem + "-ui.zip")
+    try:
+        with zipfile.ZipFile(ui) as z:
+            text = z.read("SOURCE.txt").decode("utf-8", "replace")
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return None
+    m = SOURCE_RE.search(text)
+    if not m:
+        return None
+    return {"commit": m[1], "dirty": bool(m[2]), "name": m[3], "hash": m[4] or ""}
+
+
+def source_notes(path, root=ROOT):
+    """the lines the confirmation shows about where a package comes from: its commit and configuration, and when
+    the checkout has moved on since it was built (the package is then an older firmware than the tree)"""
+    src = package_source(path)
+    if src is None:
+        return ["built:    (unknown: no -ui.zip beside the package)"]
+    out = [f"built:    {src['name']} (config {src['hash'] or '?'}) from {src['commit'][:7]}"
+           + (" with uncommitted changes" if src["dirty"] else "")]
+    now = stamp.head(root)[0]
+    if now and not now.startswith(src["commit"]):
+        behind = stamp.git(root, "rev-list", "--count", f"{src['commit']}..{now}")
+        out.append(f"NOTE      the checkout is at {now[:7]} now" + (f", {behind} commit(s) newer" if behind else "")
+                   + ": this package is an older build (build again for the newest)")
+    return out
+
+
+def preflight(package, port=None, notes=None):
     """-> Plan; FlashError (with an exit code) when the package or the FM-1 is not right. Reads the FM-1's
-    identity (fm1_install.py --info); writes nothing"""
+    identity (fm1_install.py --info); writes nothing. notes: the lines about the package's source (default:
+    source_notes, from its -ui.zip)"""
     if package is None:
         raise FlashError("no build to flash: build/ has no optimist-*.fwsc (python tools/optimist.py build, "
                          "or give a PACKAGE.fwsc)")
     product = check_package(package)
+    notes = source_notes(package) if notes is None else notes
     rc, text = run_tool(["--info", *(["--port", port] if port else [])])
     if rc:
         raise FlashError(("no FM-1 found over USB-MIDI (data cable? another app using it?): " if rc == 3
                           else f"cannot read the FM-1's identity (exit {rc}): ") + text, rc)
-    return Plan(package, product, text, port)
+    return Plan(package, product, text, port, notes)
 
 
 def install(plan, capture=True):

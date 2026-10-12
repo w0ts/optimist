@@ -1112,6 +1112,10 @@ job; ( jobin
     run "CPU guard with the X0X kits: their channels in the model, the drum tails at quality, never a drum shed" "$OUT/cpuguard_x0x_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -o "$OUT/cpuguard_fdn8_test" tests/cpuguard_test.c -lm
+    run "CPU guard with FDN8 alone in the pool (the mots profile): the REVERB level fades the tail out and clears its 32 KB line" "$OUT/cpuguard_fdn8_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "CPU guard: its cost model is the one tests/cpu_baseline.txt and costs.json give" python3 tools/builder/cpu_costs.py --check
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -1152,6 +1156,9 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" early_out t_builder
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    run "builder flash guard: no flash of a stale or other build, the package's source shown" python3 tests/builder_flash_guard_test.py
 ) >"$U.out" 2>&1 & jobbg
 # (the menu needs Textual: tools/menuconfig makes this venv; BUILDER_VENV, ./tools/builder/venv, in a git worktree the main checkout's)
 job; ( jobin

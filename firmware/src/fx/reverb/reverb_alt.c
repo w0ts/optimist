@@ -76,12 +76,17 @@ static struct {                 /* (one tank runs at a time: PLATE's and FDN8's 
 #define RV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7])
 #endif
 
-AINL int32_t rv_sat(int32_t x) { return clamp(x, -32768, 32767); }
+AINL int32_t rv_sat(int32_t x)                          /* (min, then max: two instructions, no branch) */
+{
+    int32_t t = x < 32767 ? x : 32767;
+    return t > -32768 ? t : -32768;
+}
 #define RV_RT 32                 /* FDN8's random rounding down to this size, toward 0 below */
 /* a * b / 2^15: rounded at random (u: uniform 0 .. 2^15 - 1) while |a| >= RV_RT, toward 0 below it */
 AINL int32_t rv_rnd(int32_t a, int32_t b, int32_t u)
 {
-    return (a >= RV_RT || a <= -RV_RT) ? (a * b + u) >> 15 : mul_tz(a, b);
+    int32_t p = a * b;                                   /* (one add of a select: no branch in the FDN8 lines) */
+    return (p + ((uint32_t)(a + RV_RT - 1) < 2u * RV_RT - 1u ? (p >> 31) & 0x7FFF : u)) >> 15;
 }
 /* a Schroeder allpass of len samples at base, coefficient g (Q15): v = x + g b stored, out b - g v */
 AINL int32_t rv_ap(int32_t x, uint32_t base, uint32_t len, int32_t g, int32_t *wr)
@@ -363,16 +368,14 @@ AINL void rv_lfo(void)          /* per block: each line's read, D whole samples 
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
-    int32_t x = rv_sat(mulq15(in, rv.in)), g1 = rv.g1, g2 = rv.g2, o0, o1, o2, o3, o4, o5, o6, o7;
-    int32_t f0, f1, f2, f3, f4, f5, f6, f7, s, w, l, r;
+    int32_t x = rv_sat(mulq15(in, rv.in)), g1 = rv.g1, g2 = rv.g2, f[8], s = 0, w, l, r, any = x;
     uint32_t rq = rv.rq;
     RV_WR(RB_PD, x);                                     /* the pre-delay */
-    *wr |= x;
     x = RV_RD(RB_PD, rv.pd);
-    x = rv_ap(x, RB_IA, RV_IA, g1, wr);
-    x = rv_ap(x, RB_IB, RV_IB, g1, wr);
-    x = rv_ap(x, RB_IC, RV_IC, g2, wr);
-    x = rv_ap(x, RB_ID, RV_ID, g2, wr);
+    x = rv_ap(x, RB_IA, RV_IA, g1, &any);
+    x = rv_ap(x, RB_IB, RV_IB, g1, &any);
+    x = rv_ap(x, RB_IC, RV_IC, g2, &any);
+    x = rv_ap(x, RB_ID, RV_ID, g2, &any);
     /* a line: D samples back, then a first-order allpass for the fraction (Dattorro: a flat response, no treble
      * lost to the modulation as through a linear interpolation; its correction to the nearest: |eta| <= 1/3, at 0
      * in it still shrinks to 0; held to int16, the low-pass' product fits),
@@ -380,22 +383,25 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
      * and the gain's products round at random (floor of the product plus a uniform 0 .. 2^15 - 1: unbiased, the
      * error a noise with no pattern): rounding toward 0 took ~1/2 LSB a product, a fixed hiss floor ~12 dB higher
      * and a tail that sank out early below ~-50 dB. A 0 still stays 0 (0 + u < 2^15), and a lone small value
-     * dies at random, so the tail still rings out to exactly 0 */
-#define RV_LN(k) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1); \
-                   o##k = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); } \
-                 rq = rq * 1664525u + 1013904223u; \
-                 rv.lp[k] = o##k + rv_rnd(rv.lp[k] - o##k, rv.kl[k], (int32_t)(rq >> 17)); \
-                 f##k = rv_rnd(rv.lp[k], rv.gain[k], (int32_t)((rq >> 2) & 0x7FFFu))
-    RV_LN(0); RV_LN(1); RV_LN(2); RV_LN(3); RV_LN(4); RV_LN(5); RV_LN(6); RV_LN(7);
+     * dies at random, so the tail still rings out to exactly 0.
+     * Few values live at once (2026-10-12, revcrack: the eight o and eight f held to the end spilled ~140 words a
+     * sample to the stack on the target): each line adds its o to the outputs and its f to the sum at once, the
+     * f kept in a small array for the writes. The same sums, the same samples */
+#define RV_LN(k, ol) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1), o_, lp_; \
+                       o_ = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); \
+                       rq = rq * 1664525u + 1013904223u; \
+                       lp_ = rv.lp[k] = o_ + rv_rnd(rv.lp[k] - o_, rv.kl[k], (int32_t)(rq >> 17)); \
+                       s += f[k] = rv_rnd(lp_, rv.gain[k], (int32_t)((rq >> 2) & 0x7FFFu)); \
+                       ol; }
+    RV_LN(0, l = o_); RV_LN(1, r = o_); RV_LN(2, l -= o_); RV_LN(3, r -= o_);
+    RV_LN(4, l += o_); RV_LN(5, r += o_); RV_LN(6, l -= o_); RV_LN(7, r -= o_);
 #undef RV_LN
-    s = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7;
     s = (s + ((s >> 31) & 3)) >> 2;                      /* 2/8 of the sum, toward 0 */
     rv.rq = rq;
-#define RV_WL(k, v) w = rv_sat(s - f##k + (v)); RV_WR(RB_##k, w); *wr |= w
+#define RV_WL(k, v) w = rv_sat(s - f[k] + (v)); RV_WR(RB_##k, w); any |= w
     RV_WL(0, x); RV_WL(1, -x); RV_WL(2, x); RV_WL(3, -x); RV_WL(4, x); RV_WL(5, -x); RV_WL(6, x); RV_WL(7, -x);
 #undef RV_WL
-    l = o0 - o2 + o4 - o6;
-    r = o1 - o3 + o5 - o7;
+    *wr |= any;
     rv.p--;
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
@@ -409,11 +415,9 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #undef RV_OUT
 #endif
 
-static void rv_clear(void)                               /* the ring and the filters to 0 (fx.c rev_tank_clear) */
+static void rv_cells_clear(void)                         /* the filters to 0, not the ring (fx.c rev_cells_clear) */
 {
     uint32_t i;
-    for (i = 0; i < sizeof rev_line / 2u; i++)
-        rev_line[i] = 0;
     for (i = 0; i < 8u; i++)
         rv.lp[i] = 0;
 #if FELUCCA_REV_FDN8

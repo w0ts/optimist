@@ -127,7 +127,7 @@ FX_STEP int32_t rva_step(int32_t in, int32_t *yr, int32_t *wr)
     return mulq15(l, RVA_OUT) << 2;
 }
 #undef RVA_STAGE
-static void rva_clear(void)                              /* (the ring and rv.lp: reverb_alt.c rv_clear) */
+static void rva_clear(void)                              /* (its filters: reverb_alt.c rv_cells_clear) */
 {
     rva.f[0] = rva.f[1] = rva.f[2] = rva.f[3] = 0;
 }
