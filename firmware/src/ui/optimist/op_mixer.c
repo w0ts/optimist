@@ -12,7 +12,7 @@
  *              DUST DUCK | THRS RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
- *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
+ *   SAVE       PROJECT (always: the mixer has no YES, D6); FX on and MUTE are knobs, the SOUND row is EDIT's first
  * The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP): DRIVE when DIST is in no slot (the
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
@@ -297,34 +297,12 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     else
         val_turn(d, vp, k, s, fine);
 }
-static void mx_open_sound(uint32_t r)                   /* the row's SOUND rows (a lane: that lane's) */
-{
-    if (r == MXR_MASTER) {
-        op_enter(SCR_FX);                               /* (the master's: the FX screen) */
-        return;
-    }
-    if (r >= MXR_LANE0)
-        lane_select(r - MXR_LANE0);
-    ui.lane = (uint8_t)(r >= MXR_LANE0);                /* (SOUND on the lane, or on DR: its PRESETS the kit) */
-    op_enter(SCR_SOUND);
-    ui.row[SCR_SOUND] = 0;                              /* (the SOUND row first: the sound, then its pages) */
-}
+/* YES on the mixer: none (the user, 2026-10-12, D6: SAVE tapped there is PROJECT, always, op_input.c). FX on and MUTE are
+ * knobs; a row's SOUND row is EDIT's first; MASTER's effects are FX on its row */
 static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    mitem_t m;
-    int16_t *vp;
-    (void)ok;
-    r %= MXR_N;
-    if (mx_item(r, k, &m)) {
-        if ((m.kind == MI_TRK || m.kind == MI_GLOB) && val_toggle(mx_desc(r, &m, &vp), vp))
-            return 1;                                   /* (FX: on / dry, MUTE) */
-        if (m.kind == MI_LMUTE) {
-            dlm_set_mute(r - MXR_LANE0, !dlm_muted(r - MXR_LANE0));
-            return 1;
-        }
-    }
-    mx_open_sound(r);
-    return 1;
+    (void)r, (void)k, (void)ok;
+    return 0;
 }
 
 /* ---- ALGORITHM, SELECT on the mixer (op_input.c) */

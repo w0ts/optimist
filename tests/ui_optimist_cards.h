@@ -57,7 +57,7 @@ static void cards_tests(void)
           "the cards 2x2 off the mixer: the band 93, the panel 117: 5 rows, graph 40, STEP, tiles, scope and modal inside");
     tap(B_ENV);                                         /* SOUND with a graph (the envelope) */
     check(cards_screen_ok(SCR_SOUND, "sound-env"), "cards 2x2: SOUND with its graph (ENV)");
-    mix_to_sound();                                     /* the mixer, YES on the track: every row */
+    sound_all();                                     /* the mixer, YES on the track: every row */
     n = SCR->rows();
     for (r = 1; r < n && row_nograph == 0xFF; r++)
         if (snd_page(r) && !snd_graph_page(r))

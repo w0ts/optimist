@@ -34,8 +34,8 @@ static void mute_tests(void)
     ui.hot = 0;
     ui.hot_lit = 1;
     tap(B_SAVE);
-    check(trk[1].p[P_MUTE] == 1 && ui.scr == SCR_HOME, "... YES on the MUTE card toggles it (no SOUND screen)");
-    trk[1].p[P_MUTE] = 0;
+    check(trk[1].p[P_MUTE] == 0 && ui.scr == SCR_PROJECT, "... SAVE with the MUTE card hot: PROJECT, the mute untouched (D6)");
+    tap(B_HOME);
     song.sel = TRK_DRUM;
     frames(2);
     mute_card(MXR_DR, &c);

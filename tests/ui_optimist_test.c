@@ -382,15 +382,25 @@ static int mix_find(const char *label)                  /* the cursor row's set 
     mx.set = 0;
     return 0;
 }
-static void mix_to_sound(void)                          /* the mixer, YES on the selected track's row: its SOUND */
+static void sound_all(void)                             /* SOUND, every row, the SOUND row first (the whole list, as
+                                                         * ALGORITHM back from MASTER leaves it; the mixer has no YES, D6) */
 {
     go_home();
     frame();
-    mx.set = 0;
-    ui.hot = 1;                                         /* (VOLUME: a value; KNOB 1 is MUTE, which YES toggles) */
-    ui.hot_lit = 1;
+    op_enter(SCR_SOUND);
+    ui.row[SCR_SOUND] = 0;
     frame();
-    tap(B_SAVE);
+}
+static uint32_t row_named(uint32_t scr, const char *name)   /* the row of screen scr named name, or its row count */
+{
+    uint32_t r, n = SCREENS[scr].rows();
+    char nm[12];
+    for (r = 0; r < n; r++) {
+        SCREENS[scr].name(r, nm);
+        if (!strcmp(nm, name))
+            break;
+    }
+    return r;
 }
 /* ---- keys and knobs */
 static void key_tests(void)
@@ -403,8 +413,8 @@ static void key_tests(void)
     ppm("opt-home");
     check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_T1 && song.sel == 0 && mx_set(MXR_T1) == 0,
           "power-on: the mixer, on T1's row (MASTER above it, out of view), its first knob set");
-    mix_to_sound();
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0, "the mixer, YES on a track's row: its SOUND rows, on the SOUND row");
+    sound_all();
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0, "SOUND, every row: on the SOUND row");
     (void)lv, (void)n;
     ui.force = 1;
     frame();
@@ -443,7 +453,11 @@ static void key_tests(void)
     ui.row[SCR_HOME] = MXR_MASTER;
     ui.hot_lit = 1;
     tap(B_SAVE);
-    check(ui.scr == SCR_FX, "MASTER's row, a cell picked, YES: the FX screen");
+    check(ui.scr == SCR_PROJECT, "MASTER's row, a cell picked, SAVE: PROJECT (the mixer has no YES, D6)");
+    go_home();
+    ui.row[SCR_HOME] = MXR_MASTER;
+    tap(B_FX);
+    check(ui.scr == SCR_FX, "MASTER's row, FX: the master FX screen");
     ui.force = 1;
     frame();
     ppm("opt-fx");
@@ -485,10 +499,11 @@ static void key_tests(void)
     check(lane_selected() == lane_of_key(4) && ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_LANE0 + lane_of_key(4),
           "HOME held + a drum key on the mixer: the lane picked, the cursor on its row, no NO");
     tap(B_EDIT);
-    check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND])->scope == SC_DSND, "drum track, EDIT: the lane's SOUND rows");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && snd_page(1)->scope == SC_DSND,
+          "drum track, EDIT: the SOUND row (KIT LANE), then the lane's SOUND rows (D7)");
     {
         int8_t t0 = dl.ofs[lane_selected()][DE_TUNE];
-        while (snd_page(ui.row[SCR_SOUND])->id[0] != 0)
+        while (!snd_page(ui.row[SCR_SOUND]) || snd_page(ui.row[SCR_SOUND])->id[0] != 0)
             tap(B_EDIT);
         turn(EN_K1, 2);
         check(dl.ofs[lane_selected()][DE_TUNE] == t0 + 2, "drum SOUND row: KNOB 1 TUNE of the selected lane");
@@ -643,6 +658,7 @@ static void confirm_tests(void)
     tap(B_SAVE);
     check(up_ops[1] == 1, "USER ERASE: asks, then erases");
     op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = (uint8_t)row_named(SCR_SYSTEM, "SCREEN");   /* (the first row is CPU, read-outs: D2) */
     ui.force = 1;
     frame();
     ppm("opt-system");
@@ -738,7 +754,7 @@ static void family_tests(void)
     check(ui.row[SCR_SOUND] == 0u, "ENV at the family's last row: its first again (a button again wraps)");
     turn(EN_SELECT, 50);
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
-    mix_to_sound();
+    sound_all();
     all = SCR->rows();
     check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && !snd_page(0) && all > n + 3u,
           "HOME > Sound: every row, the SOUND row first, as before");
@@ -746,9 +762,9 @@ static void family_tests(void)
     frame();
     tap(B_EDIT);
     n = SCR->rows();
-    for (r = 0, only = 1; r < n; r++)
+    for (r = 1, only = !snd_page(0); r < n; r++)
         only &= snd_page(r)->fam == FAM_EDIT;
-    check(only && snd_page(0)->scope == SC_DSND, "the drum track, EDIT: the lane's rows only");
+    check(only && snd_page(1)->scope == SC_DSND, "the drum track, EDIT: the SOUND row (KIT LANE), then the lane's rows only");
     tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
           "the drum track, ENV: the lane's ENV row (no drum editor built: the rows stay)");
@@ -2249,6 +2265,7 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 
 int main(int argc, char **argv)
 {
@@ -2324,6 +2341,7 @@ int main(int argc, char **argv)
     step_hold_tests();
     step_pitch_tests();
     led_tests();
+    pages_nav_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

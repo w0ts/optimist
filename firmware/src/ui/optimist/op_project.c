@@ -433,6 +433,8 @@ enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_I
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
+    {"CPU", {SI_MHZ, SI_CPU, SI_NONE, SI_NONE}},       /* first: the clock and the load (the user, 2026-10-12, D2: "in
+                                                         * system. freq+cpu load."; GLO, GLO opens on it) */
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -444,7 +446,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_BLE
     {"BLUETOOTH", {SI_BLE, SI_NONE, SI_NONE, SI_NONE}},   /* (the radio: ON / OFF, and what it is doing) */
 #endif
-    {"CPU", {SI_CPU, SI_MHZ, SI_NONE, SI_NONE}},
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
@@ -704,9 +705,11 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
 #endif
-    (void)ok;
-    if (it == SI_CALIB) {
-        panel_setup();                                  /* (op_input.c: teach each button and knob) */
+    if (it == SI_CALIB) {                               /* PANEL: asked first (it takes every button until the end) */
+        if (!ok)
+            op_arm(SCR_SYSTEM, r, k, "CALIBRATE", "PANEL", 0);
+        else
+            panel_setup();                              /* (op_input.c: teach each button and knob) */
         return 1;
     }
     if (it == SI_ABOUT) {

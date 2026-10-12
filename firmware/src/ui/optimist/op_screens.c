@@ -169,13 +169,14 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 /* ---- SOUND: the SOUND row, then the track's pages */
 /* A page button tapped shows only its family's rows (the user, 2026-10-08: "why I see env2 and slicer on the lfo
  * screen?"): LFO the LFO and LFO DEST rows, ENV the envelopes and their DEST rows, FX the track's effects, EDIT the
- * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). The mixer's SOUND row opens every row, the
- * SOUND row first, as before. snd_fam: the family shown, SND_ALL every row */
+ * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). EDIT's rows start with the SOUND row (PRESET
+ * ENGINE INIT SAVE AS; the drum track KIT LANE: the user, 2026-10-12, D7), as does the whole list (ALGORITHM back from
+ * MASTER). snd_fam: the family shown, SND_ALL every row */
 #define SND_ALL 0xFFu
 static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
-static uint32_t snd_first(void) { return snd_fam == SND_ALL ? 1u : 0u; }   /* the SOUND row: only in the whole list */
+static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT ? 1u : 0u; }   /* the SOUND row */
 /* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)

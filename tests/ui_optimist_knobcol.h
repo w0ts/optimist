@@ -9,6 +9,7 @@ static void knobcol_tests(void)
     knob_colors = 0;
     check(knob_colors == 0u && ((bp23_word() >> 25) & 1u) == 0u, "KNOB COLORS: off by default, bit 25 clear");
     op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = (uint8_t)row_named(SCR_SYSTEM, "SCREEN");   /* (CPU first: D2) */
     ui.force = 1;
     frame();
     turn(EN_K4, 1);
