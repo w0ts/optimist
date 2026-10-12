@@ -529,6 +529,7 @@ settings record before the song chain it names):
 | SNG1 | 8 / 16 sections: the whole song chain, up to 64 parts (count, loop, 2 spare bytes, then section and bars of each part) | 5 |
 | XSTP | 8 / 16 sections with FELUCCA_SL24_XSTEP: SLOOP 2.4's step extras (nudges, locks, fills) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u16 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO | 5 |
 | FXSL | 8 / 16 sections: the FX slots' records (fx_rec.c: the slot layout, later the inserts' amounts) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u8 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO | 5 |
+| DLFO | 8 / 16 sections: the drum lanes' LFO records (storage/dlfo_rec.c: each lane's RATE WAVE PHS FADE and two DEST + AMT slots, the lanes not at their defaults) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u8 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO. A firmware before it does not list it: the editor skips it there, and the sections load with every LFO off | 5 |
 | AUTO | the working project (autosave) | 0 |
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
 | UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
@@ -610,7 +611,9 @@ the editor shows no button. Nothing is written to flash.
   word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not; bit 1 (the mask's bit 15): an LFO RATE
   synced to the tempo (below 0, also in a lock), written as the free rate nearest that note value at the project's tempo
   (2.4 has no sync). A v11 request does not report it. Bit 2 (the mask's bit 16): the drum lanes' motion and locks (the
-  automation store's lane ids, below), which 2.4 has not: left out; a v11 request gets it on bit 13 (motion).
+  automation store's lane ids, below), which 2.4 has not: left out; bit 3 (the mask's bit 17): a drum lane's LFO acting
+  (one LFO a lane, the DLFO object below), which 2.4's drums have not: left out. A v11 request gets bits 2 and 3 on bit 13
+  (motion).
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two

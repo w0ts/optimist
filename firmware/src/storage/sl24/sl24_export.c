@@ -69,8 +69,10 @@ enum {                                                  /* what an export lost (
     SX24_CHANCE = 16384,                                /* (the steps' chance: the first bit of the second word, which an
                                                          * editor asks for with SL24_GET's flag; ed_sl24.c) */
     SX24_LSYNC = 32768,                                 /* (the LFO's RATE synced: the second word's bit 1) */
-    SX24_LAUTO = 65536                                  /* (the drum lanes' motion and locks, seq/auto.h AUTO_LANE: the
+    SX24_LAUTO = 65536,                                 /* (the drum lanes' motion and locks, seq/auto.h AUTO_LANE: the
                                                          * second word's bit 2; a v11 editor gets it as MOTION) */
+    SX24_DLFO = 131072                                  /* (a drum lane's LFO acting, drums/lane_play.c: 2.4's drums have
+                                                         * none; the second word's bit 3; a v11 editor: MOTION) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,

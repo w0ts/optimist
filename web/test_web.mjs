@@ -1727,6 +1727,10 @@ async function editorSl24Lost2() {
       "sl24Lost: the second word's bit 1 is the LFO's sync (sl24_export.c SX24_LSYNC), with its text");
     ok(E.sl24Lost(0, 4, true).join() === "lauto" && html.includes("s24L_lauto:"),
       "sl24Lost: the second word's bit 2 is the drum lanes' motion and locks (SX24_LAUTO), with its text");
+    ok(typeof E.BK.NAMES.DLFO === "string" && E.bkPlan({ objects: [{ tag: "DLFO", kind: "log", data: [1] }] }, { objs: [], caps: {} })[0].why === "bkUnknown",
+      "backup: the DLFO object (drum lane LFOs) has its name; a firmware that does not list it (an older one): skipped, bkUnknown");
+    ok(E.sl24Lost(0, 8, true).join() === "dlfo" && E.sl24Lost(0, 12, true).join() === "lauto,dlfo" && html.includes("s24L_dlfo:"),
+      "sl24Lost: the second word's bit 3 is a drum lane's LFO (SX24_DLFO), with its text");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {

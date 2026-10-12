@@ -260,6 +260,7 @@ static int proj_from_va(project_t *q, const void *b, int n)
 #include "auto_proj.c"         /* each project buffer's automation store (seq/auto.c: motion, locks, nudges, fills) */
 #endif
 #include "../fx/fx_rec.c"            /* the FX slots' record: each project buffer's store (fx_slots.c) */
+#include "dlfo_rec.c"               /* the drum lanes' LFO record: each project buffer's store (drums/lane_play.c) */
 
 /* ---- old formats -> format 4 */
 /* an old step into a synth step (no level, no ratchet) */
@@ -863,6 +864,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     pat_mark(p, 0);                                     /* the tracks' pattern sources with it (pat.c) */
 #endif
     fxr_capture_store(p);                               /* its FX slots (fx_rec.c) */
+    dlr_capture_store(p);                               /* its drum lanes' LFOs (dlfo_rec.c) */
 }
 
 /* a project's tracks (and its globals, all: a load; or only the drum level: a song section) into the
@@ -969,6 +971,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
     fxr_apply_store(p, all);                            /* its FX slots (fx_rec.c; the layout with a load only; none:
                                                          * after the tracks, which the layout of an older one reads) */
+    dlr_apply_store(p);                                 /* its drum lanes' LFOs (dlfo_rec.c; none: every LFO off) */
     MISS_BUMP();                                        /* the main loop says what this build lacks (miss.c) */
 }
 
@@ -1137,7 +1140,7 @@ static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
-    h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf);   /* (the sum covers the drum record) */
+    h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf) ^ DLR_HASH(&autosave_buf);   /* (the sum covers the drum record) */
 #if FELUCCA_PATTERNS
     if (audio_quiet())
         pat_state_save();                               /* the tracks' pattern sources (pat.c), when they changed */
@@ -1151,6 +1154,7 @@ static void autosave_tick(void)                /* main loop */
 #endif
 #if SEC_LOGGED
         (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
+        (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its LFO record (dlfo_rec_log.c) */
 #endif
         autosave_hash = h;
     }
@@ -1173,6 +1177,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 #endif
 #if SEC_LOGGED
     fxr_log_get(FXR_ID_AUTO, q->sum, q);                /* its FX record (fx_rec_log.c), applied with it */
+    dlr_log_get(DLR_ID_AUTO, q->sum, q);                /* its LFO record (dlfo_rec_log.c), applied with it */
 #endif
     proj_apply(q, &autosave_dl, 1);
     autosave_hash = q->sum ^ AUTO_HASH();
@@ -1265,11 +1270,15 @@ static void persist_boot(void)                    /* before settings_init / pane
 {
     (void)fxr_for(&proj_tmp.cur, 1);               /* the FX records' stores (fx_rec.c): bound now, never taken at */
     (void)fxr_for(&autosave_buf, 1);               /* run time */
+    (void)dlr_for(&proj_tmp.cur, 1);               /* (and the LFO records', dlfo_rec.c) */
+    (void)dlr_for(&autosave_buf, 1);
 #if SEC_LOGGED
     (void)fxr_for(&sec_stage_p, 1);
+    (void)dlr_for(&sec_stage_p, 1);
 #endif
 #if FELUCCA_ARRANGER
     (void)fxr_for(&song_keep, 1);
+    (void)dlr_for(&song_keep, 1);
 #endif
 #if FELUCCA_AUTO
     auto_init();                                   /* the working automation: none (auto_proj.c) */
@@ -1582,7 +1591,7 @@ static void persist_flush_now(void)
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
         uint32_t h;
         proj_capture(&autosave_buf, &autosave_dl);
-        h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf);   /* (as autosave_tick) */
+        h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf) ^ DLR_HASH(&autosave_buf);   /* (as autosave_tick) */
         if (h != autosave_hash && proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
             MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
 #if FELUCCA_AUTO && SEC_LOGGED
@@ -1590,6 +1599,7 @@ static void persist_flush_now(void)
 #endif
 #if SEC_LOGGED
             (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
+            (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its LFO record (dlfo_rec_log.c) */
 #endif
             autosave_hash = h;
         }

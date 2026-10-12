@@ -187,6 +187,7 @@ static int lane_knob(uint32_t l, uint32_t v, int32_t x)
         auto_w.on |= (uint8_t)(1u << TRK_DRUM);
         dla.hv[l][v] = (int8_t)x;                            /* (heard at once, until the pass's end) */
         dla.hm[l] |= (uint8_t)(1u << v);
+        dla.any |= 1u;
     }
     fm1_irq_on();
     return (int)rc;

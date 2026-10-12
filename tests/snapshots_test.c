@@ -428,6 +428,9 @@ static void power_cycle(void)
     fxs_set(FXS_DEF);                                 /* (the FX slots as at power-on, no store belongs to a project) */
     for (i = 0; i < FXR_AUX; i++)
         fxr_aux[i].psum = 0;
+    for (i = 0; i < DLR_AUX; i++)                     /* (the drum lanes' LFOs the same: every one off) */
+        dlr_aux[i].psum = 0;
+    (void)dlfo_decode(0, 0);
     arr_from_rec(&arrangement, &saved_rec);
 #if SEC_LOGGED
     song_tag = (uint16_t)arr_tag_of(&saved_rec);
@@ -455,6 +458,7 @@ static void power_cycle(void)
 #endif
 #if SEC_LOGGED
         fxr_log_get(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf);
+        dlr_log_get(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf);
 #endif
         project_apply(&autosave_buf, &autosave_dl);
     }
@@ -977,6 +981,93 @@ int main(int argc, char **argv)
 #endif
 #endif
     }
+    {   /* the drum lanes' LFO record (storage/dlfo_rec.c, dlfo_rec_log.c): the work's and each section's in the stream, back
+         * with a load and a restart, through the editor's backup (DLFO) */
+        sn_info_t in;
+        uint32_t at, kind, id, nn, b, nd = 0, k;
+        fresh_flash();
+        for (k = 0; k < 3u; k++) {
+            make(30u + k);
+            (void)dlfo_decode(0, 0);
+            dlfo_field_set(k, DLF_DEST1, 1u + k);
+            dlfo_field_set(k, DLF_AMT1, 20 + (int32_t)k);
+            dlfo_field_set(k + 4u, DLF_RATE, -3);
+            project_save(k);
+        }
+        make(35);
+        (void)dlfo_decode(0, 0);
+        dlfo_field_set(9, DLF_DEST2, DE_LEVEL + 1u);
+        dlfo_field_set(9, DLF_AMT2, -30);
+        dlfo_field_set(9, DLF_WAVE, 4);
+        proj_capture(&autosave_buf, &autosave_dl);
+        if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
+            MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if SEC_LOGGED
+            (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);
+#endif
+        }
+        check("lane LFOs: a snapshot of a work and sections with their own drum lane LFOs", sn_save(0, 0) == SNE_OK);
+        sn_info(0, &in);
+        for (at = in.ilen; sn_next(&sn.slot[0], &at, &kind, &id, &nn, &b) > 0;)
+            nd += kind == SNR_DLFO;
+        check("... the LFO records of their own: the work's and each section's (SECTIONS 4: the work's)", nd == (SEC_LOGGED ? 4u : 1u));
+        make(36);
+        (void)dlfo_decode(0, 0);
+        check("... loaded after other work: the work's LFOs (lane 10: DEST2 LEVEL, AMT2 -30, S&H), the rest off",
+              sn_load(0) == SNE_OK && dlfo_field(9, DLF_DEST2) == DE_LEVEL + 1 && dlfo_field(9, DLF_AMT2) == -30 &&
+              dlfo_field(9, DLF_WAVE) == 4 && dlfo_live(9) && !dlfo_live(0));
+        power_cycle();
+        check("... a power cycle: the work's LFOs (the autosave's record; SECTIONS 4: none in flash, every LFO off)",
+              SEC_LOGGED ? dlfo_field(9, DLF_AMT2) == -30 : !dlfo_any_live());
+#if SEC_LOGGED
+        for (k = 0, nn = 1; k < 3u; k++) {
+            project_load(k);
+            nn &= dlfo_field(k, DLF_DEST1) == (int32_t)(1u + k) && dlfo_field(k, DLF_AMT1) == 20 + (int32_t)k &&
+                  dlfo_field(k + 4u, DLF_RATE) == -3 && !dlfo_live(9);
+        }
+        check("... each section loads its own LFOs", nn);
+#if !FELUCCA_MOTION
+        {   /* the backup: the sections, the autosave, the drum records and DLFO, into a wiped device */
+            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "DLFO"};
+            static uint8_t d[6][SEC_REC_MAX + 64];
+            int ix[6];
+            uint32_t ln[6], rc = 0;
+            uint8_t z[1] = {0};
+            for (k = 0, nn = 1; k < 6u; k++) {
+                ix[k] = bk_find(TAG[k]);
+                ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
+                nn &= ix[k] >= 0 && ln[k] > 0u;
+            }
+            check("backup: DLFO (a raw log object) is listed with data beside the sections, AUTO and DLNS", nn);
+            fresh_flash();
+            for (k = 0; k < 6u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            power_cycle();
+            nn = dlfo_field(9, DLF_AMT2) == -30;
+            project_load(1);
+            check("... written back into a wiped device, a restart: the work's and section B's LFOs",
+                  rc == 0 && nn && dlfo_field(1, DLF_DEST1) == 2 && dlfo_field(1, DLF_AMT1) == 21);
+            fresh_flash();
+            for (k = 1; k < 5u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);      /* (a backup without DLFO, as an older firmware's) */
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            power_cycle();
+            project_load(1);
+            check("... a backup without it (an older firmware's): the sections and the work load with every LFO off",
+                  !dlfo_any_live() && !slg_has(DLR_ID0 + 1u));
+            fresh_flash();
+            d[5][0] = 17u;                             /* (an id past the autosave's) */
+            rc = bk_put(ix[5], d[5], ln[5]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            check("... a DLFO object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(DLR_ID0));
+        }
+#endif
+#endif
+    }
     /* damaged, FULL, USR3 in the way */
     fresh_flash();
     state_make(0);
@@ -1071,7 +1162,7 @@ int main(int argc, char **argv)
 #if BK_ALL_ON
         /* (run_tests.sh: every switch that adds a BK_OBJS entry on at once, a new one goes into that line too; BK_ALL_ON =
          * the bytes of the builder's item bits, as the target has them, FELUCCA_CFG_BITS sized to it) */
-        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "UPF6", "FM6B", "CZBK", "SNAP"};
+        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "DLFO", "UPF6", "FM6B", "CZBK", "SNAP"};
         for (k = 0, ok = 1; k < sizeof all / sizeof all[0]; k++)
             ok &= bk_list_find(all[k], NULL, NULL, NULL, NULL) >= 0;
         for (k = 0; k < BK_N; k++)

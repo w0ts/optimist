@@ -387,6 +387,13 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DDLA_ON=0 -o "$OUT/lane_auto_old" tests/lane_auto_test.c -lm
     run "drum lane motion and locks read by a build that does not play them (DLA_ON 0): kept through every form, none heard, the render as without them, the track's own events played, MISS: LANE MOTION" "$OUT/lane_auto_old"
 ) >"$U.out" 2>&1 & jobbg
+# the drum lanes' LFOs (drums/lane_play.c, core/lfo_slot.h, storage/dlfo_rec.c, sections/dlfo_rec_log.c), and a build that does not play them
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lane_lfo_test" tests/lane_lfo_test.c -lm
+    run "drum lane LFOs: off (no slot acting) costs nothing and renders as none, the value at the hit as figured, two slots, with a lock, synced 1BAR over 8 bars at 2 tempos, restart at PLAY, FADE, stopped, the record (forms, versions, a section, the autosave, an older section), the 2.4 lost bit, the cost" "$OUT/lane_lfo_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DDLFO_ON=0 -o "$OUT/lane_lfo_old" tests/lane_lfo_test.c -lm
+    run "drum lane LFOs in a build that does not play them (DLFO_ON 0): kept through the record, never heard (the render as without), MISS: LANE LFO" "$OUT/lane_lfo_old"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON $SEC4 -o "$OUT/ui_pages_sl24_test" tests/ui_pages_test.c -lm
     run "live UI with the SLOOP 2.4 sequencer switches on (tests/sl24seq_ui.c: nudge, fill conditions, GLO fills, FX bypass on black keys)" "$OUT/ui_pages_sl24_test" "$OUT"

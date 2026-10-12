@@ -40,7 +40,8 @@
 #else
 #define SEC_PEND_FX SEC_PEND_PAT
 #endif
-#define SEC_PEND_N (SEC_PEND_FX + SEC_IDS)             /* (and each section's FX record: SEC_PEND_FX + id, fx_rec_log.c) */
+#define SEC_PEND_DL (SEC_PEND_FX + SEC_IDS)            /* (and each section's FX record: SEC_PEND_FX + id, fx_rec_log.c) */
+#define SEC_PEND_N (SEC_PEND_DL + SEC_IDS)             /* (and its drum lane LFO record: SEC_PEND_DL + id, dlfo_rec_log.c) */
 typedef struct {
     uint32_t magic, sum;
     uint16_t len[SEC_PEND_N], off[SEC_PEND_N];         /* per section: its pending record (len 0: none) */
@@ -123,6 +124,7 @@ static int sx_sec_read(uint32_t s, const project_t *p, uint32_t key)
 #define SX_SEC_READ(s, p, key) 1
 #endif
 #include "../../fx/fx_rec_log.c"        /* the FX slots' record: a record of its own beside each section's */
+#include "dlfo_rec_log.c"                /* the drum lanes' LFO record: one more beside each section's */
 static uint32_t sec_last_n = 500;                     /* (the MEM gauge: the last stored size, sec_mem) */
 #include "pat.c"               /* per-track patterns and scenes: a scene flattened as it is read (every build) */
 /* section s -> p and its drum record d; 0 empty or unreadable. A scene: its patterns put in (pat.c) */
@@ -157,6 +159,7 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
     else if (!SX_SEC_READ(s, p, key))                  /* section's: the FX set-up belongs to the scene) */
         return 0;
     fxr_sec_read(s, p, key);                           /* its FX record (fx_rec_log.c) */
+    dlr_sec_read(s, p, key);                           /* its drum lane LFO record (dlfo_rec_log.c) */
     return 1;
 }
 #if FELUCCA_ARRANGER
@@ -238,7 +241,8 @@ static uint32_t sec_capture(void)
 static uint32_t sec_pend_at(uint32_t j, uint32_t *lid)
 {
     uint32_t i = (j + SEC_PEND_PAT) % SEC_PEND_N;
-    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_FX ? FXR_ID0 + i - SEC_PEND_FX :
+    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_DL ? DLR_ID0 + i - SEC_PEND_DL :
+           i >= SEC_PEND_FX ? FXR_ID0 + i - SEC_PEND_FX :
            i >= SEC_PEND_PAT ? SEC_ID_PAT0 + i - SEC_PEND_PAT : SLG_IDS;
     return i;
 }
@@ -292,7 +296,7 @@ static void project_save(uint32_t slot)
     return;
 #endif
     if (!flash_ok) {
-        ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n) ? "MEM FULL" : "SAVED (RAM)");
+        ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n) || dlr_pend(s, n) ? "MEM FULL" : "SAVED (RAM)");
         sec_gen++;
         return;
     }
@@ -305,7 +309,10 @@ static void project_save(uint32_t slot)
 #endif
     if (!rc)                                           /* its FX record beside it (fx_rec_log.c) */
         rc = fxr_log_put(FXR_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
+    if (!rc)                                           /* its drum lane LFO record (dlfo_rec_log.c) */
+        rc = dlr_log_put(DLR_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc) {
+        sec_pend_del(SEC_PEND_DL + s);
         sec_pend_del(SEC_PEND_FX + s);
         sec_pend_del(s);
         sec_last_n = n;
@@ -347,7 +354,7 @@ static void section_store(uint32_t s)
         ui_message("MEM FULL");                        /* (nothing stored: the reserve stays) */
         return;
     }
-    if (sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n)) {
+    if (sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n) || dlr_pend(s, n)) {
         sec_pend_del(s);
         ui_message("STOP TO SAVE MORE");               /* (the RAM arena is full until the next write) */
         return;
@@ -380,6 +387,7 @@ static int sec_scene_clear(uint32_t s)
     }
     sec_pend_del(s);
     sec_pend_del(SEC_PEND_FX + s);
+    sec_pend_del(SEC_PEND_DL + s);
 #if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + s);
     if (slg_has(SX_ID0 + s))
@@ -387,6 +395,8 @@ static int sec_scene_clear(uint32_t s)
 #endif
     if (!rc && slg_has(FXR_ID0 + s))
         rc = slg_put(FXR_ID0 + s, sec_rbuf, 0, 0);
+    if (!rc && slg_has(DLR_ID0 + s))
+        rc = slg_put(DLR_ID0 + s, sec_rbuf, 0, 0);
     if (!rc && slg_has(s))
         rc = slg_put(s, sec_rbuf, 0, 0);
     if (rc) {
@@ -495,7 +505,10 @@ static void sections_write(void)                       /* the pending sections a
 #endif
                 if (!rc)                               /* (its FX record: the arena's, none: an older one cleared) */
                     rc = slg_put(FXR_ID0 + i, sec_pend.data + sec_pend.off[SEC_PEND_FX + i], sec_pend.len[SEC_PEND_FX + i], 1);
+                if (!rc)                               /* (its LFO record: the same) */
+                    rc = slg_put(DLR_ID0 + i, sec_pend.data + sec_pend.off[SEC_PEND_DL + i], sec_pend.len[SEC_PEND_DL + i], 1);
                 if (!rc) {
+                    sec_pend_del(SEC_PEND_DL + i);
                     sec_pend_del(SEC_PEND_FX + i);
                     sec_pend_del(i);
                 }

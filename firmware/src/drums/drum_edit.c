@@ -30,7 +30,7 @@ typedef struct {                 /* a project's drum lanes (204 bytes; user kits
     uint8_t rsv[3];
 } dlanes_t;
 _Static_assert(sizeof(dlanes_t) == 204u, "drum lanes: 204 bytes in the project");
-static dlanes_t dl;                         /* the working project's lanes */
+static dlanes_t dl __attribute__((aligned(4)));   /* the working project's lanes (aligned: lane_play.c copies a lane by words) */
 static volatile uint8_t dl_ui_pick;         /* a SOUND page is up (ui_drums.c): EDIT + a key picks the sound (seq.c) */
 static int16_t dl_e0 = -1;                  /* the kit (P_E0) they were set for: another kit drops a user kit */
 
@@ -109,7 +109,16 @@ _Static_assert(DE_N == 8 && DE_TUNE == 0 && DE_LEVEL == 7, "the lane event ids (
 #ifndef DLA_ON                             /* (tests/lane_auto_test.c: 0, as a build before them reads and plays) */
 #define DLA_ON (FELUCCA_DRUM_EDIT && FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
 #endif
-#define DLFO_ON 0                  /* (the lanes' LFOs: the next commit) */
+#ifndef DLFO_ON                            /* (tests/lane_lfo_test.c: 0, as a build that does not play them) */
+#define DLFO_ON FELUCCA_DRUM_EDIT
+#endif
+static uint16_t dlfo_on;                   /* bit l: lane l's LFO has a live slot and is played (lane_play.c dlfo_touch) */
+#if DLA_ON || DLFO_ON
+static uint8_t dlp_l = 0xFFu;              /* the lane of the hit drum_on computed (dl_play_hit), 0xFF none: every
+                                            * change to none (dla_*_off, dlfo_touch) sets it back */
+static const int8_t *dlp_p;                /* its offsets then (0: as the kit) */
+static void dl_play_hit(uint32_t l);       /* drum_on, the ISR: lane l's offsets for this hit (lane_play.c) */
+#endif
 #if DLA_ON
 /* the lanes' automation in force (the ISR writes it: auto.c auto_step; STOP, PLAY, step 0 of a pass, a pattern switch
  * let the holds go: motion_restore; each step lets its locks go: auto_step, locks_restore) */
@@ -117,25 +126,31 @@ static struct {
     int8_t hv[DRUM_LANES][DE_N];          /* a hold event's value (motion) */
     int8_t lv[DRUM_LANES][DE_N];          /* a lock's value (the step playing) */
     uint8_t hm[DRUM_LANES], lm[DRUM_LANES];   /* bit v: in force */
-    uint8_t lany;                         /* a lock in force on some lane */
+    uint8_t any;                          /* bit 0: a hold in force on some lane, bit 1: a lock (drum_on's one test) */
 } dla __attribute__((section(".pool")));
-static void dla_holds_off(void) { memset(dla.hm, 0, sizeof dla.hm); }
+static void dla_holds_off(void)
+{
+    if (dla.any & 1u)
+        memset(dla.hm, 0, sizeof dla.hm);
+    dla.any &= (uint8_t)~1u;
+    dlp_l = 0xFFu;
+}
 static void dla_locks_off(void)
 {
-    if (dla.lany)
+    if (dla.any & 2u)
         memset(dla.lm, 0, sizeof dla.lm);
-    dla.lany = 0;
+    dla.any &= (uint8_t)~2u;
+    dlp_l = 0xFFu;
 }
 #define DLA_ANY(l) (dla.hm[l] | dla.lm[l])
+#define DLA_LIVE() dla.any
 #else
 #define DLA_ANY(l) 0u
+#define DLA_LIVE() 0u
 #endif
 #if DLA_ON || DLFO_ON
-static uint16_t dlfo_on;                   /* bit l: lane l's LFO has a live slot (lane_play.c computes it) */
-static uint8_t dlp_l = 0xFFu;              /* the lane of the hit drum_on computed (dl_play_hit), 0xFF none */
-static const int8_t *dlp_p;                /* its offsets then (0: as the kit) */
-static void dl_play_hit(uint32_t l);       /* drum_on, the ISR: lane l's offsets for this hit (lane_play.c) */
-#define DL_PLAY_HIT(l) dl_play_hit(l)
+/* drum_on: a hit of lane l (the ISR); nothing on any lane: one test, the hit as before */
+#define DL_PLAY_HIT(l) do { if (DLA_LIVE() | dlfo_on) dl_play_hit(l); } while (0)
 #else
 #define DL_PLAY_HIT(l) ((void)0)
 #endif

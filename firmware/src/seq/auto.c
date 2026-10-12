@@ -146,11 +146,12 @@ static void dla_event(const auto_ev_t *e, uint32_t mo)
 #if FELUCCA_PLOCK
         dla.lv[l][v] = x;
         dla.lm[l] |= (uint8_t)(1u << v);
-        dla.lany = 1;
+        dla.any |= 2u;
 #endif
     } else if (mo) {
         dla.hv[l][v] = x;
         dla.hm[l] |= (uint8_t)(1u << v);
+        dla.any |= 1u;
     }
     (void)x;
 }

@@ -2463,6 +2463,7 @@ static void events_block(uint32_t n)
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
     clko_block(n, adv, ext);                          /* MIDI clock out: the ticks of this block, timed as heard */
+    DLFO_BLOCK();                                     /* (the drum lanes' LFOs stopped: lane_play.c, no tick otherwise) */
     if (song.playing) {
         song.tick++;
         if (!ext) {

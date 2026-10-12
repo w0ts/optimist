@@ -333,6 +333,12 @@ static int pat_scene_put(uint32_t s, const project_t *p, const dlrec_t *d, uint8
         sec_pend_del(SEC_PEND_FX + s);
         rc = fxr_log_put(FXR_ID0 + s, proj_hash(sec_rbuf, lens[cnt]), p, playing);
     }
+    if (!rc && arena)                                  /* its drum lane LFO record the same (dlfo_rec_log.c) */
+        rc = dlr_pend(s, lens[cnt]);
+    else if (!rc) {
+        sec_pend_del(SEC_PEND_DL + s);
+        rc = dlr_log_put(DLR_ID0 + s, proj_hash(sec_rbuf, lens[cnt]), p, playing);
+    }
     if (rc)
         return rc;
     memcpy(src, ref, NTRK);
@@ -611,7 +617,7 @@ static uint32_t pat_free(uint32_t k)
  * keyed again (fx_rec_log.c: it pairs with the scene by the record's hash). -> 0 done, else said */
 static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
 {
-    uint32_t n, rl, key;
+    uint32_t n, rl, dl, key;
     int g;
     s %= SEC_IDS;
     if (song.playing || transport_req) {
@@ -628,6 +634,7 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
     if (n <= NTRK || !(sec_rbuf[0] & SEC_SCN) || k >= NTRK)
         return 1;
     rl = fxr_sec_get(s);                               /* (its FX record, key first, into fxr_rbuf) */
+    dl = dlr_sec_get(s);                               /* (its LFO record, into dlr_rbuf) */
     key = proj_hash(sec_rbuf, n);
     if (sec_rbuf[n - NTRK + k] == (uint8_t)v)
         return 0;
@@ -637,9 +644,14 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
         return 1;
     }
     if (rl > 4u && !memcmp(fxr_rbuf, &key, 4)) {
-        key = proj_hash(sec_rbuf, n);
-        memcpy(fxr_rbuf, &key, 4);
+        uint32_t k2 = proj_hash(sec_rbuf, n);
+        memcpy(fxr_rbuf, &k2, 4);
         (void)fxr_sec_put(s, fxr_rbuf, rl);
+    }
+    if (dl > 4u && !memcmp(dlr_rbuf, &key, 4)) {
+        uint32_t k2 = proj_hash(sec_rbuf, n);
+        memcpy(dlr_rbuf, &k2, 4);
+        (void)dlr_sec_put(s, dlr_rbuf, dl);
     }
     sec_gen++;                                         /* (a staged scene: read again) */
     return 0;

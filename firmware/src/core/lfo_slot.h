@@ -57,6 +57,25 @@ static inline int32_t lfo_slots_amt(const lfo_slot_t *s, uint32_t d)
             a += s[i].amt;
     return a;
 }
+/* the live slots as (destination, amount) pairs to apply, one pair a destination (two slots on one: their amounts summed,
+ * so the owner adds then clamps once) -> how many (0..LFO_NSLOT), d[] the destinations (1..), a[] the amounts */
+static inline uint32_t lfo_slots_pairs(const lfo_slot_t *s, uint32_t *d, int32_t *a)
+{
+    uint32_t i, j, n = 0;
+    for (i = 0; i < LFO_NSLOT; i++) {
+        if (!lfo_slot_live(&s[i]))
+            continue;
+        for (j = 0; j < n && d[j] != s[i].dest; j++)
+            ;
+        if (j < n) {
+            a[j] += s[i].amt;
+        } else {
+            d[n] = s[i].dest, a[n] = s[i].amt;
+            n++;
+        }
+    }
+    return n;
+}
 /* a slot read from outside (a stored record, the editor): inside its ranges; ndest: the owner's destinations (a
  * destination past them: OFF) */
 static inline lfo_slot_t lfo_slot_fix(uint32_t dest, int32_t amt, uint32_t ndest)

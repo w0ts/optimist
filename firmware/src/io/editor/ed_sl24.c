@@ -10,8 +10,8 @@
  *                Without the flag the reply is what it always was, so a v11 editor reads it as before, with the
  *                chance on the motion's bit 13 (an editor's "motion or chance"); with it, bit 13 is the motion alone
  *                and the chance is bit 0 of lost2 (bit 1: an LFO RATE synced, SX24_LSYNC; bit 2: the drum lanes'
- *                motion and locks, SX24_LAUTO, on bit 13 too without the flag). A firmware before v12 answers the
- *                5-byte request with rc 1.
+ *                motion and locks, SX24_LAUTO; bit 3: a drum lane's LFO, SX24_DLFO; both on bit 13 too without the
+ *                flag). A firmware before v12 answers the 5-byte request with rc 1.
  *     part 0  the working project as 2.4's FUN5 (3840 B, sl24_export.c proj_to_sl24), its step extras too; an FM6
  *             voice that is not one of 2.4's F1..F8: the closest of them (lost SX24_FM6)
  *     part 1  the settings as 2.4's persist_t (88 B: palette, low cut, zoom, the panel table, 2.4's song order, the
@@ -80,6 +80,7 @@ static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, 
             x[k] = &ed_sl24_x[k];
         }
 #endif
+        r |= dlfo_any_live() ? (uint32_t)SX24_DLFO : 0u;  /* (the drum lanes' LFOs: lane_play.c) */
         proj_capture(&autosave_buf, &autosave_dl);        /* (autosave_buf: the work, as the snapshots take it) */
         if (part == 0u) {
             *lost = proj_to_sl24(&autosave_buf, x, o, 0) | r;
@@ -116,7 +117,7 @@ static void ed_sl24_get(const uint8_t *a, uint32_t na)
     ed_b7(crc, 5);
     w1 = lost & 0x3FFFu;                                  /* (the first word: bits 0..13) */
     w2 = (lost >> 14) & 0x3FFFu;
-    if (!want2 && (lost & (SX24_CHANCE | SX24_LAUTO)))
+    if (!want2 && (lost & (SX24_CHANCE | SX24_LAUTO | SX24_DLFO)))
         w1 |= SX24_MOTION;                                /* (a v11 editor knows one bit for them all) */
     ed_b7(w1, 2);
     ed_b7(off, 3);
