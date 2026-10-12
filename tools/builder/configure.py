@@ -367,8 +367,12 @@ def fnv32(text):
 
 
 def cfg_hash(cfg):
-    """of what the image holds: the reserve items (R.Item.no_image) change nothing in it, so not in the hash"""
-    return fnv32("".join(f"{k}={cfg[k]}\n" for k in sorted(cfg) if not R.ITEMS[k].no_image)) & 0x7FFFFFFF
+    """of what the image holds: the reserve items (R.Item.no_image) change nothing in it, so not in the hash; a
+    retired item the image is still built as (R.HASH_AS) counts at that value, so the hash of a configuration
+    does not move when it is retired (the same image: its check builds in costs.json stay valid)"""
+    full = dict(R.HASH_AS, **cfg)
+    return fnv32("".join(f"{k}={full[k]}\n" for k in sorted(full)
+                         if k in R.HASH_AS or not R.ITEMS[k].no_image)) & 0x7FFFFFFF
 
 
 def cfg_bits(cfg):

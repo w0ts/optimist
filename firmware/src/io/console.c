@@ -405,6 +405,16 @@ static void con_status(void)
     con_kv("cpu_guard", (int32_t)cg.level);
     con_kv("cpu_guard_steps", (int32_t)cg.steps);
     con_kv("cpu_guard_shed", (int32_t)cg.sheds);
+    con_kv("cpu_guard_early", (int32_t)cg.early);
+    con_kv("cpu_guard_avg_pct", (int32_t)(cg.avg * 100u / 256u));   /* (the load over ~8 halves) */
+    con_kv("cpu_guard_step_pct", (int32_t)(cg.smeas * 100u / 256u));   /* (the half that last stepped it) */
+    con_kv("cpu_guard_rev_gain_pct", (int32_t)(cg.gain[CG_L_REVERB] * 100u / 256u));
+#endif
+    con_kv("audio_late", (int32_t)felucca_dbg.late);
+#if FELUCCA_FX_REVERB
+    con_kv("rev_state", (int32_t)rgd.st);               /* (fx.c RG_*: 0 on, 1 fading out, 2 clearing, 3 off) */
+    con_kv("rev_live", (int32_t)rev_live);
+    con_kv("rev_ret", (int32_t)song.g[G_RRET]);
 #endif
 #if FELUCCA_DUAL
     con_kv("cpu1_up", dual.up);

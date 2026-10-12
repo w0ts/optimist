@@ -29,8 +29,14 @@ MIGRATE = {
 RETIRED = {
     "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
     "SIZE": "the UI, stores and editor are always built for size (minsize; retired 2026-10, no -Os-everywhere choice)",
+    "SIMD": "SIMD: wrong on the real FM-1, 2026-10-12 (the packed 16-bit sine and swarm maths crackle on the device, "
+            "clean with it off); no longer offered while it is investigated, every build is built without it",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
 }
+
+# Retired items every image is still built as (their firmware default): the configuration hash counts them at that
+# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
+HASH_AS = {"SIMD": 0}
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
@@ -560,11 +566,9 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
           "compare with the plain C.")
-_add("SIMD", "FELUCCA_SIMD", "packed 16-bit sine and swarm maths (EXPERIMENTAL)", Y, 57, default=0, parent="ASM", experimental=True,
-     target_only=True,
-     desc="Experimental: uses the processor's packed 16-bit instructions for the sine lookup (DIGITAL, PHASE, drum "
-          "synth) and ANALOG 2's swarm. It needs 4 KB more RAM, and what those instructions do is inferred, not "
-          "documented: emulator-tested, never run on a real FM-1. Leave off.")
+# (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
+#  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
+#  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)
 
 # ---- experimental
 X = "Experimental"

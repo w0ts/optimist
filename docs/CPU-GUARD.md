@@ -24,9 +24,14 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
   change.
 - **Step up.** The guard goes up one level when:
   - the load stays over 85 % for 8 halves in a row (46 ms); or
-  - one half runs late (100 %); or
-  - after a half over 85 %, the next half is predicted to run late. The step then happens before that half
-    renders.
+  - a half runs late (100 %) right after one over 85 %; or
+  - after a half over 85 % (not itself late), the next half is predicted to run late. The step then happens
+    before that half renders.
+
+  A lone late half after a normal one is a spike, not a load (a flash write, another interrupt's burst), and steps
+  nothing, as `audio.c`'s `FELUCCA_SHED_FADE` already treated it. Until 2026-10-12 it stepped at once, and its own
+  time counted as what the level saved (below), so the level never came off: on the user's FM-1, at ~41 % load,
+  "once after some time the reverb stops producing any sound" (the REVERB level, held for ever).
 
   A level with nothing to ease in what sounds now is skipped. An FM6-only mix goes straight to shedding.
 - **The levels**, in order:
@@ -45,9 +50,10 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
      costs about as much as the rest of an idle mix (the mots profile, FDN8 in the pool, SIZE 124, emulator at
      96 MHz: 584 -> 1463 us a half for the tail alone), and a tail sounds on with nothing left to shed. Before this
      level, a reverb that did not fit kept every half late: a click every block (the emulator at 24 MHz: 430 of
-     432 halves late; on the user's FM-1: "crackles whenever the reverb is on"). Now one late half steps here and
-     the rest of the mix plays on clean (24 MHz: 2 late halves in 5 s). Its saving is measured as any level's, so
-     it stays off until the reverb would fit again.
+     432 halves late). Now two late halves in a row step here and the rest of the mix plays on clean (24 MHz: a
+     few late halves in 5 s). Its saving is measured as any level's, so it stays off until the reverb would fit
+     again. (The user's crackles on the FM-1 that prompted this level were not an overload: measured there, ~41 %
+     load, worst half 63 %, no late half; their cause was SIMD=1. The level protects slower builds.)
      The FX returns (2026-10-12, `fx.c fx_ret_block`): REV RET (the mixer's MASTER row, Returns) scales the reverb's
      wet together with this fade (the fade's gain times the return, so at unity the fade is the one above, sample
      for sample). REV RET at 0 turns the bus off the same way at once (no fade: its gain is 0), in every build with
@@ -61,13 +67,17 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
      - the only voice still held.
 - **Release.** A level comes off after 2 s (345 halves) under 80 % (Flowstate's 1/16 under the ceiling). The guard
   adds what that level saved to the load before it compares: the drop in the measured load over the 8 halves after
-  the step. So a level comes off only when the music it held back would fit again, and it does not come and go
-  every 2 s. Levels with nothing left to ease come off with it.
+  the step, from the load before it (the measured load over the ~8 halves before, each held to a whole half: never
+  a spike's own time). So a level comes off only when the music it held back would fit again, and it does not come
+  and go every 2 s. Levels with nothing left to ease come off with it, and so does REVERB while the reverb is on
+  (coming down from the top it would turn the reverb off, though the reverb was not what had to go).
 - **No second step right after one.** The prediction before a half starts from the last half's measurement, which
   does not show what the step just saved yet. So the half right after a step never steps early on a prediction
   (a single late half used to step twice: the reverb off, then voices shed).
-- **On screen.** GLO > SYSTEM CPU shows `%G1` .. `%G4` while a level holds (SLOOP's UI). The CDC console prints
-  `cpu_guard`, `cpu_guard_steps` and `cpu_guard_shed`.
+- **On screen.** GLO > SYSTEM CPU shows `%G1` .. `%G4` while a level holds (SLOOP's UI). The CDC console's `status`
+  prints `cpu_guard`, `cpu_guard_steps`, `cpu_guard_shed`, `cpu_guard_early`, `cpu_guard_avg_pct` (the load over
+  ~8 halves), `cpu_guard_step_pct` (the half before the last step), `cpu_guard_rev_gain_pct`, and with the reverb
+  `rev_state` (0 on, 1 fading out, 2 clearing, 3 off), `rev_live`, `rev_ret`; also `audio_late`.
 - **Under the ceiling the guard does nothing.**
   - The host never steps: it has no clock.
   - `regress` built with the guard renders every golden unchanged.
