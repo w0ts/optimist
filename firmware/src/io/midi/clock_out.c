@@ -11,7 +11,7 @@
  * Time. The ticks are those of the transport clock (core.h: clk_beat, clk_pos; BEAT_U / 24 units a tick), so they
  * follow tempo changes, the TEMPO page's nudge and the arranger, and never swing (swing moves only the odd steps of a
  * grid, seq.c grid_at). Each F8 is due when the audio of its position leaves the I2S DMA: the block's time (audio.c
- * sync_out_t, + SYNC_DAC_T) + its offset in the block; usb.c sends it within 0.05 ms of that. On the internal tempo
+ * sync_out_t, + SYNC_DAC_T, + SYNC_LIM_T while the master limiter is on: its 1.45 ms) + its offset in the block; usb.c sends it within 0.05 ms of that. On the internal tempo
  * a step starts at the first block whose start is at or past it, CTL / 2 late on average (0 .. 0.73 ms): the F8s get
  * that mean too, so a step and its F8 leave within +-0.36 ms, the F8s with no jitter of their own. Following an
  * external clock the steps start at their sample (ev_map): the F8s at the same sample, no CTL / 2.
@@ -81,7 +81,7 @@ static int32_t clko_start(uint32_t beat, uint32_t pos, uint32_t due, uint32_t pe
  * transport's place is a whole number of ticks (BEAT_U is 24 of them): k0, k0 + a tick .. units from the block's start */
 static void clko_block(uint32_t n, uint32_t adv, uint32_t ext)
 {
-    uint32_t base = sync_out_t + SYNC_DAC_T, span, lead_q8, beat = clk_beat, pos = clk_pos, ph;
+    uint32_t base = sync_out_t + SYNC_DAC_T + SYNC_LIM_T, span, lead_q8, beat = clk_beat, pos = clk_pos, ph;
     int32_t k, lead = 0;
     if (!clko_on || !n) {
         co.live = 0;
