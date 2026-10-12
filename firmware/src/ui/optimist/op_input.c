@@ -328,6 +328,10 @@ static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV]
 
 static void op_press(uint32_t b, uint32_t held)
 {
+    if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no HOME + it either) */
+        op_clean &= ~BIT(b);
+        return;
+    }
     if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / HOME + it */
         return;
     if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
@@ -400,7 +404,11 @@ static void op_tap(uint32_t b, uint32_t id)
 {
     if (lay_btn_layer(b) != LY_PLAY && fm1_ms - op_t0[id % 14u] > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
         return;                                         /* (held: the layer was looked at, no tap) */
-    if (b == B_SAVE)
+    if (b < NB && mx_master_dead(b))
+        return;                                         /* (the mixer's MASTER: a track button does nothing) */
+    if (b == B_FX && mx_on_master())
+        op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
+    else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer, no cell picked: PROJECT [provisional] */
     else if (b == B_HOME)
         ui.scr == SCR_HOME && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms() ? op_enter(SCR_SYSTEM) : op_no();   /* held alone: SYSTEM */
@@ -703,6 +711,12 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
             on = 1;
         if (on)
             m |= 1u << b;
+    }
+    if (mx_on_master()) {                               /* the mixer's MASTER: no track button; FX the master FX */
+        for (i = 0; i < NB; i++)
+            if (mx_master_dead(i))
+                m &= ~(1u << i);
+        m |= 1u << B_FX;
     }
     return m;
 }

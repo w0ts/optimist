@@ -35,6 +35,14 @@ static struct {
 } mx;
 
 static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
+/* the mixer on its MASTER row: master has no instrument, so the track buttons (ENV LFO EDIT ARP SCL SEQ) are dark and
+ * do nothing there, FX is the master FX (the user, 2026-10-12: "many buttons like env lfo are active while on master
+ * and send to track 1. wrong") */
+static int mx_on_master(void) { return ui.scr == SCR_HOME && mx_row() == MXR_MASTER; }
+static int mx_master_dead(uint32_t b)
+{
+    return mx_on_master() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ);
+}
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
 static uint16_t mx_col(uint32_t r)                      /* the row's colour: its engine's, its lane's source */
 {

@@ -66,6 +66,29 @@ static void mixer_walk_tests(void)
     frame();
     check(px_in(2, 3, 20, 19, C_HI) && !px_in(2, 3, 20, 19, trk_col(0)),
           "the MASTER row: the header's badge is MASTER, not T1's engine (master has no instrument)");
+    {
+        uint32_t av = op_btn_avail(), dead = 1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL |
+                                             1u << B_SEQ;
+        check((av & dead) == 0u && (av & (1u << B_FX)) && (av & (1u << B_GLO)),
+              "the MASTER row: ENV LFO EDIT ARP SCL SEQ dark, FX and GLO lit");
+        tap(B_ENV);
+        tap(B_LFO);
+        tap(B_EDIT);
+        tap(B_ARP);
+        tap(B_SEQ);
+        check(ui.scr == SCR_HOME && mx_row() == MXR_MASTER && !op_armed(), "... a track button tapped: nothing, still the MASTER row");
+        press(B_HOME);
+        tap(B_ENV);
+        release(B_HOME);
+        check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
+        if (op_armed())
+            op_no();
+        tap(B_FX);
+        check(ui.scr == SCR_FX, "... FX: the master FX");
+        tap(B_HOME);
+        ui.row[SCR_HOME] = MXR_MASTER;
+        frame();
+    }
     ppm("opt-mixer-h-master");
     turn(EN_ALGO, 1);
     check(mx_row() == MXR_T1, "down again: T1");

@@ -216,7 +216,7 @@ static void draw_head(void)
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
     if (ui.scr == SCR_FX || ui.master                   /* MASTER: its badge in C_HI, as the mixer's M row; the mixer's */
-        || (ui.scr == SCR_HOME && lay.shown == LY_PLAY && mx_row() == MXR_MASTER)) {   /* MASTER row too (no engine) */
+        || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
         eng = "MASTER";
         tc = C_HI;
     }
