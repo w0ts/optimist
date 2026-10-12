@@ -2343,6 +2343,7 @@ int main(int argc, char **argv)
     led_tests();
     pages_nav_tests();
     pages_master_tests();
+    pages_keys_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

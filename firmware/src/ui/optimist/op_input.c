@@ -678,10 +678,11 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
     }
     return m;
 }
+static void keys_lit(uint32_t *f, uint32_t *d);         /* op_keys.c: the keys' lights */
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0};
-    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail();
+    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail(), kf, kd;
     static uint8_t ready;
     if (!ready) {
         uint32_t id, p, r;
@@ -702,27 +703,22 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_SAVE], armed && blink);     /* YES is asked for */
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink) || (armed && ui.arm_scr == ARM_TRACK && !blink));
-    if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard, the lane's key */
+    if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard */
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
-        if (ui.scr != SCR_STEP)
-            led_put(nl, 14u + key_of_lane(lane_selected()), 1);
     } else {
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     }
-    if (ui.scr == SCR_STEP || name_on() || lay.shown == LY_OPS) {
-        uint32_t m = name_on() ? name_leds() : lay.shown == LY_OPS ? fm6_keys_lit() : step_leds((fm1_ms / 250u) & 1u), k;
-        for (k = 0; k < 27u; k++)
-            led_put(nl, 14u + k, (int)((m >> k) & 1u));
-        if (lay.shown == LY_OPS)                        /* ENV held on FM6: every key with a function glows dim */
-            for (k = 0; k < 27u; k++)                   /* (the user, 2026-10-12: "keys should lit up when they */
-                led_put(dl, 14u + k, (int)((FM6_KEYS_FN >> k) & 1u));   /* have a function in the selected mode") */
+    keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
+    for (c = 0; c < 27u; c++) {
+        led_put(nl, 14u + c, (int)((kf >> c) & 1u));
+        led_put(dl, 14u + c, (int)((kd >> c) & 1u));
     }
 #if FELUCCA_LIGHTS
-    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit */
+    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
         uint8_t bl[FM1_NCOL] = {0};
-        uint32_t back = lights_keys_mask(), k;
+        uint32_t back = kf | kd ? 0u : lights_keys_mask(), k;
         for (k = 0; k < 27u; k++)
             led_put(bl, 14u + k, (int)((back >> k) & 1u));
         if (lights_lvl)
