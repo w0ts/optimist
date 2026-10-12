@@ -6,7 +6,7 @@
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
- *   GLO tapped: GLOBAL (op_global.c: tempo, REC, MIDI); again SYSTEM, again GLOBAL; the mixer's knob sets are SELECT's
+ *   GLO tapped: GLOBAL; again its next row, on through SYSTEM's, round (op_global.c); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -381,7 +381,7 @@ static void op_press(uint32_t b, uint32_t held)
     }
 }
 /* the mixer with nothing asked: SAVE tapped there opens PROJECT, always (the user, 2026-10-12, D6: the mixer has no YES;
- * FX on and MUTE are knobs, the SOUND row is EDIT's first). HOME held alone there does nothing (D1: SYSTEM is GLO, GLO) */
+ * FX on and MUTE are knobs, the SOUND row is EDIT's first). HOME held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
 static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
 static void op_tap(uint32_t b, uint32_t id)
 {
@@ -457,7 +457,10 @@ static void op_knobs(uint32_t home)
         }
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
-        op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
+        if (glo_cycle())
+            glo_step(s, 0);                             /* (GLOBAL and SYSTEM: one sequence, op_global.c) */
+        else
+            op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;

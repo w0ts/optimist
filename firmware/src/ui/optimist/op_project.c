@@ -434,7 +434,7 @@ enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_I
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CPU", {SI_MHZ, SI_CPU, SI_NONE, SI_NONE}},       /* first: the clock and the load (the user, 2026-10-12, D2: "in
-                                                         * system. freq+cpu load."; GLO, GLO opens on it) */
+                                                         * system. freq+cpu load."; GLO's cycle reaches it here) */
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},

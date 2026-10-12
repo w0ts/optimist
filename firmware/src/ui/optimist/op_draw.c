@@ -252,6 +252,9 @@ static void draw_head(void)
         || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
         eng = "MASTER";
         tc = C_HI;
+    } else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY) {   /* GLOBAL, SYSTEM: the badge names the screen (one GLO cycle) */
+        eng = SCR_NAME[ui.scr];
+        tc = C_HI;
     }
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     pos[0] = 0;

@@ -9,8 +9,10 @@
  *   MIDI       OUT · IN · SYNC · CLK               SYSTEM's global rows (op_project.c SYS, after NSYS_SETUP: no longer
  *   CLOCK OUT  CLK OUT                             on SYSTEM, which keeps the setup: CPU, SCREEN, AUDIO, BLUETOOTH ...)
  *   CHANNELS   T1 · T2 · T3 · DR
- * GLO is the settings button (the user, 2026-10-12, page organisation D1): tapped, GLOBAL; tapped again, SYSTEM; again,
- * GLOBAL. SELECT walks the rows. On the TEMPO row OCT- / OCT+ held nudge the clock as on the TEMPO page (op_tempo.c
+ * GLO is the settings button (the user, 2026-10-12, page organisation D1 as revised): one cycle, GLOBAL's rows then
+ * SYSTEM's (CPU first: CLOCK, LOAD), then GLOBAL's first again; GLO tapped steps it a row, round, SELECT walks the same
+ * sequence and stops at its ends (glo_step). Two screens still: the header's badge names GLOBAL or SYSTEM, the n/N
+ * counts within the screen. On the TEMPO row OCT- / OCT+ held nudge the clock as on the TEMPO page (op_tempo.c
  * tempo_nudging). GLO held is the performance layer, unchanged (op_layers.c). After it, the screen table. */
 #define GL_SYS0 ((uint32_t)TPR_N)                       /* the first of SYSTEM's global rows */
 #define GL_NSYS ((uint32_t)NSYS_GLO)
@@ -41,14 +43,43 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     return r < GL_SYS0 ? tp_yes(r, k, ok) : sys_yes(glo_sys(r), k, ok);
 }
-static void glo_tap(void)                               /* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL (D1) */
+static void op_row_pick(uint32_t r);                    /* op_input.c */
+/* GLOBAL's and SYSTEM's rows as one sequence: s rows on (wrap: past the last, GLOBAL's first; else stopping at the
+ * ends); crossing from one screen to the other enters it on the row reached */
+static void glo_step(int32_t s, int wrap)
 {
-    if (ui.scr != SCR_GLOBAL) {
-        op_enter(SCR_GLOBAL);
+    int32_t ng = (int32_t)glo_rows(), n = ng + (int32_t)NSYS_SETUP;
+    int32_t at = (ui.scr == SCR_SYSTEM ? ng : 0) + (int32_t)ui.row[ui.scr] + s;
+    uint32_t scr;
+    at = wrap ? (at >= n ? 0 : at < 0 ? n - 1 : at) : clamp(at, 0, n - 1);
+    scr = at < ng ? SCR_GLOBAL : SCR_SYSTEM;
+    if (scr != ui.scr) {
+        ui.row[scr] = (uint8_t)(at < ng ? at : at - ng);
+        op_enter(scr);
         return;
     }
-    ui.row[SCR_SYSTEM] = 0;                             /* (SYSTEM opens on CPU: CLOCK, LOAD, D2) */
-    op_enter(SCR_SYSTEM);
+    op_row_pick((uint32_t)(at < ng ? at : at - ng));
+}
+static int glo_cycle(void)                              /* GLOBAL or SYSTEM shown, as rows (not the BLE devices list) */
+{
+#if FELUCCA_BLE
+    if (bdv.open)
+        return 0;
+#endif
+    return ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM;
+}
+static void glo_tap(void)                               /* GLO tapped: GLOBAL; on the cycle, its next row, round (D1) */
+{
+#if FELUCCA_BLE
+    if (ui.scr == SCR_SYSTEM && bdv.open) {
+        dev_close();                                    /* (the devices list: back to its BLUETOOTH row) */
+        return;
+    }
+#endif
+    if (glo_cycle())
+        glo_step(1, 1);
+    else
+        op_enter(SCR_GLOBAL);
 }
 
 static const screen_t SCREENS[SCR_N] = {

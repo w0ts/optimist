@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, GLOBAL (the user, 2026-10-12: "what is supposed to be the GLO page ? i thought it would be the
  * page where we have bpm, nudge, midi track settings etc"; docs/UI-OPTIMIST-DESIGN.md section 4.9): GLO tapped opens it
  * from every screen, again its next row; its rows are TEMPO's (TEMPO, REC, REC 2) and SYSTEM's global ones (MIDI, CLOCK
- * OUT, CHANNELS), which SYSTEM no longer shows, GLO tapped again SYSTEM, again GLOBAL (D1, 2026-10-12); 2x2 cards and the rows under them; OCT
+ * OUT, CHANNELS), which SYSTEM no longer shows, GLO tapped again its next row, on through SYSTEM's and round (D1, 2026-10-12); 2x2 cards and the rows under them; OCT
  * nudges on its TEMPO row; GLO held is still the layer; the mixer's knob sets are SELECT's (ui_optimist_mixer.h).
  * Included after ui_optimist_cardspic.h (cp_draw, cp_list). */
 static uint32_t glo_find(uint32_t scr, const char *name)  /* the row of screen scr named name, or its row count */
@@ -81,9 +81,13 @@ static void glo_tests(void)
     ppm("opt-glo-global");
     check(ok, "GLOBAL: every row the 2x2 cards and the rows under them (no picture), the header's n/N");
     tap(B_GLO);
-    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "GLO tapped again: SYSTEM, on its first row (D1)");
-    tap(B_GLO);
-    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "... again: GLOBAL, on the row it was left on");
+    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 1u, "GLO tapped again: the next row");
+    for (i = 1; i < n; i++)
+        tap(B_GLO);
+    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "... past GLOBAL's last: SYSTEM's first (CPU), one cycle (D1)");
+    for (i = 0; i < SCREENS[SCR_SYSTEM].rows(); i++)
+        tap(B_GLO);
+    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "... past SYSTEM's last: GLOBAL's first again");
     {   /* OCT on the TEMPO row: the nudge, the keyboard octave untouched; elsewhere the octave */
         int8_t o = song.octave;
         press(B_OCTUP);

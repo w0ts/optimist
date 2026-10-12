@@ -219,7 +219,7 @@ static void mixer_sets_tests(void)
         press(B_HOME);
         frames(HOLD_FRAMES);
         release(B_HOME);
-        check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is GLO, GLO: D1)");
+        check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
         tap(B_HOME);

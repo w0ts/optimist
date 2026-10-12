@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the page organisation (the user's decisions, 2026-10-12; docs/UI-OPTIMIST-DESIGN.md
- * section 4.12): D1 GLO toggles GLOBAL and SYSTEM, HOME held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
+ * section 17): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, HOME held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
  * LOAD; D6 SAVE on the mixer is PROJECT; D7 EDIT's first row is SOUND; D8 the SCENES layer says "Select: song"; P25 a
  * dark family button does nothing; P28 CALIBRATE > PANEL asks first. Included after ui_optimist_glo.h (glo_find). */
 static void pages_nav_tests(void)
@@ -9,20 +9,51 @@ static void pages_nav_tests(void)
     char nm[12];
     reset_ui();
     song.sel = 0;
-    /* D1 */
-    tap(B_GLO);
-    check(ui.scr == SCR_GLOBAL, "D1: GLO tapped on the mixer: GLOBAL");
-    tap(B_GLO);
-    frames(2);
-    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u && led_lvl(B_GLO) == 2,
-          "D1: GLO again: SYSTEM, on its first row, the GLO LED full");
-    tap(B_GLO);
-    check(ui.scr == SCR_GLOBAL, "D1: GLO again: GLOBAL");
-    tap(B_GLO);
-    tap(B_ENV);
-    tap(B_GLO);
-    check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL, never SYSTEM");
-    check(glo_find(SCR_GLOBAL, "SYSTEM") == SCREENS[SCR_GLOBAL].rows(), "D1: GLOBAL has no SYSTEM row");
+    /* D1 (revised): one cycle, GLOBAL's rows then SYSTEM's, GLO steps it round, SELECT walks it and stops at its ends */
+    {
+        uint32_t ng = SCREENS[SCR_GLOBAL].rows(), ns = SCREENS[SCR_SYSTEM].rows(), i;
+        char p[12];
+        ui.row[SCR_GLOBAL] = 0;
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: GLO tapped on the mixer: GLOBAL");
+        for (i = 1; i < ng; i++)
+            tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == ng - 1u, "D1: GLO again: GLOBAL's next rows, to its last");
+        tap(B_GLO);
+        frames(2);
+        head_pos(SCR_SYSTEM, 0, p);
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u && led_lvl(B_GLO) == 2 && px_in(2, 3, 4, 19, C_HI),
+              "D1: GLO past GLOBAL's last: SYSTEM's first row (CPU), the GLO LED full, the badge SYSTEM");
+        check(!strncmp(p, " 1/", 3), "D1: the n/N counts within the screen (SYSTEM 1/n)");
+        for (i = 1; i < ns; i++)
+            tap(B_GLO);
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == ns - 1u, "D1: GLO again: SYSTEM's rows, to its last");
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: GLO past SYSTEM's last: GLOBAL's first (round)");
+        turn(EN_SELECT, -3);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: SELECT left on GLOBAL's first: stays (no wrap)");
+        turn(EN_SELECT, (int32_t)ng);
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "D1: SELECT right past GLOBAL's last: SYSTEM's first");
+        turn(EN_SELECT, -1);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == ng - 1u, "D1: SELECT left from SYSTEM's first: GLOBAL's last");
+        turn(EN_SELECT, 100);
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == ns - 1u, "D1: SELECT right: stops at SYSTEM's last (no wrap)");
+        tap(B_ENV);
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
+        check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM row (the cycle reaches SYSTEM)");
+#if FELUCCA_BLE
+        op_enter(SCR_SYSTEM);
+        ui.row[SCR_SYSTEM] = (uint8_t)glo_find(SCR_SYSTEM, "BLUETOOTH");
+        ui.hot = 0;
+        frame();
+        tap(B_SAVE);
+        i = (uint32_t)dev_listing();
+        tap(B_GLO);
+        check(i && !dev_listing() && ui.scr == SCR_SYSTEM, "D1: GLO on the BLE devices list: back to SYSTEM's BLUETOOTH row");
+        tap(B_HOME);
+#endif
+    }
     reset_ui();
     press(B_HOME);
     frames(HOLD_FRAMES);
@@ -338,6 +369,8 @@ static void head_now(char *t)                           /* the header's title no
     const char *eng = head_engine();
     if (ui.scr == SCR_FX || ui.master || (lay.shown == LY_PLAY && mx_on_master()))
         eng = "MASTER";
+    else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY)
+        eng = SCR_NAME[ui.scr];
     head_title(ui.scr, ui.row[ui.scr], t, 32);
     head_pos(ui.scr, ui.row[ui.scr], pos);
     loop_pos(TSEL, r);
