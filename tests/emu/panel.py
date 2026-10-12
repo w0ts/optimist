@@ -20,18 +20,28 @@ FAMILY_BUTTON = {"ENV": "ENV", "LFO": "LFO", "FX": "FX", "SCL": "SEL", "EDIT": "
 
 
 class Layout:
-    """track_t as this build lays it out: stride (sizeof track_t), steps (the step array), abs (seq_abs: idx +4,
-    notes +6, n +10), org (the pattern origin: the last word, FELUCCA_PATTERNS)"""
+    """track_t as this build lays it out: stride (sizeof track_t), steps (the step array), step (sizeof step_t in RAM:
+    the stored 10 bytes, more after them in a build that keeps more a step, core.h: 14 with each note's own end), abs
+    (seq_abs, after the 64 steps: idx +4, notes +6, n +10), org (the pattern origin: the last word, FELUCCA_PATTERNS).
+    All measured on a fresh boot of this build: its first synth track's 64 empty steps (n 0, time ST_REST at byte 5,
+    the rest 0), tried at each step size from the largest: nothing here assumes one"""
+
+    STEP_SIZES = range(24, 9, -1)                               # (a step: 10 stored bytes at least)
 
     def __init__(self, e):
         a, size = e.sym("trk")
         self.base, self.stride = a, size // 4
         b = e.mem(f"{a:#x}", self.stride)                       # (track 1 of a fresh boot: 64 empty steps)
-        rest = bytes([0, 0, 0, 0, 0, 2, 0, 0, 0, 0]) * 64       # (n 0, time ST_REST)
-        self.steps = b.find(rest)
+        self.steps = -1
+        for z in self.STEP_SIZES:
+            rest = (bytes([0, 0, 0, 0, 0, 2]) + bytes(z - 6)) * 64
+            at = b.find(rest)
+            if at >= 0:                                         # (one size only fits: any other puts a 2 where it wants 0)
+                self.steps, self.step = at, z
+                break
         if self.steps < 0:
             raise EmuError("track layout: no empty step array in trk[0] (not a fresh boot?)")
-        self.abs = self.steps + 640
+        self.abs = self.steps + 64 * self.step                  # (the union: 64 synth steps, the larger of the two)
         self.org = self.stride - 4
 
     def at(self, t, off):
@@ -57,8 +67,9 @@ class Panel:
 
     def steps_of(self, t, n=64):
         """the steps of synth track t that hold notes -> {index: first note}"""
-        b = self.e.mem(self.L.at(t, self.L.steps), 640)
-        return {i: b[10 * i] for i in range(n) if b[10 * i + 4] > 0}
+        z = self.L.step
+        b = self.e.mem(self.L.at(t, self.L.steps), 64 * z)
+        return {i: b[z * i] for i in range(n) if b[z * i + 4] > 0}
 
     def seq(self, t):
         """(seq_abs, seq_idx, seq_n, the first sounding note, org)"""
