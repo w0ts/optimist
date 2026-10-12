@@ -873,7 +873,7 @@ async function editorV5() {
   /* the LFO's RATE below 0: a note value of the tempo (params.c N_LSYNC, SLOOP 2.6's SYNC), the mock's range as params.c's */
   ok(fv(E.F.LFOHZ, -1, 127, -10) === "4BAR" && fv(E.F.LFOHZ, -7, 127, -10) === "8T" && fv(E.F.LFOHZ, -10, 127, -10) === "1/32"
     && fv(E.F.LFOHZ, 0, 127, -10) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -10) === "40.0Hz"
-    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(pc)
+    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
     && html.includes('D("RATE", F.LFOHZ, -10, 127, 60)'), "LFO RATE: -1..-10 4BAR .. 1/32 (synced), 0..127 Hz; the mock's range -10..127 as params.c");
   /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
      part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
