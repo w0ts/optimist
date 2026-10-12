@@ -41,7 +41,7 @@ static void fm1_wdt_feed(void) {}
 /* the reply builder, as editor.c has it */
 enum { ED_SMP_BEGIN = 11, ED_SMP_WRITE, ED_SMP_END, ED_SMP_ERASE, ED_SMP_INFO,
        ED_UP_LIST, ED_UP_GET, ED_UP_PUT, ED_UP_STORE, ED_UP_LOAD, ED_UP_ERASE };
-static uint8_t ed_out[600];
+static uint8_t ed_out[600] __attribute__((aligned(4)));   /* (ed_user.c: its ed_smp_buf is in it) */
 static uint32_t ed_n;
 static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }

@@ -269,9 +269,16 @@ static int ota_ufw(uint8_t *hdr, uint32_t *fl_off, uint32_t *fl_len, uint32_t *o
     return 0;
 }
 
+/* the session's 2 KiB (the UFW header 1 KiB, a read 512, our flash's 512): the firmware lends it storage.c's st_buf
+ * (felucca.c OTA_STAGE_MEM: a session runs alone in the main loop, after persist_flush_now, and ends in a reset or
+ * gives st_buf back as scratch, which every user of it reloads), 2 KiB of main RAM spared; else its own */
+#ifndef OTA_STAGE_MEM
+static uint8_t ota_stage_mem[0x800];
+#define OTA_STAGE_MEM ota_stage_mem
+#endif
 static int ota_stage(void)                       /* steps 1..6; 0 = host said success */
 {
-    static uint8_t hdr[0x400], b[512], mine[512];
+    uint8_t *const hdr = OTA_STAGE_MEM, *const b = hdr + 0x400, *const mine = b + 512;
     uint32_t i, n, ota_off, ota_len, fl_off, fl_len, fl_crc, c, len, own, official;
     int rc;
     /* 1. UFW header + entry list */

@@ -212,6 +212,10 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
+#if FELUCCA_FLASH
+_Static_assert(sizeof st_buf >= 0x800u, "ota.c OTA_STAGE_MEM: the session's 2 KiB in st_buf");
+#define OTA_STAGE_MEM st_buf                 /* (ota.c ota_stage: st_buf is scratch, idle during a session) */
+#endif
 #include "system/ota.c"
 static void recovery_poll(void);
 static uint32_t ota_now_ms(void) { return fm1_ms; }
