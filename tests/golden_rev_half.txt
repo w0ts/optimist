@@ -120,4 +120,4 @@ sends/DIGITAL/dist fa88d1f5b188ec10
 song/4track_mix 81216a4e03d5c0d2
 slicer/gate/ANALOG_DARK_STR ac1d50f5600d0c66
 slicer/stut/DIGITAL_RHODES e4bfec1d759d3eed
-slicer/song_gate_stut 8b450495c6f574cb
+slicer/song_gate_stut 8edce7775a350165
