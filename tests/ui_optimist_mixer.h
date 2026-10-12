@@ -62,6 +62,10 @@ static void mixer_walk_tests(void)
           "past T1 up: MASTER alone on the panel (the track stays)");
     turn(EN_ALGO, -1);
     check(mx_row() == MXR_MASTER, "... and it stops there");
+    ui.force = 1;
+    frame();
+    check(px_in(2, 3, 20, 19, C_HI) && !px_in(2, 3, 20, 19, trk_col(0)),
+          "the MASTER row: the header's badge is MASTER, not T1's engine (master has no instrument)");
     ppm("opt-mixer-h-master");
     turn(EN_ALGO, 1);
     check(mx_row() == MXR_T1, "down again: T1");
