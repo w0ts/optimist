@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The limited insert types on the Optimist UI (2026-10-13, feat/fx-instances-ui; fxi.c: CHRS ECHO, a builder count of
  * instances each): on SOUND's INSERTS row and the mixer's insert set, a slot's TYPE cell shows
- *   the free count   "CHRS" with 2/4 beside it (free of built), a type on every track nothing
+ *   the free count   "CHRS" with 2/4 beside it (free of available), a type on every track nothing
  *   WAIT             the type picked, the main loop has not handed an instance out yet (fxi_poll)
  *   IN USE           the same pass with none free (fxi_can 0): dim
  *   FULL             none free after the pass: bypassed, dim, "S1 CHRS" as the label
@@ -106,15 +106,17 @@ static void fxi_ui_tests(void)
 #if FELUCCA_PARAM_HELP
     if (FXU_NC > 0) {
         uint32_t r;
+        char pb[PH_LINE];
         fxu_fresh();
         ins_load(0, 0, FXT_CHRS);
         fxi_poll();
         fxu_cell(0, 0, &c);
         r = ui.row[SCR_SOUND];
-        check(hl_find(SCR_SOUND, r, &c) && !strcmp(PH_BLOB + hl_find(SCR_SOUND, r, &c), "Chorus, shared: free/built"), "help: CHRS held: \"Chorus, shared: free/built\"");
+        check(hl_find(SCR_SOUND, r, &c) && !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "Chorus, shared: free/avail"), "help: CHRS held: \"Chorus, shared: free/avail\"");
     }
     if (FXU_NC > 0 && FXU_NC < NTRK) {
         uint32_t k, r;
+        char pb[PH_LINE];
         fxu_fresh();
         for (k = 0; k <= FXU_NC; k++) {
             ins_load(k, 0, FXT_CHRS);
@@ -123,11 +125,12 @@ static void fxi_ui_tests(void)
         fxu_cell(FXU_NC, 0, &c);
         r = ui.row[SCR_SOUND];
         check(fxi_state(FXU_NC, 0) == FXI_FULL && hl_find(SCR_SOUND, r, &c) &&
-                  !strcmp(PH_BLOB + hl_find(SCR_SOUND, r, &c), "No free chorus: bypassed"),
+                  !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "No free chorus: bypassed"),
               "help: a FULL CHRS slot: \"No free chorus: bypassed\"");
     }
     if (FXU_NE > 0 && FXU_NE < NTRK) {
         uint32_t k, r;
+        char pb[PH_LINE];
         fxu_fresh();
         for (k = 0; k <= FXU_NE; k++) {
             ins_load(k, 0, FXT_ECHO);
@@ -135,7 +138,7 @@ static void fxi_ui_tests(void)
         }
         fxu_cell(FXU_NE, 0, &c);
         r = ui.row[SCR_SOUND];
-        check(hl_find(SCR_SOUND, r, &c) && !strcmp(PH_BLOB + hl_find(SCR_SOUND, r, &c), "No free echo: bypassed"),
+        check(hl_find(SCR_SOUND, r, &c) && !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "No free echo: bypassed"),
               "help: a FULL ECHO slot: \"No free echo: bypassed\"");
     }
 #endif

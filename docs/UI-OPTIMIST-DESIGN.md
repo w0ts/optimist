@@ -2475,7 +2475,7 @@ it says what it holds:
 
 | State | The TYPE cell (S1 / S2, on INSERTS and the mixer's insert set) | Help line (kind `op`, ctx INSERTS) |
 |---|---|---|
-| a type with an instance (`FXI_OK`) | the name, with the free count beside it: **CHRS 2/4** = 2 free of 4 built (the held one counted used); on a card too narrow for it, only the name | CHRS: "Chorus, shared: free/built"; ECHO the same |
+| a type with an instance (`FXI_OK`) | the name, with the free count beside it: **CHRS 2/4** = 2 free of 4 available (the built instances plus the idle send lines lent now, fx-lend; the held one counted used); on a card too narrow for it, only the name | CHRS: "Chorus, shared: free/avail"; ECHO the same |
 | none free after the pass (`FXI_FULL`) | the label becomes *S1 CHRS*, the value **FULL**, both dim: the type is bypassed on this track; its amount's needle goes grey | "No free chorus: bypassed" (ECHO: "No free echo: bypassed") |
 | picked with none free, before the pass (`FXI_WAIT`, `fxi_can` 0) | the value **IN USE**, dim: one frame, then FULL (a detent cannot be taken back before the pass: picking it stays allowed, as asked) | as FULL |
 | picked with one free, before the pass (`FXI_WAIT`, `fxi_can` 1) | the value **WAIT**: one pass of the main loop, never seen in use | the type's own |

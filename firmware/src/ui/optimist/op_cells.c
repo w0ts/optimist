@@ -273,7 +273,7 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 }
 
 /* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count beside
- * the name ("CHRS 2/4": free of built), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
+ * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
  * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
  * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
 static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
