@@ -855,10 +855,10 @@ static void step_keys_tests(void)
         cell_t c;
         step_cell(0, 2, &c);
 #if DLA_ON && FELUCCA_PLOCK                               /* (the user, 2026-10-12, D3: the lane's TUNE and DECAY locks) */
-        check(SCR->rows() == STP_LANE0 + 1u && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
+        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
               "drums: the held step's cards LEVEL RATCHET TUNE DECAY");
 #else
-        check(SCR->rows() == STP_LANE0 + 1u && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
 #endif
         ui.force = 1;
         frame();
@@ -884,6 +884,7 @@ static void step_keys_tests(void)
     seq_long();
     check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
     turn(EN_SELECT, 9);
+    turn(EN_SELECT, -(int32_t)STP_TL);                 /* (past LANE: TOOLS, EUCLID, op_tools.c) */
     check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_LANE0, "drums, no step held: SELECT walks PATTERN, then LANE (the lane stays 8)");
     {
         cell_t c;
@@ -1715,7 +1716,10 @@ static void song_tests(void)
         ppm("opt-song-chain");
         turn(EN_K4, 1);
         tap(B_SAVE);
-        check(arrangement.count == cnt, "DELETE: the part goes");
+        check(op_armed() && arrangement.count == cnt + 1u && strstr(ui.arm_q, "PART 2"),
+              "DELETE: asked first (\"DELETE PART 2?\": no undo for the song's order)");
+        tap(B_SAVE);
+        check(arrangement.count == cnt, "DELETE: YES, the part goes");
         arrangement.entry[0].bars = (uint8_t)bars;
     }
     tap(B_HOME);
@@ -2247,6 +2251,8 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_glwalk.h"                     /* 2026-10-13: every GLOBAL / SYSTEM line walked: knob, PRESETS, actions RUN */
+#include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
+#include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
@@ -2304,6 +2310,7 @@ static void led_tests(void)
 #include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_lfo2.h"                       /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
+#include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 
 int main(int argc, char **argv)
 {
@@ -2375,6 +2382,8 @@ int main(int argc, char **argv)
     c2_roll_tests();
     glo_tests();
     glwalk_tests();
+    help_tests();
+    risk_tests();
     algo_tests();
     mute_tests();
     smute_tests();
@@ -2395,6 +2404,12 @@ int main(int argc, char **argv)
     lfo2ui_tests();
 #else
     lfo2ui_off_tests();
+#endif
+#if FELUCCA_SEQTOOLS
+    seqtools_tests();
+#endif
+#if FELUCCA_COND
+    cond_card_tests();
 #endif
 #if FELUCCA_BLE
     ble_tests();

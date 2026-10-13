@@ -38,9 +38,6 @@ static void fill_block(void)                 /* once a block (events_block): a n
 #if FELUCCA_MICRO
 static uint8_t seq_den[NTRK];                /* the DIV each track last played on (a DIV change waits for the next step) */
 #endif
-#if FELUCCA_FILLS
-static uint8_t seq_skip[NTRK];               /* the step playing failed its fill condition: nothing of it sounds */
-#endif
 
 #if FELUCCA_PLOCK
 /* ---- parameter locks (SLOOP 2.4 seq.c p_lockable / lock_step / lock_set, isod89, GPL-3.0-only). A lock: on its step

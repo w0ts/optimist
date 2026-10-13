@@ -556,7 +556,9 @@ _add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
-          "web editor's tooltips). About 6.4 KB of flash, no RAM",
+          "web editor's tooltips). The Optimist UI (UI=1): the screen's last line, while a value turns and ~2 s after, and "
+          "always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About "
+          "6.4 KB of flash (UI=1: more, its own lines too), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
 _add("CHORD_NAMES", "FELUCCA_CHORD_NAMES", "chord names on the STEP page", U, 160,
      desc="SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, "

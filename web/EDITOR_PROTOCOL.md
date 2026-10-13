@@ -640,7 +640,9 @@ the editor shows no button. Nothing is written to flash.
   end (above, "A note's own end"): 2.4 has one GATE a step, so the step's own GATE is exported and the note ends there.
   Bit 6 (the mask's bit 20, `SX24_INSORD`, 1048576): a track's FILTER placed before its DIST with both on (S1 FILTER,
   S2 DIST: 2.4 always runs DIST, then FILTER), so the order is lost; S1 DIST, S2 FILTER (the default) is 2.4's order.
-  Bits 7 and 8 belong to other features. Bit 9 (the mask's bit 23, `SX24_LFO2`): a part's LFO 2 that is not written as
+  Bit 8 (the mask's bit 22, `SX24_COND`): a step condition (252 COND, below: Felucca 1.5.6), which 2.4 has not: left out (bit
+  7 is `SX24_INSFX`, a further insert). A v11 request gets it on bit 13 (motion), as the chance.
+  Bit 9 (the mask's bit 23, `SX24_LFO2`): a part's LFO 2 that is not written as
   2.4's LFO: one beside an LFO that acts, or with TRIG FREE, POL UNI or AMP below 0 (2.4 has one LFO, NOTE and BI); a
   LFO 2 alone (the part's LFO DEST all 0) is written as 2.4's LFO (its RATE, WAVE, the AMT on its DEST, AMP 2 × AMT).
 
@@ -744,7 +746,9 @@ store, firmware/src/seq/auto.h; firmware/src/io/editor/ed_stepx.c; docs/UI-OPTIM
 up to 128 events a track (its working pattern), each 3 bytes: **place** (bits 0..5 the step, bit 6 STEP-ONLY: a lock,
 it holds its step; clear: a hold event, motion, it holds until the next event of its parameter or the pattern's
 restart), **param** (the stored P_* id, the same in every build; or a pseudo-parameter: 253 NUDGE -32..31 in 1/64 of a
-step, 254 FILL 1 fill only / 2 no fill, 255 CHANCE 0..99 %, always STEP-ONLY), **value** (a signed byte). The pair
+step, 254 FILL 1 fill only / 2 no fill, 255 CHANCE 0..99 %, 252 COND 1..9 = 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4: the step
+plays on loop a of every b of its track, `FELUCCA_COND`, Felucca 1.5.6; a build without it keeps the event and plays the
+step always; always STEP-ONLY), **value** (a signed byte). The pair
 replaces the step extras' commands below (which still answer, on the list). Protocol v11 (v10 is the FX slots, 86 FX and 87 FX_PUSH; v11 = v10 plus AUTO_GET 92 and AUTO_SET 93); INFO unchanged: a firmware
 before it does not answer 92 (the editor then keeps to 72..77). 85 stays kept for a push of the patterns.
 

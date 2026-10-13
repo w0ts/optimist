@@ -17,13 +17,13 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
+ * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_tools.c (STEP's TOOLS and EUCLID), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
  * (ALGORITHM's walk, a lane's own sound),
  * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
- * op_gldraw.c (GLOBAL and SYSTEM's settings list),
+ * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
  * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
@@ -40,6 +40,7 @@
 #include "op_fm6.c"
 #include "op_screens.c"
 #include "op_mixer.c"
+#include "op_tools.c"            /* STEP's TOOLS and EUCLID pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
 #include "op_step.c"
 #include "op_effval.c"
 #include "op_layers.c"
@@ -54,6 +55,7 @@
 #include "op_name.c"
 #include "op_draw.c"
 #include "op_gldraw.c"
+#include "op_help.c"
 #include "op_mixdraw.c"
 #include "op_scope.c"
 #include "op_stepdraw.c"

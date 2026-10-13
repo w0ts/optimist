@@ -38,7 +38,8 @@
 #define FELUCCA_SL24_XSTEP 1
 #endif
 /* the automation store (seq/auto.h, phase 3 of docs/UI-OPTIMIST-DESIGN.md): one list of events a track holds motion
- * recording's hold events, the locks, nudges and fill conditions (step-only events) and chance; built with any of them */
-#define FELUCCA_AUTO (FELUCCA_MOTION || FELUCCA_SL24_XSTEP || FELUCCA_CHANCE)
+ * recording's hold events, the locks, nudges and fill conditions (step-only events), chance and the step conditions
+ * (backports15.h FELUCCA_COND); built with any of them */
+#define FELUCCA_AUTO (FELUCCA_MOTION || FELUCCA_SL24_XSTEP || FELUCCA_CHANCE || FELUCCA_COND)
 
 #endif

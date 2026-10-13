@@ -85,8 +85,9 @@ enum {                                                  /* what an export lost (
     SX24_INSORD = 1048576,                              /* (a track with its FILTER before its DIST, both on: 2.4 plays
                                                          * DIST then FILT; the second word's bit 6; sl24_fx_out) */
     SX24_INSFX = 2097152,                               /* (a further insert heard, FOLD FUZZ PHSR FLNG FRMT WIDE: insfx.c;
-                                                         * 2.4 has none; the second word's bit 7; sl24_fx_out; bit 8: another
-                                                         * branch's) */
+                                                         * 2.4 has none; the second word's bit 7; sl24_fx_out) */
+    SX24_COND = 4194304,                                /* (a step condition 1:2 .. 4:4, seq/auto.h AUTO_COND, Felucca 1.5.6:
+                                                         * 2.4 has none; the second word's bit 8; a v11 editor: MOTION) */
     SX24_LFO2 = 8388608                                 /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
                                                          * word's bit 9) */
 };
@@ -376,13 +377,13 @@ static uint8_t sl25_drdly_out(void)
 
 #if FELUCCA_AUTO
 /* track k's automation (seq/auto.h) as 2.4's extras x: its nudges, fills and first NLOCK step-only events of a value;
- * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, LOCK (more than NLOCK), LAUTO (a drum lane's
+ * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, COND, LOCK (more than NLOCK), LAUTO (a drum lane's
  * value, either kind: left out) */
 static uint32_t sl24_auto_out(stepx_t *x, const auto_list_t *l)
 {
     uint32_t r = auto_to_stepx(x, l);
     return (r & AUTO_X_HOLD ? SX24_MOTION : 0u) | (r & AUTO_X_CHANCE ? SX24_CHANCE : 0u) | (r & AUTO_X_LOCKS ? SX24_LOCK : 0u) |
-           (r & AUTO_X_LANE ? SX24_LAUTO : 0u);
+           (r & AUTO_X_LANE ? SX24_LAUTO : 0u) | (r & AUTO_X_COND ? SX24_COND : 0u);
 }
 #endif
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);

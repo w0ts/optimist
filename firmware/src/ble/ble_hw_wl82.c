@@ -146,6 +146,7 @@ static struct {
     uint8_t init_hit, init_own_rand, init_peer_rand;   /* the target's ADV_IND seen: switch at the next event IRQ */
     uint8_t init_own[6], init_peer[6];
     uint32_t init_t_hit;               /* (diagnostics: its RX IRQ, ticks) */
+    uint32_t init_t0;                  /* the engine listening for the target from here (ticks): ble_hw_init_start */
     struct ble_hw_conn ic;             /* our CONNECT_IND's LLData */
 #endif
 } drv;

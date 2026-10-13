@@ -7,7 +7,8 @@
  *   byte 1  the parameter: a stored id (motion.c mot_sid: build-independent), a drum lane's value (the drum track
  *           only: AUTO_LANE0 + (lane << 3 | value), 0x7C..0xFB, the value drum_edit.c's DE_* TUNE .. LEVEL), or a
  *           pseudo-parameter past every build's P_COUNT: AUTO_NUDGE (-32..31, 1/64 of a step), AUTO_FILL (1 FILL
- *           ONLY, 2 NO FILL), AUTO_CHANCE (0..99 %; none: 100 %), always STEP-ONLY
+ *           ONLY, 2 NO FILL), AUTO_CHANCE (0..99 %; none: 100 %), AUTO_COND (1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, a
+ *           step condition, Felucca 1.5.6; backports15.h FELUCCA_COND plays it), always STEP-ONLY
  *   byte 2  the value, a signed byte (every lockable and recordable value fits: tests/auto_int8_check.c)
  *
  * A step-only event is a lock (Elektron style: it holds its step, the parameter goes back at the next step without
@@ -27,21 +28,23 @@
 #define AUTO_NTRK 4u                     /* (NTRK: core.h; the store's tracks) */
 #define AUTO_STEP 0x3Fu                  /* place: the step */
 #define AUTO_ONLY 0x40u                  /* place: this step only (a lock); 0 = a hold (motion) */
-#define AUTO_NUDGE 0xFDu                 /* the pseudo-parameters (stored ids: past every build's P_COUNT) */
+#define AUTO_COND 0xFCu                  /* the pseudo-parameters (stored ids: past every build's P_COUNT); COND: Felucca 1.5.6 */
+#define AUTO_NCOND 9u                    /* its values 1 .. AUTO_NCOND */
+#define AUTO_NUDGE 0xFDu
 #define AUTO_FILL 0xFEu
 #define AUTO_CHANCE 0xFFu
-#define AUTO_PSEUDO(p) ((uint32_t)(p) >= AUTO_NUDGE)
+#define AUTO_PSEUDO(p) ((uint32_t)(p) >= AUTO_COND)
 /* a drum lane's value (drum_edit.c DE_*: TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL), its offset as dl.ofs keeps it, heard
  * at the lane's hits (the overlay dla, never the patch). Lane-major: lane and value with one shift and one mask. An
  * older build keeps these events and plays none of them (a hold: motion_param false; a lock: lock_ok false): ids past
- * every build's stored track ids (auto.c MOT_TAIL_END) and below the pseudo-parameters; 0xFC kept spare */
+ * every build's stored track ids (auto.c MOT_TAIL_END) and below the pseudo-parameters (0xFC: COND, the last free id) */
 #define AUTO_LANE0 0x7Cu
 #define AUTO_LANE_N 128u                 /* 16 lanes x 8 values: 0x7C .. 0xFB */
 #define AUTO_IS_LANE(p) ((uint32_t)(p) - AUTO_LANE0 < AUTO_LANE_N)
 #define AUTO_LANE(l, v) (AUTO_LANE0 + (((uint32_t)(l) & 15u) << 3 | ((uint32_t)(v) & 7u)))
 #define AUTO_LANE_L(p) (((uint32_t)(p) - AUTO_LANE0) >> 3)
 #define AUTO_LANE_V(p) (((uint32_t)(p) - AUTO_LANE0) & 7u)
-_Static_assert(AUTO_LANE0 + AUTO_LANE_N < AUTO_NUDGE, "lane ids below the pseudo-parameters (0xFC kept spare)");
+_Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND, "lane ids below the pseudo-parameters");
 /* a synth note's own end in the stored forms only (seq/ngate.h: the working lists never hold one): note slot k of the
  * step, AUTO_NGATE0 + k, step-only, value 1..127 (1/128 of the step). Past every build's stored track ids (auto.c
  * MOT_TAIL_END), below the drum lanes' ids: an older build keeps them and plays none */
@@ -63,6 +66,7 @@ static inline int auto_pseudo_ok(uint32_t param, int32_t v)
 {
     return param == AUTO_NUDGE ? v >= MICRO_MIN && v <= MICRO_MAX && v != 0
          : param == AUTO_FILL ? v == FC_FILL || v == FC_NOFILL
+         : param == AUTO_COND ? v >= 1 && v <= (int32_t)AUTO_NCOND
          : v >= 0 && v <= 99;
 }
 /* an event as a list may hold it (structure only: whether this build plays the parameter is the sequencer's) */
@@ -162,7 +166,7 @@ static inline uint32_t auto_count(const auto_list_t *l, uint32_t which)
  * stored ids for every lockable value (they differ only past P_E7, where the one lockable value, 2.4's FILT, is
  * P_ENG_END in both) */
 enum { AUTO_CUT = 1, AUTO_CLAMP = 2 };   /* auto_from_stepx: the list was full, a lock's value clamped to int8 */
-enum { AUTO_X_HOLD = 1, AUTO_X_CHANCE = 2, AUTO_X_LOCKS = 4, AUTO_X_LANE = 8 };   /* auto_to_stepx: not in the stepx
+enum { AUTO_X_HOLD = 1, AUTO_X_CHANCE = 2, AUTO_X_LOCKS = 4, AUTO_X_LANE = 8, AUTO_X_COND = 16 };   /* auto_to_stepx: not in the stepx
                                                                                       * form (LANE: a drum lane's value) */
 /* x's nudges, locks and fills added to l as step-only events (in that order, the locks in slot order) */
 static inline uint32_t auto_from_stepx(auto_list_t *l, const stepx_t *x)
@@ -205,6 +209,8 @@ static inline uint32_t auto_to_stepx(stepx_t *x, const auto_list_t *l)
             stepx_fill_set(x, s, (uint32_t)e->value);
         else if (e->param == AUTO_CHANCE)
             r |= AUTO_X_CHANCE;
+        else if (e->param == AUTO_COND)
+            r |= AUTO_X_COND;
         else if (m < NLOCK)
             x->lock[m].step = (uint8_t)s, x->lock[m].param = e->param, x->lock[m].val = e->value, m++;
         else

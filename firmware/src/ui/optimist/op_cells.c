@@ -364,9 +364,10 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         return 1;
     }
     if (!ok) {                                          /* every GO here destroys something: ask */
+        char kit_arg[8] = "KIT ";
         const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
-        if (pg->scope == SC_DSND)
-            arg = id == 15u ? LANE_NAME[lane_selected()] : "";   /* "RESET SNARE?", "SAVE?" */
+        if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */
+            arg = id == 15u ? LANE_NAME[lane_selected()] : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
         else if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
             arg = "";                                   /* "NEW?" */
         op_arm(scr, row, k, d->label, arg, 1);
