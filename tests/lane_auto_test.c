@@ -51,7 +51,7 @@ static void reset(void)
     clear_lists();
     memset(&drums, 0, sizeof drums);
     memset(&dl, 0, sizeof dl);
-    drums.set = -2;
+    drums_set = -2;
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     song.rec = 0;

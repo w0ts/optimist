@@ -51,6 +51,7 @@
 #define X0X_NCH 24u                /* (drum_x0x.c) */
 #define X0X_CH808 11u              /* the 808's first channel */
 #define X0X_BLK 32                 /* the most samples a block has (CTL) */
+_Static_assert(X0X_BLK <= DR_NZ_BUF - DR_NZ_HIST, "drum909.h DR_NZ_BUF: the history and one block");
 /* 1.0 of a voice -> the drum track's integer scale: each machine's kick at a step's velocity peaks as the
  * synthesised 909 / 808 kit's kick does (tests/x0x_drums_test.c measures it); the 808 at its kit level 127, as X0X
  * sets it */

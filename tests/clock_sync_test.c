@@ -141,7 +141,7 @@ static void reset(uint32_t sync)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
 #if FELUCCA_MASTER_COMP
     mlim.on = 0;                                    /* (LIMIT's lookahead, on by default: emptied at the next block, */
 #endif                                              /* or the scenario before leaves its last 1.45 ms in it) */

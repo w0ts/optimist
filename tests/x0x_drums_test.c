@@ -34,7 +34,7 @@ static int32_t ra[RN], rb[RN], rr[RN];
 static void reset(void)
 {
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     rng_state = 0x1234567u;
 #if DRUM_X0X
     memset(&xd, 0, sizeof xd);                  /* (the models from their power-on state) */

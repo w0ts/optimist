@@ -17,7 +17,7 @@ static void beat_setup(void)
     uint32_t j, q;
     host_tracks_init();
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     TDRUM->p[P_E0] = 0;                               /* the sampled kit: no random noise */
     song.g[G_BPM] = 120;
     for (j = 0; j < NSTEP; j++) {

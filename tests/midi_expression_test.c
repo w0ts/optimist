@@ -22,7 +22,7 @@ static void reset_test(void)
     memset(&um, 0, sizeof um);
     memset(sl, 0, sizeof sl);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     midi_nheld = 0;
     host_tracks_init();
     mi_r = mi_w = kb_prev = fm1_in.notes = panic_req = transport_req = 0;

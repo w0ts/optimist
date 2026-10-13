@@ -799,7 +799,7 @@ void drum909_render(drum909_t *d, float *dry, float *rev, float *dly, int n)
         n = 256;
     /* the shared noise, written on after the previous block so nz[-DR_NZ_HIST
      * .. -1] is the noise before this block; the tail is moved to the front
-     * only when the buffer runs out (every other 256-frame block) */
+     * only when the buffer runs out (every 256-frame block) */
     if (d->nz_pos + n > DR_NZ_BUF) {
         for (int i = 0; i < DR_NZ_HIST; ++i)
             d->nz_buf[i] = d->nz_buf[d->nz_pos - DR_NZ_HIST + i];

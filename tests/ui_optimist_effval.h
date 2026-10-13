@@ -34,7 +34,7 @@ static int effv_lane_same(uint32_t l)
         memset(h, 0, DE_N);
     {   /* the absolute values too: de_synth on the hit's offsets, as dl_ds_on gives the voice */
         int32_t v, mn, mx, semi;
-        const dsnd_t *d = &DS_KITS[drum_kit() - DRUM_SAMPLED].s[ds_lane(LANE_NOTE[l], &semi)];
+        const dsnd_t *d = DS_SND(&DS_KITS[drum_kit() - DRUM_SAMPLED], ds_lane(LANE_NOTE[l], &semi));
         dsnd_t s;
         de_synth(&s, d, h);
         if (effv_lane(l, DE_DRIVE, &v, &mn, &mx) != 2u || v != s.drive || effv_lane(l, DE_DECAY, &v, &mn, &mx) != 2u ||
@@ -166,14 +166,14 @@ static void effv_bar_tests(void)
             uint32_t k, bk = 0, bl = 0, best = 999;
             for (k = 0; k < DS_NKITS; k++)
                 for (l = 0; l < DRUM_LANES; l++) {
-                    uint32_t dv = DS_KITS[k].s[ds_lane(LANE_NOTE[l], &semi)].drive, e = dv > 67u ? dv - 67u : 67u - dv;
+                    uint32_t dv = DS_SND(&DS_KITS[k], ds_lane(LANE_NOTE[l], &semi))->drive, e = dv > 67u ? dv - 67u : 67u - dv;
                     if (drum_kit_built(DRUM_SAMPLED + k) && e < best)
                         best = e, bk = k, bl = l;
                 }
             TDRUM->p[P_E0] = (int16_t)(DRUM_SAMPLED + bk);
             l = bl;
         }
-        d = &DS_KITS[drum_kit() - DRUM_SAMPLED].s[ds_lane(LANE_NOTE[l], &semi)];
+        d = DS_SND(&DS_KITS[drum_kit() - DRUM_SAMPLED], ds_lane(LANE_NOTE[l], &semi));
         lane_select(l);
         ui.lane = 1;
         op_enter(SCR_SOUND);

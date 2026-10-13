@@ -12,7 +12,7 @@ static uint32_t one_hit(uint32_t kit, uint32_t note, int32_t *peak, uint64_t *en
     uint32_t j, k, blocks = 0;
     int32_t l[CTL], r[CTL], rv[CTL];
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     TDRUM->p[P_E0] = (int16_t)kit;
     song.g[G_DRLVL] = 100;
     drum_on(note, 110);
@@ -63,13 +63,13 @@ static void kick_edges(FILE *rep)
     for (kit = DRUM_SAMPLED; kit < DRUM_SYNTH_END; kit++) {
         const dkit_t *K = &DS_KITS[kit - DRUM_SAMPLED];
         int32_t semi, l[CTL], r[CTL], rv[CTL];
-        const dsnd_t *d = &K->s[ds_lane(36, &semi)];
+        const dsnd_t *d = DS_SND(K, ds_lane(36, &semi));
         double edge = 0, in = 0, tn;
         uint32_t ne = 0, ni = 0;
         if (!d->wave || d->wave == DW_SQUARE || d->wave == DW_BELL || K->crush)
             continue;
         memset(&drums, 0, sizeof drums);
-        drums.set = -2;
+        drums_set = -2;
         TDRUM->p[P_E0] = (int16_t)kit;
         song.g[G_DRLVL] = 100;
         drum_on(36, 110);
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         for (k = 0; k < 2u; k++) {
             uint32_t rep_n = 2000;
             memset(&drums, 0, sizeof drums);
-            drums.set = -2;
+            drums_set = -2;
             TDRUM->p[P_E0] = (int16_t)(k ? DRUM_SAMPLED + 1u : 0u);
             clock_gettime(CLOCK_MONOTONIC, &t0);
             for (j = 0; j < rep_n; j++) {
@@ -154,7 +154,7 @@ int main(int argc, char **argv)
         int32_t l[CTL], r[CTL], rv[CTL];
         wav_hdr(f, total / CTL * CTL);
         memset(&drums, 0, sizeof drums);
-        drums.set = -2;
+        drums_set = -2;
         for (kit = DRUM_SAMPLED; kit < DRUM_SYNTH_END; kit++) {
             TDRUM->p[P_E0] = (int16_t)kit;
             for (j = 0; j < 16u; j++) {

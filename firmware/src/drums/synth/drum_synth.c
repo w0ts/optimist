@@ -36,9 +36,10 @@ typedef struct {
 typedef struct {
     const char *name, *style;
     uint8_t crush;               /* low nibble: bits dropped, high nibble: sample-and-hold - 1 */
-    dsnd_t s[DS_LANES];
+    uint16_t si[DS_LANES];       /* each lane's sound: DS_SNDS index (a sound several kits share is kept once) */
 } dkit_t;
-#include "felucca_drumkits.h"    /* DS_KITS[], DS_NKITS (tools/gen_drumkits.py) */
+#include "felucca_drumkits.h"    /* DS_SNDS[], DS_KITS[], DS_NKITS (tools/gen_drumkits.py) */
+#define DS_SND(k, lane) (&DS_SNDS[(k)->si[lane]])   /* kit k's lane: its sound */
 
 /* GM note -> synth lane and a pitch offset in semitones */
 static const struct { uint8_t lane; int8_t semi; } DS_MAP[128 - 35] = {
@@ -171,7 +172,7 @@ static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
 {
     int32_t semi;
     uint32_t lane = ds_lane(note, &semi);
-    ds_on_snd(s, &kit->s[lane], kit->crush, semi, note, vel);
+    ds_on_snd(s, DS_SND(kit, lane), kit->crush, semi, note, vel);
 }
 
 /* one CTL block of control: the envelopes' targets at its end */
