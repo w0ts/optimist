@@ -47,6 +47,8 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_BIGVALS": "big values on pages without a graph (SLOOP 2.4)",
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.4 (web editor)",
     "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.4 backup file (web editor)",
+    "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
+    "FELUCCA_SEQTOOLS": "STEP tools: REVERSE RANDOM COOK EUCLID (Felucca 1.5.6)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -206,6 +208,18 @@ DESC["FELUCCA_SL24_EDIMPORT"] = (
     " then keeps it in a section. The editor can also put 2.4's FM6 patches (from the file, or the bank 2.4 left in "
     "flash) in the free slots of the FM6 user bank. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash"
     " and 0.4 KB of pool.")
+DESC["FELUCCA_COND"] = (
+    "Step conditions from Felucca 1.5.6: a step plays only on loop a of every b of its track (1:2 2:2 1:3 2:3 3:3 1:4 "
+    "2:4 3:4 4:4), counted from PLAY, a song section or a launched pattern. With FILL and the chance on the same step: "
+    "the condition, then FILL, then the chance. The Optimist UI: a held step's EXTRA page, COND; SLOOP's UI plays them. "
+    "A step-only event of the automation store (it builds the store); an older build plays such a step always. About "
+    "0.6 KB of flash.")
+DESC["FELUCCA_SEQTOOLS"] = (
+    "The sequence tools of Felucca 1.5.6 on STEP's last two pages (the Optimist UI): TOOLS (REVERSE, RANDOM: new notes "
+    "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one undo, and EUCLID (HITS STEPS "
+    "ROT, live). On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
+    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 3.5 KB of flash; nothing with "
+    "SLOOP's UI.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -242,6 +256,8 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
     "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
     "FELUCCA_BIGVALS": 217,
+    "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
+    "FELUCCA_SEQTOOLS": 241,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

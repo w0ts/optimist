@@ -1276,6 +1276,67 @@
       "limits": "needs FELUCCA_SL24_IMPORT (and SL24_SAFE): built without them it is off. One project at a time (the file's working project or A..D); as LOAD twice: what the importer loses (sl24_import.c)",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_COND",
+      "title": "Step conditions 1:2 .. 4:4 (a step plays on loop a of every b)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "9f6a885 (Felucca 1.5.6)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/core.h step_cond (COND_FIRST, NCOND), seq.c seq_cond_miss / seq_enter (1.5.5, #209)"
+      },
+      "files": [
+        "firmware/src/seq/auto.h AUTO_COND",
+        "firmware/src/seq/auto.c cond_pass, cond_miss, auto_step",
+        "firmware/src/seq/seq.c seq_tick, seq_reset_tracks",
+        "firmware/src/ui/optimist/op_step.c the COND card"
+      ],
+      "cost": {
+        "flash": 600,
+        "ram": 8,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (read in the step's scan of its events)",
+        "project_bytes": 0
+      },
+      "storage": "a step-only event of the automation store (seq/auto.h AUTO_COND 0xFC, 1..9): the new forms (the extras record's AUTO_ENC_TAG form, V2 pattern records); an older Optimist build keeps it and plays the step always",
+      "limits": "drum steps: the whole step (every lane); the Optimist UI edits them (the held step's EXTRA page), SLOOP's UI plays them",
+      "notice": "Step conditions from Felucca 1.5.6 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_SEQTOOLS",
+      "title": "Sequence tools: REVERSE RANDOM COOK EUCLID DOUBLE HALF (STEP's TOOLS and EUCLID pages)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "9f6a885 (Felucca 1.5.6)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_tools.c (1.2 .. 1.5.5: tl_reverse, tl_random_notes, tl_lane_rnd, tl_cook_*, EUCLID, tl_double / tl_half)"
+      },
+      "files": [
+        "firmware/src/ui/optimist/op_tools.c",
+        "firmware/src/ui/optimist/op_step.c STEP's pages",
+        "firmware/src/ui/optimist/op_layers.c EDIT SHIFT / LENGTH move the events"
+      ],
+      "cost": {
+        "flash": 3500,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (main loop, on YES)",
+        "project_bytes": 0
+      },
+      "storage": "none (the steps and their events)",
+      "limits": "the Optimist UI only (UI=1): with SLOOP's UI it builds nothing",
+      "notice": "Sequence tools from Felucca 1.5.6 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

@@ -17,7 +17,7 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
+ * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_tools.c (STEP's TOOLS and EUCLID), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
  * (ALGORITHM's walk, a lane's own sound),
  * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
@@ -40,6 +40,7 @@
 #include "op_fm6.c"
 #include "op_screens.c"
 #include "op_mixer.c"
+#include "op_tools.c"            /* STEP's TOOLS and EUCLID pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
 #include "op_step.c"
 #include "op_effval.c"
 #include "op_layers.c"

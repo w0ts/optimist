@@ -19,6 +19,8 @@
  *   editor     AUTO_GET / AUTO_SET (v11), and the older LOCK_SET on the list
  *   sl24 lost  SL24_GET (78): the motion on bit 13, the chance on the second word's bit 0 (v12, the request's flag), the v11 reply as it was
  *   toggle     a lock made a hold event and back (YES on STEP: auto_kind_toggle); not for a value motion refuses
+ *   cond       the step conditions (COND, Felucca 1.5.6): 1:2 2:4 3:3 over 24 passes, with FILL and chance, PLAY
+ *              again from pass 1; never the old forms (they would drop one), the 2.4 export's lost bit
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
@@ -28,6 +30,7 @@
 #define FELUCCA_MICRO 1
 #define FELUCCA_FILLS 1
 #define FELUCCA_CHANCE 1
+#define FELUCCA_COND 1
 #define FELUCCA_SL24_EXPORT 1
 #define main hostsim_main
 #include "hostsim.c"
@@ -413,6 +416,66 @@ static void t_extras(void)
     b[nb - 3u] |= 0x80u;
     check("... a malformed one refused, the store left empty", !ax_decode(&m2, b, nb) && !m2.l[0].n && !m2.l[3].n);
 }
+/* step conditions (FELUCCA_COND, Felucca 1.5.6): drum lane 0 on every step of 8, step 2 1:2, step 3 2:4, step 4 3:3,
+ * step 5 1:2 + FILL ONLY, step 6 1:2 + chance 0; 24 passes */
+static void t_cond(void)
+{
+    static uint8_t b[AX_ENC_MAX];
+    static auto_store_t m, m2;
+    stepx_t x;
+    uint32_t i, slen = BEAT_U / 4u, n[8];
+    reset();
+    TDRUM->p[P_SLEN] = 8;
+    for (i = 0; i < 8u; i++)
+        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+    check("COND: 1..9 taken, 0 drops the event, 10 refused (the event goes)",
+          step_cond_set(TDRUM, 1, 1) && step_cond(TDRUM, 1) == 1u && step_cond_set(TDRUM, 1, 0) && !step_cond(TDRUM, 1) &&
+          step_cond_set(TDRUM, 1, 10) && !step_cond(TDRUM, 1) && !AL(TDRUM)->n);
+    (void)step_cond_set(TDRUM, 1, 1);                  /* 1:2 */
+    (void)step_cond_set(TDRUM, 2, 7);                  /* 2:4 */
+    (void)step_cond_set(TDRUM, 3, 5);                  /* 3:3 */
+    (void)step_cond_set(TDRUM, 4, 1);
+    (void)step_fill_set(TDRUM, 4, FC_FILL);
+    (void)step_cond_set(TDRUM, 5, 1);
+    (void)step_chance_set(TDRUM, 5, 0);
+    transport_req = 1;
+    while (clk_beat < 48u)                            /* 24 passes */
+        run_block();
+    for (i = 0; i < 8u; i++)
+        n[i] = hits_on(i, slen);
+    printf("auto: conditions over 24 passes: %u %u %u %u %u %u\n", n[0], n[1], n[2], n[3], n[4], n[5]);
+    check("1:2 on passes 1 3 5 .. (12), 2:4 on 2 6 10 .. (6), 3:3 on 3 6 9 .. (8), none every pass",
+          n[0] == 24u && n[1] == 12u && n[2] == 6u && n[3] == 8u);
+    check("1:2 with FILL ONLY and no fill: never; 1:2 with chance 0: never", n[4] == 0u && n[5] == 0u);
+    seq_stop();
+    nhits = 0;
+    clk_beat = clk_pos = 0;
+    fill_held = 1;
+    transport_req = 1;
+    while (clk_beat < 16u)                            /* 8 passes, a fill held */
+        run_block();
+    n[1] = hits_on(1, slen), n[4] = hits_on(4, slen), n[2] = hits_on(2, slen);
+    check("PLAY again: the count from pass 1 (1:2 on 1 3 5 7: 4, 2:4 on 2 6: 2); 1:2 + FILL in a fill: 4",
+          n[1] == 4u && n[2] == 2u && n[4] == 4u);
+    fill_held = 0;
+    seq_stop();
+    /* the stored forms: a condition is not 2.4's, so the old forms are never chosen (they would drop it) */
+    memset(&m, 0, sizeof m);
+    (void)auto_put(&m.l[2], 4u | AUTO_ONLY, AUTO_COND, 3);
+    check("auto_to_stepx reports a condition (AUTO_X_COND), not a lock", auto_to_stepx(&x, &m.l[2]) == AUTO_X_COND && !stepx_lock_used(&x.lock[0]));
+    check("... a track with one is not the old pattern form (V2 then)", !auto_trk_old_ok(&m, 2) && auto_trk_old_ok(&m, 1));
+    i = ax_encode(&m, b);
+    memset(&m2, 0, sizeof m2);
+    check("... the extras record: the new form (AUTO_ENC_TAG), read back equal", b[0] == AUTO_ENC_TAG && ax_decode(&m2, b, i) &&
+          auto_store_same(&m, &m2));
+    check("... a 2.4 export reports it (SX24_COND, the second word's bit 8)", sl24_auto_out(&x, &m.l[2]) == SX24_COND &&
+          ((SX24_COND >> 14) & 0x3FFFu) == 256u);
+    {
+        auto_ev_t e = {5u | AUTO_ONLY, AUTO_COND, 0}, f = {5u, AUTO_COND, 2}, g = {5u | AUTO_ONLY, AUTO_COND, 9};
+        check("an event a list never holds: COND 0, COND as a hold event; COND 9 (4:4) is one", !auto_ev_ok(&e) && !auto_ev_ok(&f) && auto_ev_ok(&g));
+    }
+}
+
 /* an old pattern record of track 0: V1, a motion chunk (3 events), the steps (codec A), PF_SX (a nudge, a lock, a fill) */
 static uint32_t old_pattern(uint8_t *o, const project_t *p)
 {
@@ -719,6 +782,7 @@ int main(void)
     t_both();
     t_fills();
     t_chance();
+    t_cond();
     t_motn();
     t_extras();
     t_pattern();
