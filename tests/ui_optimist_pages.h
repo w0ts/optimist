@@ -258,6 +258,96 @@ static uint32_t kws(uint32_t a, uint32_t b)             /* white keys a..b */
 }
 static void hold_layer(uint32_t b) { press(b); frames(HOLD_FRAMES); }
 static void let_go(uint32_t b) { release(b); frames(2); reset_ui(); }
+/* the pages with no track context (GLOBAL, SYSTEM, PROJECT): the keys play nothing, send nothing, light nothing, pick
+ * no lane; PROJECT's slot rows keep the slot pick; the layers and a key held over a page change stay sound */
+static int key_dead(uint32_t k) { return kb_kind[k] == KS_UI || kb_kind[k] == KS_NONE; }
+static void keys_global_tests(void)
+{
+    uint32_t pass, r, tools = 0, sel0;
+    for (pass = 0; pass < 2u; pass++) {
+        song.sel = pass ? TRK_DRUM : 0;
+        reset_ui();
+        frames(2);
+        tap(B_GLO);
+        frames(2);
+        check(ui.scr == SCR_GLOBAL, "keys, no-track pages: GLO: GLOBAL");
+        kdown(WK(3));
+        check(key_dead(WK(3)) && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "GLOBAL: a white key plays nothing");
+        keys_are(0, 0, "GLOBAL: the keys are dark");
+        kup(WK(3));
+        kdown(1);
+        check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "GLOBAL: a black key plays nothing");
+        kup(1);
+        sel0 = lane_selected();
+        press(B_HOME);
+        frames(HOLD_FRAMES);
+        kdown(WK(5));
+        check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: HOME + a key: no lane pick, no sound");
+        keys_are(0, 0, "GLOBAL: HOME held: the keys stay dark");
+        kup(WK(5));
+        release(B_HOME);
+        tap(B_GLO);
+        frames(2);
+        check(ui.scr == SCR_SYSTEM, "keys, no-track pages: GLO again: SYSTEM");
+        kdown(WK(2));
+        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "SYSTEM: a key plays nothing");
+        keys_are(0, 0, "SYSTEM: the keys are dark");
+        kup(WK(2));
+        reset_ui();
+        op_enter(SCR_PROJECT);
+        for (r = 0; r < NPRJ; r++)
+            if (prj_kind(r) == PR_TOOLS)
+                tools = r;
+        ui.row[SCR_PROJECT] = (uint8_t)tools;
+        frames(2);
+        kdown(WK(2));
+        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "PROJECT, TOOLS row: a key plays nothing");
+        keys_are(0, 0, "PROJECT, TOOLS row: dark");
+        kup(WK(2));
+        ui.row[SCR_PROJECT] = 0;
+        ui.force = 1;
+        frames(2);
+        kdown(WK(2));
+        frames(2);
+        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM && song.g[G_SLOT] == 3, "PROJECT, slot row: the key still picks slot 3");
+        kup(WK(2));
+        press(B_HOME);
+        frames(HOLD_FRAMES);
+        sel0 = lane_selected();
+        kdown(WK(1));
+        check(lane_selected() == sel0 && song.g[G_SLOT] == 3, "PROJECT, HOME held + a key: no lane pick, no slot");
+        kup(WK(1));
+        release(B_HOME);
+        reset_ui();
+        /* a layer from a no-track page: SAVE held on GLOBAL shows the scenes, the key is the layer's */
+        tap(B_GLO);
+        frames(2);
+        hold_layer(B_SAVE);
+        kdown(WK(1));
+        check(kb_kind[WK(1)] == KS_UI && lay.shown == LY_SONG, "GLOBAL, SAVE held + a key: the scene (the layer's key)");
+        kup(WK(1));
+        let_go(B_SAVE);
+        hold_layer(B_FX);
+        kdown(WK(2));
+        check(kb_kind[WK(2)] == KS_FX, "GLOBAL, FX held + a key: the punch-in");
+        kup(WK(2));
+        let_go(B_FX);
+        /* a key held over a page change: its note-off, and a UI key's release leaves no step held */
+        reset_ui();
+        kdown(WK(4));
+        check(kb_kind[WK(4)] == KS_NOTE || kb_kind[WK(4)] == KS_DRUM, "the mixer: a key plays");
+        tap(B_GLO);
+        frames(2);
+        kup(WK(4));
+        check(kb_kind[WK(4)] == KS_NONE, "a key down on the mixer, GLOBAL shown, released: note off");
+        kdown(WK(4));
+        tap(B_SEQ);
+        frames(2);
+        kup(WK(4));
+        check(kb_kind[WK(4)] == KS_NONE && st.held == 0u, "a key down on GLOBAL, STEP shown, released: no step held");
+        reset_ui();
+    }
+}
 static void pages_keys_tests(void)
 {
     uint32_t k, root = 0;

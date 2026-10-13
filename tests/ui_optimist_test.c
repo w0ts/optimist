@@ -2447,6 +2447,7 @@ int main(int argc, char **argv)
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();
+    keys_global_tests();
     pages_head_tests();
     pages_select_tests();
     pages_hit_tests();

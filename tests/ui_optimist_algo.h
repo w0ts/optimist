@@ -138,7 +138,7 @@ static void algo_every_tests(void)
     /* HOME + a key: a lane straight away, on any page */
     reset_ui();
     song.sel = 0;
-    op_enter(SCR_PROJECT);
+    op_enter(SCR_SOUND);
     song.sel = TRK_DRUM;
     frame();
     fm1_in.buttons |= BT(B_HOME);
@@ -148,7 +148,7 @@ static void algo_every_tests(void)
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
     ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
-    check(ok, "HOME + a drum key on PROJECT: that lane selected, the walk on from it");
+    check(ok, "HOME + a drum key on SOUND: that lane selected, the walk on from it");
     song.sel = 0;
     reset_ui();
 }
