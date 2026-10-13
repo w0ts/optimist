@@ -122,7 +122,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | Control | Always means |
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
-| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows |
+| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows. It is the track and never anything else (section 26: not GLOBAL's or SYSTEM's cursor either) |
 | **PRESETS** | **browses the selected track's presets** (the drum track: its kits; a drum lane on an instrument: that lane's sound, section 16), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
@@ -2363,7 +2363,7 @@ SELECT pages them and never changes the lane; ALGORITHM walks DR, then the lanes
 on STEP) picks one. The drum SOUND row's LANE card is a read-out (KNOB 2 no longer steps the lane). Checked on every
 page: the mixer keeps its own rule (ALGORITHM the rows, SELECT the knob sets). **SCOPE still mixes them**: its SELECT
 walks the sources MASTER T1 T2 T3 DR (the scope's view, not the selection, which ALGORITHM keeps); making the source
-ALGORITHM's would need MASTER on SCOPE, where the walk now opens the master FX: left as it is, to decide.
+ALGORITHM's would need MASTER on SCOPE, where the walk now opens the master FX: left as it is, to decide (it is SELECT's, not ALGORITHM's: section 26's audit).
 
 **A drum key played selects its lane** (the user: *"when i play a note for the drums on the keyboard it should switch to
 that instrument in all the relevant pages"*; then: always, DR itself selected too; ALGORITHM back to DR returns to the
@@ -2497,7 +2497,7 @@ systems settings (track presets and current track)"; then "select scroll by page
 other pages", "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the
 page moves line by line)", and "glo still pages thru pages of glo and then system, it should switch between the two".
 
-**Logical pages (feat/settings-pages, 2026-10-13; the user: "grouped in logical pages, dont cut a page in the middle", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should be on one page").** A page is one section: sections are never combined to fill a page, a short one leaves the page's last lines empty (their knobs do nothing). Only a section of more than 4 lines is split, between its rows (REC: MODE LENGTH START CLICK, then QUANT: "Rec 1/2" over each page). The pages are made from the lines the build has (op_global.c `gl_build`, `gl_sid`: a section's lines, REC 2's being REC's), so DUAL, BLE, CDC, CLKOUT, BRIGHT, LIGHTS, REC_MODES move the rest up and no page number is fixed. The header's n/N counts the pages; SELECT steps a page (the cursor on its first line), ALGORITHM a line, knob k is line k of its page. Tests: tests/ui_optimist_glpages.h (every variant).
+**Logical pages (feat/settings-pages, 2026-10-13; the user: "grouped in logical pages, dont cut a page in the middle", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should be on one page").** A page is one section: sections are never combined to fill a page, a short one leaves the page's last lines empty (their knobs do nothing). Only a section of more than 4 lines is split, between its rows (REC: MODE LENGTH START CLICK, then QUANT: "Rec 1/2" over each page). The pages are made from the lines the build has (op_global.c `gl_build`, `gl_sid`: a section's lines, REC 2's being REC's), so DUAL, BLE, CDC, CLKOUT, BRIGHT, LIGHTS, REC_MODES move the rest up and no page number is fixed. The header's n/N counts the pages; SELECT steps a page (the cursor on its first line), knob k is line k of its page (ALGORITHM is the track here as everywhere, section 26). Tests: tests/ui_optimist_glpages.h (every variant).
 
 **The look.** GLOBAL and SYSTEM have no cards. Under the header, to the screen's foot, one page of up to 4 lines; a line is one
 setting: its knob's number (1..4) at the left, the setting's name, its value on the right as the cards wrote it (the
@@ -2525,28 +2525,28 @@ COLORS' label is the full name now (it was COLORS to fit a card).
 |---|---|
 | KNOB 1..4 | the page's line 1..4 (its number at the left); the turn makes that line the cursor |
 | SELECT | the page: a page of 4 lines a detent, within the screen, stopping at its ends; the cursor on the page's first line |
-| ALGORITHM | the cursor, a line a detent within the screen, stopping at its ends; past the page's 4th line the next page shows, and back (the pages are SELECT's) |
+| ALGORITHM | the track walk, as on every screen (op_walk.c, section 26); never the cursor (the user, 2026-10-13: "ALGORITHM moves track - NO. only the track!"). It was a line-by-line cursor until then |
 | PRESETS | the cursor line's value; HOME held + PRESETS: back to its default (the values with a descriptor: BPM, SWING, SYNC, CLICK, QUANT, MIDI OUT / IN, the channels); the others to their FACTORY value, what a blank FM-1 or an empty settings record gives (the user, 2026-10-13): MODE FREE, LENGTH 1 bar, START NOTE, CLK OUT OFF, COLOR MONO, BRIGHT 8, KNOB COLORS OFF, LIGHTS and KEYS OFF, LOWCUT OFF, SERIAL OFF, HOLD 350 ms, 2ND CORE AUTO. BLE is never reset (a reset must not drop a live connection). An action line: runs it, as YES (PANEL asks first). A read-out: nothing. Never the track or its sound on these screens |
 | SAVE (YES) | the cursor line: an action (PANEL asks first; VERSION says it; BLE opens the devices list), an on / off value toggled |
 | GLO tapped | from any other screen GLOBAL; on GLOBAL SYSTEM; on SYSTEM (the devices list too, which closes) GLOBAL. Each screen keeps its cursor line |
 | OCT- / OCT+ held | on a GLOBAL page with Tempo's lines: the nudge, as on the TEMPO page; elsewhere the octave |
 
-ALGORITHM and PRESETS never select a track, a lane or MASTER and never change a preset here. The BLE devices list
-(SYSTEM > Bluetooth > BLE, YES) is unchanged: its rows and cards, SELECT and now ALGORITHM move its cursor, PRESETS does
-nothing. The keys have no job on these screens: dark (section 17, D10). The GLO LED is full on both.
+PRESETS never selects a track and never changes a preset here; ALGORITHM selects the track as everywhere (the settings are the same whichever track is selected). The BLE devices list
+(SYSTEM > Bluetooth > BLE, YES) is unchanged: its rows and cards, SELECT moves its cursor, PRESETS does
+nothing, ALGORITHM walks the track. The keys have no job on these screens: dark (section 17, D10). The GLO LED is full on both.
 
 **How.** op_global.c: the lines (`gl_build`, once: what a row shows depends on the build only), the screens' functions
 (a row is a line, a cell the 4 lines of its page; YES acts on the cursor line and a question asked there comes back to
-it), `glo_step` (SELECT), `gl_algo`, `gl_presets`, `gl_pick` (a knob's line the cursor), `glo_tap`, `gl_on_tempo`
+it), `glo_step` (SELECT), `gl_presets`, `gl_pick` (a knob's line the cursor), `glo_tap`, `gl_on_tempo`
 (op_tempo.c's nudge). op_gldraw.c draws the list (main-loop code, in size_fns' SIZE_FILES; nothing in HOT or RAM code).
-op_draw.c: no cards on these screens, the page n/N in the header. op_input.c: ALGORITHM, PRESETS and the knobs' pick.
+op_draw.c: no cards on these screens, the page n/N in the header. op_input.c: PRESETS and the knobs' pick (ALGORITHM is `algo_walk` there as on every screen).
 
 Tests: tests/ui_optimist_glo.h (the lines and their order against the rows' cells, the sections, every line named; the
-drawing: no cards, the 1..4 numbers, the cursor bar; ALGORITHM line by line with the page following, stopping at each
-screen's ends and never crossing; KNOB k the page's line k; PRESETS the cursor line, HOME + PRESETS its default;
-ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSION, PANEL's question, the BLE devices;
+drawing: no cards, the 1..4 numbers, the cursor bar; SELECT page by page, stopping at each
+screen's ends and never crossing (section 26: ALGORITHM no longer moves the cursor); KNOB k the page's line k; PRESETS the cursor line, HOME + PRESETS its default;
+PRESETS leaves the track and its preset alone; the read-outs; VERSION, PANEL's question, the BLE devices;
 GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_glwalk.h (every
-line of both screens walked with ALGORITHM: a value's knob and PRESETS change a setting and its text, HOME + PRESETS a
+line of both screens walked (the cursor set directly, `line_at`): a value's knob and PRESETS change a setting and its text, HOME + PRESETS a
 descriptor's default; a read-out's knob and PRESETS change nothing; no line draws YES, PANEL draws CALIBRATE and PRESETS asks; every line without a descriptor back to its factory value, BLE kept;
 VERSION the version), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
@@ -2767,3 +2767,25 @@ LY_STEP on these pages (the keys reach the UI only, seq.c `key_down` makes them 
 The pages whose keys do something stay as they are: the mixer (play; HOME held mutes the sequencer), SOUND (play; HOME
 held picks the lane on the drum track), STEP (the steps; SEQ held plays and picks), the MASTER FX page (play), SONG (play;
 its PATTERNS row launches the patterns), SCOPE (play), TEMPO (PLAY held: the white keys tap the tempo).
+
+## 26. ALGORITHM is only the track (fix/algo-track, 2026-10-13)
+
+The user: *"ALGORITHM moves track - NO. only the track!"* ALGORITHM walks MASTER, T1, T2, T3, DR, then the drum lanes 1-16
+(section 16), the same on every screen and in every performance layer, and does nothing else. The one screen that used
+it for something else was the pair GLOBAL / SYSTEM (section 20), where it moved the cursor line by line (op_global.c
+`gl_algo`, gone); op_input.c `op_knobs` now calls `algo_walk` for every screen. The audit of the rest (every `EN_ALGO` of
+the Optimist UI: op_input.c, op_layers.c, op_step.c, op_name.c) found no other use: PROJECT, SONG, SCOPE, the BLE devices
+list, the TOOLS and EUCLID pages, TEMPO and the layers already walked the track. Where ALGORITHM does *nothing* (not a
+second job): a step held (the step belongs to the track shown), NAME (the encoders are drained), a free take.
+
+Where the cursor and the pages are now:
+
+| Screen | Control |
+|---|---|
+| GLOBAL, SYSTEM | SELECT pages (4 lines a page, the cursor on its first line); knob k edits line k of the page and makes it the cursor (the help line shows it); PRESETS sets the cursor line (HOME held: its default), as before |
+| the BLE devices list | SELECT moves the cursor (a row a detent), as on PROJECT and SONG |
+| PROJECT, SONG, SCOPE, every other list | unchanged: SELECT the row, knob k the card k |
+
+Tests: tests/ui_optimist_algotrack.h (every screen and every layer: ALGORITHM changes the walk and nothing else, no
+setting, no row, no screen; GLOBAL / SYSTEM: SELECT pages, a knob picks its line, ALGORITHM leaves it); the tests that
+used ALGORITHM for lines (glo, glwalk, glpages, help, pagemem) now set the cursor with SELECT or `line_at`.

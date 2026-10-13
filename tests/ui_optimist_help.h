@@ -54,7 +54,7 @@ static void help_tests(void)
         for (i = 0; i < n; i++) {
             uint32_t t;
             char tb[PH_LINE];
-            turn(EN_ALGO, (int32_t)i - (int32_t)ui.row[scr]);
+            line_at(scr, i);
             gl_cell(s, i, &c);
             t = hl_text();
             gl_sect(s, i, nm);

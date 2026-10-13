@@ -143,42 +143,42 @@ static void glo_draw_tests(void)
           "GLOBAL drawn: no cards, the lines marked 1..4 at the left (knob colours), the cursor line a bar in the track's colour");
     ppm("opt-glo-global-top");
     knob_colors = 0;
-    turn(EN_ALGO, 5);
+    turn(EN_SELECT, 1);
     frames(2);
     cp_pos(p);
-    check(ui.row[SCR_GLOBAL] == 5u && !strncmp(p, " 2/", 3), "ALGORITHM 5: the cursor on line 6, page 2 shown (2/N)");
+    check(ui.row[SCR_GLOBAL] == gl_end(0, 0) && !strncmp(p, " 2/", 3), "SELECT 1: page 2 shown (2/N), the cursor on its first line");
     ui.force = 1;
     frames(2);
     ppm("opt-glo-global-mid");
-    turn(EN_ALGO, (int32_t)ng);
+    turn(EN_SELECT, (int32_t)ng);
     frames(2);
-    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == ng - 1u, "ALGORITHM right: stops on GLOBAL's last line (never SYSTEM)");
-    turn(EN_ALGO, -100);
-    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "ALGORITHM left: stops on GLOBAL's first line (no wrap)");
+    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == gl_first(0, ng - 1u), "SELECT right: stops on GLOBAL's last page (never SYSTEM)");
+    turn(EN_SELECT, -100);
+    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "SELECT left: stops on GLOBAL's first page (no wrap)");
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
-    turn(EN_ALGO, -1);
-    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "ALGORITHM left on SYSTEM's first line: stays (never GLOBAL)");
-    turn(EN_ALGO, 1000);
-    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == SCREENS[SCR_SYSTEM].rows() - 1u,
-          "ALGORITHM right: stops on SYSTEM's last line (no wrap)");
+    turn(EN_SELECT, -1);
+    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "SELECT left on SYSTEM's first page: stays (never GLOBAL)");
+    turn(EN_SELECT, 1000);
+    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == gl_first(1, SCREENS[SCR_SYSTEM].rows() - 1u),
+          "SELECT right: stops on SYSTEM's last page (no wrap)");
     ui.row[SCR_SYSTEM] = 0;
     knob_colors = 1;
     ui.force = 1;
     frames(2);
     ppm("opt-glo-system-cpu");
     knob_colors = 0;
-    {   /* ALGORITHM inside a page: the page stays; past its 4th line, the next page */
-        uint32_t last = gl_end(1, 0) - 1u;              /* (the first page's last line) */
-        turn(EN_ALGO, (int32_t)last);
+    {   /* a knob picks its line; ALGORITHM never moves the cursor line (the user, 2026-10-13: "only the track") */
+        uint32_t i = gl_end(1, 0) - 1u, was = song.sel;   /* (the first page's last line) */
+        turn(EN_K1 + gl_kn(SCR_SYSTEM, i), 1);
         cp_pos(p);
-        ok = ui.row[SCR_SYSTEM] == last && !strncmp(p, " 1/", 3);
+        ok = ui.row[SCR_SYSTEM] == i && !strncmp(p, " 1/", 3);
+        turn(EN_K1 + gl_kn(SCR_SYSTEM, i), -1);
         turn(EN_ALGO, 1);
-        cp_pos(p);
-        ok &= ui.row[SCR_SYSTEM] == last + 1u && !strncmp(p, " 2/", 3);
         turn(EN_ALGO, -1);
         cp_pos(p);
-        check(ok && ui.row[SCR_SYSTEM] == last && !strncmp(p, " 1/", 3), "ALGORITHM: line by line, the view a page at a time");
+        check(ok && ui.row[SCR_SYSTEM] == i && song.sel == was && !strncmp(p, " 1/", 3),
+              "knob k picks line k; ALGORITHM turned both ways leaves the cursor line and the page alone");
     }
     reset_ui();
 }
@@ -237,16 +237,12 @@ static void glo_tests(void)
         release(B_HOME);
         check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + PRESETS: the line back to its default (HOME no NO)");
         song.g[G_SWING] = v;
-        turn(EN_ALGO, 3);
         turn(EN_PRESET, -1);
-        turn(EN_ALGO, -2);
         line_named(SCR_SYSTEM, DUAL_LOAD ? "CPU0" : "LOAD");
         turn(EN_PRESET, 1);                             /* (a read-out: nothing) */
-        turn(EN_ALGO, 1);
         check(song.sel == sel && preset_pos(&tot) == cur && !lane_picked() && !ui.master,
-              "ALGORITHM and PRESETS on GLOBAL and SYSTEM: the track and its preset never change");
+              "PRESETS on GLOBAL and SYSTEM: the track and its preset never change");
         line_named(SCR_GLOBAL, "SWING");
-        turn(EN_ALGO, 0);
         memcpy(trk, keep, sizeof keep);
     }
     {   /* the read-outs: CPU's CLOCK and LOAD, NUDGE; a knob does nothing, YES nothing */
@@ -275,11 +271,11 @@ static void glo_tests(void)
         tap(B_SAVE);
         ok = dev_listing();
         i = song.sel;
-        turn(EN_ALGO, 1);
+        turn(EN_SELECT, 1);
         ok &= song.sel == i && dev_listing() && ui.row[SCR_SYSTEM] <= 1u;
         tap(B_HOME);
         check(ok && !dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == w,
-              "Bluetooth: YES on BLE opens the devices, ALGORITHM moves their cursor (no track), HOME back to the BLE line");
+              "Bluetooth: YES on BLE opens the devices, SELECT moves their cursor (no track), HOME back to the BLE line");
 #endif
     }
     reset_ui();

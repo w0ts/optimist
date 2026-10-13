@@ -444,6 +444,13 @@ static uint32_t line_named(uint32_t scr, const char *lab)
     }
     return i;
 }
+static void line_at(uint32_t scr, uint32_t i)            /* the cursor on line i of scr (ALGORITHM no longer moves it: the knobs pick, SELECT pages) */
+{
+    if (ui.scr != scr)
+        op_enter(scr);
+    ui.row[scr] = (uint8_t)i;
+    ui.hot = (uint8_t)gl_kn(scr, i);
+}
 #define LINE_KNOB(i) (EN_K1 + gl_kn(ui.scr, (i)))     /* the knob of line i: its place on its page */
 /* ---- keys and knobs */
 static void key_tests(void)
@@ -2299,6 +2306,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
+#include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
@@ -2439,6 +2447,7 @@ int main(int argc, char **argv)
     mute_tests();
     smute_tests();
     pagemem_tests();
+    algotrack_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();
