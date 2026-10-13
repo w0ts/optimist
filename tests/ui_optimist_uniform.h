@@ -75,8 +75,67 @@ static void un_scope_tests(void)                        /* #12: SCOPE's source =
     tap(B_HOME);
     reset_ui();
 }
+static void un_drum_keys_tests(void)                    /* #13: the drum track's upper (black) keys play and pick nothing; the layer meanings stay */
+{
+    static const uint8_t BLACK[5] = {1, 3, 5, 8, 10};
+    uint32_t i, ok = 1, ok2 = 1;
+    reset_ui();
+    lane_transport(0);
+    song.sel = TRK_DRUM;
+    go_home();
+    lane_select(0);
+    frame();
+    for (i = 0; i < 5u; i++) {
+        uint32_t k = BLACK[i];
+        aud_lanes = 0;
+        kdown(k);
+        ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
+        kup(k);
+    }
+    check(ok, "the drum track: an upper key plays nothing and picks no lane (it used to play the lane on its left)");
+    aud_lanes = 0;
+    kdown(WK(3));
+    check(kb_kind[WK(3)] == KS_DRUM, "... a white key still plays its lane");
+    kup(WK(3));
+    lane_select(0);
+    op_enter(SCR_SOUND);
+    frame();
+    press(B_HOME);
+    for (i = 0; i < 5u; i++) {
+        kdown(BLACK[i]);
+        kup(BLACK[i]);
+        ok2 &= lane_selected() == 0u;
+    }
+    release(B_HOME);
+    check(ok2, "HOME held + an upper key off the mixer: no lane picked either");
+    press(B_HOME);
+    kdown(WK(5));
+    kup(WK(5));
+    release(B_HOME);
+    check(lane_selected() == 5u, "... HOME + a white key still picks its lane");
+    go_home();
+    frame();
+    lane_select(0);
+    smute_lane = 0;
+    press(B_HOME);
+    kdown(BLACK[0]);
+    kup(BLACK[0]);
+    release(B_HOME);
+    check(smute_trk_on(0), "the mixer: HOME held + upper key 1 is still T1's sequencer mute");
+    smute_trk = 0;
+    press(B_GLO);
+    frames(HOLD_FRAMES);
+    kdown(BLACK[0]);
+    check(kb_kind[BLACK[0]] == KS_UI, "GLO held + an upper key on the drum track: still the MIX layer's (FX bypass / fills)");
+    kup(BLACK[0]);
+    release(B_GLO);
+    frames(2);
+    reset_ui();
+    song.sel = 0;
+}
 static void uniform_tests(void)
 {
+    un_drum_keys_tests();
     un_scope_tests();
 #if FELUCCA_ARRANGER
     un_song_rec_tests();

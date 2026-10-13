@@ -324,8 +324,8 @@ static void drum_hit_pick(uint32_t notes)
     for (k = 0; k < 4u; k++)
         if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
             return;
-    for (k = 0; k < 27u && !((notes >> k) & 1u); k++)
-        ;
+    for (k = 0; k < 27u && !(((notes >> k) & 1u) && punch_key(k) >= 0); k++)
+        ;                                               /* (the lowest white key: the upper keys play and pick nothing) */
     if (k == 27u || (ui.lane && lane_of_key(k) == lane_selected()))
         return;
     lane_pick_from(lane_of_key(k), 1);
@@ -619,7 +619,7 @@ static void ui_input(void)
     } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
-                if ((notes >> id) & 1u) {
+                if (((notes >> id) & 1u) && punch_key(id) >= 0) {   /* (a white key: the upper keys pick nothing) */
                     lane_pick_from(lane_of_key(id), 1); /* the selected lane: SOUND's rows, STEP's header */
                     if (ui.scr == SCR_HOME)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */

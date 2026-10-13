@@ -1981,6 +1981,10 @@ static void key_down(uint32_t k)
 #endif
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
         uint32_t lane = lane_of_key(k), lvl = key_lvl();
+#if FELUCCA_UI == 1
+        if (punch_key(k) < 0)                         /* the Optimist UI: only the 16 white keys play lanes, the upper keys */
+            return;                                   /* play nothing (the user, 2026-10-13; SLOOP's UI: the lane on their left) */
+#endif
         kb_nt[k][0] = (uint8_t)lane;
         kb_n[k] = 1;
         if (layer == LY_ROLL) {
