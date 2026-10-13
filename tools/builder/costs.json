@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 615920,
-  "ram": 98588,
-  "pool": 343256,
-  "ramtext": 34816
+  "flash": 630524,
+  "ram": 100116,
+  "pool": 332360,
+  "ramtext": 34728
  },
  "deltas": {
   "RESERVE_UNDO_KB": {
@@ -814,10 +814,10 @@
   },
   "DUAL": {
    "2": {
-    "flash": 2116,
-    "ram": 1904,
+    "flash": 3748,
+    "ram": 2096,
     "pool": 6144,
-    "ramtext": 680
+    "ramtext": 972
    }
   },
   "BLE": {
@@ -1203,9 +1203,17 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "DUAL_BOOST": {
+   "1": {
+    "flash": 132,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-11 15:57",
+ "measured": "2026-10-13 09:40",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1227,57 +1235,57 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "05bdd148",
+   "hash": "3586bf53",
    "sizes": {
-    "flash": 591888,
-    "ram": 94704,
-    "pool": 331544,
-    "ramtext": 25820
+    "flash": 606012,
+    "ram": 96216,
+    "pool": 332360,
+    "ramtext": 25920
    }
   },
   "everything-that-fits": {
-   "hash": "53fb01f9",
+   "hash": "69a095ee",
    "sizes": {
-    "flash": 589344,
-    "ram": 86652,
-    "pool": 327856,
-    "ramtext": 34724
+    "flash": 606916,
+    "ram": 88196,
+    "pool": 316960,
+    "ramtext": 34688
    }
   },
   "fm-va-studio": {
-   "hash": "5fce0ff4",
+   "hash": "71fcf2af",
    "sizes": {
-    "flash": 590944,
-    "ram": 98652,
-    "pool": 322196,
-    "ramtext": 28920
+    "flash": 604828,
+    "ram": 100084,
+    "pool": 323012,
+    "ramtext": 28752
    }
   },
   "user-default": {
-   "hash": "367c8085",
+   "hash": "3c2feb9e",
    "sizes": {
-    "flash": 531596,
-    "ram": 84740,
-    "pool": 305128,
-    "ramtext": 31404
+    "flash": 539436,
+    "ram": 84388,
+    "pool": 293536,
+    "ramtext": 31320
    }
   },
   "x0x-drums": {
-   "hash": "12bc1074",
+   "hash": "353acc17",
    "sizes": {
-    "flash": 569688,
-    "ram": 78824,
-    "pool": 294000,
-    "ramtext": 26024
+    "flash": 582972,
+    "ram": 80288,
+    "pool": 294816,
+    "ramtext": 25896
    }
   },
   "mots": {
-   "hash": "649cc045",
+   "hash": "288e8766",
    "sizes": {
-    "flash": 533852,
-    "ram": 87148,
-    "pool": 303792,
-    "ramtext": 32328
+    "flash": 542096,
+    "ram": 85764,
+    "pool": 292200,
+    "ramtext": 32036
    }
   }
  },

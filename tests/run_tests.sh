@@ -1156,6 +1156,12 @@ job; ( jobin
     run "regression with the CPU guard built (FELUCCA_CPU_GUARD): the same golden renders (it acts only under overload)" "$OUT/regress_cg" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -o "$OUT/dual_guard_test" tests/dual_guard_test.c
+    run "second core: only the next posted job runs (check word, part mask), the boot canary, 2ND CORE AUTO / OFF, the boost's P33 steps" "$OUT/dual_guard_test"
+    $CC -DDUAL_MODE_MENU=1 -o "$OUT/dual_guard_menu_test" tests/dual_guard_test.c
+    run "second core with a 2ND CORE menu: AUTO turns itself OFF after a misread" "$OUT/dual_guard_menu_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 -o "$OUT/cpuguard_test" tests/cpuguard_test.c -lm
     run "CPU guard: cost model, prediction, hysteresis, what each level eases, never the bass or lead" "$OUT/cpuguard_test"
 ) >"$U.out" 2>&1 & jobbg

@@ -573,11 +573,27 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
 
 # ---- experimental
 X = "Experimental"
+JANGADA = Provenance("Jangada (zednaked/jangada)", "zednaked", "GPL-3.0-only", "07cce38",
+                     "https://github.com/zednaked/jangada")
 _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)", X, 58, default=0, experimental=True,
-     choices=((0, "off"), (2, "on")), target_only=True,
+     choices=((0, "off"), (2, "on")), target_only=True, provenance=x0x("47f8e4c"),
+     notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
+            "the next job, with a matching check word, and is held at the first one it refuses.",
      desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
-          "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
+          "flash, 1.9 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
+          "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
+          "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
+     tested="emulator-tested; one user's FM-1 runs it")
+_add("DUAL_BOOST", "FELUCCA_DUAL_BOOST", "raise the core supply for the second core (EXPERIMENTAL, at your own risk)", X,
+     62, default=0, parent="DUAL", experimental=True, target_only=True, provenance=JANGADA,
+     notice="At your own risk: raises the chip's supply above JieLi's own profile (VDC14 to 1.50 V, SYSVDD to 1.38 V; "
+            "the chip's absolute limits are not public). Ported from Jangada (GPL-3.0), measured on one FM-1 only.",
+     desc="Experimental, for an FM-1 whose second core misreads RAM (CPU1 OFF MISREAD): before the second core starts, "
+          "VDC14 is raised to 5 (1.50 V) and then SYSVDD to 15 (1.38 V), a step at a time, never lowered (the boot "
+          "loader leaves 1.40 V and 1.26 V). On Jangada's FM-1 the second core then ran 15 minutes and 1.23 M blocks "
+          "with no misread, where it failed within seconds at the boot loader's supply. Not tried on an Optimist build.",
+     tested="not tested: Jangada's measurement on one FM-1")
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
