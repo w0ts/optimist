@@ -1212,21 +1212,24 @@ static void project_load(uint32_t slot)
 
 /* ---- the working project, kept in flash by itself (autosave_tick), loaded at power-on (autosave_resume). Only while
  * stopped and silent (a flash erase stops the audio for ~50 ms), its change hash taken every second:
- *   settled   the work has not changed for AUTOSAVE_SETTLE: saved (no wait after a save or after power-on, no panel
- *             idle time: an edit is a change of the hash, whatever made it);
+ *   settled   the work has not changed for AUTOSAVE_SETTLE: saved (no panel idle time: an edit is a change of the
+ *             hash, whatever made it);
  *   changing  the work keeps changing (a tweak every few seconds, MIDI CCs): saved anyway once
- *             it has been unsaved for AUTOSAVE_MAX_WAIT, then again at most every AUTOSAVE_MAX_WAIT while it goes on.
- * Never two saves within AUTOSAVE_SETTLE. Before fix/autosave a save waited for 2.5 s without input and 20 s after the
- * last save (or after power-on): a power-off in that window lost the edit.
+ *             it has been unsaved for AUTOSAVE_MAX_WAIT, then again at most every AUTOSAVE_MAX_WAIT while it goes on;
+ *   gap       never two saves within AUTOSAVE_MIN_GAP (the flash wear, the user's choice 2026-10-13); the first save
+ *             after power-on is not held back. Before fix/autosave nothing was saved in the first 20 s after power-on
+ *             (and a save waited for 2.5 s without input): a power-off there lost the edit.
  * Wear: a save erases one 4 KiB sector, the other copy of OBJ_AUTOSAVE (A 0x9F000 /
  * B 0xFE000, alternately: each copy 0.5 erase a save); the drum record pair (0xE5000 / 0xE6000) only when the drum
  * lanes changed; the motion form is programmed into the copy just written (no erase); the extras, FX and LFO records
  * are appended to the section log (8 sectors, ~16..400 B a save: ~0.006..0.12 erase of a log sector a save). The
  * flash, a Puya P25Q80H (JEDEC 0x856014, hal/fm1_flash.h), is rated 100k erase cycles a sector: the copies last
- * 200k saves. 4 h a day: settled edits once a minute 240 saves/day ~2.3 years; a save every 11 s (the worst the settle
- * rule allows) ~150 days; continuous changes, one save per MAX_WAIT 120 saves/day ~4.6 years */
-#define AUTOSAVE_SETTLE 10000u                 /* ms the work stays the same before it is saved; the least between saves */
+ * 200k saves. 4 h a day of editing: the worst (a save every MIN_GAP) 240 saves/day ~2.3 years; continuous changes (one
+ * save per MAX_WAIT) 120/day ~4.6 years; a settled edit every 5 min 48/day ~11 years. (Without the gap, the settle
+ * rule alone allowed a save every 11 s: ~1,300/day, ~150 days.) */
+#define AUTOSAVE_SETTLE 10000u                 /* ms the work stays the same before it is saved */
 #define AUTOSAVE_MAX_WAIT 120000u              /* ms the work may stay unsaved while it keeps changing */
+#define AUTOSAVE_MIN_GAP 60000u                /* ms between two saves at least (the first after power-on: none) */
 #ifdef SEC_RB_WORK
 #define autosave_buf SEC_RB_WORK               /* (sections.c sec_rb: shared with the section records' buffer) */
 #else
@@ -1236,7 +1239,7 @@ static dlrec_t autosave_dl;                    /* its drum record */
 static uint32_t autosave_hash, autosave_checked;   /* the saved work's hash; the last check */
 static uint32_t autosave_seen, autosave_seen_ms;   /* the work's hash at the last check, since when it is that */
 static uint32_t autosave_dirty_ms, autosave_put_ms; /* since when the work differs from the saved one; the last try */
-static uint8_t autosave_dirty;                 /* it differs (autosave_dirty_ms counts) */
+static uint8_t autosave_dirty, autosave_tried; /* it differs (autosave_dirty_ms counts); a save tried since power-on */
 
 #if FELUCCA_FLASH
 /* the change test of the working project captured in p: everything stored with it (the project, its automation,
@@ -1303,14 +1306,15 @@ static void autosave_tick(void)                /* main loop */
     }
     settled = now - autosave_seen_ms >= AUTOSAVE_SETTLE;
     overdue = autosave_dirty && now - autosave_dirty_ms >= AUTOSAVE_MAX_WAIT;
-    if (!(settled || overdue) || now - autosave_put_ms < AUTOSAVE_SETTLE || !audio_quiet())
+    if (!(settled || overdue) || (autosave_tried && now - autosave_put_ms < AUTOSAVE_MIN_GAP) || !audio_quiet())
         return;
 #if FELUCCA_PATTERNS
     pat_state_save();                                   /* the tracks' pattern sources (pat.c), when they changed */
 #endif
     if (!autosave_dirty)
         return;
-    autosave_put_ms = now;                              /* (a failed write: tried again after AUTOSAVE_SETTLE) */
+    autosave_put_ms = now;                              /* (a failed write: tried again after AUTOSAVE_MIN_GAP) */
+    autosave_tried = 1;
     if (autosave_put(h) == 0)
         autosave_dirty = 0;
     else
