@@ -528,7 +528,8 @@ static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LD_FLT};   /* 
 _Static_assert(P_COUNT < PID_INST, "the page ids past the track values");
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP, GR_INS, GR_BUS };
+       GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP, GR_INS, GR_BUS,
+       GR_LFO2 };                /* (LFO 2's wave: the Optimist UI draws it, SLOOP's has no graph there) */
 
 typedef struct {
     const char *title;
@@ -551,6 +552,11 @@ static const page_t PAGES[] = {
 #endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
+#if FELUCCA_LFO2
+    /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
+    {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
+    {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DEST, P_L2AMT, 0xFF, 0xFF}},
+#endif
 #if FELUCCA_UI != 1
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* S1's amount, the master sends (page_id) */
 #endif

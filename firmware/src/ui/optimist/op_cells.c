@@ -58,7 +58,7 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
  * (< 0, a division: 4BAR slowest .. 1/32) is the list form, one of ten cells lit, left to right slow to fast */
 static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
 {
-    if (d != &TP[P_LRATE] && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
+    if (!is_lrate(d) && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
         cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
     else if (v < 0)
         cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);

@@ -11,7 +11,7 @@
 #define SYNCED_R 1001
 static int32_t gauge_ratio(const param_desc_t *d, int32_t v)
 {
-    if (d == &TP[P_LRATE])
+    if (is_lrate(d))
         return v < 0 ? SYNCED_R + (-v - 1) * 1000 / (LSYNC_N - 1) : v * 1000 / 127;   /* (the free rate's top) */
     return RATIO(d, v);
 }

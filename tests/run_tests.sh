@@ -538,6 +538,11 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
     run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    mkdir -p "$OUT/lfo2"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LFO2=1 $SEC4 -o "$OUT/ui_pages_lfo2_test" tests/ui_pages_test.c -lm
+    run "live UI with LFO 2 built in: the LFO button steps LFO, LFO DEST, LFO 2, LFO2 DEST; LFO 2's RATE gauge and icons as LFO's" "$OUT/ui_pages_lfo2_test" "$OUT/lfo2"
+) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/nochord"   # (its screens apart: the STEP page without the chord names)
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CHORD_NAMES=0 $SEC4 -o "$OUT/ui_pages_nochord_test" tests/ui_pages_test.c -lm
@@ -577,6 +582,11 @@ mkdir -p "$OUT/optimist"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
     run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    mkdir -p "$OUT/optimist-lfo2"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LFO2=1 $SEC4 -o "$OUT/ui_optimist_lfo2_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with LFO 2 built in: the LFO 2 and LFO2 DEST rows after LFO DEST (synth tracks), RATE as LFO's, HOME + a knob, the AMT card's live bar equal to the render" "$OUT/ui_optimist_lfo2_test" "$OUT/optimist-lfo2"
 ) >"$U.out" 2>&1 & jobbg
 # the dual-core build's CPU1 load (system/dual_load.h): none in a single-core build; smoothed as song.cpu_q8, in range,
 # OFF when CPU1 is down; SYSTEM's CPU row with it (DUAL_LOAD alone: the readout without the second core's render)

@@ -418,7 +418,7 @@ static void head_ok(const char *where)                  /* the header now: a cap
     for (i = 0; i + 2u < n && t[i + 2u] != '/'; i++)
         ;
     if (!(t[0] >= 'A' && t[0] <= 'Z') || (i >= 2u && i + 2u < n && t[i - 1u] >= '0' && t[i - 1u] <= '9' && t[i - 2u] == ' ' &&
-                                          !(i >= 5u && (!strncmp(t + i - 5u, "OSC", 3) || !strncmp(t + i - 5u, "FLT", 3) ||
+                                          !(i >= 5u && (!strncmp(t + i - 5u, "OSC", 3) || !strncmp(t + i - 5u, "FLT", 3) || !strncmp(t + i - 5u, "LFO", 3) || !strncmp(t + i - 5u, "Lfo", 3) ||
                                                         !strncmp(t + i - 5u, "Osc", 3) || !strncmp(t + i - 5u, "Flt", 3) ||
                                                         !strncmp(t + i - 6u, "Part", 4))))) {
         printf("  header %s: '%s'\n", where, t);
