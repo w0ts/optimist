@@ -10,7 +10,7 @@
  *                 is the 4 x 16 session grid; while the cursor is here the keys launch the selected track's
  *                 patterns (the LFO layer's keys: seq.c ly_lock LY_PAT), SAVE held + key n stores the working copy
  *                 into slot n, HOME held + key n clears it (asked); REC: the working copy into the first free slot
- *   MODE          LOOP / SONG, SONG REC, the MEM gauge, SAVE (the chain into flash; also when SONG is left)
+ *   MODE          LOOP / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash; also when SONG is left)
  *   PART 1 .. 64  the chain: SCENE, BARS, INSERT (a copy after it), DELETE; edited stopped; the part playing white
  * MODE comes before the parts so that it is not 64 rows down. Without PATTERNS a scene row says STORED / EMPTY. */
 #if FELUCCA_PATTERNS
@@ -202,11 +202,9 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             str_cpy(c->val, arrangement_enabled ? "SONG" : "LOOP", sizeof c->val);
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 1u) {
-            c->label = "REC";               /* (SONG REC: "SONG REC" is wider than a card) */
-            c->kind = CK_VAL;
-            str_cpy(c->val, srec == 2u ? "REC" : srec ? "ARMED" : "OFF", sizeof c->val);
+            cell_act(c, "SONG REC", srec == 2u ? "STOP" : srec ? "CANCEL" : "ARM", 0, !srec);   /* an action card: a turn only
+                                                         * picks it, YES arms (asks over a song) or stops (the user, 2026-10-13) */
             c->col = srec ? C_ERR : 0;
-            cell_gauge(c, 1, 0, 2, srec);
         } else if (k == 2u) {
 #if SEC_LOGGED
             prj_mem(c, 0);                              /* (op_project.c: the MEM gauge) */
@@ -262,8 +260,8 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
 #endif
     case SG_MODE:
-        if (k < 2u)
-            song_yes_mode(k, s);
+        if (k < 1u)
+            song_yes_mode(k, s);                        /* (REC, k 1: an action card, a turn only picks it) */
         return;
     case SG_PART: {
         arr_entry_t *e = &arrangement.entry[a % ARR_STEPS];
@@ -284,7 +282,7 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
 }
-/* MODE: LOOP / SONG (k 0), SONG REC (k 1); s: a turn's way, 0 YES (toggles) */
+/* MODE: LOOP / SONG (k 0, a turn or YES), SONG REC (k 1: YES only, an action card); s: a turn's way, 0 YES (toggles) */
 static void song_yes_mode(uint32_t k, int32_t s)
 {
     if (k == 1u) {
