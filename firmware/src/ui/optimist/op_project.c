@@ -461,9 +461,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
-    {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
-              SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT)}},   /* (the user, 2026-10-13: "sync in / out and midi in / out on one page"; */
-                                                         /* CLKOUT: the clock sent, io/midi/clock_out.c) */
+    {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN),
+              SI_IF(FELUCCA_MIDI_OUT, SI_OUT)}},   /* (the user, 2026-10-13: "clock in / clock out, midi in / midi out, 4 entries, in one page"; */
+                                                   /* CLKOUT: the clock sent, io/midi/clock_out.c) */
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
@@ -524,6 +524,12 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
     d = sys_desc(it, &vp);
     if (d) {
         cell_param(c, d, vp);
+        if (it == SI_SYNC)
+            c->label = "CLK IN";                        /* (the page reads as a set: CLK IN, CLK OUT, MIDI IN, MIDI OUT; TEMPO's card says SYNC) */
+        else if (it == SI_IN)
+            c->label = "MIDI IN";
+        else if (it == SI_OUT)
+            c->label = "MIDI OUT";
         return;
     }
     cell_clear(c);

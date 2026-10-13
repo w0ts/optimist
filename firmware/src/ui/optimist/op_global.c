@@ -4,8 +4,8 @@
  * "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the page moves line
  * by line)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,
  * one setting a line: its name on the left, its value on the right, the lines under small section headers:
- *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT   MIDI: OUT IN SYNC CLK OUT (one page: the
- *            clock in and out with the notes; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
+ *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
+ *            page; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
  *   SYSTEM   CPU: CLOCK LOAD (read-outs)   Screen   Lights   Audio   USB   Bluetooth   Calibrate: PANEL HOLD   About
  * The lines are the cells of the rows below, called through their own functions (TEMPO's tp_*, SYSTEM's sys_*), so each
  * value lives in one place and keeps its format; a row's empty cells are no line (what this build lacks is not shown).
@@ -66,6 +66,8 @@ static int gl_has(uint32_t s, uint32_t u, uint32_t k)   /* row u's cell k is a l
     cell_t c;
     if (s || u >= GL_SYS0)
         return sys_item(s ? u : glo_sys(u), k) != SI_NONE;
+    if (u == TPR_TEMPO && k == 3u)                      /* (SYNC: PLAY's TEMPO page has it; here it is CLK IN, on the MIDI page) */
+        return 0;
     tp_cell(u, k, &c);
     return c.kind != CK_NONE;
 }

@@ -541,17 +541,17 @@ user changes while playing. 2x2 cards, the rows under them (no picture), the hea
 
 | Row | KNOB 1 · 2 · 3 · 4 | Where it lives |
 |---|---|---|
-| TEMPO | BPM · NUDGE (a read-out: OCT- / OCT+ held nudge the clock on this row, as on the TEMPO page) · SWING · SYNC | TEMPO's (op_tempo.c `tp_*`) |
+| TEMPO | BPM · NUDGE (a read-out: OCT- / OCT+ held nudge the clock on this row, as on the TEMPO page) · SWING (GLOBAL shows these three; SYNC is PLAY's TEMPO page's 4th card, GLOBAL's CLK IN) | TEMPO's (op_tempo.c `tp_*`) |
 | REC | MODE · LENGTH · START · CLICK | TEMPO's |
 | REC 2 | QUANT | TEMPO's |
-| MIDI | OUT · IN · SYNC · CLK OUT (one page: the notes and the clock in and out; 3 lines without MIDI_CLKOUT; the CLK read-out and the Clock out page are gone, "Auto: Int" already names the clock followed; SYNC left TEMPO) | SYSTEM's table (op_project.c `SYS`, `sys_*`), no longer shown on SYSTEM |
+| MIDI | CLK IN (SYNC's value) · CLK OUT · MIDI IN · MIDI OUT (one page: the clock and the notes, in and out; 3 lines without MIDI_CLKOUT; the CLK read-out and the Clock out page are gone, "Auto: Int" already names the clock followed; GLOBAL's Tempo has no SYNC, PLAY's TEMPO page keeps it as a card) | SYSTEM's table (op_project.c `SYS`, `sys_*`), no longer shown on SYSTEM |
 | CHANNELS | T1 · T2 · T3 · DR (the MIDI channels) | SYSTEM's |
 
 GLO tapped again: the next row; past GLOBAL's last, SYSTEM's rows (CPU first), past SYSTEM's last, GLOBAL's first: one
 cycle (section 17, D1; GLOBAL's SYSTEM row is gone). SELECT walks the same sequence and stops at its two ends. The
 header's badge names the screen (GLOBAL or SYSTEM, as MASTER's does), its n/N counts within that screen. GLOBAL keeps its row
 when left, as every screen. Leaving it saves a changed setting of the FM-1, as leaving SYSTEM does (`sys_leave`).
-SYNC shows on both TEMPO and MIDI (one value, `song.g[G_SYNC]`, as SYSTEM's MIDI row always had it). **GLO held is the
+SYNC shows on PLAY's TEMPO page (SYNC) and GLOBAL's MIDI page (CLK IN) (one value, `song.g[G_SYNC]`, as SYSTEM's MIDI row always had it). **GLO held is the
 performance layer** (section 4.9), unchanged: a hold is no tap. **The GLO LED** is full on GLOBAL and SYSTEM and
 half lit elsewhere. The mixer's knob sets, which GLO tapped used to page, are SELECT's alone; nothing else needed GLO tapped (a
 step held + GLO does nothing, as before; the FX screen's GLO pages, the master's, are reached by FX on the mixer's
@@ -2510,7 +2510,7 @@ line's section and the page n/N within the screen ("Tempo 1/5", "Screen 2/4").
 
 | Screen | Sections and lines (what this build has) |
 |---|---|
-| GLOBAL | Tempo: BPM, NUDGE, SWING. Rec: MODE, LENGTH, START, CLICK, QUANT (REC 2's). MIDI (one page, 4 lines; 3 without CLK OUT): OUT, IN, SYNC, CLK OUT. Channels: TRK 1, TRK 2, TRK 3, DRUMS |
+| GLOBAL | Tempo: BPM, NUDGE, SWING. Rec: MODE, LENGTH, START, CLICK, QUANT (REC 2's). MIDI (one page, 4 lines; 3 without CLK OUT): CLK IN, CLK OUT, MIDI IN, MIDI OUT. Channels: TRK 1, TRK 2, TRK 3, DRUMS |
 | SYSTEM | CPU: CLOCK, LOAD. Screen: COLOR, BRIGHT, KNOB COLORS. Lights: LIGHTS, KEYS. Audio: LOWCUT. USB: SERIAL. Bluetooth: BLE. Calibrate: PANEL, HOLD. About: VERSION |
 
 A line is a cell of the rows the screens had (TEMPO's `tp_*`, SYSTEM's `sys_*` over the `SYS` table), called through
@@ -2742,4 +2742,4 @@ tests/ui_optimist_pagemem.h (leave and return on each screen; SOUND per track; t
 page reopened per track, EXTRA, and its fallback; the lists keep their cursor); tests/ui_optimist_test.c's `reset_ui`
 clears the memory, as a power-on.
 
-**2026-10-13: wide values in the GLOBAL list (the user: "Auto: Int", "seq/key", "notes, clock")**. op_cells.c `value_long`: the list (op_gldraw.c `gl_text`) and the tempo panel (op_laydraw.c) write SYNC AUTO as *Auto: Int* / *Auto: USB* / *Auto: TRS* (the clock followed, G_MIDI) and MIDI OUT / IN as *Keys* *Seq* / *Notes* *Clock*; the cards and param_format keep the 5-character *A:INT* ..., *KEYS* ... A fixed SYNC still reads INT / USB / TRS. There is no Both, Other or All option (bp_set.c: two options each, one settings-word bit each), none was added. GLOBAL's MIDI page is OUT, IN, SYNC, CLK OUT in one page; Tempo is BPM NUDGE SWING.
+**2026-10-13: wide values in the GLOBAL list (the user: "Auto: Int", "seq/key", "notes, clock")**. op_cells.c `value_long`: the list (op_gldraw.c `gl_text`) and the tempo panel (op_laydraw.c) write SYNC AUTO as *Auto: Int* / *Auto: USB* / *Auto: TRS* (the clock followed, G_MIDI) and MIDI OUT / IN as *Keys* *Seq* / *Notes* *Clock*; the cards and param_format keep the 5-character *A:INT* ..., *KEYS* ... A fixed SYNC still reads INT / USB / TRS. There is no Both, Other or All option (bp_set.c: two options each, one settings-word bit each), none was added. GLOBAL's MIDI page is CLK IN (SYNC), CLK OUT, MIDI IN, MIDI OUT in one page; GLOBAL's Tempo is BPM NUDGE SWING; PLAY's TEMPO page keeps SYNC as its 4th card. A fixed SYNC reads *Int* / *USB* / *TRS* in the list (cards INT / USB / TRS). "Auto: Int" follows the clock live (G_MIDI = clock_sync.c's source; the line's signature holds its text, tempo_sig holds G_MIDI).

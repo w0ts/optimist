@@ -302,7 +302,7 @@ static void lay_hint(void)
 static uint32_t tempo_sig(void)
 {
     return hu(hu(hu(hu(0x7E3u, (uint32_t)song.g[G_BPM]), song.playing ? clk_beat % 4u + 1u : 0u), (uint32_t)(clk_nudge + 64)),
-              (uint32_t)song.g[G_SYNC] * 4u + sy.src);
+              ((uint32_t)song.g[G_SYNC] * 4u + sy.src) * 4u + (uint32_t)song.g[G_MIDI]);   /* (G_MIDI: the clock followed, "Auto: USB") */
 }
 static void tempo_draw(int32_t h)
 {

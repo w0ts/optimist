@@ -192,7 +192,7 @@ static void glw_factory_tests(void)
 static void glw_sync_long_tests(void)
 {
     static const char *const LONG[3] = {"Auto: Int", "Auto: USB", "Auto: TRS"}, *const CARD[3] = {"A:INT", "A:USB", "A:TRS"};
-    static const char *const FIX[3] = {"INT", "USB", "TRS"};
+    static const char *const FIX[3] = {"Int", "USB", "TRS"}, *const FIXC[3] = {"INT", "USB", "TRS"};
     static const uint32_t SCRS[1] = {SCR_GLOBAL};
     int16_t sync = song.g[G_SYNC], midi = song.g[G_MIDI];
     uint32_t s, k, ok = 1;
@@ -201,7 +201,7 @@ static void glw_sync_long_tests(void)
     char v[16], card[16];
     const char *u;
     for (s = 0; s < 1u; s++) {
-        uint32_t i = line_named(SCRS[s], "SYNC");
+        uint32_t i = line_named(SCRS[s], "CLK IN");
         for (k = 0; k < 3u; k++) {
             song.g[G_SYNC] = SYNC_AUTO;
             song.g[G_MIDI] = (int16_t)k;
@@ -212,18 +212,19 @@ static void glw_sync_long_tests(void)
             fit &= 236 - text_w(&FONT_S, v) >= GL_GX - 0 && 236 - GL_GX >= text_w(&FONT_S, v);   /* (inside the gauge's span, GL_GX .. 236) */
             song.g[G_SYNC] = (int16_t)k;                    /* a fixed clock: INT / USB / TRS as it was */
             glw_line(SCRS[s], i, &c, v);
-            ok &= !strcmp(v, FIX[k]);
+            param_format(c.d, k, card, &u);
+            ok &= !strcmp(v, FIX[k]) && !strcmp(c.val, FIXC[k]) && !strcmp(card, FIXC[k]);
         }
     }
-    check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC INT / USB / TRS");
+    check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC Int / USB / TRS (the cards INT / USB / TRS)");
     check(fit, "SYNC AUTO: the long form fits the list's value field beside the label");
     {   /* GLOBAL's MIDI page: OUT IN SYNC CLK OUT on one page, in this order (3 lines without CLK OUT); SYNC no longer on Tempo */
-        static const char *const ML[4] = {"OUT", "IN", "SYNC", "CLK OUT"};
-        uint32_t first = line_named(SCR_GLOBAL, "OUT"), n = 0, j, pg_ok = 1;
-        n = (FELUCCA_MIDI_OUT ? 1u : 0u) + (FELUCCA_MIDI_INCLK ? 1u : 0u) + (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u);
+        static const char *const ML[4] = {"CLK IN", "CLK OUT", "MIDI IN", "MIDI OUT"};
+        uint32_t first = line_named(SCR_GLOBAL, FELUCCA_MIDI_CLOCK ? "CLK IN" : FELUCCA_MIDI_CLKOUT ? "CLK OUT" : "MIDI IN"), n = 0, j, pg_ok = 1;
+        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (FELUCCA_MIDI_INCLK ? 1u : 0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
         for (j = 0, k = 0; j < 4u; j++) {
             char nm[12];
-            if (!(j == 0u ? FELUCCA_MIDI_OUT : j == 1u ? FELUCCA_MIDI_INCLK : j == 2u ? FELUCCA_MIDI_CLOCK : FELUCCA_MIDI_CLKOUT))
+            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? FELUCCA_MIDI_INCLK : FELUCCA_MIDI_OUT))
                 continue;
             SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
             SCREENS[SCR_GLOBAL].name(first + k, nm);
@@ -231,8 +232,9 @@ static void glw_sync_long_tests(void)
             k++;
         }
         pg_ok &= k == n && gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
-        tp_cell(0, 3, &c);
-        check(pg_ok && c.kind == CK_NONE, "GLOBAL: the MIDI page is OUT IN SYNC CLK OUT (one page, no CLK read-out); TEMPO has no SYNC");
+        check(pg_ok && !gl_has(0, TPR_TEMPO, 3), "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI IN, MIDI OUT (one page, no CLK read-out); GLOBAL's Tempo has no SYNC");
+        tp_cell(TPR_TEMPO, 3, &c);
+        check(!FELUCCA_MIDI_CLOCK || (c.kind == CK_VAL && !strcmp(c.label, "SYNC")), "PLAY's TEMPO page still has SYNC (its 4th card)");
     }
     song.g[G_SYNC] = sync;
     song.g[G_MIDI] = midi;
@@ -254,13 +256,13 @@ static void glw_midi_long_tests(void)
     for (k = 0; k < 2u; k++) {
 #if FELUCCA_MIDI_OUT
         bp_set[BPS_MOUT] = (int16_t)k;
-        glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "OUT"), &c, v);
+        glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "MIDI OUT"), &c, v);
         ok &= !strcmp(v, OUT[k]) && !strcmp(c.val, OUTC[k]);
         seen++;
 #endif
 #if FELUCCA_MIDI_INCLK
         bp_set[BPS_MIN] = (int16_t)k;
-        glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "IN"), &c, v);
+        glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "MIDI IN"), &c, v);
         ok &= !strcmp(v, IN[k]) && !strcmp(c.val, INC[k]);
         seen++;
 #endif
@@ -272,6 +274,66 @@ static void glw_midi_long_tests(void)
 #else
 static void glw_midi_long_tests(void) {}
 #endif
+/* LIVE: the clock followed changes while a page is open (a USB or TRS clock arrives or stops: seq.c's sync_select sets G_MIDI to
+ * the source, here by its presence): with no input the text changes ("Auto: Int" -> "Auto: TRS" -> "Auto: USB"), and the screen is drawn again:
+ * GLOBAL's MIDI page, PLAY's TEMPO page (its card and its panel) */
+static uint32_t glw_screen_hash(void)
+{
+    uint32_t i, h = 2166136261u;
+    for (i = 0; i < 240u * 240u; i++)
+        h = (h ^ screen[i]) * 16777619u;
+    return h;
+}
+static void glw_follow(uint32_t src)                   /* a clock arrives on src (MSRC_USB / MSRC_TRS), 0: none: the real path, seq.c's sync_select */
+{
+    uint32_t k;
+    for (k = 0; k < 3u; k++)
+        sy_pr[k].cnt = 0;
+    if (src) {
+        sy_pr[src].cnt = SY_STEADY;
+        sy_pr[src].last = SYNC_NOW();
+    }
+}
+static void glw_live_tests(void)
+{
+    static const char *const LONG[3] = {"Auto: Int", "Auto: USB", "Auto: TRS"};
+    static const char *const CARD[3] = {"A:INT", "A:USB", "A:TRS"};
+    int16_t sync = song.g[G_SYNC], midi = song.g[G_MIDI];
+    uint32_t i, ok = 1, hg[3], ht[3], seq[3] = {0, 2, 1};
+    cell_t c;
+    char v[16];
+    song.g[G_SYNC] = SYNC_AUTO;
+    reset_ui();
+    op_enter(SCR_GLOBAL);
+    i = line_named(SCR_GLOBAL, "CLK IN");
+    ui.row[SCR_GLOBAL] = (uint8_t)i;
+    for (uint32_t n = 0; n < 3u; n++) {
+        glw_follow(seq[n]);
+        frames(3);                                      /* (no input) */
+        glw_line(SCR_GLOBAL, i, &c, v);
+        hg[n] = glw_screen_hash();
+        ok &= !strcmp(v, LONG[seq[n]]);
+    }
+    ok &= hg[0] != hg[1] && hg[1] != hg[2] && hg[0] != hg[2];
+    check(ok, "SYNC AUTO live: GLOBAL's MIDI page, the followed clock changes (TRS arrives, USB takes over): the line and the screen change with no input");
+    glw_follow(0);
+    reset_ui();
+    op_enter(SCR_TEMPO);
+    for (uint32_t n = 0, ok2 = 1; n < 3u; n++) {
+        glw_follow(seq[n]);
+        frames(3);
+        tp_cell(TPR_TEMPO, 3, &c);
+        ht[n] = glw_screen_hash();
+        ok2 &= !strcmp(c.val, CARD[seq[n]]);
+        if (n == 2u)
+            check(ok2 && ht[0] != ht[1] && ht[1] != ht[2] && ht[0] != ht[2],
+                  "SYNC AUTO live: PLAY's TEMPO page, the card (A:INT / A:TRS / A:USB) and the panel change with no input");
+    }
+    song.g[G_SYNC] = sync;
+    song.g[G_MIDI] = midi;
+    glw_follow(0);
+    reset_ui();
+}
 static void glwalk_tests(void)
 {
     static int16_t g0[sizeof song.g / sizeof song.g[0]], b0[BPS_COUNT];
@@ -309,6 +371,7 @@ static void glwalk_tests(void)
     glw_factory_tests();
     glw_sync_long_tests();
     glw_midi_long_tests();
+    glw_live_tests();
     i = line_named(SCR_SYSTEM, "VERSION");
     glw_line(SCR_SYSTEM, i, &c, v);
     check(c.kind == CK_RO && v[0] && !strstr(v, "OPTIMIST") && strstr(FELUCCA_VERSION, v),
