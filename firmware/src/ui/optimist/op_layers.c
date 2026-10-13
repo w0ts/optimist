@@ -58,7 +58,7 @@ static struct {
     uint8_t held;                       /* the layer whose button is down now (UI view), LY_PLAY none */
     uint8_t used;                       /* the held layer did something: a key, a knob */
     uint8_t quiet;                      /* a combination took its button (SAVE + FX: a save): no map */
-    uint8_t hot;                        /* the layer's hot knob (PRESETS acts on it) */
+    uint8_t hot;                        /* the layer's hot knob (the last one turned) */
     uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) waiting for a release */
     uint8_t rec_pend, rec_used;         /* REC pressed in the SAVE layer: SONG REC at its release, unless it stored */
     uint8_t song_go;                    /* SAVE + PLAY while playing: stopped, the song starts once stopped */
@@ -748,8 +748,8 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
         ui_message("FILT: NO SLOT");                    /* (heard only in one of the track's insert slots) */
 #endif
 }
-/* the knobs while a layer is at work (held or locked): KNOB 1..4 the layer's, PRESETS its hot knob one unit,
- * ALGORITHM the walk (op_walk.c: T1..DR, MASTER in the FX layer), SELECT nothing (no rows). 0: no layer, 1: taken, nothing turned, 2: turned */
+/* the knobs while a layer is at work (held or locked): KNOB 1..4 the layer's, PRESETS the track's sound as everywhere,
+ * ALGORITHM the walk (op_walk.c: MASTER, T1..DR and the 16 lanes, in every layer), SELECT nothing (no rows). 0: no layer, 1: taken, nothing turned, 2: turned */
 static int op_presets_turn(void);                       /* op_input.c */
 static int lay_knobs(void)
 {
@@ -776,7 +776,7 @@ static int lay_knobs(void)
     if (op_presets_turn())                              /* (PRESETS: the sound, as everywhere) */
         turned = 1;
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
-        algo_walk(s, 1);                                /* (the walk: MASTER only in the FX layer, no lanes: op_walk.c) */
+        algo_walk(s, 1);                                /* (the walk: MASTER, T1..DR, the lanes, as everywhere: op_walk.c) */
         turned = 1;
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {

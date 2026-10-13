@@ -5,7 +5,7 @@
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane (on the mixer: mute the sequencer, seq_mute.c); + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
- *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
+ *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); the global FX screen: FX on the mixer's MASTER row, or ALGORITHM left past T1 on a page (SCOPE: its master source)
  *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, a knob picks and
  *   sets its line, PRESETS does nothing; ALGORITHM is the track walk there too); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
