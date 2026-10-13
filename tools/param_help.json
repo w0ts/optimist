@@ -274,6 +274,12 @@
       "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
       "INIT": "Engine defaults (edits: asks)", "SAVE AS": "Save as a user preset",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
+    {"kind": "page", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "POL": "LFO 2: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
+      "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
+      "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
