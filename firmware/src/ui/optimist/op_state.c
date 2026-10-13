@@ -50,7 +50,7 @@ static struct {
     /* the panel's buttons: SAVE and HOME act on release when nothing else was pressed meanwhile */
     uint8_t home_used, save_used;
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
-    uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
+    uint32_t sig[5 + FELUCCA_PARAM_HELP];   /* what each band drew last: header, cards, panel, footer, overlay (the help line) */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
 } ui = {.page = 0, .arm_scr = ARM_NONE, .m_scr = SCR_SOUND, .m_fam = 0xFFu};
 
