@@ -214,6 +214,66 @@
     {"kind": "fm6", "ctx": "porta", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
       "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
     {"kind": "fm6", "ctx": "store", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
-      "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}}
+      "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}},
+
+
+    {"kind": "op", "ctx": "TEMPO", "params": {
+      "BPM": "Tempo of the song", "NUDGE": "OCT- / OCT+ held nudge tempo", "SWING": "Swing of every track",
+      "SYNC": {"text": "Clock: internal, USB or TRS", "if": "FELUCCA_MIDI_CLOCK"}}},
+    {"kind": "op", "ctx": "REC", "params": {
+      "MODE": {"text": "Take: free or to the tempo", "if": "FELUCCA_REC_MODES"}, "LENGTH": "Loop length of a new take",
+      "START": {"text": "Take starts: a note or count", "if": "FELUCCA_REC_MODES"}, "CLICK": "Metronome: when it clicks",
+      "QUANT": "Snap recorded notes to steps"}},
+    {"kind": "op", "ctx": "REC 2", "params": {"QUANT": "Snap recorded notes to steps"}},
+    {"kind": "op", "ctx": "MIDI", "params": {
+      "OUT": {"text": "MIDI out: the keys or the seq", "if": "FELUCCA_MIDI_OUT"},
+      "IN": {"text": "MIDI in: notes or clock", "if": "FELUCCA_MIDI_INCLK"},
+      "SYNC": {"text": "Clock: internal, USB or TRS", "if": "FELUCCA_MIDI_CLOCK"},
+      "CLK": {"text": "The clock followed now", "if": "FELUCCA_MIDI_CLOCK"}}},
+    {"kind": "op", "ctx": "CLOCK OUT", "if": "FELUCCA_MIDI_CLKOUT", "params": {"CLK OUT": "Send MIDI clock out"}},
+    {"kind": "op", "ctx": "CHANNELS", "params": {
+      "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
+      "DRUMS": "MIDI channel of the drums"}},
+    {"kind": "op", "ctx": "CPU", "params": {
+      "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
+      "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"},
+      "2ND CORE": {"text": "2nd core: AUTO / OFF (reboot)", "if": "DUAL_LOAD"}}},
+    {"kind": "op", "ctx": "SCREEN", "params": {
+      "COLOR": "Screen colours", "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
+      "KNOB COLORS": "Knob numbers in cap colours"}},
+    {"kind": "op", "ctx": "LIGHTS", "if": "FELUCCA_LIGHTS", "params": {
+      "LIGHTS": "Button backlight level", "KEYS": "Keys lit: C, white or all"}},
+    {"kind": "op", "ctx": "AUDIO", "params": {"LOWCUT": "Output low cut or bass boost"}},
+    {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
+    {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {"BLE": "BLE MIDI. SAVE: the devices"}},
+    {"kind": "op", "ctx": "CALIBRATE", "params": {
+      "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
+    {"kind": "op", "ctx": "ABOUT", "params": {"VERSION": "Firmware version"}},
+    {"kind": "op", "ctx": "PROJECT", "params": {
+      "SLOT": "Project slot (dim: empty)", "LOAD": "Load: replaces work (asks)",
+      "SAVE": "Save the work in the slot", "NEW": "New project: clears (asks)"}},
+    {"kind": "op", "ctx": "SNAPSHOT", "if": "FELUCCA_SNAPSHOTS", "params": {
+      "SLOT": "Snapshot slot (dim: empty)", "LOAD": "Load: replaces work (asks)",
+      "CLEAR": "Erase the snapshot (asks)", "SAVE": "Save a snapshot of the work"}},
+    {"kind": "op", "ctx": "USER", "params": {
+      "SLOT": "User preset slot (dim: empty)", "LOAD": "Load the preset on the track",
+      "ERASE": "Erase the preset (asks)", "SAVE": "Save the sound as this preset"}},
+    {"kind": "op", "ctx": "TOOLS", "params": {
+      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
+      "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
+      "NEW": "New project: clears (asks)"}},
+    {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave (asks)"}},
+    {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
+      "USED": "Project memory used", "MORE": "Sections that still fit"}},
+    {"kind": "op", "ctx": "SOUND", "params": {
+      "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
+      "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset",
+      "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
+    {"kind": "op", "ctx": "SENDS", "params": {
+      "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
+    {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
+      "MODE": "Play the loop or the song", "REC": "Record the song as played", "SAVE": "Keep the song order",
+      "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Copy this part after it",
+      "DELETE": "Delete this part (asks)"}}
   ]
 }

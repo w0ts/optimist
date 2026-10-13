@@ -119,7 +119,7 @@ static void ed_sl24_get(const uint8_t *a, uint32_t na)
     ed_b7(crc, 5);
     w1 = lost & 0x3FFFu;                                  /* (the first word: bits 0..13) */
     w2 = (lost >> 14) & 0x3FFFu;
-    if (!want2 && (lost & (SX24_CHANCE | SX24_LAUTO | SX24_DLFO)))
+    if (!want2 && (lost & (SX24_CHANCE | SX24_LAUTO | SX24_DLFO | SX24_COND)))
         w1 |= SX24_MOTION;                                /* (a v11 editor knows one bit for them all) */
     ed_b7(w1, 2);
     ed_b7(off, 3);

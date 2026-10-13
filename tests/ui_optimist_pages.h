@@ -536,7 +536,7 @@ static void pages_select_tests(void)
         turn(EN_SELECT, i & 1u ? -1 : 1);
         ok &= lane_selected() == 3u && ui.lane == 1u;
     }
-    check(ok && SCR->rows() == STP_LANE0 + 1u, "rule: SELECT on the drum STEP pages PATTERN / LANE, never ui.lane or the lane");
+    check(ok && SCR->rows() == STP_LANE0 + 1u + STP_TL, "rule: SELECT on the drum STEP pages PATTERN / LANE, never ui.lane or the lane");
     ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
     turn(EN_ALGO, 1);
     check(lane_selected() == 4u && ui.lane == 1u && ui.row[SCR_STEP] == STP_LANE0, "rule: ALGORITHM on the drum STEP: the next lane");

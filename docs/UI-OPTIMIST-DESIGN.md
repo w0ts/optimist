@@ -2479,8 +2479,8 @@ unit after it, small), the value's form (bar, dots, pill) under the value. A sec
 after it, stands over its first line on the page; a page that starts inside a section names it again. The cursor line
 is a bar in the track's colour, ink on it. A read-out (CPU's CLOCK and LOAD, Tempo's NUDGE, MIDI's CLK) has its value in
 amber and its number dim: no knob turns it; About's VERSION is one too, the version itself ("0.1"; YES still says it
-whole). An action (Calibrate's PANEL) shows RUN in amber, never a bare YES (fix/settings-lines, 2026-10-13: the user
-read the YES lines as dead): YES or PRESETS runs it, PANEL asking first; its knob only makes it the cursor. With
+whole). An action (Calibrate's PANEL) shows its word in amber, CALIBRATE (the user, 2026-10-13; it fits the list's small face),
+never a bare YES (fix/settings-lines, 2026-10-13: the user read the YES lines as dead): YES or PRESETS runs it, PANEL asking first; its knob only makes it the cursor. With
 KNOB COLORS on, the numbers and values take the knob caps' colours. The header: the badge GLOBAL or SYSTEM, the cursor
 line's section and the page n/N within the screen ("Tempo 1/5", "Screen 2/4").
 
@@ -2500,7 +2500,7 @@ COLORS' label is the full name now (it was COLORS to fit a card).
 | KNOB 1..4 | the page's line 1..4 (its number at the left); the turn makes that line the cursor |
 | SELECT | the page: a page of 4 lines a detent, within the screen, stopping at its ends; the cursor on the page's first line |
 | ALGORITHM | the cursor, a line a detent within the screen, stopping at its ends; past the page's 4th line the next page shows, and back (the pages are SELECT's) |
-| PRESETS | the cursor line's value; HOME held + PRESETS: back to its default (the values with a descriptor: BPM, SWING, both SYNCs, CLICK, QUANT, MIDI OUT / IN, the channels; and 2ND CORE). An action line: runs it, as YES (PANEL asks first). A read-out: nothing. Never the track or its sound on these screens |
+| PRESETS | the cursor line's value; HOME held + PRESETS: back to its default (the values with a descriptor: BPM, SWING, both SYNCs, CLICK, QUANT, MIDI OUT / IN, the channels); the others to their FACTORY value, what a blank FM-1 or an empty settings record gives (the user, 2026-10-13): MODE FREE, LENGTH 1 bar, START NOTE, CLK OUT OFF, COLOR MONO, BRIGHT 8, KNOB COLORS OFF, LIGHTS and KEYS OFF, LOWCUT OFF, SERIAL OFF, HOLD 350 ms, 2ND CORE AUTO. BLE is never reset (a reset must not drop a live connection). An action line: runs it, as YES (PANEL asks first). A read-out: nothing. Never the track or its sound on these screens |
 | SAVE (YES) | the cursor line: an action (PANEL asks first; VERSION says it; BLE opens the devices list), an on / off value toggled |
 | GLO tapped | from any other screen GLOBAL; on GLOBAL SYSTEM; on SYSTEM (the devices list too, which closes) GLOBAL. Each screen keeps its cursor line |
 | OCT- / OCT+ held | on a GLOBAL page with Tempo's lines: the nudge, as on the TEMPO page; elsewhere the octave |
@@ -2521,7 +2521,7 @@ screen's ends and never crossing; KNOB k the page's line k; PRESETS the cursor l
 ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSION, PANEL's question, the BLE devices;
 GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_glwalk.h (every
 line of both screens walked with ALGORITHM: a value's knob and PRESETS change a setting and its text, HOME + PRESETS a
-descriptor's default; a read-out's knob and PRESETS change nothing; no line draws YES, PANEL draws RUN and PRESETS asks;
+descriptor's default; a read-out's knob and PRESETS change nothing; no line draws YES, PANEL draws CALIBRATE and PRESETS asks; every line without a descriptor back to its factory value, BLE kept;
 VERSION the version), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
 the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.
@@ -2562,3 +2562,107 @@ nothing for sound and MIDI, the tails end, a live key sounds, the TLV and PROJEC
 (the gesture on the mixer, the other screens keep the pick and the clear, the X and the grey steps, the keys' lights).
 Open: whether a track's motion should stop too when muted (it runs now), and whether the key should sound as a preview
 (it is silent now).
+
+## 22. Step conditions and the sequence tools, from Felucca 1.5.6 (feat/seq-tools, 2026-10-13)
+
+Ported from Felucca 1.5.6 (hugelton/Felucca 9f6a885, Leo Kuroshita, Hügelton Instruments, GPL-3.0-only): its step
+conditions (1.5.5, #209) and its SEQ TOOLS (`ui_tools.c`). Design and the user's rulings: optimist-work/seqtools/DESIGN.md
+(Q1..Q15, every one as recommended; Q5, Q7, Q8 and Q14 the user's own). Two builder items, both on in user-default:
+**COND** (`FELUCCA_COND`, both UIs) and **SEQTOOLS** (`FELUCCA_SEQTOOLS`, this UI only).
+
+**Conditions.** 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4: the step plays on loop a of every b of its own track (a:b). Each
+track counts the passes through its LEN from PLAY, a song section and a launched pattern (Felucca's points); a LEN
+changed while playing keeps counting. A condition is a step-only event of the automation store (`seq/auto.h`
+`AUTO_COND` 0xFC, values 1..9), so neither the step nor the project format changes; on the drum track it is the whole
+step (every lane), as the chance. With FILL and the chance on the same step: the condition, then FILL, then the chance
+(a failed one is a REST: no notes, ratchets or locks). Old forms: a track with one is never written in the 2.4 stepx
+form (it would be dropped); the 2.4 export reports it (lost2 bit 8, `SX24_COND`); an older Optimist build keeps the
+event and plays the step always.
+
+| Where | What |
+|---|---|
+| A step held, SELECT to EXTRA | the 4th card **COND**: `-`, 1:2 .. 4:4, stopping at both ends, on every step held; HOME + its knob clears it. EXTRA is CHANCE · NUDGE · FILL · COND as built |
+| The held step's line | *Step 6  1:4* (after the fill) |
+| The marks | the step's event dot, as any non-fill event |
+| SLOOP's UI | plays them, draws the dot; nothing edits them |
+
+**The tools.** STEP gains two last pages, **TOOLS** and **EUCLID** (SELECT; SEQ tapped again cycles to them):
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | YES |
+|---|---|---|---|---|---|
+| TOOLS | REVERSE | RANDOM | COOK | LENGTH: x2 (turned right) / 1/2 (left) | does the hot card; a toast (*T1 REVERSED*, *SNARE RANDOM*, *DOUBLED: 32 STEPS*, *PATTERN FULL*); one undo each, no question |
+| EUCLID | HITS | STEPS | ROT | LANE (a read-out; a synth track: none) | - (each turn writes at once; a run of turns is one undo) |
+
+A turn of a TOOLS card arms it (its YES), so a knob bumped does nothing. The scope is ALGORITHM's: a synth track; DR
+itself the whole kit; a drum lane walked to that lane only (REVERSE RANDOM COOK EUCLID; EUCLID on DR itself the last
+picked lane, named on LANE). LENGTH is always the whole pattern. What they do (Felucca's, `ui/optimist/op_tools.c`):
+
+- **REVERSE**: the steps mirrored inside LEN. A note moves whole: its NOTE, its TIEs and the carry steps that go on
+  with its pitch are one unit, kept in order at the mirrored place, so its exact length (a step's own end, `ngate`)
+  is the same. A lane: that lane's hits and its lane events only.
+- **RANDOM**: a synth track keeps its rhythm, levels, ratchets, chance and conditions, and gets new notes: a walk
+  through its scale (ROOT, SCL; **SCL CHR: the minor pentatonic of the ROOT**) around the notes' mean, a chord keeping
+  its shape; a carried note changes all along its chain. DR: a beat (KICK on step 1, SNARE on 2 and 4, CLOSED HAT 8..12
+  a bar, OPEN HAT and lanes 2..8 sparse); a lane: that lane drawn the same way, at least one hit.
+- **COOK**: a few changes (15..25 % of the notes: a scale step, an octave, the level NORM <-> HARD, the chance
+  100 <-> 50 / 75 % as an event, a condition left alone; drums 10..20 % of the hits moved, added or taken away, never a
+  lane's last nor the kick on step 1); again until something changed.
+- **LENGTH x2** (DOUBLE): the steps after themselves, LEN x2 (64 at most), their events copied (refused, *PATTERN
+  FULL*, when the copies would pass the track's 128). **1/2** (HALF): LEN / 2, the steps past it kept (as the LEN card).
+- **EUCLID**: HITS spread over STEPS, turned by ROT, repeated through LEN, written from the pattern as the run began
+  (the undo session's start: no copy of our own); a synth hit keeps the step's note, else the root near C4; the drum
+  lane's hits only. Values kept until the power goes (first 4 / 16 / 0); HOME + a knob its default.
+- Every tool works on steps 1..LEN; a step it empties loses its step-only events; locks, motion, chance, conditions,
+  nudges and fills move with their steps. **The EDIT layer's SHIFT and LENGTH x2 now move and copy the events too**
+  (before, they stayed on their old steps); SLOOP's EDIT layer is unchanged.
+
+Not ported (Q11): Felucca's BEAT and lane FILL; CLEAR and SHIFT exist (HOME + REC, EDIT KNOB 1).
+
+Tests: tests/cond_test.c (the conditions alone), tests/auto_test.c `t_cond` (with FILL and chance, the forms, the 2.4
+bit), tests/ui_optimist_seqtools.h (every tool on note chains, the drum kit and a lane, EUCLID's run and undo, the EDIT
+layer's SHIFT, the COND card), run with the store whole and with COND alone.
+
+## 23. The help line, and the risky actions asked (feat/help-line, 2026-10-13)
+
+The user: "we should have a help text on the bottom last line. this info text should be displayed everywhere when i
+modify a value or in the vertical menus"; and "all action that are 'risk' we should have a popup yes no (home/save)".
+
+**The help line** (builder item PARAM_HELP, the one SLOOP's top-bar help uses; off in user-default, on in the user's own
+config). One line of the small face on the screen's last 18 rows (y 222..239): a 1 px rule, then the words in amber.
+
+| When | What it says |
+|---|---|
+| a value turned, any screen (SOUND, the mixer, MASTER, STEP's cards, TEMPO, SONG, SCOPE) | what the knob changes ("Filter cutoff"), while it turns and ~2 s (120 frames) after its last detent; another screen lets it go. A knob that only picks an action cell shows the action's line too |
+| GLOBAL, SYSTEM (the settings list) | always: the cursor line's ("Tempo of the song", "Teach buttons, knobs (asks)") |
+| PROJECT | always: the cursor row's hot cell ("Load: replaces work (asks)") |
+| never | under a question (the modal), the REC ring, a layer's map, NAME, the BLE devices list (its status line is at the foot) |
+
+Room: the settings list's lines are 29 px instead of 33 (4 lines and 4 section names, 196 px, end at y 221); PROJECT's
+rows end at y 221 (op_draw.c `LIST_H`). Elsewhere the line covers the panel's foot while it shows (the bottom of SOUND's
+picture, the mixer's last strip, STEP's playhead strip and the held step's values under the grid): gfx.c `cv_clip` keeps
+every band off its rows, and when it goes every band is drawn again over itself (`op_repaint`, no flash). An action that
+asks first says "(asks)".
+
+The words: tools/param_help.json, one table with SLOOP's UI and the web editor's tooltips. A new kind `op` holds this UI's
+own lines (the settings, PROJECT's actions, the SOUND row, the mixer's sends, SONG), by the row's name as the screen
+names it (GLOBAL / SYSTEM: the section) and the cell's label; built only with FELUCCA_UI == 1, not in the editor's copy.
+A line is found as (op, the row's name, the label), then (op, the screen's name, the label), then by the value's
+descriptor: the first page of PAGES showing it that has SLOOP's line (an engine's value by the engine). Looked up only
+when the cell it is about changes; the strings are PH_BLOB, flash (XIP); nothing in RAM code. Each fits 232 px
+(gen_param_help.py checks). Code: ui/optimist/op_help.c.
+
+**The risky actions** (audit: every action cell and button combination; the table in the branch's notes, ACTIONS.md).
+Risky: it destroys or overwrites what undo cannot bring back, or changes the device. Each asks through the one confirm
+(the modal: SAVE yes, HOME no, 3 s). Already asking: PROJECT LOAD / NEW / a SAVE over a used slot, SNAPSHOT LOAD / CLEAR /
+a SAVE over a used one, USER LOAD / ERASE / a SAVE over a used one, TOOLS CLRSQ / INIT / NEW, SOUND INIT, HOME + ENV
+(INIT), HOME + SEQ (the locks), HOME + REC (the track), the SLOOP import, CALIBRATE, BLE FORGET, a scene / pattern store
+over a used one, a scene / pattern clear, a pattern copy over a used one, a drum lane's RESET / SAVE / ERASE, FM6 STORE /
+INIT. Added: SONG's **DELETE part** ("Delete part 2?": the song's order has no undo and is saved when SONG is left); a
+drum lane's user kit SAVE / ERASE now name the slot ("Save kit 3?", was "Save?"). Kept as they are (the user): STEP's
+tools, single-step edits, what one undo restores.
+
+Tests: tests/ui_optimist_help.h (every GLOBAL / SYSTEM line and PROJECT cell has its line, the table's, within 232 px;
+SOUND and the mixer: a turn shows it ~2 s, then the bands come back; every value without a line listed),
+tests/ui_optimist_risk.h (every risky action asks and HOME changes nothing), run_tests.sh's two help-line units.
+Open: SONG REC over an existing song, a scene loaded while stopped (it replaces the work, no question), a preset or
+engine change over an edited sound (not in undo): see the report; a SYSTEM > HELP LINE ON / OFF switch is not built.

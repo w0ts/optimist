@@ -277,6 +277,7 @@ BLE_API void ble_hw_init_start(const struct ble_hw_init *in)
     fm1_ble_col_wr(HW_LINK, 9, 1);                         /* "init end": the engine leaves state 3 after it */
     drv.state = HW_INIT;
     drv.gen++;
+    drv.init_t0 = fm1_ticks();                             /* (after the start: a packet heard ends later than this) */
     BLE_DG(ble_dgc.init_last_ch = 37u);
 }
 
@@ -288,7 +289,16 @@ BLE_API void ble_hw_init_stop(void)
 }
 
 /* one state-3 report in buffer b: the target's ADV_IND (AdvA, TxAdd) or an ADV_DIRECT_IND from it to us (TargetA,
- * RxAdd) marks the hit; the engine has sent our CONNECT_IND after it (§21.3 "Reception"); anything else is dropped */
+ * RxAdd) marks the hit; the engine has sent our CONNECT_IND after it (§21.3 "Reception"); anything else is dropped.
+ * A report that ends sooner after ble_hw_init_start than its own airtime ((1 + 4 + 2 + n + 3) x 8 us at 1 Mb/s) was
+ * in the air before the engine listened for the target: the scan's packet that was being received when the pick
+ * stopped it. No CONNECT_IND follows it, so it is no hit: taken as one, the event IRQ at the window's end switched to
+ * the master with nothing sent (state 6 with no link, never left; the "mac" pick of tests/ble_emu_central_test.py
+ * when the pick landed during the Mac's ADV_IND: c4_rx_to_evt 37.9 ms, a whole window, where a real hit is 0.4 ms) */
+static int hw_init_stale(uint32_t n)
+{
+    return (fm1_ticks() - drv.init_t0) / FM1_TICKS_PER_US < (10u + n) * 8u;
+}
 static void hw_init_take(uint32_t b)
 {
     uint16_t ah = CB->rxahdr[b], dh = CB->rxdhdr[b], st = CB->rxstat[b];
@@ -299,6 +309,10 @@ static void hw_init_take(uint32_t b)
     BLE_DG(ble_dgc.init_last_dhdr = dh);
     if ((st & 0xFu) != 1u || n < 6u || n > 37u) {
         BLE_DG(ble_dgc.init_rx_bad++);
+        return;
+    }
+    if (hw_init_stale(n)) {
+        BLE_DG(ble_dgc.init_rx_stale++);
         return;
     }
     if ((type == 0x0u || (type == 0x1u && n == 12u && ble_eq(p + 6, drv.init_own, 6) &&

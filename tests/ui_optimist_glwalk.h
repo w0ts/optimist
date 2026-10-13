@@ -117,6 +117,73 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
         printf("  glwalk: screen %u line %u %s kind %u value %s\n", scr, i, c.label ? c.label : "-", c.kind, v);
     return ok;
 }
+/* HOME held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
+ * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
+static const struct { const char *label, *val; } GLW_FACTORY[] = {
+    {"MODE", "FREE"}, {"LENGTH", "1 BAR"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
+    {"KNOB COLORS", "OFF"}, {"LIGHTS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"2ND CORE", "AUTO"}};
+static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
+{
+    uint32_t i;
+    for (i = 0; i < sizeof GLW_FACTORY / sizeof GLW_FACTORY[0]; i++)
+        if (!strcmp(GLW_FACTORY[i].label, label))
+            return GLW_FACTORY[i].val ? GLW_FACTORY[i].val : PALETTES[4].name;   /* (COLOR: MONO, settings_init's 4) */
+    return 0;
+}
+static void glw_factory_tests(void)
+{
+    uint32_t s, i, n, ok = 1, seen = 0, ble_ok = 1;
+    cell_t c;
+    char v[16];
+    for (s = 0; s < 2u; s++) {
+        uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL;
+        op_enter(scr);
+        n = SCREENS[scr].rows();
+        for (i = 0; i < n; i++) {
+            const char *f;
+            uint32_t tries;
+            turn(EN_ALGO, (int32_t)i - (int32_t)ui.row[scr]);
+            glw_line(scr, i, &c, v);
+            if (c.kind != CK_VAL || c.d)
+                continue;                               /* (a descriptor's line: its default, glw_walk_line) */
+            if (!strcmp(c.label, "BLE")) {             /* never reset: a live connection stays */
+#if FELUCCA_BLE
+                uint8_t was = ble_on;
+                ble_on = 1;
+                press(B_HOME);
+                turn(EN_PRESET, 1);
+                release(B_HOME);
+                ble_ok &= ble_on == 1u;
+                ble_on = was;
+#endif
+                continue;
+            }
+            f = glw_factory(c.label);
+            if (!f) {
+                printf("  glwalk: %s has no factory value in the test's table\n", c.label);
+                ok = 0;
+                continue;
+            }
+            for (tries = 0; tries < 3u && !strcmp(v, f); tries++) {   /* (off the factory value first) */
+                turn(LINE_KNOB(i), tries == 1u ? -1 : 1);
+                glw_line(scr, i, &c, v);
+            }
+            press(B_HOME);
+            turn(EN_PRESET, 1);
+            release(B_HOME);
+            glw_line(scr, i, &c, v);
+            if (strcmp(v, f)) {
+                printf("  glwalk: %s after HOME + PRESETS %s, factory %s\n", c.label, v, f);
+                ok = 0;
+            }
+            seen++;
+        }
+    }
+    check(ok && seen >= 3u && ble_ok, "HOME + PRESETS: every setting line without a default back to its FACTORY value; BLE never");
+    settings.palette = 4;
+    palette_set(4);
+}
 static void glwalk_tests(void)
 {
     static int16_t g0[sizeof song.g / sizeof song.g[0]], b0[BPS_COUNT];
@@ -147,7 +214,11 @@ static void glwalk_tests(void)
             glw_line(s ? SCR_SYSTEM : SCR_GLOBAL, i, &c, v);
             ok &= strcmp(v, "YES") != 0;
         }
-    check(ok && acts == 1u, "no GLOBAL / SYSTEM line draws YES; the one action (Calibrate's PANEL) draws RUN");
+    i = line_named(SCR_SYSTEM, "PANEL");
+    glw_line(SCR_SYSTEM, i, &c, v);
+    check(ok && acts == 1u && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
+          "no GLOBAL / SYSTEM line draws YES; the one action (Calibrate's PANEL) draws CALIBRATE");
+    glw_factory_tests();
     i = line_named(SCR_SYSTEM, "VERSION");
     glw_line(SCR_SYSTEM, i, &c, v);
     check(c.kind == CK_RO && v[0] && !strstr(v, "OPTIMIST") && strstr(FELUCCA_VERSION, v),

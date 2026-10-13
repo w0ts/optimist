@@ -629,6 +629,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
     case SI_CALIB:
         c->label = "PANEL";
         c->kind = CK_ACT;
+        str_cpy(c->val, "CALIBRATE", sizeof c->val);    /* (the action's word, the user 2026-10-13; the list's small face) */
         break;
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
@@ -708,24 +709,78 @@ static void sys_set(uint32_t it, int32_t s)
     }
     sys_dirty = 1;
 }
+/* HOME held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
+ * settings record gives (the user, 2026-10-13): panel.c settings_init (COLOR 4 MONO, LOWCUT OFF), bright.c bright_boot
+ * (BRIGHT 8, full), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
+ * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
+static int sys_factory(uint32_t it)
+{
+    switch (it) {
+    case SI_COLOR:
+        settings.palette = 4u;                          /* (panel.c settings_init: MONO) */
+        palette_set(settings.palette);
+        ui.force = 1;
+        break;
+#if FELUCCA_BRIGHT
+    case SI_BRIGHT:
+        bright_set(8u);
+        break;
+#endif
+#if FELUCCA_LIGHTS
+    case SI_LIGHTS:
+        lights_lvl = LIGHTS_OFF;
+        break;
+    case SI_KEYS:
+        lights_keys = KEYS_OFF;
+        break;
+#endif
+    case SI_LOWCUT:
+        settings.lowcut = 0;
+        fx_lowcut = 0;
+        break;
+#if FELUCCA_CDC
+    case SI_USB:
+        usb_serial = 0;
+        break;
+#endif
+    case SI_HOLD:
+        hold_sel = 0;                                   /* (core/hold.h: 0 is 350 ms) */
+        break;
+    case SI_KCOL:
+        knob_colors = 0;
+        ui.force = 1;
+        break;
+#if FELUCCA_MIDI_CLKOUT
+    case SI_CLKOUT:
+        clko_on = 0;
+        break;
+#endif
+#if DUAL_LOAD
+    case SI_CORE:
+        dual_mode = DUALM_AUTO;
+        break;
+#endif
+    default:
+        return 0;                                       /* (BLE, the read-outs, PANEL: nothing) */
+    }
+    sys_dirty = 1;
+    return 1;
+}
 static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     uint32_t it = sys_item(r, k);
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
-#if DUAL_LOAD
-    if (s == OP_RESET && it == SI_CORE) {               /* HOME held + PRESETS: back to AUTO */
-        dual_mode = DUALM_AUTO;
-        sys_dirty = 1;
-        return;
-    }
-#endif
-    if ((s == OP_RESET && !d) || it == SI_CLOCK)       /* (HOME held: a setting with a descriptor, its default) */
-        return;
 #if FELUCCA_BLE
     if (bdv.open)
         return;                                         /* (the list: a knob does nothing) */
 #endif
+    if (s == OP_RESET && !d) {                          /* HOME held: no descriptor, the factory value */
+        sys_factory(it);
+        return;
+    }
+    if (it == SI_CLOCK)
+        return;
     if (d) {
         val_turn(d, vp, k, s, fine);
         sys_dirty = 1;

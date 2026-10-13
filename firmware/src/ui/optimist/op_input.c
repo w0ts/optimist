@@ -528,6 +528,7 @@ static void op_knobs(uint32_t home)
         ui.hot = (uint8_t)k;                            /* (an action cell: the turn only picks it) */
         gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
+        HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
         if (c.kind == CK_VAL)
             SCR->turn(row, k, home ? OP_RESET : s, 0);  /* HOME held: back to its default */
     }
@@ -799,6 +800,7 @@ static void ui_draw(void)
         ui.toast_t--;
     if (ui.cards_t)
         ui.cards_t--;
+    HL_TICK();                                          /* (the help line's time after a turn: op_help.c) */
     if (step_held_long())
         step_cards_show();                              /* (a step held, past the hold time: the cards up while it is held;
                                                          * the timer runs once it is let go; a tap: none) */

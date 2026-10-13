@@ -65,6 +65,7 @@ static void eng_adv(uint8_t hdr, const uint8_t a[6], const uint8_t *target, int 
         memcpy(p + 6, target, 6);
     else
         p[6] = 2, p[7] = 1, p[8] = 6;
+    fk.ticks += (10u + n) * 8u * FM1_TICKS_PER_US;   /* (its airtime: received over it, the engine listening) */
     CB->rxahdr[b] = hdr;
     CB->rxdhdr[b] = (uint16_t)(n << 8);
     CB->rxstat[b] = 1;
@@ -196,6 +197,21 @@ static void t_central(void)
                   !memcmp(bb.tx[k].buf + HW_SWHDR, OWN, 6) && !memcmp(bb.tx[k].buf + HW_SWHDR + 6, PEER, 6) &&
                   !memcmp(bb.tx[k].buf + HW_SWHDR + 12, bll.state == LL_INIT ? llc.cind + 14 : OWN, 22);
         check("initiating: both TX buffers our CONNECT_IND (TXAHDR 5 | TxAdd | RxAdd, length 34, InitA, AdvA, LLData)", ok);
+    }
+    {   /* the stopped scan's packet, in the air when initiating started: its report ends before its own airtime
+         * since the start (the "mac" pick of ble_emu_central_test.py): no hit */
+        uint32_t b = CB->rxtog & 1u;
+        uint8_t *p = bb.rx[b].buf + HW_SWHDR;
+        memcpy(p, PEER, 6);
+        p[6] = 2, p[7] = 1, p[8] = 6;
+        CB->rxahdr[b] = 0x40;
+        CB->rxdhdr[b] = (uint16_t)(9u << 8);
+        CB->rxstat[b] = 1;
+        CB->rxbufcntl[b] |= 1u;
+        CB->rxtog ^= 1u;
+        ble_wl82_rx_irq();
+        check("initiating: the target's ADV_IND already in the air at the start (stale): no hit, still initiating",
+              !drv.init_hit && drv.state == HW_INIT && DG(ble_dgc.init_rx_stale == 1u && ble_dgc.init_rx_target == 0u));
     }
     wo = llc.c.win_offset;
     fk.log_n = 0;

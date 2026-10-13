@@ -517,6 +517,9 @@ static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
     pat_take(t, k, &sec_stage_p);
     if (w != PW_NOW)
         t->org = abs;                                  /* (from its step 1) */
+#if FELUCCA_COND
+    cond_reset(k);                                     /* (its step conditions from loop 1, as Felucca's section) */
+#endif
     song.rec &= (uint8_t)~(1u << k);                   /* (a take does not run on into another pattern) */
     pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];
     pat_req[k] = PAT_NONE;

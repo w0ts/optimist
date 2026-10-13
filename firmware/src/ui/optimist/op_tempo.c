@@ -155,8 +155,22 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         val_turn(&GP[G_CLOCK], &song.g[G_CLOCK], k, s, fine);
         return;
     }
-    if (s == OP_RESET)
+    if (s == OP_RESET) {                                /* HOME held: the FACTORY value (the user, 2026-10-13): LENGTH 1 bar,
+                                                         * MODE FREE, START NOTE (seq.c's, an empty settings word's) */
+        if (k == 1u) {
+            TSEL->p[P_SLEN] = (int16_t)REC_LENS[0];
+            sync_reload = 1;
+            return;
+        }
+#if FELUCCA_REC_MODES
+        if (k == 0u)
+            rec_tempo = 0;
+        else
+            rec_count = 0;
+        settings_later = 1;
+#endif
         return;
+    }
     if (k == 1u) {                                      /* LENGTH: the selected track's, 1 / 2 / 4 bars */
         TSEL->p[P_SLEN] = (int16_t)REC_LENS[clamp((int32_t)rec_len_ix() + (s > 0 ? 1 : -1), 0, 2)];
         sync_reload = 1;

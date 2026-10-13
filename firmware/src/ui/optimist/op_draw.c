@@ -35,6 +35,25 @@ static uint32_t op_overlay(void);
 static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's algorithm */
 static void f6_alg_draw(int32_t y0, int32_t h, int big);
 static void gl_draw(void);                              /* op_gldraw.c: GLOBAL and SYSTEM's list */
+#if FELUCCA_PARAM_HELP
+static int32_t hl_room(void);                           /* op_help.c: the help line */
+static void hl_pre(uint32_t ov);
+static void hl_post(void);
+#else
+#define hl_room() 0
+#define hl_pre(ov) ((void)(ov))
+#define hl_post() ((void)0)
+#endif
+#if FELUCCA_PARAM_HELP
+#define HL_NOTE(k) hl_note(k)
+#define HL_TICK() hl_tick()
+static void hl_note(uint32_t k);
+static void hl_tick(void);
+#else
+#define HL_NOTE(k) ((void)(k))
+#define HL_TICK() ((void)0)
+#endif
+#define LIST_H ((int32_t)OH_BODY - hl_room())  /* the rows' panel: over the help line on PROJECT (op_help.c) */
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -572,9 +591,9 @@ static void list_paint(void)
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.shown && lst.n > lst.shown) {               /* where the window is in the list */
-        int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
-        cv_rect(238, lst.top, 1, OH_BODY - lst.top, C_LINE);
-        cv_rect(237, lst.top + (OH_BODY - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
+        int32_t h = (LIST_H - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
+        cv_rect(238, lst.top, 1, LIST_H - lst.top, C_LINE);
+        cv_rect(237, lst.top + (LIST_H - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
     }
 }
 static void draw_list(void)
@@ -601,18 +620,18 @@ static void draw_list(void)
                                                          * the row and its n/N, SELECT walks them. SONG keeps its rows under
                                                          * the session grid: its list is the content */
         shown = 0;
-        top = OH_BODY;
-        gr_h = OH_BODY;
+        top = LIST_H;
+        gr_h = LIST_H;
     } else if (pic) {                                   /* the picture takes the height the rows leave: they sit at the foot */
-        uint32_t fit = (uint32_t)(OH_BODY - GRAPH_MIN - 3) / ROW_H;
+        uint32_t fit = (uint32_t)(LIST_H - GRAPH_MIN - 3) / ROW_H;
         shown = n < fit ? n : fit;
-        top = OH_BODY - (int32_t)shown * ROW_H;
+        top = LIST_H - (int32_t)shown * ROW_H;
         gr_h = top - 3;
     } else if (n && n <= shown) {                       /* no picture (EDIT, VOICE, PROJECT, SYSTEM, GLOBAL, the master FX: the
                                                          * user, 2026-10-12, "we can keep the list below when there is nothing
                                                          * to display besides the 4 cards"), rows to spare: taller rows */
         shown = n;
-        rh = OH_BODY / (int32_t)n;
+        rh = LIST_H / (int32_t)n;
         rh = rh > 40 ? 40 : rh;                         /* (a few rows, no picture: at most 40 px a row, at the top) */
     }
     if (cur >= shown / 2u)
@@ -653,7 +672,7 @@ static void draw_list(void)
     ui.sig[2] = sig;
     lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top, lst.rh = rh;
     lst.bar = bar;
-    cv_tall(OP_PY, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
+    cv_tall(OP_PY, LIST_H, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
 }
 
 /* ---- pieces of the mixer's rows (op_mixdraw.c) */
@@ -737,11 +756,12 @@ static void op_frame_draw(void)
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
-            ui.sig[1] = ui.sig[2] = ui.sig[3] = ui.sig[4] = 0;
+            memset(ui.sig + 1, 0, sizeof ui.sig - sizeof ui.sig[0]);   /* (the help line's too) */
             mx_redraw();
         }
         was_full = (uint8_t)full;
     }
+    hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
     if (name_on()) {                                    /* NAME: the field and the keyboard (op_name.c), no footer */
         name_draw();
@@ -779,5 +799,6 @@ static void op_frame_draw(void)
         }
     }
     draw_under();
+    hl_post();
     ui.force = 0;
 }
