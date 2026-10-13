@@ -301,6 +301,8 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
         return is_drum(TSEL) && lane_picked();
     if (smp_pg(pg))                                     /* (a user sample's HIT START LEN: that lane only) */
         return is_drum(TSEL) && page_shown(pg) && dl_usr_of(lane_selected());
+    if (pg->scope == SC_DSND && pg->fam == FAM_ENV && is_drum(TSEL) && !lane_picked())
+        return 0;                                       /* (the lane's envelope: DR itself has none, a lane must be picked) */
     if (pg->scope != SC_TRACK && pg->scope != SC_ENGINE && pg->scope != SC_DSND && !CMP_PAGE(pg)   /* (CMP: the track's own COMP) */
 #if BP_SET_ANY
         && !(pg->scope == SC_BPSET && pg->fam == FAM_EDIT)   /* (ACID GEN; REVERB TYPE is the FX screen's) */

@@ -98,8 +98,16 @@ static volatile struct {
     uint32_t frames;
 } fm1_in;
 static uint8_t fm1_led[FM1_NCOL];
+/* THE dim level of every LED (the buttons' half light and the keys' landmarks share this one layer, fm1_led_dim): lit one
+ * scan frame in (mask + 1). Optimist UI (UI=1, 2026-10-13, "a default dim level for all the buttons"): 7 = 1/8 of the
+ * time, ~12% (~112 Hz pulses, no flicker); 3 = 1/4 read as lit. SLOOP's UI keeps 3 (byte-identical). With menu LIGHTS the
+ * dim layer is the glow pulse instead (FM1_GLOW_NS, ~4%, already dimmer); the LIGHTS level scales the backlight only. */
 #ifndef FM1_LED_DIM_MASK
-#define FM1_LED_DIM_MASK 3u      /* dim LEDs: lit one scan frame in (mask + 1), ~225 Hz, no flicker */
+#if defined(FELUCCA_UI) && FELUCCA_UI == 1
+#define FM1_LED_DIM_MASK 7u
+#else
+#define FM1_LED_DIM_MASK 3u
+#endif
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: half-light marks */
 #ifndef FELUCCA_LIGHTS

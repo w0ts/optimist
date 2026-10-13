@@ -812,7 +812,9 @@ static void lay_frame(uint32_t held)
     uint32_t l, h = LY_PLAY, off = ui.scr == SCR_STEP && st.held;
     lay_bits();
     for (l = LY_FX; l < LY_COUNT && !off; l++)
-        if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]])) && (l != LY_OPS || fm6_sel())) {
+        if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]])) && (l != LY_OPS || fm6_sel()) &&
+            !(mx_on_master() && mx_master_dead(LAYER_BTN[l]))) {   /* (the mixer's MASTER row: its dead track buttons
+                                                         * hold no layer and show no map; a layer held over MASTER's pages stays) */
             h = l;
             break;
         }

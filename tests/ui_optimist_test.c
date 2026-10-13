@@ -810,8 +810,14 @@ static void family_tests(void)
         only &= snd_page(r)->fam == FAM_EDIT;
     check(only && snd_page(1)->scope == SC_DSND, "the drum track, EDIT: the SOUND row (KIT LANE), then the lane's rows only");
     tap(B_ENV);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT, "the drum track, no lane picked: ENV does nothing (the lane's envelope needs a lane)");
+    lane_select(4);
+    ui.lane = 1;
+    tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
-          "the drum track, ENV: the lane's ENV row (no drum editor built: the rows stay)");
+          "the drum track, a lane picked: ENV the lane's ENV row (no drum editor built: the rows stay)");
+    ui.lane = 0;
+    lane_select(0);
     song.sel = 0;
     reset_ui();
 }
@@ -2313,7 +2319,7 @@ static void led_tests(void)
           "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
     song.sel = TRK_DRUM;
     frames(2);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "LEDs, the drum track: no LFO; ENV half lit (its lane's envelope)");
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track, no lane picked: no LFO, no ENV (a lane's pages)");
     check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
           "LEDs, the drum track: EDIT FX GLO SEQ half lit");
     for (b = 0; b < NB; b++)
@@ -2343,6 +2349,7 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_btnled.h"                    /* 2026-10-13: every button's LED against what its tap and hold do, screens x track kinds */
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
 #include "ui_optimist_lanesrc.h"                    /* 2026-10-13: a lane's SRC on page 1, knob 3 */
@@ -2436,6 +2443,7 @@ int main(int argc, char **argv)
     step_hold_tests();
     step_pitch_tests();
     led_tests();
+    btnled_tests();
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();
