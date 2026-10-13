@@ -2325,6 +2325,7 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_btnled.h"                    /* 2026-10-13: every button's LED against what its tap and hold do, screens x track kinds */
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
 #include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
@@ -2416,6 +2417,7 @@ int main(int argc, char **argv)
     step_hold_tests();
     step_pitch_tests();
     led_tests();
+    btnled_tests();
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();

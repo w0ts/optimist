@@ -2196,6 +2196,8 @@ under the full light, so a blinking button swings between full and half. The LIG
 | FX on the global FX screen | its next page |
 | any page button, STEP with a step held | the step's page lock (all but EDIT and GLO; EDIT too on the drum track: the lane's SOUND pages, section 18) |
 
+**Walked 2026-10-13 (feat fix/button-leds; tests/ui_optimist_btnled.h):** every screen x track kind (synth, DR with no lane, a lane, MASTER) x button (not PLAY, REC, OCT) is tapped and held, and its LED must be lit exactly when the tap changes the screen or the hold works a layer; no LED was found wrong. The user's mixer-on-DR screenshot (FX SCL ENV EDIT GLO HOME SAVE ARP SEQ half lit, LFO dark) is the rule working: ENV and EDIT tap into the remembered lane's pages (KICK's ENV, the kit's SOUND rows), SCL and ARP are hold-only layers (the song's scale, rolls). Whether ENV should open on DR with no lane picked is an open question (LFO needs a picked lane, ENV does not).
+
 So on the drum track LFO is dark on DR itself and half lit with a lane selected (the lane's LFO, section 18); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
 half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
 track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
