@@ -223,8 +223,7 @@
       "ECHO": {"text": "Echo, shared: free/avail", "if": "FELUCCA_INS_DELAY"},
       "FULL ECHO": {"text": "No free echo: bypassed", "if": "FELUCCA_INS_DELAY"}}},
     {"kind": "op", "ctx": "TEMPO", "params": {
-      "BPM": "Tempo of the song", "NUDGE": "OCT- / OCT+ held nudge tempo", "SWING": "Swing of every track",
-      "SYNC": {"text": "Clock: internal, USB or TRS", "if": "FELUCCA_MIDI_CLOCK"}}},
+      "BPM": "Tempo of the song", "NUDGE": "OCT- / OCT+ held nudge tempo", "SWING": "Swing of every track"}},
     {"kind": "op", "ctx": "REC", "params": {
       "MODE": {"text": "Take: free or to the tempo", "if": "FELUCCA_REC_MODES"}, "LENGTH": "Loop length of a new take",
       "START": {"text": "Take starts: a note or count", "if": "FELUCCA_REC_MODES"}, "CLICK": "Metronome: when it clicks",
@@ -233,9 +232,8 @@
     {"kind": "op", "ctx": "MIDI", "params": {
       "OUT": {"text": "MIDI out: the keys or the seq", "if": "FELUCCA_MIDI_OUT"},
       "IN": {"text": "MIDI in: notes or clock", "if": "FELUCCA_MIDI_INCLK"},
-      "SYNC": {"text": "Clock: internal, USB or TRS", "if": "FELUCCA_MIDI_CLOCK"},
-      "CLK": {"text": "The clock followed now", "if": "FELUCCA_MIDI_CLOCK"}}},
-    {"kind": "op", "ctx": "CLOCK OUT", "if": "FELUCCA_MIDI_CLKOUT", "params": {"CLK OUT": "Send MIDI clock out"}},
+      "SYNC": {"text": "Clock in: Auto, Int, USB, TRS", "if": "FELUCCA_MIDI_CLOCK"},
+      "CLK OUT": {"text": "Send MIDI clock out", "if": "FELUCCA_MIDI_CLKOUT"}}},
     {"kind": "op", "ctx": "CHANNELS", "params": {
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},

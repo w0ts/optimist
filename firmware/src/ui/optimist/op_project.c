@@ -438,7 +438,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: dual_mode, DUALM_*, dual_why_name (dual.c's state) */
 #endif
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_CORE };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
@@ -462,14 +462,12 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
     {"MIDI", {SI_IF(FELUCCA_MIDI_OUT, SI_OUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN), SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC),
-              SI_IF(FELUCCA_MIDI_CLOCK, SI_CLOCK)}},
-#if FELUCCA_MIDI_CLKOUT
-    {"CLOCK OUT", {SI_CLKOUT, SI_NONE, SI_NONE, SI_NONE}},   /* (MIDI clock sent: io/midi/clock_out.c) */
-#endif
+              SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT)}},   /* (the user, 2026-10-13: "sync in / out and midi in / out on one page"; */
+                                                         /* CLKOUT: the clock sent, io/midi/clock_out.c) */
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO (FELUCCA_MIDI_CLKOUT ? 3u : 2u)          /* the global rows at SYS's end: MIDI, CLOCK OUT, CHANNELS */
+#define NSYS_GLO 2u                                     /* the global rows at SYS's end: MIDI, CHANNELS */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
@@ -495,11 +493,11 @@ static uint32_t sys_item(uint32_t r, uint32_t k) { return SYS[r % NSYS].it[k & 3
 /* the settings with a descriptor (params.c GP, bp_set.c): the MIDI rows */
 static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 {
-    static const uint8_t BPS[] = {BPS_MOUT, BPS_MIN, 0, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
+    static const uint8_t BPS[] = {BPS_MOUT, BPS_MIN, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
     *vp = 0;
-    if (it == SI_SYNC || it == SI_CLOCK) {
-        *vp = &song.g[it == SI_SYNC ? G_SYNC : G_MIDI];
-        return &GP[it == SI_SYNC ? G_SYNC : G_MIDI];
+    if (it == SI_SYNC) {
+        *vp = &song.g[G_SYNC];
+        return &GP[G_SYNC];
     }
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
@@ -526,8 +524,6 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
     d = sys_desc(it, &vp);
     if (d) {
         cell_param(c, d, vp);
-        if (it == SI_CLOCK)
-            c->kind = CK_RO;                            /* (the clock followed now: a read-out) */
         return;
     }
     cell_clear(c);
@@ -785,8 +781,6 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         sys_factory(it);
         return;
     }
-    if (it == SI_CLOCK)
-        return;
     if (d) {
         val_turn(d, vp, k, s, fine);
         sys_dirty = 1;
@@ -819,7 +813,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
     if (d) {
-        if (it == SI_CLOCK || !val_toggle(d, vp))
+        if (!val_toggle(d, vp))
             return 0;
         sys_dirty = 1;
         return 1;

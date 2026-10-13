@@ -321,7 +321,8 @@ static void tempo_draw(int32_t h)
         cv_text(bx, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;
-    param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);   /* the clock followed: "A:USB" */
+    if (!value_long(&GP[G_SYNC], song.g[G_SYNC], b))    /* the clock followed: "Auto: USB" */
+        param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);
     cv_text(8, 40 + dy + bs - 16, &FONT_S, b, C_GRAY);
     cv_box(80, 42 + dy + bs - 16, 16, 8, sy.src ? C_OK : C_BLACK);     /* RX: an external clock heard */
     cv_text(100, 40 + dy + bs - 16, &FONT_S, "RX", sy.src ? C_OK : C_DIM);

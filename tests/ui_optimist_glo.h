@@ -59,7 +59,7 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 }
 static void glo_list_tests(void)
 {
-    static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CLOCK OUT", "CHANNELS"};
+    static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
     static const char *const SS[] = {"CPU", "SCREEN", "LIGHTS", "AUDIO", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
@@ -87,8 +87,8 @@ static void glo_list_tests(void)
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
-    check(glo_sections(SCR_GLOBAL, GS, 5) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI Clock out Channels; CPU Screen Lights Audio USB Bluetooth Calibrate About");
+    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; CPU Screen Lights Audio USB Bluetooth Calibrate About");
     SCREENS[SCR_SYSTEM].cell(0, 0, &c);
     SCREENS[SCR_SYSTEM].name(0, nm);
     ok = !strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK");
@@ -137,7 +137,7 @@ static void glo_draw_tests(void)
     knob_colors = 1;
     ui.force = 1;
     frames(2);
-    for (k = 2; k < 4u; k++)                            /* (line 1 the cursor: black ink; 2 NUDGE a read-out: dim) */
+    for (k = 2; k < 3u; k++)                            /* (line 1 the cursor: black ink; 2 NUDGE a read-out: dim; Tempo has 3 lines) */
         ok &= (uint32_t)px_in(4, OH_HEAD, 12, 240 - OH_HEAD, KNOB_COL[k]);
     check(ok && px_in(0, OH_HEAD, 240, 60, trk_col(song.sel)) && !cards_band_is(BAND_2X2),
           "GLOBAL drawn: no cards, the lines marked 1..4 at the left (knob colours), the cursor line a bar in the track's colour");

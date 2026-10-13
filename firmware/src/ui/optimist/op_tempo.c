@@ -99,9 +99,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
             cell_param(c, &GP[G_BPM], &song.g[G_BPM]);
         else if (k == 2u)
             cell_param(c, &GP[G_SWING], &song.g[G_SWING]);
-        else if (k == 3u && FELUCCA_MIDI_CLOCK)
-            cell_param(c, &GP[G_SYNC], &song.g[G_SYNC]);
-        else if (k == 3u)
+        else if (k == 3u)                               /* (SYNC is on GLOBAL's MIDI page, with the other clock lines) */
             cell_clear(c);
         else {                                          /* NUDGE: what OCT- / OCT+ do now, a read-out */
             cell_clear(c);
@@ -147,8 +145,6 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             val_turn(&GP[G_BPM], &song.g[G_BPM], k, s, fine);
         else if (k == 2u)
             val_turn(&GP[G_SWING], &song.g[G_SWING], k, s, fine);
-        else if (k == 3u && FELUCCA_MIDI_CLOCK)
-            val_turn(&GP[G_SYNC], &song.g[G_SYNC], k, s, fine);
         return;
     }
     if (k == 3u) {
