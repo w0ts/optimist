@@ -628,7 +628,31 @@ static void px_string_excite(const px_string_blk_t *B, px_string_t *S, int32_t *
 }
 
 /* the string over n samples, excited by in[] (Q20): out[] */
+#if FELUCCA_BENCH
+/* (measurements, bench.c 16: the largest |line value| a string held after a block, and how many blocks went over the
+ * bound asm_px_string_curved's 32-bit Hermite needs, 2^26) */
+volatile uint32_t px_line_max[2];
+static void px_line_note(const px_string_t *S)
+{
+    uint32_t i, m = px_line_max[0];
+    for (i = 0; i < PX_LINE; i++) {
+        int32_t v = S->line[i];
+        uint32_t a = (uint32_t)(v < 0 ? -v : v);
+        m = a > m ? a : m;
+    }
+    px_line_max[0] = m;
+    px_line_max[1] += m >= 1u << 26;
+}
+static void px_string_run_(const px_string_blk_t *B, px_string_t *S, const int32_t *in, int32_t *out, uint32_t n);
 static void px_string_run(const px_string_blk_t *B, px_string_t *S, const int32_t *in, int32_t *out, uint32_t n)
+{
+    px_string_run_(B, S, in, out, n);
+    px_line_note(S);
+}
+#else
+#define px_string_run_ px_string_run
+#endif
+static void px_string_run_(const px_string_blk_t *B, px_string_t *S, const int32_t *in, int32_t *out, uint32_t n)
 {
 #if PX_ASM
     if (B->curved && n) {                                /* the curved bridge: hal/fm1_dsp_asm.h, the same values */

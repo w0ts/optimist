@@ -722,7 +722,9 @@ static inline __attribute__((always_inline)) void asm_symp_comb(int16_t *l, uint
  *   out = o1 + ((o0 - o1) src) >> 30
  * The Hermite read as the C's (DelayLine::ReadHermite) with its int64 y held in 32 bits: every product is a 32x32
  * -> 64 one and each sum fits (the line holds the DcBlock's and the one-pole's outputs of a value clamped to
- * +-20 2^20: |x| < 2^26, so |a f >> 16| < 2^29, |y| < 2^30), the same values. Forms: those of the operator loops and
+ * +-20 2^20: |x| < 2^26, so |a f >> 16| < 2^29, |y| < 2^30), the same values. Measured: bench.c 16 (every curved
+ * string at full excitation, low damping, random sweeps, 20 s) peaks at 33,518,553 (2^25.0), and renders the same
+ * samples as FELUCCA_ASM=0's. Forms: those of the operator loops and
  * of clang's own code for this loop (the unsigned compare with its immediate, abs, the (s) and (u) 32x32 -> 64
  * products, the memory frame); no packed form. ~112 instructions a stepping sample (clang: ~124) */
 typedef struct {
