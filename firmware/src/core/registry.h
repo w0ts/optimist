@@ -302,13 +302,22 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_INS_PHASER 0               /* PHSR: four swept all-pass stages with feedback */
 #endif
 #ifndef FELUCCA_INS_FLANGER
-#define FELUCCA_INS_FLANGER 0              /* FLNG: a swept 0.25 .. 5 ms line with feedback (512 B of pool an instance) */
+#define FELUCCA_INS_FLANGER 0              /* FLNG: a swept 0.25 .. 5 ms line with feedback (5 x 528 B of pool: parts, bus L R) */
 #endif
 #ifndef FELUCCA_INS_FORMANT
 #define FELUCCA_INS_FORMANT 0              /* FRMT: three vowel formants, A E I O U along the amount */
 #endif
 #ifndef FELUCCA_INS_WIDTH
 #define FELUCCA_INS_WIDTH 0                /* WIDE: one side through swept all-passes (a mono part becomes stereo) */
+#endif
+/* the insert copies of the "once" effects (fx/insfx/insfx.c, fxi.c: 2026-10-13), each a builder count: how many tracks
+ * may hold the type at once (0: not built, up to NTRK). Their lines are in the pool, one per instance; fxi.c hands an
+ * instance to a track holding the type (the main loop), a track left without one is bypassed */
+#ifndef FELUCCA_INS_CHORUS
+#define FELUCCA_INS_CHORUS 0               /* CHRS: a two-tap chorus, 2 KB of pool an instance */
+#endif
+#ifndef FELUCCA_INS_DELAY
+#define FELUCCA_INS_DELAY 0                /* ECHO: a 75 ms slapback with feedback, 8 KB of pool an instance */
 #endif
 #ifndef FELUCCA_CHORDPLUS
 #define FELUCCA_CHORDPLUS 0               /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2

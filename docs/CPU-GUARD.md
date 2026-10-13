@@ -165,6 +165,12 @@ target a sample (a part's 1.8 .. 3.6 %, the drum bus's 3.2 .. 6.1 % of the 2,177
 amount is set (in a slot, FX on) or while it fades out (2.9 ms). On the drum bus they run on L / R only at every
 level, so QUALITY does not scale them.
 
+**CHRS and ECHO** (2026-10-13, fx/insfx/fxi_kern.c, builder counts INS_CHORUS INS_DELAY): measured the same way,
+`CG_COST_PINS` 78 / 47 and `CG_COST_DBINS` 73 / 55 (a part's 3.6 / 2.2 %, the drum bus's 3.4 / 2.5 %; on the bus one
+instance runs on its mid, out to L and R). A track holding one counts only while it has an instance (fx/insfx/fxi.c):
+a track left without one is bypassed and costs nothing, so the guard's worst case grows with the counts built, not
+with the slots.
+
 ## Cost
 
 Measured builds (`measure_costs.py --only CPU_GUARD`, default configuration):

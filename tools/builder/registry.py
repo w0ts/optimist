@@ -101,7 +101,23 @@ class Item:
         return bool(self.choices)
 
 
-GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", "FX", "Sequencer", "MIDI & USB", "UI", "System", "Experimental"]
+# The FX in two groups (2026-10-13): those every track (and slot) can run at once, their state small and sized for every
+# track (CPU the only limit), and those that run once (the master, the send buses) or as many times as the build gives
+# them instances (the insert copies of the chorus and a short delay: a pool line each; fx/insfx/fxi.c hands them out).
+# The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
+FX_ANY = "FX: any number (each track its own)"
+FX_ONCE = "FX: limited instances (once, or a set count)"
+FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DJF", "FX_DUST", "FX_DUCK", "BASSPLUS",
+                "INS_CHORUS", "INS_DELAY"}
+
+
+def fx_group(key, parent=None):
+    """the group of an FX item ("FX" when declared): by its own key, a child by its parent's"""
+    return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
+
+
+GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "MIDI & USB", "UI", "System",
+          "Experimental"]
 
 _ITEMS = []
 
@@ -423,6 +439,25 @@ _add("INS_WIDTH", "FELUCCA_INS_WIDTH", "WIDE insert (stereo width)", F, 261, def
      desc="A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept "
           "all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off.",
      symbols=("ifx_wide",), notice="From Melodee 1.3.1's WIDTH insert by Kerem Kilic (GPL-3.0)." + _INS_NOTE)
+# the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): a count of instances each, how many
+# tracks may hold the type at once; a track picking it with none left is bypassed (the INSERTS list says FULL)
+_INS_LIM = (" Each instance is a line in the pool; a track that picks it when every instance is in use stays dry "
+            "until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the "
+            "instance: on load the tracks get them in order T1 T2 T3 DR.")
+_add("INS_CHORUS", "FELUCCA_INS_CHORUS", "CHRS insert (chorus copies for the tracks)", F, 270, default=0,
+     choices=((0, "off"), (1, "1 track (2 KB pool)"), (2, "2 tracks (4 KB)"), (3, "3 tracks (6 KB)"),
+              (4, "every track (8 KB)")),
+     desc="A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps "
+          "around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. "
+          "On the drum track it turns the drums' mid into a stereo chorus. 0 is off." + _INS_LIM,
+     symbols=("ifx_chrs",), notice="Tested in the host tests only, not on a device.")
+_add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the tracks)", F, 271, default=0,
+     choices=((0, "off"), (1, "1 track (8 KB pool)"), (2, "2 tracks (16 KB)"), (3, "3 tracks (24 KB)"),
+              (4, "every track (32 KB)")),
+     desc="A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat "
+          "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
+          "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off."
+          + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
 _add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), STRUM, VLEAD", "Sequencer", 206, default=0,
      provenance=SLOOP_24,
      desc="With a chord mode on (SCL > CHORD), the black keys change the chord played: F# major <-> minor, G# adds "
@@ -673,6 +708,9 @@ _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI dev
           "with it. Without this item DEVICES shows NONE and the last device only. Not yet tested on an FM-1.",
      symbols=("ble_found",), tested="host and emulator only")
 
+for _it in _ITEMS:
+    if _it.group == "FX":
+        _it.group = fx_group(_it.key, _it.parent)
 ITEMS = {it.key: it for it in _ITEMS}
 for _it in _ITEMS:
     if _it.parent:
@@ -695,6 +733,8 @@ def add_item(item):
     assert item.bit not in {it.bit for it in _ITEMS}, f"{item.key}: bit {item.bit} taken"
     if item.provenance and "fm1-x0x" in item.provenance.project + item.provenance.url:
         assert item.notice, f"{item.key}: an X0X item needs its notice"
+    if item.group in ("FX", FX_ANY, FX_ONCE):
+        item.group = fx_group(item.key, item.parent)
     _ITEMS.append(item)
     ITEMS[item.key] = item
     if item.parent:

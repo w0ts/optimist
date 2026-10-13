@@ -1491,7 +1491,8 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 }
 #endif
 
-#include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE (ins_one, dbus_ins) */
+#include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
+#include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 
 /* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
  * its P_DIST P_TFLT P_TCOMP (inserts) and P_CHOR P_DLY P_REV (its bus sends; the FX record carries them: fx_slots.c;
@@ -1622,8 +1623,9 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
 #endif
     dbus_ins(s0, on && INS_ON(TRK_DRUM, s0), n, nc);   /* S1, S2 (an empty slot, a type not built: nothing) */
     dbus_ins(s1, on && INS_ON(TRK_DRUM, s1), n, nc);
-    for (t = FXT_DIST; t < FXT_N; t++)                  /* the inserts in no slot: at 0 (they let go, then rest) */
-        if ((FXT_INSERT >> t & 1u) && t != s0 && t != s1)
+    for (t = FXT_DIST; t < FXT_NB; t++)                  /* the inserts in no slot: at 0 (they let go, then rest; the
+                                                         * built ones only: a constant mask, the rest never looked at) */
+        if (((FXT_BUILT & FXT_INSERT) >> t & 1u) && t != s0 && t != s1)
             dbus_ins(t, 0, n, nc);
     to[0] = on && FXS_ON(FXT_CHO) ? p[P_CHOR] * 258 : 0;
     to[1] = on && FXS_ON(FXT_DLY) ? p[P_DLY] * 258 : 0;
@@ -1662,8 +1664,8 @@ static HOT2 __attribute__((noinline)) void ins_part(track_t *t, int32_t *b, uint
     int32_t on = fx_on(t);
     ins_one(t, k, s0, on && INS_ON(k, s0), b, n);
     ins_one(t, k, s1, on && INS_ON(k, s1), b, n);
-    for (ty = FXT_DIST; ty < FXT_N; ty++)
-        if ((FXT_INSERT >> ty & 1u) && ty != s0 && ty != s1)
+    for (ty = FXT_DIST; ty < FXT_NB; ty++)
+        if (((FXT_BUILT & FXT_INSERT) >> ty & 1u) && ty != s0 && ty != s1)   /* (the built ones) */
             ins_one(t, k, ty, 0, b, n);
 }
 

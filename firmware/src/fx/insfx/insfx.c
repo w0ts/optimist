@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The further INSERT types of the tracks' insert slots (fx_slots.c S1 S2, 2026-10-13): FOLD FUZZ PHSR FLNG FRMT WIDE,
- * a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
+ * and CHRS ECHO (a count of instances: fxi_kern.c, fxi.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
  * call them.
  *   FOLD FUZZ PHSR FLNG  after Felucca 1.5.6's track INSERT (hugelton/Felucca 9f6a885, firmware/src/fx.c ins_shape,
  *                        ins_drive, ins_swept; perform.c PH_A, pf_tri), Copyright (C) 2026 Leo Kuroshita
@@ -358,9 +358,16 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
 }
 #endif
 
-/* the state of type ty on instance i: its wet share now (0: at rest; the CPU guard) */
+#include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
+
+/* the state of type ty on instance i: its wet share now (0: at rest; the CPU guard). A limited type (CHRS ECHO): i is
+ * the track, its instance's (none: 0) */
 AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0 && ty < FXT_N)
+        return ifx_lim_w(ty, i);
+#endif
     switch (ty) {
 #if FELUCCA_INS_FOLD
     case FXT_FOLD: return ifx_fold[i].w;
@@ -382,6 +389,16 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #endif
     default: return 0;
     }
+}
+/* type ty can run on track k: a limited type (CHRS ECHO) only with an instance (fxi.c), every other always (the guard) */
+AINL int ifx_has(uint32_t ty, uint32_t k)
+{
+#if INS_LIM
+    if (ty >= FXT_LIM0 && ty < FXT_N)
+        return ifx_lim_at(ty, k) != FXI_NONE;
+#endif
+    (void)ty, (void)k;
+    return 1;
 }
 
 /* type ty (a further one) at amount a on instance i's n samples of b; sh: b's headroom (a part's 3, the bus's 2:
@@ -411,6 +428,12 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 /* part k's further insert ty at amount a (fx.c ins_one; WIDE: its block + d / 2, its side d / 2) */
 static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
+        ifx_lim_run(ty, k % NPART, a, b, 0, n, 3);
+        return;
+    }
+#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t *sd = ifx_side[k % NPART];
@@ -430,9 +453,15 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 {
     uint32_t k = (uint32_t)(t - trk) % NPART, ty;
     int32_t on = fx_on(t);
-    for (ty = FXT_NEW0; ty < FXT_N; ty++) {
-        if (FXT_AMT[ty] == 0xFFu || !ifx_w(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
+    for (ty = FXT_NEW0; ty < FXT_NB; ty++) {
+        if (!(FXT_BUILT >> ty & 1u) || !ifx_w(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
             continue;
+#if INS_LIM
+        if (ty >= FXT_LIM0) {
+            ifx_lim_rest(ty, k);                        /* (its wet share 0: it starts from a clean line, fxi_kern.c) */
+            continue;
+        }
+#endif
         switch (ty) {
 #if FELUCCA_INS_FOLD
         case FXT_FOLD: ifx_zero(&ifx_fold[k], sizeof ifx_fold[k]); break;
@@ -459,6 +488,12 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 /* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d) */
 static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
+        ifx_lim_run(ty, TRK_DRUM, a, l, r, n, 2);
+        return;
+    }
+#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t d[CTL];

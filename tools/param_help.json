@@ -27,7 +27,9 @@
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
       "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
       "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
-      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"}}},
+      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
+      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"}}},
     {"kind": "page", "ctx": "INSERTS", "params": {
       "S1": "Insert 1 type (swaps with 2)", "S2": "Insert 2 type (swaps with 1)",
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
@@ -38,7 +40,9 @@
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
       "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
       "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
-      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"}}},
+      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
+      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"}}},
     {"kind": "page", "ctx": "SENDS", "if": "FELUCCA_UI == 1", "params": {
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},

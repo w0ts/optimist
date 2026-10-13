@@ -84,7 +84,7 @@ enum {                                                  /* what an export lost (
                                                          * step's goes; the second word's bit 5: ed_sl24.c) */
     SX24_INSORD = 1048576,                              /* (a track with its FILTER before its DIST, both on: 2.4 plays
                                                          * DIST then FILT; the second word's bit 6; sl24_fx_out) */
-    SX24_INSFX = 2097152,                               /* (a further insert heard, FOLD FUZZ PHSR FLNG FRMT WIDE: insfx.c;
+    SX24_INSFX = 2097152,                               /* (a further insert heard, FOLD .. WIDE CHRS ECHO: insfx.c;
                                                          * 2.4 has none; the second word's bit 7; sl24_fx_out; bit 8: another
                                                          * branch's) */
     SX24_LFO2 = 8388608                                 /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
@@ -315,7 +315,7 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, int32_t bp
  * send in no master slot) written 0 (2.4 would play it; SX24_SLOTS when it was not 0), and what is heard here that 2.4
  * has not: COMP (the parts', the drum bus's, the drum sounds'), the drum sounds' DIST, the drum bus's DST CHO DLY REV
  * and its send levels, a part's FILTER before its DIST with both on (SX24_INSORD: 2.4 runs DIST, then FILT), a further
- * insert heard (SX24_INSFX: FOLD FUZZ PHSR FLNG FRMT WIDE, insfx.c); the
+ * insert heard (SX24_INSFX: FOLD .. WIDE, CHRS ECHO; insfx.c); the
  * SLICER's place (first here, after DIST on 2.4) is not reported (the gate's 2.9 ms ramps); -> SX24_* lost */
 static uint32_t sl24_fx_out(uint8_t *o)
 {

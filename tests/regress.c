@@ -440,11 +440,12 @@ static void job_cpu(const job_t *j)
 #endif
 #if INS_FX
     if (j->arg >= 20u && j->arg < 20u + 2u * (FXT_N - FXT_NEW0)) {   /* the further inserts (insfx.c; cpu_costs.py): 20 + i
-                                * part 1's S1 type FXT_NEW0 + i at 127 (less cpu/fx/part_off), 26 + i the drum bus's over
+                                * part 1's S1 type FXT_NEW0 + i at 127 (less cpu/fx/part_off), 28 + i the drum bus's over
                                 * the groove (less cpu/fx/dbus_off) */
         uint32_t ty = FXT_NEW0 + (j->arg - 20u) % (FXT_N - FXT_NEW0), k = j->arg < 20u + FXT_N - FXT_NEW0 ? 0u : TRK_DRUM;
         trk[0].p[P_DIST] = TDRUM->p[P_DIST] = 0;
         ins_load(k, 0, ty);
+        fxi_poll();                                     /* (CHRS ECHO: the instance, as the main loop hands it out) */
         trk[k].p[FXT_AMT[ty]] = 127;
     }
 #endif
@@ -1099,8 +1100,10 @@ int main(int argc, char **argv)
         for (i = 0; i < 2u * (FXT_N - FXT_NEW0); i++) {   /* the further inserts (insfx.c), each built: a part's (DIGITAL's
                                                        * first preset, 8 notes, S1 at 127), the drum bus's (the groove) */
             static const char *const NM[2][FXT_N - FXT_NEW0] = {
-                {"cpu/fx/part_fold", "cpu/fx/part_fuzz", "cpu/fx/part_phsr", "cpu/fx/part_flng", "cpu/fx/part_frmt", "cpu/fx/part_wide"},
-                {"cpu/fx/dbus_fold", "cpu/fx/dbus_fuzz", "cpu/fx/dbus_phsr", "cpu/fx/dbus_flng", "cpu/fx/dbus_frmt", "cpu/fx/dbus_wide"}};
+                {"cpu/fx/part_fold", "cpu/fx/part_fuzz", "cpu/fx/part_phsr", "cpu/fx/part_flng", "cpu/fx/part_frmt", "cpu/fx/part_wide",
+                 "cpu/fx/part_chrs", "cpu/fx/part_echo"},
+                {"cpu/fx/dbus_fold", "cpu/fx/dbus_fuzz", "cpu/fx/dbus_phsr", "cpu/fx/dbus_flng", "cpu/fx/dbus_frmt", "cpu/fx/dbus_wide",
+                 "cpu/fx/dbus_chrs", "cpu/fx/dbus_echo"}};
             uint32_t ty = FXT_NEW0 + i % (FXT_N - FXT_NEW0), bus = i >= FXT_N - FXT_NEW0;
             if (FXT_AMT[ty] == 0xFFu || (!bus && !EB(1)))
                 continue;
