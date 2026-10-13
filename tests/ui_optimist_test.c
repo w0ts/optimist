@@ -2329,6 +2329,7 @@ static void led_tests(void)
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
 #include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
+#include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_lfo2.h"                       /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 
@@ -2423,6 +2424,7 @@ int main(int argc, char **argv)
     lane_ui_tests();
     effval_tests();
     inslots_tests();
+    fxi_ui_tests();
 #if FELUCCA_LFO2
     lfo2ui_tests();
 #else

@@ -64,7 +64,7 @@ static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a ov
 static uint32_t hu(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t hc(uint32_t h, const cell_t *c)        /* a cell's signature: all it draws */
 {
-    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
+    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
     return hs(h, c->unit);
 }
 
@@ -358,7 +358,7 @@ static void effv_bar(int32_t x, int32_t y, int32_t w, const cell_t *c, uint32_t 
 static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
     char b[16];
-    uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
+    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
     int32_t vx;
     cv_box(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
     if (c->col)
@@ -404,7 +404,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
     char b[16];
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
-    uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
+    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
     cv_box(x, y, BIG_W, BIG_H, OP_SURF);
     if (c->col)
         cv_rect(x, y, 2, BIG_H, c->col);

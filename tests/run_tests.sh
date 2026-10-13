@@ -671,6 +671,15 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 -DDUAL_LOAD=1 -DFELUCCA_MIDI_CLKOUT=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_LFO2=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_help2_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the help line, REC MODES, LIGHTS, USB SERIAL, BLE, CLOCK OUT, BRIGHT, LFO 2, the seq tools and the CPU1 load: every line has its help" "$OUT/ui_optimist_help2_test" "$OUT/optimist-help"
 ) >"$U.out" 2>&1 & jobbg
+# the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden at
+# 0 instances, the help lines; CHRS ECHO built with 0 / 4, 1 / 0 and 4 / 1 instances (the last two with the help line)
+for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=4" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=0 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_CHORUS=4 -DFELUCCA_INS_DELAY=1 -DFELUCCA_PARAM_HELP=1"; do
+    job; ( jobin
+        mkdir -p "$OUT/optimist-fxi$nu"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_optimist_fxi_test$nu" tests/ui_optimist_test.c -lm
+        run "Optimist UI, limited inserts (${m}): the free count, WAIT, IN USE, FULL dim, a type with no instance hidden, the help lines" "$OUT/ui_optimist_fxi_test$nu" "$OUT/optimist-fxi$nu"
+    ) >"$U.out" 2>&1 & jobbg
+done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
     run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"

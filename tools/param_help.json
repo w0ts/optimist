@@ -217,6 +217,11 @@
       "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}},
 
 
+    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY", "params": {
+      "CHRS": {"text": "Chorus, shared: free/avail", "if": "FELUCCA_INS_CHORUS"},
+      "FULL CHRS": {"text": "No free chorus: bypassed", "if": "FELUCCA_INS_CHORUS"},
+      "ECHO": {"text": "Echo, shared: free/avail", "if": "FELUCCA_INS_DELAY"},
+      "FULL ECHO": {"text": "No free echo: bypassed", "if": "FELUCCA_INS_DELAY"}}},
     {"kind": "op", "ctx": "TEMPO", "params": {
       "BPM": "Tempo of the song", "NUDGE": "OCT- / OCT+ held nudge tempo", "SWING": "Swing of every track",
       "SYNC": {"text": "Clock: internal, USB or TRS", "if": "FELUCCA_MIDI_CLOCK"}}},

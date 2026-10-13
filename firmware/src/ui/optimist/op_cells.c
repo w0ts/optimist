@@ -28,6 +28,8 @@ typedef struct {
     int16_t gmin, gmax, gv;
     uint8_t ak;                         /* the actual value's bar (op_effval.c, the cards only): its form, GK_NONE none */
     int16_t amin, amax, av;             /* ... over amin..amax, at av */
+    uint8_t dim;                        /* drawn dim: a slot with no instance left (fxi.c, FULL / in use) */
+    const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
 } cell_t;
 
 static void cell_clear(cell_t *c)
@@ -270,10 +272,44 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
     return n;
 }
 
+/* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count beside
+ * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
+ * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
+ * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
+static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
+{
+    static char lab[2][8], un[2][4];
+    uint32_t t = ins_slot[k % NTRK][s & 1u], cap = fxi_cap(t), st = fxi_state(k, s), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
+    const char *v = 0;
+    if (a == 0xFFu || cap == 0u || cap == FXI_ANY || st == FXI_NA)
+        return;
+    c->hlp = t == FXT_CHRS ? "CHRS" : "ECHO";
+    if (st == FXI_OK) {
+        un[s & 1u][0] = (char)('0' + fxi_free(t)), un[s & 1u][1] = '/', un[s & 1u][2] = (char)('0' + cap), un[s & 1u][3] = 0;
+        c->unit = un[s & 1u];
+        return;
+    }
+    if (st == FXI_WAIT && fxi_can(k, t))
+        v = "WAIT";
+    else {
+        v = st == FXI_FULL ? "FULL" : "IN USE";
+        c->dim = 1;
+        c->hlp = t == FXT_CHRS ? "FULL CHRS" : "FULL ECHO";
+    }
+    str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
+    str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);
+    c->label = lab[s & 1u];
+    str_cpy(c->val, v, sizeof c->val);
+    c->gk = GK_NONE;
+}
+
 static void page_cell(const page_t *pg, uint32_t k, cell_t *c)
 {
     int16_t *vp;
+    uint32_t id = page_id(pg, k);
     cell_param(c, page_desc(pg, k, &vp), vp);
+    if (id >= PID_INST && id < PID_INST + INS_N)        /* INSERTS: S1 / S2 TYPE (the selected track's) */
+        cell_ins_note(c, song.sel, id - PID_INST);
 }
 
 /* page pg's value k set to v (steps: the turn that set it): what else a value set by a knob does, as SLOOP's
