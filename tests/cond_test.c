@@ -54,7 +54,7 @@ int main(void)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]), trk[i].p[P_SLEN] = 8;
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     song.g[G_BPM] = 120;
     for (i = 0; i < 8u; i++)
         dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
