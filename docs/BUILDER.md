@@ -304,7 +304,7 @@ same build without it.
 | VIEW ALL overview (4 x 4 PAGEs) | `OVERVIEW` | GLO > SYSTEM VIEW ALL: shows a whole page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m. About 2.4 KB of flash; off: one page at a time. |
 | (sub-item) ARP graph and ARP in VIEW ALL | `OV_ARP` | Shows the arpeggiator's graph and puts the ARP settings into VIEW ALL. About 0.6 KB of flash; off: the ARP graph and its VIEW ALL rows are not built. |
 | say what a project uses and this build lacks | `MISSING_WARN` | 'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash) |
-| help line: what the knob changes, in words | `PARAM_HELP` | while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the web editor's tooltips). The Optimist UI (UI=1): the screen's last line, while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About 6.4 KB of flash (UI=1: more, its own lines too), no RAM code |
+| help line: what the knob changes, in words | `PARAM_HELP` | while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the web editor's tooltips). The Optimist UI (UI=1): the screen's last line, while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About 5.5 KB of flash (UI=1: 7.7 KB, its own lines too; the texts packed), no RAM code |
 | chord names on the STEP page | `CHORD_NAMES` | SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, E5, G7, Fmaj7, F#m7, Bm7b5. Other note sets stay a note and the count ('C4 +2'). About 0.3 KB of flash; off: the step's first note and the count. |
 | drum steps on the keys (SLOOP 2.4 'Drums with the keys') | `DRUM_STEP` | On the DRUMS grid page (SEQ tapped on the drum track) the 16 white keys are the 16 steps of the sound KNOB 1 picks: press to set a step (you hear the sound), again to clear it; the first four black keys pick the page of steps. You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer), the step's sounds when KNOB 2 moves to it. SELECT switches grid and kit (it is the tempo there without this item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). SEQ + a white key picks the sound (the SEQ layer's keys are its sounds). With the automation store built (PLOCK, MICRO, FILLS, CHANCE, MOTION), a step key held past the HOLD time is a held step as in the SEQ layer of the synth tracks: KNOB 4 nudge, PRESETS lock value, ALGORITHM lock parameter, KNOB 2 chance, OCT+ fill, OCT- clear (all of it). No data change. About 1.4 KB of flash, 16 B of RAM; the audition runs in the audio interrupt (no fast RAM code). Off: the keys play the pads on the grid page, as before. |
 | knob acceleration by turn speed | `KNOB_ACCEL` | 1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets) |
@@ -470,11 +470,13 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
   (320 lines: every page, every engine's EDIT values and mode labels, the drum SOUND pages, the FM6 operator
   editor, TRACKS, the drum grid / kit, SONG, REC), also the web editor's tooltips; tools/gen_param_help.py writes
   build/gen/felucca_param_help.h with each group under its feature's condition, so a build carries the lines of
-  what it has. Cost (measured, plain strings in flash): +6,192 B user-default, +5,456 fm-va-studio, +4,720
-  drum-machine, +6,352 everything-that-fits, +4,624 x0x-drums, +6,416 the default build; 0 B RAM (the line's
-  offset sits in padding of the UI state), 0 B RAM code. A shared word dictionary was measured and not taken: -1.8 KB
-  on user-default (-0.4 KB on x0x-drums) for +48 B RAM and a decode buffer, and it pushed everything-that-fits'
-  RAM code over by 36 B. `tests/param_help_ui.c` checks every reachable value has a line that fits (232 px).
+  what it has. The texts are packed with a byte pair code (one table of up to 159 pairs, 318 B, made from every
+  line; the labels and contexts stay plain for the lookup) and unpacked into a line on the stack when drawn
+  (firmware/src/ui/ph_blob.c, main loop): -1,840 B on user-default with PARAM_HELP (UI=0, item cost 7,380 -> 5,540 B),
+  -2,752 B with UI=1 (10,460 -> 7,708 B), -2,944 B on the author's build (measured 2026-10-13); 0 B RAM (the line's
+  offset sits in padding of the UI state), 0 B RAM code. (A shared word dictionary, measured earlier, saved less:
+  -1.8 KB for +48 B RAM.) `tests/param_help_ui.c` checks every reachable value has a line that fits (232 px);
+  `tests/param_help_pack_test.c` that every line unpacks to the table's text.
 - The firmware reports what it is: editor protocol v6, INFO adds each slot's engine UID, `BUILD` (49) the
   configuration's name, hash and one bit per registry item.
 

@@ -36,7 +36,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
-              "ui/sloop/param_help.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
+              "ui/sloop/param_help.c", "ui/ph_blob.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
