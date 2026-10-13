@@ -126,9 +126,11 @@ static void step_pages_tests(void)
     ui.row[SCR_STEP] = 5;
     tap(B_HOME);
     tap(B_SEQ);
+    check(ui.row[SCR_STEP] == SCR->rows() - 1u && SCR->rows() == STP_LANE0 + 1u + STP_TL,
+          "the drum track's STEP keeps the page it was left on (2026-10-13), a row it lacks: the nearest, the last");
+    ui.row[SCR_STEP] = 0;
     step_cell(0, 0, &c);
-    check(ui.row[SCR_STEP] == 0 && c.d == &TP[P_SLEN] && SCR->rows() == STP_LANE0 + 1u + STP_TL,
-          "the drum track's STEP opens on PATTERN (LEN DIV SWING GATE), then its LANE page (one: the selected lane's)");
+    check(c.d == &TP[P_SLEN], "the drum track's STEP, PATTERN (LEN DIV SWING GATE), then its LANE page (one: the selected lane's)");
     ui.force = 1;
     frame();
     ppm("opt-step-first-page");

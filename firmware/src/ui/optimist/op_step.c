@@ -47,6 +47,8 @@ static struct {
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
 static void hp_sync(void);
+static void hp_save(void);
+static void hp_reopen(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -82,6 +84,8 @@ static void step_scroll(int32_t d)                      /* HOME + OCT- / OCT+ */
 }
 static void step_reset(void)                            /* STEP entered or left: nothing held, the keys are steps */
 {
+    if (st.held)
+        hp_save();                                      /* (left with a step held: its page is the one to reopen) */
     st.held = st.pend = 0;
     st.play = 0;
     st.lock_pg = LOCK_NONE, st.hp = 0;
@@ -263,8 +267,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             sync_reload = 1;
         }
         st.pend &= (uint16_t)~bit;
-        if (!st.held)
-            st.lock_pg = LOCK_NONE, st.hp = 0;                     /* (the last step let go: the locks' page goes) */
+        if (!st.held) {
+            hp_save();                                  /* (the last step let go: its page is the next hold's) */
+            st.lock_pg = LOCK_NONE, st.hp = 0;
+        }
         return;
     }
     if (ui.scr != SCR_STEP || op_armed() || idx >= trk_len(t))
@@ -282,8 +288,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         sync_reload = 1;
         return;
     }
-    if (!st.held)
+    if (!st.held) {
         st.t_down = fm1_ms;                             /* (the press that may become a hold) */
+        hp_reopen();                                    /* (its cards open on the page last used on this track) */
+    }
     st.held |= (uint16_t)bit;
     st.t_key[w] = fm1_ms;
     st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
@@ -734,6 +742,29 @@ static void hp_sync(void)                               /* the page of st.lock_p
         if (ix[i] == st.lock_pg)
             st.hp = (uint8_t)(HP_BASE + i);
 }
+/* the held step's card page is remembered per track (the user, 2026-10-13: "screen should remember its page, including
+ * plocks etc."): saved when the last step is let go (or STEP left, SEQ held), reopened by the next step held on that track:
+ * 0 STEP (never used: as before), 1 EXTRA, 2 + a PAGES row for a p-lock page. A page the build or the track no longer has
+ * opens STEP. RAM only */
+static uint8_t hp_mem[NTRK];
+static void hp_save(void)
+{
+    hp_mem[song.sel % NTRK] = (uint8_t)(st.hp == 0u ? 0u : st.hp < HP_BASE ? 1u : st.lock_pg == LOCK_NONE ? 0u : 2u + st.lock_pg);
+}
+static void hp_reopen(void)
+{
+    uint8_t ix[OP_MAXROWS];
+    uint32_t m = hp_mem[song.sel % NTRK], i, n;
+    st.hp = 0;
+    st.lock_pg = LOCK_NONE;
+    if (EX_N ? m == 1u : 0)
+        st.hp = 1;
+    for (i = 0, n = m >= 2u ? hp_locks(ix) : 0u; i < n; i++)
+        if (ix[i] == m - 2u) {
+            st.hp = (uint8_t)(HP_BASE + i);
+            st.lock_pg = ix[i];
+        }
+}
 static void hp_title(char *t, uint32_t n)               /* the held step's card page: "STEP", "EXTRA", "LFO" */
 {
     uint8_t ix[OP_MAXROWS];
@@ -824,7 +855,7 @@ static int step_row_page(const page_t *pg)              /* a synth track's rows 
  * GATE) on every track, then a synth track's ARP, ARP 2, the drum track's LANE page (STP_LANE0: the selected lane's
  * sound, LEVEL TUNE DECAY REV, named after it). SELECT pages the four knobs only and never changes the lane; the lane
  * is ALGORITHM's (DR, then the lanes) or HOME + a key's (the user, 2026-10-12: "in step seq: select should always
- * select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on PATTERN */
+ * select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on PATTERN the first time, then on the page it was left on (2026-10-13) */
 #define STP_LANE0 1u
 static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM_SEQ, the track's: LEN first) */
 {
@@ -1057,6 +1088,8 @@ static void step_seq_tap(uint32_t lng)
         return;
     }
     st.play = (uint8_t)!st.play;
+    if (st.held)
+        hp_save();
     st.held = st.pend = 0;
     st.lock_pg = LOCK_NONE, st.hp = 0;
 }
