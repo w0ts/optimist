@@ -181,10 +181,6 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
     if (m > s->env)                                     /* the follower's attack (one block late: the clamp holds) */
         s->env = m;
 }
-static HOT void track_dist(track_t *t, int32_t *b, uint32_t n)
-{
-    dist_run(&t->dist, fx_on(t) && FXS_ON(FXT_DIST) ? t->p[P_DIST] : 0, b, n);   /* (bypassed, or in no FX slot: off, value kept) */
-}
 
 /* master: peak limiter in front of the soft clipper. Fast attack (~0.1 ms),
  * ~150 ms release, threshold where tanh is still nearly linear, so chords
@@ -1337,62 +1333,52 @@ static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uin
         b[i] = (lp ? y : x - y) << sh;
     }
 }
-/* a part's (b: before its level, up to +-884000: 3 bits down) */
-static HOT void tflt_part(const track_t *t, int32_t *b, uint32_t n)
+/* a part's (b: before its level, up to +-884000: 3 bits down) at amount v (0: it opens, then off) */
+static HOT2 __attribute__((noinline)) void tflt_part(const track_t *t, int32_t v, int32_t *b, uint32_t n)
 {
     tflt_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
     tsvf_t c;
-    if (tflt_block(f, fx_on(t) && FXS_ON(FXT_FILT) ? t->p[P_TFLT] : 0, &c))   /* (in no FX slot: it opens, then off) */
+    if (tflt_block(f, v, &c))
         tflt_run(f, &c, b, n, 0, 3);
-}
-/* the drum track's: the bus accumulators hold the drums alone (mix_block renders them before the parts) */
-static HOT void tflt_drums(uint32_t n)
-{
-    tflt_t *f = &tflt[TRK_DRUM];
-    tsvf_t c;
-    if (!tflt_block(f, fx_on(TDRUM) && FXS_ON(FXT_FILT) ? TDRUM->p[P_TFLT] : 0, &c))
-        return;
-    tflt_run(f, &c, mix_l, n, 0, 2);
-    tflt_run(f, &c, mix_r, n, 1, 2);
-    tflt_run(f, &c, send_r, n, 2, 2);
-    tflt_run(f, &c, send_d, n, 3, 2);
-    tflt_run(f, &c, send_c, n, 4, 2);
 }
 #endif
 
 #if FELUCCA_MASTER_COMP
 /* ---- the COMP insert (fx_slots.c, an FX slot type; the master COMP's mc_run, master_comp.c): a track's amount 0..127
  * is its threshold, -1 .. -30 dB under full scale, with make-up of half the static reduction at full scale; RATIO ATK
- * REL are every track's (FX > CMP: fxs_cset, the master COMP's lists). Pre-fader, after the FILTER (D4). At 0 it lets
- * go (the reduction falls back), then costs one compare a block */
+ * REL are the track's own (D6: fx_slots.c ins_cset, FX > CMP, the master COMP's lists; the drum sounds' the drum
+ * track's). Pre-fader, in the track's insert slots (ins_part, dbus_run). At 0 it lets go (the reduction falls back),
+ * then costs one compare a block */
 static mc_t tcomp[NPART] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};   /* (the parts'; the drum bus's:
                                                         * dbus_comp below) */
 static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
-/* the settings of a COMP insert at amount amt (1..127), every source's: the shared RATIO ATK REL */
-AINL void tcomp_settings(mc_set_t *s, int32_t amt)
+/* the settings of a COMP insert at amount amt (1..127), track k's RATIO ATK REL */
+AINL void tcomp_settings(mc_set_t *s, int32_t amt, uint32_t k)
 {
+    const int16_t *cs = ins_cset[k % NTRK];
     int32_t thr = amt > 0 ? -1 - (amt - 1) * 29 / 126 : 0;
-    mc_settings(s, thr, fxs_cset[0], fxs_cset[1], fxs_cset[2], (-thr * MC_SLOPE[fxs_cset[0] & 7]) >> 15);
+    mc_settings(s, thr, cs[0], cs[1], cs[2], (-thr * MC_SLOPE[cs[0] & 7]) >> 15);
 }
 AINL int tcomp_rest(const mc_t *c) { return !c->gr16 && c->g13 == 8192; }
-static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n)
+static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n, uint32_t k)
 {
     mc_set_t s;
     if (!amt && tcomp_rest(c))
         return;                                         /* (off and at rest) */
-    tcomp_settings(&s, amt);
+    tcomp_settings(&s, amt, k);
     mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
 }
 
 /* a part not heard this block (silent, or MUTE / SOLO): its insert is not on the mix, yet its state must not freeze
  * (the next note would start under the last one's reduction). In a slot it lets go on the cleared buffer (silence: the
  * key 0) until the reduction is gone; at 0 or in no slot, or once let go, it rests (nothing is heard: no step) */
-AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
+static HOT2 __attribute__((noinline)) void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
 {
-    mc_t *c = &tcomp[(uint32_t)(t - trk) % NPART];
-    int32_t amt = fx_on(t) && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0;
+    uint32_t k = (uint32_t)(t - trk) % NPART;
+    mc_t *c = &tcomp[k];
+    int32_t amt = fx_on(t) && INS_ON(k, FXT_COMP) ? t->p[P_TCOMP] : 0;
     if (amt && (c->gr16 | c->slow16)) {
-        tcomp_run(c, amt, b, b, n);
+        tcomp_run(c, amt, b, b, n, k);
         if (c->gr16 | c->slow16)
             return;
     }
@@ -1449,7 +1435,7 @@ static HOT2 __attribute__((noinline)) uint32_t dins_of(uint32_t k, uint32_t note
 {
     uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), a = 0;
     if (on && l < DRUM_LANES)
-        a = ((fxs_ins & 1u) ? dins_amt[0][l] : 0u) | ((fxs_ins & 2u) ? dins_amt[1][l] : 0u);
+        a = (FELUCCA_FX_DIST ? dins_amt[0][l] : 0u) | (FELUCCA_MASTER_COMP ? dins_amt[1][l] : 0u);   /* (always heard: D7) */
 #if FELUCCA_MASTER_COMP
     a |= (uint32_t)!tcomp_rest(&dins_comp[k]);
 #endif
@@ -1462,8 +1448,8 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
     uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), i;
     int32_t *b = dsend_buf, dd = 0, dc = 0;
     if (x->on && l < DRUM_LANES) {
-        dd = (fxs_ins & 1u) ? dins_amt[0][l] : 0;
-        dc = (fxs_ins & 2u) ? dins_amt[1][l] : 0;
+        dd = dins_amt[0][l];
+        dc = dins_amt[1][l];
     }
     for (i = 0; i < i0; i++)
         b[i] = 0;                                       /* (the block outside the voice: silence) */
@@ -1476,7 +1462,7 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 #if FELUCCA_MASTER_COMP
     if (dc || !tcomp_rest(&dins_comp[k])) {
         mc_set_t s;
-        tcomp_settings(&s, dc);
+        tcomp_settings(&s, dc, TRK_DRUM);
         mc_run(&dins_comp[k], &s, b, b, b, tcomp_sink, n);
         dins_now[1] |= (uint8_t)(1u << k);
     }
@@ -1505,25 +1491,29 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 }
 #endif
 
-/* ---- the drum bus (FX slots, design phase 4; decisions D5, D7): the drum track's own amounts, each heard while its
- * type is in a slot and the drum track's FX are on (P_FXOFF), kept in the drum track's P_DIST P_CHOR P_DLY P_REV
- * P_TCOMP (the FX record carries them: fx_slots.c; project_t's slots stay 0). mix_block renders the drums first,
- * alone on the accumulators, then the SLICER, the FILTER (tflt_drums), then here:
- *   DIST, COMP   inserts on the bus: L, R and the three send accumulators the drum sounds filled (D7), DIST a state
- *                each (a send's only while it carries a signal, and one block after), COMP one detector on L / R
- *                (stereo-linked) whose gain every channel takes, so the echoes duck with the drums
- *   CHO DLY REV  the drum track's sends, taken from the bus after its inserts (its mid, (L + R) / 2: a centred
+/* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
+ * its P_DIST P_TFLT P_TCOMP (inserts) and P_CHOR P_DLY P_REV (its bus sends; the FX record carries them: fx_slots.c;
+ * project_t's slots stay 0), each heard while the drum track's FX are on (P_FXOFF) and, an insert, while one of its two
+ * slots holds it (fx_slots.c ins_slot). mix_block renders the drums first, alone on the accumulators, then the SLICER,
+ * then here:
+ *   S1, S2       the drum track's inserts in its slots' order (DIST, FILTER, COMP): on the bus, L, R and the three
+ *                send accumulators the drum sounds filled (D7). DIST a state each (a send's only while it carries a
+ *                signal, and one block after), FILTER an SVF state each, COMP one detector on L / R (stereo-linked)
+ *                whose gain every channel takes, so the echoes duck with the drums. At the guard's QUALITY level they
+ *                run on L / R only (the echoes take the bus before them: cpuguard.h, D9)
+ *   CHO DLY REV  the drum track's bus sends, taken from the bus after its inserts (its mid, (L + R) / 2: a centred
  *                sound sends as a drum sound's own send at the same level), on top of each sound's own (D5); ramped
  *                over a block when the knob moves
  * At 0 each costs a compare a block; nothing here touches a sample then (the mix of before, sample for sample) */
 static int32_t *const DBUS_CH[5] = {mix_l, mix_r, send_r, send_d, send_c};
+#define DBUS_NC() (CG_LEVEL >= CG_L_QUALITY ? 2u : 5u)   /* the channels the inserts run on */
 #if FELUCCA_FX_DIST
 static dist_t dbus_dist[5];
 static uint8_t dbus_live, dbus_don;                     /* the channels that carried a signal last block; DIST ran */
-static HOT2 __attribute__((noinline)) void dbus_dist_run(int32_t d, uint32_t n)
+static HOT2 __attribute__((noinline)) void dbus_dist_run(int32_t d, uint32_t n, uint32_t nc)
 {
     uint32_t c, i, live = 0;
-    for (c = 0; c < 5u; c++) {
+    for (c = 0; c < nc; c++) {
         int32_t *b = DBUS_CH[c], any = 0;
         for (i = 0; i < n; i++)
             any |= b[i];
@@ -1533,27 +1523,66 @@ static HOT2 __attribute__((noinline)) void dbus_dist_run(int32_t d, uint32_t n)
         else
             dbus_dist[c].env = 0;                       /* (silent: it restarts with the next signal) */
     }
+    for (; c < 5u; c++)
+        dbus_dist[c].env = 0;                           /* (QUALITY: the sends' states restart when they come back) */
     dbus_live = (uint8_t)live;
 }
 #endif
 #if FELUCCA_MASTER_COMP
 static mc_t dbus_comp = {0, 0, 8192, 0};
 static int32_t dbus_g[CTL];                             /* the detector's gain over the block, Q13 */
-static HOT2 __attribute__((noinline)) void dbus_comp_run(int32_t amt, uint32_t n)
+static HOT2 __attribute__((noinline)) void dbus_comp_run(int32_t amt, uint32_t n, uint32_t nc)
 {
     mc_set_t s;
     uint32_t c, i;
     for (i = 0; i < n; i++)
         dbus_g[i] = 8192;                               /* (mc_mul13(8192, g) = g: mc_run writes the gain itself) */
-    tcomp_settings(&s, amt);
+    tcomp_settings(&s, amt, TRK_DRUM);
     mc_run(&dbus_comp, &s, mix_l, mix_r, dbus_g, tcomp_sink, n);
-    for (c = 0; c < 5u; c++) {
+    for (c = 0; c < nc; c++) {
         int32_t *b = DBUS_CH[c];
         for (i = 0; i < n; i++)
             b[i] = mc_mul13(b[i], dbus_g[i]);           /* (as mc_run applies it: unity is exact) */
     }
 }
 #endif
+/* insert type t on the drum bus; live: in a slot and FX on (else at 0: DIST restarts, FILTER opens, COMP lets go) */
+static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, uint32_t n, uint32_t nc)
+{
+    const int16_t *p = TDRUM->p;
+#if FELUCCA_FX_DIST
+    if (t == FXT_DIST) {
+        int32_t d = live ? p[P_DIST] : 0;
+        if (d) {
+            dbus_dist_run(d, n, nc);
+            dbus_don = 1;
+        } else if (dbus_don) {                          /* (off: every state restarts when it comes back) */
+            uint32_t c;
+            for (c = 0; c < 5u; c++)
+                dbus_dist[c].env = 0;
+            dbus_don = 0, dbus_live = 0;
+        }
+    }
+#endif
+#if FELUCCA_TRK_FILT
+    if (t == FXT_FILT) {                                /* the drum track's FILTER (2.4's): the bus holds the drums alone */
+        tflt_t *f = &tflt[TRK_DRUM];
+        tsvf_t c;
+        uint32_t ch;
+        if (tflt_block(f, live ? p[P_TFLT] : 0, &c))
+            for (ch = 0; ch < nc; ch++)
+                tflt_run(f, &c, DBUS_CH[ch], n, ch, 2);
+    }
+#endif
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_COMP) {
+        int32_t a = live ? p[P_TCOMP] : 0;
+        if (a || !tcomp_rest(&dbus_comp))               /* (at 0 it lets go first) */
+            dbus_comp_run(a, n, nc);
+    }
+#endif
+    (void)p, (void)live, (void)n, (void)nc;
+}
 static int32_t dbus_snd[3];                             /* the sends CHO DLY REV at the end of the last block (Q15) */
 static HOT2 __attribute__((noinline)) void dbus_sends(const int32_t *to, uint32_t n)
 {
@@ -1580,36 +1609,52 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
 {
     const int16_t *p = TDRUM->p;
     int32_t on = fx_on(TDRUM), to[3];
+    uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, nc = DBUS_NC();
 #if DINS
     dins_ran[0] = dins_now[0], dins_ran[1] = dins_now[1];   /* (the drums have rendered: the voices' inserts that ran) */
     dins_now[0] = dins_now[1] = 0;
 #endif
-#if FELUCCA_FX_DIST
-    {
-        int32_t d = on && FXS_ON(FXT_DIST) ? p[P_DIST] : 0;
-        if (d) {
-            dbus_dist_run(d, n);
-            dbus_don = 1;
-        } else if (dbus_don) {                          /* (off: every state restarts when it comes back) */
-            uint32_t c;
-            for (c = 0; c < 5u; c++)
-                dbus_dist[c].env = 0;
-            dbus_don = 0, dbus_live = 0;
-        }
-    }
-#endif
-#if FELUCCA_MASTER_COMP
-    {
-        int32_t a = on && FXS_ON(FXT_COMP) ? p[P_TCOMP] : 0;
-        if (a || !tcomp_rest(&dbus_comp))               /* (at 0 it lets go first) */
-            dbus_comp_run(a, n);
-    }
-#endif
+    dbus_ins(s0, on && INS_ON(TRK_DRUM, s0), n, nc);   /* S1, S2 (an empty slot, a type not built: nothing) */
+    dbus_ins(s1, on && INS_ON(TRK_DRUM, s1), n, nc);
+    for (t = FXT_DIST; t < FXT_N; t++)                  /* the inserts in no slot: at 0 (they let go, then rest) */
+        if ((FXT_INSERT >> t & 1u) && t != s0 && t != s1)
+            dbus_ins(t, 0, n, nc);
     to[0] = on && FXS_ON(FXT_CHO) ? p[P_CHOR] * 258 : 0;
     to[1] = on && FXS_ON(FXT_DLY) ? p[P_DLY] * 258 : 0;
     to[2] = on && FXS_ON(FXT_REV) ? p[P_REV] * 258 : 0;
     if (to[0] | to[1] | to[2] | dbus_snd[0] | dbus_snd[1] | dbus_snd[2])
         dbus_sends(to, n);
+}
+
+/* ---- a part's two insert slots (2026-10-12: "two slot, configurable per track (filter, disto, comp etc)"): after
+ * the SLICER (D2), S1 then S2 (fx_slots.c ins_slot), each its type's amount (P_DIST, P_TFLT, P_TCOMP) while the part's
+ * FX are on; the inserts in no slot run at 0 (DIST rests, the FILTER glides open then rests, COMP lets go). In main
+ * RAM (HOT2): mix_part (HOT) calls it once a block */
+AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b, uint32_t n)
+{
+#if FELUCCA_FX_DIST
+    if (ty == FXT_DIST)
+        dist_run(&t->dist, live ? t->p[P_DIST] : 0, b, n);
+#endif
+#if FELUCCA_TRK_FILT
+    if (ty == FXT_FILT)
+        tflt_part(t, live ? t->p[P_TFLT] : 0, b, n);
+#endif
+#if FELUCCA_MASTER_COMP
+    if (ty == FXT_COMP)
+        tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
+#endif
+    (void)t, (void)k, (void)ty, (void)live, (void)b, (void)n;
+}
+static HOT2 __attribute__((noinline)) void ins_part(track_t *t, int32_t *b, uint32_t n)
+{
+    uint32_t k = (uint32_t)(t - trk) % NPART, s0 = ins_slot[k][0], s1 = ins_slot[k][1], ty;
+    int32_t on = fx_on(t);
+    ins_one(t, k, s0, on && INS_ON(k, s0), b, n);
+    ins_one(t, k, s1, on && INS_ON(k, s1), b, n);
+    for (ty = FXT_DIST; ty < FXT_N; ty++)
+        if ((FXT_INSERT >> ty & 1u) && ty != s0 && ty != s1)
+            ins_one(t, k, ty, 0, b, n);
 }
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
@@ -1645,15 +1690,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
-        if (FELUCCA_FX_DIST)
-            track_dist(t, b, n);
-        slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
-#if FELUCCA_TRK_FILT
-        tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
-#endif
-#if FELUCCA_MASTER_COMP
-        tcomp_run(&tcomp[(uint32_t)(t - trk) % NPART], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
-#endif
+        slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
+        if (FELUCCA_FX_DIST || FELUCCA_TRK_FILT || FELUCCA_MASTER_COMP)
+            ins_part(t, b, n);                          /* its two insert slots, S1 then S2 (above) */
 #if FELUCCA_UI == 1
         if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */
             FAR(vis_tap_block)(b, b, n);
@@ -1971,10 +2010,7 @@ static HOT void mix_block(int32_t *out, uint32_t n)
     drums.a1 = 32767 - gain_next(TDRUM);                /* same in either order): the drum track's mute / solo fade, */
     SCOPE_DRUMS(scope_drums_mark);                      /* (the SCOPE on the drums: their part of the mix) */
     slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render through the SLICER when on, */
-#if FELUCCA_TRK_FILT
-    tflt_drums(n);                                      /* its FILTER, */
-#endif
-    dbus_run(n);                                        /* its inserts and its own sends (above) */
+    dbus_run(n);                                        /* its two insert slots and its own sends (above) */
     SCOPE_DRUMS(scope_drums_take);
     {
         uint32_t sw = pold_any() ? FAR(pold_in)() : 0u; /* (SLOOP 2.6) the parts fading out after a sound load: this */

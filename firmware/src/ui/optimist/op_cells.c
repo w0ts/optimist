@@ -230,11 +230,12 @@ static void op_dsnd_tick(void)
 }
 
 /* ---- rows made of PAGES */
+#define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (pg)->id[0] >= FX_NSLOT)   /* FX > CMP: the track COMP's RATIO ATK REL */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
-    if (pg->scope != SC_TRACK && pg->scope != SC_ENGINE && pg->scope != SC_DSND
+    if (pg->scope != SC_TRACK && pg->scope != SC_ENGINE && pg->scope != SC_DSND && !CMP_PAGE(pg)   /* (CMP: the track's own COMP) */
 #if BP_SET_ANY
         && !(pg->scope == SC_BPSET && pg->fam == FAM_EDIT)   /* (ACID GEN; REVERB TYPE is the FX screen's) */
 #endif
@@ -250,7 +251,7 @@ static int fx_page(const page_t *pg)
     if (!page_shown(pg) || pg->fam == FAM_SAVE ||
         (pg->scope == SC_GLOBAL && pg->fam == FAM_GLO && (pg->id[0] == G_BPM || pg->id[0] == G_DRLVL)))
         return 0;
-    return (pg->scope == SC_GLOBAL && (pg->fam == FAM_FX || pg->fam == FAM_GLO)) || pg->scope == SC_FXSLOT
+    return (pg->scope == SC_GLOBAL && (pg->fam == FAM_FX || pg->fam == FAM_GLO)) || (pg->scope == SC_FXSLOT && !CMP_PAGE(pg))
 #if BP_SET_ANY
            || (pg->scope == SC_BPSET && pg->fam == FAM_FX)
 #endif
@@ -281,8 +282,12 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
 {
     uint32_t id = page_id(pg, k);
     *vp = (int16_t)v;
+    if (id >= PID_INST && id < PID_INST + INS_N) {      /* INSERTS: S1 / S2 TYPE (the other slot's type swaps them) */
+        ins_load(song.sel, id - PID_INST, ins_list[v % INS_NLIST]);
+        return;
+    }
 #if FELUCCA_MOTION
-    if (pg->scope == SC_TRACK || pg->scope == SC_ENGINE) {   /* recording: a step event (motion.c) */
+    if ((pg->scope == SC_TRACK || pg->scope == SC_ENGINE) && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {   /* recording: a step event (motion.c) */
         motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
         if (motion_full) {
             motion_full = 0;
@@ -332,7 +337,7 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     }
 #endif
     if (s == OP_RESET) {
-        if (pg->scope == SC_FXSLOT || (pg->scope == SC_DSND && id >= 8u && id < 16u))
+        if (pg->scope == SC_FXSLOT || (id >= PID_INST && id < PID_INST + INS_N) || (pg->scope == SC_DSND && id >= 8u && id < 16u))
             return;                                     /* (a slot's type, a lane's source: no default to go back to) */
         page_set(pg, k, vp, d->def, 0);
         return;

@@ -54,6 +54,47 @@ static uint32_t cg_vcost(const track_t *t)   /* a voice of this part: target ins
     return CG_VCOST[u < CG_NVCOST ? u : 0u];
 }
 
+/* the insert slots (fx_slots.c ins_slot, fx.c ins_part, dbus_run; D9: every slot modelled, none ever switched off):
+ * part p's that run now (a sounding part): DIST while its amount is set (in a slot, FX on), the FILTER while it is
+ * not at rest (set, or gliding open: fx.c tflt_block), COMP while set or letting go. The QUALITY level runs the drum
+ * bus's on L / R only, 2 of its 5 channels: their cost x 2 / 5 */
+static uint32_t cg_ins_part(uint32_t p)
+{
+    uint32_t n = 0, on = (uint32_t)fx_on(&trk[p]);
+    (void)on;
+#if FELUCCA_FX_DIST
+    n += on && INS_ON(p, FXT_DIST) && trk[p].p[P_DIST] ? CG_COST_PDIST : 0u;
+#endif
+#if FELUCCA_TRK_FILT
+    n += tflt[p].mode ? CG_COST_PFILT : 0u;
+#endif
+#if FELUCCA_MASTER_COMP
+    if ((on && INS_ON(p, FXT_COMP) && trk[p].p[P_TCOMP]) || tcomp[p].gr16 || tcomp[p].g13 != 8192)
+        n += CG_COST_TCOMP;                           /* (fx.c tcomp_run: on, or letting go) */
+#endif
+    return n;
+}
+static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
+{
+    uint32_t w = 0;
+#if FELUCCA_FX_DIST
+    w += dbus_live ? CG_COST_DBDIST : 0u;             /* (fx.c dbus_dist_run: a signal on it) */
+#endif
+#if FELUCCA_TRK_FILT
+    w += tflt[TRK_DRUM].mode ? CG_COST_DBFILT : 0u;
+#endif
+    return w;
+}
+static uint32_t cg_ins_bus(void)
+{
+    uint32_t w = cg_bus_w(), n = CG_LEVEL >= CG_L_QUALITY ? w * 2u / 5u : w;
+#if FELUCCA_MASTER_COMP
+    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_COMP) && TDRUM->p[P_TCOMP]) || !tcomp_rest(&dbus_comp))
+        n += CG_COST_DBCOMP;                          /* (fx.c dbus_comp_run: on, or letting go) */
+#endif
+    return n;
+}
+
 /* the predicted cost of what sounds now: target instructions a sample */
 static uint32_t cg_est(void)
 {
@@ -62,23 +103,15 @@ static uint32_t cg_est(void)
         uint32_t c = cg_vcost(&trk[p]), on = 0;
         for (i = 0; i < NVOICE; i++)
             on |= trk[p].v[i].active, n += trk[p].v[i].active ? c : 0u;
-#if FELUCCA_MASTER_COMP
-        if (on && ((fx_on(&trk[p]) && FXS_ON(FXT_COMP) && trk[p].p[P_TCOMP]) || tcomp[p].gr16 || tcomp[p].g13 != 8192))
-            n += CG_COST_TCOMP;                       /* its COMP insert runs (fx.c tcomp_run: on, or letting go) */
-#endif
+        if (on)
+            n += cg_ins_part(p);                      /* its insert slots that run (fx.c ins_part) */
     }
     for (i = 0; i < NDRUM; i++)
         if (drums.v[i].active) {
             n += CG_COST_DRUMS;
             break;
         }
-#if FELUCCA_FX_DIST
-    n += dbus_live ? CG_COST_DBDIST : 0u;             /* the drum bus's DIST runs (fx.c dbus_dist_run: a signal on it) */
-#endif
-#if FELUCCA_MASTER_COMP
-    if ((fx_on(TDRUM) && FXS_ON(FXT_COMP) && TDRUM->p[P_TCOMP]) || !tcomp_rest(&dbus_comp))
-        n += CG_COST_DBCOMP;                          /* the drum bus's COMP runs (fx.c dbus_comp_run: on, or letting go) */
-#endif
+    n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
 #if DINS
     for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
         n += ((dins_ran[0] >> i) & 1u ? CG_COST_DVDIST : 0u) + ((dins_ran[1] >> i) & 1u ? CG_COST_DVCOMP : 0u);
@@ -168,8 +201,8 @@ static int cg_useful(uint32_t level)
     uint32_t p;
     if (level >= CG_TOP)
         return 1;
-    if (level == CG_L_QUALITY && cg_tails())
-        return 1;
+    if (level == CG_L_QUALITY && (cg_tails() || cg_bus_w()))
+        return 1;                                     /* (a drum tail, or the drum bus's DIST / FILTER: L / R only) */
     if (level == CG_L_REVERB)                         /* the reverb bus runs (or would: fx.c rev_live) */
         return REV_LIVE();
     for (p = 0; p < NPART; p++) {

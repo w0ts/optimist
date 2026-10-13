@@ -393,24 +393,43 @@ static void job_cpu(const job_t *j)
         for (i = 0; i < parts[p][2]; i++)
             trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
     }
+    ins_defaults();            /* (every track's insert slots: S1 DIST, S2 FILTER, as a new project's) */
 #if FELUCCA_MASTER_COMP
-    if (j->arg) {              /* the COMP insert (fx_slots.c) in S1 for part 1: arg 1 at 0, 2 at 127 (the CPU guard's
+    if (j->arg && j->arg <= 8u) {   /* the COMP insert (fx_slots.c) in part 1's S2: arg 1 at 0, 2 at 127 (the CPU guard's
                                 * model: tools/builder/cpu_costs.py, cpu/fx/comp_on less cpu/fx/comp_off) */
         if (j->arg <= 2u)
-            fxs_load(0, FXT_COMP);
+            ins_load(0, 1, FXT_COMP);
         trk[0].p[P_TCOMP] = j->arg == 2u ? 127 : 0;
         if (j->arg == 5u)      /* the drum bus's inserts (fx.c dbus_run) over the drums: arg 3 none, 4 DIST 127, 5 COMP 127
-                                * in S1 (cpu_costs.py: cpu/fx/dbus_dist, dbus_comp less cpu/fx/dbus_off) */
-            fxs_load(0, FXT_COMP);
+                                * in S2 (cpu_costs.py: cpu/fx/dbus_dist, dbus_comp less cpu/fx/dbus_off) */
+            ins_load(TRK_DRUM, 1, FXT_COMP);
         TDRUM->p[P_DIST] = j->arg == 4u ? 127 : 0;
         TDRUM->p[P_TCOMP] = j->arg == 5u ? 127 : 0;
-        if (j->arg == 8u)      /* a drum sound's inserts (fx.c dins_post), one snare a beat: arg 6 none, 7 DIST 127, 8 COMP
-                                * 127 in S1 (cpu_costs.py: cpu/fx/dvoice_dist, dvoice_comp less cpu/fx/dvoice_off) */
-            fxs_load(0, FXT_COMP);
+        /* a drum sound's inserts (fx.c dins_post), one snare a beat: arg 6 none, 7 DIST 127, 8 COMP 127 (always heard:
+         * D7; cpu_costs.py: cpu/fx/dvoice_dist, dvoice_comp less cpu/fx/dvoice_off) */
         memset(dins_amt[0], j->arg == 7u ? 127 : 0, sizeof dins_amt[0]);
         memset(dins_amt[1], j->arg == 8u ? 127 : 0, sizeof dins_amt[1]);
     }
 #endif
+    if (j->arg >= 9u) {        /* the track insert slots (fx.c ins_part, dbus_ins; cpu_costs.py): 9 part 1's at 0, 10 its
+                                * S1 DIST 127, 11 its S2 FILTER low-pass; 12 the drum bus's FILTER low-pass over the
+                                * groove (less cpu/fx/dbus_off); 13 the worst case: every part S1 DIST 127, S2 COMP 127,
+                                * the drum bus S1 DIST 127, S2 FILTER low-pass (with cpu/mix/3parts_full_drums' parts) */
+        uint32_t k;
+        trk[0].p[P_DIST] = j->arg == 10u ? 127 : 0;
+#if FELUCCA_TRK_FILT
+        trk[0].p[P_TFLT] = j->arg == 11u ? -40 : 0;
+        TDRUM->p[P_TFLT] = j->arg == 12u || j->arg == 13u ? -40 : 0;
+#endif
+        for (k = 0; j->arg == 13u && k < NPART; k++) {
+#if FELUCCA_MASTER_COMP
+            ins_load(k, 1, FXT_COMP);
+            trk[k].p[P_TCOMP] = 127;
+#endif
+            trk[k].p[P_DIST] = 127;
+        }
+        TDRUM->p[P_DIST] = j->arg == 13u ? 127 : 0;
+    }
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
             i0 = instr_now();
@@ -1029,6 +1048,36 @@ int main(int argc, char **argv)
             j->arg = (uint8_t)i;
         }
 #endif
+        for (i = 9; EB(1) && i <= 11u; i++) {         /* a part's insert slots: DIGITAL's first preset, 8 notes, both at
+                                                       * 0 / S1 DIST 127 / S2 FILTER low-pass */
+            if (i == 10u ? !FELUCCA_FX_DIST : i == 11u ? !FELUCCA_TRK_FILT : 0)
+                continue;
+            j = add(J_CPU, i == 9u ? "cpu/fx/part_off" : i == 10u ? "cpu/fx/part_dist" : "cpu/fx/part_filt");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)i;
+        }
+        if (FELUCCA_TRK_FILT) {                       /* the drum bus's FILTER: the groove (cpu/fx/dbus_off's) */
+            j = add(J_CPU, "cpu/fx/dbus_filt");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][NPART][0] = 2;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = 12;
+        }
+        if (EB(1) && EB(2) && EB(5)) {                /* the worst case: 2 heavy inserts on each of the 4 tracks */
+            j = add(J_CPU, "cpu/fx/ins_worst");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            cpu_parts[ncpu][1][0] = (uint8_t)ES(2), cpu_parts[ncpu][1][1] = 0, cpu_parts[ncpu][1][2] = 8;
+            cpu_parts[ncpu][2][0] = (uint8_t)ES(5), cpu_parts[ncpu][2][1] = 0, cpu_parts[ncpu][2][2] = 4;
+            cpu_parts[ncpu][NPART][0] = 1;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = 13;
+        }
     }
     c1 = nj;
     run_jobs(J + c0, c1 - c0, 1);

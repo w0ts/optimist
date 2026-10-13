@@ -2292,6 +2292,7 @@ static void led_tests(void)
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
 #include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
+#include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 
 int main(int argc, char **argv)
 {
@@ -2375,6 +2376,7 @@ int main(int argc, char **argv)
     pages_hit_tests();
     lane_ui_tests();
     effval_tests();
+    inslots_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

@@ -28,6 +28,13 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   beat, every sound's DST 127) less cpu/fx/dvoice_off (the same, 0)
   CG_COST_DVCOMP  a drum voice's COMP while it runs, per voice: cpu/fx/dvoice_comp (COMP in S1, every sound's 127) less
                   cpu/fx/dvoice_off
+  CG_COST_PDIST   a part's DIST insert while it runs (the track insert slots, fx.c ins_part): cpu/fx/part_dist (DIGITAL,
+                  8 voices, S1 DIST 127) less cpu/fx/part_off (the same, both slots at 0)
+  CG_COST_PFILT   a part's FILTER insert while it runs (fx.c tflt_part): cpu/fx/part_filt (S2 FILTER low-pass) less
+                  cpu/fx/part_off
+  CG_COST_DBFILT  the drum bus's FILTER while it runs (fx.c dbus_ins): cpu/fx/dbus_filt (the groove, the drum track's
+                  FILTER low-pass) less cpu/fx/dbus_off. cpu/fx/ins_worst (three full parts with DIST + COMP, the drum
+                  bus DIST + FILTER, the groove) is the check of the sum (docs/CPU-GUARD.md)
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -94,7 +101,12 @@ def model(base=None, sc=None):
     vbase = fx.get("dvoice_off")
     dvdist = fx["dvoice_dist"] - vbase if vbase and "dvoice_dist" in fx else 0
     dvcomp = fx["dvoice_comp"] - vbase if vbase and "dvoice_comp" in fx else 0
-    return {"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
+    pbase = fx.get("part_off")
+    pdist = fx["part_dist"] - pbase if pbase and "part_dist" in fx else 0
+    pfilt = fx["part_filt"] - pbase if pbase and "part_filt" in fx else 0
+    dbfilt = fx["dbus_filt"] - dbase if dbase and "dbus_filt" in fx else 0
+    return {"pdist": tgt(pdist) if pdist > 0 else 0, "pfilt": tgt(pfilt) if pfilt > 0 else 0,
+            "dbfilt": tgt(dbfilt) if dbfilt > 0 else 0,"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
             "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0,
             "tcomp": tgt(tcomp) if tcomp > 0 else 0, "dbdist": tgt(dbdist) if dbdist > 0 else 0,
@@ -146,6 +158,9 @@ def header(m):
         f"#define CG_COST_DBCOMP {m['dbcomp']}u    /* the drum bus's COMP while it runs (fx.c dbus_comp_run) */",
         f"#define CG_COST_DVDIST {m['dvdist']}u    /* a drum voice's DIST while it runs (fx.c dins_post) */",
         f"#define CG_COST_DVCOMP {m['dvcomp']}u    /* a drum voice's COMP while it runs (fx.c dins_post) */",
+        f"#define CG_COST_PDIST {m['pdist']}u     /* a part's DIST insert while it runs (fx.c ins_part) */",
+        f"#define CG_COST_PFILT {m['pfilt']}u     /* a part's FILTER insert while it runs (fx.c tflt_part) */",
+        f"#define CG_COST_DBFILT {m['dbfilt']}u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */",
         ""])
 
 

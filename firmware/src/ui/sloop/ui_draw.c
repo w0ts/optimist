@@ -474,8 +474,8 @@ static void graph_fx(const track_t *t, uint16_t c)
         cv_text((240 - text_w(&FONT_S, M)) / 2, 4, &FONT_S, M, C_GRAY);
     }
     for (i = 0; i < 4u; i++) {
-        uint32_t id = fxs_amt(i);                    /* (the slot's amount: fx_slots.c; empty: none) */
-        int32_t v = id == 0xFFu ? 0 : t->p[id], h = (v < 0 ? -2 * v : v) * (90 - top) / 127, x = (int32_t)i * 60 + 28;
+        int32_t v = fx_needle(GR_FX, i);             /* (S1, the sends: params.c page_id; empty: none) */
+        int32_t h = (v < 0 ? 0 : v) * (90 - top) / 127, x = (int32_t)i * 60 + 28;
         cv_rect(x, top, 1, 90 - top, C_LINE);
         cv_rect(x, 90 - h, 1, h, c);
         cv_rect(x - 3, 90 - h, 7, 1, c);

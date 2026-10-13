@@ -382,6 +382,16 @@ static uint32_t mix_kind_id(uint32_t r, uint32_t kind)
                 kind == MD_COMP ? mix_comp_slot(r) : -2;
     if (kind == MD_NONE)
         return 0xFFu;
+    if (kind == MD_INS1 || kind == MD_INS2 || kind == MD_COMP) {   /* the inserts: a track's two slots (fx_slots.c); a
+                                                                    * lane's own DST, CMP (always heard: D7) */
+        uint32_t s = kind == MD_INS2;
+        if (r >= NTRK)
+            return kind == MD_INS1 && FELUCCA_FX_DIST ? 19u : kind == MD_COMP && FELUCCA_MASTER_COMP ? 20u : 0xFFu;
+        if (kind == MD_COMP)
+            return INS_ON(r, FXT_COMP) ? FXT_AMT[FXT_COMP] : 0xFFu;
+        return ins_amt(r, s);
+    }
+    (void)mix_comp_slot;
     return k == -2 ? 0u : k < 0 ? 0xFFu : mix_slot_id(r, (uint32_t)k);
 }
 static const param_desc_t MIX_LANE_PAN = PD("PAN", F_BIPCT, -64, 63, 0);

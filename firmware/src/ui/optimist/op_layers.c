@@ -720,8 +720,8 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
         for (i = 1; i < NPART; i++)
             trk[i].p[P_SCALE] = trk[0].p[P_SCALE];      /* (the scale is the song's: every synth track) */
 #if FELUCCA_TRK_FILT
-    if (l == LY_FX && k == 3u && !FXS_ON(FXT_FILT))
-        ui_message("FILT: IN NO FX SLOT");              /* (decision D6: a slot type, heard only in a slot) */
+    if (l == LY_FX && k == 3u && !INS_ON(song.sel, FXT_FILT))
+        ui_message("FILT: NO SLOT");                    /* (heard only in one of the track's insert slots) */
 #endif
 }
 /* the knobs while a layer is at work (held or locked): KNOB 1..4 the layer's, PRESETS its hot knob one unit,

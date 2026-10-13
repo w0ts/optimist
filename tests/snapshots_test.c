@@ -910,8 +910,8 @@ int main(int argc, char **argv)
 #endif
     {   /* the FX slots' record (fx_rec.c): the work's and each section's in the stream, back with a load and a restart,
          * through the editor's backup (FXSL) */
-        static const uint8_t L[3][4] = {{FXT_REV, FXT_DIST, FXT_NONE, FXT_CHO}, {FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE},
-                                        {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV}}, W[4] = {FXT_CHO, FXT_REV, FXT_NONE, FXT_DIST};
+        static const uint8_t L[3][4] = {{FXT_REV, FXT_NONE, FXT_NONE, FXT_CHO}, {FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE},
+                                        {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV}}, W[4] = {FXT_CHO, FXT_REV, FXT_NONE, FXT_NONE};
         sn_info_t in;
         uint32_t at, kind, id, nn, b, nf = 0, k;
         fresh_flash();

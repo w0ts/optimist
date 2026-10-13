@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""fx: the FX slots at the panel (SLOOP's UI; fx_slots.c). T1 holds one note per capture (white key 5, from an audio
+"""fx: the FX slots at the panel (SLOOP's UI; fx_slots.c: the master slots hold the SENDS, each track has two insert
+slots S1 and S2, a new track's S1 DIST S2 FILTER, amounts 0). T1 holds one note per capture (white key 5, from an audio
 half boundary: the same setting gives the same samples, checked first, after the first autosave's window). COMP into
-S1 (FX > SLOTS), its amount on T1 (FX page): heard, transparent at 0, a middle amount between; the FX bypass (GLO +
-white 9): dry, the amount not heard, back after; the amount belongs to the type (COMP moved to S4: the same samples;
-in no slot: not heard, its amount kept). The drum track: the drum bus's COMP (FX page, the drum track selected) and
-the picked sound's COMP insert (EDIT > SOUND 3), each heard, neither with COMP in no slot. Then the whole set-up
-(slots, T1's and the drum bus's amounts, the insert) comes back from a snapshot (SAVE > SNAPSHOT) after a scramble,
-and after the autosave and a power cycle, with the same samples."""
+T1's S1 (FX > INSERTS), its amount: heard, transparent at 0, a middle amount between; the FX bypass (GLO + white 9):
+dry, the amount not heard, back after; the amount belongs to the type (COMP moved to S2: the same samples; in no
+slot: not heard, its amount kept). The drum track: its own COMP slot's bus COMP (INSERTS, the drum track selected)
+heard only while COMP is in one of its slots, and the picked sound's COMP insert (EDIT > SOUND 3) heard whatever the
+slots hold (D7). Then the whole set-up (the master slots, every track's slots, T1's and the drum bus's amounts, the
+insert) comes back from a snapshot (SAVE > SNAPSHOT) after a scramble, and after the autosave and a power cycle, with
+the same samples."""
 import math
 
 import fwfacts as F
@@ -15,6 +17,7 @@ import fxkit as X
 T1_KEY, DRUM_KEY, DRUM_LANE = F.white(5), F.white(6), 5   # (sound 6: a sample, the same samples each hit;
 #                                                              the synthesized ones have noise of their own)
 GAP = 1.0                                        # (s before a capture: the last one's tail gone)
+COMP, REV, DIST, FILT = X.FXT["COMP"], X.FXT["REV"], X.FXT["DIST"], X.FXT["FILT"]
 
 
 class Run:
@@ -35,29 +38,33 @@ class Run:
 
     def state(self):
         fx = self.fx
-        return fx.slots(), fx.amt(0), fx.amt(3), fx.ins()[1][DRUM_LANE]
+        return fx.slots(), fx.tins(), fx.amt(0), fx.amt(3), fx.ins()[1][DRUM_LANE]
 
     def fmt(self, s):
-        return f"{self.fx.names(s[0])} T1 COMP {s[1]}, drum bus COMP {s[2]}, sound 6 COMP insert {s[3]}"
+        return (f"master {self.fx.names(s[0])}, slots {[self.fx.names(x) for x in s[1]]}, T1 COMP {s[2]}, "
+                f"drum bus COMP {s[3]}, sound 6 COMP insert {s[4]}")
 
     def same(self, name, a, b):
         r = X.resid(a, b)
         return self.ctx.check(name, r == 0.0, f"max |diff| {r:.2e}")
 
     def scramble(self):
-        """every amount of the set-up to 0, the default layout"""
+        """every amount of the set-up to 0, the default layouts (the drum track's slots, T1's, the master slots)"""
         fx, P = self.fx, self.P
         P.track(4)
-        fx.fx_page()
-        fx.comp_amount(3, 0, 0)
-        P.track(4)
+        fx.inserts_page()
+        if COMP in fx.tins()[3]:
+            fx.comp_amount(3, 0, 0)
+        fx.ins_layout(3, fx.trk_def())
         P.goto("EDIT", "SOUND 3")
         fx.sound_comp(0, 0)
         P.track(1)
-        fx.fx_page()
-        fx.comp_amount(0, 0, 0)
+        fx.inserts_page()
+        if COMP in fx.tins()[0]:
+            fx.comp_amount(0, 0, 0)
+        fx.ins_layout(0, fx.trk_def())
         fx.slots_page()
-        fx.layout([X.FXT["DIST"], X.FXT["CHO"], X.FXT["DLY"], X.FXT["REV"]])
+        fx.layout(X.MASTER_DEF)
         P.home()
 
 
@@ -80,7 +87,11 @@ def body(ctx, r):
     a, b = r.t1("default"), r.t1("default-again")
     r.same("a capture is deterministic: the same setting twice, the same samples", a, b)
     ctx.check("T1 sounds (steady RMS > -50 dBFS)", X.level_db(a) > -50, f"{X.level_db(a):.1f} dBFS")
-    ctx.check("the default layout DIST CHO DLY REV", fx.slots() == [1, 2, 3, 4], fx.names())
+    ctx.check("the default layout: master ---- CHO DLY REV (sends only), every track S1 DIST S2 FILT",
+              fx.slots() == X.MASTER_DEF and fx.tins() == [fx.trk_def()] * 4,
+              f"{fx.names()}, {[fx.names(x) for x in fx.tins()]}")
+    ctx.check("COMP is not offered to a master slot (inserts live on the tracks): FX > SLOTS refuses it",
+              not slot_takes_insert(fx), fx.names())
 
     comp_in(ctx, r, a)
     hi = r.t1("comp-hi")
@@ -90,18 +101,33 @@ def body(ctx, r):
     restore(ctx, r, moved)
 
 
-def comp_in(ctx, r, a):
-    """COMP into S1, its amount on T1: transparent at 0, heard, ordered"""
-    e, P, fx = r.e, r.P, r.fx
+def slot_takes_insert(fx):
+    """the master SLOTS page: every knob turned well past both ends of the list; an insert type in a slot at any
+    point (DIST, COMP, FILT) -> True. The default layout again after"""
     fx.slots_page()
-    ok = fx.slot_set(0, X.FXT["COMP"])
-    P.shot("slots-comp")
-    used = [x for x in fx.slots() if x]
-    ctx.check("FX > SLOTS: COMP into S1, each type in one slot at most", ok and len(set(used)) == len(used),
-              fx.names())
-    fx.fx_page()
+    seen = set(fx.slots())
+    for k in range(4):
+        for d in (1, -1):
+            for _ in range(5):
+                fx.step(k, d)
+                seen |= set(fx.slots())
+    fx.layout(X.MASTER_DEF)
+    fx.P.home()
+    return bool(seen & set(X.INSERT))
+
+
+def comp_in(ctx, r, a):
+    """COMP into T1's S1 (it takes DIST's place), its amount: transparent at 0, heard, ordered"""
+    e, P, fx = r.e, r.P, r.fx
+    fx.inserts_page()
+    ok = fx.ins_set(0, 0, COMP)
+    P.shot("inserts-comp")
+    used = [x for x in fx.tins()[0] if x]
+    ctx.check("FX > INSERTS: COMP into T1's S1, each type in one slot at most", ok and len(set(used)) == len(used),
+              fx.names(fx.tins()[0]))
     c0 = r.t1("comp0")
     r.same("COMP at amount 0 is transparent (the same samples as the default layout)", a, c0)
+    fx.inserts_page()
     v = fx.comp_amount(0, 127, 3)
     hi = r.t1("comp-hi")
     d = [X.level_db(hi) - X.level_db(c0), 20 * math.log10(X.peak(hi, 0, 13000) / X.peak(c0, 0, 13000))]
@@ -127,66 +153,69 @@ def bypass(ctx, r, a, hi):
 
 
 def swap(ctx, r, a, hi):
-    """the amount belongs to the type: COMP moved to S4, then in no slot, then back"""
+    """the amount belongs to the type: COMP moved to S2 (S1 takes what S2 held), then in no slot, then back"""
     P, fx = r.P, r.fx
     v = fx.amt(0)
-    fx.slots_page()
-    fx.slot_set(3, X.FXT["COMP"])
-    P.shot("slots-comp-s4")
-    ctx.check("slot swap: COMP into S4 (the type it met moved to S1), its amount kept",
-              fx.slots()[3] == X.FXT["COMP"] and fx.slots().count(X.FXT["COMP"]) == 1 and fx.amt(0) == v,
-              f"{fx.names()}, P_TCOMP {v} -> {fx.amt(0)}")
-    moved = r.t1("comp-s4")
-    r.same("slot swap: COMP in S4 sounds as in S1 (the same samples)", hi, moved)
-    fx.slots_page()
-    fx.drop(X.FXT["COMP"])
-    ctx.check("COMP in no slot: out of the layout, its amount kept", X.FXT["COMP"] not in fx.slots() and
-              fx.amt(0) == v, f"{fx.names()}, P_TCOMP {fx.amt(0)}")
+    fx.inserts_page()
+    fx.ins_set(0, 1, COMP)
+    P.shot("inserts-comp-s2")
+    t = fx.tins()[0]
+    ctx.check("slot swap: COMP into T1's S2 (what S2 held moved to S1), its amount kept",
+              t[1] == COMP and t.count(COMP) == 1 and fx.amt(0) == v,
+              f"{fx.names(t)}, P_TCOMP {v} -> {fx.amt(0)}")
+    moved = r.t1("comp-s2")
+    r.same("slot swap: COMP in S2 sounds as in S1 (the same samples)", hi, moved)
+    fx.inserts_page()
+    fx.ins_drop(0, COMP)
+    ctx.check("COMP in no slot: out of T1's slots, its amount kept", COMP not in fx.tins()[0] and fx.amt(0) == v,
+              f"{fx.names(fx.tins()[0])}, P_TCOMP {fx.amt(0)}")
     r.same("COMP in no slot: not heard (the same samples as the default layout)", a, r.t1("comp-none"))
-    fx.slots_page()
-    fx.slot_set(3, X.FXT["COMP"])
+    fx.inserts_page()
+    fx.ins_set(0, 1, COMP)
     r.same("COMP in a slot again: heard as before (the same samples)", hi, r.t1("comp-back"))
     P.home()
     return moved
 
 
 def drums(ctx, r):
-    """the drum bus's COMP and a sound's COMP insert: each heard, neither with COMP in no slot"""
+    """the drum bus's COMP (heard only in a drum-track slot) and a sound's COMP insert (always heard: D7)"""
     e, P, fx = r.e, r.P, r.fx
-    fx.slots_page()                                   # (REV into a slot: its send on SOUND 3 can be set)
-    fx.slot_set(next(k for k, x in enumerate(fx.slots()) if x != X.FXT["COMP"]), X.FXT["REV"])
-    ctx.check("REV into a slot beside COMP", X.FXT["REV"] in fx.slots() and X.FXT["COMP"] in fx.slots(), fx.names())
-    d0 = r.drum("drum-wet")
+    fx.slots_page()                                   # (REV out of the master slots: no reverb tail between captures,
+    fx.drop(REV)                                      #  and SOUND 3 has room for its CMP cell: DST CHO DLY CMP)
+    ctx.check("REV out of the master slots: SOUND 3 shows a CMP cell", REV not in fx.slots() and fx.sound_cmp_knob() == 4,
+              fx.names())
+    d0 = r.drum("drum-dry")
     ctx.check("the drum track sounds (white 6: sound 6)", X.level_db(d0) > -70 and fx.lane() == DRUM_LANE,
               f"{X.level_db(d0):.1f} dBFS, pen_lane {fx.lane()}")
-    P.track(4)                                        # (LFO + black 4: the drum track)
-    ok = P.goto("EDIT", "SOUND 3")                    # (sound 6 dry: its REV send 0, no reverb tail between captures)
-    e.turn(f"KNOB{fx.slots().index(X.FXT['REV']) + 1}", -64)
-    e.run(0.3)
-    d0 = r.drum("drum0")
     r.same("a drum hit is deterministic (sound 6 dry: the same samples twice)", d0, r.drum("drum0-again"))
     P.track(4)
-    fx.fx_page()
-    v = fx.comp_amount(3, 127, 3)
-    bus = r.drum("drum-bus")
-    rb = X.resid(d0, bus)
-    ctx.check(f"the drum bus's COMP heard (drum track P_TCOMP {v})", v >= 120 and rb > 1e-3, f"max |diff| {rb:.3f}")
-    P.track(4)
-    ok = P.goto("EDIT", "SOUND 3") and ok
+    fx.inserts_page()
+    ctx.check("the drum track's own slots: S1 DIST S2 FILT, COMP in none", fx.tins()[3] == fx.trk_def(),
+              fx.names(fx.tins()[3]))
+    ok = P.goto("EDIT", "SOUND 3")
     P.shot("sound3")
     w = fx.sound_comp(127, 3)
     ins = r.drum("drum-insert")
-    ri = X.resid(bus, ins)
-    ctx.check(f"sound 6's COMP insert heard (EDIT > SOUND 3: dins_amt[1][{DRUM_LANE}] {w})", ok and w >= 120 and ri > 1e-3,
-              f"max |diff| {ri:.3f}, inserts {fx.ins()[1][:8]}")
-    fx.slots_page()
-    k = fx.slots().index(X.FXT["COMP"])
-    fx.drop(X.FXT["COMP"])
-    r.same("COMP in no slot: neither the drum bus's COMP nor the insert heard (the same samples as at 0)", d0,
-           r.drum("drum-comp-none"))
-    fx.slots_page()
-    fx.slot_set(k, X.FXT["COMP"])
-    r.same("COMP back: the drums as before (the same samples)", ins, r.drum("drum-comp-back"))
+    ri = X.resid(d0, ins)
+    ctx.check(f"sound 6's COMP insert heard with COMP in no drum slot (EDIT > SOUND 3: dins_amt[1][{DRUM_LANE}] {w})",
+              ok and w >= 120 and ri > 1e-3, f"max |diff| {ri:.3f}, inserts {fx.ins()[1][:8]}")
+    P.track(4)
+    fx.inserts_page()
+    fx.ins_set(3, 0, COMP)
+    v = fx.comp_amount(3, 127, 3)
+    both = r.drum("drum-bus")
+    rb = X.resid(ins, both)
+    ctx.check(f"the drum bus's COMP heard on top (drum track S1 COMP, P_TCOMP {v})", v >= 120 and rb > 1e-3,
+              f"max |diff| {rb:.3f}, {fx.names(fx.tins()[3])}")
+    P.track(4)
+    fx.inserts_page()
+    fx.ins_drop(3, COMP)
+    r.same("COMP out of the drum slots: the bus's COMP not heard, the sound's insert still (the same samples as "
+           "the insert alone)", ins, r.drum("drum-comp-none"))
+    P.track(4)
+    fx.inserts_page()
+    fx.ins_set(3, 0, COMP)
+    r.same("COMP back in the drum slots: bus and insert as before (the same samples)", both, r.drum("drum-comp-back"))
     P.track(1)
     P.home()
 
@@ -196,7 +225,7 @@ def restore(ctx, r, moved):
     e, P, fx = r.e, r.P, r.fx
     fin = r.state()
     t1, dr = r.t1("final"), r.drum("final-drum")
-    r.same("before the snapshot: T1 as with COMP in S4 (the same samples)", moved, t1)
+    r.same("before the snapshot: T1 as with COMP in S2 (the same samples)", moved, t1)
     if ctx.facts.on("SNAPSHOTS"):
         ok = P.goto("SAVE", "SNAPSHOT")
         e.click("KNOB1", -8)
@@ -205,7 +234,9 @@ def restore(ctx, r, moved):
         P.home()
         r.scramble()
         s = r.state()
-        ctx.check("scrambled: the default layout, every amount 0", s != fin and s[0] == [1, 2, 3, 4], r.fmt(s))
+        ctx.check("scrambled: the default layouts, every amount 0",
+                  s != fin and s[0] == X.MASTER_DEF and s[1] == [fx.trk_def()] * 4 and s[2] == 0 and s[3] == 0,
+                  r.fmt(s))
         ok = P.goto("SAVE", "SNAPSHOT") and ok
         e.click("KNOB1", -8)
         P.arm_act("KNOB2")

@@ -1,16 +1,21 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The generic FX slots (fx_slots.c) and their record (fx_rec.c, fx_rec_log.c) on a simulated NOR with the section log:
- *   layout   the default is DIST CHO DLY REV; a type a second time leaves its slot empty; an id this build lacks is
- *            kept, unheard
- *   audio    a type in no slot is not heard: its amounts are kept, and the mix is the one with those amounts at 0,
- *            sample for sample (synth parts' DIST and sends, the drum lanes' sends); the default layout is the mix of
- *            before (the goldens: tests/regress.c)
- *   record   the default writes nothing; a layout round trips; a newer version, a cut TLV: the defaults; an unknown
- *            TLV is skipped
- *   stores   PROJECT SAVE / LOAD keeps the layout; a section saved again without its FX record, or replaced behind
- *            its back, loads the default; a section stored while playing keeps it in the arena; a song section
- *            (proj_apply, not a load) keeps the layout; the autosave's; after a restart
- * Run by tests/run_tests.sh. */
+/* The generic FX slots (fx_slots.c) and their record (fx_rec.c, fx_rec_log.c) on a simulated NOR with the section log,
+ * since the per-track insert slots (2026-10-12):
+ *   master   four slots for the SENDS only, default ---- CHO DLY REV; an insert id there: empty; a type a second time
+ *            leaves its slot empty; an id this build lacks is kept, unheard
+ *   tracks   two insert slots each (T1 T2 T3 DR), default S1 DIST, S2 FILTER (built); one type once a track: picking
+ *            the other slot's swaps them; the amounts are the types' (P_DIST P_TFLT P_TCOMP)
+ *   audio    a type not heard on a track (an insert in none of its slots, a send in no master slot) is the mix with its
+ *            amount at 0, sample for sample; the slots' order is the order heard (S1 then S2: each the kernel run by
+ *            hand); the default slots are the mix of before (the goldens: tests/regress.c); each track's COMP its own
+ *            settings; the drum sounds' DST CMP always heard; the drum track's send levels (100 %: the mix of before)
+ *   record   the default writes nothing; a layout round trips; the track slots' TLV 0x42 only when the read-back's
+ *            mapping would not give them; an old record or none: the mapping (rules 1..8 of the design); a newer
+ *            version, a cut TLV: the defaults; an unknown TLV is skipped
+ *   stores   PROJECT SAVE / LOAD keeps the slots; a section saved again without its FX record, or replaced behind its
+ *            back, loads the default; a section stored while playing keeps it in the arena; a song section (proj_apply,
+ *            not a load) keeps the slots playing; the autosave's; after a restart
+ * Run by tests/run_tests.sh (with and without TRK_FILT). */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #define main hostsim_main
@@ -66,22 +71,84 @@ static int is_layout(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 {
     return fxs_slot[0] == a && fxs_slot[1] == b && fxs_slot[2] == c && fxs_slot[3] == d;
 }
+typedef uint8_t ins_t[NTRK][INS_N];
+#define D0 INS_DEF0
+#define D1 INS_DEF1
+static const ins_t INS_D = {{D0, D1}, {D0, D1}, {D0, D1}, {D0, D1}};
+static void ins_all(const ins_t s)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        ins_put(k, s[k]);
+}
+static int ins_is(uint32_t k, uint32_t a, uint32_t b) { return ins_slot[k][0] == a && ins_slot[k][1] == b; }
+static int ins_dflt(void) { return !memcmp(ins_slot, INS_D, sizeof INS_D); }
 
-/* ---- layout */
+/* ---- the master slots: the sends */
 static void t_layout(void)
 {
-    check("the default: DIST CHO DLY REV, all four heard, the FX page's ids P_DIST P_CHOR P_DLY P_REV",
-          is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == P_DIST &&
-          fxs_amt(1) == P_CHOR && fxs_amt(2) == P_DLY && fxs_amt(3) == P_REV);
+    check("the default: ---- CHO DLY REV, the three sends heard, SENDS' ids P_CHOR P_DLY P_REV in slot order",
+          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == 0xFFu &&
+          fxs_send_amt(0) == P_CHOR && fxs_send_amt(1) == P_DLY && fxs_send_amt(2) == P_REV && fxs_send_amt(3) == 0xFFu);
     layout(FXT_REV, FXT_REV, FXT_DLY, FXT_REV);
     check("a type a second time: its slot empty (one instance per type)",
           is_layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_NONE) && fxs_live == (FXT_BIT(FXT_REV) | FXT_BIT(FXT_DLY)) &&
           fxs_amt(1) == 0xFFu && fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 0u);
-    layout(FXT_DIST, 200, FXT_NONE, FXT_CHO);
-    check("an id this build lacks (a newer firmware's): kept in its slot, not heard, no amount",
-          is_layout(FXT_DIST, 200, FXT_NONE, FXT_CHO) && fxs_live == (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_CHO)) &&
-          fxs_amt(1) == 0xFFu && fxs_lm[0] == 0u);
+    layout(FXT_DIST, 200, FXT_COMP, FXT_CHO);
+    check("an insert id (an old record's DIST, COMP): empty (the tracks' slots hold the inserts); an id this build lacks "
+          "(a newer firmware's): kept, not heard", is_layout(FXT_NONE, 200, FXT_NONE, FXT_CHO) &&
+          fxs_live == FXT_BIT(FXT_CHO) && fxs_lm[0] == 0u);
     fxs_set(FXS_DEF);
+    fxs_load(0, FXT_DIST);
+    check("FX > SLOTS: an insert refused", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    fxs_load(0, FXT_REV);
+    check("... REV into S1 swaps with S4 (nothing lost), SENDS follow the order (REV CHO DLY)",
+          is_layout(FXT_REV, FXT_CHO, FXT_DLY, FXT_NONE) && fxs_send_amt(0) == P_REV && fxs_send_amt(2) == P_DLY);
+    fxs_set(FXS_DEF);
+}
+
+/* ---- each track's two slots */
+static void t_ins(void)
+{
+    int16_t *v;
+    const param_desc_t *d;
+    uint32_t k, ok = 1;
+    for (k = 0; k < NTRK; k++)
+        ok &= ins_is(k, FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE, FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE);
+    check("the default on every track: S1 DIST, S2 FILTER (built: else empty) (D5)", ok && ins_has(0, FXT_DIST) == 1u &&
+          ins_has(3, FXT_FILT) == (FELUCCA_TRK_FILT ? 2u : 0u) && ins_has(1, FXT_COMP) == 0u && ins_amt(2, 0) == P_DIST);
+#if FELUCCA_MASTER_COMP
+    ins_load(1, 1, FXT_COMP);
+    check("COMP into T2's S2: T2 S1 DIST S2 COMP, the others as they were; its amount P_TCOMP (CMP)",
+          ins_is(1, FXT_DIST, FXT_COMP) && ins_amt(1, 1) == P_TCOMP && ins_has(1, FXT_COMP) == 2u && ins_dflt() == 0 &&
+          ins_is(0, D0, D1) && !strcmp(TP[ins_amt(1, 1)].label, "CMP"));
+    ins_load(1, 0, FXT_COMP);
+    check("... COMP into S1: the other slot's type, so the two swap (D3): S1 COMP, S2 DIST", ins_is(1, FXT_COMP, FXT_DIST));
+    ins_load(1, 1, FXT_NONE);
+    check("... S2 emptied: DIST in no slot of T2 (its amount kept, unheard)", ins_is(1, FXT_COMP, FXT_NONE) &&
+          !INS_ON(1, FXT_DIST) && ins_amt(1, 1) == 0xFFu);
+#endif
+    {
+        static const uint8_t TWICE[2] = {FXT_DIST, FXT_DIST}, SEND[2] = {FXT_REV, 200};
+        ins_put(2, TWICE);
+        ok = ins_is(2, FXT_DIST, FXT_NONE);
+        ins_put(2, SEND);
+        check("ins_put: the same type twice: S2 empty; a send or an unknown id: empty", ok && ins_is(2, FXT_NONE, FXT_NONE));
+    }
+    ins_all(INS_D);
+    song.sel = 1;
+    d = fxs_desc(FXS_ID_INS, &v);
+    ok = d == &INS_DESC[0] && d->fmt == F_ENUM && d->max == INS_NLIST - 1 && ins_list[*v] == ins_slot[1][0] &&
+         !strcmp(ins_names[0], "----");
+    for (k = 1; k < INS_NLIST; k++)
+        ok &= (FXT_INSERT >> ins_list[k] & 1u) && !strcmp(ins_names[k], TP[FXT_AMT[ins_list[k]]].label);
+    check("INSERTS' TYPE: a list of ---- and the inserts built, named by their amounts (DST FILT CMP), at the slot's", ok);
+    d = fxs_desc(0, &v);
+    ok = d == &FXS_DESC[0];
+    for (k = 1; k < FXS_NLIST; k++)
+        ok &= FXT_SEND_OK(fxs_list[k]);
+    check("FX > SLOTS' list: ---- and the sends only", ok && FXS_NLIST == 1 + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB);
+    song.sel = 0;
 }
 
 #if FELUCCA_TRK_FILT
@@ -90,10 +157,11 @@ static int16_t r_tflt;                                  /* (the renders' track F
 #if FELUCCA_MASTER_COMP
 static int16_t r_cmp;                                   /* (the renders' COMP insert: part 1) */
 #endif
-static int16_t r_db[5], r_dbyp;                         /* (the renders' drum bus: DIST CHO DLY REV COMP; the drums' FX off) */
-static uint8_t r_dl[2], r_dslc;                         /* (the renders' drum sounds' DIST, COMP, every lane; the drum SLICER) */
-/* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash */
-static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, int lanes)
+static int16_t r_db[5], r_dbyp, r_kit[3] = {127, 127, 127};   /* (the drum bus: DIST CHO DLY REV COMP; FX off; the levels) */
+static uint8_t r_dl[2], r_dslc, r_slc;                  /* (the drum sounds' DIST, COMP; the drum SLICER, part 1's) */
+/* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash. lay: the master layout,
+ * ins: the tracks' slots (0: the default) */
+static uint64_t render(const uint8_t *lay, const ins_t ins, int dist, int cho, int dly, int rev, int lanes)
 {
     int fd[2];
     uint64_t h = 0;
@@ -104,7 +172,14 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
         int32_t o[CTL * 2];
         uint32_t b, i;
         close(fd[0]);
+#if FELUCCA_MASTER_COMP
+        int16_t cs[NTRK][3];
+        memcpy(cs, ins_cset, sizeof cs);                /* (the COMP settings the test set: kept) */
         host_tracks_init();
+        memcpy(ins_cset, cs, sizeof cs);
+#else
+        host_tracks_init();
+#endif
         host_preset(&trk[0], 0, 0);
         trk[0].p[P_SLEN] = 16;
         TDRUM->p[P_SLEN] = 16;
@@ -127,12 +202,14 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
         TDRUM->p[P_FXOFF] = r_dbyp;
         memset(dins_amt[0], r_dl[0], sizeof dins_amt[0]);
         memset(dins_amt[1], r_dl[1], sizeof dins_amt[1]);
+        for (i = 0; i < 3u; i++)
+            dsend_kit[i] = r_kit[i];
         if (r_dslc)
             TDRUM->p[P_SLCR] = (int16_t)r_dslc;
-        if (lay)
-            fxs_set(lay);
-        else
-            fxs_auto();                                 /* (0: the layout of a project without an FX record) */
+        if (r_slc)
+            trk[0].p[P_SLCR] = (int16_t)r_slc;
+        fxs_set(lay);
+        ins_all(ins ? ins : INS_D);
         transport_req = 1;
         for (b = 0; b < 2u * 2u * FS / CTL; b++) {
             mix_block(o, CTL);
@@ -150,194 +227,83 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
     wait(0);
     return h;
 }
+static const ins_t INS_NONE = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
 static void t_audio(void)
 {
-    static const uint8_t NOREV[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_NONE}, NODIST[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};
-    static const uint8_t NONE[4] = {FXT_NONE, FXT_NONE, FXT_NONE, FXT_NONE}, SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_DIST};
-    uint64_t full = render(FXS_DEF, 90, 60, 50, 80, 1);
-    check("the mix with every amount up differs from the dry one (the test hears the FX)", full != render(FXS_DEF, 0, 0, 0, 0, 0));
-    check("REV in no slot: the mix with REV at 0 on the part and every drum lane, sample for sample",
-          render(NOREV, 90, 60, 50, 80, 1) == render(FXS_DEF, 90, 60, 50, 0, 2));
-    check("DIST in no slot: the mix with DST 0, sample for sample", render(NODIST, 90, 60, 50, 80, 1) == render(FXS_DEF, 0, 60, 50, 80, 1));
-    check("every slot empty: the dry mix, sample for sample (amounts and lane sends kept)", render(NONE, 90, 60, 50, 80, 1) == render(FXS_DEF, 0, 0, 0, 0, 0));
-    check("the four types in another order: the same mix (the inserts' order is fixed, D4)", render(SWAP, 90, 60, 50, 80, 1) == full);
-}
-
-/* ---- the record */
-static void t_record(void)
-{
-    uint8_t b[FXR_MAX], c[FXR_MAX];
-    uint32_t n;
-    fxs_set(FXS_DEF);
-    check("the default layout: nothing to keep (no record)", fxr_encode(b) == 0u);
-    layout(FXT_REV, FXT_NONE, FXT_DIST, FXT_DLY);
-    n = fxr_encode(b);
-    fxs_set(FXS_DEF);
-    check("a layout: version 1, the four ids; decoded back the same", n == FXR_HEAD && b[0] == 1u && fxr_decode(b, n, 1) &&
-          is_layout(FXT_REV, FXT_NONE, FXT_DIST, FXT_DLY));
-    fxs_set(FXS_DEF);
-    check("a song section (all 0) keeps the layout playing", fxr_decode(b, n, 0) && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    memcpy(c, b, n);
-    c[n] = 77, c[n + 1u] = 3, c[n + 2u] = c[n + 3u] = c[n + 4u] = 9;   /* (a later firmware's type) */
-    check("an unknown TLV: skipped, the layout read", fxr_decode(c, n + 5u, 1) && is_layout(FXT_REV, FXT_NONE, FXT_DIST, FXT_DLY));
-    check("a TLV cut short: refused, the default layout", !fxr_decode(c, n + 3u, 1) && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    c[0] = 2;
-    check("a newer version: ignored as a whole, the default layout", !fxr_decode(c, n, 1) && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-}
-
-/* ---- the stores */
-static void tracks(uint32_t seed)
-{
-    uint32_t i;
-    host_tracks_init();
-    for (i = 0; i < NTRK; i++)
-        trk[i].p[P_SLEN] = (int16_t)(8 + seed % 8u);
-}
-static void t_stores(void)
-{
-    int ok;
-    memset(nor, 0xFF, sizeof nor);
-    sec_pend_clear();
-    sec_boot();
-    song.playing = 0, transport_req = 0;
-    tracks(1);
-    layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_DIST);
-    project_save(3);
-    ok = !strcmp(last_msg, "SAVED") && slg_has(FXR_ID0 + 3);
-    tracks(2);
-    fxs_set(FXS_DEF);
-    project_load(3);
-    check("SAVE D with a layout; LOAD it back: the same layout", ok && is_layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_DIST));
-    tracks(3);
-    fxs_set(FXS_DEF);
-    project_save(4);
-    ok = !strcmp(last_msg, "SAVED") && !slg_has(FXR_ID0 + 4);
-    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
-    project_load(4);
-    check("a section in the default layout: no FX record; loading it gives the default", ok && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    tracks(1);
-    layout(FXT_CHO, FXT_NONE, FXT_NONE, FXT_NONE);
-    project_save(3);
-    fxs_set(FXS_DEF);
-    project_save(3);
-    ok = !slg_has(FXR_ID0 + 3);
-    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
-    project_load(3);
-    check("D saved again in the default layout: its record cleared, D loads the default", ok && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    tracks(7);
-    layout(FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE);
-    project_save(5);
-    {
-        uint32_t n;
-        tracks(8);
-        n = sec_capture();
-        slg_put(5, sec_rbuf, n, 0);                     /* (F's record replaced behind its FX record's back) */
-        layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
-        project_load(5);
-        check("F's section record replaced without its FX record: the default, never another version's",
-              is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
+    static const uint8_t NOREV[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_NONE}, NONE[4] = {FXT_NONE, FXT_NONE, FXT_NONE, FXT_NONE};
+    static const uint8_t SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_NONE};
+    static const ins_t NODIST1 = {{FXT_NONE, D1}, {D0, D1}, {D0, D1}, {D0, D1}};
+    uint64_t full = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    check("the mix with every amount up differs from the dry one (the test hears the FX)", full != render(FXS_DEF, 0, 0, 0, 0, 0, 0));
+    check("REV in no master slot: the mix with REV at 0 on the part and every drum lane, sample for sample",
+          render(NOREV, 0, 90, 60, 50, 80, 1) == render(FXS_DEF, 0, 90, 60, 50, 0, 2));
+    check("DIST in none of T1's slots: the mix with its DST 0, sample for sample",
+          render(FXS_DEF, NODIST1, 90, 60, 50, 80, 1) == render(FXS_DEF, 0, 0, 60, 50, 80, 1));
+    check("every master slot and track slot empty: the dry mix, sample for sample (amounts and lane sends kept)",
+          render(NONE, INS_NONE, 90, 60, 50, 80, 1) == render(FXS_DEF, 0, 0, 0, 0, 0, 0));
+    check("the sends in another master order: the same mix", render(SWAP, 0, 90, 60, 50, 80, 1) == full);
+    {   /* the SLICER first (D2): with it off, DIST's place does not matter; with it on and DIST at 0, nothing moves */
+        r_slc = 1;
+        check("part 1's SLICER on, DST 0: the mix as without DIST in a slot (the SLICER then the inserts)",
+              render(FXS_DEF, 0, 0, 60, 50, 80, 1) == render(FXS_DEF, NODIST1, 0, 60, 50, 80, 1));
+        check("... DST 90 heard after the gate (the mix changes)", render(FXS_DEF, 0, 90, 60, 50, 80, 1) != render(FXS_DEF, 0, 0, 60, 50, 80, 1));
+        r_slc = 0;
     }
-    tracks(10);
-    layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE);
-    song.playing = 1;
-    section_store(12);
-    ok = sec_pend_has(12) && sec_pend_has(SEC_PEND_FX + 12);
-    sec_boot();                                         /* (a warm reset: .noinit keeps the arena) */
-    ok &= sec_pend_has(SEC_PEND_FX + 12);
-    fxs_set(FXS_DEF);
-    song.playing = 0;
-    section_load(12);
-    ok &= is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE);
-    check("SAVE + key while playing: M's FX record waits in the arena with it, over a warm reset", ok);
-    sections_write();
-    ok = slg_has(12) && slg_has(FXR_ID0 + 12) && !sec_pend_has(12) && !sec_pend_has(SEC_PEND_FX + 12);
-    fxs_set(FXS_DEF);
-    project_load(12);
-    check("... written when stopped: M and its FX record in the log; LOAD M: the same", ok && is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE));
-    fxs_set(FXS_DEF);
-    ok = section_cue(12);
-    arrangement_apply(12);
-    check("a live jump to M (a song section): the layout playing stays (the layout is the project's)", ok && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    {   /* the autosave's: id FXR_ID_AUTO, keyed by its project's sum */
-        static project_t as;
-        static dlrec_t ad;
-        tracks(16);
-        layout(FXT_REV, FXT_DIST, FXT_NONE, FXT_NONE);
-        proj_capture(&as, &ad);
-        ok = fxr_log_put(FXR_ID_AUTO, as.sum, &as, 0) == 0 && slg_has(FXR_ID_AUTO);
-        fxs_set(FXS_DEF);
-        fxr_for(&as, 1)->psum = 0;
-        fxr_log_get(FXR_ID_AUTO, as.sum, &as);
-        proj_apply(&as, &ad, 1);
-        ok &= is_layout(FXT_REV, FXT_DIST, FXT_NONE, FXT_NONE);
-        fxr_log_get(FXR_ID_AUTO, as.sum ^ 1u, &as);     /* another project's key: none */
-        proj_apply(&as, &ad, 1);
-        check("the autosave's FX record: written beside it, read back with it; another key: the default",
-              ok && is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-        layout(FXT_REV, FXT_DIST, FXT_NONE, FXT_NONE);
-        fxr_for(&as, 1)->psum = 0;                      /* (an old project: nothing bound to it) */
-        proj_apply(&as, &ad, 1);
-        check("an old project (no FX record): the default layout", is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
-    }
-    slg_boot();
-    fxs_set(FXS_DEF);
-    project_load(12);
-    check("after a restart (the log scanned again): M loads its layout", is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE));
-}
-
-/* ---- FX > SLOTS: loading swaps, the page's list; a project without a record and a FILTER in use (D6) */
-static void t_ui(void)
-{
-    int16_t *v;
-    const param_desc_t *d;
-    uint32_t k, ok = 1;
-    fxs_set(FXS_DEF);
-    fxs_load(0, FXT_REV);
-    check("SLOTS: REV into S1 swaps with S4 (one instance per type, nothing lost)", is_layout(FXT_REV, FXT_CHO, FXT_DLY, FXT_DIST));
-    fxs_load(1, FXT_NONE);
-    fxs_load(3, FXT_CHO);
-    check("... S2 emptied, CHO into S4: REV ---- DLY CHO (DIST in no slot, its amounts kept)",
-          is_layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_CHO) && !FXS_ON(FXT_DIST) && fxs_amt(1) == 0xFFu);
-    for (k = 0; k < FX_NSLOT; k++) {
-        d = fxs_desc(k, &v);
-        ok &= d && d->fmt == F_ENUM && d->max == FXS_NLIST - 1 && fxs_list[*v] == fxs_slot[k];
-    }
-    ok &= !strcmp(fxs_names[0], "----") && !strcmp(fxs_names[1], "DST") && fxs_list[FXS_NLIST - 1] != FXT_NONE;
-    check("... the page: each knob names its slot's type (the amounts' labels: DST CHO DLY REV ..., ---- empty)", ok);
-    d = fxs_desc(2, &v);
-    check("... S3's value the type's place in the list", !strcmp(d->names[*v], "DLY"));
-    fxs_set(FXS_DEF);
 #if FELUCCA_TRK_FILT
     {
-        static const uint8_t FILT_CHO[4] = {FXT_DIST, FXT_FILT, FXT_DLY, FXT_REV};
+        static const ins_t FD = {{FXT_FILT, FXT_DIST}, {D0, D1}, {D0, D1}, {D0, D1}};
         uint64_t a, b;
         r_tflt = -40;
-        a = render(0, 90, 0, 50, 80, 0);
-        b = render(FILT_CHO, 90, 0, 50, 80, 0);
-        check("a project without an FX record, a FILTER in use and no CHO: FILT takes CHO's slot (the same mix)", a == b);
-        a = render(0, 90, 60, 0, 80, 0);
-        b = render((const uint8_t[4]){FXT_DIST, FXT_CHO, FXT_FILT, FXT_REV}, 90, 60, 0, 80, 0);
-        check("... no DLY: FILT takes DLY's slot", a == b);
-        check("... the filter is heard (not the mix without it)", a != (r_tflt = 0, render(0, 90, 60, 0, 80, 0)));
-        r_tflt = -40;
-        a = render(FXS_DEF, 90, 60, 50, 80, 0);
+        a = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+        b = render(FXS_DEF, FD, 90, 60, 50, 80, 1);
+        check("T1 S1 DIST S2 FILTER against S1 FILTER S2 DIST (DST 90, FILT -40): the order heard (the mixes differ)", a != b);
+        {
+            static const ins_t NOF = {{FXT_DIST, FXT_NONE}, {D0, D1}, {D0, D1}, {FXT_DIST, FXT_NONE}};
+            a = render(FXS_DEF, NOF, 90, 60, 50, 80, 1);
+            r_tflt = 0;
+            check("... FILTER in no slot of T1 nor DR (-40, -20): the mix as at 0, sample for sample",
+                  a == render(FXS_DEF, 0, 90, 60, 50, 80, 1));
+        }
         r_tflt = 0;
-        b = render(FXS_DEF, 90, 60, 50, 80, 0);
-        check("... FILTER in no slot (the default layout), parts and drum bus at -40 / -20: the mix as at 0, sample for "
-              "sample (D6: not heard, its amounts kept)", a == b);
-        trk[0].p[P_TFLT] = 0, TDRUM->p[P_TFLT] = 0;
-        fxs_auto();
-        check("... no FILTER in use: the default layout", is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
+        check("... FILTER at 0: either order the same mix (bypassed)", render(FXS_DEF, 0, 90, 60, 50, 80, 1) == render(FXS_DEF, FD, 90, 60, 50, 80, 1));
+    }
+    {   /* each order is the two kernels run by hand in that order (fx.c ins_part: dist_run, tflt_part) */
+        static int32_t b1[CTL], b2[CTL];
+        static const uint8_t DF[2] = {FXT_DIST, FXT_FILT}, FDs[2] = {FXT_FILT, FXT_DIST};
+        track_t *t = &trk[0];
+        dist_t d0;
+        tflt_t f0;
+        uint32_t i, r, ok = 1;
+        host_tracks_init();
+        t->p[P_DIST] = 100, t->p[P_TFLT] = -30;
+        for (r = 0; r < 2u; r++) {
+            ins_put(0, r ? FDs : DF);
+            memset(&t->dist, 0, sizeof t->dist), memset(&tflt[0], 0, sizeof tflt[0]);
+            for (i = 0; i < 40u; i++) {                 /* (40 blocks: the filter's glide in, the follower settled) */
+                uint32_t j;
+                for (j = 0; j < CTL; j++)
+                    b1[j] = b2[j] = (int32_t)((j * 2654435761u + i * 40503u) >> 14) - 131072;
+                d0 = t->dist, f0 = tflt[0];
+                ins_part(t, b1, CTL);
+                t->dist = d0, tflt[0] = f0;
+                if (!r)
+                    dist_run(&t->dist, 100, b2, CTL), tflt_part(t, -30, b2, CTL);
+                else
+                    tflt_part(t, -30, b2, CTL), dist_run(&t->dist, 100, b2, CTL);
+                ok &= !memcmp(b1, b2, sizeof b1);
+            }
+        }
+        check("S1 DIST S2 FILTER, and S1 FILTER S2 DIST: each the two kernels run by hand in that order, sample for sample", ok);
+        ins_all(INS_D);
     }
 #endif
 }
 
 #if FELUCCA_MASTER_COMP
 /* ---- a note, silence, then a second note (rendered in a child, every state fresh); the hash of the second's first
- * second. lay1: the layout for the first note (COMP 127 on part 1), lay2 and amt2: for the silence and the second;
- * rest: part 1's COMP insert put at rest by hand before the second (the reference: the master's own states, its DC
- * blocker's remainder, keep the first note's history either way) */
-static uint64_t render_gap(const uint8_t *lay1, const uint8_t *lay2, int16_t amt2, int rest)
+ * second. s1: part 1's slots for the first note (COMP 127), s2 and amt2: for the silence and the second; rest: part 1's
+ * COMP insert put at rest by hand before the second */
+static uint64_t render_gap(const uint8_t *s1, const uint8_t *s2, int16_t amt2, int rest)
 {
     int fd[2];
     uint64_t h = 0;
@@ -351,12 +317,12 @@ static uint64_t render_gap(const uint8_t *lay1, const uint8_t *lay2, int16_t amt
         host_preset(&trk[0], 0, 0);
         trk[0].p[P_DIST] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;   /* (no send: no tail to tell) */
         trk[0].p[P_TCOMP] = 127;
-        fxs_set(lay1);
+        ins_put(0, s1);
         trk_note_on(&trk[0], 48, 127);
         for (b = 0; b < FS / 2u / CTL; b++)             /* 0.5 s held: the reduction deep */
             mix_block(o, CTL);
         trk_note_off(&trk[0], 48);
-        fxs_set(lay2);
+        ins_put(0, s2);
         trk[0].p[P_TCOMP] = amt2;
         for (b = 0; b < 8u * FS / CTL; b++)             /* 8 s: the voice's release, then silence */
             mix_block(o, CTL);
@@ -381,11 +347,13 @@ static uint64_t render_gap(const uint8_t *lay1, const uint8_t *lay2, int16_t amt
 }
 #endif
 
-/* ---- the COMP insert (phase 3): heard only in a slot, at 0 the mix as without, the reduction, the record */
+/* ---- the COMP insert: heard only in a track's slot, each track's own RATIO ATK REL (D6), at 0 the mix as without, the
+ * reduction, the record */
 static void t_comp(void)
 {
 #if FELUCCA_MASTER_COMP
-    static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+    static const ins_t CMP = {{FXT_DIST, FXT_COMP}, {D0, D1}, {D0, D1}, {D0, D1}};
+    static const uint8_t SC[2] = {FXT_DIST, FXT_COMP}, SD[2] = {FXT_DIST, FXT_NONE};
     uint64_t dry, h;
     uint8_t b[FXR_MAX];
     uint32_t n, i;
@@ -397,28 +365,37 @@ static void t_comp(void)
     for (i = 0; i < NPAGES; i++)
         if (!strcmp(PAGES[i].title, "CMP"))
             pg = i;
-    fxs_set(FXS_DEF);
-    check("FX > CMP: there, and hidden while no slot holds the COMP insert", pg < NPAGES && !page_shown(&PAGES[pg]));
-    fxs_set(CMP);
+    song.sel = 0;
+    check("FX > CMP: there, and hidden while none of the selected track's slots holds the COMP", pg < NPAGES && !page_shown(&PAGES[pg]));
+    ins_all(CMP);
     d = fxs_desc(FX_NSLOT + 2u, &v);
-    check("... shown with COMP in S4; its knobs the master COMP's RATIO ATK REL lists, the inserts' own values",
-          page_shown(&PAGES[pg]) && d == &GP[G_CREL] && v == &fxs_cset[2] && fxs_desc(FX_NSLOT, &v) == &GP[G_CRAT]);
-    check("... and FX's S4 knob is the COMP amount (CMP, 0..127)", fxs_amt(3) == P_TCOMP && !strcmp(TP[P_TCOMP].label, "CMP"));
-    fxs_set(FXS_DEF);
+    check("... shown on T1 (COMP in its S2); its knobs the master COMP's RATIO ATK REL lists, T1's own values",
+          page_shown(&PAGES[pg]) && d == &GP[G_CREL] && v == &ins_cset[0][2] && fxs_desc(FX_NSLOT, &v) == &GP[G_CRAT]);
+    song.sel = 1;
+    d = fxs_desc(FX_NSLOT + 2u, &v);
+    check("... T2 selected (no COMP): hidden; its own values", !page_shown(&PAGES[pg]) && v == &ins_cset[1][2]);
+    song.sel = 0;
+    ins_all(INS_D);
     r_cmp = 0;
-    dry = render(CMP, 90, 60, 50, 0, 0);
-    check("COMP loaded, every amount 0: the mix as with REV there and its sends 0, sample for sample",
-          dry == render(FXS_DEF, 90, 60, 50, 0, 0));
+    dry = render(FXS_DEF, CMP, 90, 60, 50, 0, 0);
+    check("COMP in T1's S2, every amount 0: the mix as without it, sample for sample", dry == render(FXS_DEF, 0, 90, 60, 50, 0, 0));
     r_cmp = 120;
-    h = render(FXS_DEF, 90, 60, 50, 0, 0);
-    check("COMP in no slot, part 1 at 120: the mix as at 0, sample for sample", h == dry);
-    check("COMP loaded, part 1 at 120: the mix changes", render(CMP, 90, 60, 50, 0, 0) != dry);
+    h = render(FXS_DEF, 0, 90, 60, 50, 0, 0);
+    check("COMP in no slot of T1, its amount 120: the mix as at 0, sample for sample", h == dry);
+    h = render(FXS_DEF, CMP, 90, 60, 50, 0, 0);
+    check("COMP in T1's S2 at 120: the mix changes", h != dry);
+    ins_cset[1][0] = 7;                                 /* (T2's own ratio: T1's sound unchanged) */
+    check("... T2's RATIO changed (D6: each track's own): T1's mix the same", render(FXS_DEF, CMP, 90, 60, 50, 0, 0) == h);
+    ins_cset[1][0] = GP[G_CRAT].def;
+    ins_cset[0][0] = 7;
+    check("... T1's RATIO changed: T1's mix changes", render(FXS_DEF, CMP, 90, 60, 50, 0, 0) != h);
+    ins_cset[0][0] = GP[G_CRAT].def;
     r_cmp = 0;
-    fxs_cset[0] = 7, fxs_cset[1] = 0, fxs_cset[2] = 2;   /* (the top ratio, the fastest attack) */
+    ins_cset[0][0] = 7, ins_cset[0][1] = 0, ins_cset[0][2] = 2;   /* (the top ratio, the fastest attack) */
     for (n = 0; n < 200u; n++) {                       /* a square at -6 dB, 200 blocks: settled */
         for (i = 0; i < CTL; i++)
             x[i] = (i & 8u) ? 16384 : -16384;
-        tcomp_run(&c, 127, x, x, CTL);
+        tcomp_run(&c, 127, x, x, CTL, 0);
     }
     for (i = 0; i < CTL; i++)
         pk = x[i] > pk ? x[i] : pk;
@@ -428,96 +405,102 @@ static void t_comp(void)
     for (i = 0; i < 3000u; i++) {                      /* (2 s: REL 200 ms, from 24 dB) */
         int32_t y[CTL];
         memset(y, 0, sizeof y);
-        tcomp_run(&c, 0, y, y, CTL);
+        tcomp_run(&c, 0, y, y, CTL, 0);
     }
     check("... back at 0: it lets go, then rests (no reduction, unity gain)", c.gr16 == 0 && c.g13 == 8192);
-    fxs_cset[0] = GP[G_CRAT].def, fxs_cset[1] = GP[G_CATK].def, fxs_cset[2] = GP[G_CREL].def;
-    /* the part silent between the notes (the insert not on the mix): its state does not freeze (smoke F2) */
-    check("COMP 127 on a note, then out of every slot in the silence: the next note with the insert at rest, sample for "
-          "sample", render_gap(CMP, FXS_DEF, 127, 0) == render_gap(CMP, FXS_DEF, 127, 1));
-    check("... its amount set to 0 in the silence (COMP still in S4): the same", render_gap(CMP, CMP, 0, 0) == render_gap(CMP, CMP, 0, 1));
-    check("... at 0, the next note as with COMP in no slot", render_gap(CMP, CMP, 0, 1) == render_gap(CMP, FXS_DEF, 127, 1));
+    ins_cset[0][0] = GP[G_CRAT].def, ins_cset[0][1] = GP[G_CATK].def, ins_cset[0][2] = GP[G_CREL].def;
+    check("COMP 127 on a note, then out of T1's slots in the silence: the next note with the insert at rest, sample for "
+          "sample", render_gap(SC, SD, 127, 0) == render_gap(SC, SD, 127, 1));
+    check("... its amount set to 0 in the silence (COMP still in S2): the same", render_gap(SC, SC, 0, 0) == render_gap(SC, SC, 0, 1));
+    check("... at 0, the next note as with COMP in no slot", render_gap(SC, SC, 0, 1) == render_gap(SC, SD, 127, 1));
     check("... at 127 all along: after 8 s of silence it has let go (AUTO), the next note from rest",
-          render_gap(CMP, CMP, 127, 0) == render_gap(CMP, CMP, 127, 1));
-    /* the record: the parts' amounts and the settings (the drum bus's byte: reserved) */
-    fxs_set(CMP);
-    trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, fxs_cset[2] = 3;
+          render_gap(SC, SC, 127, 0) == render_gap(SC, SC, 127, 1));
+    /* the record: the amounts (the COMP TLV), each track's settings (the track slots' TLV) */
+    ins_all(CMP);
+    trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, ins_cset[0][2] = 3, ins_cset[2][0] = 5;
     n = fxr_encode(b);
-    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, fxs_cset[2] = 6;
-    fxs_set(FXS_DEF);
-    check("the record: COMP's amounts (the parts') and REL back with a load", fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 &&
-          trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 3 && FXS_ON(FXT_COMP));
-    check("... the drum bus's amount (its COMP insert: fx.c dbus_run) first in the TLV, back with a load",
-          TDRUM->p[P_TCOMP] == 9 && b[FXR_HEAD] == FXT_COMP && b[FXR_HEAD + 2u] == 9);
-    b[FXR_HEAD + 2u] = 0;
-    check("... (a record of phase 3, its drum byte written 0: the drum bus's COMP at 0)", fxr_decode(b, n, 1) &&
-          TDRUM->p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127);
-    fxs_cset[2] = 6;
-    check("... a song section: the amounts, not the settings nor the layout", fxr_decode(b, n, 0) && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 6);
+    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, ins_cset[0][2] = 6, ins_cset[2][0] = 1;
+    ins_all(INS_D);
+    check("the record: COMP's amounts, T1's REL and T3's RATIO (each its own), T1's slots back with a load",
+          fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 && trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 &&
+          ins_cset[0][2] == 3 && ins_cset[2][0] == 5 && ins_cset[1][0] == 1 && ins_cset[1][2] == 6 && ins_is(0, FXT_DIST, FXT_COMP));
+    check("... the drum bus's amount first in the COMP TLV, back with a load", TDRUM->p[P_TCOMP] == 9);
+    ins_cset[0][2] = 6;
+    check("... a song section: the amounts, not the settings nor the slots", (ins_all(INS_D), fxr_decode(b, n, 0)) &&
+          trk[2].p[P_TCOMP] == 127 && ins_cset[0][2] == 6 && ins_dflt());
+    {   /* an old record: one RATIO ATK REL for every track (the COMP TLV's): every track takes them */
+        uint8_t o[FXR_HEAD + 2u + FXT_TLV_COMP] = {1, 0, FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP, FXT_COMP, FXT_TLV_COMP,
+                                                    0, 20, 0, 0, 3, 2, 5};
+        uint32_t k, ok;
+        ok = fxr_decode(o, sizeof o, 1);
+        for (k = 0; k < NTRK; k++)
+            ok &= ins_cset[k][0] == 3 && ins_cset[k][1] == 2 && ins_cset[k][2] == 5;
+        check("an old record (COMP in a master slot, the shared settings): every track's COMP takes them; T1's COMP in a slot",
+              ok && trk[0].p[P_TCOMP] == 20 && INS_ON(0, FXT_COMP) && !INS_ON(1, FXT_COMP));
+    }
     trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0;
-    fxs_cset[2] = GP[G_CREL].def;
     trk[2].p[P_TCOMP] = 50;
-    fxr_decode(0, 0, 0);
-    check("... a project without a record: every amount 0", trk[2].p[P_TCOMP] == 0);
+    fxr_decode(0, 0, 1);
+    check("... a project without a record: every amount 0, the settings the defaults", trk[2].p[P_TCOMP] == 0 &&
+          ins_cset[3][0] == GP[G_CRAT].def && ins_cset[3][2] == GP[G_CREL].def);
     fxs_set(FXS_DEF);
+    ins_all(INS_D);
 #endif
 }
 
-/* ---- the drum bus (design phase 4: D5, D7): its inserts and its own sends heard only in a slot, with the drums' FX on;
- * at 0 the mix of before; COMP's gain on every channel; the sends from the bus's mid; the record */
+/* ---- the drum bus: its two slots and its own sends, with the drums' FX on; at 0 the mix of before; COMP's gain on every
+ * channel; the sends from the bus's mid; the record */
 static void t_dbus(void)
 {
-    static const uint8_t NOREV[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_NONE}, NODIST[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};
-    static const uint8_t SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_DIST}, NONE[4] = {FXT_NONE, FXT_NONE, FXT_NONE, FXT_NONE};
+    static const uint8_t NOREV[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_NONE}, NONE[4] = {FXT_NONE, FXT_NONE, FXT_NONE, FXT_NONE};
     static const int16_t ALL[5] = {100, 70, 60, 90, 127};
+    static const ins_t DNO = {{D0, D1}, {D0, D1}, {D0, D1}, {FXT_NONE, FXT_NONE}};
     uint64_t dry, h, base;
     uint8_t b[FXR_MAX];
     uint32_t n, i, k;
     memset(r_db, 0, sizeof r_db);
-    base = render(FXS_DEF, 90, 60, 50, 80, 1);
-    dry = render(FXS_DEF, 0, 0, 0, 0, 0);
+    base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    dry = render(FXS_DEF, 0, 0, 0, 0, 0, 0);
     for (k = 0; k < 4u; k++) {                          /* each of DIST CHO DLY REV on the drum track alone: heard */
         static const char *const NM[4] = {"DIST", "CHO", "DLY", "REV"};
         char m[120];
         memset(r_db, 0, sizeof r_db);
         r_db[k] = ALL[k];
-        h = render(FXS_DEF, 90, 60, 50, 80, 1);
+        h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
         snprintf(m, sizeof m, "the drum track's %s (%d): heard (the mix changes)", NM[k], ALL[k]);
         check(m, h != base);
     }
     memset(r_db, 0, sizeof r_db);
     r_db[3] = 90;
-    h = render(NOREV, 90, 60, 50, 80, 1);
+    h = render(NOREV, 0, 90, 60, 50, 80, 1);
     r_db[3] = 0;
-    check("the drum track's REV with REV in no slot: the mix as without it, sample for sample", h == render(NOREV, 90, 60, 50, 80, 1));
+    check("the drum track's REV with REV in no master slot: the mix as without it, sample for sample", h == render(NOREV, 0, 90, 60, 50, 80, 1));
     r_db[0] = 100;
-    h = render(NODIST, 0, 60, 50, 80, 1);
+    h = render(FXS_DEF, DNO, 90, 60, 50, 80, 1);
     r_db[0] = 0;
-    check("the drum track's DIST with DIST in no slot: the mix as at 0", h == render(NODIST, 0, 60, 50, 80, 1));
+    check("the drum track's DIST in none of its slots: the mix as at 0", h == render(FXS_DEF, DNO, 90, 60, 50, 80, 1));
     memcpy(r_db, ALL, sizeof r_db);
-    check("every drum bus amount up, every slot empty: the dry mix, sample for sample", render(NONE, 90, 60, 50, 80, 1) == dry);
-    h = render(FXS_DEF, 90, 60, 50, 80, 1);
-    check("... the four types in another order: the same mix (the drum bus's inserts in a fixed order, D4)",
-          render(SWAP, 90, 60, 50, 80, 1) == h);
+    check("every drum bus amount up, every slot empty: the dry mix, sample for sample", render(NONE, INS_NONE, 90, 60, 50, 80, 1) == dry);
     r_dbyp = 1;
-    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     memset(r_db, 0, sizeof r_db);
     check("the drums' FX off (P_FXOFF): every drum bus amount unheard (the mix as with them at 0)",
-          h == render(FXS_DEF, 90, 60, 50, 80, 1));
+          h == render(FXS_DEF, 0, 90, 60, 50, 80, 1));
     r_dbyp = 0;
 #if FELUCCA_MASTER_COMP
     {
-        static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+        static const ins_t CMP = {{D0, D1}, {D0, D1}, {D0, D1}, {FXT_DIST, FXT_COMP}};
+        static const uint8_t DCMP[2] = {FXT_DIST, FXT_COMP};
         int32_t gl, gs;
         uint64_t h0;
         r_db[4] = 127;
-        h = render(CMP, 90, 60, 50, 0, 1);
-        h0 = render(FXS_DEF, 90, 60, 50, 0, 1);
+        h = render(FXS_DEF, CMP, 90, 60, 50, 0, 1);
+        h0 = render(FXS_DEF, 0, 90, 60, 50, 0, 1);
         r_db[4] = 0;
-        check("the drum track's COMP (127, COMP in S4): heard", h != render(CMP, 90, 60, 50, 0, 1));
-        check("... in no slot: the mix as at 0", h0 == render(FXS_DEF, 90, 60, 50, 0, 1));
+        check("the drum track's COMP (127, in its S2): heard", h != render(FXS_DEF, CMP, 90, 60, 50, 0, 1));
+        check("... in none of its slots: the mix as at 0", h0 == render(FXS_DEF, 0, 90, 60, 50, 0, 1));
         /* the gain on every channel: a loud bus and an echo send under it, settled; both take the same gain */
-        fxs_set(CMP);
+        ins_put(TRK_DRUM, DCMP);
         TDRUM->p[P_TCOMP] = 127;
         for (n = 0; n < 300u; n++) {
             for (i = 0; i < CTL; i++) {
@@ -537,7 +520,7 @@ static void t_dbus(void)
             dbus_run(CTL);
         }
         check("... back at 0: it lets go, then rests", tcomp_rest(&dbus_comp));
-        fxs_set(FXS_DEF);
+        ins_all(INS_D);
     }
 #endif
     {   /* the drum track's sends: from the bus's mid, ramped over a block */
@@ -566,7 +549,7 @@ static void t_dbus(void)
 #if FELUCCA_MASTER_COMP
     TDRUM->p[P_TCOMP] = 0;
 #endif
-    check("the record: the default layout with drum bus amounts writes them (a TLV a type), back with a section",
+    check("the record: the default slots with drum bus amounts writes them (a TLV a type), back with a section",
           n > FXR_HEAD && fxr_decode(b, n, 0) && TDRUM->p[P_DIST] == 11 && TDRUM->p[P_CHOR] == 22 && TDRUM->p[P_DLY] == 33 &&
           TDRUM->p[P_REV] == 44
 #if FELUCCA_MASTER_COMP
@@ -589,13 +572,50 @@ static void t_dbus(void)
         TDRUM->p[P_REV] = TDRUM->p[P_DIST] = 0;
     }
     fxs_set(FXS_DEF);
+    ins_all(INS_D);
 }
 
-/* ---- each drum sound's inserts (phase 5): heard only in a slot with the drums' FX on; at 0 the mix of before; the
- * SLICER's mono path too; SOUND 3 in the slots' order; the record */
+/* ---- the drum track's send levels (2026-10-12: "it should be like any other track"): 100 % the mix of before, every
+ * lane's send of that bus scaled; the record */
+static void t_kit(void)
+{
+    uint64_t h, base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    uint8_t b[FXR_MAX];
+    uint32_t n;
+    r_kit[0] = 0;
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    check("the drum track's REV level 0: the mix as with every lane's REV 0 (2: no REV), sample for sample",
+          h == (r_kit[0] = 127, render(FXS_DEF, 0, 90, 60, 50, 80, 2)) && h != base);
+    r_kit[1] = 64;
+    check("... its DLY level at 50 %: the mix changes", render(FXS_DEF, 0, 90, 60, 50, 80, 1) != base);
+    r_kit[1] = 127;
+    check("... every level at 100 %: the mix of before (the default)", render(FXS_DEF, 0, 90, 60, 50, 80, 1) == base);
+    {
+        uint32_t v, ok = 1;
+        dsend_kit[0] = dsend_kit[1] = dsend_kit[2] = DKS_DEF;
+        dsend_key = 0xFFFFFFFFu;
+        dsend_table(1);
+        for (v = 0; v <= DSEND_MAX; v++)
+            ok &= dsend_dt[v] == dsend_lvl(v) * 258 && dsend_ct[v] == dsend_lvl(v) * 258;
+        dsend_kit[2] = 64;
+        dsend_table(1);
+        ok &= dsend_ct[31] == dsend_lvl(31) * 258 * 64 / 127 && dsend_dt[31] == dsend_lvl(31) * 258;
+        check("the lanes' send tables: x 1 exactly at 100 %, CHO's x 64 / 127 at 64 (refreshed when a level moves)", ok);
+    }
+    dsend_kit[0] = 30, dsend_kit[2] = DKS_DEF;
+    n = fxr_encode(b);
+    dsend_kit[0] = DKS_DEF;
+    check("the record: a level below 100 % writes the track slots' TLV; back with a load", n > FXR_HEAD &&
+          fxr_decode(b, n, 1) && dsend_kit[0] == 30 && dsend_kit[1] == DKS_DEF);
+    dsend_kit[0] = 99;
+    check("... a song section keeps the levels playing; no record: 100 %", fxr_decode(b, n, 0) && dsend_kit[0] == 99 &&
+          (fxr_decode(0, 0, 1), dsend_kit[0] == DKS_DEF));
+}
+
+/* ---- each drum sound's inserts: always heard (D7) with the drums' FX on; at 0 the mix of before; SOUND 3; the record */
 static void t_dins(void)
 {
-    static const uint8_t NODIST[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV}, SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_DIST};
+    static const ins_t NOD = {{FXT_NONE, FXT_NONE}, {FXT_NONE, FXT_NONE}, {FXT_NONE, FXT_NONE}, {FXT_NONE, FXT_NONE}};
     uint64_t base, h;
     uint8_t b[FXR_MAX];
     uint32_t n, k, ok;
@@ -603,47 +623,40 @@ static void t_dins(void)
     const param_desc_t *d;
     memset(r_db, 0, sizeof r_db);
     memset(r_dl, 0, sizeof r_dl);
-    base = render(FXS_DEF, 90, 60, 50, 80, 1);
+    base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     r_dl[0] = 110;
-    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     check("every drum sound's DIST at 110: heard (the mix changes)", h != base);
-    check("... another slot order: the same mix (fixed order, D4)", render(SWAP, 90, 60, 50, 80, 1) == h);
-    h = render(NODIST, 90, 60, 50, 80, 1);
+    h = render(FXS_DEF, NOD, 0, 60, 50, 80, 1);
     r_dl[0] = 0;
-    check("... DIST in no slot: the mix as at 0, sample for sample", h == render(NODIST, 90, 60, 50, 80, 1));
+    check("... with no DIST in any track's slot: still heard (D7: the sound's own)", h != render(FXS_DEF, NOD, 0, 60, 50, 80, 1));
     r_dl[0] = 110, r_dbyp = 1;
-    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     r_dl[0] = 0;
-    check("... the drums' FX off: as at 0", h == render(FXS_DEF, 90, 60, 50, 80, 1));
+    check("... the drums' FX off: as at 0", h == render(FXS_DEF, 0, 90, 60, 50, 80, 1));
     r_dbyp = 0;
     r_dslc = 1;                                         /* (the drum SLICER on: the sounds into its mono buffer) */
-    base = render(FXS_DEF, 90, 60, 50, 80, 1);
+    base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     r_dl[0] = 110;
-    h = render(FXS_DEF, 90, 60, 50, 80, 1);
-    check("the drum SLICER on (its mono path): every sound's DIST heard", h != base);
-    h = render(NODIST, 90, 60, 50, 80, 1);
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     r_dl[0] = 0;
-    check("... DIST in no slot: as at 0", h == render(NODIST, 90, 60, 50, 80, 1));
+    check("the drum SLICER on (its mono path): every sound's DIST heard", h != base);
     r_dslc = 0;
 #if FELUCCA_MASTER_COMP
-    {
-        static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
-        uint64_t h0;
-        base = render(CMP, 90, 60, 50, 0, 1);
-        r_dl[1] = 127;
-        h = render(CMP, 90, 60, 50, 0, 1);
-        h0 = render(FXS_DEF, 90, 60, 50, 0, 1);
-        r_dl[1] = 0;
-        check("every drum sound's COMP at 127 (COMP in S4): heard", h != base);
-        check("... COMP in no slot: as at 0", h0 == render(FXS_DEF, 90, 60, 50, 0, 1));
-    }
+    base = render(FXS_DEF, 0, 90, 60, 50, 0, 1);
+    r_dl[1] = 127;
+    h = render(FXS_DEF, 0, 90, 60, 50, 0, 1);
+    r_dl[1] = 0;
+    check("every drum sound's COMP at 127 (no COMP in any slot): heard (D7)", h != base);
 #endif
-    /* SOUND 3: the cells follow the slots; DST and CMP the sound's own */
+    /* SOUND 3: DST, then the sends in the master slots' order, then CMP while there is room */
     fxs_set(FXS_DEF);
-    check("SOUND 3 in the default layout: DST CHO DLY REV (value ids 19 18 17 16)", fxs_lane_id(0) == 19u &&
-          fxs_lane_id(1) == 18u && fxs_lane_id(2) == 17u && fxs_lane_id(3) == 16u);
-    fxs_set(SWAP);
-    check("... the slots swapped: the cells follow (REV DLY CHO DST)", fxs_lane_id(0) == 16u && fxs_lane_id(3) == 19u);
+    check("SOUND 3 in the default layout: DST CHO DLY REV (value ids 19 18 17 16: SLOOP's page as it was)",
+          fxs_lane_id(0) == (FELUCCA_FX_DIST ? 19u : 18u) && (!FELUCCA_FX_DIST || (fxs_lane_id(1) == 18u &&
+          fxs_lane_id(2) == 17u && fxs_lane_id(3) == 16u)));
+    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+    check("... REV the only send: DST REV CMP (the cells follow)", !FELUCCA_FX_DIST || (fxs_lane_id(0) == 19u &&
+          fxs_lane_id(1) == 16u && fxs_lane_id(2) == (FELUCCA_MASTER_COMP ? 20u : 0xFFu)));
     fxs_set(FXS_DEF);
     dsend_set(5, 3, 77);
     d = dsend_desc(5, 3, &v);
@@ -667,46 +680,261 @@ static void t_dins(void)
           && dins_amt[1][5] == 127
 #endif
     );
-    for (k = FXR_HEAD; k + 2u <= n; k += 2u + b[k + 1u])
-        if (b[k] == FXT_DIST)
-            break;
-    if (k + 2u <= n) {                                  /* (a phase-4 record: DIST's TLV the bus byte only) */
-        uint8_t c[FXR_MAX];
-        uint32_t m = 0, j;
-        for (j = 0; j < n; j += (j < FXR_HEAD ? 1u : 0u)) {
-            if (j < FXR_HEAD) {
-                c[m++] = b[j];
-                continue;
-            }
-            if (b[j] == FXT_DIST)
-                c[m++] = FXT_DIST, c[m++] = 1, c[m++] = b[j + 2u];
-            else
-                memcpy(c + m, b + j, 2u + b[j + 1u]), m += 2u + b[j + 1u];
-            j += 2u + b[j + 1u];
-        }
-        check("... a TLV without the sounds' part (phase 4): the sounds' DIST 0, the rest read", fxr_decode(c, m, 0) &&
-              dins_amt[0][5] == 0
-#if FELUCCA_MASTER_COMP
-              && dins_amt[1][5] == 127
-#endif
-        );
-    }
+    b[1] = 0;                                           /* (the same record from before the track slots: no flag) */
+    b[2] = FXT_NONE;                                    /* (its layout without DIST nor COMP in a master slot) */
+    check("... an old record (no FXR_F_INS) with DIST and COMP in no master slot: the sounds' DST CMP were never heard: "
+          "0 (rule 8)", fxr_decode(b, n, 0) && dins_amt[0][5] == 0 && dins_amt[1][5] == 0);
     fxr_decode(0, 0, 1);
     check("... none: every sound's insert 0", !dins_amt[0][5] && !dins_amt[1][5]);
     dins_dist[2].env = 999;
     dins_restart(2);
     check("a drum voice's inserts restart with its hit (dins_restart)", dins_dist[2].env == 0);
     fxs_set(FXS_DEF);
+    ins_all(INS_D);
+}
+
+/* ---- an old project on the tracks (fx_rec.c ins_map, the design §4.2): rules 1..8 */
+static void t_map(void)
+{
+    static const uint8_t ALL3[4] = {FXT_DIST, FXT_COMP, FXT_FILT, FXT_REV}, NOINS[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};
+    ins_t m;
+    uint32_t drop, k;
+    host_tracks_init();
+    for (k = 0; k < NTRK; k++)                          /* (the values past P_E7: host_tracks_init leaves them) */
+        for (drop = P_E7 + 1u; drop < P_COUNT; drop++)
+            trk[k].p[drop] = TP[drop].def;
+    drop = ins_map(FXS_OLD, 1, m);
+    check("no record (an old project, a 2.4 import): every part S1 DIST, S2 FILTER (built; rule 3, rule 5), none dropped",
+          !drop && m[0][0] == FXT_DIST && m[1][1] == (FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE) && m[3][0] == FXT_DIST);
+    drop = ins_map(FXS_OLD, 0, m);
+    check("the old default layout (DIST CHO DLY REV): the same (the new track's default, D5)", !drop &&
+          !memcmp(m, INS_D, sizeof m));
+    drop = ins_map(NOINS, 0, m);
+    check("no insert in the old layout: S1 empty, S2 the FILTER (silent at 0: rule 5)", !drop && m[0][0] == FXT_NONE &&
+          m[0][1] == (FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE));
+#if FELUCCA_TRK_FILT
+    trk[1].p[P_TFLT] = -20;
+    drop = ins_map(FXS_OLD, 1, m);
+    check("no record, T2's FILT in use: S1 DIST S2 FILTER (2.4's order; no send displaced)", m[1][0] == FXT_DIST && m[1][1] == FXT_FILT);
+    drop = ins_map(FXS_OLD, 0, m);
+    check("an old record without FILT in a slot, T2's FILT set (unheard then): S2 left empty (not heard now either)",
+          m[1][0] == FXT_DIST && m[1][1] == FXT_NONE && m[0][1] == FXT_FILT);
+    trk[1].p[P_TFLT] = 0;
+    TDRUM->p[P_TFLT] = 30;
+    drop = ins_map(FXS_OLD, 1, m);
+    check("no record, the drum track's FILT in use: S1 FILTER S2 DIST (the drum bus's old order)",
+          m[TRK_DRUM][0] == FXT_FILT && m[TRK_DRUM][1] == FXT_DIST);
+    TDRUM->p[P_TFLT] = 0;
+#if FELUCCA_MASTER_COMP
+    trk[0].p[P_TFLT] = -10, trk[0].p[P_TCOMP] = 40, trk[0].p[P_DIST] = 50;
+    trk[2].p[P_TCOMP] = 40;
+    drop = ins_map(ALL3, 0, m);
+    check("DIST COMP FILT all in master slots, T1 using all three: S1 DIST S2 FILTER, COMP dropped (rule 4, TOOLS > MISS)",
+          (drop & 1u) && m[0][0] == FXT_DIST && m[0][1] == FXT_FILT);
+    check("... T3 using COMP only: S1 DIST (rule 3: room), S2 COMP; not dropped", m[2][0] == FXT_DIST && m[2][1] == FXT_COMP &&
+          !(drop & 4u));
+    trk[0].p[P_DIST] = 0;
+    drop = ins_map(ALL3, 0, m);
+    check("... T1's DST 0: S1 FILTER S2 COMP (DIST only kept while there is room)", !(drop & 1u) &&
+          m[0][0] == FXT_FILT && m[0][1] == FXT_COMP);
+    trk[0].p[P_TFLT] = trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = 0;
+#endif
+#endif
+#if FELUCCA_MASTER_COMP && FELUCCA_AUTO
+    {   /* rule 2: an automation event on the type (a lock), its amount 0, counts as in use */
+        auto_list_t *l = AUTO_L(1);
+        static const uint8_t CMPL[4] = {FXT_COMP, FXT_CHO, FXT_DLY, FXT_REV};
+        l->n = 1, l->ev[0].place = AUTO_ONLY | 3u, l->ev[0].param = (uint8_t)mot_sid(P_TCOMP), l->ev[0].value = 60;
+        drop = ins_map(CMPL, 0, m);
+        check("rule 2: a lock on T2's CMP (its amount 0) with COMP in a master slot: T2 keeps COMP; T1 (no use): not",
+              m[1][0] == FXT_COMP && m[0][0] != FXT_COMP && m[0][1] != FXT_COMP);
+        l->n = 0;
+    }
+#endif
+    {   /* the whole path: an old record (no flag, no TLV 0x42) loads the mapped slots and the sends */
+        uint8_t o[FXR_HEAD] = {1, 0, FXT_REV, FXT_DIST, FXT_NONE, FXT_CHO};
+        k = (uint32_t)fxr_decode(o, sizeof o, 1);
+        check("an old record (REV DIST ---- CHO): the master REV ---- ---- CHO, every track's S1 DIST", k &&
+              is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_CHO) && ins_dflt() && !ins_drop);
+    }
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+}
+
+/* ---- the record */
+static void t_record(void)
+{
+    uint8_t b[FXR_MAX], c[FXR_MAX];
+    uint32_t n;
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    check("the default (the master's sends, the tracks' S1 DIST S2 FILTER): nothing to keep (no record)", fxr_encode(b) == 0u);
+    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY);
+    n = fxr_encode(b);
+    fxs_set(FXS_DEF);
+    check("a layout: version 1, the flag of the track slots, the sends, an empty place the insert the tracks hold (DIST: "
+          "an older build hears it); no TLV 0x42 (the mapping gives the slots); decoded back the same", n == FXR_HEAD &&
+          b[0] == 1u && b[1] == FXR_F_INS && b[2] == FXT_REV && b[3] == FXT_DIST && fxr_decode(b, n, 1) &&
+          is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY) && ins_dflt());
+    {
+        static const ins_t X = {{FXT_NONE, FXT_DIST}, {D0, D1}, {D0, D1}, {D0, D1}};
+        uint32_t k, at, ok = 0;
+        ins_all(X);
+        fxs_set(FXS_DEF);
+        n = fxr_encode(b);
+        for (at = FXR_HEAD; at + 2u <= n; at += 2u + b[at + 1u])
+            ok |= b[at] == INS_TLV && b[at + 1u] == INS_TLV_N && b[at + 2u] == FXT_NONE && b[at + 3u] == FXT_DIST;
+        ins_all(INS_D);
+        check("T1's slots ---- DIST: TLV 0x42 (23 bytes: the 8 slots first); back with a load", ok && fxr_decode(b, n, 1) &&
+              ins_is(0, FXT_NONE, FXT_DIST) && ins_is(1, D0, D1));
+        k = (uint32_t)fxr_decode(b, n, 0);
+        ins_all(INS_D);
+        check("... a song section (all 0) keeps the slots playing", k && fxr_decode(b, n, 0) && ins_dflt());
+        memcpy(c, b, n);
+        c[1] = 0;                                       /* (an older build's reader: no flag known, the TLV skipped) */
+    }
+    layout(FXT_REV, FXT_NONE, FXT_DIST, FXT_DLY);
+    n = fxr_encode(b);
+    memcpy(c, b, n);
+    c[n] = 77, c[n + 1u] = 3, c[n + 2u] = c[n + 3u] = c[n + 4u] = 9;   /* (a later firmware's type) */
+    check("an unknown TLV: skipped, the layout read", fxr_decode(c, n + 5u, 1) && is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY));
+    check("a TLV cut short: refused, the defaults (a record-less project's)", !fxr_decode(c, n + 3u, 1) &&
+          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+    c[0] = 2;
+    check("a newer version: ignored as a whole, the defaults", !fxr_decode(c, n, 1) && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    fxs_set(FXS_DEF);
+}
+
+/* ---- the stores */
+static void tracks(uint32_t seed)
+{
+    uint32_t i;
+    host_tracks_init();
+    for (i = 0; i < NTRK; i++)
+        trk[i].p[P_SLEN] = (int16_t)(8 + seed % 8u);
+}
+static void t_stores(void)
+{
+    static const ins_t X = {{FXT_NONE, FXT_DIST}, {D0, D1}, {D0, D1}, {D0, D1}};
+    static const ins_t Y = {{D0, D1}, {D0, D1}, {FXT_NONE, FXT_NONE}, {D0, D1}};
+    int ok;
+    memset(nor, 0xFF, sizeof nor);
+    sec_pend_clear();
+    sec_boot();
+    song.playing = 0, transport_req = 0;
+    tracks(1);
+    layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_NONE);
+    ins_all(X);
+    project_save(3);
+    ok = !strcmp(last_msg, "SAVED") && slg_has(FXR_ID0 + 3);
+    tracks(2);
+    fxs_set(FXS_DEF);
+    project_load(3);
+    check("SAVE D with a layout and T1's slots; LOAD it back: the same", ok && is_layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_NONE) &&
+          ins_is(0, FXT_NONE, FXT_DIST));
+    tracks(3);
+    fxs_set(FXS_DEF);
+    project_save(4);
+    ok = !strcmp(last_msg, "SAVED") && !slg_has(FXR_ID0 + 4);
+    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+    ins_all(X);
+    project_load(4);
+    check("a section in the default layout: no FX record; loading it gives the defaults", ok &&
+          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+    tracks(1);
+    layout(FXT_CHO, FXT_NONE, FXT_NONE, FXT_NONE);
+    project_save(3);
+    fxs_set(FXS_DEF);
+    project_save(3);
+    ok = !slg_has(FXR_ID0 + 3);
+    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+    project_load(3);
+    check("D saved again in the default layout: its record cleared, D loads the default", ok && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    tracks(7);
+    layout(FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE);
+    project_save(5);
+    {
+        uint32_t n;
+        tracks(8);
+        n = sec_capture();
+        slg_put(5, sec_rbuf, n, 0);                     /* (F's record replaced behind its FX record's back) */
+        layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+        project_load(5);
+        check("F's section record replaced without its FX record: the default, never another version's",
+              is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    }
+    tracks(10);
+    layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE);
+    ins_all(Y);
+    song.playing = 1;
+    section_store(12);
+    ok = sec_pend_has(12) && sec_pend_has(SEC_PEND_FX + 12);
+    sec_boot();                                         /* (a warm reset: .noinit keeps the arena) */
+    ok &= sec_pend_has(SEC_PEND_FX + 12);
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    song.playing = 0;
+    section_load(12);
+    ok &= is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE) && ins_is(2, FXT_NONE, FXT_NONE);
+    check("SAVE + key while playing: M's FX record (T3's empty slots too) waits in the arena with it, over a warm reset", ok);
+    sections_write();
+    ok = slg_has(12) && slg_has(FXR_ID0 + 12) && !sec_pend_has(12) && !sec_pend_has(SEC_PEND_FX + 12);
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    project_load(12);
+    check("... written when stopped: M and its FX record in the log; LOAD M: the same", ok &&
+          is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE) && ins_is(2, FXT_NONE, FXT_NONE));
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    ok = section_cue(12);
+    arrangement_apply(12);
+    check("a live jump to M (a song section): the layout and the slots playing stay (the project's)", ok &&
+          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+    {   /* the autosave's: id FXR_ID_AUTO, keyed by its project's sum */
+        static project_t as;
+        static dlrec_t ad;
+        tracks(16);
+        layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+        ins_all(X);
+        proj_capture(&as, &ad);
+        ok = fxr_log_put(FXR_ID_AUTO, as.sum, &as, 0) == 0 && slg_has(FXR_ID_AUTO);
+        fxs_set(FXS_DEF);
+        ins_all(INS_D);
+        fxr_for(&as, 1)->psum = 0;
+        fxr_log_get(FXR_ID_AUTO, as.sum, &as);
+        proj_apply(&as, &ad, 1);
+        ok &= is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE) && ins_is(0, FXT_NONE, FXT_DIST);
+        fxr_log_get(FXR_ID_AUTO, as.sum ^ 1u, &as);     /* another project's key: none */
+        proj_apply(&as, &ad, 1);
+        check("the autosave's FX record: written beside it, read back with it; another key: the defaults",
+              ok && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+        layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+        ins_all(X);
+        fxr_for(&as, 1)->psum = 0;                      /* (an old project: nothing bound to it) */
+        proj_apply(&as, &ad, 1);
+        check("an old project (no FX record): the default layout, the default slots", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) &&
+              ins_dflt());
+    }
+    slg_boot();
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    project_load(12);
+    check("after a restart (the log scanned again): M loads its layout and slots", is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE) &&
+          ins_is(2, FXT_NONE, FXT_NONE));
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
 }
 
 int main(void)
 {
     t_layout();
-    t_ui();
+    t_ins();
     t_comp();
     t_audio();
     t_dbus();
+    t_kit();
     t_dins();
+    t_map();
     t_record();
     t_stores();
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");

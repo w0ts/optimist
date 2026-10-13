@@ -101,21 +101,19 @@ static void golden(void)
     lost = 0xFFFFu;
     if (proj_from_sl24(&q, gold, sizeof gold, x, 0)) {
         /* the export is of the working project (ed_sl24.c) and reads its FX slots (sl24_fx_out): the import applied as
-         * LOAD twice does (proj_apply; no FX record in 2.4's: fx_slots.c fxs_auto), then exported */
+         * LOAD twice does (proj_apply; no FX record in 2.4's: fx_rec.c ins_map, each part S1 DIST S2 FILTER), then
+         * exported */
         proj_apply(&q, &d0, 1);
-        for (k = 0; k < FX_NSLOT; k++)
-            if (fxs_slot[k] == FXT_FILT)
-                gone = FXT_AMT[FXS_DEF[k]];
         lost = proj_to_sl24(&q, xp, out, 0);
         host_tracks_init(), fxs_set(FXS_DEF);            /* (the state the other parts start from) */
     }
     check("golden FUN5 -> ours -> 2.4: a SLOOP 2.4 project (magic, size, FNV sum)", sl24_is(out, sizeof out));
-    /* TRK_FILT: its FILT (-20, every track) takes the slot of the type it silences least, and the golden uses all four of
-     * DST CHO DLY REV: that type is not heard here, so it goes to 2.4 at 0 and SX24_SLOTS says so (FX-SLOTS-INSERTS-DESIGN
-     * P7-4, a known consequence of D6: four slots) */
-    check(FILT_IN ? "... it reports the FM6 part (the closest factory patch) and SLOTS (the type FILT displaced), nothing else"
-                  : "... it reports the FM6 part (its voice: the closest factory patch) and nothing else",
-          lost == (SX24_FM6 | (FILT_IN ? SX24_SLOTS : 0u)) && (gone != 0xFFu) == FILT_IN);
+    /* TRK_FILT: its FILT (-20, every track) and all four of DST CHO DLY REV: since the track insert slots (2026-10-12) the
+     * FILTER is each part's S2, no send displaced: the round trip loses nothing for them (the old FX-SLOTS-INSERTS-DESIGN
+     * P7-4 loss is gone) */
+    check("... it reports the FM6 part (its voice: the closest factory patch) and nothing else (FILT and the four FX kept)",
+          lost == SX24_FM6);
+    (void)gone;
     ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_MIDI) && r16(out, 8u + 2u * G_MIDI) == 0 &&
          r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 && r16(out, 8u + 2u * G_INFO) == 0 &&
          !memcmp(out + 8u + 2u * (G_INFO + 1u), gold + 8u + 2u * (G_INFO + 1u), 2u * (PJ_NG - G_INFO - 1u) + 4u);
@@ -394,34 +392,61 @@ static void fx_slots24(void)
 {
     static project_t q;
     static stepx_t x[NTRK];
-    static const uint8_t NOREV[FX_NSLOT] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+    static const uint8_t NOREV[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_NONE}, NOINS[2] = {FXT_NONE, FXT_NONE};
     uint32_t k, ok, lost, base;
     ours(&q, x);
+    ins_defaults();
     base = proj_to_sl24(&q, 0, out, 0);
-    check("FX slots: the default layout, every insert amount 0: nothing more lost than before", !(base & (SX24_SLOTS | SX24_COMP | SX24_DINS | SX24_DBUS)));
+    check("FX slots: the default layout and track slots, every insert amount 0: nothing more lost than before",
+          !(base & (SX24_SLOTS | SX24_COMP | SX24_DINS | SX24_DBUS | SX24_INSORD)));
     fxs_set(NOREV);
     lost = proj_to_sl24(&q, 0, out, 0);
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= p24(out, k, P_REV) == 0 && p24(out, k, P_DLY) == (int16_t)(k * 11u + P_DLY * 3u) - 20 && q.t[k].p[P_REV] != 0;
-    check("REV in no slot: its amounts written 0 (2.4 would play them), the others as they are; SLOTS lost", ok && lost == (base | SX24_SLOTS));
-    trk[1].p[P_TCOMP] = 40;
-    check("COMP in a slot and a part's amount: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
-    trk[1].p[P_TCOMP] = 0, dins_amt[1][7] = 3;
-    check("... a drum sound's COMP: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
-    dins_amt[1][7] = 0, dins_amt[0][2] = 9, TDRUM->p[P_DLY] = 20;
-    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_DINS | SX24_DBUS));
+    check("REV in no master slot: its amounts written 0 (2.4 would play them), the others as they are; SLOTS lost", ok && lost == (base | SX24_SLOTS));
     fxs_set(FXS_DEF);
-    trk[1].p[P_TCOMP] = 40, TDRUM->p[P_REV] = 5;
-    check("the default layout (COMP in no slot): its amount not heard, not lost; the drum bus's REV, the sound's DIST lost",
-          proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
-    trk[1].p[P_TCOMP] = 0, TDRUM->p[P_REV] = TDRUM->p[P_DLY] = 0, dins_amt[0][2] = 0;
+    ins_put(1, NOINS);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    check("T2's slots empty: its DST (set) written 0, the other parts' as they are; SLOTS lost",
+          p24(out, 1, P_DIST) == 0 && (q.t[1].p[P_DIST] == 0 || lost == (base | SX24_SLOTS)) &&
+          p24(out, 2, P_DIST) == q.t[2].p[P_DIST]);
+    ins_defaults();
+#if FELUCCA_MASTER_COMP
+    ins_load(1, 1, FXT_COMP);
+    trk[1].p[P_TCOMP] = 40;
+    check("COMP in T2's S2 and its amount: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_COMP));
+    ins_defaults();
+    check("... COMP in no slot of T2 (its amount not heard): not lost", proj_to_sl24(&q, 0, out, 0) == base);
+    trk[1].p[P_TCOMP] = 0, dins_amt[1][7] = 3;
+    check("a drum sound's COMP (always heard, D7): COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_COMP));
+    dins_amt[1][7] = 0;
+#endif
+    dins_amt[0][2] = 9, TDRUM->p[P_DLY] = 20;
+    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
+    dins_amt[0][2] = 0, TDRUM->p[P_DLY] = 0;
+    dsend_kit[1] = 64;
+    check("the drum track's DLY level at 50 %: DBUS lost (2.4 has none)", proj_to_sl24(&q, 0, out, 0) == (base | SX24_DBUS));
+    dsend_kit[1] = DKS_DEF;
+#if FELUCCA_TRK_FILT
+    {
+        static const uint8_t FD[2] = {FXT_FILT, FXT_DIST};
+        int16_t f = trk[0].p[P_TFLT], d = trk[0].p[P_DIST];
+        trk[0].p[P_TFLT] = -20, trk[0].p[P_DIST] = 50;
+        ins_put(0, FD);
+        check("T1's FILTER before its DIST, both on: INSORD lost (2.4 runs DIST, then FILT)",
+              (proj_to_sl24(&q, 0, out, 0) & SX24_INSORD) != 0u);
+        ins_defaults();
+        check("... S1 DIST S2 FILTER (2.4's order): not lost", (proj_to_sl24(&q, 0, out, 0) & SX24_INSORD) == 0u);
+        trk[0].p[P_TFLT] = f, trk[0].p[P_DIST] = d;
+    }
+#endif
     /* the FX returns (2026-10-12, core.h G_CRET G_DRET G_RRET): 2.4 has none, its wet comes back at unity */
     song.g[G_CRET] = song.g[G_DRET] = song.g[G_RRET] = 127;
     base = proj_to_sl24(&q, 0, out, 0);
     check("FX returns at unity: nothing lost for them", !(base & SX24_FXRET));
-    check("the second word's bits are each their own: CHANCE 0, LSYNC 1, LAUTO 2, DLFO 3, FXRET 4",
+    check("the second word's bits are each their own: CHANCE 0, LSYNC 1, LAUTO 2, DLFO 3, FXRET 4, INSORD 6",
           (SX24_CHANCE >> 14) == 1u && (SX24_LSYNC >> 14) == 2u && (SX24_LAUTO >> 14) == 4u && (SX24_DLFO >> 14) == 8u &&
-          (SX24_FXRET >> 14) == 16u);
+          (SX24_FXRET >> 14) == 16u && (SX24_INSORD >> 14) == 64u && SX24_INSORD == 1048576u);
     song.g[G_DRET] = 64;
     check("DLY RET at one half: FXRET lost (2.4 plays it at unity)", proj_to_sl24(&q, 0, out, 0) == (base | SX24_FXRET));
     fxs_set(NOREV);
