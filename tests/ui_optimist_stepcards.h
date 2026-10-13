@@ -19,6 +19,7 @@ static void sc_open_drums(void)
 {
     reset_ui();
     song.sel = TRK_DRUM;
+    TSEL->p[P_SLEN] = 16;                               /* (a LEN left by the fuzz before: the keys 1..16 are steps of it) */
     tap(B_SEQ);
     lane_select(2);
     frames(3);
