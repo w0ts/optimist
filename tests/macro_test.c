@@ -241,20 +241,21 @@ static void t_shapes(void)
     track_t *t = &trk[0];
     int32_t a, b, c, d;
     scene();
-    t->p[P_LD_FLT] = 20;
+    t->p[P_L1DA] = LT_FLT, t->p[P_L1AA] = 40;         /* (LFO DEST: slot A FLT, a depth of 20 of before) */
     pos(0, -64, 0, 0);
     mac_pre();
-    a = t->p[P_LD_FLT];
+    a = (lfo_mac_m >> 1) & 1u ? lfo_mac[0][1] : -999;
     mac_post();
     pos(0, -32, 0, 0);
     mac_pre();
-    b = t->p[P_LD_FLT];
+    b = (lfo_mac_m >> 1) & 1u ? lfo_mac[0][1] : -999;
     mac_post();
     pos(0, 63, 0, 0);
     mac_pre();
-    c = t->p[P_LD_FLT];
+    c = (lfo_mac_m >> 1) & 1u ? lfo_mac[0][1] : -999;
     mac_post();
-    check(a == 0 && b == 10 && c == 52 && t->p[P_LD_FLT] == 20, "mapping: MOTION -64 scales LFO > FLT to 0, -32 halves it, +63 adds 32");
+    check(a == 0 && b == 20 && c == 104 && t->p[P_L1AA] == 40 && !lfo_mac_m,
+          "mapping: MOTION -64 scales LFO > FLT to 0, -32 halves it, +63 adds 32 (as a depth: AMT units x 2), the slot untouched");
     trk[0].p[P_PAN] = trk[1].p[P_PAN] = trk[2].p[P_PAN] = 0;
     pos(0, 0, 63, 0);
     mac_pre();
@@ -573,7 +574,15 @@ static void t_effective(void)
         for (k = 0; k < NPART; k++)
             for (id = 0; id < P_COUNT; id++) {
                 int32_t want = mac_effective(k, id, p0[k][id]);   /* ... against the UI's, from the authored ones */
-                checks++, bad += trk[k].p[id] != want, moved += want != p0[k][id];
+                int32_t got = trk[k].p[id];
+                if ((id == P_L1AA || id == P_L1AB) && LT_CLASSIC(p0[k][id - 1u])) {   /* (an LFO slot's AMT: the macro's
+                                                                                       * depth for its destination, lfo_mac) */
+                    uint32_t d = (uint32_t)(p0[k][id - 1u] - LT_PIT);
+                    if (p0[k][P_L1DA] == p0[k][P_L1DB] || !((lfo_mac_m >> (4u * k + d)) & 1u))
+                        continue;                       /* (two slots on one: the macro moves their sum) */
+                    got = lfo_mac[k][d];
+                }
+                checks++, bad += got != want, moved += want != p0[k][id];
             }
         for (id = 0; id < G_COUNT; id++) {
             int32_t want = mac_effective_g(id, g0[id]);
@@ -596,8 +605,10 @@ static void t_effective(void)
     pos(0, 35, 0, -38);                              /* the user's project: ENERGY -38 scales DST 100 to 40 */
     check(mac_effective(0, P_DIST, 100) == 100 * (64 - 38) / 64 && mac_effective(0, P_DIST, 100) == 40,
           "effective: MOTION +35 / ENERGY -38: DST 100 plays as 40");
-    check(mac_effective(0, P_LD_FLT, 0) == 32 * 35 / 63 && mac_effective(1, P_LD_SHP, 0) == 20 * 35 / 63,
-          "effective: ... LFO FLT at 0 plays +17, SHP +11");
+    trk[0].p[P_L1DA] = LT_FLT, trk[1].p[P_L1DB] = LT_SHP;
+    check(mac_effective(0, P_L1AA, 0) == 2 * (32 * 35 / 63) && mac_effective(1, P_L1AB, 0) == 2 * (20 * 35 / 63),
+          "effective: ... an LFO slot on FLT at 0 plays +17 (AMT 34), on SHP +11 (AMT 22)");
+    trk[0].p[P_L1DA] = trk[1].p[P_L1DB] = LT_OFF;
     check(mac_effective(TRK_DRUM, P_DIST, 100) == 100 && mac_effective(0, P_MUTE, 1) == 1,
           "effective: the drum track and untouched values come back as they are");
     pos(0, 0, 0, 0);

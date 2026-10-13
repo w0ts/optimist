@@ -372,6 +372,10 @@ job; ( jobin
     run "LFO 2: params, off = nothing, free / synced RATE, PIT FLT SHP AMP maths, POL, S&H without rng(), TRIG, renders, project round trip, old projects" "$OUT/lfo2_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=0 -o "$OUT/lfo2_test0" tests/lfo2_test.c -lm
     run "LFO 2 left out: a project with it loads (the drum track's slots back to their defaults), MISS names it" "$OUT/lfo2_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
+    run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), XRATE XAMT bounded, macros, old locks" "$OUT/lfo_slots_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
+    run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -DFELUCCA_LFO2=1 -o "$OUT/sl26_import_test_lfo2" tests/sl26_import_test.c -lm
     run "SLOOP 2.6 import with LFO 2: its LFO's TRIG FREE / POL UNI onto LFO 2; LFO 2 exported as 2.4's LFO, else lost (bit 9)" "$OUT/sl26_import_test_lfo2"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/regress_lfo2" tests/regress.c -lm
@@ -718,7 +722,7 @@ job; ( jobin
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0"; do
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
         mkdir -p "$OUT/help"

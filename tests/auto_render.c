@@ -88,7 +88,7 @@ static uint32_t step_cost(track_t *t, uint32_t n)
 static int cpu(void)
 {
     static const uint8_t LK[24] = {P_LEVEL, P_ATK, P_DEC, P_SUS, P_REL, P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LRATE, P_LPHASE,
-                                   P_LFADE, P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP, P_SGATE, P_DIST, P_CHOR, P_DLY, P_REV,
+                                   P_LFADE, P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH, P_SGATE, P_DIST, P_CHOR, P_DLY, P_REV,
                                    P_GLIDE, P_PAN, P_DETUNE, P_E0};
     track_t *t = &trk[0];
     uint32_t i, none, full, ok = 1;
@@ -142,7 +142,12 @@ int main(int argc, char **argv)
     step_set_chance(&trk[0].step[6], 50);             /* (the chance bits: the same random draws) */
     fill(&trk[0], 8, FC_FILL);
     (void)lock_set(&trk[0], 2, P_PAN, -40);
+#ifdef P_LEG_FLT
+    (void)auto_put(AL(&trk[0]), 4u | AUTO_ONLY, P_LEG_FLT, 50);   /* (a lock of LFO DEST FLT as stored before LFO DEST had
+                                                         * slots: played onto a free slot, params.c lfo_leg_ev) */
+#else
     (void)lock_set(&trk[0], 4, P_LD_FLT, 50);
+#endif
     (void)lock_set(&trk[0], 10, P_PAN, 30);
     for (i = 0; i < 16u; i += 4u) {                   /* track 2: a chord every 4 steps, motion on CHORUS */
         trk[1].step[i].note[0] = 60, trk[1].step[i].note[1] = 64, trk[1].step[i].n = 2;

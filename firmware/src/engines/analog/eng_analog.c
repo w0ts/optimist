@@ -104,12 +104,12 @@ static const preset_t ANALOG_PRESETS[] = {
     /* plugg / soft trap: a round triangle bass */
     {"PLUGG BASS", {2, 0, 0, 0, 92, 0, 30, 0}, {0, 96, 92, 34}, 0, 1, FX(0, 0, 0, 6), XP(P_GLIDE + 1, 52, P_GLMODE + 1, 1, P_TRANS + 1, -24)},
     /* drum & bass: two detuned saws, slowly moving filter */
-    {"REESE", {0, 22, 64, 0, 56, 22, 36, 40}, {0, 70, 118, 28}, 0, 1, FX(0, 22, 0, 6), XP(P_LRATE + 1, 22, P_LD_FLT + 1, 10, P_TRANS + 1, -24)},
-    {"WOBBLE", {0, 9, 64, 0, 38, 72, 62, 30}, {0, 64, 127, 22}, 0, 1, FX(24, 0, 0, 4), XP(P_LRATE + 1, 74, P_LD_FLT + 1, 40, P_TRANS + 1, -24)},
+    {"REESE", {0, 22, 64, 0, 56, 22, 36, 40}, {0, 70, 118, 28}, 0, 1, FX(0, 22, 0, 6), XP(P_LRATE + 1, 22, P_LEG_FLT + 1, 10, P_TRANS + 1, -24)},
+    {"WOBBLE", {0, 9, 64, 0, 38, 72, 62, 30}, {0, 64, 127, 22}, 0, 1, FX(24, 0, 0, 4), XP(P_LRATE + 1, 74, P_LEG_FLT + 1, 40, P_TRANS + 1, -24)},
     /* west coast: a square bass that slides, the high sine-ish lead with a delayed vibrato */
     {"FUNK BASS", {1, 6, 50, 0, 50, 30, 22, 64}, {0, 55, 62, 20}, 30, 1, FX(0, 0, 0, 4), XP(P_GLIDE + 1, 50, P_GLMODE + 1, 1, P_TRANS + 1, -24)},
     {"G-FUNK LD", {2, 0, 0, 0, 92, 0, 10, 64}, {6, 70, 112, 46}, 0, 1, FX(0, 0, 28, 30),
-     XP(P_GLIDE + 1, 74, P_LD_PIT + 1, 2, P_LRATE + 1, 89, P_LFADE + 1, 50)},
+     XP(P_GLIDE + 1, 74, P_LEG_PIT + 1, 2, P_LRATE + 1, 89, P_LFADE + 1, 50)},
     {"TRAP PLUCK", {0, 8, 64, 0, 52, 35, 20, 64}, {0, 80, 24, 45}, 48, 0, FX(0, 15, 34, 26)},
     {"SYN BRASS", {0, 10, 64, 0, 45, 20, 16, 64}, {12, 70, 96, 35}, 34, 0, FX(0, 15, 12, 24)},
 #if FELUCCA_ANALOG2
@@ -119,14 +119,14 @@ static const preset_t ANALOG_PRESETS[] = {
     /* trance / EDM: eight detuned saw voices on one note */
     {"SUPERSAW", {0, 14, 64, 0, 96, 12, 10, 64}, {4, 70, 112, 46}, 10, 1, FX(0, 20, 30, 36), XP(P_VOICE + 1, 3, P_DETUNE + 1, 64, P_GLIDE + 1, 30)},
 #endif
-    {"WARM PAD", {4, 12, 64, 6, 52, 8, 0, 32}, {75, 90, 115, 90}, 0, 0, FX(0, 55, 20, 55), XP(P_LRATE + 1, 30, P_LD_SHP + 1, 20)},
+    {"WARM PAD", {4, 12, 64, 6, 52, 8, 0, 32}, {75, 90, 115, 90}, 0, 0, FX(0, 55, 20, 55), XP(P_LRATE + 1, 30, P_LEG_SHP + 1, 20)},
     {"DARK STR", {0, 18, 64, 0, 48, 6, 0, 32}, {60, 90, 118, 85}, 0, 0, FX(0, 50, 18, 60)},
-    {"ATMOS PAD", {4, 25, 64, 20, 60, 15, 0, 32}, {90, 100, 120, 100}, 0, 0, FX(0, 60, 30, 75), XP(P_LRATE + 1, 18, P_LD_PIT + 1, 1)},
+    {"ATMOS PAD", {4, 25, 64, 20, 60, 15, 0, 32}, {90, 100, 120, 100}, 0, 0, FX(0, 60, 30, 75), XP(P_LRATE + 1, 18, P_LEG_PIT + 1, 1)},
 #if FELUCCA_ANALOG2
     /* SUPER's presets (its engine went into ANALOG 2): the swarm, SUPER's DRFT, FTYP and SUB in A2_PX */
     {"SUPER LEAD", {0, 0, 0, 0, 100, 18, 0, 64}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
     {"SUPER PAD", {0, 0, 0, 0, 64, 12, 0, 64}, {90, 90, 118, 100}, 8, 0, FX(0, 50, 25, 80),
-     XP(P_LRATE + 1, 14, P_LD_FLT + 1, 12)},
+     XP(P_LRATE + 1, 14, P_LEG_FLT + 1, 12)},
     {"SUPER CHRD", {0, 0, 0, 0, 70, 22, 0, 64}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
     {"SUPER PLCK", {0, 0, 0, 0, 60, 30, 0, 64}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
     /* the rave hoover: wide, a square an octave below (osc 2), a swoop up into each note, a slow glide */

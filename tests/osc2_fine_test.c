@@ -31,7 +31,7 @@ static void setup(track_t *t, uint32_t e, uint32_t det_p)
     t->p[P_ED_FLT] = t->p[P_ED_PIT] = t->p[P_ED_SHP] = 0;
     t->p[P_VOICE] = V_POLY, t->p[P_GLIDE] = 0, t->p[P_TRANS] = 0, t->p[P_DETUNE] = 0;
     t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
-    t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;
+    t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = 0;
 #if FELUCCA_ANALOG2
     if (det_p == P_E1)
         t->p[P_A2DRFT] = 0, t->p[P_A2SWRM] = 0, t->p[P_A2SEMI] = 0, t->p[P_A2SYNC] = 0;
@@ -104,7 +104,7 @@ static int engine_cases(const char *eng, uint32_t e, uint32_t det_p)
     ok &= report(eng, "glide C3 -> C4", w, seen);
 
     setup(t, e, det_p);
-    t->p[P_LD_PIT] = 24, t->p[P_LRATE] = 70;
+    t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 48, t->p[P_LRATE] = 70;
     trk_note_on(t, 60, 100);
     seen = DTN, w = worst_err(t, 800, &seen);
     ok &= report(eng, "LFO pitch", w, seen);

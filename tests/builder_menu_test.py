@@ -184,9 +184,11 @@ async def main():
         app = M.Builder(dict(base), prof)
         async with app.run_test(size=(200, 60)) as pilot:
             await pilot.pause()
+            over0 = app.over                                # (the profile as loaded: a full one may sit inside the fit
+            await toggle(app, pilot, "BLE")                 # margin, FIT_MARGIN, and show over before BLE is touched)
             await toggle(app, pilot, "BLE")
-            await toggle(app, pilot, "BLE")
-            check(f"{prof}: BLE ticked then unticked: exactly as it was ({RM.short(chosen)} restored)", app.cfg == base and not app.over)
+            check(f"{prof}: BLE ticked then unticked: exactly as it was ({RM.short(chosen)} restored)",
+                  app.cfg == base and app.over == over0 and bool(app.over) == bool(C.over_any(base, costs)))
             await toggle(app, pilot, "BLE")
             await toggle(app, pilot, chosen)
             check(f"{prof}: {RM.short(chosen)} ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",

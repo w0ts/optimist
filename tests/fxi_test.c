@@ -194,11 +194,11 @@ static void t_query(void)
 }
 
 /* ---- Lending (fxi.c): the chorus send's line as CHRS instances while CHO is in no master slot */
-static int32_t lo[2 * CTL];
+static int32_t mixbuf[2 * CTL];
 static void blocks(uint32_t nb)                         /* the whole mix, nb blocks, the main loop's pass between them */
 {
     while (nb--) {
-        mix_block(lo, CTL);
+        mix_block(mixbuf, CTL);
         fxi_poll();
     }
 }
@@ -255,7 +255,7 @@ static void t_lend(void)
     fxi_poll();
     check("CHO back in a slot: taking it back (the insert still on it, evicted, the gate still set)",
           fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHRS, k) == i && ifx_chrs[i].evict && (fxl_lent & 1u));
-    mix_block(lo, CTL);
+    mix_block(mixbuf, CTL);
     w1 = ifx_chrs[i].w;
     check("... a fade-out, not a cut (one block: down by 32 x the slope)", w0 == 32768 && w1 == w0 - (int32_t)CTL * IFX_SLOPE);
     blocks(8);

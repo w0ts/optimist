@@ -14,7 +14,8 @@
     {"kind": "page", "ctx": "LFO", "params": {
       "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
     {"kind": "page", "ctx": "LFO DEST", "params": {
-      "PIT": "LFO to pitch (vibrato)", "FLT": "LFO to filter", "SHP": "LFO to shape", "AMP": "LFO to level (tremolo)"}},
+      "DST A": "What LFO moves (slot A)", "AMT A": "How much LFO moves A", "DST B": "What LFO moves (slot B)",
+      "AMT B": "How much LFO moves B"}},
     {"kind": "page", "ctx": "FX", "params": {
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
@@ -280,11 +281,18 @@
       "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
+    {"kind": "page", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "POL": "LFO 2: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
+      "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
+      "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
     {"kind": "op", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
-      "DEST": "What LFO 2 moves", "AMT": "How much LFO 2 moves it"}},
+      "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
+      "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_PATTERNS", "params": {
       "T1": "T1's pattern in this scene", "T2": "T2's pattern in this scene", "T3": "T3's pattern in this scene",
       "DR": "DR's pattern in this scene"}},

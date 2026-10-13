@@ -298,18 +298,23 @@ static int l2_import(const int16_t (*dep)[4], const int8_t (*tp)[2])
     memcpy(c, f26, sizeof c);
     for (k = 0; dep && k < NPART; k++) {
         for (i = 0; i < 4u; i++)
-            T26W(c, k)[2u * (P_LD_PIT + i)] = (uint8_t)dep[k][i], T26W(c, k)[2u * (P_LD_PIT + i) + 1u] = (uint8_t)((uint16_t)dep[k][i] >> 8);
+            T26W(c, k)[2u * (P_LEG_PIT + i)] = (uint8_t)dep[k][i], T26W(c, k)[2u * (P_LEG_PIT + i) + 1u] = (uint8_t)((uint16_t)dep[k][i] >> 8);
         T26W(c, k)[2u * 61u + 8u] = (uint8_t)tp[k][0], T26W(c, k)[2u * 61u + 9u] = (uint8_t)tp[k][1];
     }
     h = proj_hash(c, sizeof c - 4u), memcpy(c + sizeof c - 4u, &h, 4);
     host_tracks_init();
     return sl24_import_buf(c, sizeof c, 0) != 0;
 }
-static int l2_is(uint32_t k, int32_t rate, int32_t wave, int32_t trig, int32_t pol, int32_t dest, int32_t amt)
+static int l2_is(uint32_t k, int32_t rate, int32_t wave, int32_t trig, int32_t pol, int32_t da, int32_t aa, int32_t db, int32_t ab)
 {
     const int16_t *p = trk[k].p;
-    return p[P_L2RATE] == rate && p[P_L2WAVE] == wave && p[P_L2TRIG] == trig && p[P_L2POL] == pol && p[P_L2DEST] == dest &&
-           p[P_L2AMT] == amt;
+    return p[P_L2RATE] == rate && p[P_L2WAVE] == wave && p[P_L2TRIG] == trig && p[P_L2POL] == pol && p[P_L2DA] == da &&
+           p[P_L2AA] == aa && p[P_L2DB] == db && p[P_L2AB] == ab;
+}
+static int l1_is(uint32_t k, int32_t da, int32_t aa, int32_t db, int32_t ab)
+{
+    const int16_t *p = trk[k].p;
+    return p[P_L1DA] == da && p[P_L1AA] == aa && p[P_L1DB] == db && p[P_L1AB] == ab;
 }
 /* 2.6's LFO TRIG FREE / POL UNI -> our LFO 2 (sl24_import.c sl26_lfo2_in); our LFO 2 -> 2.4's LFO (sl24_export.c sl24_l2_out) */
 static void sl26_lfo2(void)
@@ -320,38 +325,45 @@ static void sl26_lfo2(void)
     static uint8_t out[3840];
     uint32_t k, lost;
     int ok;
-    ok = l2_import(0, 0);
+    ok = l2_import(0, 0) && !strcmp(last_msg, "2.4 IMPORTED, LFO CUT");
     for (k = 0; k < NPART; k++)                         /* (golden: TRIG 9.., POL 10..: FREE, UNI; depths k 7 + 13 ..) */
-        ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, L2D_SHP, 15 + 7 * (int32_t)k) && trk[k].p[P_LD_SHP] == 0 &&
-              trk[k].p[P_LD_PIT] == 13 + 7 * (int)k && trk[k].p[P_LD_FLT] == 14 + 7 * (int)k && trk[k].p[P_LD_AMP] == 16 + 7 * (int)k;
-    check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: the weightiest depth (SHP) with RATE (SYNC) and WAVE; the others stay on LFO", ok);
+        ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, LT_FLT, 28 + 14 * (int32_t)k, LT_SHP, 30 + 14 * (int32_t)k) && l1_is(k, 0, 0, 0, 0);
+    check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: its two depths of the most weight (FLT SHP), RATE (SYNC), WAVE; LFO off; PIT AMP "
+          "cut (said so)", ok);
     ok = l2_import(DEP, TP2);
-    ok &= l2_is(0, -8, 4, 0, 1, L2D_PIT, -40) && trk[0].p[P_LD_PIT] == 0;
-    ok &= l2_is(1, -9, 4, 1, 0, L2D_AMP, 63) && trk[1].p[P_LD_AMP] == 0;
-    ok &= l2_is(2, 60, 0, 0, 0, L2D_OFF, 0) && trk[2].p[P_LD_PIT] == 5 && trk[2].p[P_LD_AMP] == 8;
-    check("... POL UNI on PIT -40: LFO 2 PIT -40; TRIG FREE on AMP 127: AMP 63; NOTE BI: LFO as it was, LFO 2 off", ok);
+    ok &= l2_is(0, -8, 4, 0, 1, LT_PIT, -80, 0, 0) && l1_is(0, 0, 0, 0, 0);
+    ok &= l2_is(1, -9, 4, 1, 0, LT_AMP, 127, 0, 0) && l1_is(1, 0, 0, 0, 0);
+    ok &= l2_is(2, 60, 0, 0, 0, 0, 0, 0, 0) && l1_is(2, LT_FLT, 12, LT_SHP, 14);
+    check("... POL UNI on PIT -40: LFO 2 PIT -80 (AMT 2 x); TRIG FREE on AMP 127: AMP 127; NOTE BI: LFO's two slots, LFO 2 off", ok);
     proj_capture(&q, &tdl);
     lost = proj_to_sl24(&q, 0, out, 0);
 #define O16(k, id) ((int16_t)(out[76u + (k) * 940u + 2u * (id)] | out[76u + (k) * 940u + 2u * (id) + 1u] << 8))
-    ok = O16(0, P_LD_PIT) == -40 && O16(0, P_LWAVE) == 4 && O16(0, P_LPHASE) == 0 && O16(1, P_LD_AMP) == 126 &&
-         O16(2, P_LD_PIT) == 5 && (lost & SX24_LFO2) && (lost & SX24_LSYNC);
-    ok &= O16(TRK_DRUM, P_LRATE) == TP[P_LRATE].def && O16(TRK_DRUM, P_LWAVE) == 0 && O16(TRK_DRUM, P_LD_AMP) == 0;
-    check("export: LFO 2 where LFO does nothing -> 2.4's LFO (AMP 2 x AMT); UNI, FREE lost (SX24_LFO2); drum's slots default", ok);
+    ok = O16(0, P_LEG_PIT) == -40 && O16(0, P_LWAVE) == 4 && O16(0, P_LPHASE) == 0 && O16(1, P_LEG_AMP) == 127 &&
+         O16(2, P_LEG_PIT) == 0 && O16(2, P_LEG_FLT) == 6 && O16(2, P_LEG_SHP) == 7 && (lost & SX24_LFO2) && (lost & SX24_LSYNC) &&
+         !(lost & SX24_LFODEST);
+    ok &= O16(TRK_DRUM, P_LRATE) == TP[P_LRATE].def && O16(TRK_DRUM, P_LWAVE) == 0 && O16(TRK_DRUM, P_LEG_AMP) == 0;
+    check("export: LFO's slots -> 2.4's depths; LFO 2 where LFO does nothing -> 2.4's LFO; UNI, FREE lost (SX24_LFO2); drum's "
+          "slots default", ok);
     for (k = 0; k < NPART; k++)
-        trk[k].p[P_L2DEST] = 0, trk[k].p[P_LD_PIT] = trk[k].p[P_LD_FLT] = trk[k].p[P_LD_SHP] = trk[k].p[P_LD_AMP] = 0;
-    trk[2].p[P_L2RATE] = 70, trk[2].p[P_L2WAVE] = 1, trk[2].p[P_L2DEST] = L2D_FLT, trk[2].p[P_L2AMT] = -30;
+        trk[k].p[P_L2DA] = trk[k].p[P_L2DB] = 0, trk[k].p[P_L1DA] = trk[k].p[P_L1AA] = trk[k].p[P_L1DB] = trk[k].p[P_L1AB] = 0;
+    trk[2].p[P_L2RATE] = 70, trk[2].p[P_L2WAVE] = 1, trk[2].p[P_L2DA] = LT_FLT, trk[2].p[P_L2AA] = -60;
     trk[2].p[P_L2TRIG] = trk[2].p[P_L2POL] = 0;
     trk[2].p[P_LRATE] = 3;
     proj_capture(&q, &tdl);
     lost = proj_to_sl24(&q, 0, out, 0);
-    ok = !(lost & SX24_LFO2) && O16(2, P_LRATE) == 70 && O16(2, P_LWAVE) == 1 && O16(2, P_LD_FLT) == -30;
+    ok = !(lost & (SX24_LFO2 | SX24_LFODEST)) && O16(2, P_LRATE) == 70 && O16(2, P_LWAVE) == 1 && O16(2, P_LEG_FLT) == -30;
     check("... a NOTE BI LFO 2 alone: 2.4's LFO exactly, nothing lost", ok);
-    trk[2].p[P_LD_PIT] = 3;
+    trk[2].p[P_L1DA] = LT_PIT, trk[2].p[P_L1AA] = 6;
     proj_capture(&q, &tdl);
     lost = proj_to_sl24(&q, 0, out, 0);
-    check("... beside a LFO that acts: lost (SX24_LFO2), LFO as it is", (lost & SX24_LFO2) && O16(2, P_LRATE) == 3 && O16(2, P_LD_FLT) == 0);
+    check("... beside a LFO that acts: lost (SX24_LFO2), LFO as it is", (lost & SX24_LFO2) && O16(2, P_LRATE) == 3 &&
+          O16(2, P_LEG_PIT) == 3 && O16(2, P_LEG_FLT) == 0);
+    trk[2].p[P_L1DB] = LT_PAN, trk[2].p[P_L1AB] = 50;
+    proj_capture(&q, &tdl);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    check("... LFO DEST B on PAN: not 2.4's (SX24_LFODEST), A still written", (lost & SX24_LFODEST) && O16(2, P_LEG_PIT) == 3);
 #undef O16
-    check("the second lost word's bit 9: SX24_LFO2", SX24_LFO2 >> 14 == 1u << 9);
+    check("the second lost word's bits 9 and 11: SX24_LFO2, SX24_LFODEST", SX24_LFO2 >> 14 == 1u << 9 && SX24_LFODEST >> 14 == 1u << 11);
 }
 #endif
 

@@ -231,13 +231,13 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
           "RAM; off by default.", provenance=FELUCCA)
 _add("LFO2", "FELUCCA_LFO2", "LFO 2 (a second LFO on each synth track)", E, 91, default=0,
      desc="A second LFO on tracks 1-3: RATE (free, or synced to the tempo as LFO's: 4BAR .. 1/32), WAVE (SIN TRI SAW "
-          "SQR S&H), TRIG (NOTE: restarts when a phrase starts; FREE: runs on), POL (BI, or UNI: one way only), one "
-          "DEST (PIT FLT SHP AMP) and its AMT (+-, on LFO DEST's scale). It adds to LFO (AMP: multiplies). Saved with "
-          "the project (no format change: an older build plays it without, and says LFO 2 is missing), kept when the "
-          "sound changes; a SLOOP 2.6 project whose LFO is TRIG FREE or POL UNI imports onto it. No knobs of its own "
-          "yet: the web editor's TRACK_PARAM (ids after P_E7). About 1-3 KB of flash (2.3 KB in user-default), 0.2 KB "
-          "of RAM, 0.2 KB of RAMTEXT; off (DEST OFF or "
-          "AMT 0) it costs no CPU; on, well under 1 % of an 8-voice part (host: +3 instructions a sample).")
+          "SQR S&H), TRIG (NOTE: restarts when a phrase starts; FREE: runs on), POL (BI, or UNI: one way only) and two "
+          "destinations as LFO DEST's (DEST A + AMT A, DEST B + AMT B: PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, the "
+          "sends CHO DLY REV, the inserts' amounts INS1 INS2, and XRATE XAMT: LFO's RATE and amounts, either way round). It adds to LFO (AMP: multiplies). Saved with the "
+          "project (no format change: an older build plays it without, and says LFO 2 is missing), kept when the sound "
+          "changes; a SLOOP 2.6 project whose LFO is TRIG FREE or POL UNI imports onto it. Pages LFO 2 and LFO2 DEST. "
+          "About 1-3 KB of flash, 0.2 KB of RAM, 0.2 KB of RAMTEXT; off (every slot OFF or at 0) it costs no CPU; on, "
+          "well under 1 % of an 8-voice part.")
 
 # ---- drums
 D = "Drums"

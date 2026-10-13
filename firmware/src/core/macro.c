@@ -26,7 +26,7 @@
  * the scaling. The rows' amounts are figured again only when a position moves (mac_rows). Cost (emulator, 96 MHz,
  * fm-va-studio): ~2,100 instructions a block (~65 a sample) while a macro is off home, ~90 a block at home. */
 #define MAC_S (-128)                                   /* lo: the base scaled toward 0 */
-enum { MK_PART, MK_ROLE, MK_GLOB, MK_SPREAD, MK_DREV };   /* the synth parts' P_*, their engine's role, song.g[], pan,
+enum { MK_PART, MK_ROLE, MK_GLOB, MK_SPREAD, MK_DREV, MK_LFO };   /* the synth parts' P_*, their engine's role, song.g[], pan,
                                                            * the drum lanes' REV (drum_sends.c dsend_mac) */
 typedef struct {
     uint8_t kind, id;
@@ -36,10 +36,13 @@ typedef struct {
 static const mac_row_t MAC_ROWS[] = {
     /*          target              hi: COLOR MOTN SPACE ENRGY   lo: COLOR MOTN  SPACE  ENRGY */
     MR(MK_ROLE, 0,                       48,   0,    0,   16,       -48,    0,     0,   -24),
-    MR(MK_PART, P_LD_FLT,                 0,  32,    0,    0,         0, MAC_S,    0,     0),
-    MR(MK_PART, P_LD_SHP,                 0,  20,    0,    0,         0, MAC_S,    0,     0),
-    MR(MK_PART, P_LD_AMP,                 0,  12,    0,    0,         0, MAC_S,    0,     0),
-    MR(MK_PART, P_LD_PIT,                 0,   1,    0,    0,         0, MAC_S,    0,     0),
+    /* MK_LFO: LFO's depth of a destination (id: 0 PIT 1 FLT 2 SHP 3 AMP), as the four depths of before had it: the
+     * slots on it (AMT units) as a depth, scaled, offset, back (mac_lfo; voice.c lfo_mac). A part with no slot on FLT
+     * still wobbles its filter under MOTION, as before */
+    MR(MK_LFO, 1,                         0,  32,    0,    0,         0, MAC_S,    0,     0),
+    MR(MK_LFO, 2,                         0,  20,    0,    0,         0, MAC_S,    0,     0),
+    MR(MK_LFO, 3,                         0,  12,    0,    0,         0, MAC_S,    0,     0),
+    MR(MK_LFO, 0,                         0,   1,    0,    0,         0, MAC_S,    0,     0),
     MR(MK_PART, P_LRATE,                  0,  20,    0,    0,         0,   -20,    0,     0),
 #if FELUCCA_ANALOG2
     MR(MK_PART, P_A2DRFT,                 0,  40,    0,    0,         0, MAC_S,    0,     0),
@@ -152,12 +155,20 @@ static void mac_put(int16_t *p, int32_t sc, int32_t add, int32_t lo, int32_t hi)
     *p = (int16_t)v;
 }
 
+/* part k's LFO depth of destination d (0 PIT .. 3 AMP) under row (sc, add), from its base: the slots' on it (AMT units)
+ * as a depth of before (AMT / 2; AMP: AMT), scaled and offset as that depth was (-64..63, AMP 0..127), back in AMT units */
+static int32_t mac_lfo(int32_t base, uint32_t d, int32_t sc, int32_t add)
+{
+    int32_t b = mac_apply(d == 3u ? base : base / 2, sc, add, d == 3u ? 0 : -64, d == 3u ? 127 : 63);
+    return d == 3u ? b : 2 * b;
+}
 /* the audio ISR, after the block's events (fx.c mix_block): the effective values in */
 static void mac_pre(void)
 {
     int32_t x[4];
     uint32_t i, k, m, any = 0, moved = !mrow.ok;
     mov.n = 0;
+    lfo_mac_m = 0;                                     /* (LFO's depths: its slots') */
     dsend_msc = 64, dsend_madd = 0;                    /* (the drum lanes' REV: as authored) */
     for (m = 0; m < 4u; m++) {
         x[m] = clamp(TDRUM->p[MAC_ID[m]], -64, 63);
@@ -173,6 +184,15 @@ static void mac_pre(void)
         int32_t sc = mrow.sc[i], add = mrow.add[i], lo = mac_lo(r->id), hi = TP[r->id].max;
         if (!add && sc == 64)
             continue;                                  /* (no macro off home moves this one) */
+        if (r->kind == MK_LFO) {                       /* LFO's depth of PIT FLT SHP AMP on every part (voice.c lfo_mac) */
+            for (k = 0; k < NPART; k++) {
+                int32_t dep[4] = {0, 0, 0, 0};
+                lfo_dep(&trk[k].p[P_L1DA], dep);
+                lfo_mac[k][r->id & 3u] = (int16_t)mac_lfo(dep[r->id & 3u], r->id & 3u, sc, add);
+                lfo_mac_m |= (uint16_t)(1u << (4u * k + (r->id & 3u)));
+            }
+            continue;
+        }
         if (r->kind == MK_DREV) {                      /* every drum lane's REV, as the voices take it */
             dsend_msc = (int16_t)sc, dsend_madd = (int16_t)add;
             continue;
@@ -204,6 +224,7 @@ static void mac_post(void)
         if (*mov.p[i] == mov.put[i])
             *mov.p[i] = mov.old[i];
     mov.n = 0;
+    lfo_mac_m = 0;
 }
 
 /* The UI's side (the main loop: draws, the editor): the value a macro off home makes of an authored one, from the
@@ -226,6 +247,13 @@ static int32_t mac_effective(uint32_t k, uint32_t id, int32_t base)
         return base;
     for (i = 0; i < MAC_NROWS; i++) {
         const mac_row_t *r = &MAC_ROWS[i];
+        if (r->kind == MK_LFO) {                       /* an LFO slot's AMT on PIT FLT SHP AMP: that depth's row */
+            int32_t d = (id == P_L1AA || id == P_L1AB) ? trk[k].p[id - 1u] : LT_OFF;
+            if (!LT_CLASSIC(d) || (uint32_t)(d - LT_PIT) != r->id)
+                continue;
+            mac_amt(r, x, &sc, &add);
+            return mac_lfo(base, r->id, sc, add);
+        }
         if (r->kind == MK_ROLE) {
             uint32_t b = MAC_BRIGHT[eng_uid(trk[k].engine % NENGINES) % ENG_UID_N];
             const param_desc_t *d = &ENGINES[trk[k].engine % NENGINES]->edit[b & 7u];

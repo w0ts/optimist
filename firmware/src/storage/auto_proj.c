@@ -197,7 +197,7 @@ static int auto_trk_old_ok(const auto_store_t *m, uint32_t k)
     for (i = 0; i < l->n; i++)
         if (!(l->ev[i].place & AUTO_ONLY)) {
 #if FELUCCA_MOTION
-            if (!motion_param(&trk[k % NTRK], mot_id(l->ev[i].param)) &&
+            if (!MOTION_STORED_OK(&trk[k % NTRK], mot_id(l->ev[i].param)) &&
                 (l->ev[i].param < P_ENG_END || l->ev[i].param >= MOT_TAIL_END))
                 return 0;
 #endif

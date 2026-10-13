@@ -589,27 +589,63 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
-/* LFO 2 (core.h P_L2RATE .. P_L2AMT, the parts') in the drum track's stored LFO slots, which it never reads (its lanes
+/* LFO DEST's slots (core.h P_L1DA .. P_L1AB) are stored in the four words that held the depths PIT FLT SHP AMP:
+ * params.c lfo1_store / lfo1_load (the depths themselves while the slots are only those: a project of before loads and
+ * saves byte for byte, an older build plays it; else the tagged layout). A project of before with three or four depths
+ * keeps the two of the most weight (lfo_from_depths).
+ *
+ * LFO 2 (core.h P_L2RATE .. P_L2AB, the parts') in the drum track's stored LFO slots, which it never reads (its lanes
  * have LFOs of their own: lane_play.c), no format change (as px_pack, pj_x, the macros' MAC_ID), and only when a part's
  * LFO 2 is not at its defaults: a project without it is byte for byte one of before. Then the drum track's RATE slot
  * holds L2_TAG, its WAVE PHS FADE slots the parts' first words, its PIT SHP AMP slots their second (FLT: MAC_ID's):
- *   first   RATE (8 bits, two's complement: -10..127) | AMT << 8 (7 bits, two's complement)
- *   second  WAVE (3 bits) | DEST << 3 (3 bits) | TRIG << 6 | POL << 7
- * Without the tag (every project before; one saved without a LFO 2 on) the slots are the drum track's own. Every build
- * reads the tag: a build without LFO2 gives the slots back their defaults (TOOLS > MISS: LFO 2, miss.c) */
-#define L2_TAG 0x4C00u                                   /* (out of the RATE slot's range, -10..127) */
-#define L2_NV 6u                                         /* RATE WAVE TRIG POL DEST AMT */
+ *   first   RATE (8 bits, two's complement: -10..127) | AMT A << 8 (8 bits, two's complement)
+ *   second  WAVE (3 bits) | TRIG << 3 | POL << 4 | DEST A << 5 (5 bits) | DEST B << 10 (5 bits)
+ *   AMT B   in the part's own LFO DEST words (lfo1_store's spill: their tagged layout then)
+ * L2_TAG_V1 (feat/lfo2, one slot: AMT 7 bits at its old scale, x 2 now; WAVE 3 | DEST << 3 (3) | TRIG << 6 | POL << 7)
+ * is read. Without a tag (every project before; one saved without a LFO 2 on) the slots are the drum track's own. Every
+ * build reads the tags: a build without LFO2 gives the slots back their defaults (TOOLS > MISS: LFO 2, miss.c) */
+#define L2_TAG 0x4D00u                                   /* (out of the RATE slot's range, -10..127) */
+#define L2_TAG_V1 0x4C00u                                /* (LFO 2 with one DEST, 2026-10-13) */
+#define L2_NV 8u                                         /* RATE WAVE TRIG POL DEST A, AMT A, DEST B, AMT B */
 static const uint8_t L2_W0[NPART] = {P_LWAVE, P_LPHASE, P_LFADE};
-static const uint8_t L2_W1[NPART] = {P_LD_PIT, P_LD_SHP, P_LD_AMP};
+static const uint8_t L2_W1[NPART] = {P_LEG_PIT, P_LEG_SHP, P_LEG_AMP};
+static uint32_t l2_tag(const project_t *p) { return (uint16_t)p->t[TRK_DRUM].p[P_LRATE] & 0xFF00u; }
 /* the project in p holds LFO 2 values (its drum track's LFO slots are not the drum track's) */
-static int l2_tagged(const project_t *p) { return ((uint16_t)p->t[TRK_DRUM].p[P_LRATE] & 0xFF00u) == L2_TAG; }
-/* the parts whose LFO 2 acts in p (DEST not OFF, AMT not 0): a bit each */
+static int l2_tagged(const project_t *p) { return l2_tag(p) == L2_TAG || l2_tag(p) == L2_TAG_V1; }
+/* part k's LFO 2 in p (its defaults without a tag): v[L2_NV], RATE .. AMT B, each inside its range (a destination
+ * past this build's: OFF) */
+static void l2_get(const project_t *p, uint32_t k, int16_t *v)
+{
+    static const int16_t D[L2_NV] = {60, 0, 0, 0, LT_OFF, 0, LT_OFF, 0};   /* (TP's P_L2RATE ..: every build's) */
+    const int16_t *d = p->t[TRK_DRUM].p;
+    uint32_t w0 = (uint16_t)d[L2_W0[k]], w1 = (uint16_t)d[L2_W1[k]], j;
+    int16_t s[4];
+    int32_t spill;
+    memcpy(v, D, sizeof D);
+    if (l2_tag(p) == L2_TAG_V1) {
+        v[0] = (int16_t)(int8_t)(uint8_t)w0, v[1] = (int16_t)(w1 & 7u), v[2] = (int16_t)(w1 >> 6 & 1u);
+        v[3] = (int16_t)(w1 >> 7 & 1u), v[4] = (int16_t)(w1 >> 3 & 7u);
+        v[5] = (int16_t)(2 * ((int32_t)((w0 >> 8 & 0x7Fu) ^ 0x40u) - 0x40));   /* (its AMT was half today's) */
+    } else if (l2_tag(p) == L2_TAG) {
+        (void)lfo1_load(&p->t[k].p[P_LEG_PIT], s, &spill);
+        v[0] = (int16_t)(int8_t)(uint8_t)w0, v[1] = (int16_t)(w1 & 7u), v[2] = (int16_t)(w1 >> 3 & 1u);
+        v[3] = (int16_t)(w1 >> 4 & 1u), v[4] = (int16_t)(w1 >> 5 & 31u), v[5] = (int16_t)(int8_t)(uint8_t)(w0 >> 8);
+        v[6] = (int16_t)(w1 >> 10 & 31u), v[7] = (int16_t)spill;
+    }
+    v[0] = (int16_t)clamp(v[0], -LSYNC_N, 127), v[1] = (int16_t)clamp(v[1], 0, 4);
+    for (j = 4u; j < L2_NV; j += 2u)
+        if (v[j] >= LT_NB)
+            v[j] = LT_OFF, v[j + 1u] = 0;
+}
+/* the parts whose LFO 2 acts in p (a slot not OFF, its AMT not 0): a bit each */
 static uint32_t l2_live(const project_t *p)
 {
     uint32_t k, m = 0;
-    for (k = 0; l2_tagged(p) && k < NPART; k++)
-        m |= (uint32_t)(((uint16_t)p->t[TRK_DRUM].p[L2_W1[k]] >> 3 & 7u) && ((uint16_t)p->t[TRK_DRUM].p[L2_W0[k]] >> 8 & 0x7Fu))
-             << k;
+    int16_t v[L2_NV];
+    for (k = 0; l2_tagged(p) && k < NPART; k++) {
+        l2_get(p, k, v);
+        m |= (uint32_t)((v[4] && v[5]) || (v[6] && v[7])) << k;
+    }
     return m;
 }
 /* a project's drum track values v (P_COUNT) whose LFO slots held LFO 2: their defaults */
@@ -618,12 +654,14 @@ static void l2_slots_def(int16_t *v)
     uint32_t k;
     v[P_LRATE] = TP[P_LRATE].def;
     for (k = 0; k < NPART; k++)
-        v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = TP[L2_W1[k]].def;
+        v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = 0;
 }
 #if FELUCCA_LFO2
-_Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DEST == P_L2RATE + 4 &&
-               P_L2AMT == P_L2RATE + 5 && P_COUNT == P_L2RATE + L2_NV, "LFO 2's values: in a row, the last of a track");
-/* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default */
+_Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
+               P_L2AB == P_L2RATE + 7 && P_COUNT == P_L2RATE + L2_NV && LT_N <= 32,
+               "LFO 2's values: in a row, the last of a track; a DEST in 5 bits");
+/* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default (AMT B: lfo1_store's
+ * spill, written with the part's LFO DEST) */
 static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
 {
     int16_t *d = p->t[TRK_DRUM].p;
@@ -635,30 +673,18 @@ static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
         return;
     d[P_LRATE] = (int16_t)L2_TAG;
     for (k = 0; k < NPART; k++) {
-        d[L2_W0[k]] = (int16_t)(((uint32_t)x[k][0] & 0xFFu) | ((uint32_t)x[k][5] & 0x7Fu) << 8);
-        d[L2_W1[k]] = (int16_t)(((uint32_t)x[k][1] & 7u) | ((uint32_t)x[k][4] & 7u) << 3 | ((uint32_t)x[k][2] & 1u) << 6 |
-                                ((uint32_t)x[k][3] & 1u) << 7);
+        d[L2_W0[k]] = (int16_t)(((uint32_t)x[k][0] & 0xFFu) | ((uint32_t)x[k][5] & 0xFFu) << 8);
+        d[L2_W1[k]] = (int16_t)(((uint32_t)x[k][1] & 7u) | ((uint32_t)x[k][2] & 1u) << 3 | ((uint32_t)x[k][3] & 1u) << 4 |
+                                ((uint32_t)x[k][4] & 31u) << 5 | ((uint32_t)x[k][6] & 31u) << 10);
     }
 }
-/* -> x, the parts' LFO 2 values (their defaults without the tag, each inside its range); 1 when p has them */
+/* -> x, the parts' LFO 2 values (their defaults without a tag, each inside its range); 1 when p has them */
 static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
 {
-    const int16_t *d = p->t[TRK_DRUM].p;
-    uint32_t k, j;
-    int t = l2_tagged(p);
-    for (k = 0; k < NPART; k++) {
-        uint32_t w0 = (uint16_t)d[L2_W0[k]], w1 = (uint16_t)d[L2_W1[k]];
-        int16_t v[L2_NV];
-        v[0] = (int16_t)(int8_t)(uint8_t)w0;
-        v[1] = (int16_t)(w1 & 7u);
-        v[2] = (int16_t)(w1 >> 6 & 1u);
-        v[3] = (int16_t)(w1 >> 7 & 1u);
-        v[4] = (int16_t)(w1 >> 3 & 7u);
-        v[5] = (int16_t)((int32_t)((w0 >> 8 & 0x7Fu) ^ 0x40u) - 0x40);
-        for (j = 0; j < L2_NV; j++)
-            x[k][j] = t ? (int16_t)clamp(v[j], TP[P_L2RATE + j].min, TP[P_L2RATE + j].max) : TP[P_L2RATE + j].def;
-    }
-    return t;
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        l2_get(p, k, x[k]);
+    return l2_tagged(p);
 }
 #endif
 #if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
@@ -908,6 +934,11 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_LFO2
         if (i < NPART)
             memcpy(l2[i], &v[P_L2RATE], sizeof l2[i]);
+        if (i < NPART)                                  /* LFO DEST's slots in their stored form (LFO 2's AMT B with them) */
+            lfo1_store(&p->t[i].p[P_LEG_PIT], &v[P_L1DA], v[P_L2AB]);
+#else
+        if (i < NPART)                                  /* LFO DEST's slots in their stored form */
+            lfo1_store(&p->t[i].p[P_LEG_PIT], &v[P_L1DA], 0);
 #endif
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
@@ -1020,6 +1051,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
         if (k == TRK_DRUM && l2t)                       /* (its LFO slots that held LFO 2: the drum track's defaults) */
             l2_slots_def(v);
+        if (k < NPART) {                                /* LFO DEST's slots from their stored form (params.c lfo1_load) */
+            int32_t spill;
+            (void)lfo1_load(&s->p[P_LEG_PIT], &v[P_L1DA], &spill);
+        }
 #if FELUCCA_LFO2
         if (k < NPART)
             memcpy(&v[P_L2RATE], l2[k], sizeof l2[k]);

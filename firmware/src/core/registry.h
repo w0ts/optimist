@@ -287,7 +287,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * on each part and on the drum bus with all its sends (fx.c tflt_*) */
 #endif
 #ifndef FELUCCA_LFO2
-#define FELUCCA_LFO2 0                     /* LFO 2: a second LFO a part (core.h P_L2RATE .. P_L2AMT, voice.c lfo2_tick):
+#define FELUCCA_LFO2 0                     /* LFO 2: a second LFO a part (core.h P_L2RATE .. P_L2AB, voice.c lfo2_tick):
                                             * RATE (SYNC), WAVE, TRIG, POL, one DEST and its AMT */
 #endif
 /* more insert types for the tracks' insert slots (fx/insfx/insfx.c; fx_slots.c S1 S2), each a builder item: FOLD FUZZ

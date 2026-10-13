@@ -3,7 +3,7 @@
  * parts' next (the user, 2026-10-12: two slots replace PIT FLT SHP AMP there too). Header only: the type, the active
  * test, the summed amount per destination, the scale of the LFO onto a value's range, the waves.
  *
- *   slot        a destination and a signed amount (-64..63, as P_LD_PIT). The destination is the owner's own list:
+ *   slot        a destination and a signed amount (-64..63). The destination is the owner's own list:
  *               0 OFF, 1.. its destinations (the lanes: drum_edit.c DE_* + 1). Two slots on one destination add.
  *   on          an LFO whose every slot is OFF or at amount 0 is OFF: its owner computes nothing for it (no tick, no
  *               value, no work at a hit). lfo_slots_on is the test.

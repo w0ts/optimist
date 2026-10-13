@@ -72,7 +72,7 @@ static void part_setup(track_t *t, const int16_t *e8)
     t->p[P_ED_FLT] = t->p[P_ED_PIT] = t->p[P_ED_SHP] = 0;
     t->p[P_VOICE] = V_POLY, t->p[P_GLIDE] = 0, t->p[P_TRANS] = 0;
     t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
-    t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;
+    t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = 0;
 }
 static double xbuf[NFFT];
 /* n samples of the part's own output (track_render: no FX, no master), after skip samples */
@@ -549,7 +549,7 @@ static uint32_t env2_case(int c, int d, int amt)
     t->p[P_A2DRFT] = (int16_t)(c == 7 ? 20 : 0);
     if (c == 6) {
         t->p[P_VOICE] = V_MONO, t->p[P_GLIDE] = 30;   /* (UNISON: random start phases, a static seed) */
-        t->p[P_LD_PIT] = 20, t->p[P_LD_SHP] = 30, t->p[P_ED_SHP] = 40, t->p[P_ED_FLT] = 20;
+        t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 40, t->p[P_L1DB] = LT_SHP, t->p[P_L1AB] = 60, t->p[P_ED_SHP] = 40, t->p[P_ED_FLT] = 20;
     }
     t->p[ENV2_ID[d]] = (int16_t)amt;
     trk_note_on(t, 48, 100);
