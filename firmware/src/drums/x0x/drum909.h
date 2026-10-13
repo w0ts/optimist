@@ -24,7 +24,7 @@ enum { DR_BD, DR_SD, DR_LT, DR_MT, DR_HT, DR_RS, DR_CP, DR_CH, DR_OH, DR_CR, DR_
 
 #define DR_MAX_PARAMS 8          /* most params any voice (or the kit) has */
 #define DR_NZ_HIST 256           /* noise history kept across blocks (filter warm-up) */
-#define DR_NZ_BUF (DR_NZ_HIST + 2 * 256)
+#define DR_NZ_BUF (DR_NZ_HIST + 256)   /* + the longest block (drum909_render: 256; x0x_drums.c X0X_BLK 32): the tail moves to the front once the buffer runs out */
 
 /* BD and SD: 9W9's er99_bt_t */
 typedef struct {
