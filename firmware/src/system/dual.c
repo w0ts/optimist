@@ -46,6 +46,13 @@ static uint8_t dual_mode;                          /* the 2ND CORE setting (dual
 static mixacc_t dual_acc[2];                       /* [0] CPU0's parts, [1] CPU1's */
 static volatile uint32_t dual_c1_ticks;            /* CPU1: timer ticks inside its jobs, a running total (it alone
                                                     * writes it; CPU0 reads it once a half: dual_load.h) */
+#if FELUCCA_BENCH
+static volatile uint32_t dual_bench[3];            /* (measurements, bench.c: CPU1's ticks in its jobs, CPU0's ticks
+                                                    * waiting in dual_join, jobs) */
+#define DUAL_BENCH(k, v) (dual_bench[k] += (v))
+#else
+#define DUAL_BENCH(k, v) ((void)0)
+#endif
 
 AINL void dual_clear(mixacc_t *A, uint32_t n)
 {
@@ -57,12 +64,15 @@ AINL void dual_clear(mixacc_t *A, uint32_t n)
 static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the block (RAM: core.h HOT) */
 {
     mixacc_t *A = &dual_acc[1];
-    uint32_t p, t0 = fm1_ticks();                  /* (its load: the time in here, dual_load.h) */
+    uint32_t p, t0 = fm1_ticks(), dt;              /* (its load: the time in here, dual_load.h) */
     dual_clear(A, CTL);
     for (p = 0; p < NPART; p++)
         if ((mask >> p) & 1u)
             mix_part(&trk[p], CTL, A);
-    dual_c1_ticks += fm1_ticks() - t0;             /* (before `done`: the caller's csync orders it) */
+    dt = fm1_ticks() - t0;
+    dual_c1_ticks += dt;                           /* (before `done`: the caller's csync orders it) */
+    DUAL_BENCH(0, dt);
+    DUAL_BENCH(2, 1u);
 }
 #endif
 
@@ -251,6 +261,7 @@ static HOT int dual_join(uint32_t req)
     }
     fm1_dual_sync();                               /* CPU1's sums after its done flag */
     dt = fm1_ticks() - t0;
+    DUAL_BENCH(1, dt);
     if (dt > dual.wait_max)
         dual.wait_max = dt;
     dual.jobs++;
