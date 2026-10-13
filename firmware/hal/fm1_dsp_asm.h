@@ -709,6 +709,168 @@ static inline __attribute__((always_inline)) void asm_symp_comb(int16_t *l, uint
                      : "memory");
 }
 
+/* PHYS's main string (engines/phys/phys_dsp.c px_string_run), the curved bridge (B->curved: the nonlinear models'
+ * strings), over n (> 0) samples. K: a frame of the loop's values in memory (px_srk_t below, the offsets fixed):
+ * the line, delay x comp (per block), the curving, the one-pole's G, the resampler's ratio, then the state (bridge,
+ * DcBlock x / y / e, the low-pass; the last two outputs and the write index, kept in registers in the loop) and two
+ * scratch words. Per sample, as the C:
+ *   ein += in;  src += ratio;  a string step when src > 2^30 (unsigned: src -= 2^30;
+ *     dl = (dl0 (2^30 - (bridge curving >> 20))) >> 30 (unsigned);  s = the Hermite read at wp + dl;
+ *     bridge = |s| > 26214 ? (s > 0 ? 2 : -3) (|s| - 26214) : 0;  s = clamp(s + ein, +-20 2^20), ein = 0;
+ *     DcBlock (acc = 1073498345 dcy + dce, 64 bit: y = s - dcx + acc >> 30, dce = acc & (2^30 - 1));
+ *     the one-pole (v = G (s - lp) >> 30, s = lp + v, lp = s + v);  line[wp] = s, wp - 1;  o1 = o0, o0 = s)
+ *   out = o1 + ((o0 - o1) src) >> 30
+ * The Hermite read as the C's (DelayLine::ReadHermite) with its int64 y held in 32 bits: every product is a 32x32
+ * -> 64 one and each sum fits (the line holds the DcBlock's and the one-pole's outputs of a value clamped to
+ * +-20 2^20: |x| < 2^26, so |a f >> 16| < 2^29, |y| < 2^30), the same values. Forms: those of the operator loops and
+ * of clang's own code for this loop (the unsigned compare with its immediate, abs, the (s) and (u) 32x32 -> 64
+ * products, the memory frame); no packed form. ~112 instructions a stepping sample (clang: ~124) */
+typedef struct {
+    int32_t *line;               /* 0 */
+    uint32_t dl0;                /* 4: B->delay B->comp >> 30 */
+    int32_t curving, G, ratio;   /* 8, 12, 16 */
+    int32_t bridge, dcx, dcy, dce, lp, o0, o1;   /* 20 .. 44 */
+    uint32_t wp;                 /* 48 */
+    int32_t c, x0;               /* 52, 56: scratch */
+} px_srk_t;
+static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t *K, const int32_t *in, int32_t *out,
+                                                                       int32_t n, int32_t *ein, uint32_t *src)
+{
+    int32_t e = *ein, o0 = K->o0, o1 = K->o1, a, b, c, d, f;
+    uint32_t wp = K->wp;
+    uint32_t sr = *src;
+    int64_t p;
+    __asm__ volatile("1:\n\t"
+                     "%[a] = [%[in]++=4]\n\t"
+                     "%[e] += %[a]\n\t"
+                     "%[a] = [%[K]+16]\n\t"
+                     "%[sr] += %[a]\n\t"
+                     "if (%[sr] <= 1073741824) goto 2f\n\t"
+                     "%[sr] = %[sr] + 0xC0000000\n\t"
+                     /* dl */
+                     "%[a] = [%[K]+20]\n\t"
+                     "%[b] = [%[K]+8]\n\t"
+                     "%[p] = %[a] * %[b] (s)\n\t"
+                     "%[p] >>= 20\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[b] = 0x40000000 - %[a]\n\t"
+                     "%[a] = [%[K]+4]\n\t"
+                     "%[p] = %[a] * %[b] (u)\n\t"
+                     "%[p] >>= 30\n\t"
+                     "%[d] = %[p].l\n\t"
+                     /* the Hermite read at wp + (dl >> 16), its fraction f = dl & 0xFFFF */
+                     "%[a] = %[d] >> 16\n\t"
+                     "%[a] += %[wp]\n\t"
+                     "%[f] = [%[K]+0]\n\t"
+                     "%[b] = %[a] + 511\n\t"
+                     "%[b] = uextra(%[b], p:0, l:9)\n\t"
+                     "%[b] = [%[f]+%[b]<<2]\n\t"
+                     "%[c] = %[a] + 1\n\t"
+                     "%[c] = uextra(%[c], p:0, l:9)\n\t"
+                     "%[c] = [%[f]+%[c]<<2]\n\t"
+                     "%[b] = %[c] - %[b]\n\t"
+                     "%[b] = %[b] >>> 1\n\t"
+                     "[%[K]+52] = %[b]\n\t"
+                     "%[b] = uextra(%[a], p:0, l:9)\n\t"
+                     "%[b] = [%[f]+%[b]<<2]\n\t"
+                     "[%[K]+56] = %[b]\n\t"
+                     "%[c] = %[b] - %[c]\n\t"
+                     "%[a] = %[a] + 2\n\t"
+                     "%[a] = uextra(%[a], p:0, l:9)\n\t"
+                     "%[a] = [%[f]+%[a]<<2]\n\t"
+                     "%[a] = %[a] - %[b]\n\t"
+                     "%[a] = %[a] >>> 1\n\t"
+                     "%[b] = [%[K]+52]\n\t"
+                     "%[b] += %[c]\n\t"
+                     "%[a] += %[c]\n\t"
+                     "%[a] += %[b]\n\t"
+                     "%[b] += %[a]\n\t"
+                     "%[d] = uextra(%[d], p:0, l:16)\n\t"
+                     "%[p] = %[a] * %[d] (s)\n\t"
+                     "%[p] >>= 16\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[a] = %[a] - %[b]\n\t"
+                     "%[p] = %[a] * %[d] (s)\n\t"
+                     "%[p] >>= 16\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[b] = [%[K]+52]\n\t"
+                     "%[a] += %[b]\n\t"
+                     "%[p] = %[a] * %[d] (s)\n\t"
+                     "%[p] >>= 16\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[b] = [%[K]+56]\n\t"
+                     "%[a] += %[b]\n\t"
+                     /* the bridge */
+                     "%[b] = abs(%[a])\n\t"
+                     "%[c] = -26214\n\t"
+                     "%[b] += %[c]\n\t"
+                     "%[c] = 2\n\t"
+                     "ifs (%[a] <= 0) {\n\t"
+                     "%[c] = -3\n\t"
+                     "}\n\t"
+                     "%[c] = %[b] * %[c]\n\t"
+                     "ifs (%[b] < 1) {\n\t"
+                     "%[c] = 0\n\t"
+                     "}\n\t"
+                     "[%[K]+20] = %[c]\n\t"
+                     /* + the excitation, clamped */
+                     "%[a] += %[e]\n\t"
+                     "%[e] = 0\n\t"
+                     "%[b] = 20971520\n\t"
+                     "%[a] = smin(%[a], %[b])\n\t"
+                     "%[b] = -20971520\n\t"
+                     "%[a] = smax(%[a], %[b])\n\t"
+                     /* DcBlock */
+                     "%[b] = [%[K]+28]\n\t"
+                     "%[c] = 1073498345\n\t"
+                     "%[p] = %[b] * %[c] (s)\n\t"
+                     "%[b] = [%[K]+32]\n\t"
+                     "%[c] = 1\n\t"
+                     "%[p] += %[b] * %[c] (s)\n\t"
+                     "%[b] = %[p].l\n\t"
+                     "%[b] = %[b] & 0x3FFFFFFF\n\t"
+                     "[%[K]+32] = %[b]\n\t"
+                     "%[p] >>= 30\n\t"
+                     "%[b] = %[p].l\n\t"
+                     "%[c] = [%[K]+24]\n\t"
+                     "[%[K]+24] = %[a]\n\t"
+                     "%[b] += %[a]\n\t"
+                     "%[b] = %[b] - %[c]\n\t"
+                     "[%[K]+28] = %[b]\n\t"
+                     /* the one-pole */
+                     "%[c] = [%[K]+36]\n\t"
+                     "%[a] = %[b] - %[c]\n\t"
+                     "%[d] = [%[K]+12]\n\t"
+                     "%[p] = %[d] * %[a] (s)\n\t"
+                     "%[p] >>= 30\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[b] = %[c] + %[a]\n\t"
+                     "%[c] = %[b] + %[a]\n\t"
+                     "[%[K]+36] = %[c]\n\t"
+                     /* the line, the outputs */
+                     "[%[f]+%[wp]<<2] = %[b]\n\t"
+                     "%[d] = %[wp] + 511\n\t"
+                     "%[wp] = uextra(%[d], p:0, l:9)\n\t"
+                     "%[o1] = %[o0]\n\t"
+                     "%[o0] = %[b]\n\t"
+                     "2:\n\t"
+                     "%[a] = %[o0] - %[o1]\n\t"
+                     "%[p] = %[a] * %[sr] (s)\n\t"
+                     "%[p] >>= 30\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[a] += %[o1]\n\t"
+                     "[%[out]++=4] = %[a]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     : [in] "+r"(in), [out] "+r"(out), [n] "+r"(n), [e] "+r"(e), [sr] "+r"(sr), [o0] "+r"(o0),
+                       [o1] "+r"(o1), [wp] "+r"(wp), [a] "=&r"(a),
+                       [b] "=&r"(b), [c] "=&r"(c), [d] "=&r"(d), [f] "=&r"(f), [p] "=&r"(p)
+                     : [K] "r"(K)
+                     : "memory");
+    *ein = e;
+    *src = sr;
+    K->o0 = o0, K->o1 = o1, K->wp = wp;
+}
+
 #if FELUCCA_SIMD
 /* EXPERIMENTAL (FELUCCA_SIMD, hal/fm1_simd.h: the packed 16-bit forms, their meaning inferred, the
  * emulator's): asm_saw2_acc with its two lanes packed. p = pack(q1.h, q2.h) takes both saw values at

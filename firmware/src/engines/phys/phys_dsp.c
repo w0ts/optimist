@@ -66,6 +66,10 @@
 #define PX_SLINE 128             /* dispersion all-pass line (a quarter, as DaisySP) */
 #define PX_SMASK (PX_SLINE - 1)
 #define PX_ONE (1 << 20)         /* signal 1.0 */
+#include "../../../hal/fm1_dsp_asm.h"            /* FELUCCA_ASM: PHYS's hottest loops in pi32v2 asm */
+#ifndef PX_ASM
+#define PX_ASM FELUCCA_ASM                       /* 0: the C loops (an A/B on the FM-1: PX_ASM=0) */
+#endif
 
 /* ---------------------------------------------------------------- math --- */
 static inline int32_t px_m(int32_t a, int32_t b, int sh) { return (int32_t)(((int64_t)a * b) >> sh); }
@@ -626,6 +630,23 @@ static void px_string_excite(const px_string_blk_t *B, px_string_t *S, int32_t *
 /* the string over n samples, excited by in[] (Q20): out[] */
 static void px_string_run(const px_string_blk_t *B, px_string_t *S, const int32_t *in, int32_t *out, uint32_t n)
 {
+#if PX_ASM
+    if (B->curved && n) {                                /* the curved bridge: hal/fm1_dsp_asm.h, the same values */
+        px_srk_t K;
+        int32_t e = S->ein;
+        uint32_t sr = S->src;
+        K.line = S->line;
+        K.dl0 = (uint32_t)(((uint64_t)B->delay * (uint32_t)B->comp) >> 30);
+        K.curving = B->curving, K.G = B->G, K.ratio = B->src_ratio;
+        K.bridge = S->bridge, K.dcx = S->dc_x, K.dcy = S->dc_y, K.dce = S->dc_e, K.lp = S->lp;
+        K.o0 = S->out0, K.o1 = S->out1, K.wp = S->wp;
+        asm_px_string_curved(&K, in, out, (int32_t)n, &e, &sr);
+        S->wp = K.wp, S->src = sr, S->out0 = K.o0, S->out1 = K.o1, S->lp = K.lp, S->bridge = K.bridge;
+        S->dc_x = K.dcx, S->dc_y = K.dcy, S->dc_e = K.dce;
+        S->ein = px_clamp(e, -20 * PX_ONE, 20 * PX_ONE);
+        return;
+    }
+#endif
     uint32_t i, wp = S->wp, swp = S->swp, rs = S->rng;
     uint32_t src = S->src;
     int32_t o0 = S->out0, o1 = S->out1, lp = S->lp, disp = S->disp, bridge = S->bridge;
