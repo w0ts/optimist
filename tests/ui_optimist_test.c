@@ -517,8 +517,9 @@ static void key_tests(void)
     key(4);                                             /* (the third white key: lane 2) */
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(lane_selected() == lane_of_key(4) && ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_LANE0 + lane_of_key(4),
-          "HOME held + a drum key on the mixer: the lane picked, the cursor on its row, no NO");
+    check(lane_selected() != lane_of_key(4) && ui.scr == SCR_HOME && smute_lane_on(lane_of_key(4)),
+          "HOME held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
+    smute_lane = 0;
     tap(B_EDIT);
     check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && snd_page(1)->scope == SC_DSND,
           "drum track, EDIT: the SOUND row (KIT LANE), then the lane's SOUND rows (D7)");
@@ -2240,6 +2241,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
+#include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2363,6 +2365,7 @@ int main(int argc, char **argv)
     glo_tests();
     algo_tests();
     mute_tests();
+    smute_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();

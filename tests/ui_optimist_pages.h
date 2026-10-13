@@ -245,7 +245,13 @@ static void pages_keys_tests(void)
     keys_are(0, 0, "D10: the mixer, the drum track: the keys play, all dark (the lane key only where keys pick lanes)");
     press(B_HOME);
     frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15), "D10: the drum track, HOME held: the 16 lanes dim, the selected one full");
+    keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8,
+             "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes and the 4 black keys dim, none muted");
+    release(B_HOME);
+    tap(B_EDIT);
+    press(B_HOME);
+    frames(HOLD_FRAMES);
+    keys_are(kw(lane_selected()), kws(0, 15), "D10: the drum track's SOUND, HOME held: the 16 lanes dim, the selected one full");
     release(B_HOME);
     reset_ui();
     song.sel = 0;

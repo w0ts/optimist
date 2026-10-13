@@ -17,6 +17,7 @@
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
+ *   the mixer, HOME held  the 16 drum keys and the 4 black keys dim (the sequencer mutes: lanes, T1 T2 T3 DR), the muted full
  *   the lane pick         the drum track, HOME held (on STEP: SEQ): the 16 lanes dim, the selected one full
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
@@ -27,6 +28,7 @@ static uint32_t keys_white(uint32_t n)                  /* the first n white key
     return m;
 }
 static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << key_of_lane((uint32_t)w) : 0u; }
+static const uint8_t BLACK_KEY[4] = {1, 3, 5, 8};      /* black keys 1-4: F# G# A# C# (op_layers.c black_index) */
 static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX layer (op_layers.c glo_key) */
 {
     uint32_t i;
@@ -96,6 +98,12 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     }
     return m;
 }
+/* HOME held on the mixer, past the hold time: the sequencer mutes (seq_mute.c): the 16 drum keys and the 4 black keys
+ * dim, the muted full */
+static int keys_muting(uint32_t held)
+{
+    return mute_mod(held) && fm1_ms - op_t0[panel.btn[B_HOME] % 14u] >= op_hold_ms();
+}
 static int keys_picking(uint32_t held)                  /* the lane pick's modifier held past the hold time */
 {
     uint32_t b = ui.scr == SCR_STEP ? B_SEQ : B_HOME;
@@ -163,6 +171,14 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         return;
     }
 #endif
+    if (keys_muting(fm1_in.buttons)) {
+        uint32_t i;
+        *d = keys_white(16);
+        for (i = 0; i < 4u; i++)
+            *d |= 1u << BLACK_KEY[i];
+        *f = smute_keys_lit();
+        return;
+    }
     if (keys_picking(fm1_in.buttons)) {
         *d = keys_white(16);
         *f = 1u << key_of_lane(lane_selected());

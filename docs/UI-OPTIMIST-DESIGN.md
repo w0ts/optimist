@@ -19,7 +19,7 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | YES / NO | **SAVE = YES, HOME = NO** |
 | The three left encoders | **SELECT = the cursor, ALGORITHM = the track (past T1, MASTER), PRESETS = the selected track's sound only** (the drum track: its kit), on every screen; superseded 2026-10-10, see section 12: PRESETS was the hot cell's value. **HOME held (the shift) + PRESETS = the instrument** (2026-10-12, the user: "home held (shift) + preset should navigate instruments, not presets"): the first sound of the next / previous engine, round; the factory list is sorted by instrument (engine order, then as BANK has them; the Optimist UI only, the SLOOP UI keeps SLOOP's order); the drum track: its kits as PRESETS. On the mixer's MASTER row and the master FX PRESETS does nothing (master has no instrument) |
 | The step sequencer | **the 16 keys are the 16 steps**, on drums and synths alike; a pattern longer than 16 steps: **HOME + OCT- / OCT+ scroll the window of 16**; OCT alone keeps its job |
-| Picking the drum sub-track (the lane) | **the current mode's button, held, + a key**: on the mixer and on every screen where the keys play, **HOME held + a key** (the key plays the sound); on STEP, where the keys are steps, **SEQ held + a key**. One lane for the whole device |
+| Picking the drum sub-track (the lane) | **the current mode's button, held, + a key**: on every screen where the keys play except the mixer, **HOME held + a key** (the key plays the sound; on the mixer the same chord mutes the sequencer, section 21); on STEP, where the keys are steps, **SEQ held + a key**. One lane for the whole device |
 | HOME in combination | **HOME held + anything = clear it**: a step + HOME clears the step, a knob + HOME clears the cell's event, REC + HOME clears the track, a scene or pattern key + HOME clears it. HOME tapped alone is NO: it answers a dialog and goes back; while a dialog asks, the keys do nothing |
 | Locks and motion | **one store, two ways to edit it**: a step held + a knob writes a lock, REC + a knob while playing records motion, both into one list per pattern (section 6) |
 | SAVE and HOME with a button | YES / NO with a button was first read as a shift, but **SAVE cannot be a shift**: it is used to save something (preset, pattern, project). So: **SAVE held + a page button saves what that button owns**, nothing else; **HOME held + a page button clears or switches off** what it owns; section 2.1 proposes the table [P] |
@@ -130,7 +130,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **NO** (HOME tapped) | back one level; at the root nothing. Cancel an armed action |
 | **HOME held + anything** | **clear it** [D]: + a step key on STEP, the step (its notes, events and extras); + a knob, the hot cell's event (a step held) or the cell back to its default; + REC, the selected track's pattern, YES confirms; + a scene or pattern key in its layer, that scene or pattern. HOME held alone does nothing, on the mixer too (2026-10-12, section 17: SYSTEM is in GLO's cycle) |
 | **a page button, tapped** | jump the cursor to that family's rows (ENV: the envelope rows of SOUND); tapped again: its next row, past the last the first |
-| **HOME held + a key** where the keys play, **SEQ held + a key** on STEP | **pick** [D], "the current mode's button + a key": on the drum track the lane (the key plays the sound, so you hear what you picked); on a synth track, on STEP, the note or chord the next tapped steps carry. The selected lane is one value for the whole device, like the selected track: the mixer's drum column, SOUND and STEP all show it. On STEP the keys are steps, so there HOME + a key clears and the screen's own button picks |
+| **HOME held + a key** where the keys play, **SEQ held + a key** on STEP | **pick** [D], "the current mode's button + a key": on the drum track the lane (the key plays the sound, so you hear what you picked); on a synth track, on STEP, the note or chord the next tapped steps carry. The selected lane is one value for the whole device, like the selected track: the mixer's drum column, SOUND and STEP all show it. On STEP the keys are steps, so there HOME + a key clears and the screen's own button picks. **On the mixer HOME held + a key is the sequencer MUTE, not the pick** (2026-10-13, section 21) |
 | **GLO tapped** | **GLOBAL** [D, 2026-10-12]: the tempo, REC and MIDI settings, and the way into SYSTEM (section 4.11); tapped again: its next row, round |
 | **a page button, held** | the performance layers, as today (section 4.9) |
 | **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D]; **on STEP's roll (a synth track, the keys steps) the roll's view an octave down / up, the keyboard octave unchanged** (2026-10-12, section 4.2) |
@@ -281,7 +281,7 @@ are knobs (a turn switches them), a row's SOUND row is EDIT's first row, MASTER'
 the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
 2's paging rule; GLO tapped paged them too until 2026-10-12, it opens GLOBAL now, section 4.11); the header names the set
 (*T2 mix*, *T2 insert*, *T2 sends*, *T2 sound*, *Mix master*, *Mix comp*). PRESETS browses the sound (section 12); on SOUND / KIT it
-browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
+browses the row's sounds. HOME held + a drum key picks the lane on every other screen; on the mixer it mutes that lane's sequencer instead (2026-10-13, section 21; ALGORITHM and a played key still put the cursor on a lane's row).
 
 **Each row** [D: each row has a VU meter and its sequence below, like in SLOOP, with more space for the
 VU meter, compressor and sequencer]: at the left a colour chip and a short code (T1 T2 T3 DR, a lane's BD SD CH
@@ -2481,3 +2481,27 @@ ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSI
 GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
 the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.
+
+## 21. Sequencer mutes (feat/seq-mutes, 2026-10-13)
+
+The user: sequencer mutes, "for midi, not audio", on the mixer, HOME held + a key. A muted track or drum lane stops
+triggering new notes, for the internal sound and for MIDI out; the notes already sounding finish their tails. It is not the
+mixer's MUTE card, which stays as it is (the track's P_MUTE, a lane's dlm_mute: those silence the sound and MIDI out
+goes on).
+
+| | |
+|---|---|
+| **The gesture** | on the **mixer (HOME screen)**, **HOME held alone + a key** toggles. On every other screen HOME + a key keeps picking the lane, on STEP it still clears the step. With SAVE or another button also held, it is that chord's (SAVE + HOME + a key clears a scene). The key plays nothing (the keys go to the UI only, playing or stopped), so muting does not sound the track |
+| **The keys** | the 16 white keys the drum lanes play = the 16 lanes (the key of lane n is `key_of_lane(n)`, F3 upward); the 4 black keys F#, G#, A#, C# of the first octave = T1, T2, T3, DR. The other black keys do nothing. Works whichever track is selected and whichever group the mixer shows (channels or sounds) |
+| **What a mute does** | a muted **track**: its steps trigger nothing (synth notes, drum hits, ratchets), no lock of its steps applies; a synth note sounding ends by its own gate (a tie chain is let go, not cut), the drum hits' MIDI notes end with the step as ever. Its recorded motion keeps running (a filter sweep goes on through the mute). A muted **lane** (DR): no hit of that lane, no ratchet, no MIDI note, and no lock or motion of the lane's events (they would only sound at its next hit). Notes **played live** on a muted track still sound (only the sequencer is muted); the arp and the rolls are played live |
+| **Saved** | runtime state saved **with the project**, like the mixer state: a TLV of the FX record (`seq_mute.c`, TLV 0x42, 3 bytes: the tracks' bits, the lanes' mask; none when nothing is muted, so a project from before loads with nothing muted). A song section load applies it as the FX record's other parts; NEW and a project with none clear it |
+| **On the mixer** | a muted row's steps are drawn grey (no white playhead) and an **X** stands beside its code (channels, under T1..DR, next to the M / S badge); a muted lane's code is grey (the audio-muted lane's code stays amber). The audio M badge, the MUTE card and the VU are as before. With HOME held (past the hold time) the **keys' lights** show it: the 16 drum keys and the 4 black keys dim, the muted ones full (the full / dim / dark rule); a toast names it (*T2 SEQ MUTE*, *BD SEQ ON*) |
+| **SLOOP UI (UI=0)** | unchanged: its mute UI (GLO + keys) is the audio mute, a different state; the sequencer reads the mutes in both UIs, only this UI sets them |
+
+Code: `seq/seq_mute.c` (the state, `smute_key`, the TLV), `seq.c` (`drum_step`, `seq_ratchets`, `smute_step` at the step
+entry), `auto.c` (the locks, `dla_event`), `fx/fx_rec.c` (the TLV), `ui/optimist/op_input.c` (`mute_mod`, `smute_notes`),
+`op_keys.c` (the lights), `op_mixdraw.c` (the rows). Tests: `tests/smute_test.c` (the key map, a muted track and lane play
+nothing for sound and MIDI, the tails end, a live key sounds, the TLV and PROJECT round trip), `tests/ui_optimist_smute.h`
+(the gesture on the mixer, the other screens keep the pick and the clear, the X and the grey steps, the keys' lights).
+Open: whether a track's motion should stop too when muted (it runs now), and whether the key should sound as a preview
+(it is silent now).
