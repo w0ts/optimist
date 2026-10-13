@@ -102,29 +102,28 @@ static int32_t effv_p(uint32_t k, uint32_t id)
  * terms of voice.c track_render, the same integer arithmetic (tests/ui_optimist_effval.h checks them against it) */
 static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
 {
-    int32_t env = v ? v->env >> 9 : 0, penv = v ? v->penv : 0;
-    m->cut = ((lfo * effv_p(k, P_LD_FLT)) >> 7) + ((env * effv_p(k, P_ED_FLT)) >> 7);
-    if (v && v->vel > 110)                              /* (an accent opens the filter with the envelope) */
-        m->cut += (env * 24) >> 7;
-    m->shp = ((lfo * effv_p(k, P_LD_SHP)) >> 7) + ((env * effv_p(k, P_ED_SHP)) >> 7);
-    m->pit = ((lfo * effv_p(k, P_LD_PIT) * 3) >> 7) + ((penv * effv_p(k, P_ED_PIT) * 3) >> 7);
+    const track_t *t = &trk[k % NTRK];
+    int32_t env = v ? v->env >> 9 : 0, penv = v ? v->penv : 0, dep[4] = {0, 0, 0, 0}, j;
+    lfo_mod_t lm = {{0, 0, 0}, -1, -1};
+    for (j = 0; j < 2; j++) {                           /* LFO DEST's slots on the voices (voice.c lfo1_voices; the macros: */
+        int32_t d = t->p[P_L1DA + 2 * j];               /* as mac_pre writes them) */
+        if (LT_CLASSIC(d))
+            dep[d - LT_PIT] += effv_p(k, P_L1AA + 2u * (uint32_t)j);
+    }
+    lfo_apply(dep, lfo, (lfo + 32768) >> 1, &lm, &lm.g1);
 #if FELUCCA_LFO2
-    {   /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the audio side left them) added to its destination */
-        const track_t *t = &trk[k % NTRK];
-        int32_t d = t->p[P_L2DEST], a = t->p[P_L2AMT], v;
-        if (k < NPART && d && d < L2D_AMP && a) {
-            v = lfo_shape((uint32_t)t->p[P_L2WAVE], lfo2[k].ph, lfo2[k].rnd);
-            v = t->p[P_L2POL] ? (v + 32768) >> 1 : v;
-            v = (v * a * (d == L2D_PIT ? 3 : 1)) >> 7;
-            if (d == L2D_PIT)
-                m->pit += v;
-            else if (d == L2D_FLT)
-                m->cut += v;
-            else
-                m->shp += v;
-        }
+    if (k < NPART && LFO2_ON(t)) {                      /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the
+                                                         * audio side left them) */
+        int32_t w = lfo_shape((uint32_t)t->p[P_L2WAVE], lfo2[k].ph, lfo2[k].rnd), u = (w + 32768) >> 1, d2[4] = {0, 0, 0, 0};
+        lfo_dep(&t->p[P_L2DA], d2);
+        lfo_apply(d2, t->p[P_L2POL] ? u : w, u, &lm, &lm.g2);
     }
 #endif
+    m->cut = lm.m[1] + ((env * effv_p(k, P_ED_FLT)) >> 7);
+    if (v && v->vel > 110)                              /* (an accent opens the filter with the envelope) */
+        m->cut += (env * 24) >> 7;
+    m->shp = lm.m[2] + ((env * effv_p(k, P_ED_SHP)) >> 7);
+    m->pit = lm.m[0] + ((penv * effv_p(k, P_ED_PIT) * 3) >> 7);
 }
 /* each engine's (by UID) EDIT value its render adds the cutoff (low 4 bits) and the shape (high 4 bits) to, as (p[P_E0 +
  * n] << 8) + m->cutoff (the engines' render, grep m->cutoff / m->shape); 0xF none (DIGITAL and CZ fold both into one
@@ -169,47 +168,40 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         effv_at(k, (int32_t)id, (int32_t)id == dc ? m.cut : m.shp, val, mn, mx);
         return 1;
     }
+    if (id == P_L1AA || id == P_L1AB
 #if FELUCCA_LFO2
-    if (id == P_L2AMT) {                                /* LFO 2's AMT: its destination now, on that card's scale (as LFO DEST's) */
-        uint32_t d = (uint32_t)t->p[P_L2DEST];
-        if (!d || !t->p[P_L2AMT])
-            return 0;
-        if (d == L2D_PIT) {
-            *mn = -192, *mx = 192;
+        || id == P_L2AA || id == P_L2AB
+#endif
+    ) {                                                 /* a slot's AMT: its destination now, on that card's scale */
+        int32_t d = t->p[id - 1u];
+        if (!d || !t->p[id] || !(LT_CLASSIC(d)))
+            return 0;                                   /* (a value moved for the block: not shown here) */
+        if (d == LT_PIT) {
+            *mn = -192, *mx = 192;                      /* (1/16 semitone: +-12) */
             *val = clamp(m.pit >> 8, -192, 192);
-        } else if (d == L2D_AMP) {
+        } else if (d == LT_AMP) {
             *mn = 0, *mx = 127;
-            *val = v ? v->env_out >> 8 : 0;
+            *val = v ? v->env_out >> 8 : 0;             /* (the voice's level now: envelope, velocity, the LFO's dip) */
         } else {
-            effv_at(k, d == L2D_FLT ? dc : ds, d == L2D_FLT ? m.cut : m.shp, val, mn, mx);
+            effv_at(k, d == LT_FLT ? dc : ds, d == LT_FLT ? m.cut : m.shp, val, mn, mx);
         }
         return 2;
     }
-#endif
     switch (id) {
-    case P_LD_FLT:
     case P_ED_FLT:
-    case P_LD_SHP:
     case P_ED_SHP:
         if (!effv_p(k, id))
             return 0;
-        if (id == P_LD_FLT || id == P_ED_FLT)
+        if (id == P_ED_FLT)
             effv_at(k, dc, m.cut, val, mn, mx);
         else
             effv_at(k, ds, m.shp, val, mn, mx);
         return 2;
-    case P_LD_PIT:
     case P_ED_PIT:
         if (!effv_p(k, id))
             return 0;
         *mn = -192, *mx = 192;                          /* (1/16 semitone: +-12) */
         *val = clamp(m.pit >> 8, -192, 192);
-        return 2;
-    case P_LD_AMP:
-        if (!effv_p(k, id))
-            return 0;
-        *mn = 0, *mx = 127;
-        *val = v ? v->env_out >> 8 : 0;                 /* (the voice's level now: envelope, velocity, the LFO's dip) */
         return 2;
     default:
         break;

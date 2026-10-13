@@ -778,6 +778,7 @@ int main(void)
         for (i = 0; i < P_COUNT; i++)
             v[i] = (int16_t)((int)(i * 7u % 120u) - 60);
         v[P_A2ESUS] = 127, v[P_A2EREL] = 0, v[P_A2EPIT] = -64, v[P_A2ESHP] = 63, v[P_A2EOS2] = -1, v[P_A2ESDT] = 1;
+        v[P_L1DA] = LT_PAN, v[P_L1AA] = 50, v[P_L1DB] = LT_FLT, v[P_L1AB] = -30;   /* (LFO DEST: two slots, in range) */
         memset(&r, 0, sizeof r);
         r.used = UP_USED, r.name[0] = 'Y';
         up_vals_put(&r, v);

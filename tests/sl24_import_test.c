@@ -243,7 +243,7 @@ int main(void)
 #endif
         check("... 2.4's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
 #if FELUCCA_SL24_XSTEP
-        for (k = 0, ok = !strcmp(last_msg, "2.4 IMPORTED: SAVE IT"); k < NTRK; k++)
+        for (k = 0, ok = !strcmp(last_msg, "2.4 IMPORTED: SAVE IT") || !strcmp(last_msg, "2.4 IMPORTED, LFO CUT"); k < NTRK; k++)
             ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... its step extras are the working ones (XSTEP)", ok);
         project_save(5);

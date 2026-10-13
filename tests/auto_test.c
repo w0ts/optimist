@@ -376,7 +376,7 @@ static uint32_t old_extras(uint8_t *o)
         old_x[k].micro[(3u + k) % 64u] = (int8_t)(-4 - (int)k);
         old_x[k].micro[40] = MICRO_MAX;
         (void)stepx_lock_set(&old_x[k], 2u + k, P_PAN, (int16_t)(10 + (int)k));
-        (void)stepx_lock_set(&old_x[k], 9, P_LD_FLT, -20);
+        (void)stepx_lock_set(&old_x[k], 9, P_LEG_FLT, -20);   /* (2.4's LFO DEST FLT) */
         old_x[k].lock[5].step = LOCK_FREE;            /* (a free slot in the middle: packed when stored) */
         (void)stepx_lock_set(&old_x[k], 11, P_REV, 77);
         stepx_fill_set(&old_x[k], 6u + k, k & 1u ? FC_FILL : FC_NOFILL);

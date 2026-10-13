@@ -32,10 +32,10 @@ static int lfo2ui_cut_same(uint32_t wave, uint32_t pol, int32_t amt)
     int32_t o[CTL];
     uint32_t b, ok = 1, seen = 0;
     memset(t->v, 0, sizeof t->v);
-    t->p[P_E4] = 50, t->p[P_E7] = 0, t->p[P_A2FENV] = 0, t->p[P_LD_FLT] = t->p[P_ED_FLT] = 0;
-    t->p[P_LD_SHP] = t->p[P_ED_SHP] = t->p[P_LD_PIT] = t->p[P_ED_PIT] = 0;
+    t->p[P_E4] = 50, t->p[P_E7] = 0, t->p[P_A2FENV] = 0, t->p[P_ED_FLT] = 0;
+    t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = t->p[P_ED_SHP] = t->p[P_ED_PIT] = 0;
     t->p[P_L2RATE] = 100, t->p[P_L2WAVE] = (int16_t)wave, t->p[P_L2POL] = (int16_t)pol, t->p[P_L2TRIG] = 1;
-    t->p[P_L2DEST] = L2D_FLT, t->p[P_L2AMT] = (int16_t)amt;
+    t->p[P_L2DA] = LT_FLT, t->p[P_L2AA] = (int16_t)(2 * amt), t->p[P_L2DB] = t->p[P_L2AB] = 0;   /* (AMT: 2 x the one-slot one) */
     t->p[P_ATK] = 30, t->p[P_DEC] = 50, t->p[P_SUS] = 40;
 
     t->pold = 0, t->p[P_VOICE] = 0;                     /* (no sound load pending; POLY) */
@@ -82,16 +82,14 @@ static void lfo2ui_tests(void)
     lfo2ui_cell(r, 2, &c);
     check(!strcmp(c.label, "TRIG") && !strcmp(c.val, "NOTE"), "TRIG: NOTE by default");
     ok = 1;
-    for (k = 0; k < 4u; k++) {                          /* LFO2 DEST: DEST AMT, two empty */
+    for (k = 0; k < 4u; k++) {                          /* LFO2 DEST: DEST A, AMT A, DEST B, AMT B */
         lfo2ui_cell(rd, k, &c);
-        if (k == 0)
-            ok &= c.vp == &TSEL->p[P_L2DEST] && c.kind == CK_VAL;
-        else if (k == 1)
-            ok &= c.vp == &TSEL->p[P_L2AMT] && c.d == &TP[P_L2AMT] && c.gk == GK_BIP;
+        if (k == 0 || k == 2)
+            ok &= c.vp == &TSEL->p[P_L2DA + k] && c.kind == CK_VAL;
         else
-            ok &= c.label == 0 && c.kind == CK_NONE && c.vp == 0;
+            ok &= c.vp == &TSEL->p[P_L2DA + k] && c.d == &TP[P_L2DA + k] && c.gk == GK_BIP;
     }
-    check(ok, "LFO2 DEST: DEST, AMT (a +/- card), two empty cards");
+    check(ok, "LFO2 DEST: DEST A, AMT A (a +/- card), DEST B, AMT B");
     /* RATE as LFO's */
     TSEL->p[P_L2RATE] = 0;
     lfo2ui_cell(r, 0, &c);
@@ -135,19 +133,19 @@ static void lfo2ui_tests(void)
     check(TSEL->p[P_L2RATE] == TP[P_L2RATE].def && TSEL->p[P_L2WAVE] == TP[P_L2WAVE].def && TSEL->p[P_L2TRIG] == TP[P_L2TRIG].def &&
               TSEL->p[P_L2POL] == TP[P_L2POL].def && ui.scr == SCR_SOUND,
           "HOME held + each knob on LFO 2: RATE WAVE TRIG POL back to their defaults");
-    TSEL->p[P_L2DEST] = L2D_SHP, TSEL->p[P_L2AMT] = 30;
+    TSEL->p[P_L2DA] = LT_SHP, TSEL->p[P_L2AA] = 30;
     ui.row[SCR_SOUND] = (uint8_t)rd;
     frame();
     turn(EN_K2, 2);
-    check(TSEL->p[P_L2AMT] > 30 && TSEL->p[P_L2DEST] == L2D_SHP, "LFO2 DEST: KNOB 2 moves AMT, not DEST");
+    check(TSEL->p[P_L2AA] > 30 && TSEL->p[P_L2DA] == LT_SHP, "LFO2 DEST: KNOB 2 moves AMT, not DEST");
     press(B_HOME);
     turn(EN_K2, 1);
     release(B_HOME);
-    check(TSEL->p[P_L2AMT] == TP[P_L2AMT].def, "HOME held + KNOB 2 on LFO2 DEST: AMT back to 0");
+    check(TSEL->p[P_L2AA] == TP[P_L2AA].def, "HOME held + KNOB 2 on LFO2 DEST: AMT back to 0");
     press(B_HOME);
     turn(EN_K1, 1);
     release(B_HOME);
-    check(TSEL->p[P_L2DEST] == TP[P_L2DEST].def, "HOME held + KNOB 1: DEST back to OFF");
+    check(TSEL->p[P_L2DA] == TP[P_L2DA].def, "HOME held + KNOB 1: DEST back to OFF");
     /* the LFO 2 wave drawn, LFO2 DEST under it */
     TSEL->p[P_L2WAVE] = 1, TSEL->p[P_L2POL] = 1;
     ui.row[SCR_SOUND] = (uint8_t)r;
@@ -155,7 +153,7 @@ static void lfo2ui_tests(void)
     frames(2);
     ppm("opt-lfo2-page");
     ui.row[SCR_SOUND] = (uint8_t)rd;
-    TSEL->p[P_L2DEST] = L2D_FLT, TSEL->p[P_L2AMT] = -40;
+    TSEL->p[P_L2DA] = LT_FLT, TSEL->p[P_L2AA] = -40;
     ui.force = 1;
     frames(2);
     ppm("opt-lfo2-dest");
@@ -169,16 +167,16 @@ static void lfo2ui_tests(void)
     trk[0] = keep;
     reset_ui();
     song.sel = 0;
-    TSEL->p[P_L2DEST] = L2D_OFF, TSEL->p[P_L2AMT] = 0;
+    TSEL->p[P_L2DA] = LT_OFF, TSEL->p[P_L2AA] = 0;
     {
         int32_t v, mn, mx;
-        check(effv_synth(0, P_L2AMT, &v, &mn, &mx) == 0u, "AMT with DEST OFF: nothing moves it, one bar");
-        TSEL->p[P_L2DEST] = L2D_PIT, TSEL->p[P_L2AMT] = 20;
-        check(effv_synth(0, P_L2AMT, &v, &mn, &mx) == 2u && mn == -192 && mx == 192, "AMT on PIT: an amount, the pitch now (+-12 semitones)");
-        TSEL->p[P_L2DEST] = L2D_AMP;
-        check(effv_synth(0, P_L2AMT, &v, &mn, &mx) == 2u && mn == 0 && mx == 127, "AMT on AMP: the voice's level now, 0 .. 127");
-        TSEL->p[P_L2AMT] = 0;
-        check(effv_synth(0, P_L2AMT, &v, &mn, &mx) == 0u, "AMT 0: one bar");
+        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 0u, "AMT with DEST OFF: nothing moves it, one bar");
+        TSEL->p[P_L2DA] = LT_PIT, TSEL->p[P_L2AA] = 20;
+        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 2u && mn == -192 && mx == 192, "AMT on PIT: an amount, the pitch now (+-12 semitones)");
+        TSEL->p[P_L2DA] = LT_AMP;
+        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 2u && mn == 0 && mx == 127, "AMT on AMP: the voice's level now, 0 .. 127");
+        TSEL->p[P_L2AA] = 0;
+        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 0u, "AMT 0: one bar");
     }
 #if FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG
     {

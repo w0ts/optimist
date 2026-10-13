@@ -109,7 +109,8 @@ static int effv_cut_same(uint32_t which, uint32_t vel)
     const voice_t *v;
     memset(t->v, 0, sizeof t->v);
     t->p[P_E4] = 50, t->p[P_E7] = 0, t->p[P_A2FENV] = 0;
-    t->p[P_LD_FLT] = which & 1u ? 45 : 0, t->p[P_ED_FLT] = which & 2u ? -38 : 0, t->p[P_LD_SHP] = t->p[P_ED_SHP] = 0;
+    t->p[P_L1DA] = LT_FLT, t->p[P_L1AA] = which & 1u ? 90 : 0, t->p[P_ED_FLT] = which & 2u ? -38 : 0;   /* (LFO slot A: FLT) */
+    t->p[P_L1DB] = t->p[P_L1AB] = t->p[P_ED_SHP] = 0;
     t->p[P_LRATE] = 100, t->p[P_LWAVE] = 0, t->p[P_LFADE] = 0;
     t->p[P_ATK] = 30, t->p[P_DEC] = 50, t->p[P_SUS] = 40;
     trk_note_on(t, 60, vel);
@@ -240,7 +241,7 @@ static void effv_bar_tests(void)
         song.sel = 0;
         set_engine_of(t, 0);
         t->engine = t->eng_req, t->xf_on = 0, t->xf = 0;
-        t->p[P_E4] = 64, t->p[P_LD_FLT] = 50, t->p[P_LRATE] = 110, t->p[P_LWAVE] = 0, t->p[P_LFADE] = 0;
+        t->p[P_E4] = 64, t->p[P_L1DA] = LT_FLT, t->p[P_L1AA] = 100, t->p[P_LRATE] = 110, t->p[P_LWAVE] = 0, t->p[P_LFADE] = 0;
         op_enter(SCR_SOUND);
         for (r = 0; r < SCR->rows() && !(snd_page(r) && snd_page(r)->scope == SC_ENGINE && snd_page(r)->id[0] == P_E4); r++)
             ;

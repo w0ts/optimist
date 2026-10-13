@@ -108,6 +108,16 @@ static int16_t gold_at(uint32_t j, uint32_t i, uint32_t uid)
     return (int16_t)clamp(g, up_desc(uid, i)->min, up_desc(uid, i)->max);
 }
 
+/* LFO DEST (2026-10): the golden's four depths -> the slots Optimist reads (lfo_store.h) */
+static int16_t slot_of(uint32_t j, uint32_t n)
+{
+    int16_t d[4], s[4];
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        d[i] = (int16_t)gold_v(j, P_LEG_PIT + i);
+    (void)lfo_from_depths(d, s);
+    return s[n];
+}
 /* the golden's records as Optimist reads them (np: 61 or 71, P_E0 at e0) */
 static void reads(const char *who, uint32_t e0)
 {
@@ -118,7 +128,7 @@ static void reads(const char *who, uint32_t e0)
     up_values(up_rec(0), v);
     ok = up_used(0) && up_rec(0)->engine == 0u && v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2SWRM] == TP[P_A2SWRM].def;
     for (i = 0; i <= P_CHORD; i++)
-        ok &= v[i] == gold_at(0, i, 0);
+        ok &= i >= P_L1DA && i <= P_L1AB ? v[i] == slot_of(0, i - P_L1DA) : v[i] == gold_at(0, i, 0);
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == gold_at(0, P_E0 + i, 0);
     snprintf(what, sizeof what, "%s: ANALOG preset: values 0..49 theirs, FX OFF and ANALOG 2 at defaults, E0..E7 from %u", who,

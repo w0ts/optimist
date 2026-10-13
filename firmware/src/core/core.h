@@ -130,7 +130,9 @@ enum {                          /* per-track parameters */
     P_ED_FLT, P_ED_PIT, P_ED_SHP, P_ED_FX,     /* P_ED_FX: the sound's level trim (1/2 dB), set by the presets so
                                                 * every factory sound comes out as loud as the others (fx.c) */
     P_LRATE, P_LWAVE, P_LPHASE, P_LFADE,
-    P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP,
+    P_L1DA, P_L1AA, P_L1DB, P_L1AB,            /* LFO DEST: two slots, DEST A + AMT A, DEST B + AMT B (LT_*, voice.c
+                                                * lfo_slots; params.c lfo_*). These four ids held the depths PIT FLT SHP
+                                                * AMP until 2026-10 (P_LEG_*: their stored form, lfo1_load) */
     P_AMODE, P_ARATE, P_AOCT, P_AGATE,
     P_ASWING, P_APROB, P_AHOLD, P_AORDER,
     P_ROOT, P_SCALE, P_QUANT, P_TRANS,
@@ -182,16 +184,35 @@ enum {                          /* per-track parameters */
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
-     * it at phase 0; FREE: never), POL (BI -1..+1, UNI 0..+1: SLOOP 2.6's P_LTRIG P_LPOL), one DEST (OFF PIT FLT SHP
-     * AMP: L2D_*) and its AMT (-64..63, LFO DEST's scale: PIT FLT SHP as P_LD_PIT .. P_LD_SHP; AMP as P_LD_AMP x 2,
-     * < 0 the other way up). OFF or AMT 0: nothing computed. The parts' only (the drum track has its lanes' LFOs).
-     * Not part of a sound nor of a user preset (param_kept, as the track FILTER); a project keeps them packed in the
-     * drum track's LFO slots (project.c l2_pack), no format change */
-    P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DEST, P_L2AMT,
+     * it at phase 0; FREE: never), POL (BI -1..+1, UNI 0..+1: SLOOP 2.6's P_LTRIG P_LPOL), and two slots as LFO's
+     * (DEST A + AMT A, DEST B + AMT B: LT_*). Off (every slot OFF or at 0): nothing computed. The parts' only (the
+     * drum track has its lanes' LFOs). Not part of a sound nor of a user preset (param_kept, as the track FILTER); a
+     * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
+    P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
 #endif
     P_COUNT
 };
-enum { L2D_OFF, L2D_PIT, L2D_FLT, L2D_SHP, L2D_AMP, L2D_N };   /* P_L2DEST */
+/* An LFO's destinations (LFO DEST's slots, both LFOs; params.c LT_TAB says how each acts, voice.c lfo_slots):
+ *   PIT FLT SHP AMP  every voice of the part, each block, as the four depths did (AMT 2 = depth 1; AMP: AMT = depth;
+ *                    AMT < 0 on AMP: the dip from the bottom)
+ *   RES              the engine's resonance (its EDIT value named RES / RESO / Q), PAN, LVL (the part's level), ATK
+ *                    DEC (the envelope's times, as their index into the time tables: every voice as it runs), E1..E8
+ *                    (the engine's own EDIT values): the value moved for the block (voice.c lfo_over), +- half its
+ *                    range at full
+ *   XRATE XAMT       (with LFO2) the other LFO's RATE (its free rates only) and its two amounts (x 0..2): one block
+ *                    late, from the authored values each block, so the two never feed back into a runaway
+ * New destinations: one line in LT_TAB and a name (phase 2: the FX sends and the insert amounts) */
+enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, LT_DEC,
+       LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_XRATE, LT_XAMT, LT_N };
+#define LT_NB (FELUCCA_LFO2 ? LT_N : LT_XRATE)  /* the destinations of this build (XRATE XAMT: with LFO 2) */
+#define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
+#define LFO_AMT_LO (-128)               /* a slot's AMT */
+#define LFO_AMT_HI 127
+/* the ids that held the depths PIT FLT SHP AMP (a project's, a user preset's, SLOOP's, a preset's x[]): their stored form */
+#define P_LEG_PIT P_L1DA
+#define P_LEG_FLT P_L1AA
+#define P_LEG_SHP P_L1DB
+#define P_LEG_AMP P_L1AB
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
  * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not

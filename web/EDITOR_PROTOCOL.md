@@ -60,10 +60,17 @@ watches (v2, `WATCH`), the device also sends push frames (cmds 23, 24, 26) at an
 
 The engine parameters are `P_E0..P_E7`: P_COUNT−8 .. P_COUNT−1, and `INFO` gives `P_E0`.
 
-**LFO 2** (builds with the builder item LFO2, `FELUCCA_LFO2`): six track parameters after every other one, the last
-ids of a track (P_COUNT−6 .. P_COUNT−1 in those builds; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
-below 0 a note value of the tempo), WAVE (SIN TRI SAW SQR S&H), TRIG (NOTE FREE), POL (BI UNI), DEST (OFF PIT FLT SHP
-AMP), AMT (−64..63). They are read and set as any track parameter (`GET` / `SET`, `TRACK_PARAM`, the dumps carry
+**LFO DEST** (2026-10, feat/lfo-slots): the four ids that held LFO's depths PIT FLT SHP AMP (13..16) are two slots:
+DEST A (enum), AMT A (−128..127), DEST B, AMT B. A DEST: OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, and with LFO2
+XRATE XAMT (the other LFO's RATE, its AMTs); `DESC` gives the names and the range of this build. An AMT of 2 is a depth
+of 1 of before on PIT FLT SHP, on AMP the same. They are part of a sound (user presets keep them; `UP_GET` / `UP_PUT`
+carry the slots, the device stores them as before when they are depths). Not lockable nor recordable as motion yet; an
+old lock or motion event on a depth (id 13..16 in a project from before) plays onto the slot on that destination.
+
+**LFO 2** (builds with the builder item LFO2, `FELUCCA_LFO2`): eight track parameters after every other one, the last
+ids of a track (P_COUNT−8 .. P_COUNT−1 in those builds; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
+below 0 a note value of the tempo), WAVE (SIN TRI SAW SQR S&H), TRIG (NOTE FREE), POL (BI UNI), DEST A, AMT A, DEST B,
+AMT B (as LFO DEST's). They are read and set as any track parameter (`GET` / `SET`, `TRACK_PARAM`, the dumps carry
 them as they carry P_COUNT values); they are not part of a sound (a user preset does not keep them) and are not
 recordable as motion or locks. The synth parts' only (the drum track's are not heard).
 Their meaning, range and names depend on the current engine, so re-read `DESC` for them
@@ -643,8 +650,10 @@ the editor shows no button. Nothing is written to flash.
   Bit 8 (the mask's bit 22, `SX24_COND`): a step condition (252 COND, below: Felucca 1.5.6), which 2.4 has not: left out (bit
   7 is `SX24_INSFX`, a further insert). A v11 request gets it on bit 13 (motion), as the chance.
   Bit 9 (the mask's bit 23, `SX24_LFO2`): a part's LFO 2 that is not written as
-  2.4's LFO: one beside an LFO that acts, or with TRIG FREE, POL UNI or AMP below 0 (2.4 has one LFO, NOTE and BI); a
-  LFO 2 alone (the part's LFO DEST all 0) is written as 2.4's LFO (its RATE, WAVE, the AMT on its DEST, AMP 2 × AMT).
+  2.4's LFO: one beside an LFO that acts, or with TRIG FREE, POL UNI, AMP below 0 or a DEST 2.4 has not (2.4 has one
+  LFO, NOTE and BI); a LFO 2 alone (the part's LFO DEST off) is written as 2.4's LFO (its RATE, WAVE, its slots as the
+  depths). Bit 11 (the mask's bit 25, `SX24_LFODEST`): a slot of a part's LFO DEST that is no depth of 2.4's (another
+  DEST, AMP below 0): left out; the slots on PIT FLT SHP AMP are written as the depths (AMT / 2; AMP as it is).
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two

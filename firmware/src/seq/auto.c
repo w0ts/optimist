@@ -214,7 +214,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #if FELUCCA_PLOCK
     uint8_t lp[NLOCK];
     int8_t lv[NLOCK];
-    uint32_t m = 0;
+    uint32_t m = 0, ltaken = 0;                      /* (ltaken: the LFO slots an old depth event took, lfo_leg_ev) */
 #endif
 #if FELUCCA_MOTION
     uint32_t mo = (auto_w.on >> k) & 1u;
@@ -259,8 +259,19 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
             auto_ch[k] = (uint8_t)e->value;
 #endif
 #if FELUCCA_PLOCK
-        else if (!AUTO_PSEUDO(e->param) && m < NLOCK && lock_ok(t, mot_id(e->param)))
-            lp[m] = (uint8_t)mot_id(e->param), lv[m++] = e->value;
+        else if (!AUTO_PSEUDO(e->param) && m < NLOCK) {
+            uint32_t id = mot_id(e->param), did = P_COUNT;
+            int32_t val = e->value;
+            if (!is_drum(t) && id >= P_LEG_PIT && id <= P_LEG_AMP) {
+                id = m + 1u < NLOCK ? lfo_leg_ev(t, id, &val, &ltaken, &did) : P_COUNT;   /* (a depth of before: the LFO */
+                if (did < P_COUNT)                     /* slot on it, AMT units; a free slot put on it for the step) */
+                    lp[m] = (uint8_t)did, lv[m++] = (int8_t)(LT_PIT + (mot_id(e->param) - P_LEG_PIT));
+            } else if (!lock_ok(t, id)) {
+                id = P_COUNT;
+            }
+            if (id < P_COUNT)
+                lp[m] = (uint8_t)id, lv[m++] = (int8_t)clamp(val, -128, 127);
+        }
 #endif
     }
 #if FELUCCA_COND

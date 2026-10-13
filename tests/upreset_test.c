@@ -23,6 +23,8 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 }
 #include "../firmware/src/storage/storage.c"
 #include "../firmware/src/storage/upreset.c"
+/* LFO DEST's four ids: their stored form is the depths of before or the slots' tagged layout (lfo_store.h; tests/lfo_slots_test.c) */
+#define LFO_ID(i) ((i) >= P_L1DA && (i) <= P_L1AB)
 
 static int check(const char *what, int ok)
 {
@@ -68,7 +70,7 @@ int main(void)
     ok = r.ver == UP_VER && r.np == P_ENG_END;              /* (the values after P_E7, if built: none in a record) */
     up_params(&r, v, def);                                  /* (UP_VER 2: ENV2's extras packed, up_vals_put) */
     for (i = 0; i < P_COUNT; i++)
-        ok &= v[i] == (i < P_ENG_END ? (int16_t)(-40 + (int32_t)i) : def[i]);
+        ok &= LFO_ID(i) || v[i] == (i < P_ENG_END ? (int16_t)(-40 + (int32_t)i) : def[i]);
     bad += check("UP_PUT values (negative v14 too)", ok);
     bad += check("pattern: rest drops flags, tie has no note",
                  r.note[0] == 0 && r.flags[0] == 0 && r.note[1] == 41 && r.flags[1] == 1 && r.note[3] == 0 &&
@@ -134,7 +136,7 @@ int main(void)
         up_params(&r, v, def);
         ok = up_valid(&r);
         for (i = 0; i < P_E0; i++)
-            ok &= v[i] == (i < nc ? (int16_t)i : def[i]);
+            ok &= LFO_ID(i) || v[i] == (i < nc ? (int16_t)i : def[i]);
         for (i = 0; i < 8u; i++)
             ok &= v[P_E0 + i] == (int16_t)(nc + i);
     }
@@ -147,9 +149,9 @@ int main(void)
     up_params(&r, v, def);
     ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 16 * FELUCCA_ANALOG2;   /* (ANALOG 2: its ten, ENV2's six) */
     for (i = 0; i < 45u; i++)
-        ok &= v[i] == (int16_t)(2000 + i);
+        ok &= LFO_ID(i) || v[i] == (int16_t)(2000 + i);
     for (i = P_SLCR; i < P_E0; i++)
-        ok &= v[i] == def[i];
+        ok &= LFO_ID(i) || v[i] == def[i];
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(2000 + 45 + i);
     bad += check("old record (np 53): SLICER and CHORD defaults, E0..E7 kept", ok);
@@ -160,7 +162,7 @@ int main(void)
     up_params(&r, v, def);
     ok = 1;
     for (i = 0; i < P_CHORD; i++)
-        ok &= v[i] == (int16_t)(3000 + i);
+        ok &= LFO_ID(i) || v[i] == (int16_t)(3000 + i);
     ok &= v[P_CHORD] == def[P_CHORD] && v[P_FXOFF] == def[P_FXOFF];
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(3000 + 49 + i);
@@ -172,7 +174,7 @@ int main(void)
     up_params(&r, v, def);
     ok = v[P_FXOFF] == def[P_FXOFF];
     for (i = 0; i < P_FXOFF; i++)
-        ok &= v[i] == (int16_t)(4000 + i);
+        ok &= LFO_ID(i) || v[i] == (int16_t)(4000 + i);
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(4000 + 50 + i);
     bad += check("SLOOP 2.x record (np 58): FX on, the rest kept", ok);
@@ -185,7 +187,7 @@ int main(void)
         ok = r.np == P_ENG_END && r.ver == UP_VER && up_valid(&r) && !memcmp(v, w, P_ENG_END * sizeof w[0]) &&
              UP_NS(P_ENG_END) <= UP_PMAX;
         for (i = P_ENG_END; i < P_COUNT; i++)               /* (the values after P_E7: the defaults) */
-            ok &= v[i] == def[i];
+            ok &= LFO_ID(i) || v[i] == def[i];
     }
     bad += check("np == P_ENG_END: as stored (the values after P_E7 are not)", ok);
 

@@ -54,7 +54,7 @@ static int16_t lk_base[NTRK][NLOCK], lk_set[NTRK][NLOCK];
 
 static int p_lockable(uint32_t id)
 {
-    return id <= P_LD_AMP || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
+    return id <= P_LFADE || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
            id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7)
 #if FELUCCA_ANALOG2
            || (id >= P_A2WAVE && id <= P_A2ESDT)

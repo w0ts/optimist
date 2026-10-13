@@ -7,8 +7,10 @@ static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4
 #if FELUCCA_LFO2
 static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
 static const char *const N_L2POL[] = {"BI", "UNI"};
-static const char *const N_L2DEST[L2D_N] = {"OFF", "PIT", "FLT", "SHP", "AMP"};
 #endif
+/* an LFO slot's DEST (core.h LT_*; XRATE XAMT: the other LFO's, with LFO 2) */
+static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
+                                       "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "XRATE", "XAMT"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
@@ -84,10 +86,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
     [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
-    [P_LD_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
-    [P_LD_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),
-    [P_LD_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
-    [P_LD_AMP] = PD("AMP", F_PCT, 0, 127, 0),
+    [P_L1DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* LFO DEST: two slots (core.h LT_*) */
+    [P_L1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),   /* (2 = a depth of 1 of before; AMP: 1) */
+    [P_L1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_L1AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_AMODE] = PE("MODE", N_AMODE, 0),
     [P_ARATE] = PE("RATE", N_DIV, 2),
     [P_AOCT] = PD("OCT", F_INT, 1, 4, 1),
@@ -165,19 +167,51 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
     [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
     [P_L2POL] = PE("POL", N_L2POL, 0),
-    [P_L2DEST] = PE("DEST", N_L2DEST, 0),
-    [P_L2AMT] = PD("AMT", F_BIPCT, -64, 63, 0),
+    [P_L2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* its two slots, as LFO's */
+    [P_L2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+    [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
 };
-/* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
+#include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
+/* an automation event (a motion, a lock: stored before LFO DEST had slots, or SLOOP 2.4's) on a depth of before
+ * (P_LEG_PIT .. P_LEG_AMP) of part t at *v -> the AMT of t's LFO slot on that destination, *v in AMT units (2 x; AMP as it
+ * is). No slot on it: a slot that does nothing (OFF or at 0; not one in *taken, the slots this step's events took) is
+ * put on that destination for the event (*did: its DEST id, P_COUNT none), as the depth of before acted there; none:
+ * P_COUNT (not played). LFO DEST's slots record no event of their own yet */
+static uint32_t lfo_leg_ev(const track_t *t, uint32_t id, int32_t *v, uint32_t *taken, uint32_t *did)
+{
+    uint32_t d = LT_PIT + (id - P_LEG_PIT), k;
+    *v = d == LT_AMP ? clamp(*v, 0, 127) : 2 * clamp(*v, -64, 63);
+    *did = P_COUNT;
+    for (k = 0; k < 2u; k++)
+        if ((uint32_t)t->p[P_L1DA + 2u * k] == d) {
+            *taken |= 1u << k;
+            return P_L1AA + 2u * k;
+        }
+    for (k = 0; k < 2u; k++)
+        if (!((*taken >> k) & 1u) && (t->p[P_L1DA + 2u * k] == LT_OFF || !t->p[P_L1AA + 2u * k])) {
+            *taken |= 1u << k;
+            *did = P_L1DA + 2u * k;
+            return P_L1AA + 2u * k;
+        }
+    return P_COUNT;
+}
+/* a preset's extra parameters (preset_t.x) into p, each clamped to its range; the depths of before (P_LEG_*: the
+ * engines' tables) into LFO DEST's slots */
 static void preset_extras(int16_t *p, const preset_t *pr)
 {
-    uint32_t i;
+    int16_t d[4] = {0, 0, 0, 0};
+    uint32_t i, leg = 0;
     for (i = 0; i + 1u < 8u; i += 2u) {
         int32_t id = pr->x[i] - 1;
-        if (id >= 0 && id < P_E0)
+        if (id >= P_LEG_PIT && id <= P_LEG_AMP)
+            d[id - P_LEG_PIT] = pr->x[i + 1u], leg = 1;
+        else if (id >= 0 && id < P_E0)
             p[id] = (int16_t)clamp(pr->x[i + 1u], TP[id].min, TP[id].max);
     }
+    if (leg)
+        (void)lfo_from_depths(d, &p[P_L1DA]);
 }
 #if FELUCCA_ANALOG2
 /* ANALOG 2's values of ANALOG preset pi (eng_analog.c A2_PX) into p, clamped; after preset_extras */
@@ -405,11 +439,11 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
             *unit = "%";
         }
         break;
-    case F_BIPCT:
-        fmt_int(val, v * 100 / 64);
+    case F_BIPCT:                                     /* (-64..63 or an LFO slot's -128..127: +-100 %) */
+        fmt_int(val, (d->max > 63 ? v * 100 / 128 : v * 100 / 64));
         if (v > 0) {
             char t[8];
-            fmt_int(t, v * 100 / 64);
+            fmt_int(t, (d->max > 63 ? v * 100 / 128 : v * 100 / 64));
             val[0] = '+';
             str_cpy(val + 1, t, 6);
         }
@@ -529,7 +563,7 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 #endif
 #if FELUCCA_MACROS
 #define SC_MACRO (SC_DSND + 3)   /* GLO > MACRO (macro.c): COLOR MOTION SPACE ENERGY, kept in the drum track's MAC_ID */
-static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LD_FLT};   /* (values the drum track never reads) */
+static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LEG_FLT};   /* (values the drum track never reads) */
 #endif
 #define SC_FXSLOT (SC_DSND + 8)  /* FX > SLOTS (fx_slots.c): S1..S4, the type each slot holds */
 /* a track page's cells that are not P_* values (page_id, page_desc): INSERTS' S1 / S2 TYPE (fx_slots.c ins_desc), the
@@ -562,11 +596,11 @@ static const page_t PAGES[] = {
     {"ENV", FAM_ENV, SC_DSND, GR_DSND, {DE_CLICK, DE_DECAY, DE_BEND, DE_LEVEL}},
 #endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
-    {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
+    {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L1DA, P_L1AA, P_L1DB, P_L1AB}},   /* DEST A, AMT A, DEST B, AMT B */
 #if FELUCCA_LFO2
     /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
     {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
-    {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DEST, P_L2AMT, 0xFF, 0xFF}},
+    {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DA, P_L2AA, P_L2DB, P_L2AB}},
 #endif
 #if FELUCCA_UI != 1
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* S1's amount, the master sends (page_id) */

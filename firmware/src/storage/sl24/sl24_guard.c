@@ -211,7 +211,7 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
                                                         * parts use: in proj_tmp past the project it receives) */
     const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    uint32_t lost, k, at = 0, r = 0, ft = 0, ln;
+    uint32_t lost, k, at = 0, r = 0, ft = 0, ln, ld;
     if (sl26_is(b, (int)n)) {                          /* (2.6: as 2.5's, its parts' filter TYPE aside) */
         ft = sl26_to_sl24(b);
         n = SL24_SIZE;
@@ -230,6 +230,11 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
     lost = !x && sl24_has_extras(b);
     if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
         return 0;
+    for (k = 0, ld = 0; k < NPART; k++) {             /* (a part with three or four LFO depths: two kept, params.c lfo1_load) */
+        int16_t sl[4];
+        int32_t sp;
+        ld += lfo1_load(&proj_tmp.cur.t[k].p[P_LEG_PIT], sl, &sp);
+    }
     if (ft)
         sl26_ftype_in(&proj_tmp.cur, ft);
     ln = (uint32_t)sl24_usr_lanes(b, d);               /* (its USR kit: the lanes' record; d cleared first) */
@@ -246,7 +251,8 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
     }
 #endif
     project_apply(&proj_tmp.cur, d);
-    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : r ? "2.4 IMPORTED, LOCK CLAMPED" : "2.4 IMPORTED: SAVE IT");
+    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : r ? "2.4 IMPORTED, LOCK CLAMPED" : ld ? "2.4 IMPORTED, LFO CUT" :
+               "2.4 IMPORTED: SAVE IT");
     return 1;
 }
 /* the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project (sl24_import_buf);
