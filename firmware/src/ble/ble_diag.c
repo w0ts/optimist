@@ -429,6 +429,7 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "init_rx_target", c->init_rx_target);   /* the target's ADV_IND heard while initiating */
     bd_kv(put, "init_rx_other", c->init_rx_other);
     bd_kv(put, "init_rx_bad", c->init_rx_bad);
+    bd_kv(put, "init_rx_stale", c->init_rx_stale);     /* a packet already in the air when initiating started: no hit */
     bd_kv(put, "init_rxf_cntl", c->init_rxf_cntl);
     bd_kv(put, "init_rxf_tog", c->init_rxf_tog);
     bd_kx(put, "init_last_ahdr", c->init_last_ahdr, 4);
