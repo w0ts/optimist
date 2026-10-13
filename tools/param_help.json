@@ -277,7 +277,7 @@
       "SLOT": "User voice slot", "STORE": "Store the voice (asks)", "SEND": "Send as DX7 SysEx (asks)",
       "INIT": "Init the voice (asks)"}},
     {"kind": "op", "ctx": "SOUND", "params": {
-      "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
+      "PRESET": "The track's sound", "ENGINE": "Next engine, first sound",
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
     {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {

@@ -6,13 +6,13 @@
  *                     track, the lanes' own sounds (dl: offsets, sources, samples; the sends), taken again whenever
  *                     the sound is another one (its engine, preset, user preset; the drum track's kit, user kit:
  *                     ed_tick, every frame, no hash) or the UI loads / saves it (snd_mark). Anything that replaces an
- *                     edited sound asks "Discard T2 edits?" first: PRESETS, HOME + PRESETS, the SOUND row's PRESET
- *                     and ENGINE, a lane's own sound, INIT, a user preset's LOAD. An unedited sound never asks, so
+ *                     edited sound asks "Discard T2 edits?" first: PRESETS, HOME + PRESETS and the SOUND row's PRESET
+ *                     and ENGINE (the same change as HOME + PRESETS), a lane's own sound, INIT, a user preset's LOAD. An unedited sound never asks, so
  *                     browsing a preset at a time goes on freely; after YES the new sound is unedited again
  *   the work          changed when the tracks, sounds, lanes and globals differ from when a scene or project was last
  *                     loaded, stored or made NEW (work_mark): a scene or project LOAD asks only then
  * Signatures: FNV-1a in the main loop, on demand (the work's only when a load asks); 4 words of RAM a track. */
-enum { EK_NONE, EK_PRESET, EK_ENGINE, EK_LSOUND, EK_LKIND, EK_SNDENG };
+enum { EK_NONE, EK_PRESET, EK_ENGINE, EK_LSOUND, EK_LKIND };
 static struct {
     uint32_t id[NTRK], sig[NTRK];       /* the sound as loaded / saved: what it is, its signature */
     uint8_t ok;                         /* bit t: id / sig taken for track t */
@@ -109,7 +109,6 @@ static void ed_tick(void)                               /* once a frame: another
 
 static void op_preset_step(int32_t s);                  /* op_screens.c, op_walk.c: what may replace the sound */
 static void op_engine_step(int32_t s);
-static void snd_engine_step(int32_t s);
 static void lane_sound_step(int32_t s);
 static void lane_kind_step(int32_t s);
 /* before a change of kind on the selected track's sound: 1 = asked ("Discard T2 edits?"), the caller does nothing now
@@ -143,9 +142,6 @@ static void ed_run(uint32_t trk_i)                      /* YES on "Discard T2 ed
         break;
     case EK_ENGINE:
         op_engine_step(edt.s);
-        break;
-    case EK_SNDENG:
-        snd_engine_step(edt.s);
         break;
     case EK_LSOUND:
         lane_sound_step(edt.s);

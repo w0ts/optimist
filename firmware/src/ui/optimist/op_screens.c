@@ -160,18 +160,6 @@ static void op_engine_step(int32_t s)
     op_preset_go(i);
     ed_done();
 }
-static void snd_engine_step(int32_t s)                  /* the SOUND row's ENGINE: the next / previous engine, its defaults */
-{
-    uint32_t e = TSEL->eng_req;
-    if (is_drum(TSEL) || ed_ask(EK_SNDENG, s))
-        return;
-    do                                                  /* (stepping over the numbers kept free: engines.c) */
-        e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
-    while (eng_free(e));
-    set_engine(e);
-    ui.force = 1;
-    ed_done();
-}
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */
 static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, int fine)
 {
@@ -308,7 +296,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (k == 0u) {
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
     } else if (k == 1u) {
-        snd_engine_step(s);
+        op_engine_step(s);                              /* = HOME + PRESETS: the next engine's first sound (the user, 2026-10-13) */
     }
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)

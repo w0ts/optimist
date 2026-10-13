@@ -2261,6 +2261,37 @@ static void preset_engine_tests(void)
         check(ok, "... every turn a new instrument, round the list");
         reset_ui();
     }
+    {   /* the SOUND row's ENGINE card = HOME + PRESETS: the next / previous engine with its FIRST preset (the user, 2026-10-13) */
+        uint32_t i, k, eA, pA, uA, eB, pB, uB, same = 1, first = 1, c0;
+        song.sel = 0;
+        c0 = preset_pos(&total);
+        for (i = 0; i < 2u; i++) {
+            int32_t d = i ? -1 : 1;
+            song.sel = 0;
+            op_preset_go(c0);                           /* (the same start each time) */
+            ed_done();
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            frame();
+            press(B_HOME);                              /* HOME + PRESETS */
+            turn(EN_PRESET, d);
+            release(B_HOME);
+            eA = TSEL->eng_req, pA = TSEL->preset, uA = TSEL->user;
+            song.sel = 0;
+            op_preset_go(c0);
+            ed_done();
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            frame();
+            turn(EN_K2, d);                             /* the ENGINE card */
+            eB = TSEL->eng_req, pB = TSEL->preset, uB = TSEL->user;
+            same &= eA == eB && pA == pB && uA == uB;
+            cur = preset_pos(&total);
+            first &= (cur == 0u || preset_at(cur - 1u, &k) != eB) && !op_armed();
+            reset_ui();
+        }
+        check(same && first, "the SOUND row's ENGINE card: the same engine and preset as HOME + PRESETS, the engine's first sound, not its defaults");
+    }
     {   /* the master FX slots name their role by type, not place (the user, 2026-10-12: "slot 1 is insert, right ?") */
         cell_t c;
         int16_t *vp;
