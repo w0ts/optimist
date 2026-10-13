@@ -25,6 +25,8 @@
  *  13  the X0X kits under load (the CPU guard's X0X measurement, docs/CPU-GUARD.md): scenario 8's groove on the X0X
  *      808 (FELUCCA_BENCH_KIT, default 38) with HAT and OPEN HAT on the X0X 909's CH / OH (both machines), and
  *      scenario 3's parts (FM6 TINE EP, ANALOG SUPER PAD, FM6 STRINGS, POLY), 3 + 3 + 2 notes every 2 s
+ *  14  PHYS (FELUCCA_ENG_PHYS) on the three parts: DRONE STRING, SYMP HARP (SYMP: the largest state and frame),
+ *      BOWED METAL, 3 + 3 + 2 notes, the eighths groove (CPU1's stack, docs/DUAL-CORE.md)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -70,7 +72,8 @@ static struct {
 #define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13)   /* (16ths, any kit) */
 #define BENCH_X0X2 (FELUCCA_BENCH == 13 && FELUCCA_DRUM_KITS && FELUCCA_DRUM_X909 && FELUCCA_DRUM_X808)
 #define BENCH_FM6C (FELUCCA_BENCH == 10)
-#define BENCH_CZ ((FELUCCA_BENCH == 11 && FELUCCA_ENG_CZ) || (FELUCCA_BENCH == 12 && FELUCCA_ENG_PHASE))
+#define BENCH_CZ ((FELUCCA_BENCH == 11 && FELUCCA_ENG_CZ) || (FELUCCA_BENCH == 12 && FELUCCA_ENG_PHASE) || \
+                  (FELUCCA_BENCH == 14 && FELUCCA_ENG_PHYS))
 static const uint8_t BENCH_CLUSTER[8] = {60, 62, 63, 65, 67, 68, 70, 72};
 #if BENCH_GROOVE16
 #define BENCH_SIXTEENTH 86u                                /* blocks of a 16th at 120 BPM (~0.125 s) */
@@ -125,10 +128,12 @@ static void bench_setup(void)                              /* boot, after felucc
         return;
     }
 #if BENCH_CZ
-    {   /* 11: CZ SOFT PAD, WIRE BRASS, NOISE BREATH (two lines each); 12: PHASE CZ STRING, CZ BASS, SOFT KEYS */
-        static const uint8_t PI[2][NPART] = {{5, 4, 6}, {2, 0, 1}};
+    {   /* 11: CZ SOFT PAD, WIRE BRASS, NOISE BREATH (two lines each); 12: PHASE CZ STRING, CZ BASS, SOFT KEYS;
+         * 14: PHYS DRONE STRING, SYMP HARP, BOWED METAL */
+        static const uint8_t PI[4][NPART] = {{5, 4, 6}, {2, 0, 1}, {0, 0, 0}, {7, 8, 3}};
         for (p = 0; p < NPART; p++) {
-            set_engine_of(&trk[p], FELUCCA_BENCH == 11 ? ENG_IX_CZ : (uint32_t)ENG_SLOT_PHASE);
+            set_engine_of(&trk[p], FELUCCA_BENCH == 11 ? ENG_IX_CZ : FELUCCA_BENCH == 14 ? (uint32_t)ENG_SLOT_PHYS :
+                                   (uint32_t)ENG_SLOT_PHASE);
             apply_preset_to(&trk[p], PI[FELUCCA_BENCH - 11][p]);
             trk[p].engine = trk[p].eng_req;
             trk[p].p[P_VOICE] = V_POLY;

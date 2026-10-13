@@ -288,6 +288,24 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
   guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
   CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
+- **CPU1's stack (measured 2026-10-12):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
+  `cpu1_start` sets `usp` and then `sp` to the *system* stack (`_cpu1_sstack`): CPU1 is handed over in interrupt
+  context, where sp is the system stack, and its rti saves sp into ssp and takes usp. The emulator models it so: the
+  main loop runs on usp's top (+2048, 12 B used), and the wake interrupt with the job runs on +6144, the value the rti
+  left in ssp; ssp's own 2 KiB (+2048..+4095) is never touched. Under any reading of the entry, the job has at least
+  4 KiB below its top before another stack. Its worst depth, parts 2-3 on CPU1 (the mots configuration; emulator
+  high-water of the zeroed pool, bench scenarios 1, 2, 6, 7, 12, 14 / static, `tools/build.py cpu1_stack`):
+
+  | Engine | Emulator | Static |
+  |---|---|---|
+  | ACID (Soft drive) | 1,936 B | 2,452 B |
+  | PHYS (SYMP) | 1,556 B | 1,556 B |
+  | ANALOG | 680 B | 668 B |
+  | FM6 | 648 B | 856 B |
+  | PHASE | 456 B | 456 B |
+
+  ACID goes past "its own" 2 KiB into ssp's, which nothing uses: no overflow. Every DUAL build checks the static worst
+  path against 3,840 B (4 KiB less 256 for the main loop's frames and the interrupt's entry) and fails over it.
 - **Coherence / ordering [HW?]:** assumed coherent internal SRAM (as the SDK's flags); `csync` around
   the flags. If wrong: stale part samples (audible on parts 2-3).
 - **Flash:** CPU1 off XIP during flash work by construction, checked at every `irq_save`. The stock
