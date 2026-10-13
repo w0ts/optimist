@@ -35,6 +35,9 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
   CG_COST_DBFILT  the drum bus's FILTER while it runs (fx.c dbus_ins): cpu/fx/dbus_filt (the groove, the drum track's
                   FILTER low-pass) less cpu/fx/dbus_off. cpu/fx/ins_worst (three full parts with DIST + COMP, the drum
                   bus DIST + FILTER, the groove) is the check of the sum (docs/CPU-GUARD.md)
+  CG_COST_PINS[i], CG_COST_DBINS[i]  the further inserts FOLD FUZZ PHSR FLNG FRMT WIDE (fx/insfx/insfx.c) while they
+                  run, a part's: cpu/fx/part_<t> (S1 at 127) less cpu/fx/part_off; the drum bus's (on its L and R):
+                  cpu/fx/dbus_<t> less cpu/fx/dbus_off; 0 when not measured
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -49,7 +52,8 @@ BASELINE = ROOT / "tests" / "cpu_baseline.txt"
 COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
-NOTES = {"VOICE": 4, "ACID": 1}          # voices the regress CPU job sounds (8 notes held; its engine's cap)
+NOTES = {"VOICE": 4, "ACID": 1}
+INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_WIDE          # voices the regress CPU job sounds (8 notes held; its engine's cap)
 
 
 def engines():
@@ -105,13 +109,16 @@ def model(base=None, sc=None):
     pdist = fx["part_dist"] - pbase if pbase and "part_dist" in fx else 0
     pfilt = fx["part_filt"] - pbase if pbase and "part_filt" in fx else 0
     dbfilt = fx["dbus_filt"] - dbase if dbase and "dbus_filt" in fx else 0
+    pins = [fx[f"part_{t}"] - pbase if pbase and f"part_{t}" in fx else 0 for t in INS_NEW]
+    dbins = [fx[f"dbus_{t}"] - dbase if dbase and f"dbus_{t}" in fx else 0 for t in INS_NEW]
     return {"pdist": tgt(pdist) if pdist > 0 else 0, "pfilt": tgt(pfilt) if pfilt > 0 else 0,
             "dbfilt": tgt(dbfilt) if dbfilt > 0 else 0,"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
             "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0,
             "tcomp": tgt(tcomp) if tcomp > 0 else 0, "dbdist": tgt(dbdist) if dbdist > 0 else 0,
             "dbcomp": tgt(dbcomp) if dbcomp > 0 else 0, "dvdist": tgt(dvdist) if dvdist > 0 else 0,
-            "dvcomp": tgt(dvcomp) if dvcomp > 0 else 0}
+            "dvcomp": tgt(dvcomp) if dvcomp > 0 else 0,
+            "pins": [tgt(c) if c > 0 else 0 for c in pins], "dbins": [tgt(c) if c > 0 else 0 for c in dbins]}
 
 
 X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
@@ -161,6 +168,10 @@ def header(m):
         f"#define CG_COST_PDIST {m['pdist']}u     /* a part's DIST insert while it runs (fx.c ins_part) */",
         f"#define CG_COST_PFILT {m['pfilt']}u     /* a part's FILTER insert while it runs (fx.c tflt_part) */",
         f"#define CG_COST_DBFILT {m['dbfilt']}u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */",
+        "static const uint16_t CG_COST_PINS[6] = {" + ", ".join(str(c) for c in m["pins"]) + "};   /* a part's further "
+        "insert while it runs, FOLD FUZZ PHSR FLNG FRMT WIDE (insfx.c ifx_part) */",
+        "static const uint16_t CG_COST_DBINS[6] = {" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the drum bus's "
+        "(insfx.c ifx_bus: L and R) */",
         ""])
 
 

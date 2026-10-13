@@ -438,6 +438,16 @@ static void job_cpu(const job_t *j)
         trk[0].p[P_L2RATE] = 90;
     }
 #endif
+#if INS_FX
+    if (j->arg >= 20u && j->arg < 20u + 2u * (FXT_N - FXT_NEW0)) {   /* the further inserts (insfx.c; cpu_costs.py): 20 + i
+                                * part 1's S1 type FXT_NEW0 + i at 127 (less cpu/fx/part_off), 26 + i the drum bus's over
+                                * the groove (less cpu/fx/dbus_off) */
+        uint32_t ty = FXT_NEW0 + (j->arg - 20u) % (FXT_N - FXT_NEW0), k = j->arg < 20u + FXT_N - FXT_NEW0 ? 0u : TRK_DRUM;
+        trk[0].p[P_DIST] = TDRUM->p[P_DIST] = 0;
+        ins_load(k, 0, ty);
+        trk[k].p[FXT_AMT[ty]] = 127;
+    }
+#endif
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
             i0 = instr_now();
@@ -1085,6 +1095,26 @@ int main(int argc, char **argv)
             j->e = 0xFF;
             j->arg = 12;
         }
+#if INS_FX
+        for (i = 0; i < 2u * (FXT_N - FXT_NEW0); i++) {   /* the further inserts (insfx.c), each built: a part's (DIGITAL's
+                                                       * first preset, 8 notes, S1 at 127), the drum bus's (the groove) */
+            static const char *const NM[2][FXT_N - FXT_NEW0] = {
+                {"cpu/fx/part_fold", "cpu/fx/part_fuzz", "cpu/fx/part_phsr", "cpu/fx/part_flng", "cpu/fx/part_frmt", "cpu/fx/part_wide"},
+                {"cpu/fx/dbus_fold", "cpu/fx/dbus_fuzz", "cpu/fx/dbus_phsr", "cpu/fx/dbus_flng", "cpu/fx/dbus_frmt", "cpu/fx/dbus_wide"}};
+            uint32_t ty = FXT_NEW0 + i % (FXT_N - FXT_NEW0), bus = i >= FXT_N - FXT_NEW0;
+            if (FXT_AMT[ty] == 0xFFu || (!bus && !EB(1)))
+                continue;
+            j = add(J_CPU, NM[bus][i % (FXT_N - FXT_NEW0)]);
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            if (bus)
+                cpu_parts[ncpu][NPART][0] = 2;
+            else
+                cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)(20u + i);
+        }
+#endif
         if (EB(1) && EB(2) && EB(5)) {                /* the worst case: 2 heavy inserts on each of the 4 tracks */
             j = add(J_CPU, "cpu/fx/ins_worst");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
