@@ -1116,7 +1116,11 @@ static void project_load(uint32_t slot)
  * ~50 ms: never while something plays); loaded at power-on (autosave_resume) */
 #define AUTOSAVE_IDLE 2500u                    /* ms without input */
 #define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
+#ifdef SEC_RB_WORK
+#define autosave_buf SEC_RB_WORK               /* (sections.c sec_rb: shared with the section records' buffer) */
+#else
 static project_t autosave_buf __attribute__((section(".pool")));
+#endif
 static dlrec_t autosave_dl;                    /* its drum record */
 static uint32_t autosave_hash, autosave_ms, autosave_checked;
 
