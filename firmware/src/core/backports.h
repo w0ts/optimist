@@ -85,6 +85,7 @@
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
 #include "backports24.h"     /* SLOOP 2.4 */
+#include "backports15.h"     /* Felucca 1.5.6: step conditions, the sequence tools */
 #include "backports24seq.h"  /* SLOOP 2.4 sequencer backports */
 
 #define BP_SET_ANY (REV_MULTI || FELUCCA_ENG_ACID || FELUCCA_MIDI_CH || FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK)  /* bp_set.c: the settings with a page of their own (SC_BPSET);
