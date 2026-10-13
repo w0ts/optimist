@@ -82,6 +82,7 @@ static uint32_t up_engine_slot(uint32_t k)
 }
 #endif
 
+#include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
 /* values v (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
 static void up_vals_put(up_rec_t *r, const int16_t *v)
 {

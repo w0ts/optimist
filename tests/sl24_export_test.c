@@ -17,6 +17,15 @@
 #include "hostsim.c"
 #undef main
 #define PROJ_HOST 1
+/* LFO DEST (2026-10): a part's four depths of before as they come back after a load (lfo_store.h: the two of the most
+ * weight kept, as depths) */
+static int16_t leg_canon(const int16_t *d, uint32_t j)
+{
+    int16_t s[4], o[4];
+    (void)lfo_from_depths(d, s);
+    (void)lfo_depths(s, o);
+    return o[j];
+}
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
 #include "../firmware/src/storage/project.c"
 /* (the rest of the firmware project.c needs: as tests/sl24_import_test.c) */
@@ -121,7 +130,9 @@ static void golden(void)
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *a = T24(out, k), *g = T24(gold, k);
         for (i = 0; i < SL24_COMMON; i++)                                          /* values 0..49 */
-            ok &= SL24_TP_ON && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)
+            ok &= k < NPART && i >= P_LEG_PIT && i <= P_LEG_AMP     /* (a part's LFO depths: two kept) */
+                      ? p24(out, k, i) == leg_canon((const int16_t *)(const void *)(g + 2u * P_LEG_PIT), i - P_LEG_PIT)
+                  : SL24_TP_ON && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)
                       ? p24(out, k, i) == TP[i].def     /* (the import packs TFLT STRUM there: px_pack; the drum's own lost) */
                       : i == gone ? p24(out, k, i) == 0 && p24(gold, k, i) != 0   /* (P7-4: not heard here) */
                       : p24(out, k, i) == p24(gold, k, i);
@@ -215,8 +226,12 @@ static void native(const char *dir)
          r16(out, 8u + 2u * G_INFO) == 0;
     check("globals: BPM; MIDI channels, VIEW, QUANT (G_INFO) -> 0; SYNC AUTO -> INT; the lanes' REV -> 16; selection", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
+        int16_t d[4];
+        for (i = 0; i < 4u; i++)
+            d[i] = (int16_t)((int16_t)(k * 11u + (P_LEG_PIT + i) * 3u) - 20);
         for (i = 0; i < SL24_COMMON; i++)
-            ok &= p24(out, k, i) == (int16_t)(k * 11u + i * 3u) - 20;
+            ok &= p24(out, k, i) == (k < NPART && i >= P_LEG_PIT && i <= P_LEG_AMP ? leg_canon(d, i - P_LEG_PIT)
+                                                                                  : (int16_t)(k * 11u + i * 3u) - 20);
         ok &= p24(out, k, 50) == 0 && p24(out, k, 51) == 0 && p24(out, k, 52) == 0;
         ok &= !memcmp(T24(out, k) + 124, q.t[k].step, 640u) && (int8_t)T24(out, k)[SL24_TAIL + 5u] == -7 - (int)k;
         ok &= stepx_fill((const stepx_t *)(const void *)(T24(out, k) + SL24_TAIL), 6) == FC_FILL;
@@ -245,7 +260,7 @@ static void native(const char *dir)
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p), pj_to_p(w, r.t[k].p);
         for (i = 0; i < SL24_COMMON; i++)
-            ok &= v[i] == w[i];
+            ok &= k < NPART && i >= P_LEG_PIT && i <= P_LEG_AMP ? w[i] == leg_canon(&v[P_LEG_PIT], i - P_LEG_PIT) : v[i] == w[i];
         ok &= !memcmp(q.t[k].step, r.t[k].step, sizeof q.t[k].step) && !memcmp(y[k].micro, x[k].micro, SX_NSTEP) &&
               !memcmp(y[k].fill, x[k].fill, sizeof x[k].fill);
         ok &= w[P_FXOFF] == TP[P_FXOFF].def;
