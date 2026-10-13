@@ -8,7 +8,11 @@
 #define GL_TOP OH_HEAD                  /* the list: under the header, to the screen's foot */
 #define GL_BAND (240 - OH_HEAD)
 #define GL_SEC_H 20                     /* a section's name */
+#if FELUCCA_PARAM_HELP
+#define GL_LINE_H 29                    /* a line: 4 lines and 4 names fit over the help line (4 x 29 + 4 x 20 = 196, op_help.c) */
+#else
 #define GL_LINE_H 33                    /* a line: 4 lines and 4 names fit (4 x 33 + 4 x 20 = 212) */
+#endif
 #define GL_GX 140                       /* the value's form: x, width */
 #define GL_GW 96
 static struct {

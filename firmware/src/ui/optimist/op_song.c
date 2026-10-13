@@ -333,7 +333,6 @@ static void song_part_edit(uint32_t a, uint32_t ins)    /* INSERT (a copy after 
 static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     uint32_t a, kind = song_kind(r, &a);
-    (void)ok;
     switch (kind) {
     case SG_SCENE:
         scene_launch(a);                                /* playing: the next bar; stopped: loaded */
@@ -350,6 +349,14 @@ static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
     case SG_PART:
         if (k < 2u)
             return 0;
+        if (k == 3u && !ok && !song.playing && arrangement.count > 1u) {   /* DELETE: asked first (the user, 2026-10-13:
+                                                         * no undo for the song's order, saved when SONG is left) */
+            char b[10];
+            str_cpy(b, "PART ", sizeof b);
+            fmt_int(b + 5, (int32_t)a + 1);
+            op_arm(SCR_SONG, r, k, "DELETE", b, 1);  /* ("Delete part 3?") */
+            return 1;
+        }
         song_part_edit(a, k == 2u);
         return 1;
     default:

@@ -1715,7 +1715,10 @@ static void song_tests(void)
         ppm("opt-song-chain");
         turn(EN_K4, 1);
         tap(B_SAVE);
-        check(arrangement.count == cnt, "DELETE: the part goes");
+        check(op_armed() && arrangement.count == cnt + 1u && strstr(ui.arm_q, "PART 2"),
+              "DELETE: asked first (\"DELETE PART 2?\": no undo for the song's order)");
+        tap(B_SAVE);
+        check(arrangement.count == cnt, "DELETE: YES, the part goes");
         arrangement.entry[0].bars = (uint8_t)bars;
     }
     tap(B_HOME);
@@ -2247,6 +2250,8 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_glwalk.h"                     /* 2026-10-13: every GLOBAL / SYSTEM line walked: knob, PRESETS, actions RUN */
+#include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
+#include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
@@ -2375,6 +2380,8 @@ int main(int argc, char **argv)
     c2_roll_tests();
     glo_tests();
     glwalk_tests();
+    help_tests();
+    risk_tests();
     algo_tests();
     mute_tests();
     smute_tests();
