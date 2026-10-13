@@ -11,11 +11,12 @@
  *                            u8 length, the bytes. A reader skips a TLV it does not know (new types need no version
  *                            bump); a newer version is ignored as a whole (the defaults play). TLV DLM_TLV (0x40):
  *                            the drum lanes' PAN, MUTE, SOLO (drums/drum_mix.c), not an FX type. TLV FXRET_TLV
- *                            (0x41): the FX returns CHO DLY REV (below).
+ *                            (0x41): the FX returns CHO DLY REV (below). TLV SMUTE_TLV (0x43): the sequencer mutes
+ *                            (seq/seq_mute.c).
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 116u                                   /* the stored form at its longest (FXR_HEAD + the TLVs) */
+#define FXR_MAX 120u                                   /* the stored form at its longest (FXR_HEAD + the TLVs) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -33,8 +34,8 @@ _Static_assert(INS_TLV_N == 23u, "the track slots' TLV: 8 + 12 + 3");
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns': ids no FX type takes");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
 static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */
 {
@@ -208,6 +209,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the sequencer mutes (seq/seq_mute.c): a TLV of its own, none when nothing is muted */
+        uint32_t m = smute_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)SMUTE_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the FX returns (above), as the drum lanes' */
         uint32_t m = fxret_tlv(o + n + 2u);
         if (m) {
@@ -241,11 +249,14 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             at += 2u + a[at + 1u];
     fxs_untlv_none(all);
     dlm_none();                                        /* (none: every drum lane at the centre, heard) */
+    smute_untlv(0, 0);                                 /* (none: no sequencer muted) */
     if (all)
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
     for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
         if (a[at] == DLM_TLV)
             dlm_untlv(a + at + 2u, a[at + 1u]);
+        else if (a[at] == SMUTE_TLV)
+            smute_untlv(a + at + 2u, a[at + 1u]);
         else if (a[at] == FXRET_TLV) {
             if (all)
                 fxret_untlv(a + at + 2u, a[at + 1u]);

@@ -291,7 +291,9 @@ static void mixer_sets_tests(void)
         frames(HOLD_FRAMES);
         key(4);
         release(B_HOME);
-        check(ui.scr == SCR_HOME && lane_selected() == lane_of_key(4), "HOME held long + a key: the lane picked, no SYSTEM");
+        check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
+              "HOME held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
+        smute_lane = 0;
         press(B_HOME);
         frames(HOLD_FRAMES);
         press(B_GLO);

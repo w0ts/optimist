@@ -147,7 +147,10 @@ static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100
 static void dla_event(const auto_ev_t *e, uint32_t mo)
 {
     uint32_t l = AUTO_LANE_L(e->param), v = AUTO_LANE_V(e->param);
-    int8_t x = (int8_t)clamp(e->value, DE_MIN[v], DE_MAX[v]);
+    int8_t x;
+    if (smute_lane_on(l))
+        return;                                      /* (its sequencer muted: no lock, no motion; seq_mute.c) */
+    x = (int8_t)clamp(e->value, DE_MIN[v], DE_MAX[v]);
     if (e->place & AUTO_ONLY) {
 #if FELUCCA_PLOCK
         dla.lv[l][v] = x;
@@ -225,10 +228,10 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
     (void)fill;
 #endif
 #if FELUCCA_PLOCK
-    lock_apply(t, lp, lv, plays ? m : 0u);           /* (a fill-skipped step: its locks do not apply) */
+    lock_apply(t, lp, lv, plays && !smute_trk_on(k) ? m : 0u);   /* (a fill-skipped step, a track muted: its locks do not apply) */
 #endif
 #if DLA_ON
-    if (!plays && k == TRK_DRUM)
+    if ((!plays || smute_trk_on(k)) && k == TRK_DRUM)
         dla_locks_off();                             /* (nor its lane locks: its lane holds stay) */
 #endif
     return plays;

@@ -93,7 +93,27 @@ static void glo_list_tests(void)
     SCREENS[SCR_SYSTEM].name(0, nm);
     ok = !strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK");
     SCREENS[SCR_SYSTEM].cell(1, 1, &c);
-    check(ok && c.kind == CK_RO && !strcmp(c.label, "LOAD"), "SYSTEM's first lines: CPU's CLOCK and LOAD, read-outs");
+#if DUAL_LOAD
+    {   /* a DUAL=2 build: CLOCK, CPU0, CPU1 (lines 0..2 of page 1, read-outs); the next section starts at line 3, so every later
+         * line is one further on than in a single-core build and the 4-line pages (line / 4) shift with it */
+        cell_t c3, c4;
+        SCREENS[SCR_SYSTEM].cell(2, 2, &c3);
+        SCREENS[SCR_SYSTEM].cell(3, 3, &c4);
+        SCREENS[SCR_SYSTEM].name(2, nm);
+        ok &= c.kind == CK_RO && !strcmp(c.label, "CPU0") && c3.kind == CK_RO && !strcmp(c3.label, "CPU1") && !strcmp(nm, "CPU");
+        SCREENS[SCR_SYSTEM].name(3, nm);
+        check(ok && strcmp(nm, "CPU") && c4.kind != CK_RO, "SYSTEM's first lines (DUAL): CPU's CLOCK, CPU0 and CPU1, read-outs; line 4 the next section's");
+    }
+#else
+    {
+        cell_t c3;
+        SCREENS[SCR_SYSTEM].cell(2, 2, &c3);
+        SCREENS[SCR_SYSTEM].name(2, nm);
+        check(ok && c.kind == CK_RO && !strcmp(c.label, "LOAD") && strcmp(nm, "CPU") && c3.kind != CK_RO && c3.label &&
+                  strcmp(c3.label, "CPU1"),
+              "SYSTEM's first lines: CPU's CLOCK and LOAD, read-outs; line 3 the next section's");
+    }
+#endif
     for (s = 0, ok = 1; s < 2u; s++)                    /* nothing in GLOBAL or SYSTEM is an empty line */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {
             SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].cell(i, i % 4u, &c);
@@ -215,7 +235,7 @@ static void glo_tests(void)
         turn(EN_ALGO, 3);
         turn(EN_PRESET, -1);
         turn(EN_ALGO, -2);
-        line_named(SCR_SYSTEM, "LOAD");
+        line_named(SCR_SYSTEM, DUAL_LOAD ? "CPU0" : "LOAD");
         turn(EN_PRESET, 1);                             /* (a read-out: nothing) */
         turn(EN_ALGO, 1);
         check(song.sel == sel && preset_pos(&tot) == cur && !lane_picked() && !ui.master,

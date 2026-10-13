@@ -65,9 +65,35 @@ static void pages_nav_tests(void)
     SCREENS[SCR_SYSTEM].name(0, nm);
     SCREENS[SCR_SYSTEM].cell(0, 0, &c);
     SCREENS[SCR_SYSTEM].cell(0, 1, &c2);
+#if DUAL_LOAD
+    check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
+          c2.kind == CK_RO && !strcmp(c2.label, "CPU0") && !strcmp(c2.unit, "%"),
+          "D2 DUAL: SYSTEM's first row: CPU, CLOCK (MHz) and CPU0 (%), read-outs");
+    {   /* KNOB 3: CPU1's load (dual_load.h), OFF when the core is down; YES and a turn do nothing */
+        uint32_t q = dual_c1_q8;
+        dual_c1_q8 = 128u;
+        memset(&c2, 0, sizeof c2);
+        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
+              "DUAL: SYSTEM's CPU row, KNOB 3: CPU1 50 %, a read-out");
+        dual_c1_q8 = DUAL_C1_OFF;
+        memset(&c2, 0, sizeof c2);
+        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "OFF"),
+              "DUAL: CPU1 down: its cell reads OFF");
+        dual_c1_q8 = q;
+        memset(&c2, 0, sizeof c2);
+        SCREENS[SCR_SYSTEM].cell(0, 3, &c2);
+        check(c2.kind != CK_RO || strcmp(c2.label, "CPU1"), "DUAL: KNOB 4 of the CPU row stays empty");
+    }
+#else
     check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
           c2.kind == CK_RO && !strcmp(c2.label, "LOAD") && !strcmp(c2.unit, "%"),
           "D2: SYSTEM's first row: CPU, CLOCK (MHz) and LOAD (%), read-outs");
+    memset(&c2, 0, sizeof c2);
+    SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+    check(c2.kind != CK_RO, "D2: a single-core build: KNOB 3 of the CPU row is empty (no CPU1)");
+#endif
     /* D6 */
     reset_ui();
     turn(EN_K2, 1);
@@ -245,7 +271,13 @@ static void pages_keys_tests(void)
     keys_are(0, 0, "D10: the mixer, the drum track: the keys play, all dark (the lane key only where keys pick lanes)");
     press(B_HOME);
     frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15), "D10: the drum track, HOME held: the 16 lanes dim, the selected one full");
+    keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8,
+             "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes and the 4 black keys dim, none muted");
+    release(B_HOME);
+    tap(B_EDIT);
+    press(B_HOME);
+    frames(HOLD_FRAMES);
+    keys_are(kw(lane_selected()), kws(0, 15), "D10: the drum track's SOUND, HOME held: the 16 lanes dim, the selected one full");
     release(B_HOME);
     reset_ui();
     song.sel = 0;

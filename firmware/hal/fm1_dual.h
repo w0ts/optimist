@@ -81,8 +81,13 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
 }
 
 /* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into
- * reti, rti. Which of usp / ssp / sp CPU1's C code runs on after the rti is not known: each gets
- * its own 2 KiB (usp: the first, ssp: the second, sp: the third). */
+ * reti, rti. Which of usp / ssp / sp CPU1's C code and its wake interrupt run on after the rti is not known on the
+ * FM-1: each starts at the top of its own 2 KiB (usp: the first, ssp: the second, sp: the third). The emulator's
+ * reading (the ROM hands CPU1 over in interrupt context: the rti takes usp, the interrupt then the sp value the rti
+ * left in ssp): the main loop on usp's +2048 (12 B), the job on +6144. Under any reading the job, the deep one, has
+ * at least 4 KiB below its top before another stack: an ACID part takes ~2 KiB (emulator 1,936 B, static 2,452),
+ * past its own 2 KiB into the one nothing uses. tools/build.py cpu1_stack checks every DUAL build against that room
+ * (CPU1_STACK_ROOM). */
 #define FM1_C1_STACK_WORDS 1536u                         /* 6 KiB */
 uint32_t fm1_c1_stack[FM1_C1_STACK_WORDS] __attribute__((section(".pool"), aligned(8), used));
 void fm1_cpu1_main(void);                                 /* the C entry (src/dual.c), never returns */

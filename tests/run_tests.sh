@@ -588,6 +588,19 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LFO2=1 $SEC4 -o "$OUT/ui_optimist_lfo2_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with LFO 2 built in: the LFO 2 and LFO2 DEST rows after LFO DEST (synth tracks), RATE as LFO's, HOME + a knob, the AMT card's live bar equal to the render" "$OUT/ui_optimist_lfo2_test" "$OUT/optimist-lfo2"
 ) >"$U.out" 2>&1 & jobbg
+# the dual-core build's CPU1 load (system/dual_load.h): none in a single-core build; smoothed as song.cpu_q8, in range,
+# OFF when CPU1 is down; SYSTEM's CPU row with it (DUAL_LOAD alone: the readout without the second core's render)
+job; ( jobin
+    $CC -Ifirmware/src -DFELUCCA_DUAL=0 -o "$OUT/dual_load_off_test" tests/dual_load_test.c
+    run "CPU1 load, DUAL=0: nothing built" "$OUT/dual_load_off_test"
+    $CC -Ifirmware/src -DFELUCCA_DUAL=2 -o "$OUT/dual_load_test" tests/dual_load_test.c
+    run "CPU1 load, DUAL=2: smoothed per audio half as song.cpu_q8, 0..100 %, OFF when down" "$OUT/dual_load_test"
+) >"$U.out" 2>&1 & jobbg
+mkdir -p "$OUT/optimist-dual"
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_dual_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with the CPU1 load: SYSTEM's CPU row CLOCK, CPU0, CPU1 (OFF when down)" "$OUT/ui_optimist_dual_test" "$OUT/optimist-dual"
+) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-x0x"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_optimist_x0x_test" tests/ui_optimist_test.c -lm
@@ -779,6 +792,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 -o "$OUT/midi_seq_ble_test" tests/midi_seq_test.c -lm
     run "settings word with BLE built in: BLUETOOTH is bit 24, 1 = ON (fresh, older and SLOOP words read OFF), beside the other bits" "$OUT/midi_seq_ble_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -o "$OUT/smute_test" tests/smute_test.c -lm
+    run "sequencer mutes (HOME held + a key on the mixer): the key map, a muted track / lane plays nothing (sound, MIDI), the tails end, the FX record TLV" "$OUT/smute_test"
 ) >"$U.out" 2>&1 & jobbg
 
 # BLE MIDI, route C (our own stack, firmware/src/ble/, docs/BLE-STACK.md): built with ASan / UBSan where the compiler has them
@@ -1236,6 +1253,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
+    run "rescue tool with any .fwsc (validation, confirmation flag, fake USB transport)" python3 tests/rescue_any_test.py
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

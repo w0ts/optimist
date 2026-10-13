@@ -430,11 +430,12 @@ static void dev_draw(uint32_t y, uint32_t h)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1 };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"CPU", {SI_MHZ, SI_CPU, SI_NONE, SI_NONE}},       /* first: the clock and the load (the user, 2026-10-12, D2: "in
-                                                         * system. freq+cpu load."; GLO's cycle reaches it here) */
+    {"CPU", {SI_MHZ, SI_CPU, SI_IF(DUAL_LOAD, SI_CPU1), SI_NONE}},   /* first: the clock and the load (the user, 2026-10-12, D2: "in
+                                                         * system. freq+cpu load."; GLO's cycle reaches it here). A DUAL=2
+                                                         * build: CPU0 and CPU1, each core's (the user, 2026-10-12) */
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -568,12 +569,26 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         break;
 #endif
     case SI_CPU:
-        c->label = "LOAD";
+        c->label = DUAL_LOAD ? "CPU0" : "LOAD";         /* (DUAL: its wait for CPU1 counts in it) */
         c->kind = CK_RO;
         fmt_int(c->val, (int32_t)(song.cpu_q8 * 100u / 256u));
         c->unit = "%";
         cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
         break;
+#if DUAL_LOAD
+    case SI_CPU1: {                                     /* the second core's share of each audio half (dual_load.h) */
+        int32_t pct = dual_c1_pct();
+        c->label = "CPU1";
+        c->kind = CK_RO;
+        if (pct < 0)
+            str_cpy(c->val, "OFF", sizeof c->val);      /* (down for good: CPU0 renders everything, dual.c) */
+        else
+            fmt_int(c->val, pct);
+        c->unit = pct < 0 ? "" : "%";
+        cell_gauge(c, 0, 0, 100, pct < 0 ? 0 : pct);
+        break;
+    }
+#endif
     case SI_MHZ:
         c->label = "CLOCK";
         c->kind = CK_RO;
@@ -722,7 +737,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty = 1;
         return 1;
     }
-    if (it == SI_NONE || it == SI_CPU || it == SI_MHZ)
+    if (it == SI_NONE || it == SI_CPU || it == SI_MHZ || (DUAL_LOAD && it == SI_CPU1))
         return 0;
     sys_set(it, 0);
     return 1;

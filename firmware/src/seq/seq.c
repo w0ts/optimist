@@ -65,6 +65,7 @@ static volatile uint8_t panic_req;       /* bit per track: release every soundin
 
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
 
+#include "seq_mute.c"          /* the sequencer mutes: a track or a drum lane stops triggering (HOME held + a key on the mixer) */
 #include "seq_midi.c"          /* the tracks' MIDI channels, MIDI OUT = SEQ, IN = CLOCK (SLOOP 2.4) */
 
 static uint32_t scale_mask(const track_t *t)
@@ -2606,7 +2607,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 /* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
 static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
-    uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t);
+    uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t) & ~(uint32_t)smute_lane;   /* (a muted lane: no hit, no MIDI) */
     seq_out_track_off(t);                           /* the last step's hits end here */
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
@@ -2619,6 +2620,8 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 {
     uint32_t i;
+    if (smute_trk_on(trk_index(t)))
+        return;                                     /* (the track's sequencer muted: no further hit) */
 #if FELUCCA_FILLS
     if (seq_skip[trk_index(t) % NTRK])
         return;                                     /* (its fill condition failed: no hit at all) */
@@ -2629,7 +2632,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             return;                                 /* (its chance said no: no hit at all) */
 #endif
         const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
-        uint32_t m = dstep_mask(s) & ~roll_lanes(t);
+        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane;
         for (i = 0; m; i++, m >>= 1) {
             uint32_t hits = 1u + dstep_rat(s, i), h, done;
             if (!(m & 1u) || hits == 1u)
@@ -2679,6 +2682,21 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             }
         }
     }
+}
+
+/* a step of a track whose sequencer is muted (seq_mute.c): it plays nothing and releases nothing: the notes sounding end
+ * at their own gates (a tie chain's hold let go), the drum hits' MIDI notes end with the step as ever. The recording's
+ * held note follows the grid as on any step */
+static void smute_step(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
+{
+    t->rskip_lanes = 0;
+    t->rskip_n = 0;
+    if (is_drum(t)) {
+        seq_out_track_off(t);
+        return;
+    }
+    rec_hold(t, idx, len, abs);
+    t->seq_hold = 0;
 }
 
 #if SL24_STEPX
@@ -2775,7 +2793,9 @@ static void seq_tick(track_t *t, uint32_t adv)
             }
         } else
 #endif
-        if (is_drum(t)) {
+        if (smute_trk_on(trk_index(t))) {            /* its sequencer muted: the step plays nothing */
+            smute_step(t, idx, len, nabs);
+        } else if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
             if (!chance_drum_drop(t, &t->dstep[idx]))
@@ -2837,7 +2857,9 @@ static void seq_tick(track_t *t, uint32_t adv)
         (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
 #endif
         ev_at(into);                                 /* (following a clock: its sample in the block) */
-        if (is_drum(t)) {
+        if (smute_trk_on(trk_index(t))) {
+            smute_step(t, idx, len, abs);
+        } else if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
             if (!chance_drum_drop(t, &t->dstep[idx]))
