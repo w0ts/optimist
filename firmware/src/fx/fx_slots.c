@@ -18,7 +18,6 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
        FXT_N };
 #define FXT_NEW0 FXT_FOLD                              /* the further insert types FXT_NEW0 .. FXT_N - 1 (insfx.c) */
 #define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_N - 1 (fxi.c: an instance each) */
-#define FXT_NB (INS_LIM ? FXT_N : FXT_LIM0)            /* the audio's loops over the types stop here (none past it built) */
 #define FX_NSLOT 4u
 #define FXT_BIT(x) (1u << (x))
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \

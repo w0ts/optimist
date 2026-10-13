@@ -1493,6 +1493,15 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
+/* the inserts a track's block calls while in none of its slots, at 0 (they let go, then rest): DIST FILTER COMP (their
+ * own rest tests), the further types only while not at rest (insfx.c ifx_awake: built and in no slot, nothing a block) */
+#if INS_FX
+#define INS_IDLE(k) ((uint32_t)ifx_awake[(k) % NTRK])
+#else
+#define INS_IDLE(k) 0u
+#endif
+#define INS_OUT(k, s0, s1) (FXT_BUILT & FXT_INSERT & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_COMP)) | \
+                                                     INS_IDLE(k)) & ~(FXT_BIT(s0) | FXT_BIT(s1)))
 
 /* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
  * its P_DIST P_TFLT P_TCOMP (inserts) and P_CHOR P_DLY P_REV (its bus sends; the FX record carries them: fx_slots.c;
@@ -1616,16 +1625,15 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
 {
     const int16_t *p = TDRUM->p;
     int32_t on = fx_on(TDRUM), to[3];
-    uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, nc = DBUS_NC();
+    uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, m, nc = DBUS_NC();
 #if DINS
     dins_ran[0] = dins_now[0], dins_ran[1] = dins_now[1];   /* (the drums have rendered: the voices' inserts that ran) */
     dins_now[0] = dins_now[1] = 0;
 #endif
     dbus_ins(s0, on && INS_ON(TRK_DRUM, s0), n, nc);   /* S1, S2 (an empty slot, a type not built: nothing) */
     dbus_ins(s1, on && INS_ON(TRK_DRUM, s1), n, nc);
-    for (t = FXT_DIST; t < FXT_NB; t++)                  /* the inserts in no slot: at 0 (they let go, then rest; the
-                                                         * built ones only: a constant mask, the rest never looked at) */
-        if (((FXT_BUILT & FXT_INSERT) >> t & 1u) && t != s0 && t != s1)
+    for (t = 0, m = INS_OUT(TRK_DRUM, s0, s1); m; t++, m >>= 1)   /* the inserts in no slot: at 0 (INS_OUT) */
+        if (m & 1u)
             dbus_ins(t, 0, n, nc);
     to[0] = on && FXS_ON(FXT_CHO) ? p[P_CHOR] * 258 : 0;
     to[1] = on && FXS_ON(FXT_DLY) ? p[P_DLY] * 258 : 0;
@@ -1660,12 +1668,12 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
 }
 static HOT2 __attribute__((noinline)) void ins_part(track_t *t, int32_t *b, uint32_t n)
 {
-    uint32_t k = (uint32_t)(t - trk) % NPART, s0 = ins_slot[k][0], s1 = ins_slot[k][1], ty;
+    uint32_t k = (uint32_t)(t - trk) % NPART, s0 = ins_slot[k][0], s1 = ins_slot[k][1], ty, m;
     int32_t on = fx_on(t);
     ins_one(t, k, s0, on && INS_ON(k, s0), b, n);
     ins_one(t, k, s1, on && INS_ON(k, s1), b, n);
-    for (ty = FXT_DIST; ty < FXT_NB; ty++)
-        if (((FXT_BUILT & FXT_INSERT) >> ty & 1u) && ty != s0 && ty != s1)   /* (the built ones) */
+    for (ty = 0, m = INS_OUT(k, s0, s1); m; ty++, m >>= 1)   /* (in no slot: INS_OUT) */
+        if (m & 1u)
             ins_one(t, k, ty, 0, b, n);
 }
 

@@ -400,6 +400,21 @@ AINL int ifx_has(uint32_t ty, uint32_t k)
     (void)ty, (void)k;
     return 1;
 }
+/* the types (a bit each) that may still need a call at amount 0 on track k: not fully at rest. A call at 0 from rest
+ * (its wet share 0 before and after) does what every type does last at rest (FOLD FUZZ: no peak; WIDE: no side; CHRS
+ * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
+ * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
+ * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
+static uint16_t ifx_awake[NTRK];
+static __attribute__((noinline)) int32_t ifx_wn(uint32_t ty, uint32_t k) { return ifx_w(ty, k); }   /* (flash: the
+                                                        * wrappers and the quiet loop call it through FAR, a block) */
+static __attribute__((noinline)) void ifx_mark(uint32_t ty, uint32_t k, int32_t a, int32_t w0)   /* (flash, FAR) */
+{
+    if (a || w0 || ifx_w(ty, k))
+        ifx_awake[k % NTRK] |= (uint16_t)FXT_BIT(ty);
+    else
+        ifx_awake[k % NTRK] &= (uint16_t)~FXT_BIT(ty);
+}
 
 /* type ty (a further one) at amount a on instance i's n samples of b; sh: b's headroom (a part's 3, the bus's 2:
  * fx.c tflt_run's) */
@@ -426,7 +441,7 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
     (void)i, (void)a, (void)b, (void)n, (void)sh;
 }
 /* part k's further insert ty at amount a (fx.c ins_one; WIDE: its block + d / 2, its side d / 2) */
-static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
+AINL void ifx_part_run(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
 {
 #if INS_LIM
     if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
@@ -446,16 +461,23 @@ static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int
 #endif
     ifx_run(ty, k % NPART, a, b, n, 3);
 }
+static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, k % NPART);
+    ifx_part_run(ty, k, a, b, n);
+    FAR(ifx_mark)(ty, k % NPART, a, w0);
+}
 /* a part not heard this block (silent, MUTE / SOLO: fx.c mix_part): its further inserts not on any more (in no slot, at
  * 0, its FX bypassed) go to rest at once, not frozen mid-fade, so its next note starts dry, sample for sample (a fade
  * there would be the old effect's last 2.9 ms on a new note). Those still on keep their state */
 static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 {
-    uint32_t k = (uint32_t)(t - trk) % NPART, ty;
+    uint32_t k = (uint32_t)(t - trk) % NPART, ty, m = ifx_awake[k] & FXT_BUILT;
     int32_t on = fx_on(t);
-    for (ty = FXT_NEW0; ty < FXT_NB; ty++) {
-        if (!(FXT_BUILT >> ty & 1u) || !ifx_w(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
+    for (ty = 0; m; ty++, m >>= 1) {                    /* (only the types not at rest: ifx_awake) */
+        if (!(m & 1u) || ty < FXT_NEW0 || !FAR(ifx_wn)(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
             continue;
+        ifx_awake[k] &= (uint16_t)~FXT_BIT(ty);         /* (to rest here, below) */
 #if INS_LIM
         if (ty >= FXT_LIM0) {
             ifx_lim_rest(ty, k);                        /* (its wet share 0: it starts from a clean line, fxi_kern.c) */
@@ -486,7 +508,7 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
     }
 }
 /* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d) */
-static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
 #if INS_LIM
     if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
@@ -506,5 +528,12 @@ static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32
 #endif
     ifx_run(ty, IFX_BUS, a, l, n, 2);
     ifx_run(ty, IFX_BUS + 1u, a, r, n, 2);
+}
+_Static_assert(IFX_BUS == TRK_DRUM, "ifx_awake: the drum bus's bit is the drum track's");
+static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, IFX_BUS);
+    ifx_bus_run(ty, a, l, r, n);
+    FAR(ifx_mark)(ty, IFX_BUS, a, w0);
 }
 #endif
