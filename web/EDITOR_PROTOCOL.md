@@ -61,7 +61,8 @@ watches (v2, `WATCH`), the device also sends push frames (cmds 23, 24, 26) at an
 The engine parameters are `P_E0..P_E7`: P_COUNT−8 .. P_COUNT−1, and `INFO` gives `P_E0`.
 
 **LFO DEST** (2026-10, feat/lfo-slots): the four ids that held LFO's depths PIT FLT SHP AMP (13..16) are two slots:
-DEST A (enum), AMT A (−128..127), DEST B, AMT B. A DEST: OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, and with LFO2
+DEST A (enum), AMT A (−128..127), DEST B, AMT B. A DEST: OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8 CHO DLY REV INS1 INS2 (the sends, the S1 / S2
+inserts' amounts), and with LFO2
 XRATE XAMT (the other LFO's RATE, its AMTs); `DESC` gives the names and the range of this build. An AMT of 2 is a depth
 of 1 of before on PIT FLT SHP, on AMP the same. They are part of a sound (user presets keep them; `UP_GET` / `UP_PUT`
 carry the slots, the device stores them as before when they are depths). Not lockable nor recordable as motion yet; an

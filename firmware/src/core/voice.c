@@ -174,19 +174,21 @@ AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
  * the engine's EDIT value id (its own range), LK_RES the engine's EDIT value named RES / RESO / Q, LK_XR the other LFO's
  * RATE (its free rates only: a synced one stays), LK_XA the other LFO's two AMTs (x 0..2). Phase 2 adds the FX sends and
  * the insert amounts here */
-enum { LK_NONE, LK_P, LK_E, LK_RES, LK_XR, LK_XA };
+enum { LK_NONE, LK_P, LK_E, LK_RES, LK_XR, LK_XA, LK_INS };
 static const uint8_t LT_TAB[LT_N][2] = {
     {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0},   /* OFF PIT FLT SHP AMP: the voices' */
     {LK_RES, 0}, {LK_P, P_PAN}, {LK_P, P_LEVEL}, {LK_P, P_ATK}, {LK_P, P_DEC},
     {LK_E, 0}, {LK_E, 1}, {LK_E, 2}, {LK_E, 3}, {LK_E, 4}, {LK_E, 5}, {LK_E, 6}, {LK_E, 7},
+    {LK_P, P_CHOR}, {LK_P, P_DLY}, {LK_P, P_REV}, {LK_INS, 0}, {LK_INS, 1},   /* (the sends, S1 S2's amounts) */
     {LK_XR, 0}, {LK_XA, 0}};
+_Static_assert(LT_N <= 32, "a DEST in 5 bits (project.c l2_pack)");
 #define LO_MAX 16u                                     /* the values moved in a block (12 slots, XAMT two each: more is
                                                         * left as authored) */
 static struct {
     uint8_t n;
     uint8_t k[LO_MAX], id[LO_MAX];                     /* the part, the value */
     int16_t old[LO_MAX], put[LO_MAX];
-} lo;
+} lfo_ov;
 /* any part's slot acts on a value (lfo_over: pold_any) */
 AINL uint32_t lfo_over_any(void)
 {
@@ -204,11 +206,11 @@ AINL uint32_t lfo_over_any(void)
 static void lo_put(track_t *t, uint32_t id, int32_t v)
 {
     int16_t *q = &t->p[id];
-    if (v == *q || lo.n >= LO_MAX)
+    if (v == *q || lfo_ov.n >= LO_MAX)
         return;
-    lo.k[lo.n] = (uint8_t)(t - trk), lo.id[lo.n] = (uint8_t)id;
-    lo.old[lo.n] = *q;
-    lo.put[lo.n++] = (int16_t)v;
+    lfo_ov.k[lfo_ov.n] = (uint8_t)(t - trk), lfo_ov.id[lfo_ov.n] = (uint8_t)id;
+    lfo_ov.old[lfo_ov.n] = *q;
+    lfo_ov.put[lfo_ov.n++] = (int16_t)v;
     *q = (int16_t)v;
 }
 /* the index of engine e's EDIT value named RES / RESO / Q (8: none) */
@@ -222,7 +224,7 @@ static uint32_t lo_res(const engine_t *e)
     }
     return 8u;
 }
-/* the value LT_RES .. LT_E8 (DEST d) of part t moves: its id into *q and its range (an engine's EDIT value its own), 0
+/* the value LT_RES .. LT_INS2 (DEST d) of part t moves: its id into *q and its range (an engine's EDIT value its own), 0
  * for another destination (or no RES value on this engine) */
 static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
 {
@@ -238,6 +240,9 @@ static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
             return 0;
         *q = P_E0 + (uint32_t)i;
         return &ENGINES[t->engine % NENGINES]->edit[i];
+    case LK_INS:                                        /* (S1 / S2: the amount of the type it holds; empty: none) */
+        *q = ins_amt((uint32_t)(t - trk), LT_TAB[d][1]);
+        return *q < P_COUNT ? &TP[*q] : 0;
     default:
         return 0;
     }
@@ -279,7 +284,7 @@ static void lo_slot(track_t *t, int32_t d, int32_t a, int32_t v, uint32_t xr, ui
 static void lfo_over_in(void)
 {
     uint32_t k, s;
-    lo.n = 0;
+    lfo_ov.n = 0;
     for (k = 0; k < NPART; k++) {
         track_t *t = &trk[k];
         int32_t v1 = mulq15(t->lfo_val, t->lfo_fade);
@@ -300,11 +305,11 @@ static void lfo_over_in(void)
 /* the mix's end (pold_out): the bases back (a value written meanwhile keeps that value) */
 static void lfo_over_out(void)
 {
-    uint32_t i = lo.n;
+    uint32_t i = lfo_ov.n;
     while (i--)
-        if (trk[lo.k[i]].p[lo.id[i]] == lo.put[i])
-            trk[lo.k[i]].p[lo.id[i]] = lo.old[i];
-    lo.n = 0;
+        if (trk[lfo_ov.k[i]].p[lfo_ov.id[i]] == lfo_ov.put[i])
+            trk[lfo_ov.k[i]].p[lfo_ov.id[i]] = lfo_ov.old[i];
+    lfo_ov.n = 0;
 }
 
 static HOT void track_lfo_tick(track_t *t)

@@ -260,6 +260,26 @@ static void t_values(void)
                                                                  t->p[P_E1] == d1->max);
         check(ok, "values: RES (ANALOG's RES), E2 moved");
     }
+    {   /* phase 2: the sends, the inserts' amounts (S1 S2: whatever type the slot holds) */
+        uint32_t s1 = ins_amt(0, 0), s2 = ins_amt(0, 1);
+        t->p[P_CHOR] = 10, t->p[P_DLY] = 20, t->p[P_REV] = 120;
+        if (s1 < P_COUNT)
+            t->p[s1] = 30;
+        t->p[P_L1DA] = LT_REV, t->p[P_L1AA] = 127, t->p[P_L1DB] = LT_INS1, t->p[P_L1AB] = 100;
+        memcpy(keep, t->p, sizeof keep);
+        bracket(32767, 0);
+        ok = in_v[P_REV] == 127 && in_v[P_CHOR] == 10 && (s1 >= P_COUNT || in_v[s1] > 30) && !memcmp(keep, t->p, sizeof keep);
+        t->p[P_L1DA] = LT_CHO, t->p[P_L1AA] = -128, t->p[P_L1DB] = LT_DLY, t->p[P_L1AB] = 64;
+        bracket(32767, 0);
+        ok &= in_v[P_CHOR] == 0 && in_v[P_DLY] > 20 && t->p[P_CHOR] == 10 && t->p[P_DLY] == 20;
+        t->p[P_L1DA] = LT_INS2, t->p[P_L1AA] = 100, t->p[P_L1DB] = 0, t->p[P_L1AB] = 0;
+        if (s2 < P_COUNT)
+            t->p[s2] = 40;
+        bracket(-32767, 0);
+        ok &= s2 >= P_COUNT || (in_v[s2] < 40 && t->p[s2] == 40);
+        check(ok && s1 < P_COUNT, "values: REV CHO DLY sends and the S1 / S2 inserts' amounts moved for the block (clamped), "
+                                  "authored back");
+    }
     t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = 0;
     check(!lfo_over_any(), "values: no slot on a value: nothing bracketed");
 }

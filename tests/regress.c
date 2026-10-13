@@ -438,6 +438,12 @@ static void job_cpu(const job_t *j)
         trk[0].p[P_L2RATE] = 90;
     }
 #endif
+    if (j->arg == 19u || j->arg == 60u) {   /* LFO DEST on part 1's REV send and its S1 insert's amount (DIST by default): moved
+                                * each block (19), or the same REV and DIST held (60: cpu/lfo/fx less cpu/lfo/fx_off) */
+        trk[0].p[P_L1DA] = LT_REV, trk[0].p[P_L1AA] = j->arg == 19u ? 80 : 0, trk[0].p[P_L1DB] = LT_INS1;
+        trk[0].p[P_L1AB] = j->arg == 19u ? 80 : 0;
+        trk[0].p[P_REV] = 40, trk[0].p[P_DIST] = 40, trk[0].p[P_LRATE] = 90;
+    }
     if (j->arg >= 16u && j->arg <= 18u) {   /* LFO DEST's slots on part 1 (voice.c lfo1_voices, lfo_over): 16 none, 17 on the
                                 * voices (PIT 40, FLT 80: every voice's increment and cutoff each block), 18 on values (PAN 100,
                                 * E2 100: moved around the mix each block, lfo_over) */
@@ -1059,13 +1065,14 @@ int main(int argc, char **argv)
             j->e = 0xFF;
             j->arg = (uint8_t)i;
         }
-        for (i = 16; EB(1) && i <= 18u; i++) {        /* LFO DEST's slots: none, on the voices, on values */
-            j = add(J_CPU, i == 16u ? "cpu/lfo/none" : i == 17u ? "cpu/lfo/voices" : "cpu/lfo/values");
+        for (i = 16; EB(1) && i <= 20u; i++) {        /* LFO DEST's slots: none, on the voices, on values, on REV + S1, off */
+            j = add(J_CPU, i == 16u ? "cpu/lfo/none" : i == 17u ? "cpu/lfo/voices" : i == 18u ? "cpu/lfo/values" :
+                           i == 19u ? "cpu/lfo/fx" : "cpu/lfo/fx_off");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
             cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
             j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
             j->e = 0xFF;
-            j->arg = (uint8_t)i;
+            j->arg = (uint8_t)(i == 20u ? 60u : i);
         }
 #if FELUCCA_LFO2
         for (i = 14; EB(1) && i <= 15u; i++) {        /* LFO 2 on a part: DIGITAL's first preset, 8 notes, off / on */

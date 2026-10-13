@@ -199,11 +199,15 @@ enum {                          /* per-track parameters */
  *                    DEC (the envelope's times, as their index into the time tables: every voice as it runs), E1..E8
  *                    (the engine's own EDIT values): the value moved for the block (voice.c lfo_over), +- half its
  *                    range at full
+ *   CHO DLY REV      the part's sends (phase 2), INS1 INS2 the amount of the insert in its slot S1 / S2 (whatever type it
+ *                    holds: fx_slots.c ins_amt), moved for the block as the values above: fx.c reads them where it
+ *                    always did (mix_part's sends, the inserts' amounts)
  *   XRATE XAMT       (with LFO2) the other LFO's RATE (its free rates only) and its two amounts (x 0..2): one block
  *                    late, from the authored values each block, so the two never feed back into a runaway
- * New destinations: one line in LT_TAB and a name (phase 2: the FX sends and the insert amounts) */
+ * New destinations: one line in LT_TAB and a name */
 enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, LT_DEC,
-       LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_XRATE, LT_XAMT, LT_N };
+       LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_CHO, LT_DLY, LT_REV, LT_INS1, LT_INS2,
+       LT_XRATE, LT_XAMT, LT_N };
 #define LT_NB (FELUCCA_LFO2 ? LT_N : LT_XRATE)  /* the destinations of this build (XRATE XAMT: with LFO 2) */
 #define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
 #define LFO_AMT_LO (-128)               /* a slot's AMT */

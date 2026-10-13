@@ -10,7 +10,8 @@ static const char *const N_L2POL[] = {"BI", "UNI"};
 #endif
 /* an LFO slot's DEST (core.h LT_*; XRATE XAMT: the other LFO's, with LFO 2) */
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
-                                       "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "XRATE", "XAMT"};
+                                       "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
+                                       "INS2", "XRATE", "XAMT"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
@@ -418,6 +419,10 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 static void lt_text(const param_desc_t *d, int32_t v, char *val)
 {
     const char *s = N_LT[v];
+    if (v > LT_E8 && v < LT_XRATE) {                  /* (the sends, the inserts' amounts: their own names) */
+        str_cpy(val, s, 7);
+        return;
+    }
     if (v < LT_XRATE) {
         const param_desc_t *e = track_desc(TSEL, P_E0 + (uint32_t)(v - LT_E1));
         if (e->label && e->label[0] && e->label[0] != '-')
