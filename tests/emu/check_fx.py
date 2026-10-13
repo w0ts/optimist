@@ -83,7 +83,7 @@ def run(ctx):
 def body(ctx, r):
     e, P, fx = r.e, r.P, r.fx
     P.layer("GLO", [("knob", "KNOB1", 30)])           # (T1's level up)
-    e.run(max(0.0, 25.0 - e.now()))                    # (the first autosave's window: from 20 s on, 2.5 s idle)
+    e.run(13.0)                                        # (the autosave: once unchanged 10 s, before the captures)
     a, b = r.t1("default"), r.t1("default-again")
     r.same("a capture is deterministic: the same setting twice, the same samples", a, b)
     ctx.check("T1 sounds (steady RMS > -50 dBFS)", X.level_db(a) > -50, f"{X.level_db(a):.1f} dBFS")
@@ -247,7 +247,7 @@ def restore(ctx, r, moved):
                   f"{r.fmt(s)}; saved {r.fmt(fin)}")
         r.same("the snapshot: T1 the same samples", t1, r.t1("snapshot-t1"))
         r.same("the snapshot: the drums the same samples", dr, r.drum("snapshot-drum"))
-    e.run(24.0)                                       # (the autosave: 2.5 s idle, 20 s after the last)
+    e.run(24.0)                                       # (the autosave: once the work is unchanged 10 s)
     e.quit()
     e, P = ctx.open(fresh=False, settle=3.5)
     r.e, r.P, r.fx = e, P, X.Fx(e, P)
