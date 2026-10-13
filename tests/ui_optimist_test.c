@@ -600,14 +600,15 @@ static void confirm_tests(void)
     trk[0].step[0].time = ST_NOTE;
     trk[0].step[0].n = 1;
     trk[0].step[0].note[0] = 60;
-    press(B_HOME);
-    press(B_REC);
-    release(B_REC);
+    trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] > 60 ? 1 : trk[0].p[P_ATK] + 1);   /* (an edited sound: INIT asks) */
+    press(B_HOME);                                      /* (HOME + REC no longer clears the track: HOME + ENV is the modal's trigger) */
+    press(B_ENV);
+    release(B_ENV);
     release(B_HOME);
-    check(ui.arm_scr == ARM_TRACK && !strcmp(ui.arm_q, "CLEAR T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
-          "HOME + REC: asks CLEAR T1? (no REC, no NO)");
-    check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "CLEAR?") && !strcmp(ui.arm_arg, "T1") &&
-          ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: CLEAR? T1 (its colour), red");
+    check(ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "INIT T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
+          "HOME + ENV: asks INIT T1? (no ENV, no NO)");
+    check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "INIT?") && !strcmp(ui.arm_arg, "T1") &&
+          ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: INIT? T1 (its colour), red");
     ui.force = 1;
     frame();
     ppm("opt-confirm");
@@ -622,17 +623,18 @@ static void confirm_tests(void)
           !px_in(0, OY_PANEL + OH_PANEL, 240, 240 - OY_PANEL - OH_PANEL, C_LINE),
           "no footer: under the modal an empty band to the screen's foot");
     tap(B_SAVE);
-    check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 0 && !strcmp(ui.msg, "T1 CLEARED"), "YES: the track cleared, said");
+    check(ui.arm_scr == ARM_NONE && !strcmp(ui.msg, "SOUND INIT"), "YES: the sound initialised, said");
     check(ui.toast_t > 0 && ui.msg_t == 0 && ui.overlay == 2u, "the result of a confirmed action: a toast, not the header");
     ui.force = 1;
     frame();
     ppm("opt-toast");
     check(screen[(OY_PANEL + 60u) * 240u + 236u] == swap16(OP_SURF) &&
-          screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(C_OK),
+          screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(msg_status(ui.msg) ? C_STATUS[msg_status(ui.msg) & 3u] : C_HI),
           "the toast: a green box in the middle, the mixer drawn around it (not the modal)");
     frames(OP_TOAST_FRAMES + 2u);
     check(ui.toast_t == 0 && ui.overlay == 0u, "the toast goes (1.5 s), the panel comes back");
-    /* SAVE then HOME: undo; HOME then SAVE: redo */
+    /* SAVE then HOME: undo; HOME then SAVE: redo (over a track cleared, the REC ring's way) */
+    op_clear_track(0);
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
@@ -978,8 +980,8 @@ static void step_keys_tests(void)
     track_defaults_steps(t);
     /* a question: the keys do nothing */
     press(B_HOME);
-    press(B_REC);
-    release(B_REC);
+    press(B_SEQ);
+    release(B_SEQ);
     release(B_HOME);
     key(WK(2));
     check(op_armed() && !dstep_mask(&t->dstep[2]), "a question asked: the step keys do nothing");

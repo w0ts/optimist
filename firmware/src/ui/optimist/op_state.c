@@ -9,7 +9,6 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
-#define ARM_TRACK 0xFEu               /* arm_scr: HOME + REC, clear track arm_k (no screen cell) */
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_PAT_COPY, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
        OA_SCN_LOAD };
@@ -37,7 +36,7 @@ static struct {
     uint8_t hot_lit;                  /* drawn white: a knob or PRESETS touched it since the row was picked */
     uint8_t shift;                    /* SHIFT: the LFO button held this frame (op_input.c op_knobs); a cell reads it
                                        * for its fine path (LEN: by one instead of 1 2 4 ... 64, op_cells.c) */
-    uint8_t arm_scr, arm_row, arm_k;  /* the armed action: a cell (screen, row, cell) or ARM_TRACK */
+    uint8_t arm_scr, arm_row, arm_k;  /* the armed action: a cell (screen, row, cell) or ARM_OP */
     uint32_t arm_ms;
     char arm_q[26];                   /* its question, "CLEAR T2?" ("FORGET " + a 16-character name + "?") */
     char arm_verb[12], arm_arg[17];   /* the modal's two lines: "CLEAR?" and its target, "T2" (BLE_NAME_MAX + 1) */

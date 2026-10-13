@@ -50,7 +50,7 @@ static void op_project_new(void)
     sync_reload = 1;
     ui.force = 1;
 }
-static void op_clear_track(uint32_t i)                  /* HOME + REC, YES: the track's pattern (undo brings it back) */
+static void op_clear_track(uint32_t i)                  /* the REC ring and TOOLS' CLRSQ: the track's pattern (undo brings it back) */
 {
     track_t *t = &trk[i % NTRK];
     undo_mark(t, (undo_sess += 4u) | 3u);

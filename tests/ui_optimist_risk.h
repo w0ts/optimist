@@ -240,7 +240,6 @@ static void risk_tests(void)
     rk_edit();
     rk_combo(B_ENV, "HOME + ENV: INIT");
     rk_combo(B_SEQ, "HOME + SEQ: the locks");
-    rk_combo(B_REC, "HOME + REC: the track");
 #if FELUCCA_ARRANGER
     {                                                   /* SONG REC over a stored song of parts */
         uint32_t h0;

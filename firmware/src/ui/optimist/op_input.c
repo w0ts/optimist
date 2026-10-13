@@ -145,9 +145,7 @@ static void op_yes(void)
         uint32_t scr = ui.arm_scr, row = ui.arm_row, k = ui.arm_k;
         op_disarm();
         ui.toast_next = 1;                              /* (what it says: a toast in the middle) */
-        if (scr == ARM_TRACK)
-            op_clear_track(k);
-        else if (scr == ARM_OP)
+        if (scr == ARM_OP)
             op_act(row, k);
         else
             SCREENS[scr % SCR_N].yes(row, k, 1);
@@ -756,7 +754,7 @@ static void ui_leds(void)
         led_put(nl, panel.btn[LAYER_BTN[lay.shown]], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
     led_put(nl, panel.btn[B_SAVE], armed && blink);     /* YES is asked for */
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
-    led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink) || (armed && ui.arm_scr == ARM_TRACK && !blink));
+    led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink));
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard */
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);

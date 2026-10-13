@@ -6,8 +6,9 @@
  *   SAVE + ENV LFO EDIT FX SCL ARP   the sound as a user preset (the first free slot); the drum track: its 16
  *                 lanes as a user kit                                         HOME + FX EDIT ARP SCL GLO LFO: the
  *                                                                             layer locked; HOME + ENV: INIT (asked)
- *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       HOME + REC   the track cleared (asked;
- *                                                                             a SONG scene row: the scene)
+ *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       HOME + REC   a SONG scene row: the scene
+ *                                                                             cleared (asked); else nothing (the
+ *                                                                             track: the REC ring)
  *   SAVE + PLAY   the song from its start                                     HOME + PLAY  stop, every voice off
  *   SAVE then HOME: undo                                                      HOME then SAVE: redo
  *                                                                             HOME + OCT   STEP: the window; else
@@ -132,8 +133,8 @@ static int home_combo(uint32_t b)
         tp.pend = 0;
         return 1;
     case B_REC:
-        if (!song_rec(1))                               /* (a SONG scene row: that scene) */
-            op_arm(ARM_TRACK, 0, song.sel, "CLEAR", trk_tag(song.sel), 1);
+        song_rec(1);                                    /* (a SONG scene row: that scene cleared; nowhere else: nothing, the
+                                                         * track is cleared by the REC ring alone, the user 2026-10-13) */
         return 1;
     default:
         return 0;
