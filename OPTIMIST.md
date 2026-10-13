@@ -593,7 +593,7 @@ The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (
 
 ## USB audio (experimental)
 
-> **EXPERIMENTAL, and off by default: builds with USB audio failed to boot on a real FM-1 (2026-10-12; the firmware went to its USB rescue mode). Under investigation; do not install one on the FM-1 for now.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in Optimist it has only run in the FM-1 emulator so far.
+> **EXPERIMENTAL, and off by default.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS. On a real FM-1 it streams since 2026-10-12 (before, a USB audio build hung and went to its USB rescue mode); its audio quality there is not checked yet.
 
 On the same USB cable as MIDI, the computer sees two class-compliant audio devices (USB Audio Class 1, no driver):
 

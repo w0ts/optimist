@@ -400,6 +400,14 @@ static BOOT_ORDER void fm1_main(void)
              * scans the keys and encoders, polls USB and the UART (2 kHz) and counts fm1_ms;
              * ALNK0 renders the audio. So this waits 100 us at most, and what an interrupt brought
              * in just before the idle is taken at the next wake. */
+#if FELUCCA_USB_AUDIO
+            /* a guard (a read and a test): idling with the global enable (icfg bit 9) off never wakes, the watchdog
+             * resets. The main loop is never in a critical section here, so it is switched back on. USB audio
+             * builds only: their audio interrupt is suspected of having left it off (2026-10-12, core/audio.c
+             * ua_block) */
+            if (!(fm1_icfg() & 0x200u))
+                fm1_irq_on();
+#endif
             fm1_idle();
         }
     }

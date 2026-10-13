@@ -23,18 +23,22 @@ static volatile uint32_t audio_halves, audio_max_us;
 /* USB audio (usb_audio*.c), once per mix block (CTL frames, in the audio ISR): the stems out, the computer's
  * audio into `out`. TIMER5 outranks rendering, so serialize only this short PCM copy (and the
  * stream resets / alternate changes it races with), not the synth / FX work. Not inlined: the
- * render loop stays as it was without USB audio (tests/target_budget.py). */
+ * render loop stays as it was without USB audio (tests/target_budget.py).
+ * Only TIMER5 (the USB service) is held off, in the interrupt controller: the global enable is not touched here
+ * nor anywhere in the audio interrupt, which returns with it as it found it, as in a build without USB audio. A cli
+ * / sti here and at the interrupt's entry and end hung every USB audio build on the FM-1 (2026-10-12: interrupts
+ * dead 0.6-2.4 s after enumeration, the watchdog reset; this fix streams on the FM-1). */
 static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
-    fm1_irq_off();
+    fm1_irq_hold(FM1_IRQ_TIMER5, 1);
     if (usb.up && usb.config && !usb.suspended && (ua.play_alt | ua.cap_alt)) {
         if (ua.cap_alt && !track_capture_on)    /* (the host started taking them during this block: not */
             for (i = 0; i < n * NTRK; i++)      /*  cleared for it, its stems are silence) */
                 track_capture[i] = 0;
         ua_audio(out, track_capture, n, song.master_q12);
     }
-    fm1_irq_on();
+    fm1_irq_hold(FM1_IRQ_TIMER5, 0);
 }
 #endif
 
@@ -121,9 +125,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     uint8_t p = fm1_audio_pending();
     uint32_t t0 = fm1_ticks();
     fm1_audio_ack_aux(p);
-#if FELUCCA_USB_AUDIO
-    fm1_irq_on();                              /* TIMER5 (USB, priority 4) may preempt the render */
-#endif
+    /* (no sti / cli here, with or without USB audio: see ua_block. Whether TIMER5, the USB service, priority 4,
+     * preempts the render now rests on the core keeping the global enable through the interrupt's entry: not
+     * measured on the FM-1; the emulator's model clears it, and its USB audio host test then misses packets) */
     felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
@@ -171,11 +175,6 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         felucca_dbg.cpu_q8 = song.cpu_q8;
     }
     felucca_dbg.in_audio = 0;
-#if FELUCCA_USB_AUDIO
-    /* off again before isr_alnk0 restores reti: a tick taken between that restore and its
-     * rti would overwrite reti and return into the stub (seen in the emulator: rti twice) */
-    fm1_irq_off();
-#endif
 }
 extern void isr_alnk0(void);
 
