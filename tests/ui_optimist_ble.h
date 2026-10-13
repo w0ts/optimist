@@ -209,6 +209,26 @@ static void ble_dev_tests(void)
     ui.row[SCR_SYSTEM] = 2;
     frames(2);
     c0 = (uint32_t)cenfk.connects;
+    tap(B_SAVE);
+    {
+        char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q], nm[BLE_NAME_MAX + 1u];
+        const char *tg;
+        int ch, ls;
+        uint8_t nr[BLE_SCAN_N];
+        uint32_t nn, br;
+        (void)ble_dev_rows(&ls, nr, &nn);
+        ble_dev_row(2, ls, nr, nm, &tg, &ch, &br);
+        modal_words(v, a, q);
+        check(op_armed() && !strcmp(ui.arm_verb, "CONNECT?") && cenfk.connects == (int)c0 && ui.arm_raw &&
+                  !strcmp(a, nm) && !strcmp(q, "Connect?") == 0 && strstr(q, nm),
+              "devices: CONNECT asks, naming the device as advertised, nothing connected yet");
+        tap(B_HOME);
+        check(!op_armed() && cenfk.connects == (int)c0 && dev_listing(), "devices: HOME says no to CONNECT: nothing connected");
+        op_arm(SCR_SYSTEM, 2, 0, "CONNECT", "DEVICE", 0);
+        modal_words(v, a, q);
+        check(!ui.arm_raw && !strcmp(q, "Connect device?"), "devices: no name known: \"Connect device?\"");
+        op_disarm();
+    }
     dev_yes_t();
     frames(2);
     cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
@@ -424,6 +444,8 @@ static void ble_dev_more_tests(void)
     ble_found.e[bdp.near[0]].used = 0;
     ble_found.gen++;
     release(B_SAVE);
+    check(op_armed() && ui.arm_raw && !strcmp(ui.arm_arg, "Bravo") && !strcmp(ui.arm_verb, "CONNECT?"),
+          "devices: the question names the highlighted device (\"Bravo\"), the row it was when asked");
     if (op_armed())
         tap(B_SAVE);                                      /* (the card asks first, 2026-10-13) */
     frames(2);

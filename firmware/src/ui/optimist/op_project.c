@@ -352,11 +352,24 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect;
 {
     if (!ok) {                                          /* an action card: asks first (the user 2026-10-13) */
         cell_t c;
+        char nm[BLE_NAME_MAX + 1u];
+        int last;
+        uint8_t near[BLE_SCAN_N];
+        uint32_t nn, bars;
+        const char *tag, *verb;
         dev_cell(r, 0, &c);
-        op_arm(SCR_SYSTEM, r, 0, c.label ? c.label : "CHOOSE", "DEVICE", 0);
+        verb = c.label ? c.label : "CHOOSE";
+        nm[0] = 0;
+        {
+            int nr = bdv.key_ok ? ble_dev_key_row(&bdv.key) : (int)r;   /* (the device the pick will take: its row now) */
+            if (nr > 0 && (uint32_t)nr < ble_dev_rows(&last, near, &nn))
+                ble_dev_row((uint32_t)nr, last, near, nm, &tag, 0, &bars);
+        }
+        op_arm(SCR_SYSTEM, r, 0, verb, nm[0] ? nm : "DEVICE", 0);   /* ("Connect?" over the name as advertised, the modal sizes it) */
+        ui.arm_raw = nm[0] != 0;
         return 1;
     }
-    if (ui.arm_raw) {                                   /* (HOME + a button: FORGET LAST) */
+    if (str_eq(ui.arm_verb, "FORGET?")) {                                   /* (HOME + a button: FORGET LAST) */
         ble_dev_forget();
         ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
         return 1;
