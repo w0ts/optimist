@@ -69,7 +69,7 @@ static uint32_t op_cursor_page(void)
 {
     uint32_t r = ui.row[ui.scr];
     if (ui.scr == SCR_SOUND && snd_page(r))             /* (a lane's LFO, this UI's own page: PAGES' LFO) */
-        return lane_lfo_pg(snd_page(r)) ? page_first(FAM_LFO) : (uint32_t)(snd_page(r) - PAGES);
+        return lane_lfo_pg(snd_page(r)) ? page_first(FAM_LFO) : smp_pg(snd_page(r)) ? src_page_ix() : (uint32_t)(snd_page(r) - PAGES);
     if (ui.scr == SCR_FX)
         return fx_ix[r % OP_MAXROWS];
     if (ui.scr == SCR_PROJECT && prj_kind(r) == PR_TOOLS)
@@ -549,7 +549,9 @@ static void op_drain(uint32_t held)
         lk_r++;
         if ((e >> 8) == LY_STEP && (pick_mod(held) || mute_mod(held)))
             continue;                                   /* (the silent pick's key: no step) */
-        if ((e >> 8) == LY_STEP)
+        if ((e >> 8) == LY_STEP && ui.scr == SCR_PROJECT)
+            prj_key(e & 0x7Fu, (e >> 7) & 1u);          /* (PROJECT: the key picks the slot) */
+        else if ((e >> 8) == LY_STEP)
             step_key(e & 0x7Fu, (e >> 7) & 1u, held);
         else
             lay_key(e >> 8, e & 0x7Fu, (e >> 7) & 1u);
@@ -608,6 +610,8 @@ static void ui_input(void)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }
         op_clean &= ~BIT(B_HOME);
+    } else if (notes && ui.scr == SCR_PROJECT) {        /* PROJECT: the keys pick the slot, they play nothing (op_project.c) */
+        op_clean &= ~held;
     } else if (notes) {
         op_clean &= ~held;
         drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
@@ -623,7 +627,7 @@ static void ui_input(void)
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
     id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
        : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
-       : step_keys(held) ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
+       : step_keys(held) || ui.scr == SCR_PROJECT ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
         ly_lock = (uint8_t)id;
 }

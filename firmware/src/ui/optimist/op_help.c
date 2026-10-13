@@ -39,7 +39,7 @@ static uint32_t hl_desc(const param_desc_t *d)
     uint32_t i, k, o;
     int16_t *vp;
     for (i = 0; i < OP_NPG; i++) {
-        const page_t *pg = op_pg(i);
+        const page_t *pg = i < NPAGES ? &PAGES[i] : op_pg(i);   /* (PAGES' own SOURCE: SRC's line, now on the SOUND row) */
         for (k = 0; k < 4u; k++) {
             if (page_desc(pg, k, &vp) != d)
                 continue;

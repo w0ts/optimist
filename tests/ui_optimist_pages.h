@@ -377,7 +377,8 @@ static void pages_keys_tests(void)
     op_enter(SCR_SOUND);
     ui.row[SCR_SOUND] = 0;
     turn(EN_K4, 1);
-    tap(B_SAVE);                                        /* SAVE AS: NAME */
+    tap(B_SAVE);                                        /* SAVE AS: asks, then NAME */
+    tap(B_SAVE);
     frames(2);
     {
         uint32_t d = 0, kk;

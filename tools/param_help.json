@@ -254,24 +254,31 @@
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {"VERSION": "Firmware version"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
-      "SLOT": "Project slot (dim: empty)", "LOAD": "Load (work changed: asks)",
-      "SAVE": "Save the work in the slot", "NEW": "New project: clears (asks)"}},
+      "SLOT": "Slot: turn or key (dim: free)", "LOAD": "Load the project (asks)",
+      "SAVE": "Save the work here (asks)", "NEW": "New project: clears (asks)"}},
     {"kind": "op", "ctx": "SNAPSHOT", "if": "FELUCCA_SNAPSHOTS", "params": {
-      "SLOT": "Snapshot slot (dim: empty)", "LOAD": "Load: replaces work (asks)",
-      "CLEAR": "Erase the snapshot (asks)", "SAVE": "Save a snapshot of the work"}},
+      "SLOT": "Slot: turn or key (dim: free)", "LOAD": "Load: replaces work (asks)",
+      "CLEAR": "Erase the snapshot (asks)", "SAVE": "Save a snapshot (asks)"}},
     {"kind": "op", "ctx": "USER", "params": {
-      "SLOT": "User preset slot (dim: empty)", "LOAD": "Load preset (edits: asks)",
-      "ERASE": "Erase the preset (asks)", "SAVE": "Save the sound as this preset"}},
+      "SLOT": "Slot: turn or key (dim: free)", "LOAD": "Load the preset (asks)",
+      "ERASE": "Erase the preset (asks)", "SAVE": "Save as this preset (asks)"}},
     {"kind": "op", "ctx": "TOOLS", "params": {
-      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (edits: asks)",
+      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
       "NEW": "New project: clears (asks)"}},
     {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave (asks)"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
       "USED": "Project memory used", "MORE": "Sections that still fit"}},
+    {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
+      "SLOT": "User kit slot", "SAVE": "Save the user kit (asks)", "ERASE": "Erase the user kit (asks)",
+      "RESET": "Reset to the kit sound (asks)"}},
+    {"kind": "op", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {"GEN": "Write a new line (asks)"}},
+    {"kind": "op", "ctx": "STORE", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "SLOT": "User voice slot", "STORE": "Store the voice (asks)", "SEND": "Send as DX7 SysEx (asks)",
+      "INIT": "Init the voice (asks)"}},
     {"kind": "op", "ctx": "SOUND", "params": {
       "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
-      "INIT": "Engine defaults (edits: asks)", "SAVE AS": "Save as a user preset",
+      "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
     {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
@@ -293,8 +300,8 @@
     {"kind": "op", "ctx": "SENDS", "params": {
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
-      "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order",
-      "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Copy this part after it",
+      "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order (asks)",
+      "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Insert a copy (asks)",
       "DELETE": "Delete this part (asks)"}}
   ]
 }

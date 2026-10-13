@@ -403,13 +403,13 @@ and decay, CLICK a white tick at the start, the pitch drop in white, a sample's 
 sketched; the length at the right). A sound with LEVEL only (the X0X 909's rim shot) shows "-" in the other three
 cells and *No envelope: level only* as its graph. A build without the drum editor (FELUCCA_DRUM_EDIT 0) has no such
 row: ENV leaves the rows as they are, as before. The synth's ENV pages are not shown on the drum track
-(`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`: on the drum track ENV now has a function).
+(`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`). **The row needs a picked lane** (2026-10-13): on DR itself ENV does nothing and is dark.
 
 The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
 
 On the drum track the rows are the **selected lane's**: ENV (its envelope values, section 4.3's drum ENV), SOUND,
-SOUND 2, SOUND 3 (the sends), SOURCE, KIT, then
+SOUND 2, SOUND 3 (the sends), SOURCE (a lane playing a user sample only: HIT START LEN), KIT, then. The SOUND row on the drum track is KIT, LANE and, on knob 3, the lane's SRC (the user, 2026-10-13: "this should be on third knob on page 1"; op_screens.c `snd_cell`, op_cells.c `LANE_SRC_PG`); PAGES' SOURCE keeps SRC for SLOOP's UI, this UI shows it as `LANE_SMP_PG`
 the track rows it has today (FX FILTER, SLICER, PATTERN). HOME held + a key picks the lane (the keys play on
 this screen, so you hear it). On an FM6 track ENV held stays the operator editor as built
 (ui_fm6.c): its own screen, the black keys OP1..OP6 PIT GLO MONO POLY.
@@ -2196,7 +2196,9 @@ under the full light, so a blinking button swings between full and half. The LIG
 | FX on the global FX screen | its next page |
 | any page button, STEP with a step held | the step's page lock (all but EDIT and GLO; EDIT too on the drum track: the lane's SOUND pages, section 18) |
 
-So on the drum track LFO is dark on DR itself and half lit with a lane selected (the lane's LFO, section 18); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
+**Walked 2026-10-13 (fix/button-leds; tests/ui_optimist_btnled.h):** every screen x track kind (synth, DR with no lane, a lane, MASTER) x button (not PLAY, REC, OCT) is tapped and held, and its LED must be lit exactly when the tap changes the screen or the hold works a layer. **Rulings that followed (the user, 2026-10-13):** (1) *the lane's pages need a picked lane*: on DR with no lane picked ENV does nothing, like LFO, and its LED is dark (`sound_page` hides the drum ENV row without `lane_picked()`); HOME + a key picks a lane and ENV and LFO light dim. EDIT stays (the kit's SOUND rows), SCL and ARP stay half lit on DR (hold-only layers: the song's scale, rolls). (2) *one dim level*: `FM1_LED_DIM_MASK` (hal/fm1_input.h) is the dim of every LED, buttons and key landmarks alike (one layer, `fm1_led_dim`): lit one scan frame in 8 (about 12%) in UI=1 builds, was one in 4 (read as lit); SLOOP's UI keeps 4. With menu LIGHTS the dim layer is the glow pulse `FM1_GLOW_NS` (about 4%), and the LIGHTS level scales the backlight only, so the dim does not follow it. (3) *the mixer's MASTER row*: holding SCL, EDIT or ARP shows no layer map (`lay_frame`: their `ly_bit` is 0).
+
+So on the drum track LFO and ENV are dark on DR itself and half lit with a lane selected (the lane's LFO, section 18, and envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
 half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
 track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
 saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
@@ -2244,7 +2246,7 @@ held step on STEP and a free take. HOME + a drum key still picks a lane straight
 | Where | MASTER is | A lane is | What changed |
 |---|---|---|---|
 | The mixer | its MASTER row | its lane row | nothing in the order; a lane row is now "a lane selected" (below) |
-| SOUND, every family | the master FX screen (SCR_FX), as `fx_algo` did from T1 | the drum track's pages for that lane (SOUND, SOUND 2, 3, SOURCE, KIT, ENV); a family the drum track has none of (LFO, ARP, SCL) shows every drum row (`snd_family`'s fallback) | MASTER from any track (it was T1 only); on past DR into the lanes |
+| SOUND, every family | the master FX screen (SCR_FX), as `fx_algo` did from T1 | the drum track's pages for that lane (SOUND, SOUND 2, 3, SOURCE on a user-sample lane, KIT, ENV); a family the drum track has none of (LFO, ARP, SCL) shows every drum row (`snd_family`'s fallback) | MASTER from any track (it was T1 only); on past DR into the lanes |
 | STEP | the master FX screen; right comes back to STEP on its page | the drum view: the lane's steps on the grid; on a lane page the page follows the lane; back to DR from a lane page: PATTERN | it went T1 .. DR |
 | PROJECT, SYSTEM, SONG, SCOPE, GLOBAL | the master FX screen; right comes back to the page and row (the TEMPO page, PLAY held: it closes, right comes back to the screen under it) | the lane selected (the header's badge), nothing per lane on these pages | it went T1 .. DR |
 | The master FX screen itself | it is MASTER | - | right goes back to the page and row it was left from (SOUND T1 when it was opened by FX on the mixer's MASTER row), and on from there |
@@ -2262,13 +2264,13 @@ clears it. (STEP's lane pages and the SOUND row's LANE knob set it too until sec
 longer change the lane.) The header's badge shows the lane ("SNARE") in its sound's colour while a lane is selected.
 
 **PRESETS on the drum track** (op_walk.c, op_input.c `op_presets_turn`), by the lane's SOURCE (SRC on the drum SOUND
-page's SOURCE row):
+row's knob 3):
 
 | Selected | PRESETS | HOME held + PRESETS | The toast |
 |---|---|---|---|
 | DR itself | the kit (as before) | the kits (as before, 64a4174) | "KIT name" in the kit kind's colour |
 | a lane, SRC KIT | the kit, as on DR | the kits, as on DR | "KIT name" |
-| a lane on an instrument (any other SRC) | that lane's sound only: the next / previous source of the SOURCE list (USR1..3, each kit's sound for this lane, the X0X voices), round, those this build has; KIT is left out, so PRESETS never turns the lane back to the kit (the SOURCE row does) | the first sound of the next / previous kind, round: your samples (USR), a sampled kit's, a synthesised kit's, the X0X machines' (kits, styles and voices): the colour language's kinds (sloop/ui_colors.c `lane_col`) | "SNARE: X9 SD" in the lane's colour |
+| a lane on an instrument (any other SRC) | that lane's sound only: the next / previous source of the SOURCE list (USR1..3, each kit's sound for this lane, the X0X voices), round, those this build has; KIT is left out, so PRESETS never turns the lane back to the kit (SRC, the SOUND row's knob 3, does) | the first sound of the next / previous kind, round: your samples (USR), a sampled kit's, a synthesised kit's, the X0X machines' (kits, styles and voices): the colour language's kinds (sloop/ui_colors.c `lane_col`) | "SNARE: X9 SD" in the lane's colour |
 
 The kit and the other lanes stay. The mixer's lane rows follow the same rules; their SOUND card and the row's name show
 the lane's sound (the kit's name while it plays KIT). The SOUND row's picture on the drum track: DR the kit big and
@@ -2743,6 +2745,8 @@ page reopened per track, EXTRA, and its fallback; the lists keep their cursor); 
 clears the memory, as a power-on.
 
 **2026-10-13: wide values in the GLOBAL list (the user: "Auto: Int", "seq/key", "notes, clock")**. op_cells.c `value_long`: the list (op_gldraw.c `gl_text`) and the tempo panel (op_laydraw.c) write SYNC AUTO as *Auto: Int* / *Auto: USB* / *Auto: TRS* (the clock followed, G_MIDI) and MIDI OUT / IN as *Keys* *Seq* / *Notes* *Clock*; the cards and param_format keep the 5-character *A:INT* ..., *KEYS* ... A fixed SYNC still reads INT / USB / TRS. There is no Both, Other or All option (bp_set.c: two options each, one settings-word bit each), none was added. GLOBAL's MIDI page is CLK IN (SYNC), CLK OUT, MIDI IN, MIDI OUT in one page; GLOBAL's Tempo is BPM NUDGE SWING; PLAY's TEMPO page keeps SYNC as its 4th card. A fixed SYNC reads *Int* / *USB* / *TRS* in the list (cards INT / USB / TRS). "Auto: Int" follows the clock live (G_MIDI = clock_sync.c's source; the line's signature holds its text, tempo_sig holds G_MIDI).
+
+**2026-10-13: action cards, and PROJECT's keys** (feat/action-cards; the user, from screenshots). An action card's big value is the **verb itself**, never "YES": the small label above is its object (`cell_t.obj`: PROJECT, SNAPSHOT, USER, SOUND, PART, SONG, PATTERN, KIT, VOICE, DEVICE, SLOOP, ACID LINE), the verb is its `val` when set (CLRSQ shows CLEAR, PANEL shows CALIBRATE over PANEL) else its label; the narrow list columns keep the label. CLEAR, ERASE, NEW, INIT and DELETE are drawn in the alarm colour (`cell_t.danger`, C_ERR). **Running one always asks** (the modal, SAVE yes, HOME no, 3 s), changed work or not: PROJECT LOAD / SAVE / NEW, SNAPSHOT, USER, SOUND INIT and SAVE AS, TOOLS, the KIT page's SAVE / ERASE / RESET, SONG SAVE / INSERT / DELETE, FM6's STORE / SEND / INIT, the BLE devices' CHOOSE / CONNECT (the modal puts "Connect?" over the device's name as advertised, "Connect device?" when none is known). STEP's REVERSE / RANDOM / COOK show their verb but run at once, no question: undo covers them; the smarter asks of the other paths (PRESETS over edits, a scene load over a changed work) are unchanged. A knob turn only picks an action card, it never runs or arms it (the old "twice" scheme belongs to the SLOOP UI). Help lines say "(asks)", never "(twice)". **On PROJECT the note keys pick the slot** and play nothing (`ly_lock` = LY_STEP, `prj_key`): on PROJECT, SNAPSHOT and USER the 16 white keys pick the cursor row's slot, key n = slot n (USER: the n-th of the 16 slots of the page the cursor is on, U01..U16 or U17..U32); lit: a used slot full, a free one dim, the selected one blinking (`prj_keys_lit`); HOME + a drum key still picks the lane. Leaving PROJECT restores the keys. Tests: tests/ui_optimist_actcards.h.
 
 ## 26. ALGORITHM is only the track (fix/algo-track, 2026-10-13)
 

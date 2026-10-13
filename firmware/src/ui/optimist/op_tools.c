@@ -571,8 +571,7 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 EUCLI
     const track_t *t = TSEL;
     cell_clear(c);
     if (!pg) {
-        c->label = TN[k & 3u];
-        c->kind = CK_ACT;
+        cell_act(c, "PATTERN", TN[k & 3u], 0, 0);
         if (k == TL_LEN) {
             c->kind = CK_VAL;
             str_cpy(c->val, tl.half ? "1/2" : "x2", sizeof c->val);

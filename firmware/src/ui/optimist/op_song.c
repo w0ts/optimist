@@ -212,8 +212,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             prj_mem(c, 0);                              /* (op_project.c: the MEM gauge) */
 #endif
         } else {
-            c->label = "SAVE";
-            c->kind = CK_ACT;
+            cell_act(c, "SONG", "SAVE", 0, 0);
         }
         return;
     case SG_PART: {
@@ -230,8 +229,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             fmt_int(c->val, e->bars);
             cell_gauge(c, 0, 0, 64, e->bars);
         } else {
-            c->label = k == 2u ? "INSERT" : "DELETE";
-            c->kind = CK_ACT;
+            cell_act(c, "PART", k == 2u ? "INSERT" : "DELETE", 0, k == 3u);
         }
         return;
     }
@@ -341,6 +339,8 @@ static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
     case SG_MODE:
         if (k < 2u)
             song_yes_mode(k, 0);
+        else if (k == 3u && !ok)
+            op_arm(SCR_SONG, r, k, "SAVE", "SONG", 0);
         else if (k == 3u) {
             sg.dirty = 0;
             arrangement_save();
@@ -349,12 +349,11 @@ static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
     case SG_PART:
         if (k < 2u)
             return 0;
-        if (k == 3u && !ok && !song.playing && arrangement.count > 1u) {   /* DELETE: asked first (the user, 2026-10-13:
-                                                         * no undo for the song's order, saved when SONG is left) */
+        if (!ok) {                                      /* INSERT and DELETE ask first (the user, 2026-10-13) */
             char b[10];
             str_cpy(b, "PART ", sizeof b);
             fmt_int(b + 5, (int32_t)a + 1);
-            op_arm(SCR_SONG, r, k, "DELETE", b, 1);  /* ("Delete part 3?") */
+            op_arm(SCR_SONG, r, k, k == 3u ? "DELETE" : "INSERT", b, k == 3u);  /* ("Delete part 3?") */
             return 1;
         }
         song_part_edit(a, k == 2u);

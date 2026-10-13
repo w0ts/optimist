@@ -386,6 +386,11 @@ static void effv_bar(int32_t x, int32_t y, int32_t w, const cell_t *c, uint32_t 
     a.gk = c->ak, a.gmin = c->amin, a.gmax = c->amax, a.gv = c->av;
     draw_gauge(x, y, w, 2, &a, hot ? C_AMB : C_WHITE, OP_SURF);
 }
+/* an action's card (the user, 2026-10-13: the value is the verb, never "YES"): the verb (val, else the label), its object
+ * small above (obj, else the label over a val), destructive ones in the alarm colour; YES does it, and asks first */
+static const char *act_verb(const cell_t *c) { return c->val[0] ? c->val : c->label; }
+static const char *act_small(const cell_t *c) { return c->obj ? c->obj : c->val[0] ? c->label : ""; }
+static uint16_t act_col(const cell_t *c, uint32_t hot) { return c->danger ? C_ERR : hot ? C_WHITE : C_AMB; }
 static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
     char b[16];
@@ -409,10 +414,13 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     }
     if (!c->label)
         return;
-    cv_text(x + (text_w(&FONT_S, c->label) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, cut(b, op_label(b, c->label, sizeof b), 7),
-            knob_col(k, C_GRAY));                       /* ("ATK" as printed, "Engine" in sentence case) */
+    {
+        const char *lab = c->kind == CK_ACT ? act_small(c) : c->label;
+        cv_text(x + (text_w(&FONT_S, lab) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, cut(b, op_label(b, lab, sizeof b), 7),
+                knob_col(k, C_GRAY));                   /* ("ATK" as printed, "Engine" in sentence case) */
+    }
     if (c->kind == CK_ACT) {
-        cv_text(x + 3, 20, &FONT_S, "YES", hot ? C_WHITE : C_AMB);   /* an action: YES does it */
+        cv_text(x + 3, 20, &FONT_S, cut(b, act_verb(c), 6), act_col(c, hot));
         return;
     }
     vx = cv_text(x + 3, 20, &FONT_S, cut(b, c->val, 6), vc);
@@ -456,12 +464,17 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         return;
     {
         char l[16];
-        cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, c->label, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
+        const char *lab = c->kind == CK_ACT ? act_small(c) : c->label;
+        cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, lab, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
     }
     if (c->unit[0])
         cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0), y + 2, &FONT_S, c->unit, C_DIM);
     if (c->kind == CK_ACT) {
-        cv_text(x + 5, y + 13, font_big(), "YES", hot ? C_WHITE : C_AMB);   /* an action: YES does it */
+        const char *v = act_verb(c);
+        if (text_w(font_big(), v) <= BIG_W - 10)
+            cv_text(x + 5, y + 13, font_big(), v, act_col(c, hot));
+        else
+            cv_text(x + 5, y + 20, &FONT_S, cut(b, v, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
         return;
     }
     if (text_w(font_big(), c->val) <= BIG_W - 10)

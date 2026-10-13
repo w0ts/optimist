@@ -680,18 +680,20 @@ static void confirm_tests(void)
     check(song.g[G_BPM] == GP[G_BPM].def && !strcmp(ui.msg, "NEW PROJECT"), "YES again: a new project");
     song.g[G_SLOT] = 4;                                 /* (project_used: slots 1, 2) */
     turn(EN_K3, 1);
-#if FELUCCA_PATTERNS
     saves = 0;
+    tap(B_SAVE);
+    check(ui.arm_scr == SCR_PROJECT && !strcmp(ui.arm_q, "SAVE PROJECT 4?") && !ui.arm_danger && saves == 0 && !name_on(),
+          "PROJECT SAVE into an empty slot: asks first too (amber), nothing written");
+#if FELUCCA_PATTERNS
     tap(B_SAVE);
     check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
     tap(B_SAVE);                                        /* (NAME's SAVE: the name kept, the project written) */
     saves = project_used(3);                            /* (the real log: slot 4 stored) */
     project_save(0);                                    /* (slot 1 used, for the question below) */
 #else
-    saves = 0;
     tap(B_SAVE);
 #endif
-    check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: saved at once");
+    check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: asked, then saved");
     song.g[G_SLOT] = 1;
     tap(B_SAVE);
     check(saves == 1 && !strcmp(ui.arm_q, "SAVE PROJECT 1?") && ui.arm_danger, "PROJECT SAVE over a used slot: asks, red");
@@ -815,8 +817,14 @@ static void family_tests(void)
         only &= snd_page(r)->fam == FAM_EDIT;
     check(only && snd_page(1)->scope == SC_DSND, "the drum track, EDIT: the SOUND row (KIT LANE), then the lane's rows only");
     tap(B_ENV);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT, "the drum track, no lane picked: ENV does nothing (the lane's envelope needs a lane)");
+    lane_select(4);
+    ui.lane = 1;
+    tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
-          "the drum track, ENV: the lane's ENV row (no drum editor built: the rows stay)");
+          "the drum track, a lane picked: ENV the lane's ENV row (no drum editor built: the rows stay)");
+    ui.lane = 0;
+    lane_select(0);
     song.sel = 0;
     reset_ui();
 }
@@ -1735,6 +1743,12 @@ static void song_tests(void)
         check(arrangement.entry[0].bars == bars + 2u, "PART 1: KNOB 2 its bars");
         turn(EN_K3, 1);
         tap(B_SAVE);
+        check(op_armed() && arrangement.count == cnt && !strcmp(ui.arm_q, "INSERT PART 1?") && !ui.arm_danger,
+              "INSERT: asks first (\"INSERT PART 1?\"), nothing inserted");
+        tap(B_HOME);
+        check(!op_armed() && arrangement.count == cnt, "INSERT: HOME cancels, nothing changed");
+        tap(B_SAVE);
+        tap(B_SAVE);
         check(arrangement.count == cnt + 1u && ui.row[SCR_SONG] == song_row_of(SG_PART, 1), "INSERT: a copy after it");
         ui.force = 1;
         frame();
@@ -1983,6 +1997,11 @@ static void name_tests(void)
     ui.row[SCR_SOUND] = 0;
     turn(EN_K4, 1);                                     /* SAVE AS hot */
     tap(B_SAVE);
+    check(op_armed() && !strcmp(ui.arm_q, "SAVE AS PRESET?") && !name_on(), "SAVE AS: asks first, NAME not open");
+    tap(B_HOME);
+    check(!op_armed() && !name_on() && up_stores == n0, "SAVE AS: HOME cancels, nothing changed");
+    tap(B_SAVE);
+    tap(B_SAVE);
     l = str_len(ENGINES[TSEL->eng_req]->name);
     check(name_on() && nm.kind == NK_USER && nm.slot == 2u && !strncmp(nm.s, ENGINES[TSEL->eng_req]->name, l) &&
               !strcmp(nm.s + l, " 03"), "SAVE AS: NAME, prefilled with the automatic name (\"ANALOG 03\")");
@@ -2018,7 +2037,8 @@ static void name_tests(void)
     tap(B_SAVE);
     check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t,
           "SAVE: written under the typed name, a toast");
-    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again) */
+    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again: asks, then NAME) */
+    tap(B_SAVE);
     check(name_on(), "SAVE AS again: NAME");
     turn(EN_K1, -20);
     tap(B_HOME);
@@ -2030,7 +2050,9 @@ static void name_tests(void)
     ui.user_slot = 5;
     turn(EN_K4, 1);
     tap(B_SAVE);
-    check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: NAME first");
+    check(op_armed() && !name_on() && !strcmp(ui.arm_q, "SAVE PRESET U06?"), "PROJECT's USER SAVE: asks first");
+    tap(B_SAVE);
+    check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: then NAME");
     tap(B_SAVE);
     check(!name_on() && up_store_slot == 5u, "... SAVE: the user preset written");
 #if SEC_LOGGED
@@ -2040,6 +2062,7 @@ static void name_tests(void)
         song.g[G_SLOT] = 9;
         frame();
         turn(EN_K3, 1);
+        tap(B_SAVE);
         tap(B_SAVE);
         check(name_on() && nm.kind == NK_PROJ && nm.slot == 8u && !strcmp(nm.s, "PROJECT 9"),
               "PROJECT's SAVE: NAME, prefilled \"PROJECT 9\"");
@@ -2279,6 +2302,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
+#include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
@@ -2303,7 +2327,7 @@ static void led_tests(void)
           "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
     song.sel = TRK_DRUM;
     frames(2);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "LEDs, the drum track: no LFO; ENV half lit (its lane's envelope)");
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track, no lane picked: no LFO, no ENV (a lane's pages)");
     check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
           "LEDs, the drum track: EDIT FX GLO SEQ half lit");
     for (b = 0; b < NB; b++)
@@ -2333,9 +2357,11 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_btnled.h"                    /* 2026-10-13: every button's LED against what its tap and hold do, screens x track kinds */
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
-#include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
+#include "ui_optimist_lanesrc.h"                    /* 2026-10-13: a lane's SRC on page 1, knob 3 */
+#include "ui_optimist_effval.h"                    /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_lfo2.h"                       /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
@@ -2416,6 +2442,7 @@ int main(int argc, char **argv)
     help_tests();
     risk_tests();
     risk_edits_tests();
+    actcards_tests();
     algo_tests();
     mute_tests();
     smute_tests();
@@ -2425,6 +2452,7 @@ int main(int argc, char **argv)
     step_hold_tests();
     step_pitch_tests();
     led_tests();
+    btnled_tests();
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();
@@ -2432,6 +2460,7 @@ int main(int argc, char **argv)
     pages_select_tests();
     pages_hit_tests();
     lane_ui_tests();
+    lane_src_tests();
     effval_tests();
     inslots_tests();
     fxi_ui_tests();

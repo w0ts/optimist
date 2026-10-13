@@ -25,6 +25,8 @@ static void stt_do(uint32_t card)                       /* arm card (KNOB card +
 {
     turn(EN_K1 + card, 1);
     tap(B_SAVE);
+    if (op_armed())                                     /* (REVERSE, RANDOM, COOK ask first, the user 2026-10-13) */
+        tap(B_SAVE);
 }
 static void stt_note(step_t *s, uint32_t note, uint32_t flags, uint32_t g)
 {

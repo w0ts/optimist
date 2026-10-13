@@ -9,6 +9,7 @@ static void lane_transport(int play)                    /* start / stop, settled
         frames(4);
     }
 }
+static uint8_t ln_before[sizeof(((track_t *)0)->dstep)];   /* (the pattern before the pick: an earlier test may leave steps) */
 static void lane_preview_tests(void)
 {
     uint32_t k;
@@ -67,15 +68,13 @@ static void lane_preview_tests(void)
     lane_transport(1);
     lane_select(0);
     frame();
+    memcpy(ln_before, TSEL->dstep, sizeof ln_before);
     kdown(k);
     check(lane_selected() == 6u && ly_lock == LY_STEP && kb_kind[k] == KS_UI && aud_lanes == 0u,
           "playing, SEQ held + a drum key: the lane picked silently (the key reaches the UI only)");
     {
-        uint32_t i, any = 0;
-        for (i = 0; i < trk_len(TSEL); i++)
-            any |= dstep_has(&TSEL->dstep[i], 6u);
         kup(k);
-        check(!any, "... and no step set by it");
+        check(!memcmp(ln_before, TSEL->dstep, sizeof ln_before), "... and no step set by it");
     }
     fm1_in.buttons &= ~BT(B_SEQ);
     frame();
