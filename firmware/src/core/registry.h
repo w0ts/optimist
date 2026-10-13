@@ -290,8 +290,28 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_LFO2 0                     /* LFO 2: a second LFO a part (core.h P_L2RATE .. P_L2AMT, voice.c lfo2_tick):
                                             * RATE (SYNC), WAVE, TRIG, POL, one DEST and its AMT */
 #endif
+/* more insert types for the tracks' insert slots (fx/insfx/insfx.c; fx_slots.c S1 S2), each a builder item: FOLD FUZZ
+ * PHSR FLNG after Felucca 1.5.6's track INSERT, FRMT WIDE after Melodee 1.3.1's inserts */
+#ifndef FELUCCA_INS_FOLD
+#define FELUCCA_INS_FOLD 0                 /* FOLD: a wavefolder, drive relative to the track's peak */
+#endif
+#ifndef FELUCCA_INS_FUZZ
+#define FELUCCA_INS_FUZZ 0                 /* FUZZ: a hard top, a soft halved bottom */
+#endif
+#ifndef FELUCCA_INS_PHASER
+#define FELUCCA_INS_PHASER 0               /* PHSR: four swept all-pass stages with feedback */
+#endif
+#ifndef FELUCCA_INS_FLANGER
+#define FELUCCA_INS_FLANGER 0              /* FLNG: a swept 0.25 .. 5 ms line with feedback (512 B of pool an instance) */
+#endif
+#ifndef FELUCCA_INS_FORMANT
+#define FELUCCA_INS_FORMANT 0              /* FRMT: three vowel formants, A E I O U along the amount */
+#endif
+#ifndef FELUCCA_INS_WIDTH
+#define FELUCCA_INS_WIDTH 0                /* WIDE: one side through swept all-passes (a mono part becomes stereo) */
+#endif
 #ifndef FELUCCA_CHORDPLUS
-#define FELUCCA_CHORDPLUS 0                /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2
+#define FELUCCA_CHORDPLUS 0               /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2
                                             * STRUM and VLEAD (seq.c chord_play_notes, voice.c strum_*) */
 #endif
 

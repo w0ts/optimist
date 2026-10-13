@@ -149,6 +149,15 @@ static const param_desc_t TP[P_COUNT] = {
 #if FELUCCA_MASTER_COMP
     [P_TCOMP] = PD("CMP", F_PCT, 0, 127, 0),       /* the COMP insert (fx_slots.c): 0 off, up to -30 dB */
 #endif
+#if INS_FX
+    /* the further insert types' amounts (fx/insfx/insfx.c): each 0 off .. 127; the label names the type's slot */
+    [P_TFOLD] = PD("FOLD", F_PCT, 0, 127, 0),      /* the drive into the folder */
+    [P_TFUZZ] = PD("FUZZ", F_PCT, 0, 127, 0),      /* the drive into the fuzz */
+    [P_TPHSR] = PD("PHSR", F_PCT, 0, 127, 0),      /* the phaser: its mix to 64, then its feedback */
+    [P_TFLNG] = PD("FLNG", F_PCT, 0, 127, 0),      /* the flanger: its mix to 64, then its feedback */
+    [P_TFRMT] = PD("FRMT", F_PCT, 0, 127, 0),      /* the vowel: A E I O U from 1 to 127 */
+    [P_TWIDE] = PD("WIDE", F_PCT, 0, 127, 0),      /* the width: the swept side's share */
+#endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),

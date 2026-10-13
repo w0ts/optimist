@@ -36,6 +36,7 @@ CHECKS = {
     "boot": ("check_boot", "a clean boot: no crash record, the boot guard clears, halves/s, late 0, a note", (0, 1)),
     "patterns": ("check_patterns", "launches (end, bar, now), scenes, the song chain, clear, steps and onsets", (0,)),
     "fx": ("check_fx", "FX slots: COMP heard, bypass, slot swap, determinism, restore, the drum inserts", (0,)),
+    "insfx": ("check_insfx", "the further inserts (INS_*): listed, transparent at 0, heard, bypassed, back at 0", (0,)),
     "persist": ("check_persist", "save, power cycle, load: patterns, scenes, the song, FX", (0,)),
     "scenefx": ("check_scenefx", "F1: a scene stored from the SAVE layer keeps its FX", (0,)),
     "upfm6": ("check_upfm6", "UP_FM6 moved off the SDK VM; 0xE7000..0xE9FFF untouched", (0, 1)),

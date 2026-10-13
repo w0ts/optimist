@@ -391,6 +391,38 @@ _add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each trac
           "engaged, one filter per track (five on the drum bus).",
      notice="From SLOOP 2.4's track filter by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
             "not on a device.")
+# the further insert types of the tracks' insert slots (fx/insfx/insfx.c, 2026-10-13): each a type in INSERTS' S1 / S2
+# lists, one amount (0 off), on every track (the drum bus: its L and R)
+FELUCCA_156 = Provenance("Felucca 1.5.6 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "9f6a885",
+                         FELUCCA_URL)
+MELODEE_131 = Provenance("Melodee 1.3.1 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "next 757b65b", MELODEE_URL)
+_INS_NOTE = " Tested in the host tests and the emulator only, not on a device."
+_add("INS_FOLD", "FELUCCA_INS_FOLD", "FOLD insert (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
+     desc="A wavefolder type for the tracks' insert slots (INSERTS > S1 / S2: FOLD): the sound driven past full scale "
+          "folds back, more folds and harmonics as FOLD rises; the drive follows the track's level as DIST's does, the "
+          "bass stays dry. 0 is off.", symbols=("ifx_fold",),
+     notice="From Felucca 1.5.6's track INSERT FOLD by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+_add("INS_FUZZ", "FELUCCA_INS_FUZZ", "FUZZ insert", F, 257, default=0, provenance=FELUCCA_156,
+     desc="A fuzz type for the tracks' insert slots (INSERTS > S1 / S2: FUZZ): a hard-clipped top and a soft, halved "
+          "bottom (lopsided, buzzy), the drive with FUZZ. 0 is off.", symbols=("ifx_fuzz",),
+     notice="From Felucca 1.5.6's track INSERT FUZZ by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+_add("INS_PHASER", "FELUCCA_INS_PHASER", "PHSR insert (phaser)", F, 258, default=0, provenance=FELUCCA_156,
+     desc="A phaser type for the tracks' insert slots (INSERTS > S1 / S2: PHSR): four all-pass stages swept slowly "
+          "(~0.5 Hz); PHSR up to the middle mixes it in, past the middle adds feedback. 0 is off.",
+     symbols=("ifx_phsr",), notice="From Felucca 1.5.6's track INSERT PHASR by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
+     desc="A flanger type for the tracks' insert slots (INSERTS > S1 / S2: FLNG): a short delay swept 0.25 .. 5 ms "
+          "(~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 2.5 KB of pool.",
+     symbols=("ifx_flng",), notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+_add("INS_FORMANT", "FELUCCA_INS_FORMANT", "FRMT insert (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
+     desc="A vowel filter type for the tracks' insert slots (INSERTS > S1 / S2: FRMT): three formant peaks over the "
+          "sound; FRMT moves the vowel from A (low) through E, I, O to U (high). 0 is off.", symbols=("ifx_frmt",),
+     notice="From Melodee 1.3.1's FORMANT insert by Kerem Kilic (GPL-3.0); its vowel table, fixed point here."
+            + _INS_NOTE)
+_add("INS_WIDTH", "FELUCCA_INS_WIDTH", "WIDE insert (stereo width)", F, 261, default=0, provenance=MELODEE_131,
+     desc="A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept "
+          "all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off.",
+     symbols=("ifx_wide",), notice="From Melodee 1.3.1's WIDTH insert by Kerem Kilic (GPL-3.0)." + _INS_NOTE)
 _add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), STRUM, VLEAD", "Sequencer", 206, default=0,
      provenance=SLOOP_24,
      desc="With a chord mode on (SCL > CHORD), the black keys change the chord played: F# major <-> minor, G# adds "

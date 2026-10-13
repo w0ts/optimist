@@ -641,7 +641,7 @@ the editor shows no button. Nothing is written to flash.
   Bit 6 (the mask's bit 20, `SX24_INSORD`, 1048576): a track's FILTER placed before its DIST with both on (S1 FILTER,
   S2 DIST: 2.4 always runs DIST, then FILTER), so the order is lost; S1 DIST, S2 FILTER (the default) is 2.4's order.
   Bit 8 (the mask's bit 22, `SX24_COND`): a step condition (252 COND, below: Felucca 1.5.6), which 2.4 has not: left out (bit
-  7 is the insert FX pack's, another branch). A v11 request gets it on bit 13 (motion), as the chance.
+  7 is `SX24_INSFX`, a further insert). A v11 request gets it on bit 13 (motion), as the chance.
   Bit 9 (the mask's bit 23, `SX24_LFO2`): a part's LFO 2 that is not written as
   2.4's LFO: one beside an LFO that acts, or with TRIG FREE, POL UNI or AMP below 0 (2.4 has one LFO, NOTE and BI); a
   LFO 2 alone (the part's LFO DEST all 0) is written as 2.4's LFO (its RATE, WAVE, the AMT on its DEST, AMP 2 × AMT).

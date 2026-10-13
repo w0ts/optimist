@@ -465,6 +465,19 @@ the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says th
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
 
+**2ND CORE (DUAL builds only, `FELUCCA_DUAL` 2; PROPOSED, not yet seen on hardware).** The CPU section is CLOCK · CPU0 · CPU1 ·
+**2ND CORE**, exactly one page of 4 lines (a single-core build has no such line: CLOCK · LOAD, the next section on page 1).
+2ND CORE is **AUTO** (default: the second core starts at power-on and is held for the session on its first misread, wrong
+canary, late job or fault) or **OFF** (one core). The knob (KNOB 4 on that page) or PRESETS edits it (right OFF, left AUTO),
+YES toggles it, **HOME held + PRESETS resets it to AUTO**. It is `dual_mode`, in the settings word (bits 27..28, as the other
+settings: saved when SYSTEM or GLOBAL is left, once stopped). It applies at the next start, so the value is **amber** while it
+differs from the setting this boot started with. This UI sets `DUAL_MODE_MENU 1` (system/dual_mode.h): a self-disable (AUTO
+turning itself OFF after a misread, canary, timeout, fault or flash failure) is then saved, and this line is how the user sets it
+back. **CPU1's cell** shows the load while the core runs; **when it is down it shows why**, in amber, from `dual_why_name`
+(NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING), OFF when no reason is recorded. SLOOP's UI (UI=0)
+has no 2ND CORE line (its menu is unchanged; the boot message "CPU1 OFF <why>" still names the reason), so a self-disable is
+not saved there. Tests: tests/ui_optimist_core.h.
+
 ### 4.8 TEMPO, a held page [D]
 
 A tempo page opened by holding a button, with nudge (OCT+/-), fine adjust,
@@ -2465,7 +2478,9 @@ setting: its knob's number (1..4) at the left, the setting's name, its value on 
 unit after it, small), the value's form (bar, dots, pill) under the value. A section's name, small and dim with a rule
 after it, stands over its first line on the page; a page that starts inside a section names it again. The cursor line
 is a bar in the track's colour, ink on it. A read-out (CPU's CLOCK and LOAD, Tempo's NUDGE, MIDI's CLK) has its value in
-amber and its number dim: no knob turns it. An action (Calibrate's PANEL, About's VERSION) shows YES in amber. With
+amber and its number dim: no knob turns it; About's VERSION is one too, the version itself ("0.1"; YES still says it
+whole). An action (Calibrate's PANEL) shows RUN in amber, never a bare YES (fix/settings-lines, 2026-10-13: the user
+read the YES lines as dead): YES or PRESETS runs it, PANEL asking first; its knob only makes it the cursor. With
 KNOB COLORS on, the numbers and values take the knob caps' colours. The header: the badge GLOBAL or SYSTEM, the cursor
 line's section and the page n/N within the screen ("Tempo 1/5", "Screen 2/4").
 
@@ -2485,7 +2500,7 @@ COLORS' label is the full name now (it was COLORS to fit a card).
 | KNOB 1..4 | the page's line 1..4 (its number at the left); the turn makes that line the cursor |
 | SELECT | the page: a page of 4 lines a detent, within the screen, stopping at its ends; the cursor on the page's first line |
 | ALGORITHM | the cursor, a line a detent within the screen, stopping at its ends; past the page's 4th line the next page shows, and back (the pages are SELECT's) |
-| PRESETS | the cursor line's value; HOME held + PRESETS: back to its default. Never the track or its sound on these screens |
+| PRESETS | the cursor line's value; HOME held + PRESETS: back to its default (the values with a descriptor: BPM, SWING, both SYNCs, CLICK, QUANT, MIDI OUT / IN, the channels; and 2ND CORE). An action line: runs it, as YES (PANEL asks first). A read-out: nothing. Never the track or its sound on these screens |
 | SAVE (YES) | the cursor line: an action (PANEL asks first; VERSION says it; BLE opens the devices list), an on / off value toggled |
 | GLO tapped | from any other screen GLOBAL; on GLOBAL SYSTEM; on SYSTEM (the devices list too, which closes) GLOBAL. Each screen keeps its cursor line |
 | OCT- / OCT+ held | on a GLOBAL page with Tempo's lines: the nudge, as on the TEMPO page; elsewhere the octave |
@@ -2504,7 +2519,10 @@ Tests: tests/ui_optimist_glo.h (the lines and their order against the rows' cell
 drawing: no cards, the 1..4 numbers, the cursor bar; ALGORITHM line by line with the page following, stopping at each
 screen's ends and never crossing; KNOB k the page's line k; PRESETS the cursor line, HOME + PRESETS its default;
 ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSION, PANEL's question, the BLE devices;
-GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_pages.h (D1 as now:
+GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_glwalk.h (every
+line of both screens walked with ALGORITHM: a value's knob and PRESETS change a setting and its text, HOME + PRESETS a
+descriptor's default; a read-out's knob and PRESETS change nothing; no line draws YES, PANEL draws RUN and PRESETS asks;
+VERSION the version), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
 the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.
 

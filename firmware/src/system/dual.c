@@ -2,10 +2,16 @@
 /* The second core (CPU1). EXPERIMENTAL, emulator-validated only: docs/DUAL-CORE.md.
  *
  * FELUCCA_DUAL 1  stage 1: CPU1 starts and counts in RAM (shown on the screen); no audio work.
- * FELUCCA_DUAL 2  CPU1 renders the synth parts of DUAL_PARTS (mix_part: engine, DIST, SLICER, level,
- *                 pan, sends) into its own accumulators while CPU0 renders the other parts and the
- *                 drums, inside the same audio block (fork / join in the ALNK0 interrupt). The sums
- *                 are integer: the same samples as one core rendering all parts.
+ * FELUCCA_DUAL 2  CPU1 renders some of the block's jobs (a synth part: mix_part, its engine, DIST, SLICER,
+ *                 level, pan, sends into its own accumulators; the drum track: slicer_drums and dbus_run into
+ *                 the buses) while CPU0 renders the others, inside the same audio block (fork / join in the
+ *                 ALNK0 interrupt). The sums are integer: the same samples whichever core renders what.
+ *                 Which jobs go to CPU1 is decided each block (dual_split): each job's render time, measured
+ *                 on the core that ran it (TIMER4 ticks, smoothed), and the longest first onto the core with
+ *                 less so far (perf/mots-hot, 2026-10-13: the X0X 808 alone was half of CPU0's work, while
+ *                 parts 2-3 on CPU1 left it at 10 %). A build with DUAL_PARTS set (the emulator's
+ *                 references, tests/emu_dual_check.py) keeps that fixed set of parts on CPU1 and the drums on
+ *                 CPU0, as before.
  *
  * FELUCCA_DUAL_IDLE 1 (with 2, the default): CPU1 sleeps (idle) between jobs; CPU0 posts a job and raises
  *                 soft interrupt 124, whose handler on CPU1 runs it (fm1_cpu1_wake); 0: CPU1 spins in RAM.
@@ -26,12 +32,21 @@
                                                     * starts (hal/fm1_supply.h; the builder's DUAL_BOOST) */
 #endif
 #define DUAL_SLEEPS (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)
-#ifndef DUAL_PARTS
-#define DUAL_PARTS 0x6u                            /* parts 2 and 3 on CPU1 */
+#ifdef DUAL_PARTS
+#define DUAL_BALANCE 0                             /* a fixed set of parts on CPU1, the drums on CPU0 */
+#else
+#define DUAL_BALANCE 1                             /* the jobs split each block by their measured cost */
 #endif
 #include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
 #if FELUCCA_DUAL_BOOST
 #include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
+#endif
+#define DUAL_JOB_DRUMS (1u << NPART)               /* a job's bit: the drum track (slicer_drums, dbus_run) */
+#define DUAL_JOBS (NPART + 1u)
+#if DUAL_BALANCE
+#define DUAL_ALLOWED ((1u << DUAL_JOBS) - 1u)      /* the job bits CPU1 may be given (fm1_dual_take): any */
+#else
+#define DUAL_ALLOWED (DUAL_PARTS)                  /* (only its fixed parts) */
 #endif
 static struct {
     uint8_t up;                                    /* CPU1 runs and takes jobs */
@@ -46,6 +61,13 @@ static uint8_t dual_mode;                          /* the 2ND CORE setting (dual
 static mixacc_t dual_acc[2];                       /* [0] CPU0's parts, [1] CPU1's */
 static volatile uint32_t dual_c1_ticks;            /* CPU1: timer ticks inside its jobs, a running total (it alone
                                                     * writes it; CPU0 reads it once a half: dual_load.h) */
+#if FELUCCA_BENCH
+static volatile uint32_t dual_bench[3];            /* (measurements, bench.c: CPU1's ticks in its jobs, CPU0's ticks
+                                                    * waiting in dual_join, jobs) */
+#define DUAL_BENCH(k, v) (dual_bench[k] += (v))
+#else
+#define DUAL_BENCH(k, v) ((void)0)
+#endif
 
 AINL void dual_clear(mixacc_t *A, uint32_t n)
 {
@@ -54,15 +76,66 @@ AINL void dual_clear(mixacc_t *A, uint32_t n)
         A->send_c[i] = A->send_d[i] = A->send_r[i] = A->mix_l[i] = A->mix_r[i] = 0;
 }
 
-static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the block (RAM: core.h HOT) */
+/* each job's render time (TIMER4 ticks x 8, smoothed over ~8 blocks): written by the core that ran it, read by CPU0
+ * after the join (dual_split). Never an input of the audio: only of who renders what */
+static uint32_t dual_cost[DUAL_JOBS];
+
+/* the jobs of mask, on the core that calls it, into A (the parts) and the buses (the drums: CPU0 left them alone,
+ * its parts go to its own accumulators). Each job's time measured as it runs */
+static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
+{
+    uint32_t p, t0, t1;
+    for (p = 0; p < DUAL_JOBS; p++)
+        if ((mask >> p) & 1u) {
+            t0 = fm1_ticks();
+            if (p < NPART) {
+                mix_part(&trk[p], n, A);
+            } else {
+                slicer_drums(mix_l, mix_r, send_r, n);
+                dbus_run(n);                       /* the drum bus's inserts and sends (fx.c; the drums alone) */
+            }
+            t1 = fm1_ticks() - t0;
+            dual_cost[p] += t1 - (dual_cost[p] >> 3);
+        }
+}
+
+static HOT void dual_job(uint32_t mask)            /* CPU1: its jobs of the block (RAM: core.h HOT) */
 {
     mixacc_t *A = &dual_acc[1];
-    uint32_t p, t0 = fm1_ticks();                  /* (its load: the time in here, dual_load.h) */
+    uint32_t t0 = fm1_ticks(), dt;                 /* (its load: the time in here, dual_load.h) */
     dual_clear(A, CTL);
-    for (p = 0; p < NPART; p++)
-        if ((mask >> p) & 1u)
-            mix_part(&trk[p], CTL, A);
-    dual_c1_ticks += fm1_ticks() - t0;             /* (before `done`: the caller's csync orders it) */
+    dual_run(mask & DUAL_ALLOWED, CTL, A);
+    dt = fm1_ticks() - t0;
+    dual_c1_ticks += dt;                           /* (before `done`: the caller's csync orders it) */
+    DUAL_BENCH(0, dt);
+    DUAL_BENCH(2, 1u);
+}
+
+/* CPU0, before the fork: the jobs for CPU1. The longest first, each onto the core with less so far (ties: CPU0, no
+ * job when CPU1 would get nothing); CPU1 starts with its wake's delay. Integer compares only */
+#define DUAL_WAKE_COST 64u                          /* (ticks x 8: ~0.3 us, CPU1's interrupt entry) */
+static HOT uint32_t dual_split(void)
+{
+#if DUAL_BALANCE
+    uint32_t ord[DUAL_JOBS], i, j, k, c0 = 0, c1 = DUAL_WAKE_COST, mask = 0;
+    for (i = 0; i < DUAL_JOBS; i++) {              /* (insertion sort, longest first: 4 jobs) */
+        for (j = i; j && dual_cost[ord[j - 1u]] < dual_cost[i]; j--)
+            ord[j] = ord[j - 1u];
+        ord[j] = i;
+    }
+    for (i = 0; i < DUAL_JOBS; i++) {
+        k = ord[i];
+        if (c1 < c0) {
+            c1 += dual_cost[k];
+            mask |= 1u << k;
+        } else {
+            c0 += dual_cost[k];
+        }
+    }
+    return mask;
+#else
+    return DUAL_PARTS;
+#endif
 }
 #endif
 
@@ -87,7 +160,7 @@ void HOT fm1_cpu1_wake(void)
     while ((r = fm1_dual_mb.req) != done) {
         fm1_dual_sync();                           /* the request's data after `req` */
         a = fm1_dual_mb.arg;                       /* (read once: the job gets what was checked) */
-        if (fm1_dual_take(r, done, a, fm1_dual_mb.check, DUAL_PARTS) != FM1_DG_RUN) {
+        if (fm1_dual_take(r, done, a, fm1_dual_mb.check, DUAL_ALLOWED) != FM1_DG_RUN) {
             fm1_dual_note_bad(r, done);            /* a misread: not run; CPU0 holds CPU1 (dual_join) */
             break;
         }
@@ -132,7 +205,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
         ;
 #else
     for (;;) {
-        seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1, DUAL_PARTS, &arg);   /* (a request it may run) */
+        seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1, DUAL_ALLOWED, &arg);   /* (a request it may run) */
 #if DUAL_FAILTEST == 2
         if (seq == 3000u)
             for (;;)
@@ -187,8 +260,7 @@ static void dual_flash_enter(void)
 }
 
 static void ui_say(const char *a, const char *b);   /* ui.c */
-static const char *const DUAL_WHY[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
-                                                "AFTER CRASH", "SETTING"};   /* (dual_mode.h DUAL_*) */
+#define DUAL_WHY(w) dual_why_name(w)                /* (dual_mode.h: the reasons' names, the Optimist UI's CPU1 cell too) */
 
 static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at most */
 {
@@ -212,7 +284,7 @@ static void dual_frame(void)
     if (!dual.up && !told) {
         told = 1;
         if (dual.why != DUAL_SETOFF)
-            ui_say("CPU1 OFF ", DUAL_WHY[dual.why % DUAL_WHY_N]);
+            ui_say("CPU1 OFF ", DUAL_WHY(dual.why));
         dual_mode = (uint8_t)dual_mode_after(dual_mode, dual.boot_mode, dual.why);
     }
 #if FELUCCA_DUAL == 1
@@ -227,7 +299,7 @@ static void dual_frame(void)
                 dual_dec(b + 5, fm1_dual_mb.count);
                 str_cpy(b + str_len(b), lag <= 2u ? " OK" : " LATE", 6);
             } else {
-                str_cpy(b + 5, DUAL_WHY[dual.why % DUAL_WHY_N], sizeof b - 5u);
+                str_cpy(b + 5, DUAL_WHY(dual.why), sizeof b - 5u);
             }
             draw_text_box(0, 222, 240, &FONT_S, b, dual.up ? RGB(80, 220, 120) : RGB(255, 80, 80), 1);
         }
@@ -252,6 +324,7 @@ static HOT int dual_join(uint32_t req)
     }
     fm1_dual_sync();                               /* CPU1's sums after its done flag */
     dt = fm1_ticks() - t0;
+    DUAL_BENCH(1, dt);
     if (dt > dual.wait_max)
         dual.wait_max = dt;
     dual.jobs++;
@@ -280,11 +353,11 @@ static HOT void dual_lfo_draw(void)
     }
 }
 
-/* mix_block (fx.c) with the parts of DUAL_PARTS on CPU1 */
+/* mix_block (fx.c) with the jobs dual_split gives CPU1 (the parts of DUAL_PARTS when set) */
 static HOT void mix_block_dual(int32_t *out, uint32_t n)
 {
     mixacc_t *A = &dual_acc[0], *B = &dual_acc[1];
-    uint32_t i, p, mask = 0, req = 0, got = 0, sw;
+    uint32_t i, mask = 0, req = 0, got = 0, post = 0, sw;
 #if FELUCCA_USB_AUDIO
     capture_clear(n);                              /* the stems (each part writes its own; fx.c) */
 #endif
@@ -302,8 +375,13 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     dual_lfo_draw();                               /* the LFOs' random values (the render draws none) */
     sw = pold_any() ? FAR(pold_in)() : 0u;         /* (SLOOP 2.6) the parts fading after a sound load: their old
                                                     * sound for this block, on both cores (voice.c sound_change) */
+    drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade (before the fork: either */
+    drums.a1 = 32767 - gain_next(TDRUM);           /* core may render the drums) */
     if (dual.up && n == CTL) {
-        mask = DUAL_PARTS;
+        mask = dual_split();
+        post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
+    }
+    if (post) {
         req = fm1_dual_mb.req + 1u;
         fm1_dual_mb.arg = mask;
         fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);
@@ -314,19 +392,15 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         fm1_dual_wake();                           /* CPU1 out of its idle (soft interrupt 124) */
 #endif
     }
-    for (p = 0; p < NPART; p++)
-        if (!((mask >> p) & 1u))
-            mix_part(&trk[p], n, A);
-    drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade */
-    drums.a1 = 32767 - gain_next(TDRUM);
-    slicer_drums(mix_l, mix_r, send_r, n);
-    dbus_run(n);                                   /* the drum bus's inserts and sends (fx.c; the drums alone too) */
-    if (mask) {
+    dual_run(~mask & ((1u << DUAL_JOBS) - 1u), n, A);   /* CPU0's jobs: its parts, the drums unless CPU1 has them */
+    if (post) {
         got = dual_join(req);
-        if (!got)                                  /* CPU1 is down: its parts here (a click, once) */
-            for (p = 0; p < NPART; p++)
-                if ((mask >> p) & 1u)
-                    mix_part(&trk[p], n, A);
+        if (!got) {                                /* CPU1 is down: its jobs here (a click, once) */
+            if (mask & DUAL_JOB_DRUMS)             /* (whatever CPU1 left on the buses: the drums again) */
+                for (i = 0; i < n; i++)
+                    send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+            dual_run(mask, n, A);
+        }
     }
     for (i = 0; i < n; i++) {
         send_c[i] += A->send_c[i];
