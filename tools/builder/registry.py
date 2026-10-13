@@ -596,6 +596,9 @@ _add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84,
           "one by one before an update")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
+_add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables in the pool, not main RAM", Y, 300, default=0,
+     experimental=True, tested="emulator-tested only (no memory timing there)",
+     desc="Moves the tables the sound loops read (sine, soft clip, GRAIN's window: about 2.5 KB) from main RAM to the pool, copied there from flash at start-up, so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

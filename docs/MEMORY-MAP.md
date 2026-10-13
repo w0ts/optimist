@@ -117,13 +117,15 @@ firmware places its own data across the boundary, e.g. the BLE baseband at 0x01C
 budgets main RAM, the scarcer (`.data` + `.bss`, what builder items add to), against the pool. A buffer the main loop
 alone uses can live in either; moving one changes neither flash nor the undo total (the ring takes main RAM and pool
 alike). Whether the FM-1 reads both parts at the same speed is not measured: the emulator has no memory timing (one
-issue per instruction, one flat SRAM), so a table the audio loops read (TAB_RAM) moved on that assumption.
+issue per instruction, one flat SRAM): the tables the audio loops read (TAB_RAM) stay in main RAM unless the builder's
+EXPERIMENTAL `TAB_IN_POOL` moves them, and the CDC console's `tabbench` times one loop over SINE, main RAM and the pool
+on the FM-1 to settle it.
 
 | Region (app.ld) | Size | What is in it | The part nothing is linked into |
 |---|---|---|---|
 | **RAMTEXT** 0x01C00000 | 32,512 B | the audio path copied from flash at boot (`.ram_text`, `.ram_hot`): faster than running from flash | spare for more of the audio path |
 | **RAM** 0x01C08000 | 96 KiB | the firmware's variables (`.data` + `.bss`) | **the undo history** |
-| **POOL** 0x01C20000 | 336 KiB | first `.pool_init`: the TAB_RAM tables (SINE, TANH_Q15, GRAIN's window), copied from flash at boot (main.c, after .data); then big zeroed buffers (`.pool`): delay line, reverbs, FM6 voices, USB audio rings, the section stage, and the main loop's buffers marked `IN_POOL` (core.h: the user presets' bank, proj_tmp, st_buf, proj_v3_tmp, the editor's v9 shadows and reply buffer, undo, the section log's index) | the last 8 KiB are always kept free (`build.py`; the reason is not documented); the rest: **the undo history** |
+| **POOL** 0x01C20000 | 336 KiB | first `.pool_init`: with `TAB_IN_POOL` (EXPERIMENTAL) the TAB_RAM tables (SINE, TANH_Q15, GRAIN's window), copied from flash at boot (main.c, after .data), else empty; then big zeroed buffers (`.pool`): delay line, reverbs, FM6 voices, USB audio rings, the section stage, and the main loop's buffers marked `IN_POOL` (core.h: the user presets' bank, proj_tmp, st_buf, proj_v3_tmp, the editor's v9 shadows and reply buffer, undo, the section log's index) | the last 8 KiB are always kept free (`build.py`; the reason is not documented); the rest: **the undo history** |
 | stacks 0x01C74000 | 32 KiB | the two CPU stacks (user 0x01C74100–0x01C7A000, system 0x01C7A100–0x01C7C000), each after a guard word | fixed |
 | **NOINIT** 0x01C7C000 | 15,696 B | survives a reset (not a power-off): the pending arena (sections saved while playing, waiting to be written to flash once the transport stops, since a flash write stops the audio), the panel table and settings, the boot guard, the crash / debug record; with SECTIONS=4 the four project slots | fixed |
 
