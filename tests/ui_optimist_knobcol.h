@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, SYSTEM > SCREEN > KNOB COLORS (core/knobcol.h, settings word bit 25): off by default; KNOB 4 on
- * the SCREEN row (or YES on it) sets it; with it ON the four cards' labels and values take the knob caps' colours (1x4 and
+/* tests/ui_optimist_test.c, SYSTEM > SCREEN > KNOB COLORS (core/knobcol.h, settings word bit 25): off by default; the KNOB COLORS line
+ * of SYSTEM's Screen section (or YES on it) sets it; with it ON the four cards' labels and values take the knob caps' colours (1x4 and
  * 2x2); OFF every card is as before. Screens opt-knobcol-*-off / -on.ppm. */
 static void knobcol_tests(void)
 {
@@ -8,15 +8,14 @@ static void knobcol_tests(void)
     reset_ui();
     knob_colors = 0;
     check(knob_colors == 0u && ((bp23_word() >> 25) & 1u) == 0u, "KNOB COLORS: off by default, bit 25 clear");
-    op_enter(SCR_SYSTEM);
-    ui.row[SCR_SYSTEM] = (uint8_t)row_named(SCR_SYSTEM, "SCREEN");   /* (CPU first: D2) */
+    k = line_named(SCR_SYSTEM, "KNOB COLORS");             /* (Screen's KNOB COLORS line) */
     ui.force = 1;
     frame();
-    turn(EN_K4, 1);
-    check(knob_colors == 1u && ((bp23_word() >> 25) & 1u) == 1u, "SYSTEM SCREEN: KNOB 4 turns KNOB COLORS on (bit 25)");
+    turn(LINE_KNOB(k), 1);
+    check(knob_colors == 1u && ((bp23_word() >> 25) & 1u) == 1u, "SYSTEM Screen: the KNOB COLORS line's knob turns KNOB COLORS on (bit 25)");
     ppm("opt-knobcol-system");
-    turn(EN_K4, -1);
-    check(knob_colors == 0u, "SYSTEM SCREEN: KNOB 4 back: off");
+    turn(LINE_KNOB(k), -1);
+    check(knob_colors == 0u, "SYSTEM Screen: its knob back: off");
     reset_ui();
     song.sel = 0;
     op_enter(SCR_SOUND);

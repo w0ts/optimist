@@ -6,7 +6,8 @@
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
- *   GLO tapped: GLOBAL; again its next row, on through SYSTEM's, round (op_global.c); the mixer's knob sets are SELECT's
+ *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, ALGORITHM
+ *   moves the cursor line, PRESETS sets it); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -424,14 +425,20 @@ static void op_tap(uint32_t b, uint32_t id)
 }
 
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
- * where it pages the window (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
+ * where it pages the window, and GLOBAL and SYSTEM, where it sets the cursor line's value (op_global.c) (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
 static int op_presets_turn(void)
 {
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
+    if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: the cursor line's value, never the track's sound
+                                                         * (the user, 2026-10-12; HOME held: its default, op_global.c) */
+        if (!op_armed() && !rh.ring && !name_on())
+            gl_presets(s, (fm1_in.buttons & BIT(B_HOME)) != 0u);
+        if (fm1_in.buttons & BIT(B_HOME))
+            op_clean &= ~BIT(B_HOME);                   /* (HOME let go: no NO) */
+    } else if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
@@ -475,14 +482,17 @@ static void op_knobs(uint32_t home)
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
         if (glo_cycle())
-            glo_step(s, 0);                             /* (GLOBAL and SYSTEM: one sequence, op_global.c) */
+            glo_step(s);                                /* (GLOBAL, SYSTEM: their pages of 4 lines, op_global.c) */
         else
             op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
                                                          * not in a free take) */
-        algo_walk(s, 0);
+        if (sys_scr(ui.scr))
+            gl_algo(s);                                 /* (GLOBAL, SYSTEM: the cursor line by line, op_global.c) */
+        else
+            algo_walk(s, 0);
         turned = 1;
     }
     op_rows_fix();
@@ -498,6 +508,7 @@ static void op_knobs(uint32_t home)
         if (c.kind == CK_NONE)
             continue;
         ui.hot = (uint8_t)k;                            /* (an action cell: the turn only picks it) */
+        gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
         if (c.kind == CK_VAL)
             SCR->turn(row, k, home ? OP_RESET : s, 0);  /* HOME held: back to its default */

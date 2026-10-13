@@ -79,15 +79,23 @@ static void cards_tests(void)
     frame();
     check(cards_screen_ok(SCR_TEMPO, "tempo"), "cards 2x2: TEMPO");
     {
-        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_SCOPE, SCR_GLOBAL};
+        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SCOPE};
         uint32_t i, ok = 1;
         for (i = 0; i < sizeof S; i++) {
             reset_ui();
             op_enter(S[i]);
             frame();
-            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : S[i] == SCR_GLOBAL ? "global" : 0);
+            ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : 0);
         }
-        check(ok, "cards 2x2: SONG, FX, PROJECT, SYSTEM, SCOPE, GLOBAL");
+        check(ok, "cards 2x2: SONG, FX, PROJECT, SCOPE");
+        for (i = 0, ok = 1; i < 2u; i++) {              /* GLOBAL and SYSTEM: the settings list, no cards (op_gldraw.c) */
+            reset_ui();
+            op_enter(i ? SCR_SYSTEM : SCR_GLOBAL);
+            ui.force = 1;
+            frames(2);
+            ok &= (uint32_t)(!cards_band_is(BAND_2X2) && !cards_band_is(BAND_1X4));
+        }
+        check(ok, "GLOBAL and SYSTEM: no cards (the settings list)");
     }
     reset_ui();
     op_enter(SCR_SOUND);
@@ -110,17 +118,24 @@ static void cards_tests(void)
     }
     reset_ui();
     {   /* no CARDS setting: SYSTEM > SCREEN's cells are COLOR, BRIGHT, -, KNOB COLORS; bit 23 ignored */
-        uint32_t k, none = 1, w;
+        uint32_t k, none = 1, w, n;
         cell_t c;
+        char nm[12];
         op_enter(SCR_SYSTEM);
-        ui.row[SCR_SYSTEM] = 0;
         frame();
-        for (k = 0; k < 4u; k++) {
-            SCR->cell(0, k, &c);
+        n = SCR->rows();
+        for (k = 0; k < n; k++) {                       /* (every line of the list) */
+            SCR->cell(k, k % 4u, &c);
             none &= (uint32_t)!(c.label && !strcmp(c.label, "CARDS"));
         }
-        SCR->cell(0, 2, &c);
-        check(none && c.kind == CK_NONE, "SYSTEM SCREEN: no CARDS cell (KNOB 3 empty)");
+        k = line_named(SCR_SYSTEM, "COLOR") + 1u;
+        SCR->cell(k, k % 4u, &c);
+        if (c.label && !strcmp(c.label, "BRIGHT"))   /* (BRIGHT where built) */
+            k++;
+        SCR->cell(k, k % 4u, &c);
+        SCR->name(k, nm);
+        check(none && c.label && !strcmp(c.label, "KNOB COLORS") && !strcmp(nm, "SCREEN"),
+              "SYSTEM SCREEN: no CARDS line (COLOR, BRIGHT, then KNOB COLORS)");
         w = bp23_word();
         bp23_from_word(w | 1u << 23);                   /* an old record that chose 1x4 */
         op_enter(SCR_SOUND);

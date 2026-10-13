@@ -54,8 +54,9 @@ static void tempo_key(int32_t w)                        /* a key while PLAY is h
     if (w >= 0)
         tap_tempo();
 }
-/* OCT- / OCT+ nudge the clock: on the TEMPO page, and on GLOBAL's TEMPO row (its NUDGE card, op_global.c) */
-static int tempo_nudging(void) { return tp.on || (ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == TPR_TEMPO); }
+/* OCT- / OCT+ nudge the clock: on the TEMPO page, and on GLOBAL's page with Tempo's lines (its NUDGE line, op_global.c) */
+static int gl_on_tempo(void);
+static int tempo_nudging(void) { return tp.on || gl_on_tempo(); }
 /* once a frame (op_input.c): the page after the hold, the nudge while OCT- / OCT+ are held */
 static void tempo_frame(uint32_t held)
 {
