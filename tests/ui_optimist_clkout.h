@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, GLOBAL > CLOCK OUT (SYSTEM's until 2026-10-12; io/midi/clock_out.c, settings word bit 26): OFF by default; KNOB 1 on the
+/* tests/ui_optimist_test.c, GLOBAL > MIDI > CLK OUT (SYSTEM's until 2026-10-12; io/midi/clock_out.c, settings word bit 26): OFF by default; KNOB 1 on the
  * CLOCK OUT row (or YES on it) sets it; the clock it sends: tests/clock_out_test.c. Screen opt-clkout.ppm. */
 static void clkout_tests(void)
 {
@@ -12,7 +12,7 @@ static void clkout_tests(void)
     {
         char nm[12];
         SCR->name(w, nm);
-        check(w < SCR->rows() && !strcmp(nm, "CLOCK OUT"), "GLOBAL: a CLK OUT line in its Clock out section (GLO tapped)");
+        check(w < SCR->rows() && !strcmp(nm, "MIDI"), "GLOBAL: a CLK OUT line on the MIDI page (GLO tapped)");
     }
     ui.force = 1;
     frame();

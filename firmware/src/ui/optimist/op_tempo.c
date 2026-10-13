@@ -99,7 +99,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
             cell_param(c, &GP[G_BPM], &song.g[G_BPM]);
         else if (k == 2u)
             cell_param(c, &GP[G_SWING], &song.g[G_SWING]);
-        else if (k == 3u && FELUCCA_MIDI_CLOCK)
+        else if (k == 3u && FELUCCA_MIDI_CLOCK)         /* (GLOBAL's list leaves it out: CLK IN is on its MIDI page, op_global.c gl_has) */
             cell_param(c, &GP[G_SYNC], &song.g[G_SYNC]);
         else if (k == 3u)
             cell_clear(c);

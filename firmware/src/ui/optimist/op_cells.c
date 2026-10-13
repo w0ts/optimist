@@ -96,6 +96,29 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     cell_gauge_d(c, d, *vp);
 }
 
+/* the long form of a value where the field is wide (the GLOBAL / SYSTEM list, the tempo panel): SYNC AUTO as "Auto: USB",
+ * the clock it follows now (G_MIDI), a fixed SYNC as "Int" / "USB" / "TRS"; MIDI OUT and IN as words ("Keys" "Seq", "Notes" "Clock"). The cards keep
+ * param_format's 5 characters ("A:USB", "KEYS"). 1: b (14) holds it */
+static int value_long(const param_desc_t *d, int32_t v, char *b)
+{
+    static const char *const CK[3] = {"Auto: Int", "Auto: USB", "Auto: TRS"};
+    if (d == &GP[G_SYNC]) {                             /* a fixed clock: "Int", to match "Auto: Int" */
+        static const char *const FX[3] = {"Int", "USB", "TRS"};
+        str_cpy(b, v == SYNC_AUTO ? CK[(uint32_t)song.g[G_MIDI] % 3u] : FX[(uint32_t)v % 3u], 14);
+        return 1;
+    }
+#if BP_SET_ANY
+    if ((d->names == N_MOUT || d->names == N_MIN) && v >= 0 && v <= d->max) {   /* KEYS -> Keys */
+        uint32_t i;
+        str_cpy(b, d->names[v], 14);
+        for (i = 1; b[i]; i++)
+            b[i] = (char)(b[i] >= 'A' && b[i] <= 'Z' ? b[i] + 32 : b[i]);
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 /* the sound a track plays, by name (b holds 14) */
 static void snd_name(uint32_t c, char *b)
 {
