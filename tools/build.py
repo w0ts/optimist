@@ -417,10 +417,11 @@ def boot_refs(dis):
 # +2048, the interrupt with the job on +6144), the job finds at least 4 KiB below its top before another stack. Its
 # worst depth, static: the frames (the registers pushed, 4 B each, and every 'sp += -N') of the deepest call path
 # from the wake interrupt and from the spinning main loop; an indirect call ('call rN') resolves to the functions its
-# function loads the address of (FAR) and, in mix_part (track_render inlined), to every engine's hooks (the names in
-# its engine_t). Measured in the emulator 2026-10-12 (bench scenarios, parts 2-3 on CPU1): ACID 1,936 B (static
+# function loads the address of (FAR) and, in mix_part (track_render inlined) or a function mix_part is inlined
+# into (CPU1_MIX: dual.c dual_run, perf/mots-hot), to every engine's hooks (the names in its engine_t). Measured in the emulator 2026-10-12 (bench scenarios, parts 2-3 on CPU1): ACID 1,936 B (static
 # 2,452), PHYS 1,556 (1,556), ANALOG 680 (668), FM6 648 (856), PHASE 456 (456)
 CPU1_ROOTS = ("isr_c1_wake", "fm1_cpu1_main")
+CPU1_MIX = ("mix_part", "dual_run")  # (where the engines' render hooks are called from, inlined or not)
 CPU1_STACK_ROOM = 4096 - 256        # (256 B: the main loop's own frames and the interrupt's entry, above the job)
 
 
@@ -465,7 +466,7 @@ def cpu1_stack(dis):
             return memo[f]
         cands = set(calls[f])
         if f in indirect:
-            cands |= {r for r in refs[f] if r in frames and r != f} | (hooks if f == "mix_part" else set())
+            cands |= {r for r in refs[f] if r in frames and r != f} | (hooks if f in CPU1_MIX else set())
         best, path = 0, []
         for c in cands:
             d, p = depth(c, stack | {f})
