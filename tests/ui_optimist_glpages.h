@@ -104,7 +104,7 @@ static int glp_walk(uint32_t s)                        /* SELECT page by page, A
     turn(EN_SELECT, -50);
     ok &= ui.row[scr] == 0u;
     for (i = 1; i < gl_n(s); i++) {                     /* every line, the page shown its own */
-        turn(EN_ALGO, 1);
+        line_at(scr, i);                                /* (a knob picks a line: the page follows) */
         head_pos(scr, ui.row[scr], pos);
         snprintf(want, sizeof want, " %u/%u", gl_pg(s, i) + 1u, np);
         ok &= ui.row[scr] == i && ui.hot == i - gl_first(s, i) && (np < 2u ? !pos[0] : !strcmp(pos, want));

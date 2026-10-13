@@ -153,10 +153,10 @@ static void pm_lists_tests(void)
     tap(B_GLO);
     frames(2);
     check(ui.scr == SCR_GLOBAL, "page memory, GLOBAL / SYSTEM: GLO opens GLOBAL");
-    turn(EN_ALGO, 5);
+    turn(EN_SELECT, 1);
     g = ui.row[SCR_GLOBAL];
     tap(B_GLO);
-    turn(EN_ALGO, 3);
+    turn(EN_SELECT, 1);
     s = ui.row[SCR_SYSTEM];
     tap(B_HOME);
     tap(B_GLO);
