@@ -605,6 +605,12 @@ static void px_pack(project_t *p, const int16_t (*x)[3]);   /* (below: SLOOP 2.4
 #include "../seq/stepx.h"
 #include "sl24/sl24_export.c"       /* ours as a SLOOP 2.4 project (proj_to_sl24): the editor saves it (ed_sl24.c) */
 #endif
+#if FELUCCA_AUTO && ((FELUCCA_SL24_IMPORT && FELUCCA_FLASH) || FELUCCA_SL24_EXPORT)
+/* 2.4's step extras, one scratch for both ways: the import's on their way into the automation store (sl24_guard.c
+ * sl24_import_buf) and the export's, the automation as 2.4's extras (ed_sl24.c ed_sl24_make). Each fills it and is
+ * done with it inside one main-loop call, and neither calls the other */
+static stepx_t sl24_xs[NTRK] __attribute__((section(".pool")));
+#endif
 
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
  * engine's defaults; the project's engine UID, preset, EDIT values and FM6 voice are kept here and written back

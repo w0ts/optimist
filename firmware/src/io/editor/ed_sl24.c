@@ -63,9 +63,6 @@ static void ed_sl24_bank(uint8_t *b)
 #endif
     sl24_bank_empty(b);
 }
-#if FELUCCA_AUTO
-static stepx_t ed_sl24_x[NTRK] __attribute__((section(".pool")));   /* (the automation as 2.4's extras) */
-#endif
 static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, made in proj_tmp */
 {
     uint8_t *o = (uint8_t *)&proj_tmp;
@@ -76,8 +73,8 @@ static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, 
 #if FELUCCA_AUTO
         uint32_t k;
         for (k = 0; k < NTRK; k++) {                      /* (the automation as 2.4's extras: auto.h) */
-            r |= sl24_auto_out(&ed_sl24_x[k], AUTO_L(k));
-            x[k] = &ed_sl24_x[k];
+            r |= sl24_auto_out(&sl24_xs[k], AUTO_L(k));
+            x[k] = &sl24_xs[k];
         }
 #endif
         r |= dlfo_any_live() ? (uint32_t)SX24_DLFO : 0u;  /* (the drum lanes' LFOs: lane_play.c) */

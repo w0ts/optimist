@@ -194,9 +194,6 @@ static int sl24_bank_rec(uint32_t at, uint32_t k, uint8_t *pk)
 #define SL24_FV_AT ((sizeof(project_t) + 3u) & ~3u)    /* in proj_tmp: the FM6 parts' bank patches, past the project_t the
                                                         * import makes there (its source: st_buf) */
 _Static_assert(sizeof proj_tmp >= SL24_FV_AT + NPART * 128u, "2.4's FM6 patches beside the import in proj_tmp");
-#if FELUCCA_AUTO
-static stepx_t sl24_x[NTRK] __attribute__((section(".pool")));   /* (2.4's extras on their way into the store) */
-#endif
 /* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 / 2.5 project (sl24_is; not in proj_tmp), or a 2.6 one (sl26_is: made
  * a 2.5 one first, in place: b holds SL24_SIZE bytes) -> the working project
  * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
@@ -228,7 +225,7 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
         fv = fl;
     }
 #if FELUCCA_AUTO
-    x = sl24_x;
+    x = sl24_xs;
 #endif
     lost = !x && sl24_has_extras(b);
     if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
@@ -245,7 +242,7 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
     {                                                  /* (after the lanes: the store follows the final sum) */
         auto_store_t *m = auto_fresh(&proj_tmp.cur);
         if (m)
-            r = sl24_auto_in(m, sl24_x);
+            r = sl24_auto_in(m, sl24_xs);
     }
 #endif
     project_apply(&proj_tmp.cur, d);
