@@ -1,8 +1,8 @@
 {
  "base": {
-  "flash": 625472,
-  "ram": 73036,
-  "pool": 355380,
+  "flash": 625500,
+  "ram": 73052,
+  "pool": 355440,
   "ramtext": 34724
  },
  "deltas": {
@@ -1291,9 +1291,61 @@
     "pool": 9132,
     "ramtext": -160
    }
+  },
+  "INS_CHORUS": {
+   "1": {
+    "flash": 4752,
+    "ram": 1856,
+    "pool": 2184,
+    "ramtext": 0
+   },
+   "2": {
+    "flash": 4736,
+    "ram": 1856,
+    "pool": 4256,
+    "ramtext": 0
+   },
+   "3": {
+    "flash": 4736,
+    "ram": 1856,
+    "pool": 6304,
+    "ramtext": 0
+   },
+   "4": {
+    "flash": 4496,
+    "ram": 1856,
+    "pool": 8352,
+    "ramtext": 0
+   }
+  },
+  "INS_DELAY": {
+   "1": {
+    "flash": 4308,
+    "ram": 1408,
+    "pool": 8336,
+    "ramtext": 0
+   },
+   "2": {
+    "flash": 4308,
+    "ram": 1408,
+    "pool": 16528,
+    "ramtext": 0
+   },
+   "3": {
+    "flash": 4308,
+    "ram": 1408,
+    "pool": 24720,
+    "ramtext": 0
+   },
+   "4": {
+    "flash": 4036,
+    "ram": 1408,
+    "pool": 32912,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-13 14:11",
+ "measured": "2026-10-13 16:29",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1315,56 +1367,56 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "4908fa97",
+   "hash": "3405387a",
    "sizes": {
-    "flash": 601604,
-    "ram": 69440,
-    "pool": 355028,
+    "flash": 601632,
+    "ram": 69456,
+    "pool": 355088,
     "ramtext": 25912
    }
   },
   "everything-that-fits": {
-   "hash": "59aea620",
+   "hash": "612d7b45",
    "sizes": {
-    "flash": 598624,
-    "ram": 61052,
-    "pool": 339980,
+    "flash": 598652,
+    "ram": 61068,
+    "pool": 340040,
     "ramtext": 34672
    }
   },
   "fm-va-studio": {
-   "hash": "4b2a7d3b",
+   "hash": "140ba996",
    "sizes": {
-    "flash": 600148,
-    "ram": 73020,
-    "pool": 346032,
+    "flash": 600176,
+    "ram": 73036,
+    "pool": 346092,
     "ramtext": 28708
    }
   },
   "user-default": {
-   "hash": "2dc59e66",
+   "hash": "48c973b1",
    "sizes": {
-    "flash": 534208,
+    "flash": 534236,
     "ram": 56940,
-    "pool": 316940,
+    "pool": 317000,
     "ramtext": 31368
    }
   },
   "x0x-drums": {
-   "hash": "2d389ac5",
+   "hash": "246a86bc",
    "sizes": {
-    "flash": 578584,
-    "ram": 53544,
-    "pool": 316460,
+    "flash": 578596,
+    "ram": 53560,
+    "pool": 316520,
     "ramtext": 25908
    }
   },
   "mots": {
-   "hash": "45434060",
+   "hash": "2a920f77",
    "sizes": {
-    "flash": 535872,
+    "flash": 535888,
     "ram": 58228,
-    "pool": 314604,
+    "pool": 314664,
     "ramtext": 32272
    }
   }
