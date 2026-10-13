@@ -11,7 +11,7 @@
  *                            u8 length, the bytes. A reader skips a TLV it does not know (new types need no version
  *                            bump); a newer version is ignored as a whole (the defaults play). TLV DLM_TLV (0x40):
  *                            the drum lanes' PAN, MUTE, SOLO (drums/drum_mix.c), not an FX type. TLV FXRET_TLV
- *                            (0x41): the FX returns CHO DLY REV (below). TLV SMUTE_TLV (0x42): the sequencer mutes
+ *                            (0x41): the FX returns CHO DLY REV (below). TLV SMUTE_TLV (0x43): the sequencer mutes
  *                            (seq/seq_mute.c).
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u

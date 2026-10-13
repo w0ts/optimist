@@ -7,7 +7,7 @@
  * Runtime state, saved with the project in the FX record (fx_rec.c: the TLV SMUTE_TLV, 3 bytes: the tracks' bits, the
  * lanes' mask, little endian; none when nothing is muted, so a project from before reads as nothing muted).
  * HOME held + a key on the mixer toggles them (ui/optimist/op_input.c); smute_key maps the key. */
-#define SMUTE_TLV 0x42u                         /* (past DLM_TLV 0x40 and FXRET_TLV 0x41: no FX type's id) */
+#define SMUTE_TLV 0x43u                         /* (past DLM 0x40, FXRET 0x41, INS 0x42 of feat/insert-slots: no FX type's id) */
 #define SMUTE_TLV_N 3u
 #define SMUTE_KEYS 20u                          /* the 16 drum lanes, then T1 T2 T3 DR */
 static uint8_t smute_trk;                       /* bit k: track k's sequencer muted */
