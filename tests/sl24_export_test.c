@@ -440,6 +440,31 @@ static void fx_slots24(void)
         trk[0].p[P_TFLT] = f, trk[0].p[P_DIST] = d;
     }
 #endif
+#if INS_FX
+    {   /* the further inserts (insfx.c): 2.4 has none */
+        uint32_t t, k;
+        for (t = FXT_NEW0; t < FXT_N; t++) {
+            if (FXT_AMT[t] == 0xFFu)
+                continue;
+            for (k = 0; k < NTRK; k++) {
+                uint8_t s[2] = {(uint8_t)t, FXT_NONE};
+                uint32_t l0, l1;
+                ins_put(k, s);
+                l0 = proj_to_sl24(&q, 0, out, 0);
+                trk[k].p[FXT_AMT[t]] = 90;
+                l1 = proj_to_sl24(&q, 0, out, 0);
+                s[0] = FXT_NONE;
+                ins_put(k, s);                          /* (in no slot: not heard, nothing lost for it) */
+                if ((l0 & SX24_INSFX) || !(l1 & SX24_INSFX) || (proj_to_sl24(&q, 0, out, 0) & SX24_INSFX))
+                    break;
+                trk[k].p[FXT_AMT[t]] = 0;
+            }
+            check("a further insert heard with an amount: INSFX lost; at 0 or in no slot: not", k == NTRK);
+        }
+        ins_defaults();
+        check("INSFX: the second word's bit 7, its own", (SX24_INSFX >> 14) == 128u && !(SX24_INSFX & (SX24_INSORD | SX24_NGATE)));
+    }
+#endif
     /* the FX returns (2026-10-12, core.h G_CRET G_DRET G_RRET): 2.4 has none, its wet comes back at unity */
     song.g[G_CRET] = song.g[G_DRET] = song.g[G_RRET] = 127;
     base = proj_to_sl24(&q, 0, out, 0);

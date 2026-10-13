@@ -72,6 +72,14 @@ static uint32_t cg_ins_part(uint32_t p)
     if ((on && INS_ON(p, FXT_COMP) && trk[p].p[P_TCOMP]) || tcomp[p].gr16 || tcomp[p].g13 != 8192)
         n += CG_COST_TCOMP;                           /* (fx.c tcomp_run: on, or letting go) */
 #endif
+#if INS_FX
+    {   /* the further inserts (insfx.c): set in a slot, or fading out */
+        uint32_t t;
+        for (t = FXT_NEW0; t < FXT_N; t++)
+            if (FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]]) || ifx_w(t, p)))
+                n += CG_COST_PINS[t - FXT_NEW0];
+    }
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -91,6 +99,14 @@ static uint32_t cg_ins_bus(void)
 #if FELUCCA_MASTER_COMP
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_COMP) && TDRUM->p[P_TCOMP]) || !tcomp_rest(&dbus_comp))
         n += CG_COST_DBCOMP;                          /* (fx.c dbus_comp_run: on, or letting go) */
+#endif
+#if INS_FX
+    {   /* the further inserts (insfx.c ifx_bus: L and R at every level) */
+        uint32_t t;
+        for (t = FXT_NEW0; t < FXT_N; t++)
+            if (FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]]) || ifx_w(t, IFX_BUS)))
+                n += CG_COST_DBINS[t - FXT_NEW0];
+    }
 #endif
     return n;
 }

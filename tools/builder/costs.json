@@ -1219,6 +1219,54 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "INS_FUZZ": {
+   "1": {
+    "flash": 592,
+    "ram": 1264,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "INS_PHASER": {
+   "1": {
+    "flash": 732,
+    "ram": 1488,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "INS_FORMANT": {
+   "1": {
+    "flash": 1276,
+    "ram": 1408,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "INS_WIDTH": {
+   "1": {
+    "flash": 548,
+    "ram": 1856,
+    "pool": 0,
+    "ramtext": -20
+   }
+  },
+  "INS_FLANGER": {
+   "1": {
+    "flash": 424,
+    "ram": 1088,
+    "pool": 2640,
+    "ramtext": -104
+   }
+  },
+  "INS_FOLD": {
+   "1": {
+    "flash": 504,
+    "ram": 1200,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-13 09:48",
