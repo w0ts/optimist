@@ -14,6 +14,7 @@
  *   LFO layer (PATTERNS)  the 16 patterns dim, the playing one full, the queued one blinking; the 10 black keys dim,
  *                         the selected track's and the modifier held full
  *   TEMPO (PLAY held)     the white keys tap: dim
+ *   PROJECT               the cursor row's slots (PROJECT, SNAPSHOT, USER): used full, free dim, the selected one blinking
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
@@ -159,6 +160,10 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         break;
     default:
         return;                                         /* (ERASE, REPEAT: play surfaces, dark) */
+    }
+    if (ui.scr == SCR_PROJECT) {
+        prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
+        return;
     }
     if (ui.scr == SCR_STEP) {
         *f = step_leds(blink);

@@ -571,8 +571,7 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 EUCLI
     const track_t *t = TSEL;
     cell_clear(c);
     if (!pg) {
-        c->label = TN[k & 3u];
-        c->kind = CK_ACT;
+        cell_act(c, "PATTERN", TN[k & 3u], 0, 0);
         if (k == TL_LEN) {
             c->kind = CK_VAL;
             str_cpy(c->val, tl.half ? "1/2" : "x2", sizeof c->val);
@@ -612,8 +611,9 @@ static void tl_say(const char *a, const char *b)       /* what was done: a toast
     ui.toast_next = 0;
 }
 /* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
-static int tl_yes(uint32_t pg, uint32_t k)
+static int tl_yes(uint32_t row, uint32_t pg, uint32_t k, uint32_t ok)
 {
+    static const char *const TV[3] = {"REVERSE", "RANDOM", "COOK"};
     track_t *t = TSEL;
     uint32_t len = trk_len(t), i, n = 0, nl;
     int32_t lane = tl_lane();
@@ -621,6 +621,10 @@ static int tl_yes(uint32_t pg, uint32_t k)
     const char *who = lane >= 0 ? LANE_NAME[lane] : trk_tag(song.sel), *what;
     if (pg)
         return 0;
+    if (k != TL_LEN && !ok) {                           /* (an action card: asks first, the user 2026-10-13) */
+        op_arm(SCR_STEP, row, k, TV[k % 3u], who, 0);
+        return 1;
+    }
     if (k == TL_LEN) {
         if (!tl.half && (len >= NSTEP || !tl_ev_double(t, len, tl_dbl_len(len), 1))) {
             tl_say(len >= NSTEP ? "64 STEPS: NO ROOM" : "PATTERN FULL", "");

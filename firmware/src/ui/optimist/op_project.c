@@ -69,15 +69,14 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
     }
 #endif
     if (kind == PR_A24) {
-        if (!k) {
-            c->label = "IMPORT";
-            c->kind = CK_ACT;
-        }
+        if (!k)
+            cell_act(c, "SLOOP", "IMPORT", 0, 0);
         return;
     }
     if (k) {                                            /* the GO buttons */
-        c->label = PRJ_GO[kind][k - 1u];
-        c->kind = CK_ACT;
+        const char *v = PRJ_GO[kind][k - 1u];
+        cell_act(c, kind == PR_PROJECT ? "PROJECT" : kind == PR_SNAP ? "SNAPSHOT" : "USER", v, 0,
+                 str_eq(v, "NEW") || str_eq(v, "CLEAR") || str_eq(v, "ERASE"));   /* (the user, 2026-10-13: the verb) */
         return;
     }
     c->label = "SLOT";
@@ -157,11 +156,9 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         used = sn_ui_row(ui.snap_slot, nm, &bytes) != 0u;
     }
 #endif
-    /* LOAD replaces the work, CLEAR / ERASE / NEW destroy, a SAVE over a used slot too: they ask first (the SAVE
-     * cell: 2 on PROJECT, 3 on SNAPSHOT and USER) */
-    if (!ok && (k == 1u ? (kind == PR_PROJECT ? work_changed() : kind == PR_USER ? snd_edited(song.sel) : 1)
-                        : k != (kind == PR_PROJECT ? 2u : 3u) || used)) {   /* (LOAD: a project over a changed work, a
-                                                         * user preset over an edited sound; op_edits.c) */
+    /* every action card asks first, changed work or not (the user, 2026-10-13); amber for a SAVE into an empty slot, red for
+     * the rest (the SAVE cell: 2 on PROJECT, 3 on SNAPSHOT and USER) */
+    if (!ok) {
         static const char *const WHAT[3] = {"PROJECT ", "SNAPSHOT ", "PRESET "};
         char t[14];                                     /* the target: "PROJECT 3", "SNAPSHOT 2", "PRESET U03" */
         str_cpy(t, WHAT[kind], sizeof t);
@@ -170,7 +167,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         else
             t[7] = 0;
         /* red: it destroys or replaces the work; amber: a snapshot saved into an empty slot */
-        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], t, !(kind == PR_SNAP && k == 3u && !used));
+        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], t, !(k == (kind == PR_PROJECT ? 2u : 3u) && !used));
         return 1;
     }
     if (kind == PR_PROJECT) {
@@ -197,6 +194,72 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
     ui.force = 1;
     return 1;
+}
+
+/* ---- the keys pick the slot (the user, 2026-10-13: "while in save/load screen, the note keyboard should not play notes,
+ * but select the slot"): on PROJECT the keys play nothing (op_input.c locks them to the UI); on a row with slots (PROJECT,
+ * SNAPSHOT, USER) the 16 white keys pick the cursor row's slot: key n is slot n, on USER the n-th of the 16 slots of the
+ * page the cursor is on (32 slots, 2 pages; SLOT turns across them). Lit: a used slot full, a free one dim, the selected
+ * one blinking (op_keys.c) */
+static uint32_t prj_slot_n(uint32_t kind)
+{
+#if FELUCCA_SNAPSHOTS
+    if (kind == PR_SNAP)
+        return sn_ui_n();
+#endif
+    return kind == PR_PROJECT ? FELUCCA_SECTIONS : kind == PR_USER ? UP_SLOTS : 0u;
+}
+static uint32_t prj_slot_cur(uint32_t kind)
+{
+    return kind == PR_PROJECT ? prj_slot() : kind == PR_USER ? ui.user_slot : ui.snap_slot;
+}
+static uint32_t prj_slot_used(uint32_t kind, uint32_t s)
+{
+#if FELUCCA_SNAPSHOTS
+    char nm[16];
+    uint32_t bytes;
+    if (kind == PR_SNAP)
+        return sn_ui_row(s, nm, &bytes) != 0u;
+#endif
+    return kind == PR_PROJECT ? (uint32_t)project_used(s) : (uint32_t)up_used(s);
+}
+/* key w (white key 0..15) -> the slot it picks on the cursor row, -1 none */
+static int32_t prj_key_slot(uint32_t kind, int32_t w)
+{
+    uint32_t s = (kind == PR_USER ? prj_slot_cur(kind) & ~15u : 0u) + (uint32_t)w;
+    return w >= 0 && w < 16 && s < prj_slot_n(kind) ? (int32_t)s : -1;
+}
+static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain: a key of PROJECT */
+{
+    uint32_t kind = prj_kind(ui.row[SCR_PROJECT]);
+    int32_t s = down && !op_armed() ? prj_key_slot(kind, punch_key(k)) : -1;
+    if (s < 0)
+        return;
+    if (kind == PR_PROJECT)
+        val_turn(&GP[G_SLOT], &song.g[G_SLOT], 0, s + 1 - song.g[G_SLOT], 1);
+    else if (kind == PR_USER)
+        ui.user_slot = (uint8_t)s;
+    else
+        ui.snap_slot = (uint8_t)s;
+    ui.hot = 0;                                         /* (the SLOT card) */
+    ui.hot_lit = 1;
+    ui.force = 1;
+}
+static void prj_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)
+{
+    uint32_t kind = prj_kind(ui.row[SCR_PROJECT]), w;
+    int32_t s;
+    for (w = 0; w < 16u; w++) {
+        s = prj_key_slot(kind, (int32_t)w);
+        if (s < 0)
+            continue;
+        if (prj_slot_used(kind, (uint32_t)s))
+            *f |= 1u << key_of_lane(w);
+        else
+            *d |= 1u << key_of_lane(w);
+        if ((uint32_t)s == prj_slot_cur(kind) && !blink)
+            *f &= ~(1u << key_of_lane(w)), *d &= ~(1u << key_of_lane(w));   /* (the selected one blinks) */
+    }
 }
 
 #if FELUCCA_BLE
@@ -276,8 +339,7 @@ static void dev_cell(uint32_t r, uint32_t k, cell_t *c)   /* the cards: K1 what 
         return;
     ble_dev_row(r, last, near, 0, &tag, 0, &bars);
     if (k == 0u) {                                      /* (what YES does: the tag says what the row is doing now) */
-        c->kind = CK_ACT;
-        c->label = r == 0u ? "CHOOSE" : str_eq(tag, "CONNECTED") ? "RECONNECT" : str_len(tag) > 4u ? "RETRY" : "CONNECT";
+        cell_act(c, "DEVICE", r == 0u ? "CHOOSE" : str_eq(tag, "CONNECTED") ? "RECONNECT" : str_len(tag) > 4u ? "RETRY" : "CONNECT", 0, 0);
     } else if (k == 1u && r && str_len(tag) <= 4u) {   /* (the signal: none for a link up or being made, "" / LAST) */
         c->kind = CK_RO;
         c->label = "SIGNAL";
@@ -288,7 +350,13 @@ static void dev_cell(uint32_t r, uint32_t k, cell_t *c)   /* the cards: K1 what 
 }
 static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect; confirmed (the modal): FORGET LAST */
 {
-    if (ok) {
+    if (!ok) {                                          /* an action card: asks first (the user 2026-10-13) */
+        cell_t c;
+        dev_cell(r, 0, &c);
+        op_arm(SCR_SYSTEM, r, 0, c.label ? c.label : "CHOOSE", "DEVICE", 0);
+        return 1;
+    }
+    if (ui.arm_raw) {                                   /* (HOME + a button: FORGET LAST) */
         ble_dev_forget();
         ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
         return 1;
@@ -635,9 +703,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         break;
 #endif
     case SI_CALIB:
-        c->label = "PANEL";
-        c->kind = CK_ACT;
-        str_cpy(c->val, "CALIBRATE", sizeof c->val);    /* (the action's word, the user 2026-10-13; the list's small face) */
+        cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
         break;
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;

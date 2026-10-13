@@ -30,12 +30,25 @@ typedef struct {
     int16_t amin, amax, av;             /* ... over amin..amax, at av */
     uint8_t dim;                        /* drawn dim: a slot with no instance left (fxi.c, FULL / in use) */
     const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
+    const char *obj;                    /* an action's object on its card ("PROJECT"; the user, 2026-10-13: the card shows the verb) */
+    uint8_t danger;                     /* an action that destroys or replaces: its verb in the alarm colour */
 } cell_t;
 
 static void cell_clear(cell_t *c)
 {
     memset(c, 0, sizeof *c);
     c->unit = "";
+}
+/* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
+ * label above is obj, else the label over a val ("PANEL" over CALIBRATE), else none (op_draw.c act_text) */
+static void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)
+{
+    c->kind = CK_ACT;
+    c->obj = obj;
+    c->label = label;
+    c->danger = (uint8_t)(danger != 0u);
+    if (verb)
+        str_cpy(c->val, verb, sizeof c->val);
 }
 static int is_go(const param_desc_t *d)              /* a GO button: YES does it, a turn does nothing */
 {
@@ -84,7 +97,10 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     c->d = d;
     c->vp = vp;
     if (is_go(d)) {
-        c->kind = CK_ACT;
+        const char *l = d->label;                       /* (the object and the verb a card shows; the label stays the list's) */
+        cell_act(c, str_eq(l, "NEW") ? "PROJECT" : str_eq(l, "CLRSQ") ? "PATTERN" : str_eq(l, "INIT") ? "SOUND" :
+                    str_eq(l, "GEN") ? "ACID LINE" : "KIT", l, str_eq(l, "CLRSQ") ? "CLEAR" : 0,
+                 !str_eq(l, "SAVE") && !str_eq(l, "GEN"));
         return;
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
@@ -422,8 +438,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         page_set(pg, k, vp, *vp == d->max ? d->min : d->max, 1);
         return 1;
     }
-    if (!ok && !(pg->scope == SC_GLOBAL && id == G_INITSND && !snd_edited(song.sel))) {   /* every GO here destroys
-                                                         * something: ask (INIT: only over edits, op_edits.c) */
+    if (!ok) {                                          /* every GO here asks (INIT: over an unedited sound too) */
         char kit_arg[8] = "KIT ";
         const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
         if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */

@@ -278,12 +278,10 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_gauge(c, 1, 0, NENGINES - 1, TSEL->eng_req % NENGINES);
         break;
     case 2:
-        c->label = "INIT";
-        c->kind = CK_ACT;
+        cell_act(c, "SOUND", "INIT", 0, 1);
         break;
     default:
-        c->label = "SAVE AS";
-        c->kind = CK_ACT;
+        cell_act(c, "SOUND", "SAVE AS", 0, 0);
         break;
     }
 }
@@ -314,11 +312,15 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
     if (is_drum(TSEL) || k < 2u)
         return 0;
     if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */
-        if (!ok && snd_edited(song.sel)) {              /* (asked when the sound has edits: op_edits.c) */
+        if (!ok) {                                      /* (asked always, the user 2026-10-13) */
             op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel), 1);
             return 1;
         }
         return op_global_go(G_INITSND);
+    }
+    if (!ok) {
+        op_arm(SCR_SOUND, r, k, "SAVE AS", "PRESET", 0);
+        return 1;
     }
     name_user_free();                                   /* SAVE AS: the first free user preset slot, NAME first */
     return 1;

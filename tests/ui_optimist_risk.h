@@ -154,8 +154,13 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
     rk_discard(EN_K2, 0, "the SOUND row's ENGINE over edits");
     rk_at(SCR_SOUND, "SOUND", "INIT");
     ui.msg[0] = 0;
+    h0 = rk_state();
     tap(B_SAVE);
-    check(!op_armed() && !strcmp(ui.msg, "SOUND INIT"), "INIT over an unedited sound: done, nothing asked");
+    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?") && ui.arm_danger, "INIT over an unedited sound: asks too (an action card always asks)");
+    rk_after("INIT over an unedited sound", h0);
+    tap(B_SAVE);
+    tap(B_SAVE);
+    check(!op_armed() && !strcmp(ui.msg, "SOUND INIT"), "... YES: done");
     song.sel = TRK_DRUM;                                /* the drum track: the kit over edited lanes */
     ui.lane = 0;
     op_enter(SCR_SOUND);

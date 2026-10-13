@@ -1046,7 +1046,7 @@ static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
     uint32_t i, n;
 #if FELUCCA_SEQTOOLS
     if (stp_tl(r) >= 0)
-        return tl_yes((uint32_t)stp_tl(r), k);
+        return tl_yes(r, (uint32_t)stp_tl(r), k, ok);
 #endif
     if (!stp_is_lane(r))
         return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
