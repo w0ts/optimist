@@ -176,8 +176,8 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         return;
     }
 #endif
-    if (sys_scr(ui.scr))
-        return;                                         /* (GLOBAL, SYSTEM: no track, the keys do nothing: dark) */
+    if (keys_none())
+        return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SONG, SCOPE: no track, the keys do nothing: dark) */
     if (keys_muting(fm1_in.buttons)) {
         uint32_t i;
         *d = keys_white(16);

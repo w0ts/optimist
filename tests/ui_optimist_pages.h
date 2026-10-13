@@ -319,6 +319,41 @@ static void keys_global_tests(void)
         kup(WK(1));
         release(B_HOME);
         reset_ui();
+        /* MASTER FX, SCOPE, SONG (not its PATTERNS row), TEMPO: the same */
+        {
+            static const uint8_t SCRS[3] = {SCR_FX, SCR_SCOPE, SCR_SONG};
+            uint32_t i;
+            for (i = 0; i < 3u; i++) {
+                reset_ui();
+                op_enter(SCRS[i]);
+                ui.row[SCRS[i]] = 0;
+                frames(2);
+                if (SCRS[i] == SCR_SONG && song_on_pat_row())
+                    continue;
+                sel0 = lane_selected();
+                kdown(WK(3));
+                check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "MASTER FX / SCOPE / SONG: a key plays nothing");
+                keys_are(0, 0, "MASTER FX / SCOPE / SONG: the keys are dark");
+                kup(WK(3));
+                kdown(1);
+                check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "MASTER FX / SCOPE / SONG: a black key plays nothing");
+                kup(1);
+                press(B_HOME);
+                frames(HOLD_FRAMES);
+                kdown(WK(5));
+                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: HOME + a key: no lane pick");
+                kup(WK(5));
+                release(B_HOME);
+            }
+            reset_ui();
+            press(B_PLAY);
+            frames(HOLD_FRAMES);
+            kdown(WK(2));
+            check(ui.scr == SCR_TEMPO && kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "TEMPO (PLAY held): a key plays nothing (it taps the tempo)");
+            kup(WK(2));
+            release(B_PLAY);
+            reset_ui();
+        }
         /* a layer from a no-track page: SAVE held on GLOBAL shows the scenes, the key is the layer's */
         tap(B_GLO);
         frames(2);
