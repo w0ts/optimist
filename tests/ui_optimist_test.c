@@ -228,6 +228,9 @@ static void reset_ui(void)
     fm1_in.notes = 0;
     op_disarm();
     ui.msg_t = 0;
+    memset(snd_mem, 0, sizeof snd_mem);                 /* (a power-on's page memory: SOUND's, the held step's, STEP's row) */
+    memset(hp_mem, 0, sizeof hp_mem);
+    ui.row[SCR_STEP] = 0;
     go_home();
     frames(2);
     snd_mark_all();                                     /* (the sounds as loaded: browsing asks nothing, op_edits.c) */
@@ -2259,6 +2262,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
+#include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2391,6 +2395,7 @@ int main(int argc, char **argv)
     algo_tests();
     mute_tests();
     smute_tests();
+    pagemem_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();

@@ -221,6 +221,26 @@ static void snd_family(uint32_t fam)                    /* the rows of family fa
     if (fam != SND_ALL && !page_rows(snd_row_page, snd_ix))
         snd_fam = SND_ALL;                              /* (none on this track: every row) */
 }
+/* SOUND remembers its page (the user, 2026-10-13: "screen should remember its page"): per track, since the pages differ by
+ * engine, and per family: the row a family showed last on this track (snd_mem_tick, once a frame, while SOUND is up). A
+ * page button entering the family reopens it there; a row the track no longer has (another engine) is the nearest, the
+ * last. Zero is the first row, what a track never looked at gets. RAM only: power-on clears it, no project holds it */
+static uint8_t snd_mem[NTRK][8];                        /* (slot 0: a family no button opens) */
+static uint32_t snd_slot(uint32_t fam)
+{
+    static const uint8_t SLOT[FAM_COUNT] = {[FAM_ENV] = 1, [FAM_LFO] = 2, [FAM_FX] = 3, [FAM_SCL] = 4, [FAM_EDIT] = 5, [FAM_ARP] = 6};
+    return fam == SND_FM6 ? 7u : SLOT[fam % FAM_COUNT];
+}
+static void snd_mem_tick(void)
+{
+    if (ui.scr == SCR_SOUND && snd_fam != SND_ALL && ui.row[SCR_SOUND] < 0xFFu)
+        snd_mem[song.sel % NTRK][snd_slot(snd_fam)] = ui.row[SCR_SOUND];
+}
+static uint32_t snd_mem_row(uint32_t fam)               /* the row of family fam to open on (snd_fam is fam already) */
+{
+    uint32_t r = snd_mem[song.sel % NTRK][snd_slot(fam)], n = snd_rows();
+    return r < n ? r : n ? n - 1u : 0u;
+}
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     if (snd_fam == SND_FM6) {
