@@ -736,7 +736,7 @@
   },
   "PARAM_HELP": {
    "1": {
-    "flash": 6980,
+    "flash": 5524,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1293,7 +1293,7 @@
    }
   }
  },
- "measured": "2026-10-13 13:21",
+ "measured": "2026-10-13 14:11",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1326,7 +1326,7 @@
   "everything-that-fits": {
    "hash": "59aea620",
    "sizes": {
-    "flash": 600592,
+    "flash": 598624,
     "ram": 61052,
     "pool": 339980,
     "ramtext": 34672
@@ -1362,7 +1362,7 @@
   "mots": {
    "hash": "45434060",
    "sizes": {
-    "flash": 537520,
+    "flash": 535872,
     "ram": 58228,
     "pool": 314604,
     "ramtext": 32272
