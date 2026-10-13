@@ -187,8 +187,7 @@ static void dual_flash_enter(void)
 }
 
 static void ui_say(const char *a, const char *b);   /* ui.c */
-static const char *const DUAL_WHY[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
-                                                "AFTER CRASH", "SETTING"};   /* (dual_mode.h DUAL_*) */
+#define DUAL_WHY(w) dual_why_name(w)                /* (dual_mode.h: the reasons' names, the Optimist UI's CPU1 cell too) */
 
 static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at most */
 {
@@ -212,7 +211,7 @@ static void dual_frame(void)
     if (!dual.up && !told) {
         told = 1;
         if (dual.why != DUAL_SETOFF)
-            ui_say("CPU1 OFF ", DUAL_WHY[dual.why % DUAL_WHY_N]);
+            ui_say("CPU1 OFF ", DUAL_WHY(dual.why));
         dual_mode = (uint8_t)dual_mode_after(dual_mode, dual.boot_mode, dual.why);
     }
 #if FELUCCA_DUAL == 1
@@ -227,7 +226,7 @@ static void dual_frame(void)
                 dual_dec(b + 5, fm1_dual_mb.count);
                 str_cpy(b + str_len(b), lag <= 2u ? " OK" : " LATE", 6);
             } else {
-                str_cpy(b + 5, DUAL_WHY[dual.why % DUAL_WHY_N], sizeof b - 5u);
+                str_cpy(b + 5, DUAL_WHY(dual.why), sizeof b - 5u);
             }
             draw_text_box(0, 222, 240, &FONT_S, b, dual.up ? RGB(80, 220, 120) : RGB(255, 80, 80), 1);
         }

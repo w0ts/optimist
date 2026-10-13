@@ -84,7 +84,7 @@ static void pages_nav_tests(void)
         dual_c1_q8 = q;
         memset(&c2, 0, sizeof c2);
         SCREENS[SCR_SYSTEM].cell(0, 3, &c2);
-        check(c2.kind != CK_RO || strcmp(c2.label, "CPU1"), "DUAL: KNOB 4 of the CPU row stays empty");
+        check(c2.kind == CK_VAL && !strcmp(c2.label, "2ND CORE"), "DUAL: KNOB 4 of the CPU row is 2ND CORE (AUTO / OFF)");
     }
 #else
     check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&

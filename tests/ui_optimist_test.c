@@ -69,6 +69,11 @@ static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
 #include "ble_ui_stubs.h"                      /* the radio: midi_ble.c state, ble_devices.c over a stand-in link layer */
+#if DUAL_LOAD && !FELUCCA_DUAL                 /* (the readout without the second core: system/dual.c's state the UI reads) */
+#include "../firmware/src/system/dual_mode.h"
+static uint8_t dual_mode;                      /* the 2ND CORE setting */
+static struct { uint8_t up, why, boot_mode; } dual;   /* up, DUAL_* why it is down, the setting this boot started with */
+#endif
 #include "../firmware/src/ui/optimist/optimist.c"
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
@@ -2228,6 +2233,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
+#include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
@@ -2355,6 +2361,7 @@ int main(int argc, char **argv)
     algo_inplace_tests();
     knobcol_tests();
     clkout_tests();
+    core_row_tests();
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
