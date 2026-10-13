@@ -22,6 +22,19 @@
       "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
       "CMP": {"text": "Compressor insert (amount)", "if": "FELUCCA_MASTER_COMP"},
       "FILT": {"text": "Track filter: low or high cut", "if": "FELUCCA_TRK_FILT"}}},
+    {"kind": "page", "ctx": "INSERTS", "params": {
+      "S1": "Insert 1 type (swaps with 2)", "S2": "Insert 2 type (swaps with 1)",
+      "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
+      "CMP": {"text": "Compressor insert (amount)", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "Track filter: low or high cut", "if": "FELUCCA_TRK_FILT"}}},
+    {"kind": "page", "ctx": "SENDS", "if": "FELUCCA_UI == 1", "params": {
+      "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
+      "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
+      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"}}},
+    {"kind": "page", "ctx": "BUS SENDS", "if": "FELUCCA_UI == 1", "params": {
+      "CHO": {"text": "Drum bus chorus send", "if": "FELUCCA_FX_CHORUS"},
+      "DLY": {"text": "Drum bus delay send", "if": "FELUCCA_FX_DELAY"},
+      "REV": {"text": "Drum bus reverb send", "if": "FELUCCA_FX_REVERB"}}},
     {"kind": "page", "ctx": "FILTER", "if": "FELUCCA_TRK_FILT", "params": {"FILT": "Track filter: low or high cut"}},
     {"kind": "page", "ctx": "SLICER", "if": "FELUCCA_FX_SLICER", "params": {
       "SLCR": "Slicer: off, gate or stutter", "PAT": "Slicer pattern", "RATE": "Slicer step length", "DEPTH": "Slicer depth"}},
@@ -35,10 +48,10 @@
     {"kind": "page", "ctx": "REVERB", "if": "REV_MULTI", "params": {
       "TYPE": "Reverb algorithm"}},
     {"kind": "page", "ctx": "CMP", "if": "FELUCCA_MASTER_COMP", "params": {
-      "RATIO": "Compressor inserts' ratio", "ATK": "Compressor inserts' attack", "REL": "Compressor inserts' release"}},
+      "RATIO": "This track's compressor ratio", "ATK": "This track's comp. attack", "REL": "This track's comp. release"}},
     {"kind": "page", "ctx": "SLOTS", "params": {
-      "S1": "Effect on FX knob 1 (swaps)", "S2": "Effect on FX knob 2 (swaps)", "S3": "Effect on FX knob 3 (swaps)",
-      "S4": "Effect on FX knob 4 (swaps)"}},
+      "S1": "Send in master slot 1 (swaps)", "S2": "Send in master slot 2 (swaps)", "S3": "Send in master slot 3 (swaps)",
+      "S4": "Send in master slot 4 (swaps)"}},
     {"kind": "page", "ctx": "SCL", "params": {
       "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
     {"kind": "page", "ctx": "SCL 2", "params": {

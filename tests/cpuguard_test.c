@@ -61,14 +61,16 @@ static void half(uint32_t us)                           /* one DMA half as the I
 /* 1. the model: the idle mix, a voice of each engine by UID, the drums; generated (cpuguard_costs.h) */
 static void test_model(void)
 {
-    uint32_t e0;
+    uint32_t e0, i;
     reset();
     CHECK(cg_est() == CG_COST_BASE, "idle: %u, want %u", cg_est(), CG_COST_BASE);
     host_preset(&trk[0], ENG_SLOT_ANALOG, 0);
+    trk[0].p[P_DIST] = 0;                             /* (its DIST insert: modelled apart, below) */
     trk[0].p[P_VOICE] = V_POLY;
     hold(&trk[0], 3);
     CHECK(cg_est() == CG_COST_BASE + 3u * CG_VCOST[0], "3 ANALOG voices: %u", cg_est());
     host_preset(&trk[1], ENG_IX_FM6, 0);
+    trk[1].p[P_DIST] = 0;
     trk[1].p[P_VOICE] = V_POLY;
     hold(&trk[1], 2);
     e0 = CG_COST_BASE + 3u * CG_VCOST[0] + 2u * CG_VCOST[ENG_UID_FM6];
@@ -80,8 +82,9 @@ static void test_model(void)
         uint32_t e1 = e0 + CG_COST_DRUMS;
         CHECK(CG_COST_TCOMP > 0u, "the COMP insert's cost is measured (cpu/fx/comp_on, comp_off): %u", CG_COST_TCOMP);
         trk[0].p[P_TCOMP] = 100, trk[2].p[P_TCOMP] = 100;
-        CHECK(cg_est() == e1, "COMP in no FX slot: not counted (%u, want %u)", cg_est(), e1);
-        fxs_load(3, FXT_COMP);
+        CHECK(cg_est() == e1, "COMP in no slot of the parts: not counted (%u, want %u)", cg_est(), e1);
+        for (i = 0; i < NTRK; i++)
+            ins_load(i, 1, FXT_COMP);                 /* (every track's S2: the COMP) */
         CHECK(cg_est() == e1 + CG_COST_TCOMP, "COMP in a slot on a sounding part: + %u (%u), a silent part's: none",
               CG_COST_TCOMP, cg_est());
         trk[0].p[P_TCOMP] = 0;
@@ -102,9 +105,36 @@ static void test_model(void)
         dbus_live = 1;
         CHECK(cg_est() == e1 + CG_COST_DBDIST, "the drum bus's DIST running on a signal: + %u (%u)", CG_COST_DBDIST, cg_est());
         dbus_live = 0;
-        fxs_set(FXS_DEF);
+        ins_defaults();
     }
 #endif
+    {   /* the track insert slots (D9: every slot modelled): a part's DIST while set (in a slot, FX on), its FILTER while
+         * not at rest, the drum bus's FILTER; the QUALITY level runs the drum bus's DIST / FILTER on L / R only */
+        uint32_t e1 = e0 + CG_COST_DRUMS;
+        CHECK(!FELUCCA_FX_DIST || CG_COST_PDIST > 0u, "a part's DIST insert's cost is measured (cpu/fx/part_dist): %u", CG_COST_PDIST);
+#if FELUCCA_FX_DIST
+        trk[0].p[P_DIST] = 90, trk[2].p[P_DIST] = 90;
+        CHECK(cg_est() == e1 + CG_COST_PDIST, "T1's DIST set (S1), T3's silent: + %u (%u)", CG_COST_PDIST, cg_est());
+        ins_load(0, 0, FXT_NONE);
+        CHECK(cg_est() == e1, "... DIST in no slot of T1: not counted (%u)", cg_est());
+        ins_defaults();
+        trk[0].p[P_FXOFF] = 1;
+        CHECK(cg_est() == e1, "... T1's FX off: not counted (%u)", cg_est());
+        trk[0].p[P_FXOFF] = 0, trk[0].p[P_DIST] = trk[2].p[P_DIST] = 0;
+#endif
+#if FELUCCA_TRK_FILT
+        tflt[0].mode = -1;
+        CHECK(cg_est() == e1 + CG_COST_PFILT, "T1's FILTER not at rest: + %u (%u)", CG_COST_PFILT, cg_est());
+        tflt[0].mode = 0;
+        tflt[TRK_DRUM].mode = 1;
+        CHECK(cg_est() == e1 + CG_COST_DBFILT, "the drum bus's FILTER running: + %u (%u)", CG_COST_DBFILT, cg_est());
+        cg.level = CG_L_QUALITY;
+        CHECK(cg_est() == e1 + CG_COST_DBFILT * 2u / 5u && cg_useful(CG_L_QUALITY),
+              "... at QUALITY: on L / R only, x 2 / 5 (%u); QUALITY has something to ease", cg_est());
+        cg.level = 0;
+        tflt[TRK_DRUM].mode = 0;
+#endif
+    }
     CHECK(CG_VCOST[ENG_UID_FM6] > CG_VCOST[0] && CG_VCOST[ENG_UID_ACID] > CG_VCOST[ENG_UID_FM6],
           "the measured order (tests/cpu_baseline.txt): ANALOG < FM6 < ACID a voice");
 }

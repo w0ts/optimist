@@ -43,6 +43,8 @@ static double goertzel(const int32_t *x, uint32_t n, double f)
 }
 
 static int32_t x[N], y[N];
+/* a part's DIST insert as its slot runs it (fx.c ins_part: its amount, 0 with its FX bypassed) */
+static void track_dist(track_t *t, int32_t *b, uint32_t n) { dist_run(&t->dist, fx_on(t) ? t->p[P_DIST] : 0, b, n); }
 static track_t tt;
 static void run(int dist, int fxoff)
 {

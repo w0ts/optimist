@@ -27,20 +27,24 @@ static void mixer_page_tests(void)
     mx_turn(2, 5);
     check(trk[0].p[P_PAN] > 0, "mixer page 2: KNOB 3 the pan");
     ui.force = 1; frame(); ppm("mixer-page2");
-    /* the slots: DIST CHO DLY REV (the default): one insert, three sends; SEND is REV, SEND 2 the first other (CHO) */
-    fxs_load(0, FXT_DIST); fxs_load(1, FXT_CHO); fxs_load(2, FXT_DLY); fxs_load(3, FXT_REV);
+    /* the master slots: ---- CHO DLY REV (the default): three sends; SEND is REV, SEND 2 the first other (CHO). The inserts:
+     * the row's two slots (fx_slots.c ins_slot: S1 DIST, S2 FILTER when built) */
+    fxs_set(FXS_DEF);
+    ins_defaults();
     if (FXS_ON(FXT_REV) && FXS_ON(FXT_CHO))
         check(mix_fx_slot(0, 1, 0) == 3 && mix_fx_slot(0, 1, 1) == 1, "mixer: SEND is REV, SEND 2 the first other send (CHO)");
     {
         int16_t x;
-        check(mix_desc(0, MD_INS2, &x) == 0, "mixer: one insert in the slots: INSERT 2 is empty (\"--\")");
-        check(!FXS_ON(FXT_COMP) ? mix_desc(0, MD_COMP, &x) == 0 : 1, "mixer: no COMP in a slot: COMP is empty");
+        check(mix_kind_id(0, MD_INS1) == (FELUCCA_FX_DIST ? P_DIST : 0xFFu), "mixer: INSERT is the row's S1 (DIST)");
+        check(FELUCCA_TRK_FILT || mix_desc(0, MD_INS2, &x) == 0, "mixer: S2 empty (no FILTER built): INSERT 2 is empty (\"--\")");
+        check(mix_desc(0, MD_COMP, &x) == 0, "mixer: no COMP in the row's slots: COMP is empty");
     }
-    if (FELUCCA_MASTER_COMP && FELUCCA_FX_DIST) {      /* COMP in slot 2: INSERT 2 and COMP are both it */
+    if (FELUCCA_MASTER_COMP && FELUCCA_FX_DIST) {      /* COMP in S2: INSERT 2 and COMP are both it */
         int16_t x;
-        fxs_load(1, FXT_COMP);
-        check(mix_fx_slot(0, 0, 1) == 1 && mix_comp_slot(0) == 1 && mix_desc(0, MD_COMP, &x) != 0,
-              "mixer: DIST + COMP in the slots: INSERT 2 and COMP are the COMP");
+        ins_load(0, 1, FXT_COMP);
+        check(mix_kind_id(0, MD_INS2) == P_TCOMP && mix_kind_id(0, MD_COMP) == P_TCOMP && mix_desc(0, MD_COMP, &x) != 0 &&
+              mix_kind_id(1, MD_COMP) == 0xFFu, "mixer: DIST + COMP in T1's slots: INSERT 2 and COMP are the COMP; T2 none");
+        ins_defaults();
     }
     for (i = 0; i < FX_NSLOT; i++)
         fxs_load(i, keep[i]);

@@ -267,9 +267,9 @@ alone on the whole panel. The mixer keeps its 1x4 cards (every other screen is 2
 | Row | Its knob sets (SELECT) | Notes |
 |---|---|---|
 | **MASTER** (above T1) | FILT · DUST · DUCK; then the **returns** (2026-10-12, header *Mix returns*): a card a FX slot, S1 · S2 · S3 · S4 in the slots' order, named after its type (*S2 CHO*, as FX > SLOTS shows it): a send's (CHO, DLY, REV) card turns that effect's return level, an insert's (DST, FILT, CMP) or an empty slot's shows "-" and does nothing; then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out. The returns (the user, 2026-10-12: "on the mixer screen Master, we should have a volume control for the return tracks"): CHO RET, DLY RET, REV RET, 0..127 shown 0..100 %, 100 % (unity) by default, the mix as before; 0 silences that effect and stops its bus (core.h G_CRET; fx.c). One instance per type (fx_slots.c), so one return per send, wherever it sits; DLY RET is apart from the delay's own MIX. No send in any slot: no Returns set |
-| **T1 · T2 · T3** | the mix MUTE · VOLUME · PAN (MUTE: 2026-10-12, section 16); the inserts DRIVE (DIST in a slot) · FILTER · COMP; the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the inserts in the order the audio runs them, COMP only in a slot; the sends only in a slot |
-| **DR** | MUTE · VOLUME (GLO > DRUMS); FILTER; FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | MUTE (the lane's own) · LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE; REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **T1 · T2 · T3** | the mix MUTE · VOLUME · PAN (MUTE: 2026-10-12, section 16); the inserts S1 TYPE · S1's amount · S2 TYPE · S2's amount (the track's two insert slots, section 20); the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the sends only in a master slot |
+| **DR** | MUTE · VOLUME (GLO > DRUMS); its two insert slots (the drum bus, as a track's); its send LEVELS REV · DLY · CHO (0..100 %, section 20); FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | MUTE (the lane's own) · LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE · DST · CMP (the sound's own inserts, always heard); REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
 The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
 SAVE held + SELECT, PROJECT by SAVE tapped, GLOBAL and then SYSTEM by GLO tapped (one cycle), SCOPE by HOME tapped on
@@ -2127,13 +2127,13 @@ as long as what follows still fits the 20 cells (MX_MAXI); the header names the 
 
 | Row | Mix | Inserts | Sends | Last |
 |---|---|---|---|---|
-| T1 T2 T3 | VOLUME PAN | DRIVE (DIST when it is in a slot), FILTER (FELUCCA_TRK_FILT), COMP (in a slot) | REV DLY CHO, each in a slot | FX ON, SOUND |
-| DR | VOLUME (GLO > DRUMS) | FILTER | (none) | FX ON, KIT |
-| a lane | LEVEL CUT | DRIVE | REV DLY CHO, each in a slot | SOUND |
+| T1 T2 T3 | VOLUME PAN | S1 TYPE, S1's amount, S2 TYPE, S2's amount (section 20) | REV DLY CHO, each in a slot | FX ON, SOUND |
+| DR | VOLUME (GLO > DRUMS) | the same, the drum bus's slots | its send levels REV DLY CHO | FX ON, KIT |
+| a lane | LEVEL CUT | DRIVE DST CMP | REV DLY CHO, each in a slot | SOUND |
 | MASTER | FILT DUST DUCK | THRS RATIO GAIN CEIL (FELUCCA_MASTER_COMP) | | |
 
-The inserts are listed in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP), not the slots' order; an effect
-in no slot is not heard, so its amount is not offered (DRIVE stays: the engine's drive works without the DIST slot). Gone:
+Since the track insert slots (section 20) the inserts are the row's own two slots, in their order; the master slots hold
+the sends only. Gone:
 INSERT and SEND as "the first insert / send in the slots" (`mx_insert`, `mx_send`).
 
 The master FX's SLOTS cards (S1..S4) name each slot's role in the unit's place, **INS** or **SEND**, from its type
@@ -2425,6 +2425,31 @@ Tests: tests/ui_optimist_effval.h: the lane's offsets and absolute values equal 
 `track_render`: the LFO, the envelope, both, an accent) equals op_effval.c's, block after block; the bars (DRIVE -5,
 a value nothing moves, a hold in force and its linger, the lane LFO's AMT, a synth CUT moving with the LFO between two
 frames while its number stays, the LFO amount FLT on the cutoff's scale, SHP at 0).
+
+## 21. The track insert slots (feat/insert-slots, 2026-10-12)
+
+The user: "i would like two slot, configurable per track (filter, disto, comp etc)". Design and decisions D1..D9:
+optimist-work/inslots/DESIGN.md, DECISIONS.md. Each track, T1 T2 T3 and DR, has two insert slots, S1 then S2, run after
+the SLICER (D2). A slot holds DIST, FILTER (when built) or COMP, or nothing. One type once a track: picking the type the
+other slot holds swaps the two (D3). The amount belongs to the type (P_DIST, P_TFLT, P_TCOMP; D4), so a lock or a motion
+taken on an insert's card records that type, and stays with it when the slot changes. A new track: S1 DIST, S2 FILTER,
+both at 0 (D5). The four master slots hold the sends only (D1). Each track's COMP has its own RATIO ATK REL (D6). The
+drum sounds' own DST and CMP are always heard (D7).
+
+| Where | What | Notes |
+|---|---|---|
+| SOUND > FX: **INSERTS** | S1 TYPE · S1's amount · S2 TYPE · S2's amount | the amount's card is labelled by its type (DST FILT CMP), "-" for an empty slot; a TYPE card lists ---- and the inserts built; the needles show the amounts; no reset (YES) and no lock on a TYPE card |
+| SOUND > FX: **CMP** | RATIO · ATK · REL, the selected track's | a row only while one of the track's slots holds the COMP; the master COMP's value lists |
+| SOUND > FX: **SENDS** (was FX) | the master sends in their slots' order (CHO DLY REV) | on the drum track: its send **levels** REV DLY CHO, 0..100 %, 100 % by default, each lane's send of that bus scaled by it (the user: "the main drum track as fx: on/off, not the normal send levels ... it should be like any other track") |
+| SOUND > FX: **BUS SENDS** | the drum bus's own sends (its mid, after its inserts) | the drum track only |
+| the mixer | a track's INS set: S1 TYPE · amount · S2 TYPE · amount; DR the same, then its send levels; a lane DRIVE DST CMP | the COMP meter follows the row's slots |
+| FX + KNOB 4 (TRK FLT) | the track's FILTER amount | "FILT: NO SLOT" when none of the track's slots holds the FILTER |
+| TOOLS > MISS | "3RD INS T2" | an old project's third insert on a track (DIST FILTER COMP all used, all in master slots): the first two kept |
+
+Old projects and SLOOP 2.4 imports map onto the slots with the same sound (fx_rec.c ins_map); the one difference is the
+SLICER moving before DIST (2.9 ms ramps, golden slicer/song_gate_stut). The SLOOP UI keeps its FX page (K1 S1's amount,
+K2..K4 the master sends: DST CHO DLY REV by default) and gets INSERTS; its own redesign (design phase 4) is left.
+Tests: tests/ui_optimist_inslots.h, ui_optimist_mixer.h; tests/fx_slots_test.c (the model, the audio, the record).
 
 ## 20. GLOBAL and SYSTEM as settings lists (feat/settings-list, 2026-10-12)
 

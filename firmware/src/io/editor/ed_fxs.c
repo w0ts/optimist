@@ -2,18 +2,34 @@
 /* Editor protocol v10: the FX slots (fx/fx_slots.c; included by editor.c; web/EDITOR_PROTOCOL.md "v10: FX slots").
  * INFO tag 0x56 lists the effect types built; a type's amounts stay where they are: a track's (and the drum bus's) are its
  * P_* values (DESC / TRACK_PARAM / the v9 PARAMS push), a drum sound's REV DLY CHO its lane's sends (DRUM_LANE v2). What
- * this command adds: the slots' layout, the COMP inserts' shared settings and each drum sound's DIST and COMP amounts.
- *   86 FX       op [args] -> op, then the state (ed_fx_out): slot x 4 (a type id FXT_*, 0 empty), RATIO ATK REL (127 x 3:
- *               no COMP in this build), 16 x the drum sounds' DIST, 16 x their COMP (0..127)
+ * this command adds: the master slots' layout (the sends), the tracks' insert slots, each track's COMP settings, each
+ * drum sound's DIST and COMP amounts, the drum track's send levels.
+ *   86 FX       op [args] -> op, then the state (ed_fx_out): master slot x 4 (a type id FXT_*, 0 empty), RATIO ATK REL
+ *               (T1's; 127 x 3: no COMP in this build), 16 x the drum sounds' DIST, 16 x their COMP (0..127); then (the
+ *               track insert slots, 2026-10-12: an older editor reads the first 39 bytes) T1 T2 T3 DR's S1 S2 (type ids),
+ *               T1 T2 T3 DR's RATIO ATK REL (127 x 12 without COMP), the drum track's send levels REV DLY CHO (0..127)
  *       op 0  get
- *       op 1  the slots: 4 type ids (as FX > SLOTS stores them: a type twice leaves its later slot empty, fxs_set; an id
- *             past the table: empty). The editor swaps as the device does (fxs_load) and sends the result
- *       op 2  the COMP settings: RATIO ATK REL (each clamped to the master COMP's list)
+ *       op 1  the master slots: 4 type ids (sends only: an insert id, a type twice (its later slot), an id past the
+ *             table: empty; fxs_set). The editor swaps as the device does (fxs_load) and sends the result
+ *       op 2  the COMP settings of every track: RATIO ATK REL (each clamped to the master COMP's list)
  *       op 3  a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged)
+ *       op 4  a track's insert slots: track 0..3, S1, S2 (type ids: an insert, or 0; the same type twice: S2 empty;
+ *             the editor swaps as the device does, ins_load)
+ *       op 5  a track's COMP settings: track 0..3, RATIO ATK REL
+ *       op 6  the drum track's send levels: REV DLY CHO (0..127)
  *   87 FX_PUSH  (v9 push, WATCH bit 2) op 0 and the same state, when it changed on the device (ed_sync9.c ed9_fx) */
 enum { ED_FX = 86, ED_FX_PUSH = 87 };
-#define ED_FX_N (4u + 3u + 2u * DRUM_LANES)                    /* the state's bytes after the op */
+#define ED_FX_N (4u + 3u + 2u * DRUM_LANES + NTRK * INS_N + 3u * NTRK + 3u)   /* the state's bytes after the op */
 
+static uint32_t ed_cset(uint32_t k, uint32_t i)        /* track k's COMP setting i (127: no COMP built) */
+{
+#if FELUCCA_MASTER_COMP
+    return (uint32_t)ins_cset[k % NTRK][i % 3u];
+#else
+    (void)k, (void)i;
+    return 127u;
+#endif
+}
 static void ed_fx_out(uint32_t op)
 {
     uint32_t k, l;
@@ -21,14 +37,16 @@ static void ed_fx_out(uint32_t op)
     for (k = 0; k < FX_NSLOT; k++)
         ed_b(fxs_slot[k]);
     for (k = 0; k < 3u; k++)
-#if FELUCCA_MASTER_COMP
-        ed_b((uint32_t)fxs_cset[k]);
-#else
-        ed_b(127);
-#endif
+        ed_b(ed_cset(0, k));
     for (k = 0; k < 2u; k++)
         for (l = 0; l < DRUM_LANES; l++)
             ed_b(dins_amt[k][l]);
+    for (k = 0; k < NTRK * INS_N; k++)
+        ed_b(ins_slot[k / INS_N][k % INS_N]);
+    for (k = 0; k < 3u * NTRK; k++)
+        ed_b(ed_cset(k / 3u, k % 3u));
+    for (k = 0; k < 3u; k++)
+        ed_b((uint32_t)dsend_kit[k] & 127u);
 }
 /* what ed_fx_out sends, as a signature (the v9 push compares it) */
 static uint32_t ed_fx_sig(void)
@@ -37,10 +55,12 @@ static uint32_t ed_fx_sig(void)
     const uint8_t *p = &dins_amt[0][0];
     for (k = 0; k < FX_NSLOT; k++)
         h = (h ^ fxs_slot[k]) * 16777619u;
-#if FELUCCA_MASTER_COMP
+    for (k = 0; k < NTRK * INS_N; k++)
+        h = (h ^ ins_slot[k / INS_N][k % INS_N]) * 16777619u;
+    for (k = 0; k < 3u * NTRK; k++)
+        h = (h ^ ed_cset(k / 3u, k % 3u)) * 16777619u;
     for (k = 0; k < 3u; k++)
-        h = (h ^ (uint32_t)(uint16_t)fxs_cset[k]) * 16777619u;
-#endif
+        h = (h ^ (uint32_t)(uint16_t)dsend_kit[k]) * 16777619u;
     for (k = 0; k < sizeof dins_amt; k++)
         h = (h ^ p[k]) * 16777619u;
     return h;
@@ -68,11 +88,19 @@ static void ed_fx_info(void)
         }
 }
 
+#if FELUCCA_MASTER_COMP
+static void ed_cset_set(uint32_t k, const uint8_t *a)  /* track k's RATIO ATK REL from a (clamped) */
+{
+    uint32_t i;
+    for (i = 0; i < 3u; i++)
+        ins_cset[k % NTRK][i] = (int16_t)clamp(a[i], GP[G_CRAT + i].min, GP[G_CRAT + i].max);
+}
+#endif
 /* 86 FX: 1 = handled (replied; editor.c redraws the screen), 0 = not this command or bad arguments (no reply) */
 static int ed_fxs(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t k, op = na ? a[0] : 127u;
-    if (cmd != ED_FX || op > 3u)
+    if (cmd != ED_FX || op > 6u)
         return 0;
     if (op == 1u) {
         uint8_t s[FX_NSLOT];
@@ -85,14 +113,29 @@ static int ed_fxs(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (na < 4u)
             return 0;
 #if FELUCCA_MASTER_COMP
-        for (k = 0; k < 3u; k++)
-            fxs_cset[k] = (int16_t)clamp(a[1u + k], GP[G_CRAT + k].min, GP[G_CRAT + k].max);
+        for (k = 0; k < NTRK; k++)
+            ed_cset_set(k, a + 1);
 #endif
     } else if (op == 3u) {
         if (na < 4u || a[1] >= DRUM_LANES || a[2] > 1u)
             return 0;
         if (a[2] == 0u ? FELUCCA_FX_DIST : FELUCCA_MASTER_COMP)
             dins_amt[a[2]][a[1]] = a[3];
+    } else if (op == 4u) {
+        if (na < 4u || a[1] >= NTRK)
+            return 0;
+        ins_put(a[1], a + 2);
+    } else if (op == 5u) {
+        if (na < 5u || a[1] >= NTRK)
+            return 0;
+#if FELUCCA_MASTER_COMP
+        ed_cset_set(a[1], a + 2);
+#endif
+    } else if (op == 6u) {
+        if (na < 4u)
+            return 0;
+        for (k = 0; k < 3u; k++)
+            dsend_kit[k] = (int16_t)(a[1u + k] > DKS_DEF ? DKS_DEF : a[1u + k]);
     }
     ed_fx_out(op);
     return 1;

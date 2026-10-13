@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""scenefx (F1): a scene stored from the SAVE layer keeps its FX slots and amounts. COMP into S1 with an amount on
-T1; scene A stored stopped (SAVE held + white 5), scene B while playing (+ white 6, another amount: through the
+"""scenefx (F1): a scene stored from the SAVE layer keeps its FX slots and amounts. COMP into T1's S1 (FX > INSERTS) with an
+amount on T1; scene A stored stopped (SAVE held + white 5), scene B while playing (+ white 6, another amount: through the
 pending arena); each loaded back (SAVE held + white 1 / 2) after a scramble, before and after the log is written
 (when quiet), and after a power cycle. The section log is read through the ELF's symbols (slg): scene s's FX record
 at its own id (fx_rec_log.c FXR_ID0 + s), nothing at the step extras' id SEC_ID_PAT0 + NTRK x PAT_N + s, where the
@@ -47,11 +47,11 @@ def run(ctx):
 
 
 def state(fx):
-    return fx.slots(), fx.amt(0)
+    return fx.slots(), fx.tins(), fx.amt(0)
 
 
 def fmt(fx, st):
-    return f"{fx.names(st[0])} T1 COMP {st[1]}"
+    return f"master {fx.names(st[0])}, slots {[fx.names(x) for x in st[1]]}, T1 COMP {st[2]}"
 
 
 def loads(ctx, fx, P, want, when):
@@ -68,12 +68,11 @@ def loads(ctx, fx, P, want, when):
 
 def body(ctx, s, e, P):
     fx = X.Fx(e, P)
-    fx.slots_page()
-    fx.slot_set(0, X.FXT["COMP"])
-    fx.fx_page()
+    fx.inserts_page()
+    fx.ins_set(0, 0, X.FXT["COMP"])
     want = {}
     for n in (1, 2):
-        fx.fx_page()
+        fx.inserts_page()
         fx.comp_amount(0, AMT[n], 8)        # (the knob steps several values a detent)
         P.home()
         want[n] = state(fx)
@@ -84,8 +83,8 @@ def body(ctx, s, e, P):
         if n == 2:
             P.stop()
         e.run(1.0)
-    ctx.check("set up: COMP in S1; T1's amount high in scene A (stored stopped), lower in B (stored playing)",
-              all(w[0][0] == X.FXT["COMP"] for w in want.values()) and want[1][1] >= 80 and 30 <= want[2][1] <= 75,
+    ctx.check("set up: COMP in T1's S1; T1's amount high in scene A (stored stopped), lower in B (stored playing)",
+              all(w[1][0][0] == X.FXT["COMP"] for w in want.values()) and want[1][2] >= 80 and 30 <= want[2][2] <= 75,
               f"A {fmt(fx, want[1])}, B {fmt(fx, want[2])}")
     loads(ctx, fx, P, want, "stored")
     fx.scramble()

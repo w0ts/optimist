@@ -430,11 +430,12 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
 
 # ---- MIDI & USB
 M = "MIDI & USB"
-_add("USB_MODE", "", "USB port", M, 47, default=2,
-     choices=((1, "CDC serial console"), (2, "USB audio (EXPERIMENTAL)"), (0, "MIDI only")),
-     desc="What the USB port offers besides MIDI. USB audio (default, experimental): 4 stems in + stereo out (UAC1); it "
-          "replaces the console and needs +12 KB pool. CDC console: a read-only serial console for diagnostics. MIDI only: "
-          "neither (smallest).",
+_add("USB_MODE", "", "USB port", M, 47, default=0,
+     choices=((0, "MIDI only"), (1, "CDC serial console"), (2, "USB audio (EXPERIMENTAL, fails to boot on the FM-1)")),
+     desc="What the USB port offers besides MIDI. MIDI only (default): neither (smallest). CDC console: a read-only "
+          "serial console for diagnostics. USB audio (EXPERIMENTAL): 4 stems in + stereo out (UAC1); it replaces the "
+          "console and needs +12 KB pool. Builds with USB audio failed to boot on the FM-1 (2026-10-12: the firmware "
+          "went to its USB rescue mode); under investigation, do not install one on the FM-1 for now.",
      provenance=MELODEE_USB)
 _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,
      desc="MIDI input on the TRS jack (notes and clock from a keyboard or sequencer). About 0.6 KB of flash; off: "

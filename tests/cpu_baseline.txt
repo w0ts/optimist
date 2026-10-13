@@ -173,3 +173,8 @@ cpu/fx/dbus_comp 935
 cpu/fx/dvoice_off 473
 cpu/fx/dvoice_dist 565
 cpu/fx/dvoice_comp 610
+cpu/fx/part_off 1192
+cpu/fx/part_dist 1236
+cpu/fx/part_filt 1227
+cpu/fx/dbus_filt 1046
+cpu/fx/ins_worst 2661

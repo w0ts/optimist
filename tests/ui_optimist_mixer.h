@@ -127,42 +127,70 @@ static void mixer_sets_tests(void)
         mx.set = (uint8_t)keep;
         check(!bad, "the mixer's knob sets are only values: no screens set on any row");
     }
-    {
+    {   /* the INS set (the track insert slots, 2026-10-12): S1 TYPE, S1's amount, S2 TYPE, S2's amount */
         cell_t c;
         mx.set = 1;
         mix_cell(MXR_T1, 0, &c);
-        check(c.d == &TP[P_DIST], "the second set, the inserts: DIST first (in a slot by default)");
+        check(c.d == &INS_DESC[0] && !strcmp(c.label, "S1") && !strcmp(c.val, FELUCCA_FX_DIST ? "DST" : "----"),
+              "the second set, the inserts: S1's TYPE first (DIST by default)");
         mix_cell(MXR_T1, 1, &c);
-        check(!FELUCCA_TRK_FILT || c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0], "... then the track's FILTER");
+        check(!FELUCCA_FX_DIST || c.d == &TP[P_DIST], "... then S1's amount (DST)");
+        mix_cell(MXR_T1, 3, &c);
+        check(!FELUCCA_TRK_FILT || c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0], "... S2's amount the track's FILTER");
         mx.set = 2;
         mix_cell(MXR_T1, 0, &c);
         check(!FELUCCA_FX_REVERB || c.d == &TP[P_REV], "the third set, the sends: REV first (in a slot), then DLY CHO");
 #if FELUCCA_MASTER_COMP
-        fxs_load(0, FXT_COMP);                          /* COMP in the first slot (DIST out): DRIVE, FILTER, COMP */
-        check(mix_find("DRIVE") && mx.set == 1u && ui.hot == 0u,
-              "COMP loaded in DIST's slot: the inserts DRIVE (the engine's), then COMP's amount");
+        ui.row[SCR_HOME] = MXR_T1;
         mx.set = 1;
-        mix_cell(MXR_T1, FELUCCA_TRK_FILT ? 2u : 1u, &c);
-        check(c.d == &TP[P_TCOMP], "... COMP after DRIVE (and FILTER): the order the audio runs them");
-        fxs_load(0, FXT_DIST);
+        ui.hot = 2;
+        {
+            int16_t *v;
+            int32_t i, cmp = 0;
+            ins_desc(0, 1, &v);
+            for (i = 0; i < (int32_t)INS_NLIST; i++)
+                cmp = ins_list[i] == FXT_COMP ? i : cmp;
+            turn(EN_K3, cmp - *v);                      /* S2's TYPE turned to COMP */
+        }
+        mix_cell(MXR_T1, 3, &c);
+        check(ins_slot[0][1] == FXT_COMP && c.d == &TP[P_TCOMP] && ins_slot[1][1] == INS_DEF1,
+              "KNOB 3 on S2 TYPE: COMP loaded in T1's S2 (T2's as it was); S2's amount COMP's (CMP)");
+        {
+            int16_t *v;
+            int32_t i, cmp = 0;
+            ins_desc(0, 0, &v);
+            for (i = 0; i < (int32_t)INS_NLIST; i++)
+                cmp = ins_list[i] == FXT_COMP ? i : cmp;
+            turn(EN_K1, cmp - *v);                      /* S1 to COMP: S2's type, so the two swap (D3) */
+        }
+        check(ins_slot[0][0] == FXT_COMP && ins_slot[0][1] == INS_DEF0, "... KNOB 1 on S1 TYPE to COMP: the two slots swap");
+        ins_defaults();
         mx.set = 0;
 #endif
     }
-#if FELUCCA_TRK_FILT
-    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "FILTER", 0, 0, 0) &&
-              mx_labels(MXR_DR, 2, "FX ON", "KIT", 0, 0), "DR: MUTE VOLUME, then FILTER, then FX ON KIT");
-#else
-    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "FX ON", "KIT", 0, 0), "DR: MUTE VOLUME, then FX ON KIT");
-#endif
-    check(mx_labels(MXR_LANE0 + 2u, 0, "MUTE", "LEVEL", "CUT", 0) && mx_labels(MXR_LANE0 + 2u, 1, FELUCCA_FX_DIST ? "DRIVE" : "REV", 0, 0, 0),
-          "a lane: MUTE LEVEL CUT, then DRIVE");
+    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
+              (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)) && mx_labels(MXR_DR, 3, "FX ON", "KIT", 0, 0),
+          "DR: MUTE VOLUME, its insert slots, its send levels (REV DLY CHO), then FX ON KIT");
+    {   /* the drum track's send levels (2026-10-12, "it should be like any other track"): 100 % by default */
+        cell_t c;
+        int16_t v0 = dsend_kit[0];
+        mx.set = 2;
+        mix_cell(MXR_DR, 0, &c);
+        check(!FELUCCA_FX_REVERB || (c.vp == &dsend_kit[0] && !strcmp(c.val, "100") && c.d->fmt == F_PCT),
+              "... DR's REV: the drum track's REV level, a level (100 %), not ON / OFF");
+        dsend_kit[0] = v0;
+        mx.set = 0;
+    }
+    check(mx_labels(MXR_LANE0 + 2u, 0, "MUTE", "LEVEL", "CUT", 0) &&
+              (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "DRIVE", "DST", FELUCCA_MASTER_COMP ? "CMP" : 0, 0)),
+          "a lane: MUTE LEVEL CUT, then DRIVE DST CMP (the sound's own inserts: always heard)");
     check(!FELUCCA_FX_DIST || (mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0) && mx_labels(MXR_LANE0 + 2u, 3, "SOUND", 0, 0, 0)),
           "... then REV DLY CHO, then SOUND");
     check(mx_labels(MXR_MASTER, 0, "FILT", "DUST", "DUCK", 0) &&
-              mx_labels(MXR_MASTER, 1, FELUCCA_FX_DIST ? "S1 DST" : "S1", "S2 CHO", "S3 DLY", "S4 REV") &&
+              mx_labels(MXR_MASTER, 1, "S1", "S2 CHO", "S3 DLY", "S4 REV") &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 2, "THRS", "RATIO", "GAIN", "CEIL")),
-          "MASTER: FILT DUST DUCK, then the returns (a card a FX slot: S1 DST S2 CHO S3 DLY S4 REV), then the compressor");
-    {   /* MASTER's Returns (2026-10-12): the slots' order, a send's card turns its return (song.g), an insert's is "-" */
+          "MASTER: FILT DUST DUCK, then the returns (a card a master slot: S1 (empty) S2 CHO S3 DLY S4 REV), then the compressor");
+    {   /* MASTER's Returns (2026-10-12): the slots' order, a send's card turns its return (song.g), an empty slot's is "-" */
         cell_t c;
         char h[40];
         int16_t r0 = song.g[G_RRET], c0 = song.g[G_CRET], d0 = song.g[G_DRET];
@@ -172,19 +200,19 @@ static void mixer_sets_tests(void)
         head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
         check(!strcmp(h, "MIX RETURNS"), "MASTER's second set: the header names it (Mix returns)");
         mix_cell(MXR_MASTER, 0, &c);
-        check(!c.d && !strcmp(c.val, "-"), "... S1 holds DIST, an insert: \"-\"");
+        check(!c.d && !strcmp(c.val, "-"), "... S1 empty (the master slots hold the sends only): \"-\"");
         mix_cell(MXR_MASTER, 3, &c);
         check(c.d == &GP[G_RRET] && !strcmp(c.val, "100") && c.d->def == 127, "... S4 REV: REV RET, at unity (100 %) by default");
         turn(EN_K4, -5);
         check(song.g[G_RRET] < r0 && song.g[G_CRET] == c0 && song.g[G_DRET] == d0, "... KNOB 4 turned: REV RET down (song.g), the others kept");
         turn(EN_K1, -5);
-        check(song.g[G_CRET] == c0 && song.g[G_DRET] == d0 && song.g[G_RRET] < r0, "... KNOB 1 on the insert's \"-\": nothing");
+        check(song.g[G_CRET] == c0 && song.g[G_DRET] == d0 && song.g[G_RRET] < r0, "... KNOB 1 on the empty slot's \"-\": nothing");
         turn(EN_K2, -3);
         check(song.g[G_CRET] < c0, "... KNOB 2 (S2 CHO): CHO RET down");
-        fxs_load(0, FXT_REV);                           /* REV into S1 (swaps with S4's DIST) */
+        fxs_load(0, FXT_REV);                           /* REV into S1 (swaps with S4's empty place) */
         mix_cell(MXR_MASTER, 0, &c);
-        check(c.d == &GP[G_RRET] && !strcmp(c.label, "S1 REV") && mx_labels(MXR_MASTER, 1, 0, 0, 0, FELUCCA_FX_DIST ? "S4 DST" : "S4"),
-              "... REV loaded into S1: its card moves there (the slots' order), S4 the insert");
+        check(c.d == &GP[G_RRET] && !strcmp(c.label, "S1 REV") && mx_labels(MXR_MASTER, 1, 0, 0, 0, "S4"),
+              "... REV loaded into S1: its card moves there (the slots' order), S4 empty");
         fxs_load(0, FXT_NONE);                          /* REV in no slot: no card turns it */
         for (k = 0; k < 4u; k++) {
             mix_cell(MXR_MASTER, k, &c);
@@ -354,7 +382,7 @@ static void mixer_rows_tests(void)
         song.g[G_CCEIL] = GP[G_CCEIL].def;
         mc_gr_view = 0;
         turn(EN_ALGO, 1);
-        fxs_load(0, FXT_COMP);                          /* T1's COMP insert, reducing 8 dB */
+        ins_load(0, 1, FXT_COMP);                       /* T1's COMP insert (its S2), reducing 8 dB */
         trk[0].p[P_TCOMP] = 60;
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
         ui_draw();                                      /* (no audio block between: the reduction as set) */
@@ -366,7 +394,7 @@ static void mixer_rows_tests(void)
         frame();
         check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "its amount 0: no bar");
         tcomp[0].gr16 = 0;
-        fxs_load(0, FXT_DIST);
+        ins_defaults();
     }
 #endif
     {   /* the GLO layer's four levels, as before */

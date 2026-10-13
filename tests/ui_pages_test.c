@@ -420,7 +420,7 @@ static void drum_sound_tests(void)
                 const page_t *pg = &PAGES[seen + j];
                 ok &= ed_out[p] == pg->fam && ed_out[p + 1] == pg->scope && ed_out[p + 2] == (uint8_t)!!page_shown(pg);
                 for (k = 0; k < 4u; k++)
-                    ok &= ed_out[p + 3 + k] == (page_id(pg, k) == 0xFFu ? 127u : page_id(pg, k));   /* (FX, SOUND 3: the slots') */
+                    ok &= ed_out[p + 3 + k] == (page_id(pg, k) >= 0x80u ? 127u : page_id(pg, k));   /* (FX, SOUND 3: the slots') */
                 ok &= !strcmp((const char *)ed_out + p + 7, pg->title);
                 shown_dsnd |= pg->scope == SC_DSND && ed_out[p + 2];
                 shown_env |= pg->fam == FAM_ENV && ed_out[p + 2] &&
@@ -1280,8 +1280,8 @@ int main(int argc, char **argv)
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
         int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV];
-        check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_SLCR,
-              "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, SLICER next");
+        check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_INS,
+              "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, INSERTS next");
         encs[panel.enc[EN_K4]] = 5; frames(2);
         check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
               "... KNOB 4 (S4: REV) edits the drum track's own REV send");

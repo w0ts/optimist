@@ -144,6 +144,19 @@ carries a signal (L, R and the sends the drum sounds fill: three in the groove),
 five channels, 62 host, 64 target (`CG_COST_DBCOMP`), counted while its amount is set or it still lets go. The drum
 track's own sends cost a multiply-add a sample each (not modelled).
 
+**The track insert slots** (2026-10-12, fx_slots.c `ins_slot`, fx.c `ins_part` / `dbus_ins`; design D9). Each track
+has two insert slots (DIST, FILTER or COMP), so every insert can run on every track: the model counts each slot that
+runs, never switches one off. `regress` plays DIGITAL's first preset (8 notes) on part 1 with both its slots at 0
+(`cpu/fx/part_off`, 1192 host instructions a sample), its S1 DIST at 127 (`cpu/fx/part_dist`, 1236) and its S2 FILTER
+low-pass (`cpu/fx/part_filt`, 1227, a TRK_FILT build: `regress_tf`), and the drum groove with the drum track's FILTER
+low-pass (`cpu/fx/dbus_filt`, 1046 against `dbus_off`'s 869): `CG_COST_PDIST` 46, `CG_COST_PFILT` 36, `CG_COST_DBFILT`
+184 target. A part's DIST counts while its amount is set (in a slot, FX on), a FILTER while it is not at rest (set, or
+gliding open), COMP as before. The worst case, `cpu/fx/ins_worst` (three full parts with S1 DIST 127 and S2 COMP 127,
+the drum bus S1 DIST 127 and S2 FILTER, the groove): 2661 host against `cpu/mix/3parts_full_drums`' 2122, so +539 host,
++561 target a sample (26 % of the 2,177 a sample of 96 MHz); the model gives 3 x (46 + 31) + 128 + 184 = 543. At
+**QUALITY** the drum bus's DIST and FILTER run on L / R only (the echoes take the bus before them): the model counts
+2 / 5 of their cost, and QUALITY is a step worth taking while either runs.
+
 ## Cost
 
 Measured builds (`measure_costs.py --only CPU_GUARD`, default configuration):

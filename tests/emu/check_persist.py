@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """persist: save, power cycle (the emulator restarted on the flash it saved), load (SLOOP's UI). Session 1: COMP into
-S1 with an amount on T2, then the content of the patterns check (T1 p1..p3, T2 p1..p2 stored, scenes A..C, so the
+T2's S1 (FX > INSERTS) with an amount on T2, then the content of the patterns check (T1 p1..p3, T2 p1..p2 stored, scenes A..C, so the
 scenes carry COMP), the song chain A B C (2 bars each, stored: SAVE tapped on the song page), scene C playing as the
 working copy, PROJECT > SAVE slot 4, idle for the autosave. Session 2, on that flash: a clean boot; the autosaved
 working copy (its pattern sources and steps, its FX); each stored pattern; scenes A..C (their patterns, scene A its
@@ -28,11 +28,11 @@ def run(ctx):
 
 
 def fx_of(fx):
-    return fx.slots(), fx.amt(1)
+    return fx.slots(), fx.tins(), fx.amt(1)
 
 
 def fmt(fx, st):
-    return f"{fx.names(st[0])} T2 COMP {st[1]}"
+    return f"master {fx.names(st[0])}, slots {[fx.names(x) for x in st[1]]}, T2 COMP {st[2]}"
 
 
 def session1(ctx, e, P):
@@ -40,9 +40,8 @@ def session1(ctx, e, P):
     has_comp = ctx.facts.on("MASTER_COMP")
     if has_comp:
         P.track(2)
-        fx.slots_page()
-        fx.slot_set(0, X.FXT["COMP"])
-        fx.fx_page()
+        fx.inserts_page()
+        fx.ins_set(1, 0, X.FXT["COMP"])
         fx.comp_amount(1, 100, 8)
         P.track(1)
         P.home()
@@ -56,9 +55,9 @@ def session1(ctx, e, P):
     P.scene_launch(3)
     e.run(1.0)
     work = dict(cur=P.cur()[:2], fx=fx_of(fx), scene_fx=scene_fx)
-    ctx.check("session 1: scene C is the working copy (T1 p3, T2 p1)" + (", COMP in S1 with T2's amount" if has_comp
-              else ""), work["cur"] == [2, 0] and (not has_comp or work["fx"][0][0] == X.FXT["COMP"] and
-                                                    work["fx"][1] > 50), f"cur {work['cur']}, {fmt(fx, work['fx'])}")
+    ctx.check("session 1: scene C is the working copy (T1 p3, T2 p1)" + (", COMP in T2's S1 with its amount" if has_comp
+              else ""), work["cur"] == [2, 0] and (not has_comp or work["fx"][1][1][0] == X.FXT["COMP"] and
+                                                    work["fx"][2] > 50), f"cur {work['cur']}, {fmt(fx, work['fx'])}")
     ok = P.project_save(PROJECT_SLOT, shot="project-saved")
     ctx.check(f"session 1: PROJECT > SAVE slot {PROJECT_SLOT}", ok, P.page())
     e.run(30.0)                                       # (the autosave: 2.5 s idle, 20 s after the last)
@@ -89,7 +88,7 @@ def session2(ctx, e, P, exp, work):
         ctx.check(f"session 2: scene {'ABC'[n - 1]} from the flash (T1 p{a + 1}, T2 p{b + 1})", ok, f"cur {c}")
         if n == 1:
             sf = fx_of(fx)
-            ctx.check("session 2: scene A's FX slots and amount (stored with COMP in S1)", sf == work["scene_fx"],
+            ctx.check("session 2: scene A's FX slots and amount (stored with COMP in T2's S1)", sf == work["scene_fx"],
                       f"{fmt(fx, sf)}, stored {fmt(fx, work['scene_fx'])}")
     ab = e.mem("arrangement", 12)
     ctx.check("session 2: the song chain from the flash", ab[0] == 3 and list(ab[4:10]) == [0, 2, 1, 2, 2, 2],

@@ -29,7 +29,7 @@ enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV, MS_PAT };   /*
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
-       MF_CHANCE, MF_COMP, MF_LAUTO, MF_LLFO };
+       MF_CHANCE, MF_COMP, MF_LAUTO, MF_LLFO, MF_INS3 };
 #if DLA_ON                                            /* (drum_edit.c: the drum lanes' motion and locks played) */
 #define MISS_LAUTO 1
 #else
@@ -46,7 +46,8 @@ static const char MF_NAMES[] = MF_S(FELUCCA_FX_DELAY, "DELAY") MF_S(FELUCCA_FX_R
     MF_S(FELUCCA_FX_CHORUS, "CHORUS") MF_S(FELUCCA_FX_DIST, "DIST") MF_S(FELUCCA_FX_SLICER, "SLICER")
     MF_S(FELUCCA_FX_DJF, "FILT") MF_S(FELUCCA_FX_DUST, "DUST") MF_S(FELUCCA_FX_DUCK, "DUCK")
     MF_S(FELUCCA_DRUM_EDIT, "SOUND EDIT") MF_S(FELUCCA_DRUM_USR, "LANE SMP") MF_S(FELUCCA_DRUM_KITS, "LANE KIT")
-    MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP") MF_S(MISS_LAUTO, "LANE MOTION") MF_S(MISS_LLFO, "LANE LFO");
+    MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP") MF_S(MISS_LAUTO, "LANE MOTION") MF_S(MISS_LLFO, "LANE LFO")
+    "3RD INS";   /* (MF_INS3: an old project's third insert on a track, dropped: fx_rec.c ins_map) */
 #undef MF_S
 static uint16_t miss_m[MISS_MAX];                     /* the last scan's items */
 static uint32_t miss_cnt;
@@ -177,6 +178,9 @@ static uint32_t miss_scan(void)
         if (AUTO_IS_LANE(AUTO_L(TRK_DRUM)->ev[k].param))
             MFX(MF_LAUTO, TRK_DRUM);
 #endif
+    for (k = 0; k < NTRK; k++)                          /* (an old project's third insert on a track: dropped, fx_rec.c) */
+        if (ins_drop >> k & 1u)
+            MFX(MF_INS3, k);
     if (!MISS_LLFO && dlfo_any_live())                  /* (the drum lanes' LFOs: kept, not played here) */
         MFX(MF_LLFO, TRK_DRUM);
     return miss_cnt;
@@ -228,6 +232,8 @@ static char *miss_name(char *p, uint32_t it)
     else
         s = NAMES[ty - 1u][id];
     p = miss_cat(p, s);
+    if (ty == MS_FX && (it & 255u) == MF_INS3)        /* "3RD INS T2", "3RD INS DR" */
+        return ((it >> 8) & 3u) == TRK_DRUM ? miss_cat(p, " DR") : (p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u)), p);
     if (ty == MS_ENG || ty == MS_SET || ty == MS_FM6)
         p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u));
     return p;
