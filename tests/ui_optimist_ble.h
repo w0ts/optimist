@@ -5,6 +5,12 @@
  * Included after the helpers. The radio itself is the stub in ui_optimist_test.c (midi_ble.c is host-tested apart). */
 
 #if FELUCCA_BLE
+static void dev_yes_t(void)                             /* YES on a device row: the card asks first (2026-10-13), YES again does it */
+{
+    tap(B_SAVE);
+    if (op_armed())
+        tap(B_SAVE);
+}
 static uint32_t ble_sys_row(void)                       /* SYSTEM's BLE line (Bluetooth), the cursor on it; its knob */
 {
     uint32_t w;
@@ -135,7 +141,7 @@ static void ble_dev_tests(void)
         check(c.kind == CK_ACT && !strcmp(c.label, "CHOOSE"), "devices: NONE's card: CHOOSE");
     }
     c0 = (uint32_t)cenfk.connects;
-    tap(B_SAVE);
+    dev_yes_t();
     frames(2);
     check(cenfk.connects == (int)c0 + 1 && !strcmp(dev_status(), "CONNECTING KeyStep 37") && ble_dev_status() == 5u,
           "devices: SAVE on a nearby row connects to it: CONNECTING <name>");
@@ -203,7 +209,7 @@ static void ble_dev_tests(void)
     ui.row[SCR_SYSTEM] = 2;
     frames(2);
     c0 = (uint32_t)cenfk.connects;
-    tap(B_SAVE);
+    dev_yes_t();
     frames(2);
     cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
     ble_devices_poll();
@@ -262,10 +268,10 @@ static void ble_dev_tests(void)
     ble_store_select(&ble_store, BLE_SEL_NONE);
     frames(2);
     dev_select(1);
-    tap(B_SAVE);
+    dev_yes_t();
     check(ble_store.sel == BLE_SEL_LAST, "devices: SAVE on LAST chooses it");
     dev_select(-1);
-    tap(B_SAVE);
+    dev_yes_t();
     check(ble_store.sel == BLE_SEL_NONE && ble_store_has_last(&ble_store), "devices: SAVE on NONE chooses it, LAST kept");
     ui.force = 1;
     frames(3);
@@ -342,7 +348,7 @@ static void ble_dev_more_tests(void)
     cenfk.central = 0;
     dev_select(1);
     c0 = (uint32_t)cenfk.connects;
-    tap(B_SAVE);
+    dev_yes_t();
     frames(2);
     check(cenfk.connects == (int)c0 && bdp.tone == BDL_WARN && !strcmp(bdp.st, "Busy: A host is connected") &&
               px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_WARN) &&
@@ -352,7 +358,7 @@ static void ble_dev_more_tests(void)
     /* NONE with BLUETOOTH off: not "stay visible" */
     dev_open_fresh();
     ble_on = 0;
-    tap(B_SAVE);
+    dev_yes_t();
     frames(2);
     check(!strcmp(bdp.st, "None chosen, bluetooth off") && bdp.tone == BDL_WARN && ble_store.sel == BLE_SEL_NONE,
           "devices: NONE while BLUETOOTH is off: says so (no \"stay visible\")");
@@ -418,6 +424,8 @@ static void ble_dev_more_tests(void)
     ble_found.e[bdp.near[0]].used = 0;
     ble_found.gen++;
     release(B_SAVE);
+    if (op_armed())
+        tap(B_SAVE);                                      /* (the card asks first, 2026-10-13) */
     frames(2);
     check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x03,
           "devices: a device aging out above the cursor: SAVE connects to the highlighted one (Bravo), not the one now in its row");
@@ -435,6 +443,8 @@ static void ble_dev_more_tests(void)
     ble_found.e[bdp.near[1]].used = 0;
     ble_found.gen++;
     release(B_SAVE);
+    if (op_armed())
+        tap(B_SAVE);
     frames(2);
     check(cenfk.connects == (int)c0 && !strcmp(bdp.st, "Device gone") && bdp.tone == BDL_WARN,
           "devices: the highlighted device gone before SAVE: nothing is connected, \"Device gone\"");

@@ -27,6 +27,16 @@ static void ac_walk(uint32_t scr, uint32_t tr)
                 printf("  actcards: screen %u row %s cell %u: verb \"%s\"\n", scr, nm, k, act_verb(&c));
                 ac_bad++;
             }
+#if FELUCCA_PARAM_HELP
+            {                                           /* (no help line says "twice": every action asks with the modal) */
+                char hb[PH_LINE];
+                uint32_t o = hl_find(scr, r, &c);
+                if (o && strstr(ph_text(o, hb), "twice")) {
+                    printf("  actcards: screen %u row %s card %s: help \"%s\"\n", scr, nm, act_verb(&c), hb);
+                    ac_bad++;
+                }
+            }
+#endif
             ui.row[scr] = (uint8_t)r;
             if (glo_cycle())
                 gl_pick(r, k);                          /* (the settings lists: a page row's cell k is a line) */
@@ -34,6 +44,18 @@ static void ac_walk(uint32_t scr, uint32_t tr)
             ui.force = 1;
             frame();
             h0 = rk_state();
+            turn(EN_K1 + k, 1);                         /* (a knob only picks the card: it never runs, never arms) */
+            turn(EN_K1 + k, -3);
+            if (op_armed() || rk_state() != h0) {
+                printf("  actcards: screen %u row %s card %s: a knob turn ran or armed it\n", scr, nm, act_verb(&c));
+                ac_bad++;
+                op_disarm();
+            }
+            ui.row[scr] = (uint8_t)r;
+            if (glo_cycle())
+                gl_pick(r, k);
+            ui.hot = (uint8_t)k;
+            frame();
             tap(B_SAVE);
             if (!op_armed()) {
                 printf("  actcards: screen %u row %s card %s: YES asked nothing\n", scr, nm, act_verb(&c));
@@ -68,7 +90,10 @@ static void ac_key_tests(void)
     kup(k);
     k = WK(12);
     kdown(k);
-    check(song.g[G_SLOT] == 3, "... a key past the slots (4 here): nothing");
+    check(song.g[G_SLOT] == (FELUCCA_SECTIONS > 12 ? 13 : 3), "... a key past the slots: nothing (4 here)");
+    kup(k);
+    k = WK(2);
+    kdown(k);
     kup(k);
     k = 1u;                                             /* (a black key: silent, picks nothing) */
     kdown(k);
