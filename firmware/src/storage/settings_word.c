@@ -15,7 +15,8 @@
  * read; the cards are always 2x2 but on the mixer), bit SETTINGS_BLE_ON_BIT (24) BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it,
  * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bit
  * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, so a record without it reads OFF, the default;
- * not in a 2.4 export), bits 27.. free; a build without a switch keeps its bit as read */
+ * not in a 2.4 export), bits 27..28 2ND CORE (FELUCCA_DUAL, system/dual_mode.h: 0 AUTO, 1 OFF; a record without them
+ * reads AUTO, the default), bits 29.. free; a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -52,6 +53,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_MIDI_CLKOUT
     w = (w & ~(1u << 26)) | (uint32_t)(clko_on != 0u) << 26;           /* CLOCK OUT (io/midi/clock_out.c) */
 #endif
+#if FELUCCA_DUAL
+    w = dual_mode_out(w, dual_mode);                                   /* 2ND CORE (system/dual_mode.h) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -84,6 +88,9 @@ static void bp23_from_word(uint32_t w)
     knob_colors = (uint8_t)((w >> 25) & 1u);          /* (a word without the bit: the colours as they were) */
 #if FELUCCA_MIDI_CLKOUT
     clko_on = (uint8_t)((w >> 26) & 1u);              /* (a word without the bit: no clock sent) */
+#endif
+#if FELUCCA_DUAL
+    dual_mode = (uint8_t)dual_mode_in(w);             /* (a word without the bits: AUTO; read before dual_boot) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

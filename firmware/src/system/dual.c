@@ -12,23 +12,35 @@
  *
  * Never a hang: CPU1 that does not answer at boot stays in reset; a job that is not done within
  * DUAL_JOIN_US, or a fault on CPU1, puts CPU1 back into reset for good and CPU0 renders everything
- * (the parts CPU1 was rendering may click once). */
+ * (the parts CPU1 was rendering may click once).
+ *
+ * FM-1s whose CPU1 misreads RAM (docs/DUAL-CORE.md 3.5): CPU1 runs only the next posted job with a matching check
+ * word (hal/fm1_dual_guard.h, after X0X), reads a boot canary before its hello, and is held at the first request it
+ * refuses (MISREAD) or a wrong canary (CANARY). 2ND CORE OFF (dual_mode.h) or a boot after an early crash: one core.
+ * FELUCCA_DUAL_BOOST: the core supply raised first (hal/fm1_supply.h, EXPERIMENTAL). */
 #if FELUCCA_DUAL
 #define DUAL_HELLO_US 50000u                       /* CPU1's hello at boot */
 #define DUAL_JOIN_US ((HALF_FRAMES * 1000000u) / FS) /* one half buffer (5.8 ms): late anyway */
-#ifndef FELUCCA_DUAL_IDLE
-#define FELUCCA_DUAL_IDLE 1                        /* CPU1 asleep between jobs (2 only) */
+#ifndef FELUCCA_DUAL_BOOST
+#define FELUCCA_DUAL_BOOST 0                       /* EXPERIMENTAL, at the owner's risk: VDC14 5, SYSVDD 15 before CPU1
+                                                    * starts (hal/fm1_supply.h; the builder's DUAL_BOOST) */
 #endif
 #define DUAL_SLEEPS (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)
 #ifndef DUAL_PARTS
 #define DUAL_PARTS 0x6u                            /* parts 2 and 3 on CPU1 */
 #endif
-enum { DUAL_OFF, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH };
+#include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
+#if FELUCCA_DUAL_BOOST
+#include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
+#endif
 static struct {
     uint8_t up;                                    /* CPU1 runs and takes jobs */
-    uint8_t why;                                   /* DUAL_*: why it is down */
+    uint8_t why;                                   /* DUAL_*: why it is down (dual_mode.h) */
+    uint8_t boot_mode;                             /* the 2ND CORE setting this boot started with */
+    uint8_t supply;                                /* FELUCCA_DUAL_BOOST: VDC14 << 4 | SYSVDD before the boost */
     uint32_t jobs, wait_max;                       /* jobs done; longest CPU0 wait (ticks) */
 } dual;
+static uint8_t dual_mode;                          /* the 2ND CORE setting (dual_mode.h; settings_word.c bits 27..28) */
 
 #if FELUCCA_DUAL >= 2
 static mixacc_t dual_acc[2];                       /* [0] CPU0's parts, [1] CPU1's */
@@ -56,7 +68,8 @@ static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the blo
 
 #ifndef DUAL_FAILTEST
 #define DUAL_FAILTEST 0      /* emulator tests of the fallbacks: 1 no hello, 2 a job that never ends, 3 CPU1's
-                              * fault handler in a job (never in a release) */
+                              * fault handler in a job, 4 a request whose check word is wrong (a misread, as CPU1
+                              * would see it), 5 a wrong boot canary (never in a release) */
 #endif
 #if !DUAL_SLEEPS
 /* (stage 1, or CPU1 spinning: the wake interrupt is never set up, but hal/fm1_dual.h's entry isr_c1_wake
@@ -68,11 +81,16 @@ void HOT fm1_cpu1_wake(void) { fm1_dual_wake_ack(); }
  * The latch is cleared before req is read, so a job posted after the last look wakes it again */
 void HOT fm1_cpu1_wake(void)
 {
-    static uint32_t jobs;
-    uint32_t r;
+    static uint32_t jobs, done;                    /* (done: CPU1's own, never read back from the mailbox) */
+    uint32_t r, a;
     fm1_dual_wake_ack();
-    while ((r = fm1_dual_mb.req) != fm1_dual_mb.done) {
+    while ((r = fm1_dual_mb.req) != done) {
         fm1_dual_sync();                           /* the request's data after `req` */
+        a = fm1_dual_mb.arg;                       /* (read once: the job gets what was checked) */
+        if (fm1_dual_take(r, done, a, fm1_dual_mb.check, DUAL_PARTS) != FM1_DG_RUN) {
+            fm1_dual_note_bad(r, done);            /* a misread: not run; CPU0 holds CPU1 (dual_join) */
+            break;
+        }
 #if DUAL_FAILTEST == 2
         if (jobs == 3000u)
             for (;;)
@@ -81,8 +99,9 @@ void HOT fm1_cpu1_wake(void)
         if (jobs == 3000u)
             FAR(fm1_dual_cpu1_fault)(1);
 #endif
-        dual_job(fm1_dual_mb.arg);
+        dual_job(a);
         jobs++;
+        done = r;
         fm1_dual_sync();                           /* the job's stores before `done` */
         fm1_dual_mb.done = r;
         fm1_dual_sync();
@@ -94,18 +113,26 @@ void HOT fm1_cpu1_wake(void)
 
 void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry (hal/fm1_dual.h) */
 {
-    uint32_t seq = 0;
+    uint32_t seq = 0, arg = 0;
 #if DUAL_FAILTEST == 1
     for (;;)
         ;
 #endif
+    fm1_dual_mb.canary = 1u + fm1_dual_canary_scan(fm1_dual_canary, FM1_DUAL_CANARY_PASSES);   /* (CPU0 checks it) */
+#if DUAL_FAILTEST == 5
+    fm1_dual_mb.canary++;                          /* (as if one word had been read wrong) */
+#endif
+    fm1_dual_sync();                               /* the canary before the hello */
     fm1_dual_mb.hello = FM1_DUAL_HELLO;
 #if DUAL_SLEEPS
     (void)seq;
+    (void)arg;
     FL_FAR(fm1_dual_sleep_ram)();                  /* never returns: the jobs come by interrupt */
-#endif
+    for (;;)
+        ;
+#else
     for (;;) {
-        seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1);
+        seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1, DUAL_PARTS, &arg);   /* (a request it may run) */
 #if DUAL_FAILTEST == 2
         if (seq == 3000u)
             for (;;)
@@ -116,9 +143,12 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
                                                     * cannot be raised in the emulator) */
 #endif
 #if FELUCCA_DUAL >= 2
-        FAR(dual_job)(fm1_dual_mb.arg);
+        FAR(dual_job)(arg);
+#else
+        (void)arg;
 #endif
     }
+#endif
 }
 
 static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for good */
@@ -131,11 +161,21 @@ static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for
 /* boot (audio set up, its interrupt not yet on; the vectors still writable) */
 static __attribute__((noinline)) void dual_boot(void)
 {
+    dual.boot_mode = dual_mode;
+    dual.why = (uint8_t)dual_boot_why(dual_mode, bootguard.failed);   /* 2ND CORE OFF, or the last boot crashed early */
+    if (dual.why != DUAL_UP)
+        return;                                    /* (CPU1 stays in reset, as at power-on) */
+#if FELUCCA_DUAL_BOOST
+    dual.supply = (uint8_t)fm1_supply_boost();     /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
+#endif
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
 #endif
     dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US);
-    dual.why = dual.up ? DUAL_OFF : DUAL_NO_HELLO;
+    if (!dual.up)
+        dual.why = DUAL_NO_HELLO;
+    else if (fm1_dual_mb.canary != 1u)             /* it read the canary wrong (or never read it) */
+        dual_down(DUAL_CANARY);
 }
 
 /* every flash operation, IRQs off (hal/fm1_flash.h irq_save): CPU1 must be in its RAM loop.
@@ -147,7 +187,8 @@ static void dual_flash_enter(void)
 }
 
 static void ui_say(const char *a, const char *b);   /* ui.c */
-static const char *const DUAL_WHY[] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH"};
+static const char *const DUAL_WHY[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
+                                                "AFTER CRASH", "SETTING"};   /* (dual_mode.h DUAL_*) */
 
 static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at most */
 {
@@ -162,14 +203,17 @@ static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at
 }
 
 /* main loop, every frame: the liveness ping (CPU1 answers from its idle loop); CPU1 going down is
- * told once. Stage 1: CPU1's counter and the ping answer at the bottom of the screen, twice a second. */
+ * told once (not when 2ND CORE is OFF: the user's choice), and on a misread AUTO turns itself OFF (dual_mode.h; saved by
+ * settings_poll, once stopped). Stage 1: CPU1's counter and the ping answer at the bottom of the screen, twice a second. */
 static void dual_frame(void)
 {
     static uint8_t told;
     fm1_dual_mb.ping++;
     if (!dual.up && !told) {
         told = 1;
-        ui_say("CPU1 OFF ", DUAL_WHY[dual.why % 5u]);
+        if (dual.why != DUAL_SETOFF)
+            ui_say("CPU1 OFF ", DUAL_WHY[dual.why % DUAL_WHY_N]);
+        dual_mode = (uint8_t)dual_mode_after(dual_mode, dual.boot_mode, dual.why);
     }
 #if FELUCCA_DUAL == 1
     {
@@ -183,7 +227,7 @@ static void dual_frame(void)
                 dual_dec(b + 5, fm1_dual_mb.count);
                 str_cpy(b + str_len(b), lag <= 2u ? " OK" : " LATE", 6);
             } else {
-                str_cpy(b + 5, DUAL_WHY[dual.why % 5u], sizeof b - 5u);
+                str_cpy(b + 5, DUAL_WHY[dual.why % DUAL_WHY_N], sizeof b - 5u);
             }
             draw_text_box(0, 222, 240, &FONT_S, b, dual.up ? RGB(80, 220, 120) : RGB(255, 80, 80), 1);
         }
@@ -195,15 +239,14 @@ static void dual_frame(void)
 /* CPU0: wait for CPU1's job; 1 = its accumulators hold the parts */
 static HOT int dual_join(uint32_t req)
 {
-    uint32_t t0 = fm1_ticks(), dt;
-    while (fm1_dual_mb.done != req) {
+    uint32_t t0 = fm1_ticks(), dt, why;
+    while (fm1_dual_mb.done != req || fm1_dual_mb.bad) {   /* (bad: a request nobody posted, now or while it waited;
+                                                            * its parts here even if this block's job is done) */
         dt = fm1_ticks() - t0;
-        if (fm1_dual_mb.fault) {
-            FAR(dual_down)(DUAL_FAULT);
-            return 0;
-        }
-        if (dt > DUAL_JOIN_US * FM1_TICKS_PER_US) {
-            FAR(dual_down)(DUAL_TIMEOUT);
+        why = fm1_dual_mb.fault ? DUAL_FAULT : fm1_dual_mb.bad ? DUAL_MISREAD
+                                 : dt > DUAL_JOIN_US * FM1_TICKS_PER_US ? DUAL_TIMEOUT : DUAL_UP;
+        if (why != DUAL_UP) {
+            FAR(dual_down)(why);
             return 0;
         }
     }
@@ -263,7 +306,8 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         mask = DUAL_PARTS;
         req = fm1_dual_mb.req + 1u;
         fm1_dual_mb.arg = mask;
-        fm1_dual_sync();                           /* the block's state and arg before req */
+        fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);
+        fm1_dual_sync();                           /* the block's state, arg and check before req */
         fm1_dual_mb.req = req;
 #if DUAL_SLEEPS
         fm1_dual_sync();

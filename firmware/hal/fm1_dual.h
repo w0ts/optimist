@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include "fm1_flash.h"            /* RAMFN, FL_FAR, fl_csync */
 #include "fm1_time.h"
+#include "fm1_dual_guard.h"       /* the request check and the boot canary (misread RAM on some FM-1s) */
 
 #define FM1_C1_CON   (*(volatile uint32_t *)0x1EEE004u)   /* corex2 C1_CON: b1 reset/halt, b3 run */
 #define FM1_SYSCLK1  (*(volatile uint32_t *)0x10008u)     /* stock: |= 8 around the CPU1 start */
@@ -45,31 +46,54 @@ typedef struct {
     volatile uint32_t count;      /* CPU1: stage 1, incremented while idle */
     volatile uint32_t ping, pong; /* CPU0 / CPU1: pong follows ping while idle (liveness) */
     volatile uint32_t fault;      /* CPU1: its exception vector + 1 after a fault */
+    volatile uint32_t check;      /* CPU0: FM1_DUAL_CHECK(req, arg), written before req (fm1_dual_guard.h) */
+    volatile uint32_t bad;        /* CPU1: requests it would not run (a misread): CPU0 holds it at the first */
+    volatile uint32_t bad_req, bad_done;   /* CPU1: the last one, as read, and its own done then */
+    volatile uint32_t canary;     /* CPU1: 1 + the canary words it read wrong at boot (0: not run) */
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
 static fm1_dual_mb_t fm1_dual_mb;
+static volatile uint32_t fm1_dual_canary[FM1_DUAL_CANARY_N];   /* CPU0 fills it before the start, CPU1 reads it */
 
-/* CPU1 between jobs, from RAM: publish `done`, then wait for a request. COUNT != 0:
- * stage 1, count the idle loops. Returns the new request. */
-RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count)
+/* CPU1: a request it will not run (fm1_dual_take FM1_DG_BAD): noted, never run (the spin loop counts each read of
+ * it until CPU0 holds CPU1: a count, not a number of misreads) */
+static inline __attribute__((always_inline)) void fm1_dual_note_bad(uint32_t r, uint32_t done)
+{
+    fm1_dual_mb.bad_req = r;
+    fm1_dual_mb.bad_done = done;
+    fl_csync();
+    fm1_dual_mb.bad++;
+}
+
+/* CPU1 between jobs, from RAM: publish `done`, then wait for a request it may run (fm1_dual_take; a bad one is noted
+ * and waited past, in RAM). COUNT != 0: stage 1, count the idle loops. Returns the new request; *ARG its argument,
+ * read once */
+#ifndef FM1_DUAL_NO_SPIN                                  /* (CPU1 asleep between jobs: no spin loop in RAM) */
+RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
 {
     fm1_dual_mb_t *mb = &fm1_dual_mb;
-    uint32_t r;
+    uint32_t r, a = 0;
     fl_csync();                                           /* the job's stores before `done` */
     mb->done = done;
     fl_csync();
     for (;;) {
         r = mb->req;
-        if (r != done)
-            break;
+        if (r != done) {
+            fl_csync();                                   /* the request's data after `req` */
+            a = mb->arg;
+            if (fm1_dual_take(r, done, a, mb->check, allowed) == FM1_DG_RUN)
+                break;
+            fm1_dual_note_bad(r, done);
+        }
         if (mb->ping != mb->pong)
             mb->pong = mb->ping;
         if (count)
             mb->count++;
     }
-    fl_csync();                                           /* the request's data after `req` */
+    *arg = a;
     return r;
 }
+#endif
 
 /* CPU1 after a fault (fm1_irq.h fm1_fault_c): report and stay in RAM, off the flash */
 RAMFN static void fm1_dual_dead_ram(uint32_t vec)
@@ -115,6 +139,9 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     int ok;
     fm1_dual_mb.hello = 0;
     fm1_dual_mb.fault = 0;
+    fm1_dual_mb.bad = 0;
+    fm1_dual_mb.canary = 0;
+    fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
     FM1_C1_VEC = (uint32_t)(uintptr_t)fm1_cpu1_entry;
     FM1_SYSCLK1 = sys | 8u;

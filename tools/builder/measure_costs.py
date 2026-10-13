@@ -64,6 +64,14 @@ WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
         ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)
 
 
+def parent_on(p):
+    """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
+    value that builds it when the default leaves it out (DUAL's 0: DUAL_BOOST measured 0 B under it)"""
+    if not p.is_choice:
+        return 1
+    return p.default if p.default else next(v for v, _ in p.choices if v)
+
+
 def measure(cfg, name, log):
     ok, sizes, out = C.build(cfg, name, measure=True, log=log)
     if not ok or not sizes:
@@ -198,7 +206,7 @@ def main(argv=None):
             cfg = C.defaults()
             cfg[k] = v
             if it.parent:
-                cfg[it.parent] = 1 if not R.ITEMS[it.parent].is_choice else R.ITEMS[it.parent].default
+                cfg[it.parent] = parent_on(R.ITEMS[it.parent])
             cfg.update(WITH.get((k, v), {}))
             err, _, _ = C.validate(cfg)
             if err:                                     # (e.g. the last FM6 mode: measured with another off)

@@ -169,6 +169,31 @@ semantics are inferred; it stays a fallback option.
 - Resets (UBOOT entry, OTA, reboot) are chip resets (P33): CPU1 resets with them.
 - The bus and PC guards are enabled after CPU1's start (unknown whether they cover CPU1's ROM path).
 
+### 3.5 FM-1s whose CPU1 misreads RAM (fix/cpu1-guard, 2026-10-13)
+On some FM-1s core 1 reads words that are not in RAM at the boot loader's supply (fm1-x0x#10, Melodee #17;
+Jangada measured one unit: faults within ~6 s at the stock VDC14 3 / SYSVDD 11, clean for 15 min at 5 / 15).
+Optimist used to run any job whose `req != done`. Now (`hal/fm1_dual_guard.h`, after X0X 47f8e4c):
+- **Request check:** CPU0 writes `arg`, then `check = FM1_DUAL_CHECK(req, arg)`, then `req`. CPU1 runs a job
+  only when `req == done + 1` (its own `done`, never read back), `arg` is within `DUAL_PARTS` and `check`
+  matches; it reads `arg` once and renders that. Anything else is counted in `bad` (with `bad_req`,
+  `bad_done`), never run, and CPU0 holds CPU1 at the first one (`dual_join`, and before every post): the
+  parts go back to CPU0, `CPU1 OFF MISREAD` once. The spin loop (`FELUCCA_DUAL_IDLE=0`) waits past a bad
+  request in RAM, so a misread never makes it fetch from the flash outside a job.
+- **Boot canary:** CPU0 fills 32 words (zeros, ones, mixed) before the start; CPU1 reads them 64 times
+  before its hello and reports the wrong reads (`canary` = 1 + count). Not 1 -> held (`CANARY`). A
+  cheap first look: the misreads measured came under load, after seconds.
+- **2ND CORE setting** (`src/system/dual_mode.h`, settings word bits 27..28: 0 AUTO, 1 OFF; a record
+  without them reads AUTO). OFF: CPU1 is never started. A boot that follows one that crashed in its first
+  30 s (`bootguard.failed`) stays on one core (`AFTER CRASH`). With `DUAL_MODE_MENU 1` (set when a menu
+  can switch it back) AUTO turns itself OFF after a misread, canary, timeout or fault, saved once stopped;
+  without that menu the self-disable lasts the session.
+- **Supply BOOST** (`FELUCCA_DUAL_BOOST`, builder `DUAL_BOOST`, default off, EXPERIMENTAL, at the owner's
+  risk; `hal/fm1_supply.h`): before CPU1 starts, VDC14 (P3_ANA_CON6 [2:0]) to 5 = 1.50 V, then SYSVDD
+  (P3_ANA_CON9 [3:0]) to 15 = 1.38 V, one step a 100 us, never lowered (AC79 SDK `wl82/asm/p33.h`; levels
+  and order from Jangada 07cce38 `fm1_core_supply`). Not tried on an Optimist build.
+- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_supply_was` (BOOST). Emulator fallbacks:
+  `DUAL_FAILTEST=4` (a wrong check word at job 3000 -> MISREAD), `5` (a wrong canary -> CANARY).
+
 Also fixed on the way (default build too): DX7 phase sums (`phase += freq`, `phase + in[i]`) relied on
 signed overflow, undefined in C (UBSan on the host regress shows it); they now wrap in `uint32_t`
 (`dx7_wrap`). Same samples where the compiler already wrapped.

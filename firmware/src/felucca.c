@@ -26,6 +26,12 @@ static void dual_flash_enter(void);
 #include "fm1_lcd_hw.h"
 #include "felucca_tables.h"
 #if FELUCCA_DUAL
+#ifndef FELUCCA_DUAL_IDLE
+#define FELUCCA_DUAL_IDLE 1      /* CPU1 asleep between jobs (2 only; system/dual.c) */
+#endif
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE
+#define FM1_DUAL_NO_SPIN 1       /* (hal/fm1_dual.h: no RAM spin loop, CPU1 sleeps) */
+#endif
 #include "fm1_dual.h"
 #endif
 
