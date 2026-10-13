@@ -72,11 +72,16 @@ static void btnled_tests(void)
         }
     check(n > 150u, "button LEDs: every screen x track kind x button was walked");
     bk_set(BK_DR, SCR_HOME);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 1 && led_lvl(B_EDIT) == 1, "button LEDs, the mixer on DR: LFO dark, ENV and EDIT half (the lane's pages)");
+    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0 && led_lvl(B_EDIT) == 1, "button LEDs, the mixer on DR (no lane): LFO and ENV dark, EDIT half");
     bk_set(BK_LANE, SCR_HOME);
-    check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == 1, "button LEDs, the mixer on a lane: LFO and ENV half");
+    check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "button LEDs, the mixer on a lane: LFO and ENV half");
     bk_set(BK_MASTER, SCR_HOME);
     check(led_lvl(B_ENV) + led_lvl(B_LFO) + led_lvl(B_EDIT) + led_lvl(B_ARP) + led_lvl(B_SCL) + led_lvl(B_SEQ) == 0u && led_lvl(B_FX) == 1,
           "button LEDs, the mixer on MASTER: the track buttons dark, FX half");
+    bk_set(BK_MASTER, SCR_HOME);
+    press(B_SCL);
+    frames(HOLD_FRAMES);
+    check(lay.shown == LY_PLAY, "button LEDs, MASTER: SCL held shows no layer map");
+    release(B_SCL);
     bk_set(BK_SYN, SCR_HOME);
 }

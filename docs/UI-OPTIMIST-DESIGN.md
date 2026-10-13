@@ -403,7 +403,7 @@ and decay, CLICK a white tick at the start, the pitch drop in white, a sample's 
 sketched; the length at the right). A sound with LEVEL only (the X0X 909's rim shot) shows "-" in the other three
 cells and *No envelope: level only* as its graph. A build without the drum editor (FELUCCA_DRUM_EDIT 0) has no such
 row: ENV leaves the rows as they are, as before. The synth's ENV pages are not shown on the drum track
-(`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`: on the drum track ENV now has a function).
+(`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`). **The row needs a picked lane** (2026-10-13): on DR itself ENV does nothing and is dark.
 
 The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
@@ -2196,9 +2196,9 @@ under the full light, so a blinking button swings between full and half. The LIG
 | FX on the global FX screen | its next page |
 | any page button, STEP with a step held | the step's page lock (all but EDIT and GLO; EDIT too on the drum track: the lane's SOUND pages, section 18) |
 
-**Walked 2026-10-13 (feat fix/button-leds; tests/ui_optimist_btnled.h):** every screen x track kind (synth, DR with no lane, a lane, MASTER) x button (not PLAY, REC, OCT) is tapped and held, and its LED must be lit exactly when the tap changes the screen or the hold works a layer; no LED was found wrong. The user's mixer-on-DR screenshot (FX SCL ENV EDIT GLO HOME SAVE ARP SEQ half lit, LFO dark) is the rule working: ENV and EDIT tap into the remembered lane's pages (KICK's ENV, the kit's SOUND rows), SCL and ARP are hold-only layers (the song's scale, rolls). Whether ENV should open on DR with no lane picked is an open question (LFO needs a picked lane, ENV does not).
+**Walked 2026-10-13 (fix/button-leds; tests/ui_optimist_btnled.h):** every screen x track kind (synth, DR with no lane, a lane, MASTER) x button (not PLAY, REC, OCT) is tapped and held, and its LED must be lit exactly when the tap changes the screen or the hold works a layer. **Rulings that followed (the user, 2026-10-13):** (1) *the lane's pages need a picked lane*: on DR with no lane picked ENV does nothing, like LFO, and its LED is dark (`sound_page` hides the drum ENV row without `lane_picked()`); HOME + a key picks a lane and ENV and LFO light dim. EDIT stays (the kit's SOUND rows), SCL and ARP stay half lit on DR (hold-only layers: the song's scale, rolls). (2) *one dim level*: `FM1_LED_DIM_MASK` (hal/fm1_input.h) is the dim of every LED, buttons and key landmarks alike (one layer, `fm1_led_dim`): lit one scan frame in 8 (about 12%) in UI=1 builds, was one in 4 (read as lit); SLOOP's UI keeps 4. With menu LIGHTS the dim layer is the glow pulse `FM1_GLOW_NS` (about 4%), and the LIGHTS level scales the backlight only, so the dim does not follow it. (3) *the mixer's MASTER row*: holding SCL, EDIT or ARP shows no layer map (`lay_frame`: their `ly_bit` is 0).
 
-So on the drum track LFO is dark on DR itself and half lit with a lane selected (the lane's LFO, section 18); ENV is half lit (the lane's envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
+So on the drum track LFO and ENV are dark on DR itself and half lit with a lane selected (the lane's LFO, section 18, and envelope, section 4.3); EDIT, FX, SCL, GLO, SEQ stay
 half lit. **Judgment call:** LFO's held layer (the patterns, FELUCCA_PATTERNS) does not count, so LFO is dark on the drum
 track as the user asked, though LFO held there would still launch a pattern; the hold combinations (SAVE + page button
 saves a preset, HOME + it locks the layer) are not counted either: a tap decides. On the user-default builds OCT-
