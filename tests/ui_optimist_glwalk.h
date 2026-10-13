@@ -87,7 +87,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     cell_t c;
     char v[16];
     int ok;
-    turn(EN_ALGO, (int32_t)i - (int32_t)ui.row[scr]);   /* (ALGORITHM: the cursor line by line) */
+    line_at(scr, i);
     glw_line(scr, i, &c, v);
     ok = ui.scr == scr && ui.row[scr] == i && c.label && c.label[0] && v[0];
     if (c.kind == CK_VAL) {
@@ -144,7 +144,7 @@ static void glw_factory_tests(void)
         for (i = 0; i < n; i++) {
             const char *f;
             uint32_t tries;
-            turn(EN_ALGO, (int32_t)i - (int32_t)ui.row[scr]);
+            line_at(scr, i);
             glw_line(scr, i, &c, v);
             if (c.kind != CK_VAL || c.d)
                 continue;                               /* (a descriptor's line: its default, glw_walk_line) */

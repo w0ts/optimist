@@ -6,8 +6,8 @@
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane (on the mixer: mute the sequencer, seq_mute.c); + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
- *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, ALGORITHM
- *   moves the cursor line, PRESETS sets it); the mixer's knob sets are SELECT's
+ *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, a knob picks and
+ *   sets its line, PRESETS sets the cursor line; ALGORITHM is the track walk there too); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -508,10 +508,7 @@ static void op_knobs(uint32_t home)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
                                                          * not in a free take) */
-        if (sys_scr(ui.scr))
-            gl_algo(s);                                 /* (GLOBAL, SYSTEM: the cursor line by line, op_global.c) */
-        else
-            algo_walk(s, 0);
+        algo_walk(s, 0);                                /* (GLOBAL, SYSTEM too: never their cursor, the knobs pick the line) */
         turned = 1;
     }
     op_rows_fix();

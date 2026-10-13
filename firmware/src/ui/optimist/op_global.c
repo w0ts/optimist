@@ -2,7 +2,7 @@
 /* GLOBAL and SYSTEM, GLO's settings (docs/UI-OPTIMIST-DESIGN.md sections 4.7, 4.11, 20; the user, 2026-10-12: "the system
  * menu would be better and more readable as vertical list of options", "select scroll by page", "algo one by one",
  * "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the page moves line
- * by line)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,
+ * by line; 2026-10-13: "ALGORITHM moves track - NO. only the track!": no line-by-line encoder any more)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,
  * one setting a line: its name on the left, its value on the right, the lines under small section headers:
  *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
  *            page; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
@@ -12,8 +12,8 @@
  *   pages      fixed blocks of 4 lines, numbered within the screen (the header: "Tempo 2/5"); the 4 lines on screen are
  *              marked 1..4 at their left: KNOB k edits line k. A knob turned makes its line the cursor
  *   SELECT     a page a detent within the screen, stopping at its ends; the cursor on the page's first line
- *   ALGORITHM  the cursor a line a detent within the screen, stopping at its ends; past the page's last line the next
- *              page shows (and back)
+ *   KNOB k     line k of the page: edits it and makes it the cursor (the help line shows it)
+ *   ALGORITHM  the track walk, as on every screen (op_walk.c); never the cursor
  *   GLO        tapped: GLOBAL from any other screen; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its cursor line
  *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
  *              YES; a read-out: nothing. Never the track or its sound here
@@ -251,14 +251,6 @@ static void glo_step(int32_t s)
         r = gl_first(sc, gl_first(sc, r) - 1u);
     if (r != was)
         gl_at(r);
-}
-static void gl_algo(int32_t s)                          /* ALGORITHM: the cursor s lines on within the screen, stopping at its ends */
-{
-    if (!glo_cycle()) {                                 /* (the BLE devices list: its cursor, as SELECT) */
-        op_row_pick((uint32_t)clamp((int32_t)ui.row[ui.scr] + s, 0, (int32_t)sls_rows() - 1));
-        return;
-    }
-    gl_at((uint32_t)clamp((int32_t)ui.row[ui.scr] + s, 0, (int32_t)gl_n(ui.scr == SCR_SYSTEM) - 1));
 }
 static void gl_presets(int32_t s, uint32_t home)        /* PRESETS: the cursor line's value (HOME held: its default) */
 {
