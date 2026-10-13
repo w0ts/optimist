@@ -214,6 +214,36 @@ Build: `FELUCCA_DUAL=2 JIELI_TOOLCHAIN=~/.jieli/toolchain-docker sh build.sh`. C
 of `.ram_text`. The default build (`FELUCCA_DUAL=0`) keeps its source paths; host tests unchanged
 (131 golden renders, 0 changed; the 3 DX7 health failures and 3 CPU-over-budget entries were there before).
 
+### 4.1 The split by cost and the reverb one block late (2026-10-13, perf/mots-hot, perf/rev-pipe)
+
+`dual.c` splits each block's jobs between the cores by their measured render time (`dual_split`: the three parts, the
+drum track, and the reverb's kept block), longest first onto the core with less. `DUAL_PARTS` set at build time keeps
+the old fixed split (the emulator's references).
+
+The reverb tank runs one block (32 samples, 0.73 ms) late while CPU1 is up (`fx.c` `REV_LATE`, `DUAL_REV=0` builds
+without it). `fx_buses` keeps the block's send and its decisions (the reverb LFO's read points, the ROOM's gains,
+`fx_ret_block`'s plan: the CPU guard's fade, REV RET). `rev_job` then runs the tank during the next block's render, on
+whichever core the split picks, and its wet is heard in that block. The tank's state moves in the same order as inline
+(a block's decision, its tank, the next decision), so the wet is the inline wet one block later, sample for sample
+(bench 15 with `FELUCCA_BENCH_REVONLY=1`, signature 6: 255 blocks).
+
+The reverb's line and cells have one owner. Only `rev_job` touches them, on one core, between the fork and the join;
+the decisions are made on CPU0 after the join. Nothing in the main loop writes them (fx-lend lends the CHO and DLY
+lines only, never the reverb's).
+
+With CPU1 down, the reverb runs inline as before:
+- a DUAL build with 2ND CORE OFF, or CPU1 never up: no change;
+- CPU1 put down by a fault or a timeout: the kept block's tank runs on CPU0 (the tank stays continuous), but its wet
+  is skipped. The tail jumps one block (32 samples) once, in the block after the fault's own late half. This is a
+  single-block discontinuity, not a crossfade: a crossfade did not fit the mots build's flash (8 B over). With
+  `DUAL_FAILTEST=2`, the largest sample step is the timeout's late half, the same as with `DUAL_REV=0`.
+
+A single-core build never takes this path, so the host goldens are unchanged.
+
+Bench 15 (mots, 480 MHz), CPU0 / CPU1:
+- `DUAL_REV=0`: 22.4 % / 16.0 %;
+- late reverb: 20.7 % / 16.9 %.
+
 ## 5. Emulator results [V]
 
 Emulator `feat/dual-core-emu`, `play_check`, 1 s boot then 3 s recorded. Scenarios (`bench.c`): 8 voices

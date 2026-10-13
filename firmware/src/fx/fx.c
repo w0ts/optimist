@@ -1106,6 +1106,62 @@ static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int3
     }
 }
 #endif
+/* The reverb one block late on the second core (FELUCCA_DUAL 2, perf/mots-asm 2026-10-13; DUAL_REV=0: never). While
+ * CPU1 is up (dual.c sets rev_late each block it posts a job), fx_buses does not run the reverb's block: it keeps the
+ * send and the block's decisions (the LFO's read points, the ROOM's gains, fx_ret_block's plan: the guard, REV RET),
+ * and the tank runs them during the next block's render, on whichever core dual.c's split gives it (rev_job), its
+ * wet heard then: 32 samples (0.73 ms) later than the dry. The tank's state moves in the same order as inline (the
+ * decision of a block, its tank, the next decision), so the wet is the inline wet one block later, sample for
+ * sample. With CPU1 down (a DUAL build with 2ND CORE OFF, never up, or put down by a fault or a timeout) the reverb
+ * runs inline as before; at the switch (CPU1 going down with a block kept) that block's tank runs on CPU0 and its
+ * wet is skipped: the tail jumps one block (32 samples) once, in the block after the fault's own late half. Never in a single-core build: the
+ * host's renders (tests/golden.txt) are unchanged */
+#ifndef DUAL_REV
+#define DUAL_REV 1
+#endif
+#define REV_LATE (FELUCCA_DUAL >= 2 && DUAL_REV && FELUCCA_FX_REVERB)
+#if REV_LATE
+static struct {
+    int32_t in[CTL];             /* the block's send */
+    int32_t l[CTL], r[CTL];      /* its wet (rev_job) */
+    int32_t ma, mb, g, lpk, wv;  /* the block's read points and ROOM gains; what the tank wrote (fx_q) */
+    uint32_t plan;               /* fx_ret_block's plan: FXB_R, FXB_RS, the guard's RG_* */
+    uint8_t pend, done;          /* a block kept, not heard yet; its tank run */
+} rvj;
+static uint8_t rev_late;         /* this block: keep the reverb's block for the next (dual.c: CPU1 has a job) */
+
+/* the reverb's block added into l / r: the tank and the guard's / REV RET's gain on it (rev_pre / rev_post keep what
+ * l / r held apart). fx_buses' inline block (on the wet) and the kept block's (rev_job, on zeroes) alike */
+static HOT2 __attribute__((noinline)) void rev_block(const int32_t *in, int32_t *l, int32_t *r, int32_t ma,
+                                                     int32_t mb, int32_t g, int32_t lpk, uint32_t plan, int32_t *wv)
+{
+#if CG_REV
+    {
+        int32_t tl[CTL], tr[CTL];
+        uint32_t rg = plan >> FXB_RG;
+        int slow = (int)(plan & FXB_RS);
+        if (slow)
+            rev_pre(rg, tl, tr, l, r, CTL);
+        if (rg == RG_ON || rg == RG_FADE)
+            rev_bus(in, l, r, CTL, ma, mb, g, lpk, (plan & FXB_R) != 0, wv);
+        if (slow)
+            rev_post(rg, tl, tr, l, r, CTL, wv);
+    }
+#else
+    rev_bus(in, l, r, CTL, ma, mb, g, lpk, (plan & FXB_R) != 0, wv);
+#endif
+}
+static HOT2 __attribute__((noinline)) void rev_job(void)   /* the kept block's tank (either core: dual.c dual_run) */
+{
+    uint32_t i;
+    for (i = 0; i < CTL; i++)
+        rvj.l[i] = rvj.r[i] = 0;
+    rvj.wv = 0;
+    rev_block(rvj.in, rvj.l, rvj.r, rvj.ma, rvj.mb, rvj.g, rvj.lpk, rvj.plan, &rvj.wv);
+    rvj.done = 1;
+}
+#endif
+
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. Returns 0 when every bus was idle: wet_l / wet_r were not written (they would
@@ -1120,7 +1176,12 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
     uint32_t plan;
-#if CG_REV
+#if REV_LATE
+    int had = rvj.pend;                                 /* a kept block to hear now */
+#else
+    const int had = 0;
+#endif
+#if CG_REV && !REV_LATE
     uint32_t rg;
 #endif
 #if FELUCCA_UI == 1
@@ -1144,6 +1205,12 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #endif
 #define CHO_R0 (ca0 + dca * (int32_t)i)
 #define CHO_R1 (cb0 + dcb * (int32_t)i)
+#if REV_LATE
+    if (had && !rvj.done)                               /* (CPU1 down before it ran the kept block: here) */
+        rev_job();
+    if (had)                                            /* (the kept block's tank, before this block's decisions: */
+        fx.rev_q = fx_q(fx.rev_q, rvj.wv, n);           /* the order inline has) */
+#endif
     /* (the input scan only once the bus' lines are clear) */
     run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || fx_any(cho_in, n));   /* (registry.h: an FX not built) */
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
@@ -1151,7 +1218,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                                   REV_HALF_BUSY() || fx_any(rev_in, n));   /* (REV_HALF: its filters too) */
     plan = fx_ret_block((uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2);   /* (the returns, the guard) */
     run_c = (plan & FXB_C) != 0, run_d = (plan & FXB_D) != 0, run_r = (plan & FXB_R) != 0;
-#define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r))   /* (SPRING: its own state) */
+#define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r | had))   /* (SPRING: its own state) */
     if (run_c) {
         for (i = 0; i < n; i++) {
             wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
@@ -1175,7 +1242,23 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     } else {
         fx.dly_w += n;
     }
-#if CG_REV
+#if REV_LATE
+    if (rev_late) {                                     /* kept for the next block (rev_job); the last one heard */
+        for (i = 0; i < n; i++)
+            rvj.in[i] = rev_in[i];
+        if (had)
+            for (i = 0; i < n; i++) {
+                wet_l[i] += rvj.l[i];
+                wet_r[i] += rvj.r[i];
+            }
+        rvj.ma = ma, rvj.mb = mb, rvj.g = g, rvj.lpk = lpk, rvj.plan = plan;
+        rvj.pend = 1, rvj.done = 0;
+        wv = 0;                                         /* (fx.rev_q: when its tank has run) */
+    } else {                                            /* inline (the same code as the kept block's). CPU1 just */
+        rvj.pend = 0;                                   /* gone down with a block kept: its tank ran (above), its */
+        rev_block(rev_in, wet_l, wet_r, ma, mb, g, lpk, plan, &wv);   /* wet is skipped: the tail jumps a block */
+    }
+#elif CG_REV
     {   /* the bus on, REV RET at unity: the tank into the wet, as before; else (the guard fading or off, REV RET below
          * unity) rev_pre / rev_post around it */
         int32_t tl[CTL], tr[CTL];
@@ -1199,7 +1282,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #undef CHO_R1
     fx.cho_q = fx_q(fx.cho_q, wc, n);
     fx.dly_q = fx_q(fx.dly_q, wd, n);
-    fx.rev_q = fx_q(fx.rev_q, wv, n);
+#if REV_LATE
+    if (!rev_late)                                      /* (kept: counted when its tank runs, above) */
+#endif
+        fx.rev_q = fx_q(fx.rev_q, wv, n);
     return !FX_ALL_IDLE;
 #undef FX_ALL_IDLE
 }
@@ -1961,11 +2047,13 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
-    if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n))   /* (0: every bus idle, nothing to add) */
+    if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n)) {  /* (0: every bus idle, nothing to add) */
+        BENCH_SIG(6, wet_l, n);
         for (i = 0; i < n; i++) {
             mix_l[i] += wet_l[i];
             mix_r[i] += wet_r[i];
         }
+    }
     if (FELUCCA_FX_DUST)
         dust_process(mix_l, mix_r, n);
     if (FELUCCA_FX_PUNCH)

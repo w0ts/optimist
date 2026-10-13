@@ -42,11 +42,17 @@
 #include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
 #endif
 #define DUAL_JOB_DRUMS (1u << NPART)               /* a job's bit: the drum track (slicer_drums, dbus_run) */
+#if REV_LATE
+#define DUAL_JOB_REV (1u << (NPART + 1u))          /* the reverb's kept block (fx.c rev_job) */
+#define DUAL_JOBS (NPART + 2u)
+#else
+#define DUAL_JOB_REV 0u
 #define DUAL_JOBS (NPART + 1u)
+#endif
 #if DUAL_BALANCE
 #define DUAL_ALLOWED ((1u << DUAL_JOBS) - 1u)      /* the job bits CPU1 may be given (fm1_dual_take): any */
 #else
-#define DUAL_ALLOWED (DUAL_PARTS)                  /* (only its fixed parts) */
+#define DUAL_ALLOWED (DUAL_PARTS | DUAL_JOB_REV)   /* (its fixed parts, and the reverb's kept block) */
 #endif
 static struct {
     uint8_t up;                                    /* CPU1 runs and takes jobs */
@@ -90,9 +96,14 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
             t0 = fm1_ticks();
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
-            } else {
+            } else if (p == NPART) {
                 slicer_drums(mix_l, mix_r, send_r, n);
                 dbus_run(n);                       /* the drum bus's inserts and sends (fx.c; the drums alone) */
+            } else {
+#if REV_LATE
+                if (!rvj.done)                     /* (CPU1 down after it ran it: not twice) */
+                    rev_job();                     /* the reverb's block kept from the last block (fx.c) */
+#endif
             }
             t1 = fm1_ticks() - t0;
             dual_cost[p] += t1 - (dual_cost[p] >> 3);
@@ -114,17 +125,19 @@ static HOT void dual_job(uint32_t mask)            /* CPU1: its jobs of the bloc
 /* CPU0, before the fork: the jobs for CPU1. The longest first, each onto the core with less so far (ties: CPU0, no
  * job when CPU1 would get nothing); CPU1 starts with its wake's delay. Integer compares only */
 #define DUAL_WAKE_COST 64u                          /* (ticks x 8: ~0.3 us, CPU1's interrupt entry) */
-static HOT uint32_t dual_split(void)
+static HOT uint32_t dual_split(uint32_t jobs)    /* jobs: the block's (the reverb's only when one is kept) */
 {
 #if DUAL_BALANCE
     uint32_t ord[DUAL_JOBS], i, j, k, c0 = 0, c1 = DUAL_WAKE_COST, mask = 0;
-    for (i = 0; i < DUAL_JOBS; i++) {              /* (insertion sort, longest first: 4 jobs) */
+    for (i = 0; i < DUAL_JOBS; i++) {              /* (insertion sort, longest first: 4 or 5 jobs) */
         for (j = i; j && dual_cost[ord[j - 1u]] < dual_cost[i]; j--)
             ord[j] = ord[j - 1u];
         ord[j] = i;
     }
     for (i = 0; i < DUAL_JOBS; i++) {
         k = ord[i];
+        if (!((jobs >> k) & 1u))
+            continue;
         if (c1 < c0) {
             c1 += dual_cost[k];
             mask |= 1u << k;
@@ -134,7 +147,7 @@ static HOT uint32_t dual_split(void)
     }
     return mask;
 #else
-    return DUAL_PARTS;
+    return (DUAL_PARTS | DUAL_JOB_REV) & jobs;
 #endif
 }
 #endif
@@ -357,7 +370,7 @@ static HOT void dual_lfo_draw(void)
 static HOT void mix_block_dual(int32_t *out, uint32_t n)
 {
     mixacc_t *A = &dual_acc[0], *B = &dual_acc[1];
-    uint32_t i, mask = 0, req = 0, got = 0, post = 0, sw;
+    uint32_t i, mask = 0, req = 0, got = 0, post = 0, jobs, sw;
 #if FELUCCA_USB_AUDIO
     capture_clear(n);                              /* the stems (each part writes its own; fx.c) */
 #endif
@@ -377,8 +390,13 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
                                                     * sound for this block, on both cores (voice.c sound_change) */
     drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade (before the fork: either */
     drums.a1 = 32767 - gain_next(TDRUM);           /* core may render the drums) */
+    jobs = (1u << (NPART + 1u)) - 1u;              /* the parts and the drums */
+#if REV_LATE
+    rev_late = (uint8_t)(dual.up && n == CTL);     /* CPU1 up: the reverb one block late (fx.c fx_buses) */
+    jobs |= rvj.pend ? DUAL_JOB_REV : 0u;          /* (its kept block, on either core) */
+#endif
     if (dual.up && n == CTL) {
-        mask = dual_split();
+        mask = dual_split(jobs);
         post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
     }
     if (post) {
@@ -392,7 +410,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         fm1_dual_wake();                           /* CPU1 out of its idle (soft interrupt 124) */
 #endif
     }
-    dual_run(~mask & ((1u << DUAL_JOBS) - 1u), n, A);   /* CPU0's jobs: its parts, the drums unless CPU1 has them */
+    dual_run(jobs & ~mask, n, A);                  /* CPU0's jobs: those CPU1 was not given */
     if (post) {
         got = dual_join(req);
         if (!got) {                                /* CPU1 is down: its jobs here (a click, once) */
