@@ -35,8 +35,10 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
     uint32_t i, took;
     int rc = 0;
     usr_nz[k] = 0;
+#if SMP_USR_ZONES
     for (i = 0; i < 16u; i++)
         usr_zone[k][i].n = 0;                     /* a sounding voice ends instead of reading 0xFF */
+#endif
     for (i = 0; i < (all ? SMP_USER_CAP(k) / 0x1000u : 1u) && !rc; i++) {
         rc = fl_erase4k_quiet(ed_smp_slot(k) + i * 0x1000u, &took);
         fm1_wdt_feed();

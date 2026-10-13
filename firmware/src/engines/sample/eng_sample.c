@@ -54,7 +54,16 @@ typedef struct {
     uint32_t data_len, crc, rsv2[2];
     smp_zone_t zone[16];
 } smp_user_hdr_t;                                   /* 32 + 16 x 28 = 480 B, data at +512 */
+/* the user slots' zones play only through SAMPLE, GRAIN, SLICE and the drum lanes' USR sounds (and 2.4's USR kit
+ * import, under DRUM_USR): a build with none of them keeps no RAM copy (usr_nz stays: the slots' state is shown) */
+#define SMP_USR_ZONES (FELUCCA_ENG_SAMPLE || FELUCCA_ENG_GRAIN || FELUCCA_ENG_SLICE || FELUCCA_DRUM_USR)
+#if SMP_USR_ZONES
 static smp_zone_t usr_zone[SMP_USER_SLOTS][16];     /* RAM copy, off rebased onto SMP_DATA */
+#define smp_usr_zone(k, z) (&usr_zone[k][z])
+#else
+static const smp_zone_t SMP_ZONE_NONE;              /* (n 0: a voice given it ends) */
+#define smp_usr_zone(k, z) ((void)(k), (void)(z), &SMP_ZONE_NONE)
+#endif
 static uint8_t usr_nz[SMP_USER_SLOTS];
 static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3"};
 
@@ -96,8 +105,10 @@ static void smp_user_scan(uint32_t k)
         zs[i].off += base;
     }
     fm1_irq_off();
+#if SMP_USR_ZONES
     for (i = 0; i < h->nz; i++)
         usr_zone[k][i] = zs[i];
+#endif
     usr_nz[k] = h->nz;
     fm1_irq_on();
     slc_user_scan(k, 1);
@@ -106,7 +117,11 @@ static void smp_user_scan(uint32_t k)
 /* zone index in a voice: < 0x8000 built-in, else 0x8000 | slot << 5 | zone */
 AINL const smp_zone_t *smp_zone(uint32_t zi)
 {
+#if SMP_USR_ZONES
     return zi < 0x8000u ? &SMP_ZONES[zi] : &usr_zone[(zi >> 5) & 3u][zi & 31u];
+#else
+    return zi < 0x8000u ? &SMP_ZONES[zi] : &SMP_ZONE_NONE;
+#endif
 }
 
 /* voice: ph[0] position (samples), ph[1] fraction Q16, s[0] predictor, s[1] step
@@ -136,10 +151,12 @@ static void sample_note_on(track_t *t, voice_t *v)
                 zi = set->z0 + i;
         v->s[4] = (int32_t)(zi == 0xFFFFu ? set->z0 : zi);
     } else {                                        /* user slot: silent if empty */
+#if SMP_USR_ZONES
         uint32_t k = si - SMP_NSETS;
         for (i = 0; i < usr_nz[k]; i++)
             if (v->note >= usr_zone[k][i].lo && v->note <= usr_zone[k][i].hi)
                 zi = 0x8000u | k << 5 | i;
+#endif
         v->s[4] = (int32_t)(zi == 0xFFFFu ? 0 : zi);
     }
     v->ph[0] = 0;

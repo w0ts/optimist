@@ -105,7 +105,7 @@ AINL uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 AINL uint32_t gr_nz(uint32_t src) { return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS]; }
 AINL const smp_zone_t *gr_zone(uint32_t src, uint32_t zl)
 {
-    return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : &usr_zone[(src - SMP_NSETS) % SMP_USER_SLOTS][zl & 15u];
+    return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : smp_usr_zone((src - SMP_NSETS) % SMP_USER_SLOTS, zl & 15u);
 }
 AINL uint32_t gr_stamp(uint32_t src)
 {
