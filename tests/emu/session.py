@@ -239,9 +239,14 @@ class Emu:
         return [int(x) for x in self.cmd(f"peekb {at} {n}")[0].split()]
 
     def mem(self, at, n):
-        """n bytes at a symbol / address as bytes (read as words, little-endian)"""
-        w = self.peek(at, (n + 3) // 4)
-        return b"".join(x.to_bytes(4, "little") for x in w)[:n]
+        """n bytes at a symbol / address as bytes, read a byte at a time: a byte array (uint8_t) has no word alignment,
+        and a word read off a word boundary faults in the emulator's bus, which the driver answers with 0xDEADBEEF
+        (main.rs read); where the linker puts such an array moves with the build (the fx check's dins_amt, 2026-10-13)"""
+        return bytes(self.peekb(at, n))
+
+    def word(self, at):
+        """the 32-bit little-endian value at a symbol / address, any alignment (mem)"""
+        return int.from_bytes(self.mem(at, 4), "little")
 
     def poke(self, at, v):
         self.cmd(f"poke {at} {v}")
