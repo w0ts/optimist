@@ -420,7 +420,7 @@ static uint32_t tl_cook_hit(track_t *t, uint32_t len, uint32_t lm)
         for (j = 0; j < len; j++)
             used |= dstep_mask(&t->dstep[j]);
         used &= lm;
-        l = (lm >> TL_HATC) & 1u ? TL_HATC : (uint32_t)__builtin_ctz(lm | 0x10000u) & 15u;
+        l = (lm >> TL_HATC) & 1u ? TL_HATC : (uint32_t)__builtin_ctz(lm | 1u << DRUM_LANES) & 15u;
         for (j = tl_rnd(DRUM_LANES); used && j < 2u * DRUM_LANES; j++)
             if ((used >> (j % DRUM_LANES)) & 1u) {
                 l = j % DRUM_LANES;
