@@ -12,7 +12,10 @@
  * Each fades its wet share in and out over 2.9 ms (as insfx.c's). Starting from rest nothing the line held is read: a
  * count of the samples written since (fill) masks the rest, so a restart needs no clear in the ISR; fxi.c zeroes an
  * instance before it hands it out. Once the line holds only zeros and the input is silent the block is skipped (the
- * output is the input, bit for bit). No divide, no packed 16-bit SIMD. */
+ * output is the input, bit for bit). No divide, no packed 16-bit SIMD.
+ * An instance's line is a pointer (fxi.c sets it before it hands the instance out): its own pool line, or a slice of
+ * its send's line lent while the send is in no master slot (fxi.c "Lending"; FXI_LND below). Its evict flag (fxi.c,
+ * the line going back to the send) fades it out as at amount 0. */
 #if INS_LIM
 #define FXI_NL ((uint32_t)(FXT_N - FXT_LIM0))           /* the limited types: CHRS ECHO */
 #define FXI_NONE 0xFFu
@@ -20,6 +23,15 @@ _Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_
                "an instance count: 0 .. a track each");
 _Static_assert(FXT_LIM0 == FXT_N - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO the last two types");
 static const uint8_t FXI_CAP[2] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY};   /* (by type, from FXT_LIM0) */
+/* the instances a send's line can lend (fxi.c, "Lending"): CHRS in the chorus send's 2048 samples (2 lines of 1024),
+ * ECHO in the delay send's (its lines of 4096: 4 at any DLY_LEN, 16384 the shortest), never more than the tracks left
+ * after the builder's own (a type is once a track). Instance i of a type: its own pool line below FXI_CAP, then the
+ * send's line's slices FXI_CAP .. FXI_CAP + FXI_LND - 1 */
+#define FXL_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define FXL_N0 (FELUCCA_INS_CHORUS && FELUCCA_FX_CHORUS ? FXL_MIN(CHO_LEN / 1024u, NTRK - FELUCCA_INS_CHORUS) : 0u)
+#define FXL_N1 (FELUCCA_INS_DELAY && FELUCCA_FX_DELAY ? FXL_MIN(DLY_LEN / 4096u, NTRK - FELUCCA_INS_DELAY) : 0u)
+static const uint8_t FXI_LND[2] = {FXL_N0, FXL_N1};
+#define FXI_TOT(j) ((uint32_t)FXI_CAP[j] + FXI_LND[j])
 /* the instance each track's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
  * FXI_NONE: none (the type bypassed on that track) */
 static volatile uint8_t fxi_at[NTRK][2] = {{FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE},
@@ -36,9 +48,11 @@ typedef struct {
     uint16_t wp, fill, q;                               /* the write place, samples written since the start (<= LEN),
                                                          * zeros written in a row (<= LEN) */
     uint8_t a, on;                                      /* the last amount (a fade-out runs at it), running (0: at rest) */
-    int16_t line[IFX_CH_LEN];
+    uint8_t evict;                                      /* its line goes back to the send (fxi.c): fading out, at 0 */
+    int16_t *line;                                      /* IFX_CH_LEN samples: its own pool line, or a lent slice */
 } ifx_ch_t;
-static ifx_ch_t ifx_chrs[FELUCCA_INS_CHORUS] __attribute__((section(".pool")));
+static int16_t ifx_chrs_ln[FELUCCA_INS_CHORUS][IFX_CH_LEN] __attribute__((section(".pool")));
+static ifx_ch_t ifx_chrs[FELUCCA_INS_CHORUS + FXL_N0] __attribute__((section(".pool")));   /* (main RAM is scarcer) */
 /* AINL: a tap d (Q8 samples back) after the sample at wp was written; 0 past what was written since the start */
 AINL int32_t ifx_ch_tap(const int16_t *ln, uint32_t wp, uint32_t fill, int32_t d)
 {
@@ -54,6 +68,8 @@ static HOT2 __attribute__((noinline)) void ifx_chorus(ifx_ch_t *s, int32_t a, in
 {
     uint32_t i, wp, fill, q, inc = IFX_INC(IFX_CH_RATE);
     int32_t w = s->w, to, dep, s0, s1, pa, pb, da, db;
+    if (s->evict)
+        a = 0;                                          /* (its line goes back to the send: out, then at rest) */
     if (!a && !w) {
         s->on = 0;                                      /* (at rest: it starts again from a clean line) */
         return;
@@ -102,14 +118,17 @@ static HOT2 __attribute__((noinline)) void ifx_chorus(ifx_ch_t *s, int32_t a, in
 typedef struct {
     int32_t w;                                          /* the echo's level (Q15) */
     uint16_t wp, fill, q;                               /* (as CHRS's: fill and q <= IFX_EC_LEN) */
-    uint8_t a, on;
-    int16_t line[IFX_EC_LEN];
+    uint8_t a, on, evict;                               /* (as CHRS's) */
+    int16_t *line;                                      /* IFX_EC_LEN samples: its own pool line, or a lent slice */
 } ifx_ec_t;
-static ifx_ec_t ifx_echo[FELUCCA_INS_DELAY] __attribute__((section(".pool")));
+static int16_t ifx_echo_ln[FELUCCA_INS_DELAY][IFX_EC_LEN] __attribute__((section(".pool")));
+static ifx_ec_t ifx_echo[FELUCCA_INS_DELAY + FXL_N1] __attribute__((section(".pool")));
 static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
 {
     uint32_t i, wp, fill, q;
     int32_t w = s->w, to, fb;
+    if (s->evict)
+        a = 0;
     if (!a && !w) {
         s->on = 0;
         return;
@@ -161,6 +180,22 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
 #endif
     return 0;
 }
+/* track k's instance of type ty is fading out to give its lent line back (fxi.c): as off (a silent part: at rest) */
+AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
+{
+    uint32_t i;
+    if (ty < FXT_LIM0 || ty >= FXT_N || (i = ifx_lim_at(ty, k)) == FXI_NONE)
+        return 0;
+#if FELUCCA_INS_CHORUS
+    if (ty == FXT_CHRS)
+        return ifx_chrs[i].evict;
+#endif
+#if FELUCCA_INS_DELAY
+    if (ty == FXT_ECHO)
+        return ifx_echo[i].evict;
+#endif
+    return 0;
+}
 /* to rest at once (a part not heard: insfx.c ifx_quiet_part); it starts again from a clean line */
 AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
 {
@@ -184,11 +219,11 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
     if (i == FXI_NONE)
         return;
 #if FELUCCA_INS_CHORUS
-    if (ty == FXT_CHRS && i < FELUCCA_INS_CHORUS)
+    if (ty == FXT_CHRS && i < FELUCCA_INS_CHORUS + FXL_N0)
         ifx_chorus(&ifx_chrs[i], a, l, r, n, sh);
 #endif
 #if FELUCCA_INS_DELAY
-    if (ty == FXT_ECHO && i < FELUCCA_INS_DELAY)
+    if (ty == FXT_ECHO && i < FELUCCA_INS_DELAY + FXL_N1)
         ifx_echo_run(&ifx_echo[i], a, l, r, n, sh);
 #endif
     (void)a, (void)l, (void)r, (void)n, (void)sh;

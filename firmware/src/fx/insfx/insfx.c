@@ -359,6 +359,11 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
 #endif
 
 #include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
+#if INS_LIM
+#define IFX_EV(ty, k) ifx_lim_ev(ty, k)                 /* (fading out to give a lent line back: as off) */
+#else
+#define IFX_EV(ty, k) 0
+#endif
 
 /* the state of type ty on instance i: its wet share now (0: at rest; the CPU guard). A limited type (CHRS ECHO): i is
  * the track, its instance's (none: 0) */
@@ -475,7 +480,8 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
     uint32_t k = (uint32_t)(t - trk) % NPART, ty, m = ifx_awake[k] & FXT_BUILT;
     int32_t on = fx_on(t);
     for (ty = 0; m; ty++, m >>= 1) {                    /* (only the types not at rest: ifx_awake) */
-        if (!(m & 1u) || ty < FXT_NEW0 || !FAR(ifx_wn)(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
+        if (!(m & 1u) || ty < FXT_NEW0 || !FAR(ifx_wn)(ty, k) ||
+            (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]] && !IFX_EV(ty, k)))   /* (evicted: fxi.c, as off) */
             continue;
         ifx_awake[k] &= (uint16_t)~FXT_BIT(ty);         /* (to rest here, below) */
 #if INS_LIM

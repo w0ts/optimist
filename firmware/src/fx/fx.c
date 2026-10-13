@@ -1048,12 +1048,18 @@ static HOT2 __attribute__((noinline)) void rev_post(uint32_t rg, const int32_t *
  * the reverb's RG_* from bit FXB_RG on */
 #define FXB_C 1u
 #define FXB_D 2u
+_Static_assert(FXB_C == 1u && FXB_D == 2u, "fx_ret_block: fxl_lent's bits (fx_slots.c) are FXB_C FXB_D");
 #define FXB_R 4u
 #define FXB_CG 8u
 #define FXB_RS 16u
 #define FXB_RG 8
 static HOT2 __attribute__((noinline)) uint32_t fx_ret_block(uint32_t run)
 {
+#if INS_LIM
+    run &= ~(uint32_t)fxl_lent;                        /* a line lent to the inserts (fxi.c, the main loop): its bus not
+                                                        * run, its line untouched (no step, no RET-0 clear) until it is
+                                                        * handed back (FXB_C FXB_D: fxl_lent's bits 0 1) */
+#endif
 #if CG_REV
     uint32_t rg = rev_guard((int)(run & FXB_R));
     if (rg != RG_ON && rg != RG_FADE)

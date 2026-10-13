@@ -64,6 +64,7 @@ static void reset(void)
     uint32_t k;
     for (k = 0; k < NTRK; k++)
         slots(k, FXT_NONE, FXT_NONE), trk[k].p[P_FXOFF] = 0;
+    fxs_set(FXS_DEF);                                   /* (the master slots: ---- CHO DLY REV) */
     fxi_init();
     fxi_poll();
 }
@@ -75,7 +76,7 @@ static void t_assign(void)
     sine();
     check("built: CHRS 2 instances, ECHO 1; both free", fxi_cap(FXT_CHRS) == 2u && fxi_cap(FXT_ECHO) == 1u &&
           fxi_free(FXT_CHRS) == 2u && fxi_used(FXT_ECHO) == 0u);
-    memset(ifx_chrs, 0x5A, sizeof ifx_chrs);            /* (an old line in every instance) */
+    memset(ifx_chrs_ln, 0x5A, sizeof ifx_chrs_ln);      /* (an old line in every own instance) */
     slots(1, FXT_CHRS, FXT_NONE);
     check("picked: no instance before the main loop's pass (WAIT, bypassed)", fxi_state(1, 0) == FXI_WAIT &&
           ifx_lim_at(FXT_CHRS, 1) == FXI_NONE);
@@ -87,10 +88,10 @@ static void t_assign(void)
           fxi_used(FXT_CHRS) == 1u && fxi_free(FXT_CHRS) == 1u);
     {
         uint32_t b, z = 1;
-        const uint8_t *p = (const uint8_t *)&ifx_chrs[i0];
-        for (b = 0; b < sizeof ifx_chrs[i0]; b++)
+        const int16_t *p = ifx_chrs[i0].line;
+        for (b = 0; b < IFX_CH_LEN; b++)
             z &= p[b] == 0;
-        check("... zeroed when handed out (the old line gone)", z && ifx_chrs[i0 ^ 1u].line[0] == 0x5A5A);
+        check("... zeroed when handed out (the old line gone), its own pool line", z && p == ifx_chrs_ln[i0] && !ifx_chrs[i0].w && ifx_chrs_ln[i0 ^ 1u][0] == 0x5A5A);
     }
     play(1, 90);
     check("... heard", !same());
@@ -192,6 +193,150 @@ static void t_query(void)
     check("... fxi_state of an empty slot and of DIST: NA", fxi_state(0, 0) == FXI_NA && fxi_state(1, 0) == FXI_NA);
 }
 
+/* ---- Lending (fxi.c): the chorus send's line as CHRS instances while CHO is in no master slot */
+static int32_t lo[2 * CTL];
+static void blocks(uint32_t nb)                         /* the whole mix, nb blocks, the main loop's pass between them */
+{
+    while (nb--) {
+        mix_block(lo, CTL);
+        fxi_poll();
+    }
+}
+static int zeros16(const int16_t *p, uint32_t n)
+{
+    while (n--)
+        if (*p++)
+            return 0;
+    return 1;
+}
+static void t_lend(void)
+{
+    uint32_t own = FXI_CAP[0], k = own, i, b, ok;
+    int32_t w0, w1;
+    reset();
+    host_preset(&trk[k], 0, 0);
+    trk[k].p[P_SUS] = 127, trk[k].p[P_LEVEL] = 100, trk[k].p[P_TCHRS] = 100;
+    trk_note_on(&trk[k], 57, 100);
+    check("the chorus send's line lends 2 CHRS lines (4 KB), the delay's ECHO lines up to a track each",
+          FXI_LND[0] == 2u && FXI_LND[1] == NTRK - FXI_CAP[1]);
+    for (i = 0; i < own; i++)
+        slots(i, FXT_CHRS, FXT_NONE);
+    slots(k, FXT_CHRS, FXT_NONE);
+    blocks(4);
+    check("CHO in a master slot: nothing lent, the track past the builder's count FULL",
+          !fxl_lent && fxi_state(k, 0) == FXI_FULL && fxi_cap(FXT_CHRS) == own);
+    /* the send out of the slots: lent only once its bus is idle (a full line of zeros) */
+    fxs_load(1, FXT_NONE);
+    fx.cho_q = 100;                                     /* (as if its tail still rang) */
+    fxi_poll();
+    check("CHO out of the slots, its tail ringing: not lent yet (WAIT), cap counts the send's lines",
+          !fxl_lent && fxi_state(k, 0) == FXI_WAIT && fxi_cap(FXT_CHRS) == own + 2u);
+    fx.cho_q = FX_Q_MAX;
+    blocks(1);
+    i = ifx_lim_at(FXT_CHRS, k);
+    check("... idle: lent (the gate set), the track has a slice of the send's line (OK)", (fxl_lent & 1u) &&
+          i == own && ifx_chrs[i].line == cho_buf && fxi_state(k, 0) == FXI_OK && fxi_lent(FXT_CHRS) == 1u);
+    blocks(64);
+    check("... heard: the insert writes its slice", !zeros16(cho_buf, IFX_CH_LEN));
+    {   /* the bus gated: fed a loud send it neither steps nor clears the lent line */
+        static int16_t snap[CHO_LEN];
+        int32_t ci[CTL], z[CTL] = {0}, wl[CTL], wr[CTL];
+        for (b = 0; b < CTL; b++)
+            ci[b] = 40000;
+        memcpy(snap, cho_buf, sizeof snap);
+        song.g[G_CRET] = 0;                             /* (CHO RET 0 would clear the line: not while lent) */
+        (void)fx_buses(ci, z, z, wl, wr, CTL);
+        song.g[G_CRET] = 127;
+        check("the chorus bus gated while lent: a loud send, RET 0: its line untouched", !memcmp(snap, cho_buf, sizeof snap));
+    }
+    /* the send back into a slot: the insert fades out first, then the line goes back, zeroed */
+    w0 = ifx_chrs[i].w;
+    fxs_load(1, FXT_CHO);
+    fxi_poll();
+    check("CHO back in a slot: taking it back (the insert still on it, evicted, the gate still set)",
+          fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHRS, k) == i && ifx_chrs[i].evict && (fxl_lent & 1u));
+    mix_block(lo, CTL);
+    w1 = ifx_chrs[i].w;
+    check("... a fade-out, not a cut (one block: down by 32 x the slope)", w0 == 32768 && w1 == w0 - (int32_t)CTL * IFX_SLOPE);
+    blocks(8);
+    check("... faded: the line back to the bus, all zeros, the gate cleared; the track FULL again",
+          fxl_st[0] == FXL_SEND && !(fxl_lent & 1u) && zeros16(cho_buf, CHO_LEN) && fx.cho_q >= CHO_LEN &&
+          fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_CHRS, k) == FXI_NONE);
+    /* out, lent again; then in and out before the fade ends: it stays lent, the insert fades back in */
+    fxs_load(1, FXT_NONE);
+    blocks(64);
+    i = ifx_lim_at(FXT_CHRS, k);
+    ok = (fxl_lent & 1u) && i != FXI_NONE && ifx_chrs[i].w == 32768;
+    fxs_load(1, FXT_CHO);
+    fxi_poll();                                         /* (the main loop's pass right after the change) */
+    blocks(1);
+    w0 = ifx_chrs[i].w;
+    fxs_load(1, FXT_NONE);
+    fxi_poll();
+    blocks(1);
+    w1 = ifx_chrs[i].w;
+    check("lent again; CHO in and out within a block or two: it stays lent, the insert fades back in (no gap)",
+          ok && fxl_st[0] == FXL_LENT && !ifx_chrs[i].evict && w0 < 32768 && w1 > w0 && ifx_lim_at(FXT_CHRS, k) == i);
+    /* the track drops it: the line back at once once faded (none using it) */
+    slots(k, FXT_NONE, FXT_NONE);
+    blocks(8);
+    check("the track drops CHRS: faded, the line back to the bus (zeros, gate cleared)",
+          fxl_st[0] == FXL_SEND && !fxl_lent && zeros16(cho_buf, CHO_LEN));
+    /* a muted part: an evicted insert goes to rest at once (silent), the line comes back */
+    slots(k, FXT_CHRS, FXT_NONE);
+    blocks(4);
+    i = ifx_lim_at(FXT_CHRS, k);
+    trk[k].p[P_MUTE] = 1;
+    blocks(16);
+    fxs_load(1, FXT_CHO);
+    blocks(4);
+    check("a muted track's lent insert: given back all the same (no stuck line)", i != FXI_NONE &&
+          fxl_st[0] == FXL_SEND && !fxl_lent);
+    trk[k].p[P_MUTE] = 0;
+    trk_note_off(&trk[k], 57);
+    /* ECHO from the delay send's line */
+    reset();
+    for (i = 0; i < FXI_CAP[1]; i++)
+        slots(i, FXT_ECHO, FXT_NONE);
+    slots(FXI_CAP[1], FXT_ECHO, FXT_NONE);
+    fxs_load(2, FXT_NONE);
+    fx.dly_q = FX_Q_MAX, fx.dly_lp = 0;
+    blocks(2);
+    i = ifx_lim_at(FXT_ECHO, FXI_CAP[1]);
+    check("ECHO: DLY out of the slots, its line lent: a 4096-sample slice of it", (fxl_lent & 2u) && i == FXI_CAP[1] &&
+          ifx_echo[i].line == dly_buf && fxi_cap(FXT_ECHO) == FXI_CAP[1] + FXI_LND[1]);
+    fxs_load(2, FXT_DLY);
+    blocks(8);
+    check("... DLY back: given back, zeroed, the gate cleared", !fxl_lent && zeros16(dly_buf, FXI_LND[1] * IFX_EC_LEN));
+    reset();
+}
+
+/* a load with CHO in no master slot and more tracks holding CHRS than the builder's count: the same tracks every time */
+static void t_lend_load(void)
+{
+    uint8_t rec[FXR_MAX], a[NTRK], c[NTRK];
+    uint32_t n, k, ok = 1;
+    reset();
+    for (k = 0; k < NTRK; k++)
+        slots(k, FXT_CHRS, FXT_NONE);
+    fxs_load(1, FXT_NONE);
+    trk[0].p[P_TCHRS] = 30;
+    n = fxr_encode(rec);
+    for (k = 0; k < 2u; k++) {
+        fxi_init();
+        if (k)
+            slots(TRK_DRUM, FXT_CHRS, FXT_NONE), fxi_poll();   /* (another history) */
+        (void)fxr_decode(rec, n, 1);
+        blocks(4);
+        owners(k ? c : a);
+    }
+    for (k = 0; k < NTRK; k++)
+        ok &= a[k] == c[k] && a[k] == (k < FXI_CAP[0] + FXI_LND[0]);
+    check("a load, CHO in no slot, every track CHRS: the first own + lent tracks have one, the same every time", ok &&
+          fxi_state(TRK_DRUM, 0) == (FXI_CAP[0] + FXI_LND[0] < NTRK ? FXI_FULL : FXI_OK));
+    reset();
+}
+
 int main(void)
 {
     host_tracks_init();
@@ -199,6 +344,8 @@ int main(void)
     t_exhaust();
     t_reload();
     t_query();
+    t_lend();
+    t_lend_load();
     printf("fxi: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;
 }

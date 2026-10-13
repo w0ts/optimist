@@ -65,6 +65,19 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};   /* 
 static uint8_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lm[3] = {31, 31, 31};
 #define FXS_ON(x) (fxs_live >> (x) & 1u)
+#if INS_LIM
+/* the limited types' instances (fx/insfx/fxi.c) follow the slots in the main loop: a change of slots asks for it (1), a
+ * project load for every instance handed out again in track order (2: deterministic). Written anywhere (a load may run
+ * in the ISR), read and cleared by fxi_poll only */
+static volatile uint8_t fxi_dirty;
+#define FXI_ASK(v) (fxi_dirty |= (uint8_t)(v))
+/* the send lines lent to the limited inserts (fxi.c, "Lending"): bit 0 the chorus send's (cho_buf: CHRS), bit 1 the
+ * delay send's (dly_buf: ECHO). Set, its bus does not run nor clear its line (fx.c fx_ret_block): the line is the
+ * inserts'. Written by fxi_poll only, with the interrupts off; the audio reads it once a block */
+static volatile uint8_t fxl_lent;
+#else
+#define FXI_ASK(v) ((void)0)
+#endif
 
 /* a layout s (the record, the SLOTS page, the editor) into the master slots: sends only (an insert id: empty, its
  * place is the tracks' now: fx_rec.c ins_map); a type a second time leaves its slot empty */
@@ -84,6 +97,7 @@ static void fxs_set(const uint8_t *s)
     fxs_lm[0] = FXS_ON(FXT_REV) ? 31u : 0u;
     fxs_lm[1] = FXS_ON(FXT_DLY) ? 31u : 0u;
     fxs_lm[2] = FXS_ON(FXT_CHO) ? 31u : 0u;
+    FXI_ASK(1u);                                       /* (a send back in a slot: its line, if lent, back: fxi.c) */
 }
 
 /* slot k's amount id (0xFF: empty, or a type this build lacks) */
@@ -151,15 +165,6 @@ static uint16_t ins_live[NTRK] = {INS_LIVE_DEF, INS_LIVE_DEF, INS_LIVE_DEF, INS_
 #define INS_ON(k, x) (ins_live[(k) % NTRK] >> (x) & 1u)
 static uint8_t ins_drop;                               /* the tracks (a bit each) whose third insert the last load's
                                                         * mapping dropped (fx_rec.c ins_map; TOOLS > MISS: miss.c) */
-#if INS_LIM
-/* the limited types' instances (fx/insfx/fxi.c) follow the slots in the main loop: a change of slots asks for it (1), a
- * project load for every instance handed out again in track order (2: deterministic). Written anywhere (a load may run
- * in the ISR), read and cleared by fxi_poll only */
-static volatile uint8_t fxi_dirty;
-#define FXI_ASK(v) (fxi_dirty |= (uint8_t)(v))
-#else
-#define FXI_ASK(v) ((void)0)
-#endif
 
 /* track k's slots from s (the record, the editor, ins_load): an insert id (kept even when this build lacks it,
  * unheard), else empty; the same type a second time: empty */
