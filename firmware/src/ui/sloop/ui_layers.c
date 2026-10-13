@@ -112,31 +112,29 @@ static void auto_full_say(void) { ui_say_st(3, "Pattern full: ", "128 events"); 
 #endif
 static void pattern_rotate(track_t *t, int32_t d)       /* every step one later (d > 0) / earlier */
 {
-    uint32_t len = trk_len(t), i;
-    step_t keep;
+    uint32_t len = trk_len(t), z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t);   /* (the drum track's are smaller) */
+    uint8_t *b = is_drum(t) ? (uint8_t *)t->dstep : (uint8_t *)t->step, keep[sizeof(step_t)];
     layer_undo_mark(t);
     fm1_irq_off();
     if (d > 0) {
-        keep = t->step[len - 1u];
-        for (i = len - 1u; i > 0; i--)
-            t->step[i] = t->step[i - 1u];
-        t->step[0] = keep;
+        memcpy(keep, b + (len - 1u) * z, z);
+        memmove(b + z, b, (len - 1u) * z);
+        memcpy(b, keep, z);
     } else {
-        keep = t->step[0];
-        for (i = 0; i + 1u < len; i++)
-            t->step[i] = t->step[i + 1u];
-        t->step[len - 1u] = keep;
+        memcpy(keep, b, z);
+        memmove(b, b + z, (len - 1u) * z);
+        memcpy(b + (len - 1u) * z, keep, z);
     }
     fm1_irq_on();
 }
 static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again after itself), or half */
 {
-    uint32_t len = trk_len(t), i;
+    uint32_t len = trk_len(t), z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t);
+    uint8_t *b = is_drum(t) ? (uint8_t *)t->dstep : (uint8_t *)t->step;
     layer_undo_mark(t);
     fm1_irq_off();
     if (d > 0 && len * 2u <= NSTEP) {
-        for (i = 0; i < len; i++)
-            t->step[len + i] = t->step[i];
+        memcpy(b + len * z, b, len * z);
         t->p[P_SLEN] = (int16_t)(len * 2u);
     } else if (d < 0 && len >= 2u) {
         t->p[P_SLEN] = (int16_t)(len / 2u);

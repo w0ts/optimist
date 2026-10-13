@@ -148,6 +148,7 @@ static struct {
     uint8_t on, eng, preset, sel;
     uint8_t v4;                                          /* WATCH bit 1: TRACK_CHANGED pushes too */
     uint8_t v9, stream;                                  /* WATCH bit 2: v9 pushes (ed_sync9.c); bit 3: STREAM */
+    uint8_t ends;                                        /* WATCH bit 4 (v12): STEPS pushes carry the note ends */
     uint32_t pos, last_ms, run_ms, resets;
     int16_t v[ED_NV];                                    /* TSEL->p[], then song.g[] */
     uint16_t t[ED_NV];                                   /* ms (low 16 bits) of the last push */
@@ -158,61 +159,23 @@ static struct {
 } ed_w;
 
 static int16_t *ed_val(uint32_t i) { return i < P_COUNT ? &TSEL->p[i] : &song.g[i - P_COUNT]; }
-static uint32_t ed_step_sig(const step_t *s)              /* all 10 bytes (a drum step's lanes too) */
+static uint32_t ed_step_sig(const track_t *t, uint32_t i)   /* step i: all its bytes (a drum step's lanes, a synth
+                                                          * step's own note ends) */
 {
-    const uint8_t *b = (const uint8_t *)s;
-    uint32_t i, h = 0x811C9DC5u;
-    for (i = 0; i < sizeof *s; i++)
-        h = (h ^ b[i]) * 16777619u;
+    uint32_t n, h = 0x811C9DC5u;
+    const uint8_t *b = trk_step_raw(t, i, &n);
+    while (n--)
+        h = (h ^ *b++) * 16777619u;
     return h;
 }
-#include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes, DRUM_STEP bytes */
-/* a v1..v4 step written into the drum track: its notes onto their lanes */
-static void ed_dstep_from_old(dstep_t *d, const uint8_t *a)
-{
-    uint32_t i, n = a[0] > 4u ? 4u : a[0];
-    memset(d, 0, sizeof *d);
-    if (a[5] != ST_NOTE)
-        return;
-    for (i = 0; i < n; i++)
-        dstep_set(d, lane_of_note(a[1 + i] & 0x7Fu), (a[6] & SF_ACCENT) ? LV_HARD : LV_NORM, 0);
-}
-/* a step written: n, 4 notes, time, flags, vel [, lvl, hi, rat] */
-static void ed_step_in(track_t *t, uint32_t i, const uint8_t *a, uint32_t na)
-{
-    uint32_t k;
-    if (is_drum(t)) {
-        ed_dstep_from_old(&t->dstep[i], a);
-        return;
-    }
-    {
-        step_t *st = &t->step[i];
-        st->n = (uint8_t)(a[0] > 4u ? 4u : a[0]);
-        for (k = 0; k < 4u; k++)
-            st->note[k] = a[1 + k] & 0x7Fu;
-        st->time = (uint8_t)(a[5] > ST_REST ? ST_REST : a[5]);
-#if FELUCCA_CHANCE
-        /* the chance bits (chance.c) when the editor sends them; an editor that knows none keeps the step's */
-        st->flags = (uint8_t)((a[6] & (SF_ACCENT | SF_SLIDE | SF_CARRY)) | (a[6] & SF_CH_MASK ? a[6] & SF_CH_MASK : st->flags & SF_CH_MASK));
-#else
-        st->flags = a[6] & (SF_ACCENT | SF_SLIDE | SF_CARRY);   /* (SF_CARRY: seq.c rec_carry) */
-#endif
-        st->vel = a[7] & 0x7Fu;
-        if (na >= 11u) {
-            st->lvl = (uint8_t)((a[8] & 0x7Fu) | (a[9] & 1u) << 7);
-            st->rat = (uint8_t)((a[10] & 0x7Fu) | ((a[9] >> 1) & 1u) << 7);
-        } else {
-            st->lvl = st->rat = 0;
-        }
-    }
-}
+#include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes (out and in), DRUM_STEP bytes */
 static void ed_shadow(void)                              /* the editor is in sync */
 {
     uint32_t i;
     for (i = 0; i < ED_NV; i++)
         ed_w.v[i] = *ed_val(i);
     for (i = 0; i < NSTEP; i++)
-        ed_w.st[i] = ed_step_sig(&TSEL->step[i]);
+        ed_w.st[i] = ed_step_sig(TSEL, i);
     for (i = 0; i < ED_NT; i++)
         ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
     ed_w.eng = (uint8_t)ed_eng(TSEL);
@@ -289,7 +252,7 @@ static void ed_sync(void)                                /* main loop */
         return;
     }
     for (i = 0; i < NSTEP && n < ED_PUSH_MAX; i++) {
-        uint32_t h = ed_step_sig(&TSEL->step[i]);
+        uint32_t h = ed_step_sig(TSEL, i);
         if (h == ed_w.st[i])
             continue;
         if (!ed_room())
@@ -499,10 +462,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             fm1_irq_on();
             ui.force = 1;
         }
-        ed_w.st[a[0]] = ed_step_sig(&TSEL->step[a[0]]);
+        ed_w.st[a[0]] = ed_step_sig(TSEL, a[0]);
         ed9_known_step(song.sel, a[0]);
         ed_b(a[0]);
-        ed_step_out(TSEL, a[0]);
+        ed_step_out(TSEL, a[0], 1);
         break;
     case ED_PRESET: {                                      /* engine, preset */
         ed_load_t lb;
@@ -564,6 +527,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_w.v4 = (uint8_t)(ed_w.on && (a[0] & 2u));     /* v4: also TRACK_CHANGED; the reply says it is known */
         ed_w.v9 = (uint8_t)(ed_w.on && (a[0] & 4u));     /* v9: every track's changes, coalesced (ed_sync9.c) */
         ed_w.stream = (uint8_t)(ed_w.on && (a[0] & 8u)); /* v9: the status stream (ed_status.c) */
+        ed_w.ends = (uint8_t)(ed_w.on && (a[0] & 16u));  /* v12: a synth step pushed with its notes' own ends */
         mt.master = ed_w.stream;                         /* (meters.c: the output's peak too) */
         ed_w.resets = usb.resets;                        /* Felucca 1.0.2 #65) */
         if (ed_w.on && !keep) {
@@ -581,7 +545,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 mt.ed[i] = 0;
             est.ms = fm1_ms - ED_STREAM_MS;
         }
-        ed_b(ed_w.on | ed_w.v4 << 1 | ed_w.v9 << 2 | ed_w.stream << 3);
+        ed_b(ed_w.on | ed_w.v4 << 1 | ed_w.v9 << 2 | ed_w.stream << 3 | ed_w.ends << 4);
         break;
     }
     case ED_PING:
@@ -647,11 +611,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ui.force = 1;
         }
         if (a[0] == song.sel)
-            ed_w.st[a[1]] = ed_step_sig(&trk[a[0]].step[a[1]]);
+            ed_w.st[a[1]] = ed_step_sig(&trk[a[0]], a[1]);
         ed9_known_step(a[0], a[1]);
         ed_b(a[0]);
         ed_b(a[1]);
-        ed_step_out(&trk[a[0]], a[1]);
+        ed_step_out(&trk[a[0]], a[1], 1);
         break;
     case ED_DRUM_STEP: {                                   /* index [, on 16 bits, lvl 32 bits, rat 32 bits as 7-bit groups]
                                                             * -> index, on (3), lvl (5), rat (5): the drum track's 16 lanes */
@@ -672,7 +636,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             fm1_irq_on();
             ui.force = 1;
             if (song.sel == TRK_DRUM)
-                ed_w.st[a[0]] = ed_step_sig(&TDRUM->step[a[0]]);
+                ed_w.st[a[0]] = ed_step_sig(TDRUM, a[0]);
         }
         ed9_known_step(TRK_DRUM, a[0]);
         ed_b(a[0]);

@@ -34,7 +34,7 @@
 #ifndef FELUCCA_UNDO_CAP
 #define FELUCCA_UNDO_CAP 0u              /* the history's ring at most this many bytes, 0 = all there is */
 #endif
-#define UNDO_MIN 1152u                   /* build.py refuses a smaller ring (a record is up to 1,097 B) */
+#define UNDO_MIN 1408u                   /* build.py refuses a smaller ring (a record is up to 1,353 B) */
 
 #if FELUCCA_UNDO_HISTORY
 #define UNDO_NP 2u                       /* the pattern parameters kept with the steps */
@@ -131,7 +131,7 @@ static void undo_status(uint32_t *n, uint32_t *m, uint32_t *tk)
 #define UREC_LINK 0x80u                  /* header byte 0: undone / redone with the record before it */
 #define UREC_HEAD 2u                     /* [trk | pmask << 2 | LINK] [steps n] */
 #define UREC_TAIL 2u                     /* [size lo] [size hi] */
-#define UREC_STEP (1u + sizeof(step_t))  /* [index] [the step's 10 bytes] */
+#define UREC_STEP (1u + sizeof(step_t))  /* [index] [the step's 14 bytes: its own note ends too] */
 #if FELUCCA_AUTO
 #define UREC_AL 0x10u                    /* header byte 0 bit 4: the automation list kept (sizeof(auto_list_t)) */
 #define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + (uint32_t)sizeof(auto_list_t) + UREC_TAIL)

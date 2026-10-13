@@ -583,9 +583,24 @@ the drums' VOLUME (the mixer's DR row), the macros (MASTER). SYNC stays on both 
   join that step the same way (its notes struck, the held ones not). A chord's keys (same step) still share their
   length until the last is up. MONO / LEGATO / UNISON keep one note a step: the held note ends where the next one
   starts, joined to it, as heard live (the voice plays one note). A carry step at the start of the loop, or after a
-  REST, strikes all its notes. The STEP page and the piano roll show a carried note as a note of that step. A SLOOP
-  build ignores the bit (the carried notes are struck again there); the web editor keeps it when it writes the flags
-  byte back as it read it (editor.c).
+  REST, strikes all its notes. A SLOOP build ignores the bit (the carried notes are struck again there). The web editor
+  keeps it since protocol v12 (the hi byte's bit 2: a flags byte on the wire has 7 bits).
+- **Each note's own end** (2026-10-12, feat/note-gates; the user's decisions D1 option C, D2, D3; POLY, REC QUANTIZE OFF,
+  every input and the free take): a note up while others are still down ends at its own recorded time, not at a step.
+  A step in RAM holds a byte per note (step_t.ngate: note k ends ngate / 128 of the step after its start, 0 = the step's
+  GATE); the playback counts each such note down by itself (seq.c `seq_noffs`, once a block, nothing when no note has
+  one). The step where the note ends names it: a TIE there becomes a carry step of the notes sounding (it plays as the
+  TIE did), and the step after carries the rest without it, so a build without own ends ends the note at that step. A
+  chord's key (the notes started in one step) up more than 1/8 of a step before the chord's last key keeps its own end;
+  within 1/8 the chord ends together, at its last key (D3). REC QUANTIZE ON: whole steps, as before (D2). MONO / LEGATO /
+  UNISON: as before. Stored: no project format change; a stored step is 10 bytes as ever, the own ends travel as step-only
+  events of the track's automation list (ids 0x78 + the note's slot, never in a working list: seq/ngate.h), so an older
+  build loads the project, keeps the events and plays the notes to the step. A full list (128 events with them): the note
+  ends at its step, as before. The STEP page's LENGTH (KNOB 4 with a step held) shows the first note's length in tenths
+  through its TIEs and carry steps to its own end (seq.c `note_span`, the one measure the piano roll and the web editor's
+  `noteSpan` share); turning it resizes in whole steps and drops the own ends of the step it ended in. The piano roll
+  draws a note on through the carry steps that name it (no new head) and its last cell as long as it sounds. The SLOOP
+  UI shows the steps as they are. The SLOOP 2.4 export keeps the step's GATE and says what is lost (lost2 bit 5).
 - **Step entry**: section 4.2.
 - **Automation**: section 6. Two gestures, one store.
 - **Undo / redo**: SAVE then HOME, HOME then SAVE, and EDIT held + OCT- / OCT+ as SLOOP [D]; many levels as

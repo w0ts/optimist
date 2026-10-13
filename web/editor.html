@@ -1116,7 +1116,7 @@ function patDrumRaw(d) {
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG, CMD.FX_PUSH]);
 /* WATCH bits: 1 on, 2 TRACK_CHANGED (v4), 4 every track's changes coalesced (v9), 8 the status stream (v9) */
-const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15 };
+const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15, ENDS: 16 };   /* ENDS (v12): STEPS pushes with the notes' own ends */
 const PARAMS_GLOBAL = 127;                         /* a PARAMS entry's "where" for a global G_* */
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
@@ -1546,7 +1546,7 @@ async function snReadAll(rq, slot, len, prog) {
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
 const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus", "motion"],   /* (bit 8 "bank": not a loss; bit 13 the motion; a firmware before v12: the motion or the chance) */
-  LOST2: ["chance", "lsync", "lauto", "dlfo", "fxret", "", "insord"],   /* (the second word, v12: bit 0 the steps' chance, bit 1 the LFO's sync, bit 2 the drum lanes' motion and locks, bit 3 a drum lane's LFO, bit 4 an FX return below unity, bit 5 kept for the note gates, bit 6 a FILTER before a DIST on a track; asked for with SL24_GET's flag, else 0) */
+  LOST2: ["chance", "lsync", "lauto", "dlfo", "fxret", "ngate", "insord"],   /* (the second word, v12: bit 0 the steps' chance, bit 1 the LFO's sync, bit 2 the drum lanes' motion and locks, bit 3 a drum lane's LFO, bit 4 an FX return below unity, bit 5 a POLY note's own end, bit 6 a FILTER before a DIST on a track; asked for with SL24_GET's flag, else 0) */
   SIZE: 3840, BANK_LEN: 3472, BANK_N: 27, NFAC: 8, PROJ: [0, 2, 3, 4, 5] };   /* (2.4's objects: the working project, A..D) */
 async function sl24ReadPart(rq, part, prog) {
   let ext = true;   /* the v12 request (the flag: the second lost word); a firmware before it says rc 1: the v11 one (no second word: 0) */
@@ -1784,13 +1784,16 @@ class Reader {
   s() { let s = ""; for (;;) { const c = this.b(); if (!c) return s; s += String.fromCharCode(c); } }
 }
 
-/* v5 steps end with level / ratchet (2 bits per note, 7-bit bytes: lvl, hi (bit 0 lvl, bit 1 rat), rat) */
+/* v5 steps end with level / ratchet (2 bits per note, 7-bit bytes: lvl, hi (bit 0 lvl, bit 1 rat, v12 bit 2 the carry flag
+   0x80), rat); v12: then each note's own end (0 = the step's GATE, 1..127 / 128 of the step) */
 function stepExt(r, a, o) {
   if (r.i + 3 <= a.length) {
     const lo = r.b(), hi = r.b(), rt = r.b();
     o.lvl = lo | ((hi & 1) << 7);
     o.rat = rt | (((hi >> 1) & 1) << 7);
+    if (hi & 4) o.flags |= 0x80;
   }
+  if (r.i + 4 <= a.length) o.ends = [r.b(), r.b(), r.b(), r.b()];
   return o;
 }
 
@@ -1987,11 +1990,11 @@ const parse = {
     return list;
   },
   /* STEPS: {track, first, steps}: a synth track's steps as TRACK_STEP gives them, the drum track's as DRUM_STEP */
-  [CMD.STEPS](a, info) {
-    const track = a[0], first = a[1], n = a[2], drum = !!info && track === info.ntrk - 1, steps = [];
+  [CMD.STEPS](a, info, ends) {                       /* (ends: WATCH granted ENDS, a synth step has 15 bytes) */
+    const track = a[0], first = a[1], n = a[2], drum = !!info && track === info.ntrk - 1, steps = [], per = ends ? 15 : 11;
     for (let k = 0, p = 3; k < n; k++) {
       if (drum) { steps.push(parse[CMD.DRUM_STEP]([first + k, ...a.slice(p, p + 13)])); p += 13; }
-      else { steps.push(parse[CMD.STEP_GET]([first + k, ...a.slice(p, p + 11)])); p += 11; }
+      else { steps.push(parse[CMD.STEP_GET]([first + k, ...a.slice(p, p + per)])); p += per; }
     }
     return { track, first, steps };
   },
@@ -2151,8 +2154,11 @@ const req = {
   stepSet: (i, st) => {
     const n = Math.max(0, Math.min(4, st.n | 0));
     const notes = [0, 1, 2, 3].map((k) => (st.notes[k] | 0) & 0x7F);
-    const ext = st.lvl == null && st.rat == null ? []   /* v5: level / ratchet kept (older firmware ignores them) */
-      : [(st.lvl | 0) & 0x7F, (((st.lvl | 0) >> 7) & 1) | ((((st.rat | 0) >> 7) & 1) << 1), (st.rat | 0) & 0x7F];
+    const ends = Array.isArray(st.ends) ? [0, 1, 2, 3].map((k) => (st.ends[k] | 0) & 0x7F) : null;
+    const ext = st.lvl == null && st.rat == null && !ends && !((st.flags | 0) & 0x80) ? []   /* v5: level / ratchet kept (older
+                                                         firmware ignores them); v12: the carry flag (hi bit 2), the own ends */
+      : [(st.lvl | 0) & 0x7F, (((st.lvl | 0) >> 7) & 1) | ((((st.rat | 0) >> 7) & 1) << 1) | (((st.flags | 0) & 0x80) ? 4 : 0),
+         (st.rat | 0) & 0x7F, ...(ends || [])];
     return [CMD.STEP_SET, [i, n, ...notes, Math.max(0, Math.min(2, st.time | 0)), st.flags & 3, (st.vel | 0) & 0x7F, ...ext]];
   },
   /* v5: get (d == null) or set the drum track's step i: {on: 16 bits, lvl[16], rat[16]} */
@@ -2181,7 +2187,7 @@ const req = {
   upErase: (s) => [CMD.UP_ERASE, [s & 0x7F]],
   /* on: WATCH bits (1 pushes, 2 TRACK_CHANGED (v4), 4 v9 pushes, 8 the status stream); true = 1. A firmware answers the
      bits it knows: v8 at most 3, v3 1 */
-  watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & WATCH.ALL : on ? 1 : 0]],
+  watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & (WATCH.ALL | WATCH.ENDS) : on ? 1 : 0]],
   build: () => [CMD.BUILD, []],
   syncStats: (reset) => [CMD.SYNC_STATS, reset ? [1] : []],
   macro: (tr) => [CMD.MACRO, [tr & 0x7F]],
@@ -3258,11 +3264,12 @@ async function auditionPatch(rq, info, pt, opt = {}) {
    than protocol v2), else the bits it granted: 1, 3 with TRACK_PARAM / TRACK_CHANGED (v4), 15 with v9 (every track's
    changes pushed, the status stream: no polling). ask: the bits to ask for (15) */
 async function startWatch(rq, ask = WATCH.ALL) {
-  try { const on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & WATCH.ALL : false; }
+  try { const on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & (WATCH.ALL | WATCH.ENDS) : false; }
   catch (e) { if (e.message === "closed") throw e; return false; }
 }
 /* what a WATCH reply means: {watch, v4, v9, stream} */
-const watchCaps = (on) => ({ watch: on || false, v4: !!(on & WATCH.V4), v9: !!(on & WATCH.V9), stream: !!(on & WATCH.STREAM) });
+const watchCaps = (on) => ({ watch: on || false, v4: !!(on & WATCH.V4), v9: !!(on & WATCH.V9), stream: !!(on & WATCH.STREAM),
+  ends: !!(on & WATCH.ENDS) });
 
 /* ------------------------------------------------------------ meters (v9) --- */
 /* The device sends each meter's largest peak since its last STREAM frame (no peak is lost between two frames, at 25 Hz
@@ -3532,7 +3539,8 @@ const rollIsNote = (s) => !!s && s.time === ROLL.NOTE && s.n > 0;
 const bits2 = (b, k) => ((b | 0) >> (2 * k)) & 3;
 const withBits2 = (b, k, v) => (((b | 0) & ~(3 << (2 * k))) | ((v & 3) << (2 * k))) & 0xFF;
 const rollCopy = (s, i) => ({ index: i, n: s ? s.n | 0 : 0, notes: s ? [0, 1, 2, 3].map((k) => s.notes[k] | 0) : [0, 0, 0, 0],
-  time: s ? s.time | 0 : ROLL.REST, flags: s ? s.flags & 3 : 0, vel: s ? s.vel | 0 : 0, lvl: s ? s.lvl | 0 : 0, rat: s ? s.rat | 0 : 0 });
+  time: s ? s.time | 0 : ROLL.REST, flags: s ? s.flags & 0x83 : 0, vel: s ? s.vel | 0 : 0, lvl: s ? s.lvl | 0 : 0, rat: s ? s.rat | 0 : 0,
+  ...(s && Array.isArray(s.ends) ? { ends: [0, 1, 2, 3].map((k) => s.ends[k] | 0) } : {}) });
 /* the length of the note(s) starting at NOTE step s0: s0 and the TIEs after it, within the pattern */
 function rollLen(steps, len, s0) {
   let n = 1;
@@ -3545,15 +3553,37 @@ function rollStart(steps, len, i) {
   while (s >= 0 && s < len && steps[s] && steps[s].time === ROLL.TIE) s--;
   return s >= 0 && s < len && rollIsNote(steps[s]) && s + rollLen(steps, len, s) > i ? s : -1;
 }
-/* every note: {step, len, pitch, k (its place in the step), lvl, rat, acc, slide, vel} */
+/* how long the note of pitch p struck at step s0 sounds, in steps (the firmware's note_span, seq/ngate.h): through the TIEs
+   after it and the carry steps (flags 0x80) that name it, to its own end there (ends[k] / 128), else the step's end.
+   -> {span, last: the step it ends in} */
+function noteSpan(steps, len, s0, p) {
+  let j = s0, k = steps[s0].notes.slice(0, steps[s0].n).indexOf(p);
+  for (let guard = 0; guard < len; guard++) {
+    const e = steps[j].ends ? steps[j].ends[k] | 0 : 0;
+    if (e && !steps[j].rat) return { span: j - s0 + e / 128, last: j };
+    let i = j + 1;
+    while (i < len && steps[i] && steps[i].time === ROLL.TIE) i++;
+    const c = i < len && rollIsNote(steps[i]) && (steps[i].flags & 0x80) ? steps[i].notes.slice(0, steps[i].n).indexOf(p) : -1;
+    if (c < 0) return { span: i - s0, last: i - 1 };
+    j = i;
+    k = c;
+  }
+  return { span: len - s0, last: len - 1 };
+}
+/* every note: {step, len, span (noteSpan), pitch, k (its place in the step), lvl, rat, acc, slide, vel}; a note a carry step
+   names while it sounds from before is that note going on, not one of its own */
 function rollNotes(steps, len) {
-  const out = [];
+  const out = [], on = new Map();
   for (let s = 0; s < len; s++) {
     const st = steps[s];
     if (!rollIsNote(st)) continue;
     const l = rollLen(steps, len, s);
     for (let k = 0; k < Math.min(st.n, ROLL.POLY); k++) {
-      out.push({ step: s, len: l, pitch: st.notes[k], k, lvl: bits2(st.lvl, k), rat: bits2(st.rat, k),
+      const p = st.notes[k];
+      if ((st.flags & 0x80) && on.get(p) >= s) continue;
+      const sp = noteSpan(steps, len, s, p);
+      on.set(p, sp.last);
+      out.push({ step: s, len: l, span: sp.span, pitch: p, k, lvl: bits2(st.lvl, k), rat: bits2(st.rat, k),
         acc: !!(st.flags & 1), slide: !!(st.flags & 2), vel: st.vel });
     }
   }
@@ -5422,7 +5452,7 @@ const TEXT = {
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
   s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends (their DLY: one delay send for all drums, 2.5 and later)", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects not in a slot of their track (2.4 would play them)",
-  s24L_motion: "the motion (2.4 has none)", s24L_chance: "the steps' chance (2.4 has none)", s24L_fxret: "the FX return levels (2.4 plays each return at full)", s24L_lsync: "the LFO's sync to the tempo (the nearest free RATE instead)", s24L_lauto: "the drum sounds' motion and locks (2.4 has none)", s24L_dlfo: "the drum sounds' LFOs (2.4's drums have none)", s24L_motionchance: "the motion or the steps' chance (2.4 has neither)",
+  s24L_motion: "the motion (2.4 has none)", s24L_chance: "the steps' chance (2.4 has none)", s24L_fxret: "the FX return levels (2.4 plays each return at full)", s24L_ngate: "the POLY notes' own ends (2.4 has one GATE a step)", s24L_lsync: "the LFO's sync to the tempo (the nearest free RATE instead)", s24L_lauto: "the drum sounds' motion and locks (2.4 has none)", s24L_dlfo: "the drum sounds' LFOs (2.4's drums have none)", s24L_motionchance: "the motion or the steps' chance (2.4 has neither)",
   s24L_comp: "the COMP inserts (tracks, drum bus, drum sounds)", s24L_dins: "the drum sounds' DIST", s24L_dbus: "the drum bus's DST CHO DLY REV and the drum track's send levels", s24L_insord: "a FILTER before a DIST on a track (2.4 runs DIST, then FILT)",
   s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
   s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4, 2.5 or 2.6 backup file becomes the working project (with its FM6 patches; 2.6's new sound settings are left out); SAVE it in a section. Nothing else is written.",
@@ -5843,7 +5873,7 @@ async function load(d) {
     if (d.info.ntrk) for (let i = 0; i < d.info.ntrk; i++) { sayK("steploading", `${t("track")} ${i + 1}`); await readOverview(i); }   /* the strips' step overviews */
     /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
     const rqd = (r, o) => d.link.request(r, o);
-    Object.assign(d, watchCaps(await startWatch(rqd)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything, the stream */
+    Object.assign(d, watchCaps(await startWatch(rqd, WATCH.ALL | WATCH.ENDS)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything, the stream */
     if (d.stream) { d.statusOk = true; renderTransport(); if (d.mix) { mixCtl.length = 0; renderMixer(); } }   /* (the stream carries STATUS; the meters) */
     if (d.watch) {
       sayK("readingBank");
@@ -6462,7 +6492,7 @@ function drawRoll() {
     g.globalAlpha = 1;
     if (play >= 0 && play < len) { g.globalAlpha = 0.18; g.fillStyle = c.accent; g.fillRect(rollX(play), 0, cell, H); g.globalAlpha = 1; }
     for (const n of notes) {
-      const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = n.len * cell - 2, h = RG.ROW - 2;
+      const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = Math.max(3, Math.round(n.span * cell) - 2), h = RG.ROW - 2;
       g.globalAlpha = [1, 0.45, 0.7, 1][n.lvl];
       g.fillStyle = c.eng; g.fillRect(x, y, nw, h);
       g.globalAlpha = 1;
@@ -9823,7 +9853,7 @@ function onPush(f) {
         else onTrackParam(c);
       }
     } else if (f.cmd === CMD.STEPS) {               /* v9: steps of any track, with their bytes */
-      onSteps(parse[CMD.STEPS](f.a, d.info));
+      onSteps(parse[CMD.STEPS](f.a, d.info, d.ends));
     } else if (f.cmd === CMD.LANE) {                /* v9: a drum lane's sound changed on the device */
       onLane(parse[CMD.LANE](f.a));
     } else if (f.cmd === CMD.TRACKS) {              /* v9: an engine, preset, arm or solo of any track */
@@ -10067,7 +10097,7 @@ async function keepAlive() {
     if (keepAlive.run) return;
     keepAlive.run = true;
     try {
-      const on = await startWatch((r, o) => d.link.request(r, o));
+      const on = await startWatch((r, o) => d.link.request(r, o), WATCH.ALL | WATCH.ENDS);
       rewatch = false;                              /* (this WATCH itself may have flagged the gap) */
       if (on) { const had = d.stream; Object.assign(d, watchCaps(on)); if (d.stream !== had && d.mix) { mixCtl.length = 0; renderMixer(); } needReload = true; maybeReload(); }
       else if (d === dev) { d.watch = false; renderLive(); }

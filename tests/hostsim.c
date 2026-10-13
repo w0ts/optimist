@@ -858,7 +858,7 @@ static int rec_len_free_test(int16_t vm)
     fail += rl_case("free take: NOTE TIE (1.8)", 1.8, rl_gate(t1, 5), 36, 40, rl_played(t1, 4), 1.8);
     if (vm == V_POLY) {                             /* POLY: 8 goes on over 10 (a carry step), 11 a carry step of it */
         fail += rl_case("free take POLY: over the next note, its own", 3.4, rl_gate(t1, 11), 49, 53, rl_played(t1, 8), 3.4);
-        fail += rl_case("free take POLY: 0.5 under it: its step", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 1.0);
+        fail += rl_case("free take POLY: 0.5 under it: its own end", 0.5, rl_gate(t1, 10), -1, -1, rl_played(t1, 10), 0.5);
         ok = (t1->step[10].flags & SF_CARRY) && t1->step[10].n == 2u && (t1->step[11].flags & SF_CARRY) &&
              t1->step[11].n == 1u && t1->step[11].note[0] == 64u && t1->step[9].time == ST_TIE;
         fail += !ok;
@@ -926,6 +926,12 @@ static void ov_dump(const track_t *t, uint32_t from, uint32_t to)
         }
         if (g >= 0)
             printf("g%d", (int)g);
+        {
+            uint32_t k;
+            for (k = 0; k < s->n && s->time == ST_NOTE; k++)
+                if (s->ngate[k])
+                    printf("e%u=%u", (unsigned)s->note[k], (unsigned)s->ngate[k]);
+        }
     }
     printf("\n");
 }
@@ -962,6 +968,15 @@ static int ov_near(const char *what, double got, double want)
     printf("reclen: %-58s %.2f steps (want %.2f) %s\n", what, got, want, ok ? "ok" : "FAIL");
     return !ok;
 }
+/* step i of track t: note's own end (ngate), -1 not there */
+static int ov_ngate(const track_t *t, uint32_t i, uint32_t note)
+{
+    const step_t *s = &t->step[i];
+    uint32_t k;
+    for (k = 0; k < s->n && s->note[k] != note; k++)
+        ;
+    return s->time == ST_NOTE && k < s->n ? (int)s->ngate[k] : -1;
+}
 /* step i of track t: n notes, with note (0: any), carry or not */
 static int ov_step(const track_t *t, uint32_t i, uint32_t n, uint32_t note, uint32_t carry)
 {
@@ -982,6 +997,16 @@ static int rec_overlap_test(void)
     /* (c) a chord A 60 + C 67 at 2.1, B 64 at 4.1, A up 6.5, C up 6.55, B up 8.5 */
     static const ov_ev_t CH[] = {{2, 10, 60, 1}, {2, 10, 67, 1}, {4, 10, 64, 1}, {6, 50, 60, 0}, {6, 55, 67, 0},
                                  {8, 50, 64, 0}};
+    /* (d) the chord's keys apart: A up 6.3, C up 6.6 (more than 1/8 of a step: each its own end) */
+    static const ov_ev_t CHF[] = {{2, 10, 60, 1}, {2, 10, 67, 1}, {4, 10, 64, 1}, {6, 30, 60, 0}, {6, 60, 67, 0},
+                                  {8, 50, 64, 0}};
+    /* (e) the chord's keys across a step: A up 6.92, C up 7.02 (within 1/8: together, at C's) */
+    static const ov_ev_t CHX[] = {{2, 10, 60, 1}, {2, 10, 67, 1}, {4, 10, 64, 1}, {6, 92, 60, 0}, {7, 2, 67, 0},
+                                  {8, 50, 64, 0}};
+    /* (f) the chord's last key is the hold's last: A up 6.45, C up 6.5 with B already up at 5.5 (together, the GATE
+     * lock of the hold's last step) */
+    static const ov_ev_t CHL[] = {{2, 10, 60, 1}, {2, 10, 67, 1}, {4, 10, 64, 1}, {5, 50, 64, 0}, {6, 45, 60, 0},
+                                  {6, 50, 67, 0}};
     track_t *t = &trk[0];
     uint32_t q, m;
     int fail = 0, ok;
@@ -996,31 +1021,59 @@ static int rec_overlap_test(void)
             snprintf(what, sizeof what, "overlap %s RECQ %s: A (held 4.4) live", VM[m], qn);
             fail += ov_near(what, live, poly ? 4.40 : 2.0);   /* (MONO / LEGATO: B takes the voice) */
             snprintf(what, sizeof what, "overlap %s RECQ %s: A played back", VM[m], qn);
-            fail += ov_near(what, ov_played(t, 2, 60), poly ? 4.0 : 2.0);   /* (POLY: to the nearest step, 6.4) */
+            fail += ov_near(what, ov_played(t, 2, 60), !poly ? 2.0 : q ? 4.0 : 4.40);   /* (QUANTIZE ON: the nearest
+                                                                                          * step, 6.4 -> 6) */
             snprintf(what, sizeof what, "overlap %s RECQ %s: B played back", VM[m], qn);
             fail += ov_near(what, ov_played(t, 4, 64), q ? 4.0 : 4.51);
-            ok = poly ? ov_step(t, 4, 2, 60, 1) && ov_step(t, 6, 1, 64, 1) && t->step[5].time == ST_TIE
-                      : ov_step(t, 4, 1, 64, 0) && t->step[6].time == ST_TIE;
+            ok = !poly ? ov_step(t, 4, 1, 64, 0) && t->step[6].time == ST_TIE
+               : q     ? ov_step(t, 4, 2, 60, 1) && ov_step(t, 6, 1, 64, 1) && t->step[5].time == ST_TIE &&
+                         !ngate_count(t->step)
+                       : ov_step(t, 4, 2, 60, 1) && t->step[5].time == ST_TIE && ov_step(t, 6, 2, 60, 1) &&
+                         ov_ngate(t, 6, 60) >= 48 && ov_ngate(t, 6, 60) <= 56 && ov_ngate(t, 6, 64) == 0 &&
+                         ov_step(t, 7, 1, 64, 1) && ngate_count(t->step) == 1u;
             fail += !ok;
             printf("reclen: overlap %s RECQ %s: steps %s %s\n", VM[m], qn,
-                   poly ? "4 {B A} carry, 5 TIE, 6 {B} carry" : "4 {B}, 6 TIE (one note a step)", ok ? "ok" : "FAIL");
+                   !poly ? "4 {B}, 6 TIE (one note a step)"
+                   : q   ? "4 {B A} carry, 5 TIE, 6 {B} carry, no own end"
+                         : "4 {B A} carry, 5 TIE, 6 {B A} carry A's own end 0.41 (latency back), 7 {B} carry",
+                   ok ? "ok" : "FAIL");
         }
     for (q = 0; q < 2u; q++) {
         const char *qn = q ? "ON" : "OFF";
         (void)ov_take(t, V_POLY, q, NEST, 4, 60);
         ov_dump(t, 1, 9);
         snprintf(what, sizeof what, "nested POLY RECQ %s: B (4.1 .. 5.3) played back", qn);
-        fail += ov_near(what, ov_played(t, 4, 64), 1.0);
+        fail += ov_near(what, ov_played(t, 4, 64), q ? 1.0 : 1.20);
         snprintf(what, sizeof what, "nested POLY RECQ %s: A (2.1 .. 8.5) played back", qn);
         fail += ov_near(what, ov_played(t, 2, 60), q ? 6.0 : 6.51);
         (void)ov_take(t, V_POLY, q, CH, 6, 60);
         ov_dump(t, 1, 9);
         snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: A of the chord played back", qn);
-        fail += ov_near(what, ov_played(t, 2, 60), 4.0);
+        fail += ov_near(what, ov_played(t, 2, 60), q ? 4.0 : 4.45);   /* (OFF: with C, up 1/20 after it) */
         snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: C of the chord played back", qn);
-        fail += ov_near(what, ov_played(t, 2, 67), 4.0);
+        fail += ov_near(what, ov_played(t, 2, 67), q ? 4.0 : 4.45);
         snprintf(what, sizeof what, "chord + overlap POLY RECQ %s: B played back", qn);
         fail += ov_near(what, ov_played(t, 4, 64), q ? 4.0 : 4.51);
+        (void)ov_take(t, V_POLY, q, CHF, 6, 60);
+        ov_dump(t, 1, 9);
+        snprintf(what, sizeof what, "chord keys 0.3 apart POLY RECQ %s: A played back", qn);
+        fail += ov_near(what, ov_played(t, 2, 60), q ? 4.0 : 4.20);
+        snprintf(what, sizeof what, "chord keys 0.3 apart POLY RECQ %s: C played back", qn);
+        fail += ov_near(what, ov_played(t, 2, 67), q ? 5.0 : 4.50);   /* (ON: the nearest steps, 6 and 7) */
+        (void)ov_take(t, V_POLY, q, CHX, 6, 60);
+        ov_dump(t, 1, 9);
+        snprintf(what, sizeof what, "chord keys 0.1 apart across a step POLY RECQ %s: A", qn);
+        fail += ov_near(what, ov_played(t, 2, 60), q ? 5.0 : 4.93);
+        snprintf(what, sizeof what, "chord keys 0.1 apart across a step POLY RECQ %s: C", qn);
+        fail += ov_near(what, ov_played(t, 2, 67), q ? 5.0 : 4.93);
+        (void)ov_take(t, V_POLY, q, CHL, 6, 60);
+        ov_dump(t, 1, 9);
+        snprintf(what, sizeof what, "chord ends the hold POLY RECQ %s: A (with C)", qn);
+        fail += ov_near(what, ov_played(t, 2, 60), q ? 3.5 : 4.40);   /* (ON: 5 a carry step at the GATE, as before) */
+        snprintf(what, sizeof what, "chord ends the hold POLY RECQ %s: C", qn);
+        fail += ov_near(what, ov_played(t, 2, 67), q ? 3.5 : 4.40);
+        snprintf(what, sizeof what, "chord ends the hold POLY RECQ %s: B (4.1 .. 5.5)", qn);
+        fail += ov_near(what, ov_played(t, 4, 64), q ? 1.0 : 1.40);
     }
     return fail;
 }

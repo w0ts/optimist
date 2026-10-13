@@ -64,6 +64,8 @@ static void ed_snd_get(const uint16_t *w, uint8_t *b, uint32_t n)
 static uint32_t song_sig_host, snap_sig_host;
 #define ED9_SONG_SIG() song_sig_host
 #define ED9_SNAP_SIG() snap_sig_host
+static uint32_t ed9_ends_host;                                 /* (WATCH bit 4, v12: a synth step pushed with its own note ends) */
+#define ED9_ENDS ed9_ends_host
 static int project_used(uint32_t s) { return s == 1u; }
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */

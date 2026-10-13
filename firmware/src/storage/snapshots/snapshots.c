@@ -138,7 +138,7 @@ static uint32_t sn_song(uint8_t *b)                    /* the song chain -> b, i
  * LEN that are not empty, the FM6 functions of the parts that are not FM6. With it a project comes back byte for
  * byte. Per track: a count, then (step, its 10 bytes) each; then a mask of the parts, their 16 functions each.
  * -> its length in b (SN_TAIL_MAX room), 0 nothing left out */
-#define SN_TAIL_MAX (NTRK * (1u + (NSTEP - 1u) * (1u + (uint32_t)sizeof(step_t))) + 1u + NPART * 16u)
+#define SN_TAIL_MAX (NTRK * (1u + (NSTEP - 1u) * (1u + (uint32_t)STEP_SN)) + 1u + NPART * 16u)
 _Static_assert(SN_TAIL_MAX <= ST_PAYLOAD_MAX && SN_TAIL_MAX <= SEC_REC_MAX, "a TAIL is built in st_buf");
 static uint32_t sn_tail(const project_t *p, uint8_t *b)
 {
@@ -150,8 +150,8 @@ static uint32_t sn_tail(const project_t *p, uint8_t *b)
         for (s = sec_len(&p->t[k]); s < NSTEP; s++)
             if (!sec_step_empty(&p->t[k].step[s], k)) {
                 *o++ = (uint8_t)s;
-                memcpy(o, &p->t[k].step[s], sizeof(step_t));
-                o += sizeof(step_t);
+                memcpy(o, &p->t[k].step[s], STEP_SN);
+                o += STEP_SN;
                 (*cnt)++, any = 1;
             }
     }
@@ -177,11 +177,11 @@ static int sn_tail_apply(project_t *p, const uint8_t *b, uint32_t n)
     for (k = 0; k < NTRK; k++) {
         if (a >= e)
             return 0;
-        for (c = *a++; c; c--, a += 1u + sizeof(step_t))
-            if (a + 1u + sizeof(step_t) > e || a[0] >= NSTEP)
+        for (c = *a++; c; c--, a += 1u + STEP_SN)
+            if (a + 1u + STEP_SN > e || a[0] >= NSTEP)
                 return 0;
             else
-                memcpy(&p->t[k].step[a[0]], a + 1, sizeof(step_t));
+                memcpy(&p->t[k].step[a[0]], a + 1, STEP_SN);
     }
     if (a >= e)
         return 0;
