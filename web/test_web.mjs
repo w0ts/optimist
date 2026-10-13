@@ -1735,6 +1735,8 @@ async function editorSl24Lost2() {
       "sl24Lost: the second word's bit 4 is an FX return below unity (SX24_FXRET), with its text");
     ok(E.sl24Lost(0, 32, true).join() === "ngate" && E.sl24Lost(0, 63, true).join() === "chance,lsync,lauto,dlfo,fxret,ngate" && html.includes("s24L_ngate:"),
       "sl24Lost: the second word's bit 5 is a POLY note's own end (SX24_NGATE), with its text");
+    ok(E.sl24Lost(0, 512, true).join() === "lfo2" && E.sl24Lost(0, 512 | 32, true).join() === "ngate,lfo2" && html.includes("s24L_lfo2:"),
+      "sl24Lost: the second word's bit 9 is a part's LFO 2 (SX24_LFO2), with its text; bits 6..8 not this list's");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {

@@ -430,6 +430,14 @@ static void job_cpu(const job_t *j)
         }
         TDRUM->p[P_DIST] = j->arg == 13u ? 127 : 0;
     }
+#if FELUCCA_LFO2
+    if (j->arg == 15u) {       /* LFO 2 on part 1 (voice.c lfo2_tick): arg 14 off (DEST OFF), 15 on PIT at 6 Hz, the pitch
+                                * moving every voice's increment each block (its dearest destination) */
+        trk[0].p[P_L2DEST] = L2D_PIT;
+        trk[0].p[P_L2AMT] = 40;
+        trk[0].p[P_L2RATE] = 90;
+    }
+#endif
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
             i0 = instr_now();
@@ -1031,6 +1039,16 @@ int main(int argc, char **argv)
             j->e = 0xFF;
             j->arg = (uint8_t)i;
         }
+#if FELUCCA_LFO2
+        for (i = 14; EB(1) && i <= 15u; i++) {        /* LFO 2 on a part: DIGITAL's first preset, 8 notes, off / on */
+            j = add(J_CPU, i == 14u ? "cpu/lfo2/off" : "cpu/lfo2/on");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)i;
+        }
+#endif
         for (i = 3; i <= 5u; i++) {                   /* the drum bus's inserts: the groove, nothing / DIST / COMP at 127 */
             j = add(J_CPU, i == 3u ? "cpu/fx/dbus_off" : i == 4u ? "cpu/fx/dbus_dist" : "cpu/fx/dbus_comp");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);

@@ -22,6 +22,8 @@
  *     ENGINE other than MARK I (2.4's), operators switched off;
  *   - the LFO's RATE synced to the tempo (< 0, params.c N_LSYNC: SLOOP 2.6's, not 2.4's) -> the free rate nearest
  *     that note value's at the project's tempo (sl24_rate_out), its locks too (LOST: LSYNC, the sync);
+ *   - a part's LFO 2 (FELUCCA_LFO2, project.c l2_pack; the drum track's LFO slots that hold it: their defaults): 2.4's
+ *     LFO when the part's own does nothing (sl24_l2_out); else, and its TRIG FREE, POL UNI, AMP < 0: LOST (SX24_LFO2);
  *   - the drum track: kits 0..36 as they are; ours past 36 (X0X, user kits) -> 808 (LOST); its lanes' record (sends,
  *     per-lane edits, dl_hash) LOST but the lanes' DLY: SLOOP 2.5's drums' delay send (G_DRDLY, byte 73; 2.4 ignores
  *     it) is the DLY level most lanes have (a tie: the lower), as a send (dsend_lvl), 0 while DLY is in no FX slot.
@@ -80,8 +82,11 @@ enum {                                                  /* what an export lost (
                                                          * second word's bit 4: 2.4 plays each return at full) */
     SX24_NGATE = 524288,                                /* (a POLY note's own end, seq/ngate.h: 2.4 has one GATE a step, the
                                                          * step's goes; the second word's bit 5: ed_sl24.c) */
-    SX24_INSORD = 1048576                               /* (a track with its FILTER before its DIST, both on: 2.4 plays
+    SX24_INSORD = 1048576,                              /* (a track with its FILTER before its DIST, both on: 2.4 plays
                                                          * DIST then FILT; the second word's bit 6; sl24_fx_out) */
+                                                        /* (the second word's bits 7 INSFX, 8: other branches') */
+    SX24_LFO2 = 8388608                                 /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
+                                                         * word's bit 9) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -175,6 +180,33 @@ static int32_t sl24_param_out(uint32_t id, uint32_t trk, int e)
     return -1;
 }
 static void sl24_w16(uint8_t *o, int32_t v) { o[0] = (uint8_t)v, o[1] = (uint8_t)((uint32_t)v >> 8); }
+#if FELUCCA_LFO2
+/* part k's LFO 2 (project.c l2_unpack) over 2.4's values at o (its p[]), v ours: when it acts and the part's LFO does
+ * not (every LFO DEST at 0), it becomes 2.4's LFO: RATE (synced: the nearest free one, SX24_LSYNC), WAVE, PHS and FADE
+ * 0, its AMT on its DEST (AMP: 2 x AMT); 2.4 has no TRIG FREE, no POL UNI, no AMP the other way up (AMT < 0): those,
+ * and a LFO 2 beside a LFO that acts, are lost (SX24_LFO2) */
+static uint32_t sl24_l2_out(const project_t *q, uint32_t k, const int16_t *v, int32_t bpm, uint8_t *o)
+{
+    static const uint8_t D[L2D_N] = {0, P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP};
+    int16_t x[NPART][L2_NV];
+    const int16_t *l;
+    uint32_t lost = 0;
+    (void)l2_unpack(q, x);
+    l = x[k % NPART];
+    if (!l[4] || !l[5])                                 /* (OFF, or AMT 0: nothing heard) */
+        return 0;
+    if (v[P_LD_PIT] || v[P_LD_FLT] || v[P_LD_SHP] || v[P_LD_AMP])
+        return SX24_LFO2;
+    sl24_w16(o + 2u * P_LRATE, sl24_rate_out(l[0], bpm));
+    sl24_w16(o + 2u * P_LWAVE, l[1]);
+    sl24_w16(o + 2u * P_LPHASE, 0);
+    sl24_w16(o + 2u * P_LFADE, 0);
+    sl24_w16(o + 2u * D[l[4] % L2D_N], l[4] == L2D_AMP ? (l[5] > 0 ? 2 * l[5] : 0) : l[5]);
+    lost |= l[0] < 0 ? SX24_LSYNC : 0u;
+    lost |= l[2] || l[3] || (l[4] == L2D_AMP && l[5] < 0) ? SX24_LFO2 : 0u;
+    return lost;
+}
+#endif
 /* global i of q as 2.4 keeps it: G_MIDI (our MIDI channels), G_VIEW (2.4's G_ROUTE) and G_INFO (our REC QUANTIZE) 0,
  * SYNC AUTO -> INT, the drum reverb our lanes took (DRREV_MOVED) -> 2.4's default 16 */
 static int32_t sl24_g_out(const project_t *q, uint32_t i)
@@ -191,10 +223,16 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     int16_t v[P_COUNT];
     uint32_t i, lost = 0, uid = q->t[k].engine, eng = k == TRK_DRUM ? 0u : sl24_eng_out(uid);
     pj_to_p(v, q->t[k].p);
+    if (k == TRK_DRUM && l2_tagged(q))                  /* (its LFO slots held the parts' LFO 2: project.c l2_pack) */
+        l2_slots_def(v);
     for (i = 0; i < SL24_COMMON; i++)
         sl24_w16(o + 2u * i, v[i]);
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));
     lost |= v[P_LRATE] < 0 ? SX24_LSYNC : 0u;
+#if FELUCCA_LFO2
+    if (k < NPART)
+        lost |= sl24_l2_out(q, k, v, q->g[G_BPM], o);
+#endif
     for (i = 0; i < 3u; i++)
         sl24_w16(o + 2u * (SL24_TFLT + i), px[i]);
     for (i = 0; i < 8u; i++)

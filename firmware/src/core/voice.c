@@ -54,14 +54,71 @@ static const uint32_t LSYNC_KT[LSYNC_N] = {           /* 4BAR 2BAR 1BAR 1/2 1/4 
     (uint32_t)((LSYNC_ONE + LSYNC_U * 12u) / (LSYNC_U * 24u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 6u) / (LSYNC_U * 12u)),
     (uint32_t)((LSYNC_ONE + LSYNC_U * 4u) / (LSYNC_U * 8u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u) / (LSYNC_U * 6u)),
     (uint32_t)((LSYNC_ONE + LSYNC_U * 2u) / (LSYNC_U * 4u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u / 2u) / (LSYNC_U * 3u))};
-/* the phase step of t's LFO this block (track_lfo_tick; dual.c dual_lfo_draw: the same) */
-AINL uint32_t lfo_inc(const track_t *t)
+/* the phase step this block of an LFO at RATE r (LFO's and LFO 2's) */
+AINL uint32_t lfo_inc_of(int32_t r)
 {
-    int32_t r = t->p[P_LRATE];
     if (r >= 0)
         return LFO_INC[r & 127];
     return (uint32_t)(((uint64_t)clk_blk * LSYNC_KT[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u]) >> 16);
 }
+/* the phase step of t's LFO this block (track_lfo_tick; dual.c dual_lfo_draw: the same) */
+AINL uint32_t lfo_inc(const track_t *t) { return lfo_inc_of(t->p[P_LRATE]); }
+
+/* LFO 2 (FELUCCA_LFO2, core.h P_L2RATE .. P_L2AMT): a second LFO a part, one destination. Its state is the part's
+ * (lfo2[], not in track_t: the drum track has none). Each block (track_render, either core): nothing at all while
+ * DEST is OFF or AMT 0 (the phase waits); else the phase steps by RATE (free or synced, lfo_inc_of), S&H takes its
+ * next value at each wrap from a hash of the last (no rng(): the same samples on either core, no draw order), the
+ * wave (lfo_slot.h lfo_shape, LFO's five) and POL (UNI: (v + 1) / 2, SLOOP 2.6's) give v (Q15), and the block's one
+ * offset or gain for every voice of the part, on LFO DEST's scale (voice.c track_render: PIT FLT SHP as P_LD_*'s,
+ * AMP as P_LD_AMP's at 2 x AMT; < 0 the other way up). It adds to LFO's (AMP: multiplies). TRIG NOTE: a fresh phrase
+ * restarts it at phase 0 (trk_note_on, with LFO's); FREE: never. No divide, no 64-bit but the synced step (LFO's) */
+typedef struct {
+    int32_t m[3];                                       /* added to PIT (1/4096 semitone), FLT, SHP (Q8): L2D_PIT - 1 .. */
+    int32_t amp;                                        /* the amplitude's gain, Q15 (32767: none) */
+} lfo2_mod_t;
+#if FELUCCA_LFO2
+#include "lfo_slot.h"
+typedef struct {
+    uint32_t ph;                                        /* the phase */
+    uint32_t rnd;                                       /* S&H's value this cycle (the top 16 bits) */
+} lfo2_t;
+static lfo2_t lfo2[NPART] = {{0, 0x80000000u}, {0, 0x80000000u}, {0, 0x80000000u}};   /* (S&H at 0 until a wrap) */
+_Static_assert(NPART == 3, "lfo2[]: one a part");
+#define LFO2_ON(t) ((t)->p[P_L2DEST] && (t)->p[P_L2AMT])   /* (DEST OFF or AMT 0: nothing computed) */
+/* part t's LFO 2 this block -> o (left as it is while it is off). In XIP flash, called through a pointer (FAR) by the
+ * render, only while it acts: once a part a block, its code out of RAMTEXT (the ISR never runs while the flash is busy) */
+static __attribute__((noinline)) void lfo2_tick(const track_t *t, lfo2_mod_t *o)   /* (XIP: RAMTEXT is full) */
+{
+    const int16_t *p = t->p;
+    lfo2_t *s = &lfo2[(uint32_t)(t - trk) % NPART];
+    int32_t a = p[P_L2AMT], v, u;
+    uint32_t old = s->ph;
+    if (!p[P_L2DEST] || !a)
+        return;
+    s->ph += lfo_inc_of(p[P_L2RATE]);
+    if (s->ph < old)
+        s->rnd = lfo_rnd_of(s->rnd, (uint32_t)(t - trk));
+    v = lfo_shape((uint32_t)p[P_L2WAVE], s->ph, s->rnd);
+    u = (v + 32768) >> 1;                               /* 0..32767 */
+    if (p[P_L2POL])
+        v = u;                                          /* UNI: one way only, as far */
+    if (p[P_L2DEST] < L2D_AMP)                          /* PIT (x 3 as P_LD_PIT: +-31.5 semitones at full), FLT, SHP */
+        o->m[p[P_L2DEST] - L2D_PIT] = (v * a * (p[P_L2DEST] == L2D_PIT ? 3 : 1)) >> 7;
+    else                                                /* AMP: down from the top by u (P_LD_AMP at 2 x AMT); < 0 from
+                                                         * the bottom (the wave upside down). Either POL: SLOOP's */
+        o->amp = 32767 - mulq15(a > 0 ? u : 32767 - u, a > 0 ? a * 516 : a > -64 ? -a * 516 : 32767);
+}
+/* a fresh phrase on part k (trk_note_on): TRIG NOTE restarts it */
+AINL void lfo2_retrig(const track_t *t)
+{
+    if (!t->p[P_L2TRIG])
+        lfo2[(uint32_t)(t - trk) % NPART].ph = 0;
+}
+#else
+#define LFO2_ON(t) ((void)(t), 0)
+AINL void lfo2_tick(const track_t *t, lfo2_mod_t *o) { (void)t, (void)o; }
+#define lfo2_retrig(t) ((void)(t))
+#endif
 static HOT void track_lfo_tick(track_t *t)
 {
     uint32_t old = t->lfo_ph;
@@ -466,6 +523,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     if (!any) {                                        /* fresh phrase: LFO retrigger and fade */
         t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
         t->lfo_fade = 0;
+        lfo2_retrig(t);                                 /* (LFO 2: TRIG NOTE) */
     }
     if (mode == V_POLY) {
         voice_t *v = voice_alloc(t, note);
@@ -792,6 +850,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     const int16_t *p = t->p;
     uint32_t i;
     int32_t lfo = mulq15(t->lfo_val, t->lfo_fade);
+    lfo2_mod_t l2 = {{0, 0, 0}, 32767};                 /* LFO 2: none, else this block's (lfo2_tick) */
     int32_t midi = midi_pitch_tick(t, n) * 16;          /* MIDI bend + wheel, 1/4096 semitone */
     /* TUNE in cents: whole 1/16 semitones in the pitch, the rest as a fine factor (no dead zone) */
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
@@ -806,7 +865,9 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             t->p[P_E0 + i] = t->pe_old[i];
         }
     track_lfo_tick(t);
-    if (e->block)                                       /* the engine's per-part work (DRAWBAR: bars, rotor) */
+    if (LFO2_ON(t))
+        FAR(lfo2_tick)(t, &l2);
+    if (e->block)                                      /* the engine's per-part work (DRAWBAR: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
@@ -822,6 +883,8 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.amp1 = e->vel_own ? env : mulq15(env, v->vel * 258);
             if (p[P_LD_AMP])
                 m.amp1 = mulq15(m.amp1, 32767 - mulq15((lfo + 32768) >> 1, p[P_LD_AMP] * 258));
+            if (l2.amp != 32767)
+                m.amp1 = mulq15(m.amp1, l2.amp);
             if (fade)                                   /* linear to 0 over the fade */
                 m.amp1 = m.amp1 * (int32_t)(t->xf - 1u) / (int32_t)XF_BLOCKS;
             m.amp0 = v->env_out;
@@ -842,7 +905,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
-                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + midi;
+                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + l2.m[0] + midi;
             /* FM6's own pitch offset, without the MIDI bend / wheel: FM6 takes the controllers through
              * fm6_midi_expr (its DX7 bend range and wheel routing, as Melodee and Dexed) */
             m.plog = (int32_t)(((int64_t)(q - midi - (v->pitch16 << 8)) * 1398101) >> 12) + v->fine * 5909;   /* -> Q24 */
@@ -855,10 +918,10 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (m.fine_all)
                 m.inc = fine_inc(m.inc, m.fine_all);
         }
-        m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
+        m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7) + l2.m[1];
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
-        m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
+        m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7) + l2.m[2];
         if (v->ofs) {                                   /* starts inside the block: the rest of it, the */
             uint32_t o = v->ofs < n ? v->ofs : n - 1u;  /* amplitude ramp reaching amp1 at its end */
             v->ofs = 0;

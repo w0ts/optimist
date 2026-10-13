@@ -59,6 +59,13 @@ watches (v2, `WATCH`), the device also sends push frames (cmds 23, 24, 26) at an
 | engine byte | 0..NENGINES−1; NENGINES = the drum track (it has no engine and no presets) |
 
 The engine parameters are `P_E0..P_E7`: P_COUNT−8 .. P_COUNT−1, and `INFO` gives `P_E0`.
+
+**LFO 2** (builds with the builder item LFO2, `FELUCCA_LFO2`): six track parameters after every other one, the last
+ids of a track (P_COUNT−6 .. P_COUNT−1 in those builds; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
+below 0 a note value of the tempo), WAVE (SIN TRI SAW SQR S&H), TRIG (NOTE FREE), POL (BI UNI), DEST (OFF PIT FLT SHP
+AMP), AMT (−64..63). They are read and set as any track parameter (`GET` / `SET`, `TRACK_PARAM`, the dumps carry
+them as they carry P_COUNT values); they are not part of a sound (a user preset does not keep them) and are not
+recordable as motion or locks. The synth parts' only (the drum track's are not heard).
 Their meaning, range and names depend on the current engine, so re-read `DESC` for them
 after an engine change.
 
@@ -633,6 +640,9 @@ the editor shows no button. Nothing is written to flash.
   end (above, "A note's own end"): 2.4 has one GATE a step, so the step's own GATE is exported and the note ends there.
   Bit 6 (the mask's bit 20, `SX24_INSORD`, 1048576): a track's FILTER placed before its DIST with both on (S1 FILTER,
   S2 DIST: 2.4 always runs DIST, then FILTER), so the order is lost; S1 DIST, S2 FILTER (the default) is 2.4's order.
+  Bits 7 and 8 belong to other features. Bit 9 (the mask's bit 23, `SX24_LFO2`): a part's LFO 2 that is not written as
+  2.4's LFO: one beside an LFO that acts, or with TRIG FREE, POL UNI or AMP below 0 (2.4 has one LFO, NOTE and BI); a
+  LFO 2 alone (the part's LFO DEST all 0) is written as 2.4's LFO (its RATE, WAVE, the AMT on its DEST, AMP 2 × AMT).
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two

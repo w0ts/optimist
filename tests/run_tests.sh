@@ -356,6 +356,17 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_sync_test_nomac" tests/lfo_sync_test.c -lm
     run "LFO RATE below 0, without the macros" "$OUT/lfo_sync_test_nomac"
 ) >"$U.out" 2>&1 & jobbg
+# LFO 2 (FELUCCA_LFO2: voice.c lfo2_tick, project.c l2_pack, sl24 import / export): built, and a project with it in a build without
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/lfo2_test" tests/lfo2_test.c -lm
+    run "LFO 2: params, off = nothing, free / synced RATE, PIT FLT SHP AMP maths, POL, S&H without rng(), TRIG, renders, project round trip, old projects" "$OUT/lfo2_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=0 -o "$OUT/lfo2_test0" tests/lfo2_test.c -lm
+    run "LFO 2 left out: a project with it loads (the drum track's slots back to their defaults), MISS names it" "$OUT/lfo2_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -DFELUCCA_LFO2=1 -o "$OUT/sl26_import_test_lfo2" tests/sl26_import_test.c -lm
+    run "SLOOP 2.6 import with LFO 2: its LFO's TRIG FREE / POL UNI onto LFO 2; LFO 2 exported as 2.4's LFO, else lost (bit 9)" "$OUT/sl26_import_test_lfo2"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/regress_lfo2" tests/regress.c -lm
+    run "regression with LFO 2 built: the same golden renders (off by default), its CPU (cpu/lfo2/off, on)" "$OUT/regress_lfo2" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
 BP23_ON="-DFELUCCA_MONO_RELEASE=1 -DFELUCCA_ST_STRICT=1 -DFELUCCA_USB_FLOW=1 -DFELUCCA_SHED_FADE=1 -DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
