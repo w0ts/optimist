@@ -216,6 +216,13 @@ static uint8_t recovery_active;
 _Static_assert(sizeof st_buf >= 0x800u, "ota.c OTA_STAGE_MEM: the session's 2 KiB in st_buf");
 #define OTA_STAGE_MEM st_buf                 /* (ota.c ota_stage: st_buf is scratch, idle during a session) */
 #endif
+/* the editor's reply buffer (editor.c), defined here: ota.c decodes the host's messages into it. A reply is built and
+ * sent inside one ed_handle call, a message decoded and read inside one ota_service call or a session (which runs
+ * alone and ends in a reset); none of them calls another */
+#include "io/editor/ed_out.h"
+#define ED_OUT_HERE 1
+static uint8_t ed_out[ED_OUT_N] __attribute__((aligned(4)));
+#define OTA_DEC_MEM ed_out
 #include "system/ota.c"
 static void recovery_poll(void);
 static uint32_t ota_now_ms(void) { return fm1_ms; }
