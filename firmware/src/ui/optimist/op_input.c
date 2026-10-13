@@ -36,6 +36,17 @@ static void op_row_pick(uint32_t r)
     op_disarm();                                        /* (the question was about the other row) */
 }
 static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL; }   /* SYSTEM's settings shown */
+/* the pages with no track context (the user, 2026-10-13: "on pages that are global, save/load, glo, system, the keyboard
+ * notes keys should not do anything", then "global pages dont play tracks. period."): GLOBAL, SYSTEM (the BLE devices
+ * list too), PROJECT, MASTER FX, SCOPE and SONG. Their keys play and send nothing, light nothing and start no pick or
+ * record. Kept: PROJECT's slot rows pick the slot (op_project.c prj_key); SONG's PATTERNS row launches patterns; TEMPO's
+ * keys (PLAY held) are the MIX layer's, they tap the tempo and play nothing. The layers (a held button) are not these
+ * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
+static int keys_none(void)
+{
+    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE
+           || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
+}
 static void op_enter(uint32_t scr)
 {
     if (scr != ui.scr && (sys_scr(ui.scr) || (tp.on && sys_scr(tp.prev))))
@@ -547,11 +558,14 @@ static void op_drain(uint32_t held)
     while (lk_r != lk_w) {
         uint32_t e = lk_q[lk_r % LKQ];
         lk_r++;
+        if ((e >> 8) == LY_STEP && keys_none() && ((e >> 7) & 1u)) {
+            if (ui.scr == SCR_PROJECT && !(held & BIT(B_HOME)))
+                prj_key(e & 0x7Fu, 1);                  /* (PROJECT: the key picks the slot; no track, no other job) */
+            continue;                                   /* (a press; its release goes on: a step held before the page changed) */
+        }
         if ((e >> 8) == LY_STEP && (pick_mod(held) || mute_mod(held)))
             continue;                                   /* (the silent pick's key: no step) */
-        if ((e >> 8) == LY_STEP && ui.scr == SCR_PROJECT)
-            prj_key(e & 0x7Fu, (e >> 7) & 1u);          /* (PROJECT: the key picks the slot) */
-        else if ((e >> 8) == LY_STEP)
+        if ((e >> 8) == LY_STEP)
             step_key(e & 0x7Fu, (e >> 7) & 1u, held);
         else
             lay_key(e >> 8, e & 0x7Fu, (e >> 7) & 1u);
@@ -593,6 +607,8 @@ static void ui_input(void)
     if (notes && keys) {
         lay.used = 1;
         op_clean &= ~held;
+    } else if (notes && keys_none()) {                  /* GLOBAL, SYSTEM, PROJECT: no track, the keys do nothing here */
+        op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && !(held & BIT(B_HOME))) {   /* SEQ held (the pick) or the keys play */
@@ -610,8 +626,6 @@ static void ui_input(void)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }
         op_clean &= ~BIT(B_HOME);
-    } else if (notes && ui.scr == SCR_PROJECT) {        /* PROJECT: the keys pick the slot, they play nothing (op_project.c) */
-        op_clean &= ~held;
     } else if (notes) {
         op_clean &= ~held;
         drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
@@ -627,7 +641,7 @@ static void ui_input(void)
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
     id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
        : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
-       : step_keys(held) || ui.scr == SCR_PROJECT ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
+       : step_keys(held) || keys_none() ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
         ly_lock = (uint8_t)id;
 }
