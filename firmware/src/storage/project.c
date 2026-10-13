@@ -350,7 +350,7 @@ static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
     return 1;
 }
 
-static project_v3_t proj_v3_tmp;               /* (formats 1, 2: through format 3) */
+static project_v3_t proj_v3_tmp IN_POOL;               /* (formats 1, 2: through format 3) */
 /* a format 2 project (n bytes in *v2) -> slot q as format 4 */
 static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
 {
@@ -1120,7 +1120,7 @@ static union {
 #if SEC_LOGGED || FELUCCA_SNAPSHOTS
     uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c; snapshots.c) */
 #endif
-} proj_tmp;
+} proj_tmp IN_POOL;
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
 #if !SEC_LOGGED
 static void proj_fetch(uint32_t slot)
@@ -1210,18 +1210,62 @@ static void project_load(uint32_t slot)
 }
 #endif
 
-/* ---- the working project, kept in flash by itself: saved when it changed, the transport is stopped,
- * nothing sounds and the panel was not touched for AUTOSAVE_IDLE (a flash erase stops the audio for
- * ~50 ms: never while something plays); loaded at power-on (autosave_resume) */
-#define AUTOSAVE_IDLE 2500u                    /* ms without input */
-#define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
+/* ---- the working project, kept in flash by itself (autosave_tick), loaded at power-on (autosave_resume). Only while
+ * stopped and silent (a flash erase stops the audio for ~50 ms), its change hash taken every second:
+ *   settled   the work has not changed for AUTOSAVE_SETTLE: saved (no panel idle time: an edit is a change of the
+ *             hash, whatever made it);
+ *   changing  the work keeps changing (a tweak every few seconds, MIDI CCs): saved anyway once
+ *             it has been unsaved for AUTOSAVE_MAX_WAIT, then again at most every AUTOSAVE_MAX_WAIT while it goes on;
+ *   gap       never two saves within AUTOSAVE_MIN_GAP (the flash wear, the user's choice 2026-10-13); the first save
+ *             after power-on is not held back. Before fix/autosave nothing was saved in the first 20 s after power-on
+ *             (and a save waited for 2.5 s without input): a power-off there lost the edit.
+ * Wear: a save erases one 4 KiB sector, the other copy of OBJ_AUTOSAVE (A 0x9F000 /
+ * B 0xFE000, alternately: each copy 0.5 erase a save); the drum record pair (0xE5000 / 0xE6000) only when the drum
+ * lanes changed; the motion form is programmed into the copy just written (no erase); the extras, FX and LFO records
+ * are appended to the section log (8 sectors, ~16..400 B a save: ~0.006..0.12 erase of a log sector a save). The
+ * flash, a Puya P25Q80H (JEDEC 0x856014, hal/fm1_flash.h), is rated 100k erase cycles a sector: the copies last
+ * 200k saves. 4 h a day of editing: the worst (a save every MIN_GAP) 240 saves/day ~2.3 years; continuous changes (one
+ * save per MAX_WAIT) 120/day ~4.6 years; a settled edit every 5 min 48/day ~11 years. (Without the gap, the settle
+ * rule alone allowed a save every 11 s: ~1,300/day, ~150 days.) */
+#define AUTOSAVE_SETTLE 10000u                 /* ms the work stays the same before it is saved */
+#define AUTOSAVE_MAX_WAIT 120000u              /* ms the work may stay unsaved while it keeps changing */
+#define AUTOSAVE_MIN_GAP 60000u                /* ms between two saves at least (the first after power-on: none) */
 #ifdef SEC_RB_WORK
 #define autosave_buf SEC_RB_WORK               /* (sections.c sec_rb: shared with the section records' buffer) */
 #else
 static project_t autosave_buf __attribute__((section(".pool")));
 #endif
 static dlrec_t autosave_dl;                    /* its drum record */
-static uint32_t autosave_hash, autosave_ms, autosave_checked;
+static uint32_t autosave_hash, autosave_checked;   /* the saved work's hash; the last check */
+static uint32_t autosave_seen, autosave_seen_ms;   /* the work's hash at the last check, since when it is that */
+static uint32_t autosave_dirty_ms, autosave_put_ms; /* since when the work differs from the saved one; the last try */
+static uint8_t autosave_dirty, autosave_tried; /* it differs (autosave_dirty_ms counts); a save tried since power-on */
+
+#if FELUCCA_FLASH
+/* the change test of the working project captured in p: everything stored with it (the project, its automation,
+ * its FX record, its drum lanes' LFO record) */
+static uint32_t autosave_hash_of(const project_t *p)
+{
+    return p->sum ^ AUTO_HASH() ^ fxr_hash(p) ^ DLR_HASH(p);   /* (the sum covers the drum record) */
+}
+/* autosave_buf (captured, its hash h) into OBJ_AUTOSAVE with its records; 0 written */
+static int autosave_put(uint32_t h)
+{
+    int rc = proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl);
+    if (rc != 0)
+        return rc;
+    MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if FELUCCA_AUTO && SEC_LOGGED
+    (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its extras record (stepx_log.c) */
+#endif
+#if SEC_LOGGED
+    (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
+    (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its LFO record (dlfo_rec_log.c) */
+#endif
+    autosave_hash = h;
+    return 0;
+}
+#endif
 
 static int audio_quiet(void)
 {
@@ -1244,30 +1288,37 @@ static void autosave_tick(void)                /* main loop */
 {
 #if FELUCCA_FLASH
     uint32_t h, now = fm1_ms;
-    if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu ||
-        now - ui_input_ms < AUTOSAVE_IDLE || now - autosave_ms < AUTOSAVE_GAP || now - autosave_checked < 1000u)
+    int settled, overdue;
+    if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu || now - autosave_checked < 1000u)
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
-    h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf) ^ DLR_HASH(&autosave_buf);   /* (the sum covers the drum record) */
-#if FELUCCA_PATTERNS
-    if (audio_quiet())
-        pat_state_save();                               /* the tracks' pattern sources (pat.c), when they changed */
-#endif
-    if (h == autosave_hash || !audio_quiet())
-        return;
-    if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
-        MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
-#if FELUCCA_AUTO && SEC_LOGGED
-        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its extras record (stepx_log.c) */
-#endif
-#if SEC_LOGGED
-        (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
-        (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its LFO record (dlfo_rec_log.c) */
-#endif
-        autosave_hash = h;
+    h = autosave_hash_of(&autosave_buf);
+    if (h != autosave_seen) {                           /* changed (or the first check after playing): settle again */
+        autosave_seen = h;
+        autosave_seen_ms = now;
     }
-    autosave_ms = fm1_ms;
+    if (h == autosave_hash)
+        autosave_dirty = 0;
+    else if (!autosave_dirty) {
+        autosave_dirty = 1;
+        autosave_dirty_ms = now;
+    }
+    settled = now - autosave_seen_ms >= AUTOSAVE_SETTLE;
+    overdue = autosave_dirty && now - autosave_dirty_ms >= AUTOSAVE_MAX_WAIT;
+    if (!(settled || overdue) || (autosave_tried && now - autosave_put_ms < AUTOSAVE_MIN_GAP) || !audio_quiet())
+        return;
+#if FELUCCA_PATTERNS
+    pat_state_save();                                   /* the tracks' pattern sources (pat.c), when they changed */
+#endif
+    if (!autosave_dirty)
+        return;
+    autosave_put_ms = now;                              /* (a failed write: tried again after AUTOSAVE_MIN_GAP) */
+    autosave_tried = 1;
+    if (autosave_put(h) == 0)
+        autosave_dirty = 0;
+    else
+        autosave_seen_ms = now;
 #endif
 }
 
@@ -1289,7 +1340,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     dlr_log_get(DLR_ID_AUTO, q->sum, q);                /* its LFO record (dlfo_rec_log.c), applied with it */
 #endif
     proj_apply(q, &autosave_dl, 1);
-    autosave_hash = q->sum ^ AUTO_HASH();
+    autosave_hash = autosave_hash_of(q);                /* (all of it, as autosave_tick: else a needless save each power-on) */
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
 #if FELUCCA_PATTERNS
     pat_state_load();                                   /* the tracks' pattern sources as they were left (pat.c) */
@@ -1700,18 +1751,9 @@ static void persist_flush_now(void)
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
         uint32_t h;
         proj_capture(&autosave_buf, &autosave_dl);
-        h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf) ^ DLR_HASH(&autosave_buf);   /* (as autosave_tick) */
-        if (h != autosave_hash && proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
-            MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
-#if FELUCCA_AUTO && SEC_LOGGED
-            (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its extras record (stepx_log.c) */
-#endif
-#if SEC_LOGGED
-            (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
-            (void)dlr_log_put(DLR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its LFO record (dlfo_rec_log.c) */
-#endif
-            autosave_hash = h;
-        }
+        h = autosave_hash_of(&autosave_buf);            /* (as autosave_tick) */
+        if (h != autosave_hash)
+            (void)autosave_put(h);
     }
 #endif
 }

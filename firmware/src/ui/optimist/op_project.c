@@ -159,7 +159,9 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
     /* LOAD replaces the work, CLEAR / ERASE / NEW destroy, a SAVE over a used slot too: they ask first (the SAVE
      * cell: 2 on PROJECT, 3 on SNAPSHOT and USER) */
-    if (!ok && (k != (kind == PR_PROJECT ? 2u : 3u) || used)) {
+    if (!ok && (k == 1u ? (kind == PR_PROJECT ? work_changed() : kind == PR_USER ? snd_edited(song.sel) : 1)
+                        : k != (kind == PR_PROJECT ? 2u : 3u) || used)) {   /* (LOAD: a project over a changed work, a
+                                                         * user preset over an edited sound; op_edits.c) */
         static const char *const WHAT[3] = {"PROJECT ", "SNAPSHOT ", "PRESET "};
         char t[14];                                     /* the target: "PROJECT 3", "SNAPSHOT 2", "PRESET U03" */
         str_cpy(t, WHAT[kind], sizeof t);
@@ -172,8 +174,10 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
     if (kind == PR_PROJECT) {
-        if (k == 1u)
+        if (k == 1u) {
             project_load(prj_slot());
+            work_mark();                                /* (the work as loaded) */
+        }
         else if (k == 2u)
             name_project(prj_slot());                   /* (NAME first, with the section log: op_name.c) */
         else
@@ -183,6 +187,8 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
             name_user(ui.user_slot);                    /* SAVE: NAME first (op_name.c) */
         else
             up_ui(k - 1u, ui.user_slot);                /* 0 load, 1 erase, 2 save (upreset.c) */
+        if (k == 1u)
+            snd_mark(song.sel);                         /* (the user preset as loaded) */
     }
 #if FELUCCA_SNAPSHOTS
     else {

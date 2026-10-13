@@ -507,10 +507,51 @@ static void con_params(void)
     }
 }
 
+/* tabbench: the read speed of main RAM against the pool on the FM-1 (TAB_IN_POOL, docs/MEMORY-MAP.md section 2; the
+ * emulator has no memory timing). The same loop (a sine lookup's stride, 2 KiB, int16 reads) over SINE where this
+ * build put it, a main RAM range (trk, read only) and a pool range (st_buf, read only); the best of 8 runs of 4,096
+ * reads each, in tenths of a ns a read (timer 4, 24 MHz: ~4 ns steps over the run). Interrupts stay on (the audio
+ * runs): repeat it, compare the figures with each other, not with a datasheet. CPU0, the loop's code from flash */
+static uint32_t con_tab_run(const int16_t *t, int32_t *sum)   /* (the sum is printed: every read is kept) */
+{
+    uint32_t r, i, k, t0, d, best = 0xFFFFFFFFu;
+    for (r = 0; r < 8u; r++) {
+        int32_t a = 0;
+        t0 = fm1_ticks();
+        for (i = 0, k = 0; i < 4096u; i++, k = (k + 37u) & 1023u)
+            a += t[k];
+        d = fm1_ticks() - t0;
+        *sum += a;
+        if (d < best)
+            best = d;
+    }
+    return best * 10000u / (FM1_TICKS_PER_US * 4096u);
+}
+static void con_tab_line(const char *name, const void *at, int32_t *sum)
+{
+    con_puts(name);
+    con_hex((uint32_t)(uintptr_t)at, 8);
+    con_puts("  ");
+    con_dec((int32_t)con_tab_run((const int16_t *)at, sum));
+    con_puts(" (0.1 ns a read)\r\n");
+}
+static void con_tabbench(void)
+{
+    int32_t sum = 0;
+    con_tab_line("SINE      ", SINE, &sum);
+    con_tab_line("main RAM  ", &trk[0], &sum);
+#if FELUCCA_FLASH
+    con_tab_line("pool      ", st_buf, &sum);        /* (storage.c: IN_POOL) */
+#endif
+    con_puts("(checksum ");
+    con_dec(sum);
+    con_puts(")\r\n");
+}
+
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
+        con_puts("status  dbg  crash  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -526,6 +567,8 @@ static void con_exec(const char *p)
         con_crash();
     else if (con_word(&p, "params"))
         con_params();
+    else if (con_word(&p, "tabbench"))
+        con_tabbench();
     else if (con_word(&p, "memr"))
         con_memr(p);
 #if FELUCCA_FLASH

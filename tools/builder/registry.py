@@ -593,7 +593,7 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
           "web editor's tooltips). The Optimist UI (UI=1): the screen's last line, while a value turns and ~2 s after, and "
           "always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About "
-          "6.4 KB of flash (UI=1: more, its own lines too), no RAM code",
+          "5.5 KB of flash (UI=1: 7.7 KB, its own lines too; the texts packed), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
 _add("CHORD_NAMES", "FELUCCA_CHORD_NAMES", "chord names on the STEP page", U, 160,
      desc="SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, "
@@ -633,6 +633,9 @@ _add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84,
           "one by one before an update")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
+_add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
+     experimental=True, tested="emulator-tested only (no memory timing there)",
+     desc="Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

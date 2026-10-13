@@ -36,7 +36,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
-              "ui/sloop/param_help.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
+              "ui/sloop/param_help.c", "ui/ph_blob.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
@@ -51,7 +51,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
               "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_tools.c",
-              "ui/optimist/op_help.c"]
+              "ui/optimist/op_help.c", "ui/optimist/op_edits.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",

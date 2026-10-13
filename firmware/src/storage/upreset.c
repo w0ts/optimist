@@ -63,7 +63,7 @@ typedef struct {
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
 _Static_assert(UP_NS(P_ENG_END) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");   /* (SLOOP 2.4's track
                                                  * values after P_E7, core.h P_TFLT ..: not a sound's, not kept here) */
-static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
+static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
 

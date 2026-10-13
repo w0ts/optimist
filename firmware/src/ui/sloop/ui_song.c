@@ -32,7 +32,7 @@ static void song_screen_draw(void)
         sig = sig * 31u + arrangement.entry[i].scene + 7u * arrangement.entry[i].bars;
     for (i = 0; i < ARR_SCENES; i++) sig = sig * 3u + (uint32_t)project_used(i);
 #if FELUCCA_PARAM_HELP
-    if (ph_line()) sig += str_hash(11u, ph_line());   /* (the help line of the knob turned: param_help.c) */
+    sig += ph_line() * 40503u;                      /* (the help line of the knob turned: param_help.c) */
 #endif
     te_header("song", C_WHITE, &head_cache);      /* the top bar every page has + the 20 px strip (ui_studio.c) */
     if (!ui.force && !ui.msg_t && sig == previous) return;
@@ -70,7 +70,8 @@ static void song_screen_draw(void)
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 11, &FONT_S, ui.msg, C_BLACK);
 #if FELUCCA_PARAM_HELP
     } else if (ph_line()) {                         /* a knob turns: what it is, in words, over the labels */
-        cv_text(4, 12, &FONT_S, ph_line(), RGB(196, 196, 204));
+        char hb[PH_LINE];
+        cv_text(4, 12, &FONT_S, ph_text(ph_line(), hb), RGB(196, 196, 204));
 #endif
     } else {
         static const char *const L[4] = {"entry", "section", "bars", "length"};

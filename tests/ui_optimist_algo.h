@@ -180,6 +180,7 @@ static void algo_presets_tests(void)
     kit = drum_kit_pos();
     n = ls_count(2);
     dl.src[2] = (uint8_t)dsnd_idx_src(al_first_own(2));   /* lane 3 (snare) on an instrument, lane 4 (clap) on KIT */
+    snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     turn(EN_ALGO, 4);                                   /* lane 4: the clap, SRC KIT */
     frames(2);
     memcpy(src, dl.src, sizeof src);
@@ -214,6 +215,7 @@ static void algo_presets_tests(void)
     frames(2);
     check(dl.src[2] != DL_KIT, "... never back to KIT by PRESETS (the source row sets KIT)");
     dl.src[2] = src[2];
+    snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     k0 = ls_kind(ls_cur(2, n));
     fm1_in.buttons |= BT(B_HOME);
     frame();
@@ -230,6 +232,7 @@ static void algo_presets_tests(void)
     /* the mixer's lane rows: the same */
     memset(&dl, 0, sizeof dl);
     dl.src[4] = (uint8_t)dsnd_idx_src(al_first_own(4));
+    snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     go_home();
     frame();
     ui.row[SCR_HOME] = MXR_LANE0 + 4u;

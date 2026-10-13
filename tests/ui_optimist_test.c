@@ -228,8 +228,12 @@ static void reset_ui(void)
     fm1_in.notes = 0;
     op_disarm();
     ui.msg_t = 0;
+    memset(snd_mem, 0, sizeof snd_mem);                 /* (a power-on's page memory: SOUND's, the held step's, STEP's row) */
+    memset(hp_mem, 0, sizeof hp_mem);
+    ui.row[SCR_STEP] = 0;
     go_home();
     frames(2);
+    snd_mark_all();                                     /* (the sounds as loaded: browsing asks nothing, op_edits.c) */
 }
 
 /* ---- every screen's rows resolve */
@@ -1398,6 +1402,7 @@ static void save_layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-save");
+    work_mark();                                        /* (the work as stored: no question, op_edits.c) */
     key(WK(1));
     check(live_sec == 1 && !strcmp(ui.msg, "LOADED B"), "SAVE + key 2, stopped: scene B loaded");
     key(WK(2));
@@ -1573,8 +1578,9 @@ static void combo_tests(void)
 #if FELUCCA_MICRO
     check(step_micro(&trk[0], 5) == 0, "... the nudge gone");
 #endif
+    trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] + 1);   /* (an edit: INIT asks over edits only, op_edits.c) */
     hold2(B_HOME, B_ENV);
-    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV: INIT, asked");
+    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV over an edited sound: INIT, asked");
     tap(B_HOME);
     song.octave = 2;
     hold2(B_HOME, B_OCTUP);
@@ -2256,6 +2262,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
+#include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -2385,9 +2392,11 @@ int main(int argc, char **argv)
     glwalk_tests();
     help_tests();
     risk_tests();
+    risk_edits_tests();
     algo_tests();
     mute_tests();
     smute_tests();
+    pagemem_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();

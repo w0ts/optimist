@@ -255,16 +255,16 @@
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {"VERSION": "Firmware version"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
-      "SLOT": "Project slot (dim: empty)", "LOAD": "Load: replaces work (asks)",
+      "SLOT": "Project slot (dim: empty)", "LOAD": "Load (work changed: asks)",
       "SAVE": "Save the work in the slot", "NEW": "New project: clears (asks)"}},
     {"kind": "op", "ctx": "SNAPSHOT", "if": "FELUCCA_SNAPSHOTS", "params": {
       "SLOT": "Snapshot slot (dim: empty)", "LOAD": "Load: replaces work (asks)",
       "CLEAR": "Erase the snapshot (asks)", "SAVE": "Save a snapshot of the work"}},
     {"kind": "op", "ctx": "USER", "params": {
-      "SLOT": "User preset slot (dim: empty)", "LOAD": "Load the preset on the track",
+      "SLOT": "User preset slot (dim: empty)", "LOAD": "Load preset (edits: asks)",
       "ERASE": "Erase the preset (asks)", "SAVE": "Save the sound as this preset"}},
     {"kind": "op", "ctx": "TOOLS", "params": {
-      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
+      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (edits: asks)",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
       "NEW": "New project: clears (asks)"}},
     {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave (asks)"}},
@@ -272,12 +272,29 @@
       "USED": "Project memory used", "MORE": "Sections that still fit"}},
     {"kind": "op", "ctx": "SOUND", "params": {
       "PRESET": "The track's sound", "ENGINE": "The track's synth engine",
-      "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset",
+      "INIT": "Engine defaults (edits: asks)", "SAVE AS": "Save as a user preset",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
+    {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "POL": "LFO 2: both ways or up only"}},
+    {"kind": "op", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
+      "DEST": "What LFO 2 moves", "AMT": "How much LFO 2 moves it"}},
+    {"kind": "op", "ctx": "SONG", "if": "FELUCCA_PATTERNS", "params": {
+      "T1": "T1's pattern in this scene", "T2": "T2's pattern in this scene", "T3": "T3's pattern in this scene",
+      "DR": "DR's pattern in this scene"}},
+    {"kind": "op", "ctx": "PATTERNS", "if": "FELUCCA_PATTERNS", "params": {
+      "T1": "T1's pattern playing now", "T2": "T2's pattern playing now", "T3": "T3's pattern playing now",
+      "DR": "DR's pattern playing now"}},
+    {"kind": "op", "ctx": "TOOLS", "if": "FELUCCA_SEQTOOLS", "params": {
+      "REVERSE": "Turn, then SAVE: steps back", "RANDOM": "Turn, then SAVE: new notes",
+      "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2"}},
+    {"kind": "op", "ctx": "EUCLID", "if": "FELUCCA_SEQTOOLS", "params": {
+      "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",
+      "ROT": "Euclid: rotate the hits", "LANE": "The drum lane it writes"}},
     {"kind": "op", "ctx": "SENDS", "params": {
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
-      "MODE": "Play the loop or the song", "REC": "Record the song as played", "SAVE": "Keep the song order",
+      "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order",
       "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Copy this part after it",
       "DELETE": "Delete this part (asks)"}}
   ]

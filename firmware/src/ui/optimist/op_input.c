@@ -47,8 +47,7 @@ static void op_enter(uint32_t scr)
     if (scr == SCR_FX)                                  /* (the master FX opened: right goes to SOUND T1, unless the walk */
         ui.m_scr = SCR_SOUND, ui.m_fam = SND_ALL, ui.m_row = 0;   /* sets where it came from: op_walk.c) */
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
-    if (scr == SCR_STEP)
-        ui.row[SCR_STEP] = 0;                           /* (STEP opens on PATTERN: LEN first, the user) */
+    /* (STEP keeps its page: it opens on the one it was left on, the user 2026-10-13: "screen should remember its page") */
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.cards_t = 0;
@@ -102,7 +101,7 @@ static void op_jump_sound(uint32_t fam)
         op_enter(SCR_SOUND);
     snd_fam = (uint8_t)fam;
     ui.row[SCR_SOUND] = 0xFF;                           /* (so that the pick below is a change) */
-    op_row_pick(0);
+    op_row_pick(snd_mem_row(fam));                      /* (the family's page last shown on this track: op_screens.c) */
     ui.force = 1;
 }
 static void op_jump(uint32_t fam)
@@ -462,7 +461,8 @@ static int op_presets_turn(void)
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
         else
             op_engine_step(s);                          /* HOME held (the shift) + PRESETS: the instruments (DR: its kits) */
-        pre_toast();
+        if (!op_armed())
+            pre_toast();                                /* (asked "Discard edits?": no toast) */
         op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO, no SYSTEM) */
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
@@ -475,7 +475,8 @@ static int op_presets_turn(void)
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
         else
             op_preset_step(s);                          /* (DR, a lane on KIT: the kit) */
-        pre_toast();
+        if (!op_armed())
+            pre_toast();                                /* (asked "Discard edits?": no toast) */
     }
     return 1;
 }
@@ -801,6 +802,7 @@ static void ui_draw(void)
     if (ui.cards_t)
         ui.cards_t--;
     HL_TICK();                                          /* (the help line's time after a turn: op_help.c) */
+    ed_tick();                                          /* (another sound: unedited; op_edits.c) */
     if (step_held_long())
         step_cards_show();                              /* (a step held, past the hold time: the cards up while it is held;
                                                          * the timer runs once it is let go; a tap: none) */
@@ -829,6 +831,7 @@ static void ui_draw(void)
     scope_tick();                                       /* the scope's source for the audio ISR */
     song_tick();                                        /* SONG: an edited reference written, the chain saved */
     op_rows_fix();
+    snd_mem_tick();                                     /* SOUND's page, remembered per track and family (op_screens.c) */
     ui.page = (uint8_t)op_cursor_page();
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */

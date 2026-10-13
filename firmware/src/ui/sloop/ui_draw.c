@@ -152,10 +152,11 @@ static uint32_t head_sig_sec(void)
 static void draw_head(void)
 {
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
+    char hb[PH_LINE];                                   /* (the help line unpacked: param_help.c) */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u + ui.msg_st, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + head_sig_sec() + (usb.config && !usb.suspended) * 99991u +
-                   (ph_line() ? str_hash(3u, ph_line()) : 0u) + (uint32_t)SEL_COL * 2654435761u + (uint32_t)TSEL->eng_req * 17u;
+                   ph_line() * 40503u + (uint32_t)SEL_COL * 2654435761u + (uint32_t)TSEL->eng_req * 17u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -163,7 +164,7 @@ static void draw_head(void)
     if (ui.msg_t) {
         cv_text(4, 1, &FONT_S, ui.msg, ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI);
     } else if (ph_line()) {                           /* a knob turns: what it is, in words (param_help.c) */
-        cv_text(4, 1, &FONT_S, ph_line(), C_HI);
+        cv_text(4, 1, &FONT_S, ph_text(ph_line(), hb), C_HI);
     } else {
         head_left();
         head_center(rec);

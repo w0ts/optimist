@@ -241,7 +241,7 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
-    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
+    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"),
@@ -300,13 +300,14 @@ def build_app():
                       .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
         sync_view(ld)
     tc("pi32v2/bin/ld", "-T", ld, *objs, "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot", elf, OUT / "ramhot.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot2", elf, OUT / "ramhot2.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".pool_init", elf, OUT / "poolinit.bin"),
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
                                ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
@@ -316,9 +317,10 @@ def build_app():
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
     img = bytearray((OUT / "text.bin").read_bytes())
-    # .ram_text, .ram_hot, .ram_hot2 and .data follow .text at their load addresses; main.c copies them by words
+    # .ram_text, .ram_hot, .ram_hot2, .data and .pool_init follow .text at their load addresses; main.c copies them
+    # by words
     for sect, lname in (("ramtext.bin", "_rt_load"), ("ramhot.bin", "_rh_load"), ("ramhot2.bin", "_rh2_load"),
-                        ("data.bin", "_data_load")):
+                        ("data.bin", "_data_load"), ("poolinit.bin", "_pi_load")):
         load = symv(lname)
         if load % 4:
             raise SystemExit(f"{lname} {load:#x} is not word aligned")

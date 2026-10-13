@@ -60,7 +60,7 @@ def session1(ctx, e, P):
                                                     work["fx"][2] > 50), f"cur {work['cur']}, {fmt(fx, work['fx'])}")
     ok = P.project_save(PROJECT_SLOT, shot="project-saved")
     ctx.check(f"session 1: PROJECT > SAVE slot {PROJECT_SLOT}", ok, P.page())
-    e.run(30.0)                                       # (the autosave: 2.5 s idle, 20 s after the last)
+    e.run(30.0)                                       # (the autosave: once the work is unchanged 10 s)
     return exp, work
 
 
