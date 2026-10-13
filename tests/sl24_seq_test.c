@@ -42,7 +42,7 @@ static void reset(uint32_t bpm)
         trk[i].seq_idx = 0;
     }
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     nhits = 0;
     blk = 0;
     song.g[G_BPM] = (int16_t)bpm;

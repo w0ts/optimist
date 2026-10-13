@@ -113,7 +113,7 @@ static void rec_reset(uint32_t bpm)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     song.g[G_BPM] = (int16_t)bpm;
     song.g[G_CLOCK] = 0;
     song.rec = 0;
@@ -285,7 +285,7 @@ static void t_glide(void)
     {   /* the drum track: GLO > DRUMS LEVEL down while a hit sounds */
         int32_t lv0;
         memset(&drums, 0, sizeof drums);
-        drums.set = -2;
+        drums_set = -2;
         song.g[G_DRLVL] = 100;
         drum_on(36u, 120u);
         run_ms(5);

@@ -589,8 +589,80 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
+/* LFO 2 (core.h P_L2RATE .. P_L2AMT, the parts') in the drum track's stored LFO slots, which it never reads (its lanes
+ * have LFOs of their own: lane_play.c), no format change (as px_pack, pj_x, the macros' MAC_ID), and only when a part's
+ * LFO 2 is not at its defaults: a project without it is byte for byte one of before. Then the drum track's RATE slot
+ * holds L2_TAG, its WAVE PHS FADE slots the parts' first words, its PIT SHP AMP slots their second (FLT: MAC_ID's):
+ *   first   RATE (8 bits, two's complement: -10..127) | AMT << 8 (7 bits, two's complement)
+ *   second  WAVE (3 bits) | DEST << 3 (3 bits) | TRIG << 6 | POL << 7
+ * Without the tag (every project before; one saved without a LFO 2 on) the slots are the drum track's own. Every build
+ * reads the tag: a build without LFO2 gives the slots back their defaults (TOOLS > MISS: LFO 2, miss.c) */
+#define L2_TAG 0x4C00u                                   /* (out of the RATE slot's range, -10..127) */
+#define L2_NV 6u                                         /* RATE WAVE TRIG POL DEST AMT */
+static const uint8_t L2_W0[NPART] = {P_LWAVE, P_LPHASE, P_LFADE};
+static const uint8_t L2_W1[NPART] = {P_LD_PIT, P_LD_SHP, P_LD_AMP};
+/* the project in p holds LFO 2 values (its drum track's LFO slots are not the drum track's) */
+static int l2_tagged(const project_t *p) { return ((uint16_t)p->t[TRK_DRUM].p[P_LRATE] & 0xFF00u) == L2_TAG; }
+/* the parts whose LFO 2 acts in p (DEST not OFF, AMT not 0): a bit each */
+static uint32_t l2_live(const project_t *p)
+{
+    uint32_t k, m = 0;
+    for (k = 0; l2_tagged(p) && k < NPART; k++)
+        m |= (uint32_t)(((uint16_t)p->t[TRK_DRUM].p[L2_W1[k]] >> 3 & 7u) && ((uint16_t)p->t[TRK_DRUM].p[L2_W0[k]] >> 8 & 0x7Fu))
+             << k;
+    return m;
+}
+/* a project's drum track values v (P_COUNT) whose LFO slots held LFO 2: their defaults */
+static void l2_slots_def(int16_t *v)
+{
+    uint32_t k;
+    v[P_LRATE] = TP[P_LRATE].def;
+    for (k = 0; k < NPART; k++)
+        v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = TP[L2_W1[k]].def;
+}
+#if FELUCCA_LFO2
+_Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DEST == P_L2RATE + 4 &&
+               P_L2AMT == P_L2RATE + 5 && P_COUNT == P_L2RATE + L2_NV, "LFO 2's values: in a row, the last of a track");
+/* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default */
+static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
+{
+    int16_t *d = p->t[TRK_DRUM].p;
+    uint32_t k, j, any = 0;
+    for (k = 0; k < NPART; k++)
+        for (j = 0; j < L2_NV; j++)
+            any |= (uint32_t)(x[k][j] != TP[P_L2RATE + j].def);
+    if (!any)
+        return;
+    d[P_LRATE] = (int16_t)L2_TAG;
+    for (k = 0; k < NPART; k++) {
+        d[L2_W0[k]] = (int16_t)(((uint32_t)x[k][0] & 0xFFu) | ((uint32_t)x[k][5] & 0x7Fu) << 8);
+        d[L2_W1[k]] = (int16_t)(((uint32_t)x[k][1] & 7u) | ((uint32_t)x[k][4] & 7u) << 3 | ((uint32_t)x[k][2] & 1u) << 6 |
+                                ((uint32_t)x[k][3] & 1u) << 7);
+    }
+}
+/* -> x, the parts' LFO 2 values (their defaults without the tag, each inside its range); 1 when p has them */
+static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
+{
+    const int16_t *d = p->t[TRK_DRUM].p;
+    uint32_t k, j;
+    int t = l2_tagged(p);
+    for (k = 0; k < NPART; k++) {
+        uint32_t w0 = (uint16_t)d[L2_W0[k]], w1 = (uint16_t)d[L2_W1[k]];
+        int16_t v[L2_NV];
+        v[0] = (int16_t)(int8_t)(uint8_t)w0;
+        v[1] = (int16_t)(w1 & 7u);
+        v[2] = (int16_t)(w1 >> 6 & 1u);
+        v[3] = (int16_t)(w1 >> 7 & 1u);
+        v[4] = (int16_t)(w1 >> 3 & 7u);
+        v[5] = (int16_t)((int32_t)((w0 >> 8 & 0x7Fu) ^ 0x40u) - 0x40);
+        for (j = 0; j < L2_NV; j++)
+            x[k][j] = t ? (int16_t)clamp(v[j], TP[P_L2RATE + j].min, TP[P_L2RATE + j].max) : TP[P_L2RATE + j].def;
+    }
+    return t;
+}
+#endif
 #if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
-#include "sl24/sl24_fm6.c"          /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
+#include "sl24/sl24_fm6.c"         /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
 #endif
 #if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
 #if FELUCCA_SL24_IMPORT
@@ -604,6 +676,12 @@ static void px_pack(project_t *p, const int16_t (*x)[3]);   /* (below: SLOOP 2.4
 #if FELUCCA_SL24_EXPORT
 #include "../seq/stepx.h"
 #include "sl24/sl24_export.c"       /* ours as a SLOOP 2.4 project (proj_to_sl24): the editor saves it (ed_sl24.c) */
+#endif
+#if FELUCCA_AUTO && ((FELUCCA_SL24_IMPORT && FELUCCA_FLASH) || FELUCCA_SL24_EXPORT)
+/* 2.4's step extras, one scratch for both ways: the import's on their way into the automation store (sl24_guard.c
+ * sl24_import_buf) and the export's, the automation as 2.4's extras (ed_sl24.c ed_sl24_make). Each fills it and is
+ * done with it inside one main-loop call, and neither calls the other */
+static stepx_t sl24_xs[NTRK] __attribute__((section(".pool")));
 #endif
 
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
@@ -803,6 +881,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if SL24_TP
     int16_t px[NTRK][3];                                /* (SLOOP 2.4's track values: px_pack) */
 #endif
+#if FELUCCA_LFO2
+    int16_t l2[NPART][L2_NV];                           /* (the parts' LFO 2: l2_pack) */
+#endif
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
@@ -823,6 +904,10 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         pj_from_p(p->t[i].p, v);
 #if SL24_TP
         memcpy(px[i], &v[P_TFLT], sizeof px[i]);
+#endif
+#if FELUCCA_LFO2
+        if (i < NPART)
+            memcpy(l2[i], &v[P_L2RATE], sizeof l2[i]);
 #endif
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
@@ -856,6 +941,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if SL24_TP
     px_pack(p, px);                                     /* (after the drum track's values: in its free slots) */
 #endif
+#if FELUCCA_LFO2
+    l2_pack(p, l2);                                     /* (the same: its LFO slots) */
+#endif
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO
     auto_capture_store(p);                              /* its automation (auto_proj.c) */
@@ -879,6 +967,13 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #if SL24_TP
     int16_t px[NTRK][3];
     int pxt = px_unpack(p, px);                         /* SLOOP 2.4's track values (px_pack) */
+#endif
+#if FELUCCA_LFO2
+    int16_t l2[NPART][L2_NV];
+    int l2t = l2_unpack(p, l2);                         /* the parts' LFO 2 (l2_pack) */
+#else
+    int l2t = l2_tagged(p);                             /* (LFO 2's, not played here: miss.c) */
+    l2_miss = (uint8_t)l2_live(p);
 #endif
 #if FELUCCA_AUTO
     auto_apply_store(p);                                /* its automation, if it is this project's (auto_proj.c) */
@@ -922,6 +1017,12 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                 v[PX_SLOT[i]] = TP[PX_SLOT[i]].def;
 #endif
         (void)pxt;
+#endif
+        if (k == TRK_DRUM && l2t)                       /* (its LFO slots that held LFO 2: the drum track's defaults) */
+            l2_slots_def(v);
+#if FELUCCA_LFO2
+        if (k < NPART)
+            memcpy(&v[P_L2RATE], l2[k], sizeof l2[k]);
 #endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
@@ -1114,7 +1215,11 @@ static void project_load(uint32_t slot)
  * ~50 ms: never while something plays); loaded at power-on (autosave_resume) */
 #define AUTOSAVE_IDLE 2500u                    /* ms without input */
 #define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
+#ifdef SEC_RB_WORK
+#define autosave_buf SEC_RB_WORK               /* (sections.c sec_rb: shared with the section records' buffer) */
+#else
 static project_t autosave_buf __attribute__((section(".pool")));
+#endif
 static dlrec_t autosave_dl;                    /* its drum record */
 static uint32_t autosave_hash, autosave_ms, autosave_checked;
 

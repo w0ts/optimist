@@ -226,7 +226,7 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     }
     {                                                   /* synthesised: the edited sound, as drum_synth.c runs it */
         int32_t semi;
-        const dsnd_t *d = &DS_KITS[kit - DRUM_SAMPLED].s[ds_lane(LANE_NOTE[l], &semi)];
+        const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE[l], &semi));
 #if FELUCCA_DRUM_EDIT
         static dsnd_t ed;
         if (o) {

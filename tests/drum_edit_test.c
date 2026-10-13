@@ -27,7 +27,7 @@ static uint32_t hit(uint32_t kit, uint32_t note, uint32_t vel, int32_t *out)
 {
     uint32_t j, k, last = 0;
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     rng_state = 0x1234567u;                       /* (the noise: the same each time) */
     TDRUM->p[P_E0] = (int16_t)kit;
     TDRUM->p[P_PAN] = 0;
@@ -249,7 +249,7 @@ int main(int argc, char **argv)
     {
         uint32_t j, k;
         memset(&drums, 0, sizeof drums);
-        drums.set = -2;
+        drums_set = -2;
         rng_state = 0x1234567u;
         TDRUM->p[P_E0] = DRUM_SAMPLED;
         drum_on(36, 110);

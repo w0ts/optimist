@@ -125,7 +125,7 @@ static sends_t hit(uint32_t note, uint32_t nb, int mono)
     uint32_t b, i;
     memset(&e, 0, sizeof e);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     rng_state = 0x1234567u;
     drum_on(note, 110);
     for (b = 0; b < nb; b++) {
@@ -252,7 +252,7 @@ static void pattern_test(void)
             dstep_set(&TDRUM->dstep[i], L_SNARE, LV_NORM, 0);
     }
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     transport_req = 1;
     for (b = 0; b < 2u * 2u * FS / CTL; b++) {   /* 2 bars at 120 */
         uint32_t snare_on = prev_snare, any_on = 0;   /* (a snare that ended in this block sounded in it) */

@@ -52,7 +52,17 @@ typedef struct {
 static sec_pend_t sec_pend __attribute__((section(".noinit")));
 static project_t sec_stage_p __attribute__((section(".pool")));
 static dlrec_t sec_stage_d;
-static uint8_t sec_rbuf[SEC_REC_MAX] __attribute__((section(".pool"), aligned(4)));
+/* a section record on its way to or from the log (sec_rbuf), and the working project captured for the autosave and
+ * the snapshots (project.c autosave_buf) share one buffer: each is filled and done with inside one main-loop call
+ * (autosave_tick, persist_flush_now, sn_write, sn_load, the editor's SL24 export; a section's store, read, staging, a
+ * backup's chunk), never across one, and no path with the work captured reads or writes a record here (they use
+ * SN_REC = proj_tmp, sx_rbuf, fxr_rbuf, dlr_rbuf, st_buf). Neither the audio ISR nor CPU1 touches either */
+static union {
+    uint8_t rec[SEC_REC_MAX];
+    project_t work;
+} sec_rb __attribute__((section(".pool"), aligned(4)));
+#define sec_rbuf (sec_rb.rec)
+#define SEC_RB_WORK sec_rb.work                        /* (project.c autosave_buf) */
 _Static_assert(sizeof proj_tmp >= SEC_REC_MAX, "a section record is received into proj_tmp (ed_backup.c)");
 static dlrec_t sec_tmp_dl;
 static volatile int8_t sec_stage_id = -1;              /* the section the stage holds (ready for the ISR), -1 none */

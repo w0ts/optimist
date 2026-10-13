@@ -237,7 +237,7 @@ static void dl_ds_on(dsv_t *s, uint32_t vi, const dkit_t *k, uint32_t note, uint
     const int8_t *x = dl_ofs_play(l);
     if (x) {
         int32_t semi;
-        de_synth(&dv.d[vi], &k->s[ds_lane(note, &semi)], x);
+        de_synth(&dv.d[vi], DS_SND(k, ds_lane(note, &semi)), x);
         ds_on_snd(s, &dv.d[vi], k->crush, semi, note, vel);
         dl_smp_fx(vi, l);                                      /* (CUT -: a low-pass on its output) */
         dv.dec[vi] = 0;

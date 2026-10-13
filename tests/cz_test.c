@@ -30,7 +30,7 @@ static void reset(void)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
 }
 
 typedef struct { uint64_t hash; double rms, dc; int32_t peak; uint32_t busy; } cz_res_t;

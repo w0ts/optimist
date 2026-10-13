@@ -4,6 +4,11 @@
 static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first (core.h LSYNC_N, LRATE_OF_SLOOP) */
 static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
+#if FELUCCA_LFO2
+static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
+static const char *const N_L2POL[] = {"BI", "UNI"};
+static const char *const N_L2DEST[L2D_N] = {"OFF", "PIT", "FLT", "SHP", "AMP"};
+#endif
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
@@ -143,6 +148,14 @@ static const param_desc_t TP[P_COUNT] = {
 #endif
 #if FELUCCA_MASTER_COMP
     [P_TCOMP] = PD("CMP", F_PCT, 0, 127, 0),       /* the COMP insert (fx_slots.c): 0 off, up to -30 dB */
+#endif
+#if FELUCCA_LFO2
+    [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
+    [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
+    [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
+    [P_L2POL] = PE("POL", N_L2POL, 0),
+    [P_L2DEST] = PE("DEST", N_L2DEST, 0),
+    [P_L2AMT] = PD("AMT", F_BIPCT, -64, 63, 0),
 #endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
@@ -290,6 +303,11 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 }
 #endif
 
+#if FELUCCA_LFO2
+#define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
+#else
+#define is_lrate(d) ((d) == &TP[P_LRATE])
+#endif
 /* the LFO's RATE turned (steps detents, accelerated): a fast turn down stops at 0 first, the slowest free rate; below 0
  * (the synced note values, N_LSYNC) one value a detent, whatever the speed; above 0 as every value */
 static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
@@ -338,11 +356,11 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
     const uint8_t *o = enum_order(d);
     if (o)
         return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
-    return d == &TP[P_LRATE] ? lrate_step(d, v, steps) : param_step0(d, v, steps);
+    return is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps);
 }
 #else
 #define enum_rank(d, v) (v)
-#define param_step(d, v, steps) ((d) == &TP[P_LRATE] ? lrate_step(d, v, steps) : param_step0(d, v, steps))
+#define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
 #endif
 
 /* value string (<= 5 chars) and unit for a parameter value */

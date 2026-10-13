@@ -80,7 +80,7 @@ static void reset(void)
     memset(midi_ch, 0, sizeof midi_ch);
     memset(midi_held, 0, sizeof midi_held);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     midi_nheld = 0;
     host_tracks_init();
     bps_defaults();

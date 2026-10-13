@@ -60,7 +60,7 @@ static void reset(void)
     memset(&dl, 0, sizeof dl);
     (void)dlfo_decode(0, 0);
     dlfo_free = 0;
-    drums.set = -2;
+    drums_set = -2;
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     song.rec = 0;
