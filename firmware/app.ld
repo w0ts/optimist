@@ -30,7 +30,11 @@ SECTIONS
     .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
     _data_load = LOADADDR(.data);
     .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
-    .pool (NOLOAD) : { _pool_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
+    /* the pool: first what main.c copies from flash at boot (.pool_init: the TAB_RAM tables), then the zeroed
+     * buffers (.pool); both count as the pool (build.py: _pool_start.._pool_end) */
+    .pool_init : { _pool_start = .; _pi_start = .; KEEP(*(.pool_init*)) . = ALIGN(4); _pi_end = .; } > POOL AT > XIP
+    _pi_load = LOADADDR(.pool_init);
+    .pool (NOLOAD) : { _pz_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
     .noinit (NOLOAD) : { *(.noinit) *(.noinit.*) } > NOINIT     /* (.noinit.* last: a new one moves nothing) */
     /* the undo history's ring (undo.c, FELUCCA_UNDO_HISTORY): the memory nothing is linked into, so it
      * grows and shrinks with the build. The pool after .pool up to its last 8 KiB (build.py keeps those
