@@ -105,6 +105,8 @@ typedef struct {
 } param_desc_t;
 
 #define SL24_TP (FELUCCA_TRK_FILT || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
+/* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
+#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -153,6 +155,12 @@ enum {                          /* per-track parameters */
      * make-up). Not part of a sound nor of a user preset (decision D8); the FX record keeps it (fx_rec.c) */
     P_TCOMP,
 #endif
+#if INS_FX
+    /* the further insert types' amounts (fx/insfx/insfx.c; fx_slots.c FXT_FOLD ..): 0 off .. 127. All six exist when
+     * any of them is built (the same ids in every such build). Not part of a sound nor of a user preset (as P_TCOMP);
+     * the FX record keeps them (fx_slots.c fxs_tlv, a TLV a type) */
+    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE,
+#endif
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
@@ -173,7 +181,7 @@ enum { L2D_OFF, L2D_PIT, L2D_FLT, L2D_SHP, L2D_AMP, L2D_N };   /* P_L2DEST */
 #define LSYNC_N 10
 #define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
 #define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
-#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
+#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2 || INS_FX)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
                                                   * stored with it, none part of a sound (param_kept) */
 
 enum {                          /* global parameters */

@@ -134,6 +134,32 @@ static void test_model(void)
         cg.level = 0;
         tflt[TRK_DRUM].mode = 0;
 #endif
+#if INS_FX
+        {   /* the further inserts (insfx.c): each while set in a slot (FX on), or fading out; the drum bus's at every level */
+            uint32_t t, ok = 1;
+            for (t = FXT_NEW0; t < FXT_N; t++) {
+                uint8_t s[2] = {(uint8_t)t, FXT_NONE};
+                if (FXT_AMT[t] == 0xFFu)
+                    continue;
+                ok &= CG_COST_PINS[t - FXT_NEW0] > 0u && CG_COST_DBINS[t - FXT_NEW0] > 0u;
+                ins_put(0, s), ins_put(TRK_DRUM, s);
+                trk[0].p[FXT_AMT[t]] = 90;
+                ok &= cg_est() == e1 + CG_COST_PINS[t - FXT_NEW0];
+                trk[0].p[P_FXOFF] = 1;
+                ok &= cg_est() == e1;
+                trk[0].p[P_FXOFF] = 0, trk[0].p[FXT_AMT[t]] = 0;
+                TDRUM->p[FXT_AMT[t]] = 90;
+                cg.level = CG_L_QUALITY;
+                ok &= cg_est() == e1 + CG_COST_DBINS[t - FXT_NEW0];
+                cg.level = 0;
+                TDRUM->p[FXT_AMT[t]] = 0;
+                ok &= cg_est() == e1;
+            }
+            ins_defaults();
+            CHECK(ok, "the further inserts: measured; each counted while set in a slot (not with FX off), the drum bus's "
+                  "at QUALITY too");
+        }
+#endif
     }
     CHECK(CG_VCOST[ENG_UID_FM6] > CG_VCOST[0] && CG_VCOST[ENG_UID_ACID] > CG_VCOST[ENG_UID_FM6],
           "the measured order (tests/cpu_baseline.txt): ANALOG < FM6 < ACID a voice");

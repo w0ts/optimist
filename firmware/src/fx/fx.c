@@ -1491,6 +1491,8 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 }
 #endif
 
+#include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE (ins_one, dbus_ins) */
+
 /* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
  * its P_DIST P_TFLT P_TCOMP (inserts) and P_CHOR P_DLY P_REV (its bus sends; the FX record carries them: fx_slots.c;
  * project_t's slots stay 0), each heard while the drum track's FX are on (P_FXOFF) and, an insert, while one of its two
@@ -1581,6 +1583,10 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
             dbus_comp_run(a, n, nc);
     }
 #endif
+#if INS_FX
+    if (t >= FXT_NEW0 && t < FXT_N && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades out, then rests) */
+        ifx_bus(t, live ? p[FXT_AMT[t]] : 0, mix_l, mix_r, n);
+#endif
     (void)p, (void)live, (void)n, (void)nc;
 }
 static int32_t dbus_snd[3];                             /* the sends CHO DLY REV at the end of the last block (Q15) */
@@ -1644,6 +1650,10 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
     if (ty == FXT_COMP)
         tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
 #endif
+#if INS_FX
+    if (ty >= FXT_NEW0 && ty < FXT_N && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out, then rests) */
+        ifx_part(ty, k, live ? t->p[FXT_AMT[ty]] : 0, b, n);
+#endif
     (void)t, (void)k, (void)ty, (void)live, (void)b, (void)n;
 }
 static HOT2 __attribute__((noinline)) void ins_part(track_t *t, int32_t *b, uint32_t n)
@@ -1675,6 +1685,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #if FELUCCA_MASTER_COMP
         tcomp_quiet(t, b, n);                           /* (its COMP insert lets go: no freeze) */
 #endif
+#if INS_FX
+        ifx_quiet_part(t);                              /* (a further insert switched off meanwhile: at rest) */
+#endif
 #if FELUCCA_GLIDE
         t->gl_on = 0;                                   /* the gains settle at once */
 #endif
@@ -1691,7 +1704,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
-        if (FELUCCA_FX_DIST || FELUCCA_TRK_FILT || FELUCCA_MASTER_COMP)
+        if (FELUCCA_FX_DIST || FELUCCA_TRK_FILT || FELUCCA_MASTER_COMP || INS_FX)
             ins_part(t, b, n);                          /* its two insert slots, S1 then S2 (above) */
 #if FELUCCA_UI == 1
         if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */
@@ -1774,6 +1787,10 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
             MX(mix_r)[i] += ((x >> 4) * gr) >> 8;
         }
         t->peak = pk;
+#endif
+#if FELUCCA_INS_WIDTH
+        if (ifx_sd[(uint32_t)(t - trk) % NPART])        /* WIDE's side (insfx.c): after the level, L+ R- */
+            ifx_side_mix((uint32_t)(t - trk), lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
     }
 }

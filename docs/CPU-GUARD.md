@@ -157,6 +157,14 @@ the drum bus S1 DIST 127 and S2 FILTER, the groove): 2661 host against `cpu/mix/
 **QUALITY** the drum bus's DIST and FILTER run on L / R only (the echoes take the bus before them): the model counts
 2 / 5 of their cost, and QUALITY is a step worth taking while either runs.
 
+**The further insert types** (2026-10-13, fx/insfx/insfx.c: FOLD FUZZ PHSR FLNG FRMT WIDE, builder items INS_*).
+`regress_insfx` (every one built) plays the same part with one of them in S1 at 127 (`cpu/fx/part_<t>`) and the
+groove with the drum track's S1 at 127 (`cpu/fx/dbus_<t>`), each less the run's own `part_off` / `dbus_off` (stored
+against the baseline's): `CG_COST_PINS` {40, 55, 66, 64, 78, 78} and `CG_COST_DBINS` {72, 69, 132, 127, 131, 74}
+target a sample (a part's 1.8 .. 3.6 %, the drum bus's 3.2 .. 6.1 % of the 2,177 of 96 MHz). Each counts while its
+amount is set (in a slot, FX on) or while it fades out (2.9 ms). On the drum bus they run on L / R only at every
+level, so QUALITY does not scale them.
+
 ## Cost
 
 Measured builds (`measure_costs.py --only CPU_GUARD`, default configuration):
