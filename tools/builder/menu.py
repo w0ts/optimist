@@ -8,7 +8,7 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
       | f flash this menu's last build to an FM-1 over USB-MIDI (only a build of the configuration shown, by this
         builder's code: else refused; shows both identities and the commit, asks first)
       | q or ctrl+c quit
-      x expand all | c collapse all
+      x expand all | c collapse all | left / right (also page up / down) page the list
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
 import sys
@@ -104,6 +104,13 @@ class Ask(ModalScreen):
         self.cb(ev.value)
 
 
+class PagedTree(Tree):
+    """The item list: left / right page it like page up / page down (a plain Tree scrolls sideways on them, which
+    the list never needs: its rows are not wider than the pane). The search box keeps its own cursor keys."""
+    BINDINGS = [Binding("left", "page_up", "page up", key_display="←"),
+                Binding("right", "page_down", "page down", key_display="→")]
+
+
 class Builder(App):
     TITLE = "Firmware builder"
     CSS = """
@@ -124,6 +131,7 @@ class Builder(App):
         Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("f", "flash", "flash to FM-1"),
+        Binding("left", "page_up", "page up", key_display="←", show=False), Binding("right", "page_down", "page down", key_display="→", show=False),
         Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
@@ -152,7 +160,7 @@ class Builder(App):
         yield Static(id="bars")
         yield Input(placeholder="search (label, key, group): enter to keep, escape to clear", id="search")
         with Horizontal(id="main"):
-            yield Tree("build", id="tree")
+            yield PagedTree("build", id="tree")
             with Vertical(id="side"):
                 yield VerticalScroll(Static(id="info_t"), id="info")
                 yield VerticalScroll(Static(id="msgs_t"), id="msgs")
