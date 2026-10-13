@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 620008,
-  "ram": 100620,
-  "pool": 355544,
-  "ramtext": 34940
+  "flash": 615920,
+  "ram": 98588,
+  "pool": 343256,
+  "ramtext": 34816
  },
  "deltas": {
   "RESERVE_UNDO_KB": {
@@ -634,16 +634,16 @@
   },
   "USB_MODE": {
    "1": {
-    "flash": 1376,
-    "ram": 928,
-    "pool": -12288,
-    "ramtext": -144
+    "flash": 5904,
+    "ram": 2928,
+    "pool": 0,
+    "ramtext": -92
    },
-   "0": {
-    "flash": -3468,
-    "ram": -2032,
-    "pool": -12288,
-    "ramtext": -192
+   "2": {
+    "flash": 4088,
+    "ram": 2032,
+    "pool": 12288,
+    "ramtext": 124
    }
   },
   "UART": {
@@ -664,10 +664,10 @@
   },
   "UA_RESAMPLE": {
    "1": {
-    "flash": 1280,
-    "ram": 96,
+    "flash": 4,
+    "ram": 0,
     "pool": 0,
-    "ramtext": 96
+    "ramtext": 0
    }
   },
   "MIDI_EXPR": {
@@ -1254,12 +1254,12 @@
    }
   },
   "user-default": {
-   "hash": "0c8957db",
+   "hash": "367c8085",
    "sizes": {
-    "flash": 526472,
-    "ram": 84972,
-    "pool": 316428,
-    "ramtext": 31656
+    "flash": 531596,
+    "ram": 84740,
+    "pool": 305128,
+    "ramtext": 31404
    }
   },
   "x0x-drums": {
@@ -1401,6 +1401,12 @@
    "ram": -16,
    "pool": 0,
    "ramtext": 68
+  },
+  "USB_MODE=2,UA_RESAMPLE=1": {
+   "flash": 256,
+   "ram": 64,
+   "pool": 0,
+   "ramtext": 4
   }
  }
 }
