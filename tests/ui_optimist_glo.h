@@ -94,15 +94,19 @@ static void glo_list_tests(void)
     ok = !strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK");
     SCREENS[SCR_SYSTEM].cell(1, 1, &c);
 #if DUAL_LOAD
-    {   /* a DUAL=2 build: CLOCK, CPU0, CPU1 (lines 0..2 of page 1, read-outs); the next section starts at line 3, so every later
-         * line is one further on than in a single-core build and the 4-line pages (line / 4) shift with it */
-        cell_t c3, c4;
+    {   /* a DUAL=2 build: CLOCK, CPU0, CPU1 (read-outs) and 2ND CORE (AUTO / OFF) fill page 1; the next section starts at line 4,
+         * so every later line is two further on than in a single-core build and the 4-line pages (line / 4) shift with it */
+        cell_t c3, c4, c5;
         SCREENS[SCR_SYSTEM].cell(2, 2, &c3);
         SCREENS[SCR_SYSTEM].cell(3, 3, &c4);
+        SCREENS[SCR_SYSTEM].cell(4, 0, &c5);
         SCREENS[SCR_SYSTEM].name(2, nm);
         ok &= c.kind == CK_RO && !strcmp(c.label, "CPU0") && c3.kind == CK_RO && !strcmp(c3.label, "CPU1") && !strcmp(nm, "CPU");
         SCREENS[SCR_SYSTEM].name(3, nm);
-        check(ok && strcmp(nm, "CPU") && c4.kind != CK_RO, "SYSTEM's first lines (DUAL): CPU's CLOCK, CPU0 and CPU1, read-outs; line 4 the next section's");
+        ok &= c4.kind == CK_VAL && !strcmp(c4.label, "2ND CORE") && !strcmp(nm, "CPU");
+        SCREENS[SCR_SYSTEM].name(4, nm);
+        check(ok && strcmp(nm, "CPU") && c5.kind != CK_RO && c5.kind != CK_NONE,
+              "SYSTEM's first lines (DUAL): CPU's CLOCK, CPU0, CPU1 (read-outs) and 2ND CORE fill page 1; line 4 the next section's");
     }
 #else
     {

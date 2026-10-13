@@ -16,7 +16,11 @@
 #include <stdint.h>
 
 #ifndef DUAL_MODE_MENU
+#if defined(FELUCCA_UI) && FELUCCA_UI == 1
+#define DUAL_MODE_MENU 1       /* the Optimist UI's SYSTEM > CPU > 2ND CORE sets it back (ui/optimist/op_project.c) */
+#else
 #define DUAL_MODE_MENU 0       /* 1 once a menu can set 2ND CORE back to AUTO: only then is the self-disable saved */
+#endif
 #endif
 
 enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
@@ -25,6 +29,14 @@ enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
 /* why CPU1 is not taking jobs (dual.up 0); DUAL_UP while it runs */
 enum { DUAL_UP, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH, DUAL_MISREAD, DUAL_CANARY, DUAL_EARLY, DUAL_SETOFF,
        DUAL_WHY_N };
+
+/* the reason's name, as the screens show it ("" for DUAL_UP; a value out of range reads as DUAL_UP's) */
+static inline const char *dual_why_name(uint32_t why)
+{
+    static const char *const DUAL_WHY_TXT[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
+                                                         "AFTER CRASH", "SETTING"};
+    return DUAL_WHY_TXT[why % DUAL_WHY_N];
+}
 
 static inline uint32_t dual_mode_in(uint32_t w) { return ((w >> DUAL_MODE_BITS) & 3u) == DUALM_OFF ? DUALM_OFF : DUALM_AUTO; }
 static inline uint32_t dual_mode_out(uint32_t w, uint32_t mode)

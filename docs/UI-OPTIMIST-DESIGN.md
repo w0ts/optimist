@@ -465,6 +465,19 @@ the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says th
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
 
+**2ND CORE (DUAL builds only, `FELUCCA_DUAL` 2; PROPOSED, not yet seen on hardware).** The CPU section is CLOCK · CPU0 · CPU1 ·
+**2ND CORE**, exactly one page of 4 lines (a single-core build has no such line: CLOCK · LOAD, the next section on page 1).
+2ND CORE is **AUTO** (default: the second core starts at power-on and is held for the session on its first misread, wrong
+canary, late job or fault) or **OFF** (one core). The knob (KNOB 4 on that page) or PRESETS edits it (right OFF, left AUTO),
+YES toggles it, **HOME held + PRESETS resets it to AUTO**. It is `dual_mode`, in the settings word (bits 27..28, as the other
+settings: saved when SYSTEM or GLOBAL is left, once stopped). It applies at the next start, so the value is **amber** while it
+differs from the setting this boot started with. This UI sets `DUAL_MODE_MENU 1` (system/dual_mode.h): a self-disable (AUTO
+turning itself OFF after a misread, canary, timeout, fault or flash failure) is then saved, and this line is how the user sets it
+back. **CPU1's cell** shows the load while the core runs; **when it is down it shows why**, in amber, from `dual_why_name`
+(NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING), OFF when no reason is recorded. SLOOP's UI (UI=0)
+has no 2ND CORE line (its menu is unchanged; the boot message "CPU1 OFF <why>" still names the reason), so a self-disable is
+not saved there. Tests: tests/ui_optimist_core.h.
+
 ### 4.8 TEMPO, a held page [D]
 
 A tempo page opened by holding a button, with nudge (OCT+/-), fine adjust,
