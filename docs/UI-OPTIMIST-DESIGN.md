@@ -2465,6 +2465,29 @@ SLICER moving before DIST (2.9 ms ramps, golden slicer/song_gate_stut). The SLOO
 K2..K4 the master sends: DST CHO DLY REV by default) and gets INSERTS; its own redesign (design phase 4) is left.
 Tests: tests/ui_optimist_inslots.h, ui_optimist_mixer.h; tests/fx_slots_test.c (the model, the audio, the record).
 
+### Limited insert types: CHRS and ECHO (feat/fx-instances-ui, 2026-10-13)
+
+CHRS (INS_CHORUS) and ECHO (INS_DELAY, 75 ms) are insert copies of which the build holds a count of instances, 0..4
+(fx/insfx/fxi.c). FLNG and the other inserts are "any number": no note. The UI reads the core's queries (main loop only):
+`fxi_cap` `fxi_free` `fxi_state(k, s)` `fxi_can(k, t)`. The picker has no confirm: a detent loads the type at once
+(`ins_load`), the main loop hands out an instance in its next pass (`fxi_poll`). So the slot's TYPE cell is the picker, and
+it says what it holds:
+
+| State | The TYPE cell (S1 / S2, on INSERTS and the mixer's insert set) | Help line (kind `op`, ctx INSERTS) |
+|---|---|---|
+| a type with an instance (`FXI_OK`) | the name, with the free count beside it: **CHRS 2/4** = 2 free of 4 built (the held one counted used); on a card too narrow for it, only the name | CHRS: "Chorus, shared: free/built"; ECHO the same |
+| none free after the pass (`FXI_FULL`) | the label becomes *S1 CHRS*, the value **FULL**, both dim: the type is bypassed on this track; its amount's needle goes grey | "No free chorus: bypassed" (ECHO: "No free echo: bypassed") |
+| picked with none free, before the pass (`FXI_WAIT`, `fxi_can` 0) | the value **IN USE**, dim: one frame, then FULL (a detent cannot be taken back before the pass: picking it stays allowed, as asked) | as FULL |
+| picked with one free, before the pass (`FXI_WAIT`, `fxi_can` 1) | the value **WAIT**: one pass of the main loop, never seen in use | the type's own |
+| a type with 0 instances built | not in the list at all (it is not built: `FXT_BUILT`) | none |
+
+`FXI_WAIT` in the core means "asked, the next pass gives it" (fxi.c): a pass, not a queue. A track waiting for another
+track's instance to fade out is already `FXI_FULL` (bypassed until one is given back, then it takes it). Every slot
+reads its own track: INSERTS the selected one, the mixer's insert set its row. The SLOOP UI (UI=0) shows **FULL** in dim in
+the value of a bypassed slot's TYPE card on its INSERTS page (a few instructions under `INS_LIM`: none in a build without
+the limited types); the free count and the help are not there. Tests: tests/ui_optimist_fxi.h (the counts 0, 1 and 4,
+with and without the help line).
+
 ## 20. GLOBAL and SYSTEM as settings lists (feat/settings-list, 2026-10-12)
 
 The user: "the system menu would be better and more readable as vertical list of options, we scroll thru them using

@@ -327,6 +327,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_param(c, mx_desc(r, &m, &vp), vp);
         if (!c->d)
             str_cpy(c->val, "-", sizeof c->val);
+        else if (m.kind == MI_INST)
+            cell_ins_note(c, mx_trk_of(r), m.id);
         break;
     }
     if (m.label)

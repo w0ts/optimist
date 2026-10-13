@@ -1348,6 +1348,15 @@ static void draw_columns(void)
 #if FELUCCA_MACROS
         vc = mac_card(d, vp, c == ui.hot_col && ui.hot_t, val, &unit, vc);
 #endif
+#if INS_LIM
+        {   /* INSERTS: a TYPE with no instance left (fxi.c: CHRS ECHO) reads FULL, dim: the slot is bypassed */
+            uint32_t id = page_id(cur_page(), c);
+            if (id >= PID_INST && id < PID_INST + INS_N && fxi_state(song.sel, id - PID_INST) == FXI_FULL) {
+                str_cpy(val, "FULL", sizeof val);
+                vc = C_DIM;
+            }
+        }
+#endif
         draw_column(c, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : gauge_ratio(d, enum_rank(d, *vp)),
                     param_icon(d, *vp));
     }

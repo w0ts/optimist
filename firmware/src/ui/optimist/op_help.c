@@ -27,6 +27,7 @@ static struct {
     struct {                            /* what off was found for (kept whole: a hash mixed labels' addresses) */
         const char *label;
         const void *d;
+        const char *hlp;
         uint32_t at;                    /* screen, row, cell, engine, track, lane */
     } key;
 } hl;
@@ -76,6 +77,8 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
     uint32_t o;
     if (!c->label || !c->label[0])
         return 0;
+    if (c->hlp && (o = ph_find(PH_OP, "INSERTS", c->hlp)) != 0u)
+        return o;                                       /* (a limited insert type's own line, FULL's) */
     SCREENS[scr % SCR_N].name(row, nm);
     o = ph_find(PH_OP, nm, c->label);
     if (!o)
@@ -114,10 +117,11 @@ static const char *hl_text(void)
     else
         SCREENS[scr % SCR_N].cell(row, k, &c);
     at = scr << 26 | (row & 0xFFu) << 18 | (k & 3u) << 16 | (uint32_t)TSEL->eng_req << 8 | song.sel << 5 | (lane_selected() & 31u);
-    if (at != hl.key.at || c.label != hl.key.label || (const void *)c.d != hl.key.d) {
+    if (at != hl.key.at || c.label != hl.key.label || (const void *)c.d != hl.key.d || c.hlp != hl.key.hlp) {
         hl.key.at = at;
         hl.key.label = c.label;
         hl.key.d = c.d;
+        hl.key.hlp = c.hlp;
         hl.off = (uint16_t)hl_find(scr, row, &c);
     }
     return hl.off ? PH_BLOB + hl.off : 0;

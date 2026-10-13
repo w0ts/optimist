@@ -207,12 +207,13 @@ static void graph_fx(uint32_t g, uint16_t c)
         c = C_DIM;
     for (i = 0; i < 4u; i++) {
         int32_t v = fx_needle(g, i), h = (v < 0 ? 0 : v) * (bot - top) / 127, x = CARD_X(i) + CARD_W / 2;
+        uint16_t nc = g == GR_INS && fxi_state(song.sel, i >> 1) == FXI_FULL ? C_DIM : c;   /* (a slot with no instance: grey) */
         if (v < 0)
             continue;
         h = h > bot - top ? bot - top : h;
         cv_rect(x, top, 1, bot - top, C_LINE);
-        cv_rect(x, bot - h, 1, h, c);
-        cv_rect(x - 3, bot - h, 7, 1, c);
+        cv_rect(x, bot - h, 1, h, nc);
+        cv_rect(x - 3, bot - h, 7, 1, nc);
     }
 }
 /* the scale on an octave of keys: the black keys high, the white low, the scale's notes lit, the root white
@@ -503,7 +504,7 @@ static uint32_t graph_sig(void)
     h = h * 31u + (uint32_t)t->p[P_L2WAVE] * 5u + (uint32_t)t->p[P_L2POL];   /* (LFO 2's wave and its POL) */
 #endif
     for (i = 0; i < 4u; i++)
-        h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u;
+        h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u + fxi_state(song.sel, i & 1u) * 7919u;
     for (i = 0; i < NSTEP; i++)
         h = h * 3u + trk_on_step(song.sel, i);
     h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
