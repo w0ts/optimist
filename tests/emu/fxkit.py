@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The FX slots at the panel of SLOOP's UI, for the emulator checks (fx_slots.c; docs: FX-SLOTS-INSERTS-DESIGN.md of
-fm1-firmware): the types, the SLOTS page (each knob steps through the types this build lists, a type held elsewhere
-swaps), the FX page (its four knobs: the amounts of the slots' types on the selected track; on the drum track the
-drum bus's), the SOUND 3 page (the picked drum sound's inserts), and the captures the checks compare.
+"""The FX slots at the panel of SLOOP's UI, for the emulator checks (fx_slots.c; the per-track insert slots' design,
+docs/UI-OPTIMIST-DESIGN.md "Insert slots"): the types; the master SLOTS page (the four SENDS slots: each knob steps
+through the sends this build lists, a type held elsewhere swaps); the INSERTS page (the selected track's two insert
+slots S1 and S2: K1 / K3 the TYPE, K2 / K4 its amount; the drum track's act on the drum bus; a type the other slot holds
+swaps them); the SOUND 3 page (the picked drum sound's DST, its sends, CMP while there is room), and the captures the
+checks compare.
 
 A capture is one held note (or a drum hit) recorded from an audio half boundary, so the same setting gives the same
 samples; captures are compared by their largest sample difference and by their level."""
@@ -17,15 +19,26 @@ CFG = {1: "FX_DIST", 2: "FX_CHORUS", 3: "FX_DELAY", 4: "FX_REVERB", 5: "MASTER_C
 DSEND_CMP = 4                                    # (drum_sends.c: SOUND 3's value ids, 4 the COMP insert)
 
 
+INSERT = (1, 5, 6)                               # (DIST COMP FILT: the insert types; CHO DLY REV are the sends)
+TRK_DEF = [FXT["DIST"], FXT["FILT"]]             # (every track's slots at the start: S1 DIST, S2 FILTER, amounts 0)
+MASTER_DEF = [0, 2, 3, 4]                        # (the master slots: ---- CHO DLY REV)
+
+
 def built(facts):
-    """the types FX > SLOTS lists, in its order (fx_slots.c fxs_desc: NONE first)"""
-    return [0] + [t for t in range(1, 7) if facts.on(CFG[t])]
+    """the types FX > SLOTS lists (the sends), in its order (fx_slots.c fxs_desc: NONE first)"""
+    return [0] + [t for t in range(1, 7) if t not in INSERT and facts.on(CFG[t])]
+
+
+def ins_built(facts):
+    """the types INSERTS lists, in its order (fx_slots.c ins_desc: NONE first, then by type id)"""
+    return [0] + [t for t in range(1, 7) if t in INSERT and facts.on(CFG[t])]
 
 
 class Fx:
     def __init__(self, e, P):
         self.e, self.P, self.f = e, P, P.f
         self.list = built(self.f)
+        self.ilist = ins_built(self.f)
 
     # ---- state
     def slots(self):
@@ -33,6 +46,11 @@ class Fx:
 
     def names(self, s=None):
         return "[" + " ".join(NAME.get(x, str(x)) for x in (s or self.slots())) + "]"
+
+    def tins(self):
+        """every track's insert slots: [[S1, S2]] for T1 T2 T3 DR (fx_slots.c ins_slot)"""
+        b = self.e.peekb("ins_slot", 8)             # (bytes: the symbol is not word aligned)
+        return [list(b[2 * k:2 * k + 2]) for k in range(4)]
 
     def amt(self, t, pid="P_TCOMP"):
         return self.P.param(t, pid)
@@ -51,6 +69,49 @@ class Fx:
 
     def fx_page(self):
         return self.P.goto("FX", "FX")
+
+    def trk_def(self):
+        """a track's slots at the start: S1 DIST, S2 FILTER (each only when this build has it, else empty)"""
+        return [x if x in self.ilist else 0 for x in TRK_DEF]
+
+    def inserts_page(self):
+        return self.P.goto("FX", "INSERTS")
+
+    def ins_set(self, t, k, ty):
+        """track t's insert slot k (track t selected, the INSERTS page open): its TYPE knob a detent at a time until it
+        holds ty -> done. Each type passed on the way is loaded: the one the other slot holds swaps with it"""
+        for _ in range(2 * len(self.ilist)):
+            cur = self.tins()[t][k]
+            if cur == ty:
+                return True
+            d = self.ilist.index(ty) - (self.ilist.index(cur) if cur in self.ilist else 0)
+            self.e.turn(f"KNOB{2 * k + 1}", 1 if d > 0 else -1)
+            self.e.run(0.3)
+        return self.tins()[t][k] == ty
+
+    def ins_drop(self, t, ty):
+        """type ty out of track t's slots (selected, INSERTS open): its slot a detent down onto a type no slot holds (a
+        detent onto a held type only swaps the slots); the type below held: that one dropped first -> done"""
+        if ty not in self.tins()[t]:
+            return True
+        i = self.ilist.index(ty)
+        if i == 0:
+            return False
+        below = self.ilist[i - 1]
+        if below and below in self.tins()[t] and not self.ins_drop(t, below):   # (held: a step down only swaps)
+            return False
+        self.e.turn(f"KNOB{2 * self.tins()[t].index(ty) + 1}", -1)
+        self.e.run(0.3)
+        return ty not in self.tins()[t]
+
+    def ins_layout(self, t, want, tries=3):
+        """track t's two slots as want (selected, INSERTS open; a pass can undo an earlier slot by a swap) -> done"""
+        for _ in range(tries):
+            for k, ty in enumerate(want):
+                self.ins_set(t, k, ty)
+            if self.tins()[t] == list(want):
+                return True
+        return self.tins()[t] == list(want)
 
     def slot_set(self, k, t):
         """slot k's knob a detent at a time until it holds type t (on the SLOTS page) -> done. Each type passed on
@@ -93,17 +154,17 @@ class Fx:
         return self.slots() == list(want)
 
     def scramble(self, t=0):
-        """track t's COMP amount 0 (t selected for it, then T1 again), the default layout (DIST CHO DLY REV, those
-        this build lists), HOME"""
-        if FXT["COMP"] in self.slots():
-            if t:
-                self.P.track(t + 1)
-            self.fx_page()
+        """track t's COMP amount 0 (t selected for it, then T1 again), its slots S1 DIST S2 FILTER and the master
+        slots ---- CHO DLY REV (those this build lists), HOME"""
+        self.P.track(t + 1)
+        self.inserts_page()
+        if FXT["COMP"] in self.tins()[t]:
             self.comp_amount(t, 0, 0)
-            if t:
-                self.P.track(1)
+        self.ins_layout(t, self.trk_def())
+        if t:
+            self.P.track(1)
         self.slots_page()
-        self.layout([x if x in self.list else 0 for x in (1, 2, 3, 4)])
+        self.layout([x if x in self.list else 0 for x in MASTER_DEF])
         self.P.home()
 
     def knob_to(self, knob, read, target, tol=2):
@@ -118,15 +179,24 @@ class Fx:
         return read()
 
     def comp_amount(self, t, target, tol=2):
-        """the FX page (open): the COMP slot's knob until track t's P_TCOMP is target -> the value"""
-        k = self.slots().index(FXT["COMP"])
-        return self.knob_to(f"KNOB{k + 1}", lambda: self.amt(t), target, tol)
+        """the INSERTS page (open, track t selected): the knob of the slot holding COMP until track t's P_TCOMP is
+        target -> the value"""
+        k = self.tins()[t].index(FXT["COMP"])
+        return self.knob_to(f"KNOB{2 * k + 2}", lambda: self.amt(t), target, tol)
+
+    def sound_cmp_knob(self):
+        """SOUND 3's CMP cell: DST, then the sends heard (the master slots' non-empty ones), then CMP (fx_slots.c
+        fxs_lane_id: it shows only while there is room: at most two sends) -> its knob, 0 when it has none"""
+        n = 1 + sum(1 for x in self.slots() if x)
+        return n + 1 if n < 4 else 0
 
     def sound_comp(self, target, tol=2):
-        """the SOUND 3 page (open, the drum track): the COMP slot's knob until the picked sound's COMP insert is
-        target -> the value"""
-        k = self.slots().index(FXT["COMP"])
-        return self.knob_to(f"KNOB{k + 1}", lambda: self.ins()[1][self.lane()], target, tol)
+        """the SOUND 3 page (open, the drum track): the CMP cell's knob until the picked sound's COMP insert is
+        target -> the value (D7: heard whatever the track's slots hold)"""
+        k = self.sound_cmp_knob()
+        if not k:
+            return -1
+        return self.knob_to(f"KNOB{k}", lambda: self.ins()[1][self.lane()], target, tol)
 
     def bypass(self, t=0):
         """GLO held + white 9..12 (black 1..4 in a FILLS build): track t's FX bypass flipped -> P_FXOFF"""

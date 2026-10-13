@@ -631,6 +631,8 @@ the editor shows no button. Nothing is written to flash.
   (one LFO a lane, the DLFO object below), which 2.4's drums have not: left out. A v11 request gets bits 2 and 3 on bit 13
   (motion). Bit 4 (the mask's bit 18): an FX return below unity. Bit 5 (the mask's bit 19, `SX24_NGATE`): a POLY note's own
   end (above, "A note's own end"): 2.4 has one GATE a step, so the step's own GATE is exported and the note ends there.
+  Bit 6 (the mask's bit 20, `SX24_INSORD`, 1048576): a track's FILTER placed before its DIST with both on (S1 FILTER,
+  S2 DIST: 2.4 always runs DIST, then FILTER), so the order is lost; S1 DIST, S2 FILTER (the default) is 2.4's order.
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two
