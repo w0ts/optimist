@@ -476,7 +476,7 @@ def rev_lines(cfg):
     return {"pool" if pool else "ram": 2 * n}
 
 
-AUTO_ITEMS = ("MOTION", "CHANCE", "SL24_XSTEP", "MICRO", "FILLS", "PLOCK")   # (backports24seq.h FELUCCA_AUTO)
+AUTO_ITEMS = ("MOTION", "CHANCE", "SL24_XSTEP", "MICRO", "FILLS", "PLOCK", "COND")   # (backports24seq.h FELUCCA_AUTO)
 AUTO_MAX, AUTO_NTRK = 128, 4                                                 # (seq/auto.h)
 AUTO_LIST = 1 + 3 * AUTO_MAX                                                 # auto_list_t: n, AUTO_MAX x 3 bytes
 AUTO_STORE = 4 + 4 + AUTO_NTRK * AUTO_LIST                                   # auto_store_t (seq/auto.c): psum, on + rsv, 4 lists

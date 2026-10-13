@@ -127,7 +127,7 @@ static void step_pages_tests(void)
     tap(B_HOME);
     tap(B_SEQ);
     step_cell(0, 0, &c);
-    check(ui.row[SCR_STEP] == 0 && c.d == &TP[P_SLEN] && SCR->rows() == STP_LANE0 + 1u,
+    check(ui.row[SCR_STEP] == 0 && c.d == &TP[P_SLEN] && SCR->rows() == STP_LANE0 + 1u + STP_TL,
           "the drum track's STEP opens on PATTERN (LEN DIV SWING GATE), then its LANE page (one: the selected lane's)");
     ui.force = 1;
     frame();
@@ -143,6 +143,7 @@ static void step_pages_tests(void)
         turn(EN_SELECT, 5);
         turn(EN_SELECT, -9);
         turn(EN_SELECT, 9);
+        turn(EN_SELECT, -(int32_t)STP_TL);             /* (past LANE: TOOLS, EUCLID, op_tools.c) */
         check(lane_selected() == 0u && ui.lane == l0 && ui.row[SCR_STEP] == STP_LANE0,
               "SELECT on the drum STEP: only its pages (PATTERN, LANE), never the lane (the user, 2026-10-12)");
     }

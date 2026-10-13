@@ -151,6 +151,33 @@ static int auto_from_motion(auto_list_t *l, const motion_store_t *m)
 #if FELUCCA_CHANCE
 static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100: none (chance.c, seq_tick) */
 #endif
+#if SEQ_SKIP
+static uint8_t seq_skip[NTRK];           /* the step playing failed its condition or its fill: nothing of it sounds */
+#endif
+#if FELUCCA_COND
+/* SPDX: the step conditions are Felucca 1.5.6's (hugelton/Felucca 9f6a885, seq.c seq_cond_miss / seq_enter, Leo
+ * Kuroshita (@kurogedelic), Hügelton Instruments, GPL-3.0-only), here events of the store (auto.h AUTO_COND).
+ * a:b plays on loop a of every b of its own track: cond_loop counts the passes through the track's LEN, 0 the first,
+ * modulo COND_LOOPS (a multiple of 2, 3 and 4). It starts again on PLAY and a song section (seq_reset_tracks) and
+ * when a launched pattern takes over (pat.c); a LEN changed while playing keeps counting. A step nudged early into
+ * the loop before fires after the wrap (seq_tick), so it is the next loop's, as Felucca's */
+#define COND_LOOPS 12u
+#define COND_NEW 0xFFu                   /* reset: the next step 0 is loop 0 */
+static uint8_t cond_loop[NTRK] = {COND_NEW, COND_NEW, COND_NEW, COND_NEW};
+static const uint8_t COND_A[AUTO_NCOND] = {1, 2, 1, 2, 3, 1, 2, 3, 4}, COND_B[AUTO_NCOND] = {2, 2, 3, 3, 3, 4, 4, 4, 4};
+static void cond_reset(uint32_t k) { cond_loop[k % NTRK] = COND_NEW; }
+static void cond_pass(uint32_t k)        /* track k enters its step 0 (the ISR) */
+{
+    uint32_t v = cond_loop[k % NTRK];
+    cond_loop[k % NTRK] = (uint8_t)(v == COND_NEW || v + 1u >= COND_LOOPS ? 0u : v + 1u);
+}
+static int cond_miss(uint32_t k, uint32_t c)   /* condition c (1..AUTO_NCOND) fails on this loop of track k */
+{
+    uint32_t v = cond_loop[k % NTRK];
+    c = (c - 1u) % AUTO_NCOND;
+    return (v == COND_NEW ? 0u : v) % COND_B[c] != COND_A[c] - 1u;
+}
+#endif
 #if DLA_ON
 /* a drum lane's event e of the step entered (auto_step, the ISR; the drum track only): a hold event (its motion plays:
  * mo) holds until the next of its value or the pass's end, a step-only one (a lock) its step; heard at the lane's next
@@ -181,7 +208,7 @@ static void dla_event(const auto_ev_t *e, uint32_t mo)
  * condition fails (it plays as a REST) */
 static uint32_t auto_step(track_t *t, uint32_t idx)
 {
-    uint32_t k = trk_index(t) % NTRK, i, plays = 1, fill = FC_NORM;
+    uint32_t k = trk_index(t) % NTRK, i, plays = 1, fill = FC_NORM, cond = 0;
     const auto_list_t *l = AUTO_L(k);
 #if FELUCCA_PLOCK
     uint8_t lp[NLOCK];
@@ -224,6 +251,8 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         }
         if (e->param == AUTO_FILL)
             fill = (uint8_t)e->value;
+        else if (e->param == AUTO_COND)
+            cond = (uint8_t)e->value;
 #if FELUCCA_CHANCE
         else if (e->param == AUTO_CHANCE)
             auto_ch[k] = (uint8_t)e->value;
@@ -233,11 +262,17 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
             lp[m] = (uint8_t)mot_id(e->param), lv[m++] = e->value;
 #endif
     }
+#if FELUCCA_COND
+    if (cond && cond_miss(k, cond))
+        plays = 0;                                   /* (the condition first, then FILL, then the chance: seq_tick) */
+#endif
 #if FELUCCA_FILLS
-    plays = fill == FC_FILL ? fill_now : fill == FC_NOFILL ? !fill_now : 1u;
+    if (plays)
+        plays = fill == FC_FILL ? fill_now : fill == FC_NOFILL ? !fill_now : 1u;
 #else
     (void)fill;
 #endif
+    (void)cond;
 #if FELUCCA_PLOCK
     lock_apply(t, lp, lv, plays && !smute_trk_on(k) ? m : 0u);   /* (a fill-skipped step, a track muted: its locks do not apply) */
 #endif
@@ -264,6 +299,9 @@ static int step_fill_set(track_t *t, uint32_t idx, uint32_t v)
 {
     return auto_pseudo_set(AL(t), idx % NSTEP, AUTO_FILL, v > FC_NOFILL ? FC_NORM : (int32_t)v);
 }
+/* step idx's condition (0 none, 1..AUTO_NCOND); set it (0: none, the event goes); 0 the list is full */
+static uint32_t step_cond(const track_t *t, uint32_t idx) { return (uint32_t)auto_pseudo(AL(t), idx % NSTEP, AUTO_COND, 0); }
+static int step_cond_set(track_t *t, uint32_t idx, uint32_t c) { return auto_pseudo_set(AL(t), idx % NSTEP, AUTO_COND, (int32_t)c); }
 static int step_chance_set(track_t *t, uint32_t idx, uint32_t pct) { return auto_pseudo_set(AL(t), idx % NSTEP, AUTO_CHANCE, pct >= 100u ? 100 : (int32_t)pct); }
 /* the step-only event of (step idx, our id): 1 there is one, its value into *v */
 static int lock_get(const track_t *t, uint32_t idx, uint32_t id, int32_t *v)

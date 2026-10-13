@@ -2301,6 +2301,9 @@ static void seq_reset_tracks(uint32_t pos)
 #if FELUCCA_PATTERNS
         t->org = 0;                                /* (every pattern from its step 1, together) */
 #endif
+#if FELUCCA_COND
+        cond_reset(i);                             /* (the step conditions count from loop 1 again) */
+#endif
         t->seq_idx = 0;
         t->rskip_n = 0;
         t->rskip_lanes = 0;
@@ -2622,9 +2625,9 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
     uint32_t i;
     if (smute_trk_on(trk_index(t)))
         return;                                     /* (the track's sequencer muted: no further hit) */
-#if FELUCCA_FILLS
+#if SEQ_SKIP
     if (seq_skip[trk_index(t) % NTRK])
-        return;                                     /* (its fill condition failed: no hit at all) */
+        return;                                     /* (its condition or fill failed: no hit at all) */
 #endif
     if (is_drum(t)) {
 #if FELUCCA_CHANCE
@@ -2699,7 +2702,7 @@ static void smute_step(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     t->seq_hold = 0;
 }
 
-#if SL24_STEPX
+#if SL24_STEPX || FELUCCA_COND
 /* SLOOP 2.4 (isod89/sloop-fm1 8d3823f, seq.c seq_tick, GPL-3.0-only). With MICRO the steps fire in order, one a
  * block at most, each at its nudged time (1/64 of a step early or late): the step after the last one played
  * (seq_abs) is due when the grid is in its own step past its nudge, or, nudged early, in the previous grid step
@@ -2775,16 +2778,20 @@ static void seq_tick(track_t *t, uint32_t adv)
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
-        if (!idx)
+        if (!idx) {
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
+#if FELUCCA_COND
+            cond_pass(trk_index(t));                 /* (the step conditions' loop count, auto.c) */
+#endif
+        }
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
         ev_at((uint32_t)rel);                        /* (following a clock: its sample in the block) */
-#if !FELUCCA_FILLS
+#if !SEQ_SKIP
         (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
 #else
         seq_skip[trk_index(t) % NTRK] = (uint8_t)!auto_step(t, idx);   /* (auto.c: its events before its notes) */
-        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST, its locks skipped */
+        if (seq_skip[trk_index(t) % NTRK]) {         /* its condition or fill fails: as a REST, its locks skipped */
             t->rskip_lanes = 0;
             t->rskip_n = 0;
             if (!is_drum(t)) {
@@ -2849,8 +2856,12 @@ static void seq_tick(track_t *t, uint32_t adv)
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
-        if (!idx)
+        if (!idx) {
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
+#if FELUCCA_COND
+            cond_pass(trk_index(t));                 /* (the step conditions' loop count, auto.c) */
+#endif
+        }
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
 #if FELUCCA_AUTO

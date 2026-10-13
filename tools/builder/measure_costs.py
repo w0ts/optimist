@@ -47,6 +47,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          # (the store's arrays are computed: configure.py auto_store)
          {"MOTION": 1, "CHANCE": 1}, {"MOTION": 1, "SL24_XSTEP": 1}, {"CHANCE": 1, "SL24_XSTEP": 1},
          {"MOTION": 1, "CHANCE": 1, "SL24_XSTEP": 1},
+         {"MOTION": 1, "CHANCE": 1, "SL24_XSTEP": 1, "COND": 1},   # (COND builds the store too: Felucca 1.5.6)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
          # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
@@ -61,7 +62,8 @@ PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL2
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
-        ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)
+        ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1},   # (their storage)
+        ("SEQTOOLS", 1): {"UI": 1}}   # (the Optimist UI's: nothing without it)
 
 
 def parent_on(p):

@@ -262,6 +262,8 @@ struct ble_diag_central {
                                                     * refused before any passkey (-> a new link with MITM) */
     uint32_t rc_retries;                           /* link attempts made again after a link failure (no pairing) */
     uint8_t rc_try, pad6[3];                       /* the attempt's number (1..BLE_RC_TRIES) */
+    uint32_t init_rx_stale;                        /* 2026-10-13: state-3 reports of a packet already in the air when
+                                                    * initiating started (the stopped scan's): no hit (hw_init_stale) */
 };
 static struct ble_diag_central ble_dgc = {.magic = BLE_DIAG_CENT_MAGIC, .m_first_rx_evt = 0xFFFFu,
                                           .m_first_evt = 0xFFFFu};

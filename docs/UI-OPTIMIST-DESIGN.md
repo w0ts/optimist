@@ -2562,3 +2562,62 @@ nothing for sound and MIDI, the tails end, a live key sounds, the TLV and PROJEC
 (the gesture on the mixer, the other screens keep the pick and the clear, the X and the grey steps, the keys' lights).
 Open: whether a track's motion should stop too when muted (it runs now), and whether the key should sound as a preview
 (it is silent now).
+
+## 22. Step conditions and the sequence tools, from Felucca 1.5.6 (feat/seq-tools, 2026-10-13)
+
+Ported from Felucca 1.5.6 (hugelton/Felucca 9f6a885, Leo Kuroshita, Hügelton Instruments, GPL-3.0-only): its step
+conditions (1.5.5, #209) and its SEQ TOOLS (`ui_tools.c`). Design and the user's rulings: optimist-work/seqtools/DESIGN.md
+(Q1..Q15, every one as recommended; Q5, Q7, Q8 and Q14 the user's own). Two builder items, both on in user-default:
+**COND** (`FELUCCA_COND`, both UIs) and **SEQTOOLS** (`FELUCCA_SEQTOOLS`, this UI only).
+
+**Conditions.** 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4: the step plays on loop a of every b of its own track (a:b). Each
+track counts the passes through its LEN from PLAY, a song section and a launched pattern (Felucca's points); a LEN
+changed while playing keeps counting. A condition is a step-only event of the automation store (`seq/auto.h`
+`AUTO_COND` 0xFC, values 1..9), so neither the step nor the project format changes; on the drum track it is the whole
+step (every lane), as the chance. With FILL and the chance on the same step: the condition, then FILL, then the chance
+(a failed one is a REST: no notes, ratchets or locks). Old forms: a track with one is never written in the 2.4 stepx
+form (it would be dropped); the 2.4 export reports it (lost2 bit 8, `SX24_COND`); an older Optimist build keeps the
+event and plays the step always.
+
+| Where | What |
+|---|---|
+| A step held, SELECT to EXTRA | the 4th card **COND**: `-`, 1:2 .. 4:4, stopping at both ends, on every step held; HOME + its knob clears it. EXTRA is CHANCE · NUDGE · FILL · COND as built |
+| The held step's line | *Step 6  1:4* (after the fill) |
+| The marks | the step's event dot, as any non-fill event |
+| SLOOP's UI | plays them, draws the dot; nothing edits them |
+
+**The tools.** STEP gains two last pages, **TOOLS** and **EUCLID** (SELECT; SEQ tapped again cycles to them):
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | YES |
+|---|---|---|---|---|---|
+| TOOLS | REVERSE | RANDOM | COOK | LENGTH: x2 (turned right) / 1/2 (left) | does the hot card; a toast (*T1 REVERSED*, *SNARE RANDOM*, *DOUBLED: 32 STEPS*, *PATTERN FULL*); one undo each, no question |
+| EUCLID | HITS | STEPS | ROT | LANE (a read-out; a synth track: none) | - (each turn writes at once; a run of turns is one undo) |
+
+A turn of a TOOLS card arms it (its YES), so a knob bumped does nothing. The scope is ALGORITHM's: a synth track; DR
+itself the whole kit; a drum lane walked to that lane only (REVERSE RANDOM COOK EUCLID; EUCLID on DR itself the last
+picked lane, named on LANE). LENGTH is always the whole pattern. What they do (Felucca's, `ui/optimist/op_tools.c`):
+
+- **REVERSE**: the steps mirrored inside LEN. A note moves whole: its NOTE, its TIEs and the carry steps that go on
+  with its pitch are one unit, kept in order at the mirrored place, so its exact length (a step's own end, `ngate`)
+  is the same. A lane: that lane's hits and its lane events only.
+- **RANDOM**: a synth track keeps its rhythm, levels, ratchets, chance and conditions, and gets new notes: a walk
+  through its scale (ROOT, SCL; **SCL CHR: the minor pentatonic of the ROOT**) around the notes' mean, a chord keeping
+  its shape; a carried note changes all along its chain. DR: a beat (KICK on step 1, SNARE on 2 and 4, CLOSED HAT 8..12
+  a bar, OPEN HAT and lanes 2..8 sparse); a lane: that lane drawn the same way, at least one hit.
+- **COOK**: a few changes (15..25 % of the notes: a scale step, an octave, the level NORM <-> HARD, the chance
+  100 <-> 50 / 75 % as an event, a condition left alone; drums 10..20 % of the hits moved, added or taken away, never a
+  lane's last nor the kick on step 1); again until something changed.
+- **LENGTH x2** (DOUBLE): the steps after themselves, LEN x2 (64 at most), their events copied (refused, *PATTERN
+  FULL*, when the copies would pass the track's 128). **1/2** (HALF): LEN / 2, the steps past it kept (as the LEN card).
+- **EUCLID**: HITS spread over STEPS, turned by ROT, repeated through LEN, written from the pattern as the run began
+  (the undo session's start: no copy of our own); a synth hit keeps the step's note, else the root near C4; the drum
+  lane's hits only. Values kept until the power goes (first 4 / 16 / 0); HOME + a knob its default.
+- Every tool works on steps 1..LEN; a step it empties loses its step-only events; locks, motion, chance, conditions,
+  nudges and fills move with their steps. **The EDIT layer's SHIFT and LENGTH x2 now move and copy the events too**
+  (before, they stayed on their old steps); SLOOP's EDIT layer is unchanged.
+
+Not ported (Q11): Felucca's BEAT and lane FILL; CLEAR and SHIFT exist (HOME + REC, EDIT KNOB 1).
+
+Tests: tests/cond_test.c (the conditions alone), tests/auto_test.c `t_cond` (with FILL and chance, the forms, the 2.4
+bit), tests/ui_optimist_seqtools.h (every tool on note chains, the drum kit and a lane, EUCLID's run and undo, the EDIT
+layer's SHIFT, the COND card), run with the store whole and with COND alone.
