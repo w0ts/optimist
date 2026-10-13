@@ -23,6 +23,7 @@
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
+ * op_edits.c (the sound's edits, the work changed: what a load asks),
  * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
@@ -36,6 +37,7 @@
 #if FELUCCA_MISSING_WARN
 #include "../../storage/miss.c"         /* "MISSING: PHYS T2" after a load (cur_page, ui.msg: op_state.c) */
 #endif
+#include "op_edits.c"
 #include "op_cells.c"
 #include "op_fm6.c"
 #include "op_screens.c"

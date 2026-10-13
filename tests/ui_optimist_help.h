@@ -93,7 +93,7 @@ static void help_tests(void)
     ui.row[SCR_PROJECT] = 0;
     ui.hot = 1;                                         /* (the PROJECT row's LOAD) */
     frame();
-    check(hlt_text_is("Load: replaces work (asks)"), "... PROJECT LOAD: \"Load: replaces work (asks)\"");
+    check(hlt_text_is("Load (work changed: asks)"), "... PROJECT LOAD: \"Load (work changed: asks)\"");
     check(OP_PY + LIST_H == HL_Y, "... PROJECT's rows end over the help line");
     op_enter(SCR_SOUND);                                /* a value turned: the line ~2 s, then gone */
     ui.row[SCR_SOUND] = 1;
@@ -152,7 +152,7 @@ static void help_tests(void)
     hlt_scan(SCR_SONG);
     hlt_scan(SCR_TEMPO);
     printf("  help: %u values without a line (listed above)\n", hlt_missing);
-    check(1, "every value without a help line listed");
+    check(!hlt_missing, "every value of every screen has its help line (LFO 2 and LFO2 DEST too, with LFO2)");
     reset_ui();
 }
 #else

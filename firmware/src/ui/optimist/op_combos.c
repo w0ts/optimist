@@ -71,6 +71,10 @@ static void op_act_more(uint32_t a, uint32_t k)
             op_global_go(G_INITSND);                    /* (the engine's defaults: the edits go) */
         return;
     }
+    if (a == OA_DISCARD) {
+        ed_run(k);                                      /* "Discard T2 edits?" YES: the change asked for (op_edits.c) */
+        return;
+    }
     if (a != OA_EXTRAS)
         return;
 #if FELUCCA_AUTO
@@ -111,8 +115,10 @@ static int home_combo(uint32_t b)
         lay.chord = 2;                                  /* HOME then SAVE: redo, when one of them is let go */
         return 1;
     case B_ENV:
-        if (!is_drum(TSEL))
+        if (!is_drum(TSEL) && snd_edited(song.sel))      /* (asked over edits; none: done at once, op_edits.c) */
             op_arm(ARM_OP, OA_INIT, song.sel, "INIT", trk_tag(song.sel), 1);
+        else if (!is_drum(TSEL))
+            op_global_go(G_INITSND);
         return 1;
     case B_SEQ: {
         char a[10];

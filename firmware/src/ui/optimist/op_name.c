@@ -106,6 +106,7 @@ static void name_project(uint32_t k)
     name_open(NK_PROJ, k);
 #else
     project_save(k);
+    work_mark();                                        /* (the work as stored: op_edits.c) */
 #endif
 }
 
@@ -244,6 +245,7 @@ static void name_ok(void)
     if (kind == NK_USER) {
         up_slot_label(l, nm.slot);
         rc = up_store(nm.slot, b);
+        snd_mark(song.sel);                             /* (saved: no edits now, op_edits.c) */
         if (rc == 3)
             ui_message("SAVED (RAM)");
         else if (rc)
@@ -253,6 +255,7 @@ static void name_ok(void)
     } else {
 #if SEC_LOGGED
         project_save(nm.slot);
+        work_mark();
         if (project_used(nm.slot) && sec_name_set(nm.slot, b))
             ui_message("NAME NOT SAVED");
 #endif

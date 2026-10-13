@@ -462,7 +462,8 @@ static int op_presets_turn(void)
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
         else
             op_engine_step(s);                          /* HOME held (the shift) + PRESETS: the instruments (DR: its kits) */
-        pre_toast();
+        if (!op_armed())
+            pre_toast();                                /* (asked "Discard edits?": no toast) */
         op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO, no SYSTEM) */
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
@@ -475,7 +476,8 @@ static int op_presets_turn(void)
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
         else
             op_preset_step(s);                          /* (DR, a lane on KIT: the kit) */
-        pre_toast();
+        if (!op_armed())
+            pre_toast();                                /* (asked "Discard edits?": no toast) */
     }
     return 1;
 }
@@ -801,6 +803,7 @@ static void ui_draw(void)
     if (ui.cards_t)
         ui.cards_t--;
     HL_TICK();                                          /* (the help line's time after a turn: op_help.c) */
+    ed_tick();                                          /* (another sound: unedited; op_edits.c) */
     if (step_held_long())
         step_cards_show();                              /* (a step held, past the hold time: the cards up while it is held;
                                                          * the timer runs once it is let go; a tap: none) */
