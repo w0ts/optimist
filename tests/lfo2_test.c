@@ -68,8 +68,12 @@ static void t_params(void)
         param_format(&TP[P_L2DA], (int32_t)i, v, &u);
         ok &= !strcmp(v, D[i]);
     }
-    param_format(&TP[P_L2DB], LT_XRATE, v, &u);
-    ok &= !strcmp(v, "XRATE");
+    param_format(&TP[P_L2DB], LT_XRATE, v, &u);       /* (the other LFO's, named so: params.c lt_text) */
+    ok &= !strcmp(v, "L1 RT");
+    param_format(&TP[P_L2DA], LT_XAMT, v, &u);
+    ok &= !strcmp(v, "L1 AMT");
+    param_format(&TP[P_L1DB], LT_XRATE, v, &u);
+    ok &= !strcmp(v, "L2 RT");
     param_format(&TP[P_L2TRIG], 1, v, &u);
     ok &= !strcmp(v, "FREE");
     param_format(&TP[P_L2POL], 1, v, &u);
@@ -80,7 +84,7 @@ static void t_params(void)
     ok &= !strcmp(v, "-100");
     param_format(&TP[P_L2AA], 64, v, &u);
     ok &= !strcmp(v, "+50");
-    check(ok, "names: DEST OFF PIT FLT SHP AMP .. XRATE, TRIG FREE, POL UNI, RATE -5 = 1/4, AMT -128 = -100 %, 64 = +50 %");
+    check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -5 = 1/4, AMT -128 = -100 %, 64 = +50 %");
     ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -10, -3) == -10;
     check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent)");
     check(P_L2RATE > P_E7 && P_COUNT == P_L2AB + 1 && P_COUNT < 128, "ids: after P_E7, the last ones (no id before moves)");
