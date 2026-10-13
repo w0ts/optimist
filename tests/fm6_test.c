@@ -110,7 +110,7 @@ static void fresh(void)                                  /* part 1 = FM6 with th
 {
     uint32_t i;
     memset(trk, 0, sizeof trk);
-    memset(fm6_v, 0, sizeof fm6_v);                      /* the engine's part state too: voice 0 first */
+    memset(part_mem, 0, sizeof part_mem);                /* the engine's part state too: voice 0 first */
     memset(fm6_pt, 0, sizeof fm6_pt);
     memset(fm6_lfo, 0, sizeof fm6_lfo);
     host_tracks_init();

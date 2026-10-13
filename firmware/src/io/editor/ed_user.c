@@ -15,7 +15,13 @@ static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built
  * BEGIN erases the header sector (the slot is invalid from then on), WRITE fills the data
  * (offset >= 512, erasing each further sector when the write reaches its start), END sends
  * the header: the device checks the data CRC and writes the header last. */
-static uint8_t ed_smp_buf[512] __attribute__((aligned(4)));
+/* the data of a WRITE (256 B) or the header of an END (480 B), unpacked: in the reply buffer past its first 16 bytes
+ * (editor.c ed_out: ed_begin and the reply's own bytes, a slot, an offset and a code, stay in them; the data is in
+ * flash before the reply grows), 512 B of main RAM spared */
+#define ED_SMP_AT 16u
+#define ed_smp_buf (ed_out + ED_SMP_AT)
+_Static_assert(ED_SMP_AT + sizeof(smp_user_hdr_t) <= sizeof ed_out && ED_SMP_AT + 256u <= sizeof ed_out,
+               "ed_smp_buf: a WRITE's data, an END's header past the reply's first bytes");
 static uint8_t ed_smp_open[SMP_USER_SLOTS];        /* SMP_BEGIN done, END not yet: WRITE / END may act */
 static uint32_t ed_smp_slot(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SIZE; }
 static void ed_smp_inval(uint32_t k)

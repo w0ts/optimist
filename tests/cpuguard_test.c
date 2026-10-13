@@ -309,10 +309,10 @@ static void test_keep(void)
         memset(&m, 0, sizeof m);
         cg.level = CG_L_OFF;
         acid_render_v(&trk[0], &trk[0].v[0], b, CTL, &m);
-        CHECK(!acid_b[0].lite, "ACID oversamples off the guard");
+        CHECK(!((bass303_t *)acid_mem(0))->lite, "ACID oversamples off the guard");
         cg.level = CG_L_QUALITY;
         acid_render_v(&trk[0], &trk[0].v[0], b, CTL, &m);
-        CHECK(acid_b[0].lite, "ACID without oversampling from quality on");
+        CHECK(((bass303_t *)acid_mem(0))->lite, "ACID without oversampling from quality on");
     }
     /* the only held voice of a POLY part is never shed */
     reset();

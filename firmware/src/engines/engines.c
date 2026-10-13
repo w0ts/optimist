@@ -32,6 +32,59 @@
 #include "acid/eng_acid.c"                    /* ACID (from X0X; Open303 parts MIT): engine 12, EXPERIMENTAL */
 #endif
 
+/* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
+ * keys, PHYS's model slots, GRAIN's grains and seek index, ACID's 303). A part plays one engine at a time, so one
+ * memory per part holds whichever of them it plays: the largest of the engines built, not their sum (pool: the
+ * user's FM6 + PHYS build keeps 11,712 B; ACID's 1,416 B of main RAM go). voice.c engine_block claims it when the
+ * part switches engine (all its voices over, CPU0 before the second core's job): to an engine that uses it from
+ * another that did, it is zeroed (as at power-on: each engine builds its state from zeros) and the engine told;
+ * a switch to an engine that keeps nothing here leaves it, so ANALOG and back finds FM6's state as it was */
+#if FELUCCA_ENG_ACID
+#include "acid/acid_mem.h"
+#endif
+typedef union {
+#if FELUCCA_ENG_FM6
+    fm6_mem_t fm6;
+#endif
+#if FELUCCA_ENG_PHYS
+    phys_slot_t phys[PHYS_POLY];
+#endif
+#if FELUCCA_ENG_GRAIN
+    gr_part_t grain;
+#endif
+#if FELUCCA_ENG_ACID
+    uint32_t acid[ACID_MEM_BYTES / 4u];
+#endif
+    uint32_t none;
+} part_mem_t;
+#define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID)
+static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
+static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
+AINL fm6_mem_t *fm6_mem(uint32_t p)
+{
+#if FELUCCA_ENG_FM6
+    return &part_mem[p].fm6;
+#else
+    (void)p;
+    return 0;
+#endif
+}
+AINL gr_part_t *gr_mem(uint32_t p)
+{
+#if FELUCCA_ENG_GRAIN
+    return &part_mem[p].grain;
+#else
+    (void)p;
+    return 0;
+#endif
+}
+#if FELUCCA_ENG_PHYS
+AINL phys_slot_t *phys_mem(uint32_t p) { return part_mem[p].phys; }
+#endif
+#if FELUCCA_ENG_ACID
+void *acid_mem(int k) { return part_mem[(uint32_t)k % NPART].acid; }
+#endif
+
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
@@ -68,4 +121,38 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 #else
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 #endif
+}
+
+/* part k switched to engine slot e (voice.c engine_block, every voice of the part over): the part's engine memory
+ * for e (part_mem above) */
+static void part_mem_claim(uint32_t k, uint32_t e)
+{
+    int uses = 0;
+    e %= NENGINES;
+#if FELUCCA_ENG_FM6
+    uses |= e == (uint32_t)ENG_SLOT_FM6;
+#endif
+#if FELUCCA_ENG_PHYS
+    uses |= e == (uint32_t)ENG_SLOT_PHYS;
+#endif
+#if FELUCCA_ENG_GRAIN
+    uses |= e == (uint32_t)ENG_SLOT_GRAIN;
+#endif
+#if FELUCCA_ENG_ACID
+    uses |= e == (uint32_t)ENG_SLOT_ACID;
+#endif
+    if (!uses || k >= NPART || part_mem_owner[k] == e + 1u)
+        return;
+    {                                                    /* another engine's state (or none): from zeros, as at power-on */
+        uint32_t i, *w = (uint32_t *)(void *)&part_mem[k];
+        for (i = 0; i < sizeof part_mem[k] / 4u; i++)
+            w[i] = 0;
+#if FELUCCA_ENG_ACID
+        acid_forget((int)k);
+#endif
+#if FELUCCA_ENG_FM6
+        fm6_pt[k].lav = fm6_pt[k].mcur = fm6_pt[k].mlav = fm6_pt[k].mnew = fm6_pt[k].mlive = 0;   /* (into those) */
+#endif
+    }
+    part_mem_owner[k] = (uint8_t)(e + 1u);
 }

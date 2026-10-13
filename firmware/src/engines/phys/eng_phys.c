@@ -40,7 +40,7 @@
  * kin (random hits into resonators): phys_legacy.
  *
  * Polyphony 3 per part (engine_t.poly): each part's voices 0..2 own a state slot in the pool
- * section (phys_slot: SYMP's, the largest: the string's 512 + 128 sample lines, Q20, and three
+ * section (phys_mem, the part's engine memory: SYMP's, the largest: the string's 512 + 128 sample lines, Q20, and three
  * 256-sample sympathetic lines, 16-bit), 12 slots in all. Voice amplitude: the track's ADSR as for every
  * engine; the presets hold SUS at 127 so the model's own decay is heard and REL damps it after the key.
  * Cost (host, 8 notes asked = 3 voices): see the README and cpu_baseline.txt. */
@@ -62,7 +62,9 @@ typedef struct {
     } u;
 } phys_slot_t;
 
-static phys_slot_t phys_slot[NPART][PHYS_POLY] __attribute__((section(".pool")));
+/* a part's PHYS_POLY slots: in the part's engine memory (engines.c part_mem, the pool: a part plays one engine at a
+ * time, FM6 / GRAIN / ACID share it), zeroed when the part switches to PHYS from another engine that used it */
+AINL phys_slot_t *phys_mem(uint32_t p);                  /* (engines.c, after every engine) */
 
 static const char *const N_PHYS_MODEL[] = {"MODAL", "STRNG", "MEMB", "SYMP"};
 static const char *const N_PHYS_CHORD[] = {"OCT", "5TH", "4TH", "MAJ", "MIN", "SUS", "7TH", "ROOT", 0};
@@ -95,7 +97,7 @@ static phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
     if (t < &trk[0] || t >= &trk[NPART])
         return 0;
     i = (uint32_t)(v - t->v);
-    return i < PHYS_POLY ? &phys_slot[t - trk][i] : 0;
+    return i < PHYS_POLY ? &phys_mem((uint32_t)(t - trk))[i] : 0;
 }
 
 /* a clean state for model md */

@@ -525,7 +525,25 @@ typedef struct fm6_voice {                               /* a voice; operators i
     uint8_t still;                                       /* over and at rest: 1 only time goes on, 2 nothing matters */
     int32_t spb;                                         /* the bend and tune it was at rest with */
 } fm6_voice_t;
-static fm6_voice_t fm6_v[NPART][NVOICE] __attribute__((section(".pool")));
+/* MONO / LEGATO: Dexed keys one of its 16 voices for every key and hands the sounding state from
+ * voice to voice (transferSignal / transferState). FM6 plays the note on one voice and keeps what
+ * else Dexed's voices hold: the note, its key-down order, whether it counts as playing, its
+ * portamento pitch and feedback memory (fm6_key, fm6_note_on, fm6_legato) */
+typedef struct {
+    uint8_t note, fplay;                                 /* note + 1 (0: never keyed); playing, as it was left */
+    int32_t seq, porta[6], fb[2];
+    fm6_peg_t pe;
+} fm6_mono_t;
+/* a part's running FM6 state: its voices and its 16 MONO keys. In the part's engine memory (engines.c part_mem,
+ * the pool: a part plays one engine at a time, PHYS / GRAIN / ACID share it), zeroed when the part switches to FM6
+ * from another engine that used it (part_mem_claim) */
+typedef struct {
+    fm6_voice_t v[NVOICE];
+    fm6_mono_t ms[16];
+} fm6_mem_t;
+AINL fm6_mem_t *fm6_mem(uint32_t p);                     /* (engines.c, after every engine) */
+#define fm6_v(p) (fm6_mem(p)->v)
+#define fm6_ms(p) (fm6_mem(p)->ms)
 #define FM6_SILENT 1638400                               /* an envelope level no engine renders (MARK I: -96 dB) */
 enum { FM6_P_ADD = 4, FM6_P_FB = 0x40, FM6_P_RUN = 0x80 };   /* plan: bits 0-1 out bus, 4-5 in bus */
 
@@ -639,15 +657,6 @@ static struct {
     uint32_t amd, pt[4];                                 /* AMS: the shares for this modulation (pok: figured) */
     uint8_t pok;
 } fm6_pt[NPART];
-/* MONO / LEGATO: Dexed keys one of its 16 voices for every key and hands the sounding state from
- * voice to voice (transferSignal / transferState). FM6 plays the note on one voice and keeps what
- * else Dexed's voices hold: the note, its key-down order, whether it counts as playing, its
- * portamento pitch and feedback memory (fm6_key, fm6_note_on, fm6_legato) */
-static struct {
-    uint8_t note, fplay;                                 /* note + 1 (0: never keyed); playing, as it was left */
-    int32_t seq, porta[6], fb[2];
-    fm6_peg_t pe;
-} fm6_ms[NPART][16] __attribute__((section(".pool")));   /* (SLOOP: the pool, 3 KiB of RAM spared) */
 
 static void fm6_lfo_step(uint32_t p, const int16_t *ed)  /* one block of the LFO: Lfo::getsample, getdelay */
 {
@@ -764,8 +773,8 @@ static void fm6_ctl_block(track_t *t, const int16_t *ed)
         fm6_pt[p].clock++;
         fm6_lfo_step(p, ed);
         for (k = 0; k < NVOICE; k++)                     /* voices over, as Dexed runs them on */
-            if (fm6_v[p][k].played && !fm6_v[p][k].frozen && !t->v[k].active)
-                fm6_ghost(t, &t->v[k], &fm6_v[p][k]);
+            if (fm6_v(p)[k].played && !fm6_v(p)[k].frozen && !t->v[k].active)
+                fm6_ghost(t, &t->v[k], &fm6_v(p)[k]);
     }
 }
 
@@ -1101,7 +1110,7 @@ static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operator
 }
 
 /* ------------------------------------------------------------ the voice --- */
-static fm6_voice_t *fm6_state(const track_t *t, const voice_t *v) { return &fm6_v[t - trk][v - t->v]; }
+static fm6_voice_t *fm6_state(const track_t *t, const voice_t *v) { return &fm6_v(t - trk)[v - t->v]; }
 static uint32_t fm6_note(const track_t *t, const voice_t *v)   /* the note the DX7 rules see: + TRANSPOSE */
 {
     return (uint32_t)clamp((int32_t)v->note + fm6_ed[t - trk][FV_TRNSP] - 24, 0, 127);
@@ -1126,7 +1135,7 @@ static void fm6_keyed(fm6_voice_t *s, const int16_t *ed, uint32_t note)
 /* Dexed's "playing" (Dx7Note::isPlaying: an output operator's envelope not done) */
 static int fm6_playing(const track_t *t, uint32_t i)
 {
-    const fm6_voice_t *s = &fm6_v[t - trk][i];
+    const fm6_voice_t *s = &fm6_v(t - trk)[i];
     const int16_t *ed = fm6_ed[t - trk];
     uint32_t k;
     if (!s->played)
@@ -1143,7 +1152,7 @@ static uint32_t fm6_alloc(track_t *t, uint32_t note)
     uint32_t p = (uint32_t)(t - trk), k = fm6_pt[p].rr % NVOICE, best = k, i;
     int32_t bs = -1;
     for (i = 0; i < NVOICE; i++) {
-        int32_t sc = (fm6_playing(t, k) ? 0 : 4) + (t->v[k].gate ? 0 : 2) + (fm6_v[p][k].played && t->v[k].note == note);
+        int32_t sc = (fm6_playing(t, k) ? 0 : 4) + (t->v[k].gate ? 0 : 2) + (fm6_v(p)[k].played && t->v[k].note == note);
         if (sc > bs || (sc == bs && t->v[k].age < t->v[best].age)) {
             best = k;
             bs = sc;
@@ -1162,10 +1171,10 @@ static void fm6_sync(track_t *t, const voice_t *self);
 static int fm6_psrc(uint32_t p, const int16_t *ed, int32_t *src)
 {
     uint32_t k, l = fm6_pt[p].lav;
-    if (!l || !fm6_v[p][l - 1u].played || !fm6_pt[p].pon || ed[FN_PTIME] <= 0)
+    if (!l || !fm6_v(p)[l - 1u].played || !fm6_pt[p].pon || ed[FN_PTIME] <= 0)
         return 0;
     for (k = 0; k < 6u; k++)
-        src[k] = fm6_v[p][l - 1u].porta[k];
+        src[k] = fm6_v(p)[l - 1u].porta[k];
     return 1;
 }
 
@@ -1173,13 +1182,13 @@ static int fm6_psrc(uint32_t p, const int16_t *ed, int32_t *src)
 static int fm6_mkd(const track_t *t, uint32_t c, uint32_t now)
 {
     uint32_t p = (uint32_t)(t - trk), i;
-    if (!fm6_ms[p][c].note || fm6_ms[p][c].note == now)
+    if (!fm6_ms(p)[c].note || fm6_ms(p)[c].note == now)
         return 0;
     for (i = 0; i < 16u; i++)                            /* the key's latest voice */
-        if (fm6_ms[p][i].note == fm6_ms[p][c].note && fm6_ms[p][i].seq > fm6_ms[p][c].seq)
+        if (fm6_ms(p)[i].note == fm6_ms(p)[c].note && fm6_ms(p)[i].seq > fm6_ms(p)[c].seq)
             return 0;
     for (i = 0; i < t->nmono; i++)
-        if (t->mono_stack[i] + 1u == fm6_ms[p][c].note)
+        if (t->mono_stack[i] + 1u == fm6_ms(p)[c].note)
             return 1;
     return 0;
 }
@@ -1188,14 +1197,14 @@ static int fm6_mkd(const track_t *t, uint32_t c, uint32_t now)
 static void fm6_mhand(track_t *t, uint32_t c)
 {
     uint32_t p = (uint32_t)(t - trk), l = fm6_pt[p].mlive, k;
-    fm6_voice_t *s = &fm6_v[p][0];
+    fm6_voice_t *s = &fm6_v(p)[0];
     if (l) {                                             /* the one left keeps what it had */
-        fm6_ms[p][l - 1u].fplay = (uint8_t)(t->v[0].active || s->played ? fm6_playing(t, 0) : 0);
+        fm6_ms(p)[l - 1u].fplay = (uint8_t)(t->v[0].active || s->played ? fm6_playing(t, 0) : 0);
         for (k = 0; k < 6u; k++)
-            fm6_ms[p][l - 1u].porta[k] = s->porta[k];
-        fm6_ms[p][l - 1u].fb[0] = s->fb[0];
-        fm6_ms[p][l - 1u].fb[1] = s->fb[1];
-        fm6_ms[p][l - 1u].pe = s->pe;
+            fm6_ms(p)[l - 1u].porta[k] = s->porta[k];
+        fm6_ms(p)[l - 1u].fb[0] = s->fb[0];
+        fm6_ms(p)[l - 1u].fb[1] = s->fb[1];
+        fm6_ms(p)[l - 1u].pe = s->pe;
     }
     fm6_pt[p].mlive = (uint8_t)c;
     fm6_pt[p].mnew = (uint8_t)c;
@@ -1207,10 +1216,10 @@ static void fm6_mtake(track_t *t, fm6_voice_t *s)        /* MONO: the voice play
     if (!c)
         return;
     for (k = 0; k < 6u; k++)
-        s->porta[k] = fm6_ms[p][c - 1u].porta[k];
-    s->fb[0] = fm6_ms[p][c - 1u].fb[0];
-    s->fb[1] = fm6_ms[p][c - 1u].fb[1];
-    s->pe = fm6_ms[p][c - 1u].pe;
+        s->porta[k] = fm6_ms(p)[c - 1u].porta[k];
+    s->fb[0] = fm6_ms(p)[c - 1u].fb[0];
+    s->fb[1] = fm6_ms(p)[c - 1u].fb[1];
+    s->pe = fm6_ms(p)[c - 1u].pe;
     fm6_pt[p].mnew = 0;
 }
 
@@ -1224,10 +1233,10 @@ static void fm6_key(track_t *t, uint32_t note)
     fm6_sync(t, 0);
     l = fm6_pt[p].mlive;
     for (i = 0; i < 16u; i++) {
-        int32_t sc = ((l == k + 1u ? fm6_playing(t, 0) : fm6_ms[p][k].fplay) ? 0 : 4) +
+        int32_t sc = ((l == k + 1u ? fm6_playing(t, 0) : fm6_ms(p)[k].fplay) ? 0 : 4) +
                      (fm6_mkd(t, k, note + 1u) ? 0 : 2) +
-                     (fm6_ms[p][k].note == note + 1u);
-        if (sc > bs || (sc == bs && fm6_ms[p][k].seq < fm6_ms[p][c].seq)) {
+                     (fm6_ms(p)[k].note == note + 1u);
+        if (sc > bs || (sc == bs && fm6_ms(p)[k].seq < fm6_ms(p)[c].seq)) {
             c = k;
             bs = sc;
         }
@@ -1236,18 +1245,18 @@ static void fm6_key(track_t *t, uint32_t note)
     fm6_pt[p].mcur = (uint8_t)((c + 1u) % 16u);
     nt = (uint32_t)clamp((int32_t)note + ed[FV_TRNSP] - 24, 0, 127);
     for (k = 0; k < 6u; k++)                             /* init: the note's pitch */
-        fm6_ms[p][c].porta[k] = fm6_logfreq(&ed[k * FO_N], nt);
-    if (fm6_pt[p].mlav && fm6_ms[p][fm6_pt[p].mlav - 1u].note && fm6_pt[p].pon && ed[FN_PTIME] > 0) {
+        fm6_ms(p)[c].porta[k] = fm6_logfreq(&ed[k * FO_N], nt);
+    if (fm6_pt[p].mlav && fm6_ms(p)[fm6_pt[p].mlav - 1u].note && fm6_pt[p].pon && ed[FN_PTIME] > 0) {
         uint32_t a = fm6_pt[p].mlav - 1u;                /* initPortamento: from the last keyed voice */
         for (k = 0; k < 6u; k++)
-            fm6_ms[p][c].porta[k] = l == a + 1u && a != c ? fm6_v[p][0].porta[k] : fm6_ms[p][a].porta[k];
+            fm6_ms(p)[c].porta[k] = l == a + 1u && a != c ? fm6_v(p)[0].porta[k] : fm6_ms(p)[a].porta[k];
     }
-    fm6_ms[p][c].note = (uint8_t)(note + 1u);
-    fm6_ms[p][c].seq = ++fm6_pt[p].mseq;
-    fm6_ms[p][c].fplay = 1;                              /* keyed: its envelopes start (Dexed counts it playing) */
-    fm6_peg_set(&fm6_ms[p][c].pe, ed);
+    fm6_ms(p)[c].note = (uint8_t)(note + 1u);
+    fm6_ms(p)[c].seq = ++fm6_pt[p].mseq;
+    fm6_ms(p)[c].fplay = 1;                              /* keyed: its envelopes start (Dexed counts it playing) */
+    fm6_peg_set(&fm6_ms(p)[c].pe, ed);
     fm6_pt[p].mnew = 0;
-    if (l && l != c + 1u && fm6_mkd(t, l - 1u, 0) && fm6_ms[p][l - 1u].note > note + 1u)
+    if (l && l != c + 1u && fm6_mkd(t, l - 1u, 0) && fm6_ms(p)[l - 1u].note > note + 1u)
         return;                                          /* a higher key sounds: this one waits */
     fm6_mhand(t, c + 1u);
     fm6_pt[p].mlav = (uint8_t)(c + 1u);
@@ -1294,9 +1303,9 @@ static void fm6_note_on(track_t *t, voice_t *v)
         fm6_mtake(t, s);
     if (!mono && !ed[FV_OKS])                            /* the same note sounding: its phases */
         for (i = 0; i < NVOICE; i++)
-            if (i != vi && fm6_playing(t, i) && fm6_v[p][i].played && t->v[i].note == v->note) {
+            if (i != vi && fm6_playing(t, i) && fm6_v(p)[i].played && t->v[i].note == v->note) {
                 for (k = 0; k < 6u; k++)
-                    s->ph[k] = fm6_v[p][i].ph[k];
+                    s->ph[k] = fm6_v(p)[i].ph[k];
                 break;
             }
     fm6_pt[p].lav = (uint8_t)(vi + 1u);
@@ -1318,7 +1327,7 @@ static void fm6_legato(track_t *t, voice_t *v)
     const int16_t *ed = fm6_ed[p];
     fm6_sync(t, v);
     if (!fm6_pt[p].mnew) {                               /* a key-up: the voice keyed for this key */
-        for (c = 0; c < 16u && !(fm6_ms[p][c].note == v->note + 1u && fm6_mkd(t, c, 0)); c++)
+        for (c = 0; c < 16u && !(fm6_ms(p)[c].note == v->note + 1u && fm6_mkd(t, c, 0)); c++)
             ;
         if (c < 16u)
             fm6_mhand(t, c + 1u);
@@ -1548,7 +1557,7 @@ static void fm6_sync(track_t *t, const voice_t *self)
         int panic = fm6_pt[p].panic || (fm6_pt[p].hash && ed[FV_TRNSP] != fm6_pt[p].trn);
         for (i = 0; i < NVOICE; i++) {
             voice_t *v = &t->v[i];
-            fm6_voice_t *s = &fm6_v[p][i];
+            fm6_voice_t *s = &fm6_v(p)[i];
             uint32_t k;
             if (v == self || !(v->active || (s->played && !s->frozen)))
                 continue;                                /* (voices over too: Dexed keeps them live) */

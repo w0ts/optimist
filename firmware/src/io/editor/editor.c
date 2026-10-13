@@ -30,7 +30,7 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_DRUM_STEP,                                                            /* v5: the 16 drum lanes */
        ED_BUILD = 49 };            /* v6: the build's contents (33, 34 avoided: Melodee's; 36..42 ed_drums.c; 43..48 backup) */
 #include "ed_out.h"
-static uint8_t ed_out[ED_OUT_N];               /* (ed_out.h: RAM is the limit; BK_LIST pages) */
+static uint8_t ed_out[ED_OUT_N] __attribute__((aligned(4)));   /* (ed_out.h: RAM is the limit; BK_LIST pages; aligned: ed_user.c ed_smp_buf) */
 static uint32_t ed_n;
 /* the replies that grow with the build (ed_b drops what does not fit): the longest of each fits (2026-10, 634 B of room:
  * DESC 603, MACRO 484 at most, DUMP 236, UP_GET 206 in the largest builds; BK_LIST pages, ed_backup.c) */
