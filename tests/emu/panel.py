@@ -78,11 +78,11 @@ class Panel:
         return w[0], w[1] & 0xFFFF, (w[2] >> 16) & 255, (w[1] >> 16) & 255, org
 
     def cur(self):
-        w = self.e.peek("pat_cur")[0]
+        w = self.e.word("pat_cur")                             # (uint8_t[]: any alignment, session.mem)
         return [(w >> (8 * i)) & 255 for i in range(4)]
 
     def req(self):
-        w = self.e.peek("pat_req")[0]
+        w = self.e.word("pat_req")
         return [(w >> (8 * i)) & 255 for i in range(4)]
 
     def playing(self):
@@ -92,7 +92,7 @@ class Panel:
         return 2 * self.f.G_COUNT                              # (song_t: g[G_COUNT], then playing, seq_mode, rec, sel)
 
     def slots(self):
-        w = self.e.peek("fxs_slot")[0]
+        w = self.e.word("fxs_slot")
         return [(w >> (8 * i)) & 255 for i in range(4)]
 
     def page(self):

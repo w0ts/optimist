@@ -1305,6 +1305,9 @@ job; ( jobin
     run "emu-check --jobs: the driver built once by the parent, the checks' processes never run cargo (integration57's race)" python3 tests/emu_driver_once_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    run "emu-check reads: a byte array at any alignment (session.mem / word, fxkit, panel; the fx check's dins_amt 0xDEADBEEF)" python3 tests/emu_mem_align_test.py
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
     run "rescue tool with any .fwsc (validation, confirmation flag, fake USB transport)" python3 tests/rescue_any_test.py
 ) >"$U.out" 2>&1 & jobbg
