@@ -40,7 +40,7 @@ static uint32_t fm6_bank_gen = ~0u;                      /* smp_user_gen the ban
 
 static void fm6_bank_copy(uint8_t *d)                    /* the bank as VOICE U01..U32 has it -> d */
 {
-    static int16_t ed[FM6_NP];
+    static int16_t ed[FM6_NP] IN_POOL;
     uint32_t k;
     for (k = 0; k < FM6_NUSER; k++) {
         fm6_user(ed, k);
@@ -110,7 +110,7 @@ static int fm6_bank_save(const uint8_t *src)
     if (!FELUCCA_FM6_STORE)                              /* (registry.h: no user bank store in this build) */
         return -1;
 #if FELUCCA_FLASH
-    static smp_user_hdr_t h;
+    static smp_user_hdr_t h IN_POOL;
     uint32_t base = FM6_HDR, took;
     int rc;
     if (!flash_ok)

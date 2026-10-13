@@ -54,7 +54,8 @@ enum { FN_PBUP = 161, FN_PBDN, FN_PBSTEP, FN_PMODE, FN_PTIME, FN_GLISS, FN_MWR, 
 #define FM6_OPB(n) ((6u - (n)) * FO_N)                   /* buffer offset of OP n (1..6): OP6 comes first */
 #define FM6_NUSER 32u                                    /* user bank */
 
-static int16_t fm6_ed[NPART][FM6_NP];                    /* the parts' voices (int16: the pages edit them) */
+static int16_t fm6_ed[NPART][FM6_NP] IN_POOL_AUDIO;      /* the parts' voices (int16: the pages edit them; the
+                                                         * control blocks read them) */
 static int16_t fm6_cur[NPART];                           /* VOICE + 1 the buffer was loaded from, 0 = load it */
 static uint8_t fm6_fnok[NPART];                          /* the function settings are set (else: the defaults) */
 /* the user bank, DX7 packed (VMEM): read where it is in flash (fm6_store.c: a USR sample slot), no RAM copy
@@ -190,7 +191,7 @@ static void fm6_load(uint32_t p, uint32_t voice)                /* VOICE -> part
 
 static int fm6_slot_is(uint32_t k, const char *name)            /* user slot k holds a voice of that name */
 {
-    static int16_t ed[FM6_NP];
+    static int16_t ed[FM6_NP] IN_POOL;
     char nm[12];
     fm6_user(ed, k % FM6_NUSER);
     fm6_name(nm, ed);
@@ -278,7 +279,7 @@ static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
 /* SLOOP: the per-sample tables are built in RAM at boot (or before the first FM6 block), the 2^x and
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
-static int32_t FM6_SIN[1025];
+static int32_t FM6_SIN[1025] IN_POOL_AUDIO;               /* (built at boot; the operators read it) */
 /* MARK I's log sine: a quarter cycle, 1024 entries; the half cycle a phase reads is the quarter and its mirror,
  * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD).
  * FELUCCA_FM6_MKI_FLASH: both are the generated const tables in flash (gen_tables.py FM6_MKI_LOGQ, _EXPF), the
@@ -793,11 +794,11 @@ static uint32_t fm6_mode(int32_t v)
 }
 #define FM6_ENGINE(t) fm6_mode((t)->p[P_E4])
 #if FELUCCA_DUAL >= 2                                    /* dual core (dual.c): two parts render at once, */
-static int32_t fm6_bus_c[2][2][CTL], fm6_sum_c[2][CTL];  /* each core its own operator buses */
+static int32_t fm6_bus_c[2][2][CTL] IN_POOL_AUDIO, fm6_sum_c[2][CTL] IN_POOL_AUDIO;   /* each core its own operator buses */
 #define fm6_bus (fm6_bus_c[fm1_cnum() & 1u])
 #define fm6_sum (fm6_sum_c[fm1_cnum() & 1u])
 #else
-static int32_t fm6_bus[2][CTL], fm6_sum[CTL];
+static int32_t fm6_bus[2][CTL] IN_POOL_AUDIO, fm6_sum[CTL] IN_POOL_AUDIO;
 #endif
 
 /* MARK I: a sine from the log-sine and exponent tables (mkiSin); env: attenuation, 1024 an octave.
@@ -1703,8 +1704,8 @@ static const engine_t ENG_FM6 = {
  * loop (fm6_store.c fm6_service): a 32-voice dump is the longest. One frame at a time; a frame
  * arriving while one is waiting is dropped */
 #define FM6_RX 4104u
-static uint8_t fm6_rx[FELUCCA_FM6_SYSEX || FELUCCA_FM6_STORE ? FM6_RX : 1];   /* (SLOOP: RAM; STORE builds the bank here too)
-                                                        * (the pool keeps its 8 KiB spare) */
+static uint8_t fm6_rx[FELUCCA_FM6_SYSEX || FELUCCA_FM6_STORE ? FM6_RX : 1] IN_POOL;   /* (STORE builds the bank here
+                                                        * too; the USB ISR and the main loop only: the pool) */
 static uint32_t fm6_rx_n;
 static volatile uint8_t fm6_rx_ready;
 static uint8_t fm6_rx_on;
