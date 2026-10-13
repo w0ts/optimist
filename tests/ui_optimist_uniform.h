@@ -38,8 +38,46 @@ static void un_song_rec_tests(void)                     /* #16a: SONG's MODE row
     reset_ui();
 }
 #endif
+static void un_scope_tests(void)                        /* #12: SCOPE's source = ALGORITHM's track, MASTER = the master; SELECT has no source to pick */
+{
+    reset_ui();
+    song.sel = 2;
+    go_home();
+    frame();
+    tap(B_HOME);
+    check(ui.scr == SCR_SCOPE && scope_src == 3u && SCR->rows() == 1u, "SCOPE: opened on the mixer's track row, the source is that track (T3); no source row");
+    turn(EN_SELECT, 3);
+    turn(EN_SELECT, -3);
+    frames(2);
+    check(ui.scr == SCR_SCOPE && scope_src == 3u && ui.row[SCR_SCOPE] == 0u, "SELECT on SCOPE: no source picked (the old source row is gone)");
+    turn(EN_ALGO, -1);
+    frames(2);
+    check(song.sel == 1u && scope_src == 2u, "ALGORITHM: the source follows the selected track (T2)");
+    turn(EN_ALGO, -5);
+    frames(2);
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u, "ALGORITHM to MASTER: the master output, SCOPE stays (not the master FX screen)");
+    press(B_EDIT);
+    frames(HOLD_FRAMES);
+    release(B_EDIT);
+    frames(2);
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u, "... a layer held and let go on it: still the master");
+    turn(EN_ALGO, 1);
+    frames(2);
+    check(ui.scr == SCR_SCOPE && !ui.master && scope_src == 1u, "ALGORITHM right of MASTER: T1");
+    turn(EN_ALGO, -1);
+    tap(B_HOME);
+    check(ui.scr == SCR_HOME && !ui.master && (frame(), scope_src == 0u), "HOME: the mixer, the master flag gone");
+    go_home();
+    ui.row[SCR_HOME] = MXR_MASTER;                      /* the mixer's MASTER row, HOME: SCOPE on the master */
+    frame();
+    tap(B_HOME);
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u, "SCOPE opened from the mixer's MASTER row: the master");
+    tap(B_HOME);
+    reset_ui();
+}
 static void uniform_tests(void)
 {
+    un_scope_tests();
 #if FELUCCA_ARRANGER
     un_song_rec_tests();
 #endif

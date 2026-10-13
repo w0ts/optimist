@@ -49,12 +49,17 @@ static int keys_none(void)
 }
 static void op_enter(uint32_t scr)
 {
+    uint8_t from_master = ui.scr == SCR_HOME && mx_row() == MXR_MASTER;   /* (SCOPE opened on the mixer's MASTER row: its source) */
+    if (ui.scr == SCR_SCOPE)
+        ui.master = 0;                                  /* (the scope's MASTER source goes with the scope) */
     if (scr != ui.scr && (sys_scr(ui.scr) || (tp.on && sys_scr(tp.prev))))
         sys_leave();                                    /* (SYSTEM or GLOBAL left: their settings saved; the TEMPO page over
                                                          * them: ui.scr is SCR_TEMPO) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
+    if (scr == SCR_SCOPE)
+        ui.master = from_master;
     if (scr == SCR_FX)                                  /* (the master FX opened: right goes to SOUND T1, unless the walk */
         ui.m_scr = SCR_SOUND, ui.m_fam = SND_ALL, ui.m_row = 0;   /* sets where it came from: op_walk.c) */
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */

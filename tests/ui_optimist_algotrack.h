@@ -45,8 +45,9 @@ static void at_screen_tests(void)
             bad |= ui.row[scr] != row;                  /* (a list screen's cursor; SOUND's rows follow the track's pages, the mixer's row is the walk) */
         turn(EN_ALGO, 20);                              /* the last lane, stopping there */
         bad |= !(walk_pos(0) == MXR_N - 1u && ui.scr == scr && at_sum() == sum && lane_selected() == 15u);
-        turn(EN_ALGO, -40);                             /* up to MASTER: the master FX screen (the mixer's row), no setting */
-        bad |= !((scr == SCR_HOME ? mx_row() == MXR_MASTER : ui.scr == SCR_FX) && at_sum() == sum);
+        turn(EN_ALGO, -40);                             /* up to MASTER: the master FX screen (the mixer's row; SCOPE: its master source), no setting */
+        bad |= !((scr == SCR_HOME ? mx_row() == MXR_MASTER : scr == SCR_SCOPE ? (ui.scr == SCR_SCOPE && ui.master) : ui.scr == SCR_FX) &&
+                 at_sum() == sum);          /* (SCOPE: MASTER is its source, the screen stays) */
         turn(EN_ALGO, 1);                               /* back to T1: the screen left from */
         bad |= !(song.sel == 0u && ui.scr == scr && at_sum() == sum);
         if (bad)

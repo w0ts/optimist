@@ -774,7 +774,8 @@ static int lay_knobs(void)
     uint32_t k, turned = 0;
     int32_t s;
     if (lay_now() == LY_PLAY) {
-        ui.master = 0;                                  /* (the layer let go: the track under it) */
+        if (ui.scr != SCR_SCOPE)
+            ui.master = 0;                              /* (the layer let go: the track under it; SCOPE's MASTER is its source) */
         return 0;
     }
     if ((mx_on_master() || ui.scr == SCR_FX) && lay_master_ok(lay_now()) && !ui.master) {

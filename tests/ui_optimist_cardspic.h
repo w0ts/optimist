@@ -122,8 +122,8 @@ static void cards_pic_tests(void)
     op_enter(SCR_SCOPE);
     cp_draw();
     ppm("opt-cardspic-scope");
-    check(SC_H == OH_BODY && cp_pos(p) && !px_in(1, 240u - 20u, 46, 20, scope_col(ui.row[SCR_SCOPE] % (1u + NTRK))),
-          "2x2: SCOPE, the trace to the foot, no tabs, the header's n/N");
+    check(SC_H == OH_BODY && !cp_pos(p) && !px_in(1, 240u - 20u, 46, 20, scope_col(scope_row())),
+          "2x2: SCOPE, the trace to the foot, no tabs, no n/N (one page: the source is ALGORITHM's)");
     /* the list screens: their rows under the big values, on every row */
     {
         static const uint8_t S[] = {SCR_PROJECT, SCR_SONG, SCR_FX};   /* (SYSTEM: a list, no cards: ui_optimist_glo.h) */

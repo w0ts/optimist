@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SCOPE (docs/UI-OPTIMIST-DESIGN.md sections 4.10, 11.5). The user: "an osc view for
  * master, per track, and levels on the mixer with the compressor effect (a bar pushing down)".
- *   rows   the sources: MASTER, T1, T2, T3, DR; the cards the cursor source's values (a track: LEVEL PAN FX DRIVE,
- *          the mixer's; the master: FILT, the compressor's THRS and RATIO, LIMIT's GR read-out)
+ *   source the walk's: ALGORITHM's selected track (T1 T2 T3 DR, a drum lane being DR), MASTER = the master output (ui.master,
+ *          op_walk.c: here MASTER stays on SCOPE, the user 2026-10-13); one row, one page of cards, the source's values (a
+ *          track: LEVEL PAN FX DRIVE, the mixer's; the master: FILT, the compressor's THRS and RATIO, LIMIT's GR read-out)
  *   panel  the oscilloscope of the cursor's source, trigger-stable (a rising zero crossing after a swing below,
  *          the latest that leaves a whole screen of samples), in the source's colour (the master in the palette's
  *          ink, a track in its instrument's), scaled to its peak; the sources as tabs under it
@@ -12,8 +13,10 @@
  * Entry: HOME tapped on the mixer (HOME tapped on SCOPE goes back). */
 static const page_t SCOPE_MASTER = {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_FILT, G_CTHR, G_CRAT, G_CGR}};
 static const uint8_t SCOPE_TRK_ID[4] = {P_LEVEL, P_PAN, P_FXOFF, P_DIST};
-static uint32_t scope_rows(void) { return 1u + NTRK; }
-static void scope_name(uint32_t r, char *b) { str_cpy(b, r ? trk_tag(r - 1u) : "MASTER", 12); }
+static uint32_t scope_rows(void) { return 1u; }
+static uint32_t scope_row(void) { return ui.master ? 0u : 1u + song.sel % NTRK; }   /* the source: 0 MASTER, 1.. a track */
+static void scope_src_name(uint32_t r, char *b) { str_cpy(b, r ? trk_tag(r - 1u) : "MASTER", 12); }
+static void scope_name(uint32_t r, char *b) { (void)r; scope_src_name(scope_row(), b); }
 static uint16_t scope_col(uint32_t r) { return r ? trk_col(r - 1u) : C_HI; }
 static const param_desc_t *scope_desc(uint32_t r, uint32_t k, int16_t **vp)
 {
@@ -26,6 +29,7 @@ static const param_desc_t *scope_desc(uint32_t r, uint32_t k, int16_t **vp)
 static void scope_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     int16_t *vp;
+    r = scope_row();
     if (!r) {
         page_cell(&SCOPE_MASTER, k, c);
         return;
@@ -42,6 +46,7 @@ static void scope_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     int16_t *vp;
     const param_desc_t *d;
+    r = scope_row();
     if (!r) {
         page_turn(&SCOPE_MASTER, k, s, fine);
         return;
@@ -52,6 +57,7 @@ static void scope_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 static int scope_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     int16_t *vp;
+    r = scope_row();
     if (!r)
         return page_yes(SCR_SCOPE, r, &SCOPE_MASTER, k, ok);
     return val_toggle(scope_desc(r, k, &vp), vp);       /* (FX: on / dry) */
@@ -60,7 +66,7 @@ static int scope_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the source, once a frame from the main loop: the ISR reads it at the next block */
 static void scope_tick(void)
 {
-    uint32_t s = ui.scr == SCR_SCOPE ? ui.row[SCR_SCOPE] % (1u + NTRK) : 0u;
+    uint32_t s = ui.scr == SCR_SCOPE ? scope_row() : 0u;
     if (scope_src != s)
         scope_src = (uint8_t)s;
 }
@@ -118,7 +124,7 @@ static void scope_trace(void)
 {
     uint32_t w = vis_wr, i, at, sh, pk = 0;
     int32_t mid = SC_H / 2;
-    uint16_t col = scope_col(ui.row[SCR_SCOPE] % (1u + NTRK));
+    uint16_t col = scope_col(scope_row());
     for (i = 0; i < VIS_RING; i++) {
         int32_t x = sc_at(w, i);
         uint32_t a = (uint32_t)(x < 0 ? -x : x);
@@ -139,7 +145,7 @@ static void scope_trace(void)
 }
 static void scope_tabs(void)                            /* the sources under the trace, the cursor's lit */
 {
-    uint32_t r, cur = ui.row[SCR_SCOPE] % (1u + NTRK);
+    uint32_t r, cur = scope_row();
     char nm[12], b[12];
     if (sc.tabs_row == cur || cards_2x2())
         return;
@@ -147,7 +153,7 @@ static void scope_tabs(void)                            /* the sources under the
     cv_begin(240, SC_TAB_H, C_BLACK);
     for (r = 0; r <= NTRK; r++) {
         int32_t x = (int32_t)r * 48;
-        scope_name(r, nm);
+        scope_src_name(r, nm);
         if (r == cur)
             cv_rect(x + 1, 0, 46, SC_TAB_H, scope_col(r));
         cv_text(x + (48 - text_w(&FONT_S, op_case(b, nm, sizeof b))) / 2, 1, &FONT_S, b, r == cur ? C_BLACK : scope_col(r));
@@ -156,7 +162,7 @@ static void scope_tabs(void)                            /* the sources under the
 }
 static void scope_draw(void)
 {
-    uint32_t w = vis_wr, row = ui.row[SCR_SCOPE] % (1u + NTRK);
+    uint32_t w = vis_wr, row = scope_row();
     if (ui.sig[2] != 0x5C0Fu + row) {                   /* entered, another source, the overlay gone: all again */
         ui.sig[2] = 0x5C0Fu + row;
         sc.tabs_row = 0xFF;
