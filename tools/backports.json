@@ -1296,10 +1296,10 @@
         "firmware/src/ui/optimist/op_step.c the COND card"
       ],
       "cost": {
-        "flash": 600,
+        "flash": 1392,
         "ram": 8,
         "pool": 0,
-        "ramtext": 0,
+        "ramtext": 20,
         "cpu": "none (read in the step's scan of its events)",
         "project_bytes": 0
       },
@@ -1326,7 +1326,7 @@
         "firmware/src/ui/optimist/op_layers.c EDIT SHIFT / LENGTH move the events"
       ],
       "cost": {
-        "flash": 3500,
+        "flash": 5272,
         "ram": 16,
         "pool": 0,
         "ramtext": 0,

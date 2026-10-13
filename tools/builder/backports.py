@@ -213,12 +213,12 @@ DESC["FELUCCA_COND"] = (
     "2:4 3:4 4:4), counted from PLAY, a song section or a launched pattern. With FILL and the chance on the same step: "
     "the condition, then FILL, then the chance. The Optimist UI: a held step's EXTRA page, COND; SLOOP's UI plays them. "
     "A step-only event of the automation store (it builds the store); an older build plays such a step always. About "
-    "0.6 KB of flash.")
+    "1.4 KB of flash beside the store's other items (11 KB when it builds the store alone).")
 DESC["FELUCCA_SEQTOOLS"] = (
     "The sequence tools of Felucca 1.5.6 on STEP's last two pages (the Optimist UI): TOOLS (REVERSE, RANDOM: new notes "
     "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one undo, and EUCLID (HITS STEPS "
     "ROT, live). On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
-    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 3.5 KB of flash; nothing with "
+    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash; nothing with "
     "SLOOP's UI.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item

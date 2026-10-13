@@ -71,6 +71,21 @@ int main(void)
     play(8);
     check(hits_on(1) == 2u && hits_on(2) == 1u && hits_on(3) == 1u && hits_on(4) == 1u,
           "PLAY again: the count from pass 1 (4 passes: 1:2 twice, 2:4, 3:3, 4:4 once)");
+    {   /* the sequencer mute (seq_mute.c): a muted track plays nothing but keeps counting its loops */
+        nhits = 0;
+        clk_beat = clk_pos = 0;
+        smute_set_trk(TRK_DRUM, 1);
+        transport_req = 1;
+        while (clk_beat < 6u)                         /* passes 1..3 muted */
+            run_block();
+        n[0] = nhits;
+        smute_set_trk(TRK_DRUM, 0);
+        while (clk_beat < 10u)                        /* passes 4, 5 heard */
+            run_block();
+        seq_stop();
+        check(n[0] == 0u && hits_on(0) == 2u && hits_on(1) == 1u && hits_on(2) == 0u && hits_on(4) == 1u,
+              "muted for passes 1-3: nothing; unmuted, the count went on: pass 4 plays 4:4, pass 5 1:2, 2:4 neither");
+    }
     {   /* a synth step 1:2 with a ratchet x2: nothing at all on the even passes */
         track_t *t = &trk[0];
         t->step[0].time = ST_NOTE, t->step[0].n = 1, t->step[0].note[0] = 60, t->step[0].vel = 100, t->step[0].rat = 1;
