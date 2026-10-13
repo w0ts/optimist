@@ -16,8 +16,9 @@ static int hlt_strip_lit(void)                          /* the line's rows hold 
 }
 static int hlt_text_is(const char *want)                /* the line now says want (the table's words) */
 {
-    const char *s = hl_text();
-    return hl.on && s && !strcmp(s, want);
+    char b[PH_LINE];
+    uint32_t s = hl_text();
+    return hl.on && s && !strcmp(ph_text(s, b), want);
 }
 static uint32_t hlt_missing;
 static track_t hlt_t0;
@@ -51,7 +52,8 @@ static void help_tests(void)
         frame();
         n = SCREENS[scr].rows();
         for (i = 0; i < n; i++) {
-            const char *t;
+            uint32_t t;
+            char tb[PH_LINE];
             turn(EN_ALGO, (int32_t)i - (int32_t)ui.row[scr]);
             gl_cell(s, i, &c);
             t = hl_text();
@@ -59,11 +61,11 @@ static void help_tests(void)
             if (!t || !hl.on || !hlt_strip_lit()) {
                 printf("  help: %s line %u %s: no help line\n", SCR_NAME[scr], i, c.label ? c.label : "-");
                 ok = 0;
-            } else if (text_w(&FONT_S, t) > 232) {
+            } else if (text_w(&FONT_S, ph_text(t, tb)) > 232) {
                 fit = 0;
             }
-            if (t && ph_find(PH_OP, nm, c.label) && t != PH_BLOB + ph_find(PH_OP, nm, c.label))
-                ok = 0, printf("  help: %s line %u %s: %s (row %u)\n", SCR_NAME[scr], i, nm, t, ui.row[scr]);   /* (the Optimist table's line, by its section) */
+            if (t && ph_find(PH_OP, nm, c.label) && t != ph_find(PH_OP, nm, c.label))
+                ok = 0, printf("  help: %s line %u %s: %s (row %u)\n", SCR_NAME[scr], i, nm, ph_text(t, tb), ui.row[scr]);   /* (the Optimist table's line, by its section) */
         }
     }
     check(ok, "GLOBAL / SYSTEM: the cursor line's help on the screen's last line, every line, the table's text");
@@ -84,7 +86,8 @@ static void help_tests(void)
             ui.row[SCR_PROJECT] = (uint8_t)i;
             ui.hot = (uint8_t)s;
             frame();
-            if (!hl_text() || !hl.on || text_w(&FONT_S, hl_text()) > 232) {
+            char tb[PH_LINE];
+            if (!hl_text() || !hl.on || text_w(&FONT_S, ph_text(hl_text(), tb)) > 232) {
                 printf("  help: PROJECT row %u %s: no help line\n", i, c.label);
                 ok = 0;
             }
@@ -102,7 +105,7 @@ static void help_tests(void)
     SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 0, &c);
     turn(EN_K1, 1);
     frame();
-    check(hl.on && hl_text() && hlt_strip_lit() && hl_text() == PH_BLOB + hl_find(SCR_SOUND, ui.row[SCR_SOUND], &c),
+    check(hl.on && hl_text() && hlt_strip_lit() && hl_text() == hl_find(SCR_SOUND, ui.row[SCR_SOUND], &c),
           "SOUND: KNOB 1 turned, its value's help on the last line (SLOOP's table, by its page)");
     frames(HL_FRAMES / 2u);
     turn(EN_K1, -1);
