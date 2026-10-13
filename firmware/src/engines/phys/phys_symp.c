@@ -36,6 +36,11 @@
 #define PX_YLINE 256             /* sympathetic string line (16-bit) at half the rate: 86 Hz and up, lower folds up */
 #define PX_YMASK (PX_YLINE - 1)
 #define PX_NSYMP 3
+#include "../../../hal/fm1_dsp_asm.h"            /* FELUCCA_ASM: the comb in pi32v2 asm (asm_symp_comb) */
+#ifndef PX_ASM
+#define PX_ASM FELUCCA_ASM                       /* 0: the C comb (an A/B on the FM-1: PX_ASM=0) */
+#endif
+_Static_assert(PX_YLINE == 256, "asm_symp_comb masks the line to 8 bits");
 
 typedef struct {                                         /* coefficients (px_symp_block; kept while unchanged) */
     uint32_t d[PX_NSYMP];                                /* read delay, whole samples */
@@ -103,6 +108,25 @@ static __attribute__((noinline)) void px_symp_block(px_symp_t *Y, const uint32_t
     }
 }
 
+#if PX_ASM && FELUCCA_ASM_CHECK
+struct { uint32_t calls, bad; } px_asm_check;           /* read by the emulator (play_check peek:px_asm_check:2) */
+/* the C comb below, for the check */
+static void px_symp_comb_c(int16_t *l, uint32_t wp, uint32_t d, int32_t h0, int32_t h1, int32_t h2, const int32_t *x,
+                           int32_t *acc, uint32_t m)
+{
+    uint32_t i;
+    for (i = 0; i < m; i++) {
+        uint32_t t = wp + d;
+        int64_t s = (int64_t)h0 * l[t & PX_YMASK] + (int64_t)h1 * l[(t + 1u) & PX_YMASK] +
+                    (int64_t)h2 * l[(t + 2u) & PX_YMASK];
+        int32_t y = px_clamp((int32_t)((s + ((s >> 63) & 0xFFFFFF)) >> 24) + x[i], -32767, 32767);
+        l[wp] = (int16_t)y;
+        acc[i] += y;
+        wp = (wp - 1u) & PX_YMASK;
+    }
+}
+#endif
+
 /* n (<= 32, even) samples: out[i] = in[i] (the main string) + the sympathetic strings it drives. They run at half
  * the rate (the input summed over each pair, the output interpolated linearly), a string at a time over the
  * block (its line is read at least a step back: the order is kept). The loop truncates towards 0: rounding
@@ -131,6 +155,29 @@ static __attribute__((noinline)) void px_symp_run(px_symp_t *Y, const int32_t *i
         int32_t h0 = B->h[k][0], h1 = B->h[k][1], h2 = B->h[k][2];
         if (!(B->on >> k & 1u))
             continue;
+#if PX_ASM
+        if (m) {
+#if FELUCCA_ASM_CHECK
+            int16_t lr[PX_YLINE];
+            int32_t ar[16];
+            uint32_t w2 = wp, j;
+            for (j = 0; j < PX_YLINE; j++)
+                lr[j] = l[j];
+            for (j = 0; j < m; j++)
+                ar[j] = acc[j];
+            px_symp_comb_c(lr, w2, d, h0, h1, h2, x, ar, m);
+#endif
+            asm_symp_comb(l, wp, d, h0, h1, h2, x, acc, (int32_t)m);
+#if FELUCCA_ASM_CHECK
+            px_asm_check.calls++;
+            for (j = 0; j < PX_YLINE; j++)
+                px_asm_check.bad += lr[j] != l[j];
+            for (j = 0; j < m; j++)
+                px_asm_check.bad += ar[j] != acc[j];
+#endif
+        }
+        continue;
+#endif
         for (i = 0; i < m; i++) {
             uint32_t t = wp + d;
             int64_t s = (int64_t)h0 * l[t & PX_YMASK] + (int64_t)h1 * l[(t + 1u) & PX_YMASK] +
