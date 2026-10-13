@@ -149,6 +149,20 @@ static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step so
         idx = (idx + len - 1u) % len;
     return idx;
 }
+/* note slot i of step s, in the column of step idx: carried on from the step before (a carry step names a note that
+ * sounds already: drawn on, no head) */
+static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_t i)
+{
+    uint32_t len = trk_len(t), p = (idx + len - 1u) % len, o, k;
+    const step_t *q;
+    if (!(s->flags & SF_CARRY) || s->rat)
+        return 0;
+    o = roll_org(t, p);
+    q = &t->step[o % NSTEP];
+    for (k = 0; k < q->n && k < 4u && q->note[k] != s->note[i]; k++)
+        ;
+    return step_on(q) && k < q->n && k < 4u && !ngate_of(q, k);
+}
 static void roll_label(int32_t n, uint16_t c)           /* a row's name, "C4" for a C, in the gutter */
 {
     char b[6];
@@ -225,16 +239,22 @@ static void sg_roll(const track_t *t)
         if (!step_on(s))
             continue;
         for (i = 0; i < s->n && i < 4u; i++) {
-            int32_t nt = s->note[i], y = NY(nt);
+            int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : lvl_col(c, (s->lvl >> (2u * i)) & 3u);
             if (nt < rg.lo || nt > rg.hi)
                 continue;
+            if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
+                if (tie)
+                    continue;
+                cw = (RL_CW - 1) * g / 128;
+                cw = cw < 2 ? 2 : cw;
+            }
             used |= (uint64_t)1u << (nt - rg.lo);
-            if (tie) {                                  /* (a tie: the bar on, over the gap before it) */
-                RR(x - 1, y + m, RL_CW, h, nc);
+            if (tie || roll_carried(t, s, idx, i)) {    /* (a tie, a note carried on: the bar on, over the gap) */
+                RR(x - 1, y + m, cw + 1, h, nc);
                 continue;
             }
-            RR(x, y + m, RL_CW - 1, h, nc);             /* (a note: its head, a gap from the note before) */
+            RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
             if ((s->flags & SF_ACCENT) && h > 2)
                 RR(x, y + m, RL_CW - 1, 1, C_WHITE);
             if ((s->rat >> (2u * i)) & 3u)

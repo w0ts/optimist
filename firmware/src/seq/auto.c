@@ -47,7 +47,7 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
  * pseudo-parameters come after every stored id (auto.h) */
 #define MOT_TAIL_END (P_ENG_END + 4u)                        /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP) */
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
-_Static_assert(MOT_TAIL_END <= AUTO_LANE0, "the drum lanes' ids (auto.h): past every build's stored track ids");
+_Static_assert(MOT_TAIL_END <= AUTO_NGATE0, "the note ends and the drum lanes' ids (auto.h): past every build's stored track ids");
 #if FELUCCA_MASTER_COMP && !SL24_TP
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
 {

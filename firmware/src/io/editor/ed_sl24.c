@@ -81,6 +81,10 @@ static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, 
         }
 #endif
         r |= dlfo_any_live() ? (uint32_t)SX24_DLFO : 0u;  /* (the drum lanes' LFOs: lane_play.c) */
+#if FELUCCA_AUTO
+        for (k = 0; k < NPART; k++)                       /* (a note's own end: 2.4 has the step's GATE only) */
+            r |= ngate_any(trk[k].step, k) ? (uint32_t)SX24_NGATE : 0u;
+#endif
         proj_capture(&autosave_buf, &autosave_dl);        /* (autosave_buf: the work, as the snapshots take it) */
         if (part == 0u) {
             *lost = proj_to_sl24(&autosave_buf, x, o, 0) | r;

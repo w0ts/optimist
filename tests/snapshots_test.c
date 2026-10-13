@@ -1068,6 +1068,55 @@ int main(int argc, char **argv)
 #endif
 #endif
     }
+#if FELUCCA_SL24_XSTEP
+    {   /* POLY notes' own ends (seq/ngate.h: in RAM a byte a note, stored as events 0x78 + slot) beside a drum lane's lock
+         * (0x7C + ..): a section and the work through a snapshot, a load and a power cycle; neither id ever confused */
+        uint32_t k, ok = 1;
+        int32_t v;
+        fresh_flash();
+        make(40);
+        trk[0].step[1].ngate[0] = 40;
+        trk[1].step[2].ngate[0] = 90;
+        (void)auto_put(AUTO_L(TRK_DRUM), 3u | AUTO_ONLY, AUTO_LANE(4, DE_DECAY), -40);
+        project_save(0);
+        make(41);
+        trk[2].step[5].ngate[0] = 17;
+        (void)auto_put(AUTO_L(TRK_DRUM), 2u | AUTO_ONLY, AUTO_LANE(5, DE_TUNE), 6);
+        proj_capture(&autosave_buf, &autosave_dl);
+        if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
+            MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if SEC_LOGGED
+            (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);
+#endif
+        }
+        for (k = 0; k < NTRK; k++)
+            ok &= !ngate_fold(trk[k].step, AUTO_L(k), k);   /* (the working lists hold none: nothing to take out) */
+        check("own note ends: the working lists never hold their events", ok);
+        check("own note ends + a drum lane lock: a snapshot saved", sn_save(0, 0) == SNE_OK);
+        make(42);
+        check("... other work, the snapshot loaded: track 3's own end (17), the drum lane lock, nothing else",
+              sn_load(0) == SNE_OK && trk[2].step[5].ngate[0] == 17u && ngate_count(trk[2].step) == 1u &&
+              !ngate_count(trk[0].step) && !ngate_count(trk[1].step) &&
+              auto_get(AUTO_L(TRK_DRUM), 2u | AUTO_ONLY, AUTO_LANE(5, DE_TUNE), &v) && v == 6 &&
+              auto_find(AUTO_L(2), 5u | AUTO_ONLY, AUTO_NGATE0) < 0);
+#if SEC_LOGGED
+        project_load(0);
+        check("... section A loaded: its own ends (40 on track 1, 90 on track 2) and its lane lock",
+              trk[0].step[1].ngate[0] == 40u && trk[1].step[2].ngate[0] == 90u && !ngate_count(trk[2].step) &&
+              auto_get(AUTO_L(TRK_DRUM), 3u | AUTO_ONLY, AUTO_LANE(4, DE_DECAY), &v) && v == -40 &&
+              auto_find(AUTO_L(TRK_DRUM), 2u | AUTO_ONLY, AUTO_LANE(5, DE_TUNE)) < 0);
+#endif
+        power_cycle();
+#if SEC_LOGGED
+        check("... a power cycle: the autosave's work, its own end (17 on track 3) and its lane lock",
+              trk[2].step[5].ngate[0] == 17u && ngate_count(trk[2].step) == 1u && !ngate_count(trk[0].step) &&
+              auto_get(AUTO_L(TRK_DRUM), 2u | AUTO_ONLY, AUTO_LANE(5, DE_TUNE), &v) && v == 6);
+#else                                                  /* (SECTIONS 4: no extras record for the autosave, as for the locks) */
+        check("... a power cycle (SECTIONS 4: the autosave keeps no events): its steps, no own end, no stray event",
+              trk[2].step[5].time == ST_NOTE && !ngate_count(trk[2].step) && auto_find(AUTO_L(2), 5u | AUTO_ONLY, AUTO_NGATE0) < 0);
+#endif
+    }
+#endif
     /* damaged, FULL, USR3 in the way */
     fresh_flash();
     state_make(0);

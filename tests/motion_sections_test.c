@@ -48,6 +48,13 @@ static union {
 #include "auto_view.h"              /* (the automation store as motion's old store) */
 
 static int bad;
+/* track k's working steps as stored (10 bytes a step: core.h pstep_t) are these */
+static int steps_same(const pstep_t *p, uint32_t k)
+{
+    static pstep_t w[NSTEP];
+    steps_store(w, &trk[k], k);
+    return !memcmp(p, w, sizeof w);
+}
 static void check(const char *what, int ok)
 {
     printf("%-84s %s\n", what, ok ? "ok" : "FAIL");
@@ -571,7 +578,7 @@ int main(void)
         for (k = 0; k < NTRK; k++) {
             uint32_t i;
             ok &= !memcmp(&q1.t[k], &q0.t[k], sizeof q0.t[k]) && q1.t[k].preset == trk[k].preset &&
-                  !memcmp(q1.t[k].step, trk[k].step, sizeof trk[k].step);
+                  steps_same(q1.t[k].step, k);
             for (i = 0; i < 8u && k < NPART; i++)
                 ok &= q1.t[k].p[PJ_E0 + i] == trk[k].p[P_E0 + i];
             for (i = 0; i < PJ_E0 && k < NPART; i++)

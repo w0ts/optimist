@@ -310,22 +310,26 @@ enum { ST_NOTE, ST_TIE, ST_REST };
 /* the dynamics of a note or a drum hit (2 bits each in the steps): played without velocity
  * (OCT- / OCT+ held on the drum track, the step page) or from a MIDI velocity */
 enum { LV_NORM, LV_GHOST, LV_SOFT, LV_HARD };
-typedef struct {                 /* a step of a synth part (10 bytes): up to 4 notes (POLY), time, accent, slide */
-    uint8_t note[4];
-    uint8_t n;                   /* notes in use, 0 = empty */
-    uint8_t time;                /* ST_NOTE / ST_TIE / ST_REST */
-    uint8_t flags;               /* SF_ACCENT | SF_SLIDE */
-    uint8_t vel;
-    uint8_t lvl;                 /* 2 bits per note (note k: bits 2k..2k+1): LV_* */
-    uint8_t rat;                 /* 2 bits per note: the hits it plays in its step - 1 (ratchet x1..x4) */
+/* a step of a synth part as it is stored (10 bytes: projects, sections, patterns, snapshots, SLOOP 2.4): up to 4 notes
+ * (POLY), time, accent, slide */
+#define STEP_STORED                                                                                                        uint8_t note[4];                                                                                                       uint8_t n;                   /* notes in use, 0 = empty */                                                             uint8_t time;                /* ST_NOTE / ST_TIE / ST_REST */                                                          uint8_t flags;               /* SF_ACCENT | SF_SLIDE */                                                                uint8_t vel;                                                                                                           uint8_t lvl;                 /* 2 bits per note (note k: bits 2k..2k+1): LV_* */                                       uint8_t rat;                 /* 2 bits per note: the hits it plays in its step - 1 (ratchet x1..x4) */
+typedef struct { STEP_STORED } pstep_t;
+/* a step in RAM (the tracks, undo): the stored step and each note's own end (POLY notes recorded over each other, REC
+ * QUANTIZE OFF): note k ends ngate[k] / 128 of the step after its start, 0 = at the step's GATE (as every note did).
+ * Not in the stored step: a stored copy keeps them as events of the track's automation list (seq/ngate.c) */
+typedef struct {
+    STEP_STORED
+    uint8_t ngate[4];
 } step_t;
+#define STEP_SN ((uint32_t)sizeof(pstep_t))   /* a stored step's bytes */
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
-typedef struct {                 /* a step of the drum track (10 bytes, the size of a step_t) */
+typedef struct {                 /* a step of the drum track (10 bytes, the size of a stored step) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */
     uint8_t rat[4];              /* 2 bits per lane: ratchet */
 } dstep_t;
-_Static_assert(sizeof(step_t) == 10 && sizeof(dstep_t) == 10, "a step is 10 bytes on every track");
+_Static_assert(sizeof(pstep_t) == 10 && sizeof(dstep_t) == 10 && sizeof(step_t) == 14 &&
+               __builtin_offsetof(step_t, ngate) == sizeof(pstep_t), "a stored step is 10 bytes on every track");
 
 typedef struct {                 /* one DIST insert's state (fx.c dist_run): a part's now, a voice's or an FX slot's later */
     int32_t lo, l1, env;         /* the low band (dry), the tone, the peak follower (0: off, the states restart) */
@@ -367,6 +371,8 @@ typedef struct track {
     uint16_t seq_idx;            /* its index in the pattern */
     uint8_t seq_notes[4];        /* sounding seq notes */
     uint8_t seq_n;
+    uint8_t seq_nm;              /* bit i: seq_notes[i] ends at its own time, seq_noff[i] (a step's ngate) */
+    uint32_t seq_noff[4];        /* units to that note's note-off */
     uint8_t seq_hold;            /* last step slides: keep the notes until the next step */
     uint8_t slide_glide;         /* next legato note glides (slide) */
     uint8_t seq_den;             /* the DIV it last played on (a DIV change waits for the next step) */
@@ -386,6 +392,12 @@ typedef struct track {
     int8_t rh_nudge;             /* the nudge its start was kept as (REC QUANTIZE OFF, MICRO), 1/64 of a step */
     uint8_t rh_drop;             /* POLY: a held note is up, others not: the next step carries the rest (seq.c) */
     uint8_t rh_at[4];            /* the step each of rh_note[] started in (a chord's keys share their length) */
+    /* POLY, REC QUANTIZE OFF: notes up while keys of their chord were still down, each with its own end (seq.c
+     * rec_own_end): the chord's last key up within 1/8 of a step after one makes them end together */
+    uint8_t rt_m, rt_note[4];    /* bit i: entry i in use; the note */
+    uint8_t rt_at[4];            /* its chord: the step it started in */
+    uint8_t rt_l[4];             /* the step its own end is in */
+    uint32_t rt_pos[4];          /* when it was up: 1/128 steps of the grid */
     uint32_t rh_last_abs;        /* (its step of the transport grid) */
     uint32_t rh_start_abs;       /* rh_start's step of the transport grid (the length lock: seq.c rec_len_end) */
     step_t rh_bak;
@@ -495,6 +507,12 @@ static void ev_at(uint32_t ago)
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])
 static int is_drum(const track_t *t) { return t == TDRUM; }
+/* step i of track t as bytes (*n of them): the drum track's 16-lane step, a synth step with its own note ends */
+static const uint8_t *trk_step_raw(const track_t *t, uint32_t i, uint32_t *n)
+{
+    *n = is_drum(t) ? (uint32_t)sizeof(dstep_t) : (uint32_t)sizeof(step_t);
+    return is_drum(t) ? (const uint8_t *)&t->dstep[i % NSTEP] : (const uint8_t *)&t->step[i % NSTEP];
+}
 /* silent: MUTE, or another track is soloed */
 AINL int trk_silent(const track_t *t)
 {

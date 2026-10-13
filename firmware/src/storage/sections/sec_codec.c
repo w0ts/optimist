@@ -71,15 +71,15 @@ static uint32_t sec_len(const proj_trk_t *t)                                  /*
     return n < 1 ? 1u : n > NSTEP ? NSTEP : (uint32_t)n;
 }
 /* an empty step (seq.c steps_clear): a synth track's is a REST, the drum track's all 0 */
-static void sec_step_clear(step_t *s, uint32_t trk)
+static void sec_step_clear(pstep_t *s, uint32_t trk)
 {
     memset(s, 0, sizeof *s);
     if (trk != TRK_DRUM)
         s->time = ST_REST;
 }
-static int sec_step_empty(const step_t *s, uint32_t trk)
+static int sec_step_empty(const pstep_t *s, uint32_t trk)
 {
-    step_t e;
+    pstep_t e;
     sec_step_clear(&e, trk);
     return !memcmp(s, &e, sizeof e);
 }

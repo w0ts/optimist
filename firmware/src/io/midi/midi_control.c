@@ -210,7 +210,7 @@ static void midi_silence_track(uint32_t track)
             i++;
     trk_all_off(t);
     midi_arp_clear(t);
-    t->seq_n = t->seq_hold = t->slide_glide = 0;
+    t->seq_n = t->seq_nm = t->seq_hold = t->slide_glide = 0;
     for (i = 0; i < NVOICE; i++)
         if (t->v[i].active)
             voice_kill(&t->v[i]);                  /* a fade over KILL_BLOCKS, no click */

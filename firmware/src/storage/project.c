@@ -86,7 +86,7 @@ typedef struct {                               /* one track; the drum track igno
     int16_t p[PJ_NP];
     uint8_t engine, preset;
     union {
-        step_t step[NSTEP];
+        pstep_t step[NSTEP];
         dstep_t dstep[NSTEP];                  /* (the drum track: 16 lanes, the same size) */
     };
 } proj_trk_t;
@@ -116,7 +116,7 @@ typedef struct {                               /* a track of format 4, read only
     int16_t p[PROJ_NP_V4];
     uint8_t engine, preset;
     union {
-        step_t step[NSTEP];
+        pstep_t step[NSTEP];
         dstep_t dstep[NSTEP];
     };
 } proj_trk_v4_t;
@@ -264,7 +264,7 @@ static int proj_from_va(project_t *q, const void *b, int n)
 
 /* ---- old formats -> format 4 */
 /* an old step into a synth step (no level, no ratchet) */
-static void step_from8(step_t *d, const step8_t *s)
+static void step_from8(pstep_t *d, const step8_t *s)
 {
     memcpy(d->note, s->note, 4);
     d->n = s->n;
@@ -826,7 +826,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #endif
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
-        memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
+        steps_store(p->t[i].step, &trk[i], i);         /* (each note's own end: an event of its store, below) */
     }
     for (i = 0; i < NPART; i++) {                       /* the FM6 parts' voices, edits and all */
         uint32_t k;
@@ -859,6 +859,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO
     auto_capture_store(p);                              /* its automation (auto_proj.c) */
+    ngate_capture(p);                                   /* and the notes' own ends in it (seq/ngate.h) */
 #endif
 #if FELUCCA_PATTERNS
     pat_mark(p, 0);                                     /* the tracks' pattern sources with it (pat.c) */
@@ -949,7 +950,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                 fm6_cur[k] = (int16_t)(t->p[P_E0] + 1);
             }
         }
-        memcpy(t->step, s->step, sizeof t->step);
+        steps_load(t, k, s->step);
         if (k != TRK_DRUM)
             for (i = 0; i < NSTEP; i++) {
                 step_t *st = &t->step[i];
@@ -968,6 +969,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     dl_e0 = TDRUM->p[P_E0];
 #else
     (void)d;
+#endif
+#if FELUCCA_AUTO
+    ngate_apply();                                      /* the notes' own ends out of the lists into the steps */
 #endif
     fxr_apply_store(p, all);                            /* its FX slots (fx_rec.c; the layout with a load only; none:
                                                          * after the tracks, which the layout of an older one reads) */

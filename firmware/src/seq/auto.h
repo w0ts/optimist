@@ -42,6 +42,12 @@
 #define AUTO_LANE_L(p) (((uint32_t)(p) - AUTO_LANE0) >> 3)
 #define AUTO_LANE_V(p) (((uint32_t)(p) - AUTO_LANE0) & 7u)
 _Static_assert(AUTO_LANE0 + AUTO_LANE_N < AUTO_NUDGE, "lane ids below the pseudo-parameters (0xFC kept spare)");
+/* a synth note's own end in the stored forms only (seq/ngate.h: the working lists never hold one): note slot k of the
+ * step, AUTO_NGATE0 + k, step-only, value 1..127 (1/128 of the step). Past every build's stored track ids (auto.c
+ * MOT_TAIL_END), below the drum lanes' ids: an older build keeps them and plays none */
+#define AUTO_NGATE0 0x78u
+#define AUTO_IS_NGATE(p) ((uint32_t)(p) - AUTO_NGATE0 < 4u)
+_Static_assert(AUTO_NGATE0 + 4u == AUTO_LANE0, "the note ends: just below the drum lanes' ids");
 #define AUTO_HOLDS 1u                    /* auto_drop_*: which kinds */
 #define AUTO_ONLYS 2u
 

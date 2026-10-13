@@ -52,7 +52,7 @@
 #define SL24_TFLT 50u
 #define SL24_HDR (12u + 2u * PJ_NG)                     /* where its tracks start (magic, size, g[32], sel, 3 spare) */
 _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + NTRK * SL24_TRK + 4u == SL24_SIZE &&
-               sizeof(step_t) * NSTEP == 640u && sizeof(stepx_t) == 176u && P_CHORD == SL24_COMMON - 1u &&
+               STEP_SN * NSTEP == 640u && sizeof(stepx_t) == 176u && P_CHORD == SL24_COMMON - 1u &&
                DRUM_SAMPLED == 5u && ENG_UID_FM6 == 9u && ENG_UID_PHYS == 11u,
                "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..9 our UIDs");
 #define SL25_PHYS 10u                                   /* SLOOP 2.5's PHYS (core.h ENGI_PHYS) */
@@ -73,8 +73,10 @@ enum {                                                  /* what an export lost (
                                                          * second word's bit 2; a v11 editor gets it as MOTION) */
     SX24_DLFO = 131072,                                 /* (a drum lane's LFO acting, drums/lane_play.c: 2.4's drums have
                                                          * none; the second word's bit 3; a v11 editor: MOTION) */
-    SX24_FXRET = 262144                                 /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
+    SX24_FXRET = 262144,                                /* (an FX return below unity, CHO DLY REV RET: sl24_fx_out; the
                                                          * second word's bit 4: 2.4 plays each return at full) */
+    SX24_NGATE = 524288                                 /* (a POLY note's own end, seq/ngate.h: 2.4 has one GATE a step, the
+                                                         * step's goes; the second word's bit 5: ed_sl24.c) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,

@@ -133,10 +133,43 @@ static void auto_apply_store(const project_t *p)
     auto_w.psum = 0;
     auto_touch_all();
 }
-/* a hash of the working store (the autosave saves when the project or its automation changed) */
+/* proj_capture, after auto_capture_store: the working steps' own note ends (seq/ngate.h) added to the buffer's store,
+ * as events (a list full: the rest not kept) */
+static void ngate_capture(const project_t *p)
+{
+    auto_store_t *m = auto_for(p, 0);
+    uint32_t k;
+    if (!m || m->psum != p->sum)
+        return;
+    for (k = 0; k < NTRK; k++)
+        (void)ngate_unfold(&m->l[k], trk[k].step, k);
+}
+/* track k's list and steps in the stage / a buffer's store s (pat.c): the own ends as events, as ngate_capture */
+static void ngate_capture_trk(auto_store_t *s, uint32_t k)
+{
+    if (s)
+        (void)ngate_unfold(&s->l[k % NTRK], trk[k % NTRK].step, k % NTRK);
+}
+/* proj_apply / pat_take, the steps and the lists applied: the own-end events into the working steps, out of the lists */
+static void ngate_apply_trk(uint32_t k)
+{
+    (void)ngate_fold(trk[k % NTRK].step, AUTO_L(k), k % NTRK);
+}
+static void ngate_apply(void)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        ngate_apply_trk(k);
+}
+/* a hash of the working store and the steps' own ends (the autosave saves when the project, its automation or a
+ * note's own end changed: a project_t has no own ends) */
 static uint32_t auto_hash(void)
 {
-    return proj_hash(&auto_w.on, sizeof auto_w - __builtin_offsetof(auto_store_t, on));
+    uint32_t k, i, h = proj_hash(&auto_w.on, sizeof auto_w - __builtin_offsetof(auto_store_t, on));
+    for (k = 0; k < NPART; k++)
+        for (i = 0; i < NSTEP; i++)
+            h = (h ^ proj_hash(trk[k].step[i].ngate, sizeof trk[k].step[i].ngate)) * 16777619u;
+    return h;
 }
 
 /* m has hold events or a PLAY bit (a motion form to write) */
