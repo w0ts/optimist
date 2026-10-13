@@ -4,6 +4,10 @@
 # a61701e, 05494ad, 70440e5); the UBOOT protocol and write policy after FM-1-transporter by kurogedelic (MIT,
 # https://github.com/kurogedelic/FM-1-transporter, docs/PROTOCOL.md). Ported into SLOOP-plus / Optimist
 # unchanged but for this header, the paragraph on when an FM-1 lands in UBOOT, and one comment.
+# Writing any known-good .fwsc (not only V15), the package validation and the key / application-header
+# checks come from the ideas and code of tools/fm1_recover.py in Melodee 1.3.1 (GPL-3.0-only, Copyright
+# (C) 2026 Leo Kuroshita (@kurogedelic), Hugelton Instruments; https://github.com/keremimo/melodee,
+# tag v1.3.1), reimplemented here on tools/fm1_install.py's and tools/fm1pkg_make.py's package code.
 """fm1_rescue: put stock firmware back on an FM-1 through the chip's own update mode (the
 mask-ROM "UBOOT"), from a Mac, with no extra hardware.
 
@@ -16,16 +20,22 @@ takes it away from macOS (hence sudo) and keeps it.
   python3 -m venv ~/fm1-rescue && ~/fm1-rescue/bin/pip install pyusb libusb-package
   sudo ~/fm1-rescue/bin/python fm1_rescue.py FM-1.fwsc            # check and back up, write nothing
   sudo ~/fm1-rescue/bin/python fm1_rescue.py FM-1.fwsc --write    # then write stock
+  python3 fm1_rescue.py ANY.fwsc --check                          # validate a package, no USB, no sudo
 
-FM-1.fwsc is M-VAVE's FM-1 V15 (m-vave.com/download, PC Firmware); only that exact file is
-accepted. The protocol and the write policy are FM-1-transporter's (github.com/kurogedelic/
+FM-1.fwsc is M-VAVE's FM-1 V15 (m-vave.com/download, PC Firmware), the default. ANY other known-good
+.fwsc (an earlier Optimist or Melodee build that booted) can be written too, but only after it passes the
+same checks (identity, header and file-list CRCs, every file's CRC, a flash entry of exactly 0x93000 B,
+a chip key and an application header that agree), with the package named before anything is written and
+an explicit flag that repeats its hash:  --write --confirm-package <first 8+ hex digits of its sha256>
+(--check prints it; with --ask you type it instead). The chip key found in the package must equal the
+FM-1's own, or nothing is written. The protocol and the write policy are FM-1-transporter's (github.com/kurogedelic/
 FM-1-transporter, docs/PROTOCOL.md), which were verified on hardware:
 
   1. JieLi's flash loader (wl82loader.bin, from github.com/kagaimiq/jl-uboot-tool, downloaded
      and checked against its hash) is loaded into RAM and started;
   2. the chip key must be 980F and the flash 856014 (1 MiB), or nothing is done;
   3. the whole flash is read and saved as a backup before anything else;
-  4. only 4 KiB sectors in [0x4000, 0x93000) that differ from V15 are written (the bootloader below
+  4. only 4 KiB sectors in [0x4000, 0x93000) that differ from the package are written (the bootloader below
      0x4000 and the device data above 0x93000 are never touched; a difference below 0x4000 stops
      it), each erased, written and read back;
   5. a final full read must equal the expected image; then the FM-1 restarts into V15.
@@ -33,10 +43,15 @@ FM-1-transporter, docs/PROTOCOL.md), which were verified on hardware:
 import argparse
 import hashlib
 import os
+import re
 import struct
 import sys
 import time
 import urllib.request
+from collections import namedtuple
+
+import fm1_install
+import fm1pkg_make
 
 VID, PID = 0x4C4A, 0x8057
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
@@ -117,6 +132,76 @@ def package_flash_image(raw):
     raise Fail("package has no flash entry")
 
 
+Package = namedtuple("Package", "path product sha256 flash key stock")
+
+
+def package_chip_key(flash):
+    """the chip key the package's flash image was built for: the isd_config.ini entry of its head
+    (each 32-byte entry ENC'd), cross-checked against the application header at 0x4000 (SFC'd with the
+    key). From Melodee's fm1_recover.py Package, on fm1pkg_make's ciphers."""
+    mk = fm1pkg_make
+    key = None
+    for off in range(32, 0x400, 32):
+        e = bytearray(flash[off:off + 32])
+        mk.enc(e, 0, 32)
+        if mk.crc16(e[2:]) != struct.unpack_from("<H", e)[0]:
+            raise Fail("package: bad flash-head entry checksum")
+        if e[16:].split(b"\0", 1)[0] == b"isd_config.ini":
+            addr, size = struct.unpack_from("<II", e, 4)
+            if size < 34 or addr < 0x400 or addr + size > WRITE_MIN:
+                raise Fail("package: invalid chip-key configuration extent")
+            blob = flash[addr:addr + size]
+            if mk.crc16(blob) != struct.unpack_from("<H", e, 2)[0] or mk.crc16(blob[:32]) != struct.unpack_from("<H", blob, 32)[0]:
+                raise Fail("package: bad chip-key configuration checksum")
+            key = mk.chipkey_decode(blob[:32])
+            break
+        if struct.unpack_from("<H", e, 14)[0]:
+            break
+    if key is None:
+        raise Fail("package has no chip-key configuration")
+    app = bytearray(flash[WRITE_MIN:WRITE_MIN + 32])
+    mk.sfc(app, 0, 32, 0, key)
+    if mk.crc16(app[2:]) != struct.unpack_from("<H", app)[0]:
+        raise Fail("package: the application header does not match the package's chip key")
+    return key
+
+
+def load_package(path):
+    """Read and validate any .fwsc before it can be written: FM-1 identity, header / file-list / per-file
+    CRCs (tools/fm1_install.package_damage), one flash entry of exactly APP_END bytes (its own CRC
+    checked), and a chip key that agrees with its application header. Raises Fail."""
+    try:
+        raw = open(path, "rb").read()
+    except OSError as e:
+        raise Fail(f"cannot read {path}: {e.strerror}")
+    try:
+        product = fm1_install.product_of(raw)
+        if not re.fullmatch(r"FM-1_\d+", product):
+            raise Fail(f"{path}: not an FM-1 package (identity {product!r})")
+        bad = fm1_install.package_damage(fm1_install.logical_image(raw))
+    except fm1_install.InstallError as e:
+        raise Fail(f"{path}: not an FM-1 package ({e})")
+    if bad:
+        raise Fail(f"{path}: damaged package ({bad}); nothing is written. Get the file again")
+    flash = package_flash_image(raw)
+    if len(flash) != APP_END:
+        raise Fail(f"{path}: the flash entry is {len(flash):#x} B, expected {APP_END:#x}")
+    digest = hashlib.sha256(raw).hexdigest()
+    return Package(os.path.abspath(path), product, digest, flash, package_chip_key(flash), digest == STOCK_SHA256)
+
+
+def describe(pkg):
+    kind = "M-VAVE stock V15" if pkg.stock else "CUSTOM package (not V15)"
+    return (f"  package: {pkg.path}\n  identity {pkg.product}, chip key {pkg.key:04X}, {kind}\n"
+            f"  sha256 {pkg.sha256}")
+
+
+def confirmed(pkg, prefix):
+    """--confirm-package: at least 8 hex digits, a prefix of the package's sha256"""
+    p = (prefix or "").strip().lower()
+    return len(p) >= 8 and pkg.sha256.startswith(p)
+
+
 # -------------------------------------------------------------- transport ---
 class Bot:
     """USB mass storage bulk-only transport: one SCSI-style command per call."""
@@ -137,6 +222,9 @@ class Bot:
         if self.ep_out is None or self.ep_in is None:
             raise Fail("no bulk endpoints")
         util.claim_interface(dev, self.intf)
+
+    def close(self):
+        self.usb.util.dispose_resources(self.dev)
 
     def _configured(self):
         try:
@@ -238,17 +326,21 @@ class Uboot:
 
 
 # ------------------------------------------------------------------- flow ---
-def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None):
-    """Everything in one session: the FM-1 leaves UBOOT (and crashes again) as soon as it is let go."""
+def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=None, label="V15"):
+    """Everything in one session: the FM-1 leaves UBOOT (and crashes again) as soon as it is let go.
+    key: the chip key the package was built for; when given it must equal the FM-1's. label names the
+    package in the messages."""
     vendor, product = dev.inquiry()
     say(f"  device: {vendor} {product}")
     if vendor != "WL82":
         raise Fail(f"not a WL82 UBOOT ({vendor!r})")
     dev.start_loader(loader)
-    key, typ, fid = dev.chip()
-    say(f"  chip key {key:04X}, flash type {typ}, id {fid:06X}")
-    if (key, typ, fid) != (0x980F, 3, 0x856014):
+    chip_key, typ, fid = dev.chip()
+    say(f"  chip key {chip_key:04X}, flash type {typ}, id {fid:06X}")
+    if (chip_key, typ, fid) != (0x980F, 3, 0x856014):
         raise Fail("this is not the FM-1's chip and flash (expected key 980F, type 3, id 856014); nothing written")
+    if key is not None and key != chip_key:
+        raise Fail(f"the package is built for chip key {key:04X}, the FM-1 has {chip_key:04X}; nothing written")
     say("  reading the whole flash ...")
     t0 = time.time()
     now = dev.read(0, FLASH_SIZE)
@@ -259,13 +351,13 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None):
     diff = [a for a in range(0, APP_END, SECTOR) if image[a:a + SECTOR] != now[a:a + SECTOR]]
     low = [a for a in diff if a < WRITE_MIN]
     if low:
-        raise Fail("the protected head of the flash differs from V15 (sectors "
+        raise Fail(f"the protected head of the flash differs from {label} (sectors "
                    + " ".join(f"{a:#06x}" for a in low) + "): not writing; send this output and the backup")
-    say(f"  {len(diff)} of {APP_END // SECTOR} firmware sectors differ from V15")
+    say(f"  {len(diff)} of {APP_END // SECTOR} firmware sectors differ from {label}")
     if not write and confirm is not None:
         write = keep_alive(dev, confirm)
     if not write:
-        say("  check passed. Nothing written: run again with --write to put V15 back.")
+        say(f"  check passed. Nothing written: run again with --write to put {label} back.")
         return False
     # high to low: the firmware's start-up code (low in the app area: its watchdog and its crash
     # counter, which bring it back to a rescue mode) is the last thing replaced if the write is cut short
@@ -286,7 +378,7 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None):
         bad = [a for a in range(0, FLASH_SIZE, SECTOR) if final[a:a + SECTOR] != expect[a:a + SECTOR]]
         raise Fail("final read differs in sectors " + " ".join(f"{a:#07x}" for a in bad)
                    + "; run the script again with --write")
-    say("  flash now holds V15. Restarting the FM-1 ...")
+    say(f"  flash now holds {label}. Restarting the FM-1 ...")
     dev.run_app()
     return True
 
@@ -375,53 +467,80 @@ def open_device(usb, timeout):
     raise Fail("the FM-1 did not appear in update mode")
 
 
-def ask():
-    print("\n  Everything checks out, and the backup is saved.")
-    try:
-        return input("  Type yes and press Return to put the stock firmware back: ").strip().lower() == "yes"
-    except EOFError:
-        return False
+def make_ask(pkg):
+    """the typed confirmation for --ask: yes for V15, the package's hash prefix for anything else"""
+    def ask():
+        print("\n  Everything checks out, and the backup is saved.")
+        if pkg.stock:
+            q, want = "  Type yes and press Return to put the stock firmware back: ", "yes"
+        else:
+            want = pkg.sha256[:8]
+            q = f"  This is NOT the stock firmware. Type {want} (its sha256 start) to write {pkg.product}: "
+        try:
+            return input(q).strip().lower() == want
+        except EOFError:
+            return False
+    return ask
 
 
-def main():
+def parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("package", help="M-VAVE's FM-1 V15 .fwsc")
-    ap.add_argument("--write", action="store_true", help="write V15 (without it: check and back up only)")
+    ap.add_argument("package", help="M-VAVE's FM-1 V15 .fwsc (the default), or any known-good FM-1 .fwsc")
+    ap.add_argument("--write", action="store_true", help="write the package (without it: check and back up only)")
+    ap.add_argument("--confirm-package", metavar="SHA256", help="a package that is not V15 is only written with "
+                    "this: the first 8 or more hex digits of its sha256 (--check prints it)")
+    ap.add_argument("--check", action="store_true", help="validate the package and stop: no USB, no sudo, no download")
     ap.add_argument("--ask", action="store_true", help="after the check and the backup, ask before writing")
     ap.add_argument("--loader", help="a local wl82loader.bin instead of downloading it")
+    ap.add_argument("--backup-dir", help="where the flash backup goes (default: next to the package)")
     ap.add_argument("--wait", type=float, default=120, help="seconds to wait for the FM-1 (default 120)")
     ap.add_argument("--tries", type=int, default=5, help="attempts if it drops out mid-way (default 5)")
-    args = ap.parse_args()
+    return ap
+
+
+def main(argv=None, open_dev=None, is_root=None):
+    """open_dev() -> a Bot-like transport and is_root: seams for the tests (a fake USB device, no sudo)"""
+    args = parser().parse_args(argv)
     try:
-        raw = open(args.package, "rb").read()
-        if hashlib.sha256(raw).hexdigest() != STOCK_SHA256:
-            raise Fail(f"{args.package} is not M-VAVE's FM-1 V15 package (sha256 mismatch)")
-        image = package_flash_image(raw)
-        if len(image) != APP_END:
-            raise Fail("unexpected flash entry size")
+        pkg = load_package(args.package)
+        print(describe(pkg), flush=True)
+        if args.check:
+            print("  package checks out (identity, CRCs, flash entry, chip key). No USB used, nothing written.")
+            return 0
+        if args.confirm_package and not confirmed(pkg, args.confirm_package):
+            raise Fail("--confirm-package does not match this package's sha256 (8 or more hex digits); nothing was done")
+        if not pkg.stock and args.write and not args.ask and not args.confirm_package:
+            raise Fail("this is not the stock V15 package: to write it, add --confirm-package "
+                       f"{pkg.sha256[:8]} (or use --ask and type it). Nothing was done.")
         loader = get_loader(args.loader)
-        if os.geteuid() != 0:
-            raise Fail("run it with sudo: macOS has to give the device up")
-        try:
-            import usb.core
-            import usb.util
-        except ImportError:
-            raise Fail("pyusb is missing: ~/fm1-rescue/bin/pip install pyusb libusb-package")
-        backup_dir = os.path.dirname(os.path.abspath(args.package))
-        for attempt in range(1, args.tries + 1):
-            bot = open_device(usb, args.wait)
+        if open_dev is None:
+            if (os.geteuid() if is_root is None else not is_root) != 0:
+                raise Fail("run it with sudo: macOS has to give the device up")
             try:
-                rescue(Uboot(bot), image, loader, args.write, backup_dir,
+                import usb.core
+                import usb.util
+            except ImportError:
+                raise Fail("pyusb is missing: ~/fm1-rescue/bin/pip install pyusb libusb-package")
+            errors = (Fail, usb.core.USBError)
+            open_dev = lambda: open_device(usb, args.wait)
+        else:
+            errors = (Fail,)
+        backup_dir = args.backup_dir or os.path.dirname(pkg.path)
+        label = "V15" if pkg.stock else f"{pkg.product} ({pkg.sha256[:8]})"
+        for attempt in range(1, args.tries + 1):
+            bot = open_dev()
+            try:
+                rescue(Uboot(bot), pkg.flash, loader, args.write, backup_dir,
                        say=lambda *a, **k: print(*a, **k, flush=True),
-                       confirm=ask if args.ask else None)
+                       confirm=make_ask(pkg) if args.ask else None, key=pkg.key, label=label)
                 return 0
-            except (Fail, usb.core.USBError) as e:
+            except errors as e:
                 print(f"\n  attempt {attempt}: {e}")
-                if isinstance(e, Fail) and "not writing" in str(e) or "not the FM-1" in str(e):
+                if isinstance(e, Fail) and ("not writing" in str(e) or "not the FM-1" in str(e) or "chip key" in str(e)):
                     return 1
             finally:
                 try:
-                    usb.util.dispose_resources(bot.dev)
+                    bot.close()
                 except Exception:
                     pass
         raise Fail("gave up; send this whole output")

@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Charles Vestal (fm1-x0x, https://github.com/charlesvestal/fm1-x0x, tools/fm1_rescue.sh 70440e5)
 # FM-1 rescue: one command that puts M-VAVE's stock firmware back on an FM-1 stuck in a crash loop.
-#   bash tools/fm1_rescue.sh          (uses tools/fm1_rescue.py next to it; see OPTIMIST.md "Recovery")
+#   bash tools/fm1_rescue.sh                  (stock V15; uses tools/fm1_rescue.py next to it; see OPTIMIST.md "Recovery")
+#   bash tools/fm1_rescue.sh PACKAGE.fwsc     (any known-good .fwsc instead; it is checked, named, and you type its hash)
 set -e
 DIR="$HOME/fm1-rescue"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -23,8 +24,15 @@ if [ ! -x env/bin/python ] || ! env/bin/python -c "import usb, libusb_package" 2
     /usr/bin/python3 -m venv env
     env/bin/pip install --quiet --disable-pip-version-check pyusb libusb-package
 fi
-cp "$HERE/fm1_rescue.py" fm1_rescue.py
+for m in fm1_rescue fm1_install fm1pkg_make; do cp "$HERE/$m.py" "$m.py"; done
 PKG=""
+if [ -n "${1:-}" ]; then
+    [ -f "$1" ] || { echo "No such package: $1"; exit 1; }
+    "$DIR/env/bin/python" "$DIR/fm1_rescue.py" "$1" --check || exit 1
+    echo
+    echo "When it says it is waiting: plug the FM-1 in and switch it on. It will ask you to type the package's hash before writing."
+    exec sudo "$DIR/env/bin/python" "$DIR/fm1_rescue.py" "$1" --ask --wait 300
+fi
 for f in "$DIR"/*.fwsc "$HOME"/Downloads/*.fwsc "$HOME"/Desktop/*.fwsc; do
     [ -f "$f" ] || continue
     if [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" = "$STOCK" ]; then PKG="$f"; break; fi
