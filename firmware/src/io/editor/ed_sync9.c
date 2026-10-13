@@ -51,7 +51,7 @@ static struct {
     uint8_t spos, lpos, snap_n;
     /* measured (SYNC_STATS 64): scans, frames and bytes pushed, the longest scan and all of them (ticks) */
     uint32_t scans, frames, bytes, t_max, t_sum;
-} e9 __attribute__((section(".bss.ed9")));      /* (its own section: kept out of the merged globals the RAM code addresses) */
+} e9 IN_POOL;      /* (its own section, the pool: kept out of the merged globals the RAM code addresses) */
 
 static uint32_t ed9_sig(const uint8_t *b, uint32_t n)  /* FNV-1a */
 {

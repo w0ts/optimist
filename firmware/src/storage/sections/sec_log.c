@@ -70,7 +70,7 @@ static struct {
     uint32_t fill;                                     /* where in it the next record goes */
     uint32_t sorder[SEC_LOG_SECTORS];                  /* each sector's sequence number, 0 = erased */
     uint8_t up;
-} slg;
+} slg IN_POOL;
 
 static uint32_t slg_off(uint32_t s) { return SEC_LOG_BASE + s * SEC_SECT; }
 /* where id's newest record is in flash, 0 none (a record is never at offset 0: the first sector's head is) */
