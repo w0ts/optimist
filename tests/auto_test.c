@@ -144,7 +144,7 @@ static void reset(void)
     }
     clear_lists();
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     nhits = 0;
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;

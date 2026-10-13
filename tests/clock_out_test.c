@@ -86,7 +86,7 @@ static void reset(uint32_t on, uint32_t sync, int32_t bpm)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
 #if FELUCCA_MASTER_COMP
     mlim_reset();                                   /* LIMIT's lookahead (CEIL is on by default, 1.45 ms of latency the F8s */
     mlim.on = song.g[G_CCEIL] > 0 && song.g[G_CCEIL] <= 7;   /* add: SYNC_LIM_T): empty and already on, as after boot */

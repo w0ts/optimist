@@ -77,7 +77,6 @@ static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
 static struct {
     voice_t v[NDRUM];
     uint32_t age;
-    int16_t set;                 /* SMP_SETS index of "PERC" (GM map), -1 = none */
     int32_t tail;                /* declick: the last output of cut voices, decaying */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t kit[NDRUM];
@@ -87,20 +86,21 @@ static struct {
     volatile uint16_t hits;      /* bit per lane hit since the UI last looked (pads, key LEDs) */
     volatile uint8_t kick;       /* a kick was hit (fx.c DUCK) */
     int32_t a0, a1;              /* the drum track's mute / solo attenuation over this block (fx.c), Q15, 0 = heard */
-} drums = {.set = -2};
+} drums;                         /* (no initialiser: .bss, not 1.8 KB of .data copied from flash) */
+static int16_t drums_set = -2;   /* SMP_SETS index of "PERC" (GM map), -1 = none, -2 = not looked up yet */
 
 static int32_t ds_buf[CTL];
 
 static int32_t drum_set(void)
 {
     uint32_t i;
-    if (drums.set == -2) {
-        drums.set = -1;
+    if (drums_set == -2) {
+        drums_set = -1;
         for (i = 0; i < SMP_NSETS; i++)
             if (str_eq(SMP_SETS[i].name, "PERC") && SMP_SETS[i].nz)   /* (a set left out: nz 0) */
-                drums.set = (int16_t)i;
+                drums_set = (int16_t)i;
     }
-    return drums.set;
+    return drums_set;
 }
 
 /* ------------------------------------------------------------ lanes --- */

@@ -51,7 +51,7 @@ static void scene(void)
     }
     host_tracks_init();
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     rng_state = 0x1234567u;
     song.rec = 0;
     host_preset(&trk[0], 0, 8);                      /* ANALOG FUNK BASS */

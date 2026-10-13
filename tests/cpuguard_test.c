@@ -30,7 +30,7 @@ static void reset(void)
     x0x_all_off();                                    /* (no X0X channel sounding) */
 #endif
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     for (p = 0; p < NTRK; p++)
         memset(trk[p].v, 0, sizeof trk[p].v);
     memset(&cg, 0, sizeof cg);

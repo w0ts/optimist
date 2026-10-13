@@ -68,7 +68,7 @@ static void reset(uint32_t bpm)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
+    drums_set = -2;
     blk = 0;
     song.g[G_BPM] = (int16_t)bpm;
     song.rec = 0;
