@@ -2473,7 +2473,9 @@ systems settings (track presets and current track)"; then "select scroll by page
 other pages", "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the
 page moves line by line)", and "glo still pages thru pages of glo and then system, it should switch between the two".
 
-**The look.** GLOBAL and SYSTEM have no cards. Under the header, to the screen's foot, one page of 4 lines; a line is one
+**Logical pages (feat/settings-pages, 2026-10-13; the user: "grouped in logical pages, dont cut a page in the middle", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should be on one page").** A page is one section: sections are never combined to fill a page, a short one leaves the page's last lines empty (their knobs do nothing). Only a section of more than 4 lines is split, between its rows (REC: MODE LENGTH START CLICK, then QUANT: "Rec 1/2" over each page). The pages are made from the lines the build has (op_global.c `gl_build`, `gl_sid`: a section's lines, REC 2's being REC's), so DUAL, BLE, CDC, CLKOUT, BRIGHT, LIGHTS, REC_MODES move the rest up and no page number is fixed. The header's n/N counts the pages; SELECT steps a page (the cursor on its first line), ALGORITHM a line, knob k is line k of its page. Tests: tests/ui_optimist_glpages.h (every variant).
+
+**The look.** GLOBAL and SYSTEM have no cards. Under the header, to the screen's foot, one page of up to 4 lines; a line is one
 setting: its knob's number (1..4) at the left, the setting's name, its value on the right as the cards wrote it (the
 unit after it, small), the value's form (bar, dots, pill) under the value. A section's name, small and dim with a rule
 after it, stands over its first line on the page; a page that starts inside a section names it again. The cursor line
