@@ -630,10 +630,13 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->label = "PANEL";
         c->kind = CK_ACT;
         break;
-    case SI_ABOUT:
+    case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
+        const char *v = FELUCCA_VERSION;
         c->label = "VERSION";
-        c->kind = CK_ACT;
+        c->kind = CK_RO;
+        str_cpy(c->val, v + (str_len(v) > 9u && !memcmp(v, "OPTIMIST ", 9) ? 9u : 0u), sizeof c->val);  /* "OPTIMIST 0.1": 0.1 */
         break;
+    }
     default:
         c->kind = CK_NONE;
         break;
@@ -717,7 +720,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
 #endif
-    if (s == OP_RESET || it == SI_CLOCK)
+    if ((s == OP_RESET && !d) || it == SI_CLOCK)       /* (HOME held: a setting with a descriptor, its default) */
         return;
 #if FELUCCA_BLE
     if (bdv.open)
