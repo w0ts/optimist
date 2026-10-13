@@ -53,7 +53,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
          {"BLE": 1, "USB_MODE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_MODE": 1},
          # the USB audio resampler is only compiled with USB audio (MIDI only by default since 2026-10-12)
-         {"USB_MODE": 2, "UA_RESAMPLE": 1}]
+         {"USB_MODE": 2, "UA_RESAMPLE": 1},
+         # the drum profiles' common set (x0x-drums, drum-machine: six engines off, SLICE, PATTERNS, the CDC console on):
+         # their estimate came out 1.4-3 KB low without it (2026-10-13, after the full re-measure on feat/lfo-slots)
+         {"ENG_DIGITAL": 0, "ENG_DRAWBAR": 0, "ENG_FM6": 0, "ENG_FORMANT": 0, "ENG_PHASE": 0, "ENG_TRIO": 0,
+          "ENG_SLICE": 1, "PATTERNS": 1, "USB_MODE": 1}]
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
