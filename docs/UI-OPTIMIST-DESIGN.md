@@ -409,7 +409,7 @@ The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
 
 On the drum track the rows are the **selected lane's**: ENV (its envelope values, section 4.3's drum ENV), SOUND,
-SOUND 2, SOUND 3 (the sends), SOURCE, KIT, then
+SOUND 2, SOUND 3 (the sends), SOURCE (a lane playing a user sample only: HIT START LEN), KIT, then. The SOUND row on the drum track is KIT, LANE and, on knob 3, the lane's SRC (the user, 2026-10-13: "this should be on third knob on page 1"; op_screens.c `snd_cell`, op_cells.c `LANE_SRC_PG`); PAGES' SOURCE keeps SRC for SLOOP's UI, this UI shows it as `LANE_SMP_PG`
 the track rows it has today (FX FILTER, SLICER, PATTERN). HOME held + a key picks the lane (the keys play on
 this screen, so you hear it). On an FM6 track ENV held stays the operator editor as built
 (ui_fm6.c): its own screen, the black keys OP1..OP6 PIT GLO MONO POLY.
@@ -2244,7 +2244,7 @@ held step on STEP and a free take. HOME + a drum key still picks a lane straight
 | Where | MASTER is | A lane is | What changed |
 |---|---|---|---|
 | The mixer | its MASTER row | its lane row | nothing in the order; a lane row is now "a lane selected" (below) |
-| SOUND, every family | the master FX screen (SCR_FX), as `fx_algo` did from T1 | the drum track's pages for that lane (SOUND, SOUND 2, 3, SOURCE, KIT, ENV); a family the drum track has none of (LFO, ARP, SCL) shows every drum row (`snd_family`'s fallback) | MASTER from any track (it was T1 only); on past DR into the lanes |
+| SOUND, every family | the master FX screen (SCR_FX), as `fx_algo` did from T1 | the drum track's pages for that lane (SOUND, SOUND 2, 3, SOURCE on a user-sample lane, KIT, ENV); a family the drum track has none of (LFO, ARP, SCL) shows every drum row (`snd_family`'s fallback) | MASTER from any track (it was T1 only); on past DR into the lanes |
 | STEP | the master FX screen; right comes back to STEP on its page | the drum view: the lane's steps on the grid; on a lane page the page follows the lane; back to DR from a lane page: PATTERN | it went T1 .. DR |
 | PROJECT, SYSTEM, SONG, SCOPE, GLOBAL | the master FX screen; right comes back to the page and row (the TEMPO page, PLAY held: it closes, right comes back to the screen under it) | the lane selected (the header's badge), nothing per lane on these pages | it went T1 .. DR |
 | The master FX screen itself | it is MASTER | - | right goes back to the page and row it was left from (SOUND T1 when it was opened by FX on the mixer's MASTER row), and on from there |
@@ -2262,13 +2262,13 @@ clears it. (STEP's lane pages and the SOUND row's LANE knob set it too until sec
 longer change the lane.) The header's badge shows the lane ("SNARE") in its sound's colour while a lane is selected.
 
 **PRESETS on the drum track** (op_walk.c, op_input.c `op_presets_turn`), by the lane's SOURCE (SRC on the drum SOUND
-page's SOURCE row):
+row's knob 3):
 
 | Selected | PRESETS | HOME held + PRESETS | The toast |
 |---|---|---|---|
 | DR itself | the kit (as before) | the kits (as before, 64a4174) | "KIT name" in the kit kind's colour |
 | a lane, SRC KIT | the kit, as on DR | the kits, as on DR | "KIT name" |
-| a lane on an instrument (any other SRC) | that lane's sound only: the next / previous source of the SOURCE list (USR1..3, each kit's sound for this lane, the X0X voices), round, those this build has; KIT is left out, so PRESETS never turns the lane back to the kit (the SOURCE row does) | the first sound of the next / previous kind, round: your samples (USR), a sampled kit's, a synthesised kit's, the X0X machines' (kits, styles and voices): the colour language's kinds (sloop/ui_colors.c `lane_col`) | "SNARE: X9 SD" in the lane's colour |
+| a lane on an instrument (any other SRC) | that lane's sound only: the next / previous source of the SOURCE list (USR1..3, each kit's sound for this lane, the X0X voices), round, those this build has; KIT is left out, so PRESETS never turns the lane back to the kit (SRC, the SOUND row's knob 3, does) | the first sound of the next / previous kind, round: your samples (USR), a sampled kit's, a synthesised kit's, the X0X machines' (kits, styles and voices): the colour language's kinds (sloop/ui_colors.c `lane_col`) | "SNARE: X9 SD" in the lane's colour |
 
 The kit and the other lanes stay. The mixer's lane rows follow the same rules; their SOUND card and the row's name show
 the lane's sound (the kit's name while it plays KIT). The SOUND row's picture on the drum track: DR the kit big and
