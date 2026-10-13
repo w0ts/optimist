@@ -133,11 +133,87 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     reset_ui();
     song.sel = 0;
 }
+#if FELUCCA_PATTERNS
+static void un_pat_tests(void)                          /* #15: the patterns layer, SAVE + n stores, HOME + n clears; copy = launch, then SAVE + target */
+{
+    track_t *t = &trk[0];
+    uint32_t k;
+    reset_ui();
+    song.sel = 0;
+    song.playing = 0;
+    transport_req = 0;
+    for (k = 0; k < PAT_N; k++)
+        pat_write(0, k, 0);
+    for (k = 0; k < 8u; k++)
+        t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(50 + k);
+    press(B_LFO);
+    frames(HOLD_FRAMES);
+    for (k = 7; k <= 8u; k++) {                         /* black 7 (copy) and 8 (clear) held + white 1: modifiers no more */
+        fm1_in.notes |= 1u << (k == 7u ? 15 : 17);
+        frame();
+        fm1_in.notes &= ~(1u << (k == 7u ? 15 : 17));
+        frame();
+    }
+    check(!pat_has(0, 0) && !op_armed(), "LFO held + black 7 / 8: no copy, no clear modifier (nothing)");
+    press(B_SAVE);
+    key(WK(0));
+    release(B_SAVE);
+    check(pat_has(0, 0), "LFO held, SAVE + key 1: stored into slot 1");
+    key(WK(0));                                         /* launch slot 1 (stopped: loaded) */
+    check(pat_cur[0] == 0, "LFO held + key 1: slot 1 launched");
+    press(B_SAVE);
+    key(WK(3));
+    release(B_SAVE);
+    check(pat_has(0, 3) && !op_armed(), "COPY = launch the source, then SAVE + the target key: slot 4 holds the copy");
+    press(B_SAVE);
+    key(WK(3));                                         /* over a used slot: asked */
+    release(B_SAVE);
+    check(op_armed(), "SAVE + a used slot's key: asks before it overwrites");
+    op_disarm();
+    release(B_LFO);
+    frames(2);
+    for (k = 0; k < PAT_N; k++)
+        pat_write(0, k, 0);
+    pat_cur[0] = PAT_NONE;
+    pat_req[0] = PAT_NONE;
+    track_defaults_steps(t);
+    reset_ui();
+}
+#endif
+static void un_step_presets_tests(void)                 /* #1 (kept) and the accident: PRESETS on STEP scrolls the window; HOME + PRESETS does nothing */
+{
+    uint32_t e0, p0, pg0;
+    reset_ui();
+    song.sel = 0;
+    song.playing = 0;
+    transport_req = 0;
+    TSEL->p[P_SLEN] = 48;                               /* (three windows) */
+    tap(B_SEQ);
+    frames(2);
+    e0 = TSEL->eng_req, p0 = TSEL->preset;
+    st.page = 0;
+    turn(EN_PRESET, 1);
+    check(st.page == 1u && TSEL->eng_req == e0 && TSEL->preset == p0, "STEP: PRESETS scrolls the 16-step window (kept)");
+    pg0 = st.page;
+    press(B_HOME);
+    turn(EN_PRESET, 1);
+    turn(EN_PRESET, -1);
+    release(B_HOME);
+    frames(2);
+    check(TSEL->eng_req == e0 && TSEL->preset == p0 && st.page == pg0 && ui.scr == SCR_STEP && !op_armed(),
+          "STEP: HOME + PRESETS does nothing (no engine change, no scroll, no NO)");
+    TSEL->p[P_SLEN] = 16;
+    reset_ui();
+}
 static void uniform_tests(void)
 {
+    un_step_presets_tests();
     un_drum_keys_tests();
     un_scope_tests();
 #if FELUCCA_ARRANGER
     un_song_rec_tests();
+#endif
+#if FELUCCA_PATTERNS
+    un_pat_tests();
 #endif
 }

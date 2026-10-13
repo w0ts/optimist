@@ -465,6 +465,9 @@ static int op_presets_turn(void)
                                                          * line k, CALIBRATE runs from YES; HOME held: no NO either */
         if (fm1_in.buttons & BIT(B_HOME))
             op_clean &= ~BIT(B_HOME);
+    } else if (ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_HOME))) {   /* STEP: HOME + PRESETS does nothing (it changed the engine only
+                                                         * because this branch came first; PRESETS alone scrolls the window) */
+        op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO) */
     } else if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())

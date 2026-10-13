@@ -1369,12 +1369,38 @@ static void layer_tests(void)
     check(lay.shown == LY_PAT, "LFO held: the patterns' map");
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
-    fm1_in.notes |= 1u << 13;                           /* black key 6 (store) held + white 2 */
+    fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
     frame();
     key(WK(1));
     fm1_in.notes &= ~(1u << 13);
     frame();
-    check(pat_has(0, 1), "LFO + black 6 + white 2: the working copy stored into T1 2");
+    check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
+    for (k = 0; k < 8u; k++)                            /* (the key above launched the empty slot 2: the working copy again) */
+        t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
+    press(B_SAVE);                                      /* LFO held, then SAVE + n: store into slot n */
+    key(WK(1));
+    check(lay.shown == LY_PAT, "LFO held + SAVE: the patterns' map stays");
+    release(B_SAVE);
+    check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
+    press(B_HOME);                                      /* LFO held, then HOME + n: clear slot n (asked) */
+    key(WK(1));
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + HOME + key 2: clear slot 2, asked");
+    release(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
+    tap(B_SAVE);
+    check(!pat_has(0, 1), "... YES: cleared");
+    press(B_HOME);                                      /* HOME tapped with LFO held and no key: the lock, as before */
+    release(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PAT, "LFO held + HOME tapped (no key): the patterns layer locked open, as before");
+    release(B_LFO);
+    frames(2);
+    tap(B_ENV);
+    frames(2);
+    check(lay.lock == LY_PLAY, "... any button lets it go");
+    press(B_LFO);
+    frames(HOLD_FRAMES);
     ui.force = 1;
     frame();
     ppm("opt-layer-lfo");

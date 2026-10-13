@@ -10,7 +10,7 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
-enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_PAT_COPY, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
+enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
        OA_SCN_LOAD };
 
 static struct {

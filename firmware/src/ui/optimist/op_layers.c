@@ -10,8 +10,9 @@
  *         16 tap tempo                           KNOB  the four levels
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE; OCT- / OCT+ undo / redo
  *   LFO   the patterns (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's pattern n at
- *         its end (OCT- held: the next bar, OCT+ held: now), the black keys 1-4 the track, 5 stop, 6 + n store,
- *         7 + a, b copy, 8 + n clear, 9 duplicate, 10 + n a scene; its cards show each track's pattern. KNOB: none,
+ *         its end (OCT- held: the next bar, OCT+ held: now), the black keys 1-4 the track, 5 stop, 9 duplicate, 10 + n a
+ *         scene; LFO held, then SAVE + n stores the working pattern into slot n (asked over a used one), HOME + n clears
+ *         it (asked); COPY = launch the source, then SAVE + the target; its cards show each track's pattern. KNOB: none,
  *         LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen under it, fine (LEN by one)
  *   SAVE  1-16 scene A-P at the next bar (stopped: loaded; an 8-section build 1-8), REC tapped SONG REC, REC held +
  *         n store the loop into n, HOME held + n clear n, PLAY the song from the start, two taps or more held a
@@ -29,7 +30,6 @@ static int pat_has(uint32_t k, uint32_t s);
 static uint32_t pat_users(uint32_t k, uint32_t s, uint32_t but);
 static uint32_t pat_free(uint32_t k);
 static int pat_store_slot(uint32_t k, uint32_t s);
-static int pat_copy(uint32_t k, uint32_t a, uint32_t k2, uint32_t b);
 static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 static uint32_t pat_changed(void);
 static int pat_scene_refs(uint32_t i, uint8_t *r);
@@ -66,18 +66,14 @@ static struct {
     uint8_t tap_n;                      /* tap tempo: the taps counted, their times */
     uint32_t tap_ms[4];
 #if FELUCCA_PATTERNS
-    uint8_t pmod;                       /* LFO: the black key held (6 store, 7 copy, 8 clear, 10 scene), 0 none */
-    uint8_t pca, pck;                   /* COPY: the first slot and its track (pca 0xFF: none yet) */
+    uint8_t pmod;                       /* LFO: the black key held (10 scene), 0 none */
+    uint8_t hlock, pclr;                /* HOME + LFO pressed: the lock waits for the release, a cleared slot cancels it */
     uint32_t pchg_ms, pchg;             /* the patterns changed since their source ("*"), twice a second */
 #endif
 #if FELUCCA_QCHAIN
     uint8_t chain[CHAIN_MAX], chain_n;  /* the scene keys tapped in this SAVE hold */
 #endif
-} lay = {.lock = LY_PLAY, .shown = LY_PLAY, .held = LY_PLAY
-#if FELUCCA_PATTERNS
-         , .pca = 0xFF
-#endif
-};
+} lay = {.lock = LY_PLAY, .shown = LY_PLAY, .held = LY_PLAY};
 /* the cards 2x2 (op_state.c): everywhere but the mixer, whose rows want the height ("but not in mixer !", the user,
  * 2026-10-12); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY; }
@@ -527,11 +523,12 @@ static void pat_layer_key(uint32_t k, int32_t w)
         ui_message(song.playing ? "STOP AT END" : "STOPPED");
         return;
     }
-    if ((b >= 6u && b <= 8u) || b == 10u) {
+    if (b == 10u) {                                     /* a modifier: the next white key launches a scene */
         lay.pmod = (uint8_t)b;
-        lay.pca = 0xFF;
         return;
     }
+    if (b >= 6u && b <= 8u)
+        return;                                         /* (store, copy and clear were modifiers: now SAVE + n, HOME + n, the user 2026-10-13) */
     if (b == 9u) {                                      /* DUPLICATE: into the first free slot */
         s = pat_free(t);
         pat_name(nm, t, s);
@@ -543,24 +540,12 @@ static void pat_layer_key(uint32_t k, int32_t w)
     }
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
-    if (lay.pmod == 10u) {
+    if (fm1_in.buttons & (1u << panel.btn[B_HOME])) {   /* HOME + n: clear slot n (asked) */
+        lay.pclr = 1;
+        pat_clear_ask(t, (uint32_t)w);
+    } else if (lay.pmod == 10u) {
         if (w < LAY_NSCN)
             scene_launch((uint32_t)w);
-    } else if (lay.pmod == 6u) {
-        pat_store_ask(t, (uint32_t)w);
-    } else if (lay.pmod == 7u) {                        /* COPY a, then b */
-        pat_name(nm, t, (uint32_t)w);
-        if (lay.pca == 0xFF) {
-            lay.pca = (uint8_t)w, lay.pck = (uint8_t)t;
-            ui_say("COPY ", nm);
-        } else if (pat_has(t, (uint32_t)w)) {
-            op_arm(ARM_OP, OA_PAT_COPY, t << 4 | (uint32_t)w, "COPY TO", nm, 1);
-        } else if (!pat_copy(lay.pck, lay.pca, t, (uint32_t)w)) {
-            lay.pca = 0xFF;
-            ui_say("COPIED ", nm);
-        }
-    } else if (lay.pmod == 8u) {
-        pat_clear_ask(t, (uint32_t)w);
     } else {
         pat_launch_key(t, (uint32_t)w);
     }
@@ -595,16 +580,13 @@ static void op_act(uint32_t a, uint32_t k)
         break;
 #if FELUCCA_PATTERNS
     case OA_PAT_STORE:
-    case OA_PAT_CLR:
-    case OA_PAT_COPY: {
+    case OA_PAT_CLR: {
         char nm[8];
         uint32_t t = k >> 4, s = k & 15u;
         pat_name(nm, t, s);
-        if (a == OA_PAT_STORE ? pat_store_slot(t, s) : a == OA_PAT_CLR ? pat_write(t, s, 0) : pat_copy(lay.pck, lay.pca, t, s))
+        if (a == OA_PAT_STORE ? pat_store_slot(t, s) : pat_write(t, s, 0))
             break;                                      /* (what went wrong is said: MEM FULL ...) */
-        if (a == OA_PAT_COPY)
-            lay.pca = 0xFF;
-        ui_say(a == OA_PAT_STORE ? "STORED " : a == OA_PAT_CLR ? "CLEARED " : "COPIED ", nm);
+        ui_say(a == OA_PAT_STORE ? "STORED " : "CLEARED ", nm);
         break;
     }
 #endif
@@ -654,7 +636,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         break;
     case LY_SONG:
 #if FELUCCA_PATTERNS
-        if (song_on_pat_row()) {                        /* SONG's PATTERNS row: SAVE + n stores into slot n */
+        if (song_on_pat_row() || lay_is(LY_PAT)) {      /* SONG's PATTERNS row, the patterns layer (LFO held, SAVE then pressed): SAVE + n stores into slot n */
             if (w >= 0 && w < (int32_t)PAT_N)
                 pat_store_ask(song.sel % NTRK, (uint32_t)w);
             break;
@@ -669,7 +651,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
                 pat_clear_ask(song.sel % NTRK, (uint32_t)w);
             break;
         }
-        pat_layer_key(k, w);
+        pat_layer_key(k, w);                            /* (the layer: HOME + n clears slot n too) */
         break;
 #endif
     default:
@@ -821,6 +803,10 @@ static void lay_frame(uint32_t held)
         }
     if (h == LY_SONG && (op_armed() || song_on_pat_row()))
         h = LY_PLAY;                                    /* (SAVE over a question: its YES; on PATTERNS: a slot's store) */
+#if FELUCCA_PATTERNS
+    if (h == LY_SONG && (held & (1u << panel.btn[B_LFO])))
+        h = LY_PAT;                                     /* (LFO held, then SAVE: the patterns' map stays, SAVE + n stores) */
+#endif
     if (h != lay.held) {
         if (lay.held == LY_SONG) {
 #if FELUCCA_QCHAIN

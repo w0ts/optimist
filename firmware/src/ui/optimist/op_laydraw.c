@@ -239,8 +239,8 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
             tile_set(&tl[i], b, cur ? C_OK : q ? C_WARN : used ? col_shade(trk_col(sel), 4u) : OP_SURF,
                      cur || q || used ? C_BLACK : C_DIM, used ? trk_col(sel) : 0);
         }
-        str_cpy(sub, lay.pmod == 6u ? "Store: a slot" : lay.pmod == 7u ? (lay.pca == 0xFF ? "Copy: from" : "Copy: to") :
-                     lay.pmod == 8u ? "Clear: a slot" : lay.pmod == 10u ? "Scene: a key" : "OCT- bar  OCT+ now", n);
+        str_cpy(sub, fm1_in.buttons & (1u << panel.btn[B_SAVE]) ? "Store: a slot" : fm1_in.buttons & (1u << panel.btn[B_HOME]) ? "Clear: a slot" :
+                     lay.pmod == 10u ? "Scene: a key" : "Save+n store  Home+n clear", n);
         break;
 #endif
     default:
