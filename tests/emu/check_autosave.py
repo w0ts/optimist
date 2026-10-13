@@ -31,13 +31,13 @@ def run(ctx):
     e, _ = ctx.open(fresh=True, settle=3.0)
     try:
         edit_saved(ctx, e, -3, "an edit after power-on")
-        edit_saved(ctx, e, -3, "an edit just after that autosave")
+        edit_saved(ctx, e, 3, "an edit just after that autosave")
     finally:
         e.quit()
     e = power_on(ctx)
     try:
         e.run(1.0)
-        h = edit_saved(ctx, e, 3, "after a power cycle, an edit 2 s after power-on")
+        h = edit_saved(ctx, e, -3, "after a power cycle, an edit 2 s after power-on")
         e.png(str(ctx.out / "shots" / "before-power-off.png"))
     finally:
         e.quit()
