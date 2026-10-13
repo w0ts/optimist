@@ -255,10 +255,35 @@ static void head_cont(char *t)
         }
     }
 }
-/* the title's room in pixels: right of the badge (bw wide), left of the loop position r and the tempo bpm */
-static int32_t head_room(int32_t bw, const char *bpm, const char *r)
+/* the title's room in pixels: right of the title's x (lead: the badge and its gap, or the bare margin), left of the loop
+ * position r and the tempo bpm */
+static int32_t head_room(int32_t lead, const char *bpm, const char *r)
 {
-    return 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - (bw + 8);
+    return 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - lead;
+}
+/* which pages show the track's badge (the user, 2026-10-13: "while in pages that are not relevant for a track, we should
+ * not display the track in the header"). The rule: the badge only where the page's values belong to the selected
+ * track / lane. One flag per screen and per layer, so a change is one digit. The mixer's title carries the row's name
+ * ("SNARE LEVELS"), SONG's PATTERNS row is every track's, SCOPE picks its own source, TEMPO's rows are the project's REC
+ * settings; the MASTER pages show no track either (their title says MASTER) */
+static const uint8_t HEAD_TRK_SCR[SCR_N] = {
+    [SCR_HOME] = 0, [SCR_SOUND] = 1, [SCR_FX] = 0, [SCR_PROJECT] = 0, [SCR_SYSTEM] = 0,
+    [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0};
+static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
+    [LY_PLAY] = 1,      /* (the screen's flag decides) */
+    [LY_FX] = 0,        /* filter, dust, duck are the song's (TRK FLT is the only track knob) */
+    [LY_ERASE] = 1, [LY_ROLL] = 0, [LY_STEP] = 1, [LY_SCALE] = 1, [LY_MIX] = 0, [LY_SONG] = 0, [LY_OPS] = 1,
+#if FELUCCA_PATTERNS
+    [LY_PAT] = 0,       /* every track's pattern */
+#endif
+};
+static uint32_t head_has_track(void)
+{
+    if (name_on())
+        return 0;
+    if (lay.shown != LY_PLAY)
+        return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
+    return HEAD_TRK_SCR[ui.scr % SCR_N] && !ui.master;
 }
 /* the title t (32 bytes, in capitals) as drawn: with the n/N pos, the continuation number dropped, then cut to the room
  * (losing the screen's word first), then cased (D11: "cut then case", so what is left starts with a capital) */
@@ -286,7 +311,11 @@ static void draw_head(void)
         eng = SCR_NAME[ui.scr];
         tc = C_HI;
     }
-    int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
+    int32_t bw, tx, room;
+    uint32_t badge = head_has_track() || ui.msg_t;
+    if (!badge)
+        eng = "";                                       /* (no badge: the title starts at the left margin) */
+    bw = badge ? text_w(&FONT_S, eng) + 8 : 0;
     pos[0] = 0;
     t[0] = 0;
     if (ui.msg_t) {
@@ -303,8 +332,8 @@ static void draw_head(void)
     if (ui.scr == SCR_STEP)
         r[0] = 0;                                       /* (STEP: the grid shows the playhead; the room is the pick's) */
     fmt_int(bpm, song.g[G_BPM]);
-    tx = bw + 8;                                        /* the title's room, left of the position and the tempo */
-    room = head_room(bw, bpm, r);
+    tx = badge ? bw + 8 : 6;                            /* the title's room, left of the position and the tempo */
+    room = head_room(tx, bpm, r);
     head_finish(t, pos, room);                          /* ("Sound ENV", "Tempo 1/6") */
     if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !ui.cards_t) {   /* STEP: the window, then the pick: */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
@@ -330,8 +359,10 @@ static void draw_head(void)
     } else if (ui.msg_t) {
         cv_text(4, 4, &FONT_S, op_case(c, ui.msg, sizeof c), mc);   /* (sentence case: "T1 cleared") */
     } else {
-        cv_rect(2, 3, bw, 19, tc);                      /* the track's engine, in its colour */
-        cv_text(6, 4, &FONT_S, eng, C_BLACK);
+        if (badge) {
+            cv_rect(2, 3, bw, 19, tc);                  /* the track's engine, in its colour */
+            cv_text(6, 4, &FONT_S, eng, C_BLACK);
+        }
         cv_text(tx, 4, &FONT_S, cut(c, t, room > 8 ? (uint32_t)room / 8u : 1u), mc);   /* (cased above) */
         cv_text(236 - text_w(&FONT_S, bpm), 4, &FONT_S, bpm, C_HI);
         if (r[0])

@@ -49,6 +49,24 @@ async def main():
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         check("the default configuration: no line marked", not any("✗" in label(app, k) for k in app.nodes))
+        tree = app.query_one("#tree")
+        tree.cursor_line = 0
+        await pilot.press("right")
+        await pilot.pause()
+        down = tree.cursor_line
+        check("right pages the list down (like page down)", down > 1)
+        await pilot.press("pagedown")
+        await pilot.pause()
+        check("... as page down does", tree.cursor_line > down)
+        far = tree.cursor_line
+        await pilot.press("left")
+        await pilot.pause()
+        check("left pages the list up", 0 <= tree.cursor_line < far)
+        before = dict(app.cfg)
+        await pilot.press("right", "left")
+        check("left / right change no item", app.cfg == before)
+        tree.cursor_line = 0
+        await pilot.pause()
         await toggle(app, pilot, "DRUM_SYNTH")
         await toggle(app, pilot, "DRUM_SAMPLED")
         marked = [k for k in app.nodes if "✗" in label(app, k)]

@@ -22,10 +22,16 @@ static struct {
 /* a line's value as drawn: an action says what it does (the user, 2026-10-13: lines showing "YES" read as dead), RUN
  * when its cell names nothing; YES or PRESETS runs it (op_global.c gl_presets) */
 static const char *gl_val(const cell_t *c) { return c->kind != CK_ACT ? c->val : c->val[0] ? c->val : "RUN"; }
+/* the text a line draws: the long form where the list has the room (value_long: SYNC AUTO "Auto: USB"), else gl_val's;
+ * lv (14) holds it */
+static const char *gl_text(const cell_t *c, char *lv)
+{
+    return c->d && c->vp && value_long(c->d, *c->vp, lv) ? lv : gl_val(c);
+}
 static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 {
-    char b[16], m[2];
-    const char *v = gl_val(c);
+    char b[16], m[2], lv[14];
+    const char *v = gl_text(c, lv);
     uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
     int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x;
     m[0] = (char)('1' + k);

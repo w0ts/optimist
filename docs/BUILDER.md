@@ -19,7 +19,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `u` publish the profile or not (CI builds the published ones; one of yours is moved to config/profiles first, to commit), `d` delete a profile (type yes; never user-default), `w` write a .config file, `l` load,
-`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `f` Flash to FM-1 (below), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
+`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `f` Flash to FM-1 (below), `x` / `c` expand / collapse all, `left` / `right` (like `page up` / `page down`) page the list, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
