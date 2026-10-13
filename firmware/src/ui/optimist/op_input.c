@@ -3,7 +3,7 @@
  *   SELECT       the cursor: the row               ALGORITHM   the walk MASTER T1..DR the lanes, the page's part (op_walk.c)
  *   PRESETS      the sound (DR: the kit; a lane: its own sound)   KNOB 1..4   the cursor row's cells; a turn makes its cell hot
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
- *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
+ *   HOME held + a knob: the cell to its default; + a drum key: pick the lane (on the mixer: mute the sequencer, seq_mute.c); + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
  *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, ALGORITHM
@@ -277,7 +277,25 @@ static int pick_mod(uint32_t held)
 }
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
-static int pick_silent(uint32_t held) { return song.playing && pick_mod(held); }
+/* HOME held on the mixer: its keys MUTE the sequencer (seq_mute.c: the 16 drum keys the lanes, the 4 black keys T1 T2 T3 DR)
+ * instead of picking the lane (the user, 2026-10-13); the key plays nothing, playing or stopped */
+static int mute_mod(uint32_t held)                      /* (HOME alone: SAVE + HOME + a key is the scene clear, a layer's keys) */
+{
+    return ui.scr == SCR_HOME && (held & 0x3FFFu) == (1u << panel.btn[B_HOME]);
+}
+static int pick_silent(uint32_t held) { return mute_mod(held) || (song.playing && pick_mod(held)); }
+static void smute_notes(uint32_t notes)
+{
+    uint32_t id;
+    for (id = 0; id < 27u; id++)
+        if ((notes >> id) & 1u) {
+            int32_t m = smute_key(id);
+            if (m >= 0) {
+                int on = smute_toggle(m);
+                ui_say(m >= 16 ? trk_tag((uint32_t)m - 16u) : LANE_CODE[m], on ? " SEQ MUTE" : " SEQ ON");
+            }
+        }
+}
 /* a drum key played while the keys play selects its lane, DR itself included (the user, 2026-10-12: "when i play a note
  * for the drums on the keyboard it should switch to that instrument in all the relevant pages"), as HOME + a key and
  * ALGORITHM do: the mixer's lane row, the drum SOUND / ENV / FX pages, STEP's LANE page, PRESETS by the lane's SOURCE.
@@ -530,7 +548,7 @@ static void op_drain(uint32_t held)
     while (lk_r != lk_w) {
         uint32_t e = lk_q[lk_r % LKQ];
         lk_r++;
-        if ((e >> 8) == LY_STEP && pick_mod(held))
+        if ((e >> 8) == LY_STEP && (pick_mod(held) || mute_mod(held)))
             continue;                                   /* (the silent pick's key: no step) */
         if ((e >> 8) == LY_STEP)
             step_key(e & 0x7Fu, (e >> 7) & 1u, held);
@@ -579,6 +597,9 @@ static void ui_input(void)
     } else if (notes && ui.scr == SCR_STEP && !(held & BIT(B_HOME))) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
         op_clean &= ~held;
+    } else if (notes && mute_mod(held)) {               /* HOME held + a key on the mixer: the sequencer mute */
+        smute_notes(notes);
+        op_clean &= ~BIT(B_HOME);
     } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)

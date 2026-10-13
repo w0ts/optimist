@@ -85,8 +85,9 @@ static void lane_preview_tests(void)
     fm1_in.buttons |= BT(B_HOME);
     frame();
     kdown(WK(2));
-    check(lane_selected() == 2u && ly_lock == LY_STEP && kb_kind[WK(2)] == KS_UI && ui.row[SCR_HOME] == MXR_LANE0 + 2u,
-          "playing, HOME held + a drum key on the mixer: the lane picked silently, the cursor on its row");
+    check(lane_selected() == 0u && ly_lock == LY_STEP && kb_kind[WK(2)] == KS_UI && smute_lane_on(2),
+          "playing, HOME held + a drum key on the mixer: the lane's sequencer muted (the key silent), no pick (2026-10-13)");
+    smute_lane = 0;
     kup(WK(2));
     fm1_in.buttons &= ~BT(B_HOME);
     frame();

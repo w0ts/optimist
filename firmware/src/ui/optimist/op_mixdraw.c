@@ -73,6 +73,10 @@ typedef struct {
     int32_t vx, vy, vw, vh;             /* its meter */
 } mrect_t;
 
+static uint32_t mx_smuted(uint32_t r)                   /* row r's sequencer muted (seq_mute.c): its steps dimmed, a badge */
+{
+    return r == MXR_MASTER ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
+}
 static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : MV_SOUNDS; }
 static void mx_view(void)                               /* the rows in view: the cursor's group */
 {
@@ -180,7 +184,8 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
     cv_text(q.x + 6, q.y + (i >= MXR_LANE0 ? 2 : MXL_TY), &FONT_S, mx_code(i),   /* (a muted lane: its code in the */
-            i >= MXR_LANE0 && dlm_muted(i - MXR_LANE0) ? C_WARN : i == mx_row() ? C_WHITE : c);   /* M badge's colour) */
+            i >= MXR_LANE0 && dlm_muted(i - MXR_LANE0) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY
+                                                          : i == mx_row() ? C_WHITE : c);   /* M badge's colour) */
     if (i < MXR_LANE0) {                                /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
         x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
@@ -190,6 +195,8 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
             cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
         else if ((song.solo >> mx_trk_of(i)) & 1u)
             cv_text(6, q.y + 18, &FONT_S, "S", C_OK);
+        if (mx_smuted(i))                               /* (the sequencer muted: an X beside, the steps grey) */
+            cv_text(15, q.y + 18, &FONT_S, "X", C_GRAY);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
     mx_vu_paint(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
@@ -213,13 +220,13 @@ static uint32_t mx_static_sig(void)
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
         if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
-            sig = hu(sig, (uint32_t)dlm_muted(i - MXR_LANE0));
+            sig = hu(sig, (uint32_t)dlm_muted(i - MXR_LANE0) * 2u + mx_smuted(i));
             continue;
         }
         mx_names(i, en, pr);
         sig = hs(hs(sig, en), pr);
         if (i >= MXR_T1 && i <= MXR_DR)
-            sig = hu(sig, (uint32_t)trk[mx_trk_of(i)].p[P_MUTE] * 2u + ((song.solo >> mx_trk_of(i)) & 1u));
+            sig = hu(sig, ((uint32_t)trk[mx_trk_of(i)].p[P_MUTE] * 2u + ((song.solo >> mx_trk_of(i)) & 1u)) * 2u + mx_smuted(i));
     }
     return sig;
 }
@@ -327,7 +334,7 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
 {
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, np;
-    uint16_t c = mx_col(r);
+    uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);   /* (the sequencer muted: the steps grey, no playhead) */
     mrect_t q;
     if (r == MXR_MASTER)
         return;
@@ -336,7 +343,7 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
         uint32_t s = page + i;
         if (s >= len)
             continue;
-        uint16_t sc = song.playing && s == at ? C_WHITE : mx_on(r, s) ? c : C_BLACK;
+        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE : mx_on(r, s) ? c : C_BLACK;
         if (r >= MXR_LANE0 && sc == C_BLACK)            /* (a lane's empty step: a foot line, no box: 16 small boxes a */
             cv_rect(x + (int32_t)i * q.sp, y + q.sh - 1, q.sp - 1, 1, C_LINE);   /* lane read as noise) */
         else
@@ -357,7 +364,7 @@ static void mx_steps(uint32_t r)
     if (r == MXR_MASTER)
         return;
     mx_rect(r, &q);
-    sig = hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg);
+    sig = hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r));
     for (i = 0; i < 16u; i++)
         sig = sig * 3u + mx_on(r, page + i);
     if (sig == mxd.stp[r])
