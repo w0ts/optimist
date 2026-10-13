@@ -483,10 +483,56 @@ static void scope_tests(void)
     song.sel = 0;
 }
 
+/* the header's badge only on pages whose values belong to the selected track (op_draw.c HEAD_TRK_*): drawn header, pixel by pixel */
+static int head_badge_drawn(void)
+{
+    ui.sig[0] = 0;
+    draw_head();
+    return px_in(2, 3, 20, 19, trk_col(song.sel));
+}
+static void header_track_tests(void)
+{
+    static const uint8_t SCR_WANT[SCR_N] = {[SCR_SOUND] = 1, [SCR_STEP] = 1};
+    uint32_t s, l, bad = 0;
+    reset_ui();
+    song.sel = 0;
+    frames(120);                                        /* (the track-name flash over) */
+    for (s = 0; s < SCR_N; s++) {
+        ui.scr = (uint8_t)s;
+        ui.master = 0;
+        lay.shown = LY_PLAY;
+        if (head_badge_drawn() != SCR_WANT[s]) {
+            printf("  screen %s: badge %d, wanted %d\n", SCR_NAME[s], !SCR_WANT[s], SCR_WANT[s]);
+            bad++;
+        }
+        check(head_has_track() == SCR_WANT[s], "the screen's flag (SOUND, STEPS: the track; the rest: none)");
+    }
+    check(!bad, "each non-track screen draws no track badge, each track screen does");
+    ui.scr = SCR_SOUND;
+    ui.master = 1;
+    check(!head_badge_drawn(), "MASTER (SOUND on the master FX): no track badge");
+    ui.master = 0;
+    for (l = LY_FX; l < LY_COUNT; l++) {
+        static const uint8_t LY_WANT[LY_COUNT] = {[LY_ERASE] = 1, [LY_STEP] = 1, [LY_SCALE] = 1, [LY_OPS] = 1};
+        lay.shown = (uint8_t)l;
+        if (head_badge_drawn() != LY_WANT[l]) {
+            printf("  layer %u: badge %d, wanted %d\n", l, !LY_WANT[l], LY_WANT[l]);
+            bad++;
+        }
+    }
+    check(!bad, "layers: ERASE, STEP keys, KEY, FM6 OPS show the track; FX, REPEAT, MIX, SCENES, PATTERNS do not");
+    lay.shown = LY_PLAY;
+    ui.scr = SCR_HOME;
+    ui.sig[0] = 0;
+    reset_ui();
+}
+
 static void header_footer_tests(void)
 {
     char t[32];
     reset_ui();
+    op_enter(SCR_SOUND);
+    frame();
     check(!strcmp(head_engine(), ENGINES[trk[0].eng_req % NENGINES]->name) &&
               px_in(2, 3, 20, 19, trk_col(0)), "the header: the selected track's engine in its colour (no T1 badge)");
     song.sel = TRK_DRUM;

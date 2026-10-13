@@ -2379,6 +2379,7 @@ int main(int argc, char **argv)
     message_tests();
     family_tests();
     header_footer_tests();
+    header_track_tests();
     mixer_tests();
     scope_tests();
     step_keys_tests();
