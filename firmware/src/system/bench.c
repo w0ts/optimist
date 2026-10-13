@@ -74,6 +74,9 @@ static struct {
 #ifndef FELUCCA_BENCH_MIX
 #define FELUCCA_BENCH_MIX 0                                /* 1: KICK, CLAP, HAT, OPEN HAT on X0X voices (a mixed kit) */
 #endif
+#ifndef FELUCCA_BENCH_REVONLY
+#define FELUCCA_BENCH_REVONLY 0                            /* 15: no delay send (bench_sig 6: the reverb's wet alone) */
+#endif
 #ifndef FELUCCA_BENCH_NOTE
 #define FELUCCA_BENCH_NOTE 0
 #endif
@@ -182,7 +185,9 @@ static void bench_setup(void)                              /* boot, after felucc
             apply_preset_to(&trk[p], EP[p][1]);
             trk[p].engine = trk[p].eng_req;
             trk[p].p[P_VOICE] = p == 2u ? V_LEGATO : V_POLY;
-            trk[p].p[P_DLY] = 40;
+            trk[p].p[P_DLY] = FELUCCA_BENCH_REVONLY ? 0 : 40;   /* (REVONLY: the wet is the reverb's alone) */
+            if (FELUCCA_BENCH_REVONLY)
+                trk[p].p[P_CHOR] = 0;
             trk[p].p[P_REV] = 50;
         }
         trk[0].p[P_E4] = 1;                                /* ENGINE MARK I */
@@ -353,13 +358,14 @@ static void bench_block(void)                              /* audio interrupt, a
 }
 
 /* per block, the first BENCH_NSIG blocks: a signature of each part's render (0..2), the dry mix and the
- * reverb send before the buses (4, 5): two builds' first difference (words:ADDR:N in play_check) */
+ * reverb send before the buses (4, 5), the buses' wet (6, left): two builds' first difference (words:ADDR:N in
+ * play_check) */
 #define BENCH_NSIG 256u
-static volatile uint32_t bench_sigs[BENCH_NSIG][6] __attribute__((section(".pool")));   /* (volatile: only the emulator reads it; the pool: RAM is full) */
+static volatile uint32_t bench_sigs[BENCH_NSIG][8] __attribute__((section(".pool")));   /* (volatile: only the emulator reads it; the pool: RAM is full) */
 static HOT void bench_sig(uint32_t k, const int32_t *b, uint32_t n)   /* (HOT: the mix in RAM calls it) */
 {
     uint32_t i, h = 0x811C9DC5u, blk = bench.blk - 1u;     /* (bench_block already counted this block) */
-    if (blk >= BENCH_NSIG || k >= 6u)
+    if (blk >= BENCH_NSIG || k >= 8u)
         return;
     for (i = 0; i < n; i++)
         h = (h ^ (uint32_t)b[i]) * 16777619u;
