@@ -30,6 +30,11 @@
  *  15  the mots profile's busy project (perf/mots-hot): part 1 FM6 TINE EP (MARK I), 3 notes; part 2 PHYS DRONE
  *      STRING, 3 notes; part 3 ACID LINE playing scenario 5's line; the X0X 808 with the X0X 909's hats on scenario 8's
  *      16ths groove; every part's DLY 40 and REV 50 (the delay and the reverb busy), the chords again every 2 s
+ *  16  PHYS stress (perf/mots-asm, hal/fm1_dsp_asm.h asm_px_string_curved's bound): parts 1-2 STRING (PLUCK), part 3
+ *      SYMP (DRONE STRING), every string on the curved bridge (STRC 0..30, BUZZ 6..127), ACC, EXC at 127, BOW up to
+ *      127, damping low; three-note chords at velocity 127 anywhere from note 24 to 100, struck again every 2 s and
+ *      at random in between, the parameters swept at random every 32 blocks (a fixed LCG: the same run every time).
+ *      phys_dsp.c records the largest |line value| (px_line_max)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -73,6 +78,42 @@ static struct {
 #define FELUCCA_BENCH_NOTE 0
 #endif
 #define BENCH_MOTS (FELUCCA_BENCH == 15 && FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID)
+#define BENCH_PXS (FELUCCA_BENCH == 16 && FELUCCA_ENG_PHYS)
+#if BENCH_PXS
+static uint32_t bench_lcg = 12345u;
+static uint32_t bench_rnd(uint32_t m) { bench_lcg = bench_lcg * 1664525u + 1013904223u; return (bench_lcg >> 8) % m; }
+static uint8_t bench_px_held[NPART][3];
+static void bench_px_sweep(void)                           /* the curved strings' parameters at random */
+{
+    uint32_t p;
+    for (p = 0; p < NPART; p++) {
+        track_t *t = &trk[p];
+        if (p < 2u) {                                      /* STRING: STRC 0..30 (curved), BOW 0..127 */
+            t->p[P_E1] = (int16_t)bench_rnd(31u);
+            t->p[P_E6] = (int16_t)bench_rnd(128u);
+        } else {                                           /* SYMP: BUZZ 6..127 (curved), CHRD any */
+            t->p[P_E1] = (int16_t)bench_rnd(128u);
+            t->p[P_E6] = (int16_t)(6u + bench_rnd(122u));
+        }
+        t->p[P_E2] = (int16_t)bench_rnd(128u);             /* BRIT */
+        t->p[P_E3] = (int16_t)bench_rnd(24u);              /* DAMP: low, the longest ring */
+        t->p[P_E4] = (int16_t)bench_rnd(128u);             /* POS / SYMP */
+        t->p[P_E5] = 127;                                  /* ACC */
+        t->p[P_E7] = 127;                                  /* EXC */
+    }
+}
+static void bench_px_chord(uint32_t p)                     /* part p: its chord off, a new one on at velocity 127 */
+{
+    uint32_t i, r = 24u + bench_rnd(64u);
+    for (i = 0; i < 3u; i++)
+        if (bench_px_held[p][i])
+            trk_note_off(&trk[p], bench_px_held[p][i]);
+    for (i = 0; i < 3u; i++) {
+        bench_px_held[p][i] = (uint8_t)(r + (i == 0u ? 0u : i == 1u ? 4u + bench_rnd(4u) : 7u + bench_rnd(6u)));
+        trk_note_on(&trk[p], bench_px_held[p][i], 127);
+    }
+}
+#endif
 #define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13 || BENCH_MOTS)   /* (16ths, any kit) */
 #define BENCH_X0X2 ((FELUCCA_BENCH == 13 || BENCH_MOTS) && FELUCCA_DRUM_KITS && FELUCCA_DRUM_X909 && FELUCCA_DRUM_X808)
 #define BENCH_FM6C (FELUCCA_BENCH == 10)
@@ -117,6 +158,21 @@ static void bench_setup(void)                              /* boot, after felucc
 #if BENCH_X0X2                                             /* 13: HAT and OPEN HAT the X0X 909's CH / OH */
     dl.src[4] = DL_X909 + 7u;
     dl.src[5] = DL_X909 + 8u;
+#endif
+#if BENCH_PXS
+    {   /* 16: STRING PLUCK, STRING PLUCK, SYMP DRONE STRING, POLY, the curved bridge */
+        static const uint8_t PR[NPART] = {2, 2, 7};
+        for (p = 0; p < NPART; p++) {
+            set_engine_of(&trk[p], ENG_IX_PHYS);
+            apply_preset_to(&trk[p], PR[p]);
+            trk[p].engine = trk[p].eng_req;
+            trk[p].p[P_VOICE] = V_POLY;
+        }
+        bench_px_sweep();
+        song.g[G_BPM] = 120;
+        (void)s;
+        return;
+    }
 #endif
 #if BENCH_MOTS
     {   /* 15: FM6 TINE EP (MARK I), PHYS DRONE STRING, ACID LINE (LEGATO); DLY 40, REV 50 on each */
@@ -224,6 +280,18 @@ static void bench_notes(int on)
 static void bench_block(void)                              /* audio interrupt, after the block's events */
 {
     uint32_t b = bench.blk++, e = b / BENCH_EIGHTH;
+#if BENCH_PXS
+    {
+        uint32_t p;
+        if (b % 32u == 0u)
+            bench_px_sweep();
+        for (p = 0; p < NPART; p++)
+            if (b % BENCH_PHRASE == p * 7u || bench_rnd(400u) == 0u)   /* (every 2 s, and ~3 times a second) */
+                bench_px_chord(p);
+        (void)e;
+        return;
+    }
+#endif
 #if BENCH_GROOVE16
     {
         uint32_t i;

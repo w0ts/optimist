@@ -36,10 +36,6 @@
 #define PX_YLINE 256             /* sympathetic string line (16-bit) at half the rate: 86 Hz and up, lower folds up */
 #define PX_YMASK (PX_YLINE - 1)
 #define PX_NSYMP 3
-#include "../../../hal/fm1_dsp_asm.h"            /* FELUCCA_ASM: the comb in pi32v2 asm (asm_symp_comb) */
-#ifndef PX_ASM
-#define PX_ASM FELUCCA_ASM                       /* 0: the C comb (an A/B on the FM-1: PX_ASM=0) */
-#endif
 _Static_assert(PX_YLINE == 256, "asm_symp_comb masks the line to 8 bits");
 
 typedef struct {                                         /* coefficients (px_symp_block; kept while unchanged) */
