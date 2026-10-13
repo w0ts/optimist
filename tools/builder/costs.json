@@ -1,8 +1,8 @@
 {
  "base": {
-  "flash": 625516,
-  "ram": 99492,
-  "pool": 328900,
+  "flash": 625472,
+  "ram": 73036,
+  "pool": 355380,
   "ramtext": 34724
  },
  "deltas": {
@@ -1283,9 +1283,17 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "TAB_IN_POOL": {
+   "1": {
+    "flash": -316,
+    "ram": -9168,
+    "pool": 9132,
+    "ramtext": -160
+   }
   }
  },
- "measured": "2026-10-13 12:41",
+ "measured": "2026-10-13 13:21",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1307,57 +1315,57 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "08b7bfb0",
+   "hash": "4908fa97",
    "sizes": {
-    "flash": 601204,
-    "ram": 95560,
-    "pool": 328900,
+    "flash": 601604,
+    "ram": 69440,
+    "pool": 355028,
     "ramtext": 25912
    }
   },
   "everything-that-fits": {
-   "hash": "61ac5637",
+   "hash": "59aea620",
    "sizes": {
-    "flash": 601860,
-    "ram": 87556,
-    "pool": 313500,
-    "ramtext": 34656
+    "flash": 600592,
+    "ram": 61052,
+    "pool": 339980,
+    "ramtext": 34672
    }
   },
   "fm-va-studio": {
-   "hash": "130c89d4",
+   "hash": "4b2a7d3b",
    "sizes": {
-    "flash": 599668,
-    "ram": 99460,
-    "pool": 319552,
+    "flash": 600148,
+    "ram": 73020,
+    "pool": 346032,
     "ramtext": 28708
    }
   },
   "user-default": {
-   "hash": "7619f2c1",
+   "hash": "2dc59e66",
    "sizes": {
-    "flash": 534968,
-    "ram": 83764,
-    "pool": 290076,
-    "ramtext": 31376
+    "flash": 534208,
+    "ram": 56940,
+    "pool": 316940,
+    "ramtext": 31368
    }
   },
   "x0x-drums": {
-   "hash": "163a863a",
+   "hash": "2d389ac5",
    "sizes": {
-    "flash": 578332,
-    "ram": 79664,
-    "pool": 290332,
-    "ramtext": 25912
+    "flash": 578584,
+    "ram": 53544,
+    "pool": 316460,
+    "ramtext": 25908
    }
   },
   "mots": {
-   "hash": "6d37e18f",
+   "hash": "45434060",
    "sizes": {
-    "flash": 537140,
-    "ram": 85108,
-    "pool": 287716,
-    "ramtext": 32232
+    "flash": 537520,
+    "ram": 58228,
+    "pool": 314604,
+    "ramtext": 32272
    }
   }
  },
