@@ -12,7 +12,7 @@
  *   the work          changed when the tracks, sounds, lanes and globals differ from when a scene or project was last
  *                     loaded, stored or made NEW (work_mark): a scene or project LOAD asks only then
  * Signatures: FNV-1a in the main loop, on demand (the work's only when a load asks); 4 words of RAM a track. */
-enum { ED_NONE, ED_PRESET, ED_ENGINE, ED_LSOUND, ED_LKIND, ED_SNDENG };
+enum { EK_NONE, EK_PRESET, EK_ENGINE, EK_LSOUND, EK_LKIND, EK_SNDENG };
 static struct {
     uint32_t id[NTRK], sig[NTRK];       /* the sound as loaded / saved: what it is, its signature */
     uint8_t ok;                         /* bit t: id / sig taken for track t */
@@ -20,7 +20,7 @@ static struct {
     int8_t s;                           /* its direction */
     uint8_t work_ok;
     uint32_t work;                      /* the work's signature as last loaded / stored */
-} ed;
+} edt;
 
 static uint32_t ed_mix(uint32_t h, const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -54,9 +54,9 @@ static uint32_t snd_sig(uint32_t i)                     /* the sound as it is no
 static void snd_mark(uint32_t i)                        /* track i's sound is as loaded / saved now */
 {
     i %= NTRK;
-    ed.id[i] = snd_id(i);
-    ed.sig[i] = snd_sig(i);
-    ed.ok |= (uint8_t)(1u << i);
+    edt.id[i] = snd_id(i);
+    edt.sig[i] = snd_sig(i);
+    edt.ok |= (uint8_t)(1u << i);
 }
 static void snd_mark_all(void)
 {
@@ -67,11 +67,11 @@ static void snd_mark_all(void)
 static int snd_edited(uint32_t i)                       /* track i's sound edited since it was loaded / saved */
 {
     i %= NTRK;
-    if (!((ed.ok >> i) & 1u) || ed.id[i] != snd_id(i)) {
+    if (!((edt.ok >> i) & 1u) || edt.id[i] != snd_id(i)) {
         snd_mark(i);                                    /* (another sound since: as loaded) */
         return 0;
     }
-    return ed.sig[i] != snd_sig(i);
+    return edt.sig[i] != snd_sig(i);
 }
 static uint32_t work_sig(void)                          /* the tracks, their sounds, the lanes, the globals */
 {
@@ -92,18 +92,18 @@ static uint32_t work_sig(void)                          /* the tracks, their sou
 }
 static void work_mark(void)                             /* the work is as stored now (a load, a store, NEW) */
 {
-    ed.work = work_sig();
-    ed.work_ok = 1;
+    edt.work = work_sig();
+    edt.work_ok = 1;
     snd_mark_all();
 }
-static int work_changed(void) { return ed.work_ok && ed.work != work_sig(); }
+static int work_changed(void) { return edt.work_ok && edt.work != work_sig(); }
 static void ed_tick(void)                               /* once a frame: another sound is a fresh one (no hash) */
 {
     uint32_t i;
-    if (!ed.work_ok)
+    if (!edt.work_ok)
         work_mark();                                    /* (power-on: the work as loaded) */
     for (i = 0; i < NTRK; i++)
-        if (ed.id[i] != snd_id(i))
+        if (edt.id[i] != snd_id(i))
             snd_mark(i);
 }
 
@@ -117,15 +117,15 @@ static void lane_kind_step(int32_t s);
 static int ed_ask(uint32_t kind, int32_t s)
 {
     char a[10];
-    if (ed.go)
+    if (edt.go)
         return 0;
     if (op_armed())
         return 1;                                       /* (a question up: the turn is drained) */
     if (!snd_edited(song.sel))
         return 0;
-    ed.kind = (uint8_t)kind;
-    ed.trk = song.sel;
-    ed.s = (int8_t)(s < 0 ? -1 : 1);
+    edt.kind = (uint8_t)kind;
+    edt.trk = song.sel;
+    edt.s = (int8_t)(s < 0 ? -1 : 1);
     str_cpy(a, trk_tag(song.sel), sizeof a);
     str_cpy(a + 2, " EDITS", sizeof a - 2u);
     op_arm(ARM_OP, OA_DISCARD, song.sel, "DISCARD", a, 1);   /* ("Discard T2 edits?") */
@@ -136,27 +136,27 @@ static void ed_run(uint32_t trk_i)                      /* YES on "Discard T2 ed
 {
     if (trk_i != song.sel)
         return;                                         /* (another track since: nothing) */
-    ed.go = 1;
-    switch (ed.kind) {
-    case ED_PRESET:
-        op_preset_step(ed.s);
+    edt.go = 1;
+    switch (edt.kind) {
+    case EK_PRESET:
+        op_preset_step(edt.s);
         break;
-    case ED_ENGINE:
-        op_engine_step(ed.s);
+    case EK_ENGINE:
+        op_engine_step(edt.s);
         break;
-    case ED_SNDENG:
-        snd_engine_step(ed.s);
+    case EK_SNDENG:
+        snd_engine_step(edt.s);
         break;
-    case ED_LSOUND:
-        lane_sound_step(ed.s);
+    case EK_LSOUND:
+        lane_sound_step(edt.s);
         break;
-    case ED_LKIND:
-        lane_kind_step(ed.s);
+    case EK_LKIND:
+        lane_kind_step(edt.s);
         break;
     default:
         break;
     }
-    ed.go = 0;
-    ed.kind = ED_NONE;
+    edt.go = 0;
+    edt.kind = EK_NONE;
     ed_done();
 }

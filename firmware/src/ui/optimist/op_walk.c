@@ -150,7 +150,7 @@ static int lane_presets(void)
 static void lane_sound_step(int32_t s)                  /* PRESETS on a lane: the next / previous source, round */
 {
     uint32_t l = lane_selected(), n = ls_count(l), i, j, k;
-    if (n < 2u || ed_ask(ED_LSOUND, s))
+    if (n < 2u || ed_ask(EK_LSOUND, s))
         return;
     i = ls_cur(l, n);
     for (k = (uint32_t)(s < 0 ? -s : s); k > 0u; k--)
@@ -165,7 +165,7 @@ static void lane_sound_step(int32_t s)                  /* PRESETS on a lane: th
 static void lane_kind_step(int32_t s)                   /* HOME + PRESETS on a lane: the next / previous kind's first */
 {
     uint32_t l = lane_selected(), n = ls_count(l), k0, t, i;
-    if (n < 2u || ed_ask(ED_LKIND, s))
+    if (n < 2u || ed_ask(EK_LKIND, s))
         return;
     k0 = ls_kind(ls_cur(l, n));
     for (t = 1; t < LK_N; t++) {                        /* (LK_KIT: no entry is ok, skipped) */

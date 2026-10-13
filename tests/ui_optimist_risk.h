@@ -119,7 +119,7 @@ static void rk_discard(uint32_t role, int home, const char *what)
     if (home)
         release(B_HOME);
     tap(B_SAVE);                                        /* YES: the change */
-    if (op_armed() || snd_id(song.sel) == id0 && snd_sig(song.sel) == ed.sig[song.sel] && rk_state() == h0) {
+    if (op_armed() || snd_id(song.sel) == id0 && snd_sig(song.sel) == edt.sig[song.sel] && rk_state() == h0) {
         printf("  risk: %s: YES did not change the sound\n", what);
         rk_ok = 0;
     }

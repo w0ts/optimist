@@ -117,7 +117,7 @@ static void op_preset_go(uint32_t n)
 static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
 {
     uint32_t total, cur;
-    if (ed_ask(ED_PRESET, s))
+    if (ed_ask(EK_PRESET, s))
         return;                                         /* (edited: "Discard T2 edits?" first, op_edits.c) */
     if (is_drum(TSEL)) {
         uint32_t was = ui.force;
@@ -142,7 +142,7 @@ static uint32_t list_eng(uint32_t n)
 static void op_engine_step(int32_t s)
 {
     uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST;
-    if (ed_ask(ED_ENGINE, s))
+    if (ed_ask(EK_ENGINE, s))
         return;
     if (is_drum(TSEL) || n == 0u) {
         op_preset_step(s);
@@ -163,7 +163,7 @@ static void op_engine_step(int32_t s)
 static void snd_engine_step(int32_t s)                  /* the SOUND row's ENGINE: the next / previous engine, its defaults */
 {
     uint32_t e = TSEL->eng_req;
-    if (is_drum(TSEL) || ed_ask(ED_SNDENG, s))
+    if (is_drum(TSEL) || ed_ask(EK_SNDENG, s))
         return;
     do                                                  /* (stepping over the numbers kept free: engines.c) */
         e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
