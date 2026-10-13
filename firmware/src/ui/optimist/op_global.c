@@ -252,18 +252,6 @@ static void glo_step(int32_t s)
     if (r != was)
         gl_at(r);
 }
-static void gl_presets(int32_t s, uint32_t home)        /* PRESETS: the cursor line's value (HOME held: its default) */
-{
-    uint32_t sc = ui.scr == SCR_SYSTEM, r = ui.row[ui.scr];
-    cell_t c;
-    if (!glo_cycle())
-        return;                                         /* (the BLE devices list: nothing) */
-    gl_cell(sc, r, &c);
-    if (c.kind == CK_VAL)
-        gl_turn(sc, r, home ? OP_RESET : s, 0);
-    else if (c.kind == CK_ACT && !home && s)
-        gl_yes(sc, r, 0);                               /* an action: as YES (PANEL asks first); a read-out: nothing */
-}
 static void gl_pick(uint32_t r, uint32_t k)             /* KNOB k turned (op_input.c op_knobs): its line the cursor */
 {
     uint32_t i = gl_line(ui.scr == SCR_SYSTEM, r, k);

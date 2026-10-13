@@ -2,10 +2,10 @@
 /* tests/ui_optimist_test.c, every line of GLOBAL and SYSTEM walked (fix/settings-lines, 2026-10-13; the user: "many lines
  * in GLOBAL and SYSTEM display YES and nothing can be done with them"). ALGORITHM puts the cursor on each line in turn:
  *   a value     its knob changes a setting and the text drawn (one way, else the other at an end), and back; PRESETS
- *               the same; a value with a descriptor: HOME held + PRESETS its default
+ *               changes nothing (the user, 2026-10-13); a value with a descriptor: HOME held + its knob its default
  *   a read-out  its knob and PRESETS change no setting
- *   an action   drawn as a word that is not YES (op_gldraw.c gl_val); its knob changes nothing; PRESETS runs it as
- *               YES does (PANEL: the question, cancelled by HOME)
+ *   an action   drawn as a word that is not YES (op_gldraw.c gl_val); its knob and PRESETS change nothing; YES runs it
+ *               (PANEL: the question, cancelled by HOME)
  * Every line has a name and a value drawn. Included after ui_optimist_glo.h. */
 static uint32_t glw_mix(uint32_t h, const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -92,11 +92,11 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     ok = ui.scr == scr && ui.row[scr] == i && c.label && c.label[0] && v[0];
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
-        ok &= glw_moves(scr, i, EN_PRESET);
-        if (c.d && c.vp) {                              /* a descriptor's value: HOME held + PRESETS, its default */
+        ok &= glw_still(EN_PRESET);
+        if (c.d && c.vp) {                              /* a descriptor's value: HOME held + its knob, its default */
             int16_t was = *c.vp;
             press(B_HOME);
-            turn(EN_PRESET, 1);
+            turn(LINE_KNOB(i), 1);
             release(B_HOME);
             ok &= *c.vp == c.d->def && ui.scr == scr;
             *c.vp = was;
@@ -104,10 +104,10 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     } else if (c.kind == CK_RO) {
         ok &= glw_still(LINE_KNOB(i)) && glw_still(EN_PRESET);
     } else if (c.kind == CK_ACT) {
-        ok &= strcmp(v, "YES") != 0 && glw_still(LINE_KNOB(i));
+        ok &= strcmp(v, "YES") != 0 && glw_still(LINE_KNOB(i)) && glw_still(EN_PRESET) && !op_armed();
         ui.msg[0] = 0;
-        turn(EN_PRESET, 1);
-        ok &= op_armed() || ui.msg[0];                  /* (PRESETS: as YES) */
+        tap(B_SAVE);
+        ok &= op_armed() || ui.msg[0];                  /* (YES runs it) */
         if (op_armed())
             tap(B_HOME);                                /* (the question: cancelled) */
         ok &= !op_armed() && ui.scr == scr;
@@ -153,7 +153,7 @@ static void glw_factory_tests(void)
                 uint8_t was = ble_on;
                 ble_on = 1;
                 press(B_HOME);
-                turn(EN_PRESET, 1);
+                turn(LINE_KNOB(i), 1);
                 release(B_HOME);
                 ble_ok &= ble_on == 1u;
                 ble_on = was;
@@ -171,17 +171,17 @@ static void glw_factory_tests(void)
                 glw_line(scr, i, &c, v);
             }
             press(B_HOME);
-            turn(EN_PRESET, 1);
+            turn(LINE_KNOB(i), 1);
             release(B_HOME);
             glw_line(scr, i, &c, v);
             if (strcmp(v, f)) {
-                printf("  glwalk: %s after HOME + PRESETS %s, factory %s\n", c.label, v, f);
+                printf("  glwalk: %s after HOME + knob %s, factory %s\n", c.label, v, f);
                 ok = 0;
             }
             seen++;
         }
     }
-    check(ok && seen >= 3u && ble_ok, "HOME + PRESETS: every setting line without a default back to its FACTORY value; BLE never");
+    check(ok && seen >= 3u && ble_ok, "HOME + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
     settings.palette = 4;
     palette_set(4);
 }
@@ -356,8 +356,8 @@ static void glwalk_tests(void)
             acts += c.kind == CK_ACT;
             ok &= (uint32_t)glw_walk_line(scr, i);
         }
-        check(ok, s ? "SYSTEM, every line: a value's knob and PRESETS change it and its text, a read-out's nothing, an action RUNs"
-                    : "GLOBAL, every line: a value's knob and PRESETS change it and its text, a read-out's nothing, an action RUNs");
+        check(ok, s ? "SYSTEM, every line: a value's knob changes it and its text (PRESETS nothing), a read-out's nothing, an action RUNs from YES"
+                    : "GLOBAL, every line: a value's knob changes it and its text (PRESETS nothing), a read-out's nothing, an action RUNs from YES");
     }
     for (s = 0, ok = 1; s < 2u; s++)                    /* no line draws YES */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {

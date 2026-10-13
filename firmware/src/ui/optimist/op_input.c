@@ -7,7 +7,7 @@
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
  *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, a knob picks and
- *   sets its line, PRESETS sets the cursor line; ALGORITHM is the track walk there too); the mixer's knob sets are SELECT's
+ *   sets its line, PRESETS does nothing; ALGORITHM is the track walk there too); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -449,19 +449,17 @@ static void op_tap(uint32_t b, uint32_t id)
 }
 
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
- * where it pages the window, and GLOBAL and SYSTEM, where it sets the cursor line's value (op_global.c) (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
+ * where it pages the window, and GLOBAL and SYSTEM, where it does nothing (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
 static int op_presets_turn(void)
 {
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: the cursor line's value, never the track's sound
-                                                         * (the user, 2026-10-12; HOME held: its default, op_global.c) */
-        if (!op_armed() && !rh.ring && !name_on())
-            gl_presets(s, (fm1_in.buttons & BIT(B_HOME)) != 0u);
+    if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
+                                                         * line k, CALIBRATE runs from YES; HOME held: no NO either */
         if (fm1_in.buttons & BIT(B_HOME))
-            op_clean &= ~BIT(B_HOME);                   /* (HOME let go: no NO) */
+            op_clean &= ~BIT(B_HOME);
     } else if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
