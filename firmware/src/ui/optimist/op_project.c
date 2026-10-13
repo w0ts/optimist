@@ -588,7 +588,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
         break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
-        c->label = "COLORS";                            /* (KNOB COLORS: a card holds 7 characters) */
+        c->label = "KNOB COLORS";                       /* (the settings list has the room: op_gldraw.c) */
         str_cpy(c->val, knob_colors ? "ON" : "OFF", sizeof c->val);
         cell_gauge(c, 1, 0, 1, knob_colors != 0u);
         break;

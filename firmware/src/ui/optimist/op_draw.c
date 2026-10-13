@@ -34,6 +34,7 @@ static void scope_draw(void);                           /* op_scope.c: the oscil
 static uint32_t op_overlay(void);
 static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's algorithm */
 static void f6_alg_draw(int32_t y0, int32_t h, int big);
+static void gl_draw(void);                              /* op_gldraw.c: GLOBAL and SYSTEM's list */
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -128,6 +129,8 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
         return;
     else if (scr == SCR_HOME)
         at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
+    else if (gl_scr(scr))                               /* GLOBAL, SYSTEM: the page of 4 lines, within the screen */
+        at = row / GL_PAGE, n = (SCREENS[scr].rows() + GL_PAGE - 1u) / GL_PAGE;
     else
         at = row, n = SCREENS[scr % SCR_N].rows();
     if (n < 2u)
@@ -722,7 +725,8 @@ static void op_frame_draw(void)
     {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
                                                          * that changes (a layer on STEP, the NAME screen) */
         static uint8_t was_full;
-        uint32_t full = ui.scr == SCR_STEP && lay.shown == LY_PLAY && !name_on();
+        uint32_t full = (ui.scr == SCR_STEP || glo_cycle()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
+                                                         * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
             ui.sig[1] = ui.sig[2] = ui.sig[3] = ui.sig[4] = 0;
@@ -738,7 +742,7 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else if (ui.scr != SCR_STEP)
+    else if (ui.scr != SCR_STEP && !glo_cycle())
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
     if (ov == 1u || ov == 3u) {
         draw_overlay(ov);                               /* the modal, the REC ring: the whole panel */
@@ -752,6 +756,8 @@ static void op_frame_draw(void)
             scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
             step_frame();                               /* the grid / the roll, the cards over it: op_stepdraw.c */
+        else if (glo_cycle())
+            gl_draw();                                  /* GLOBAL, SYSTEM: the settings list (op_gldraw.c) */
 #if FELUCCA_BLE
         else if (dev_listing())
             dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */

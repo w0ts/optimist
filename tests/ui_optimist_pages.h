@@ -9,48 +9,46 @@ static void pages_nav_tests(void)
     char nm[12];
     reset_ui();
     song.sel = 0;
-    /* D1 (revised): one cycle, GLOBAL's rows then SYSTEM's, GLO steps it round, SELECT walks it and stops at its ends */
+    /* D1 (revised again, section 20: "it should switch between the two"): GLO toggles GLOBAL and SYSTEM, each keeping its
+     * line; SELECT pages within the screen (pages of 4 lines) and stops at its ends, never crossing to the other */
     {
-        uint32_t ng = SCREENS[SCR_GLOBAL].rows(), ns = SCREENS[SCR_SYSTEM].rows(), i;
+        uint32_t pg = (SCREENS[SCR_GLOBAL].rows() + 3u) / 4u, ps = (SCREENS[SCR_SYSTEM].rows() + 3u) / 4u, ng, i = 0;
         char p[12];
+        ng = SCREENS[SCR_GLOBAL].rows();
         ui.row[SCR_GLOBAL] = 0;
+        ui.row[SCR_SYSTEM] = 0;
         tap(B_GLO);
         check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: GLO tapped on the mixer: GLOBAL");
-        for (i = 1; i < ng; i++)
-            tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == ng - 1u, "D1: GLO again: GLOBAL's next rows, to its last");
+        turn(EN_SELECT, 1);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 4u, "D1: SELECT: GLOBAL's next page (its first line)");
         tap(B_GLO);
         frames(2);
         head_pos(SCR_SYSTEM, 0, p);
         check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u && led_lvl(B_GLO) == 2 && px_in(2, 3, 4, 19, C_HI),
-              "D1: GLO past GLOBAL's last: SYSTEM's first row (CPU), the GLO LED full, the badge SYSTEM");
-        check(!strncmp(p, " 1/", 3), "D1: the n/N counts within the screen (SYSTEM 1/n)");
-        for (i = 1; i < ns; i++)
-            tap(B_GLO);
-        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == ns - 1u, "D1: GLO again: SYSTEM's rows, to its last");
-        tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: GLO past SYSTEM's last: GLOBAL's first (round)");
-        turn(EN_SELECT, -3);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: SELECT left on GLOBAL's first: stays (no wrap)");
-        turn(EN_SELECT, (int32_t)ng);
-        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u, "D1: SELECT right past GLOBAL's last: SYSTEM's first");
-        turn(EN_SELECT, -1);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == ng - 1u, "D1: SELECT left from SYSTEM's first: GLOBAL's last");
+              "D1: GLO on GLOBAL: SYSTEM (CPU), the GLO LED full, the badge SYSTEM");
+        check(!strncmp(p, " 1/", 3), "D1: the n/N counts SYSTEM's own pages (1/n)");
         turn(EN_SELECT, 100);
-        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == ns - 1u, "D1: SELECT right: stops at SYSTEM's last (no wrap)");
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == (ps - 1u) * 4u, "D1: SELECT right: stops at SYSTEM's last page (no wrap, no GLOBAL)");
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 4u && led_lvl(B_GLO) == 2, "D1: GLO on SYSTEM: GLOBAL, on the line it was left on");
+        turn(EN_SELECT, -3);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: SELECT left: stops on GLOBAL's first page (no wrap)");
+        turn(EN_SELECT, 100);
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == (pg - 1u) * 4u, "D1: SELECT right: stops at GLOBAL's last page (no SYSTEM)");
+        tap(B_GLO);
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == (ps - 1u) * 4u, "D1: GLO: SYSTEM again, on its line");
         tap(B_ENV);
         tap(B_GLO);
         check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
-        check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM row (the cycle reaches SYSTEM)");
+        check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
 #if FELUCCA_BLE
         op_enter(SCR_SYSTEM);
-        ui.row[SCR_SYSTEM] = (uint8_t)glo_find(SCR_SYSTEM, "BLUETOOTH");
-        ui.hot = 0;
+        line_named(SCR_SYSTEM, "BLE");
         frame();
         tap(B_SAVE);
         i = (uint32_t)dev_listing();
         tap(B_GLO);
-        check(i && !dev_listing() && ui.scr == SCR_SYSTEM, "D1: GLO on the BLE devices list: back to SYSTEM's BLUETOOTH row");
+        check(i && !dev_listing() && ui.scr == SCR_GLOBAL, "D1: GLO on the BLE devices list (SYSTEM): GLOBAL, the list closed");
         tap(B_HOME);
 #endif
     }
@@ -117,8 +115,7 @@ static void pages_nav_tests(void)
     reset_ui();
     /* P28 */
     op_enter(SCR_SYSTEM);
-    ui.row[SCR_SYSTEM] = (uint8_t)glo_find(SCR_SYSTEM, "CALIBRATE");
-    ui.hot = 0;
+    line_named(SCR_SYSTEM, "PANEL");                    /* (Calibrate's PANEL line: YES on it) */
     frame();
     tap(B_SAVE);
     check(op_armed() && !strcmp(ui.arm_verb, "CALIBRATE?") && !strcmp(ui.arm_arg, "PANEL") && modal_fits(),
@@ -453,16 +450,21 @@ static void pages_head_tests(void)
     reset_ui();
     check(head_bad == 0u, "D11: every header of SOUND (every track, family), GLOBAL, SYSTEM, PROJECT, MASTER, SONG, SCOPE: "
                           "a capital first, no digit before n/N");
-    op_enter(SCR_GLOBAL);
-    check(head_is("Tempo 1/6") || head_is("Tempo 1/5"), "D11: GLOBAL TEMPO: \"Tempo 1/6\" (was \"tempo 1/7\")");
-    ui.row[SCR_GLOBAL] = TPR_REC2;
-    check(head_is("Rec 3/6") || head_is("Rec 3/5"), "D11: GLOBAL REC 2: \"Rec 3/6\" (was \"rec 2 3/7\")");
-    op_enter(SCR_SYSTEM);
-    ui.row[SCR_SYSTEM] = (uint8_t)glo_find(SCR_SYSTEM, "SCREEN");
-    {
-        char t[32];
+    {   /* GLOBAL and SYSTEM: the cursor line's section, the page n/N (section 20) */
+        char t[32], w[32];
+        uint32_t l;
+        op_enter(SCR_GLOBAL);
+        ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!strncmp(t, "Screen 2/", 9), "D11: SYSTEM SCREEN: \"Screen 2/n\" (was \"screen 1/6\")");
+        check(!strncmp(t, "Tempo 1/", 8), "D11: GLOBAL's first line: \"Tempo 1/N\" (the page of 4 lines)");
+        l = line_named(SCR_GLOBAL, "QUANT");
+        head_now(t);
+        snprintf(w, sizeof w, "Rec %u/", l / 4u + 1u);
+        check(!strncmp(t, w, strlen(w)), "D11: GLOBAL's QUANT line (REC 2): \"Rec n/N\", its page");
+        l = line_named(SCR_SYSTEM, "COLOR");
+        head_now(t);
+        snprintf(w, sizeof w, "Screen %u/", l / 4u + 1u);
+        check(!strncmp(t, w, strlen(w)), "D11: SYSTEM's COLOR line: \"Screen n/N\", its page");
     }
     reset_ui();
     turn(EN_ALGO, -1);

@@ -243,7 +243,7 @@ static int rows_ok(uint32_t scr, char *why)
             return snprintf(why, 64, "%s row %u: name '%s'", SCR_NAME[scr], r, nm), 0;
         for (k = 0; k < 4u; k++) {
             SCREENS[scr].cell(r, k, &c);
-            if (c.label && text_w(&FONT_S, c.label) > CARD_W)
+            if (c.label && text_w(&FONT_S, c.label) > (gl_scr(scr) ? 12 * 8 : CARD_W))   /* (GLOBAL, SYSTEM: a line's name, 12 characters) */
                 return snprintf(why, 64, "%s %s: label '%s' wider than a card", SCR_NAME[scr], nm, c.label), 0;
             if (c.kind == CK_VAL && c.d && !c.vp)
                 return snprintf(why, 64, "%s %s cell %u: a value without its value", SCR_NAME[scr], nm, k), 0;
@@ -402,6 +402,27 @@ static uint32_t row_named(uint32_t scr, const char *name)   /* the row of screen
     }
     return r;
 }
+/* GLOBAL and SYSTEM's list (op_global.c): screen scr entered, the cursor on the first line labelled lab (its knob:
+ * LINE_KNOB); the line, or the screen's line count when there is none */
+static uint32_t line_named(uint32_t scr, const char *lab)
+{
+    uint32_t i, n;
+    cell_t c;
+    if (ui.scr != scr)
+        op_enter(scr);
+    n = SCREENS[scr].rows();
+    for (i = 0; i < n; i++) {
+        SCREENS[scr].cell(i, i % 4u, &c);
+        if (c.label && !strcmp(c.label, lab))
+            break;
+    }
+    if (i < n) {
+        ui.row[scr] = (uint8_t)i;
+        ui.hot = (uint8_t)(i % 4u);
+    }
+    return i;
+}
+#define LINE_KNOB(i) (EN_K1 + (i) % 4u)                 /* the knob of line i: its place on its page */
 /* ---- keys and knobs */
 static void key_tests(void)
 {
@@ -657,17 +678,15 @@ static void confirm_tests(void)
     tap(B_SAVE);
     tap(B_SAVE);
     check(up_ops[1] == 1, "USER ERASE: asks, then erases");
-    op_enter(SCR_SYSTEM);
-    ui.row[SCR_SYSTEM] = (uint8_t)row_named(SCR_SYSTEM, "SCREEN");   /* (the first row is CPU, read-outs: D2) */
-    ui.force = 1;
-    frame();
-    ppm("opt-system");
     {
-        uint32_t p = settings.palette;
-        turn(EN_K1, 1);
-        check(settings.palette == (p + 1u) % NPALETTES, "SYSTEM SCREEN: KNOB 1 the colours");
+        uint32_t p = settings.palette, w = line_named(SCR_SYSTEM, "COLOR");   /* (the first lines are CPU's, read-outs: D2) */
+        ui.force = 1;
+        frame();
+        ppm("opt-system");
+        turn(LINE_KNOB(w), 1);
+        check(settings.palette == (p + 1u) % NPALETTES, "SYSTEM Screen: the COLOR line's knob the colours");
         tap(B_SAVE);
-        check(settings.palette == (p + 2u) % NPALETTES, "SYSTEM: YES steps a setting round");
+        check(settings.palette == (p + 2u) % NPALETTES, "SYSTEM: YES on the cursor line steps a setting round");
         settings.palette = p;
         palette_set(p);
     }

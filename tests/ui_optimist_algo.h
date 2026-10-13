@@ -77,8 +77,9 @@ static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
 }
 static void algo_every_tests(void)
 {
-    static const uint8_t PB[] = {B_ENV, B_LFO, B_EDIT, B_ARP, B_SCL, B_FX, B_SEQ, B_GLO};
-    static const uint8_t SC[] = {SCR_PROJECT, SCR_SYSTEM, SCR_SONG, SCR_SCOPE};
+    static const uint8_t PB[] = {B_ENV, B_LFO, B_EDIT, B_ARP, B_SCL, B_FX, B_SEQ};   /* (GLO: GLOBAL, whose ALGORITHM moves
+                                                         * its cursor: ui_optimist_glo.h) */
+    static const uint8_t SC[] = {SCR_PROJECT, SCR_SONG, SCR_SCOPE};
     static const uint8_t LB[] = {B_FX, B_ARP, B_SCL, B_EDIT, B_GLO};
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof PB; i++) {
@@ -88,7 +89,7 @@ static void algo_every_tests(void)
         tap(PB[i]);
         ok &= (uint32_t)al_full_walk(ui.scr, 0, "a page button's page");
     }
-    check(ok, "walk, SOUND's families, STEP and GLOBAL: MASTER T1 .. DR, the 16 lanes, both ends, the page kept");
+    check(ok, "walk, SOUND's families and STEP: MASTER T1 .. DR, the 16 lanes, both ends, the page kept");
     ok = 1;
     for (i = 0; i < sizeof SC; i++) {
         reset_ui();
@@ -97,7 +98,7 @@ static void algo_every_tests(void)
         frame();
         ok &= (uint32_t)al_full_walk(SC[i], 0, SCR_NAME[SC[i]]);
     }
-    check(ok, "walk, PROJECT SYSTEM SONG SCOPE: the same walk");
+    check(ok, "walk, PROJECT SONG SCOPE: the same walk");
     reset_ui();
     song.sel = 0;
     frame();
@@ -137,7 +138,7 @@ static void algo_every_tests(void)
     /* HOME + a key: a lane straight away, on any page */
     reset_ui();
     song.sel = 0;
-    tap(B_GLO);
+    op_enter(SCR_PROJECT);
     song.sel = TRK_DRUM;
     frame();
     fm1_in.buttons |= BT(B_HOME);
@@ -147,7 +148,7 @@ static void algo_every_tests(void)
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
     ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
-    check(ok, "HOME + a drum key on GLOBAL: that lane selected, the walk on from it");
+    check(ok, "HOME + a drum key on PROJECT: that lane selected, the walk on from it");
     song.sel = 0;
     reset_ui();
 }
