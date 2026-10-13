@@ -10,11 +10,11 @@ static int lr_dark(int x, int y, int w)                  /* the box's pixels all
             return 0;
     return 1;
 }
-static void lr_page(void)                                /* the LFO page whose first knob is RATE */
+static void lr_page_of(uint32_t rate)                    /* the LFO page whose first knob is RATE (LFO's or LFO 2's) */
 {
     uint32_t i;
     for (i = 0; i < NPAGES; i++)
-        if (PAGES[i].scope == SC_TRACK && PAGES[i].id[0] == P_LRATE) {
+        if (PAGES[i].scope == SC_TRACK && PAGES[i].id[0] == rate) {
             ui.page = (uint8_t)i;
             break;
         }
@@ -22,6 +22,7 @@ static void lr_page(void)                                /* the LFO page whose f
     ui.force = 1;
     frames(2);
 }
+static void lr_page(void) { lr_page_of(P_LRATE); }
 static void lr_shot(const char *name)
 {
     const char *pre = getenv("LFORATE_SHOTS");
@@ -72,4 +73,23 @@ static void lforate_tests(void)
     check(1, "lfo rate: -1, -10 and a free rate: the LFO page and its wave preview drawn");
     trk[0].p[P_LRATE] = keep;
     ui.force = 1; frames(2);
+#if FELUCCA_LFO2
+    {   /* LFO 2's RATE: the same display (is_lrate: the gauge and the division icon) */
+        int16_t keep2 = trk[0].p[P_L2RATE];
+        lr_page_of(P_L2RATE);
+        trk[0].p[P_L2RATE] = 0;
+        ui.force = 1; frames(2);
+        check(lr_dark(5, Y_GAUGE, 8), "lfo 2 rate: RATE 0: nothing filled on the gauge");
+        trk[0].p[P_L2RATE] = 127;
+        ui.force = 1; frames(2);
+        check(!lr_dark(5, Y_GAUGE, 8), "lfo 2 rate: RATE 127: the gauge filled");
+        trk[0].p[P_L2RATE] = -LSYNC_N;
+        ui.force = 1; frames(2);
+        check(lr_dark(5, Y_GAUGE, 8) && !lr_dark(53, Y_GAUGE, 3), "lfo 2 rate: 1/32: no fill, the tick at the right");
+        check(param_icon(&TP[P_L2RATE], -LSYNC_N) == ICON_DIVISION && param_icon(&TP[P_L2RATE], 5) != ICON_DIVISION,
+              "lfo 2 rate: a synced value's icon is the division's, a free rate's is not");
+        trk[0].p[P_L2RATE] = keep2;
+        ui.force = 1; frames(2);
+    }
+#endif
 }

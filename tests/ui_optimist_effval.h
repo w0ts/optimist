@@ -151,6 +151,78 @@ static void effv_synth_equal_tests(void)
 static void effv_synth_equal_tests(void) {}
 #endif
 
+/* a slot's AMT on a value moved for the block (PAN LVL ATK DEC RES E2, an LFO's two slots, LFO 2's on the same value too):
+ * op_effval.c's value now equals what voice.c lfo_over_in gave the render (the LFOs at their values of the block before) */
+static uint32_t ins_row(const char *title);              /* (ui_optimist_inslots.h) */
+static int effv_over_same(const int32_t *dest, uint32_t n, int32_t v1, int32_t v2, uint32_t both)
+{
+    track_t *t = &trk[0];
+    uint32_t i, ok = 1;
+    for (i = 0; i < n; i++) {
+        int32_t val = 0, mn = 0, mx = 0, vb = 0, mb = 0, xb = 0;
+        uint32_t q = P_PAN, r, r2 = 2;
+        int32_t mv;
+        const param_desc_t *ds = lo_dest(t, dest[i], &q);
+        t->p[P_L1DA] = (int16_t)dest[i], t->p[P_L1AA] = 90, t->p[P_L1DB] = (int16_t)(both ? dest[i] : LT_OFF), t->p[P_L1AB] = both ? -50 : 0;
+#if FELUCCA_LFO2
+        t->p[P_L2DA] = (int16_t)(both == 2u ? dest[i] : LT_OFF), t->p[P_L2AA] = both == 2u ? 70 : 0, t->p[P_L2DB] = t->p[P_L2AB] = 0;
+        lfo2[0].v = v2;
+#else
+        (void)v2;
+#endif
+        t->lfo_val = (int16_t)v1, t->lfo_fade = 32767;
+        lfo_over_in();
+        mv = t->p[q];                                   /* (what the render got) */
+        lfo_over_out();
+        r = effv_synth(0, P_L1AA, &val, &mn, &mx);      /* (the authored values: as the UI reads them) */
+        if (both)
+            r2 = effv_synth(0, P_L1AB, &vb, &mb, &xb);
+        ok &= ds && r == 2u && r2 == 2u && val == mv && mn == ds->min && mx == ds->max && (!both || vb == val);
+        ok &= mv != t->p[q] || ds->max <= ds->min || v1 == 0;   /* (it moved: the authored value is back) */
+    }
+    return (int)ok;
+}
+static void effv_over_tests(void)
+{
+    static const int32_t D[] = {LT_PAN, LT_LVL, LT_ATK, LT_DEC, LT_RES, LT_E2, LT_E1};
+    track_t *t = &trk[0], keep = *t;
+    cell_t c;
+    uint32_t r;
+    reset_ui();
+    song.sel = 0;
+    set_engine_of(t, 0);                                /* (slot 0: ANALOG) */
+    t->engine = t->eng_req, t->xf_on = 0, t->xf = 0, t->pold = 0;
+    t->p[P_PAN] = 5, t->p[P_LEVEL] = 80, t->p[P_ATK] = 40, t->p[P_DEC] = 50, t->p[P_E0] = 2, t->p[P_E1] = 60, t->p[P_E3] = 20;
+    for (r = 0; r < 8u; r++)                            /* (every EDIT value mid-range: room to move both ways) */
+        t->p[P_E0 + r] = (int16_t)((ENGINES[t->engine]->edit[r].min + ENGINES[t->engine]->edit[r].max) / 2);
+    check(effv_over_same(D, 7, 32767, 0, 0) && effv_over_same(D, 7, -20000, 0, 0) && effv_over_same(D, 7, 12345, 0, 1),
+          "live values: PAN LVL ATK DEC RES E1 E2 on slot A (and B on the same) as the render moved them");
+#if FELUCCA_LFO2
+    check(effv_over_same(D, 7, 9000, -30000, 2) && effv_over_same(D, 7, 32767, 32767, 2),
+          "... with LFO 2's slot on the same value too (the two LFOs in turn)");
+#endif
+    t->p[P_L1DA] = LT_PAN, t->p[P_L1AA] = 60, t->p[P_L1DB] = LT_OFF, t->p[P_L1AB] = 0;
+    t->lfo_val = 20000, t->lfo_fade = 32767;
+    r = ins_row("LFO DEST");
+    ui.row[SCR_SOUND] = (uint8_t)r;
+    ui.force = 1;
+    frame();
+    SCR->cell(r, 1, &c);
+    check(effv_cell(&c) != 0u && c.ak == GK_BIP && c.amin == TP[P_PAN].min && c.amax == TP[P_PAN].max,
+          "the AMT card on PAN: a live bar on PAN's own scale (bipolar)");
+    t->p[P_L1AA] = 0;
+    SCR->cell(r, 1, &c);
+    check(effv_cell(&c) == 0u && c.ak == GK_NONE, "AMT 0: no live bar");
+    t->p[P_L1DA] = LT_E1, t->p[P_L1DB] = LT_XRATE;
+    SCR->cell(r, 0, &c);
+    check(!strcmp(c.val, ENGINES[t->eng_req]->edit[0].label), "the DEST A card on E1: the engine's own name of its first EDIT value");
+#if FELUCCA_LFO2
+    SCR->cell(r, 2, &c);
+    check(!strcmp(c.val, "L2 RT"), "the DEST B card on XRATE: \"L2 RT\"");
+#endif
+    *t = keep;
+    reset_ui();
+}
 static void effv_bar_tests(void)
 {
     cell_t c;
@@ -304,5 +376,6 @@ static void effval_tests(void)
 {
     effv_drum_equal_tests();
     effv_synth_equal_tests();
+    effv_over_tests();
     effv_bar_tests();
 }

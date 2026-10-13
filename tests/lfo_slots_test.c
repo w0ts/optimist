@@ -327,12 +327,62 @@ static void t_events(void)
     check(id == P_L1AB && did == P_L1DB && v == 9, "events: a slot that does nothing (B at 0) takes AMP 9 for the step");
 }
 
+/* the DEST card's text (params.c lt_text): E1 .. E8 the engine's own name of that EDIT value, XRATE XAMT the other LFO's */
+static void dest_text(const param_desc_t *d, int32_t v, char *b)
+{
+    const char *u;
+    param_format(d, v, b, &u);
+}
+static void t_names(void)
+{
+    track_t *t = &trk[0];
+    char b[16];
+    uint32_t e, i, ok = 1, named = 0;
+    init();
+    for (e = 0; e < NENGINES; e++) {                   /* every engine: E1 .. E8 are its own labels (E<n> when it has none) */
+        t->eng_req = (uint8_t)e;
+        for (i = 0; i < 8u; i++) {
+            const param_desc_t *d = track_desc(t, P_E0 + i);
+            const char *l = d->label && d->label[0] && d->label[0] != '-' ? d->label : 0;
+            char want[8];
+            snprintf(want, sizeof want, "%.6s", l ? l : N_LT[LT_E1 + i]);
+            dest_text(&TP[P_L1DA], LT_E1 + (int32_t)i, b);
+            ok &= !strcmp(b, want);
+            named += l != 0;
+            if (!l) {
+                snprintf(want, sizeof want, "E%u", i + 1u);
+                ok &= !strcmp(b, want);
+            }
+        }
+    }
+    check(ok && named > 8u * 3u, "names: E1 .. E8 show each engine's own label for that slot, \"E<n>\" when it has none");
+    t->eng_req = 0;                                    /* ANALOG */
+    dest_text(&TP[P_L1DA], LT_E1, b);
+    check(!strcmp(b, ENGINES[0]->edit[0].label), "names: ANALOG's E1 is its first EDIT label");
+    dest_text(&TP[P_L1DA], LT_PAN, b);
+    ok = !strcmp(b, "PAN");
+    dest_text(&TP[P_L1DA], LT_OFF, b);
+    check(ok && !strcmp(b, "OFF"), "names: the other destinations keep their plain names");
+#if FELUCCA_LFO2
+    dest_text(&TP[P_L1DA], LT_XRATE, b);
+    ok = !strcmp(b, "L2 RT");
+    dest_text(&TP[P_L1DB], LT_XAMT, b);
+    ok &= !strcmp(b, "L2 AMT");
+    dest_text(&TP[P_L2DA], LT_XRATE, b);
+    ok &= !strcmp(b, "L1 RT");
+    dest_text(&TP[P_L2DB], LT_XAMT, b);
+    ok &= !strcmp(b, "L1 AMT");
+    check(ok, "names: XRATE XAMT are L2 RT / L2 AMT on LFO's DEST, L1 RT / L1 AMT on LFO 2's");
+#endif
+}
+
 int main(void)
 {
     t_depths();
     t_sound();
     t_stored();
     t_values();
+    t_names();
 #if FELUCCA_LFO2
     t_cross();
 #endif

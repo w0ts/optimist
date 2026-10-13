@@ -349,6 +349,11 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 #endif
 
 #if FELUCCA_LFO2
+#define LT_L2(d) ((d) == &TP[P_L2DA] || (d) == &TP[P_L2DB])   /* an LFO 2 DEST card */
+#else
+#define LT_L2(d) 0
+#endif
+#if FELUCCA_LFO2
 #define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
 #else
 #define is_lrate(d) ((d) == &TP[P_LRATE])
@@ -408,6 +413,23 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 #define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
 #endif
 
+/* LFO DEST's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): E1 .. E8 the selected part's engine's own name for
+ * that EDIT value ("E1" when it names none); XRATE XAMT the other LFO's: "L2 RT" on LFO's DEST, "L1 AMT" on LFO 2's */
+static void lt_text(const param_desc_t *d, int32_t v, char *val)
+{
+    const char *s = N_LT[v];
+    if (v < LT_XRATE) {
+        const param_desc_t *e = track_desc(TSEL, P_E0 + (uint32_t)(v - LT_E1));
+        if (e->label && e->label[0] && e->label[0] != '-')
+            s = e->label;
+        str_cpy(val, s, 7);
+        return;
+    }
+    val[0] = 'L';
+    val[1] = (char)('2' - LT_L2(d));
+    val[2] = ' ';
+    str_cpy(val + 3, v == LT_XRATE ? "RT" : "AMT", 4);
+}
 /* value string (<= 5 chars) and unit for a parameter value */
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
@@ -515,6 +537,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "st";
         break;
     case F_ENUM:
+        if (d->names == N_LT && v >= LT_E1 && v < LT_NB) {
+            lt_text(d, v, val);
+            break;
+        }
         str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 6);
         if (d->unit)
             *unit = d->unit;
