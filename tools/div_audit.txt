@@ -255,3 +255,15 @@ src/seq/seq.c:rec_chord_share:len | trk_len(t): P_SLEN is clamped to 1..NSTEP an
 src/seq/seq.c:rec_up_at:u | guarded: the divide runs only when u (slen >> 7) is not 0 (`u ? ... : 64`)
 src/seq/seq.c:note_span:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1
 src/ui/optimist/op_stepdraw.c:roll_carried:len | trk_len(t): P_SLEN is clamped to 1..NSTEP and trk_len returns 1 for anything below 1
+src/seq/auto.c:cond_miss:COND_B[c] | TABLE COND_B {2,2,3,3,3,4,4,4,4}, c = (c - 1) % AUTO_NCOND
+src/ui/optimist/op_layers.c:pattern_rotate:len | TLEN
+src/ui/optimist/op_tools.c:tl_rnd:n | guarded "n ? .. : 0"
+src/ui/optimist/op_tools.c:tl_next:len | TLEN (the callers' len is trk_len)
+src/ui/optimist/op_tools.c:tl_reverse:len | TLEN
+src/ui/optimist/op_tools.c:tl_euclid:len | guarded "len &&" in the loop (the callers' len is trk_len: TLEN)
+src/ui/optimist/op_tools.c:tl_lane_rnd:len | TLEN
+src/ui/optimist/op_tools.c:tl_random_notes:(int32_t)g | guarded "if (g)"
+src/ui/optimist/op_tools.c:tl_cook_hit:len | TLEN
+src/ui/optimist/op_tools.c:eu_fit:tl.steps | set to 1..16 just above when 0 or past LEN (TLEN)
+src/ui/optimist/op_tools.c:eu_hit:n | n = tl.steps, or 1 when it is 0
+src/ui/optimist/op_tools.c:eu_turn:(int32_t)tl.steps | eu_fit just before: tl.steps 1..LEN

@@ -13,7 +13,7 @@
  *                         turned, a value or a lock was edited or a card page changed leaves the step as it was
  *                         (the user, 2026-10-11: "long press on step to open plock, should not toggle the step")
  *   a step key held       the cards are the step's (an empty step held: its cards, no note made): drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
- *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL, as
+ *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL COND, as
  *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS),
  *                         HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
@@ -413,6 +413,11 @@ static void edit_chance(track_t *t, uint32_t idx, int32_t s)
         (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
 }
 #endif
+#if FELUCCA_COND
+/* a step's condition (Felucca 1.5.6, seq/auto.c cond_miss): -, then a:b, plays on loop a of every b */
+static const char *const COND_NAME[AUTO_NCOND + 1u] = {"-", "1:2", "2:2", "1:3", "2:3", "3:3", "1:4", "2:4", "3:4", "4:4"};
+static void edit_cond(track_t *t, uint32_t idx, int32_t v) { (void)step_cond_set(t, idx, (uint32_t)v); }
+#endif
 #if FELUCCA_FILLS
 static void edit_fill(track_t *t, uint32_t idx, int32_t v) { step_fill_set(t, idx, (uint32_t)v); }
 static void held_fill(void)                             /* normal -> fill only -> no fill, the first step's next */
@@ -661,12 +666,12 @@ static void held_yes(void)
 /* ---- the held step's card pages (the user, 2026-10-10: "on held step we can record plock and select allow then to page
  * between pages of plock"): SELECT pages them, stopping at the first and the last; KNOB 1..4 edit the page's values.
  *   page 1   the step: NOTE LEVEL RATCHET LENGTH (drums LEVEL RATCHET)
- *   page 2   the extras, as built: CHANCE, NUDGE, FILL (none built: no page)
+ *   page 2   the extras, as built: CHANCE, NUDGE, FILL, COND (none built: no page)
  *   then     the track's sound pages (the SOUND screen's rows, a drum lane's own pages left out): a turn writes the
  *            step's p-lock (FELUCCA_PLOCK; none: no pages)
  * A page button with a step held still jumps to its family's page (step_lock_page) */
-#define EX_N ((FELUCCA_CHANCE != 0) + (FELUCCA_MICRO != 0) + (FELUCCA_FILLS != 0))
-static int ex_kind(uint32_t k)                          /* extras cell k: 0 chance, 1 nudge, 2 fill; -1 none */
+#define EX_N ((FELUCCA_CHANCE != 0) + (FELUCCA_MICRO != 0) + (FELUCCA_FILLS != 0) + (FELUCCA_COND != 0))
+static int ex_kind(uint32_t k)                          /* extras cell k: 0 chance, 1 nudge, 2 fill, 3 cond; -1 none */
 {
     uint32_t n = 0;
 #if FELUCCA_CHANCE
@@ -680,6 +685,10 @@ static int ex_kind(uint32_t k)                          /* extras cell k: 0 chan
 #if FELUCCA_FILLS
     if (n++ == k)
         return 2;
+#endif
+#if FELUCCA_COND
+    if (n++ == k)
+        return 3;
 #endif
     (void)n;
     (void)k;
@@ -766,6 +775,15 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
         return;
     }
 #endif
+#if FELUCCA_COND
+    if (kd == 3) {
+        v = (int32_t)step_cond(TSEL, (uint32_t)i);
+        c->label = "COND";
+        str_cpy(c->val, COND_NAME[v % (AUTO_NCOND + 1u)], sizeof c->val);
+        cell_gauge(c, 1, 0, AUTO_NCOND, v);
+        return;
+    }
+#endif
     (void)FN;
     (void)v;
 }
@@ -786,6 +804,10 @@ static void extra_turn(uint32_t k, int32_t s)
 #if FELUCCA_FILLS
     if (kd == 2)
         held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(TSEL, (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
+#endif
+#if FELUCCA_COND
+    if (kd == 3)                                        /* (- 1:2 .. 4:4, stopping at both ends; HOME + the knob: -) */
+        held_each(edit_cond, s == OP_RESET ? 0 : clamp((int32_t)step_cond(TSEL, (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
 #endif
 }
 
@@ -812,7 +834,7 @@ static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM
             return i;
     return 0;
 }
-static uint32_t step_rows(void)
+static uint32_t step_rows0(void)                       /* the pages before TOOLS, EUCLID */
 {
     uint32_t n, i, p;
     if (is_drum(TSEL))
@@ -827,10 +849,21 @@ static uint32_t step_rows(void)
     }
     return n;
 }
-static int stp_is_lane(uint32_t r) { return is_drum(TSEL) && r >= STP_LANE0; }
+#if FELUCCA_SEQTOOLS
+#define STP_TL 2u                                       /* the last two pages: TOOLS, EUCLID (op_tools.c) */
+#else
+#define STP_TL 0u
+#endif
+static uint32_t step_rows(void) { return step_rows0() + STP_TL; }
+static int stp_tl(uint32_t r) { return STP_TL && r >= step_rows0() ? (int)(r - step_rows0()) : -1; }   /* 0 TOOLS, 1 EUCLID */
+static int stp_is_lane(uint32_t r) { return is_drum(TSEL) && r >= STP_LANE0 && stp_tl(r) < 0; }
 static void step_name(uint32_t r, char *b)
 {
     uint32_t i;
+    if (stp_tl(r) >= 0) {
+        str_cpy(b, stp_tl(r) ? "EUCLID" : "TOOLS", 12);
+        return;
+    }
     if (!is_drum(TSEL) || r < STP_LANE0) {
         str_cpy(b, is_drum(TSEL) ? PAGES[stp_pattern()].title : PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
         return;
@@ -920,6 +953,12 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
         held_cell(k, c);
         return;
     }
+#if FELUCCA_SEQTOOLS
+    if (stp_tl(r) >= 0) {
+        tl_cell((uint32_t)stp_tl(r), k, c);
+        return;
+    }
+#endif
     if (!stp_is_lane(r)) {
         page_cell(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, c);
         return;
@@ -958,6 +997,12 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         }
         return;
     }
+#if FELUCCA_SEQTOOLS
+    if (stp_tl(r) >= 0) {
+        tl_turn((uint32_t)stp_tl(r), k, s);
+        return;
+    }
+#endif
     if (!stp_is_lane(r))
         page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
 #if DL_UI
@@ -968,6 +1013,10 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     uint32_t i, n;
+#if FELUCCA_SEQTOOLS
+    if (stp_tl(r) >= 0)
+        return tl_yes((uint32_t)stp_tl(r), k);
+#endif
     if (!stp_is_lane(r))
         return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
     op_enter(SCR_SOUND);                                /* the drum lane: its SOUND rows */
@@ -1049,6 +1098,12 @@ static void step_foot(char *h, char *k, uint32_t n)
         {
             static const char *const F[3] = {"", "  Fill only", "  No fill"};
             str_cpy(k + str_len(k), F[step_fill(TSEL, (uint32_t)i) % 3u], n - str_len(k));
+        }
+#endif
+#if FELUCCA_COND
+        if (step_cond(TSEL, (uint32_t)i)) {
+            str_cpy(k + str_len(k), "  ", n - str_len(k));
+            str_cpy(k + str_len(k), COND_NAME[step_cond(TSEL, (uint32_t)i) % (AUTO_NCOND + 1u)], n - str_len(k));
         }
 #endif
         return;

@@ -856,10 +856,10 @@ static void step_keys_tests(void)
         cell_t c;
         step_cell(0, 2, &c);
 #if DLA_ON && FELUCCA_PLOCK                               /* (the user, 2026-10-12, D3: the lane's TUNE and DECAY locks) */
-        check(SCR->rows() == STP_LANE0 + 1u && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
+        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
               "drums: the held step's cards LEVEL RATCHET TUNE DECAY");
 #else
-        check(SCR->rows() == STP_LANE0 + 1u && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
 #endif
         ui.force = 1;
         frame();
@@ -885,6 +885,7 @@ static void step_keys_tests(void)
     seq_long();
     check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
     turn(EN_SELECT, 9);
+    turn(EN_SELECT, -(int32_t)STP_TL);                 /* (past LANE: TOOLS, EUCLID, op_tools.c) */
     check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_LANE0, "drums, no step held: SELECT walks PATTERN, then LANE (the lane stays 8)");
     {
         cell_t c;
@@ -2312,6 +2313,7 @@ static void led_tests(void)
 #include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_lfo2.h"                       /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
+#include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 
 int main(int argc, char **argv)
 {
@@ -2406,6 +2408,12 @@ int main(int argc, char **argv)
     lfo2ui_tests();
 #else
     lfo2ui_off_tests();
+#endif
+#if FELUCCA_SEQTOOLS
+    seqtools_tests();
+#endif
+#if FELUCCA_COND
+    cond_card_tests();
 #endif
 #if FELUCCA_BLE
     ble_tests();

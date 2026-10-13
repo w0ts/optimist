@@ -166,6 +166,14 @@ static void pattern_rotate(track_t *t, int32_t d)       /* every step one later 
             t->step[len - 1u] = keep;
         }
     }
+#if FELUCCA_SEQTOOLS
+    {
+        uint8_t to[NSTEP];                              /* (the steps' events go with them: op_tools.c) */
+        for (i = 0; i < len; i++)
+            to[i] = (uint8_t)((i + (d > 0 ? 1u : len - 1u)) % len);
+        tl_ev_move(t, len, to, -1);
+    }
+#endif
     fm1_irq_on();
     sync_reload = 1;
 }
@@ -173,6 +181,12 @@ static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again
 {
     uint32_t len = trk_len(t), i;
     char b[8];
+#if FELUCCA_SEQTOOLS
+    if (d > 0 && len * 2u <= NSTEP && !tl_ev_double(t, len, 2u * len, 1)) {
+        ui_message("PATTERN FULL");                     /* (the copies of the steps' events would not fit) */
+        return;
+    }
+#endif
     lay_undo_mark(t);
     fm1_irq_off();
     if (d > 0 && len * 2u <= NSTEP) {
@@ -181,6 +195,9 @@ static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again
                 t->dstep[len + i] = t->dstep[i];
             else
                 t->step[len + i] = t->step[i];
+#if FELUCCA_SEQTOOLS
+        (void)tl_ev_double(t, len, 2u * len, 0);        /* (their events copied with them) */
+#endif
         t->p[P_SLEN] = (int16_t)(len * 2u);
     } else if (d < 0 && len >= 2u) {
         t->p[P_SLEN] = (int16_t)(len / 2u);

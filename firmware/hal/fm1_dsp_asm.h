@@ -653,6 +653,62 @@ static inline __attribute__((always_inline)) void asm_sin_acc(int32_t *b_, uint3
                      : "memory");
 }
 
+/* PHYS's sympathetic strings (engines/phys/phys_symp.c px_symp_run), one string's comb over m (> 0) half-rate steps:
+ *   t = wp + d;  s = h0 l[t & 255] + h1 l[(t + 1) & 255] + h2 l[(t + 2) & 255]   (64-bit)
+ *   y = clamp((s / 2^24 rounded toward 0) + x[i], -32767, 32767);  l[wp] = y;  acc[i] += y;  wp = (wp - 1) & 255
+ * Rounded toward 0 as the C's (s + (s < 0 ? 2^24 - 1 : 0)) >> 24: q = the low word of s >> 24 (floor; |q| < 2^17,
+ * so its sign is s's), plus 1 when s < 0 and its low 24 bits are not 0. The C keeps h0..h2 sign-extended to 64 bits
+ * on the stack and works the sum out twice (perf/mots-asm 2026-10-13: ~44 instructions a step); here 33. Forms:
+ * those of the operator loops above and of clang's own code for this loop (h[...] (s) loads and stores, the 32x32
+ * -> 64 product and its accumulate, ifs blocks, a memory add), no packed form. */
+static inline __attribute__((always_inline)) void asm_symp_comb(int16_t *l, uint32_t wp, uint32_t d, int32_t h0,
+                                                                int32_t h1, int32_t h2, const int32_t *x,
+                                                                int32_t *acc, int32_t m)
+{
+    uint32_t rd = wp + d;                            /* the read point, stepping down with wp (masked where read) */
+    int32_t a, t;
+    int64_t p;
+    __asm__ volatile("1:\n\t"
+                     "%[a] = uextra(%[rd], p:0, l:8)\n\t"
+                     "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
+                     "%[p] = %[a] * %[h0] (s)\n\t"
+                     "%[a] = %[rd] + 1\n\t"
+                     "%[a] = uextra(%[a], p:0, l:8)\n\t"
+                     "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
+                     "%[p] += %[a] * %[h1] (s)\n\t"
+                     "%[a] = %[rd] + 2\n\t"
+                     "%[a] = uextra(%[a], p:0, l:8)\n\t"
+                     "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
+                     "%[p] += %[a] * %[h2] (s)\n\t"
+                     "%[t] = %[p].l\n\t"
+                     "%[t] <<= 8\n\t"
+                     "%[p] >>= 24\n\t"
+                     "%[a] = 0 - %[t]\n\t"
+                     "%[t] |= %[a]\n\t"
+                     "%[t] = uextra(%[t], p:31, l:1)\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "ifs (%[a] < 0) {\n\t"
+                     "%[a] += %[t]\n\t"
+                     "}\n\t"
+                     "%[t] = [%[xp]++=4]\n\t"
+                     "%[a] += %[t]\n\t"
+                     "%[t] = 32767\n\t"
+                     "%[a] = smin(%[a], %[t])\n\t"
+                     "%[t] = -32767\n\t"
+                     "%[a] = smax(%[a], %[t])\n\t"
+                     "h[%[l]+%[wp]<<1] = %[a]\n\t"
+                     "[%[ap]+0] += %[a]\n\t"
+                     "%[ap] += 4\n\t"
+                     "%[a] = %[wp] + 255\n\t"
+                     "%[wp] = uextra(%[a], p:0, l:8)\n\t"
+                     "%[rd] += -1\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     : [wp] "+r"(wp), [rd] "+r"(rd), [xp] "+r"(x), [ap] "+r"(acc), [n] "+r"(m), [a] "=&r"(a),
+                       [t] "=&r"(t), [p] "=&r"(p)
+                     : [l] "r"(l), [h0] "r"(h0), [h1] "r"(h1), [h2] "r"(h2)
+                     : "memory");
+}
+
 #if FELUCCA_SIMD
 /* EXPERIMENTAL (FELUCCA_SIMD, hal/fm1_simd.h: the packed 16-bit forms, their meaning inferred, the
  * emulator's): asm_saw2_acc with its two lanes packed. p = pack(q1.h, q2.h) takes both saw values at
