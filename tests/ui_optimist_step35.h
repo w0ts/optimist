@@ -8,7 +8,6 @@ static void s35_open(void)                              /* a synth track's STEP,
     reset_ui();
     song.sel = 0;
     song.octave = 0;
-    st.roll_oct = 0;                                    /* (the roll's view: an earlier test's OCT may have moved it) */
     TSEL->p[P_SLEN] = 16;                               /* (a LEN left by an earlier test or the fuzz: one bar) */
     for (i = 0; i < NSTEP; i++)
         step_clear(&TSEL->step[i]);
@@ -35,12 +34,12 @@ static void s35_entry_tests(void)
     kdown(WK(0));
     kup(WK(0));
     check(step_on(&TSEL->step[0]) && TSEL->step[0].note[0] == n, "STEP entry: a tapped step takes the note played");
-    press(B_SEQ);                                       /* (OCT alone on the roll moves its view, 2026-10-12: the */
+    press(B_SEQ);                                       /* (OCT on the roll is the octave and the view, 2026-10-13: the */
     frames(HOLD_FRAMES);                                /* keyboard octave is OCT while the keys play, SEQ held) */
     tap(B_OCTUP);
     release(B_SEQ);
     frames(2);
-    check(song.octave == 1 && st.roll_oct == 0, "STEP, SEQ held + OCT+: the keyboard octave up, the roll's view as it was");
+    check(song.octave == 1, "STEP, SEQ held + OCT+: the keyboard octave up (the roll's view is the same value)");
     kdown(WK(1));
     kup(WK(1));
     check(TSEL->step[1].note[0] == n + 12u, "STEP entry after OCT+: the note an octave up (it follows the keyboard octave)");

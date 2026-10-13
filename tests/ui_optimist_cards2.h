@@ -82,62 +82,63 @@ static void c2_roll_tests(void)
     frames(2);
     roll_range(TSEL);
     lo0 = rg.lo, hi0 = rg.hi;
-    check(st.roll_oct == 0 && lo0 <= 60 && hi0 >= 64, "the roll: fitted to the pattern (no offset)");
+    check(song.octave == 0 && lo0 <= 60 && hi0 >= 64, "the roll: fitted to the pattern (octave 0)");
     tap(B_OCTUP);
     roll_range(TSEL);
-    check(rg.lo == lo0 + 12 && rg.hi == hi0 + 12 && song.octave == 0 && st.roll_oct == 1,
-          "STEP's roll, OCT+: the view an octave up, the keyboard octave untouched");
+    check(rg.lo == lo0 + 12 && rg.hi == hi0 + 12 && song.octave == 1,
+          "STEP's roll, OCT+: the view an octave up AND the keyboard octave (one value)");
     check(px_at(s35_x(4), s35_y(64), lvl_col(trk_col(0), LV_NORM)) || 64 < rg.lo,
           "... drawn there (E4 where the new view puts it, or out of it)");
     ppm("opt-cards2-roll-octup");
     tap(B_OCTDN);
     tap(B_OCTDN);
     roll_range(TSEL);
-    check(rg.lo == lo0 - 12 && rg.hi == hi0 - 12 && song.octave == 0, "OCT- OCT-: an octave under the fit");
+    check(rg.lo == lo0 - 12 && rg.hi == hi0 - 12 && song.octave == -1, "OCT- OCT-: an octave under the fit, the keyboard octave -1");
     press(B_OCTDN);                                     /* both together: the fit again */
     press(B_OCTUP);
     release(B_OCTUP);
     release(B_OCTDN);
     roll_range(TSEL);
-    check(rg.lo == lo0 && st.roll_oct == 0 && song.octave == 0, "OCT- + OCT+ together: the fit again");
-    for (i = 0; i < 14u; i++)                           /* the top: it stops, one press brings it back */
+    check(rg.lo == lo0 && song.octave == 0, "OCT- + OCT+ together: the fit again, octave 0");
+    for (i = 0; i < 6u; i++)                            /* the top: the keyboard octave stops at +3, the view with it */
         tap(B_OCTUP);
     roll_range(TSEL);
     lo = rg.lo;
-    check(rg.hi == 127 && st.roll_oct < 14, "OCT+ held on: the view stops at note 127 (the presses past it not counted)");
+    check(song.octave == 3 && rg.lo == lo0 + 36, "OCT+ held on: octave +3 and the view three octaves up, no further");
     tap(B_OCTDN);
     roll_range(TSEL);
-    check(rg.lo < lo, "... one OCT- moves it down again");
-    song.sel = 1;                                       /* another track: its fit */
+    check(song.octave == 2 && rg.lo < lo, "... one OCT- moves both down again (no drift between the view and the octave)");
+    song.sel = 1;                                       /* another track: the same octave, its own fit */
     frames(2);
-    roll_range(TSEL);
-    check(st.roll_oct == 0, "another track: the roll's fit, no offset carried");
+    check(song.octave == 2, "another track: the octave (and so the view's shift) is the same value");
     song.sel = 0;
     frames(2);
+    tap(B_OCTDN);
+    tap(B_OCTDN);
     roll_range(TSEL);
-    check(rg.lo == lo0 && st.roll_oct == 0, "... back on T1: its fit again");
+    check(rg.lo == lo0 && song.octave == 0, "... back on T1 at octave 0: its fit again");
     kdown(WK(0));                                       /* a held step + OCT: transposed, the view not moved */
     frames(HOLD_FRAMES);
     tap(B_OCTUP);
-    check(TSEL->step[0].note[0] == 72 && st.roll_oct == 0 && song.octave == 0, "a step held + OCT+: the step transposed, the view and the octave as they were");
+    check(TSEL->step[0].note[0] == 72 && song.octave == 0, "a step held + OCT+: the step transposed, the octave (and so the view) as it was");
     kup(WK(0));
     frames(2);
     press(B_HOME);                                      /* HOME + OCT: the window, as before */
     tap(B_OCTUP);
     release(B_HOME);
-    check(st.roll_oct == 0 && st.follow == 0, "HOME + OCT+: the window (FOLLOW off), the view not moved");
+    check(song.octave == 0 && st.follow == 0, "HOME + OCT+: the window (FOLLOW off), the octave and view not moved");
     press(B_HOME);
     press(B_OCTDN);
     press(B_OCTUP);
     release(B_OCTUP);
     release(B_OCTDN);
     release(B_HOME);
-    check(st.follow == 1 && st.roll_oct == 0, "HOME + both OCT: FOLLOW again");
+    check(st.follow == 1 && song.octave == 0, "HOME + both OCT: FOLLOW again");
     st.page = 0;
     s35_open();
     song.sel = TRK_DRUM;                                /* the drum track: OCT is ghost / hard, no view moved */
     tap(B_OCTUP);
-    check(st.roll_oct == 0 && song.octave == 0, "the drum track's STEP: OCT moves no view, no octave");
+    check(song.octave == 0, "the drum track's STEP: OCT moves no octave");
     song.sel = 0;
     s35_open();
 }

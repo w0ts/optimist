@@ -301,14 +301,12 @@ on the rows: the cards show the selected row's values.
 
 SEQ tapped. **The keys are the 16 steps of the page shown**, nothing held (the ISR's `ly_lock` LY_STEP, or KB_GRID,
 already routes keys to the UI with no layer button). **HOME + OCT- / OCT+ scroll the window** over a longer pattern:
-1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. **OCT alone
-on a synth's roll moves the roll's view** (2026-10-12, the user: "the oct up / down keys in piano roll should actually
-shift the piano roll"; only the view): an octave down / up from the roll's fit (the pattern's notes, at least 13
-rows), the keyboard octave (`song.octave`, the entry octave) unchanged; OCT- + OCT+ together: the fit again; at 0 or
-127 the view stops and a press past it is not counted (one press back moves it); another track: its own fit, the
-offset gone (op_stepdraw.c `roll_range`, `roll_shift`; op_step.c `st.roll_oct`). While the keys play (SEQ tapped again,
-or SEQ held for the pick) OCT is the keyboard octave as elsewhere, so the pick can be auditioned an octave away; on the
-drum track OCT stays ghost / hard. **The pick follows the octave** (2026-10-11): a note
+1..16, 17..32, 33..48, 49..64 up to the track's LEN, a page at a time [P]; the header says *steps 17-32*. **OCT on a synth's roll is the
+keyboard octave and the roll's view in ONE value** (2026-10-13, the user: "can we make them one value?"; before it was a
+view offset beside the keyboard octave, and the two drifted apart): `song.octave` (-3..+3, the entry octave) moves the
+roll an octave per step from the fit (the pattern's notes, at least 13 rows), kept inside 0..127 (op_stepdraw.c
+`roll_range`); OCT- + OCT+ together: octave 0, the fit. The same value is what the keys play and what the pick follows, on
+every screen. On the drum track OCT stays ghost / hard. **The pick follows the octave** (2026-10-11): a note
 played and then OCT+ is entered an octave up, as live playing would sound it (seq.c keeps the octave the pen was played
 at, `pen_oct`; op_step.c `pick_note` moves the pen by the octaves turned since; the header's pick names it). **A step
 held + OCT- / OCT+ transposes it** (2026-10-11): every note of the synth steps held an octave down / up, each clamped
@@ -1711,10 +1709,9 @@ actually shift the piano roll" (only the view).
   per-sample work, the call costs 44 B of RAMTEXT), taken by ui/meters.c `meter_tap` like the tracks' peaks and read by
   `meter_ret_take`. It is a sampled peak (one sample a block), not a scan of every sample; how
   far under the true peak it reads has not been measured.
-- STEP's roll: `st.roll_oct` (octaves from the fit, kept per track: `st.roll_trk`), applied at the end of `roll_range`
-  and clamped there to 0..127; `roll_shift` (op_stepdraw.c) moves it and drops a press that moved nothing; op_input.c
-  routes OCT on a synth track with the keys as steps (`step_keys`) to it, after the held-step, HOME and EDIT cases,
-  which are unchanged. The roll's signature takes the offset.
+- STEP's roll: the view is `song.octave` octaves (the keyboard octave, one value; 2026-10-13) from the fit, applied at the
+  end of `roll_range` and clamped there to 0..127; op_input.c's OCT on a synth track is the keyboard octave on every
+  screen (after the held-step, HOME and EDIT cases, which are unchanged). The roll's signature takes the octave.
 - SLOOP's UI is unchanged: its STEP page's roll (ui_draw.c `graph_roll`) fits the pattern's notes (an empty pattern
   48..72) and OCT alone there is the keyboard octave; SEQ held + OCT pages the step bank.
 

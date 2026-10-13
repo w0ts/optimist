@@ -400,10 +400,8 @@ static void op_press(uint32_t b, uint32_t held)
             punch.keybit = 0;                           /* FX + OCT-: the latched effect off (punch.c) */
             punch.req = -1;
 #endif
-        } else if (!is_drum(TSEL) && step_keys(held)) {   /* STEP's roll, the keys steps: the view only (op_stepdraw.c) */
-            uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
-            roll_shift((held & both) == both ? 0 : b == B_OCTDN ? -1 : 1);
-        } else if (!is_drum(TSEL)) {                    /* (the drum track: ghost / hard while held, seq.c) */
+        } else if (!is_drum(TSEL)) {                    /* the keyboard octave, which is STEP's roll view too (op_stepdraw.c roll_range);
+                                                         * the drum track: ghost / hard while held, seq.c */
             uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
             if ((held & both) == both)
                 song.octave = 0;

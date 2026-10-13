@@ -3,10 +3,9 @@
  * 16 white keys are the 16 steps of the window with nothing held (the ISR's ly_lock LY_STEP: seq.c sends the keys
  * to lk_q, they play nothing). The window is 1-16, 17-32, 33-48, 49-64 up to the track's LEN; it follows the
  * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
- * OCT+ together resumes it. OCT alone on a synth's roll moves the roll's view an octave down / up (the user,
- * 2026-10-12: "the oct up / down keys in piano roll should actually shift the piano roll"; only the view: the keyboard
- * octave, which the pick follows, stays; both together: the fit again); while the keys play (SEQ tapped again, SEQ
- * held for the pick) OCT is the keyboard octave as elsewhere; on the drum track ghost / hard, which a tapped drum step
+ * OCT+ together resumes it. OCT on a synth's roll is the keyboard octave and moves the roll's view with it, ONE value (the user,
+ * 2026-10-12: "the oct up / down keys in piano roll should actually shift the piano roll"; 2026-10-13: "can we make them
+ * one value?"; the view is the pattern's fit moved by song.octave octaves; both OCT: octave 0, the fit); on the drum track ghost / hard, which a tapped drum step
  * takes too; with a synth step held it moves the step's notes an octave instead.
  *   a step key tapped     an empty step: set with the pick; a set step: cleared. Both when the key is let go, and
  *                         only after a tap: a press held past the hold time (op_hold_ms) or one during which a knob
@@ -42,8 +41,6 @@ static struct {
     uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
     uint32_t t_key[16];                 /* fm1_ms when each step key went down (a tap: let go before op_hold_ms) */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
-    int8_t roll_oct;                    /* the roll's view: octaves up / down from its fit (OCT on the roll, op_stepdraw.c roll_shift) */
-    uint8_t roll_trk;                   /* (the track it was set on: another track, the fit again) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
 static void hp_sync(void);
