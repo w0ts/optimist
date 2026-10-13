@@ -25,6 +25,10 @@ static int motion_param(const track_t *t, uint32_t id)
 {
     if (id >= P_COUNT)
         return 0;
+#if FELUCCA_LFO2
+    if (id >= P_L2RATE)
+        return 0;                                            /* (LFO 2: no stored id of its own yet, auto.c mot_id) */
+#endif
 #if FELUCCA_MASTER_COMP
     if (id == P_TCOMP)
         return 1;                                            /* (the COMP insert's amount: fx_slots.c; the drum

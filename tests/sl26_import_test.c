@@ -113,7 +113,7 @@ static void sl26_convert(void)
     memcpy(b, f26, sizeof f26);
     ft = sl26_to_sl24(b);
     check("2.6 -> 2.5 in place: a FUN5 (sl24_is); the parts' filter TYPE: track 1 ANALOG HP (TRIO's BP not heard)",
-          sl24_is(b, 3840) && ft == 2u);
+          sl24_is(b, 3840) && (ft & 0xFFu) == 2u && ft >> 8 == (FELUCCA_LFO2 ? 0x3Fu : 0u));
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *s = T26(k), *d = b + 76u + k * 940u;
         ok &= !memcmp(d, s, 2u * P_LRATE) && !memcmp(d + 2u * P_LRATE + 2u, s + 2u * P_LRATE + 2u, 122u - 2u * P_LRATE - 2u) && d[122] == s[132] && d[123] == s[133] && !memcmp(d + 124, s + 134, 640);
@@ -177,7 +177,7 @@ static void sl26_lsync(void)
         for (k = 0; k < NTRK; k++) {
             int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
             pj_to_p(v, proj_tmp.cur.t[k].p);
-            ok2 &= v[P_LRATE] == e;
+            ok2 &= v[P_LRATE] == e || (k == TRK_DRUM && l2_tagged(&proj_tmp.cur));   /* (LFO 2 in its slot: l2_pack) */
         }
         (void)q, (void)x;
     }
@@ -288,6 +288,73 @@ static void export_engines(void)
 }
 #endif
 
+#if FELUCCA_LFO2 && !defined(SL25_OLD)
+static dlrec_t tdl;
+/* the 2.6 golden with part k's LFO depths PIT FLT SHP AMP, TRIG and POL set (n: leave as it is) -> imported (LOAD) */
+static int l2_import(const int16_t (*dep)[4], const int8_t (*tp)[2])
+{
+    static uint8_t c[3816];
+    uint32_t k, i, h;
+    memcpy(c, f26, sizeof c);
+    for (k = 0; dep && k < NPART; k++) {
+        for (i = 0; i < 4u; i++)
+            T26W(c, k)[2u * (P_LD_PIT + i)] = (uint8_t)dep[k][i], T26W(c, k)[2u * (P_LD_PIT + i) + 1u] = (uint8_t)((uint16_t)dep[k][i] >> 8);
+        T26W(c, k)[2u * 61u + 8u] = (uint8_t)tp[k][0], T26W(c, k)[2u * 61u + 9u] = (uint8_t)tp[k][1];
+    }
+    h = proj_hash(c, sizeof c - 4u), memcpy(c + sizeof c - 4u, &h, 4);
+    host_tracks_init();
+    return sl24_import_buf(c, sizeof c, 0) != 0;
+}
+static int l2_is(uint32_t k, int32_t rate, int32_t wave, int32_t trig, int32_t pol, int32_t dest, int32_t amt)
+{
+    const int16_t *p = trk[k].p;
+    return p[P_L2RATE] == rate && p[P_L2WAVE] == wave && p[P_L2TRIG] == trig && p[P_L2POL] == pol && p[P_L2DEST] == dest &&
+           p[P_L2AMT] == amt;
+}
+/* 2.6's LFO TRIG FREE / POL UNI -> our LFO 2 (sl24_import.c sl26_lfo2_in); our LFO 2 -> 2.4's LFO (sl24_export.c sl24_l2_out) */
+static void sl26_lfo2(void)
+{
+    static const int16_t DEP[NPART][4] = {{-40, 0, 0, 0}, {0, 0, 0, 127}, {5, 6, 7, 8}};
+    static const int8_t TP2[NPART][2] = {{0, 1}, {1, 0}, {0, 0}};
+    static project_t q;
+    static uint8_t out[3840];
+    uint32_t k, lost;
+    int ok;
+    ok = l2_import(0, 0);
+    for (k = 0; k < NPART; k++)                         /* (golden: TRIG 9.., POL 10..: FREE, UNI; depths k 7 + 13 ..) */
+        ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, L2D_SHP, 15 + 7 * (int32_t)k) && trk[k].p[P_LD_SHP] == 0 &&
+              trk[k].p[P_LD_PIT] == 13 + 7 * (int)k && trk[k].p[P_LD_FLT] == 14 + 7 * (int)k && trk[k].p[P_LD_AMP] == 16 + 7 * (int)k;
+    check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: the weightiest depth (SHP) with RATE (SYNC) and WAVE; the others stay on LFO", ok);
+    ok = l2_import(DEP, TP2);
+    ok &= l2_is(0, -8, 4, 0, 1, L2D_PIT, -40) && trk[0].p[P_LD_PIT] == 0;
+    ok &= l2_is(1, -9, 4, 1, 0, L2D_AMP, 63) && trk[1].p[P_LD_AMP] == 0;
+    ok &= l2_is(2, 60, 0, 0, 0, L2D_OFF, 0) && trk[2].p[P_LD_PIT] == 5 && trk[2].p[P_LD_AMP] == 8;
+    check("... POL UNI on PIT -40: LFO 2 PIT -40; TRIG FREE on AMP 127: AMP 63; NOTE BI: LFO as it was, LFO 2 off", ok);
+    proj_capture(&q, &tdl);
+    lost = proj_to_sl24(&q, 0, out, 0);
+#define O16(k, id) ((int16_t)(out[76u + (k) * 940u + 2u * (id)] | out[76u + (k) * 940u + 2u * (id) + 1u] << 8))
+    ok = O16(0, P_LD_PIT) == -40 && O16(0, P_LWAVE) == 4 && O16(0, P_LPHASE) == 0 && O16(1, P_LD_AMP) == 126 &&
+         O16(2, P_LD_PIT) == 5 && (lost & SX24_LFO2) && (lost & SX24_LSYNC);
+    ok &= O16(TRK_DRUM, P_LRATE) == TP[P_LRATE].def && O16(TRK_DRUM, P_LWAVE) == 0 && O16(TRK_DRUM, P_LD_AMP) == 0;
+    check("export: LFO 2 where LFO does nothing -> 2.4's LFO (AMP 2 x AMT); UNI, FREE lost (SX24_LFO2); drum's slots default", ok);
+    for (k = 0; k < NPART; k++)
+        trk[k].p[P_L2DEST] = 0, trk[k].p[P_LD_PIT] = trk[k].p[P_LD_FLT] = trk[k].p[P_LD_SHP] = trk[k].p[P_LD_AMP] = 0;
+    trk[2].p[P_L2RATE] = 70, trk[2].p[P_L2WAVE] = 1, trk[2].p[P_L2DEST] = L2D_FLT, trk[2].p[P_L2AMT] = -30;
+    trk[2].p[P_L2TRIG] = trk[2].p[P_L2POL] = 0;
+    trk[2].p[P_LRATE] = 3;
+    proj_capture(&q, &tdl);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    ok = !(lost & SX24_LFO2) && O16(2, P_LRATE) == 70 && O16(2, P_LWAVE) == 1 && O16(2, P_LD_FLT) == -30;
+    check("... a NOTE BI LFO 2 alone: 2.4's LFO exactly, nothing lost", ok);
+    trk[2].p[P_LD_PIT] = 3;
+    proj_capture(&q, &tdl);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    check("... beside a LFO that acts: lost (SX24_LFO2), LFO as it is", (lost & SX24_LFO2) && O16(2, P_LRATE) == 3 && O16(2, P_LD_FLT) == 0);
+#undef O16
+    check("the second lost word's bit 9: SX24_LFO2", SX24_LFO2 >> 14 == 1u << 9);
+}
+#endif
+
 int main(void)
 {
     if (!load("tests/sl25_fun5.bin", f25, sizeof f25) || !load("tests/sl26_fun6.bin", f26, sizeof f26)) {
@@ -305,6 +372,9 @@ int main(void)
 #endif
 #if FELUCCA_SL24_EXPORT
     export_engines();
+#endif
+#if FELUCCA_LFO2 && !defined(SL25_OLD)
+    sl26_lfo2();
 #endif
     printf("%s\n", bad ? "FAILED" : "all ok");
     return bad != 0;

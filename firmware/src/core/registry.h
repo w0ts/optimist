@@ -286,6 +286,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_TRK_FILT 0                 /* SLOOP 2.4's track FILTER (P_TFLT): FX > FILTER, FX + KNOB 4; LP <- off -> HP
                                             * on each part and on the drum bus with all its sends (fx.c tflt_*) */
 #endif
+#ifndef FELUCCA_LFO2
+#define FELUCCA_LFO2 0                     /* LFO 2: a second LFO a part (core.h P_L2RATE .. P_L2AMT, voice.c lfo2_tick):
+                                            * RATE (SYNC), WAVE, TRIG, POL, one DEST and its AMT */
+#endif
 #ifndef FELUCCA_CHORDPLUS
 #define FELUCCA_CHORDPLUS 0                /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2
                                             * STRUM and VLEAD (seq.c chord_play_notes, voice.c strum_*) */

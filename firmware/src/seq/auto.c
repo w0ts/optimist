@@ -61,7 +61,13 @@ _Static_assert(P_TCOMP == P_ENG_END + 3u, "motion: the stored ids are this build
 #if SL24_TP
 _Static_assert(P_TFLT == P_ENG_END, "motion: the stored ids are this build's own");
 #endif
-static uint32_t mot_id(uint32_t s) { return s < P_COUNT ? s : (uint32_t)P_COUNT; }   /* (a pseudo-parameter: none) */
+#if FELUCCA_LFO2
+#define MOT_ID_END ((uint32_t)P_L2RATE)                      /* (LFO 2's values: no stored id; a COMP event stored past
+                                                              * 2.4's in a build without COMP is not LFO 2's RATE) */
+#else
+#define MOT_ID_END ((uint32_t)P_COUNT)
+#endif
+static uint32_t mot_id(uint32_t s) { return s < MOT_ID_END ? s : (uint32_t)P_COUNT; }   /* (a pseudo-parameter: none) */
 #define mot_sid(id) (id)
 #endif
 

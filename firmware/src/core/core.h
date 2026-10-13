@@ -153,8 +153,19 @@ enum {                          /* per-track parameters */
      * make-up). Not part of a sound nor of a user preset (decision D8); the FX record keeps it (fx_rec.c) */
     P_TCOMP,
 #endif
+#if FELUCCA_LFO2
+    /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
+     * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
+     * it at phase 0; FREE: never), POL (BI -1..+1, UNI 0..+1: SLOOP 2.6's P_LTRIG P_LPOL), one DEST (OFF PIT FLT SHP
+     * AMP: L2D_*) and its AMT (-64..63, LFO DEST's scale: PIT FLT SHP as P_LD_PIT .. P_LD_SHP; AMP as P_LD_AMP x 2,
+     * < 0 the other way up). OFF or AMT 0: nothing computed. The parts' only (the drum track has its lanes' LFOs).
+     * Not part of a sound nor of a user preset (param_kept, as the track FILTER); a project keeps them packed in the
+     * drum track's LFO slots (project.c l2_pack), no format change */
+    P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DEST, P_L2AMT,
+#endif
     P_COUNT
 };
+enum { L2D_OFF, L2D_PIT, L2D_FLT, L2D_SHP, L2D_AMP, L2D_N };   /* P_L2DEST */
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
  * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
@@ -162,7 +173,7 @@ enum {                          /* per-track parameters */
 #define LSYNC_N 10
 #define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
 #define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
-#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
+#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
                                                   * stored with it, none part of a sound (param_kept) */
 
 enum {                          /* global parameters */
@@ -208,6 +219,10 @@ static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the aud
 #define MISS_BUMP() (miss_gen++)
 #else
 #define MISS_BUMP() ((void)0)
+#endif
+#if !FELUCCA_LFO2
+static uint8_t l2_miss;         /* the parts whose LFO 2 acts in the project last applied (project.c l2_live): not played
+                                 * in a build without LFO2 (miss.c) */
 #endif
 /* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
  * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then the internal tempo */
