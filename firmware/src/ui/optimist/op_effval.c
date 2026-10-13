@@ -156,6 +156,37 @@ static void effv_at(uint32_t k, int32_t dest, int32_t mod, int32_t *val, int32_t
     *mn = d->min, *mx = d->max;
     *val = clamp(effv_p(k, (uint32_t)dest) + (mod >> 8), d->min, d->max);
 }
+#if FELUCCA_LFO2
+#define EFFV_NLFO (k < NPART ? 2u : 1u)
+#define EFFV_FIRST(j) ((j) ? P_L2DA : P_L1DA)
+#define EFFV_LV(j) ((j) ? lfo2[k].v : mulq15(t->lfo_val, t->lfo_fade))
+#else
+#define EFFV_NLFO 1u
+#define EFFV_FIRST(j) ((void)(j), P_L1DA)
+#define EFFV_LV(j) ((void)(j), mulq15(t->lfo_val, t->lfo_fade))
+#endif
+/* part k's value LT_RES .. LT_E8 (DEST d) as the render has it now (voice.c lfo_over_in: its slots on it in turn, from
+ * the LFOs' values of the block before) into *val, its range; 0 for another destination (XRATE XAMT) */
+static uint32_t effv_over(uint32_t k, int32_t d, int32_t *val, int32_t *mn, int32_t *mx)
+{
+    const track_t *t = &trk[k % NTRK];
+    const param_desc_t *ds;
+    uint32_t q, j, s, f;
+    int32_t v;
+    ds = lo_dest(t, d, &q);
+    if (!ds || ds->max <= ds->min)
+        return 0;
+    v = effv_p(k, q);
+    for (j = 0; j < EFFV_NLFO; j++)
+        for (s = 0; s < 2u; s++) {
+            f = EFFV_FIRST(j);
+            if (t->p[f + 2u * s] == d)
+                v = lo_move(v, ds, effv_p(k, f + 2u * s + 1u), EFFV_LV(j));
+        }
+    *mn = ds->min, *mx = ds->max;
+    *val = v;
+    return 2;
+}
 /* part k's value id now into *val (its scale: *mn..*mx); 0 nothing moves it, 1 a value, 2 an amount (shown while it acts) */
 static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, int32_t *mx)
 {
@@ -174,8 +205,10 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
 #endif
     ) {                                                 /* a slot's AMT: its destination now, on that card's scale */
         int32_t d = t->p[id - 1u];
-        if (!d || !t->p[id] || !(LT_CLASSIC(d)))
-            return 0;                                   /* (a value moved for the block: not shown here) */
+        if (!d || !t->p[id])
+            return 0;
+        if (!LT_CLASSIC(d))
+            return effv_over(k, d, val, mn, mx);        /* (a value moved for the block: voice.c lfo_over) */
         if (d == LT_PIT) {
             *mn = -192, *mx = 192;                      /* (1/16 semitone: +-12) */
             *val = clamp(m.pit >> 8, -192, 192);

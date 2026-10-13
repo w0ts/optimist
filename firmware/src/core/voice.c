@@ -222,24 +222,46 @@ static uint32_t lo_res(const engine_t *e)
     }
     return 8u;
 }
-/* part t's slot (DEST d, AMT a) of an LFO at v (Q15) on its value: the value moved by v x a over half its range at
- * full (no divide), clamped. xr / xa: the other LFO's RATE id, its first slot (P_COUNT: none) */
+/* the value LT_RES .. LT_E8 (DEST d) of part t moves: its id into *q and its range (an engine's EDIT value its own), 0
+ * for another destination (or no RES value on this engine) */
+static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
+{
+    int32_t i;
+    switch (LT_TAB[d % LT_N][0]) {
+    case LK_P:
+        *q = LT_TAB[d][1];
+        return &TP[*q];
+    case LK_RES:
+    case LK_E:
+        i = LT_TAB[d][0] == LK_RES ? (int32_t)lo_res(ENGINES[t->engine % NENGINES]) : LT_TAB[d][1];
+        if (i >= 8)
+            return 0;
+        *q = P_E0 + (uint32_t)i;
+        return &ENGINES[t->engine % NENGINES]->edit[i];
+    default:
+        return 0;
+    }
+}
+/* a value at base (range ds) moved by an LFO at v (Q15) x AMT a: v x a over half the range at full (no divide),
+ * clamped (op_effval.c: the same, for the bar) */
+static int32_t lo_move(int32_t base, const param_desc_t *ds, int32_t a, int32_t v)
+{
+    return clamp(base + ((((v * a) >> 7) * (ds->max - ds->min)) >> 16), ds->min, ds->max);   /* ((v a) >> 7: +-1) */
+}
+/* part t's slot (DEST d, AMT a) of an LFO at v (Q15) on its value. xr / xa: the other LFO's RATE id, its first slot
+ * (P_COUNT: none) */
 static void lo_slot(track_t *t, int32_t d, int32_t a, int32_t v, uint32_t xr, uint32_t xa)
 {
     const param_desc_t *ds;
     uint32_t q;
     int32_t m = (v * a) >> 7, i;                        /* -32768..32767: +-1 */
+    ds = lo_dest(t, d, &q);
+    if (ds) {
+        if (ds->max > ds->min)
+            lo_put(t, q, lo_move(t->p[q], ds, a, v));
+        return;
+    }
     switch (LT_TAB[d % LT_N][0]) {
-    case LK_P:
-        q = LT_TAB[d][1], ds = &TP[q];
-        break;
-    case LK_RES:
-    case LK_E:
-        i = LT_TAB[d][0] == LK_RES ? (int32_t)lo_res(ENGINES[t->engine % NENGINES]) : LT_TAB[d][1];
-        if (i >= 8)
-            return;
-        q = P_E0 + (uint32_t)i, ds = &ENGINES[t->engine % NENGINES]->edit[i];
-        break;
     case LK_XR:
         if (xr >= P_COUNT || t->p[xr] < 0)
             return;                                     /* (a synced RATE stays its note value) */
@@ -252,8 +274,6 @@ static void lo_slot(track_t *t, int32_t d, int32_t a, int32_t v, uint32_t xr, ui
     default:
         return;
     }
-    if (ds->max > ds->min)
-        lo_put(t, q, clamp(t->p[q] + ((m * (ds->max - ds->min)) >> 16), ds->min, ds->max));
 }
 /* the mix's start (pold_in): every part's slots on a value, from the LFOs' values of the block before */
 static void lfo_over_in(void)
