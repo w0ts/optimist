@@ -10,12 +10,13 @@
  * Not under a question (the modal), the REC ring, a layer's map or NAME. While the line shows nothing else is drawn on
  * its rows (gfx.c cv_clip); when it goes, every band is drawn again over itself (op_repaint: in place, no flash).
  * The words: tools/param_help.json, one table with SLOOP's UI and the web editor (tools/gen_param_help.py ->
- * build/gen/felucca_param_help.h, PH_BLOB, a const string in flash: only the lines of the features built). A line is
+ * build/gen/felucca_param_help.h, PH_BLOB, a const string in flash: only the lines of the features built; the texts
+ * packed, ui/ph_blob.c, unpacked into a line on the stack when drawn). A line is
  * found as (kind op, the row's name, the cell's label), then (op, the screen's name, the label), then by the value's
  * descriptor: the page of PAGES that shows it, as SLOOP's line (an engine's value by the engine). Looked up when what
  * the line is about changes, never every frame; main loop only, nothing in RAM code. Included after op_gldraw.c. */
 #if FELUCCA_PARAM_HELP
-#include "felucca_param_help.h"
+#include "../ph_blob.c"                  /* ph_find, ph_text (the texts packed) */
 #define HL_H 18                         /* the line: a rule, then the small face (16 rows) */
 #define HL_Y (240 - HL_H)
 #define HL_FRAMES 120u                  /* ~2 s at the UI's ~60 frames a second after a value's last detent */
@@ -31,25 +32,6 @@ static struct {
     } key;
 } hl;
 
-static const char *ph_next(const char *s)              /* past the string at s and its NUL */
-{
-    while (*s)
-        s++;
-    return s + 1;
-}
-/* label's line in context ctx of kind (PH_*), as its offset in PH_BLOB; 0 = none (as SLOOP's param_help.c ph_find) */
-static __attribute__((noinline)) uint32_t ph_find(uint32_t kind, const char *ctx, const char *label)
-{
-    const char *p = PH_BLOB;
-    while (*p) {
-        int here = (uint8_t)*p == kind && str_eq(p + 1, ctx);
-        for (p = ph_next(p + 1); *p; p = ph_next(ph_next(p)))
-            if (here && str_eq(p, label))
-                return (uint32_t)(ph_next(p) - PH_BLOB);
-        p++;                                            /* (the group's empty label) */
-    }
-    return 0;
-}
 /* a value's line by its descriptor: the first page of PAGES (and this UI's own) showing it that has a line for it */
 static uint32_t hl_desc(const param_desc_t *d)
 {
@@ -104,8 +86,9 @@ static void hl_tick(void)                               /* once a frame (op_inpu
     if (hl.scr != ui.scr)
         hl.t = 0;                                       /* (another screen: it belonged to the one before) */
 }
-/* the line now, 0 none: the cell it is about, found again only when that changes (the screen, row, cell, label, track) */
-static const char *hl_text(void)
+/* the line now, as its offset in PH_BLOB (ph_text unpacks it), 0 none: the cell it is about, found again only when
+ * that changes (the screen, row, cell, label, track) */
+static uint32_t hl_text(void)
 {
     cell_t c;
     uint32_t scr = ui.scr, row = ui.row[ui.scr], k = hl_menu() ? ui.hot : hl.k, at;
@@ -120,7 +103,7 @@ static const char *hl_text(void)
         hl.key.d = c.d;
         hl.off = (uint16_t)hl_find(scr, row, &c);
     }
-    return hl.off ? PH_BLOB + hl.off : 0;
+    return hl.off;
 }
 /* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the bands come back over its rows */
 static void hl_pre(uint32_t ov)
@@ -139,20 +122,20 @@ static void hl_pre(uint32_t ov)
 /* after the bands: the line, when what it says changed */
 static void hl_post(void)
 {
-    const char *s;
-    uint32_t sig;
+    char b[PH_LINE];
+    uint32_t off, sig;
     if (!hl.on)
         return;
-    s = hl_text();
-    sig = hs(hu(0x4E1Fu, settings.palette), s ? s : "");
+    off = hl_text();
+    sig = hu(hu(0x4E1Fu, settings.palette), off);
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;
     cv_clip = 240u;
     cv_begin(240, HL_H, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
-    if (s)
-        cv_text(4, 2, &FONT_S, s, C_AMB);
+    if (off)
+        cv_text(4, 2, &FONT_S, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);
     cv_clip = (uint32_t)HL_Y;
 }

@@ -20,6 +20,7 @@ static void ph_need(uint32_t kind, const char *ctx, const char *label, const cha
 {
     uint32_t i, off;
     const char *t;
+    char tb[PH_LINE];
     for (i = 0; i < ph_nkeys; i++)
         if (ph_keys[i].kind == kind && !strcmp(ph_keys[i].ctx, ctx) && !strcmp(ph_keys[i].label, label))
             return;
@@ -29,7 +30,7 @@ static void ph_need(uint32_t kind, const char *ctx, const char *label, const cha
     snprintf(ph_keys[ph_nkeys].label, sizeof ph_keys[0].label, "%s", label);
     ph_nkeys++;
     off = ph_find(kind, ctx, label);
-    t = off ? PH_BLOB + off : "";
+    t = off ? ph_text(off, tb) : "";
     if (!off) {
         ph_missing++;
         if (!ph_dump)
@@ -160,13 +161,18 @@ static void ph_coverage(void)
     printf("ui: help: %u keys checked\n", ph_nkeys);
 }
 
-/* the line (kind, ctx, label) as the table has it, "" none */
-static const char *ph_text(uint32_t kind, const char *ctx, const char *label)
+/* the line (kind, ctx, label) as the table has it, unpacked, "" none */
+static const char *ph_want(uint32_t kind, const char *ctx, const char *label)
 {
+    static char b[PH_LINE];
     uint32_t off = ph_find(kind, ctx, label);
-    return off ? PH_BLOB + off : "";
+    return off ? ph_text(off, b) : "";
 }
-static int ph_shows(const char *want) { return ph_line() && want[0] && !strcmp(ph_line(), want); }
+static int ph_shows(const char *want)
+{
+    char b[PH_LINE];
+    return ph_line() && want[0] && !strcmp(ph_text(ph_line(), b), want);
+}
 static void ph_view(uint32_t v) { song.g[G_VIEW] = (int16_t)v; settings.view = v; ui.force = 1; frame(); }
 static void ph_turn(uint32_t knob, int32_t s) { encs[panel.enc[EN_K1 + knob]] = s; frame(); }
 /* to the page of this title (the family's last page is whatever an earlier test left) */
@@ -192,10 +198,10 @@ static void ph_display(void)
     tap(B_ENV); frames(2);
     while (cur_page()->scope != SC_TRACK || cur_page()->id[0] != P_ATK) { tap(B_ENV); frames(1); }
     ph_turn(1, 1);
-    check(ph_shows(ph_text(PH_PAGE, "ENV", "DEC")), "help: the first detent of KNOB 2 shows its line");
+    check(ph_shows(ph_want(PH_PAGE, "ENV", "DEC")), "help: the first detent of KNOB 2 shows its line");
     {
         uint32_t i, kept = 1;
-        for (i = 0; i < 6u; i++) { frames(PH_HOT - 10u); ph_turn(1, i & 1u ? 1 : -1); kept &= ph_shows(ph_text(PH_PAGE, "ENV", "DEC")); }
+        for (i = 0; i < 6u; i++) { frames(PH_HOT - 10u); ph_turn(1, i & 1u ? 1 : -1); kept &= ph_shows(ph_want(PH_PAGE, "ENV", "DEC")); }
         check(kept, "help: ... it stays while the knob keeps turning (a detent every ~0.9 s)");
     }
     tap(B_LFO); frames(1);
@@ -207,19 +213,19 @@ static void ph_display(void)
     check(!ph_line(), "help: ... and the tempo knob (SELECT) too: only a parameter knob shows it");
     while (cur_page()->scope != SC_TRACK || cur_page()->id[0] != P_ATK) { tap(B_ENV); frames(1); }   /* (SEL_PAGES: SELECT turned the page) */
     ph_turn(1, 2);
-    check(ph_shows(ph_text(PH_PAGE, "ENV", "DEC")), "help: ENV, KNOB 2 turned: its line on the top bar");
+    check(ph_shows(ph_want(PH_PAGE, "ENV", "DEC")), "help: ENV, KNOB 2 turned: its line on the top bar");
     ppm("help-env");
     frames(PH_HOT + 4);
     check(!ph_line(), "help: ... gone with the knob's white value (PH_HOT frames, ~1 s)");
     ph_goto("EDIT 1");
     ph_turn(0, 1);
-    check(ph_shows(ph_text(PH_ENG, ENGINES[TSEL->eng_req]->name, track_desc(TSEL, P_E0)->label)),
+    check(ph_shows(ph_want(PH_ENG, ENGINES[TSEL->eng_req]->name, track_desc(TSEL, P_E0)->label)),
           "help: EDIT 1, KNOB 1: the engine's own line");
     ppm("help-edit");
     ph_view(1);
     ph_goto("FX");
     ph_turn(0, 3);                                        /* (DST: the FX built differ; the page is "FX") */
-    check(ph_shows(ph_text(PH_PAGE, "FX", "DST")) || !FELUCCA_FX_DIST, "help: VIEW ALL, FX, KNOB 1: the same top bar line");
+    check(ph_shows(ph_want(PH_PAGE, "FX", "DST")) || !FELUCCA_FX_DIST, "help: VIEW ALL, FX, KNOB 1: the same top bar line");
     ppm("help-overview-fx");
     ui_message("SAVED");
     ph_turn(0, -1);
@@ -228,7 +234,7 @@ static void ph_display(void)
     ph_view(0);
     go_home(); frame();
     ph_turn(1, 1);
-    check(ph_shows(ph_text(PH_PAGE, "TRACKS", "2")), "help: TRACKS, KNOB 2: its line in the live header");
+    check(ph_shows(ph_want(PH_PAGE, "TRACKS", "2")), "help: TRACKS, KNOB 2: its line in the live header");
     ppm("help-tracks");
     frames(PH_HOT + 4);
 #if FELUCCA_ENG_FM6 && FELUCCA_FM6_KEYS
@@ -238,7 +244,7 @@ static void ph_display(void)
         tap(B_ENV); frames(1);
         check(on_fm6k_page() && !ph_line(), "help: none on the FM6 editor entered (ENV)");
         ph_turn(1, 1);
-        check(ph_shows(ph_text(PH_FM6, fm6k_cur_page(0)->name, fm6k_cur_page(0)->p[1].lab)),
+        check(ph_shows(ph_want(PH_FM6, fm6k_cur_page(0)->name, fm6k_cur_page(0)->p[1].lab)),
               "help: FM6 editor, KNOB 2: its line in the live header");
         ppm("help-fm6");
         frames(PH_HOT + 4);
@@ -250,7 +256,7 @@ static void ph_display(void)
     studio_open(SC_SONG); frame();
     check(!ph_line(), "help: none on the song screen opened");
     ph_turn(2, 1); ph_turn(2, -1);
-    check(ph_shows(ph_text(PH_PAGE, "SONG", "3")), "help: song screen, KNOB 3: its line over the knob labels");
+    check(ph_shows(ph_want(PH_PAGE, "SONG", "3")), "help: song screen, KNOB 3: its line over the knob labels");
     ppm("help-song");
     frames(PH_HOT + 4);
     go_home(); frame();
@@ -260,7 +266,7 @@ static void ph_display(void)
     key(key_of_white(2));
     open_family(FAM_EDIT); ph_view(0);
     ph_turn(1, -2);
-    check(cur_page()->scope == SC_DSND && ph_shows(ph_text(PH_PAGE, cur_page()->title, "DECAY")),
+    check(cur_page()->scope == SC_DSND && ph_shows(ph_want(PH_PAGE, cur_page()->title, "DECAY")),
           "help: drum SOUND page, KNOB 2 DECAY: its line");
     ppm("help-drum-sound");
     frames(PH_HOT + 4);
@@ -274,7 +280,7 @@ static void ph_display(void)
             ;
         ui.page = (uint8_t)i; ui.force = 1; frame();
         ph_turn(0, 2);
-        check(ph_shows(ph_text(PH_PAGE, "MACRO", "COLOR")), "help: GLO > MACRO, KNOB 1: its line");
+        check(ph_shows(ph_want(PH_PAGE, "MACRO", "COLOR")), "help: GLO > MACRO, KNOB 1: its line");
         ppm("help-macro");
         frames(PH_HOT + 4);
         TDRUM->p[MAC_ID[0]] = 0;

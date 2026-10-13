@@ -2648,7 +2648,8 @@ own lines (the settings, PROJECT's actions, the SOUND row, the mixer's sends, SO
 names it (GLOBAL / SYSTEM: the section) and the cell's label; built only with FELUCCA_UI == 1, not in the editor's copy.
 A line is found as (op, the row's name, the label), then (op, the screen's name, the label), then by the value's
 descriptor: the first page of PAGES showing it that has SLOOP's line (an engine's value by the engine). Looked up only
-when the cell it is about changes; the strings are PH_BLOB, flash (XIP); nothing in RAM code. Each fits 232 px
+when the cell it is about changes; the strings are PH_BLOB, flash (XIP), the texts packed with a byte pair code and
+unpacked into a line on the stack when drawn (ui/ph_blob.c); nothing in RAM code. Each fits 232 px
 (gen_param_help.py checks). Code: ui/optimist/op_help.c.
 
 **The risky actions** (audit: every action cell and button combination; the table in the branch's notes, ACTIONS.md).
