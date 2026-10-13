@@ -80,7 +80,7 @@ static int32_t gr_h = 58;
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX || pg->graph == GR_INS || pg->graph == GR_BUS ||
-           pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP;
+           pg->graph == GR_LFO2 || pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP;
 }
 /* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
  * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
@@ -175,6 +175,27 @@ static void graph_lfo(uint16_t col)
     }
     cv_line(0, mid, 239, mid, C_LINE);
 }
+#if FELUCCA_LFO2
+/* LFO 2 as it runs: two cycles of its WAVE from phase 0, POL UNI one way only (from the centre line up, lfo2_tick's
+ * (v + 1) / 2); S&H as random steps, as LFO's */
+static void graph_lfo2(uint16_t col)
+{
+    const track_t *t = TSEL;
+    int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
+    uint32_t w = (uint32_t)t->p[P_L2WAVE];
+    for (x = 0; x < 240; x++) {
+        int32_t v = w == 4u ? (int32_t)((uint32_t)(x / 20) * 2654435761u >> 16) - 32768
+                            : lfo_shape(w, (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
+        if (t->p[P_L2POL])
+            v = (v + 32768) >> 1;
+        y = mid - v * amp / 32768;
+        if (x)
+            cv_line(x - 1, py, x, y, col);
+        py = y;
+    }
+    cv_line(0, mid, 239, mid, C_LINE);
+}
+#endif
 /* SENDS, INSERTS, BUS SENDS: the amounts as needles, one under each card (SLOOP's graph_fx, copied; params.c
  * fx_needle: an INSERTS TYPE card, an empty slot: none); grey when bypassed */
 static void graph_fx(uint32_t g, uint16_t c)
@@ -478,6 +499,9 @@ static uint32_t graph_sig(void)
         h = h * 31u + t->held[i];
     h = h * 31u + t->nheld;
     h ^= (uint32_t)t->p[P_FXOFF] << 24 ^ (uint32_t)t->p[P_LWAVE] << 26 ^ (uint32_t)t->p[P_LPHASE] << 12;
+#if FELUCCA_LFO2
+    h = h * 31u + (uint32_t)t->p[P_L2WAVE] * 5u + (uint32_t)t->p[P_L2POL];   /* (LFO 2's wave and its POL) */
+#endif
     for (i = 0; i < 4u; i++)
         h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u;
     for (i = 0; i < NSTEP; i++)
@@ -499,6 +523,11 @@ static void draw_sound_graph(const page_t *pg)
     case GR_LFO:
         graph_lfo(col);
         break;
+#if FELUCCA_LFO2
+    case GR_LFO2:
+        graph_lfo2(col);
+        break;
+#endif
     case GR_FX:
     case GR_INS:
     case GR_BUS:

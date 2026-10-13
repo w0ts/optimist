@@ -811,6 +811,32 @@ int main(int argc, char **argv)
     open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-step");
+    {   /* LFO 2 (LFO2): its two pages follow LFO DEST in the LFO family; its RATE has LFO's sync gauge */
+        uint32_t k, ok = 1, has = 0;
+        for (k = 0; k < NPAGES; k++)
+            has |= !strcmp(PAGES[k].title, "LFO 2") || !strcmp(PAGES[k].title, "LFO2 DEST");
+        check(has == FELUCCA_LFO2, "SLOOP UI: the LFO 2 and LFO2 DEST pages exist only with LFO2 built in");
+#if FELUCCA_LFO2
+        {
+            static const char *const T[4] = {"LFO", "LFO DEST", "LFO 2", "LFO2 DEST"};
+            song.sel = 0;
+            open_family(FAM_LFO);
+            for (k = 0; k < 4u; k++) {
+                ok &= !strcmp(cur_page()->title, T[k]);
+                if (k == 2u) {
+                    ui.force = 1; frame(); ppm("page-lfo2");
+                }
+                tap(B_LFO);
+            }
+            check(ok, "SLOOP UI: the LFO button steps LFO, LFO DEST, LFO 2, LFO2 DEST");
+        }
+        check(gauge_ratio(&TP[P_L2RATE], -1) == SYNCED_R && gauge_ratio(&TP[P_L2RATE], -LSYNC_N) == SYNCED_R + 1000 &&
+                  gauge_ratio(&TP[P_L2RATE], 127) == 1000,
+              "SLOOP UI: LFO 2's RATE gauge as LFO's (a synced value a tick, the free rate from 0)");
+        check(param_icon(&TP[P_L2RATE], -3) == ICON_DIVISION && param_icon(&TP[P_L2WAVE], 0) == param_icon(&TP[P_LWAVE], 0),
+              "SLOOP UI: LFO 2's synced RATE the division icon, its WAVE the icon LFO's has");
+#endif
+    }
 #if FELUCCA_CHORD_NAMES
     {   /* the STEP page with a chord on the selected step: NOTE shows "Am7" (page-step-chord.ppm) */
         step_t keep = TSEL->step[0];

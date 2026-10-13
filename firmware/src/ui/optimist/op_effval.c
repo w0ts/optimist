@@ -108,6 +108,23 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
         m->cut += (env * 24) >> 7;
     m->shp = ((lfo * effv_p(k, P_LD_SHP)) >> 7) + ((env * effv_p(k, P_ED_SHP)) >> 7);
     m->pit = ((lfo * effv_p(k, P_LD_PIT) * 3) >> 7) + ((penv * effv_p(k, P_ED_PIT) * 3) >> 7);
+#if FELUCCA_LFO2
+    {   /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the audio side left them) added to its destination */
+        const track_t *t = &trk[k % NTRK];
+        int32_t d = t->p[P_L2DEST], a = t->p[P_L2AMT], v;
+        if (k < NPART && d && d < L2D_AMP && a) {
+            v = lfo_shape((uint32_t)t->p[P_L2WAVE], lfo2[k].ph, lfo2[k].rnd);
+            v = t->p[P_L2POL] ? (v + 32768) >> 1 : v;
+            v = (v * a * (d == L2D_PIT ? 3 : 1)) >> 7;
+            if (d == L2D_PIT)
+                m->pit += v;
+            else if (d == L2D_FLT)
+                m->cut += v;
+            else
+                m->shp += v;
+        }
+    }
+#endif
 }
 /* each engine's (by UID) EDIT value its render adds the cutoff (low 4 bits) and the shape (high 4 bits) to, as (p[P_E0 +
  * n] << 8) + m->cutoff (the engines' render, grep m->cutoff / m->shape); 0xF none (DIGITAL and CZ fold both into one
@@ -152,6 +169,23 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         effv_at(k, (int32_t)id, (int32_t)id == dc ? m.cut : m.shp, val, mn, mx);
         return 1;
     }
+#if FELUCCA_LFO2
+    if (id == P_L2AMT) {                                /* LFO 2's AMT: its destination now, on that card's scale (as LFO DEST's) */
+        uint32_t d = (uint32_t)t->p[P_L2DEST];
+        if (!d || !t->p[P_L2AMT])
+            return 0;
+        if (d == L2D_PIT) {
+            *mn = -192, *mx = 192;
+            *val = clamp(m.pit >> 8, -192, 192);
+        } else if (d == L2D_AMP) {
+            *mn = 0, *mx = 127;
+            *val = v ? v->env_out >> 8 : 0;
+        } else {
+            effv_at(k, d == L2D_FLT ? dc : ds, d == L2D_FLT ? m.cut : m.shp, val, mn, mx);
+        }
+        return 2;
+    }
+#endif
     switch (id) {
     case P_LD_FLT:
     case P_ED_FLT:

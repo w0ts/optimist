@@ -381,7 +381,7 @@ The erase-as-it-plays gesture (MPC style: hold the sound's key while the pattern
 ### 4.3 SOUND
 
 The selected track's pages as rows, in today's PAGES order (params.c:488): SOUND (the preset, the engine, INIT,
-SAVE AS), ENV, ENV DEST, ENV2, ENV2 DEST, LFO, LFO DEST, EDIT 1, EDIT 2, OSC 2, SWARM, FLT 2, VOICE, VOICE 2,
+SAVE AS), ENV, ENV DEST, ENV2, ENV2 DEST, LFO, LFO DEST, (LFO 2, LFO2 DEST: built with LFO2, synth tracks), EDIT 1, EDIT 2, OSC 2, SWARM, FLT 2, VOICE, VOICE 2,
 FX (the sends), FILTER, SLICER, SCL, SCL 2, ARP, ARP 2, PATTERN. The panel draws the cursor row's graph (ADSR,
 LFO, the FX bars, the scale), as Felucca. **A page button tapped shows only its family's rows** [D, 2026-10-08: the LFO screen should not show ENV2 and SLICER rows]: LFO the LFO and LFO DEST rows (*Sound LFO*, its graph),
 ENV the envelopes and their DEST rows, FX the track's effects (FX, FILTER, SLICER ...), EDIT the engine's EDIT rows,
@@ -2411,6 +2411,7 @@ entered one stays 400 ms, so an LFO crossing it does not make the cards blink.
 | LFO DEST and ENV DEST's FLT and SHP | The destination card's actual value, on its scale (an engine without such a card: what the source adds, on -64..63), shown while the amount is not 0 |
 | ... PIT | The pitch now from the LFO and the pitch envelope, in 1/16 semitones on +-12 |
 | ... AMP (LFO) | The newest voice's level now (`env_out`: envelope, velocity, the LFO's dip), 0..127 |
+| LFO2 DEST's AMT (LFO2) | Its destination as the LFO DEST cards above (PIT the pitch in 1/16 semitones, AMP the voice's level, FLT / SHP the engine's card), while DEST is not OFF and AMT not 0. LFO 2's block (its phase and S&H value, `lfo2[]`) is part of the cutoff, shape and pitch modulation every card shows (`effv_mods`), so the engine's own cards move with it too |
 | A lane LFO's AMT / AMT2 | Its destination's actual value (as the lane value above), while the slot acts |
 
 Not on a held step's cards (they describe the step, not now), nor on the layers' cards. An ANALOG 2 part's own ENV2 and
@@ -2506,3 +2507,16 @@ ALGORITHM and PRESETS leave the track and its preset alone; the read-outs; VERSI
 GLO toggling with each screen's line kept; the nudge; a setting saved when left), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
 the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.
+
+## LFO 2 pages (builder item LFO2, 2026-10-13)
+
+With LFO2 built in, a synth track's LFO family is LFO, LFO DEST, **LFO 2** and **LFO2 DEST** (core/params.c PAGES; the drum track has no LFO 2: `page_for_drum`, its lanes have their own LFOs). Cards are 2 x 2, SELECT is the page, ALGORITHM the track, HOME + a knob the default.
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+|---|---|---|---|---|
+| LFO 2 | RATE (free 0..127 as the bar from 0, or synced -1..-10: ten cells, 4BAR .. 1/32, exactly LFO's gauge: `is_lrate`) | WAVE | TRIG (NOTE / FREE) | POL (BI / UNI) |
+| LFO2 DEST | DEST (OFF PIT FLT SHP AMP) | AMT (+/-, -64..63, the live second bar: the table of actual values) | empty | empty |
+
+LFO 2's graph (`GR_LFO2`, op_graph.c `graph_lfo2`) is its WAVE over two cycles, POL UNI one way only; LFO2 DEST shows it, as LFO DEST shows LFO's. The two empty cards on LFO2 DEST are where a second DEST / AMT pair goes when LFO 1 becomes two DEST + AMOUNT slots (the user's ruling, not built). The header keeps the number of "LFO 2" with the n/N (a second unit, as OSC 2 and FLT 2; FM6's LFO 2 row is still a continuation, op_draw.c `head_cont`). Not recorded as motion and no locks yet (the core: motion.c). The SLOOP UI (UI=0) gets the same two pages through PAGES (the LFO button steps four pages; VIEW ALL's LFO family shows four rows and no graph), with no graph of its own for LFO 2.
+
+Tests: tests/ui_optimist_lfo2.h (the pages exist only with LFO2=1, order, cards to params, the RATE sync display and knob, HOME + each knob, the graph, the AMT bar equal to the render), tests/ui_pages_test.c (the SLOOP UI's four-page LFO family, the RATE gauge). Screens: opt-lfo2-page, opt-lfo2-dest, opt-lfo2-sync.

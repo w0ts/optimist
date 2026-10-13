@@ -221,6 +221,14 @@ static void head_cont(char *t)
 {
     uint32_t i, n = str_len(t), m;
     for (i = 0; i < sizeof HEAD_CONT / sizeof HEAD_CONT[0]; i++) {
+#if FELUCCA_LFO2
+        if (str_eq(HEAD_CONT[i][0], "LFO 2")
+#if FELUCCA_ENG_FM6
+            && !ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6)
+#endif
+            && !is_drum(TSEL))
+            continue;                                   /* (a synth's LFO 2 is a second unit, as OSC 2: it keeps its number) */
+#endif
         m = str_len(HEAD_CONT[i][0]);
         if (n >= m && str_eq(t + n - m, HEAD_CONT[i][0]) && (n == m || t[n - m - 1u] == ' ')) {
             str_cpy(t + n - m, HEAD_CONT[i][1], 32u - (n - m));

@@ -105,10 +105,14 @@ static uint32_t param_icon(const param_desc_t *d, int32_t v)
         for (i = 0; i < sizeof(WAVE_ICON) / sizeof(WAVE_ICON[0]); i++)
             if (str_eq(d->names[v], WAVE_ICON[i].label))
                 return WAVE_ICON[i].icon;
-    if (d == &TP[P_LRATE] && v < 0)
+    if (is_lrate(d) && v < 0)
         return ICON_DIVISION;                 /* a synced LFO RATE is a note division, not Hz */
-    if (d == &TP[P_LWAVE])
-        return ICON_LFO_WAVE;                 /* "WAVE" is also the oscillator wave */
+    if (d == &TP[P_LWAVE]
+#if FELUCCA_LFO2
+        || d == &TP[P_L2WAVE]
+#endif
+    )
+        return ICON_LFO_WAVE;                /* "WAVE" is also the oscillator wave */
     if (d == &TP[P_ARATE] || d == &TP[P_SLRATE])
         return ICON_DIVISION;                 /* arp / SLICER RATE is a note division, not Hz */
     if (d->names == N_TRIO_MODE)
