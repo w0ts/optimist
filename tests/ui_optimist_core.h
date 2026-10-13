@@ -42,11 +42,12 @@ static void core_row_tests(void)
     SCREENS[SCR_SYSTEM].cell(w, w % 4u, &c);
     check(dual_mode == DUALM_AUTO && !strcmp(c.val, "AUTO") && c.col == 0, "2ND CORE: its knob left: AUTO, not amber (the boot's setting)");
     turn(EN_PRESET, 1);
-    check(dual_mode == DUALM_OFF && ui.scr == SCR_SYSTEM, "2ND CORE: PRESETS edits the cursor line: OFF");
+    check(dual_mode == DUALM_AUTO && ui.scr == SCR_SYSTEM, "2ND CORE: PRESETS does nothing here (2026-10-13)");
+    turn(LINE_KNOB(w), 1);
     press(B_HOME);
-    turn(EN_PRESET, 1);
+    turn(LINE_KNOB(w), 1);
     release(B_HOME);
-    check(dual_mode == DUALM_AUTO && ui.scr == SCR_SYSTEM, "2ND CORE: HOME held + PRESETS: back to AUTO (HOME no NO)");
+    check(dual_mode == DUALM_AUTO && ui.scr == SCR_SYSTEM, "2ND CORE: HOME held + its knob: back to AUTO (HOME no NO)");
     tap(B_SAVE);
     check(dual_mode == DUALM_OFF, "2ND CORE: YES toggles it");
     tap(B_SAVE);
@@ -58,9 +59,9 @@ static void core_row_tests(void)
         check(DUAL_MODE_MENU == 1 && dual_mode == DUALM_OFF && !strcmp(c.val, "OFF"),
               "2ND CORE: a misread's self-disable is kept (DUAL_MODE_MENU 1) and reads OFF here");
         press(B_HOME);
-        turn(EN_PRESET, 1);
+        turn(LINE_KNOB(w), 1);
         release(B_HOME);
-        check(dual_mode == DUALM_AUTO, "2ND CORE: ... and HOME + PRESETS sets it back to AUTO");
+        check(dual_mode == DUALM_AUTO, "2ND CORE: ... and HOME + its knob sets it back to AUTO");
     }
     {   /* CPU1's cell: the load while it runs, else why it is down (dual.why), OFF with no reason */
         dual_c1_q8 = 128u;
