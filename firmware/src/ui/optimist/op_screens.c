@@ -71,11 +71,13 @@ static int op_global_go(uint32_t id)
         return 1;
     case G_INITSND:
         set_engine(TSEL->eng_req);                      /* the engine's defaults and its first preset */
+        ed_done();
         ui_message("SOUND INIT");
         ui.force = 1;
         return 1;
     case G_NEWPRJ:
         op_project_new();
+        work_mark();                                    /* (the work as made: nothing to ask about) */
         ui_message("NEW PROJECT");
         return 1;
     default:
@@ -115,15 +117,19 @@ static void op_preset_go(uint32_t n)
 static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
 {
     uint32_t total, cur;
+    if (ed_ask(EK_PRESET, s))
+        return;                                         /* (edited: "Discard T2 edits?" first, op_edits.c) */
     if (is_drum(TSEL)) {
         uint32_t was = ui.force;
         drum_kit_step(s);                               /* (the kits, then the user kits) */
         op_preset_shown(was);
+        ed_done();
         return;
     }
     cur = preset_pos(&total);
     if (total)
         op_preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+    ed_done();
 }
 /* HOME held + PRESETS: the next / previous instrument, its first sound (the user, 2026-10-12: "home held (shift) +
  * preset should navigate instruments, not presets"). The factory and INIT part of the list is grouped by engine
@@ -136,6 +142,8 @@ static uint32_t list_eng(uint32_t n)
 static void op_engine_step(int32_t s)
 {
     uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST;
+    if (ed_ask(EK_ENGINE, s))
+        return;
     if (is_drum(TSEL) || n == 0u) {
         op_preset_step(s);
         return;
@@ -150,6 +158,19 @@ static void op_engine_step(int32_t s)
     for (j = 0; j < n && list_eng((i + n - 1u) % n) == et && (i + n - 1u) % n != i; j++)
         i = (i + n - 1u) % n;                           /* (back to that group's first sound) */
     op_preset_go(i);
+    ed_done();
+}
+static void snd_engine_step(int32_t s)                  /* the SOUND row's ENGINE: the next / previous engine, its defaults */
+{
+    uint32_t e = TSEL->eng_req;
+    if (is_drum(TSEL) || ed_ask(EK_SNDENG, s))
+        return;
+    do                                                  /* (stepping over the numbers kept free: engines.c) */
+        e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
+    while (eng_free(e));
+    set_engine(e);
+    ui.force = 1;
+    ed_done();
 }
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */
 static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, int fine)
@@ -260,13 +281,8 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     if (k == 0u) {
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
-    } else if (k == 1u && !is_drum(TSEL)) {
-        uint32_t e = TSEL->eng_req;
-        do                                              /* (stepping over the numbers kept free: engines.c) */
-            e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
-        while (eng_free(e));
-        set_engine(e);
-        ui.force = 1;
+    } else if (k == 1u) {
+        snd_engine_step(s);
     }
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
@@ -278,7 +294,7 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
     if (is_drum(TSEL) || k < 2u)
         return 0;
     if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */
-        if (!ok) {
+        if (!ok && snd_edited(song.sel)) {              /* (asked when the sound has edits: op_edits.c) */
             op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel), 1);
             return 1;
         }

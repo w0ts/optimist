@@ -230,6 +230,7 @@ static void reset_ui(void)
     ui.msg_t = 0;
     go_home();
     frames(2);
+    snd_mark_all();                                     /* (the sounds as loaded: browsing asks nothing, op_edits.c) */
 }
 
 /* ---- every screen's rows resolve */
@@ -1398,6 +1399,7 @@ static void save_layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-save");
+    work_mark();                                        /* (the work as stored: no question, op_edits.c) */
     key(WK(1));
     check(live_sec == 1 && !strcmp(ui.msg, "LOADED B"), "SAVE + key 2, stopped: scene B loaded");
     key(WK(2));
@@ -1573,8 +1575,9 @@ static void combo_tests(void)
 #if FELUCCA_MICRO
     check(step_micro(&trk[0], 5) == 0, "... the nudge gone");
 #endif
+    trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] + 1);   /* (an edit: INIT asks over edits only, op_edits.c) */
     hold2(B_HOME, B_ENV);
-    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV: INIT, asked");
+    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV over an edited sound: INIT, asked");
     tap(B_HOME);
     song.octave = 2;
     hold2(B_HOME, B_OCTUP);
@@ -2384,6 +2387,7 @@ int main(int argc, char **argv)
     glwalk_tests();
     help_tests();
     risk_tests();
+    risk_edits_tests();
     algo_tests();
     mute_tests();
     smute_tests();

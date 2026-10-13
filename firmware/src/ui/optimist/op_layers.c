@@ -286,6 +286,13 @@ static void scl_key(uint32_t k)                         /* the key of the song: 
 /* ---- SAVE: the scenes (sections A..P) */
 #define LAY_NSCN (FELUCCA_SECTIONS < 16 ? FELUCCA_SECTIONS : 16)
 static void scene_tag(char *b, uint32_t s) { str_cpy(b, "SCENE A", 8), b[6] = (char)('A' + s % 16u); }
+static void scene_load_now(uint32_t s)                  /* stopped: scene s is the work */
+{
+    char b[2] = {(char)('A' + s % 16u), 0};
+    section_load(s);
+    work_mark();                                        /* (the work as stored: op_edits.c) */
+    ui_say("LOADED ", b);
+}
 static void scene_launch(uint32_t s)                    /* playing: at the next bar; stopped: loaded */
 {
     char b[2] = {(char)('A' + s % 16u), 0};
@@ -315,9 +322,13 @@ static void scene_launch(uint32_t s)                    /* playing: at the next 
         live_req = (int8_t)s;
 #endif
         ui_say("NEXT: ", b);
+    } else if (work_changed()) {                        /* stopped, the work not as stored: asked ("Load scene B?";
+                                                         * the user, 2026-10-13; playing: a launch, never asked) */
+        char t[8];
+        scene_tag(t, s);
+        op_arm(ARM_OP, OA_SCN_LOAD, s, "LOAD", t, 1);
     } else {
-        section_load(s);
-        ui_say("LOADED ", b);
+        scene_load_now(s);
     }
 }
 #if FELUCCA_QCHAIN
@@ -353,6 +364,7 @@ static void scene_store_now(uint32_t s)
             ui_say("STORED ", b + 6);
     } else {
         project_save(s);
+        work_mark();
     }
     ui.force = 1;
 }
@@ -388,6 +400,12 @@ static void scene_clear_now(uint32_t s)
     ui_message("NOT IN THIS BUILD");                    /* (the four RAM slots: PROJECT keeps them) */
 #endif
 }
+static void song_rec_arm(void)                          /* SONG REC armed: the order played from the next bar is the song */
+{
+    arrangement_enabled = 0;
+    srec = 1;
+    ui_message(live_sec < 0 ? "SONG REC: PICK A SCENE" : "SONG REC: NEXT BAR");
+}
 static void song_rec_toggle(void)                       /* SAVE + REC tapped: the order you play becomes the song */
 {
     if (srec) {
@@ -397,10 +415,10 @@ static void song_rec_toggle(void)                       /* SAVE + REC tapped: th
         ui_message("SONG REC OFF");
     } else if (arrangement_clock.running) {
         ui_message("STOP FIRST");
+    } else if (arrangement.count > 1u && !op_armed()) {
+        op_arm(ARM_OP, OA_SREC, 0, "RECORD OVER", "SONG", 1);   /* (a stored song of parts: "Record over song?") */
     } else {
-        arrangement_enabled = 0;
-        srec = 1;
-        ui_message(live_sec < 0 ? "SONG REC: PICK A SCENE" : "SONG REC: NEXT BAR");
+        song_rec_arm();
     }
 }
 static void song_play(void)                             /* SAVE + PLAY: the song from its start */
@@ -590,6 +608,13 @@ static void op_act(uint32_t a, uint32_t k)
         break;
     }
 #endif
+    case OA_SCN_LOAD:
+        scene_load_now(k);
+        break;
+    case OA_SREC:
+        if (!srec && !arrangement_clock.running)
+            song_rec_arm();
+        break;
     default:
         op_act_more(a, k);                              /* (op_combos.c: INIT, the extras' clear) */
         break;

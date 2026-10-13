@@ -2664,5 +2664,31 @@ tools, single-step edits, what one undo restores.
 Tests: tests/ui_optimist_help.h (every GLOBAL / SYSTEM line and PROJECT cell has its line, the table's, within 232 px;
 SOUND and the mixer: a turn shows it ~2 s, then the bands come back; every value without a line listed),
 tests/ui_optimist_risk.h (every risky action asks and HOME changes nothing), run_tests.sh's two help-line units.
-Open: SONG REC over an existing song, a scene loaded while stopped (it replaces the work, no question), a preset or
-engine change over an edited sound (not in undo): see the report; a SYSTEM > HELP LINE ON / OFF switch is not built.
+SONG REC over a song, a scene loaded while stopped and a sound change over edits: section 24. A SYSTEM > HELP LINE
+ON / OFF switch is not built.
+
+## 24. Asked before edits are replaced (feat/risk-asks, 2026-10-13)
+
+The user's rulings on section 23's open points: "always ask if the sound/preset has edits"; a scene loaded stopped
+asks "only when the current work differs from what is stored"; SONG REC over a stored song asks; HOME + SEQ as it is.
+
+| What | Asks | When |
+|---|---|---|
+| PRESETS, HOME + PRESETS, the SOUND row's PRESET and ENGINE; on DR the kit; a lane's own sound and its kind | "Discard T2 edits?" ("Discard DR edits?") | the track's sound has edits; YES makes the change, HOME keeps the edited sound (nothing moved) |
+| INIT (the SOUND row, TOOLS, HOME + ENV), a user preset's LOAD | "Init T2?", "Load preset U03?" | the sound has edits; none: done at once |
+| a scene loaded stopped (SONG's scene row, SAVE + a scene key), PROJECT's LOAD | "Load scene B?", "Load project 3?" | the work differs from what was last loaded, stored or made NEW; while playing a scene launch is never asked |
+| SONG REC armed (SAVE + REC, SONG's REC) | "Record over song?" | a stored song of more than one part |
+
+**Edited.** A track's sound is edited when the values a preset sets (model.c `param_kept`: not the pattern, not the
+mix) and, on the drum track, the lanes' own sounds (offsets, sources, samples) and sends differ from when the sound was
+loaded or saved. The signature is taken again whenever the sound is another one (its engine, preset or user preset; the
+drum track's kit or user kit: checked every frame, no hash) and when the UI loads or saves it (a preset step, INIT, a
+user preset LOAD or SAVE, a project or scene LOAD or store, NEW). After YES the new sound is unedited, so browsing on
+asks nothing until the next edit. **The work** (the tracks' values and steps, the lanes, the globals but the clock
+followed and the slot shown) is compared with its signature at the last load, store or NEW, only when a load asks.
+Not counted: the FM6 operator editor's voice buffer (not in the track's values); recorded motion that writes the
+values while playing may make a sound read as edited (it asks; never the other way).
+
+Code: ui/optimist/op_edits.c (the signatures, `ed_ask`, `ed_run`), the call sites in op_screens.c, op_walk.c,
+op_cells.c, op_combos.c, op_project.c, op_name.c, op_layers.c. Tests: tests/ui_optimist_risk.h (each question over
+edits, a changed work, a song; HOME changes nothing, YES does it, an unedited sound browses freely).

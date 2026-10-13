@@ -363,7 +363,8 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         page_set(pg, k, vp, *vp == d->max ? d->min : d->max, 1);
         return 1;
     }
-    if (!ok) {                                          /* every GO here destroys something: ask */
+    if (!ok && !(pg->scope == SC_GLOBAL && id == G_INITSND && !snd_edited(song.sel))) {   /* every GO here destroys
+                                                         * something: ask (INIT: only over edits, op_edits.c) */
         char kit_arg[8] = "KIT ";
         const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
         if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */
