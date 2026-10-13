@@ -1144,7 +1144,22 @@ static const char *midi_status(char *val, const char **unit)
 /* GLO > SYSTEM CPU: the load in %, every other 2 s the clock measured at boot in MHz */
 static void cpu_info(char *val, const char **unit)
 {
+#if DUAL_LOAD
+    /* a DUAL=2 build: CPU0's load, CPU1's (unit C1), the clock, 2 s each (the user, 2026-10-12; dual_load.h) */
+    uint32_t ph = (fm1_ms >> 11) % 3u;
+    int mhz = cpu_khz && ph == 2u;
+    if (ph == 1u) {
+        int32_t pct = dual_c1_pct();
+        if (pct < 0)
+            str_cpy(val, "OFF", 12);                  /* (CPU1 down for good: dual.c) */
+        else
+            fmt_int(val, pct);
+        *unit = pct < 0 ? " C1" : "%C1";
+        return;
+    }
+#else
     int mhz = cpu_khz && (fm1_ms >> 11) & 1u;
+#endif
     fmt_int(val, mhz ? (int32_t)((cpu_khz + 500u) / 1000u) : (int32_t)(song.cpu_q8 * 100u / 256u));
 #if FELUCCA_CPU_GUARD
     static const char *const CG_UNIT[CG_TOP + 1] = {"%", "%G1", "%G2", "%G3", "%G4"};   /* the guard's level */

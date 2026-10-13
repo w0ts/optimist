@@ -159,6 +159,11 @@ semantics are inferred; it stays a fallback option.
   parks CPU1 in RAM and sets `fault`) -> CPU1 into reset for good, CPU0 renders those parts itself
   from then on (a click once: a part may be half-advanced). The UI says "CPU1 OFF <why>" once; the
   console shows `cpu1_up/why/jobs/wait_max_us`.
+- Each core's load (`system/dual_load.h`): CPU1 adds the timer ticks of each job (two `fm1_ticks()` reads in
+  `dual_job`) to `dual_c1_ticks`, which it alone writes; once an audio half CPU0 takes the ticks since the last
+  half and smooths them as `song.cpu_q8` (audio.c), into `dual_c1_q8`. SYSTEM's CPU row shows CLOCK, CPU0 (its
+  figure includes the wait in `dual_join`) and CPU1, OFF once CPU1 is down; SLOOP's CPU readout cycles CPU0,
+  CPU1 (unit `%C1`) and the clock. A single-core build has none of it.
 - Watchdog: one chip watchdog fed by CPU0's main loop (unchanged); CPU1 never feeds it. A CPU0 hang
   still resets the chip; a CPU1 hang cannot hang CPU0 (timeouts everywhere CPU0 waits).
 - Resets (UBOOT entry, OTA, reboot) are chip resets (P33): CPU1 resets with them.

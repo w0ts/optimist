@@ -454,6 +454,7 @@ static song_t song;
 #define FS 44100                 /* (as build/gen/felucca_tables.h: tools/gen_tables.py) */
 #endif
 #define BEAT_U ((uint32_t)FS * 60u)
+#include "../system/dual_load.h"  /* CPU1's load beside song.cpu_q8 (FELUCCA_DUAL 2 only) */
 static volatile uint32_t clk_beat, clk_pos;
 /* the units the clock moves in the block being rendered (events_block: n x BPM, nudged, or what an external clock
  * moved while playing; stopped: n x BPM): a synced LFO's step (voice.c lfo_inc) */

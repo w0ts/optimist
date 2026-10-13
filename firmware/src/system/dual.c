@@ -32,6 +32,8 @@ static struct {
 
 #if FELUCCA_DUAL >= 2
 static mixacc_t dual_acc[2];                       /* [0] CPU0's parts, [1] CPU1's */
+static volatile uint32_t dual_c1_ticks;            /* CPU1: timer ticks inside its jobs, a running total (it alone
+                                                    * writes it; CPU0 reads it once a half: dual_load.h) */
 
 AINL void dual_clear(mixacc_t *A, uint32_t n)
 {
@@ -43,11 +45,12 @@ AINL void dual_clear(mixacc_t *A, uint32_t n)
 static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the block (RAM: core.h HOT) */
 {
     mixacc_t *A = &dual_acc[1];
-    uint32_t p;
+    uint32_t p, t0 = fm1_ticks();                  /* (its load: the time in here, dual_load.h) */
     dual_clear(A, CTL);
     for (p = 0; p < NPART; p++)
         if ((mask >> p) & 1u)
             mix_part(&trk[p], CTL, A);
+    dual_c1_ticks += fm1_ticks() - t0;             /* (before `done`: the caller's csync orders it) */
 }
 #endif
 
@@ -210,6 +213,16 @@ static HOT int dual_join(uint32_t req)
         dual.wait_max = dt;
     dual.jobs++;
     return 1;
+}
+
+/* CPU0, once an audio half (audio.c, after song.cpu_q8; flash code): CPU1's load (dual_load.h). Its jobs of the
+ * half are joined: their ticks are in */
+static void dual_load_half(void)
+{
+    static uint32_t last;
+    uint32_t b = dual_c1_ticks;
+    dual_load_take((b - last) / FM1_TICKS_PER_US, dual.up);
+    last = b;
 }
 
 /* CPU0, before the fork: the rng() draws of the parts' LFOs that wrap in this block (voice.c track_lfo_tick), in

@@ -458,7 +458,7 @@ the letters [D]; kits keep numbers.
 
 ### 4.7 SYSTEM
 
-**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2)**, SCREEN (COLOR BRIGHT -
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2; a DUAL=2 build: CLOCK · CPU0 % · CPU1 %, CPU1 OFF when the core is down)**, SCREEN (COLOR BRIGHT -
 KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
 the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
