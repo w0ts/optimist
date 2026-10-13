@@ -84,6 +84,21 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #endif
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
+/* IN_POOL: a zeroed buffer of the main loop (no audio loop reads it) in the pool instead of main RAM (app.ld .pool,
+ * the same SRAM past main RAM's 96 KiB; main RAM is the scarcer: docs/MEMORY-MAP.md). The host: one address space */
+#ifdef __PI32V2__
+#define IN_POOL __attribute__((section(".pool")))
+#else
+#define IN_POOL
+#endif
+/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool only with the builder's
+ * EXPERIMENTAL TAB_IN_POOL (as the TAB_RAM tables), else main RAM as before; unverified on the FM-1 (the console's
+ * tabbench measures the two) */
+#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL
+#define IN_POOL_AUDIO __attribute__((section(".pool")))
+#else
+#define IN_POOL_AUDIO
+#endif
 #define AINL static inline __attribute__((always_inline))
 AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
 #define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))

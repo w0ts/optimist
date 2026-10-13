@@ -4,7 +4,7 @@
  * vectors, guards; then LCD, input (TIMER5 IRQ, 10 kHz), audio (ALNK0 IRQ). */
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _rh_start[], _rh_end[], _rh_load[];
-extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[];
+extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _pi_load[], _pz_start[];
 
 
 void fm1_timer5_irq(void)
@@ -434,10 +434,12 @@ void fm1_cstart(void)
     fm1_irq_init();
     for (d = _bss_start; d < _bss_end; d++)
         *d = 0;
-    for (d = _pool_start; d < _pool_end; d++)
+    for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
     for (s = _data_load, d = _data_start; d < _data_end; s++, d++)
         *d = *s;
+    for (s = _pi_load, d = _pi_start; d < _pi_end; s++, d++)
+        *d = *s;                                /* the pool's tables (core.h TAB_RAM) */
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;                                /* flash driver code that must run from RAM */

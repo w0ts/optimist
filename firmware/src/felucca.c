@@ -227,7 +227,7 @@ _Static_assert(sizeof st_buf >= 0x800u, "ota.c OTA_STAGE_MEM: the session's 2 Ki
  * alone and ends in a reset); none of them calls another */
 #include "io/editor/ed_out.h"
 #define ED_OUT_HERE 1
-static uint8_t ed_out[ED_OUT_N] __attribute__((aligned(4)));
+static uint8_t ed_out[ED_OUT_N] __attribute__((aligned(4))) IN_POOL;
 #define OTA_DEC_MEM ed_out
 #include "system/ota.c"
 static void recovery_poll(void);
