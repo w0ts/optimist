@@ -147,7 +147,7 @@ static const preset_t SUPER_PRESETS[] = {
     /* {SUPR, SDTN, MIX, DRFT, SUB, CUT, RES, FTYP}, {A D S R}, fenv, mono */
     {"SUPER LEAD", {6, 40, 80, 12, 0, 100, 18, 0}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
     {"SUPER PAD", {6, 56, 90, 30, 0, 64, 12, 1}, {90, 90, 118, 100}, 8, 0, FX(0, 50, 25, 80),
-     XP(P_LRATE + 1, 14, P_LD_FLT + 1, 12)},
+     XP(P_LRATE + 1, 14, P_LEG_FLT + 1, 12)},
     /* trance chords: four notes, each a superwave, a short filter envelope */
     {"SUPER CHRD", {6, 44, 85, 8, 0, 70, 22, 0}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
     {"SUPER PLCK", {4, 29, 70, 0, 0, 60, 30, 0}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},

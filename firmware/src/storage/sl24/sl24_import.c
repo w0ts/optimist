@@ -38,7 +38,7 @@
  * SYNC (P_LSYNC n, 1 4BAR .. 10 1/32) -> the part's LFO RATE -n (params.c LRATE_OF_SLOOP; OFF: its free RATE, kept;
  * a lock on SYNC is dropped, below). 2.6's "LFO 2" page is its one LFO's SYNC TRIG POL: a part whose LFO is TRIG FREE or
  * POL UNI (P_LTRIG, P_LPOL; ours restarts on a note and is bipolar) moves to our LFO 2 when built (FELUCCA_LFO2), which
- * has both: its weightiest depth with the LFO's RATE and WAVE (sl26_lfo2_in, what it loses there). LOST:
+ * has both: its two slots with the LFO's RATE and WAVE (sl26_lfo2_in, what it loses there). LOST:
  *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's TRIG and POL without LFO2 (or on
  *     the depths that stay on LFO): not ours; their values and their locks dropped;
  *   - FTYPE on a part that is not ANALOG (2.6 plays it on ANALOG only);
@@ -195,40 +195,37 @@ static uint32_t sl26_to_sl24(uint8_t *b)
     return ft;
 }
 #if FELUCCA_LFO2
-/* 2.6's LFO with TRIG FREE or POL UNI (sl26_to_sl24's bits 8..13) on part k of q -> our LFO 2, which has both: the
- * part's LFO depth of the most weight (AMP's at half: P_LD_AMP is 0..127) goes there with the LFO's RATE (its SYNC
- * already in it) and WAVE, as 2.6 plays it: PIT FLT SHP's AMT the depth, AMP's (d + 1) / 2 (APPROXIMATE: 127 -> 63,
- * 2 x 63 = 126); that depth of LFO goes to 0. LOST: the TRIG and POL of the other depths (they stay on LFO, NOTE, BI),
- * PHS on a TRIG NOTE (LFO 2 restarts at 0), FADE (LFO 2 has none), a lock on the depth moved (it stays LFO's). No
- * depth: nothing (not heard) */
+/* 2.6's LFO with TRIG FREE or POL UNI (sl26_to_sl24's bits 8..13) on part k of q -> our LFO 2, which has both and two
+ * slots as LFO's: the part's LFO slots (its depths' two of the most weight, params.c lfo1_load) go there whole, with
+ * the LFO's RATE (its SYNC already in it) and WAVE, as 2.6 plays them; LFO's DEST to OFF. LOST: PHS on a TRIG NOTE
+ * (LFO 2 restarts at 0), FADE (LFO 2 has none), a lock on a depth moved (it stays LFO's: no slot of LFO on it now, not
+ * played). No depth: nothing (not heard) */
 static void sl26_lfo2_in(project_t *q, uint32_t ft)
 {
-    static const uint8_t D[L2D_N] = {0, P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP};
-    int16_t x[NPART][L2_NV], v[P_COUNT];
-    uint32_t k, j, best;
+    static const int16_t NONE[4] = {0, 0, 0, 0};
+    int16_t x[NPART][L2_NV], v[P_COUNT], s[4];
+    uint32_t k;
+    int32_t spill;
     (void)l2_unpack(q, x);
     for (k = 0; k < NPART; k++) {
-        int32_t w, wb = 0;
         if (!((ft >> (8u + 2u * k)) & 3u))
             continue;
-        pj_to_p(v, q->t[k].p);
-        for (j = L2D_PIT, best = 0; j < L2D_N; j++) {
-            w = j == L2D_AMP ? (v[D[j]] + 1) / 2 : v[D[j]] < 0 ? -v[D[j]] : v[D[j]];   /* (the first of a tie) */
-            if (w > wb)
-                wb = w, best = j;
-        }
-        if (!best)
+        (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
+        if (!(s[0] && s[1]) && !(s[2] && s[3]))
             continue;
+        pj_to_p(v, q->t[k].p);
         x[k][0] = (int16_t)clamp(v[P_LRATE], TP[P_L2RATE].min, TP[P_L2RATE].max);
         x[k][1] = (int16_t)clamp(v[P_LWAVE], 0, TP[P_L2WAVE].max);
         x[k][2] = (int16_t)((ft >> (8u + 2u * k)) & 1u);
         x[k][3] = (int16_t)((ft >> (9u + 2u * k)) & 1u);
-        x[k][4] = (int16_t)best;
-        x[k][5] = (int16_t)clamp(best == L2D_AMP ? (v[P_LD_AMP] + 1) / 2 : v[D[best]], TP[P_L2AMT].min, TP[P_L2AMT].max);
-        v[D[best]] = 0;
-        pj_from_p(q->t[k].p, v);
+        memcpy(&x[k][4], s, sizeof s);
+        lfo1_store(&q->t[k].p[P_LEG_PIT], NONE, 0);
     }
     l2_pack(q, x);
+    for (k = 0; k < NPART; k++) {                     /* (LFO 2's AMT B: in LFO DEST's words) */
+        (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
+        lfo1_store(&q->t[k].p[P_LEG_PIT], s, x[k][7]);
+    }
 }
 #endif
 /* the parts' ANALOG filter TYPE (sl26_to_sl24) -> q's ANALOG parts (ANALOG 2's FTYP: LP12 LP24 BP HP); their LFO's TRIG

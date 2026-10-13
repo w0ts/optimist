@@ -44,7 +44,7 @@ static int motion_param(const track_t *t, uint32_t id)
 #endif
     if (id >= P_E0)
         return !is_drum(t);                                  /* (the drum track's P_E0 is its kit) */
-    return id <= P_REL || (id >= P_ED_FLT && id <= P_ED_SHP) || (id >= P_LRATE && id <= P_LD_AMP && id != P_LWAVE) ||
+    return id <= P_REL || (id >= P_ED_FLT && id <= P_ED_SHP) || (id >= P_LRATE && id <= P_LFADE && id != P_LWAVE) ||
            (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN || id == P_DETUNE || id == P_SLDEPTH
 #if FELUCCA_ANALOG2
            || id == P_A2SEMI || id == P_A2DRFT || id == P_A2FATK || id == P_A2FDEC || id == P_A2FENV ||
@@ -53,6 +53,9 @@ static int motion_param(const track_t *t, uint32_t id)
         ;
 }
 
+/* a stored event's id that a store may hold: one recordable here, or a depth of before (P_LEG_*: played onto the LFO
+ * slot on that destination, lfo_leg_ev; LFO DEST's slots are not recorded yet) */
+#define MOTION_STORED_OK(t, id) (motion_param((t), (id)) || (!is_drum(t) && (id) >= P_LEG_PIT && (id) <= P_LEG_AMP))
 /* an old motion store (the MOTN record) as it may be used: counts in range, every event recordable, no duplicate */
 static int motion_valid(const motion_store_t *m)
 {
@@ -61,7 +64,7 @@ static int motion_valid(const motion_store_t *m)
         return 0;
     for (i = 0; i < m->count; i++) {
         const motion_ev_t *e = &m->ev[i];
-        if ((e->place >> 6) >= NTRK || (!motion_param(&trk[e->place >> 6], mot_id(e->param)) &&
+        if ((e->place >> 6) >= NTRK || (!MOTION_STORED_OK(&trk[e->place >> 6], mot_id(e->param)) &&
                                          (e->param < P_ENG_END || e->param >= MOT_TAIL_END)))
             return 0;                                        /* (a value after P_E7 not here: kept, not played) */
         for (j = 0; j < i; j++)
@@ -146,12 +149,26 @@ static void motion_pass(track_t *t, uint32_t step)
         motion_restore(t);                                   /* each pass from the patch */
 }
 /* hold event e of track t's step (track k) applies (auto_step, the ISR) */
+static void motion_put(track_t *t, uint32_t k, uint32_t id, int32_t val);
 static void motion_hold(track_t *t, uint32_t k, const auto_ev_t *e)
 {
-    const param_desc_t *d;
-    uint32_t id = mot_id(e->param);
-    if (!motion_param(t, id))
+    uint32_t id = mot_id(e->param), did, taken = 0;
+    int32_t val = e->value;
+    if (!is_drum(t) && id >= P_LEG_PIT && id <= P_LEG_AMP) {
+        uint32_t dest = LT_PIT + (id - P_LEG_PIT);
+        if ((id = lfo_leg_ev(t, id, &val, &taken, &did)) >= P_COUNT)
+            return;                                          /* (a depth of before: no LFO slot free for it) */
+        if (did < P_COUNT)
+            motion_put(t, k, did, (int32_t)dest);            /* (a free slot put on its destination) */
+    } else if (!motion_param(t, id)) {
         return;                                              /* (a value this build lacks) */
+    }
+    motion_put(t, k, id, val);
+}
+/* track t's (track k) value id held at val by its motion (the base kept) */
+static void motion_put(track_t *t, uint32_t k, uint32_t id, int32_t val)
+{
+    const param_desc_t *d;
     d = track_desc(t, id);
     if (!((motion_active[k][id / 32u] >> (id % 32u)) & 1u))
 #if FELUCCA_PLOCK
@@ -159,7 +176,7 @@ static void motion_hold(track_t *t, uint32_t k, const auto_ev_t *e)
 #else
         motion_base[k][id] = t->p[id];                       /* (its base: the patch as it is now) */
 #endif
-    t->p[id] = (int16_t)clamp(e->value, d->min, d->max);
+    t->p[id] = (int16_t)clamp(val, d->min, d->max);
     motion_active[k][id / 32u] |= 1u << (id % 32u);
 }
 

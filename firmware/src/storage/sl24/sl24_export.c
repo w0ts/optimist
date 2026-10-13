@@ -24,6 +24,8 @@
  *     that note value's at the project's tempo (sl24_rate_out), its locks too (LOST: LSYNC, the sync);
  *   - a part's LFO 2 (FELUCCA_LFO2, project.c l2_pack; the drum track's LFO slots that hold it: their defaults): 2.4's
  *     LFO when the part's own does nothing (sl24_l2_out); else, and its TRIG FREE, POL UNI, AMP < 0: LOST (SX24_LFO2);
+ *   - LFO DEST's two slots: 2.4's depths PIT FLT SHP AMP (an odd AMT on PIT FLT SHP: APPROXIMATE, half rounded toward
+ *     0); another destination, AMP < 0: LOST (SX24_LFODEST);
  *   - the drum track: kits 0..36 as they are; ours past 36 (X0X, user kits) -> 808 (LOST); its lanes' record (sends,
  *     per-lane edits, dl_hash) LOST but the lanes' DLY: SLOOP 2.5's drums' delay send (G_DRDLY, byte 73; 2.4 ignores
  *     it) is the DLY level most lanes have (a tie: the lower), as a send (dsend_lvl), 0 while DLY is in no FX slot.
@@ -88,8 +90,11 @@ enum {                                                  /* what an export lost (
                                                          * 2.4 has none; the second word's bit 7; sl24_fx_out) */
     SX24_COND = 4194304,                                /* (a step condition 1:2 .. 4:4, seq/auto.h AUTO_COND, Felucca 1.5.6:
                                                          * 2.4 has none; the second word's bit 8; a v11 editor: MOTION) */
-    SX24_LFO2 = 8388608                                 /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
+    SX24_LFO2 = 8388608,                                /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
                                                          * word's bit 9) */
+                                                        /* (bit 10: another branch's) */
+    SX24_LFODEST = 33554432                             /* (a part's LFO DEST slot not one of 2.4's depths: another
+                                                         * destination, AMP < 0; the second word's bit 11) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -183,30 +188,39 @@ static int32_t sl24_param_out(uint32_t id, uint32_t trk, int e)
     return -1;
 }
 static void sl24_w16(uint8_t *o, int32_t v) { o[0] = (uint8_t)v, o[1] = (uint8_t)((uint32_t)v >> 8); }
+/* slots s[4] over 2.4's LFO DEST depths at o (its p[]): as the depths they are (params.c lfo_depths: a destination
+ * other than PIT FLT SHP AMP, AMP < 0, not heard there: -> 1) */
+static uint32_t sl24_slots_out(const int16_t *s, uint8_t *o)
+{
+    int16_t d[4];
+    uint32_t i, r = lfo_depths(s, d) & LFO_NOSND;
+    for (i = 0; i < 4u; i++)
+        sl24_w16(o + 2u * (P_LEG_PIT + i), d[i]);
+    return r;
+}
 #if FELUCCA_LFO2
 /* part k's LFO 2 (project.c l2_unpack) over 2.4's values at o (its p[]), v ours: when it acts and the part's LFO does
- * not (every LFO DEST at 0), it becomes 2.4's LFO: RATE (synced: the nearest free one, SX24_LSYNC), WAVE, PHS and FADE
- * 0, its AMT on its DEST (AMP: 2 x AMT); 2.4 has no TRIG FREE, no POL UNI, no AMP the other way up (AMT < 0): those,
- * and a LFO 2 beside a LFO that acts, are lost (SX24_LFO2) */
-static uint32_t sl24_l2_out(const project_t *q, uint32_t k, const int16_t *v, int32_t bpm, uint8_t *o)
+ * not (its slots OFF or at 0), it becomes 2.4's LFO: RATE (synced: the nearest free one, SX24_LSYNC), WAVE, PHS and FADE
+ * 0, its slots as depths (sl24_slots_out); 2.4 has no TRIG FREE, no POL UNI, nothing but PIT FLT SHP AMP: those, and a
+ * LFO 2 beside a LFO that acts, are lost (SX24_LFO2) */
+static uint32_t sl24_l2_out(const project_t *q, uint32_t k, const int16_t *l1, int32_t bpm, uint8_t *o)
 {
-    static const uint8_t D[L2D_N] = {0, P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP};
     int16_t x[NPART][L2_NV];
     const int16_t *l;
     uint32_t lost = 0;
     (void)l2_unpack(q, x);
     l = x[k % NPART];
-    if (!l[4] || !l[5])                                 /* (OFF, or AMT 0: nothing heard) */
+    if (!(l[4] && l[5]) && !(l[6] && l[7]))            /* (OFF, or AMT 0: nothing heard) */
         return 0;
-    if (v[P_LD_PIT] || v[P_LD_FLT] || v[P_LD_SHP] || v[P_LD_AMP])
+    if ((l1[0] && l1[1]) || (l1[2] && l1[3]))
         return SX24_LFO2;
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(l[0], bpm));
     sl24_w16(o + 2u * P_LWAVE, l[1]);
     sl24_w16(o + 2u * P_LPHASE, 0);
     sl24_w16(o + 2u * P_LFADE, 0);
-    sl24_w16(o + 2u * D[l[4] % L2D_N], l[4] == L2D_AMP ? (l[5] > 0 ? 2 * l[5] : 0) : l[5]);
+    lost |= sl24_slots_out(&l[4], o) ? SX24_LFO2 : 0u;
     lost |= l[0] < 0 ? SX24_LSYNC : 0u;
-    lost |= l[2] || l[3] || (l[4] == L2D_AMP && l[5] < 0) ? SX24_LFO2 : 0u;
+    lost |= l[2] || l[3] ? SX24_LFO2 : 0u;
     return lost;
 }
 #endif
@@ -232,10 +246,15 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
         sl24_w16(o + 2u * i, v[i]);
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));
     lost |= v[P_LRATE] < 0 ? SX24_LSYNC : 0u;
+    if (k < NPART) {                                    /* LFO DEST's slots as 2.4's depths (SX24_LFODEST: not all) */
+        int16_t s[4];
+        int32_t spill;
+        (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
+        lost |= sl24_slots_out(s, o) ? SX24_LFODEST : 0u;
 #if FELUCCA_LFO2
-    if (k < NPART)
-        lost |= sl24_l2_out(q, k, v, q->g[G_BPM], o);
+        lost |= sl24_l2_out(q, k, s, q->g[G_BPM], o);
 #endif
+    }
     for (i = 0; i < 3u; i++)
         sl24_w16(o + 2u * (SL24_TFLT + i), px[i]);
     for (i = 0; i < 8u; i++)

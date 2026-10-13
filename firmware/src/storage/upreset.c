@@ -99,6 +99,7 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
     for (i = 0; i < P_ENG_END; i++)
         r->p[i] = v[i];
 #endif
+    lfo1_store(&r->p[P_LEG_PIT], &v[P_L1DA], 0);       /* LFO DEST: its stored form (params.c lfo1_store) */
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
@@ -108,6 +109,7 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
  * SLICE (11) -> 10. A SUPER record is rewritten with today's P_COUNT values. (Test builds of feat/analog2 also
  * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def);
+static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def);
 static void up_bank_from_v1(up_bank_t *bk)
 {
     uint32_t i, k;
@@ -163,8 +165,9 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
         memset(bk, 0, sizeof *bk);
 }
 
-/* the record's values in today's P_* order (mapped by count, see above); def = the defaults */
-static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
+/* the record's values in today's P_* order (mapped by count, see above); def = the defaults. LFO DEST's four words
+ * as stored (the depths of before, or the slots' tagged layout): up_params turns them into the slots */
+static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     uint32_t i, nc = r->np - 8u;
 #if P_TAIL
@@ -212,6 +215,16 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[i] = i < nc ? r->p[i] : def[i];
     for (i = 0; i < 8u; i++)
         out[P_E0 + i] = r->p[nc + i];
+}
+/* the record's values in today's P_* order, LFO DEST's slots from their stored form (params.c lfo1_load: the depths of
+ * a record of before, SLOOP's too, keep the two of the most weight) */
+static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
+{
+    int16_t w[4];
+    int32_t spill;
+    up_params_st(r, out, def);
+    memcpy(w, &out[P_LEG_PIT], sizeof w);
+    (void)lfo1_load(w, &out[P_L1DA], &spill);
 }
 
 static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */

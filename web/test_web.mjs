@@ -32,7 +32,7 @@ const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
-   UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
+   UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, remapParams, lfoSlotsFromDepths, patternFromSteps, stepsFromPattern, upName,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
@@ -132,7 +132,16 @@ async function editorLibrarian() {
   const pdesc = [];
   for (let i = 0; i < info.pcount; i++) pdesc.push(E.parse[C.DESC](await rq(E.req.desc(0, i))));
   const keys = E.paramKeys(pdesc, info.pe0, info.pcount);
-  ok(keys[6] === "PIT" && keys[13] === "PIT#2" && keys[info.pe0] === "E0" && new Set(keys).size === keys.length, "librarian: parameter keys unique (label#n, E0..E7)");
+  ok(keys[6] === "PIT" && keys[13] === "DST A" && keys[14] === "AMT A" && keys[info.pe0] === "E0" && new Set(keys).size === keys.length, "librarian: parameter keys unique (label#n, E0..E7)");
+  {   /* LFO DEST's depths of before (a file from before 2026-10: PIT#2 FLT#2 SHP#2 AMP) -> its two slots */
+    const old = keys.slice();
+    old[13] = "PIT#2", old[14] = "FLT#2", old[15] = "SHP#2", old[16] = "AMP";
+    const vals = old.map((k, i) => ({ "PIT#2": 10, "FLT#2": -30, "SHP#2": 20, "AMP": 50 })[k] ?? 0);
+    const p = E.remapParams(vals, old, keys);
+    ok(p[13] === 2 && p[14] === -60 && p[15] === 4 && p[16] === 50 && E.lfoSlotsFromDepths([0, 0, 0, 0]).join() === "0,0,0,0" &&
+       E.lfoSlotsFromDepths([5, 5, 5, 5]).join() === "1,10,2,10",
+      "library: a file of before's LFO depths -> DEST A FLT -60, DEST B AMP 50 (the two of the most weight, AMP's at half)");
+  }
 
   const b = await E.bank.list(rq);
   ok(b.total === 32 && b.slots.length === 32 && b.slots[1].used && b.slots[1].name === "GLASS BELL" && !b.slots[3].used
@@ -1739,6 +1748,8 @@ async function editorSl24Lost2() {
       "sl24Lost: the second word's bit 5 is a POLY note's own end (SX24_NGATE), with its text");
     ok(E.sl24Lost(0, 512, true).join() === "lfo2" && E.sl24Lost(0, 512 | 32, true).join() === "ngate,lfo2" && html.includes("s24L_lfo2:"),
       "sl24Lost: the second word's bit 9 is a part's LFO 2 (SX24_LFO2), with its text; bits 6..8 not this list's");
+    ok(E.sl24Lost(0, 2048, true).join() === "lfodest" && html.includes("s24L_lfodest:"),
+      "sl24Lost: the second word's bit 11 is an LFO DEST slot 2.4 has not (SX24_LFODEST), with its text");
     done();
   }
   for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {

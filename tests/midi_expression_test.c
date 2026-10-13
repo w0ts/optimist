@@ -33,7 +33,7 @@ static void reset_test(void)
         trk[i].p[P_ATK] = 0;
         trk[i].p[P_SUS] = 127;
         trk[i].p[P_REL] = 100;
-        trk[i].p[P_GLIDE] = trk[i].p[P_LD_PIT] = trk[i].p[P_ED_PIT] = 0;
+        trk[i].p[P_GLIDE] = trk[i].p[P_L1DA] = trk[i].p[P_L1AA] = trk[i].p[P_L1DB] = trk[i].p[P_L1AB] = trk[i].p[P_ED_PIT] = 0;
         trk[i].p[P_E0] = 3;               /* sine, no detune / noise */
         trk[i].p[P_E1] = trk[i].p[P_E3] = 0;
     }

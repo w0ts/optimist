@@ -57,9 +57,9 @@ static void macro_show_tests(void)
     song.g[G_VIEW] = 0;
     fxs_set(FXS_DEF);                                     /* (the FX slots as a new project's: the fuzz turned them) */
     trk[0].p[P_DIST] = 127;
-    trk[0].p[P_LD_FLT] = 0;
+    trk[0].p[P_L1DA] = LT_FLT, trk[0].p[P_L1AA] = 0;  /* (LFO DEST: slot A on FLT, at 0) */
     dst0 = trk[0].p[P_DIST];
-    flt0 = trk[0].p[P_LD_FLT];
+    flt0 = trk[0].p[P_L1AA];
     go_home();
     ms_pos(0, 0, 0, 0);
     open_family(FAM_FX); ms_page(SC_TRACK, P_DIST);
@@ -75,9 +75,9 @@ static void macro_show_tests(void)
     check(ms_key(0, "DST|100|") && ms_warn(MS_X0, MS_X1, 62, 70) > 2,
           "macro show: its knob just turned: the authored 100 in the text, the tick still where it plays");
     ui.hot_t = 0;
-    ms_page(SC_TRACK, P_LD_PIT);
+    ms_page(SC_TRACK, P_L1DA);
     ms_shot("lfo");
-    check(ms_key(1, "FLT|+26|") && trk[0].p[P_LD_FLT] == flt0, "macro show: MOTION +35: LFO FLT authored 0 shows +26 % (raw +17: its macro amount)");
+    check(ms_key(1, "AMT A|+26|") && trk[0].p[P_L1AA] == flt0, "macro show: MOTION +35: LFO slot A on FLT authored 0 shows +26 % (AMT +34: its macro amount)");
     check(ms_warn(MS_X0 + 60, MS_X1 + 60, 26, 44) > 8, "macro show: ... marked with the M");
     ms_page(SC_TRACK, P_ATK);
     check(!ms_warn(MS_X0, MS_X1 + 180, 26, 70), "macro show: a page no macro moves: nothing in the notice colour");
@@ -139,12 +139,12 @@ static void macro_show_tests(void)
             uint32_t sc = ed_out[p], id = ed_out[p + 1];
             int32_t v = (ed_out[p + 2] | ed_out[p + 3] << 7) - 8192;
             if (sc == 0 && id == P_DIST) dst = v == 51;
-            if (sc == 0 && id == P_LD_FLT) lfo = v == 17;
+            if (sc == 0 && id == P_L1AA) lfo = v == 34;
             glob += sc == 1;
             drev += sc == 2;
             p += sc == 2 ? 6u : 4u;
         }
-        check(dst && lfo && glob >= 1u && !drev, "macro show: ... DST 127 plays 51, LFO FLT 0 plays 17, ENERGY's global (drum level), no REV move");
+        check(dst && lfo && glob >= 1u && !drev, "macro show: ... DST 127 plays 51, LFO slot A FLT 0 plays 34, ENERGY's global (drum level), no REV move");
         check(ed_n == p, "macro show: ... the reply holds exactly its entries");
         ms_pos(0, 0, 40, 0);
         ed_begin(65);
