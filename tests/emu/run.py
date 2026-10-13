@@ -38,6 +38,7 @@ CHECKS = {
     "fx": ("check_fx", "FX slots: COMP heard, bypass, slot swap, determinism, restore, the drum inserts", (0,)),
     "persist": ("check_persist", "save, power cycle, load: patterns, scenes, the song, FX", (0,)),
     "scenefx": ("check_scenefx", "F1: a scene stored from the SAVE layer keeps its FX", (0,)),
+    "autosave": ("check_autosave", "stopped, an edit: autosaved once unchanged 10 s (after power-on, after a save); a power cycle keeps it", (0, 1)),
     "upfm6": ("check_upfm6", "UP_FM6 moved off the SDK VM; 0xE7000..0xE9FFF untouched", (0, 1)),
     "timing": ("check_timing", "tests/emu_boot_check.py: no late half at 48, 96 and 192 MHz", (0, 1)),
 }
