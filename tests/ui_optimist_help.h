@@ -96,7 +96,7 @@ static void help_tests(void)
     ui.row[SCR_PROJECT] = 0;
     ui.hot = 1;                                         /* (the PROJECT row's LOAD) */
     frame();
-    check(hlt_text_is("Load (work changed: asks)"), "... PROJECT LOAD: \"Load (work changed: asks)\"");
+    check(hlt_text_is("Load the project (asks)"), "... PROJECT LOAD: \"Load the project (asks)\"");
     check(OP_PY + LIST_H == HL_Y, "... PROJECT's rows end over the help line");
     op_enter(SCR_SOUND);                                /* a value turned: the line ~2 s, then gone */
     ui.row[SCR_SOUND] = 1;

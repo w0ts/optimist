@@ -561,7 +561,6 @@ static uint16_t target_col(const char *s)               /* a track named: its co
             return trk_col(i);
     return C_HI;
 }
-#define MODAL_W 208                     /* the text's room inside the box (224 px framed, 8 px margins) */
 /* the large face with lower case: FONT_L is FONT_S's glyphs at 2x but stops at '_' (gfx.c folds a..z to capitals),
  * so sentence case needs FONT_S's range; made here, not in the generated font that SLOOP's UI draws with */
 static const felucca_font_t *font_big(void)

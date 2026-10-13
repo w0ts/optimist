@@ -673,18 +673,20 @@ static void confirm_tests(void)
     check(song.g[G_BPM] == GP[G_BPM].def && !strcmp(ui.msg, "NEW PROJECT"), "YES again: a new project");
     song.g[G_SLOT] = 4;                                 /* (project_used: slots 1, 2) */
     turn(EN_K3, 1);
-#if FELUCCA_PATTERNS
     saves = 0;
+    tap(B_SAVE);
+    check(ui.arm_scr == SCR_PROJECT && !strcmp(ui.arm_q, "SAVE PROJECT 4?") && !ui.arm_danger && saves == 0 && !name_on(),
+          "PROJECT SAVE into an empty slot: asks first too (amber), nothing written");
+#if FELUCCA_PATTERNS
     tap(B_SAVE);
     check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
     tap(B_SAVE);                                        /* (NAME's SAVE: the name kept, the project written) */
     saves = project_used(3);                            /* (the real log: slot 4 stored) */
     project_save(0);                                    /* (slot 1 used, for the question below) */
 #else
-    saves = 0;
     tap(B_SAVE);
 #endif
-    check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: saved at once");
+    check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: asked, then saved");
     song.g[G_SLOT] = 1;
     tap(B_SAVE);
     check(saves == 1 && !strcmp(ui.arm_q, "SAVE PROJECT 1?") && ui.arm_danger, "PROJECT SAVE over a used slot: asks, red");
@@ -1728,6 +1730,12 @@ static void song_tests(void)
         check(arrangement.entry[0].bars == bars + 2u, "PART 1: KNOB 2 its bars");
         turn(EN_K3, 1);
         tap(B_SAVE);
+        check(op_armed() && arrangement.count == cnt && !strcmp(ui.arm_q, "INSERT PART 1?") && !ui.arm_danger,
+              "INSERT: asks first (\"INSERT PART 1?\"), nothing inserted");
+        tap(B_HOME);
+        check(!op_armed() && arrangement.count == cnt, "INSERT: HOME cancels, nothing changed");
+        tap(B_SAVE);
+        tap(B_SAVE);
         check(arrangement.count == cnt + 1u && ui.row[SCR_SONG] == song_row_of(SG_PART, 1), "INSERT: a copy after it");
         ui.force = 1;
         frame();
@@ -1976,6 +1984,11 @@ static void name_tests(void)
     ui.row[SCR_SOUND] = 0;
     turn(EN_K4, 1);                                     /* SAVE AS hot */
     tap(B_SAVE);
+    check(op_armed() && !strcmp(ui.arm_q, "SAVE AS PRESET?") && !name_on(), "SAVE AS: asks first, NAME not open");
+    tap(B_HOME);
+    check(!op_armed() && !name_on() && up_stores == n0, "SAVE AS: HOME cancels, nothing changed");
+    tap(B_SAVE);
+    tap(B_SAVE);
     l = str_len(ENGINES[TSEL->eng_req]->name);
     check(name_on() && nm.kind == NK_USER && nm.slot == 2u && !strncmp(nm.s, ENGINES[TSEL->eng_req]->name, l) &&
               !strcmp(nm.s + l, " 03"), "SAVE AS: NAME, prefilled with the automatic name (\"ANALOG 03\")");
@@ -2011,7 +2024,8 @@ static void name_tests(void)
     tap(B_SAVE);
     check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t,
           "SAVE: written under the typed name, a toast");
-    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again) */
+    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again: asks, then NAME) */
+    tap(B_SAVE);
     check(name_on(), "SAVE AS again: NAME");
     turn(EN_K1, -20);
     tap(B_HOME);
@@ -2023,7 +2037,9 @@ static void name_tests(void)
     ui.user_slot = 5;
     turn(EN_K4, 1);
     tap(B_SAVE);
-    check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: NAME first");
+    check(op_armed() && !name_on() && !strcmp(ui.arm_q, "SAVE PRESET U06?"), "PROJECT's USER SAVE: asks first");
+    tap(B_SAVE);
+    check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: then NAME");
     tap(B_SAVE);
     check(!name_on() && up_store_slot == 5u, "... SAVE: the user preset written");
 #if SEC_LOGGED
@@ -2033,6 +2049,7 @@ static void name_tests(void)
         song.g[G_SLOT] = 9;
         frame();
         turn(EN_K3, 1);
+        tap(B_SAVE);
         tap(B_SAVE);
         check(name_on() && nm.kind == NK_PROJ && nm.slot == 8u && !strcmp(nm.s, "PROJECT 9"),
               "PROJECT's SAVE: NAME, prefilled \"PROJECT 9\"");
@@ -2272,6 +2289,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
+#include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
@@ -2409,6 +2427,7 @@ int main(int argc, char **argv)
     help_tests();
     risk_tests();
     risk_edits_tests();
+    actcards_tests();
     algo_tests();
     mute_tests();
     smute_tests();

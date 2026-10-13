@@ -206,6 +206,7 @@ static const char *trk_tag(uint32_t i)
     return T[i % NTRK];
 }
 
+#define MODAL_W 208                     /* the confirm's text room inside the box (224 px framed, 8 px margins) */
 /* ---- the confirm */
 static void op_disarm(void)
 {

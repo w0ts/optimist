@@ -180,7 +180,7 @@ static void fm6_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     c->label = d->lab;
     if (d->kind == FK_GO) {
-        c->kind = CK_ACT;
+        cell_act(c, "VOICE", d->lab, 0, d->off == 2u);   /* (INIT destroys) */
         return;
     }
     c->kind = CK_VAL;
@@ -229,7 +229,7 @@ static int fm6_yes(uint32_t r, uint32_t k, uint32_t ok)
     }
     if (d->kind != FK_GO)
         return 0;
-    if (!ok && d->off != 1u) {
+    if (!ok) {
         f6_format(r, &FMK_PAGES[F6_STORE - 1u].p[0], f6.slot, b);
         op_arm(SCR_SOUND, r, k, GO[d->off], d->off ? trk_tag(song.sel) : b, 1);   /* "Store U05?", "Init T2?" */
         return 1;
