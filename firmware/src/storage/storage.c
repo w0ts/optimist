@@ -109,7 +109,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
     return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
 }
 
-static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
+static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4))) IN_POOL;
 /* st_save may be given st_buf itself (an object built or patched there: UP_FM6's, CZ's, upreset.c up_put_v1's SLOOP
  * bank) */
 #define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE))

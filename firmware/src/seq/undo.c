@@ -53,7 +53,7 @@ static struct {
 #if FELUCCA_AUTO
     auto_list_t al;                      /* the track's automation as it was */
 #endif
-} undo;
+} undo IN_POOL;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static volatile uint8_t undo_isr;        /* events_block is running (the audio ISR): IRQs stay as they are */
 #define UNDO_REC(t) (((t)->pass << 2) | 1u)      /* a recording pass of track t */

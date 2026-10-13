@@ -350,7 +350,7 @@ static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
     return 1;
 }
 
-static project_v3_t proj_v3_tmp;               /* (formats 1, 2: through format 3) */
+static project_v3_t proj_v3_tmp IN_POOL;               /* (formats 1, 2: through format 3) */
 /* a format 2 project (n bytes in *v2) -> slot q as format 4 */
 static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
 {
@@ -1120,7 +1120,7 @@ static union {
 #if SEC_LOGGED || FELUCCA_SNAPSHOTS
     uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c; snapshots.c) */
 #endif
-} proj_tmp;
+} proj_tmp IN_POOL;
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
 #if !SEC_LOGGED
 static void proj_fetch(uint32_t slot)
