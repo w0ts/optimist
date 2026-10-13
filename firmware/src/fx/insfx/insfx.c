@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The further INSERT types of the tracks' insert slots (fx_slots.c S1 S2, 2026-10-13): FOLD FUZZ PHSR FLNG FRMT WIDE,
- * a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
+ * and CHRS ECHO (a count of instances: fxi_kern.c, fxi.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
  * call them.
  *   FOLD FUZZ PHSR FLNG  after Felucca 1.5.6's track INSERT (hugelton/Felucca 9f6a885, firmware/src/fx.c ins_shape,
  *                        ins_drive, ins_swept; perform.c PH_A, pf_tri), Copyright (C) 2026 Leo Kuroshita
@@ -358,9 +358,21 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
 }
 #endif
 
-/* the state of type ty on instance i: its wet share now (0: at rest; the CPU guard) */
+#include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
+#if INS_LIM
+#define IFX_EV(ty, k) ifx_lim_ev(ty, k)                 /* (fading out to give a lent line back: as off) */
+#else
+#define IFX_EV(ty, k) 0
+#endif
+
+/* the state of type ty on instance i: its wet share now (0: at rest; the CPU guard). A limited type (CHRS ECHO): i is
+ * the track, its instance's (none: 0) */
 AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0 && ty < FXT_N)
+        return ifx_lim_w(ty, i);
+#endif
     switch (ty) {
 #if FELUCCA_INS_FOLD
     case FXT_FOLD: return ifx_fold[i].w;
@@ -382,6 +394,31 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #endif
     default: return 0;
     }
+}
+/* type ty can run on track k: a limited type (CHRS ECHO) only with an instance (fxi.c), every other always (the guard) */
+AINL int ifx_has(uint32_t ty, uint32_t k)
+{
+#if INS_LIM
+    if (ty >= FXT_LIM0 && ty < FXT_N)
+        return ifx_lim_at(ty, k) != FXI_NONE;
+#endif
+    (void)ty, (void)k;
+    return 1;
+}
+/* the types (a bit each) that may still need a call at amount 0 on track k: not fully at rest. A call at 0 from rest
+ * (its wet share 0 before and after) does what every type does last at rest (FOLD FUZZ: no peak; WIDE: no side; CHRS
+ * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
+ * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
+ * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
+static uint16_t ifx_awake[NTRK];
+static __attribute__((noinline)) int32_t ifx_wn(uint32_t ty, uint32_t k) { return ifx_w(ty, k); }   /* (flash: the
+                                                        * wrappers and the quiet loop call it through FAR, a block) */
+static __attribute__((noinline)) void ifx_mark(uint32_t ty, uint32_t k, int32_t a, int32_t w0)   /* (flash, FAR) */
+{
+    if (a || w0 || ifx_w(ty, k))
+        ifx_awake[k % NTRK] |= (uint16_t)FXT_BIT(ty);
+    else
+        ifx_awake[k % NTRK] &= (uint16_t)~FXT_BIT(ty);
 }
 
 /* type ty (a further one) at amount a on instance i's n samples of b; sh: b's headroom (a part's 3, the bus's 2:
@@ -409,8 +446,14 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
     (void)i, (void)a, (void)b, (void)n, (void)sh;
 }
 /* part k's further insert ty at amount a (fx.c ins_one; WIDE: its block + d / 2, its side d / 2) */
-static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
+AINL void ifx_part_run(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
+        ifx_lim_run(ty, k % NPART, a, b, 0, n, 3);
+        return;
+    }
+#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t *sd = ifx_side[k % NPART];
@@ -423,16 +466,30 @@ static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int
 #endif
     ifx_run(ty, k % NPART, a, b, n, 3);
 }
+static HOT2 __attribute__((noinline)) void ifx_part(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, k % NPART);
+    ifx_part_run(ty, k, a, b, n);
+    FAR(ifx_mark)(ty, k % NPART, a, w0);
+}
 /* a part not heard this block (silent, MUTE / SOLO: fx.c mix_part): its further inserts not on any more (in no slot, at
  * 0, its FX bypassed) go to rest at once, not frozen mid-fade, so its next note starts dry, sample for sample (a fade
  * there would be the old effect's last 2.9 ms on a new note). Those still on keep their state */
 static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 {
-    uint32_t k = (uint32_t)(t - trk) % NPART, ty;
+    uint32_t k = (uint32_t)(t - trk) % NPART, ty, m = ifx_awake[k] & FXT_BUILT;
     int32_t on = fx_on(t);
-    for (ty = FXT_NEW0; ty < FXT_N; ty++) {
-        if (FXT_AMT[ty] == 0xFFu || !ifx_w(ty, k) || (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]]))
+    for (ty = 0; m; ty++, m >>= 1) {                    /* (only the types not at rest: ifx_awake) */
+        if (!(m & 1u) || ty < FXT_NEW0 || !FAR(ifx_wn)(ty, k) ||
+            (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]] && !IFX_EV(ty, k)))   /* (evicted: fxi.c, as off) */
             continue;
+        ifx_awake[k] &= (uint16_t)~FXT_BIT(ty);         /* (to rest here, below) */
+#if INS_LIM
+        if (ty >= FXT_LIM0) {
+            ifx_lim_rest(ty, k);                        /* (its wet share 0: it starts from a clean line, fxi_kern.c) */
+            continue;
+        }
+#endif
         switch (ty) {
 #if FELUCCA_INS_FOLD
         case FXT_FOLD: ifx_zero(&ifx_fold[k], sizeof ifx_fold[k]); break;
@@ -457,8 +514,14 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
     }
 }
 /* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d) */
-static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
+#if INS_LIM
+    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
+        ifx_lim_run(ty, TRK_DRUM, a, l, r, n, 2);
+        return;
+    }
+#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t d[CTL];
@@ -471,5 +534,12 @@ static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32
 #endif
     ifx_run(ty, IFX_BUS, a, l, n, 2);
     ifx_run(ty, IFX_BUS + 1u, a, r, n, 2);
+}
+_Static_assert(IFX_BUS == TRK_DRUM, "ifx_awake: the drum bus's bit is the drum track's");
+static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, IFX_BUS);
+    ifx_bus_run(ty, a, l, r, n);
+    FAR(ifx_mark)(ty, IFX_BUS, a, w0);
 }
 #endif

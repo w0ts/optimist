@@ -183,10 +183,14 @@ cpu/fx/part_phsr 1255
 cpu/fx/part_flng 1254
 cpu/fx/part_frmt 1267
 cpu/fx/part_wide 1267
+cpu/fx/part_chrs 1267
+cpu/fx/part_echo 1237
 cpu/fx/dbus_fold 938
 cpu/fx/dbus_fuzz 935
 cpu/fx/dbus_phsr 996
 cpu/fx/dbus_flng 991
 cpu/fx/dbus_frmt 995
 cpu/fx/dbus_wide 940
+cpu/fx/dbus_chrs 939
+cpu/fx/dbus_echo 922
 cpu/fx/ins_worst 2661

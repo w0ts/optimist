@@ -144,7 +144,7 @@ static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY,
                                    , P_TCOMP                                                    /* amount: fx_slots.c) */
 #endif
 #if INS_FX
-                                   , P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE        /* (the further inserts') */
+                                   , P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO   /* (the further inserts') */
 #endif
 };
 #define ED_NTID ((uint32_t)sizeof ED_TIDS)

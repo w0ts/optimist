@@ -35,8 +35,8 @@ static int motion_param(const track_t *t, uint32_t id)
                                                               * track's: the drum bus's, fx.c dbus_run) */
 #endif
 #if INS_FX
-    if (id >= P_TFOLD && id <= P_TWIDE)
-        return 1;                                            /* (the further inserts' amounts: insfx.c, every track) */
+    if (id >= P_TFOLD && id <= P_TECHO)
+        return 1;                                            /* (the further inserts' amounts: insfx.c, every track; CHRS ECHO too) */
 #endif
 #if SL24_TP
     if (id > P_E7)

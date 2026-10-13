@@ -27,7 +27,7 @@ static void check(const char *what, int ok)
     printf("insfx: %-100s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
-static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE"};
+static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO"};
 static int32_t x[N], y[N], z[N];
 
 static void sine(double amp, double f)
@@ -64,11 +64,15 @@ static void reset(void)
         ins_put(k, E);
         trk[k].p[P_FXOFF] = 0;
     }
-    for (k = P_TFOLD; k <= P_TWIDE; k++)
+    for (k = P_TFOLD; k <= P_TECHO; k++)
         trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
     memset(ifx_fold, 0, sizeof ifx_fold), memset(ifx_fuzz, 0, sizeof ifx_fuzz), memset(ifx_phsr, 0, sizeof ifx_phsr);
     memset(ifx_flng, 0, sizeof ifx_flng), memset(ifx_frmt, 0, sizeof ifx_frmt), memset(ifx_wide, 0, sizeof ifx_wide);
     memset(ifx_sd, 0, sizeof ifx_sd);
+#if INS_LIM
+    fxi_init();                                         /* (CHRS ECHO: every instance free, zeroed when handed out) */
+    fxi_poll();
+#endif
 }
 /* type ty on part 1 (S1, through fx.c ins_part) at amount a over x -> y; amt(i): the amount of block i */
 static void run_part(uint32_t ty, int32_t a0, int32_t a1, uint32_t switch_at)
@@ -76,6 +80,7 @@ static void run_part(uint32_t ty, int32_t a0, int32_t a1, uint32_t switch_at)
     uint8_t s[2] = {(uint8_t)ty, FXT_NONE};
     uint32_t i;
     ins_put(0, s);
+    fxi_poll();                                         /* (CHRS ECHO: the main loop hands out the instance) */
     memcpy(y, x, sizeof y);
     for (i = 0; i + CTL <= N; i += CTL) {
         trk[0].p[FXT_AMT[ty]] = (int16_t)(i < switch_at ? a0 : a1);
@@ -88,6 +93,7 @@ static void run_bus(uint32_t ty, int32_t a)
     uint8_t s[2] = {(uint8_t)ty, FXT_NONE};
     uint32_t i;
     ins_put(TRK_DRUM, s);
+    fxi_poll();
     TDRUM->p[FXT_AMT[ty]] = (int16_t)a;
     memcpy(y, x, sizeof y), memcpy(z, x, sizeof z);
     for (i = 0; i + CTL <= N; i += CTL)
@@ -178,6 +184,16 @@ static void t_type(uint32_t ty)
     for (i = N / 2u; i < N; i++)
         x[i] = 0;
     run_part(ty, 127, 127, 0);
+#if FELUCCA_INS_DELAY
+    if (ty == FXT_ECHO) {                               /* (a 75 ms repeat at feedback 0.6: 4 s more of silence) */
+        uint32_t b;
+        for (b = 0; b < 4u * FS / N; b++) {
+            memset(y, 0, sizeof y);
+            for (i = 0; i + CTL <= N; i += CTL)
+                ins_part(&trk[0], y + i, CTL);
+        }
+    }
+#endif
     for (i = N - 64u, ok = 1; i < N; i++)
         ok &= y[i] == 0;
     if (!ok)

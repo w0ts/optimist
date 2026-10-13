@@ -143,11 +143,23 @@ static void test_model(void)
                     continue;
                 ok &= CG_COST_PINS[t - FXT_NEW0] > 0u && CG_COST_DBINS[t - FXT_NEW0] > 0u;
                 ins_put(0, s), ins_put(TRK_DRUM, s);
+                fxi_poll();                             /* (CHRS ECHO: their instances, fxi.c) */
                 trk[0].p[FXT_AMT[t]] = 90;
                 ok &= cg_est() == e1 + CG_COST_PINS[t - FXT_NEW0];
                 trk[0].p[P_FXOFF] = 1;
                 ok &= cg_est() == e1;
                 trk[0].p[P_FXOFF] = 0, trk[0].p[FXT_AMT[t]] = 0;
+#if INS_LIM
+                if (t >= FXT_LIM0) {                    /* (a limited type: not counted on a track left without an
+                                                         * instance; ECHO's one is T1's, then the drum track's) */
+                    TDRUM->p[FXT_AMT[t]] = 90;
+                    ok &= ifx_has(t, TRK_DRUM) || cg_est() == e1;
+                    TDRUM->p[FXT_AMT[t]] = 0;
+                    s[0] = FXT_NONE;
+                    ins_put(0, s);
+                    fxi_poll();
+                }
+#endif
                 TDRUM->p[FXT_AMT[t]] = 90;
                 cg.level = CG_L_QUALITY;
                 ok &= cg_est() == e1 + CG_COST_DBINS[t - FXT_NEW0];
@@ -157,7 +169,7 @@ static void test_model(void)
             }
             ins_defaults();
             CHECK(ok, "the further inserts: measured; each counted while set in a slot (not with FX off), the drum bus's "
-                  "at QUALITY too");
+                  "at QUALITY too; a limited one only with an instance");
         }
 #endif
     }

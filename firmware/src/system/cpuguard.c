@@ -76,7 +76,7 @@ static uint32_t cg_ins_part(uint32_t p)
     {   /* the further inserts (insfx.c): set in a slot, or fading out */
         uint32_t t;
         for (t = FXT_NEW0; t < FXT_N; t++)
-            if (FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]]) || ifx_w(t, p)))
+            if (FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]] && ifx_has(t, p)) || ifx_w(t, p)))
                 n += CG_COST_PINS[t - FXT_NEW0];
     }
 #endif
@@ -104,7 +104,7 @@ static uint32_t cg_ins_bus(void)
     {   /* the further inserts (insfx.c ifx_bus: L and R at every level) */
         uint32_t t;
         for (t = FXT_NEW0; t < FXT_N; t++)
-            if (FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]]) || ifx_w(t, IFX_BUS)))
+            if (FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_w(t, IFX_BUS)))
                 n += CG_COST_DBINS[t - FXT_NEW0];
     }
 #endif

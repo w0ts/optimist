@@ -11,7 +11,7 @@ from pathlib import Path
 import registry as R
 
 SRC = Path(__file__).resolve().parents[2] / "tools" / "backports.json"
-GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": "FX", "drums": "Drums", "midi": "MIDI & USB",
+GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX_ANY, "drums": "Drums", "midi": "MIDI & USB",
          "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "Experimental"}
 LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",

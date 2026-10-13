@@ -365,6 +365,7 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
         felucca_dbg.stage = 1;
         ui_input();
+        fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         felucca_dbg.stage = 2;
         ui_leds();
         ui_draw();
@@ -392,6 +393,7 @@ static BOOT_ORDER void fm1_main(void)
 #endif
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
+            fxi_poll();                         /* (a type picked: its instance within a pass) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */

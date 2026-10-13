@@ -14,18 +14,22 @@
  * Type ids are stored (the FX record): never reuse one. */
 enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
        FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,   /* (2026-10-13: fx/insfx/insfx.c, a builder item each) */
+       FXT_CHRS, FXT_ECHO,   /* (2026-10-13: insfx.c, the chorus's and a short delay's insert copies: a builder count, fxi.c) */
        FXT_N };
 #define FXT_NEW0 FXT_FOLD                              /* the further insert types FXT_NEW0 .. FXT_N - 1 (insfx.c) */
+#define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_N - 1 (fxi.c: an instance each) */
 #define FX_NSLOT 4u
 #define FXT_BIT(x) (1u << (x))
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \
-                    FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FLNG) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_WIDE))   /* the others: sends */
+                    FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FLNG) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_WIDE) | FXT_BIT(FXT_CHRS) | \
+                    FXT_BIT(FXT_ECHO))                 /* the others: sends */
 #define FXT_BUILT ((FELUCCA_FX_DIST ? FXT_BIT(FXT_DIST) : 0u) | (FELUCCA_FX_CHORUS ? FXT_BIT(FXT_CHO) : 0u) | \
                    (FELUCCA_FX_DELAY ? FXT_BIT(FXT_DLY) : 0u) | (FELUCCA_FX_REVERB ? FXT_BIT(FXT_REV) : 0u) |  \
                    (FELUCCA_TRK_FILT ? FXT_BIT(FXT_FILT) : 0u) | (FELUCCA_MASTER_COMP ? FXT_BIT(FXT_COMP) : 0u) |   \
                    (FELUCCA_INS_FOLD ? FXT_BIT(FXT_FOLD) : 0u) | (FELUCCA_INS_FUZZ ? FXT_BIT(FXT_FUZZ) : 0u) |      \
                    (FELUCCA_INS_PHASER ? FXT_BIT(FXT_PHSR) : 0u) | (FELUCCA_INS_FLANGER ? FXT_BIT(FXT_FLNG) : 0u) | \
-                   (FELUCCA_INS_FORMANT ? FXT_BIT(FXT_FRMT) : 0u) | (FELUCCA_INS_WIDTH ? FXT_BIT(FXT_WIDE) : 0u))
+                   (FELUCCA_INS_FORMANT ? FXT_BIT(FXT_FRMT) : 0u) | (FELUCCA_INS_WIDTH ? FXT_BIT(FXT_WIDE) : 0u) |  \
+                   (FELUCCA_INS_CHORUS > 0 ? FXT_BIT(FXT_CHRS) : 0u) | (FELUCCA_INS_DELAY > 0 ? FXT_BIT(FXT_ECHO) : 0u))
 _Static_assert(FXT_N <= 16, "the type masks (ins_live): 16 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
@@ -45,8 +49,9 @@ static const uint8_t FXT_AMT[FXT_N] = {
 #if INS_FX
     FXT_AMT_NEW(FELUCCA_INS_FOLD, P_TFOLD), FXT_AMT_NEW(FELUCCA_INS_FUZZ, P_TFUZZ), FXT_AMT_NEW(FELUCCA_INS_PHASER, P_TPHSR),
     FXT_AMT_NEW(FELUCCA_INS_FLANGER, P_TFLNG), FXT_AMT_NEW(FELUCCA_INS_FORMANT, P_TFRMT), FXT_AMT_NEW(FELUCCA_INS_WIDTH, P_TWIDE),
+    FXT_AMT_NEW(FELUCCA_INS_CHORUS > 0, P_TCHRS), FXT_AMT_NEW(FELUCCA_INS_DELAY > 0, P_TECHO),
 #else
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 #endif
 };
 /* the master layout before the track slots, and of a project with no FX record: DIST CHO DLY REV (fx_rec.c ins_map
@@ -60,6 +65,19 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};   /* 
 static uint8_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lm[3] = {31, 31, 31};
 #define FXS_ON(x) (fxs_live >> (x) & 1u)
+#if INS_LIM
+/* the limited types' instances (fx/insfx/fxi.c) follow the slots in the main loop: a change of slots asks for it (1), a
+ * project load for every instance handed out again in track order (2: deterministic). Written anywhere (a load may run
+ * in the ISR), read and cleared by fxi_poll only */
+static volatile uint8_t fxi_dirty;
+#define FXI_ASK(v) (fxi_dirty |= (uint8_t)(v))
+/* the send lines lent to the limited inserts (fxi.c, "Lending"): bit 0 the chorus send's (cho_buf: CHRS), bit 1 the
+ * delay send's (dly_buf: ECHO). Set, its bus does not run nor clear its line (fx.c fx_ret_block): the line is the
+ * inserts'. Written by fxi_poll only, with the interrupts off; the audio reads it once a block */
+static volatile uint8_t fxl_lent;
+#else
+#define FXI_ASK(v) ((void)0)
+#endif
 
 /* a layout s (the record, the SLOTS page, the editor) into the master slots: sends only (an insert id: empty, its
  * place is the tracks' now: fx_rec.c ins_map); a type a second time leaves its slot empty */
@@ -79,6 +97,7 @@ static void fxs_set(const uint8_t *s)
     fxs_lm[0] = FXS_ON(FXT_REV) ? 31u : 0u;
     fxs_lm[1] = FXS_ON(FXT_DLY) ? 31u : 0u;
     fxs_lm[2] = FXS_ON(FXT_CHO) ? 31u : 0u;
+    FXI_ASK(1u);                                       /* (a send back in a slot: its line, if lent, back: fxi.c) */
 }
 
 /* slot k's amount id (0xFF: empty, or a type this build lacks) */
@@ -103,7 +122,7 @@ static uint32_t fxs_send(uint32_t i)
  * default: DST CHO DLY REV, SLOOP's page as it was */
 static uint32_t fxs_lane_id(uint32_t k)
 {
-    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
+    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
                                                         * CHO DLY REV COMP FILT, the further inserts: none) */
     uint32_t i, n = 0;
     if (FELUCCA_FX_DIST && n++ == (k & 3u))
@@ -157,6 +176,7 @@ static void ins_put(uint32_t k, const uint8_t *s)
     fm1_irq_off();
     ins_slot[k][0] = (uint8_t)a, ins_slot[k][1] = (uint8_t)b;
     ins_live[k] = (uint16_t)((FXT_BIT(a) | FXT_BIT(b)) & FXT_BUILT & FXT_INSERT);
+    FXI_ASK(1u);                                       /* (a limited type's instance: fxi.c, the main loop) */
     fm1_irq_on();
 }
 /* track k's slot holding type t: 1 S1, 2 S2, 0 none (or not built) */
@@ -210,7 +230,7 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
 #else
                                        0xFF,
 #endif
-                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts: their
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts: their
                                                         * own TLV, every track's amount: fxs_tlv) */
 /* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
  * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus). The drum sounds'
@@ -310,7 +330,8 @@ static const param_desc_t FXS_DESC[FX_NSLOT] = {
     {"S3", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"S4", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}};
 /* INSERTS' S1 and S2 TYPE (the selected track's): an enum of the inserts built and ---- (empty) */
 #define INS_NLIST (1 + FELUCCA_FX_DIST + FELUCCA_TRK_FILT + FELUCCA_MASTER_COMP + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
-                   FELUCCA_INS_PHASER + FELUCCA_INS_FLANGER + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH)
+                   FELUCCA_INS_PHASER + FELUCCA_INS_FLANGER + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
+                   (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0))
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
 static int16_t ins_v[INS_N];

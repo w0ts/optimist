@@ -157,6 +157,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TFLNG] = PD("FLNG", F_PCT, 0, 127, 0),      /* the flanger: its mix to 64, then its feedback */
     [P_TFRMT] = PD("FRMT", F_PCT, 0, 127, 0),      /* the vowel: A E I O U from 1 to 127 */
     [P_TWIDE] = PD("WIDE", F_PCT, 0, 127, 0),      /* the width: the swept side's share */
+    [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* the chorus insert (fxi.c): its mix to 64, then its depth */
+    [P_TECHO] = PD("ECHO", F_PCT, 0, 127, 0),      /* the slapback insert (fxi.c): its level to 64, then its feedback */
 #endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */

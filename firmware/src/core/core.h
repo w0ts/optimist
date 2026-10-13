@@ -121,7 +121,9 @@ typedef struct {
 
 #define SL24_TP (FELUCCA_TRK_FILT || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
-#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH)
+#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY)
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO, a builder count each) */
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -171,10 +173,11 @@ enum {                          /* per-track parameters */
     P_TCOMP,
 #endif
 #if INS_FX
-    /* the further insert types' amounts (fx/insfx/insfx.c; fx_slots.c FXT_FOLD ..): 0 off .. 127. All six exist when
+    /* the further insert types' amounts (fx/insfx/insfx.c; fx_slots.c FXT_FOLD ..): 0 off .. 127. All eight exist when
      * any of them is built (the same ids in every such build). Not part of a sound nor of a user preset (as P_TCOMP);
-     * the FX record keeps them (fx_slots.c fxs_tlv, a TLV a type) */
-    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE,
+     * the FX record keeps them (fx_slots.c fxs_tlv, a TLV a type). P_TCHRS P_TECHO (2026-10-13): the insert copies of
+     * the chorus and a short delay (fxi.c) */
+    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO,
 #endif
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before

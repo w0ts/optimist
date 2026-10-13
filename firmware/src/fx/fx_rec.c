@@ -16,9 +16,10 @@
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 156u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX 168u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
-                                                        * fxs_tlv, in every build: a record from any build reads whole) */
+                                                        * fxs_tlv, in every build: a record from any build reads whole;
+                                                        * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4)) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -282,6 +283,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         ins_drop = (uint8_t)(ia && in >= NTRK * INS_N ? 0u : drop);
         ins_untlv(ia, ia ? in : 0u, m);
         fxs_set(ok ? a + 2 : FXS_OLD);                 /* (the sends; an insert's place: empty) */
+        FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
+                                                        * order, fxi.c: the same project plays the same way) */
     }
     return ok;
 }
