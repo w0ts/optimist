@@ -428,13 +428,13 @@ static void scope_tests(void)
     uint32_t r, w0, i, s;
     int32_t pk;
     reset_ui();
+    song.sel = 1;
+    fm1_in.notes |= 1u << 10;                           /* (a note held from the mixer: SCOPE's keys play nothing, 2026-10-13) */
+    frames(3);
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE && scope_rows() == 5u && scope_src == 0u, "SCOPE: HOME tapped on the mixer; MASTER T1 T2 T3 DR");
     (void)r;
     /* one ring, switched: T2 plays a held note, T1 is silent, the drums too */
-    song.sel = 1;
-    fm1_in.notes |= 1u << 10;
-    frames(3);
     turn(EN_SELECT, 2);                                 /* T2 */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
