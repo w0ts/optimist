@@ -254,6 +254,10 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
     cell_clear(c);
     if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
         static const char *const L[2] = {"KIT", "LANE"};
+        if (k == 2u) {                                  /* the lane's SRC (the user, 2026-10-13); empty where a build has none */
+            page_cell(&LANE_SRC_PG, k, c);
+            return;
+        }
         if (k > 1u)
             return;
         c->label = L[k];
@@ -295,6 +299,10 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     }
     if (snd_page(r)) {
         page_turn(snd_page(r), k, s, fine);
+        return;
+    }
+    if (is_drum(TSEL) && k == 2u) {                     /* the lane's SRC (page_turn: no reset to a default) */
+        page_turn(&LANE_SRC_PG, k, s, fine);
         return;
     }
     if (s == OP_RESET)

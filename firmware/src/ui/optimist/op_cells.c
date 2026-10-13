@@ -176,12 +176,35 @@ static const page_t LANE_LFO_PG[2] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25,
 #define OP_NPG (NPAGES + 2u)
 static int16_t dlfv[DLF_N];                             /* the cells' values (dlfo_field: the lane's LFO, 8 bytes) */
 static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg == &LANE_LFO_PG[1]; }
-static const page_t *op_pg(uint32_t i) { return i < NPAGES ? &PAGES[i] : &LANE_LFO_PG[(i - NPAGES) & 1u]; }
 #else
 #define OP_NPG NPAGES
 #define lane_lfo_pg(pg) 0
-#define op_pg(i) (&PAGES[i])
 #endif
+/* a drum lane's SRC is the SOUND row's knob 3 (the user, 2026-10-13: "this should be on third knob on page 1"): LANE_SRC_PG
+ * is that cell (snd_cell, never a row of its own). PAGES' SOURCE (SRC HIT START LEN) is then only HIT START LEN, a user
+ * sample's: this UI shows it as LANE_SMP_PG, on a lane playing one, and on no other lane (SLOOP's UI keeps PAGES' as it is) */
+static const page_t LANE_SRC_PG = {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0xFF, 0xFF, 8, 0xFF}};
+static const page_t LANE_SMP_PG = {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {9, 10, 11, 0xFF}};
+static int src_page(const page_t *pg) { return pg->scope == SC_DSND && pg->fam == FAM_EDIT && pg->id[0] == 8u; }   /* PAGES' SOURCE */
+static int smp_pg(const page_t *pg) { return pg == &LANE_SMP_PG; }
+static uint32_t src_page_ix(void)                       /* PAGES' SOURCE (the breadcrumb of LANE_SMP_PG) */
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (src_page(&PAGES[i]))
+            return i;
+    return 0;
+}
+static const page_t *op_pg(uint32_t i)
+{
+    if (i < NPAGES)
+        return src_page(&PAGES[i]) ? &LANE_SMP_PG : &PAGES[i];
+#if LANE_LFO_UI
+    return &LANE_LFO_PG[(i - NPAGES) & 1u];
+#else
+    return &PAGES[0];
+#endif
+}
 _Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
 static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
@@ -260,6 +283,8 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
 {
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
+    if (smp_pg(pg))                                     /* (a user sample's HIT START LEN: that lane only) */
+        return is_drum(TSEL) && page_shown(pg) && dl_usr_of(lane_selected());
     if (pg->scope != SC_TRACK && pg->scope != SC_ENGINE && pg->scope != SC_DSND && !CMP_PAGE(pg)   /* (CMP: the track's own COMP) */
 #if BP_SET_ANY
         && !(pg->scope == SC_BPSET && pg->fam == FAM_EDIT)   /* (ACID GEN; REVERB TYPE is the FX screen's) */

@@ -2327,7 +2327,8 @@ static void led_tests(void)
 }
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
-#include "ui_optimist_effval.h"                     /* 2026-10-12: live effective values, one number and two bars */
+#include "ui_optimist_lanesrc.h"                    /* 2026-10-13: a lane's SRC on page 1, knob 3 */
+#include "ui_optimist_effval.h"                    /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_lfo2.h"                       /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
@@ -2423,6 +2424,7 @@ int main(int argc, char **argv)
     pages_select_tests();
     pages_hit_tests();
     lane_ui_tests();
+    lane_src_tests();
     effval_tests();
     inslots_tests();
     fxi_ui_tests();
