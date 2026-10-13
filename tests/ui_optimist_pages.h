@@ -12,7 +12,7 @@ static void pages_nav_tests(void)
     /* D1 (revised again, section 20: "it should switch between the two"): GLO toggles GLOBAL and SYSTEM, each keeping its
      * line; SELECT pages within the screen (pages of 4 lines) and stops at its ends, never crossing to the other */
     {
-        uint32_t pg = (SCREENS[SCR_GLOBAL].rows() + 3u) / 4u, ps = (SCREENS[SCR_SYSTEM].rows() + 3u) / 4u, ng, i = 0;
+        uint32_t pg = gl_npg(0), ps = gl_npg(1), p1 = gl_pfirst(0, 1), ng, i = 0;
         char p[12];
         ng = SCREENS[SCR_GLOBAL].rows();
         ui.row[SCR_GLOBAL] = 0;
@@ -20,7 +20,7 @@ static void pages_nav_tests(void)
         tap(B_GLO);
         check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: GLO tapped on the mixer: GLOBAL");
         turn(EN_SELECT, 1);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 4u, "D1: SELECT: GLOBAL's next page (its first line)");
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == p1, "D1: SELECT: GLOBAL's next page (its first line)");
         tap(B_GLO);
         frames(2);
         head_pos(SCR_SYSTEM, 0, p);
@@ -28,15 +28,15 @@ static void pages_nav_tests(void)
               "D1: GLO on GLOBAL: SYSTEM (CPU), the GLO LED full, the badge SYSTEM");
         check(!strncmp(p, " 1/", 3), "D1: the n/N counts SYSTEM's own pages (1/n)");
         turn(EN_SELECT, 100);
-        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == (ps - 1u) * 4u, "D1: SELECT right: stops at SYSTEM's last page (no wrap, no GLOBAL)");
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == gl_pfirst(1, ps - 1u), "D1: SELECT right: stops at SYSTEM's last page (no wrap, no GLOBAL)");
         tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 4u && led_lvl(B_GLO) == 2, "D1: GLO on SYSTEM: GLOBAL, on the line it was left on");
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == p1 && led_lvl(B_GLO) == 2, "D1: GLO on SYSTEM: GLOBAL, on the line it was left on");
         turn(EN_SELECT, -3);
         check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "D1: SELECT left: stops on GLOBAL's first page (no wrap)");
         turn(EN_SELECT, 100);
-        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == (pg - 1u) * 4u, "D1: SELECT right: stops at GLOBAL's last page (no SYSTEM)");
+        check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == gl_pfirst(0, pg - 1u), "D1: SELECT right: stops at GLOBAL's last page (no SYSTEM)");
         tap(B_GLO);
-        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == (ps - 1u) * 4u, "D1: GLO: SYSTEM again, on its line");
+        check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == gl_pfirst(1, ps - 1u), "D1: GLO: SYSTEM again, on its line");
         tap(B_ENV);
         tap(B_GLO);
         check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
@@ -491,11 +491,11 @@ static void pages_head_tests(void)
         check(!strncmp(t, "Tempo 1/", 8), "D11: GLOBAL's first line: \"Tempo 1/N\" (the page of 4 lines)");
         l = line_named(SCR_GLOBAL, "QUANT");
         head_now(t);
-        snprintf(w, sizeof w, "Rec %u/", l / 4u + 1u);
+        snprintf(w, sizeof w, "Rec %u/", gl_pg(ui.scr == SCR_SYSTEM, l) + 1u);
         check(!strncmp(t, w, strlen(w)), "D11: GLOBAL's QUANT line (REC 2): \"Rec n/N\", its page");
         l = line_named(SCR_SYSTEM, "COLOR");
         head_now(t);
-        snprintf(w, sizeof w, "Screen %u/", l / 4u + 1u);
+        snprintf(w, sizeof w, "Screen %u/", gl_pg(ui.scr == SCR_SYSTEM, l) + 1u);
         check(!strncmp(t, w, strlen(w)), "D11: SYSTEM's COLOR line: \"Screen n/N\", its page");
     }
     reset_ui();

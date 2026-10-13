@@ -16,7 +16,7 @@
 #define GL_GX 140                       /* the value's form: x, width */
 #define GL_GW 96
 static struct {
-    uint32_t s, first, n, cur;
+    uint32_t s, first, end, n, cur;
     uint16_t bar;
 } gld;                                                  /* what gl_paint draws (gl_draw) */
 /* a line's value as drawn: an action says what it does (the user, 2026-10-13: lines showing "YES" read as dead), RUN
@@ -46,13 +46,17 @@ static void gl_paint(void)
 {
     uint32_t i;
     int32_t y = 0;
-    char sec[12], prev[12], b[16];
+    char sec[12], prev[12], b[24], lab[24];
     cell_t c;
     prev[0] = 0;
-    for (i = gld.first; i < gld.first + GL_PAGE && i < gld.n; i++) {
+    for (i = gld.first; i < gld.end; i++) {
         gl_sect(gld.s, i, sec);
         if (!str_eq(sec, prev)) {                       /* a section: its name, dim, a rule after it */
-            int32_t w = cv_text(4, y + 2, &FONT_S, op_case(b, sec, sizeof b), C_DIM) + 6;
+            int32_t w;
+            str_cpy(lab, op_case(b, sec, sizeof b), sizeof lab);
+            if (i == gld.first)
+                gl_split(gld.s, i, lab);  /* (a section split over pages: "REC 1/2") */
+            w = cv_text(4, y + 2, &FONT_S, lab, C_DIM) + 6;
             cv_rect(w, y + 10, 236 - w, 1, C_LINE);
             y += GL_SEC_H;
             str_cpy(prev, sec, sizeof prev);
@@ -70,10 +74,11 @@ static void gl_draw(void)
     gld.s = ui.scr == SCR_SYSTEM;
     gld.n = gl_n(gld.s);
     gld.cur = ui.row[ui.scr];
-    gld.first = gl_first(gld.cur);
+    gld.first = gl_first(gld.s, gld.cur);
+    gld.end = gl_end(gld.s, gld.cur);
     gld.bar = trk_col(song.sel);
     sig = hu(hu(hu(hu(0x6C15u, gld.s), gld.cur), gld.bar + settings.palette * 65536u), knob_colors);
-    for (i = gld.first; i < gld.first + GL_PAGE && i < gld.n; i++) {
+    for (i = gld.first; i < gld.end; i++) {
         gl_sect(gld.s, i, nm);
         gl_cell(gld.s, i, &c);
         sig = hc(hs(sig, nm), &c);
