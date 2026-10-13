@@ -15,9 +15,10 @@
  *   ALGORITHM  the cursor a line a detent within the screen, stopping at its ends; past the page's last line the next
  *              page shows (and back)
  *   GLO        tapped: GLOBAL from any other screen; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its cursor line
- *   PRESETS    the cursor line's value (HOME held: back to its default); never the track or its sound here
- *   SAVE       YES on the cursor line: an action (Calibrate PANEL asks first, About VERSION, Bluetooth BLE: the devices),
- *              an on / off value toggled
+ *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
+ *              YES; a read-out: nothing. Never the track or its sound here
+ *   SAVE       YES on the cursor line: an action (Calibrate PANEL asks first, About VERSION says it, Bluetooth BLE: the
+ *              devices), an on / off value toggled
  * On a page with Tempo's lines OCT- / OCT+ held nudge the clock (op_tempo.c tempo_nudging). The BLE devices list
  * (op_project.c dev_*) keeps its own rows and cards. GLO held is the performance layer, unchanged (op_layers.c).
  * After it, the screen table. Drawn by op_gldraw.c. */
@@ -203,6 +204,8 @@ static void gl_presets(int32_t s, uint32_t home)        /* PRESETS: the cursor l
     gl_cell(sc, r, &c);
     if (c.kind == CK_VAL)
         gl_turn(sc, r, home ? OP_RESET : s, 0);
+    else if (c.kind == CK_ACT && !home && s)
+        gl_yes(sc, r, 0);                               /* an action: as YES (PANEL asks first); a read-out: nothing */
 }
 static void gl_pick(uint32_t r, uint32_t k)             /* KNOB k turned (op_input.c op_knobs): its line the cursor */
 {

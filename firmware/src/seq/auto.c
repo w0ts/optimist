@@ -45,31 +45,42 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
  * the id 2.4's FILT has elsewhere: without the map a FILT event from a TRK_FILT build played as COMP here. An event for
  * a value after P_E7 that this build lacks is kept and not played: it plays again in a build that has the value. The
  * pseudo-parameters come after every stored id (auto.h) */
-#define MOT_TAIL_END (P_ENG_END + 4u)                        /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP) */
+#define MOT_NTAIL 10u                                         /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP,
+                                                              * +4 .. +9 the further inserts' FOLD FUZZ PHSR FLNG FRMT WIDE) */
+#define MOT_TAIL_END (P_ENG_END + MOT_NTAIL)
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
 _Static_assert(MOT_TAIL_END <= AUTO_NGATE0, "the note ends and the drum lanes' ids (auto.h): past every build's stored track ids");
-#if FELUCCA_MASTER_COMP && !SL24_TP
+/* each stored tail id's value in this build (P_COUNT: none here). LFO 2's values (P_L2RATE ..) have no stored id: none
+ * maps to them (an event stored past 2.4's in a build without them is never LFO 2's) */
+static const uint8_t MOT_TAIL[MOT_NTAIL] = {
+#if SL24_TP
+    P_TFLT, P_STRUM, P_VLEAD,
+#else
+    P_COUNT, P_COUNT, P_COUNT,
+#endif
+#if FELUCCA_MASTER_COMP
+    P_TCOMP,
+#else
+    P_COUNT,
+#endif
+#if INS_FX
+    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE,
+#else
+    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
+#endif
+};
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
 {
-    return s == P_ENG_END + 3u ? (uint32_t)P_TCOMP : s >= P_ENG_END ? (uint32_t)P_COUNT : s;
+    return s < P_ENG_END ? s : s < MOT_TAIL_END ? MOT_TAIL[s - P_ENG_END] : (uint32_t)P_COUNT;
 }
-#define mot_sid(id) ((id) == P_TCOMP ? P_ENG_END + 3u : (id))   /* this build's -> stored */
-#else
-#if FELUCCA_MASTER_COMP
-_Static_assert(P_TCOMP == P_ENG_END + 3u, "motion: the stored ids are this build's own");
-#endif
-#if SL24_TP
-_Static_assert(P_TFLT == P_ENG_END, "motion: the stored ids are this build's own");
-#endif
-#if FELUCCA_LFO2
-#define MOT_ID_END ((uint32_t)P_L2RATE)                      /* (LFO 2's values: no stored id; a COMP event stored past
-                                                              * 2.4's in a build without COMP is not LFO 2's RATE) */
-#else
-#define MOT_ID_END ((uint32_t)P_COUNT)
-#endif
-static uint32_t mot_id(uint32_t s) { return s < MOT_ID_END ? s : (uint32_t)P_COUNT; }   /* (a pseudo-parameter: none) */
-#define mot_sid(id) (id)
-#endif
+static uint32_t mot_sid(uint32_t id)                         /* this build's -> stored */
+{
+    uint32_t k;
+    for (k = 0; id >= P_ENG_END && k < MOT_NTAIL; k++)
+        if (MOT_TAIL[k] == id)
+            return P_ENG_END + k;
+    return id;
+}
 
 #if FELUCCA_MICRO
 static int8_t auto_nudge[NTRK][NSTEP];   /* each step's nudge (the ISR: micro_units) */

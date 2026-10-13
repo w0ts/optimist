@@ -34,6 +34,10 @@ static int motion_param(const track_t *t, uint32_t id)
         return 1;                                            /* (the COMP insert's amount: fx_slots.c; the drum
                                                               * track's: the drum bus's, fx.c dbus_run) */
 #endif
+#if INS_FX
+    if (id >= P_TFOLD && id <= P_TWIDE)
+        return 1;                                            /* (the further inserts' amounts: insfx.c, every track) */
+#endif
 #if SL24_TP
     if (id > P_E7)
         return FELUCCA_TRK_FILT && id == P_TFLT;             /* (SLOOP 2.4's FILT, on every track: a sweep) */

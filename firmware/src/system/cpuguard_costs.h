@@ -18,3 +18,5 @@ static const uint16_t CG_X0X[24] = {204, 234, 185, 201, 200, 187, 169, 84, 85, 6
 #define CG_COST_PDIST 46u     /* a part's DIST insert while it runs (fx.c ins_part) */
 #define CG_COST_PFILT 36u     /* a part's FILTER insert while it runs (fx.c tflt_part) */
 #define CG_COST_DBFILT 184u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */
+static const uint16_t CG_COST_PINS[6] = {40, 55, 66, 64, 78, 78};   /* a part's further insert while it runs, FOLD FUZZ PHSR FLNG FRMT WIDE (insfx.c ifx_part) */
+static const uint16_t CG_COST_DBINS[6] = {72, 69, 132, 127, 131, 74};   /* the drum bus's (insfx.c ifx_bus: L and R) */

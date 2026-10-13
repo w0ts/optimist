@@ -27,6 +27,9 @@
  *      scenario 3's parts (FM6 TINE EP, ANALOG SUPER PAD, FM6 STRINGS, POLY), 3 + 3 + 2 notes every 2 s
  *  14  PHYS (FELUCCA_ENG_PHYS) on the three parts: DRONE STRING, SYMP HARP (SYMP: the largest state and frame),
  *      BOWED METAL, 3 + 3 + 2 notes, the eighths groove (CPU1's stack, docs/DUAL-CORE.md)
+ *  15  the mots profile's busy project (perf/mots-hot): part 1 FM6 TINE EP (MARK I), 3 notes; part 2 PHYS DRONE
+ *      STRING, 3 notes; part 3 ACID LINE playing scenario 5's line; the X0X 808 with the X0X 909's hats on scenario 8's
+ *      16ths groove; every part's DLY 40 and REV 50 (the delay and the reverb busy), the chords again every 2 s
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -61,7 +64,7 @@ static struct {
 } bench;
 
 #ifndef FELUCCA_BENCH_KIT
-#define FELUCCA_BENCH_KIT (FELUCCA_BENCH == 13 ? DRUM_UID_X808 : DRUM_DEFAULT_KIT)   /* (every scenario: its kit) */
+#define FELUCCA_BENCH_KIT (FELUCCA_BENCH == 13 || FELUCCA_BENCH == 15 ? DRUM_UID_X808 : DRUM_DEFAULT_KIT)   /* (every scenario: its kit) */
 #endif
 #ifndef FELUCCA_BENCH_MIX
 #define FELUCCA_BENCH_MIX 0                                /* 1: KICK, CLAP, HAT, OPEN HAT on X0X voices (a mixed kit) */
@@ -69,8 +72,9 @@ static struct {
 #ifndef FELUCCA_BENCH_NOTE
 #define FELUCCA_BENCH_NOTE 0
 #endif
-#define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13)   /* (16ths, any kit) */
-#define BENCH_X0X2 (FELUCCA_BENCH == 13 && FELUCCA_DRUM_KITS && FELUCCA_DRUM_X909 && FELUCCA_DRUM_X808)
+#define BENCH_MOTS (FELUCCA_BENCH == 15 && FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID)
+#define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13 || BENCH_MOTS)   /* (16ths, any kit) */
+#define BENCH_X0X2 ((FELUCCA_BENCH == 13 || BENCH_MOTS) && FELUCCA_DRUM_KITS && FELUCCA_DRUM_X909 && FELUCCA_DRUM_X808)
 #define BENCH_FM6C (FELUCCA_BENCH == 10)
 #define BENCH_CZ ((FELUCCA_BENCH == 11 && FELUCCA_ENG_CZ) || (FELUCCA_BENCH == 12 && FELUCCA_ENG_PHASE) || \
                   (FELUCCA_BENCH == 14 && FELUCCA_ENG_PHYS))
@@ -82,10 +86,11 @@ static const uint8_t BENCH_GROOVE[16][4] = {               /* (tests/regress.c D
     {36, 42, 51, 0}, {42, 0}, {36, 42, 0}, {44, 0}, {38, 39, 42, 0}, {43, 0}, {48, 46, 0}, {38, 0}};
 #endif
 
-#define BENCH_ACID (FELUCCA_BENCH >= 5 && FELUCCA_BENCH <= 7)
+#define BENCH_ACID ((FELUCCA_BENCH >= 5 && FELUCCA_BENCH <= 7) || BENCH_MOTS)
 #if BENCH_ACID
 #define BENCH_16TH 86u                                     /* blocks of a sixteenth at 120 BPM */
 #define BENCH_ACID_PARTS (FELUCCA_BENCH == 5 ? 1u : NPART)
+#define BENCH_ACID_P0 (BENCH_MOTS ? 2u : 0u)                  /* (15: the line on part 3 alone) */
 /* the line (tests/regress.c's ACID line): note (0 = rest), flags (1 accent, 2 slide into the next) */
 static const uint8_t BENCH_ACID_N[16] = {45, 45, 57, 45, 0, 48, 45, 55, 45, 0, 57, 52, 45, 48, 0, 50};
 static const uint8_t BENCH_ACID_F[16] = {1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1};
@@ -112,6 +117,23 @@ static void bench_setup(void)                              /* boot, after felucc
 #if BENCH_X0X2                                             /* 13: HAT and OPEN HAT the X0X 909's CH / OH */
     dl.src[4] = DL_X909 + 7u;
     dl.src[5] = DL_X909 + 8u;
+#endif
+#if BENCH_MOTS
+    {   /* 15: FM6 TINE EP (MARK I), PHYS DRONE STRING, ACID LINE (LEGATO); DLY 40, REV 50 on each */
+        static const uint8_t EP[NPART][2] = {{ENG_IX_FM6, 0}, {ENG_IX_PHYS, 7}, {ENG_IX_ACID, 0}};
+        for (p = 0; p < NPART; p++) {
+            set_engine_of(&trk[p], EP[p][0]);
+            apply_preset_to(&trk[p], EP[p][1]);
+            trk[p].engine = trk[p].eng_req;
+            trk[p].p[P_VOICE] = p == 2u ? V_LEGATO : V_POLY;
+            trk[p].p[P_DLY] = 40;
+            trk[p].p[P_REV] = 50;
+        }
+        trk[0].p[P_E4] = 1;                                /* ENGINE MARK I */
+        song.g[G_BPM] = 120;
+        (void)s;
+        return;
+    }
 #endif
 #if BENCH_FM6C
     set_engine_of(&trk[0], ENG_IX_FM6);
@@ -189,7 +211,7 @@ static void bench_notes(int on)
     (void)p;
     return;
 #endif
-    for (p = 0; p < NPART; p++)
+    for (p = 0; p < (BENCH_MOTS ? 2u : NPART); p++)
         for (i = 0; i < 3u; i++)
             if (BENCH_NOTES[p][i]) {
                 if (on)
@@ -210,20 +232,21 @@ static void bench_block(void)                              /* audio interrupt, a
         if (!FELUCCA_BENCH_NOTE && b % BENCH_SIXTEENTH == 0u)
             for (i = 0; i < 4u && BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i]; i++)
                 trk_note_on(TDRUM, BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i], i ? 90u : 110u);
-        if ((FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13) && b % BENCH_PHRASE == 0u) {
+        if ((FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13 || BENCH_MOTS) && b % BENCH_PHRASE == 0u) {
             if (b)
                 bench_notes(0);
             bench_notes(1);
         }
         (void)e;
-        return;
+        if (!BENCH_MOTS)
+            return;                                        /* (15: and the ACID line below) */
     }
 #endif
 #if BENCH_ACID
     {   /* each part: a step's note on at its start, off at half the step unless it slides into the next
          * (then off after the next note's on: LEGATO) */
         uint32_t k = (b / BENCH_16TH) % 16u, ph = b % BENCH_16TH, p;
-        for (p = 0; p < BENCH_ACID_PARTS; p++) {
+        for (p = BENCH_ACID_P0; p < BENCH_ACID_PARTS; p++) {
             uint32_t n = BENCH_ACID_N[k] ? BENCH_ACID_N[k] + 7u * p : 0u, old = bench_acid_held[p];
             if (ph == 0u && n) {
                 trk_note_on(&trk[p], n, BENCH_ACID_F[k] & 1u ? 127u : 100u);
@@ -241,7 +264,7 @@ static void bench_block(void)                              /* audio interrupt, a
         }
     }
     if (FELUCCA_BENCH != 7)
-        return;                                            /* (5, 6: no drums) */
+        return;                                            /* (5, 6: no drums; 15: its groove above) */
 #endif
     if (!BENCH_ACID && b % BENCH_PHRASE == 0u) {
         if (b)

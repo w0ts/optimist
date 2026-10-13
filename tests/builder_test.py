@@ -656,6 +656,13 @@ check("build.py CPU1 stack: a FAR call (the address mix_part loads) counts; a fu
 C1["phys_render"] = ["[--sp] = {rets, r7-r4}", "sp += -4000"]
 d, _ = BUILD.cpu1_stack(stack_dis(C1))
 check("build.py CPU1 stack: an engine deeper than CPU1_STACK_ROOM is over it", d > BUILD.CPU1_STACK_ROOM)
+C2 = {"isr_c1_wake": C1["isr_c1_wake"], "fm1_cpu1_wake": C1["fm1_cpu1_wake"],   # (dual.c dual_run, mix_part inlined)
+      "dual_job": ["[--sp] = {rets, r7-r4}", "call 4 <dual_run : 1c00300 >"],
+      "dual_run": ["[--sp] = {rets, r15-r4}", "sp += -172", "call r3", "sp += 172"],
+      "phys_render": ["[--sp] = {rets, r7-r4}", "sp += -948"]}
+d, path = BUILD.cpu1_stack(stack_dis(C2))
+check("build.py CPU1 stack: mix_part inlined into dual_run, its indirect call reaches an engine's hook (1260 B)",
+      d == 1260 and path[-1] == "phys_render")
 if real.exists() and "dual_job:" in real.read_text():
     d, path = BUILD.cpu1_stack(real.read_text())
     check(f"build.py CPU1 stack: the real DUAL build's ({d} B, {path[-1]}) within {BUILD.CPU1_STACK_ROOM} B",

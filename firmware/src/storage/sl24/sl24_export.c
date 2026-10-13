@@ -84,7 +84,9 @@ enum {                                                  /* what an export lost (
                                                          * step's goes; the second word's bit 5: ed_sl24.c) */
     SX24_INSORD = 1048576,                              /* (a track with its FILTER before its DIST, both on: 2.4 plays
                                                          * DIST then FILT; the second word's bit 6; sl24_fx_out) */
-                                                        /* (the second word's bits 7 INSFX, 8: other branches') */
+    SX24_INSFX = 2097152,                               /* (a further insert heard, FOLD FUZZ PHSR FLNG FRMT WIDE: insfx.c;
+                                                         * 2.4 has none; the second word's bit 7; sl24_fx_out; bit 8: another
+                                                         * branch's) */
     SX24_LFO2 = 8388608                                 /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
                                                          * word's bit 9) */
 };
@@ -312,7 +314,8 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, int32_t bp
  * project at o, "as heard": an amount of a type not heard on its track (an insert in none of the track's two slots, a
  * send in no master slot) written 0 (2.4 would play it; SX24_SLOTS when it was not 0), and what is heard here that 2.4
  * has not: COMP (the parts', the drum bus's, the drum sounds'), the drum sounds' DIST, the drum bus's DST CHO DLY REV
- * and its send levels, a part's FILTER before its DIST with both on (SX24_INSORD: 2.4 runs DIST, then FILT); the
+ * and its send levels, a part's FILTER before its DIST with both on (SX24_INSORD: 2.4 runs DIST, then FILT), a further
+ * insert heard (SX24_INSFX: FOLD FUZZ PHSR FLNG FRMT WIDE, insfx.c); the
  * SLICER's place (first here, after DIST on 2.4) is not reported (the gate's 2.9 ms ramps); -> SX24_* lost */
 static uint32_t sl24_fx_out(uint8_t *o)
 {
@@ -339,6 +342,11 @@ static uint32_t sl24_fx_out(uint8_t *o)
         lost |= FXS_ON(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
         lost |= FXS_ON(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
     }                                                   /* (the drum track's send levels: 2.4 has none) */
+#if INS_FX
+    for (k = 0; k < NTRK; k++)                          /* (each its amount, P_TAIL: not in 2.4's file, nothing to clear) */
+        for (i = FXT_NEW0; i < FXT_N; i++)
+            lost |= INS_ON(k, i) && trk[k].p[FXT_AMT[i]] ? SX24_INSFX : 0u;
+#endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         lost |= INS_ON(k, FXT_COMP) && trk[k].p[P_TCOMP] ? SX24_COMP : 0u;

@@ -2,8 +2,8 @@
 /* GLOBAL and SYSTEM drawn as a list (op_global.c; docs/UI-OPTIMIST-DESIGN.md section 20): no cards, the page's 4 lines
  * from under the header to the screen's foot, a section's name over its first line on the page (a page that starts
  * inside a section names it again). A line: its knob's number (1..4, in the knob's colour with KNOB COLORS; dim on a
- * read-out, which no knob turns), the setting's name, its value on the right as the cards write it (amber: a read-out
- * or YES for an action), the value's form under it. The cursor line: a bar in the track's colour, ink on it. Lazy, as
+ * read-out, which no knob turns), the setting's name, its value on the right as the cards write it (amber: a read-out,
+ * or an action's word: gl_val), the value's form under it. The cursor line: a bar in the track's colour, ink on it. Lazy, as
  * every band: drawn again when its signature changes. */
 #define GL_TOP OH_HEAD                  /* the list: under the header, to the screen's foot */
 #define GL_BAND (240 - OH_HEAD)
@@ -15,10 +15,13 @@ static struct {
     uint32_t s, first, n, cur;
     uint16_t bar;
 } gld;                                                  /* what gl_paint draws (gl_draw) */
+/* a line's value as drawn: an action says what it does (the user, 2026-10-13: lines showing "YES" read as dead), RUN
+ * when its cell names nothing; YES or PRESETS runs it (op_global.c gl_presets) */
+static const char *gl_val(const cell_t *c) { return c->kind != CK_ACT ? c->val : c->val[0] ? c->val : "RUN"; }
 static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 {
     char b[16], m[2];
-    const char *v = c->kind == CK_ACT ? "YES" : c->val;
+    const char *v = gl_val(c);
     uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
     int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x;
     m[0] = (char)('1' + k);
