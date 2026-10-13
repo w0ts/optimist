@@ -148,8 +148,8 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
         return;
     else if (scr == SCR_HOME)
         at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
-    else if (gl_scr(scr))                               /* GLOBAL, SYSTEM: the page of 4 lines, within the screen */
-        at = row / GL_PAGE, n = (SCREENS[scr].rows() + GL_PAGE - 1u) / GL_PAGE;
+    else if (gl_scr(scr))                               /* GLOBAL, SYSTEM: the page (whole sections, op_global.c), within the screen */
+        at = gl_pg(scr == SCR_SYSTEM, row), n = gl_npg(scr == SCR_SYSTEM);
     else
         at = row, n = SCREENS[scr % SCR_N].rows();
     if (n < 2u)

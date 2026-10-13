@@ -69,7 +69,7 @@ static void glo_list_tests(void)
         n = glo_expect(s, want, sec, GL_MAXL);
         ok &= SCREENS[scr].rows() == n;
         for (i = 0; i < n && ok; i++) {
-            SCREENS[scr].cell(i, i % 4u, &c);
+            SCREENS[scr].cell(i, gl_kn(scr, i), &c);
             SCREENS[scr].name(i, nm);
             ok &= (uint32_t)(c.kind == want[i].kind && c.label == want[i].label && !strcmp(c.val, want[i].val) &&
                              !strcmp(nm, sec[i]));
@@ -85,7 +85,7 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(2, 2, &c);
     ok &= !strcmp(c.label, "SWING");
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
-    SCREENS[SCR_GLOBAL].cell(i, i % 4u, &c);
+    SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
     check(glo_sections(SCR_GLOBAL, GS, 5) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
           "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI Clock out Channels; CPU Screen Lights Audio USB Bluetooth Calibrate About");
@@ -97,7 +97,7 @@ static void glo_list_tests(void)
     {   /* a DUAL=2 build: CLOCK, CPU0, CPU1 (read-outs) and 2ND CORE (AUTO / OFF) fill page 1; the next section starts at line 4,
          * so every later line is two further on than in a single-core build and the 4-line pages (line / 4) shift with it */
         cell_t c3, c4, c5;
-        SCREENS[SCR_SYSTEM].cell(2, 2, &c3);
+        SCREENS[SCR_SYSTEM].cell(2, gl_kn(SCR_SYSTEM, 2), &c3);
         SCREENS[SCR_SYSTEM].cell(3, 3, &c4);
         SCREENS[SCR_SYSTEM].cell(4, 0, &c5);
         SCREENS[SCR_SYSTEM].name(2, nm);
@@ -111,7 +111,7 @@ static void glo_list_tests(void)
 #else
     {
         cell_t c3;
-        SCREENS[SCR_SYSTEM].cell(2, 2, &c3);
+        SCREENS[SCR_SYSTEM].cell(2, gl_kn(SCR_SYSTEM, 2), &c3);
         SCREENS[SCR_SYSTEM].name(2, nm);
         check(ok && c.kind == CK_RO && !strcmp(c.label, "LOAD") && strcmp(nm, "CPU") && c3.kind != CK_RO && c3.label &&
                   strcmp(c3.label, "CPU1"),
@@ -120,7 +120,7 @@ static void glo_list_tests(void)
 #endif
     for (s = 0, ok = 1; s < 2u; s++)                    /* nothing in GLOBAL or SYSTEM is an empty line */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {
-            SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].cell(i, i % 4u, &c);
+            SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].cell(i, gl_kn(s ? SCR_SYSTEM : SCR_GLOBAL, i), &c);
             ok &= c.kind != CK_NONE && c.label != 0;
         }
     check(ok, "every line has a name and a value (no empty line)");
@@ -169,15 +169,16 @@ static void glo_draw_tests(void)
     ppm("opt-glo-system-cpu");
     knob_colors = 0;
     {   /* ALGORITHM inside a page: the page stays; past its 4th line, the next page */
-        turn(EN_ALGO, 3);
+        uint32_t last = gl_end(1, 0) - 1u;              /* (the first page's last line) */
+        turn(EN_ALGO, (int32_t)last);
         cp_pos(p);
-        ok = ui.row[SCR_SYSTEM] == 3u && !strncmp(p, " 1/", 3);
+        ok = ui.row[SCR_SYSTEM] == last && !strncmp(p, " 1/", 3);
         turn(EN_ALGO, 1);
         cp_pos(p);
-        ok &= ui.row[SCR_SYSTEM] == 4u && !strncmp(p, " 2/", 3);
+        ok &= ui.row[SCR_SYSTEM] == last + 1u && !strncmp(p, " 2/", 3);
         turn(EN_ALGO, -1);
         cp_pos(p);
-        check(ok && ui.row[SCR_SYSTEM] == 3u && !strncmp(p, " 1/", 3), "ALGORITHM: line by line, the view a page at a time");
+        check(ok && ui.row[SCR_SYSTEM] == last && !strncmp(p, " 1/", 3), "ALGORITHM: line by line, the view a page at a time");
     }
     reset_ui();
 }
@@ -208,18 +209,18 @@ static void glo_tests(void)
         song.g[G_BPM] = bpm;
         song.g[G_SWING] = sw;
         w = line_named(SCR_GLOBAL, "TRK 2");
-        turn(EN_SELECT, (int32_t)(w / 4u) - (int32_t)(ui.row[SCR_GLOBAL] / 4u));   /* (SELECT: to its page) */
+        turn(EN_SELECT, (int32_t)gl_pg(0, w) - (int32_t)gl_pg(0, ui.row[SCR_GLOBAL]));   /* (SELECT: to its page) */
         {
             cell_t c1, c2, d1, d2;
-            SCR->cell(w - 1u, (w - 1u) % 4u, &c1);
-            SCR->cell(w, w % 4u, &c2);
+            SCR->cell(w - 1u, gl_kn(SCR_GLOBAL, w - 1u), &c1);
+            SCR->cell(w, gl_kn(ui.scr, w), &c2);
             turn(LINE_KNOB(w), 1);
-            SCR->cell(w - 1u, (w - 1u) % 4u, &d1);
-            SCR->cell(w, w % 4u, &d2);
+            SCR->cell(w - 1u, gl_kn(SCR_GLOBAL, w - 1u), &d1);
+            SCR->cell(w, gl_kn(ui.scr, w), &d2);
             check(strcmp(c2.val, d2.val) && !strcmp(c1.val, d1.val) && ui.row[SCR_GLOBAL] == w,
                   "Channels: knob k changes the page's line k (T2), not its neighbour; the cursor on it");
             turn(LINE_KNOB(w), -1);
-            SCR->cell(w, w % 4u, &d2);
+            SCR->cell(w, gl_kn(ui.scr, w), &d2);
             check(!strcmp(c2.val, d2.val), "... and back");
         }
     }
@@ -252,7 +253,7 @@ static void glo_tests(void)
         w = line_named(SCR_SYSTEM, "CLOCK");
         frame();
         turn(LINE_KNOB(w), 3);
-        SCR->cell(w, w % 4u, &a);
+        SCR->cell(w, gl_kn(ui.scr, w), &a);
         tap(B_SAVE);
         check(a.kind == CK_RO && ui.scr == SCR_SYSTEM && !op_armed(), "SYSTEM CPU: CLOCK a read-out: its knob and YES do nothing");
     }

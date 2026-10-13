@@ -414,6 +414,18 @@ static uint32_t row_named(uint32_t scr, const char *name)   /* the row of screen
 }
 /* GLOBAL and SYSTEM's list (op_global.c): screen scr entered, the cursor on the first line labelled lab (its knob:
  * LINE_KNOB); the line, or the screen's line count when there is none */
+static uint32_t gl_kn(uint32_t scr, uint32_t i)         /* line i's knob (0..3) on its page: its place on the page (op_global.c pages) */
+{
+    return i - gl_first(scr == SCR_SYSTEM, i);
+}
+static uint32_t gl_pfirst(uint32_t s, uint32_t p)       /* the first line of page p of screen s (the line count past the last page) */
+{
+    uint32_t i;
+    for (i = 0; i < gl_n(s); i++)
+        if (gl_pg(s, i) == p)
+            break;
+    return i;
+}
 static uint32_t line_named(uint32_t scr, const char *lab)
 {
     uint32_t i, n;
@@ -422,17 +434,17 @@ static uint32_t line_named(uint32_t scr, const char *lab)
         op_enter(scr);
     n = SCREENS[scr].rows();
     for (i = 0; i < n; i++) {
-        SCREENS[scr].cell(i, i % 4u, &c);
+        SCREENS[scr].cell(i, gl_kn(scr, i), &c);
         if (c.label && !strcmp(c.label, lab))
             break;
     }
     if (i < n) {
         ui.row[scr] = (uint8_t)i;
-        ui.hot = (uint8_t)(i % 4u);
+        ui.hot = (uint8_t)gl_kn(scr, i);
     }
     return i;
 }
-#define LINE_KNOB(i) (EN_K1 + (i) % 4u)                 /* the knob of line i: its place on its page */
+#define LINE_KNOB(i) (EN_K1 + gl_kn(ui.scr, (i)))     /* the knob of line i: its place on its page */
 /* ---- keys and knobs */
 static void key_tests(void)
 {
@@ -2257,6 +2269,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards2.h"                     /* 2026-10-12: the MASTER page's FX returns, OCT on the roll */
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_glwalk.h"                     /* 2026-10-13: every GLOBAL / SYSTEM line walked: knob, PRESETS, actions RUN */
+#include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
@@ -2389,6 +2402,7 @@ int main(int argc, char **argv)
     c2_roll_tests();
     glo_tests();
     glwalk_tests();
+    glpages_tests();
     help_tests();
     risk_tests();
     risk_edits_tests();

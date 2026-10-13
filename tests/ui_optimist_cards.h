@@ -125,14 +125,14 @@ static void cards_tests(void)
         frame();
         n = SCR->rows();
         for (k = 0; k < n; k++) {                       /* (every line of the list) */
-            SCR->cell(k, k % 4u, &c);
+            SCR->cell(k, gl_kn(SCR_SYSTEM, k), &c);
             none &= (uint32_t)!(c.label && !strcmp(c.label, "CARDS"));
         }
         k = line_named(SCR_SYSTEM, "COLOR") + 1u;
-        SCR->cell(k, k % 4u, &c);
+        SCR->cell(k, gl_kn(SCR_SYSTEM, k), &c);
         if (c.label && !strcmp(c.label, "BRIGHT"))   /* (BRIGHT where built) */
             k++;
-        SCR->cell(k, k % 4u, &c);
+        SCR->cell(k, gl_kn(SCR_SYSTEM, k), &c);
         SCR->name(k, nm);
         check(none && c.label && !strcmp(c.label, "KNOB COLORS") && !strcmp(nm, "SCREEN"),
               "SYSTEM SCREEN: no CARDS line (COLOR, BRIGHT, then KNOB COLORS)");

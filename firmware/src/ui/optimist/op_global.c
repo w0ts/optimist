@@ -48,15 +48,18 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-#define GL_MAXL 40u
+#define GL_MAXL 24u                                     /* the lines of a screen, at most (19 at most, DUAL, BLE, CDC, every option) */
 #if FELUCCA_BLE
 #define GL_DEV (bdv.open != 0u)                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
 #endif
+#define GL_MAXP 12u                                     /* the pages of a screen, at most (a page holds a row: 8 rows at most) */
 static struct {
-    uint8_t ok, n[2];
-    uint8_t at[2][GL_MAXL];
+    uint8_t ok, n[2], np[2];
+    uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
+    uint8_t at[2][GL_MAXL], pg[2][GL_MAXL];             /* line i: its cell (row << 2 | cell), its page */
+    uint8_t pf[2][GL_MAXP + 1u];                        /* page p: its first line; [np] the line count */
 } gll;
 static int gl_has(uint32_t s, uint32_t u, uint32_t k)   /* row u's cell k is a line */
 {
@@ -66,31 +69,71 @@ static int gl_has(uint32_t s, uint32_t u, uint32_t k)   /* row u's cell k is a l
     tp_cell(u, k, &c);
     return c.kind != CK_NONE;
 }
+static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry e (row << 2 | cell): its row's name (REC 2's lines are REC's) */
+{
+    uint32_t u = e >> 2;
+    if (s || u >= GL_SYS0)
+        str_cpy(b, SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
+    else
+        tp_name(u == TPR_REC2 ? TPR_REC : u, b);
+}
+/* ---- the pages (the user, 2026-10-13: "the global and system screen should be grouped in logical pages, dont cut a page
+ * in the middle if possible", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should
+ * be on one page"). A page is one section (gl_sid: REC 2's lines are REC's): sections are never combined to fill a page,
+ * a short one leaves its page's last lines empty and their knobs do nothing. Only a section of more than 4 lines is split,
+ * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
+ * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
+static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's) */
+{
+    uint32_t u = e >> 2;
+    return s || u >= GL_SYS0 ? 8u + (s ? u : glo_sys(u)) : u == TPR_REC2 ? (uint32_t)TPR_REC : u;
+}
 static void gl_build(void)
 {
-    uint32_t s, u, k, n;
+    uint32_t s, u, k, n, n0, np, cnt, i, same;
     if (gll.ok)
         return;
     for (s = 0; s < 2u; s++) {
-        for (u = 0, n = 0; u < (s ? NSYS_SETUP : glo_rows()); u++)
+        for (u = n = np = cnt = 0; u < (s ? NSYS_SETUP : glo_rows()); u++) {
+            n0 = n;                                     /* (row u's lines, kept together on a page) */
             for (k = 0; k < 4u; k++)
                 if (n < GL_MAXL && gl_has(s, u, k))
                     gll.at[s][n++] = (uint8_t)(u << 2 | k);
+            if (n == n0)
+                continue;
+            same = n0 && gl_sid(s, gll.at[s][n0]) == gl_sid(s, gll.at[s][n0 - 1u]);
+            if (!same || cnt + n - n0 > GL_PAGE) {      /* (the next page: another section, or this one is full) */
+                if (same)
+                    gll.cont[s] |= (uint16_t)(1u << np);   /* (one section over two pages: REC) */
+                gll.pf[s][np++] = (uint8_t)n0;
+                cnt = 0;
+            }
+            cnt += n - n0;
+            for (i = n0; i < n; i++)
+                gll.pg[s][i] = (uint8_t)(np - 1u);
+        }
         gll.n[s] = (uint8_t)n;
+        gll.np[s] = (uint8_t)np;
+        gll.pf[s][np] = (uint8_t)n;
     }
     gll.ok = 1;
 }
+/* the accessors below, but gl_n and gl_npg, take a list that gl_build has made: gl_scr, gl_n, gl_npg and the screens'
+ * rows() are the way in (every use is after one of them) */
 static uint32_t gl_n(uint32_t s)
 {
     gl_build();
     return gll.n[s & 1u];
 }
-static uint32_t gl_ent(uint32_t s, uint32_t i)
+static uint32_t gl_npg(uint32_t s)                      /* the pages of screen s */
 {
     gl_build();
-    return gll.at[s & 1u][i % GL_MAXL];
+    return gll.np[s & 1u];
 }
-static uint32_t gl_first(uint32_t i) { return i - i % GL_PAGE; }   /* the first line of line i's page */
+static uint32_t gl_ent(uint32_t s, uint32_t i) { return gll.at[s & 1u][i % GL_MAXL]; }
+static uint32_t gl_pg(uint32_t s, uint32_t i) { return gll.pg[s & 1u][i % GL_MAXL]; }   /* the page of line i */
+static uint32_t gl_first(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i)]; }   /* the first line of line i's page */
+static uint32_t gl_end(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i) + 1u]; }   /* one past its last */
 static int gl_scr(uint32_t scr) { return (scr == SCR_GLOBAL || scr == SCR_SYSTEM) && !(scr == SCR_SYSTEM && GL_DEV); }
 static void gl_cell(uint32_t s, uint32_t i, cell_t *c)
 {
@@ -127,18 +170,35 @@ static int gl_yes(uint32_t s, uint32_t i, uint32_t ok)  /* YES on line i; a ques
 }
 static void gl_sect(uint32_t s, uint32_t i, char *b)    /* line i's section: its row's name (REC 2's lines are REC's) */
 {
-    uint32_t u = gl_ent(s, i) >> 2;
-    if (s || u >= GL_SYS0)
-        str_cpy(b, SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
-    else
-        tp_name(u == TPR_REC2 ? TPR_REC : u, b);
+    gl_secname(s, gl_ent(s, i), b);
+}
+static void gl_split(uint32_t s, uint32_t i, char *b)   /* the page of line i is one of a section's pages (REC's): " 1/2" after its name b */
+{
+    uint32_t p = gl_pg(s, i), a = p, z = p, c = gll.cont[s & 1u];
+    while (c >> a & 1u)
+        a--;
+    while (c >> (z + 1u) & 1u)
+        z++;
+    if (a == z)
+        return;
+    b += str_len(b);
+    *b++ = ' ';
+    fmt_int(b, (int32_t)(p - a) + 1);
+    b += str_len(b);
+    *b++ = '/';
+    fmt_int(b, (int32_t)(z - a) + 1);
 }
 
 /* the screens' functions: a row is a line (the cursor's), a cell the 4 lines of its page */
 static uint32_t gls_rows(void) { return gl_n(0); }
 static void gls_name(uint32_t r, char *b) { gl_sect(0, r, b); }
-static void gls_cell(uint32_t r, uint32_t k, cell_t *c) { gl_cell(0, gl_first(r) + k, c); }
-static void gls_turn(uint32_t r, uint32_t k, int32_t s, int fine) { gl_turn(0, gl_first(r) + k, s, fine); }
+static uint32_t gl_line(uint32_t s, uint32_t r, uint32_t k)   /* knob k's line on the page of line r: past the page's last, GL_MAXL (none) */
+{
+    uint32_t i = gl_first(s, r) + k;
+    return i < gl_end(s, r) ? i : GL_MAXL;
+}
+static void gls_cell(uint32_t r, uint32_t k, cell_t *c) { gl_cell(0, gl_line(0, r, k), c); }   /* (an empty line: no cell) */
+static void gls_turn(uint32_t r, uint32_t k, int32_t s, int fine) { gl_turn(0, gl_line(0, r, k), s, fine); }
 static int gls_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     (void)k;
@@ -157,14 +217,14 @@ static void sls_cell(uint32_t r, uint32_t k, cell_t *c)
     if (GL_DEV)
         sys_cell(r, k, c);
     else
-        gl_cell(1, gl_first(r) + k, c);
+        gl_cell(1, gl_line(1, r, k), c);
 }
 static void sls_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     if (GL_DEV)
         sys_turn(r, k, s, fine);
     else
-        gl_turn(1, gl_first(r) + k, s, fine);
+        gl_turn(1, gl_line(1, r, k), s, fine);
 }
 static int sls_yes(uint32_t r, uint32_t k, uint32_t ok) { return GL_DEV ? sys_yes(r, k, ok) : gl_yes(1, r, ok); }
 
@@ -175,17 +235,20 @@ static void gl_at(uint32_t i)                           /* the cursor on line i 
     if (i == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)i;
-    ui.hot = (uint8_t)(i % GL_PAGE);
+    ui.hot = (uint8_t)(i - gl_first(ui.scr == SCR_SYSTEM, i));
     op_disarm();                                        /* (a question was about the other line) */
 }
 static int glo_cycle(void) { return gl_scr(ui.scr); }  /* GLOBAL or SYSTEM shown as the list (not the BLE devices) */
 /* SELECT: s pages on within the screen, stopping at its ends; the cursor on the page's first line */
 static void glo_step(int32_t s)
 {
-    int32_t n = ((int32_t)gl_n(ui.scr == SCR_SYSTEM) + 3) / 4, was = (int32_t)(ui.row[ui.scr] / GL_PAGE);
-    int32_t at = clamp(was + s, 0, n - 1);
-    if (at != was)
-        gl_at((uint32_t)at * GL_PAGE);
+    uint32_t sc = ui.scr == SCR_SYSTEM, r = ui.row[ui.scr], was = r;
+    for (; s > 0 && gl_end(sc, r) < gl_n(sc); s--)
+        r = gl_end(sc, r);
+    for (; s < 0 && gl_first(sc, r); s++)
+        r = gl_first(sc, gl_first(sc, r) - 1u);
+    if (r != was)
+        gl_at(r);
 }
 static void gl_algo(int32_t s)                          /* ALGORITHM: the cursor s lines on within the screen, stopping at its ends */
 {
@@ -209,20 +272,15 @@ static void gl_presets(int32_t s, uint32_t home)        /* PRESETS: the cursor l
 }
 static void gl_pick(uint32_t r, uint32_t k)             /* KNOB k turned (op_input.c op_knobs): its line the cursor */
 {
-    if (glo_cycle() && gl_first(r) + k != ui.row[ui.scr]) {
-        ui.row[ui.scr] = (uint8_t)(gl_first(r) + k);
+    uint32_t i = gl_line(ui.scr == SCR_SYSTEM, r, k);
+    if (glo_cycle() && i < GL_MAXL && i != ui.row[ui.scr]) {
+        ui.row[ui.scr] = (uint8_t)i;
         op_disarm();
     }
 }
 static int gl_on_tempo(void)                            /* GLOBAL's page shows Tempo's lines: OCT nudges (op_tempo.c) */
-{
-    uint32_t i, f;
-    if (ui.scr != SCR_GLOBAL)
-        return 0;
-    for (i = f = gl_first(ui.row[SCR_GLOBAL]); i < f + GL_PAGE && i < gl_n(0); i++)
-        if (gl_ent(0, i) >> 2 == TPR_TEMPO)
-            return 1;
-    return 0;
+{                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */
+    return ui.scr == SCR_GLOBAL && gl_n(0) && gl_pg(0, ui.row[SCR_GLOBAL]) == 0u;
 }
 /* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL. Each keeps its line */
 static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLOBAL); }

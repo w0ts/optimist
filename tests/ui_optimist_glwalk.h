@@ -50,7 +50,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 }
 static void glw_line(uint32_t scr, uint32_t i, cell_t *c, char *v)   /* line i as the list draws it: cell, value text */
 {
-    SCREENS[scr].cell(i, i % 4u, c);
+    SCREENS[scr].cell(i, gl_kn(scr, i), c);
     str_cpy(v, gl_val(c), 16);
 }
 /* a control turned on line i, a detent at a time (up to 4: SWING's 0..100 shows 50..75 %, a detent may not show): one
