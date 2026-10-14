@@ -131,7 +131,6 @@ int main(void)
                      st_save(OBJ_CZBANK, a, sizeof a) == 0 && st_load(OBJ_CZBANK, got, sizeof got) == (int)sizeof a);
     }
 #endif
-#if FELUCCA_ST_STRICT
     {   /* SLOOP 2.3: a commit record found in the other copy's sector (a sector copied whole, a misdirected
          * write) is not taken; nothing is read or written past the objects */
         st_hdr_t h;
@@ -148,7 +147,6 @@ int main(void)
                      st_save(OBJ_PROJECT0 + 1, b, sizeof b) == 0 && st_load(OBJ_PROJECT0 + 1, got, sizeof got) == (int)sizeof b &&
                      !memcmp(got, b, sizeof b));
     }
-#endif
     printf("%s\n", bad ? "STORAGE TEST FAILED" : "storage test passed");
     return bad != 0;
 }
