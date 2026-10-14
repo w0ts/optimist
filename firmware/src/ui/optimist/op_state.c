@@ -86,6 +86,11 @@ static void lane_sound_step(int32_t s);                 /* op_walk.c: PRESETS on
 static int lane_presets(void);
 static void lane_kind_step(int32_t s);
 static const char *lane_sound_name(uint32_t l);
+enum { LCF_KIT, LCF_PRESET, LCF_SLOT, LCF_NONE };       /* the SOUND row's first card on the drum track (op_walk.c lane_card_form) */
+static uint32_t lane_card_form(void);
+static uint32_t lane_card_pos(uint32_t *n);
+static void lane_card_turn(uint32_t form, int32_t s);
+static void lane_card_first(void);
 
 /* The drum track's ACCENT lane (core.h DRUM_ACC, lane 16) as this UI shows it: a lane as the others (a row in the grid,
  * the mixer and the walk, a key, a name), with no sound. lane_selected() is 0..DRUM_UILANES - 1; the per-lane SOUND

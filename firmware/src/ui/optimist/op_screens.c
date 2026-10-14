@@ -269,6 +269,26 @@ static uint32_t snd_mem_row(uint32_t fam)               /* the row of family fam
     uint32_t r = snd_mem[song.sel % NTRK][snd_slot(fam)], n = snd_rows();
     return r < n ? r : n ? n - 1u : 0u;
 }
+/* the first card of a lane that is not on the KIT: its PRESET, its sample SLOT, or KIT dim "-" with nothing to pick */
+static void snd_lane_card(cell_t *c)
+{
+    uint32_t f = lane_card_form(), n, i;
+    if (f == LCF_NONE) {
+        c->label = "KIT";
+        c->kind = CK_RO;
+        c->dim = 1;
+        c->hlp = "NO KIT";
+        str_cpy(c->val, "-", sizeof c->val);
+        return;
+    }
+    c->label = f == LCF_SLOT ? "SLOT" : "PRESET";
+    c->kind = CK_VAL;
+    c->hlp = f == LCF_SLOT ? "LANE SLOT" : "LANE PRESET";
+    str_cpy(c->val, lane_sound_name(lane_selected()), sizeof c->val);
+    c->col = op_lane_col(lane_selected());
+    i = lane_card_pos(&n);
+    cell_gauge(c, 1, 0, (int32_t)n - 1, (int32_t)i);
+}
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     if (snd_fam == SND_FM6) {
@@ -296,6 +316,10 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         }
         if (k > 1u)
             return;
+        if (!k && lane_card_form() != LCF_KIT) {        /* the lane's own sound, not the kit (op_walk.c lane_card_form) */
+            snd_lane_card(c);
+            return;
+        }
         c->label = L[k];
         c->kind = k ? CK_RO : CK_VAL;                   /* (LANE: the selected lane, ALGORITHM's or HOME + a key's) */
         str_cpy(c->val, k ? lane_name(lane_selected()) : drum_kit_name(), sizeof c->val);
@@ -346,6 +370,13 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (is_drum(TSEL) && k == 3u) {                     /* the ACCENT amount */
         if (ACC_UI)
             acc_turn(k, s, fine);
+        return;
+    }
+    if (is_drum(TSEL) && k == 0u && lane_card_form() != LCF_KIT) {   /* a lane off the KIT: its own PRESET / SLOT, never the kit */
+        if (s == OP_RESET)
+            lane_card_first();
+        else
+            lane_card_turn(lane_card_form(), s);
         return;
     }
     if (s == OP_RESET)
