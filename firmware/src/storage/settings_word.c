@@ -34,8 +34,10 @@ static uint32_t bp23_word(void)
 #if FELUCCA_MIDI_OUT
     w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != 0) << 14;     /* (SLOOP 2.4: the same bits) */
 #endif
-#if FELUCCA_MIDI_INCLK
+#if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
     w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
+#elif FELUCCA_UI == 1
+    w &= ~(1u << 15);                               /* (the Optimist UI has no MIDI IN setting any more: the bit is free, notes always play) */
 #endif
 #if FELUCCA_CDC
     w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
@@ -71,7 +73,7 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_MIDI_OUT
     bp_set[BPS_MOUT] = (int16_t)((w >> 14) & 1u);
 #endif
-#if FELUCCA_MIDI_INCLK
+#if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
     bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);
 #endif
 #if FELUCCA_CDC

@@ -27,8 +27,7 @@
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
  *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
- * With no step held the cards are the drum lane's LEVEL TUNE DECAY REV (SELECT the lane) or the synth track's
- * PATTERN and ARP rows. Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
+ * With no step held the cards are the track's PATTERN row (and TOOLS, EUCLID). Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
  * of the edits is SLOOP's (ui/sloop/ui_layers.c step_down / steps_held_*), copied: nothing in ui/sloop is called. */
 #define STEP_LY_BIT (1u << 31)          /* seq.c ly_bit[LY_STEP]: no button holds it; STEP locks the layer (ly_lock) */
 
@@ -871,20 +870,13 @@ static void extra_turn(uint32_t k, int32_t s)
 }
 
 /* ---- the screen: rows, cells, turns, YES */
-#if DL_UI
-static const page_t STEP_LANE_PG = {"LANE", FAM_EDIT, SC_DSND, GR_DSND, {DE_LEVEL, DE_TUNE, DE_DECAY, 16}};   /* 16: REV */
-#endif
-static uint8_t stp_ix[OP_MAXROWS];
-static int step_row_page(const page_t *pg)              /* a synth track's rows on STEP: PATTERN, ARP, ARP 2 */
-{
-    return sound_page(pg) && ((pg->fam == FAM_SEQ && pg->scope == SC_TRACK) || pg->fam == FAM_ARP);
-}
-/* STEP's pages (the user: "the first SEQ menu should have the length of the pattern"): PATTERN first (LEN DIV SWING
- * GATE) on every track, then a synth track's ARP, ARP 2, the drum track's LANE page (STP_LANE0: the selected lane's
- * sound, LEVEL TUNE DECAY REV, named after it). SELECT pages the four knobs only and never changes the lane; the lane
- * is ALGORITHM's (DR, then the lanes) or HOME + a key's (the user, 2026-10-12: "in step seq: select should always
- * select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on PATTERN the first time, then on the page it was left on (2026-10-13) */
-#define STP_LANE0 1u
+/* STEP's pages (the user: "the first SEQ menu should have the length of the pattern"): PATTERN (LEN DIV SWING GATE) on
+ * every track, then TOOLS and EUCLID. No ARP rows (ARP has its own button and page) and no drum LANE page (LEVEL TUNE
+ * DECAY REV: sound values, not the sequencer's; the user, 2026-10-14: "why do we have an arpeggio section in the SEQ",
+ * "on the sequencer pages i have items to edit the engine sound"); the sound pages stay on a held step as p-locks. SELECT pages the four knobs only and
+ * never changes the lane; the lane is ALGORITHM's (DR, then the lanes) or HOME + a key's (the user, 2026-10-12: "in step
+ * seq: select should always select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on
+ * PATTERN the first time, then on the page it was left on (2026-10-13) */
 static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM_SEQ, the track's: LEN first) */
 {
     uint32_t i;
@@ -893,22 +885,7 @@ static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM
             return i;
     return 0;
 }
-static uint32_t step_rows0(void)                       /* the pages before TOOLS, EUCLID */
-{
-    uint32_t n, i, p;
-    if (is_drum(TSEL))                                  /* (the ACCENT lane: no LANE page, its amount alone was a one-card
-                                                         * page; it is the SOUND row's ACCENT card and the mixer's: #21) */
-        return STP_LANE0 + (DL_UI && !lane_acc() ? 1u : 0u);
-    n = page_rows(step_row_page, stp_ix);
-    for (i = 0, p = stp_pattern(); i < n && stp_ix[i] != p; i++)
-        ;
-    for (; i > 0 && i < n; i--) {                       /* (PATTERN to the front, the others in their order) */
-        uint8_t t = stp_ix[i - 1u];
-        stp_ix[i - 1u] = stp_ix[i];
-        stp_ix[i] = t;
-    }
-    return n;
-}
+static uint32_t step_rows0(void) { return 1u; }   /* the pages before TOOLS, EUCLID: PATTERN */
 #if FELUCCA_SEQTOOLS
 #define STP_TL 2u                                       /* the last two pages: TOOLS, EUCLID (op_tools.c) */
 #else
@@ -916,21 +893,12 @@ static uint32_t step_rows0(void)                       /* the pages before TOOLS
 #endif
 static uint32_t step_rows(void) { return step_rows0() + STP_TL; }
 static int stp_tl(uint32_t r) { return STP_TL && r >= step_rows0() ? (int)(r - step_rows0()) : -1; }   /* 0 TOOLS, 1 EUCLID */
-static int stp_is_lane(uint32_t r) { return is_drum(TSEL) && r >= STP_LANE0 && stp_tl(r) < 0; }
 static void step_name(uint32_t r, char *b)
 {
-    uint32_t i;
-    if (stp_tl(r) >= 0) {
+    if (stp_tl(r) >= 0)
         str_cpy(b, stp_tl(r) ? "EUCLID" : "TOOLS", 12);
-        return;
-    }
-    if (!is_drum(TSEL) || r < STP_LANE0) {
-        str_cpy(b, is_drum(TSEL) ? PAGES[stp_pattern()].title : PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
-        return;
-    }
-    str_cpy(b, lane_short(lane_selected()), 12);         /* the selected lane's: "c.hat" -> "C.HAT", as a row's name */
-    for (i = 0; b[i]; i++)
-        b[i] = (char)(b[i] >= 'a' && b[i] <= 'z' ? b[i] - 32 : b[i]);
+    else
+        str_cpy(b, PAGES[stp_pattern()].title, 12);
 }
 static void held_cell(uint32_t k, cell_t *c)            /* the first step held: its values */
 {
@@ -1028,19 +996,7 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
 #endif
-    if (!stp_is_lane(r)) {
-        page_cell(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, c);
-        return;
-    }
-#if DL_UI
-    {
-        int16_t *vp;
-        cell_param(c, dsnd_desc_lane(lane_selected(), STEP_LANE_PG.id[k & 3u], &vp), vp);   /* (a value this lane's
-                                                         * sound has not: the knob's frame alone, audit #7) */
-    }
-#else
-    cell_clear(c);
-#endif
+    page_cell(&PAGES[stp_pattern()], k, c);
 }
 static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
@@ -1071,29 +1027,15 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
 #endif
-    if (!stp_is_lane(r))
-        page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
-#if DL_UI
-    else
-        page_turn(&STEP_LANE_PG, k, s, fine);           /* (the selected lane's) */
-#endif
+    page_turn(&PAGES[stp_pattern()], k, s, fine);
 }
 static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    uint32_t i, n;
 #if FELUCCA_SEQTOOLS
     if (stp_tl(r) >= 0)
         return tl_yes((uint32_t)stp_tl(r), k);   /* (no question: undo covers it, the user 2026-10-13) */
 #endif
-    if (!stp_is_lane(r))
-        return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
-    op_enter(SCR_SOUND);                                /* the drum lane: its SOUND rows */
-    for (i = 1, n = snd_rows(); i < n; i++)
-        if (snd_page(i)->scope == SC_DSND && snd_page(i)->fam == FAM_EDIT) {   /* (SOUND, not its ENV row above) */
-            ui.row[SCR_SOUND] = (uint8_t)i;
-            break;
-        }
-    return 1;
+    return page_yes(SCR_STEP, r, &PAGES[stp_pattern()], k, ok);
 }
 
 /* ---- the panel's controls on STEP (op_input.c calls these first; 1 = done) */

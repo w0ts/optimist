@@ -164,12 +164,12 @@ static void acc_sound_tests(void)
     SCR->cell(0, 0, &c);
     ok = c.label && !strcmp(c.label, "KIT");
     SCR->cell(0, 1, &c);
-    ok &= c.label && !strcmp(c.label, "LANE") && !strcmp(c.val, "ACCENT") && c.col == C_HI;
+    ok &= !c.label && c.kind == CK_NONE;               /* (no LANE card any more) */
     SCR->cell(0, 2, &c);
     ok &= !c.label || !c.label[0];
     SCR->cell(0, 3, &c);
     ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
-    check(ok, "the SOUND row: KIT, LANE ACCENT, no SRC, the ACCENT amount");
+    check(ok, "the SOUND row: KIT, no second card, no SRC, the ACCENT amount");
     TDRUM->p[P_DACC] = 27;
     turn(EN_K4, 5);
     check(TDRUM->p[P_DACC] > 27, "KNOB 4: the ACCENT amount up");
@@ -319,10 +319,10 @@ static void acc_step_tests(void)
     {
         char nm[12];
         uint32_t r;
-        ok = SCREENS[SCR_STEP].rows() == STP_LANE0 + STP_TL;
+        ok = SCREENS[SCR_STEP].rows() == STP_PAT + 1u + STP_TL;
         for (r = 0; r < SCREENS[SCR_STEP].rows(); r++) {
             step_name(r, nm);
-            ok &= !str_eq(nm, "ACCENT") && !stp_is_lane(r);
+            ok &= !str_eq(nm, "ACCENT");
         }
         check(ok, "STEP on the ACCENT lane: no LANE page (its amount alone), Pattern and the tools");
     }

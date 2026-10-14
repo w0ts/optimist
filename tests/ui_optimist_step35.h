@@ -245,7 +245,7 @@ static void s35_pages_tests(void)
     {
         char p[12];
         head_pos(SCR_STEP, ui.row[SCR_STEP], p);
-        check(p[0] && s35_pos_is(1u, SCR->rows()), "#17: STEP, nothing shown over the grid: the page's name and n/N (Pattern 1/N)");
+        check(SCR->rows() < 2u || (p[0] && s35_pos_is(1u, SCR->rows())), "#17: STEP, nothing shown over the grid: the page's name and n/N (Pattern 1/N)");
     }
     n = SCR->rows();
     tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */
@@ -253,7 +253,7 @@ static void s35_pages_tests(void)
     SCR->name(ui.row[SCR_STEP], nm);
     {
         char d[32];
-        check(ui.cards_t > 0u && !strcmp(t, nm_title(nm, d, sizeof d)) && s35_pos_is(2u, n), "STEP, SEQ again: the page's name and n/N (ARP 2/3)");
+        check(n < 2u || (ui.cards_t > 0u && !strcmp(t, nm_title(nm, d, sizeof d)) && s35_pos_is(2u, n)), "STEP, SEQ again: the page's name and n/N (Tools 2/3)");
     }
     /* a held step: its card pages */
     s35_open();

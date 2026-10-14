@@ -449,6 +449,9 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
         return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
     if (merged_away(pg))
         return 0;                                       /* (FLT 2, FILTER: their card is on a neighbour, #21) */
+    if (is_drum(TSEL) && lane_picked() && lane_snd() && pg->fam == FAM_FX && (pg->scope == SC_TRACK || CMP_PAGE(pg)))
+        return 0;                                       /* (a lane is uniform with the other tracks: its INSERTS and SENDS only, not the drum
+                                                         * track's kit sends, bus sends, slicer, gater or comp; the user 2026-10-14) */
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
     if (lane_fx_pg(pg))                                 /* (a lane's INSERTS and SENDS: a lane selected, never DR itself) */

@@ -121,14 +121,14 @@ static void lv_dr_tag_tests(void)
     r = lv_row_named("INSERTS");
     check(r < SCR->rows() && lv_row_plain(r) && lv_card(r, "DST"), "a lane picked: INSERTS is the lane's (DST CMP DRIVE), no tag");
     check(lv_card(r, "S1") == 0, "... not the drum bus's S1 / S2");
-    r = lv_row_named("DR INSERT");
-    check(r < SCR->rows() && lv_card(r, "S1") && lv_row_dr(r), "the drum bus's inserts: \"DR INSERT\", every card tagged DR");
+    r = lv_row_named("DR INSERT");                      /* (uniform with the other tracks, 2026-10-14: a lane shows its INSERTS and SENDS only) */
+    check(r >= SCR->rows(), "a lane picked: no \"DR INSERT\" row");
     r = lv_row_named("DR SENDS");
-    check(r < SCR->rows() && lv_row_dr(r) && lv_card(r, "CHO") && lv_card(r, "CHO")->gv == 70, "the drum track's send levels: \"DR SENDS\", tagged DR");
+    check(r >= SCR->rows(), "a lane picked: no \"DR SENDS\" (kit sends) row");
     r = lv_row_named("BUS SENDS");
-    check(r < SCR->rows() && lv_row_dr(r), "BUS SENDS: the drum bus's own, tagged DR");
+    check(r >= SCR->rows(), "a lane picked: no BUS SENDS row");
     r = lv_row_named("SLICER");
-    check(FELUCCA_FX_SLICER ? r < SCR->rows() && lv_row_dr(r) : r >= SCR->rows(), "SLICER: tagged DR (no row when not built)");
+    check(r >= SCR->rows(), "a lane picked: no SLICER row");
     op_enter(SCR_SOUND);
     snd_family(SND_ALL);
     r = lv_row_named("PATTERN");
@@ -137,9 +137,9 @@ static void lv_dr_tag_tests(void)
     {
         cell_t c;
         SCR->cell(r, 0, &c);
-        check(!strcmp(c.label, "KIT") && c.dr, "the SOUND row's KIT card: tagged DR");
+        check(!strcmp(c.label, "KIT") && c.dr, "the SOUND row's first card: the KIT, tagged DR (a lane on the kit)");
         SCR->cell(r, 1, &c);
-        check(!strcmp(c.label, "LANE") && !c.dr, "... LANE is the lane's: no tag");
+        check(!c.label && c.kind == CK_NONE, "... no second card: the LANE read-out is gone (2026-10-14)");
     }
     r = lv_row_named("SOUND 3");
     check(r < SCR->rows() && lv_row_plain(r), "SOUND 3 (the lane's DST CHO DLY REV): no tag");
@@ -208,18 +208,7 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
     check(c && c->gv == 20, "... FX: the snare's SENDS: its CHO 20, the value changed with the lane");
     frames(2);
     ppm("opt-lane-sends-snare");
-    /* STEP's own lane page (LEVEL TUNE DECAY REV): the same REV as SENDS */
-    tap(B_SEQ);
-    {
-        uint32_t i, found = 0;
-        for (i = 0; i < SCR->rows(); i++)
-            if (stp_is_lane(i)) {
-                SCR->cell(i, 3, &d);
-                found = 1;
-                check(d.label && !strcmp(d.label, "REV") && d.gv == 2 && !d.dr, "STEP's lane page: its REV the lane's (2), the same as SENDS");
-            }
-        check(found, "... STEP's lane page found");
-    }
+    tap(B_SEQ);                                         /* (STEP has no lane page any more: its LEVEL TUNE DECAY REV left, 2026-10-14) */
     {   /* STEP's first page: PATTERN, the track's */
         ui.row[SCR_STEP] = 0;
         frames(2);

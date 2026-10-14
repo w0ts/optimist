@@ -33,6 +33,7 @@ static uint32_t bk_sig(void)
 {
     return ui.scr | (uint32_t)snd_fam << 4 | (uint32_t)ui.row[ui.scr] << 12 | (uint32_t)ui.arm_scr << 20 | (uint32_t)(st.held != 0) << 28;
 }
+static int bk_step_one(uint32_t scr) { return scr == SCR_STEP && SCR->rows() < 2u; }
 static void btnled_tests(void)
 {
     static const char *const BN[] = {"FX", "SCL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ"};
@@ -60,6 +61,8 @@ static void btnled_tests(void)
                     act |= l != LY_PLAY && ly_bit[l] != 0u && lay.shown != LY_PLAY;
                 release(b);
                 n++;
+                if (b == B_SEQ && bk_step_one(BK_SCR[s]))
+                    continue;                   /* (STEP on its one page, a build without the tools: SEQ marks the screen, there is no next page) */
                 if ((lv != 0u) != (act != 0u) && !bad++)
                     bad_b = b;
             }

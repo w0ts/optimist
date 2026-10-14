@@ -259,8 +259,8 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: dual_mode, DUALM_*, dual_why_name (dual.c's state) */
 #endif
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT, SI_BUILD, SI_CHIP, SI_REPO };
+enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
@@ -281,9 +281,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
-    {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN),
-              SI_IF(FELUCCA_MIDI_OUT, SI_OUT)}},   /* (the user, 2026-10-13: "clock in / clock out, midi in / midi out, 4 entries, in one page"; */
-                                                   /* CLKOUT: the clock sent, io/midi/clock_out.c) */
+    {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_OUT, SI_OUT),
+              SI_NONE}},   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
+                            * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
@@ -313,7 +313,7 @@ static uint32_t sys_item(uint32_t r, uint32_t k) { return SYS[r % NSYS].it[k & 3
 /* the settings with a descriptor (params.c GP, bp_set.c): the MIDI rows */
 static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 {
-    static const uint8_t BPS[] = {BPS_MOUT, BPS_MIN, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
+    static const uint8_t BPS[] = {BPS_MOUT, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
     *vp = 0;
     if (it == SI_SYNC) {
         *vp = &song.g[G_SYNC];
@@ -327,40 +327,16 @@ static int32_t sys_step(int32_t v, int32_t s, int32_t max)   /* a knob stops at 
 {
     return s ? clamp(v + (s > 0 ? 1 : -1), 0, max) : (v >= max ? 0 : v + 1);
 }
-/* the memory in use of the running image, from the linker's own symbols (firmware/app.ld), so it is true for what runs:
- * i 0 flash (the image up to the end of what main.c copies at boot), 1 RAM (.data + .bss, and .ram_hot2), 2 the pool, 3 RAM
- * code; *tot the region's size. The host test has its own numbers (host_mem) */
 #ifndef FELUCCA_COMMIT
 #define FELUCCA_COMMIT ""
 #endif
-#if FELUCCA_HOST_MEM
-static uint32_t sys_mem(uint32_t i, uint32_t *tot)
+/* the battery, from the ADC (main.c reads ch3, the divider on PB1, smoothed into song.batt_raw, 0 = not read yet). Only the raw 10 bit count
+ * is known: no volts, no percentage (the divider's ratio and the cell's curve are not measured), so none is shown. The 3 bars are
+ * SLOOP's own thresholds (ui/sloop/ui_draw.c batt_level: 531 / 561 / 591); with a USB host present the line says USB (whether that shifts the reading is not measured) */
+static uint32_t sys_batt_bars(void)
 {
-    *tot = host_mem[i & 3u][1];
-    return host_mem[i & 3u][0];
+    return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
 }
-#else
-extern uint32_t _xip_org[], _flash_len[], _pi_load[], _pi_start[], _pi_end[], _ram_org[], _ram_len[], _bss_end[];
-extern uint32_t _pool_start[], _pool_end[], _pool_len[], _rt_start[], _rt_end[], _rh_start[], _rh_end[], _rtxt_len[];
-#define MEMU(a) ((uint32_t)(uintptr_t)(a))
-static uint32_t sys_mem(uint32_t i, uint32_t *tot)
-{
-    switch (i & 3u) {
-    case 0:
-        *tot = MEMU(_flash_len);
-        return MEMU(_pi_load) + MEMU(_pi_end) - MEMU(_pi_start) - MEMU(_xip_org);
-    case 1:
-        *tot = MEMU(_ram_len);
-        return MEMU(_bss_end) - MEMU(_ram_org);
-    case 2:
-        *tot = MEMU(_pool_len);
-        return MEMU(_pool_end) - MEMU(_pool_start);
-    default:
-        *tot = MEMU(_rtxt_len);
-        return MEMU(_rt_end) - MEMU(_rt_start) + MEMU(_rh_end) - MEMU(_rh_start);
-    }
-}
-#endif
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
     static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
@@ -372,9 +348,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     if (d) {
         cell_param(c, d, vp);
         if (it == SI_SYNC)
-            c->label = "CLK IN";                        /* (the page reads as a set: CLK IN, CLK OUT, MIDI IN, MIDI OUT; TEMPO's card says SYNC) */
-        else if (it == SI_IN)
-            c->label = "MIDI IN";
+            c->label = "CLK IN";                        /* (the page reads as a set: CLK IN, CLK OUT, MIDI OUT; TEMPO's card says SYNC) */
         else if (it == SI_OUT)
             c->label = "MIDI OUT";
         return;
@@ -465,19 +439,23 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->label = "INFO";
         c->kind = CK_RO;
         break;
-    case SI_FLASH:
-    case SI_RAM:
-    case SI_POOL:
-    case SI_RTXT: {                                     /* the memory in use of the running image, used/total in KB */
-        uint32_t tot, use = sys_mem(it - SI_FLASH, &tot), pct = tot ? use * 100u / tot : 0u;
-        c->label = it == SI_FLASH ? "FLASH" : it == SI_RAM ? "RAM" : it == SI_POOL ? "POOL" : "RAM CODE";
+    case SI_BATT: {                                     /* BATTERY: the bars out of 3 and the raw ADC count, no invented percentage */
+        uint32_t bars = sys_batt_bars();
+        c->label = "BATTERY";
         c->kind = CK_RO;
-        fmt_int(c->val, (int32_t)(use >> 10));
-        c->val[str_len(c->val) + 1u] = 0;
-        c->val[str_len(c->val)] = '/';
-        fmt_int(c->val + str_len(c->val), (int32_t)(tot >> 10));
-        c->unit = "KB";
-        cell_gauge(c, 0, 0, 100, (int32_t)pct);
+        c->unit = "";
+        if (!song.batt_raw) {
+            str_cpy(c->val, "NO READING", sizeof c->val);
+            c->col = C_DIM;
+            cell_gauge(c, 0, 0, 3, 0);
+            break;
+        }
+        fmt_int(c->val, (int32_t)bars);
+        str_cpy(c->val + str_len(c->val), "/3 ", sizeof c->val - str_len(c->val));
+        fmt_int(c->val + str_len(c->val), song.batt_raw);
+        c->unit = usb.config && !usb.suspended ? "USB" : "";
+        c->col = bars == 0u ? C_WARN : 0;
+        cell_gauge(c, 0, 0, 3, (int32_t)bars);
         break;
     }
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */
@@ -550,11 +528,11 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     sys_it_cell(sys_item(r, k), c);
 }
-/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the memory */
-#define INFO_N 7u
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the battery */
+#define INFO_N 4u
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
-    static const uint8_t INFO[INFO_N] = {SI_MHZ, SI_CPU, SI_CPU1, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
+    static const uint8_t INFO[INFO_N] = {SI_MHZ, SI_CPU, SI_CPU1, SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
     sys_it_cell(INFO[i % INFO_N], c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */

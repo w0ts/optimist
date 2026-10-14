@@ -52,7 +52,7 @@ static void core_row_tests(void)
 #else
     sys_info_cell(2, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == 7u, "the INFO page has the same 7 lines in every build");
+    check(INFO_N == 4u, "the INFO page has the same 4 lines in every build (clock, CPU0, 2ND CORE, battery: no flash / RAM lines)");
 #endif
     reset_ui();
 }

@@ -29,7 +29,7 @@ static void lane_preview_tests(void)
     turn(EN_ALGO, 1);
     check(lane_selected() == 4u && aud_lanes == 0u, "stopped, the mixer's ALGORITHM walk: silent (the user, 2026-10-10)");
     op_enter(SCR_STEP);                                 /* STEP, the clip editor: a lane change previews, stopped */
-    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;              /* (the LANE page: the selected lane's; ALGORITHM picks the lane) */
+    ui.row[SCR_STEP] = (uint8_t)STP_PAT;              /* (the LANE page: the selected lane's; ALGORITHM picks the lane) */
     frame();
     aud_lanes = 0;
     turn(EN_ALGO, 1);
@@ -113,7 +113,7 @@ static void step_pages_tests(void)
     n = SCR->rows();
     for (r = 1; r < n; r++)
         tap(B_SEQ);
-    check(n >= 2u && ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (ARP, ARP 2)");
+    check(ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (the tools), the last with none");
     tap(B_SEQ);
     check(ui.row[SCR_STEP] == 0u, "... past the last page: PATTERN again (a button again wraps)");
     ui.row[SCR_STEP] = 0;
@@ -125,11 +125,11 @@ static void step_pages_tests(void)
     ui.row[SCR_STEP] = 5;
     tap(B_HOME);
     tap(B_SEQ);
-    check(ui.row[SCR_STEP] == SCR->rows() - 1u && SCR->rows() == STP_LANE0 + 1u + STP_TL,
+    check(ui.row[SCR_STEP] == SCR->rows() - 1u && SCR->rows() == STP_PAT + 1u + STP_TL,
           "the drum track's STEP keeps the page it was left on (2026-10-13), a row it lacks: the nearest, the last");
     ui.row[SCR_STEP] = 0;
     step_cell(0, 0, &c);
-    check(c.d == &TP[P_SLEN], "the drum track's STEP, PATTERN (LEN DIV SWING GATE), then its LANE page (one: the selected lane's)");
+    check(c.d == &TP[P_SLEN], "the drum track's STEP, PATTERN (LEN DIV SWING GATE), no LANE page after it (sound values are not the sequencer's, 2026-10-14)");
     ui.force = 1;
     frame();
     ppm("opt-step-first-page");
@@ -137,26 +137,21 @@ static void step_pages_tests(void)
     aud_lanes = 0;
     turn(EN_SELECT, 1);
     step_cell(ui.row[SCR_STEP], 0, &c);
-    check(ui.row[SCR_STEP] == STP_LANE0 && lane_selected() == 0u && c.label && !strcmp(c.label, "LEVEL") && aud_lanes == 0u,
-          "SELECT from PATTERN: the LANE page (the selected lane's LEVEL TUNE DECAY REV), the lane unchanged");
+    check(lane_selected() == 0u && aud_lanes == 0u && !(c.label && !strcmp(c.label, "LEVEL")),
+          "SELECT from PATTERN: no LANE page (LEVEL TUNE DECAY REV is not on STEP any more), the lane unchanged");
     {
         uint8_t l0 = ui.lane;
         turn(EN_SELECT, 5);
         turn(EN_SELECT, -9);
         turn(EN_SELECT, 9);
         turn(EN_SELECT, -(int32_t)STP_TL);             /* (past LANE: TOOLS, EUCLID, op_tools.c) */
-        check(lane_selected() == 0u && ui.lane == l0 && ui.row[SCR_STEP] == STP_LANE0,
-              "SELECT on the drum STEP: only its pages (PATTERN, LANE), never the lane (the user, 2026-10-12)");
+        check(lane_selected() == 0u && ui.lane == l0 && ui.row[SCR_STEP] == STP_PAT,
+              "SELECT on the drum STEP: only its pages (PATTERN), never the lane (the user, 2026-10-12)");
     }
     turn(EN_ALGO, 3);
     step_cell(ui.row[SCR_STEP], 1, &c);
-    check(lane_selected() == 2u && ui.lane && aud_lanes == 1u << 2 && ui.row[SCR_STEP] == STP_LANE0,
-          "ALGORITHM on the drum STEP: the lane (DR, then the lanes), previewed (stopped); the LANE page shows it");
-    {
-        int16_t *vp;
-        const param_desc_t *d = dsnd_desc_lane(2, STEP_LANE_PG.id[1], &vp);
-        check(c.vp == vp && c.d == d, "... the LANE page's cards are that lane's (TUNE of lane 3)");
-    }
+    check(lane_selected() == 2u && ui.lane && aud_lanes == 1u << 2 && ui.row[SCR_STEP] == STP_PAT,
+          "ALGORITHM on the drum STEP: the lane (DR, then the lanes), previewed (stopped)");
     ui.force = 1;
     frame();
     ppm("opt-step-lane");
@@ -168,7 +163,7 @@ static void step_pages_tests(void)
     kdown(WK(2));                                       /* a step held: SELECT is NUDGE, the one exception */
     turn(EN_SELECT, 1);
     kup(WK(2));
-    check(lane_selected() == 4u && ui.row[SCR_STEP] == STP_LANE0, "a step held: SELECT is its nudge, not the lane");
+    check(lane_selected() == 4u && ui.row[SCR_STEP] == STP_PAT, "a step held: SELECT is its nudge, not the lane");
     track_defaults_steps(TSEL);
     song.sel = 0;
     lane_select(0);

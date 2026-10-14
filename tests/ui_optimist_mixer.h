@@ -113,7 +113,7 @@ static void mixer_sets_tests(void)
     n = mx_sets(MXR_T1);
     last = n - 1u;
     check(mx_labels(MXR_T1, 0, "MUTE", "VOLUME", "PAN", 0) && n >= 3u,
-          "a track: MUTE VOLUME PAN (the mix), then the inserts, the sends, FX ON and SOUND");
+          "a track: MUTE VOLUME PAN (the mix), then the inserts and the sends (no FX ON, no SOUND card)");
     {   /* values only: no knob set of any row holds a screen */
         uint32_t r, s, k, bad = 0, keep = mx.set;
         cell_t e;
@@ -171,8 +171,8 @@ static void mixer_sets_tests(void)
 #endif
     }
     check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
-              (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)) && mx_labels(MXR_DR, 3, "FX ON", "KIT", 0, 0),
-          "DR: MUTE VOLUME, its insert slots, its send levels (REV DLY CHO), then FX ON KIT");
+              (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)),
+          "DR: MUTE VOLUME, its insert slots, its send levels (REV DLY CHO); no FX ON, no KIT card");
     {   /* the drum track's send levels (2026-10-12, "it should be like any other track"): 100 % by default */
         cell_t c;
         int16_t v0 = dsend_kit[0];
@@ -186,8 +186,8 @@ static void mixer_sets_tests(void)
     check(mx_labels(MXR_LANE0 + 2u, 0, "MUTE", "LEVEL", "CUT", 0) &&
               (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "DRIVE", "DST", FELUCCA_MASTER_COMP ? "CMP" : 0, 0)),
           "a lane: MUTE LEVEL CUT, then DRIVE DST CMP (the sound's own inserts: always heard)");
-    check(!FELUCCA_FX_DIST || (mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0) && mx_labels(MXR_LANE0 + 2u, 3, "SOUND", 0, 0, 0)),
-          "... then REV DLY CHO, then SOUND");
+    check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0),
+          "... then REV DLY CHO (no SOUND card)");
     check(mx_labels(MXR_MASTER, 0, FELUCCA_FX_DJF ? "FILT" : FELUCCA_FX_DUST ? "DUST" : "DUCK", 0, 0, 0) &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "REV RET", "DLY RET", "CHO RET", 0),
@@ -311,12 +311,7 @@ static void mixer_sets_tests(void)
         song.sel = 0;
         reset_ui();
         mx.set = 1;
-        check(mix_find("FX ON"), "a track's FX ON in its sets");
-        lv = trk[0].p[P_FXOFF];
-        turn(EN_K1 + ui.hot, 1);                        /* (mix_find: the hot cell is FX ON's) */
-        if (trk[0].p[P_FXOFF] == lv)
-            turn(EN_K1 + ui.hot, -1);
-        check(trk[0].p[P_FXOFF] != lv && ui.scr == SCR_HOME, "FX ON: its knob toggles it (the mixer has no YES, D6)");
+        check(!mix_find("FX ON") && !mix_find("SOUND"), "the mixer has no FX ON and no SOUND card (the user, 2026-10-14)");
         tap(B_SAVE);
         check(ui.scr == SCR_PROJECT, "... SAVE then: PROJECT");
         tap(B_HOME);

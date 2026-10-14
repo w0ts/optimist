@@ -63,7 +63,7 @@ static void step_cards_tests(void)
             frames(2);
             ok = lane_selected() == 6u && l != 6u && ui.cards_t == 0u && !card0_up();
             check(ok, "STEP overlay: HOME + a key picks the drum lane, no overlay");
-            ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
+            ui.row[SCR_STEP] = (uint8_t)STP_PAT;
             ui.lane = 1;
             frames(2);
             turn(EN_ALGO, 1);
