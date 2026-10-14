@@ -620,7 +620,8 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
     str_cpy(v + str_len(v), dual.down_took ? " J" : " W", 3);
     if (dual.down_took)
         c1_put(v, dual.down_at, 0);
-    u[0] = 0;
+    u[0] = ' ';                                         /* (the unit follows the value directly) */
+    u[1] = 0;
     c1_put(u, dual.down_wait_us, 0);
     str_cpy(u + str_len(u), "us", 3);
     c->unit = u;
