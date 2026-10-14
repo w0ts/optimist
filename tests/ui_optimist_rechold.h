@@ -63,16 +63,18 @@ static void rec_hold_tests(void)
     frames(2);
     check(t->step[0].n == 0 && !song.rec, "while playing too: cleared, recording not left on");
     lane_transport(0);
-    {   /* HOME + REC: the clear behind the modal, kept as a second way */
+    {   /* HOME + REC no longer clears the track (the user, 2026-10-13: only the REC ring does): nothing asked, nothing cleared,
+         * not armed */
         t->step[0].time = ST_NOTE, t->step[0].n = 1, t->step[0].note[0] = 60;
         fm1_in.buttons |= BT(B_HOME);
         frame();
         tap(B_REC);
         fm1_in.buttons &= ~BT(B_HOME);
         frame();
-        check(op_armed() && !rh.ring, "HOME + REC: the question (no ring)");
+        check(!op_armed() && !rh.ring && !rec_wait && !song.rec && t->step[0].n == 1,
+              "HOME + REC: no question, no arm, the track untouched (the ring is the only clear)");
         tap(B_SAVE);
-        check(t->step[0].n == 0, "... YES: cleared");
+        check(t->step[0].n == 1, "... SAVE after it: nothing to confirm");
     }
     track_defaults_steps(t);
     song.sel = 0;

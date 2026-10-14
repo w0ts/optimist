@@ -432,10 +432,10 @@ static void scope_tests(void)
     fm1_in.notes |= 1u << 10;                           /* (a note held from the mixer: SCOPE's keys play nothing, 2026-10-13) */
     frames(3);
     tap(B_HOME);
-    check(ui.scr == SCR_SCOPE && scope_rows() == 5u && scope_src == 0u, "SCOPE: HOME tapped on the mixer; MASTER T1 T2 T3 DR");
+    check(ui.scr == SCR_SCOPE && scope_rows() == 1u && scope_src == 2u && !ui.master, "SCOPE: HOME tapped on the mixer; the source is the selected track (T2), one page");
     (void)r;
     /* one ring, switched: T2 plays a held note, T1 is silent, the drums too */
-    turn(EN_SELECT, 2);                                 /* T2 */
+    turn(EN_SELECT, 2);                                 /* (SELECT pages the scope, which has one page: nothing moves) */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = vis_pcm[0][i] > pk ? vis_pcm[0][i] : pk;
@@ -446,30 +446,32 @@ static void scope_tests(void)
     ppm("opt-scope-t2");
     check(px_in(0, (uint32_t)OP_PY, 240, SC_H, trk_col(1)),
           "SCOPE T2: the trace in T2's colour (no tabs under the 2x2 cards: the header names it)");
-    turn(EN_SELECT, -1);                                /* T1: silent, nothing written */
+    turn(EN_ALGO, -1);                                  /* T1: silent, nothing written */
     frames(2);
     w0 = vis_wr;
     frames(2);
     check(scope_src == 1u && vis_wr == w0, "SCOPE T1 (silent): the ring is not written");
-    turn(EN_SELECT, 3);                                 /* DR: the drums' part of the mix only */
+    turn(EN_ALGO, 3);                                   /* DR: the drums' part of the mix only */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) > pk ? (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) : pk;
     check(scope_src == SCOPE_DR && vis_wr != w0 && pk < 64, "SCOPE DR: the drums' part (silent here), not T2's note");
-    turn(EN_SELECT, -4);                                /* MASTER */
+    turn(EN_ALGO, -4);                                  /* MASTER: the master output, still on SCOPE */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = vis_pcm[0][i] > pk ? vis_pcm[0][i] : pk;
     ui.force = 1;
     frames(2);
     ppm("opt-scope-master");
-    check(scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER: the mix, in the palette's ink");
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER (ALGORITHM left of T1): the mix, in the palette's ink, still on SCOPE");
     fm1_in.notes &= ~(1u << 10);
     {
         cell_t c;
-        scope_cell(0, 3, &c);
+        scope_cell(0, 3, &c);                           /* (ui.master: the master's) */
         check(c.label && (strcmp(c.label, "GR") == 0) == (FELUCCA_MASTER_COMP != 0), "SCOPE MASTER's cards: FILT THRS RATIO GR");
-        scope_cell(2, 0, &c);
+        ui.master = 0;
+        song.sel = 1;
+        scope_cell(0, 0, &c);                           /* (the source is the walk's: T2) */
         check(c.d == &TP[P_LEVEL] && c.vp == &trk[1].p[P_LEVEL], "SCOPE T2's cards: the mixer's LEVEL PAN FX DRIVE");
     }
     /* the trigger: a sine written into the ring starts at a rising zero crossing */

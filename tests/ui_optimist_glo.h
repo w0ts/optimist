@@ -224,18 +224,23 @@ static void glo_tests(void)
             check(!strcmp(c2.val, d2.val), "... and back");
         }
     }
-    {   /* PRESETS: the cursor line's value; never the track or its sound */
+    {   /* PRESETS does nothing here (the user, 2026-10-13); never the track or its sound */
         static track_t keep[NTRK];
         uint32_t sel = song.sel, cur = preset_pos(&tot);
         memcpy(keep, trk, sizeof keep);
         w = line_named(SCR_GLOBAL, "SWING");
         v = song.g[G_SWING];
         turn(EN_PRESET, 2);
-        check(song.g[G_SWING] > v && ui.row[SCR_GLOBAL] == w, "PRESETS: the cursor line's value (SWING)");
+        check(song.g[G_SWING] == v && ui.row[SCR_GLOBAL] == w, "PRESETS on GLOBAL: the cursor line's value is not touched (SWING)");
+        song.g[G_SWING] = (int16_t)(GP[G_SWING].def + 3);
         press(B_HOME);
         turn(EN_PRESET, 1);
         release(B_HOME);
-        check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + PRESETS: the line back to its default (HOME no NO)");
+        check(song.g[G_SWING] == GP[G_SWING].def + 3 && ui.scr == SCR_GLOBAL, "HOME held + PRESETS: nothing either (HOME no NO)");
+        press(B_HOME);
+        turn(LINE_KNOB(w), 1);
+        release(B_HOME);
+        check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + the line's knob: its default");
         song.g[G_SWING] = v;
         turn(EN_PRESET, -1);
         line_named(SCR_SYSTEM, DUAL_LOAD ? "CPU0" : "LOAD");

@@ -50,7 +50,7 @@ static void op_project_new(void)
     sync_reload = 1;
     ui.force = 1;
 }
-static void op_clear_track(uint32_t i)                  /* HOME + REC, YES: the track's pattern (undo brings it back) */
+static void op_clear_track(uint32_t i)                  /* the REC ring and TOOLS' CLRSQ: the track's pattern (undo brings it back) */
 {
     track_t *t = &trk[i % NTRK];
     undo_mark(t, (undo_sess += 4u) | 3u);
@@ -158,18 +158,6 @@ static void op_engine_step(int32_t s)
     for (j = 0; j < n && list_eng((i + n - 1u) % n) == et && (i + n - 1u) % n != i; j++)
         i = (i + n - 1u) % n;                           /* (back to that group's first sound) */
     op_preset_go(i);
-    ed_done();
-}
-static void snd_engine_step(int32_t s)                  /* the SOUND row's ENGINE: the next / previous engine, its defaults */
-{
-    uint32_t e = TSEL->eng_req;
-    if (is_drum(TSEL) || ed_ask(EK_SNDENG, s))
-        return;
-    do                                                  /* (stepping over the numbers kept free: engines.c) */
-        e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
-    while (eng_free(e));
-    set_engine(e);
-    ui.force = 1;
     ed_done();
 }
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */
@@ -308,7 +296,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (k == 0u) {
         op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
     } else if (k == 1u) {
-        snd_engine_step(s);
+        op_engine_step(s);                              /* = HOME + PRESETS: the next engine's first sound (the user, 2026-10-13) */
     }
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)

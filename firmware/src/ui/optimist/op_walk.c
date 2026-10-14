@@ -6,7 +6,7 @@
  *   the walk   one walk, the same on every page and layer, the mixer's rows: MASTER, T1 T2 T3, DR, then the 16 lanes,
  *              stopping at both ends. MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
  *              any other page the master FX screen (SCR_FX), which turned right goes back to the page it was left
- *              from. A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
+ *              from (SCOPE is the exception: MASTER is its source, ui.master, and it stays). A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
  *              of: every row, op_screens.c snd_family). A held step (op_step.c), NAME (op_name.c) and a free take eat it
  *   selected   the drum track's selection is DR itself or one of its lanes (ui.lane; lane_picked: op_mixer.c); HOME + a key
  *              still picks a lane straight away
@@ -65,7 +65,7 @@ static uint32_t walk_pos(int lay)                       /* where the walk is: a 
 {
     if (ui.scr == SCR_HOME)
         return mx_row();
-    if (lay ? ui.master : ui.scr == SCR_FX)
+    if (lay || ui.scr == SCR_SCOPE ? ui.master : ui.scr == SCR_FX)
         return MXR_MASTER;
     return mx_sel_row();
 }
@@ -79,6 +79,8 @@ static void walk_sel(uint32_t p)                        /* the track, DR or a la
 }
 static void walk_to(uint32_t p, int lay)
 {
+    if (ui.scr == SCR_SCOPE)
+        lay = 1;                                        /* SCOPE: MASTER is its source (ui.master), the page stays (op_scope.c) */
     if (lay && ui.master != (p == MXR_MASTER)) {        /* a layer: MASTER a UI state, its cards the master FX */
         ui.master = (uint8_t)(p == MXR_MASTER);
         ui.force = 1;

@@ -20,7 +20,7 @@ static struct {
     uint16_t bar;
 } gld;                                                  /* what gl_paint draws (gl_draw) */
 /* a line's value as drawn: an action says what it does (the user, 2026-10-13: lines showing "YES" read as dead), RUN
- * when its cell names nothing; YES or PRESETS runs it (op_global.c gl_presets) */
+ * when its cell names nothing; YES runs it (op_global.c gl_yes) */
 static const char *gl_val(const cell_t *c) { return c->kind != CK_ACT ? c->val : c->val[0] ? c->val : "RUN"; }
 /* the text a line draws: the long form where the list has the room (value_long: SYNC AUTO "Auto: USB"), else gl_val's;
  * lv (14) holds it */

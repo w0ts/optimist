@@ -600,14 +600,15 @@ static void confirm_tests(void)
     trk[0].step[0].time = ST_NOTE;
     trk[0].step[0].n = 1;
     trk[0].step[0].note[0] = 60;
-    press(B_HOME);
-    press(B_REC);
-    release(B_REC);
+    trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] > 60 ? 1 : trk[0].p[P_ATK] + 1);   /* (an edited sound: INIT asks) */
+    press(B_HOME);                                      /* (HOME + REC no longer clears the track: HOME + ENV is the modal's trigger) */
+    press(B_ENV);
+    release(B_ENV);
     release(B_HOME);
-    check(ui.arm_scr == ARM_TRACK && !strcmp(ui.arm_q, "CLEAR T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
-          "HOME + REC: asks CLEAR T1? (no REC, no NO)");
-    check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "CLEAR?") && !strcmp(ui.arm_arg, "T1") &&
-          ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: CLEAR? T1 (its colour), red");
+    check(ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "INIT T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
+          "HOME + ENV: asks INIT T1? (no ENV, no NO)");
+    check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "INIT?") && !strcmp(ui.arm_arg, "T1") &&
+          ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: INIT? T1 (its colour), red");
     ui.force = 1;
     frame();
     ppm("opt-confirm");
@@ -622,17 +623,18 @@ static void confirm_tests(void)
           !px_in(0, OY_PANEL + OH_PANEL, 240, 240 - OY_PANEL - OH_PANEL, C_LINE),
           "no footer: under the modal an empty band to the screen's foot");
     tap(B_SAVE);
-    check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 0 && !strcmp(ui.msg, "T1 CLEARED"), "YES: the track cleared, said");
+    check(ui.arm_scr == ARM_NONE && !strcmp(ui.msg, "SOUND INIT"), "YES: the sound initialised, said");
     check(ui.toast_t > 0 && ui.msg_t == 0 && ui.overlay == 2u, "the result of a confirmed action: a toast, not the header");
     ui.force = 1;
     frame();
     ppm("opt-toast");
     check(screen[(OY_PANEL + 60u) * 240u + 236u] == swap16(OP_SURF) &&
-          screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(C_OK),
+          screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(msg_status(ui.msg) ? C_STATUS[msg_status(ui.msg) & 3u] : C_HI),
           "the toast: a green box in the middle, the mixer drawn around it (not the modal)");
     frames(OP_TOAST_FRAMES + 2u);
     check(ui.toast_t == 0 && ui.overlay == 0u, "the toast goes (1.5 s), the panel comes back");
-    /* SAVE then HOME: undo; HOME then SAVE: redo */
+    /* SAVE then HOME: undo; HOME then SAVE: redo (over a track cleared, the REC ring's way) */
+    op_clear_track(0);
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
@@ -978,8 +980,8 @@ static void step_keys_tests(void)
     track_defaults_steps(t);
     /* a question: the keys do nothing */
     press(B_HOME);
-    press(B_REC);
-    release(B_REC);
+    press(B_SEQ);
+    release(B_SEQ);
     release(B_HOME);
     key(WK(2));
     check(op_armed() && !dstep_mask(&t->dstep[2]), "a question asked: the step keys do nothing");
@@ -1367,12 +1369,38 @@ static void layer_tests(void)
     check(lay.shown == LY_PAT, "LFO held: the patterns' map");
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
-    fm1_in.notes |= 1u << 13;                           /* black key 6 (store) held + white 2 */
+    fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
     frame();
     key(WK(1));
     fm1_in.notes &= ~(1u << 13);
     frame();
-    check(pat_has(0, 1), "LFO + black 6 + white 2: the working copy stored into T1 2");
+    check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
+    for (k = 0; k < 8u; k++)                            /* (the key above launched the empty slot 2: the working copy again) */
+        t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
+    press(B_SAVE);                                      /* LFO held, then SAVE + n: store into slot n */
+    key(WK(1));
+    check(lay.shown == LY_PAT, "LFO held + SAVE: the patterns' map stays");
+    release(B_SAVE);
+    check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
+    press(B_HOME);                                      /* LFO held, then HOME + n: clear slot n (asked) */
+    key(WK(1));
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + HOME + key 2: clear slot 2, asked");
+    release(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
+    tap(B_SAVE);
+    check(!pat_has(0, 1), "... YES: cleared");
+    press(B_HOME);                                      /* HOME tapped with LFO held and no key: the lock, as before */
+    release(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PAT, "LFO held + HOME tapped (no key): the patterns layer locked open, as before");
+    release(B_LFO);
+    frames(2);
+    tap(B_ENV);
+    frames(2);
+    check(lay.lock == LY_PLAY, "... any button lets it go");
+    press(B_LFO);
+    frames(HOLD_FRAMES);
     ui.force = 1;
     frame();
     ppm("opt-layer-lfo");
@@ -2259,6 +2287,37 @@ static void preset_engine_tests(void)
         check(ok, "... every turn a new instrument, round the list");
         reset_ui();
     }
+    {   /* the SOUND row's ENGINE card = HOME + PRESETS: the next / previous engine with its FIRST preset (the user, 2026-10-13) */
+        uint32_t i, k, eA, pA, uA, eB, pB, uB, same = 1, first = 1, c0;
+        song.sel = 0;
+        c0 = preset_pos(&total);
+        for (i = 0; i < 2u; i++) {
+            int32_t d = i ? -1 : 1;
+            song.sel = 0;
+            op_preset_go(c0);                           /* (the same start each time) */
+            ed_done();
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            frame();
+            press(B_HOME);                              /* HOME + PRESETS */
+            turn(EN_PRESET, d);
+            release(B_HOME);
+            eA = TSEL->eng_req, pA = TSEL->preset, uA = TSEL->user;
+            song.sel = 0;
+            op_preset_go(c0);
+            ed_done();
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            frame();
+            turn(EN_K2, d);                             /* the ENGINE card */
+            eB = TSEL->eng_req, pB = TSEL->preset, uB = TSEL->user;
+            same &= eA == eB && pA == pB && uA == uB;
+            cur = preset_pos(&total);
+            first &= (cur == 0u || preset_at(cur - 1u, &k) != eB) && !op_armed();
+            reset_ui();
+        }
+        check(same && first, "the SOUND row's ENGINE card: the same engine and preset as HOME + PRESETS, the engine's first sound, not its defaults");
+    }
     {   /* the master FX slots name their role by type, not place (the user, 2026-10-12: "slot 1 is insert, right ?") */
         cell_t c;
         int16_t *vp;
@@ -2307,6 +2366,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
+#include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs section 2.1) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
@@ -2448,6 +2508,7 @@ int main(int argc, char **argv)
     smute_tests();
     pagemem_tests();
     algotrack_tests();
+    uniform_tests();
     lforate_tests();
     step_hold_tests();
     step_pitch_tests();

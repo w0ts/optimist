@@ -6,8 +6,9 @@
  *   SAVE + ENV LFO EDIT FX SCL ARP   the sound as a user preset (the first free slot); the drum track: its 16
  *                 lanes as a user kit                                         HOME + FX EDIT ARP SCL GLO LFO: the
  *                                                                             layer locked; HOME + ENV: INIT (asked)
- *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       HOME + REC   the track cleared (asked;
- *                                                                             a SONG scene row: the scene)
+ *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       HOME + REC   a SONG scene row: the scene
+ *                                                                             cleared (asked); else nothing (the
+ *                                                                             track: the REC ring)
  *   SAVE + PLAY   the song from its start                                     HOME + PLAY  stop, every voice off
  *   SAVE then HOME: undo                                                      HOME then SAVE: redo
  *                                                                             HOME + OCT   STEP: the window; else
@@ -106,6 +107,14 @@ static int home_combo(uint32_t b)
     if (dev_home_combo())
         return 1;
 #endif
+#if FELUCCA_PATTERNS
+    if (l == LY_PAT) {                                  /* LFO: HOME + it locks the patterns layer only if no slot is cleared with
+                                                         * it (HOME + n clears, the user 2026-10-13): decided when one is let go */
+        lay.hlock = 1;
+        lay.pclr = 0;
+        return 1;
+    }
+#endif
     if (l != LY_PLAY && l != LY_SONG) {                 /* a layer's button: locked open (the lock wins) */
         lay_lock(l);
         return 1;
@@ -132,8 +141,8 @@ static int home_combo(uint32_t b)
         tp.pend = 0;
         return 1;
     case B_REC:
-        if (!song_rec(1))                               /* (a SONG scene row: that scene) */
-            op_arm(ARM_TRACK, 0, song.sel, "CLEAR", trk_tag(song.sel), 1);
+        song_rec(1);                                    /* (a SONG scene row: that scene cleared; nowhere else: nothing, the
+                                                         * track is cleared by the REC ring alone, the user 2026-10-13) */
         return 1;
     default:
         return 0;
@@ -186,6 +195,14 @@ static int op_combo(uint32_t b, uint32_t held)
         return 0;                                       /* (a step held: SAVE its fill, a page button its locks) */
     if (b == B_HOME && lay.held != LY_PLAY && lay.held != LY_SONG) {   /* a layer held, HOME: locked open */
         l = lay.held;
+#if FELUCCA_PATTERNS
+        if (l == LY_PAT) {                              /* (the patterns: HOME + n clears a slot; locked when let go unused) */
+            lay.hlock = 1;
+            lay.pclr = 0;
+            op_eat(op_combo_bit(B_HOME) | op_combo_bit(LAYER_BTN[l]));
+            return 1;
+        }
+#endif
         lay_lock(l);
         op_eat(op_combo_bit(B_HOME) | op_combo_bit(LAYER_BTN[l]));
         return 1;
@@ -203,6 +220,13 @@ static int op_combo(uint32_t b, uint32_t held)
 /* buttons let go (op_input.c): the undo / redo chord, SAVE + REC's SONG REC, PLAY's tap and the TEMPO page */
 static void op_released(uint32_t rel)
 {
+#if FELUCCA_PATTERNS
+    if (lay.hlock && (rel & (op_combo_bit(B_HOME) | op_combo_bit(B_LFO)))) {
+        if (!lay.pclr)
+            lay_lock(LY_PAT);                           /* HOME + LFO with no slot cleared: the layer locked open */
+        lay.hlock = 0;
+    }
+#endif
     if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME)))) {
         op_undo(lay.chord == 2u);
         lay.chord = 0;

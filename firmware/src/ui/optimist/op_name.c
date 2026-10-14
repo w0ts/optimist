@@ -9,7 +9,7 @@
  *   white keys    ABC: AB CD EF GH IJK LM NO PQ RS TU VW XYZ 123 456 789 0-. (phone style: the same key within
  *                 0.8 s the group's next character); 123: 1 2 3 4 5 6 7 8 9 0 - . _ / # + one tap each
  *   black keys    by name, in both octaves: F# left, G# space, A# right, C# delete (held: they repeat), D# ABC / 123
- *   KNOB 1        the cursor; KNOB 2 (and PRESETS) the character at the cursor (at the end: a new one)
+ *   KNOB 1        the cursor; KNOB 2 the character (PRESETS does nothing here) at the cursor (at the end: a new one)
  * Where: SAVE + a sound button and SOUND's SAVE AS (a user preset), PROJECT's USER and PROJECT rows' SAVE (after the
  * modal over a used slot). Kits keep numbers (the user's ruling). The keys type and never sound: the keys go to the
  * UI as STEP's do (seq.c ly_lock LY_STEP). Names are kept as typed, upper case, at most 12 characters, and drawn in

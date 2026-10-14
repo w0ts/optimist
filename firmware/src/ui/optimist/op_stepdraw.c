@@ -121,25 +121,12 @@ static void roll_range(const track_t *t)
         b -= a, a = 0;
     if (b > 127)
         a -= b - 127, b = 127;
-    if (st.roll_trk != song.sel)                        /* (another track: its fit, no offset) */
-        st.roll_oct = 0, st.roll_trk = song.sel;
-    ex = st.roll_oct * 12;                              /* OCT on the roll: the view moved from the fit, kept inside 0..127 */
+    ex = song.octave * 12;                              /* OCT: the keyboard octave and the view are one value (the user, 2026-10-13),
+                                                         * the view moved from the fit, kept inside 0..127 */
     ex = a + ex < 0 ? -a : b + ex > 127 ? 127 - b : ex;
     a += ex, b += ex;
     rg.lo = a < 0 ? 0 : a;
     rg.hi = b;
-}
-/* OCT- / OCT+ on the roll (op_input.c): the view an octave down / up from the fit; at the end of 0..127 it stays (a
- * press that moves nothing is not counted, so the way back is one press) */
-static void roll_shift(int32_t d)
-{
-    int32_t lo;
-    roll_range(TSEL);
-    lo = rg.lo;
-    st.roll_oct = (int8_t)(d ? clamp(st.roll_oct + d, -10, 10) : 0);
-    roll_range(TSEL);
-    if (d && rg.lo == lo)
-        st.roll_oct = (int8_t)(st.roll_oct - d);
 }
 #define NY(nt) (SG_TOP + (rg.hi - (nt)) * rg.rh)
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
@@ -329,7 +316,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         for (i = 0; i < DRUM_LANES; i++)
             h = hu(h, lane_col(i));
     else
-        h = hu(hu(h, pick_note(0)), (uint32_t)(st.roll_oct + 16) + song.sel * 64u);   /* (the roll's view: OCT) */
+        h = hu(hu(h, pick_note(0)), (uint32_t)(song.octave + 16) + song.sel * 64u);   /* (the roll's view: OCT) */
     return hu(h, settings.palette);
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
