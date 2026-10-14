@@ -208,6 +208,44 @@ static void t_play(void)
     }
 #endif
 }
+/* ACCENT amount as motion (a hold event: recorded knob moves) and the ACCENT lane's sequencer mute (seq_mute.c) */
+static void t_motion_mute(void)
+{
+    uint8_t o[4];
+    setup_play();
+    check("the ACCENT amount is a value motion records (the drum track's P_E1; its kit P_E0 still not)",
+          motion_param(TDRUM, P_DACC) && !motion_param(TDRUM, P_E0) && !motion_param(TDRUM, P_E2));
+    (void)auto_put(AUTO_L(TRK_DRUM), 3u, P_DACC, 10);    /* (a hold from step 4: the amount 10 until the pass's end) */
+    auto_w.on = 1u << TRK_DRUM;
+    auto_touch(TRK_DRUM);
+    play_pass();
+#if FELUCCA_DRUM_ACCENT
+    check("a motion of the ACCENT amount (10 from step 4): the accented step 5's kick 110, its SOFT snare 82",
+          hv[4][0] == 110u && hv[4][2] == 82u && hv[0][0] == 100u);
+#endif
+    clear_lists();
+    TDRUM->p[P_DACC] = DACC_DEF;
+    smute_lane = 0;
+    smute_set_lane(DRUM_ACC, 1);
+    play_pass();
+    check("the ACCENT lane's sequencer muted: the accented step plays unaccented (100, SOFT 72), every hit still there",
+          smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && smute_lane == 1u << DRUM_ACC && hv[4][0] == 100u &&
+          hv[4][2] == 72u && hn[4][2] == 2u && hn[0][0] == 1u);
+    check("the mute's TLV with it: 4 bytes, the 4th bit 0; read back", smute_tlv(o) == 4u && o[3] == 1u && !o[1] && !o[2] &&
+          (smute_lane = 0, smute_untlv(o, 4), smute_lane == 1u << DRUM_ACC));
+    smute_lane = 1u << 2;
+    check("without it: the 3 bytes of before (an older build reads them as ever)", smute_tlv(o) == 3u && o[1] == 4u);
+    o[3] = 1;
+    smute_untlv(o, 3);
+    check("a 3-byte TLV (before): the ACCENT lane plays", !smute_lane_on(DRUM_ACC) && smute_lane_on(2));
+    smute_lane = 0;
+    check("smute_toggle(SMUTE_ACC): the ACCENT lane on, off; lane 0 and the tracks untouched",
+          smute_toggle(SMUTE_ACC) == 1 && smute_lane == 1u << DRUM_ACC && smute_toggle(SMUTE_ACC) == 0 && !smute_lane && !smute_trk);
+    play_pass();
+#if FELUCCA_DRUM_ACCENT
+    check("unmuted: accented again", hv[4][0] == 127u);
+#endif
+}
 static void t_input(void)
 {
     uint32_t a;
@@ -431,6 +469,7 @@ int main(void)
     t_lane();
     t_velocity();
     t_play();
+    t_motion_mute();
     t_input();
     t_undo();
     t_store();

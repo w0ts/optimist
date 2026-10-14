@@ -2633,8 +2633,8 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 #endif
 #if FELUCCA_DRUM_ACCENT
 /* a hit's velocity on drum step s: its ACCENT lane's step raises it by the ACCENT amount (drums.c dacc_vel; a lock or
- * motion of the amount is in p[] already: auto_step ran) */
-#define DACC_VEL(v, s) dacc_vel((v), (s)->acc, TDRUM->p[P_DACC])
+ * motion of the amount is in p[] already: auto_step ran); the ACCENT lane's sequencer muted (seq_mute.c): no accent */
+#define DACC_VEL(v, s) dacc_vel((v), smute_lane_on(DRUM_ACC) ? 0u : (s)->acc, TDRUM->p[P_DACC])
 #else
 #define DACC_VEL(v, s) (v)
 #endif
