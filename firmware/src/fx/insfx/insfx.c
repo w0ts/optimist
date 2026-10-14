@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The further INSERT types of the tracks' insert slots (fx_slots.c S1 S2, 2026-10-13): FOLD FUZZ PHSR FLNG FRMT WIDE,
- * and CHRS ECHO (a count of instances: fxi_kern.c, fxi.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
+ * and CHRS ECHO (a count of instances: fxi_kern.c, fxi.c), GATER (2026-10-14: gater.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
  * call them.
  *   FOLD FUZZ PHSR FLNG  after Felucca 1.5.6's track INSERT (hugelton/Felucca 9f6a885, firmware/src/fx.c ins_shape,
  *                        ins_drive, ins_swept; perform.c PH_A, pf_tri), Copyright (C) 2026 Leo Kuroshita
@@ -359,6 +359,7 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
 #endif
 
 #include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
+#include "gater.c"                                      /* GATER: the tempo-synced gate (one instance a track) */
 #if INS_LIM
 #define IFX_EV(ty, k) ifx_lim_ev(ty, k)                 /* (fading out to give a lent line back: as off) */
 #else
@@ -370,7 +371,7 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
 AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 {
 #if INS_LIM
-    if (ty >= FXT_LIM0 && ty < FXT_N)
+    if (FXT_IS_LIM(ty))
         return ifx_lim_w(ty, i);
 #endif
     switch (ty) {
@@ -392,6 +393,9 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #if FELUCCA_INS_WIDTH
     case FXT_WIDE: return i < IFX_NI - 1u ? ifx_wide[i].w : 0;
 #endif
+#if FELUCCA_INS_GATER
+    case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
+#endif
     default: return 0;
     }
 }
@@ -399,7 +403,7 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 AINL int ifx_has(uint32_t ty, uint32_t k)
 {
 #if INS_LIM
-    if (ty >= FXT_LIM0 && ty < FXT_N)
+    if (FXT_IS_LIM(ty))
         return ifx_lim_at(ty, k) != FXI_NONE;
 #endif
     (void)ty, (void)k;
@@ -441,6 +445,9 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: ifx_formant(&ifx_frmt[i], a, b, n, sh + 1u); break;
 #endif
+#if FELUCCA_INS_GATER
+    case FXT_GATE: ifx_gater(&ifx_gate[i % NTRK], &trk[i % NTRK], a, b, 0, n); break;
+#endif
     default: break;
     }
     (void)i, (void)a, (void)b, (void)n, (void)sh;
@@ -449,7 +456,7 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 AINL void ifx_part_run(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t n)
 {
 #if INS_LIM
-    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
+    if (FXT_IS_LIM(ty)) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
         ifx_lim_run(ty, k % NPART, a, b, 0, n, 3);
         return;
     }
@@ -485,7 +492,7 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
             continue;
         ifx_awake[k] &= (uint16_t)~FXT_BIT(ty);         /* (to rest here, below) */
 #if INS_LIM
-        if (ty >= FXT_LIM0) {
+        if (FXT_IS_LIM(ty)) {
             ifx_lim_rest(ty, k);                        /* (its wet share 0: it starts from a clean line, fxi_kern.c) */
             continue;
         }
@@ -509,6 +516,9 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #if FELUCCA_INS_WIDTH
         case FXT_WIDE: ifx_zero(&ifx_wide[k], sizeof ifx_wide[k]), ifx_sd[k] = 0; break;
 #endif
+#if FELUCCA_INS_GATER
+        case FXT_GATE: ifx_zero(&ifx_gate[k], sizeof ifx_gate[k]); break;   /* (open: its phase from the clock) */
+#endif
         default: break;
         }
     }
@@ -517,8 +527,14 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
 #if INS_LIM
-    if (ty >= FXT_LIM0) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
+    if (FXT_IS_LIM(ty)) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
         ifx_lim_run(ty, TRK_DRUM, a, l, r, n, 2);
+        return;
+    }
+#endif
+#if FELUCCA_INS_GATER
+    if (ty == FXT_GATE) {                               /* (one gain on L and R: the bus's one instance) */
+        ifx_gater(&ifx_gate[IFX_BUS], TDRUM, a, l, r, n);
         return;
     }
 #endif

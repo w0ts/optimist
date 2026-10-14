@@ -253,7 +253,7 @@ static void fxi_init(void)
     fxi_pend = 0;
     fxi_dirty = 2;
 }
-#define FXI_LIM(t) ((t) >= FXT_LIM0 && (t) < FXT_N)
+#define FXI_LIM(t) FXT_IS_LIM(t)
 /* what the send's line can lend now (0: in a master slot, or taking it back) */
 AINL uint32_t fxl_can(uint32_t j) { return fxl_send_on(j) || fxl_st[j] == FXL_BACK ? 0u : FXI_LND[j]; }
 static uint32_t fxi_cap(uint32_t t)

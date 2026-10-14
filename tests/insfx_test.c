@@ -27,7 +27,8 @@ static void check(const char *what, int ok)
     printf("insfx: %-100s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
-static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO"};
+static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO",
+                                        "GATER"};
 static int32_t x[N], y[N], z[N];
 
 static void sine(double amp, double f)
@@ -64,8 +65,14 @@ static void reset(void)
         ins_put(k, E);
         trk[k].p[P_FXOFF] = 0;
     }
-    for (k = P_TFOLD; k <= P_TECHO; k++)
+    for (k = P_TFOLD; k <= P_TGATE; k++)
         trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
+#if FELUCCA_INS_GATER
+    memset(ifx_gate, 0, sizeof ifx_gate);               /* (GATER: open, its PATTERN RATE SHAPE the defaults, as at boot) */
+    for (k = 0; k < NTRK; k++)
+        fxs_gx_def(k);
+    clk_blk = CTL * 240u;                               /* (stopped at 240 BPM: GATER runs on, a closed step in N / 2) */
+#endif
     memset(ifx_fold, 0, sizeof ifx_fold), memset(ifx_fuzz, 0, sizeof ifx_fuzz), memset(ifx_phsr, 0, sizeof ifx_phsr);
     memset(ifx_flng, 0, sizeof ifx_flng), memset(ifx_frmt, 0, sizeof ifx_frmt), memset(ifx_wide, 0, sizeof ifx_wide);
     memset(ifx_sd, 0, sizeof ifx_sd);
@@ -307,7 +314,7 @@ static void t_specific(void)
 
 static void t_store(void)
 {
-    uint8_t o[NTRK], s[INS_N];
+    uint8_t o[NTRK + FXT_TLV_GX], s[INS_N];   /* (GATER's: its PATTERN RATE SHAPE after the amounts) */
     uint32_t t, k, ok = 1, n;
     int16_t *vp;
     const param_desc_t *d;

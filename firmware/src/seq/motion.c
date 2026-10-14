@@ -35,8 +35,11 @@ static int motion_param(const track_t *t, uint32_t id)
                                                               * track's: the drum bus's, fx.c dbus_run) */
 #endif
 #if INS_FX
-    if (id >= P_TFOLD && id <= P_TECHO)
-        return 1;                                            /* (the further inserts' amounts: insfx.c, every track; CHRS ECHO too) */
+    if ((id >= P_TFOLD && id <= P_TECHO) || id == P_TGATE)
+        return 1;                                            /* (the further inserts' amounts: insfx.c, every track; CHRS ECHO
+                                                              * too; GATER's DEPTH) */
+    if (id >= P_TGPAT && id <= P_TGSHP)
+        return 0;                                            /* (GATER's PATTERN RATE SHAPE: no stored id, auto.c MOT_TAIL) */
 #endif
 #if SL24_TP
     if (id > P_E7)

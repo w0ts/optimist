@@ -185,6 +185,7 @@ cpu/fx/part_frmt 1267
 cpu/fx/part_wide 1267
 cpu/fx/part_chrs 1267
 cpu/fx/part_echo 1237
+cpu/fx/part_gate 1216
 cpu/fx/dbus_fold 938
 cpu/fx/dbus_fuzz 935
 cpu/fx/dbus_phsr 996
@@ -193,4 +194,5 @@ cpu/fx/dbus_frmt 995
 cpu/fx/dbus_wide 940
 cpu/fx/dbus_chrs 939
 cpu/fx/dbus_echo 922
+cpu/fx/dbus_gate 898
 cpu/fx/ins_worst 2661

@@ -35,7 +35,7 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
   CG_COST_DBFILT  the drum bus's FILTER while it runs (fx.c dbus_ins): cpu/fx/dbus_filt (the groove, the drum track's
                   FILTER low-pass) less cpu/fx/dbus_off. cpu/fx/ins_worst (three full parts with DIST + COMP, the drum
                   bus DIST + FILTER, the groove) is the check of the sum (docs/CPU-GUARD.md)
-  CG_COST_PINS[i], CG_COST_DBINS[i]  the further inserts FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (fx/insfx/insfx.c) while they
+  CG_COST_PINS[i], CG_COST_DBINS[i]  the further inserts FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER (fx/insfx/insfx.c) while they
                   run, a part's: cpu/fx/part_<t> (S1 at 127) less cpu/fx/part_off; the drum bus's (on its L and R):
                   cpu/fx/dbus_<t> less cpu/fx/dbus_off; 0 when not measured
 
@@ -53,7 +53,7 @@ COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
 NOTES = {"VOICE": 4, "ACID": 1}
-INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_ECHO
+INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE
 
 
 def engines():
@@ -168,9 +168,10 @@ def header(m):
         f"#define CG_COST_PDIST {m['pdist']}u     /* a part's DIST insert while it runs (fx.c ins_part) */",
         f"#define CG_COST_PFILT {m['pfilt']}u     /* a part's FILTER insert while it runs (fx.c tflt_part) */",
         f"#define CG_COST_DBFILT {m['dbfilt']}u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */",
-        "static const uint16_t CG_COST_PINS[8] = {" + ", ".join(str(c) for c in m["pins"]) + "};   /* a part's further "
-        "insert while it runs, FOLD .. ECHO (insfx.c ifx_part) */",
-        "static const uint16_t CG_COST_DBINS[8] = {" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the drum bus's "
+        f"static const uint16_t CG_COST_PINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["pins"]) + "};   /* a "
+        "part's further insert while it runs, FOLD .. GATER (insfx.c ifx_part) */",
+        f"static const uint16_t CG_COST_DBINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the "
+        "drum bus's "
         "(insfx.c ifx_bus: L and R) */",
         ""])
 

@@ -47,6 +47,10 @@ static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: 
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
+#if INS_FX
+static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF16", "DOT8", "DOT4",   /* GATER's */
+                                      "TRNC1", "TRNC2", "TRNC3", "TRNC4", "GALOP", "RVGAL", "CLAVE", "TRESL"};   /* IGT_PAT */
+#endif
 static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"};   /* seq.c CHORD_DEG */
 static const char *const N_FXOFF[] = {"ON", "OFF"};                  /* P_FXOFF: 0 = the effects heard */
 static const char *const N_VIEW[] = {"PAGE", "ALL"};                  /* G_VIEW */
@@ -162,6 +166,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TWIDE] = PD("WIDE", F_PCT, 0, 127, 0),      /* the width: the swept side's share */
     [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* the chorus insert (fxi.c): its mix to 64, then its depth */
     [P_TECHO] = PD("ECHO", F_PCT, 0, 127, 0),      /* the slapback insert (fxi.c): its level to 64, then its feedback */
+    [P_TGATE] = PD("GATER", F_PCT, 0, 127, 0),     /* GATER (insfx/gater.c): its DEPTH, 127 a closed step silent */
+    [P_TGPAT] = PE("PAT", N_TGPAT, 8),             /*   its pattern (gater.c IGT_PAT), TRNC1 */
+    [P_TGRATE] = PE("RATE", N_SLDIV, 1),           /*   a step: 1/16 */
+    [P_TGSHP] = PD("SHAPE", F_PCT, 0, 127, 0),     /*   hard .. smooth */
 #endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
