@@ -20,8 +20,6 @@
  *                                                                      Open303 parts MIT) EXPERIMENTAL
  *   FELUCCA_ENG_CZ    the CZ engine (CZ-1 tones, 2 lines x 3 envelopes) Melodee 0.11 (keremimo/melodee v0.11;
  *                                                                      uPD933 parts BSD-3-Clause)
- *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
- *                     the page's (and 250 ms after it closed)
  * Felucca 1.0.2 / 1.0.3 small options (default off):
  *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58)
  *   FELUCCA_DIV_ORDER divisions in length order on knobs and gauges   Felucca 1.0.2 (db70550, #48)
@@ -78,9 +76,6 @@
 #endif
 #ifndef FELUCCA_UP_FM6
 #define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0x95000 / 0x96000) */
-#endif
-#ifndef FELUCCA_LAYER_QUIET
-#define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
 #endif
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */

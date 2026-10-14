@@ -49,6 +49,9 @@
 #if defined(FELUCCA_BK_CHECK) && !FELUCCA_BK_CHECK
 #error "FELUCCA_BK_CHECK was retired: a restore always checks each object as a load would (SLOOP 2.3 .. 2.6)"
 #endif
+#if defined(FELUCCA_LAYER_QUIET) && !FELUCCA_LAYER_QUIET
+#error "FELUCCA_LAYER_QUIET was retired: the knobs are always quiet as a layer is let go (Felucca 1.0.2 #39 .. 1.6, SLOOP 2.6)"
+#endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */
 

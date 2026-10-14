@@ -279,7 +279,6 @@ static void knob_gate_ui_tests(void)
     check(ui.layer == LY_PLAY, "one detent per hold, twice: still jitter (the count restarts at each press)");
     release(B_ARP); frames(2);
     go_home(); frames(30);
-#if FELUCCA_LAYER_QUIET
     {   /* the release frame: one detent is jitter (the tap stays, the detent is dropped), two are a combo */
         int16_t mode0 = TSEL->p[P_AMODE];
         press(B_ARP); frames(2);
@@ -299,7 +298,6 @@ static void knob_gate_ui_tests(void)
         check(cur_fam() != FAM_ARP, "ARP: one detent held, one in the release frame: two net, a combo");
         go_home(); frames(30);
     }
-#endif
 }
 
 static void home_tests(void)

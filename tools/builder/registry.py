@@ -38,6 +38,7 @@ RETIRED = {
     "KEYS_FAST": "the keys are always debounced as their column is read (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6 and Felucca 1.6)",
     "TRS_NOISE": "TRS MIDI in past line noise (an FD at the reader) is always built (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6)",
     "BK_CHECK": "a restore always writes an object only if a load would take it (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6)",
+    "LAYER_QUIET": "the knobs are always quiet as a layer button is let go (retired 2026-10-14: Felucca 1.0.2 db70550 #39, unchanged in 1.6 and SLOOP 2.6)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
@@ -45,7 +46,7 @@ RETIRED = {
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1}   # (each was its default in every profile)
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {

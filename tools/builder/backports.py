@@ -23,7 +23,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
-    "FELUCCA_LAYER_QUIET": "knobs quiet as a layer button is let go",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
@@ -91,8 +90,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_GLIDE": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over "
                      "~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of "
                      "flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
-    "FELUCCA_LAYER_QUIET": "Knob turns while a layer button is being let go (and for 250 ms after a used layer "
-                           "closes) are ignored, so releasing a layer does not nudge a parameter. About 8 B of flash.",
     "FELUCCA_BPM_LOCK": "SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's "
                         "BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B "
                         "of flash.",
@@ -214,7 +211,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     # (102: FELUCCA_USB_FLOW, retired 2026-10-14: always built; never reuse the bit)
     # (101: FELUCCA_ST_STRICT, retired 2026-10-14: always built; never reuse the bit)
     # (100: FELUCCA_MONO_RELEASE, retired 2026-10-14: always built; never reuse the bit)
-    "FELUCCA_LAYER_QUIET": 130,
+    # (130: FELUCCA_LAYER_QUIET, retired 2026-10-14: always built; never reuse the bit)
     "FELUCCA_BPM_LOCK": 132,
     "FELUCCA_DIV_ORDER": 133,
     "FELUCCA_PUNCH_LATCH": 131,
