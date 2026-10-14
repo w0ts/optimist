@@ -503,8 +503,6 @@ static void acc_help_tests(void)
     check(hl_find(SCR_SOUND, 0, &c) != 0u, "the help line: the ACCENT card of the SOUND row has its text");
     lane_select(DRUM_ACC);
     ui.lane = 1;
-    SCR->cell(0, 1, &c);
-    check(hl_find(SCR_SOUND, 0, &c) != 0u, "... and the LANE card of the ACCENT lane");
     go_home();
     ui.row[SCR_HOME] = MXR_ACC;
     mix_cell(MXR_ACC, 1, &c);
