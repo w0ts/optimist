@@ -225,12 +225,13 @@ chosen from the value's range alone (its descriptor's min, max and kind: `param_
 | on / off (FX, SERIAL, MUTE) | a pill, filled when on | the same; the mixer's FX |
 | a name (a preset, a sound) or an action | text | |
 
-**Text casing** [D, 2026-10-08]: sentence case for UI words, capitals for short labels. Screen titles,
-row names, messages, toasts, the modal's question and target, and the hints are sentence case (*Mix master*, *Save?*,
-*Project 1*, *Clear DR?*, *T1 cleared*, *Keys play T1*, *Home back*); the cards' short labels (5 letters or fewer:
-ATK, BPM, FILT), track names (T1, DR), acronyms (FX, LFO, ENV, MIDI, USB, BPM, CPU ...), any word with a digit, and
-units keep their capitals like printed panel legends; preset, kit and lane names stay as stored. The casing is done
-when this UI draws (ui/optimist `op_case`), so the shared tables and the core's messages keep their capitals.
+**Text casing** [D, 2026-10-08; names table 2026-10-14, section 31]: sentence case for UI words, capitals for labels.
+Screen titles, row names, messages, toasts, the modal's question and target, and the hints are sentence case (*Mix master*,
+*Save?*, *Project 1*, *Clear DR?*, *New project?*, *T1 cleared*, *Home back*); every card label is in capitals whatever its
+length (LEVEL, DETUNE, DEST A: the names table, `op_names.c`), as are list cells, track names (T1, DR), acronyms (FX, LFO,
+ENV, MIDI, USB, BPM, CPU ...) and units' own spelling (dB, ms, steps). Preset, kit, lane, voice and project names are drawn
+as stored, never re-cased (*ACID SQR*, *808 BOOM*, *c.hat*). The casing is done when this UI draws (`op_case` for our words,
+`op_names.c` for the names), so the shared tables and the core's messages keep their capitals.
 
 On SOUND the cursor row's picture is drawn over the list where the core has one: the envelope (ENV, ENV2), the LFO's
 wave as it runs, the FX slots' sends as needles under their cards (SLOOP's graph maths, copied), the scale on an
@@ -2845,7 +2846,7 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
 - **STEP**: a 17th row "AC" under the 16 sounds (12 px rows), edited as any lane's (tap, level, ratchet, HOME + step). The held step's
   first page is LEVEL RATCHET ACCENT (no TUNE / DECAY: no sound); KNOB 3 locks the ACCENT amount on the step (needs the accent hit there,
   as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount records as motion (YES: a lock <-> a hold). STEP's LANE page of the lane shows the amount alone. TOOLS and EUCLID work on the lane.
-- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's LEVEL card (that row: MUTE, LEVEL).
+- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's ACCENT card (that row: MUTE, ACCENT; section 31).
 - **Pages**: the lane has no SOUND, SOURCE, KIT, ENV or LFO pages (`sound_page`); `lane_snd()` guards every per-lane sound array (dl.*, the
   names); PRESETS on it steps the kit as on DR; the SOUND row's picture says "+amount to the hits".
 - **ALGORITHM** walks on past the 16th lane to the ACCENT lane (the mixer's row `MXR_ACC`: a lane's card layout, MUTE's slot empty until the lane's sequencer mute lands (core follow-up), LEVEL = the ACCENT amount, no CUT / sends / sound, across the foot of the
@@ -2862,7 +2863,7 @@ switch drum lane the value remain the same; remember on a lane i want to see the
 drum track's (`dsend_kit`, the bus), the same under every lane. The rule, on every page reached while a lane is picked (`lane_picked()`,
 the ACCENT lane included): **a value the lane has of its own is the lane's; a value only the track has stays the track's and is tagged DR.**
 - **The lane's pages** (op_cells.c `LANE_FX_PG`, this UI's own, like the lane's LFO; only with a lane picked, never on DR): **INSERTS**
-  (the sound's own DST, CMP, DRIVE: always heard) and **SENDS** (its CHO DLY REV in the master slots' order, 0..31: `lane_send_vid`). They open the FX family,
+  (the sound's own DST, CMP, DRIVE: always heard) and **SENDS** (its REV DLY CHO, those the master slots hold, 0..31 shown in %: `lane_send_vid`; section 31). They open the FX family,
   ahead of the track's. DRIVE records as the lane's motion (`lane_value_rec`); the sends, DST and CMP are patch values, as on SOUND 3 and the mixer's lane rows (no lane event
   exists for them; the lane's LFO has no send destination either), so the card edits what it shows. The ACCENT lane has no sound, so neither page.
 - **The track's, kept and tagged**: the drum bus's inserts are "DR INSERT", the kit send levels "DR SENDS" (the lane pages took the plain names), then BUS SENDS, SLICER, FILTER, GATER, CMP;
@@ -2872,3 +2873,45 @@ the ACCENT lane included): **a value the lane has of its own is the lane's; a va
 - Already the lane's, unchanged: SOUND, SOUND 2, SOUND 3, SOURCE, ENV, LFO, STEP's lane page (LEVEL TUNE DECAY REV), the held step's cards and locks, the mixer's lane rows.
   Step-wide values (NUDGE, chance, fill, condition on a held step) belong to the step, not to a lane.
 Tests: tests/ui_optimist_lanevals.h (two lanes picked on SOUND and from STEP, the sends of each shown and edited alone; the DR tags; DR itself).
+
+## 31. The names table (feat/ui-names, 2026-10-14; the coherence audit's batch A)
+
+The audit (optimist-work/visaudit: STYLE.md, FINDINGS.md) found titles cut per engine ("ENV de", "LFO2 D", "Patter"), labels
+cased by length, stored names re-cased, one thing under several names (DST for the distortion and for the LFO's destination;
+SLD, ACC, R2..R4; FILT / Filter / Trk flt; CMP / COMP; TRN / Transp; DTN / DTUNE; SWG / SWING; SCL / SCALE) and list cells cut
+at 4 letters (ANAL, DIGI, CLEA, ERAS, Inse, Dele). One table now names every thing (ui/optimist/op_names.c, flash only),
+in three forms, looked up when drawn; what the cells, rows and help lines key on stays the shared name (params.c, the
+engines, tools/param_help.json), so SLOOP's UI and the web editor are unchanged.
+- **Titles** (`nm_title`): a row's name in the list is the header's title, sentence case, at most 9 characters, chosen so
+  that it fits whole with its n/N next to the widest badge of its screen ("2 DIGITAL", "4 ACCENT"); the header keeps
+  bar.beat (the user's ruling). Renamed: ENV DEST *ENV to*, ENV2 DEST *ENV2 to*, LFO DEST *LFO to*, LFO 2 *LFO2*, LFO2 DEST
+  *LFO2 to*, INSERTS *Insert* (as the mixer's set), SCL *Scale*, FLT 2 *Filter 2*, DR INSERT *DR ins*, BUS SENDS *Bus send*,
+  CMP *Comp*, MASTER's RET DELAY / RET REV *Delay* / *Reverb*, FM6's OPn LEVEL *OPn out*, OPn RATES *OPn rate*, OPn LEVELS
+  *OPn level*, OPn KEY SCA *OPn scale*, OPn CURVES *OPn curve*, PIT RATES / LVLS *Pit rate* / *Pit level*; the rest in
+  sentence case as named. A track's page (SOUND, STEP: the badge names the track) and GLOBAL / SYSTEM (the badge names the
+  screen) show the title alone, never the screen's word; the other screens keep it (*Master ins tone*, *Project tools*).
+- **The header's room**: the badge's text 2 px inside it, the title 5 px after it, its room ending 1 px before the REC
+  mark; SOUND's whole list (every family, ALGORITHM back from MASTER) counts a row within its family, as its page button
+  shows it ("Voice 4/5", not "Voice 17/25"). A title is cut only where the table fails (`head_finish` says so; the test
+  finds none). STEP's window names the pick only when the badge does not ("4 DRUMS Steps 1-16 kick", "4 SNARE Steps 1-16").
+- **Card labels** (`nm_card`): capitals, 6 characters at most (an action's object 8): VOLUME / LVL LEVEL, DST DIST (the
+  insert; its amount is named as the type, as FILTER's), DST A / B DEST A / B (also a lane LFO's DEST / AMT), CMP COMP, FILT /
+  FLT FILTER, PIT PITCH, SHP SHAPE, TRN / TRNSP TRANSP, DTN / DTUNE DETUNE, RES RESO, SWG SWING, SCL SCALE, QNT QUANT, ACC
+  ACCENT, SLD SLIDE, DRV DRIVE, LENGTH LEN, RATCHET RATCH, GLD GLIDE, MOTN MOTION, ENRGY ENERGY, COLR COLOR, the returns
+  REV RT / DLY RT / CHO RT, BPM TEMPO (its unit says BPM), DIGITAL's R2..R4 RAT2..RAT4 (FM6's R1..R4 are rates), TRK FLT
+  FILTER (the FX layer: the track's tag in the unit's place, beside the master's FILTER), ACID LINE LINE.
+- **List cells** (`nm_cell`): engines ANLG DGTL PHSE LOFI SMPL VOX WHL GRN FM6 PHYS ACID, verbs LOAD SAVE NEW INIT CLR ERS
+  RST INS DEL (SAVE AS: SAVE), DIST, COMP, USED / - for a scene. The 5-letter names of SLOOP's lists (BLUES, REUSE, L1 RT ...)
+  still show their first 4 letters when picked: the cell's width is batch B's.
+- **Values and units**: the drum track's LEVEL in dB (its linear gain read through LEVEL_Q12's half-dB steps), a lane's
+  sends in % (0..31 of the range), a step length and a pattern length in *steps*, the DJ filter "LP20" with no unit, a
+  leading zero (0.24). The ACCENT lane's mixer card is ACCENT (a velocity amount, not a level).
+- **One send order**: REV DLY CHO on SENDS, BUS SENDS, a lane's SENDS, MASTER's RETURNS (display only: the stored values and
+  SLOOP's pages are untouched; SOUND 3 keeps the FX slots' order).
+- **Stored names** are drawn as stored: the header's preset and the track flash, the preset list, the PRESETS toast, NAME's
+  field, FM6's voice name, the mixer's lane titles. **Modal** questions are one sentence (*New project?*).
+- **STEP TOOLS**: REVERSE, RANDOM, COOK show their verb alone in the large face (the title says Tools); a 7-letter verb is
+  drawn large from the card's edge.
+Tests: tests/ui_optimist_names.h (every screen, engine, the drum track and each lane, STEP's pages and a held step's, the
+mixer's sets, the layers: no title cut at the widest tempo, every card label in capitals and short, no list cell cut;
+NAMES_DUMP=file lists them all).

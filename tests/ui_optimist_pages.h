@@ -196,7 +196,7 @@ static void pages_master_order_tests(void)
         {"MACRO", "MACRO", SC_MACRO},
 #endif
     };
-    static const uint8_t RET[3] = {G_CRET, G_DRET, G_RRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_TUNE, G_CGR};
+    static const uint8_t RET[3] = {G_RRET, G_DRET, G_CRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_TUNE, G_CGR};
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
     reset_ui();
@@ -235,7 +235,7 @@ static void pages_master_order_tests(void)
     }
     ok = order && r == n;
     check(ok, "MASTER's pages come in the order inserts (INS TONE COMP LIMIT), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
-    check(cards, "... each moved page's four cards are the ones PAGES gives it; LIMIT keeps GAIN CEIL TUNE (GR a read-out), RETURNS has CHO DLY REV RET");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; LIMIT keeps GAIN CEIL TUNE (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
@@ -264,7 +264,7 @@ static void pages_master_tests(void)
           FELUCCA_MACROS ? "D3: MASTER's 8 pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
-    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "MASTER INS TONE"), "D3: the screen is MASTER (\"MASTER INS TONE\")");
+    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Master ins tone"), "D3: the screen is MASTER (\"Master ins tone\")");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
     check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
@@ -608,20 +608,9 @@ static void pages_keys_tests(void)
 /* D11: the headers as drawn: cut, then cased (no lower-case start); full names; a continuation's digit never next to n/N */
 static void head_now(char *t)                           /* the header's title now, as draw_head makes it */
 {
-    char r[16], bpm[8], pos[12];
-    char bt[24];
-    const char *eng = head_has_track() ? head_badge(bt, sizeof bt) : head_engine();
-    if (ui.scr == SCR_FX || ui.master || (lay.shown == LY_PLAY && mx_on_master()))
-        eng = "MASTER";
-    else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY)
-        eng = SCR_NAME[ui.scr];
-    head_title(ui.scr, ui.row[ui.scr], t, 32);
-    head_pos(ui.scr, ui.row[ui.scr], pos);
-    loop_pos(TSEL, r);
-    if (ui.scr == SCR_STEP)
-        r[0] = 0;
-    fmt_int(bpm, song.g[G_BPM]);
-    head_finish(t, pos, head_room(text_w(&FONT_S, eng) + 8, bpm, r));
+    head_t h;
+    head_make(&h);
+    str_cpy(t, h.t, 32);
 }
 static uint32_t head_bad;
 static void head_ok(const char *where)                  /* the header now: a capital first, no "n n/N" */
@@ -635,7 +624,8 @@ static void head_ok(const char *where)                  /* the header now: a cap
     if (!(t[0] >= 'A' && t[0] <= 'Z') || (i >= 2u && i + 2u < n && t[i - 1u] >= '0' && t[i - 1u] <= '9' && t[i - 2u] == ' ' &&
                                           !(i >= 5u && (!strncmp(t + i - 5u, "OSC", 3) || !strncmp(t + i - 5u, "FLT", 3) || !strncmp(t + i - 5u, "LFO", 3) || !strncmp(t + i - 5u, "Lfo", 3) ||
                                                         !strncmp(t + i - 5u, "Osc", 3) || !strncmp(t + i - 5u, "Flt", 3) ||
-                                                        !strncmp(t + i - 6u, "Part", 4))))) {
+                                                        !strncmp(t + i - 6u, "Part", 4) || !strncmp(t + i - 6u, "part", 4) ||
+                                                        (i >= 8u && !strncmp(t + i - 8u, "Filter", 6)))))) {   /* (a second unit, a part) */
         printf("  header %s: '%s'\n", where, t);
         head_bad++;
     }
@@ -719,13 +709,13 @@ static void pages_head_tests(void)
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Ins tone 1/", 11), "D11: MASTER's first page: \"Ins tone 1/N\" (was \"Delay 1/7\" before 2026-10-14)");
+        check(!strncmp(t, "Master ins tone 1/", 18), "D11: MASTER's first page: \"Master ins tone 1/N\" (no badge there: the screen's word)");
     }
     ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "INS TONE");
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Ins tone ", 9), "D11: MASTER INS TONE: \"Ins tone n/N\" (was \"FX master 5/9\")");
+        check(!strncmp(t, "Master ins tone ", 16), "D11: MASTER INS TONE: \"Master ins tone n/N\" (was \"FX master 5/9\")");
     }
     reset_ui();
     tap(B_EDIT);

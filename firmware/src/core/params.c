@@ -671,8 +671,8 @@ static const page_t PAGES[] = {
     {"GATER", FAM_FX, SC_TRACK, GR_GATE, {P_TGATE, P_TGPAT, P_TGRATE, P_TGSHP}},
 #endif
 #if FELUCCA_UI == 1
-    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
-    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
+    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the master sends; DR: its send levels (REV DLY CHO, */
+    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the Optimist UI's one order); DR only: the drum bus's own sends */
 #endif
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */

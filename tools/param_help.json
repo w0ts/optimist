@@ -321,7 +321,7 @@
     {"kind": "op", "ctx": "SENDS", "params": {
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
     {"kind": "op", "ctx": "MIX", "params": {
-      "MUTE": "Mute the row", "VOLUME": "Volume of the row", "LEVEL": "Level of the lane (dB)",
+      "MUTE": "Mute the row", "VOLUME": "Level of the row (dB)", "LEVEL": "Level of the lane (dB)",
       "CUT": "Filter cutoff of the lane"}},
     {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP", "params": {
       "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_FX_DIST"},

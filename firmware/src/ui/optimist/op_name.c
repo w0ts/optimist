@@ -368,7 +368,7 @@ static void name_draw_field(void)
     uint32_t i, empty = nm.len == 0u;
     uint16_t tc = trk_col(song.sel);
     const char *src = empty ? nm.ph : nm.s;
-    op_case(b, src, sizeof b);                          /* (sentence case as drawn: "Super saw") */
+    str_cpy(b, src, sizeof b);                          /* (the name as it will be stored: never re-cased) */
     cv_begin(240, OH_CARD, C_BLACK);
     cv_box(3, 0, 234, OH_CARD - 1, OP_SURF);
     cv_text(9, 1, &FONT_S, nm.cur ? "Save done  Home delete" : "Save done  Home cancel", C_GRAY);

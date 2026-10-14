@@ -354,7 +354,7 @@ static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET
                                           {"MASTER", "INS TONE"}, {"COMP", "INS COMP"}, {"LIMIT", "INS LIMIT"}};
 static const char *const FX_ORDER[] = {"MASTER", "COMP", "LIMIT", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_TUNE, G_CGR}};
-static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_CRET, G_DRET, G_RRET, 0xFF}};   /* (as the mixer's) */
+static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */
 #define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */
 static uint8_t fx_ix[OP_MAXROWS];
 static const page_t *fx_pg_of(uint32_t ix)
@@ -398,7 +398,7 @@ static void fxs_name(uint32_t r, char *b)
 }
 static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-    static const char *const RL[3] = {"CHO RET", "DLY RET", "REV RET"};
+    static const char *const RL[3] = {"REV RET", "DLY RET", "CHO RET"};
     page_cell(fx_pg(r), k, c);
     if (fx_pg(r) == &FX_RET && k < 3u)
         c->label = RL[k];

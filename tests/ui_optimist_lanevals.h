@@ -101,9 +101,9 @@ static void lv_sends_tests(const char *how)
     check(c && c->gv == 2, "... REV 2");
     ui.row[SCR_SOUND] = (uint8_t)r;
     ui.hot = 0;
-    turn(EN_K1, 3);                                     /* KNOB 1: the first send of the slots, CHO */
-    check(dsend_cho(dsend[7]) == 23u && dsend_cho(dsend[4]) == 5u && dsend_dly(dsend[7]) == 11u && dsend_rev(dsend[7]) == 2u,
-          "KNOB 1 on lane B's SENDS: lane B's CHO up, lane A's and the other sends kept");
+    turn(EN_K1, 3);                                     /* KNOB 1: the first send, REV (REV DLY CHO, the one order) */
+    check(dsend_rev(dsend[7]) == 5u && dsend_rev(dsend[4]) == 9u && dsend_dly(dsend[7]) == 11u && dsend_cho(dsend[7]) == 20u,
+          "KNOB 1 on lane B's SENDS: lane B's REV up, lane A's and the other sends kept");
     check(dsend_kit[0] == 50 && dsend_kit[1] == 60 && dsend_kit[2] == 70, "... the drum track's send levels untouched");
     turn(EN_K1, -3);
     lane_select(4);

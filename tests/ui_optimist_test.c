@@ -526,7 +526,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
-        check(!strcmp(h, "MASTER INS TONE"), "its header names it (MASTER INS TONE, the first page: the inserts)");
+        check(!strcmp(h, "Master ins tone"), "its header names it (Master ins tone, the first page: the inserts)");
         n = SCR->rows();
         for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);
@@ -790,7 +790,7 @@ static void family_tests(void)
     {
         char t[40];
         head_title(SCR_SOUND, ui.row[SCR_SOUND], t, sizeof t);
-        check(!strcmp(t, "SOUND LFO"), "its header: Sound LFO");
+        check(!strcmp(t, "LFO"), "its header: LFO (the badge names the track)");
     }
     ui.force = 1;
     frame();
@@ -964,7 +964,7 @@ static void step_keys_tests(void)
         release(B_OCTUP);
         release(B_HOME);
         head_title(SCR_STEP, 0, h, sizeof h);
-        check(st.page == 1 && !st.follow && !strcmp(h, "STEPS 17-32") && ui.scr == SCR_STEP && song.octave == oct,
+        check(st.page == 1 && !st.follow && !strcmp(h, "Steps 17-32") && ui.scr == SCR_STEP && song.octave == oct,
               "HOME + OCT+: the window 17-32 (the header says so), FOLLOW off, no NO, the octave kept");
         ui.force = 1;
         frame();
@@ -976,7 +976,7 @@ static void step_keys_tests(void)
         release(B_OCTUP);
         release(B_HOME);
         head_title(SCR_STEP, 0, h, sizeof h);
-        check(st.page == 2 && !strcmp(h, "STEPS 33-40"), "HOME + OCT+ again: 33-40 (LEN 40)");
+        check(st.page == 2 && !strcmp(h, "Steps 33-40"), "HOME + OCT+ again: 33-40 (LEN 40)");
         key(WK(10));
         check(!dstep_mask(&t->dstep[42]), "a key past LEN: nothing");
         press(B_HOME);
@@ -2459,6 +2459,7 @@ static void led_tests(void)
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
 #include "ui_optimist_lanevals.h"                  /* a picked lane shows the lane's values; the drum track's own tagged DR */
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
+#include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 
 int main(int argc, char **argv)
 {
@@ -2490,6 +2491,7 @@ int main(int argc, char **argv)
     header_footer_tests();
     header_track_tests();
     header_tracknum_tests();
+    names_tests();
     mixer_tests();
     scope_tests();
     step_keys_tests();

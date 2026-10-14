@@ -82,6 +82,22 @@ static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
         cell_gauge(c, 0, 0, d->max, v);
 }
 
+/* the drum track's level (G_DRLVL, linear: drums.c drums_mix, a gain of v * 200 / 32768) in dB as a synth track's LEVEL
+ * reads (params.c F_DB): the nearest of LEVEL_Q12's half-dB steps (gen_tables.py), "OFF" at 0. val holds 14 */
+static void drlvl_db(int32_t v, char *val, const char **unit)
+{
+    int32_t g = v * 25, i, best = 1;                    /* (Q15 v * 200 is Q12 v * 25) */
+    if (v <= 0) {
+        str_cpy(val, "OFF", 14);
+        *unit = "";
+        return;
+    }
+    for (i = 1; i < 128; i++)
+        if ((LEVEL_Q12[i] > g ? LEVEL_Q12[i] - g : g - LEVEL_Q12[i]) < (LEVEL_Q12[best] > g ? LEVEL_Q12[best] - g : g - LEVEL_Q12[best]))
+            best = i;
+    fmt_fix(val, LEVEL_DB_X10[best], 1);
+    *unit = "dB";
+}
 /* a cell from a descriptor and its value: "-" when the page does not show it, an action for a GO button, a
  * read-out for a value with no range (LIMIT > GR) */
 static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
@@ -106,6 +122,27 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
     param_format(d, *vp, c->val, &c->unit);
+    {
+        uint32_t z = c->val[0] == '-' || c->val[0] == '+';   /* (".24" -> "0.24": a leading zero, style guide 5) */
+        if (c->val[z] == '.' && str_len(c->val) + 2u <= sizeof c->val) {
+            memmove(c->val + z + 1u, c->val + z, str_len(c->val + z) + 1u);
+            c->val[z] = '0';
+        }
+    }
+    if (d->names == ins_names || d->names == fxs_names) {   /* an insert's type, a slot's: its name as the cards name it */
+        char b[16];                                     /* (DST -> DIST, FILT -> FILTER, CMP -> COMP: op_names.c) */
+        str_cpy(c->val, nm_card(c->val, 0, b, sizeof b), sizeof c->val);
+    }
+    if (d->fmt == F_STEPS)
+        c->unit = "steps";                              /* (the style guide's unit: never "ST", "STEP") */
+    else if (d->fmt == F_FILT)
+        c->unit = "";                                   /* ("LP20": the side and how far, no unit after it) */
+    else if (d == &GP[G_DRLVL])
+        drlvl_db(*vp, c->val, &c->unit);                /* (the drum track's LEVEL in dB, as the synths': style guide 4) */
+    else if (d >= DSEND_DESC && d < DSEND_DESC + 3) {   /* a lane's REV DLY CHO (0 .. 31): in %, as every send reads */
+        fmt_int(c->val, (*vp * 100 + (int32_t)DSEND_MAX / 2) / (int32_t)DSEND_MAX);
+        c->unit = "%";
+    }
     if (d >= FXS_DESC && d < FXS_DESC + FX_NSLOT) {     /* a master FX slot: its role in the unit's place (the user, */
         uint32_t t = fxs_slot[d - FXS_DESC];            /* 2026-10-12: "slot 1 is insert, right ? it is not clear"): */
         c->unit = t == FXT_CHO || t == FXT_DLY || t == FXT_REV ? "SEND" : t == FXT_NONE ? "" : "INS";   /* by type */
@@ -198,7 +235,7 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
 #define LFO_PGN 0u
 #endif
 /* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's own
- * DRIVE, DST, CMP) and SENDS (its REV DLY CHO in the master slots' order: LSEND0 + k, mapped by lane_send_vid), in place
+ * DRIVE, DST, CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
 #if DL_UI
@@ -261,11 +298,15 @@ static uint32_t op_pg_at(uint32_t j)
     return j;
 }
 _Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
-/* a lane's value id of the k-th send in the master slots' order (SENDS), 0xFF none (a slot empty): REV 16, DLY 17, CHO 18 */
-static uint32_t lane_send_vid(uint32_t k)
+/* a lane's value id of SENDS' card k (REV, DLY, CHO), 0xFF none (no master slot holds it): REV 16, DLY 17, CHO 18 */
+static uint32_t lane_send_vid(uint32_t k)             /* (REV DLY CHO, the one order: a type no slot holds, none) */
 {
-    uint32_t t = k < 3u ? fxs_send(k) : FXT_NONE;
-    return t == FXT_REV ? 16u : t == FXT_DLY ? 17u : t == FXT_CHO ? 18u : 0xFFu;
+    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
+    uint32_t i;
+    for (i = 0; k < 3u && i < 3u; i++)
+        if (fxs_send(i) == T[k])
+            return 16u + k;
+    return 0xFFu;
 }
 static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
@@ -281,7 +322,7 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
         *vp = 0;
         return 0;
     }
-    if (id >= LSEND0) {                                 /* SENDS: the k-th send of the master slots, this lane's */
+    if (id >= LSEND0) {                                 /* SENDS: card k's send (REV DLY CHO), this lane's */
         id = lane_send_vid(id - LSEND0);
         if (id == 0xFFu) {
             *vp = 0;

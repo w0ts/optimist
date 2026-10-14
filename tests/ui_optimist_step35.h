@@ -218,7 +218,10 @@ static void s35_pages_tests(void)
     turn(EN_SELECT, 1);
     head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
     SCR->name(ui.row[ui.scr], nm);
-    check(s35_pos_is(ui.row[SCR_SOUND] + 1u, n) && strstr(t, nm) != 0, "... SELECT: the next page's name and its n/N");
+    {
+        char d[32];
+        check(s35_pos_is(ui.row[SCR_SOUND] + 1u, n) && strstr(t, nm_title(nm, d, sizeof d)) != 0, "... SELECT: the next page's name and its n/N");
+    }
     tap(B_ENV);                                         /* (the same button: the family's next, round) */
     check(s35_pos_is(ui.row[SCR_SOUND] + 1u, n), "... ENV again (the repeat): the n/N follows");
     strcpy(t, "SOUND ENV2 DEST");
@@ -248,18 +251,22 @@ static void s35_pages_tests(void)
     tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */
     head_title(SCR_STEP, ui.row[SCR_STEP], t, sizeof t);
     SCR->name(ui.row[SCR_STEP], nm);
-    check(ui.cards_t > 0u && !strcmp(t, nm) && s35_pos_is(2u, n), "STEP, SEQ again: the page's name and n/N (ARP 2/3)");
+    {
+        char d[32];
+        check(ui.cards_t > 0u && !strcmp(t, nm_title(nm, d, sizeof d)) && s35_pos_is(2u, n), "STEP, SEQ again: the page's name and n/N (ARP 2/3)");
+    }
     /* a held step: its card pages */
     s35_open();
     s35_note(3, 60, LV_NORM);
     kdown(WK(3));
     frames(HOLD_FRAMES);
     head_title(SCR_STEP, 0, t, sizeof t);
-    check(!strcmp(t, "STEP") && (hp_count() < 2u || s35_pos_is(1u, hp_count())), "a held step: STEP 1/N");
+    check(!strcmp(t, "Step") && (hp_count() < 2u || s35_pos_is(1u, hp_count())), "a held step: Step 1/N");
     if (hp_count() >= 2u) {
         turn(EN_SELECT, 1);
         head_title(SCR_STEP, 0, t, sizeof t);
-        check((!strcmp(t, "EXTRA") || !strcmp(t, PAGES[st.lock_pg % NPAGES].title)) && s35_pos_is(2u, hp_count()),
+        char d[32];
+        check((!strcmp(t, "Extra") || !strcmp(t, nm_title(PAGES[st.lock_pg % NPAGES].title, d, sizeof d))) && s35_pos_is(2u, hp_count()),
               "... SELECT: the next card page's name and 2/N");
     }
     kup(WK(3));

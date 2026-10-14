@@ -26,11 +26,11 @@ static void inslots_tests(void)
     ui.row[SCR_SOUND] = (uint8_t)r;
     frame();
     SCR->cell(r, 0, &c);
-    check(!strcmp(c.label, "S1") && !strcmp(c.val, FELUCCA_FX_DIST ? "DST" : "----"), "INSERTS: KNOB 1 S1's TYPE (DIST by default)");
+    check(!strcmp(c.label, "S1") && !strcmp(c.val, FELUCCA_FX_DIST ? "DIST" : "----"), "INSERTS: KNOB 1 S1's TYPE (DIST by default)");
     SCR->cell(r, 1, &c);
     check(!FELUCCA_FX_DIST || (c.d == &TP[P_DIST] && c.vp == &trk[0].p[P_DIST]), "... KNOB 2 S1's amount: T1's DST");
     SCR->cell(r, 2, &c);
-    check(!strcmp(c.label, "S2") && !strcmp(c.val, FELUCCA_TRK_FILT ? "FILT" : "----"), "... KNOB 3 S2's TYPE (FILTER when built)");
+    check(!strcmp(c.label, "S2") && !strcmp(c.val, FELUCCA_TRK_FILT ? "FILTER" : "----"), "... KNOB 3 S2's TYPE (FILTER when built)");
     SCR->cell(r, 3, &c);
     check(FELUCCA_TRK_FILT ? c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0] : !c.d, "... KNOB 4 S2's amount (empty: \"-\")");
     check(ins_row("CMP") >= SCR->rows(), "CMP: not a row while no slot of T1 holds the COMP");
