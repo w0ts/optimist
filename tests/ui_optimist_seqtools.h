@@ -21,6 +21,12 @@ static void stt_open(uint32_t k, uint32_t page)         /* track k on STEP, page
     ui.row[SCR_STEP] = (uint8_t)(step_rows0() + page);
     frame();
 }
+static void stt_yes(void)                               /* SAVE, and SAVE again at the question */
+{
+    tap(B_SAVE);
+    if (op_armed())
+        tap(B_SAVE);
+}
 static void stt_do(uint32_t card)                       /* arm card (KNOB card + 1) and YES */
 {
     turn(EN_K1 + card, 1);
@@ -181,7 +187,7 @@ static void seqtools_tests(void)
               "LENGTH x2 (DOUBLE): 16 steps, the copy whole (its own ends, its locks)");
     }
     turn(EN_K4, -1);
-    tap(B_SAVE);
+    stt_yes();
     check(t->p[P_SLEN] == 8 && t->step[12].note[0] == 64, "LENGTH 1/2 (HALF): 8 steps, the steps past it kept");
 #if FELUCCA_PLOCK
     {   /* 64 events on steps 1..8 (their copies would not fit beside the 70 there are) */
@@ -195,31 +201,72 @@ static void seqtools_tests(void)
     }
     n = AL(t)->n;
     turn(EN_K4, 1);
-    tap(B_SAVE);
+    stt_yes();
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
 #endif
-    /* EUCLID on a synth track: live, from the run's start, one undo */
+    /* EUCLID on a synth track: ON writes it live over the pattern, from the pattern as it was; OFF asks keep / restore */
     stt_open(0, 1);
     for (i = 0; i < NSTEP; i++)
         memset(&t->step[i], 0, sizeof t->step[i]), t->step[i].time = ST_REST;
     t->p[P_SLEN] = 16;
+    stt_note(&t->step[3], 62, 0, 0);
+    ng.on = 0;
     tl.hits = 4, tl.steps = 16, tl.rot = 0;
-    turn(EN_K1, 1);                                     /* 5 of 16 */
+    turn(EN_K1, 1);                                     /* (OFF: a value only) */
     for (i = 0, n = 0; i < 16u; i++)
         n += tl_gate(&t->step[i]);
-    check(n == 5u && tl_gate(&t->step[0]), "EUCLID: HITS 5 of 16 written at once (the root's note)");
+    check(n == 1u && !ng.on && tl.hits == 5u, "EUCLID OFF: HITS is a value, the pattern is as it was");
+    turn(EN_K4, 1);                                     /* ON */
+    for (i = 0, n = 0; i < 16u; i++)
+        n += tl_gate(&t->step[i]);
+    check(n == 5u && tl_gate(&t->step[0]) && ng.on && ng_here(t), "EUCLID ON: HITS 5 of 16 written at once (the root's note)");
     turn(EN_K1, -2);
     turn(EN_K3, 2);
     for (i = 0, n = 0, ok = 1; i < 16u; i++) {
         n += tl_gate(&t->step[i]);
         ok &= tl_gate(&t->step[i]) == eu_hit(i);
     }
-    check(n == 3u && ok, "... HITS 3, ROT 2: from the run's start again, turned");
+    check(n == 3u && ok, "... HITS 3, ROT 2: from the pattern as it was, turned");
+    turn(EN_K4, -1);                                    /* OFF asks */
+    check(op_armed() && ng.on && !strcmp(ui.arm_verb, "KEEP?"), "... OFF: asks KEEP? (still ON until answered)");
+    tap(B_HOME);                                        /* NO: restore */
+    for (i = 0, n = 0; i < 16u; i++)
+        n += tl_gate(&t->step[i]);
+    check(!op_armed() && !ng.on && n == 1u && tl_gate(&t->step[3]) && t->step[3].note[0] == 62u,
+          "... NO: the pattern as it was (one note on step 4)");
+    turn(EN_K4, 1);
+    tap(B_SAVE);                                        /* (the card picked: SAVE asks OFF) */
+    check(op_armed() && ng.on, "ON, SAVE on the card: asks to turn it off");
+    tap(B_SAVE);                                        /* YES: keep */
+    for (i = 0, n = 0; i < 16u; i++)
+        n += tl_gate(&t->step[i]);
+    check(!op_armed() && !ng.on && n == 3u, "... YES: the generated steps stay (3 of 16), the generator is off");
     stt_undo();
     for (i = 0, n = 0; i < 16u; i++)
         n += tl_gate(&t->step[i]);
-    check(n == 0u, "... SAVE then HOME: the whole run undone (one level)");
+    check(n == 1u, "... SAVE then HOME: the generated steps undone (the pattern as it was)");
+    turn(EN_K4, 1);
+    t->step[5].time = ST_NOTE, t->step[5].n = 1, t->step[5].note[0] = 70;   /* (the pattern changed under it) */
+    turn(EN_K1, 1);
+    check(!ng.on && t->step[5].note[0] == 70u, "a pattern edited under a generator ends it: nothing rewritten");
+    turn(EN_K4, 1);
+    stt_open(1, 1);
+    turn(EN_K4, 1);
+    check(ng.on && ng.trk == 0u && !ng_here(&trk[1]) && !strncmp(ui.msg, "ANOTHER", 7), "ON on another track while one is ON: refused");
+    ng.on = 0;
+    /* TOOLS ask first: a turn picks the card, SAVE asks, SAVE again does it */
+    stt_open(0, 0);
+    t = &trk[0];
+    stt_chains(t);
+    turn(EN_K1, 1);
+    tap(B_SAVE);
+    check(op_armed() && !strcmp(ui.arm_verb, "REVERSE?") && tl_gate(&t->step[0]), "TOOLS: SAVE asks \"Reverse T1?\", nothing done yet");
+    tap(B_HOME);
+    check(!op_armed() && tl_gate(&t->step[0]), "... NO: nothing done");
+    tap(B_SAVE);
+    tap(B_SAVE);
+    check(!op_armed() && !tl_gate(&t->step[0]), "... YES: reversed");
     /* the drum track: the kit, a lane */
     stt_open(TRK_DRUM, 0);
     t = TDRUM;
@@ -245,7 +292,9 @@ static void seqtools_tests(void)
     stt_open(TRK_DRUM, 1);
     ui.lane = 1;
     lane_select(9);
+    ng.on = 0;
     tl.hits = 2, tl.steps = 8, tl.rot = 0;
+    turn(EN_K4, 1);
     turn(EN_K1, 1);
     for (i = 0, n = 0; i < 16u; i++)
         n += (uint32_t)dstep_has(&t->dstep[i], 9);
