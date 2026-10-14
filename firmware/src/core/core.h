@@ -391,7 +391,9 @@ typedef struct {
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
 /* the drum track's 17th step lane, the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
  * (steps, level, ratchet, length, the edits, the tools, patterns, sections, snapshots), no sound of its own; its
- * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC). DRUM_SLANES: the step lanes */
+ * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC), its ratchet hits too, scaled by the accent
+ * step's own level (drums.c dacc_vel); its own ratchet is kept and edited, and changes nothing. The step's chance, condition
+ * and fill are the step's: an accent plays exactly when its step does. DRUM_SLANES: the step lanes */
 #define DRUM_ACC 16u
 #define DRUM_SLANES 17u
 /* the ACCENT amount: the drum track's P_E1 (its EDIT values after the kit are free; stored with the track as amount -
