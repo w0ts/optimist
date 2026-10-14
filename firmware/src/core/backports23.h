@@ -4,7 +4,6 @@
  * backports.h (tools/backports.json: provenance, measured cost). A switch at 0 builds exactly the firmware
  * without it. Included by backports.h.
  *
- *   FELUCCA_MONO_RELEASE  a key let go just after a VOICE change leaves no stuck note   SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_ST_STRICT     stricter checks of what is read back from flash               SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_USB_FLOW      USB MIDI in: nothing dropped under load (NAK), malformed ignored  SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0)
@@ -22,9 +21,6 @@
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
-#ifndef FELUCCA_MONO_RELEASE
-#define FELUCCA_MONO_RELEASE 1   /* trk_note_off takes the key out of the MONO stack in every VOICE mode */
-#endif
 #ifndef FELUCCA_ST_STRICT
 #define FELUCCA_ST_STRICT 1      /* storage.c: a record only in the copy it was written to, objects in range, the whole
                                   * header read back after a save; panel.c: the calibration a permutation */
@@ -58,6 +54,11 @@
 #endif
 #ifndef FELUCCA_VIS
 #define FELUCCA_VIS 0            /* SLOOP 2.4's visualiser (backports24.h; here for BP23_SET: its style is in the settings word) */
+#endif
+/* Retired 2026-10-14, always built: upstream's fix is unchanged in its current release (tools/builder/registry.py
+ * RETIRED). A build that still asks for one of them off is refused */
+#if defined(FELUCCA_MONO_RELEASE) && !FELUCCA_MONO_RELEASE
+#error "FELUCCA_MONO_RELEASE was retired: no stuck note after a VOICE change is always built (SLOOP 2.3 .. 2.6)"
 #endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */

@@ -29,7 +29,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_ST_STRICT": "stricter checks of saved data when read back",
     "FELUCCA_BK_CHECK": "restore: an object refused unless it would load",
     "FELUCCA_TRS_NOISE": "TRS MIDI in: line noise no longer deafens the jack",
-    "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
     "FELUCCA_LAYER_QUIET": "knobs quiet as a layer button is let go",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
@@ -89,8 +88,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
                       "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
                       "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
-    "FELUCCA_MONO_RELEASE": "Fixes a stuck note when you let a key go just after a VOICE change (MONO stack). No "
-                            "cost.",
     "FELUCCA_ST_STRICT": "Stricter checks of what is read back from flash (settings, projects, presets, kits) and a "
                          "compare after each save, so damaged data is refused instead of loaded. About 0.1 KB of "
                          "flash.",
@@ -235,7 +232,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SHED_FADE": 103,
     "FELUCCA_USB_FLOW": 102,
     "FELUCCA_ST_STRICT": 101,
-    "FELUCCA_MONO_RELEASE": 100,
+    # (100: FELUCCA_MONO_RELEASE, retired 2026-10-14: always built; never reuse the bit)
     "FELUCCA_LAYER_QUIET": 130,
     "FELUCCA_BPM_LOCK": 132,
     "FELUCCA_DIV_ORDER": 133,
