@@ -586,16 +586,9 @@ for n, e in sorted(built_checks.items()):
 
 
 def gate_configs():
-    """-> [(name, cfg)] the configurations prepare_tests builds (tools/optimist.py), the defaults first, then the
-    check configurations (check_builds)"""
-    def load(sets, drop=None):
-        with contextlib.redirect_stdout(io.StringIO()):
-            return O.load_config(argparse.Namespace(profile=O.DEFAULT_PROFILE, config=None, defaults=False,
-                                                    set=list(sets), name=None, ble_drop=drop))[0]
-    return [("defaults (the base)", C.defaults()),
-            (f"{O.DEFAULT_PROFILE} + BLE test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *O.BLE_TEST_ROOM], "FLUTE")),
-            (f"{O.DEFAULT_PROFILE} + BLE full", load([*O.BLE_FULL_SET, *O.BLE_TEST_ROOM]))] + \
-        sorted(MC.check_configs().items())
+    """-> [(name, cfg)] the configurations prepare_tests builds (tools/optimist.py): the defaults, then the check
+    configurations (check_builds; the BLE test builds, optimist.py ble_test_configs, among them)"""
+    return [("defaults (the base)", C.defaults())] + sorted(MC.check_configs().items())
 
 
 _built = [(n, cfg, real_sizes(cfg)) for n, cfg in (gate_configs() if costs else [])]

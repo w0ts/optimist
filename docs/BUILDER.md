@@ -548,7 +548,9 @@ configuration 17.7 KB of flash under its real build (the builder said it fit; it
 user-default 6.6 KB over. So `configure.py budget` now starts from the nearest configuration whose real build is
 known (an anchor: the defaults, every check configuration and probe in costs.json, and every real build made from
 this source, `build/exact-sizes.json`) and adds what the sum model says the differing items change, plus
-`ANCHOR_MARGIN` per differing item (256 B flash, 32 B RAM and RAM code: it errs over). The items both share cost
+`ANCHOR_MARGIN` per differing item (256 B of flash: it errs over; none in RAM, pool and RAM code, whose single-change
+errors are 0 at the median). The BLE test builds `optimist.py test` makes are check configurations too
+(`optimist.py ble_test_configs`), so their drift is held like the profiles'. The items both share cost
 exactly what they cost together. A configuration built once is exact from then on, and a few changes from it are
 estimated from it. `budget(..., anchor=False)` is the plain sum (measure_costs.py measures pairs against it). The
 root causes found by bisection that day, now in the model:

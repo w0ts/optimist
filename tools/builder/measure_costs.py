@@ -67,6 +67,9 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
          # with both / either, so the two off together save 3.9 KB less than their deltas
          {"SL24_SAFE": 0, "SL24_IMPORT": 0},
+         # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
+         # 2026-10-15, user-default 292 B of pool over)
+         {"MOTION": 1, "PLOCK": 1},
          # the user sample zones (eng_sample.c SMP_USR_ZONES, 1.3 KB of RAM and their code) are built with any of SAMPLE,
          # GRAIN, SLICE and the drums' user samples: only all four off drop them (2026-10-14, a user's configuration
          # 1,344 B of RAM over without this)
@@ -95,7 +98,7 @@ GROUP_WHEN = {"UI": 1}
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
              "MICRO=1,PLOCK=1": {"SL24_XSTEP": 1}, "FILLS=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}}
+             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1}}
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
@@ -225,6 +228,8 @@ def check_configs(probes=False):
     for d in CHECK_DIRS:
         for p in sorted(d.glob("*.config")):
             out[p.stem] = C.parse(p.read_text())[0]
+    import optimist                                     # (tools/: the BLE builds optimist.py test makes)
+    out.update(optimist.ble_test_configs())
     if probes:
         out.update({f"{n}{PROBE}": probe(n, cfg) for n, cfg in list(out.items())})
     return out
