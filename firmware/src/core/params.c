@@ -701,7 +701,11 @@ static const page_t PAGES[] = {
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
+#if FELUCCA_UI == 1
+    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, 0xFF, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
+#else
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
+#endif
 #if DL_ANY
     /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
     {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 2, 3}},

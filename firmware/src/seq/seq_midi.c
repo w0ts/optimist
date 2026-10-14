@@ -141,7 +141,7 @@ static void seq_out_check(void)
 /* MIDI in with IN = CLOCK: a note on is dropped (the note offs still end what was held) */
 static int midi_in_dropped(uint32_t st, uint32_t d2)
 {
-#if FELUCCA_MIDI_INCLK
+#if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1       /* (the Optimist UI: no MIDI IN setting, notes always play through the track channels) */
     return bp_set[BPS_MIN] && st == 0x90u && d2;
 #else
     (void)st, (void)d2;

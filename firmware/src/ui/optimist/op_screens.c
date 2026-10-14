@@ -301,7 +301,6 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     cell_clear(c);
     if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
-        static const char *const L[2] = {"KIT", "LANE"};
         if (k == 2u) {                                  /* the lane's SRC (the user, 2026-10-13); empty where a build has none */
             if (lane_snd())                             /* (the ACCENT lane has no sound: no SRC) */
                 page_cell(&LANE_SRC_PG, k, c);
@@ -314,21 +313,19 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
             }
             return;
         }
-        if (k > 1u)
-            return;
-        if (!k && lane_card_form() != LCF_KIT) {        /* the lane's own sound, not the kit (op_walk.c lane_card_form) */
+        if (k != 0u)
+            return;                                     /* (card 2 was the LANE read-out: gone, the user 2026-10-14; the SOUND row is the
+                                                         * lane's source: this card follows it, SRC is the third) */
+        if (lane_card_form() != LCF_KIT) {              /* the lane's own sound, not the kit (op_walk.c lane_card_form) */
             snd_lane_card(c);
             return;
         }
-        c->label = L[k];
-        c->kind = k ? CK_RO : CK_VAL;                   /* (LANE: the selected lane, ALGORITHM's or HOME + a key's) */
-        str_cpy(c->val, k ? lane_name(lane_selected()) : drum_kit_name(), sizeof c->val);
-        if (k && lane_acc())
-            c->hlp = "ACCENT LANE";                  /* (its help line: op_help.c, ctx INSERTS' key) */
-        c->col = k ? op_lane_col(lane_selected()) : kit_col();
-        c->dr = (uint8_t)(!k && lane_picked());         /* (the kit is the track's) */
-        cell_gauge(c, 1, 0, k ? (int32_t)DRUM_UILANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
-                   (int32_t)drum_kit_pos());
+        c->label = "KIT";
+        c->kind = CK_VAL;
+        str_cpy(c->val, drum_kit_name(), sizeof c->val);
+        c->col = kit_col();
+        c->dr = (uint8_t)lane_picked();                 /* (the kit is the track's) */
+        cell_gauge(c, 1, 0, (int32_t)drum_kit_total() - 1, (int32_t)drum_kit_pos());
         return;
     }
     switch (k) {
@@ -372,6 +369,8 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             acc_turn(k, s, fine);
         return;
     }
+    if (is_drum(TSEL) && k == 1u)                       /* (no second card on the drum SOUND row) */
+        return;
     if (is_drum(TSEL) && k == 0u && lane_card_form() != LCF_KIT) {   /* a lane off the KIT: its own PRESET / SLOT, never the kit */
         if (s == OP_RESET)
             lane_card_first();

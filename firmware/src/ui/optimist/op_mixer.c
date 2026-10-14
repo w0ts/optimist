@@ -7,13 +7,13 @@
  *   ALGORITHM  walks the rows, MASTER, T1 .. DR .. the 16th lane and back (it stops at the ends; op_walk.c, the same
  *              walk as every page's): the track selected follows (song.sel), a lane row selects the lane (lane_sel, ui.lane)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
- *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
- *              SOUND; a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR MUTE VOLUME | FILTER | FX on, KIT; MASTER FILT
+ *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO) (no FX on, no
+ *              SOUND card: 2026-10-14); a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO; DR MUTE VOLUME | FILTER; MASTER FILT
  *              DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns, REV DLY CHO RET, those a FX slot holds (batch D;
  *              2026-10-12 had a card a slot, "-" for an insert or an empty one). Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
- *   SAVE       PROJECT (always: the mixer has no YES, D6); FX on and MUTE are knobs, the SOUND row is EDIT's first
+ *   SAVE       PROJECT (always: the mixer has no YES, D6); MUTE is a knob, the SOUND row is EDIT's first
  * The inserts in the order the audio runs them (fx_slots.c: DIST, FILTER, COMP): DRIVE when DIST is in no slot (the
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
@@ -21,7 +21,7 @@
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_UILANES };
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE };
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
  * 1 DLY, 2 CHO); MI_ACC: the ACCENT amount (core.h P_DACC), the ACCENT lane's one card */
@@ -91,7 +91,7 @@ static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
     return mx_add(it, n, MG_INS, 0, MI_INSA, 1);
 }
 /* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends in a slot, REV DLY
- * CHO | FX ON, SOUND */
+ * CHO */
 static uint32_t mx_items_synth(mitem_t *it)
 {
     uint32_t n = 0;
@@ -105,8 +105,7 @@ static uint32_t mx_items_synth(mitem_t *it)
         n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_DLY);
     if (FXS_ON(FXT_CHO))
         n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_CHOR);
-    n = mx_add(it, n, MG_LAST, "FX ON", MI_TRK, P_FXOFF);
-    return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
+    return n;                                           /* (no FX ON and no SOUND card: the user, 2026-10-14; PRESETS is a button) */
 }
 /* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
  * tracks"): a card a send a master slot holds, REV DLY CHO (the one order, as the master FX's RETURNS page, op_screens.c
@@ -164,11 +163,11 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_add(it, n, MG_SEND, "DLY", MI_LANE, 17u);
         if (FXS_ON(FXT_CHO))
             n = mx_add(it, n, MG_SEND, "CHO", MI_LANE, 18u);
-        return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
+        return n;
     }
     if (r == MXR_DR) {                                  /* the drum track: its level | its insert slots | its send levels
                                                          * (2026-10-12, the user: "it should be like any other track") |
-                                                         * FX ON, the kit */
+                                                         */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_TRK, P_MUTE);
         n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
         n = mx_items_ins(it, n);
@@ -178,8 +177,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_add(it, n, MG_SEND, 0, MI_DKS, 1);
         if (FXS_ON(FXT_CHO))
             n = mx_add(it, n, MG_SEND, 0, MI_DKS, 2);
-        n = mx_add(it, n, MG_LAST, "FX ON", MI_TRK, P_FXOFF);
-        return mx_add(it, n, MG_LAST, "KIT", MI_SOUND, 0);
+        return n;
     }
     return mx_items_synth(it);
 }
@@ -309,7 +307,7 @@ static void mix_name(uint32_t r, char *b)
     if (r == MXR_MASTER)
         str_cpy(b, g == MG_SEND ? "RETURNS" : g ? "COMP" : "INS TONE", 12);   /* (as the master FX's pages; the badge says MASTER) */
     else
-        str_cpy(b, r == MXR_DR && g == MG_LAST ? "KIT" : G[g], 12);
+        str_cpy(b, G[g], 12);
 }
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
@@ -320,13 +318,6 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     if (!mx_item(r, k, &m))
         return;
     switch (m.kind) {
-    case MI_SOUND:
-        c->kind = CK_RO;
-        if (r >= MXR_LANE0)
-            str_cpy(c->val, mx_is_acc(r) ? "-" : lane_sound_name(r - MXR_LANE0), sizeof c->val);   /* (what PRESETS steps there) */
-        else
-            snd_name(mx_trk_of(r), c->val);
-        break;
     default:
         cell_param(c, mx_desc(r, &m, &vp), vp);
         if (!c->d)                                      /* (an empty slot's amount: the knob's frame alone, audit #7) */
@@ -356,9 +347,6 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     r %= MXR_N;
     if (!mx_item(r, k, &m))
         return;
-    if (m.kind == MI_SOUND) {
-        return;                                         /* (the names are read-outs; PRESETS is op_input.c's) */
-    }
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)
         return;

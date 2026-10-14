@@ -71,8 +71,8 @@ static void se_names_tests(void)
     lane_select(4);
     tap(B_FX);
     frames(2);
-    check(lane_picked() && se_rows_have("Kit sends", "DR sends") && se_rows_have("Sends", 0),
-          "#20: a picked lane: its own \"Sends\", the kit's \"Kit sends\" (was \"DR sends\")");
+    check(lane_picked() && !se_rows_have("Kit sends", 0) && !se_rows_have("Bus sends", 0) && se_rows_have("Sends", "DR sends"),
+          "#20: a picked lane: its own \"Sends\" only, no \"Kit sends\" / \"Bus sends\" (uniform with the tracks, 2026-10-14)");
 #endif
 #endif
     reset_ui();
@@ -107,7 +107,7 @@ static void se_header_tests(void)
     frames(2);
     head_make(&h);
     se_title(t);
-    check(!strncmp(t, "Pattern ", 8) && strchr(t, '/') && h.r[0] && strncmp(t, "Steps", 5),
+    check(!strncmp(t, "Pattern", 7) && (SCR->rows() < 2u || strchr(t, '/')) && h.r[0] && strncmp(t, "Steps", 5),
           "#17: STEP: \"Pattern 1/N\" and bar.beat (was \"Steps 1-16 C4\", no bar.beat)");
     tap(B_HOME);
     {   /* the user's ruling: bar.beat always stays; a long title takes its short form, never a cut */
@@ -191,7 +191,7 @@ static void se_card_tests(void)
                 ok = (uint32_t)card_wide(c, k);
             }
     }
-    check(!seen || ok, "#33: the mixer's SOUND card, a long name, an empty card after it: two cards wide (was cut, \"ACID S\")");
+    check(!seen && ok == 0u, "#33: the mixer has no SOUND card any more (it was a PRESET name card; PRESETS is a button)");
 }
 static void se_picture_tests(void)
 {

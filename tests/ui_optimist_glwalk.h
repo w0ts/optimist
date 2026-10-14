@@ -217,12 +217,12 @@ static void glw_sync_long_tests(void)
     check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC Int / USB / TRS (the cards INT / USB / TRS)");
     check(fit, "SYNC AUTO: the long form fits the list's value field beside the label");
     {   /* GLOBAL's MIDI page: OUT IN SYNC CLK OUT on one page, in this order (3 lines without CLK OUT); SYNC no longer on Tempo */
-        static const char *const ML[4] = {"CLK IN", "CLK OUT", "MIDI IN", "MIDI OUT"};
+        static const char *const ML[4] = {"CLK IN", "CLK OUT", "", "MIDI OUT"};   /* (no MIDI IN: 2026-10-14) */
         uint32_t first = line_named(SCR_GLOBAL, FELUCCA_MIDI_CLOCK ? "CLK IN" : FELUCCA_MIDI_CLKOUT ? "CLK OUT" : "MIDI IN"), n = 0, j, pg_ok = 1;
-        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (FELUCCA_MIDI_INCLK ? 1u : 0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
+        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
         for (j = 0, k = 0; j < 4u; j++) {
             char nm[12];
-            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? FELUCCA_MIDI_INCLK : FELUCCA_MIDI_OUT))
+            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? 0 : FELUCCA_MIDI_OUT))
                 continue;
             SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
             SCREENS[SCR_GLOBAL].name(first + k, nm);
@@ -230,7 +230,7 @@ static void glw_sync_long_tests(void)
             k++;
         }
         pg_ok &= k == n && gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
-        check(pg_ok && !gl_has(0, TPR_TEMPO, 3), "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI IN, MIDI OUT (one page, no CLK read-out); GLOBAL's Tempo has no SYNC");
+        check(pg_ok && !gl_has(0, TPR_TEMPO, 3), "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT (one page, no MIDI IN, no CLK read-out); GLOBAL's Tempo has no SYNC");
         tp_cell(TPR_TEMPO, 3, &c);
         check(!FELUCCA_MIDI_CLOCK || (c.kind == CK_VAL && !strcmp(c.label, "SYNC")), "PLAY's TEMPO page still has SYNC (its 4th card)");
     }
@@ -258,14 +258,8 @@ static void glw_midi_long_tests(void)
         ok &= !strcmp(v, OUT[k]) && !strcmp(c.val, OUTC[k]);
         seen++;
 #endif
-#if FELUCCA_MIDI_INCLK
-        bp_set[BPS_MIN] = (int16_t)k;
-        glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "MIDI IN"), &c, v);
-        ok &= !strcmp(v, IN[k]) && !strcmp(c.val, INC[k]);
-        seen++;
-#endif
     }
-    check(ok && seen, "MIDI OUT / IN: the GLOBAL list draws Keys / Seq and Notes / Clock, the cards KEYS / SEQ, NOTES / CLOCK");
+    check(ok && seen, "MIDI OUT: the GLOBAL list draws Keys / Seq, the cards KEYS / SEQ; no MIDI IN line");
     bp_set[BPS_MOUT] = mo;
     bp_set[BPS_MIN] = mi;
 }

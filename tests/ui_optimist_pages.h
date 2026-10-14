@@ -766,10 +766,10 @@ static void pages_select_tests(void)
         turn(EN_SELECT, i & 1u ? -1 : 1);
         ok &= lane_selected() == 3u && ui.lane == 1u;
     }
-    check(ok && SCR->rows() == STP_LANE0 + 1u + STP_TL, "rule: SELECT on the drum STEP pages PATTERN / LANE, never ui.lane or the lane");
-    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
+    check(ok && SCR->rows() == STP_PAT + 1u + STP_TL, "rule: SELECT on the drum STEP pages PATTERN / LANE, never ui.lane or the lane");
+    ui.row[SCR_STEP] = (uint8_t)STP_PAT;
     turn(EN_ALGO, 1);
-    check(lane_selected() == 4u && ui.lane == 1u && ui.row[SCR_STEP] == STP_LANE0, "rule: ALGORITHM on the drum STEP: the next lane");
+    check(lane_selected() == 4u && ui.lane == 1u && ui.row[SCR_STEP] == STP_PAT, "rule: ALGORITHM on the drum STEP: the next lane");
     turn(EN_ALGO, -5);
     check(lane_selected() == 4u && ui.lane == 0u, "rule: ALGORITHM back past the first lane: DR itself (ui.lane 0)");
     tap(B_HOME);
@@ -778,7 +778,7 @@ static void pages_select_tests(void)
     tap(B_EDIT);                                        /* the drum SOUND row: KIT, LANE (a read-out) */
     SCR->cell(0, 1, &c);
     turn(EN_K2, 2);
-    check(c.kind == CK_RO && !strcmp(c.label, "LANE") && lane_selected() == 3u, "rule: the drum SOUND row's LANE is a read-out; KNOB 2 leaves the lane");
+    check(!c.label && lane_selected() == 3u, "rule: the drum SOUND row has no second card (the LANE read-out is gone); KNOB 2 leaves the lane");
     ok = 1;
     for (i = 0; i < 5u; i++) {
         turn(EN_SELECT, 1);

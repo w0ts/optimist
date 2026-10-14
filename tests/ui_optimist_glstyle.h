@@ -257,18 +257,23 @@ static int gls_about_info(void)
 }
 static int gls_info_page(void)
 {
-    uint32_t i, ok = 1, tot;
+    uint32_t i, ok = 1;
     cell_t c;
-    char ln[16];
     int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N;
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out and its bar fits the page) */
-    for (i = 0; i < 4u; i++) {
-        uint32_t used = sys_mem(i, &tot);
-        sys_info_cell(INFO_N - 4u + i, &c);
-        snprintf(ln, sizeof ln, "%u/%u", used >> 10, tot >> 10);
-        ok &= c.kind == CK_RO && !strcmp(c.val, ln) && !strcmp(c.unit, "KB") && used > 0u && used < tot;   /* (read-outs: in use, below the region) */
-        ok &= c.gk == GK_BAR && c.gv >= 0 && c.gv <= 100 && (uint32_t)c.gv == used * 100u / tot;
+    song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading its bars and the raw count (no invented percentage) */
+    sys_info_cell(INFO_N - 1u, &c);
+    ok &= c.kind == CK_RO && !strcmp(c.label, "BATTERY") && !strcmp(c.val, "NO READING");
+    song.batt_raw = 612;
+    sys_info_cell(INFO_N - 1u, &c);
+    ok &= !strcmp(c.val, "3/3 612") && c.gk == GK_BAR && c.gv == 3;
+    song.batt_raw = 540;
+    sys_info_cell(INFO_N - 1u, &c);
+    ok &= !strcmp(c.val, "1/3 540") && c.gv == 1;
+    for (i = 0; i < INFO_N; i++) {                      /* no line is the memory's any more */
+        sys_info_cell(i, &c);
+        ok &= strcmp(c.label, "FLASH") && strcmp(c.label, "RAM") && strcmp(c.label, "POOL") && strcmp(c.label, "RAM CODE");
     }
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;

@@ -14,17 +14,16 @@
  * then random use: every draw stays on the screen. Renders the screens to PPM (DIR/opt-*.ppm) for review. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_UI 1
+#define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
 #endif
-#define FELUCCA_HOST_MEM 1              /* SYSTEM > INFO's memory: the linker's symbols have no host value, these stand in */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 #if FELUCCA_KNOB_ACCEL
 #include "../firmware/src/ui/knob_accel.h"     /* (felucca.c includes it: the knobs' acceleration, a build with FELUCCA_KNOB_ACCEL=1 such as the user's) */
 #endif
-static const uint32_t host_mem[4][2] = {{300u * 1024u, 568u * 1024u}, {70u * 1024u, 96u * 1024u}, {200u * 1024u, 336u * 1024u}, {26u * 1024u, 32512u}};
 #include <assert.h>
 static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
@@ -939,10 +938,10 @@ static void step_keys_tests(void)
         cell_t c;
         step_cell(0, 2, &c);
 #if DLA_ON && FELUCCA_PLOCK                               /* (the user, 2026-10-12, D3: the lane's TUNE and DECAY locks) */
-        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
+        check(SCR->rows() == STP_PAT + 1u + STP_TL && c.label && !strcmp(c.label, "TUNE") && c.kind == CK_VAL,
               "drums: the held step's cards LEVEL RATCHET TUNE DECAY");
 #else
-        check(SCR->rows() == STP_LANE0 + 1u + STP_TL && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        check(SCR->rows() == STP_PAT + 1u + STP_TL && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
 #endif
         ui.force = 1;
         frame();
@@ -981,11 +980,11 @@ static void step_keys_tests(void)
     check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
     turn(EN_SELECT, 9);
     turn(EN_SELECT, -(int32_t)STP_TL);                 /* (past LANE: TOOLS, EUCLID, op_tools.c) */
-    check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_LANE0, "drums, no step held: SELECT walks PATTERN, then LANE (the lane stays 8)");
+    check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_PAT, "drums, no step held: SELECT walks PATTERN, then the tools (the lane stays 8)");
     {
         cell_t c;
         step_cell(ui.row[SCR_STEP], 0, &c);
-        check(c.label && !strcmp(c.label, "LEVEL"), "drums, no step held: the lane's LEVEL TUNE DECAY REV");
+        check(c.d == &TP[P_SLEN], "drums, no step held: PATTERN first, no LANE page (LEVEL TUNE DECAY REV)");
     }
     /* the window */
     t->p[P_SLEN] = 40;

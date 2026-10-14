@@ -132,11 +132,11 @@ static void algo_every_tests(void)
     frame();
     tap(B_SEQ);
     ok = al_walk(1) == MXR_LANE0 && lane_picked() && al_walk(2) == MXR_LANE0 + 2u;
-    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;              /* (the LANE page: the selected lane's) */
+    ui.row[SCR_STEP] = (uint8_t)STP_PAT;              /* (the LANE page: the selected lane's) */
     frame();
-    ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_LANE0 && lane_selected() == 3u;
-    ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == STP_LANE0 && !lane_picked();
-    check(ok, "STEP, the drum view: the walk into the lanes and back to DR; the page stays (SELECT's), the LANE page shows the lane");
+    ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_PAT && lane_selected() == 3u;
+    ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == STP_PAT && !lane_picked();
+    check(ok, "STEP, the drum view: the walk into the lanes and back to DR; the page stays (SELECT's), the lane is previewed");
     /* HOME + a key: a lane straight away, on any page */
     reset_ui();
     song.sel = 0;
@@ -189,7 +189,7 @@ static void algo_presets_tests(void)
     turn(EN_PRESET, 1);
     frames(2);
     ok = lane_picked() && lane_selected() == 3u && drum_kit_pos() != kit && !memcmp(src, dl.src, sizeof src);
-    check(ok, "PRESETS on a lane with SRC KIT: the kit (as on DR), every lane's source stays");
+    check(ok, "PRESETS on a lane with the source KIT: the kit (as on DR), every lane's source stays");
     check(ui.toast_t && ui.toast_col == kit_col() && !strncmp(ui.msg, "KIT ", 4), "... the toast names the kit");
     fm1_in.buttons |= BT(B_HOME);
     frame();
@@ -244,19 +244,7 @@ static void algo_presets_tests(void)
     turn(EN_PRESET, 1);
     frames(2);
     ok = lane_picked() && dl.src[4] != src[4] && drum_kit_pos() == kit;
-    {
-        cell_t c;
-        mitem_t m;
-        uint32_t k;
-        for (mx.set = 0; mx.set < mx_sets(mx_row()); mx.set++)
-            for (k = 0; k < 4u; k++)
-                if (mx_item(mx_row(), k, &m) && m.kind == MI_SOUND) {
-                    mix_cell(mx_row(), k, &c);
-                    ok &= !strcmp(c.val, lane_sound_name(4));
-                }
-        mx.set = 0;
-    }
-    check(ok, "the mixer's lane row on an instrument: PRESETS the lane's sound, its SOUND cell names it");
+    check(ok, "the mixer's lane row on an instrument: PRESETS (source LANE) the lane's sound");
     memset(&dl, 0, sizeof dl);
     lane_select(0);
     song.sel = 0;
