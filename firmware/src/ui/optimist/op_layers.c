@@ -671,7 +671,7 @@ static const param_desc_t *lay_desc(uint32_t l, uint32_t k, int16_t **vp)
     track_t *t = TSEL;
     *vp = 0;
     if (ui.master && lay_master_ok(l)) {
-        if (k < 4u) {
+        if (k < 4u && g_built(LAY_MASTER_G[k])) {      /* (a value the build lacks, DUST: no card, #22) */
             *vp = &song.g[LAY_MASTER_G[k]];
             return &GP[LAY_MASTER_G[k]];
         }
@@ -680,6 +680,8 @@ static const param_desc_t *lay_desc(uint32_t l, uint32_t k, int16_t **vp)
     switch (l) {
     case LY_FX: {
         static const uint8_t G[3] = {G_FILT, G_DUST, G_DUCK};
+        if (k < 3u && !g_built(G[k]))
+            return 0;                                   /* (a value the build lacks, DUST: no card, #22) */
         if (k < 3u) {
             *vp = &song.g[G[k]];
             return &GP[G[k]];

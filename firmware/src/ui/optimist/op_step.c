@@ -895,8 +895,9 @@ static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM
 static uint32_t step_rows0(void)                       /* the pages before TOOLS, EUCLID */
 {
     uint32_t n, i, p;
-    if (is_drum(TSEL))
-        return STP_LANE0 + (DL_UI ? 1u : 0u);
+    if (is_drum(TSEL))                                  /* (the ACCENT lane: no LANE page, its amount alone was a one-card
+                                                         * page; it is the SOUND row's ACCENT card and the mixer's: #21) */
+        return STP_LANE0 + (DL_UI && !lane_acc() ? 1u : 0u);
     n = page_rows(step_row_page, stp_ix);
     for (i = 0, p = stp_pattern(); i < n && stp_ix[i] != p; i++)
         ;
@@ -942,8 +943,10 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
 #if FELUCCA_PLOCK
         const param_desc_t *d;
         int32_t id = held_lane_param(k, &d);
-        if (id >= 0 && lane_acc() && !dstep_has(&t->dstep[i], DRUM_ACC))
-            str_cpy(c->val, "-", sizeof c->val);        /* (the ACCENT amount's lock needs the accent hit on the step) */
+        if (id >= 0 && lane_acc() && !dstep_has(&t->dstep[i], DRUM_ACC)) {
+            c->label = d ? d->label : 0;                /* (the ACCENT amount's lock needs the accent hit on the step: */
+            str_cpy(c->val, "-", sizeof c->val);        /* its card says "-") */
+        }
         else if (id >= 0)
             lock_cell_id(id, d, c);
 #endif
@@ -964,8 +967,14 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         rt = s->rat & 3u;
         if (!step_on(s))
             c->kind = CK_NONE;
+        if (k == 0u || k == 3u) {                       /* (an empty step: NOTE and LENGTH say "-", no value: audit #7) */
+            c->label = k ? "LENGTH" : "NOTE";
+            if (c->kind == CK_NONE) {
+                str_cpy(c->val, "-", sizeof c->val);
+                return;
+            }
+        }
         if (k == 0u) {
-            c->label = "NOTE";
             note_name(c->val, s->note[0]);
             if (s->n > 1u)
                 str_cpy(c->val + str_len(c->val), "+", sizeof c->val - str_len(c->val));
@@ -977,7 +986,6 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
             int32_t f = step_note_len10(t, (uint32_t)i, n);   /* (a recorded length: 1.8) */
             if (sp != n * 128u)                         /* (its own end, or on through carry steps: seq.c note_span) */
                 f = (int32_t)((sp * 10u + 64u) / 128u);
-            c->label = "LENGTH";
             fmt_int(c->val, f < 0 ? (int32_t)n : f / 10);
             if (f >= 0) {
                 char d[3] = {'.', (char)('0' + f % 10), 0};
@@ -989,11 +997,11 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         }
         k--;
     }
-    if (c->kind == CK_NONE) {
+    c->label = k ? "RATCHET" : "LEVEL";
+    if (c->kind == CK_NONE) {                           /* (an empty step: its LEVEL and RATCHET say "-", not a blank card) */
         str_cpy(c->val, "-", sizeof c->val);
         return;
     }
-    c->label = k ? "RATCHET" : "LEVEL";
     str_cpy(c->val, k ? RT_NAME[rt] : LV_NAME[lvl_rank(lv)], sizeof c->val);
     cell_gauge(c, 1, 0, 3, (int32_t)(k ? rt : lvl_rank(lv)));
 }
@@ -1026,15 +1034,8 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
 #if DL_UI
     {
         int16_t *vp;
-        if (lane_acc()) {                               /* the ACCENT lane's page: its amount alone (no sound) */
-            cell_clear(c);
-            if (k == 0u)
-                acc_cell(c);
-            return;
-        }
-        cell_param(c, dsnd_desc_lane(lane_selected(), STEP_LANE_PG.id[k & 3u], &vp), vp);
-        if (!c->label)                                  /* (a value this lane's sound has not: "-") */
-            str_cpy(c->val, "-", sizeof c->val);
+        cell_param(c, dsnd_desc_lane(lane_selected(), STEP_LANE_PG.id[k & 3u], &vp), vp);   /* (a value this lane's
+                                                         * sound has not: the knob's frame alone, audit #7) */
     }
 #else
     cell_clear(c);
@@ -1072,8 +1073,6 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (!stp_is_lane(r))
         page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
 #if DL_UI
-    else if (lane_acc())
-        acc_turn(k, s, fine);                           /* (the ACCENT lane's page: its amount, card 1) */
     else
         page_turn(&STEP_LANE_PG, k, s, fine);           /* (the selected lane's) */
 #endif

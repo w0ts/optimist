@@ -25,6 +25,8 @@ static void lay_title(char *t, uint32_t n)
     if (lay.lock != LY_PLAY)
         str_cpy(t + str_len(t), " LOCKED", n - str_len(t));
 }
+/* a layer that is not the track's: its name is the header's badge (the audit's #11: "SCENES", "REPEAT", "FX") */
+static const char *lay_badge(void) { return LAY_NAME[lay.shown % LY_COUNT]; }
 
 /* ---- the cards: the layer's four knobs */
 static void lay_cell(uint32_t k, cell_t *c)
@@ -36,10 +38,12 @@ static void lay_cell(uint32_t k, cell_t *c)
     int16_t *vp;
     const param_desc_t *d = lay_desc(l, k, &vp);
     cell_clear(c);
-    if (ui.master && d && lay_master_ok(l)) {                               /* MASTER: the master FX's four values, in any layer */
-        static const char *const LABM[4] = {"FILTER", "DUST", "DUCK", "COMP"};
-        cell_param(c, d, vp);
-        c->label = LABM[k & 3u];
+    if (ui.master && lay_master_ok(l)) {                /* MASTER: the master FX's four values, in any layer (one the */
+        static const char *const LABM[4] = {"FILTER", "DUST", "DUCK", "COMP"};   /* build lacks: the frame alone) */
+        if (d) {
+            cell_param(c, d, vp);
+            c->label = LABM[k & 3u];
+        }
         return;
     }
     if (l == LY_OPS) {

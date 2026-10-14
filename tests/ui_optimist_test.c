@@ -530,7 +530,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
-        check(!strcmp(h, "Master ins tone"), "its header names it (Master ins tone, the first page: the inserts)");
+        check(!strcmp(h, "Ins tone"), "its header names it (Ins tone under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
         for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);
@@ -1267,7 +1267,8 @@ static void layer_tests(void)
         int16_t f = song.g[G_FILT], d = song.g[G_DUST];
         turn(EN_K1, -3);
         turn(EN_K2, 4);
-        check(song.g[G_FILT] < f && song.g[G_DUST] > d, "FX held: KNOB 1 FILTER, KNOB 2 DUST");
+        check(song.g[G_FILT] < f && (FELUCCA_FX_DUST ? song.g[G_DUST] > d : song.g[G_DUST] == d),
+              "FX held: KNOB 1 FILTER, KNOB 2 DUST (without DUST built: its frame alone, nothing turns)");
         d = song.g[G_DUST];
         turn(EN_PRESET, 1);
         check(song.g[G_DUST] == d, "FX held: PRESETS no longer edits the hot knob (DUST)");
@@ -1564,13 +1565,16 @@ static void tempo_tests(void)
     turn(EN_SELECT, 1);
     check(ui.row[SCR_TEMPO] == 1, "TEMPO: SELECT the REC row");
     turn(EN_SELECT, 1);
-    {   /* REC 2: QUANT (REC QUANTIZE), ON by default; BPM and NUDGE stay together on the TEMPO row */
+    {   /* REC 2: QUANT (REC QUANTIZE), ON by default; BPM and NUDGE stay together on the TEMPO row. Without REC MODES QUANT is
+         * REC's first card (MODE's, empty there) and REC 2 is no page (the audit's #21: no one-card page) */
         cell_t c, b, n;
-        tp_cell(2, 0, &c);
+        const uint32_t qr = FELUCCA_REC_MODES ? 2u : 1u;
+        SCREENS[SCR_TEMPO].cell(qr, 0, &c);
         tp_cell(0, 0, &b);
         tp_cell(0, 1, &n);
-        check(ui.row[SCR_TEMPO] == 2 && c.label && !strcmp(c.label, "QUANT") && song.g[G_RECQ] == 1 &&
-              !strcmp(b.label, "BPM") && !strcmp(n.label, "NUDGE"), "TEMPO: SELECT again, REC 2: QUANT, ON (BPM NUDGE on TEMPO)");
+        check(ui.row[SCR_TEMPO] == qr && SCREENS[SCR_TEMPO].rows() == qr + 1u && c.label && !strcmp(c.label, "QUANT") &&
+              song.g[G_RECQ] == 1 && !strcmp(b.label, "BPM") && !strcmp(n.label, "NUDGE"),
+              "TEMPO: SELECT again, REC 2: QUANT, ON (BPM NUDGE on TEMPO; no REC MODES: QUANT on REC, two pages)");
         turn(EN_K1, -1);
         check(song.g[G_RECQ] == 0, "TEMPO REC 2: KNOB 1 QUANT OFF");
         ui.force = 1;
@@ -1579,7 +1583,7 @@ static void tempo_tests(void)
         turn(EN_K1, 1);
         check(song.g[G_RECQ] == 1, "... and ON");
     }
-    turn(EN_SELECT, -2);
+    turn(EN_SELECT, -3);
     key(WK(0));
     frames(29);
     key(WK(0));
@@ -2467,6 +2471,7 @@ static void led_tests(void)
 #include "ui_optimist_lanevals.h"                  /* a picked lane shows the lane's values; the drum track's own tagged DR */
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
+#include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
 
 int main(int argc, char **argv)
 {
@@ -2499,6 +2504,7 @@ int main(int argc, char **argv)
     header_track_tests();
     header_tracknum_tests();
     names_tests();
+    bd_layout_tests();
     mixer_tests();
     scope_tests();
     step_keys_tests();

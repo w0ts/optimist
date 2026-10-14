@@ -346,7 +346,7 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
 
 /* ---- MASTER (SCR_FX): the global effects' pages, in the signal's order (the user, 2026-10-14: "we should have inserts,
  * then send returns, then fx slots, then macro"): INS TONE INS COMP INS LIMIT (the master bus' own inserts), RETURNS
- * RET DELAY RET REV [RET TYPE] (the return levels, then the effects they return), SLOTS, MACRO. PAGES keeps SLOOP's
+ * RET DELAY RET REV (the return levels, then the effects they return; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
  * order and titles (its UI draws them: ui/sloop/ui_draw.c); the order and names shown are this table's (FX_ORDER, a
  * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, sits
  * on LIMIT's free card: GAIN CEIL TUNE GR */
@@ -372,9 +372,32 @@ static uint32_t fx_rank(uint32_t ix)
             break;
     return i;
 }
+/* REVERB's TYPE (REV_MULTI: the reverb's algorithm, its page's one card) is RETURNS' fourth card (the audit's #21: no page of
+ * one card; the reverb's return beside the reverb's kind), never a row of its own */
+static int fx_type_pg(const page_t *pg)
+{
+#if REV_MULTI
+    return pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE;
+#else
+    (void)pg;
+    return 0;
+#endif
+}
+static const page_t *fx_type_page(void)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (fx_type_pg(&PAGES[i]))
+            return &PAGES[i];
+    return 0;
+}
 static uint32_t fxs_rows(void)
 {
     uint32_t n = page_rows(fx_page, fx_ix), i, j;
+    for (i = j = 0; i < n; i++)                         /* (REVERB's TYPE: on RETURNS) */
+        if (!fx_type_pg(fx_pg_of(fx_ix[i])))
+            fx_ix[j++] = fx_ix[i];
+    n = j;
     if (n < OP_MAXROWS)
         fx_ix[n++] = FX_RET_IX;
     for (i = 1; i < n; i++) {                           /* PAGES' order to this one's (stable insertion sort) */
@@ -396,12 +419,52 @@ static void fxs_name(uint32_t r, char *b)
         }
     str_cpy(b, t, 12);
 }
+/* row r's card k as its knob: the page and its cell (*j), 0 none. The values this build has come first, in their order, a
+ * value it lacks (INS TONE's DUST without FX_DUST) leaves its frame at the end (the audit's #22: no empty card at the head
+ * of a page); RETURNS: the returns of the sends a slot holds (as the mixer's), then REVERB's TYPE where it is built and shown */
+static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
+{
+    static const uint8_t RT[3] = {FXT_REV, FXT_DLY, FXT_CHO};
+    const page_t *pg = fx_pg(r), *ty = pg == &FX_RET ? fx_type_page() : 0;
+    uint32_t n = 0;
+    for (*j = 0; *j < 4u; (*j)++) {
+        uint32_t id = page_id(pg, *j);
+        if (pg == &FX_RET && *j == 3u && ty && page_shown(ty)) {
+            if (n == (k & 3u)) {
+                *j = 0;
+                return ty;
+            }
+            break;
+        }
+        if (id != 0xFFu && pg->scope == SC_GLOBAL && (!cell_built(pg, id) || (pg == &FX_RET && *j < 3u && !FXS_ON(RT[*j]))))
+            continue;
+        if (n++ == (k & 3u))
+            return pg;
+    }
+    return 0;
+}
 static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     static const char *const RL[3] = {"REV RET", "DLY RET", "CHO RET"};
-    page_cell(fx_pg(r), k, c);
-    if (fx_pg(r) == &FX_RET && k < 3u)
-        c->label = RL[k];
+    uint32_t j;
+    const page_t *pg = fxs_at(r, k, &j);
+    cell_clear(c);
+    if (!pg)
+        return;
+    page_cell(pg, j, c);
+    if (pg == &FX_RET && j < 3u)
+        c->label = RL[j];
 }
-static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(fx_pg(r), k, s, fine); }
-static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, fx_pg(r), k, ok); }
+static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine)
+{
+    uint32_t j;
+    const page_t *pg = fxs_at(r, k, &j);
+    if (pg)
+        page_turn(pg, j, s, fine);
+}
+static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok)
+{
+    uint32_t j;
+    const page_t *pg = fxs_at(r, k, &j);
+    return pg && page_yes(SCR_FX, r, pg, j, ok);
+}

@@ -4,7 +4,8 @@
  * know yet that it is a tap). A key while PLAY is down opens it at once.
  *   rows       TEMPO: BPM · NUDGE · SWING · SYNC     REC: MODE · LENGTH · START · CLICK (the REC MODES dials)
  *              REC 2: QUANT · - · - · - (REC QUANTIZE, the project's: ON snaps a recorded note to the grid, OFF keeps its
- *              start as a nudge and its length as a GATE lock, seq.c rec_exact; the free cells for what joins it).
+ *              start as a nudge and its length as a GATE lock, seq.c rec_exact; the free cells for what joins it);
+ *              without REC MODES QUANT is on REC's first card and REC 2 is no page (tps_*, the audit's #21).
  *              SELECT walks them (the screen's pages); BPM and NUDGE stay together on the first (the user)
  *   OCT- / +   held: the nudge, the clock a few percent slower / faster while held (seq.c clk_nudge, the BPM value
  *              never changes; nothing while an external clock is followed)
@@ -82,7 +83,6 @@ static uint32_t rec_len_ix(void)                        /* the selected track's 
     int32_t len = TSEL->p[P_SLEN];
     return len > 32 ? 2u : len > 16 ? 1u : 0u;
 }
-static uint32_t tp_rows(void) { return TPR_N; }
 static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
 static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
 {
@@ -130,9 +130,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
     str_cpy(c->val, k ? (rec_count ? "COUNT" : "NOTE") : (rec_tempo ? "TEMPO" : "FREE"), sizeof c->val);
     cell_gauge(c, 1, 0, 1, k ? rec_count : rec_tempo);
 #else
-    c->kind = CK_NONE;
-    c->label = "";
-    str_cpy(c->val, "-", sizeof c->val);                /* (REC MODES not in this build) */
+    cell_clear(c);                                      /* (REC MODES not in this build: the knob's frame alone) */
 #endif
 }
 static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
@@ -194,3 +192,16 @@ static int tp_yes(uint32_t r, uint32_t k, uint32_t ok)
     tp_turn(r, k, c.gv ? -1 : 1, 1);                    /* an on / off value: toggled */
     return 1;
 }
+
+/* the TEMPO screen's rows (GLOBAL keeps tp_* whole, its lines: op_global.c). Without REC MODES the REC row's MODE and START
+ * cards are empty: QUANT, REC 2's one value, sits on MODE's card and REC 2 goes (the audit's #21: no one-card page). With
+ * them the two pages are full (BPM NUDGE SWING SYNC, MODE LENGTH START CLICK): QUANT keeps its page */
+#define TPS_N (FELUCCA_REC_MODES ? (uint32_t)TPR_N : (uint32_t)TPR_REC2)
+static uint32_t tps_map(uint32_t r, uint32_t k)         /* the screen's row r, card k: tp_*'s row */
+{
+    return !FELUCCA_REC_MODES && r == TPR_REC && k == 0u ? (uint32_t)TPR_REC2 : r;   /* (QUANT is REC 2's card 0 too) */
+}
+static uint32_t tps_rows(void) { return TPS_N; }
+static void tps_cell(uint32_t r, uint32_t k, cell_t *c) { r = tps_map(r, k); tp_cell(r, k, c); }
+static void tps_turn(uint32_t r, uint32_t k, int32_t s, int fine) { r = tps_map(r, k); tp_turn(r, k, s, fine); }
+static int tps_yes(uint32_t r, uint32_t k, uint32_t ok) { r = tps_map(r, k); return tp_yes(r, k, ok); }

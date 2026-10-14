@@ -22,6 +22,7 @@ static void pages_nav_tests(void)
         turn(EN_SELECT, 1);
         check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == p1, "D1: SELECT: GLOBAL's next page (its first line)");
         tap(B_GLO);
+        tf.t = 0;                                       /* (a track-name flash still running: the track's colour, not the badge) */
         frames(2);
         head_pos(SCR_SYSTEM, 0, p);
         check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == 0u && led_lvl(B_GLO) == 2 && px_in(2, 3, 4, 19, C_HI),
@@ -212,15 +213,20 @@ static void pages_master_order_tests(void)
         for (k = 0; k < 4u; k++) {
             cell_t c, o;
             SCR->cell(r, k, &c);
-            if (!W[i].old) {                            /* RETURNS: the three return levels (the mixer's) */
-                cards &= k < 3u ? c.vp == &song.g[RET[k]] : c.kind == CK_NONE;
-                if (!(k < 3u ? c.vp == &song.g[RET[k]] : c.kind == CK_NONE))
+            if (!W[i].old) {                            /* RETURNS: the three return levels (the mixer's), then REVERB's TYPE
+                                                         * (REV_MULTI builds: its one card, batch D) or nothing */
+                int ok4 = k < 3u ? c.vp == &song.g[RET[k]] : REV_MULTI ? c.label && !strcmp(c.label, "TYPE") : c.kind == CK_NONE;
+                cards &= ok4;
+                if (!ok4)
                     printf("  %s card %u: not the return\n", nm, k);
             } else if (!strcmp(W[i].old, "LIMIT")) {    /* LIMIT keeps GAIN CEIL TUNE GR */
                 if (k < 3u && c.vp != &song.g[LIM[k]])
                     printf("  %s card %u: not LIMIT's\n", nm, k), cards = 0;
-            } else {
-                page_cell(pm_old_page(W[i].old, W[i].scope), k, &o);
+            } else {                                    /* (a value the build lacks: its frame last, fxs_at; batch D) */
+                uint32_t j;
+                cell_clear(&o);
+                if (fxs_at(r, k, &j))
+                    page_cell(pm_old_page(W[i].old, W[i].scope), j, &o);
                 if (!(c.vp == o.vp && c.kind == o.kind && ((!c.label && !o.label) || (c.label && o.label && !strcmp(c.label, o.label)))))
                     printf("  %s card %u differs from PAGES' %s\n", nm, k, W[i].old), cards = 0;
             }
@@ -258,7 +264,7 @@ static void pages_master_tests(void)
           FELUCCA_MACROS ? "D3: MASTER's 8 pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
-    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Master ins tone"), "D3: the screen is MASTER (\"Master ins tone\")");
+    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Ins tone"), "D3: the screen is MASTER (its badge), the title \"Ins tone\"");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
     check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
@@ -606,13 +612,29 @@ static void head_now(char *t)                           /* the header's title no
     head_make(&h);
     str_cpy(t, h.t, 32);
 }
+static int hd_badge_is(const char *b)                  /* the header's badge now is b (the audit's #11) */
+{
+    head_t h;
+    head_make(&h);
+    return h.badge && !strcmp(h.eng, b);
+}
 static uint32_t head_bad;
-static void head_ok(const char *where)                  /* the header now: a capital first, no "n n/N" */
+static void head_ok(const char *where)                  /* the header now: a badge, a capital first, no "n n/N" (GLOBAL,
+                                                         * SYSTEM: the badge alone, the list has the page's title) */
 {
     char t[32];
     uint32_t i, n;
+    head_t h;
+    head_make(&h);
     head_now(t);
     n = str_len(t);
+    if (!h.badge || !h.eng[0] || (!n && !gl_scr(ui.scr))) {
+        printf("  header %s: no badge or no title '%s' '%s'\n", where, h.eng, t);
+        head_bad++;
+        return;
+    }
+    if (!n)
+        return;
     for (i = 0; i + 2u < n && t[i + 2u] != '/'; i++)
         ;
     if (!(t[0] >= 'A' && t[0] <= 'Z') || (i >= 2u && i + 2u < n && t[i - 1u] >= '0' && t[i - 1u] <= '9' && t[i - 2u] == ' ' &&
@@ -687,13 +709,13 @@ static void pages_head_tests(void)
         op_enter(SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!strcmp(t, "Global"), "D11: GLOBAL's header: \"Global\" (the page's title is the list's)");
+        check(!t[0] && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, no title (the page's title is the list's)");
         line_named(SCR_GLOBAL, "QUANT");
         head_now(t);
-        check(!strcmp(t, "Global"), "D11: GLOBAL's QUANT line (REC 2): still \"Global\"");
+        check(!t[0] && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): still the badge alone");
         line_named(SCR_SYSTEM, "COLOR");
         head_now(t);
-        check(!strcmp(t, "System"), "D11: SYSTEM's COLOR line: \"System\"");
+        check(!t[0] && hd_badge_is("SYSTEM"), "D11: SYSTEM's COLOR line: the badge SYSTEM alone");
     }
     reset_ui();
     turn(EN_ALGO, -1);
@@ -701,13 +723,13 @@ static void pages_head_tests(void)
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Master ins tone 1/", 18), "D11: MASTER's first page: \"Master ins tone 1/N\" (no badge there: the screen's word)");
+        check(!strncmp(t, "Ins tone 1/", 11) && hd_badge_is("MASTER"), "D11: MASTER's first page: the badge MASTER, \"Ins tone 1/N\" (never the screen's word again)");
     }
     ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "INS TONE");
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Master ins tone ", 16), "D11: MASTER INS TONE: \"Master ins tone n/N\" (was \"FX master 5/9\")");
+        check(!strncmp(t, "Ins tone ", 9), "D11: MASTER INS TONE: \"Ins tone n/N\" (was \"FX master 5/9\", then \"Master ins tone\")");
     }
     reset_ui();
     tap(B_EDIT);

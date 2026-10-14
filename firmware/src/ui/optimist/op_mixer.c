@@ -9,8 +9,8 @@
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
  *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO), then FX on and the
  *              SOUND; a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO | SOUND; DR MUTE VOLUME | FILTER | FX on, KIT; MASTER FILT
- *              DUST DUCK | the returns, a card a FX slot (S1..S4: a send's return level, "-" else; 2026-10-12) | THRS
- *              RATIO GAIN CEIL. Each group on a set of its own. Values only: the screens are not sets.
+ *              DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns, REV DLY CHO RET, those a FX slot holds (batch D;
+ *              2026-10-12 had a card a slot, "-" for an insert or an empty one). Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
  *   SAVE       PROJECT (always: the mixer has no YES, D6); FX on and MUTE are knobs, the SOUND row is EDIT's first
@@ -109,38 +109,30 @@ static uint32_t mx_items_synth(mitem_t *it)
     return mx_add(it, n, MG_LAST, "SOUND", MI_SOUND, 0);
 }
 /* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
- * tracks"): a card a FX slot, in the slots' order (FX > SLOTS), named after it: "S2 CHO"; a send's (CHO DLY REV) turns
- * its return (core.h G_CRET G_DRET G_RRET, fx.c), an insert or an empty slot shows "-". One instance per type (fx_slots.c
- * fxs_set): one return per send. No send in any slot: no set */
-static char mx_rlab[FX_NSLOT][8];
-static uint32_t mx_ret_id(uint32_t k)                   /* slot k's return (a G_* id), 0xFF: none (an insert, empty) */
-{
-    uint32_t t = fxs_slot[k % FX_NSLOT];
-    return (t == FXT_CHO || t == FXT_DLY || t == FXT_REV) && FXS_ON(t) ? G_CRET + (t - FXT_CHO) : 0xFFu;
-}
+ * tracks"): a card a send a master slot holds, REV DLY CHO (the one order, as the master FX's RETURNS page, op_screens.c
+ * FX_RET), "REV RT" "DLY RT" "CHO RT"; each turns its return (core.h G_CRET G_DRET G_RRET, fx.c). An insert or an empty
+ * slot has no return, so no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). One instance per type
+ * (fx_slots.c fxs_set): one return per send. No send in any slot: no set */
 static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 {
-    uint32_t k, any = 0;
-    for (k = 0; k < FX_NSLOT; k++)
-        any |= mx_ret_id(k) != 0xFFu;
-    for (k = 0; any && k < FX_NSLOT; k++) {
-        uint32_t t = fxs_slot[k], a = t < FXT_N && (FXT_BUILT >> t & 1u) ? FXT_AMT[t] : 0xFFu;
-        mx_rlab[k][0] = 'S', mx_rlab[k][1] = (char)('1' + k), mx_rlab[k][2] = 0;
-        if (a != 0xFFu) {
-            mx_rlab[k][2] = ' ';
-            str_cpy(mx_rlab[k] + 3, TP[a].label, sizeof mx_rlab[k] - 3u);
-        }
-        n = mx_add(it, n, MG_SEND, mx_rlab[k], MI_RET, k);
-    }
+    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
+    static const char *const L[3] = {"REV RET", "DLY RET", "CHO RET"};
+    uint32_t k;
+    for (k = 0; k < 3u; k++)
+        if (FXS_ON(T[k]))
+            n = mx_add(it, n, MG_SEND, L[k], MI_RET, G_CRET + (T[k] - FXT_CHO));
     return n;
 }
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
     if (r == MXR_MASTER) {                              /* filter, dust, duck; the compressor; then the returns (the master FX screen's order) */
-        n = mx_add(it, n, MG_MIX, "FILT", MI_GLOB, G_FILT);
-        n = mx_add(it, n, MG_MIX, "DUST", MI_GLOB, G_DUST);
-        n = mx_add(it, n, MG_MIX, "DUCK", MI_GLOB, G_DUCK);
+        static const uint8_t G[3] = {G_FILT, G_DUST, G_DUCK};
+        static const char *const L[3] = {"FILT", "DUST", "DUCK"};
+        uint32_t i;
+        for (i = 0; i < 3u; i++)
+            if (g_built(G[i]))                  /* (what the build has: #22) */
+                n = mx_add(it, n, MG_MIX, L[i], MI_GLOB, G[i]);
 #if FELUCCA_MASTER_COMP
         n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
         n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
@@ -246,11 +238,9 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_GLOB:
         *vp = &song.g[m->id];
         return &GP[m->id];
-    case MI_RET:                                        /* (an insert, an empty slot: none, "-") */
-        if (mx_ret_id(m->id) == 0xFFu)
-            return 0;
-        *vp = &song.g[mx_ret_id(m->id)];
-        return &GP[mx_ret_id(m->id)];
+    case MI_RET:                                        /* (a send's return: its G_* id) */
+        *vp = &song.g[m->id];
+        return &GP[m->id];
     case MI_ACC:                                        /* the ACCENT amount: the drum track's own value */
         *vp = &TDRUM->p[P_DACC];
         return &DRUM_ACC_DESC;
@@ -306,8 +296,8 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 
 /* ---- the screen's rows */
 static uint32_t mix_rows(void) { return MXR_N; }
-/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "MASTER" "RETURNS"
- * "COMP": the header's "T2 insert", "Mix returns", "Mix comp" */
+/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "INS TONE" "COMP"
+ * "RETURNS": the header's "T2 insert"; on MASTER the badge MASTER and "Ins tone", "Returns" */
 static void mix_name(uint32_t r, char *b)
 {
     static const char *const G[4] = {"MIX", "INSERT", "SENDS", "SOUND"};
@@ -317,7 +307,7 @@ static void mix_name(uint32_t r, char *b)
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp & 3u;
     if (r == MXR_MASTER)
-        str_cpy(b, g == MG_SEND ? "RETURNS" : g ? "COMP" : "MASTER", 12);
+        str_cpy(b, g == MG_SEND ? "RETURNS" : g ? "COMP" : "INS TONE", 12);   /* (as the master FX's pages; the badge says MASTER) */
     else
         str_cpy(b, r == MXR_DR && g == MG_LAST ? "KIT" : G[g], 12);
 }
@@ -339,9 +329,9 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
         break;
     default:
         cell_param(c, mx_desc(r, &m, &vp), vp);
-        if (!c->d)
-            str_cpy(c->val, "-", sizeof c->val);
-        else if (m.kind == MI_INST)
+        if (!c->d)                                      /* (an empty slot's amount: the knob's frame alone, audit #7) */
+            return;
+        if (m.kind == MI_INST)
             cell_ins_note(c, mx_trk_of(r), m.id);
         break;
     }

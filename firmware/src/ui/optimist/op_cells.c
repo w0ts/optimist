@@ -98,18 +98,29 @@ static void drlvl_db(int32_t v, char *val, const char **unit)
     fmt_fix(val, LEVEL_DB_X10[best], 1);
     *unit = "dB";
 }
-/* a cell from a descriptor and its value: "-" when the page does not show it, an action for a GO button, a
- * read-out for a value with no range (LIMIT > GR) */
+/* a song value (G_*) this build has (params.c cell_built: DUST, DUCK, FILT, the compressor...): what is not built never
+ * shows as a card, anywhere (the audit's #22: the master's DUST on the mixer, the FX layer) */
+static int g_built(uint32_t id)
+{
+    static const page_t P = {"", FAM_GLO, SC_GLOBAL, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}};
+    return cell_built(&P, id);
+}
+/* a list entry that names nothing ("----" an empty FX slot, "--" an empty kit slot): the cell says EMPTY, dim (style
+ * guide 5, the audit's #7: one word for a slot with nothing in it; a list cell shows it "-", op_names.c) */
+static void cell_empty_slot(cell_t *c)
+{
+    if (c->val[0] == '-' && c->val[1] == '-' && (!c->val[2] || (c->val[2] == '-' && c->val[3] == '-' && !c->val[4]))) {
+        str_cpy(c->val, "EMPTY", sizeof c->val);
+        c->dim = 1;
+    }
+}
+/* a cell from a descriptor and its value: none when the page does not show it (the knob's frame alone, no label, no
+ * dash: style guide 6), an action for a GO button, a read-out for a value with no range (LIMIT > GR) */
 static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
 {
     cell_clear(c);
-    if (!d)
+    if (!d || PARAM_HIDDEN(d) || !vp)
         return;
-    if (PARAM_HIDDEN(d) || !vp) {
-        c->label = "";
-        str_cpy(c->val, "-", sizeof c->val);
-        return;
-    }
     c->label = d->label;
     c->d = d;
     c->vp = vp;
@@ -133,6 +144,8 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
         char b[16];                                     /* (DST -> DIST, FILT -> FILTER, CMP -> COMP: op_names.c) */
         str_cpy(c->val, nm_card(c->val, 0, b, sizeof b), sizeof c->val);
     }
+    if (d->fmt == F_ENUM)
+        cell_empty_slot(c);
     if (d->fmt == F_STEPS)
         c->unit = "steps";                              /* (the style guide's unit: never "ST", "STEP") */
     else if (d->fmt == F_FILT)
@@ -263,8 +276,35 @@ static uint32_t src_page_ix(void)                       /* PAGES' SOURCE (the br
             return i;
     return 0;
 }
+/* one-card pages merged into a neighbour (the audit's #21; SLOOP's UI keeps PAGES' as they are):
+ *   FLT 2 (ANALOG's FTYP alone) on OSC 2's free card: OSC 2 is OP_OSC2 here, FLT 2 no row (merged_away)
+ *   FILTER (the track filter's amount alone) no row: INSERTS shows the same value, the amount card of the slot holding it */
+#if FELUCCA_ANALOG2
+static const page_t OP_OSC2 = {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2FTYP}};
+#define OSC2_PAGE(pg) ((pg)->scope == SC_TRACK && (pg)->id[0] == P_A2WAVE)
+#else
+#define OSC2_PAGE(pg) 0
+#endif
+static int merged_away(const page_t *pg)
+{
+    if (pg->scope != SC_TRACK)
+        return 0;
+#if FELUCCA_ANALOG2
+    if (pg->id[0] == P_A2FTYP)
+        return 1;
+#endif
+#if FELUCCA_TRK_FILT
+    if (pg->id[0] == P_TFLT)
+        return 1;
+#endif
+    return 0;
+}
 static const page_t *op_pg(uint32_t i)
 {
+#if FELUCCA_ANALOG2
+    if (i < NPAGES && OSC2_PAGE(&PAGES[i]))
+        return &OP_OSC2;
+#endif
     if (i < NPAGES)
         return src_page(&PAGES[i]) ? &LANE_SMP_PG : &PAGES[i];
     i -= NPAGES;
@@ -400,6 +440,8 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
 {
     if (pg->scope == SC_DSND && is_drum(TSEL) && lane_acc())
         return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
+    if (merged_away(pg))
+        return 0;                                       /* (FLT 2, FILTER: their card is on a neighbour, #21) */
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
     if (lane_fx_pg(pg))                                 /* (a lane's INSERTS and SENDS: a lane selected, never DR itself) */
