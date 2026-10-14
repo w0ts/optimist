@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* STEP's panel (docs/UI-OPTIMIST-DESIGN.md section 4.2): the window's 16 steps as columns under the keys.
- *   the drum track   the 16 lanes x the 16 steps: a hit in its lane's colour, its level as the shade (ghost dim ..
+ *   the drum track   the 16 lanes (and the ACCENT lane, 17) x the 16 steps: a hit in its lane's colour, its level as the shade (ghost dim ..
  *                    hard full), its ratchet as notches; the selected lane's row lit; at the left each lane's colour
  *                    chip and two-letter code (LANE_CODE, as the mixer), the selected lane's white
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
@@ -17,8 +17,8 @@
 #define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
 #define SP_H (240 - SP_Y)
 #define SG_H 204                        /* the 16 lanes' rows; the roll's height: the panel less the marks and the playhead */
-#define SG_LY(l) (SG_TOP + (int32_t)(l) * SG_H / 16)   /* lane l's row: 12 or 13 px, the remainder spread out */
-#define SG_LH (SG_H / 16)               /* (the least a row is) */
+#define SG_LY(l) (SG_TOP + (int32_t)(l) * SG_H / (int32_t)DRUM_UILANES)   /* lane l's row: 12 or 13 px (17 lanes with the ACCENT lane: 12), the remainder spread out */
+#define SG_LH (SG_H / (int32_t)DRUM_UILANES)   /* (the least a row is) */
 #define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
 #define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel's last 4 rows */
 #define SG_INFO_H 38                    /* a held step's two lines: part of the overlay, over the grid's foot */
@@ -60,11 +60,11 @@ static void sg_drums(const track_t *t)
     cv_rect(0, SG_LY(sel) - 1, 240, 1, C_DIM);          /* the selected lane's row: lined above and below */
     cv_rect(0, SG_LY(sel + 1u) - 1, 240, 1, C_DIM);
     sg_ground(t);
-    for (l = 0; l < DRUM_LANES; l++) {
+    for (l = 0; l < DRUM_UILANES; l++) {                /* (the 16 sounds, then the ACCENT lane's row) */
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
-        uint16_t c = lane_col(l);
+        uint16_t c = op_lane_col(l);
         cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
-        cv_text(6, y + (lh - 16) / 2, &FONT_S, LANE_CODE[l], l == sel ? C_WHITE : c);   /* (the user, 2026-10-11) */
+        cv_text(6, y + (lh - 16) / 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
@@ -276,7 +276,7 @@ static void sg_marks(const track_t *t)
 {
     const auto_list_t *l = AL(t);
     uint32_t i, j, len = trk_len(t), lo = st.page * 16u, hi = lo + 16u;
-    uint16_t c0 = is_drum(t) ? lane_col(lane_selected()) : trk_col(song.sel);
+    uint16_t c0 = is_drum(t) ? op_lane_col(lane_selected()) : trk_col(song.sel);
     for (i = 0; i < l->n; i++) {
         const auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP, nx = len, a, b;
@@ -313,8 +313,8 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         h = (h ^ p[i]) * 16777619u;
 #endif
     if (is_drum(t))
-        for (i = 0; i < DRUM_LANES; i++)
-            h = hu(h, lane_col(i));
+        for (i = 0; i < DRUM_UILANES; i++)
+            h = hu(h, op_lane_col(i));
     else
         h = hu(hu(h, pick_note(0)), (uint32_t)(song.octave + 16) + song.sel * 64u);   /* (the roll's view: OCT) */
     return hu(h, settings.palette);

@@ -296,8 +296,8 @@ static void lane_pick_from(uint32_t l, int key)
     uint32_t was = lane_selected();
     lane_select(l);
     ui.lane = 1;                                        /* (a lane selected, not DR itself: PRESETS its sound) */
-    if (!key && ui.scr == SCR_STEP && (l & 15u) != was && !song.playing && !transport_req)
-        audition_lane(l);                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
+    if (!key && ui.scr == SCR_STEP && l != was && l != DRUM_ACC && !song.playing && !transport_req)
+        audition_lane(l);                               /* (the ACCENT lane has no sound to preview) */                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
 static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
 /* the pick's modifier held on the drum track: SEQ on STEP, HOME elsewhere (on STEP HOME + a key clears a step) */
@@ -343,11 +343,11 @@ static void drum_hit_pick(uint32_t notes)
     for (k = 0; k < 4u; k++)
         if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
             return;
-    for (k = 0; k < 27u && !(((notes >> k) & 1u) && punch_key(k) >= 0); k++)
-        ;                                               /* (the lowest white key: the upper keys play and pick nothing) */
-    if (k == 27u || (ui.lane && lane_of_key(k) == lane_selected()))
+    for (k = 0; k < 27u && !(((notes >> k) & 1u) && lane_key(k)); k++)
+        ;                                               /* (the lowest white key, or key 1, the ACCENT lane: the other upper keys play and pick nothing) */
+    if (k == 27u || (ui.lane && lane_of(k) == lane_selected()))
         return;
-    lane_pick_from(lane_of_key(k), 1);
+    lane_pick_from(lane_of(k), 1);
     if (ui.scr == SCR_HOME)
         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its lane row) */
     op_repaint();                                       /* (in place: the cards, the badge, the pictures follow) */
@@ -641,8 +641,8 @@ static void ui_input(void)
     } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
-                if (((notes >> id) & 1u) && punch_key(id) >= 0) {   /* (a white key: the upper keys pick nothing) */
-                    lane_pick_from(lane_of_key(id), 1); /* the selected lane: SOUND's rows, STEP's header */
+                if (((notes >> id) & 1u) && lane_key(id)) {   /* (a white key or key 1, the ACCENT lane: the other upper keys pick nothing) */
+                    lane_pick_from(lane_of(id), 1);     /* the selected lane: SOUND's rows, STEP's header */
                     if (ui.scr == SCR_HOME)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }

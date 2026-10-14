@@ -34,7 +34,7 @@ static int lsrc_check_lane(uint32_t l, uint8_t src, const char *what)
     memset(&c, 0, sizeof c);
     SCR->cell(0, 3, &c);
     (void)snprintf(msg, sizeof msg, "%s: page 1's knob 4 stays empty", what);
-    check(!c.label || !c.label[0], msg);
+    check(ACC_UI ? (c.label && str_eq(c.label, "ACCENT")) : (!c.label || !c.label[0]), msg);   /* (the ACCENT amount, where built) */
     return ok;
 }
 static void lane_src_tests(void)

@@ -42,11 +42,13 @@ static void mixer_walk_tests(void)
     check(ok && mx_row() == MXR_N - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
     ui.force = 1;
     frame();
-    check(mxd.first == MXR_LANE0 && mxd.last == MXR_N && mx_row_x(MXR_N - 1u) == 120u && mx_row_y(MXR_N - 1u) > mx_row_y(MXR_N - 2u) &&
-              px_in(120, mx_row_y(MXR_N - 1u), 120, 10, col_shade(lane_col(15), 3u)),
-          "past DR the view is the 16 drum sounds, two columns of eight; the selected lane tinted in its colour (the 16th, right)");
+    check(mxd.first == MXR_LANE0 && mxd.last == MXR_N && mx_row_x(MXR_N - 1u) == (ACC_UI ? 0u : 120u) && mx_row_y(MXR_N - 1u) > mx_row_y(MXR_N - 2u) &&
+              px_in(ACC_UI ? 0 : 120, mx_row_y(MXR_N - 1u), 120, 10, col_shade(ACC_UI ? C_HI : lane_col(15), 3u)),
+          "past DR the view is the 16 drum sounds, two columns of eight; the selected lane tinted in its colour (the last: the 16th, right; with the ACCENT lane built, its row across the foot)");
     ppm("opt-mixer-h-lane16");
-    for (i = 0, ok = 1; i < DRUM_LANES; i++) {          /* back up through the lanes to DR, T3 ... */
+    ok = mx_row_x(MXR_LANE0 + 15u) == 120u && mx_row_y(MXR_LANE0 + 15u) > mx_row_y(MXR_LANE0 + 14u);
+    check(ok, "the 16th lane is still the right column's last row");
+    for (i = 0, ok = 1; i < DRUM_UILANES; i++) {        /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
         ok &= mx_row() == MXR_N - 2u - i;
     }

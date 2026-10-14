@@ -88,11 +88,16 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     for (i = 0; i < 5u; i++) {
         uint32_t k = BLACK[i];
         aud_lanes = 0;
+        lane_select(0);
         kdown(k);
-        ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
+        if (i == 0u && ACC_UI)                          /* key 1 is the ACCENT lane's: it plays (silently) and picks it */
+            ok &= kb_kind[k] == KS_DRUM && aud_lanes == 0u && lane_selected() == DRUM_ACC;
+        else
+            ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
         kup(k);
     }
-    check(ok, "the drum track: an upper key plays nothing and picks no lane (it used to play the lane on its left)");
+    lane_select(0);
+    check(ok, "the drum track: an upper key plays nothing and picks no lane (it used to play the lane on its left); key 1, the ACCENT lane's, is the exception");
     aud_lanes = 0;
     kdown(WK(3));
     check(kb_kind[WK(3)] == KS_DRUM, "... a white key still plays its lane");
@@ -102,12 +107,14 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     frame();
     press(B_HOME);
     for (i = 0; i < 5u; i++) {
+        lane_select(0);
         kdown(BLACK[i]);
         kup(BLACK[i]);
-        ok2 &= lane_selected() == 0u;
+        ok2 &= lane_selected() == (i == 0u && ACC_UI ? DRUM_ACC : 0u);
     }
     release(B_HOME);
-    check(ok2, "HOME held + an upper key off the mixer: no lane picked either");
+    lane_select(0);
+    check(ok2, "HOME held + an upper key off the mixer: no lane picked either (key 1: the ACCENT lane)");
     press(B_HOME);
     kdown(WK(5));
     kup(WK(5));

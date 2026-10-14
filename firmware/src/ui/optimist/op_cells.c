@@ -232,6 +232,10 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
         return &DLFO_DESC[id - DL_LFO0];
     }
 #endif
+    if (!lane_snd()) {                                  /* the ACCENT lane has no sound: no value (its pages are not shown) */
+        *vp = 0;
+        return 0;
+    }
     d = dsnd_desc_lane(lane_selected(), id, vp);
     if (d)
         dsv_rec(lane_selected(), id & 31u);
@@ -242,7 +246,9 @@ static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp) = op_dsnd_
 static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.c dsnd_set, without its confirm */
 {
     uint32_t l = lane_selected();
-    uint8_t *r = dl.ref[l];
+    uint8_t *r = dl.ref[l % DRUM_LANES];
+    if (!lane_snd())
+        return;                                         /* (the ACCENT lane: no sound to set) */
 #if LANE_LFO_UI
     if (id >= DL_LFO0) {                                /* the lane's LFO */
         dlfo_field_set(l, id - DL_LFO0, v);
@@ -297,6 +303,8 @@ static void op_dsnd_tick(void)
 #define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (pg)->id[0] >= FX_NSLOT)   /* FX > CMP: the track COMP's RATIO ATK REL */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
+    if (pg->scope == SC_DSND && is_drum(TSEL) && lane_acc())
+        return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
     if (smp_pg(pg))                                     /* (a user sample's HIT START LEN: that lane only) */
@@ -448,6 +456,23 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
         page_set(pg, k, vp, fine || ui.shift ? clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
     else
         page_set(pg, k, vp, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))), s);
+}
+
+/* the ACCENT amount (core.h P_DACC), the drum track's own value (not a lane's: the SOUND row's fourth card on every
+ * lane, the mixer's ACCENT row): its card and its turn, which records as motion as the track's values do */
+static void acc_cell(cell_t *c) { cell_param(c, &DRUM_ACC_DESC, &TDRUM->p[P_DACC]); }
+static void acc_turn(uint32_t k, int32_t s, int fine)
+{
+    const param_desc_t *d = &DRUM_ACC_DESC;
+    int32_t v = s == OP_RESET ? d->def : param_step(d, TDRUM->p[P_DACC], fine ? s : accel(EN_K1 + k, s, accel_range(d)));
+    TDRUM->p[P_DACC] = (int16_t)v;
+#if FELUCCA_MOTION
+    motion_knob(TDRUM, P_DACC, v);
+    if (motion_full) {
+        motion_full = 0;
+        ui_message("MOTION FULL");
+    }
+#endif
 }
 
 /* YES on page pg's value k: toggle an on / off value, do a GO button (ok: confirmed; the destructive ones ask

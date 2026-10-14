@@ -39,13 +39,13 @@ static void pre_toast_drum(void)
 {
     char m[30];
     uint32_t l = lane_selected(), on = (uint32_t)lane_presets();
-    str_cpy(m, on ? LANE_NAME[l] : "KIT", sizeof m);
+    str_cpy(m, on ? lane_name(l) : "KIT", sizeof m);
     str_cpy(m + str_len(m), on ? ": " : " ", sizeof m - str_len(m));
     str_cpy(m + str_len(m), on ? lane_sound_name(l) : drum_kit_name(), sizeof m - str_len(m));
     ui.toast_next = 1;
     ui_message(m);
     ui.toast_next = 0;
-    ui.toast_col = on ? lane_col(l) : kit_col();
+    ui.toast_col = on ? op_lane_col(l) : kit_col();
 }
 static void pre_toast(void)
 {
@@ -74,7 +74,7 @@ static uint32_t pre_sig(void)
     uint32_t total, cur = preset_pos(&total);
     return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
             (TSEL->eng_req * 64u + (uint32_t)user_of(TSEL) + settings.palette * 4096u)) * 31u +
-           (is_drum(TSEL) ? drum_kit_pos() * 977u + (uint32_t)lane_picked() * 7u + lane_sel * 131u + dl.src[lane_selected()] : 0u);
+           (is_drum(TSEL) ? drum_kit_pos() * 977u + (uint32_t)lane_picked() * 7u + lane_sel * 131u + (lane_snd() ? dl.src[lane_selected()] : 0u) : 0u);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a drum track: its kit (graph_lane) */

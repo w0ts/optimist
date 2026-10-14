@@ -18,11 +18,13 @@
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
-enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_LANES };
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS };
+enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_UILANES };
+#define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
+static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC };
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
- * 1 DLY, 2 CHO) */
+ * 1 DLY, 2 CHO); MI_ACC: the ACCENT amount (core.h P_DACC), the ACCENT lane's one card */
 /* the knob sets' groups, in this order on every row (the user, 2026-10-11): the mix (VOLUME PAN; a lane LEVEL CUT;
  * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
@@ -61,11 +63,11 @@ static int lane_picked(void)
 }
 static uint32_t mx_sel_row(void)                        /* the row of the selection (the track, DR or its lane) */
 {
-    return !is_drum(TSEL) ? MXR_T1 + song.sel : ui.lane ? MXR_LANE0 + lane_selected() : MXR_DR;
+    return !is_drum(TSEL) ? MXR_T1 + song.sel : ui.lane ? MXR_LANE0 + lane_selected() : MXR_DR;   /* (lane 16: MXR_ACC) */
 }
 static uint16_t mx_col(uint32_t r)                      /* the row's colour: its engine's, its lane's source */
 {
-    return r == MXR_MASTER ? C_HI : r >= MXR_LANE0 ? lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
+    return r == MXR_MASTER ? C_HI : r >= MXR_LANE0 ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
 }
 
 static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
@@ -148,6 +150,8 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #endif
         return n;
     }
+    if (mx_is_acc(r))                                   /* the ACCENT lane: no sound, no level: its amount alone */
+        return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
@@ -244,6 +248,9 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
             return 0;
         *vp = &song.g[mx_ret_id(m->id)];
         return &GP[mx_ret_id(m->id)];
+    case MI_ACC:                                        /* the ACCENT amount: the drum track's own value */
+        *vp = &TDRUM->p[P_DACC];
+        return &DRUM_ACC_DESC;
     case MI_LANE:
         d = dsnd_desc_lane(r - MXR_LANE0, m->id, vp);
         if (d)
@@ -319,7 +326,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     case MI_SOUND:
         c->kind = CK_RO;
         if (r >= MXR_LANE0)
-            str_cpy(c->val, lane_sound_name(r - MXR_LANE0), sizeof c->val);   /* (what PRESETS steps there) */
+            str_cpy(c->val, mx_is_acc(r) ? "-" : lane_sound_name(r - MXR_LANE0), sizeof c->val);   /* (what PRESETS steps there) */
         else
             snd_name(mx_trk_of(r), c->val);
         break;
@@ -363,6 +370,8 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             ins_load(mx_trk_of(r), m.id, ins_list[(uint32_t)param_step(d, *vp, s) % INS_NLIST]);
     } else if (m.kind == MI_LANE)
         mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
+    else if (m.kind == MI_ACC)
+        acc_turn(k, s, fine);                           /* (the ACCENT amount: motion too) */
     else
         val_turn(d, vp, k, s, fine);
 }
