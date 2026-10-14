@@ -13,6 +13,9 @@ static void name_project(uint32_t k);
 static void sec_name(uint32_t s, char *b);              /* storage/sections/sections.c: the project's name, "" none */
 #endif
 static uint32_t up_engine_slot(uint32_t k);             /* storage/upreset.c */
+#if SEC_LOGGED
+static int sec_scene_clear(uint32_t s);                 /* sections.c: a section's records gone */
+#endif
 
 enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM };
 static const uint8_t PRJ[] = {PR_PROJECT,
@@ -110,8 +113,7 @@ static void prj_slot_label(uint32_t kind, uint32_t s, char *l)    /* "3", "U03",
 }
 static uint32_t prj_slots_row(uint32_t kind) { return kind <= PR_USER; }     /* a row with slots */
 static uint32_t prj_banks(uint32_t kind) { return (prj_slot_n(kind) + PRJ_BANK - 1u) >> 4; }   /* > 1: the BANK card */
-static uint32_t prj_nops(uint32_t kind) { return kind == PR_PROJECT ? 2u : 3u; }   /* (a project slot has no DELETE: it
-                                                         * is overwritten or kept; NEW blanks the work, op below) */
+static uint32_t prj_nops(uint32_t kind) { return kind == PR_PROJECT && !SEC_LOGGED ? 2u : 3u; }   /* (a RAM project slot has no DELETE; the section log's has: its tombstones) */
 
 /* ---- the operation: LOAD at first, and again after an action, when the row changes or the screen is left (op_enter) */
 static uint8_t prj_op_v, prj_op_row, prj_arm_op, prj_arm_slot;
@@ -245,6 +247,14 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
 static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
 {
     if (kind == PR_PROJECT) {
+#if SEC_LOGGED && FELUCCA_UI == 1
+        if (op == PO_DELETE) {
+            (void)sec_scene_clear(s);                   /* (the section log's tombstones: its record, FX, extras and LFO records) */
+            prj_op_reset();
+            ui.force = 1;
+            return;
+        }
+#endif
         if (op == PO_LOAD) {
             project_load(s);
             work_mark();                                /* (the work as loaded) */
