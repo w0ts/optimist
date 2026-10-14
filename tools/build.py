@@ -346,15 +346,24 @@ def section_sizes(hdr):
     return out
 
 
+# objects whose size the builder's estimate computes rather than adds up (tools/builder/configure.py model_terms):
+# their real size goes into sizes.json "symbols" for tools/builder/measure_costs.py
+SIZED_SYMBOLS = ("part_mem",)       # (engines.c: the synth parts' engine state, a union of the engines built)
+
+
 def sizes(img, syms, hdr):
     """the five budgets of this build (build/sizes.json; tools/builder reads it)"""
     def sym(name):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
+    def size_of(name):                  # (objdump -t: "addr flags section\tsize name")
+        mm = re.search(r"\s([0-9a-f]{8})\s+" + name + r"(\.\S+)?$", syms, re.M)
+        return int(mm.group(1), 16) if mm else 0
     sec = section_sizes(hdr)
     return {"flash": len(img), "ram": sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000), "pool": sym("_pool_end") - sym("_pool_start"),
             "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
-            "noinit": sec.get(".noinit", 0), "limits": LIMITS}
+            "noinit": sec.get(".noinit", 0), "limits": LIMITS,
+            "symbols": {n: size_of(n) for n in SIZED_SYMBOLS}}
 
 
 OVER = []

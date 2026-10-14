@@ -20,6 +20,10 @@ import room as RM
 import stamp as ST
 from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
+# the estimate only, from costs.json: a real build left in build/exact-sizes.json (a full gate makes some, a light one
+# fewer) must neither replace a total nor anchor it, or the same costs.json passes one gate and fails another
+C.exact_sizes = lambda cfg: None
+C.exact_builds = lambda: {}
 fails = 0
 
 
@@ -27,6 +31,12 @@ def check(what, ok):
     global fails
     print(f"{what:78s} {'ok' if ok else 'FAIL'}")
     fails += not ok
+
+
+def shown_over(cfg, costs):
+    """the menu's own rule for its red bars (menu.py update_budget: fits, no FIT_MARGIN; over_any adds the margin, which
+    only --fit and the BLE room use): a configuration within the margin of a limit is not shown over"""
+    return any(o > 0 for _, _, o in C.fits(C.budget(cfg, costs)["total"], cfg).values())
 
 
 def label(app, key):
@@ -175,7 +185,7 @@ async def main():
             app.nodes["BLE"].expand()
             await toggle(app, pilot, "BLE_DIAG")
             check(f"BLE_DIAG ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
-                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == bool(C.over_any(app.cfg, costs)))
+                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == shown_over(app.cfg, costs))
     for prof in ("fm-va-studio", "x0x-drums"):
         base, _ = C.load_profile(prof)
         over, order, chosen = expected_room(with_ble(base, 0), costs)
@@ -188,7 +198,7 @@ async def main():
             await toggle(app, pilot, "BLE")                 # margin, FIT_MARGIN, and show over before BLE is touched)
             await toggle(app, pilot, "BLE")
             check(f"{prof}: BLE ticked then unticked: exactly as it was ({RM.short(chosen)} restored)",
-                  app.cfg == base and app.over == over0 and bool(app.over) == bool(C.over_any(base, costs)))
+                  app.cfg == base and app.over == over0 and bool(app.over) == shown_over(base, costs))
             await toggle(app, pilot, "BLE")
             await toggle(app, pilot, chosen)
             check(f"{prof}: {RM.short(chosen)} ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
