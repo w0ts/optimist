@@ -45,7 +45,7 @@ static int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
     return JUNO_VCA_HW[i] + (int32_t)(((JUNO_VCA_HW[i + 1] - JUNO_VCA_HW[i]) * f) >> 7);
 }
 
-#define JUNO_GAIN 3                                   /* out = y * amp >> (15 - JUNO_GAIN): ANALOG's level (juno_test) */
+/* the level: y * amp >> 12, ANALOG's (juno_test) */
 static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
@@ -68,14 +68,19 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     c.dac = (uint16_t)juno_dac(clamp(p[P_E4], 0, 127) << 7, (m->cutoff - envp) >> 1, (uint32_t)m->envq15 >> 1, ed * 4,
                                (uint32_t)clamp(p[P_E6], 0, 127) * 2u, (uint32_t)v->pitch16 << 4);
     juno_run(s, &c, y, n);
-    for (i = 0; i < n; i++)
-        out[i] += (int32_t)(((int64_t)y[i] * amp_at(m, i)) >> (15 - JUNO_GAIN));
+    {   /* the VCA: the core's amplitude ramp (amp_at, a step a sample), 32-bit products (y < 2^18) */
+        int32_t acc = m->amp0 * (int32_t)CTL, step = m->amp1 - m->amp0;
+        for (i = 0; i < n; i++, acc += step)
+            out[i] += ((y[i] >> 3) * (acc >> CTL_LOG2)) >> 9;
+    }
 }
 
 static void juno_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 {
+    juno_hpf_t *h = &juno_h[(uint32_t)(t - trk) % NPART];
     (void)nr;
-    juno_hpf(&juno_h[(uint32_t)(t - trk) % NPART], (uint32_t)t->p[P_E7] & 3u, out, n);
+    juno_couple(&h->cpl, out, n);
+    juno_hpf(h, (uint32_t)t->p[P_E7] & 3u, out, n);
 }
 
 static const char *const N_JUNO_WAVE[] = {"OFF", "SAW", "PULSE", "BOTH"};
