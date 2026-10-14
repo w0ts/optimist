@@ -32,6 +32,7 @@ typedef struct {
     const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
     const char *obj;                    /* an action's object on its card ("PROJECT"; the user, 2026-10-13: the card shows the verb) */
     uint8_t danger;                     /* an action that destroys or replaces: its verb in the alarm colour */
+    uint8_t dr;                         /* the drum track's own value, shown with a drum lane picked: drawn tagged "DR" (op_draw.c) */
 } cell_t;
 
 static void cell_clear(cell_t *c)
@@ -189,13 +190,27 @@ static int lane_value_rec(uint32_t l, uint32_t id, int32_t v)
 #if LANE_LFO_UI
 static const page_t LANE_LFO_PG[2] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
                                       {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}}};
-#define OP_NPG (NPAGES + 2u)
 static int16_t dlfv[DLF_N];                             /* the cells' values (dlfo_field: the lane's LFO, 8 bytes) */
 static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg == &LANE_LFO_PG[1]; }
+#define LFO_PGN 2u
 #else
-#define OP_NPG NPAGES
 #define lane_lfo_pg(pg) 0
+#define LFO_PGN 0u
 #endif
+/* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's own
+ * DRIVE, DST, CMP) and SENDS (its REV DLY CHO in the master slots' order: LSEND0 + k, mapped by lane_send_vid), in place
+ * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
+#define LSEND0 0x40u
+#if DL_UI
+static const page_t LANE_FX_PG[2] = {{"INSERTS", FAM_FX, SC_DSND, GR_DSND, {19, 20, DE_DRIVE, 0xFF}},
+                                     {"SENDS", FAM_FX, SC_DSND, GR_DSND, {LSEND0, LSEND0 + 1, LSEND0 + 2, 0xFF}}};
+static int lane_fx_pg(const page_t *pg) { return pg == &LANE_FX_PG[0] || pg == &LANE_FX_PG[1]; }
+#define FX_PGN 2u
+#else
+#define lane_fx_pg(pg) 0
+#define FX_PGN 0u
+#endif
+#define OP_NPG (NPAGES + LFO_PGN + FX_PGN)
 /* a drum lane's SRC is the SOUND row's knob 3 (the user, 2026-10-13: "this should be on third knob on page 1"): LANE_SRC_PG
  * is that cell (snd_cell, never a row of its own). PAGES' SOURCE (SRC HIT START LEN) is then only HIT START LEN, a user
  * sample's: this UI shows it as LANE_SMP_PG, on a lane playing one, and on no other lane (SLOOP's UI keeps PAGES' as it is) */
@@ -215,13 +230,43 @@ static const page_t *op_pg(uint32_t i)
 {
     if (i < NPAGES)
         return src_page(&PAGES[i]) ? &LANE_SMP_PG : &PAGES[i];
+    i -= NPAGES;
 #if LANE_LFO_UI
-    return &LANE_LFO_PG[(i - NPAGES) & 1u];
-#else
-    return &PAGES[0];
+    if (i < LFO_PGN)
+        return &LANE_LFO_PG[i & 1u];
+    i -= LFO_PGN;
 #endif
+#if DL_UI
+    if (i < FX_PGN)
+        return &LANE_FX_PG[i & 1u];
+#endif
+    return &PAGES[0];
+}
+/* the order the rows come in: a picked lane's INSERTS and SENDS just before PAGES' INSERTS (the FX family opens on the
+ * lane's own), the lane's LFO last, every other page as PAGES has them. j: the place in the order, the result an op_pg index */
+static uint32_t op_pg_at(uint32_t j)
+{
+#if DL_UI
+    uint32_t ins = 0, i;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].graph == GR_INS)
+            ins = i;
+    if (j >= ins && j < ins + FX_PGN)
+        return NPAGES + LFO_PGN + (j - ins);
+    if (j >= ins + FX_PGN && j < NPAGES + FX_PGN)
+        return j - FX_PGN;
+    if (j >= NPAGES + FX_PGN)
+        return NPAGES + (j - NPAGES - FX_PGN);
+#endif
+    return j;
 }
 _Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
+/* a lane's value id of the k-th send in the master slots' order (SENDS), 0xFF none (a slot empty): REV 16, DLY 17, CHO 18 */
+static uint32_t lane_send_vid(uint32_t k)
+{
+    uint32_t t = k < 3u ? fxs_send(k) : FXT_NONE;
+    return t == FXT_REV ? 16u : t == FXT_DLY ? 17u : t == FXT_CHO ? 18u : 0xFFu;
+}
 static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
     const param_desc_t *d;
@@ -236,6 +281,13 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
         *vp = 0;
         return 0;
     }
+    if (id >= LSEND0) {                                 /* SENDS: the k-th send of the master slots, this lane's */
+        id = lane_send_vid(id - LSEND0);
+        if (id == 0xFFu) {
+            *vp = 0;
+            return 0;
+        }
+    }
     d = dsnd_desc_lane(lane_selected(), id, vp);
     if (d)
         dsv_rec(lane_selected(), id & 31u);
@@ -249,6 +301,8 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
     uint8_t *r = dl.ref[l % DRUM_LANES];
     if (!lane_snd())
         return;                                         /* (the ACCENT lane: no sound to set) */
+    if (id >= LSEND0 && (id = lane_send_vid(id - LSEND0)) == 0xFFu)
+        return;
 #if LANE_LFO_UI
     if (id >= DL_LFO0) {                                /* the lane's LFO */
         dlfo_field_set(l, id - DL_LFO0, v);
@@ -307,6 +361,8 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
         return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
     if (lane_lfo_pg(pg))                                /* (a lane's LFO: a lane selected, never DR itself) */
         return is_drum(TSEL) && lane_picked();
+    if (lane_fx_pg(pg))                                 /* (a lane's INSERTS and SENDS: a lane selected, never DR itself) */
+        return is_drum(TSEL) && lane_picked() && page_shown(pg);
     if (smp_pg(pg))                                     /* (a user sample's HIT START LEN: that lane only) */
         return is_drum(TSEL) && page_shown(pg) && dl_usr_of(lane_selected());
     if (pg->scope == SC_DSND && pg->fam == FAM_ENV && is_drum(TSEL) && !lane_picked())
@@ -339,10 +395,12 @@ static int fx_page(const page_t *pg)
 /* the PAGES indexes of a screen's page rows, in their order (past NPAGES: this UI's own, op_pg); returns how many */
 static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 {
-    uint32_t i, n = 0;
-    for (i = 0; i < OP_NPG && n < OP_MAXROWS; i++)
+    uint32_t i, j, n = 0;
+    for (j = 0; j < OP_NPG && n < OP_MAXROWS; j++) {
+        i = op_pg_at(j);
         if (want(op_pg(i)))
             ix[n++] = (uint8_t)i;
+    }
     return n;
 }
 
@@ -377,6 +435,17 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
     c->gk = GK_NONE;
 }
 
+/* with a drum lane picked, a value of the drum track itself (the user, 2026-10-14: "remember on a lane i want to see the
+ * lane"): the track's pages (its bus inserts and sends, FILTER, SLICER, GATER, COMP, PATTERN) and the KIT page's slot
+ * actions have no lane of their own, and are tagged DR on the card so they are not taken for the lane's. DR itself: no tag */
+static int dr_value(const page_t *pg, uint32_t k)
+{
+    if (!is_drum(TSEL) || !lane_picked())
+        return 0;
+    if (pg->scope == SC_TRACK || CMP_PAGE(pg))
+        return 1;
+    return pg->scope == SC_DSND && pg->fam == FAM_EDIT && pg->id[0] == 12u && k < 3u;   /* KIT: SLOT SAVE ERASE (RESET is the lane's) */
+}
 static void page_cell(const page_t *pg, uint32_t k, cell_t *c)
 {
     int16_t *vp;
@@ -384,6 +453,7 @@ static void page_cell(const page_t *pg, uint32_t k, cell_t *c)
     cell_param(c, page_desc(pg, k, &vp), vp);
     if (id >= PID_INST && id < PID_INST + INS_N)        /* INSERTS: S1 / S2 TYPE (the selected track's) */
         cell_ins_note(c, song.sel, id - PID_INST);
+    c->dr = (uint8_t)(c->label && c->label[0] && dr_value(pg, k));
 }
 
 /* page pg's value k set to v (steps: the turn that set it): what else a value set by a knob does, as SLOOP's

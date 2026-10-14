@@ -192,12 +192,17 @@ static const page_t *snd_page(uint32_t r)
 {
     return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? op_pg(snd_ix[(r - snd_first()) % OP_MAXROWS]) : 0;
 }
+/* a picked lane has its own INSERTS and SENDS (op_cells.c LANE_FX_PG): the drum track's of those names are "DR INSERT" and "DR SENDS" */
+static const char *dr_title(const page_t *pg)
+{
+    return is_drum(TSEL) && pg->scope == SC_TRACK ? (pg->graph == GR_INS ? "DR INSERT" : pg->graph == GR_FX ? "DR SENDS" : pg->title) : pg->title;
+}
 static void snd_name_row(uint32_t r, char *b)
 {
     if (snd_fam == SND_FM6)
         fm6_row_name(r, b);
     else
-        str_cpy(b, snd_page(r) ? snd_page(r)->title : "SOUND", 12);
+        str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : "SOUND", 12);
 }
 static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
 {
@@ -248,8 +253,10 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
             return;
         }
         if (k == 3u) {                                  /* the ACCENT amount, next to the KIT (every lane: the track's own) */
-            if (ACC_UI)
+            if (ACC_UI) {
                 acc_cell(c);
+                c->dr = (uint8_t)(lane_picked() && lane_snd());   /* (the ACCENT lane's own amount: its lane's) */
+            }
             return;
         }
         if (k > 1u)
@@ -260,6 +267,7 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         if (k && lane_acc())
             c->hlp = "ACCENT LANE";                  /* (its help line: op_help.c, ctx INSERTS' key) */
         c->col = k ? op_lane_col(lane_selected()) : kit_col();
+        c->dr = (uint8_t)(!k && lane_picked());         /* (the kit is the track's) */
         cell_gauge(c, 1, 0, k ? (int32_t)DRUM_UILANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
                    (int32_t)drum_kit_pos());
         return;

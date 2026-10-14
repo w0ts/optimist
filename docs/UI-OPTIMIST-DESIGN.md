@@ -2842,3 +2842,21 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
 - **Help lines** (tools/param_help.json, ops SOUND / STEPS "ACCENT"; the mixer row's LEVEL "Accent amount added to hits": "Velocity added on accent step"; the lane's: "Raises every hit
   of its step"), shortened to the 29 characters of the line.
 Tests: tests/ui_optimist_accent.h.
+
+## 30. A picked lane shows the lane's values; the track's own are marked DR (fix/lane-values, 2026-10-14)
+
+The user: "on SEQ while i edit the BD lane, i think the fx sends are the ones from the main drum track, not from the lane; when i
+switch drum lane the value remain the same; remember on a lane i want to see the lane". The FX family's SENDS (and INSERTS) were the
+drum track's (`dsend_kit`, the bus), the same under every lane. The rule, on every page reached while a lane is picked (`lane_picked()`,
+the ACCENT lane included): **a value the lane has of its own is the lane's; a value only the track has stays the track's and is tagged DR.**
+- **The lane's pages** (op_cells.c `LANE_FX_PG`, this UI's own, like the lane's LFO; only with a lane picked, never on DR): **INSERTS**
+  (the sound's own DST, CMP, DRIVE: always heard) and **SENDS** (its CHO DLY REV in the master slots' order, 0..31: `lane_send_vid`). They open the FX family,
+  ahead of the track's. DRIVE records as the lane's motion (`lane_value_rec`); the sends, DST and CMP are patch values, as on SOUND 3 and the mixer's lane rows (no lane event
+  exists for them; the lane's LFO has no send destination either), so the card edits what it shows. The ACCENT lane has no sound, so neither page.
+- **The track's, kept and tagged**: the drum bus's inserts are "DR INSERT", the kit send levels "DR SENDS" (the lane pages took the plain names), then BUS SENDS, SLICER, FILTER, GATER, CMP;
+  PATTERN (LEN DIV SWG GATE; the STEP screen's first page too); the SOUND row's KIT card and the KIT page's SLOT / SAVE / ERASE (RESET is the lane's). Every such card carries a small **DR**
+  top right, amber (`cell_t.dr`, op_draw.c; in the card signature). The mixer builds its own cards and has no tag.
+- **DR itself picked**: the track's values as before, nothing tagged, no DR rows, the names plain.
+- Already the lane's, unchanged: SOUND, SOUND 2, SOUND 3, SOURCE, ENV, LFO, STEP's lane page (LEVEL TUNE DECAY REV), the held step's cards and locks, the mixer's lane rows.
+  Step-wide values (NUDGE, chance, fill, condition on a held step) belong to the step, not to a lane.
+Tests: tests/ui_optimist_lanevals.h (two lanes picked on SOUND and from STEP, the sends of each shown and edited alone; the DR tags; DR itself).
