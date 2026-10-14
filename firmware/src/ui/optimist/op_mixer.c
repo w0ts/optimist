@@ -150,8 +150,12 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #endif
         return n;
     }
-    if (mx_is_acc(r))                                   /* the ACCENT lane: no sound, no level: its amount alone */
-        return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);
+    if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE's slot empty
+                                                         * until the sequencer mute of the lane (core follow-up), LEVEL the ACCENT
+                                                         * amount, no CUT, DRIVE, DST, CMP, sends or sound */
+        n = mx_add(it, n, MG_MIX, 0, MI_NONE, 0);
+        return mx_add(it, n, MG_MIX, "LEVEL", MI_ACC, 0);
+    }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
@@ -340,6 +344,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
+    if (m.kind == MI_ACC)
+        c->hlp = "ACCENT LEVEL";                        /* (op_help.c: its own line, the amount) */
     c->col = mx_col(r);
 }
 static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value id (the offsets and the sends) */

@@ -2837,9 +2837,9 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
 - **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the only card of the lane's mixer row.
 - **Pages**: the lane has no SOUND, SOURCE, KIT, ENV or LFO pages (`sound_page`); `lane_snd()` guards every per-lane sound array (dl.*, the
   names); PRESETS on it steps the kit as on DR; the SOUND row's picture says "+amount to the hits".
-- **ALGORITHM** walks on past the 16th lane to the ACCENT lane (the mixer's row `MXR_ACC`: one card, the amount, across the foot of the
+- **ALGORITHM** walks on past the 16th lane to the ACCENT lane (the mixer's row `MXR_ACC`: a lane's card layout, MUTE's slot empty until the lane's sequencer mute lands (core follow-up), LEVEL = the ACCENT amount, no CUT / sends / sound, across the foot of the
   SOUNDS view, `MXA_H`); the header badge says ACCENT. No sequencer mute for the lane (seq_mute.c has no bit for it), and the ERASE /
   REPEAT layer tiles stay the 16 sounds (key 1 still erases / repeats the lane).
-- **Help lines** (tools/param_help.json, ops SOUND / MIX / STEPS "ACCENT": "Velocity added on accent step"; the lane's: "Raises every hit
+- **Help lines** (tools/param_help.json, ops SOUND / STEPS "ACCENT"; the mixer row's LEVEL "Accent amount added to hits": "Velocity added on accent step"; the lane's: "Raises every hit
   of its step"), shortened to the 29 characters of the line.
 Tests: tests/ui_optimist_accent.h.

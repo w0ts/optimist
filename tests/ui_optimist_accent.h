@@ -320,14 +320,34 @@ static void acc_walk_tests(void)
     turn(EN_ALGO, 40);
     frames(2);
     ok = mx_row() == MXR_ACC && mxd.first == MXR_LANE0;
+    {
+        cell_t l;
+        mix_cell(MXR_LANE0 + 4u, 0, &l);
+        ok &= l.label && !strcmp(l.label, "MUTE");
+        mix_cell(MXR_LANE0 + 4u, 1, &l);
+        ok &= l.label && !strcmp(l.label, "LEVEL");
+    }
     mix_cell(MXR_ACC, 0, &c);
-    ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC];
+    ok &= !c.label || !c.label[0];                      /* (MUTE's slot: empty until the lane's sequencer mute) */
     mix_cell(MXR_ACC, 1, &c);
+    ok &= c.label && !strcmp(c.label, "LEVEL") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
+    mix_cell(MXR_ACC, 2, &c);
     ok &= !c.label || !c.label[0];
-    check(ok, "the mixer's ACCENT row: one card, the amount");
+    mix_cell(MXR_ACC, 3, &c);
+    ok &= !c.label || !c.label[0];
+    check(ok, "the mixer's ACCENT row: a lane's layout (MUTE's slot empty, LEVEL = the amount), no CUT, sends or sound");
+    check(mx_sets(MXR_ACC) == 1u, "... one set of cards");
     TDRUM->p[P_DACC] = DACC_DEF;
-    turn(EN_K1, 4);
-    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 1 turns it");
+    turn(EN_K2, 4);
+    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 2 (LEVEL) turns the amount");
+    press(B_HOME);
+    turn(EN_K2, 1);
+    release(B_HOME);
+    check(TDRUM->p[P_DACC] == DACC_DEF, "... HOME + KNOB 2: back to 27");
+    turn(EN_K1, 3);
+    turn(EN_K3, 3);
+    turn(EN_K4, 3);
+    check(TDRUM->p[P_DACC] == DACC_DEF, "... the empty cards: inert");
     TDRUM->p[P_DACC] = DACC_DEF;
     ui.force = 1;
     frames(2);
@@ -403,8 +423,8 @@ static void acc_help_tests(void)
     check(hl_find(SCR_SOUND, 0, &c) != 0u, "... and the LANE card of the ACCENT lane");
     go_home();
     ui.row[SCR_HOME] = MXR_ACC;
-    mix_cell(MXR_ACC, 0, &c);
-    check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT card");
+    mix_cell(MXR_ACC, 1, &c);
+    check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT LEVEL card");
     op_enter(SCR_STEP);
     ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
     step_cell(STP_LANE0, 0, &c);
