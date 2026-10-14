@@ -2,7 +2,8 @@
 /* Per-screen oddities (batch E of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md section 36; the style guide
  * of optimist-work/visaudit). Each check: the old text or layout gone, the new one there.
  *   #2   the header's title is the cursor row's name verbatim ("Edit 1 2/7"; the SOUND walk in ui_optimist_pages.h
- *        checks every row), GLOBAL's second REC page "Rec 2 n/N"
+ *        checks every row), GLOBAL's second REC page "Rec 2 n/N"; short of room the title takes its short form and
+ *        bar.beat stays (the user, 2026-10-14; ui_optimist_names.h: never a cut)
  *   #15  drum STEP, a step held: the selected lane's row under the cards, the grid back in place once they go
  *   #17  STEP: "Pattern 1/N" and bar.beat, never "Steps 1-16 C4"; a synth's pick marked in the roll's gutter
  *   #19  the drum track's EDIT pages: Lane, Body, Tone, Sends, Kit (never "Sound" five times)
@@ -109,6 +110,15 @@ static void se_header_tests(void)
     check(!strncmp(t, "Pattern ", 8) && strchr(t, '/') && h.r[0] && strncmp(t, "Steps", 5),
           "#17: STEP: \"Pattern 1/N\" and bar.beat (was \"Steps 1-16 C4\", no bar.beat)");
     tap(B_HOME);
+    {   /* the user's ruling: bar.beat always stays; a long title takes its short form, never a cut */
+        char a[32] = "Voice 2", b[32] = "Edit 1", c[32] = "Pattern", d[32] = "Kit sends";
+        head_short(a, sizeof a, 5);
+        head_short(b, sizeof b, 5);
+        head_short(c, sizeof c, 5);
+        head_short(d, sizeof d, 8);
+        check(!strcmp(a, "Vox2") && !strcmp(b, "Edit1") && !strcmp(c, "Pat") && !strcmp(d, "Kit snd"),
+              "#2: a title short of room: its short form (Voice 2 -> Vox2, Edit 1 -> Edit1, Pattern -> Pat), never cut");
+    }
     reset_ui();
     {   /* the mixer's ACCENT lane */
 #if ACC_UI

@@ -3065,3 +3065,52 @@ the row; the held-step strip black; the FX needles the page's values, placed and
 boxes for every algorithm. tests/ui_optimist_names.h: every value of every list parameter laid out whole in its row.
 Updated for the band: the mixer's row height, STEP's foot, the SOUND picture's foot, GLOBAL's foot, the BLE code's place,
 the help line's going.
+
+## 36. Per-screen oddities (feat/ui-screens, 2026-10-14; the coherence audit's batch E)
+
+The last batch of the audit (optimist-work/visaudit/FINDINGS.md), by the style guide. UI=0 unchanged.
+
+- **The header's title is the cursor row's name** (#2, style guide 1). Verbatim, its continuation number kept: *Edit 1 2/7*
+  on the row Edit 1 (was *Edit 2/7*: the row's number had been swapped for the page's, D11 of 2026-10-12, so the header and
+  the list disagreed); the n/N is drawn grey, a read-out, which keeps the two numbers apart. GLOBAL's second REC page is
+  *Rec 2 3/5* (was *Rec 3/5*). One counter: the n/N. **bar.beat always stays** (the user, 2026-10-14): a title short of
+  room takes a deliberate short form, never a mid-word cut, the n/N whole (op_draw.c `head_short`): a continuation's
+  number joins its word (*Voice2*, *Edit1*), then the names table's short title (op_names.c `NM_SHORT`: *Pat*, *Scl2*,
+  *Vox2*, *Kit snd*, *Bus snd*, *L2 to*, *E2 to*, *Slcr*; only where the widest badge, a three-digit tempo and the n/N leave less).
+- **STEP's header** (#17): the page SELECT is on and its n/N, cards up or not (*Pattern 1/19*, a lane's name on a drum lane's
+  row), and bar.beat as on every screen (was *Steps 1-16 C4*, no n/N, no bar.beat). The window stays the playhead strip's
+  (its page lit in the gutter); the pick moved to the grid: the drum track's selected lane is lit (as before), a synth's
+  pick is a white mark at the roll's gutter edge on its notes' rows (op_stepdraw.c `sg_roll`).
+- **The drum lane under a held step's cards** (#15): with the cards up, the grid shifts so the selected lane's row is the
+  first under them, if it was hidden (behind the cards, or under the held step's two lines); the rows above go under the
+  cards, those past the grid's foot are not drawn; the grid comes back in place with the cards' going (op_stepdraw.c
+  `sg_shift`, `sg_dy`). Shifting was picked over drawing that one lane's row apart: the lanes round it stay in view, and
+  the grid stays one drawing.
+- **The drum track's page names** (#19, #20): EDIT's are *Lane* (KIT LANE SRC ACCENT), *Body* (TUNE DECAY SNAP CLICK),
+  *Tone* (BEND CUT DRIVE LEVEL), *Sends* (the lane's), *Kit*, where all were *Sound*; FX's two send pages are *Kit sends*
+  (the kit's send levels, every lane's; *Lane sends* is past the titles' 9 letters) and *Bus sends* (the drum bus's own),
+  on a picked lane too, next to its own *Sends* (was *DR sends*). Titles only (op_screens.c `dr_alias`, `snd_title_row`): the
+  shared names the help line keys on stay.
+- **A layer's hint** (#24): *Home locks it*, once a power-on per layer, shows ~2.5 s on the help line (op_help.c; a build
+  without the help line: on the state line under the tiles), never in the header, which keeps the layer's badge (FX, ARP...).
+- **The drum ENV's length** (#32): in the picture's label row, before the source's tag (*KICK  505ms SYN*), no longer on the
+  baseline over the curve.
+- **A long name on a 1x4 card** (#33): the mixer's SOUND / KIT card, a name longer than 6 letters with an empty card after it,
+  is drawn two cards wide, the name whole in the small face (*808 BOOM*, was *808 BO*; op_draw.c `card_wide`).
+- **The mixer's ACCENT row** (#35): *Accent*, no set word, no n/N (it has one set; was *accent mix*). A row of one set is its
+  name alone.
+- **The SOUND row in the list** (#36): the preset's name over the ENGINE cell's place too (the badge names the engine), then
+  INIT, then SAVE AS in its fixed form SAVE (was *808 ANLG INIT SAVE*); a name of 10 letters or more keeps its room whole and
+  SAVE AS stays the card's alone. The cards keep all four (op_screens.c `snd_list_cells`). The list's reflow now takes a
+  text's fixed form (*SAVE AS* -> *SAVE*) before it cuts any text.
+- **PROJECT** (#43): TOOLS' *MISS* card is *MISSING* (the names table; its 2x2 card holds it), MEMORY's *MORE* is *FREE*.
+- **GLO tapped** (#45): section 4.11 now says what is built: GLO switches GLOBAL and SYSTEM (it said a tap walks the rows).
+- **The ARP picture** (#46): no text line (MODE and RATE are the cards'; the notes are the guide lines).
+- **NAME** (#49): its hints (*Save done  Home delete*) on the help line's place, the screen's last 18 rows (they were at the
+  field's top); the field keeps its length (*9/12*).
+- **GLOBAL's REC LENGTH**: *1* with the unit *bar* (was the value *1 BAR*), style guide 5.
+- Already done by the earlier batches: #8 (D), #14 (the send order), #38 (an empty held step's NOTE is *-*), #48 (A's
+  RAT2..RAT4).
+
+Tests: tests/ui_optimist_screens.h (each item, the old gone and the new there); ui_optimist_pages.h's header walk checks every
+SOUND row's title against the list's; the tests that held the old titles, STEP's window header and the layer hint follow.

@@ -340,6 +340,20 @@ static int head_other(head_t *h)
     h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : SCR_NAME[ui.scr % SCR_N];
     return gl_scr(ui.scr);                              /* (GLOBAL, SYSTEM: the title is the list's, t stays empty) */
 }
+/* a title's deliberate short form, for a header short of room (the user's ruling, 2026-10-14: bar.beat always stays, the
+ * title shortens, never a cut mid-word, the n/N whole): a continuation's number joins its word ("Voice 2" -> "Voice2"),
+ * then the names table's short title (op_names.c NM_SHORT) */
+static void head_short(char *t, uint32_t n, uint32_t room)   /* room: the title's characters (its n/N's taken off) */
+{
+    uint32_t l = str_len(t);
+    char b[16];
+    if (l >= 3u && t[l - 1u] >= '0' && t[l - 1u] <= '9' && t[l - 2u] == ' ') {
+        t[l - 2u] = t[l - 1u];
+        t[l - 1u] = 0;
+    }
+    if (str_len(t) > room && nm_find(NM_SHORT, t, 0, b, sizeof b))
+        str_cpy(t, b, n);
+}
 static void head_make(head_t *h)
 {
     uint32_t trkb = !ui.msg_t && head_has_track(), done = 0;
@@ -372,10 +386,9 @@ static void head_make(head_t *h)
     fmt_int(h->bpm, song.g[G_BPM]);
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
     h->room = head_room(h->tx, h->bpm, h->r);
-    if (h->r[0] && (int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room) {
-        h->r[0] = 0;                                    /* (short of room: bar.beat goes first, never the title; style guide 1) */
-        h->room = head_room(h->tx, h->bpm, h->r);
-    }
+    if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
+        head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
+                                                         * user, 2026-10-14) */
     h->cut = (uint8_t)head_finish(h->t, h->pos, h->room);
 }
 /* the title, then its n/N in grey (a read-out: "Edit 1 2/7", the row's own number and the page's place told apart, the
