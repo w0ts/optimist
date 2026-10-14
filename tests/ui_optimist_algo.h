@@ -34,6 +34,8 @@ static void algo_sound_tests(void)
     uint32_t ok;
     reset_ui();
     song.sel = 0;
+    set_engine_of(&trk[0], trk_def_engine(0));          /* (the tests before leave T1 on whatever engine the presets' walk ended on; an FM6 has its own ENV page) */
+    frames(2);
     tap(B_ENV);
     ok = al_walk(-1) == MXR_MASTER && ui.scr == SCR_FX;
     ok &= al_walk(1) == MXR_T1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV;
