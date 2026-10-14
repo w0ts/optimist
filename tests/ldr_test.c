@@ -109,6 +109,7 @@ static void ldr_record_clear(void) { record_cleared++; }
 static uint32_t flash_unknown;
 static int ldr_flash_known(void) { return !flash_unknown; }
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; }
+static void ldr_checking(uint32_t done, uint32_t total) { (void)done; (void)total; }
 #include "../firmware/loader/ldr_core.c"
 
 static uint8_t *load_logical(const char *path, size_t *len)

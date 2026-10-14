@@ -34,6 +34,7 @@
  *   ldr_record_clear()    forget the RAM update record
  *   ldr_flash_known()     the flash chip is the 1 MiB part SLOOP's storage expects (else nothing is
  *                         written: the update records go and the old firmware starts again)
+ *   ldr_checking(done, total)   the package check (2b), every 32 KB
  *   ldr_progress(done, total)
  * plus the ota.c hooks (frames, time, idle). */
 #define LDR_APP_LO 0x4000u
@@ -49,6 +50,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n);
 static void ldr_record_clear(void);
 static int ldr_flash_known(void);
 static void ldr_progress(uint32_t done, uint32_t total);
+static void ldr_checking(uint32_t done, uint32_t total);
 
 /* SFC cipher: per 32-byte block, key ^ (block offset >> 2) */
 static void ldr_sfc(uint8_t *p, uint32_t n, uint32_t base_off, uint32_t key)
@@ -147,6 +149,8 @@ static int ldr_check(uint32_t fl_off, uint32_t fl_size, uint32_t want, uint16_t 
         if (ota_read(fl_off + i, b, n))
             return -7;
         crc = ota_crc16(b, n, crc);
+        if (!(i & 0x7FFFu))
+            ldr_checking(i, fl_size);                /* every 32 KB */
         if (i >= LDR_APP_LO && i < LDR_APP_HI) {     /* (512-byte reads from 0: never across a sector) */
             uint32_t k = (i - LDR_APP_LO) >> 12;
             sc[k] = (uint16_t)ota_crc16(b, n, (i & 0xFFFu) ? sc[k] : 0u);
