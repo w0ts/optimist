@@ -644,7 +644,7 @@ import re
 _req = {re.split("[<>=]", ln)[0] for ln in (ROOT / "tools" / "requirements-flash.txt").read_text().splitlines()
         if ln and ln[0] != "#"}
 check("flash: requirements-flash.txt names mido and python-rtmidi (deps.install_flash puts them in the venv)",
-      _req == {"mido", "python-rtmidi"})
+      {"mido", "python-rtmidi"} <= _req)   # (pyserial is there too, for the console tools: b2bcf6ea)
 
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)
