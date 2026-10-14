@@ -47,14 +47,18 @@ static uint8_t seq_den[NTRK];                /* the DIV each track last played o
  * kept as the new base. Beside motion recording (motion.c): a step's hold events apply first (auto_step), so a lock
  * wins on its step and lets go to the motion value (its base). Ids: ours (P_*) here, the stored ids in the list
  * (auto.c mot_sid), 2.4's converted at import / export.
- * Lockable: the sound values (2.4's list in our ids; ANALOG 2's pages; the track FILTER when built). Not on the drum
+ * Lockable: the sound values (2.4's list in our ids; ANALOG 2's pages; the track FILTER when built), the ARP page's
+ * values (MODE .. ORDER), the scale's (ROOT SCALE QNT TRN) and CHORD: the sequencer reads them each tick or note
+ * (seq.c), so a step's lock is heard (2026-10-14: the ARP, SCL pages recorded nothing). Not VOICE, ALLOC, PRIO, GLMODE (the
+ * voice allocation), MUTE (the mixer's), the LFO DEST slots (their ids are the stored LFO depths of before, auto.c
+ * lfo_leg_ev: a lock on them would be one of those). Not on the drum
  * track: its MAC_ID values, where the macros keep their positions (params.c): a lock there would move a macro. */
 static uint8_t lk_n[NTRK], lk_param[NTRK][NLOCK];
 static int16_t lk_base[NTRK][NLOCK], lk_set[NTRK][NLOCK];
 
 static int p_lockable(uint32_t id)
 {
-    return id <= P_LFADE || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
+    return id <= P_LFADE || (id >= P_AMODE && id <= P_TRANS) || id == P_CHORD || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
            id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7)
 #if FELUCCA_ANALOG2
            || (id >= P_A2WAVE && id <= P_A2ESDT)
