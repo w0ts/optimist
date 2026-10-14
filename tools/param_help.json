@@ -272,7 +272,7 @@
       "USED": "Project memory used", "MORE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
       "SLOT": "User kit slot", "SAVE": "Save the user kit (asks)", "ERASE": "Erase the user kit (asks)",
-      "RESET": "Reset to the kit sound (asks)"}},
+      "RESET": "Reset to the kit sound (asks)", "FX ON": "Drum effects on or off"}},
     {"kind": "op", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {"GEN": "Write a new line (asks)"}},
     {"kind": "op", "ctx": "STORE", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
       "SLOT": "User voice slot", "STORE": "Store the voice (asks)", "SEND": "Send as DX7 SysEx (asks)",
@@ -280,7 +280,8 @@
     {"kind": "op", "ctx": "SOUND", "params": {
       "PRESET": "The track's sound", "ENGINE": "Next engine, first sound",
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
-      "KIT": {"text": "The drum kit", "if": "DL_ANY"}}},
+      "KIT": {"text": "The drum kit", "if": "DL_ANY"},
+      "FX ON": "Track effects on or off"}},
     {"kind": "page", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
@@ -307,6 +308,15 @@
       "ROT": "Euclid: rotate the hits", "LANE": "The drum lane it writes"}},
     {"kind": "op", "ctx": "SENDS", "params": {
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
+    {"kind": "op", "ctx": "MIX", "params": {
+      "MUTE": "Mute the row", "VOLUME": "Volume of the row", "LEVEL": "Level of the lane (dB)",
+      "CUT": "Filter cutoff of the lane"}},
+    {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP", "params": {
+      "DRIVE": {"text": "Drive of the lane", "if": "FELUCCA_FX_DIST"},
+      "DST": {"text": "Distortion of the lane", "if": "FELUCCA_FX_DIST"},
+      "CMP": {"text": "Compressor of the lane", "if": "FELUCCA_MASTER_COMP"}}},
+    {"kind": "op", "ctx": "RETURNS", "params": {
+      "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
       "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order (asks)",
       "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Insert a copy (asks)",
