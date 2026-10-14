@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The SLOOP 2.3 / X0X 0.10.1 backports (firmware/src/core/backports23.h), each with its switch on:
- *   mono     a key let go just after a VOICE change leaves no stuck note (FELUCCA_MONO_RELEASE)
+ *   mono     a key let go just after a VOICE change leaves no stuck note (always built since 2026-10-14)
  *   recmode  the REC screen's MODE (FREE / TEMPO) and START (NOTE / COUNT: one bar of clicks) (FELUCCA_REC_MODES;
  *            SLOOP 2.3's t_recmode)
  *   glide    a fast LEVEL turn (a step every UI frame), a PAN jump, MASTER halved: the gain each block starts from
  *            moves by at most ~7 % of a step a block and settles exactly (FELUCCA_GLIDE, X0X 0.10.1); printed for
  *            the build without the switch too (the whole step in one block)
  *   shed     overload: a releasing voice first, then the oldest held one that is not a bass or a lead, faded
- *            (FELUCCA_SHED_FADE; after SLOOP 2.3's t_shed)
+ *            (always built; after SLOOP 2.3's t_shed)
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -64,7 +64,6 @@ static void t_mono_release(void)
     check(gated(t) == 0u && t->nmono == 0u, "VOICE MONO -> POLY with a key held, let go, back to MONO: no stuck note");
 }
 
-#if FELUCCA_SHED_FADE
 static void t_shed(void)
 {
     track_t *t = &trk[0], *m = &trk[1];
@@ -103,7 +102,6 @@ static void t_shed(void)
     run_ms(30);
     check(gated(t) == 1u && t->v[lowest_held(t)].note == 48 && gated(m) == 1u, "overload: ... and keep sounding");
 }
-#endif
 
 #if FELUCCA_REC_MODES
 static void rec_reset(uint32_t bpm)
@@ -308,9 +306,7 @@ int main(void)
     t_recmode();
     t_count_in_start();
 #endif
-#if FELUCCA_SHED_FADE
     t_shed();
-#endif
     printf("%s\n", fails ? "BP23 TEST FAILED" : "bp23 test passed");
     return fails;
 }

@@ -143,7 +143,7 @@ static void t_dly_dot(void)
     s8slow = delay_samples();
     check(s8slow < DLY_LEN && (DLY_LEN > BEAT_U * 3u / 4u / 40u ? s8slow == BEAT_U * 3u / 4u / 40u
                                                                : s8slow == BEAT_U * 3u / 8u / 40u),
-          "TIME 1/8D at 40 BPM: fits, or halves to 1/16D when the line is shorter (DLY_HALVE)");
+          "TIME 1/8D at 40 BPM: fits, or halves to 1/16D when the line is shorter (halved, X0X 892a3b5)");
     check(GP[G_DTIME].max == 7 && !strcmp(GP[G_DTIME].names[6], "1/8D") && !strcmp(GP[G_DTIME].names[7], "1/16D"),
           "TIME's names: the six as before, then 1/8D 1/16D (appended)");
     song.g[G_BPM] = 120;

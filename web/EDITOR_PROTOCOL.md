@@ -592,7 +592,7 @@ rc: 0 ok, 1 arguments (an unknown object, a sample slot, out of order), 2 CRC (a
 object at COMMIT), 3 the transport plays, 4 no flash, 5 not in this build (never written), 6 longer than a storage
 object, 7 the flash write failed (the old copy stays), 8 at COMMIT: not an object the firmware would load (today's formats
 checked in full: a project's size and sum, the settings' calibration a permutation, a bank's shape; older formats by their
-magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
+magic; after SLOOP 2.3): nothing written.
 
 **Check before writing (version 4).** `BK_COMMIT i 1` runs the same checks as a COMMIT (length, CRC, rc 8) and writes
 nothing. A restore sends every storage object (kind 0) through BEGIN / DATA / `COMMIT i 1` first, and writes only when

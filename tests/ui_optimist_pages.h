@@ -74,19 +74,19 @@ static void pages_nav_tests(void)
         dual_c1_q8 = 128u;
         memset(&c2, 0, sizeof c2);
         sys_info_cell(2, &c2);
-        check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
-              "DUAL: INFO's third line: CPU1 50 %, a read-out");
+        check(c2.kind == CK_RO && !strcmp(c2.label, "2ND CORE ON") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
+              "DUAL: INFO's third line: 2ND CORE ON, 50 %, a read-out");
         dual_c1_q8 = DUAL_C1_OFF;
         memset(&c2, 0, sizeof c2);
         sys_info_cell(2, &c2);
-        check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "OFF"),
-              "DUAL: CPU1 down: its cell reads OFF");
+        check(c2.kind == CK_RO && !strcmp(c2.label, "2ND CORE OFF") && !strcmp(c2.val, "NO REASON"),
+              "DUAL: CPU1 down, no reason: 2ND CORE OFF");
         dual_c1_q8 = q;
     }
 #else
     memset(&c2, 0, sizeof c2);
     sys_info_cell(2, &c2);
-    check(strcmp(c2.label, "CPU1") && !strcmp(c2.label, "FLASH"), "D2: a single-core build: INFO has no CPU1 line (the memory follows the load)");
+    check(!strcmp(c2.label, "2ND CORE") && !strcmp(c2.val, "NOT IN BUILD"), "D2: a single-core build: INFO's third line says NOT IN BUILD");
 #endif
     /* D6 */
     reset_ui();

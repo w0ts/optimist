@@ -355,7 +355,6 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
     return low;
 }
 
-#if FELUCCA_SHED_FADE
 /* overload (SLOOP 2.3, after Felucca 1.0; audio.c asks for it when two halves in a row took > 85 % of their
  * time): fade one voice out over the next block (voice_kill: no click), one more each half while it lasts.
  * First the quietest releasing voice; else the oldest held one that is neither a POLY part's lowest note (the
@@ -390,7 +389,6 @@ static __attribute__((noinline)) void shed_voice(void)   /* (cold: only when ove
         shed_count++;
     }
 }
-#endif
 
 /* the voice to give up for a new one (see the top); soft: only released voices and
  * extra UNISON voices of other parts. Returns its index, *pp its part; NVOICE = none */
@@ -774,15 +772,11 @@ static void trk_note_off(track_t *t, uint32_t note)
             t->xp_vel[k++] = t->xp_vel[i];
         }
     t->xp_n = (uint8_t)k;
-#if FELUCCA_MONO_RELEASE
     mono_remove(t, note);                               /* in any mode: a key let go after a VOICE change must not
-                                                         * stay in the MONO stack (SLOOP 2.3, after Felucca 1.0) */
-#endif
+                                                         * stay in the MONO stack (SLOOP 2.3 d691ba7, unchanged in 2.6;
+                                                         * Felucca 1.0, by isod89 and Leo Kuroshita, GPL-3.0) */
     if (mode != V_POLY) {
         uint32_t nv = mode == V_UNISON ? trk_nvoice(t) : 1u;
-#if !FELUCCA_MONO_RELEASE
-        mono_remove(t, note);
-#endif
         if (t->mono_note == note) {
             uint32_t next = mono_pick(t);
             if (next) {                                 /* fall back to a held note, legato */

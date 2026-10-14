@@ -17,20 +17,12 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
-    "FELUCCA_DLY_HALVE": "long delay times halve to stay on the beat", "FELUCCA_MOTION": "motion recording (knobs per step)",
+    "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
-    "FELUCCA_KEYS_FAST": "keys ~1 ms sooner (debounce per column)",
-    "FELUCCA_SHED_FADE": "overload: fade a voice, keep bass and lead",
-    "FELUCCA_USB_FLOW": "USB MIDI in: flow control, malformed ignored",
-    "FELUCCA_ST_STRICT": "stricter checks of saved data when read back",
-    "FELUCCA_BK_CHECK": "restore: an object refused unless it would load",
-    "FELUCCA_TRS_NOISE": "TRS MIDI in: line noise no longer deafens the jack",
-    "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
-    "FELUCCA_LAYER_QUIET": "knobs quiet as a layer button is let go",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
@@ -71,9 +63,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
                       "of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: "
                       "always full brightness.",
-    "FELUCCA_DLY_HALVE": "A delay time longer than the delay line is halved (so it stays on the beat) instead of being "
-                         "cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as "
-                         "1/8). Costs 64 B of flash; off: the time is cut at the line's length.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
@@ -89,17 +78,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
                       "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
                       "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
-    "FELUCCA_MONO_RELEASE": "Fixes a stuck note when you let a key go just after a VOICE change (MONO stack). No "
-                            "cost.",
-    "FELUCCA_ST_STRICT": "Stricter checks of what is read back from flash (settings, projects, presets, kits) and a "
-                         "compare after each save, so damaged data is refused instead of loaded. About 0.1 KB of "
-                         "flash.",
-    "FELUCCA_USB_FLOW": "USB MIDI in: asks the computer to wait when the device is busy instead of dropping messages, "
-                        "and ignores malformed ones. About 0.3 KB of flash; the TRS jack cannot be held back.",
-    "FELUCCA_SHED_FADE": "Under overload, fades out one voice at a time and never the bass or the lead, instead of "
-                         "cutting voices; the sound changes only under overload. About 0.1 KB of flash.",
-    "FELUCCA_KEYS_FAST": "The keys respond about 1 ms sooner (each key is debounced as its column is read); measured "
-                         "on the host: mean press latency 3.3 to 1.7 ms. About 32 B of flash.",
     "FELUCCA_REC_MODES": "REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 "
                          "count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; "
                          "off: free recording started by a note.",
@@ -109,12 +87,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_GLIDE": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over "
                      "~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of "
                      "flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
-    "FELUCCA_TRS_NOISE": "TRS MIDI in: a noise byte (FD) arriving at the wrong moment no longer blocks the jack until "
-                         "the next restart. About 16 B of flash.",
-    "FELUCCA_BK_CHECK": "Restoring a backup writes each stored object only if the firmware would load it (otherwise "
-                        "it is refused), so a bad backup cannot leave unloadable data. About 0.4 KB of flash.",
-    "FELUCCA_LAYER_QUIET": "Knob turns while a layer button is being let go (and for 250 ms after a used layer "
-                           "closes) are ignored, so releasing a layer does not nudge a parameter. About 8 B of flash.",
     "FELUCCA_BPM_LOCK": "SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's "
                         "BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B "
                         "of flash.",
@@ -132,7 +104,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                         "beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so "
                         "SLOOP 2.4 projects load as they play there. Costs 172 B of flash.",
     "FELUCCA_DLY_DOT": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the "
-                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D (DLY_HALVE). Costs 28 B of flash.",
+                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
 }
 DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP 2.4, 2.5 or 2.6: Optimist never erases or writes over what SLOOP left that it cannot read: the"
@@ -217,26 +189,26 @@ DESC["FELUCCA_SEQTOOLS"] = (
     "ROT, live). On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
     "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash; nothing with "
     "SLOOP's UI.")
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
-    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74, "FELUCCA_DLY_HALVE": 75,
+    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74,   # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
-    "FELUCCA_BK_CHECK": 110,
-    "FELUCCA_TRS_NOISE": 109,
+    # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)
+    # (109: FELUCCA_TRS_NOISE, retired 2026-10-14: always built; never reuse the bit)
     # (108: FELUCCA_KNOB_ONEREST, retired 2026-10-14: Felucca 1.6's knob decoder is always built; never reuse the bit)
     "FELUCCA_GLIDE": 107,
     "FELUCCA_LIGHTS": 106,
     "FELUCCA_REC_MODES": 105,
-    "FELUCCA_KEYS_FAST": 104,
-    "FELUCCA_SHED_FADE": 103,
-    "FELUCCA_USB_FLOW": 102,
-    "FELUCCA_ST_STRICT": 101,
-    "FELUCCA_MONO_RELEASE": 100,
-    "FELUCCA_LAYER_QUIET": 130,
+    # (104: FELUCCA_KEYS_FAST, retired 2026-10-14: always built; never reuse the bit)
+    # (103: FELUCCA_SHED_FADE, retired 2026-10-14: always built; never reuse the bit)
+    # (102: FELUCCA_USB_FLOW, retired 2026-10-14: always built; never reuse the bit)
+    # (101: FELUCCA_ST_STRICT, retired 2026-10-14: always built; never reuse the bit)
+    # (100: FELUCCA_MONO_RELEASE, retired 2026-10-14: always built; never reuse the bit)
+    # (130: FELUCCA_LAYER_QUIET, retired 2026-10-14: always built; never reuse the bit)
     "FELUCCA_BPM_LOCK": 132,
     "FELUCCA_DIV_ORDER": 133,
     "FELUCCA_PUNCH_LATCH": 131,

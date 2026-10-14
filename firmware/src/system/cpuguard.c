@@ -346,7 +346,7 @@ static CG_FAR void cg_post(uint32_t us)
             cg.shed = m > CG_CEIL;       /* (as audio.c: a half over 85 % sheds one voice before the next) */
         } else if ((m >= CG_FULL && prev > CG_CEIL) || ++cg.over >= CG_HOLD) {   /* (a late half after one over
                                           * the ceiling; a lone late half, a flash write or another interrupt's
-                                          * burst, is not a load: as audio.c FELUCCA_SHED_FADE) */
+                                          * burst, is not a load: as audio.c without the guard) */
             cg_step();
         }
     } else {

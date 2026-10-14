@@ -94,7 +94,15 @@ check("a .config with the retired SIZE=0 / IDLE=0 loads, warns \"dropped\" for e
       "SIZE" not in R.ITEMS and "IDLE" not in R.ITEMS and "SIZE" not in _cfg and "IDLE" not in _cfg and
       _w.getvalue().count("dropped") == 2 and _cfg["ICONS"] == 0)
 check("... and the build has no switch for them (FELUCCA_IDLE, FELUCCA_SIZE)", "FELUCCA_IDLE" not in _h and "FELUCCA_SIZE" not in _e)
-ported = [it for it in items.values() if it.provenance]
+# an item this builder does not know (a newer builder's, or one removed without a RETIRED line): ignored with a
+# warning, never an error, so a saved .config always loads
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nNO_SUCH_ITEM=1\nICONS=0\n")
+check("a .config naming an item this builder does not know loads, warns once and keeps its other keys",
+      "NO_SUCH_ITEM" not in _cfg and _cfg["ICONS"] == 0 and _w.getvalue().count("warning:") == 1 and
+      "NO_SUCH_ITEM" in _w.getvalue())
+ported =[it for it in items.values() if it.provenance]
 check(f"ported items ({len(ported)}) carry project, author and licence",
       all(it.provenance.project and it.provenance.author and it.provenance.licence for it in ported))
 # every item explains itself to the user: a real description (the menu shows it) and a label that is more than the

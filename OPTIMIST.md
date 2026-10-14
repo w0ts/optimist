@@ -698,7 +698,7 @@ An engine of its own (engine 13; a build without it plays a CZ track on PHASE an
 
 **HOME held > MENU > BRIGHT**: the screen's backlight, 1 (dim) to 8 (full, as before). **EXPERIMENTAL, off by default, untested on a real FM-1.** On X0X, the same backlight PWM froze an FM-1 at its lowest level, and because the level was saved it froze again at every start until the firmware was reinstalled (X0X issue #2; the cause is unknown). So here the screen starts at full brightness at every power-on and reset (the level is not kept), and the lowest step is 4/16 instead of 1/16. Ported from X0X by Charles Vestal (GPL-3.0).
 
-### Delay time on the beat (`FELUCCA_DLY_HALVE`, on by default)
+### Delay time on the beat (always built)
 
 A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM in builds with the short line) plays at half its length, then half again, which stays on the beat; before, it was cut to the line's length. After X0X by Charles Vestal (GPL-3.0).
 
@@ -706,14 +706,14 @@ A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM i
 
 Ported from SLOOP 2.3 by isod89 (GPL-3.0; many of them after Felucca 1.0 / 1.0.1 by Leo Kuroshita), each its own switch:
 
-- **USB MIDI in loses nothing** (`FELUCCA_USB_FLOW`): when a lot of MIDI arrives at once from a computer, the computer is asked to wait (no note-off dropped, no hanging note); a malformed message is ignored.
-- **Overload** (`FELUCCA_SHED_FADE`): when the processor is overloaded twice in a row, one voice fades out at a time, never a track's bass (its lowest POLY note) or its MONO / LEGATO / UNISON lead, instead of the oldest note going into its release.
-- **Keys about a millisecond sooner** (`FELUCCA_KEYS_FAST`): a key is read as its column is scanned, a press after two samples closed (host-measured: 3.3 -> 1.7 ms from the contact).
-- **No stuck note after a VOICE change** (`FELUCCA_MONO_RELEASE`): a key let go just after POLY / MONO changed no longer comes back.
-- **Stricter checks of what is read from the flash** (`FELUCCA_ST_STRICT`): a stored record counts only in the copy it was written to; the calibration table must give each label its own button and knob.
+- **USB MIDI in loses nothing** (always built): when a lot of MIDI arrives at once from a computer, the computer is asked to wait (no note-off dropped, no hanging note); a malformed message is ignored.
+- **Overload** (always built): when the processor is overloaded twice in a row, one voice fades out at a time, never a track's bass (its lowest POLY note) or its MONO / LEGATO / UNISON lead, instead of the oldest note going into its release.
+- **Keys about a millisecond sooner** (always built): a key is read as its column is scanned, a press after two samples closed (host-measured: 3.3 -> 1.7 ms from the contact).
+- **No stuck note after a VOICE change** (always built): a key let go just after POLY / MONO changed no longer comes back.
+- **Stricter checks of what is read from the flash** (always built): a stored record counts only in the copy it was written to; the calibration table must give each label its own button and knob.
 - **Knobs** (always built since 2026-10-14; was `FELUCCA_KNOB_ONEREST`): Felucca 1.6's decoder (released in 1.1.5, #126): one rest position a click, every scan's state counted, so a click paused half-way no longer makes every later click count twice and fast turns (to ~300 clicks/s) lose none.
-- **TRS MIDI in after line noise** (`FELUCCA_TRS_NOISE`): a stray byte that looks like an empty slot of the input buffer no longer leaves the MIDI IN jack deaf until a restart.
-- **Restore checks each object** (`FELUCCA_BK_CHECK`): restoring a backup, the editor's Projects tab writes a project, the settings, a preset bank, the kit bank or the drum records only if the firmware would load them (a project's size and sum, the calibration, the bank's shape); otherwise it stops with "not a valid object" and leaves what is on the FM-1.
+- **TRS MIDI in after line noise** (always built): a stray byte that looks like an empty slot of the input buffer no longer leaves the MIDI IN jack deaf until a restart.
+- **Restore checks each object** (always built): restoring a backup, the editor's Projects tab writes a project, the settings, a preset bank, the kit bank or the drum records only if the firmware would load them (a project's size and sum, the calibration, the bank's shape); otherwise it stops with "not a valid object" and leaves what is on the FM-1.
 
 ### Coming from SLOOP 2.4 (`FELUCCA_SL24_SAFE`, on)
 
@@ -792,7 +792,7 @@ A track's LEVEL, PAN and sends, MASTER, and the drum track's level, pan and per-
 Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Felucca by Leo Kuroshita) with the same gestures, so the SLOOP guide and muscle memory carry over. Each is its own switch.
 
 - **Long steps** (`FELUCCA_DIV_LONG`, on by default): SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to **1/2**, **1BAR** and **2BAR**, a step of 2, 4 or 8 beats, for slow chords and pads. Such steps are never swung. The new values are appended, so old projects are unchanged and SLOOP 2.4 projects play the same.
-- **Dotted delays** (`FELUCCA_DLY_DOT`, on by default): FX > DLY > TIME gains **1/8D** and **1/16D** (3/4 and 3/8 of a beat). In builds with the short delay line (0.74 s, user-default) a 1/8D needs 61 BPM or more; below that it plays as 1/16D (still dotted, `FELUCCA_DLY_HALVE`), where SLOOP 2.4 cuts it at the line's length.
+- **Dotted delays** (`FELUCCA_DLY_DOT`, on by default): FX > DLY > TIME gains **1/8D** and **1/16D** (3/4 and 3/8 of a beat). In builds with the short delay line (0.74 s, user-default) a 1/8D needs 61 BPM or more; below that it plays as 1/16D (still dotted: the delay halves to stay on the beat), where SLOOP 2.4 cuts it at the line's length.
 - **Micro timing** (`FELUCCA_MICRO`, off by default): on the SEQ layer, hold a step and turn **KNOB 4 NUDGE**: the step plays up to half a step early (-32) or late (+31), in 1/64 of a step; a nudged step shows a dot in its corner, and its ratchets ride with it. With it, the note length of a held synth step moves from KNOB 4 to **SELECT**.
 - **Fills** (`FELUCCA_FILLS`, off by default): on the SEQ layer, hold a step and press **OCT+**: it cycles **normal**, **FILL ONLY** (an F on its tile: it plays only during a fill) and **NO FILL** (an x: it is silent during one). **OCT-** with a step held clears its nudge, locks and fill. **GLO + key 9** plays a fill while held; **GLO + key 10** makes the next bar a fill (again: cancelled); STOP ends both. With fills built, the **FX bypass** moves from GLO + 9-12 to **GLO + black keys 1-4** (F#, G#, A#, C#: the same keys as the SEQ layer's pages), and a muted-or-not tile shows a mark when that track is dry.
 - **Parameter locks** (`FELUCCA_PLOCK`, off by default): on the SEQ layer, hold a step and turn **PRESETS**: the step gets its own value of a sound parameter, made at the track's value and then moved; **ALGORITHM** picks which (the last sound value you turned on a page, ENV DEST FLT at first); the title reads *lock flt +12* (or *--*). Up to 128 locks a track (with its motion, nudges and fills), several on one step; the value goes back at the next step without a lock on it, and notes still ringing follow. A knob turned during a lock becomes the new value after it; STOP puts every value back. On the drum track the kit locks, but not ENV DEST FLT / PIT / SHP and LFO DEST FLT, where the macros keep their positions. With motion recording, motion plays first on a step and the lock wins on its step.
