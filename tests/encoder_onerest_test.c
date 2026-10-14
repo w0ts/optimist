@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * From SLOOP 2.3 by isod89 (isod89/sloop-fm1 d691ba7, tests/encoder_test.c), GPL-3.0; built here with
- * FELUCCA_KNOB_ONEREST=1 (hal/fm1_input.h: one rest state, with X0X's no-filter decoder). */
+ * hal/fm1_input.h (one rest state: Felucca 1.6's decoder, always on). */
 /* Host test of the knob decoder (firmware/hal/fm1_input.h fm1__frame): an FM-1 detent is one full
  * quadrature cycle and the knob rests in one state. Clicks are played as the scan sees them, one
  * sample per frame (~1.1 ms): slow and fast turns, pauses mid-click (short and long), contact
