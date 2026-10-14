@@ -552,7 +552,7 @@ static void header_footer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-step-head-pick");
-    check(px_in(60, 4, 170, 16, C_HI), "STEP: the header says the window and the pick (Steps 1-16 c.hat)");
+    check(px_in(60, 4, 170, 16, C_HI), "STEP: the header says the page (Pattern 1/N; #17: the pick is the grid's lit lane)");
     tap(B_HOME);
     song.sel = 0;
     tap(B_EDIT);
@@ -565,14 +565,17 @@ static void header_footer_tests(void)
     op_enter(SCR_HOME);
     press(B_FX);
     frames(HOLD_FRAMES);
-    str_cpy(t, ui.msg, sizeof t);
-    check(ui.msg_t > 0 && !strcmp(t, "HOME LOCKS IT"), "a layer opened: \"Home locks it\" in the header");
+    check(lay_hint_t > 0 && ui.msg_t == 0, "#24: a layer opened: \"Home locks it\" on the help line, never in the header");
+#if FELUCCA_PARAM_HELP
+    frame();
+    check(hl.on, "#24: the help line shows the layer's hint");
+#endif
     release(B_FX);
     frames(2);
-    check(ui.msg_t == 0, "the layer let go: its hint with it");
+    check(lay_hint_t == 0, "the layer let go: its hint with it");
     press(B_FX);
     frames(HOLD_FRAMES);
-    check(ui.msg_t == 0, "the hint once a power-on");
+    check(lay_hint_t == 0 && ui.msg_t == 0, "the hint once a power-on");
     release(B_FX);
     frames(2);
 }

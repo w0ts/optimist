@@ -237,7 +237,7 @@ static void s35_pages_tests(void)
     turn(EN_SELECT, -8);                                /* (the first set) */
     turn(EN_SELECT, 1);
     check(n < 2u || s35_pos_is(2u, n), "the mixer: SELECT, the set's n/N (T1 INSERT 2/4)");
-    /* STEP: its pages while their cards show; the window's header otherwise */
+    /* STEP: its pages, their cards shown or not (the audit's #17) */
     reset_ui();
     song.sel = 0;
     tap(B_SEQ);
@@ -245,7 +245,7 @@ static void s35_pages_tests(void)
     {
         char p[12];
         head_pos(SCR_STEP, ui.row[SCR_STEP], p);
-        check(!p[0], "STEP, nothing shown over the grid: no n/N (the header names the window)");
+        check(p[0] && s35_pos_is(1u, SCR->rows()), "#17: STEP, nothing shown over the grid: the page's name and n/N (Pattern 1/N)");
     }
     n = SCR->rows();
     tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */

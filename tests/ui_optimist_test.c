@@ -995,8 +995,8 @@ static void step_keys_tests(void)
         release(B_OCTUP);
         release(B_HOME);
         head_title(SCR_STEP, 0, h, sizeof h);
-        check(st.page == 1 && !st.follow && !strcmp(h, "Steps 17-32") && ui.scr == SCR_STEP && song.octave == oct,
-              "HOME + OCT+: the window 17-32 (the header says so), FOLLOW off, no NO, the octave kept");
+        check(st.page == 1 && !st.follow && !strcmp(h, "Pattern") && ui.scr == SCR_STEP && song.octave == oct,
+              "HOME + OCT+: the window 17-32 (the strip lights it; the header the page's name, #17), FOLLOW off, no NO, the octave kept");
         ui.force = 1;
         frame();
         ppm("opt-step-window");
@@ -1007,7 +1007,7 @@ static void step_keys_tests(void)
         release(B_OCTUP);
         release(B_HOME);
         head_title(SCR_STEP, 0, h, sizeof h);
-        check(st.page == 2 && !strcmp(h, "Steps 33-40"), "HOME + OCT+ again: 33-40 (LEN 40)");
+        check(st.page == 2 && !strcmp(h, "Pattern"), "HOME + OCT+ again: 33-40 (LEN 40)");
         key(WK(10));
         check(!dstep_mask(&t->dstep[42]), "a key past LEN: nothing");
         press(B_HOME);
@@ -2500,6 +2500,7 @@ static void led_tests(void)
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
+#include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 
 int main(int argc, char **argv)
 {
@@ -2624,6 +2625,7 @@ int main(int argc, char **argv)
 #endif
     accent_ui_tests();
     lanevals_tests();
+    screens_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif

@@ -70,7 +70,8 @@ static void nm_cells(uint32_t r)
         c = row[k];
         if (c.label && c.label[0]) {
             const char *lab = card_label(&c, b, sizeof b);
-            uint32_t mx = c.kind == CK_ACT ? 8u : 6u;
+            uint32_t mx = c.kind == CK_ACT || !strcmp(lab, "MISSING") ? 8u : 6u;   /* (MISSING: PROJECT > TOOLS' read-out,
+                                                         * on its 2x2 card only, never the mixer's; the audit's #43) */
             if (nm_dump)
                 fprintf(nm_dump, "C|%s|%s|%s|%s|%s|%s|%u\n", nm_where(w, sizeof w), nm, c.label, lab, c.val, c.unit, c.kind);
             if (!nm_upper(lab) || str_len(lab) > mx)

@@ -17,7 +17,9 @@
 #define SP_Y 25                         /* the panel: from under the header to the help band (OP_FOOT), no cards (they overlay it) */
 #define SP_H (OP_FOOT_Y - SP_Y)
 #define SG_H (SP_H - 11)                /* the 17 lanes' rows (12 px; 10 or 11 over the help band), the roll's height: the panel less the marks and the playhead */
-#define SG_LY(l) (SG_TOP + (int32_t)(l) * SG_H / (int32_t)DRUM_UILANES)   /* lane l's row: 12 or 13 px (17 lanes with the ACCENT lane: 12), the remainder spread out */
+#define SG_LY0(l) (SG_TOP + (int32_t)(l) * SG_H / (int32_t)DRUM_UILANES)   /* lane l's row: 12 or 13 px (17 lanes with the ACCENT lane: 12), the remainder spread out */
+#define SG_LY(l) (sg_dy + SG_LY0(l))    /* ... as drawn: shifted while a held step's cards cover the selected lane (sg_shift) */
+static int32_t sg_dy;
 #define SG_LH (SG_H / (int32_t)DRUM_UILANES)   /* (the least a row is) */
 #define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
 #define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel's last 4 rows */
@@ -63,6 +65,8 @@ static void sg_drums(const track_t *t)
     for (l = 0; l < DRUM_UILANES; l++) {                /* (the 16 sounds, then the ACCENT lane's row) */
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
         uint16_t c = op_lane_col(l);
+        if (y < SG_TOP || y + lh > SG_TOP + SG_H)
+            continue;                                   /* (shifted out of the grid: sg_shift) */
         cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
         cv_text(6, y + (lh - 11) / 2 - 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
         for (w = 0; w < 16u; w++) {
@@ -249,6 +253,13 @@ static void sg_roll(const track_t *t)
         }
     }
     roll_names(used);
+    for (i = 0; i < (pen_n ? (uint32_t)pen_n : 1u) && i < 4u; i++) {   /* the pick (what a tapped step takes): a white
+                                                         * mark at the gutter's edge on its rows (the audit's #17: no
+                                                         * longer in the header) */
+        int32_t nt = (int32_t)pick_note(i);
+        if (nt >= rg.lo && nt <= rg.hi)
+            RR(0, NY(nt) + m, 2, h, C_WHITE);
+    }
     for (w = 0; w < 16u; w++) {                         /* the steps held: framed white */
         int32_t x = RL_X + (int32_t)w * RL_CW;
         if (!((st.held >> w) & 1u) || st.page * 16u + w >= len)
@@ -316,8 +327,9 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         for (i = 0; i < DRUM_UILANES; i++)
             h = hu(h, op_lane_col(i));
     else
-        h = hu(hu(h, pick_note(0)), (uint32_t)(song.octave + 16) + song.sel * 64u);   /* (the roll's view: OCT) */
-    return hu(h, settings.palette);
+        h = hu(hu(hu(hu(hu(h, pick_note(0)), pick_note(1)), pick_note(2) * 128u + pick_note(3)), pen_n),
+               (uint32_t)(song.octave + 16) + song.sel * 64u);   /* (the roll's view: OCT; the pick's marks) */
+    return hu(hu(h, settings.palette), (uint32_t)(sg_dy + 512));
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
  * the footer's before there was none); empty when no step is held */
@@ -382,6 +394,19 @@ static void draw_step_panel(void)
  * while ui.cards_t runs (a page change, a value edited, a step held: step_cards_show); when they go the grid is drawn
  * again whole, and a grid drawn again under them brings them back. A step let go: the cards and the lines go on
  * showing the page that was held until the timer ends (cards_snap_use, op_draw.c draw_cards) */
+/* the drum grid's shift while the cards are up (the audit's #15): the selected lane's row whole between the cards and
+ * the held step's lines, else the grid moves so that row is the first under the cards (the rows above it go under
+ * them, the rows past the grid's foot are not drawn); 0 with the cards down, on a synth track, or the row in view */
+static int32_t sg_shift(uint32_t want, uint32_t inf)
+{
+    int32_t top = OP_PY - SP_Y, lim = inf ? SG_INFO_Y : SG_TOP + SG_H, y, lh;
+    uint32_t sel = lane_selected();
+    if (!want || !is_drum(TSEL))
+        return 0;
+    y = SG_LY0(sel);
+    lh = SG_LY0(sel + 1u) - y;
+    return y >= top && y + lh <= lim ? 0 : top - y;
+}
 static void step_frame(void)
 {
     static uint8_t on, info, was_held;
@@ -399,6 +424,7 @@ static void step_frame(void)
     else if (cards_snap_use)
         memcpy(sg_info, snap, sizeof sg_info);
     inf = want && sg_info[0][0];
+    sg_dy = sg_shift(want, inf);                        /* (in step_sig: the grid again when it changes) */
     if ((!want && on) || (!inf && info))
         ui.sig[2] = 0;
     under = ui.sig[2];

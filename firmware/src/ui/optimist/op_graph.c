@@ -265,11 +265,10 @@ static void graph_scale(uint16_t c)
 /* ARP: one bar of the arpeggiator as seq.c arp_next plays it (SLOOP's graph_arp, ui_overview.c, its maths copied: this
  * UI does not call into ui/sloop), always a picture (the user, 2026-10-12: "arp is the same as lfo/env. no list"):
  *   the notes   the ones held (the latch's too), else a reference chord, C4 E4 G4 (E C G with ORD PLAY), over OCT
- *               octaves, a guide line at each pitch, named on the top line with MODE and RATE
+ *               octaves, a guide line at each pitch (no text line: MODE, RATE are the cards', the audit's #46)
  *   the marks   a step of RATE, GATE long, every other step SWG late, up / down / up-down / random by MODE, a step PROB
- *               would skip dim; MODE OFF: the pattern UP would play, in the shade, "OFF" on the top line
- * It fills GRAPH_H: the pitches spread over the height under the top line, the marks as tall as they fit */
-#define ARP_LINE 18                                     /* the top line: MODE RATE, the notes */
+ *               would skip dim; MODE OFF: the pattern UP would play, in the shade
+ * It fills GRAPH_H: the pitches spread over the height, the marks as tall as they fit */
 static uint32_t arp_ref(const track_t *t, uint8_t *nt)  /* the notes the picture plays (16 at most), how many */
 {
     static const uint8_t SORTED[3] = {60, 64, 67}, PLAYED[3] = {64, 60, 67};
@@ -293,33 +292,13 @@ static uint32_t arp_ref(const track_t *t, uint8_t *nt)  /* the notes the picture
             }
     return n;
 }
-static void arp_top_line(const track_t *t, const uint8_t *nt, uint32_t cnt, uint16_t c)
-{
-    char b[32], nm[6];
-    uint32_t i, k, mode = (uint32_t)t->p[P_AMODE] % 6u;
-    str_cpy(b, N_AMODE[mode], sizeof b);
-    str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
-    str_cpy(b + str_len(b), N_DIV[(uint32_t)t->p[P_ARATE] % 6u], sizeof b - str_len(b));
-    cv_text(4, GR_TOP, &FONT_S, b, mode ? c : C_GRAY);
-    str_cpy(b, t->nheld ? "HELD" : "", sizeof b);       /* (the reference chord: its notes alone) */
-    for (i = 0; i < cnt && i < 4u; i++) {
-        note_name(nm, nt[i]);
-        k = str_len(b);
-        if (k)
-            b[k++] = ' ', b[k] = 0;
-        str_cpy(b + k, nm, sizeof b - k);
-    }
-    if (cnt > 4u)
-        str_cpy(b + str_len(b), "+", sizeof b - str_len(b));
-    cv_text(236 - text_w(&FONT_S, b), GR_TOP, &FONT_S, b, t->nheld ? C_WHITE : C_GRAY);
-}
 static void graph_arp(uint16_t c)
 {
     const track_t *t = TSEL;
     uint8_t nt[16];
     uint32_t cnt = arp_ref(t, nt), mode = (uint32_t)t->p[P_AMODE] % 6u, oct = (uint32_t)clamp(t->p[P_AOCT], 1, 4);
     uint32_t len = cnt * oct, steps = 4u * DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], i, b, lo = 127, hi = 0;
-    int32_t top = GR_TOP + ARP_LINE, bot = GR_BOT, span, sw = 236 / (int32_t)steps, mh;
+    int32_t top = GR_TOP + 2, bot = GR_BOT, span, sw = 236 / (int32_t)steps, mh;
     int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)clamp(t->p[P_ASWING], 0, 100) * sw / 200;
     uint16_t mc = mode ? c : col_shade(c, 3u);          /* (OFF: the pattern UP would play, shaded) */
     for (i = 0; i < cnt; i++) {
@@ -331,7 +310,6 @@ static void graph_arp(uint16_t c)
     mh = (bot - top - 4) / (span + 1);
     mh = mh < 3 ? 3 : mh > 12 ? 12 : mh;
 #define ARPY(n) (bot - 2 - (int32_t)((n) - lo) * (bot - top - 4) / span)
-    arp_top_line(t, nt, cnt, c);
     for (i = 0; i < len; i++)                           /* the guide lines: every pitch it plays */
         cv_rect(2, ARPY(nt[i % cnt] + 12u * (i / cnt)), 234, 1, C_LINE);
     for (b = 0; b < 4u; b++)                            /* the beats */
@@ -413,20 +391,22 @@ static void graph_lane(void) { graph_lane_of(0); }
 /* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
  * copied: this UI does not call into ui/sloop). The level over the sound's length in the lane's colour (synthesised:
  * the body and the noise as they hold and decay, CLICK a tick at the start; a sample: its peaks with DECAY; an X0X
- * model: a sketch of its decay as set), the pitch drop (BEND) in white, the length at the right. A LEVEL-only sound
+ * model: a sketch of its decay as set), the pitch drop (BEND) in white, the length in the label row. A LEVEL-only sound
  * (the 909's rim shot) says so */
 #define DENV_W 232
+static int32_t denv_tx;                                  /* the label row: where the source's tag starts (denv_time ends before it) */
 static void denv_head(uint32_t l, const char *right)
 {
     cv_text(4, GR_TOP, &FONT_S, lane_name(l), op_lane_col(l));
-    cv_text(236 - text_w(&FONT_S, right), GR_TOP, &FONT_S, right, C_GRAY);
+    denv_tx = 236 - text_w(&FONT_S, right);
+    cv_text(denv_tx, GR_TOP, &FONT_S, right, C_GRAY);
 }
-static void denv_time(uint32_t ms)
+static void denv_time(uint32_t ms)                      /* the length, in the label row before the tag (the audit's #32: never on the baseline) */
 {
     char b[12];
     fmt_int(b, (int32_t)ms);
     str_cpy(b + str_len(b), "ms", 4);
-    cv_text(236 - text_w(&FONT_S, b), GR_BOT - 14, &FONT_S, b, C_DIM);
+    cv_text(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, &FONT_S, b, C_GRAY);
 }
 #if DRUM_X0X
 static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)

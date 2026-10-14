@@ -121,7 +121,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 /* HOME held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"LENGTH", "1 BAR"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
+    {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
     {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"}};
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {

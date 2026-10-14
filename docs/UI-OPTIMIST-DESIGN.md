@@ -131,7 +131,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **HOME held + anything** | **clear it** [D]: + a step key on a synth track's STEP, the step (its notes, events and extras; the drum track's STEP: SEQ + a step key, and HOME + a key is the lane pick, 2026-10-14; a step held, HOME tapped, clears it on both); + a knob, the hot cell's event (a step held) or the cell back to its default; + a scene or pattern key in its layer, that scene or pattern (HOME + REC clears a SONG scene row's scene and nothing else since 2026-10-13: a track is cleared by the REC ring alone, section 27). HOME held alone does nothing, on the mixer too (2026-10-12, section 17: SYSTEM is in GLO's cycle) |
 | **a page button, tapped** | jump the cursor to that family's rows (ENV: the envelope rows of SOUND); tapped again: its next row, past the last the first |
 | **HOME held + a key** where the keys play (the drum track's STEP too), **SEQ held + a key** on a synth track's STEP | **pick** [D]: on the drum track the lane (the key plays the sound, so you hear what you picked; the last upper key: the ACCENT lane, section 29); on a synth track, on STEP, the note or chord the next tapped steps carry (SEQ + keys). The selected lane is one value for the whole device, like the selected track: the mixer's drum column, SOUND and STEP all show it. On a drum track's STEP the keys are steps and **SEQ held + a key clears the step** (everything of it; the swap of 2026-10-14: HOME picks as on every drum page, SEQ clears; SEQ + the ACCENT key does nothing, it is no step); a synth track's STEP: HOME + a step clears, SEQ picks. **On the mixer HOME held + a key is the sequencer MUTE, not the pick** (2026-10-13, section 21)**On GLOBAL, SYSTEM, PROJECT, MASTER FX, SONG and SCOPE the keys do nothing at all, the pick included** (2026-10-13, section 24b) |
-| **GLO tapped** | **GLOBAL** [D, 2026-10-12]: the tempo, REC and MIDI settings, and the way into SYSTEM (section 4.11); tapped again: its next row, round |
+| **GLO tapped** | **GLOBAL** [D, 2026-10-12]: the tempo, REC and MIDI settings, and the way into SYSTEM (section 4.11); tapped again: SYSTEM, and again GLOBAL (the two lists, section 20) |
 | **a page button, held** | the performance layers, as today (section 4.9) |
 | **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D]; **on STEP's roll the same value: the keyboard octave and the roll's view are one (2026-10-13, section 4.2)** |
 | **SAVE then HOME · HOME then SAVE** | **undo · redo** [D]: the order of the pair tells them apart; **EDIT held + OCT- / OCT+** do the same, as SLOOP (open question 12 holds a point to clarify) |
@@ -142,8 +142,8 @@ families' rows (SOUND), STEP's pages (PATTERN, then ARP or the 16 lanes), the mi
 pages. (1) **A button tapped again goes to its next page and, past the last, back to the first** (it wraps: the user,
 2026-10-10, "when paging thru pages by pressing again the same button, we should cycle/wrap at the end"; the follow-up of
 2026-10-08 had made it stop at the last, section 11.7): ENV LFO FX SCL ARP EDIT their families on SOUND, FX the global FX screen's pages, SEQ STEP's pages, a
-page button with a step held its locks' pages, GLO GLOBAL's rows (2026-10-12; before, the mixer's knob sets), OCT- /
-OCT+ in the FM6 layer. (2) **SELECT moves through the same
+page button with a step held its locks' pages, OCT- /
+OCT+ in the FM6 layer (GLO is the exception: it switches GLOBAL and SYSTEM, section 4.11). (2) **SELECT moves through the same
 pages, forwards and backwards, and stops at the ends** (a knob that wraps loses the user's place); SELECT is the way
 back. What SELECT does otherwise, and stays so:
 
@@ -556,8 +556,10 @@ user changes while playing. 2x2 cards, the rows under them (no picture), the hea
 | MIDI | CLK IN (SYNC's value) · CLK OUT · MIDI IN · MIDI OUT (one page: the clock and the notes, in and out; 3 lines without MIDI_CLKOUT; the CLK read-out and the Clock out page are gone, "Auto: Int" already names the clock followed; GLOBAL's Tempo has no SYNC, PLAY's TEMPO page keeps it as a card) | SYSTEM's table (op_project.c `SYS`, `sys_*`), no longer shown on SYSTEM |
 | CHANNELS | T1 · T2 · T3 · DR (the MIDI channels) | SYSTEM's |
 
-GLO tapped again: the next row; past GLOBAL's last, SYSTEM's rows (CPU first), past SYSTEM's last, GLOBAL's first: one
-cycle (section 17, D1; GLOBAL's SYSTEM row is gone). SELECT walks the same sequence and stops at its two ends. The
+**GLO tapped again switches to SYSTEM, and tapped on SYSTEM back to GLOBAL** (as built since section 20, op_global.c
+`glo_tap`; GLO tapped on any other screen opens GLOBAL; the coherence audit's #45 corrected this paragraph, which still
+said a tap walks the rows: GLOBAL's rows then SYSTEM's, round, section 17's D1). SELECT walks one sequence, GLOBAL's
+pages then SYSTEM's, and stops at its two ends. The
 header's badge names the screen (GLOBAL or SYSTEM, as MASTER's does), its n/N counts within that screen. GLOBAL keeps its row
 when left, as every screen. Leaving it saves a changed setting of the FM-1, as leaving SYSTEM does (`sys_leave`).
 SYNC shows on PLAY's TEMPO page (SYNC) and GLOBAL's MIDI page (CLK IN) (one value, `song.g[G_SYNC]`, as SYSTEM's MIDI row always had it). **GLO held is the
@@ -3063,3 +3065,52 @@ the row; the held-step strip black; the FX needles the page's values, placed and
 boxes for every algorithm. tests/ui_optimist_names.h: every value of every list parameter laid out whole in its row.
 Updated for the band: the mixer's row height, STEP's foot, the SOUND picture's foot, GLOBAL's foot, the BLE code's place,
 the help line's going.
+
+## 36. Per-screen oddities (feat/ui-screens, 2026-10-14; the coherence audit's batch E)
+
+The last batch of the audit (optimist-work/visaudit/FINDINGS.md), by the style guide. UI=0 unchanged.
+
+- **The header's title is the cursor row's name** (#2, style guide 1). Verbatim, its continuation number kept: *Edit 1 2/7*
+  on the row Edit 1 (was *Edit 2/7*: the row's number had been swapped for the page's, D11 of 2026-10-12, so the header and
+  the list disagreed); the n/N is drawn grey, a read-out, which keeps the two numbers apart. GLOBAL's second REC page is
+  *Rec 2 3/5* (was *Rec 3/5*). One counter: the n/N. **bar.beat always stays** (the user, 2026-10-14): a title short of
+  room takes a deliberate short form, never a mid-word cut, the n/N whole (op_draw.c `head_short`): a continuation's
+  number joins its word (*Voice2*, *Edit1*), then the names table's short title (op_names.c `NM_SHORT`: *Pat*, *Scl2*,
+  *Vox2*, *Kit snd*, *Bus snd*, *L2 to*, *E2 to*, *Slcr*; only where the widest badge, a three-digit tempo and the n/N leave less).
+- **STEP's header** (#17): the page SELECT is on and its n/N, cards up or not (*Pattern 1/19*, a lane's name on a drum lane's
+  row), and bar.beat as on every screen (was *Steps 1-16 C4*, no n/N, no bar.beat). The window stays the playhead strip's
+  (its page lit in the gutter); the pick moved to the grid: the drum track's selected lane is lit (as before), a synth's
+  pick is a white mark at the roll's gutter edge on its notes' rows (op_stepdraw.c `sg_roll`).
+- **The drum lane under a held step's cards** (#15): with the cards up, the grid shifts so the selected lane's row is the
+  first under them, if it was hidden (behind the cards, or under the held step's two lines); the rows above go under the
+  cards, those past the grid's foot are not drawn; the grid comes back in place with the cards' going (op_stepdraw.c
+  `sg_shift`, `sg_dy`). Shifting was picked over drawing that one lane's row apart: the lanes round it stay in view, and
+  the grid stays one drawing.
+- **The drum track's page names** (#19, #20): EDIT's are *Lane* (KIT LANE SRC ACCENT), *Body* (TUNE DECAY SNAP CLICK),
+  *Tone* (BEND CUT DRIVE LEVEL), *Sends* (the lane's), *Kit*, where all were *Sound*; FX's two send pages are *Kit sends*
+  (the kit's send levels, every lane's; *Lane sends* is past the titles' 9 letters) and *Bus sends* (the drum bus's own),
+  on a picked lane too, next to its own *Sends* (was *DR sends*). Titles only (op_screens.c `dr_alias`, `snd_title_row`): the
+  shared names the help line keys on stay.
+- **A layer's hint** (#24): *Home locks it*, once a power-on per layer, shows ~2.5 s on the help line (op_help.c; a build
+  without the help line: on the state line under the tiles), never in the header, which keeps the layer's badge (FX, ARP...).
+- **The drum ENV's length** (#32): in the picture's label row, before the source's tag (*KICK  505ms SYN*), no longer on the
+  baseline over the curve.
+- **A long name on a 1x4 card** (#33): the mixer's SOUND / KIT card, a name longer than 6 letters with an empty card after it,
+  is drawn two cards wide, the name whole in the small face (*808 BOOM*, was *808 BO*; op_draw.c `card_wide`).
+- **The mixer's ACCENT row** (#35): *Accent*, no set word, no n/N (it has one set; was *accent mix*). A row of one set is its
+  name alone.
+- **The SOUND row in the list** (#36): the preset's name over the ENGINE cell's place too (the badge names the engine), then
+  INIT, then SAVE AS in its fixed form SAVE (was *808 ANLG INIT SAVE*); a name of 10 letters or more keeps its room whole and
+  SAVE AS stays the card's alone. The cards keep all four (op_screens.c `snd_list_cells`). The list's reflow now takes a
+  text's fixed form (*SAVE AS* -> *SAVE*) before it cuts any text.
+- **PROJECT** (#43): TOOLS' *MISS* card is *MISSING* (the names table; its 2x2 card holds it), MEMORY's *MORE* is *FREE*.
+- **GLO tapped** (#45): section 4.11 now says what is built: GLO switches GLOBAL and SYSTEM (it said a tap walks the rows).
+- **The ARP picture** (#46): no text line (MODE and RATE are the cards'; the notes are the guide lines).
+- **NAME** (#49): its hints (*Save done  Home delete*) on the help line's place, the screen's last 18 rows (they were at the
+  field's top); the field keeps its length (*9/12*).
+- **GLOBAL's REC LENGTH**: *1* with the unit *bar* (was the value *1 BAR*), style guide 5.
+- Already done by the earlier batches: #8 (D), #14 (the send order), #38 (an empty held step's NOTE is *-*), #48 (A's
+  RAT2..RAT4).
+
+Tests: tests/ui_optimist_screens.h (each item, the old gone and the new there); ui_optimist_pages.h's header walk checks every
+SOUND row's title against the list's; the tests that held the old titles, STEP's window header and the layer hint follow.

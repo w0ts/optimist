@@ -198,6 +198,9 @@ static void gl_ptitle(uint32_t s, uint32_t i, char *b, uint32_t n)
     char t[24];
     uint32_t f = gl_first(s, i), z = gl_end(s, i) - 1u, j;
     gl_sect(s, f, t);
+    if (!s && gl_ent(s, f) >> 2 == TPR_REC2)
+        tp_name(TPR_REC2, t);                           /* (REC's second page is the row's own name, "Rec 2 3/5": the
+                                                         * audit's #2, a continuation keeps its number) */
     op_case(b, t, n);
     if (s && gl_sid(s, gl_ent(s, f)) != gl_sid(s, gl_ent(s, z)))
         for (j = 0; j < GL_NJOIN; j++)

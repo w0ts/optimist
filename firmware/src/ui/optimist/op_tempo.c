@@ -86,7 +86,7 @@ static uint32_t rec_len_ix(void)                        /* the selected track's 
 static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
 static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-    static const char *const LEN[3] = {"1 BAR", "2 BARS", "4 BARS"};
+    static const char *const LEN[3] = {"1", "2", "4"};   /* (bars: the unit "bar", style guide 5) */
     if (r == TPR_REC2) {                                /* QUANT, then free cells */
         if (k == 0u)
             cell_param(c, &GP[G_RECQ], &song.g[G_RECQ]);
@@ -122,6 +122,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
     if (k == 1u) {
         c->label = "LENGTH";
         str_cpy(c->val, LEN[rec_len_ix()], sizeof c->val);
+        c->unit = "bar";
         cell_gauge(c, 1, 0, 2, (int32_t)rec_len_ix());
         return;
     }

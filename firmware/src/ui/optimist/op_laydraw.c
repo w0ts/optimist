@@ -278,6 +278,8 @@ static void lay_draw_tiles(void)
         return;
     }
     tiles_fill(tl, lay_sub, sizeof lay_sub);
+    if (!FELUCCA_PARAM_HELP && lay_hint_t)
+        str_cpy(lay_sub, "HOME LOCKS IT", sizeof lay_sub);   /* (no help line in this build: the state line says it) */
     for (i = 0; i < 16u; i++)
         sig = hs(hu(hu(hu(sig, tl[i].bg), tl[i].fg), tl[i].top), tl[i].lab);
     sig = hs(sig, lay_sub);
@@ -286,23 +288,22 @@ static void lay_draw_tiles(void)
     ui.sig[2] = sig;
     cv_tall(OP_PY, OH_BODY, C_BLACK, lay_paint);     /* (the tiles and the state to the screen's foot) */
 }
-/* "Home locks it", once a power-on for each layer, in the header's message slot when the layer opens (the user,
- * 2026-10-08: no footer; the hint flashes once); gone with the layer */
+/* "Home locks it", once a power-on for each layer, for OP_MSG_FRAMES when the layer opens, on the help line (the audit's
+ * #24, style guide 9: hints never in the header, which keeps the layer's badge; op_help.c hl_pre); a build without the
+ * help line shows it on the state line under the tiles meanwhile (lay_draw_tiles). Gone with the layer */
 static void lay_hint(void)
 {
     static uint32_t told;
-    static uint8_t saying;
     if (lay.shown == LY_PLAY || lay.lock != LY_PLAY) {
-        if (saying && ui.msg_t)
-            ui.msg_t = 0;                               /* (the layer let go: its hint with it) */
-        saying = 0;
+        lay_hint_t = 0;                                 /* (the layer let go or locked: its hint with it) */
         return;
     }
+    if (lay_hint_t)
+        lay_hint_t--;
     if ((told >> lay.shown) & 1u || lay.shown == LY_SONG)   /* (SAVE's layer does not lock: SAVE then HOME is undo) */
         return;
     told |= 1u << lay.shown;
-    saying = 1;
-    ui_message("HOME LOCKS IT");
+    lay_hint_t = (uint8_t)OP_MSG_FRAMES;
 }
 /* ---- the TEMPO page's panel: the tempo big, the beat, the nudge, the clock followed */
 static uint32_t tempo_sig(void)

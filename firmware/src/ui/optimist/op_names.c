@@ -18,10 +18,16 @@
 static const char NM_TITLE[] =
     "ENV DEST\0ENV to\0"         "ENV2 DEST\0ENV2 to\0"       "LFO DEST\0LFO to\0"         "LFO 2\0LFO2\0"
     "LFO2 DEST\0LFO2 to\0"       "SCL\0Scale\0"               "SCL 2\0Scale 2\0"           "FLT 2\0Filter 2\0"
-    "INSERTS\0Insert\0"         "DR INSERT\0DR ins\0"        "DR SENDS\0DR sends\0"       "BUS SENDS\0Bus send\0"      "CMP\0Comp\0"
+    "INSERTS\0Insert\0"         "DR INSERT\0DR ins\0"        "DR SENDS\0DR sends\0"       "BUS SENDS\0Bus sends\0"      "CMP\0Comp\0"
     "INS COMP\0Ins comp\0"       "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"
     "OP# LEVEL\0OP# out\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# KEY SCA\0OP# scale\0"
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
+    "\0";
+/* a title's short form, where a header is short of room (op_draw.c head_short, after "Voice 2" -> "Voice2"): bar.beat
+ * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut */
+static const char NM_SHORT[] =
+    "Pattern\0Pat\0"           "Scale2\0Scl2\0"            "Voice2\0Vox2\0"            "Kit sends\0Kit snd\0"
+    "Bus sends\0Bus snd\0"       "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "Slicer\0Slcr\0"
     "\0";
 static const char NM_CARD[] =
     "VOLUME\0LEVEL\0"            "LVL\0LEVEL\0"               "DST\0DIST\0"                "DST A\0DEST A\0"
@@ -33,7 +39,7 @@ static const char NM_CARD[] =
     "SLD\0SLIDE\0"               "DRV\0DRIVE\0"               "LENGTH\0LEN\0"              "RATCHET\0RATCH\0"
     "GLD\0GLIDE\0"               "MOTN\0MOTION\0"             "ENRGY\0ENERGY\0"            "COLR\0COLOR\0"
     "CHO RET\0CHO RT\0"          "DLY RET\0DLY RT\0"          "REV RET\0REV RT\0"          "S# CHO\0CHO RT\0"
-    "S# DLY\0DLY RT\0"           "S# REV\0REV RT\0"           "ACID LINE\0LINE\0"          "BPM\0TEMPO\0"              "TRK FLT\0FILTER\0"          "CLK IN\0SYNC\0"          "DIGITAL:R#\0RAT#\0"
+    "S# DLY\0DLY RT\0"           "S# REV\0REV RT\0"           "MISS\0MISSING\0"           "ACID LINE\0LINE\0"          "BPM\0TEMPO\0"              "TRK FLT\0FILTER\0"          "CLK IN\0SYNC\0"          "DIGITAL:R#\0RAT#\0"
     "\0";
 static const char NM_CELL[] =
     "ANALOG\0ANLG\0"             "DIGITAL\0DGTL\0"            "PHASE\0PHSE\0"              "SAMPLE\0SMPL\0"

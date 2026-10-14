@@ -95,8 +95,8 @@ static void step_cards_tests(void)
         {
             char h[40];
             head_title(SCR_STEP, 0, h, sizeof h);
-            check(ui.cards_t == 0u && !card0_up() && !strncmp(h, "Steps ", 6),
-                  "STEP overlay: a step pressed, before the hold time: no overlay yet, the header still the window's");
+            check(ui.cards_t == 0u && !card0_up() && !strcmp(h, "Pattern"),
+                  "STEP overlay: a step pressed, before the hold time: no overlay yet, the header still the page's (Pattern)");
         }
         frames(HOLD_FRAMES);
         check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held past the hold time shows the cards");
