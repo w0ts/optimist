@@ -24,6 +24,8 @@ Non-interactive use (scripts, CI): write a .config (KEY=value lines, tools/build
 keys), then `package --config my.config --out DIR --summary result.json`.
 """
 import argparse
+import contextlib
+import io
 import os
 import shutil
 import subprocess
@@ -209,6 +211,18 @@ BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "
                  "SL24_IMPORT=0", "SL24_SAFE=0", "MIDI_CLKOUT=0", "COND=0")
 
 
+def ble_test_configs():
+    """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): user-default with BLE,
+    BLE_DIAG, BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
+    the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
+    def load(sets, ble_drop=None):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False, set=list(sets),
+                                                  name=None, ble_drop=ble_drop))[0]
+    return [(f"{DEFAULT_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
+            (f"{DEFAULT_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM]))]
+
+
 def prepare_tests():
     """build/ as the host tests read it -> 0 ok. First two BLE builds (build/ble/felucca-ble.fwsc for the emulator
     tests tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option
@@ -222,10 +236,7 @@ def prepare_tests():
           "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
           "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
           "or a capture from FM1_STOCK_FWSC)")
-    ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                       set=["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM],
-                                                       name=None,
-                                                       ble_drop="FLUTE"))
+    (_, ble_cfg), (_, full_cfg) = ble_test_configs()
     cfg, name = C.load_profile(DEFAULT_PROFILE)
     ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
     if not ok:
@@ -241,8 +252,6 @@ def prepare_tests():
     # this set a few hundred bytes over the slot while the real build fits: measured 2026-10-10 on user-default, whose
     # FLUTE is already off, with BLE_TEST_ROOM's store out, flash 578,844 of 581,564 B, 2,720 B (2.7 KB) free; with BLE_TEST_ROOM's later additions 20,968 B free; the
     # build itself refuses an image that does not fit)
-    full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                 set=[*BLE_FULL_SET, *BLE_TEST_ROOM], name=None, ble_drop=None))
     ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
     if not ok:
         print("test: the full BLE build failed", file=sys.stderr)
@@ -271,7 +280,8 @@ def check_builds():
     costs.json the firmware moved away from fails the normal test run. ~15 s each; made first, so the builds the
     tests read (the packages, the defaults' felucca.dis) come after"""
     import measure_costs as MC
-    todo = [(n, cfg) for n, cfg in MC.check_configs().items() if not C.exact_sizes(cfg)]
+    ble = dict(ble_test_configs())                      # (built below anyway, as the packages)
+    todo = [(n, cfg) for n, cfg in MC.check_configs().items() if n not in ble and not C.exact_sizes(cfg)]
     print(f"test: measurement builds of {len(todo)} builder check configurations (the estimate's drift check)")
     for n, cfg in todo:
         ok, _, _ = C.build(cfg, f"m-chk-{n}"[:16], measure=True)   # (measure_costs.py measure_checks: the same name, the same bytes)
