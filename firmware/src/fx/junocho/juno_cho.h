@@ -6,8 +6,8 @@
  *     +- 47 / 37 / 5 samples, read by 4-point Hermite interpolation;
  *   - the BBD's reconstruction low-pass (2nd-order Butterworth, 9.66 kHz) on each tap;
  *   - out L / R = dry x 0.863 + tap L / R x 1.257 (the Juno's IC6 summer) at MIX 127; MIX 0 is the dry signal itself.
- * Mono in, stereo out (L and R differ only by the taps); juno_cho_ms gives the mid and the side instead, for a mono
- * slot whose side is carried on (a part's insert). fm-106's soft limiter on its input and output is left out (the
+ * Mono in, stereo out (L and R differ only by the taps): juno_cho_run; juno_cho_ms gives the mid and the side instead,
+ * for a mono slot whose side is carried on (a part's insert); juno_cho_st: a stereo bus, its mid into the line. fm-106's soft limiter on its input and output is left out (the
  * mix has its own headroom and limiter): below its knee (24576) the two are the same.
  * Self-contained (stdint only), so the host test can build it beside fm-106's own header. No divide a sample. */
 #ifndef JUNO_CHO_H
@@ -51,10 +51,11 @@ JUNO_CHO_INL int32_t juno_cho_lp(int32_t *s, int32_t in)
     return v2;
 }
 
-/* n samples of in (mono) -> l, r (either may be in itself). mode: JUNO_CHO_*; mix 0..127; sh: the buffers' headroom (the
- * line holds in >> sh, 16 bits, and the output is << sh) */
-static void juno_cho_run(juno_cho_t *c, uint32_t mode, uint32_t mix, const int32_t *in, int32_t *l, int32_t *r,
-                         uint32_t n, uint32_t sh)
+/* the unit's loop: n samples of in (mono, into the line) -> l, r = the dry dl / dr x the dry gain + the taps (any of
+ * them may be the same buffer: each sample is read before it is written). mode: JUNO_CHO_*; mix 0..127; sh: the
+ * buffers' headroom (the line holds in >> sh, 16 bits; the dry and the output keep their scale) */
+JUNO_CHO_INL void juno_cho_core(juno_cho_t *c, uint32_t mode, uint32_t mix, const int32_t *in, const int32_t *dl,
+                                const int32_t *dr, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
 {
     static const uint32_t INC[3] = {50098u, 82068u, 765109u};   /* the LFO's step a sample */
     static const int32_t DEPTH[3] = {94, 75, 10};               /* (x the triangle >> 16: samples) */
@@ -63,20 +64,43 @@ static void juno_cho_run(juno_cho_t *c, uint32_t mode, uint32_t mix, const int32
     int32_t dep = DEPTH[mode % 3u];
     uint32_t inc = INC[mode % 3u], i, w = c->wr, ph = c->ph;
     for (i = 0; i < n; i++) {
-        int32_t x = in[i] >> sh, t, dl, wl, wrt;
+        int32_t x = in[i] >> sh, xl = dl[i], xr = dr[i], t, d, wl, wrt;
         x = x < -32768 ? -32768 : x > 32767 ? 32767 : x;
         c->ln[w] = (int16_t)x;
         ph += inc;
         t = (int32_t)(ph >> 16) - 32768;
         t = ((t < 0 ? -t : t) - 16384) << 1;           /* the triangle, -32768..32766 */
-        dl = t * dep;
-        wl = juno_cho_lp(c->f[0], juno_cho_tap(c->ln, w, (154 << 16) + dl));
-        wrt = juno_cho_lp(c->f[1], juno_cho_tap(c->ln, w, (154 << 16) - dl));
+        d = t * dep;
+        wl = juno_cho_lp(c->f[0], juno_cho_tap(c->ln, w, (154 << 16) + d));
+        wrt = juno_cho_lp(c->f[1], juno_cho_tap(c->ln, w, (154 << 16) - d));
         w = (w + 1u) & (JUNO_CHO_LEN - 1u);
-        l[i] = (int32_t)(((int64_t)x * gd + (int64_t)wl * gw) >> 15) << sh;
-        r[i] = (int32_t)(((int64_t)x * gd + (int64_t)wrt * gw) >> 15) << sh;
+        if (!sh) {                                      /* (fm-106's own arithmetic: the line's scale is the dry's) */
+            l[i] = (int32_t)(((int64_t)xl * gd + (int64_t)wl * gw) >> 15);
+            r[i] = (int32_t)(((int64_t)xr * gd + (int64_t)wrt * gw) >> 15);
+        } else {
+            l[i] = (int32_t)(((int64_t)xl * gd) >> 15) + (int32_t)((((int64_t)wl * gw) >> 15) << sh);
+            r[i] = (int32_t)(((int64_t)xr * gd) >> 15) + (int32_t)((((int64_t)wrt * gw) >> 15) << sh);
+        }
     }
     c->wr = w, c->ph = ph;
+}
+/* mono in -> stereo out (l, r; either may be in) */
+static void juno_cho_run(juno_cho_t *c, uint32_t mode, uint32_t mix, const int32_t *in, int32_t *l, int32_t *r,
+                         uint32_t n, uint32_t sh)
+{
+    juno_cho_core(c, mode, mix, in, in, in, l, r, n, sh);
+}
+/* stereo in place: the line fed the mid, each side keeps its own dry (a stereo bus: the drum bus, the master) */
+static void juno_cho_st(juno_cho_t *c, uint32_t mode, uint32_t mix, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
+{
+    int32_t m[64];
+    uint32_t o, i;
+    for (o = 0; o < n; o += 64u) {
+        uint32_t k = n - o < 64u ? n - o : 64u;
+        for (i = 0; i < k; i++)
+            m[i] = (l[o + i] + r[o + i]) >> 1;               /* (|l|, |r| < 2^30) */
+        juno_cho_core(c, mode, mix, m, l + o, r + o, l + o, r + o, k, sh);
+    }
 }
 /* the same as a mid and a side: b (in and out) = (L + R) / 2, side = (L - R) / 2 */
 static void juno_cho_ms(juno_cho_t *c, uint32_t mode, uint32_t mix, int32_t *b, int32_t *side, uint32_t n, uint32_t sh)

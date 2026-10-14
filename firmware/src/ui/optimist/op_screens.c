@@ -526,8 +526,8 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
  * GLOBAL's Tempo list's fourth line (op_global.c; it sat on LIMIT's free card until fx-rework) */
 static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET REV"}, {"REVERB", "RET TYPE"},
                                           {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
-                                          {"MASTER", "DUCK"}};
-static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MASTER", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS",
+                                          {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"}};
+static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MASTER", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS",
                                        "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
 static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */

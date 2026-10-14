@@ -125,9 +125,9 @@ typedef struct {
 #define TFLT_ON (FELUCCA_TRK_FILT || FELUCCA_FX_DJF)
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
-#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER)
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY)
+#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS)
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO, a builder count each) */
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -193,6 +193,11 @@ enum {                          /* per-track parameters */
      * slot; the master's own amount stays G_DUST). Before LFO 2's (the last values of a track: project.c l2_pack); not part of a sound nor of a user preset;
      * the FX record keeps it (fx_slots.c fxs_tlv, DUST's TLV) */
     P_TDUST,
+#endif
+#if FELUCCA_INS_JCHORUS
+    /* JUNO CHORUS (2026-10-14, fx/junocho/juno_cho.h, fx_slots.c FXT_JUNO): a track's MIX (its amount) and MODE (I II
+     * I+II). Not part of a sound nor of a user preset; the FX record keeps them (fx_slots.c fxs_tlv, JUNO's TLV) */
+    P_TJCHO, P_TJMODE,
 #endif
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before

@@ -342,12 +342,13 @@ static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, cons
     s->w = w;
     return 1;
 }
-/* a part's side into the mix after its level and gain (fx.c mix_part: the same lvl0 + dl i and ga .. gb ramps as its
+#endif
+#if FELUCCA_INS_WIDTH || FELUCCA_INS_JCHORUS
+/* a part's side (WIDE's, JUNO CHORUS's: sd) into the mix after its level and gain (fx.c mix_part: the same lvl0 + dl i and ga .. gb ramps as its
  * dry; to the left, from the right: the pan law's centre, 4096 each) */
-static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0, int32_t dl, int32_t ga, int32_t gb,
+static HOT2 __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32_t lvl0, int32_t dl, int32_t ga, int32_t gb,
                                                         int32_t *ml, int32_t *mr, uint32_t n)
 {
-    const int32_t *sd = ifx_side[k % NPART];
     uint32_t i;
     for (i = 0; i < n; i++) {
         int32_t x = ((clamp(sd[i], -884000, 884000) >> 2) * (lvl0 + dl * (int32_t)i)) >> 10;
@@ -358,6 +359,10 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(uint32_t k, int32_t lvl0
         ml[i] += x, mr[i] -= x;
     }
 }
+#endif
+#if FELUCCA_INS_JCHORUS
+static int32_t ifx_jside[NPART][CTL];                   /* JUNO CHORUS's side of a part this block (juno_cho_ms) */
+static uint8_t ifx_jsd[NPART];                          /* set this block */
 #endif
 
 #include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
@@ -527,9 +532,15 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
     }
 }
 /* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d); the master's (i0 IFX_MST: no limited
- * type, no GATER there: fx_slots.c MST_OK) */
+ * type but JUNO CHORUS, no GATER there: fx_slots.c MST_OK) */
 AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
+#if FELUCCA_INS_JCHORUS
+    if (ty == FXT_JUNO) {                               /* (the master's: its instance, fxi.c FXI_MST; none: bypassed) */
+        ifx_lim_run(ty, IFX_MST, a, l, r, n, 2);
+        return;
+    }
+#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t d[CTL];

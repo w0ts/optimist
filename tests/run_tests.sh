@@ -298,6 +298,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
     run "the limited inserts' instances (fxi.c, CHRS 2 ECHO 1): handed out in the main loop, zeroed; a swap keeps one; none left: FULL and bypassed; given back after the fade-out; a load in track order, the same every time" "$OUT/fxi_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=2 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
+    run "limited inserts with JUNO CHORUS (2 instances): a track and the master each, FULL, given back after the fade, the side, its TLV" "$OUT/fxi_jc_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REV_HALF=1 -o "$OUT/backports_rh_test" tests/backports_test.c -lm

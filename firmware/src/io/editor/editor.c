@@ -150,6 +150,9 @@ static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY,
 #if FELUCCA_FX_DUST
                                    , P_TDUST                                                    /* (DUST's, 2026-10-14) */
 #endif
+#if FELUCCA_INS_JCHORUS
+                                   , P_TJCHO                                                    /* (JUNO CHORUS's MIX) */
+#endif
 };
 #define ED_NTID ((uint32_t)sizeof ED_TIDS)
 #define ED_NT (NTRK * ED_NTID)

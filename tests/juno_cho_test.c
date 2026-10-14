@@ -6,6 +6,7 @@
  *     below (a change of the sound fails: update the hashes with the change);
  *   - the mid / side form: mid + side = L, mid - side = R (within 1);
  *   - the headroom shift: sh 3 renders the same as sh 0 on an input 8x larger (within 8);
+ *   - the stereo form (a bus) on L = R = in: the mono form's render (within 1); L != R in keeps each side's dry;
  *   - its cost, printed: host instructions a sample.
  * build/host/juno_cho_test; exit status: the number of failed checks. */
 #include <libproc.h>
@@ -94,6 +95,25 @@ int main(void)
     for (i = 0; i < N; i++)
         shok &= abs(l2[i] - 8 * l[i]) <= 8 && abs(r2[i] - 8 * r[i]) <= 8;
     check("sh 3 on an input 8x larger: the same, 8x (within 8)", shok);
+    {   /* the stereo form */
+        uint32_t same = 1, dry = 1;
+        run(1, 100, l, r, 0);
+        memcpy(l2, in, sizeof in), memcpy(r2, in, sizeof in);
+        memset(&c, 0, sizeof c);
+        for (i = 0; i < N; i += 32u)
+            juno_cho_st(&c, 1, 100, l2 + i, r2 + i, 32, 0);
+        for (i = 0; i < N; i++)
+            same &= abs(l2[i] - l[i]) <= 1 && abs(r2[i] - r[i]) <= 1;
+        check("stereo form, L = R = in: the mono form's render (within 1)", same);
+        for (i = 0; i < N; i++)
+            l2[i] = in[i], r2[i] = 0;
+        memset(&c, 0, sizeof c);
+        for (i = 0; i < N; i += 32u)
+            juno_cho_st(&c, 1, 0, l2 + i, r2 + i, 32, 0);
+        for (i = 0; i < N; i++)
+            dry &= l2[i] == in[i] && r2[i] == 0;
+        check("stereo form at MIX 0: each side its own dry (L in, R silent)", dry);
+    }
     printf("juno_cho: %d failed\n", bad);
     return bad;
 }

@@ -328,6 +328,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_DELAY
 #define FELUCCA_INS_DELAY 0                /* ECHO: a 75 ms slapback with feedback, 8 KB of pool an instance */
 #endif
+#ifndef FELUCCA_INS_JCHORUS
+#define FELUCCA_INS_JCHORUS 0              /* JUNO CHORUS: the Juno-106's chorus (fx/junocho), 2 KB of pool an instance */
+#endif
 #ifndef FELUCCA_INS_GATER
 #define FELUCCA_INS_GATER 0                /* GATER: a tempo-synced 16-step volume gate (fx/insfx/gater.c), any number */
 #endif

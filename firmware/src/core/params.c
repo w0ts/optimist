@@ -48,6 +48,7 @@ static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
 #if INS_FX
+static const char *const N_TJMODE[] = {"I", "II", "I+II"};   /* JUNO CHORUS's MODE (juno_cho.h) */
 static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF16", "DOT8", "DOT4",   /* GATER's */
                                       "TRNC1", "TRNC2", "TRNC3", "TRNC4", "GALOP", "RVGAL", "CLAVE", "TRESL"};   /* IGT_PAT */
 #endif
@@ -173,6 +174,10 @@ static const param_desc_t TP[P_COUNT] = {
 #endif
 #if FELUCCA_FX_DUST
     [P_TDUST] = PD("DUST", F_PCT, 0, 127, 0),      /* the DUST insert (fx.c dust_run): a track's lo-fi / vinyl */
+#endif
+#if FELUCCA_INS_JCHORUS
+    [P_TJCHO] = PD("JUNO", F_PCT, 0, 127, 0),      /* JUNO CHORUS (fxi_kern.c): its MIX, 127 the Juno's dry / wet */
+    [P_TJMODE] = PE("MODE", N_TJMODE, 0),          /*   its MODE: I, II, I+II */
 #endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
@@ -676,6 +681,9 @@ static const page_t PAGES[] = {
      * only while one of the track's slots holds it; the drum track's too (it gates the drum bus) */
     {"GATER", FAM_FX, SC_TRACK, GR_GATE, {P_TGATE, P_TGPAT, P_TGRATE, P_TGSHP}},
 #endif
+#if FELUCCA_INS_JCHORUS
+    {"JUNO CHO", FAM_FX, SC_TRACK, GR_NONE, {P_TJCHO, P_TJMODE, 0xFF, 0xFF}},   /* while a slot of the track holds it */
+#endif
 #if FELUCCA_UI == 1
     {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
     {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
@@ -724,6 +732,9 @@ static const page_t PAGES[] = {
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     /* the master's two insert slots (fx_slots.c mst_slot, fx-rework): S1 TYPE, its amount, S2 TYPE, its amount */
     {"MST INS", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MST, FXS_ID_MST + 2, FXS_ID_MST + 1, FXS_ID_MST + 3}},
+#if FELUCCA_INS_JCHORUS
+    {"MST JUNO", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_JMST, FXS_ID_JMST + 1, 0xFF, 0xFF}},   /* the master's JUNO CHORUS */
+#endif
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CTHR, G_CRAT, G_CATK, G_CREL}},   /* the master compressor (master_comp.c) */
     {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, 0xFF, G_CGR}},   /* make-up, the limiter; GR: a readout */
@@ -834,6 +845,9 @@ static int page_for_drum(const page_t *pg)
 #if FELUCCA_INS_GATER
                                       || pg->graph == GR_GATE   /* (FX > GATER: the drum bus's gate) */
 #endif
+#if FELUCCA_INS_JCHORUS
+                                      || pg->id[0] == P_TJCHO   /* (FX > JUNO CHO: the drum bus's) */
+#endif
                                       );
 }
 
@@ -868,6 +882,10 @@ static int page_shown(const page_t *pg)
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
         return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
+#if FELUCCA_INS_JCHORUS
+    if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_JMST)
+        return MST_ON(FXT_JUNO);                      /* MST JUNO: while a master slot holds it */
+#endif
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
         return MST_OK != 0u;                          /* MST INS: the master's insert slots */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
@@ -879,6 +897,10 @@ static int page_shown(const page_t *pg)
 #if FELUCCA_INS_GATER
     if (pg->graph == GR_GATE)
         return INS_ON(song.sel, FXT_GATE);            /* GATER: while one of the track's slots holds it */
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (pg->scope == SC_TRACK && pg->id[0] == P_TJCHO)
+        return INS_ON(song.sel, FXT_JUNO);            /* JUNO CHO: while one of the track's slots holds it */
 #endif
     if (pg->graph == GR_INS)
         return (FXT_BUILT & FXT_INSERT) != 0u;        /* INSERTS: any insert built */
