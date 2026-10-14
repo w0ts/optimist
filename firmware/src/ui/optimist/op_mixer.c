@@ -93,18 +93,25 @@ static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
 }
 /* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends in a slot, REV DLY
  * CHO */
+/* the sends set, as the SENDS page has it (the user, 2026-10-14: "we have 3 sends, card 4 should be pan"): REV DLY CHO in
+ * cards 1..3 (a blank card for a send no slot holds), PAN card 4. ids: the three sends' ids in kind's own numbering */
+static uint32_t mx_items_sends(mitem_t *it, uint32_t n, const char *const *lbl, uint32_t kind, const uint8_t *ids,
+                               uint32_t pan_kind, uint32_t pan_id)
+{
+    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
+    uint32_t k;
+    for (k = 0; k < 3u; k++)
+        n = FXS_ON(T[k]) ? mx_add(it, n, MG_SEND, lbl ? lbl[k] : 0, kind, ids[k]) : mx_add(it, n, MG_SEND, 0, MI_NONE, 0);
+    return mx_add(it, n, MG_SEND, "PAN", pan_kind, pan_id);
+}
 static uint32_t mx_items_synth(mitem_t *it)
 {
+    static const uint8_t S[3] = {P_REV, P_DLY, P_CHOR};
     uint32_t n = 0;
     n = mx_add(it, n, MG_MIX, "VOLUME", MI_TRK, P_LEVEL);
     n = mx_add(it, n, MG_MIX, "PAN", MI_TRK, P_PAN);
     n = mx_items_ins(it, n);
-    if (FXS_ON(FXT_REV))
-        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_REV);
-    if (FXS_ON(FXT_DLY))
-        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_DLY);
-    if (FXS_ON(FXT_CHO))
-        n = mx_add(it, n, MG_SEND, 0, MI_TRK, P_CHOR);
+    n = mx_items_sends(it, n, 0, MI_TRK, S, MI_TRK, P_PAN);
     return n;                                           /* (no FX ON and no SOUND card: the user, 2026-10-14; PRESETS is a button) */
 }
 /* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
@@ -152,7 +159,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
-        n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
+        n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (its PAN is the sends set's card 4) */
         n = mx_add(it, n, MG_MIX, "DRIVE", MI_LANE, DE_DRIVE);   /* (the sound's own drive: a SOUND value) */
         if (LIN_OK) {                                   /* its two insert slots (fx-rework: were DST CMP), as a track's */
             n = mx_add(it, n, MG_INS, 0, MI_LANE, 21u);
@@ -160,26 +167,21 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_add(it, n, MG_INS, 0, MI_LANE, 22u);
             n = mx_add(it, n, MG_INS, 0, MI_LANE, 20u);
         }
-        if (FXS_ON(FXT_REV))
-            n = mx_add(it, n, MG_SEND, "REV", MI_LANE, 16u);
-        if (FXS_ON(FXT_DLY))
-            n = mx_add(it, n, MG_SEND, "DLY", MI_LANE, 17u);
-        if (FXS_ON(FXT_CHO))
-            n = mx_add(it, n, MG_SEND, "CHO", MI_LANE, 18u);
-        return n;
+        {
+            static const uint8_t S[3] = {16u, 17u, 18u};
+            static const char *const L[3] = {"REV", "DLY", "CHO"};
+            return mx_items_sends(it, n, L, MI_LANE, S, MI_LANE, LPAN_VID);
+        }
     }
     if (r == MXR_DR) {                                  /* the drum track: its level | its insert slots | its send levels
                                                          * (2026-10-12, the user: "it should be like any other track") |
                                                          */
         n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
         n = mx_items_ins(it, n);
-        if (FXS_ON(FXT_REV))
-            n = mx_add(it, n, MG_SEND, 0, MI_DKS, 0);
-        if (FXS_ON(FXT_DLY))
-            n = mx_add(it, n, MG_SEND, 0, MI_DKS, 1);
-        if (FXS_ON(FXT_CHO))
-            n = mx_add(it, n, MG_SEND, 0, MI_DKS, 2);
-        return n;
+        {
+            static const uint8_t S[3] = {0u, 1u, 2u};
+            return mx_items_sends(it, n, 0, MI_DKS, S, MI_TRK, P_PAN);
+        }
     }
     return mx_items_synth(it);
 }
@@ -245,6 +247,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         *vp = &TDRUM->p[P_DACC];
         return &DRUM_ACC_DESC;
     case MI_LANE:
+        if (m->id == LPAN_VID)
+            return lane_pan_desc(r - MXR_LANE0, vp);
         d = dsnd_desc_lane(r - MXR_LANE0, m->id, vp);
         if (d)
             dsv_rec(r - MXR_LANE0, m->id);              /* (recording: the hold the knob goes on from) */
@@ -340,7 +344,9 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value id (the offsets and the sends) */
 {
-    if (id >= 16u)
+    if (id == LPAN_VID)
+        dlm_set_pan(l, v);
+    else if (id >= 16u)
         dsend_set(l, id - 16u, v);
     else if (id < DE_N && !lane_value_rec(l % DRUM_LANES, id, v))   /* (REC playing: the row's lane's motion, D12) */
         dl.ofs[l % DRUM_LANES][id] = (int8_t)v;

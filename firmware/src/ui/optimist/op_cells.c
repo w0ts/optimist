@@ -258,9 +258,11 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
  * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
+#define LPAN_ID (LSEND0 + 3u)                          /* SENDS' card 4: the lane's PAN (drum_mix.c dlm_pan; the mixer's MI_LANE id 23: 19..22 are the lane inserts) */
+#define LPAN_VID 23u
 #if DL_UI
 static const page_t LANE_FX_PG[2] = {{"INSERTS", FAM_FX, SC_DSND, GR_DSND, {21, 19, 22, 20}},   /* (S1 TYPE, its amount, S2 ..) */
-                                     {"SENDS", FAM_FX, SC_DSND, GR_DSND, {LSEND0, LSEND0 + 1, LSEND0 + 2, 0xFF}}};
+                                     {"SENDS", FAM_FX, SC_DSND, GR_DSND, {LSEND0, LSEND0 + 1, LSEND0 + 2, LPAN_ID}}};
 static int lane_fx_pg(const page_t *pg) { return pg == &LANE_FX_PG[0] || pg == &LANE_FX_PG[1]; }
 #define FX_PGN 2u
 #else
@@ -355,6 +357,15 @@ static uint32_t lane_send_vid(uint32_t k)             /* (REV DLY CHO, the one o
             return 16u + k;
     return 0xFFu;
 }
+/* a lane's PAN (the one value dsnd_desc_lane has not: SLOOP's mixer keeps it in drum_mix.c, so does this one) */
+static const param_desc_t *lane_pan_desc(uint32_t l, int16_t **vp)
+{
+    static const param_desc_t D = PD("PAN", F_BIPCT, -64, 63, 0);
+    static int16_t v;
+    v = dlm_pan[l % DRUM_LANES];
+    *vp = &v;
+    return &D;
+}
 static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
     const param_desc_t *d;
@@ -369,6 +380,8 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
         *vp = 0;
         return 0;
     }
+    if (id == LPAN_ID)
+        return lane_pan_desc(lane_selected(), vp);
     if (id >= LSEND0) {                                 /* SENDS: card k's send (REV DLY CHO), this lane's */
         id = lane_send_vid(id - LSEND0);
         if (id == 0xFFu) {
@@ -389,6 +402,10 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
     uint8_t *r = dl.ref[l % DRUM_LANES];
     if (!lane_snd())
         return;                                         /* (the ACCENT lane: no sound to set) */
+    if (id == LPAN_ID) {
+        dlm_set_pan(l, v);
+        return;
+    }
     if (id >= LSEND0 && (id = lane_send_vid(id - LSEND0)) == 0xFFu)
         return;
 #if LANE_LFO_UI

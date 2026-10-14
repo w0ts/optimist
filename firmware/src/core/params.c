@@ -780,6 +780,8 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
     if (pg->graph == GR_FX || pg->graph == GR_BUS) {   /* REV DLY CHO, the Optimist UI's one order (those a slot holds) */
         static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
         uint32_t i;
+        if (k == 3u)                                    /* card 4: the track's PAN (the drum track's too; its bus has none) */
+            return pg->graph == GR_FX ? P_PAN : 0xFFu;
         for (i = 0; k < 3u && i < 3u && fxs_send(i) != T[k]; i++)
             ;
         if (k >= 3u || i >= 3u)

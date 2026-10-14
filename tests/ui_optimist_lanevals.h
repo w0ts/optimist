@@ -99,6 +99,8 @@ static void lv_sends_tests(const char *how)
     check(c && c->gv == 11, "... DLY 11");
     c = lv_card(r, "REV");
     check(c && c->gv == 2, "... REV 2");
+    c = lv_card(r, "PAN");
+    check(c && c->gv == dlm_pan[7], "... card 4 PAN: lane B's own pan");
     ui.row[SCR_SOUND] = (uint8_t)r;
     ui.hot = 0;
     turn(EN_K1, 3);                                     /* KNOB 1: the first send, REV (REV DLY CHO, the one order) */

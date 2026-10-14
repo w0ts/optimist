@@ -170,6 +170,27 @@ static void mixer_sets_tests(void)
         mx.set = 0;
 #endif
     }
+    check(mx_labels(MXR_T1, 2, 0, 0, 0, "PAN") && mx_labels(MXR_DR, 2, 0, 0, 0, "PAN") &&
+              mx_labels(MXR_LANE0 + 2u, 2, 0, 0, 0, "PAN"),
+          "the sends set (a synth track, DR, a lane): card 4 is PAN, whatever sends are in a slot");
+    {   /* PAN on the sends set is the same value as the track's: T1 and DR (the drum track's P_PAN), a lane's own (drum_mix.c) */
+        cell_t c;
+        int16_t p0 = trk[0].p[P_PAN];
+        mx.set = 2;
+        mix_cell(MXR_T1, 3, &c);
+        check(c.vp == &trk[0].p[P_PAN] && c.d == &TP[P_PAN], "... T1's card 4 is its P_PAN");
+        mix_cell(MXR_DR, 3, &c);
+        check(c.vp == &trk[TRK_DRUM].p[P_PAN], "... DR's card 4 is the drum track's P_PAN");
+        mix_cell(MXR_LANE0 + 2u, 3, &c);
+        check(c.d && c.vp && *c.vp == dlm_pan[2], "... a lane's card 4 reads its own pan");
+        ui.row[SCR_HOME] = MXR_LANE0 + 2u;
+        ui.hot = 3;
+        turn(EN_K4, 5);
+        check(dlm_pan[2] == 5, "... KNOB 4 on a lane's PAN sets the lane's pan (drum_mix.c)");
+        dlm_pan[2] = 0;
+        trk[0].p[P_PAN] = p0;
+        mx.set = 0;
+    }
     check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
               (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)),
           "DR: VOLUME, its insert slots, its send levels (REV DLY CHO); no MUTE, no FX ON, no KIT card");

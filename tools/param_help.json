@@ -52,7 +52,8 @@
     {"kind": "page", "ctx": "SENDS", "if": "FELUCCA_UI == 1", "params": {
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
-      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"}}},
+      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
+      "PAN": "Stereo position of the track"}},
     {"kind": "page", "ctx": "BUS SENDS", "if": "FELUCCA_UI == 1", "params": {
       "CHO": {"text": "Drum bus chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Drum bus delay send", "if": "FELUCCA_FX_DELAY"},
@@ -358,7 +359,8 @@
       "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",
       "ROT": "Euclid: rotate the hits", "EUCLID": "ON plays it over the pattern"}},
     {"kind": "op", "ctx": "SENDS", "params": {
-      "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
+      "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row",
+      "PAN": "Stereo position of the row"}},
     {"kind": "op", "ctx": "MIX", "params": {
       "MUTE": "Mute the row", "PAN": "Stereo position of the row", "VOLUME": "Level of the row (dB)", "LEVEL": "Level of the lane (dB)",
       "CUT": "Filter cutoff of the lane", "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_DRUM_EDIT"}}},
