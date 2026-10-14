@@ -58,7 +58,7 @@ static void lane_preview_tests(void)
     tap(B_SEQ);
     lane_select(0);
     k = WK(6);
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     aud_lanes = 0;
     kdown(k);
@@ -76,19 +76,19 @@ static void lane_preview_tests(void)
         kup(k);
         check(!memcmp(ln_before, TSEL->dstep, sizeof ln_before), "... and no step set by it");
     }
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     check(ly_lock == LY_STEP && ui.scr == SCR_STEP, "HOME let go: the keys are steps again");
     tap(B_HOME);                                        /* the mixer: HOME held + a drum key, playing */
     lane_select(0);
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     kdown(WK(2));
     check(lane_selected() == 0u && ly_lock == LY_STEP && kb_kind[WK(2)] == KS_UI && smute_lane_on(2),
           "playing, HOME held + a drum key on the mixer: the lane's sequencer muted (the key silent), no pick (2026-10-13)");
     smute_lane = 0;
     kup(WK(2));
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     lane_transport(0);
     song.sel = 0;

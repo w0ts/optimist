@@ -79,9 +79,9 @@ static void mixer_walk_tests(void)
         tap(B_ARP);
         tap(B_SEQ);
         check(ui.scr == SCR_HOME && mx_row() == MXR_MASTER && !op_armed(), "... a track button tapped: nothing, still the MASTER row");
-        press(B_HOME);
+        press(B_OCTDN);
         tap(B_ENV);
-        release(B_HOME);
+        release(B_OCTDN);
         check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
         if (op_armed())
             op_no();
@@ -283,9 +283,9 @@ static void mixer_sets_tests(void)
         check(ui.scr == SCR_PROJECT && !op_armed(), "SAVE tapped on the mixer, no cell picked: PROJECT");
         tap(B_HOME);
         check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
@@ -294,18 +294,18 @@ static void mixer_sets_tests(void)
         reset_ui();
         song.sel = TRK_DRUM;
         frame();
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         key(4);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
               "HOME held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         press(B_GLO);
         release(B_GLO);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "HOME held long + a layer button: the layer locks, no SYSTEM");
         tap(B_SEQ);
         song.sel = 0;

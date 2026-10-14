@@ -293,7 +293,7 @@ static void name_frame(uint32_t pressed, uint32_t held)
     }
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
-            if (held & hb) {                            /* HOME + a knob: the whole name cleared */
+            if (op_shift(held)) {                       /* SHIFT + a knob: the whole name cleared */
                 nm.len = nm.cur = nm.key = 0;
                 nm.s[0] = 0;
                 nm.home_used = 1;

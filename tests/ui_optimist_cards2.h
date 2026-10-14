@@ -123,17 +123,28 @@ static void c2_roll_tests(void)
     check(TSEL->step[0].note[0] == 72 && song.octave == 0, "a step held + OCT+: the step transposed, the octave (and so the view) as it was");
     kup(WK(0));
     frames(2);
-    press(B_HOME);                                      /* HOME + OCT: the window, as before */
-    tap(B_OCTUP);
-    release(B_HOME);
-    check(song.octave == 0 && st.follow == 0, "HOME + OCT+: the window (FOLLOW off), the octave and view not moved");
-    press(B_HOME);
+    turn(EN_PRESET, 1);                                 /* PRESETS: the window, the octave and view not moved */
+    check(song.octave == 0 && st.follow == 0, "PRESETS: the window (FOLLOW off), the octave and view not moved");
     press(B_OCTDN);
     press(B_OCTUP);
     release(B_OCTUP);
     release(B_OCTDN);
-    release(B_HOME);
-    check(st.follow == 1 && song.octave == 0, "HOME + both OCT: FOLLOW again");
+    check(st.follow == 1 && song.octave == 0, "both OCT: FOLLOW again");
+    song.octave = 0;
+    press(B_OCTUP);
+    check(song.octave == 0, "OCT+ pressed: the octave changes when it is let go, not at the press");
+    release(B_OCTUP);
+    check(song.octave == 1 && ui.toast_t && !strcmp(ui.msg, "OCTAVE: 1"), "OCT+ let go: the octave 1 and its toast \"Octave: 1\"");
+    press(B_OCTUP);
+    kdown(WK(0));
+    kup(WK(0));
+    release(B_OCTUP);
+    check(song.octave == 1, "OCT+ held while a key is played (SHIFT2): the octave stays");
+    press(B_OCTDN);
+    turn(EN_K1, 1);
+    release(B_OCTDN);
+    check(song.octave == 1, "OCT- held while a knob is turned (SHIFT): the octave stays");
+    song.octave = 0;
     st.page = 0;
     s35_open();
     song.sel = TRK_DRUM;                                /* the drum track: OCT is ghost / hard, no view moved */

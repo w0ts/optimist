@@ -109,10 +109,10 @@ static void rk_combo(uint32_t b, const char *what)      /* HOME held + b */
     op_enter(SCR_SOUND);
     frame();
     h0 = rk_state();
-    press(B_HOME);
+    press(B_OCTDN);
     press(b);
     release(b);
-    release(B_HOME);
+    release(B_OCTDN);
     rk_after(what, h0);
 }
 static void rk_edit(void) { TSEL->p[P_ATK] = (int16_t)(TSEL->p[P_ATK] > 60 ? 1 : TSEL->p[P_ATK] + 1); }   /* an edit (sound, work) */
@@ -126,10 +126,10 @@ static void rk_discard(uint32_t role, int home, const char *what)
     h0 = rk_state();
     id0 = snd_id(song.sel);
     if (home)
-        press(B_HOME);
+        press(B_OCTDN);
     turn(role, 1);
     if (home)
-        release(B_HOME);
+        release(B_OCTDN);
     str_cpy(q, "DISCARD ", sizeof q);
     str_cpy(q + 8, trk_tag(song.sel), sizeof q - 8u);
     str_cpy(q + 10, " EDITS?", sizeof q - 10u);
@@ -139,20 +139,20 @@ static void rk_discard(uint32_t role, int home, const char *what)
     }
     rk_after(what, h0);                                 /* (HOME: the edited sound kept) */
     if (home)
-        press(B_HOME);
+        press(B_OCTDN);
     turn(role, 1);
     if (home)
-        release(B_HOME);
+        release(B_OCTDN);
     tap(B_SAVE);                                        /* YES: the change */
     if (op_armed() || snd_id(song.sel) == id0 && snd_sig(song.sel) == edt.sig[song.sel] && rk_state() == h0) {
         printf("  risk: %s: YES did not change the sound\n", what);
         rk_ok = 0;
     }
     if (home)
-        press(B_HOME);
+        press(B_OCTDN);
     turn(role, 1);                                      /* unedited now: no question */
     if (home)
-        release(B_HOME);
+        release(B_OCTDN);
     if (op_armed()) {
         printf("  risk: %s: asked again over an unedited sound\n", what);
         rk_ok = 0;

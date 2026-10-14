@@ -1,19 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The two held buttons with a button (docs/UI-OPTIMIST-DESIGN.md section 2.1, phase 4): SAVE held + a button saves
- * what it owns, HOME held + a button clears it or, on a layer's button, locks the layer open:
- *   SAVE + SEQ    the working pattern into its slot (asked over a used one)   HOME + SEQ   its locks, nudges, fills
+ * what it owns, SHIFT (OCT- held) + a button clears it or, on a layer's button, locks the layer open:
+ *   SAVE + SEQ    the working pattern into its slot (asked over a used one)   SHIFT + SEQ   its locks, nudges, fills
  *                                                                                           and motion (asked)
  *   SAVE + ENV LFO EDIT FX SCL ARP   the sound as a user preset (the first free slot); the drum track: its 16
- *                 lanes as a user kit                                         HOME + FX EDIT ARP SCL GLO LFO: the
- *                                                                             layer locked; HOME + ENV: INIT (asked)
- *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       HOME + REC   a SONG scene row: the scene
+ *                 lanes as a user kit                                         SHIFT + FX EDIT ARP SCL GLO LFO: the
+ *                                                                             layer locked; SHIFT + ENV: INIT (asked)
+ *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       SHIFT + REC   a SONG scene row: the scene
  *                                                                             cleared (asked); else nothing (the
  *                                                                             track: the REC ring)
- *   SAVE + PLAY   the song from its start                                     HOME + PLAY  stop, every voice off
- *   SAVE then HOME: undo                                                      HOME then SAVE: redo
- *                                                                             HOME + OCT   STEP: the window; else
- *                                                                             the octave back to 0
- * The layer lock wins where the two meet (HOME + a layer's button). SAVE then HOME stays undo, so the SAVE layer
+ *   SAVE + PLAY   the song from its start                                     SHIFT + PLAY  stop, every voice off
+ *   SAVE then HOME: undo                                                      SHIFT then SAVE: redo
+ *                                                                             both OCT: STEP follows, else the
+ *                                                                             octave back to 0
+ * The layer lock wins where the two meet (SHIFT + a layer's button). SAVE then HOME stays undo, so the SAVE layer
  * (scenes) is not locked open. The undo and redo act when one of the two is let go, so that SAVE + HOME + a scene
  * key clears the scene and undoes nothing. */
 #if DL_UI && FELUCCA_DRUM_KITS
@@ -96,11 +96,11 @@ static uint32_t op_combo_bit(uint32_t b) { return 1u << panel.btn[b]; }
 static uint32_t op_clean;                               /* (op_input.c: the buttons with nothing else done since) */
 static void op_eat(uint32_t mask) { op_clean &= ~mask; }
 
-/* HOME held + button b (pressed now): 1 taken */
+/* SHIFT (OCT- held) + button b (pressed now): 1 taken */
 #if FELUCCA_BLE
-static int dev_home_combo(void);                        /* op_project.c: HOME + a button on the BLE devices: FORGET LAST */
+static int dev_home_combo(void);                        /* op_project.c: SHIFT + a button on the BLE devices: FORGET LAST */
 #endif
-static int home_combo(uint32_t b)
+static int shift_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
 #if FELUCCA_BLE
@@ -108,8 +108,8 @@ static int home_combo(uint32_t b)
         return 1;
 #endif
 #if FELUCCA_PATTERNS
-    if (l == LY_PAT) {                                  /* LFO: HOME + it locks the patterns layer only if no slot is cleared with
-                                                         * it (HOME + n clears, the user 2026-10-13): decided when one is let go */
+    if (l == LY_PAT) {                                  /* LFO: SHIFT + it locks the patterns layer only if no slot is cleared with
+                                                         * it (SHIFT + n clears, the user 2026-10-13): decided when one is let go */
         lay.hlock = 1;
         lay.pclr = 0;
         return 1;
@@ -121,7 +121,7 @@ static int home_combo(uint32_t b)
     }
     switch (b) {
     case B_SAVE:
-        lay.chord = 2;                                  /* HOME then SAVE: redo, when one of them is let go */
+        lay.chord = 2;                                  /* SHIFT then SAVE: redo, when one of them is let go */
         return 1;
     case B_ENV:
         if (!is_drum(TSEL) && snd_edited(song.sel))      /* (asked over edits; none: done at once, op_edits.c) */
@@ -184,7 +184,7 @@ static int save_combo(uint32_t b)
 static int op_combo(uint32_t b, uint32_t held)
 {
     uint32_t others = held & ~op_combo_bit(b), l;
-    if (b != B_SAVE && b != B_HOME)
+    if (b != B_SAVE && b != B_HOME && b != B_OCTDN)
         lay.chord = 0;                                  /* (another button: no undo / redo) */
     if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP) {
         lay_unlock();                                   /* locked: any other button lets it go, and does only that */
@@ -193,22 +193,23 @@ static int op_combo(uint32_t b, uint32_t held)
     }
     if (ui.scr == SCR_STEP && st.held)
         return 0;                                       /* (a step held: SAVE its fill, a page button its locks) */
-    if (b == B_HOME && lay.held != LY_PLAY && lay.held != LY_SONG) {   /* a layer held, HOME: locked open */
+    if (b == B_OCTDN && lay.held != LY_PLAY && lay.held != LY_SONG && lay.held != LY_FX && lay.held != LY_ERASE
+        && lay.held != LY_OPS) {                        /* a layer held, SHIFT: locked open (FX, EDIT, ENV: their OCT- / OCT+ keep their own jobs) */
         l = lay.held;
 #if FELUCCA_PATTERNS
         if (l == LY_PAT) {                              /* (the patterns: HOME + n clears a slot; locked when let go unused) */
             lay.hlock = 1;
             lay.pclr = 0;
-            op_eat(op_combo_bit(B_HOME) | op_combo_bit(LAYER_BTN[l]));
+            op_eat(op_combo_bit(B_OCTDN) | op_combo_bit(LAYER_BTN[l]));
             return 1;
         }
 #endif
         lay_lock(l);
-        op_eat(op_combo_bit(B_HOME) | op_combo_bit(LAYER_BTN[l]));
+        op_eat(op_combo_bit(B_OCTDN) | op_combo_bit(LAYER_BTN[l]));
         return 1;
     }
-    if ((others & op_combo_bit(B_HOME)) && home_combo(b)) {
-        op_eat(op_combo_bit(b) | op_combo_bit(B_HOME));
+    if (op_shift(others) && shift_combo(b)) {
+        op_eat(op_combo_bit(b) | op_combo_bit(B_OCTDN));
         return 1;
     }
     if ((others & op_combo_bit(B_SAVE)) && !op_armed() && save_combo(b)) {
@@ -221,13 +222,13 @@ static int op_combo(uint32_t b, uint32_t held)
 static void op_released(uint32_t rel)
 {
 #if FELUCCA_PATTERNS
-    if (lay.hlock && (rel & (op_combo_bit(B_HOME) | op_combo_bit(B_LFO)))) {
+    if (lay.hlock && (rel & (op_combo_bit(B_OCTDN) | op_combo_bit(B_LFO)))) {
         if (!lay.pclr)
-            lay_lock(LY_PAT);                           /* HOME + LFO with no slot cleared: the layer locked open */
+            lay_lock(LY_PAT);                           /* SHIFT + LFO with no slot cleared: the layer locked open */
         lay.hlock = 0;
     }
 #endif
-    if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME)))) {
+    if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME) | op_combo_bit(B_OCTDN)))) {
         op_undo(lay.chord == 2u);
         lay.chord = 0;
     }

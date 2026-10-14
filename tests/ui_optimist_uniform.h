@@ -110,29 +110,29 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     lane_select(0);
     op_enter(SCR_SOUND);
     frame();
-    press(B_HOME);
+    press(B_OCTDN);
     for (i = 0; i < 5u; i++) {
         lane_select(0);
         kdown(BLACK[i]);
         kup(BLACK[i]);
         ok2 &= lane_selected() == 0u;
     }
-    release(B_HOME);
+    release(B_OCTDN);
     lane_select(0);
     check(ok2, "HOME held + an upper key off the mixer: no lane picked either (the last upper key: the ACCENT lane)");
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(WK(5));
     kup(WK(5));
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == 5u, "... HOME + a white key still picks its lane");
     go_home();
     frame();
     lane_select(0);
     smute_lane = 0;
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(BLACK[0]);
     kup(BLACK[0]);
-    release(B_HOME);
+    release(B_OCTDN);
     check(smute_trk_on(0), "the mixer: HOME held + upper key 1 is still T1's sequencer mute");
     smute_trk = 0;
     press(B_GLO);
@@ -207,10 +207,10 @@ static void un_step_presets_tests(void)                 /* #1 (kept) and the acc
     turn(EN_PRESET, 1);
     check(st.page == 1u && TSEL->eng_req == e0 && TSEL->preset == p0, "STEP: PRESETS scrolls the 16-step window (kept)");
     pg0 = st.page;
-    press(B_HOME);
+    press(B_OCTDN);
     turn(EN_PRESET, 1);
     turn(EN_PRESET, -1);
-    release(B_HOME);
+    release(B_OCTDN);
     frames(2);
     check(TSEL->eng_req == e0 && TSEL->preset == p0 && st.page == pg0 && ui.scr == SCR_STEP && !op_armed(),
           "STEP: HOME + PRESETS does nothing (no engine change, no scroll, no NO)");

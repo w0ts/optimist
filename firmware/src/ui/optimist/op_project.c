@@ -123,7 +123,7 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect;
     }
     return 1;
 }
-static int dev_home_combo(void)                         /* HOME + a button on the list: FORGET LAST, asked (op_combos.c) */
+static int dev_home_combo(void)                         /* SHIFT + a button on the list: FORGET LAST, asked (op_combos.c) */
 {
     char nm[BLE_NAME_MAX + 1u];
     if (!dev_listing())

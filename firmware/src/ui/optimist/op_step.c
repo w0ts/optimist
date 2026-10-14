@@ -60,10 +60,10 @@ static void step_clear(step_t *s)
 }
 static uint32_t step_pages(const track_t *t) { return (trk_len(t) + 15u) / 16u; }
 
-/* the drum track's lane pick on STEP: HOME held, no step held (a step held + HOME is the clear), as on every page */
+/* the drum track's lane pick on STEP: SHIFT (OCT-) held, no step held, as on every page (so OCT- no longer makes a ghost hit on STEP) */
 static int step_pick(uint32_t held)
 {
-    return ui.scr == SCR_STEP && is_drum(TSEL) && (held & (1u << panel.btn[B_HOME])) && !st.held;
+    return ui.scr == SCR_STEP && is_drum(TSEL) && op_shift(held) && !st.held;
 }
 /* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
  * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
@@ -299,7 +299,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
-    if (held & (1u << panel.btn[is_drum(t) ? B_SEQ : B_HOME])) {   /* the drum track's SEQ, a synth track's HOME + the step: cleared, everything of it */
+    if (is_drum(t) ? (held & (1u << panel.btn[B_SEQ])) != 0u : op_shift(held)) {   /* the drum track's SEQ, a synth track's HOME + the step: cleared, everything of it */
         undo_mark(t, st.sess);
         fm1_irq_off();
         step_wipe(t, idx, 1);

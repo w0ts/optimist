@@ -216,13 +216,13 @@ static void glo_tests(void)
         turn(EN_PRESET, 2);
         check(song.g[G_SWING] == v && ui.row[SCR_GLOBAL] == w, "PRESETS on GLOBAL: the cursor line's value is not touched (SWING)");
         song.g[G_SWING] = (int16_t)(GP[G_SWING].def + 3);
-        press(B_HOME);
+        press(B_OCTDN);
         turn(EN_PRESET, 1);
-        release(B_HOME);
+        release(B_OCTDN);
         check(song.g[G_SWING] == GP[G_SWING].def + 3 && ui.scr == SCR_GLOBAL, "HOME held + PRESETS: nothing either (HOME no NO)");
-        press(B_HOME);
+        press(B_OCTDN);
         turn(LINE_KNOB(w), 1);
-        release(B_HOME);
+        release(B_OCTDN);
         check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + the line's knob: its default");
         song.g[G_SWING] = v;
         turn(EN_PRESET, -1);

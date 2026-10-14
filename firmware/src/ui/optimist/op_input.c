@@ -307,15 +307,15 @@ static int pick_mod(uint32_t held)
 {
     if (!is_drum(TSEL))
         return 0;
-    return ui.scr == SCR_STEP ? step_pick(held) : (held & (1u << panel.btn[B_HOME])) != 0u;
+    return ui.scr == SCR_STEP ? step_pick(held) : op_shift(held);
 }
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
 /* HOME held on the mixer: its keys MUTE the sequencer (seq_mute.c: the 16 drum keys the lanes, the 4 black keys T1 T2 T3 DR)
  * instead of picking the lane (the user, 2026-10-13); the key plays nothing, playing or stopped */
-static int mute_mod(uint32_t held)                      /* (HOME alone: SAVE + HOME + a key is the scene clear, a layer's keys) */
+static int mute_mod(uint32_t held)                      /* (SHIFT alone: SAVE + HOME + a key is the scene clear, a layer's keys) */
 {
-    return ui.scr == SCR_HOME && (held & 0x3FFFu) == (1u << panel.btn[B_HOME]);
+    return ui.scr == SCR_HOME && (held & 0x3FFFu) == (1u << panel.btn[B_OCTDN]);
 }
 static int pick_silent(uint32_t held) { return mute_mod(held) || (song.playing && pick_mod(held)); }
 static void smute_notes(uint32_t notes)
@@ -367,6 +367,25 @@ static void layers_init(void)
     ft_drop_mask = 1u << panel.btn[B_PLAY];
 }
 
+/* ---- the octave: OCT- / OCT+ tapped (let go, nothing else used while they were down), with its toast */
+static void oct_set(int32_t o)
+{
+    char b[8];
+    song.octave = (int8_t)o;
+    fmt_int(b, o);
+    ui.toast_next = 1;
+    ui_say("OCTAVE: ", b);
+    ui.toast_next = 0;
+}
+static void oct_tap(uint32_t b)                         /* the keyboard octave, STEP's roll view too (op_stepdraw.c roll_range);
+                                                         * the drum track: ghost / hard while held, seq.c */
+{
+    int32_t o = song.octave + (b == B_OCTDN ? -1 : 1);
+    if (is_drum(TSEL))
+        return;
+    oct_set(o < -3 ? -3 : o > 3 ? 3 : o);
+}
+
 /* ---- the input, every main-loop pass */
 static uint32_t op_held;                                /* the buttons down (op_clean: op_combos.c) */
 static uint32_t op_t0[14];                              /* each button's press (fm1_ms), by panel id */
@@ -412,37 +431,31 @@ static void op_press(uint32_t b, uint32_t held)
         if (ui.scr == SCR_STEP && st.held) {            /* a step held: its notes an octave (synths), nothing else */
             if (!is_drum(TSEL))
                 held_octave(b == B_OCTDN ? -1 : 1);
-        } else if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
-            uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
-            if ((held & both) == both)
-                st.follow = 1;
-            else
-                step_scroll(b == B_OCTDN ? -1 : 1);
-            op_clean &= ~BIT(B_HOME);
+            op_clean &= ~BIT(b);
+        } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: STEP FOLLOW again, else the octave back to 0 */
+            if (!is_drum(TSEL))
+                oct_set(0);
+            if (ui.scr == SCR_STEP)
+                st.follow = 1;                          /* (STEP: the fit again, the window follows the playhead) */
+            op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
-        } else if (held & BIT(B_HOME)) {                /* HOME + OCT off STEP: the octave back to 0 */
-            song.octave = 0;
-            op_clean &= ~BIT(B_HOME);
+            op_clean &= ~BIT(b);
         } else if (lay_is(LY_OPS)) {                    /* ENV held on FM6: the page back / on (op_fm6.c) */
             fm6_lay_page(b == B_OCTDN ? -1 : 1);
             lay.used = 1;
-            op_clean &= ~BIT(B_ENV);
+            op_clean &= ~(BIT(B_ENV) | BIT(b));
         } else if (tempo_nudging() || (held & BIT(B_PLAY))) {   /* (the TEMPO page, GLOBAL's TEMPO row: the nudge) */
             tp.pend = 0;
+            op_clean &= ~BIT(b);
         } else if (lay_is(LY_FX) && b == B_OCTDN) {
 #if FELUCCA_PUNCH_LATCH
             punch.keybit = 0;                           /* FX + OCT-: the latched effect off (punch.c) */
             punch.req = -1;
 #endif
-        } else if (!is_drum(TSEL)) {                    /* the keyboard octave, which is STEP's roll view too (op_stepdraw.c roll_range);
-                                                         * the drum track: ghost / hard while held, seq.c */
-            uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
-            if ((held & both) == both)
-                song.octave = 0;
-            else
-                song.octave += b == B_OCTDN ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
-        }
+            op_clean &= ~BIT(b);
+        }                                               /* (a plain press does nothing yet: it is SHIFT / SHIFT2 while held; let go with
+                                                         * nothing else used it changes the octave, op_tap) */
         break;
     default:
         break;
@@ -464,7 +477,9 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_HOME) {
         if (!(mx_quiet() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()))
             op_no();                                    /* (held alone on the mixer: nothing) */
-    } else if (b == B_SEQ)
+    } else if (b == B_OCTDN || b == B_OCTUP)
+        oct_tap(b);                                     /* (a tap: let go with nothing used meanwhile) */
+    else if (b == B_SEQ)
         step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
         glo_tap();                                      /* GLOBAL, again SYSTEM, again GLOBAL (op_global.c) */
@@ -484,20 +499,20 @@ static int op_presets_turn(void)
         return 0;
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k, CALIBRATE runs from YES; HOME held: no NO either */
-        if (fm1_in.buttons & BIT(B_HOME))
-            op_clean &= ~BIT(B_HOME);
-    } else if (ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_HOME))) {   /* STEP: HOME + PRESETS does nothing (it changed the engine only
+        if (op_shift(fm1_in.buttons))
+            op_clean &= ~BIT(B_OCTDN);
+    } else if (ui.scr == SCR_STEP && op_shift(fm1_in.buttons)) {   /* STEP: SHIFT + PRESETS does nothing (it changed the engine only
                                                          * because this branch came first; PRESETS alone scrolls the window) */
-        op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO) */
-    } else if ((fm1_in.buttons & BIT(B_HOME)) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
+        op_clean &= ~BIT(B_OCTDN);                      /* (SHIFT let go: no octave) */
+    } else if (op_shift(fm1_in.buttons) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
         else
-            op_engine_step(s);                          /* HOME held (the shift) + PRESETS: the instruments (DR: its kits) */
+            op_engine_step(s);                          /* SHIFT + PRESETS: the instruments (DR: its kits) */
         if (!op_armed())
             pre_toast();                                /* (asked "Discard edits?": no toast) */
-        op_clean &= ~BIT(B_HOME);                       /* (HOME let go: no NO, no SYSTEM) */
+        op_clean &= ~BIT(B_OCTDN);                      /* (SHIFT let go: no octave) */
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
                                                          * stopping at the ends; a step held: nothing (the held keys are
@@ -514,7 +529,7 @@ static int op_presets_turn(void)
     }
     return 1;
 }
-static void op_knobs(uint32_t home)
+static void op_knobs(uint32_t shift)
 {
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
     int32_t s;
@@ -565,7 +580,7 @@ static void op_knobs(uint32_t home)
         ui.hot_lit = 1;
         HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
         if (c.kind == CK_VAL)
-            SCR->turn(row, k, home ? OP_RESET : s, 0);  /* HOME held: back to its default */
+            SCR->turn(row, k, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
     }
     if (turned) {
 #if FELUCCA_PATTERNS
@@ -585,7 +600,7 @@ static void op_drain(uint32_t held)
         uint32_t e = lk_q[lk_r % LKQ];
         lk_r++;
         if ((e >> 8) == LY_STEP && keys_none() && ((e >> 7) & 1u)) {
-            if (ui.scr == SCR_PROJECT && !(held & BIT(B_HOME)))
+            if (ui.scr == SCR_PROJECT && !op_shift(held))
                 prj_key(e & 0x7Fu, 1);                  /* (PROJECT: the key picks the slot; no track, no other job) */
             continue;                                   /* (a press; its release goes on: a step held before the page changed) */
         }
@@ -637,13 +652,13 @@ static void ui_input(void)
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
         op_clean &= ~held;
-    } else if (notes && ui.scr == SCR_STEP && !(held & BIT(B_HOME))) {   /* SEQ held (the pick) or the keys play */
+    } else if (notes && ui.scr == SCR_STEP && !op_shift(held)) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
         op_clean &= ~held;
     } else if (notes && mute_mod(held)) {               /* HOME held + a key on the mixer: the sequencer mute */
         smute_notes(notes);
-        op_clean &= ~BIT(B_HOME);
-    } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
+        op_clean &= ~BIT(B_OCTDN);
+    } else if (notes && op_shift(held)) {               /* SHIFT held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
                 if (((notes >> id) & 1u) && lane_key(id)) {   /* (a white key or key 1, the ACCENT lane: the other upper keys pick nothing) */
@@ -651,12 +666,12 @@ static void ui_input(void)
                     if (ui.scr == SCR_HOME)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }
-        op_clean &= ~BIT(B_HOME);
+        op_clean &= ~BIT(B_OCTDN);
     } else if (notes) {
         op_clean &= ~held;
         drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
     }
-    op_knobs((held & BIT(B_HOME)) != 0u);
+    op_knobs(op_shift(held));
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */
     op_clean &= held;
     op_released((op_held | pressed) & ~held);           /* the chords, SAVE + REC, PLAY (op_combos.c) */

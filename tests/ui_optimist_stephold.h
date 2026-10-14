@@ -111,9 +111,9 @@ static void step_pitch_tests(void)
     song.octave = 0;
     key(WK(4));
     check(sh_on(4) && TSEL->step[4].note[0] == n0, "step pitch: a step never set: the pick, as before");
-    press(B_HOME);
+    press(B_OCTDN);
     key(WK(3));
-    release(B_HOME);
+    release(B_OCTDN);
     key(WK(3));
     check(sh_on(3) && TSEL->step[3].note[0] == n0, "step pitch: HOME + the step (cleared, everything): a tap after it takes the pick");
 }

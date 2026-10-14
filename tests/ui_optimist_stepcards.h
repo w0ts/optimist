@@ -56,10 +56,10 @@ static void step_cards_tests(void)
             frames(2);
             ok = lane_selected() == l && ui.cards_t == 0u && !card0_up();
             check(ok, "STEP overlay: PRESETS leaves the drum lane, no overlay");
-            press(B_HOME);
+            press(B_OCTDN);
             kdown(WK(6));
             kup(WK(6));
-            release(B_HOME);
+            release(B_OCTDN);
             frames(2);
             ok = lane_selected() == 6u && l != 6u && ui.cards_t == 0u && !card0_up();
             check(ok, "STEP overlay: HOME + a key picks the drum lane, no overlay");

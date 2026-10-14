@@ -7,7 +7,7 @@
  *   a vertical menu    GLOBAL and SYSTEM's settings list (the cursor line) and PROJECT (the cursor row's hot cell): always
  *                      there, the list made shorter for it (op_gldraw.c GL_LINE_H, op_draw.c LIST_H); an action that
  *                      asks first says so ("(asks)")
- *   a layer opened     its "Home locks it", once a power-on, ~2.5 s (op_laydraw.c lay_hint; the audit's #24)
+ *   a layer opened     its "Oct- locks it", once a power-on, ~2.5 s (op_laydraw.c lay_hint; the audit's #24)
  * Not under a question (the modal), the REC ring, a layer's map (but that hint) or NAME (its own hints, op_name.c). Its rows are a band of their own (op_graph.c
  * OP_FOOT, the audit's #6): every screen's content ends above it whether the line shows or not, so the line covers
  * nothing; when it goes, the band is cleared to black and nothing else is drawn again.
@@ -145,7 +145,7 @@ static void hl_post(void)
     cv_begin(240, HL_H, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
     if (off == 0xFFFFu)
-        cv_text(4, 2, &FONT_S, "Home locks it", C_AMB);
+        cv_text(4, 2, &FONT_S, "Oct- locks it", C_AMB);
     else if (off)
         cv_text(4, 2, &FONT_S, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);

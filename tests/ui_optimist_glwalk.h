@@ -95,9 +95,9 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
         ok &= glw_still(EN_PRESET);
         if (c.d && c.vp) {                              /* a descriptor's value: HOME held + its knob, its default */
             int16_t was = *c.vp;
-            press(B_HOME);
+            press(B_OCTDN);
             turn(LINE_KNOB(i), 1);
-            release(B_HOME);
+            release(B_OCTDN);
             ok &= *c.vp == c.d->def && ui.scr == scr;
             *c.vp = was;
         }
@@ -151,9 +151,9 @@ static void glw_factory_tests(void)
 #if FELUCCA_BLE
                 uint8_t was = ble_on;
                 ble_on = 1;
-                press(B_HOME);
+                press(B_OCTDN);
                 turn(LINE_KNOB(i), 1);
-                release(B_HOME);
+                release(B_OCTDN);
                 ble_ok &= ble_on == 1u;
                 ble_on = was;
 #endif
@@ -169,9 +169,9 @@ static void glw_factory_tests(void)
                 turn(LINE_KNOB(i), tries == 1u ? -1 : 1);
                 glw_line(scr, i, &c, v);
             }
-            press(B_HOME);
+            press(B_OCTDN);
             turn(LINE_KNOB(i), 1);
-            release(B_HOME);
+            release(B_OCTDN);
             glw_line(scr, i, &c, v);
             if (strcmp(v, f)) {
                 printf("  glwalk: %s after HOME + knob %s, factory %s\n", c.label, v, f);

@@ -59,6 +59,12 @@ static struct {
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
 } ui = {.page = 0, .arm_scr = ARM_NONE, .m_scr = SCR_SOUND, .m_fam = 0xFFu};
 
+/* SHIFT and SHIFT2 (the user, 2026-10-14): SHIFT is OCT- held, SHIFT2 is OCT+ held (HOME is only HOME / NO now). What HOME held
+ * did (knob to default, drum lane pick, button clears, the layer lock, PRESETS the engine) is SHIFT's. Their taps change the
+ * octave when let go, and only if nothing else was used while they were down (op_input.c op_tap). `held` = fm1_in.buttons */
+static int op_shift(uint32_t held) { return (held & (1u << panel.btn[B_OCTDN])) != 0u; }
+static int op_shift2(uint32_t held) { return (held & (1u << panel.btn[B_OCTUP])) != 0u; }
+
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
  * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held
  * RH_ARM_MS that press is undone and a ring fills (op_draw.c draw_ring); held RH_CLEAR_MS more, the track is cleared
