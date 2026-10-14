@@ -4,7 +4,6 @@
  * backports.h (tools/backports.json: provenance, measured cost). A switch at 0 builds exactly the firmware
  * without it. Included by backports.h.
  *
- *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
  *                                                                                        SLOOP 2.3
  *   FELUCCA_LIGHTS        menu LIGHTS / KEYS (the buttons and keys glow), NOTES (KEYLIT at run time)
@@ -18,10 +17,6 @@
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
-#ifndef FELUCCA_KEYS_FAST
-#define FELUCCA_KEYS_FAST 1      /* hal/fm1_input.h: a press after 2 samples closed in a row, read with its column; a
-                                  * release after 8 open in a row */
-#endif
 #ifndef FELUCCA_REC_MODES
 #define FELUCCA_REC_MODES 0      /* seq.c, ui_input.c rec_knobs, ui_studio.c rec_screen_draw; settings: persist_t.bp23 */
 #endif
@@ -53,6 +48,9 @@
 #endif
 #if defined(FELUCCA_SHED_FADE) && !FELUCCA_SHED_FADE
 #error "FELUCCA_SHED_FADE was retired: the overload fade (one voice at a time, never the bass or the lead) is always built (SLOOP 2.3 .. 2.6)"
+#endif
+#if defined(FELUCCA_KEYS_FAST) && !FELUCCA_KEYS_FAST
+#error "FELUCCA_KEYS_FAST was retired: the keys are always read with their column (SLOOP 2.3 .. 2.6)"
 #endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */

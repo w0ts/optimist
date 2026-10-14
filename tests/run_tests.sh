@@ -160,12 +160,8 @@ job; ( jobin
     run "knobs (Felucca 1.6 #63 / #126): a still knob chattering, 12-click turns to 300/s, slow bouncy turns, a reversal" "$OUT/encoder_felucca_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=0 -o "$OUT/keys_test0" tests/keys_test.c
-    run "keys: integrating debounce (FELUCCA_KEYS_FAST=0): latency, glitch, bounce, chatter" "$OUT/keys_test0"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=1 -o "$OUT/keys_test1" tests/keys_test.c
-    run "keys: read with their column (SLOOP 2.3, FELUCCA_KEYS_FAST=1): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test1"
+    $CC -w -Ifirmware/hal -o "$OUT/keys_test" tests/keys_test.c
+    run "keys: read with their column (SLOOP 2.3): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
