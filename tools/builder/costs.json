@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 629916,
+  "flash": 630444,
   "ram": 73148,
   "pool": 355524,
   "ramtext": 34896
@@ -819,8 +819,14 @@
    }
   },
   "SPLASH": {
+   "2": {
+    "flash": -528,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
    "0": {
-    "flash": -524,
+    "flash": -1036,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1281,7 +1287,7 @@
    }
   }
  },
- "measured": "2026-10-14 20:40",
+ "measured": "2026-10-14 23:12",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1318,7 +1324,7 @@
    },
    "built_hash": "15b4c501",
    "sizes": {
-    "flash": 604132,
+    "flash": 604836,
     "ram": 69584,
     "pool": 355172,
     "ramtext": 26020
@@ -1338,7 +1344,7 @@
    },
    "built_hash": "607dcc8a",
    "sizes": {
-    "flash": 602052,
+    "flash": 602692,
     "ram": 61196,
     "pool": 340124,
     "ramtext": 34824
@@ -1358,7 +1364,7 @@
    },
    "built_hash": "2eb1ec5d",
    "sizes": {
-    "flash": 602064,
+    "flash": 602608,
     "ram": 73164,
     "pool": 346176,
     "ramtext": 28872
@@ -1391,7 +1397,7 @@
    },
    "built_hash": "4ec2e172",
    "sizes": {
-    "flash": 538264,
+    "flash": 538904,
     "ram": 57052,
     "pool": 317084,
     "ramtext": 31516
@@ -1421,7 +1427,7 @@
    },
    "built_hash": "7662edff",
    "sizes": {
-    "flash": 581572,
+    "flash": 582196,
     "ram": 53688,
     "pool": 316604,
     "ramtext": 26124
@@ -1501,8 +1507,8 @@
    },
    "built_hash": "79952091",
    "sizes": {
-    "flash": 542148,
-    "ram": 75736,
+    "flash": 543400,
+    "ram": 77032,
     "pool": 318444,
     "ramtext": 27748
    }
@@ -1565,7 +1571,7 @@
    },
    "built_hash": "49ac1879",
    "sizes": {
-    "flash": 538924,
+    "flash": 539420,
     "ram": 58900,
     "pool": 314748,
     "ramtext": 32820
@@ -1602,7 +1608,7 @@
    },
    "built_hash": "44dee32a",
    "sizes": {
-    "flash": 554060,
+    "flash": 554796,
     "ram": 62092,
     "pool": 298008,
     "ramtext": 24928
@@ -1641,7 +1647,7 @@
    },
    "built_hash": "49d8edfe",
    "sizes": {
-    "flash": 571576,
+    "flash": 572120,
     "ram": 65244,
     "pool": 298008,
     "ramtext": 24920
@@ -1665,7 +1671,7 @@
    },
    "built_hash": "74ae37c1",
    "sizes": {
-    "flash": 637012,
+    "flash": 637572,
     "ram": 82572,
     "pool": 355548,
     "ramtext": 25204
@@ -1687,7 +1693,7 @@
    },
    "built_hash": "77c5516a",
    "sizes": {
-    "flash": 599496,
+    "flash": 600024,
     "ram": 59964,
     "pool": 307452,
     "ramtext": 33856
@@ -1711,7 +1717,7 @@
    },
    "built_hash": "2cb7bb07",
    "sizes": {
-    "flash": 611820,
+    "flash": 612396,
     "ram": 75020,
     "pool": 355196,
     "ramtext": 26212
@@ -1748,7 +1754,7 @@
    },
    "built_hash": "084fdbe6",
    "sizes": {
-    "flash": 552340,
+    "flash": 552820,
     "ram": 62060,
     "pool": 317084,
     "ramtext": 30668
@@ -1780,7 +1786,7 @@
    },
    "built_hash": "370b9fc3",
    "sizes": {
-    "flash": 585968,
+    "flash": 586624,
     "ram": 53928,
     "pool": 316992,
     "ramtext": 27968
@@ -1857,10 +1863,10 @@
    },
    "built_hash": "70423016",
    "sizes": {
-    "flash": 521396,
-    "ram": 74648,
+    "flash": 522620,
+    "ram": 75944,
     "pool": 317652,
-    "ramtext": 27100
+    "ramtext": 27104
    }
   },
   "mots~": {
@@ -1923,7 +1929,7 @@
    },
    "built_hash": "7cf2fc7b",
    "sizes": {
-    "flash": 539188,
+    "flash": 539892,
     "ram": 60580,
     "pool": 314940,
     "ramtext": 31664
@@ -1964,7 +1970,7 @@
    },
    "built_hash": "78d84868",
    "sizes": {
-    "flash": 563792,
+    "flash": 564240,
     "ram": 62796,
     "pool": 306132,
     "ramtext": 24744
@@ -2005,7 +2011,7 @@
    },
    "built_hash": "7395af06",
    "sizes": {
-    "flash": 570276,
+    "flash": 570932,
     "ram": 65228,
     "pool": 298008,
     "ramtext": 24688
@@ -2794,10 +2800,10 @@
    "ramtext": 168
   },
   "UI=1,SPLASH=0": {
-   "flash": -24,
-   "ram": 0,
+   "flash": 9268,
+   "ram": 80,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 24
   },
   "UI=1,ICONS=0": {
    "flash": 5336,
@@ -3320,6 +3326,12 @@
    "ram": -16,
    "pool": 0,
    "ramtext": 69
+  },
+  "UI=1,SPLASH=2": {
+   "flash": 9220,
+   "ram": 80,
+   "pool": 0,
+   "ramtext": 24
   }
  },
  "groups": {
