@@ -466,14 +466,14 @@ the letters [D]; kits keep numbers.
 
 ### 4.7 SYSTEM
 
-**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2; a DUAL=2 build: CLOCK · CPU0 % · CPU1 %, CPU1 OFF when the core is down)**, SCREEN (COLOR BRIGHT -
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31: CLOCK, the loads, the memory, read-outs; first)**, SCREEN (COLOR BRIGHT -
 KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
 the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
 
-**2ND CORE (DUAL builds only, `FELUCCA_DUAL` 2; PROPOSED, not yet seen on hardware).** The CPU section is CLOCK · CPU0 · CPU1 ·
+**2ND CORE (REMOVED 2026-10-14, section 31: the core is always on; what follows is the old design).** The CPU section is CLOCK · CPU0 · CPU1 ·
 **2ND CORE**, exactly one page of 4 lines (a single-core build has no such line: CLOCK · LOAD, the next section on page 1).
 2ND CORE is **AUTO** (default: the second core starts at power-on and is held for the session on its first misread, wrong
 canary, late job or fault) or **OFF** (one core). The knob (KNOB 4 on that page) or PRESETS edits it (right OFF, left AUTO),
@@ -2872,3 +2872,20 @@ the ACCENT lane included): **a value the lane has of its own is the lane's; a va
 - Already the lane's, unchanged: SOUND, SOUND 2, SOUND 3, SOURCE, ENV, LFO, STEP's lane page (LEVEL TUNE DECAY REV), the held step's cards and locks, the mixer's lane rows.
   Step-wide values (NUDGE, chance, fill, condition on a held step) belong to the step, not to a lane.
 Tests: tests/ui_optimist_lanevals.h (two lanes picked on SOUND and from STEP, the sends of each shown and edited alone; the DR tags; DR itself).
+
+## 31. The settings lists' look (feat/settings-look, 2026-10-14)
+
+The user, from a screenshot of "Global channels 5/5". Section 20's lists (GLOBAL, SYSTEM; op_gldraw.c) are redrawn:
+
+- **Header**: only "Global" or "System" (op_draw.c draw_head); the right side (bar.beat, BPM) stays.
+- **Page title**, under it, in the large face (the cards' `font_big`): the section's name and the page n/N, "Channels 5/5", the n/N dim. The sections' small rules are gone. A title that does not fit 228 px in the large face (16 px a letter: the joined "Screen & audio 2/6", "Connections 4/6") is drawn in the small face.
+- **The 4 lines** share the room between the title and the help line evenly (`gl_pitch`); a page of fewer lines keeps that pitch. Name left, value right, the value's form under it.
+- **Value forms**: a ranged value is a bar 4 px thick over the screen's width (6..234), the trough a line; a multi-choice list (Auto: Int / USB / TRS, Keys / Seq, Notes / Clock, COLOR) is a segmented bar, one segment per choice, the chosen one lit; an **on / off value (ON, OFF; the radio's LINK, NO CAL) has no bar but a square mark at the right**, filled when on, outlined when off, in the line's colour (a pill is too thin at this size). Read-outs keep their bars, actions their verb.
+- **Joined pages** (op_global.c `GL_JOIN`, one table): SYSTEM's SCREEN and AUDIO share one page, "Screen & audio", and USB and BLUETOOTH share "Connections", when together they are 4 lines or fewer in the build; otherwise each keeps its own pages. The BLE line's YES still opens the devices. A page is one section or one joined pair (the layout test allows exactly those).
+- **Keys**: the LIGHTS section is "Keys", its lines BUTTONS (the button glow OFF / LOW / MID / HIGH) and KEYS (OFF / C / WHITE / ALL); the settings word is unchanged. SYSTEM's order: Info, Screen & audio, Keys, Connections, Calibrate, About.
+- **INFO** (SYSTEM's first page, replacing CPU): one dense read-only page that is not 4 lines: CLOCK, CPU0 (LOAD), CPU1 (or why it is down, DUAL), then FLASH, RAM, POOL and RAM CODE as used/total KB with a bar. The memory is read at run time from the linker's symbols (firmware/app.ld: `_pi_load`, `_bss_end`, `_pool_end`, `_rt_end`, `_rh_end` and the region sizes `_flash_len`, `_ram_len`, `_pool_len`, `_rtxt_len`), so it is true for the running image. No knob does anything there.
+- **2ND CORE is gone**: the second core is always on, `dual_mode` stays AUTO. The guard in dual.c still parks the core on a misread, a canary, a late job or a fault and INFO's CPU1 line says why. With no menu to set it back (`DUAL_MODE_MENU` 0), the self-disable lasts for the session and is not saved; a stored OFF from an older build is dropped when the Optimist UI loads its settings; a boot that crashed in its first 30 s still stays on one core.
+- **About** (4 lines, one page): VERSION (and the commit it was built from, `-DFELUCCA_COMMIT` from tools/build.py), BUILD (date and time, the compiler's), CHIP (AC791N, the cores), REPO (github.com/w0ts/optimist).
+- Help lines: KEYS / BUTTONS "Buttons glow in the dark", KEYS "Which keys glow", INFO, BUILD, CHIP, REPO (tools/param_help.json; the 232 px limit shortened the user's wording).
+
+Tests: tests/ui_optimist_glstyle.h (header, titles, pitch, bars, marks, joined pages, INFO, About); glpages, glo, glwalk, core and pages updated.

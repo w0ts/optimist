@@ -354,6 +354,8 @@ static void draw_head(void)
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
         head_pos(ui.scr, ui.row[ui.scr], pos);
+        if (gl_scr(ui.scr))                             /* GLOBAL, SYSTEM: the screen's name alone (the page's name and n/N are */
+            str_cpy(t, SCR_NAME[ui.scr], sizeof t), pos[0] = 0;   /* the list's own title, op_gldraw.c) */
     }
     loop_pos(TSEL, r);
     if (ui.scr == SCR_STEP)

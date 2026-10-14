@@ -40,6 +40,9 @@ SECTIONS
      * grows and shrinks with the build. The pool after .pool up to its last 8 KiB (build.py keeps those
      * spare), then main RAM after .bss. Not a section; main.c does not clear it (undo.c needs no zeros).
      * hi < lo: none there. build.py checks the history gets >= 1 KiB. */
+    /* the regions' sizes, for SYSTEM > INFO (ui/optimist/op_project.c sys_mem) */
+    _xip_org = ORIGIN(XIP); _flash_len = LENGTH(XIP); _ram_org = ORIGIN(RAM); _ram_len = LENGTH(RAM);
+    _pool_len = LENGTH(POOL); _rtxt_len = LENGTH(RAMTEXT);
     _undo_pool_lo = _pool_end;
     _undo_pool_hi = ORIGIN(POOL) + LENGTH(POOL) - 8192;
     _undo_ram_lo = _bss_end;

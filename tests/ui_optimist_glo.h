@@ -60,7 +60,7 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 static void glo_list_tests(void)
 {
     static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
-    static const char *const SS[] = {"CPU", "SCREEN", "LIGHTS", "AUDIO", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
+    static const char *const SS[] = {"INFO", "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -88,36 +88,19 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
     check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; CPU Screen Lights Audio USB Bluetooth Calibrate About");
-    SCREENS[SCR_SYSTEM].cell(0, 0, &c);
-    SCREENS[SCR_SYSTEM].name(0, nm);
-    ok = !strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK");
-    SCREENS[SCR_SYSTEM].cell(1, 1, &c);
-#if DUAL_LOAD
-    {   /* a DUAL=2 build: CLOCK, CPU0, CPU1 (read-outs) and 2ND CORE (AUTO / OFF) fill page 1; the next section starts at line 4,
-         * so every later line is two further on than in a single-core build and the 4-line pages (line / 4) shift with it */
-        cell_t c3, c4, c5;
-        SCREENS[SCR_SYSTEM].cell(2, gl_kn(SCR_SYSTEM, 2), &c3);
-        SCREENS[SCR_SYSTEM].cell(3, 3, &c4);
-        SCREENS[SCR_SYSTEM].cell(4, 0, &c5);
-        SCREENS[SCR_SYSTEM].name(2, nm);
-        ok &= c.kind == CK_RO && !strcmp(c.label, "CPU0") && c3.kind == CK_RO && !strcmp(c3.label, "CPU1") && !strcmp(nm, "CPU");
-        SCREENS[SCR_SYSTEM].name(3, nm);
-        ok &= c4.kind == CK_VAL && !strcmp(c4.label, "2ND CORE") && !strcmp(nm, "CPU");
-        SCREENS[SCR_SYSTEM].name(4, nm);
-        check(ok && strcmp(nm, "CPU") && c5.kind != CK_RO && c5.kind != CK_NONE,
-              "SYSTEM's first lines (DUAL): CPU's CLOCK, CPU0, CPU1 (read-outs) and 2ND CORE fill page 1; line 4 the next section's");
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth Calibrate About");
+    {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
+        cell_t c1, c2;
+        char nm1[12];
+        SCREENS[SCR_SYSTEM].cell(0, 0, &c);
+        SCREENS[SCR_SYSTEM].name(0, nm);
+        SCREENS[SCR_SYSTEM].name(1, nm1);
+        sys_info_cell(0, &c1);
+        sys_info_cell(1, &c2);
+        check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "INFO") && strcmp(nm1, "INFO") && gl_end(1, 0) == 1u &&
+                  c1.kind == CK_RO && !strcmp(c1.label, "CLOCK") && c2.kind == CK_RO && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD"),
+              "SYSTEM's first page is INFO, one line: the clock and the load (read-outs) are its own, the next section starts page 2");
     }
-#else
-    {
-        cell_t c3;
-        SCREENS[SCR_SYSTEM].cell(2, gl_kn(SCR_SYSTEM, 2), &c3);
-        SCREENS[SCR_SYSTEM].name(2, nm);
-        check(ok && c.kind == CK_RO && !strcmp(c.label, "LOAD") && strcmp(nm, "CPU") && c3.kind != CK_RO && c3.label &&
-                  strcmp(c3.label, "CPU1"),
-              "SYSTEM's first lines: CPU's CLOCK and LOAD, read-outs; line 3 the next section's");
-    }
-#endif
     for (s = 0, ok = 1; s < 2u; s++)                    /* nothing in GLOBAL or SYSTEM is an empty line */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {
             SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].cell(i, gl_kn(s ? SCR_SYSTEM : SCR_GLOBAL, i), &c);
@@ -243,7 +226,7 @@ static void glo_tests(void)
         check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + the line's knob: its default");
         song.g[G_SWING] = v;
         turn(EN_PRESET, -1);
-        line_named(SCR_SYSTEM, DUAL_LOAD ? "CPU0" : "LOAD");
+        line_named(SCR_SYSTEM, "INFO");
         turn(EN_PRESET, 1);                             /* (a read-out: nothing) */
         check(song.sel == sel && preset_pos(&tot) == cur && !lane_picked() && !ui.master,
               "PRESETS on GLOBAL and SYSTEM: the track and its preset never change");
@@ -251,12 +234,12 @@ static void glo_tests(void)
         memcpy(trk, keep, sizeof keep);
     }
     {   /* the read-outs: CPU's CLOCK and LOAD, NUDGE; a knob does nothing, YES nothing */
-        w = line_named(SCR_SYSTEM, "CLOCK");
+        w = line_named(SCR_SYSTEM, "INFO");
         frame();
         turn(LINE_KNOB(w), 3);
         SCR->cell(w, gl_kn(ui.scr, w), &a);
         tap(B_SAVE);
-        check(a.kind == CK_RO && ui.scr == SCR_SYSTEM && !op_armed(), "SYSTEM CPU: CLOCK a read-out: its knob and YES do nothing");
+        check(a.kind == CK_RO && ui.scr == SCR_SYSTEM && !op_armed(), "SYSTEM INFO: a read-out page: its knobs and YES do nothing");
     }
     {   /* the actions: About's VERSION says it; Calibrate's PANEL asks first (ui_optimist_pages.h P28) */
         line_named(SCR_SYSTEM, "VERSION");

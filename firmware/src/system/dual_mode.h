@@ -16,11 +16,10 @@
 #include <stdint.h>
 
 #ifndef DUAL_MODE_MENU
-#if defined(FELUCCA_UI) && FELUCCA_UI == 1
-#define DUAL_MODE_MENU 1       /* the Optimist UI's SYSTEM > CPU > 2ND CORE sets it back (ui/optimist/op_project.c) */
-#else
-#define DUAL_MODE_MENU 0       /* 1 once a menu can set 2ND CORE back to AUTO: only then is the self-disable saved */
-#endif
+#define DUAL_MODE_MENU 0       /* 1 once a menu can set 2ND CORE back to AUTO: only then is the self-disable saved. The Optimist UI has
+                                * none (2026-10-14: the second core is always on, SYSTEM > INFO only shows its load or why it is down),
+                                * so a self-disable lasts for the session; the next boot starts CPU1 again (a boot that crashed in its
+                                * first 30 s still stays on one core, bootguard) */
 #endif
 
 enum { DUALM_AUTO, DUALM_OFF, DUALM_N };

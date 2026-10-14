@@ -244,21 +244,23 @@
     {"kind": "op", "ctx": "CHANNELS", "params": {
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},
-    {"kind": "op", "ctx": "CPU", "params": {
+    {"kind": "op", "ctx": "INFO", "params": {
+      "INFO": "Clock, load and memory in use",
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
-      "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"},
-      "2ND CORE": {"text": "2nd core: AUTO / OFF (reboot)", "if": "DUAL_LOAD"}}},
+      "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
     {"kind": "op", "ctx": "SCREEN", "params": {
       "COLOR": "Screen colours", "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours"}},
-    {"kind": "op", "ctx": "LIGHTS", "if": "FELUCCA_LIGHTS", "params": {
-      "LIGHTS": "Button backlight level", "KEYS": "Keys lit: C, white or all"}},
+    {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
+      "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "AUDIO", "params": {"LOWCUT": "Output low cut or bass boost"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
     {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {"BLE": "BLE MIDI. SAVE: the devices"}},
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
-    {"kind": "op", "ctx": "ABOUT", "params": {"VERSION": "Firmware version"}},
+    {"kind": "op", "ctx": "ABOUT", "params": {
+      "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built", "CHIP": "The processor and its cores",
+      " ": "Source code on GitHub"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
       "SLOT": "Slot: turn or key (dim: free)", "LOAD": "Load the project (asks)",
       "SAVE": "Save the work here (asks)", "NEW": "New project: clears (asks)"}},
