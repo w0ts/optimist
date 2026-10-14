@@ -302,6 +302,39 @@
       "warning": true
     },
     {
+      "switch": "FELUCCA_ENG_NOISE",
+      "title": "NOISE engine: Felucca-Engines' noise voice (white / pink / brown noise, DUST crackle, an LFSR clocked above the key, short-sequence METAL tones, through a resonant low-pass to band-pass filter), engine number 15",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 15,
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca-Engines",
+        "commit": "c46e008 (src/eng_noise.c)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright)",
+        "files": "src/eng_noise.c (ported with changes to the engine_t glue only: PITCH_INC, voice amplitude written out, .macro, the retrigger state in voice.c); the DSP and the four presets are unchanged"
+      },
+      "not_taken": "the rest of Felucca-Engines (ANALOG, LOFI, TRIO, WHEEL: we have our own, a diff base for later), its dsp.c and tables (ours are the same family), Jangada's MOTR and COMB noise modes",
+      "files": [
+        "firmware/src/engines/noise/eng_noise.c (MIT, the original's header and copyright kept)",
+        "LICENSES/MIT-Felucca-Engines.txt (the repository's LICENSE)",
+        "hooks: registry.h ENGINE_LIST (UID 15, fallback ANALOG; UID 14 stays JUNO's), engines.c, backports.h, voice.c voice_start (a retrigger keeps the filter and colour poles), model.c BANK (4 presets), macro.c MAC_BRIGHT, op_effval.c EFFV_DEST, tools/colors.json, web/editor.html engine list, tools/param_help.json",
+        "tests/noise_test.c, tests/golden_noise.txt"
+      ],
+      "cost": {
+        "flash": 2980,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "host regress only (cpu/NOISE/* in tests/cpu_baseline.txt: 1,058..1,342 instr/sample with 8 notes held); flash measured by two builds (user-default with and without ENG_NOISE=1: 538,912 and 541,892 B); not measured on the emulator or the FM-1",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 15; the 8 EDIT values (MODE, COLR, FREQ, RES, TRK, DENS / LEN, DRFT, CRSH / CLK) in P_E0..P_E7: no project format change",
+      "limits": "polyphony the part's 8 voices; the sound is judged on the host only (no hardware or emulator listening); the original's pattern hints are dropped; no m->fine (bend below 1/16 semitone) in the LFSR / META clock",
+      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT). The file stays under the MIT licence.",
+      "warning": false
+    },
+    {
       "switch": "FELUCCA_ENG_CZ",
       "title": "CZ engine: Melodee 0.11's CZ-1 engine (two lines, 8-step DCO / DCW / DCA envelopes each, the uPD933's phase functions and windows), engine number 13, with our own tones",
       "default": 0,
