@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Kerem Kilic (Melodee, keremimo/melodee 6ec2deb) */
+ * Copyright (C) 2026 Kerem Kilic (Melodee, keremimo/melodee 6ec2deb)
+ * Its half-cycle cases became full-cycle ones with Felucca 1.6's one-rest decoder (the FM-1's detents). */
 /* Feed the real matrix decoder one encoder state per frame. */
 #include <stdio.h>
 #include <string.h>
@@ -40,14 +41,20 @@ int main(void)
 {
     unsigned e;
     for (e = 0; e < FM1_NENC; e++) {
+        /* (an FM-1 detent is a full quadrature cycle: Felucca 1.6's decoder has one rest state, so the
+         * first click is counted as it arrives back on the power-on state, not by a learned second one) */
         reset_decoder();
-        hold(e, 0, FM1_REST_FRAMES + 2);
+        hold(e, 0, 40);
         hold(e, 1, 3);
-        hold(e, 3, FM1_REST_FRAMES + 2);
-        expect(e, 1, "first half-cycle click");
+        hold(e, 3, 3);
         hold(e, 2, 3);
         hold(e, 0, 3);
-        expect(e, 2, "second half-cycle click");
+        expect(e, 1, "first click from power-on");
+        hold(e, 1, 3);
+        hold(e, 3, 3);
+        hold(e, 2, 3);
+        hold(e, 0, 3);
+        expect(e, 2, "second click");
 
         reset_decoder();
         hold(e, 0, FM1_REST_FRAMES + 2);
@@ -63,7 +70,9 @@ int main(void)
         reset_decoder();
         hold(e, 0, FM1_REST_FRAMES + 2);
         hold(e, 2, 3);
-        hold(e, 3, FM1_REST_FRAMES + 2);
+        hold(e, 3, 3);
+        hold(e, 1, 3);
+        hold(e, 0, 3);
         expect(e, -1, "first reverse click");
     }
     if (failures)

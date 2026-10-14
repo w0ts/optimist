@@ -20,7 +20,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_DLY_HALVE": "long delay times halve to stay on the beat", "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
-    "FELUCCA_KNOB_ONEREST": "knobs: one rest state a detent (no double clicks)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
@@ -110,9 +109,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_GLIDE": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over "
                      "~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of "
                      "flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
-    "FELUCCA_KNOB_ONEREST": "Counts a knob click as one full encoder cycle, so a pause in the middle of a click no "
-                            "longer doubles the clicks after it. About 0.3 KB of flash; assumes the FM-1's full-cycle "
-                            "detents.",
     "FELUCCA_TRS_NOISE": "TRS MIDI in: a noise byte (FD) arriving at the wrong moment no longer blocks the jack until "
                          "the next restart. About 16 B of flash.",
     "FELUCCA_BK_CHECK": "Restoring a backup writes each stored object only if the firmware would load it (otherwise "
@@ -231,7 +227,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
     "FELUCCA_BK_CHECK": 110,
     "FELUCCA_TRS_NOISE": 109,
-    "FELUCCA_KNOB_ONEREST": 108,
+    # (108: FELUCCA_KNOB_ONEREST, retired 2026-10-14: Felucca 1.6's knob decoder is always built; never reuse the bit)
     "FELUCCA_GLIDE": 107,
     "FELUCCA_LIGHTS": 106,
     "FELUCCA_REC_MODES": 105,

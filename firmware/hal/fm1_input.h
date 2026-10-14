@@ -20,13 +20,15 @@
  * Keys/buttons: integrating debounce, asymmetric: a press counts after FM1_PRESS closed
  * frames (~3 ms: notes are played in time), a release once the count is back to 0 (up to
  * FM1_DEBOUNCE frames), so contact bounce never retriggers.
- * Encoders: quadrature decoder (no filter, a skipped state continues the turn; X0X b637df3;
- * + = clockwise) with detent
- * counting: states an encoder rests in for >= FM1_REST_FRAMES are learned, and
- * a step is emitted on reaching a rest state after >= 2 net transitions, or
- * when a complementary rest state is first learned after a click.
- * One click = one step at any speed, whether a detent is a half or a full
- * quadrature cycle. fm1_enc_take() returns the steps.
+ * Encoders: Felucca 1.6's knob decoder (hugelton/Felucca, unchanged since 1.1.5 #126, Leo Kuroshita,
+ * GPL-3.0-only): quadrature tables 0x2814/0x4182 (+ = clockwise), no two-scan filter (X0X b637df3),
+ * and detent counting. An FM-1 detent is one full quadrature cycle (4 transitions) and the knob
+ * rests in one state: the one seen at power-on (relearned after FM1_REST_FRAMES still elsewhere).
+ * Steps are emitted on arriving back at it, the net transitions rounded to whole cycles (>= 2
+ * counts one: a lost transition or two is forgiven; a two-state jump counts on in the direction of
+ * travel, from the detent the way of a click in the last FM1_ENC_GO frames). So one click = one
+ * step, bounce and back-and-forth cancel out; counted up to ~300 clicks/s. fm1_enc_take() returns
+ * the steps.
  * LEDs: set fm1_led[col] (packed row bits, bit1 PA5..bit4 PA8); they are lit
  * while that column is selected; fm1_led_dim[col] the same, lit one frame in four
  * (dim). fm1_led_key/btn helpers address them by id.
@@ -45,14 +47,8 @@
 #define FM1_DEBOUNCE 8u           /* frames (~1.1 ms each in the IRQ scan): a release */
 #define FM1_PRESS 3u              /* a press: fast (keys are played in time), still 3 frames sure */
 #define FM1_SETTLE_US 10u
-#ifndef FELUCCA_KNOB_ONEREST
-#define FELUCCA_KNOB_ONEREST 0
-#endif
-#if FELUCCA_KNOB_ONEREST
-#define FM1_REST_FRAMES 900u      /* ~1 s still off the detent state: that is the detent (SLOOP 2.3 / Felucca 1.0) */
-#else
-#define FM1_REST_FRAMES 40u       /* ~44 ms still (10 kHz / 11-column scan) = a detent position */
-#endif
+#define FM1_REST_FRAMES 900u      /* ~1 s still off the detent state: that is the detent (power-on) */
+#define FM1_ENC_GO 20u            /* a 2-state jump from the detent goes on the way of a click this recent (~22 ms) */
 #define FM1_NCOL 11u
 #define FM1_NKEY 41u              /* ids: 0..13 buttons, 14..40 note keys */
 #define FM1_NENC 7u
@@ -84,17 +80,12 @@ static volatile struct {
     uint8_t raw[FM1_NCOL];       /* last frame, packed rows, 1 = closed */
     uint8_t cnt[FM1_NKEY];
     uint8_t enc_prev[FM1_NENC], enc_last[FM1_NENC];
-#if FELUCCA_KNOB_ONEREST
     uint8_t enc_rest[FM1_NENC];  /* the detent state (0..3) */
     uint16_t enc_still[FM1_NENC]; /* frames since the last state change */
-    uint32_t enc_tv[FM1_NENC];   /* the frame of the last valid transition */
-#else
-    uint8_t enc_rest[FM1_NENC];  /* learned rest (detent) states, bit per state */
-    uint8_t enc_still[FM1_NENC]; /* frames since the last state change */
-#endif
     int8_t enc_sub[FM1_NENC];    /* net transitions since the last rest state */
-    int8_t enc_dir[FM1_NENC];    /* the last valid transition: +1 / -1 (0: none yet) (X0X b637df3) */
     int16_t enc_steps[FM1_NENC]; /* + = clockwise */
+    int8_t enc_dir[FM1_NENC];    /* the last click's direction, and its frame */
+    uint32_t enc_dfr[FM1_NENC];
     uint32_t frames;
 } fm1_in;
 static uint8_t fm1_led[FM1_NCOL];
@@ -358,28 +349,25 @@ static void fm1__frame(void)
         uint32_t cur = ((fm1_in.raw[m[0]] >> m[1]) & 1u) << 1 | ((fm1_in.raw[m[2]] >> m[3]) & 1u);
         uint32_t idx;
         volatile int8_t *sub = &fm1_in.enc_sub[e];
-        /* No two-scan filter (X0X b637df3, Charles Vestal): a state had to be seen on two scans
-         * running (2.2 ms) to count, so a fast turn, whose states last less than that, lost steps.
-         * The 1.1 ms between scans is longer than a contact bounce, and a step still needs >= 2
-         * net transitions between detents, so a glitch cannot make one. */
+        /* Felucca 1.6's knob decoder (hugelton/Felucca 1727537 hal/fm1_input.h fm1__frame, unchanged since
+         * 1.1.5 276f72a; Leo Kuroshita, GPL-3.0-only), always on (it was FELUCCA_KNOB_ONEREST). #126: no two-scan
+         * filter, every frame's state counts (the filter took a state only when two frames in a row saw it, so a
+         * turn faster than ~110 clicks/s, ~60 bunched, lost whole clicks; X0X b637df3 removed it first). */
         if (cur != fm1_in.enc_last[e]) {
             fm1_in.enc_last[e] = (uint8_t)cur;
             fm1_in.enc_still[e] = 0;
         }
-#if FELUCCA_KNOB_ONEREST
-        /* One rest state (FELUCCA_KNOB_ONEREST: Felucca 1.0's detent counting as SLOOP 2.3 reads the knobs, its #23
-         * "knobs skipping or jumping"; kept: X0X's decoder without the two-scan filter, a skipped state continuing
-         * the turn). An FM-1 detent is one full quadrature cycle (4 transitions) and the knob rests in one state,
-         * the one seen at power-on, relearned only after ~1 s parked elsewhere. A step is counted on arriving back
-         * at it, the net transitions rounded to whole cycles (>= 2 counts one: a lost transition or two is
-         * forgiven). Never a second rest state: with the 0.9 learner a knob held mid-click ~44 ms taught the
-         * complement as a rest, and every later click counted twice (bp23-logs/knobs: host-measured). */
         if (fm1_in.enc_prev[e] == 0xFF) {          /* first frame: the knob rests here */
             fm1_in.enc_prev[e] = (uint8_t)cur;
             fm1_in.enc_rest[e] = (uint8_t)cur;
         }
-        if (fm1_in.enc_still[e] < 0xFFFFu && ++fm1_in.enc_still[e] == FM1_REST_FRAMES && cur != fm1_in.enc_rest[e]) {
-            fm1_in.enc_rest[e] = (uint8_t)cur;     /* parked ~1 s off the detent state: that is the detent */
+        if (fm1_in.enc_still[e] < 0xFFFFu && ++fm1_in.enc_still[e] == FM1_REST_FRAMES &&
+            cur != fm1_in.enc_rest[e]) {
+            /* parked a long time off the detent state (held at power-on): that is the detent.
+             * Never a second state: a knob held mid-click taught the complement of the detent as
+             * one more rest and every click then counted twice (#23); short mid-click pauses of a
+             * slow turn taught the mid states and the knob went dead */
+            fm1_in.enc_rest[e] = (uint8_t)cur;
             *sub = 0;
         }
         if (cur == fm1_in.enc_prev[e])
@@ -387,75 +375,26 @@ static void fm1__frame(void)
         idx = (uint32_t)fm1_in.enc_prev[e] << 2 | cur;
         if ((0x4182u >> idx) & 1u) {
             (*sub)++;
-            fm1_in.enc_dir[e] = 1;
-            fm1_in.enc_tv[e] = fm1_in.frames;
         } else if ((0x2814u >> idx) & 1u) {
             (*sub)--;
-            fm1_in.enc_dir[e] = -1;
-            fm1_in.enc_tv[e] = fm1_in.frames;
-        } else if (*sub) {                         /* both lines changed: a state skipped (a flick): two more */
-            *sub = (int8_t)(*sub + (*sub > 0 ? 2 : -2));   /* the way this click goes (SLOOP 2.3) */
-            fm1_in.enc_tv[e] = fm1_in.frames;
-        } else if (fm1_in.frames - fm1_in.enc_tv[e] < 8u) {   /* from the detent, in a turn (X0X: the way the */
-            *sub = (int8_t)(2 * fm1_in.enc_dir[e]);           /* turn went, < 9 ms ago); from rest: nothing */
-            fm1_in.enc_tv[e] = fm1_in.frames;                 /* (after a reversal the way is unknown) */
+        } else {                                   /* two states in one sample: a fast turn, the way it */
+            int32_t d = *sub > 0 ? 1 : *sub < 0 ? -1 : /* was going (on the detent: a click of the last */
+                        (uint32_t)(fm1_in.frames - fm1_in.enc_dfr[e]) <= FM1_ENC_GO ? fm1_in.enc_dir[e] : 0;
+            *sub = (int8_t)(*sub + 2 * d);         /* FM1_ENC_GO frames, else nothing) */
         }
         fm1_in.enc_prev[e] = (uint8_t)cur;
         if (*sub > 100 || *sub < -100)
             *sub = 0;                              /* (never off the detent that long) */
-        if (cur == fm1_in.enc_rest[e]) {          /* back on the detent: whole cycles */
-            int32_t k = *sub < 0 ? -*sub : *sub;
-            k = k >= 2 ? (k + 2) / 4 : 0;
-            fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + (*sub < 0 ? -k : k));
-            *sub = 0;
-        }
-#else
-        if (fm1_in.enc_prev[e] == 0xFF) {          /* first frame: the knob rests here */
-            fm1_in.enc_prev[e] = (uint8_t)cur;
-            fm1_in.enc_rest[e] = (uint8_t)(1u << cur);
-        }
-        if (fm1_in.enc_still[e] < 255u && ++fm1_in.enc_still[e] == FM1_REST_FRAMES) {
-            /* learn detent states: one state, or a complementary pair (00/11 or
-             * 01/10). Anything else restarts the set; with 3-4 rest states every
-             * arrival would look like a detent with |sub| < 2. */
-            uint32_t r = fm1_in.enc_rest[e], bit = 1u << cur, comp = 1u << (cur ^ 3u);
-            if (!(r & bit)) {
-                if (r == comp) {
-                    fm1_in.enc_rest[e] = (uint8_t)(r | bit);
-                    /* The first half-cycle has already arrived here. Without
-                     * reporting it now, the first physical click is lost.
-                     * (Melodee 6ec2deb, Kerem Kilic) */
-                    if (*sub >= 2)
-                        fm1_in.enc_steps[e]++;
-                    else if (*sub <= -2)
-                        fm1_in.enc_steps[e]--;
-                } else {
-                    fm1_in.enc_rest[e] = (uint8_t)bit;
-                }
-                *sub = 0;
+        if (cur == fm1_in.enc_rest[e]) {          /* back on the detent: whole cycles, a lost transition */
+            int32_t n = *sub < 0 ? -*sub : *sub;   /* or two forgiven (one click = 4 transitions) */
+            n = n >= 2 ? (n + 2) / 4 : 0;
+            fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + (*sub < 0 ? -n : n));
+            if (n) {
+                fm1_in.enc_dir[e] = (int8_t)(*sub < 0 ? -1 : 1);
+                fm1_in.enc_dfr[e] = fm1_in.frames;
             }
-        }
-        if (cur == fm1_in.enc_prev[e])
-            continue;
-        idx = (uint32_t)fm1_in.enc_prev[e] << 2 | cur;
-        if ((0x4182u >> idx) & 1u) {
-            (*sub)++;
-            fm1_in.enc_dir[e] = 1;
-        } else if ((0x2814u >> idx) & 1u) {
-            (*sub)--;
-            fm1_in.enc_dir[e] = -1;
-        } else {                                   /* both lines changed: a state skipped (a flick) */
-            *sub = (int8_t)(*sub + 2 * fm1_in.enc_dir[e]);   /* two more the way it was going (X0X) */
-        }
-        fm1_in.enc_prev[e] = (uint8_t)cur;
-        if ((fm1_in.enc_rest[e] >> cur) & 1u) {    /* back on a detent */
-            if (*sub >= 2)
-                fm1_in.enc_steps[e]++;
-            else if (*sub <= -2)
-                fm1_in.enc_steps[e]--;
             *sub = 0;
         }
-#endif
     }
     fm1_in.frames++;
 }

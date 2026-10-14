@@ -1152,14 +1152,6 @@
     "ramtext": 860
    }
   },
-  "KNOB_ONEREST": {
-   "0": {
-    "flash": 212,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "TRS_NOISE": {
    "0": {
     "flash": -12,
@@ -2960,12 +2952,6 @@
    "ram": 16,
    "pool": 0,
    "ramtext": 56
-  },
-  "UI=1,KNOB_ONEREST=0": {
-   "flash": -256,
-   "ram": -16,
-   "pool": 0,
-   "ramtext": 0
   },
   "UI=1,TRS_NOISE=0": {
    "flash": 0,
