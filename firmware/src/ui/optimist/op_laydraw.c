@@ -245,8 +245,8 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
             tile_set(&tl[i], b, cur ? C_OK : q ? C_WARN : used ? col_shade(trk_col(sel), 4u) : OP_SURF,
                      cur || q || used ? C_BLACK : C_DIM, used ? trk_col(sel) : 0);
         }
-        str_cpy(sub, fm1_in.buttons & (1u << panel.btn[B_SAVE]) ? "Store: a slot" : fm1_in.buttons & (1u << panel.btn[B_HOME]) ? "Clear: a slot" :
-                     lay.pmod == 10u ? "Scene: a key" : "Save+n store  Home+n clear", n);
+        str_cpy(sub, fm1_in.buttons & (1u << panel.btn[B_SAVE]) ? "Store: a slot" : op_shift(fm1_in.buttons) ? "Clear: a slot" :
+                     lay.pmod == 10u ? "Scene: a key" : "Save+n store  Oct-+n clear", n);
         break;
 #endif
     default:
@@ -279,7 +279,7 @@ static void lay_draw_tiles(void)
     }
     tiles_fill(tl, lay_sub, sizeof lay_sub);
     if (!FELUCCA_PARAM_HELP && lay_hint_t)
-        str_cpy(lay_sub, "HOME LOCKS IT", sizeof lay_sub);   /* (no help line in this build: the state line says it) */
+        str_cpy(lay_sub, "OCT- LOCKS IT", sizeof lay_sub);   /* (no help line in this build: the state line says it) */
     for (i = 0; i < 16u; i++)
         sig = hs(hu(hu(hu(sig, tl[i].bg), tl[i].fg), tl[i].top), tl[i].lab);
     sig = hs(sig, lay_sub);

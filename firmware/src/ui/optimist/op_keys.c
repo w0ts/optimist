@@ -105,11 +105,11 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
  * dim, the muted full */
 static int keys_muting(uint32_t held)
 {
-    return mute_mod(held) && fm1_ms - op_t0[panel.btn[B_HOME] % 14u] >= op_hold_ms();
+    return mute_mod(held) && fm1_ms - op_t0[panel.btn[B_OCTDN] % 14u] >= op_hold_ms();
 }
 static int keys_picking(uint32_t held)                  /* the lane pick's modifier held past the hold time */
 {
-    return pick_mod(held) && fm1_ms - op_t0[panel.btn[B_HOME] % 14u] >= op_hold_ms();
+    return pick_mod(held) && fm1_ms - op_t0[panel.btn[B_OCTDN] % 14u] >= op_hold_ms();
 }
 /* the keys' full (*f) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
 static void keys_lit(uint32_t *f, uint32_t *d)

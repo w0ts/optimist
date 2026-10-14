@@ -73,6 +73,30 @@ static void btnled_tests(void)
                 check(0, w);
             }
         }
+    {   /* OCT- / OCT+ (the user, 2026-10-14): lit only where a tap or a hold + something does something */
+        bk_set(BK_SYN, SCR_HOME);
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, the mixer on a synth track: both dim (SHIFT, SHIFT2 combos)");
+        bk_set(BK_MASTER, SCR_HOME);
+        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, the mixer on MASTER: both dark");
+        bk_set(BK_SYN, SCR_SOUND);
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, SOUND on a synth: both dim (the octave)");
+        bk_set(BK_SYN, SCR_STEP);
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, STEP on a synth: both dim");
+        bk_set(BK_DR, SCR_STEP);
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, STEP on DR: both dim (ghost / hard)");
+        bk_set(BK_DR, SCR_SOUND);
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SOUND on DR: OCT- dim (SHIFT), OCT+ dark (no octave on drums)");
+        bk_set(BK_SYN, SCR_PROJECT);
+        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, PROJECT: both dark");
+        bk_set(BK_SYN, SCR_SYSTEM);
+        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SYSTEM: both dark");
+        bk_set(BK_SYN, SCR_GLOBAL);
+        check(led_lvl(B_OCTUP) == 0, "OCT LEDs, GLOBAL (off the tempo line): OCT+ dark");
+        bk_set(BK_SYN, SCR_FX);
+        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, the master FX: both dark");
+        bk_set(BK_SYN, SCR_SCOPE);
+        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SCOPE: both dark");
+    }
     check(n > 150u, "button LEDs: every screen x track kind x button was walked");
     bk_set(BK_DR, SCR_HOME);
     check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0 && led_lvl(B_EDIT) == 1, "button LEDs, the mixer on DR (no lane): LFO and ENV dark, EDIT half");

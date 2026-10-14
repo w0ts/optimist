@@ -441,7 +441,7 @@ static void save_key(uint32_t k, int32_t w)
     if (h & (1u << panel.btn[B_REC])) {                 /* REC held + n: the loop into n */
         lay.rec_used = 1;
         scene_store((uint32_t)w);
-    } else if (h & (1u << panel.btn[B_HOME])) {         /* HOME held + n: clear n */
+    } else if (op_shift(h)) {                           /* SHIFT held + n: clear n */
         lay.chord = 0;
         scene_clear_ask((uint32_t)w);
     } else {
@@ -540,7 +540,7 @@ static void pat_layer_key(uint32_t k, int32_t w)
     }
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
-    if (fm1_in.buttons & (1u << panel.btn[B_HOME])) {   /* HOME + n: clear slot n (asked) */
+    if (op_shift(fm1_in.buttons)) {                     /* SHIFT + n: clear slot n (asked) */
         lay.pclr = 1;
         pat_clear_ask(t, (uint32_t)w);
     } else if (lay.pmod == 10u) {
@@ -646,7 +646,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         break;
 #if FELUCCA_PATTERNS
     case LY_PAT:
-        if (song_on_pat_row() && (fm1_in.buttons & (1u << panel.btn[B_HOME]))) {   /* HOME + n: clear slot n */
+        if (song_on_pat_row() && op_shift(fm1_in.buttons)) {                     /* SHIFT + n: clear slot n */
             if (w >= 0 && w < (int32_t)PAT_N)
                 pat_clear_ask(song.sel % NTRK, (uint32_t)w);
             break;

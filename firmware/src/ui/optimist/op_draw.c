@@ -115,22 +115,9 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
         SCREENS[scr % SCR_N].name(row, r);
     }
     nm_title(r, d, sizeof d);
-    if (scr != SCR_HOME || row % MXR_N == MXR_MASTER) { /* the page's name alone: the badge names the track or the screen */
-        str_cpy(t, d, n);
-        return;
-    }
-    if (mx_is_acc(row % MXR_N)) {                       /* the ACCENT lane: this UI's name, sentence case; one set, so no
-                                                         * set word and no n/N (the audit's #35: "Accent", was "accent mix") */
-        str_cpy(t, "Accent", n);
-        return;
-    }
-    str_cpy(t, row % MXR_N >= MXR_LANE0 ? lane_short(row % MXR_N - MXR_LANE0) : trk_tag(mx_trk_of(row % MXR_N)), n);
-    if (mx_sets(row % MXR_N) < 2u)
-        return;                                         /* (one set: the row's name alone, nothing to page) */
-    str_cpy(t + str_len(t), " ", n - str_len(t));       /* (the mixer: the row's name as stored and the set, "snare sends") */
-    if (d[0] >= 'A' && d[0] <= 'Z' && d[1] >= 'a' && d[1] <= 'z')
-        d[0] = (char)(d[0] + 32);                       /* (a word goes on the sentence: "ins tone"; "T1", "ENV" stay) */
-    str_cpy(t + str_len(t), d, n - str_len(t));
+    str_cpy(t, d, n);                                   /* the page's name alone: the badge names the track or the screen (the mixer's track rows
+                                                         * too since 2026-10-14: the badge is the track or lane, the title the set) */
+    (void)row;
 }
 /* SOUND's whole list (snd_fam SND_ALL): row's place among the rows of its family (the SOUND row: EDIT's first) and their
  * count, the n/N its page button's list shows */
@@ -291,6 +278,9 @@ static uint32_t head_has_track(void)
         return 0;
     if (lay.shown != LY_PLAY)
         return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
+    if (ui.scr == SCR_HOME)                             /* the mixer: the badge names the row's track or lane (the user, 2026-10-14: "it says mix on
+                                                         * drum main and sub tracks"), MASTER its own */
+        return mx_row() != MXR_MASTER && !ui.master;
     return HEAD_TRK_SCR[ui.scr % SCR_N] && !ui.master;
 }
 /* the title t (32 bytes, as drawn) with the n/N pos, cut to the room only where the names table failed (losing the
