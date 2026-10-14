@@ -165,7 +165,7 @@ static void effv_at(uint32_t k, int32_t dest, int32_t mod, int32_t *val, int32_t
 #define EFFV_FIRST(j) ((void)(j), P_L1DA)
 #define EFFV_LV(j) ((void)(j), mulq15(t->lfo_val, t->lfo_fade))
 #endif
-/* part k's value LT_RES .. LT_E8 (DEST d) as the render has it now (voice.c lfo_over_in: its slots on it in turn, from
+/* part k's value LT_RES .. LT_INS2 (DEST d; INS1 INS2: the amount of the insert in that slot) as the render has it now (voice.c lfo_over_in: its slots on it in turn, from
  * the LFOs' values of the block before) into *val, its range; 0 for another destination (XRATE XAMT) */
 static uint32_t effv_over(uint32_t k, int32_t d, int32_t *val, int32_t *mn, int32_t *mx)
 {
