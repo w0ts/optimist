@@ -50,6 +50,8 @@ typedef struct {
     volatile uint32_t bad;        /* CPU1: requests it would not run (a misread): CPU0 holds it at the first */
     volatile uint32_t bad_req, bad_done;   /* CPU1: the last one, as read, and its own done then */
     volatile uint32_t canary;     /* CPU1: 1 + the canary words it read wrong at boot (0: not run) */
+    volatile uint32_t took;       /* CPU1 asleep between jobs: the last request its wake picked up (CPU0 wakes it again
+                                   * while a posted one is not taken: dual.c dual_join) */
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
 static fm1_dual_mb_t fm1_dual_mb;
@@ -180,6 +182,16 @@ static void fm1_dual_wake_setup(void (*isr)(void))
 /* CPU0: a job is posted (after req) */
 static inline __attribute__((always_inline)) void fm1_dual_wake(void)
 {
+    FM1_ILAT_SET_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+}
+/* CPU0: a posted job CPU1 has not picked up: the wake again, latch cleared first (a fresh edge). Whether `idle`
+ * wakes on a wake already latched when it executes is not known on the FM-1 [HW?]: if not, a wake latched while
+ * CPU1 returns from its handler (the next block's job posted as it leaves) would be lost and the join time out.
+ * A wake that finds nothing (CPU1 busy, or the job done meanwhile) is harmless: the handler sees req == done */
+static inline __attribute__((always_inline)) void fm1_dual_rewake(void)
+{
+    FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    __asm__ volatile("csync" ::: "memory");
     FM1_ILAT_SET_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
 }
 /* CPU1, in the handler, before it looks at req: a later wake stays latched (no lost wake) */
