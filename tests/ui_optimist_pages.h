@@ -605,7 +605,8 @@ static void pages_keys_tests(void)
     reset_ui();
 }
 
-/* D11: the headers as drawn: cut, then cased (no lower-case start); full names; a continuation's digit never next to n/N */
+/* D11: the headers as drawn: cut, then cased (no lower-case start); full names. The audit's #2 (style guide 1) replaced
+ * D11's "a continuation's digit never next to n/N": the title is the row's name verbatim, "Edit 1 2/7", its n/N in grey */
 static void head_now(char *t)                           /* the header's title now, as draw_head makes it */
 {
     head_t h;
@@ -619,7 +620,7 @@ static int hd_badge_is(const char *b)                  /* the header's badge now
     return h.badge && !strcmp(h.eng, b);
 }
 static uint32_t head_bad;
-static void head_ok(const char *where)                  /* the header now: a badge, a capital first, no "n n/N" (GLOBAL,
+static void head_ok(const char *where)                  /* the header now: a badge, a capital first, the n/N whole (GLOBAL,
                                                          * SYSTEM: the badge alone, the list has the page's title) */
 {
     char t[32];
@@ -635,15 +636,21 @@ static void head_ok(const char *where)                  /* the header now: a bad
     }
     if (!n)
         return;
-    for (i = 0; i + 2u < n && t[i + 2u] != '/'; i++)
+    for (i = 0; t[i] && t[i] != '/'; i++)
         ;
-    if (!(t[0] >= 'A' && t[0] <= 'Z') || (i >= 2u && i + 2u < n && t[i - 1u] >= '0' && t[i - 1u] <= '9' && t[i - 2u] == ' ' &&
-                                          !(i >= 5u && (!strncmp(t + i - 5u, "OSC", 3) || !strncmp(t + i - 5u, "FLT", 3) || !strncmp(t + i - 5u, "LFO", 3) || !strncmp(t + i - 5u, "Lfo", 3) ||
-                                                        !strncmp(t + i - 5u, "Osc", 3) || !strncmp(t + i - 5u, "Flt", 3) ||
-                                                        !strncmp(t + i - 6u, "Part", 4) || !strncmp(t + i - 6u, "part", 4) ||
-                                                        (i >= 8u && !strncmp(t + i - 8u, "Filter", 6)))))) {   /* (a second unit, a part) */
+    if (!(t[0] >= 'A' && t[0] <= 'Z') || (t[i] && !(i >= 2u && t[i - 1u] >= '0' && t[i - 1u] <= '9'))) {   /* (a capital
+                                                         * first; an n/N whole: "Edit 1 2/7", the row's name verbatim, #2) */
         printf("  header %s: '%s'\n", where, t);
         head_bad++;
+    }
+    if (ui.scr == SCR_SOUND && lay.shown == LY_PLAY) {   /* #2: the title is the cursor row's name as the list shows it */
+        char raw[12], nm[16];
+        snd_title_row(ui.row[SCR_SOUND], raw);
+        nm_title(raw, nm, sizeof nm);
+        if (strncmp(t, nm, strlen(nm)) || (t[strlen(nm)] && t[strlen(nm)] != ' ')) {
+            printf("  header %s: '%s' is not the row's '%s'\n", where, t, nm);
+            head_bad++;
+        }
     }
     if (getenv("HEADS"))
         printf("  head %-10s '%s'\n", where, t);
@@ -737,7 +744,7 @@ static void pages_head_tests(void)
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Edit 2/", 7), "D11: EDIT 1: \"Edit 2/N\" (was \"edit 1 1/7\")");
+        check(!strncmp(t, "Edit 1 2/", 9), "#2: EDIT 1: \"Edit 1 2/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
     }
     reset_ui();
 }

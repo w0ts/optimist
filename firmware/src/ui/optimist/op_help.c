@@ -7,7 +7,8 @@
  *   a vertical menu    GLOBAL and SYSTEM's settings list (the cursor line) and PROJECT (the cursor row's hot cell): always
  *                      there, the list made shorter for it (op_gldraw.c GL_LINE_H, op_draw.c LIST_H); an action that
  *                      asks first says so ("(asks)")
- * Not under a question (the modal), the REC ring, a layer's map or NAME. Its rows are a band of their own (op_graph.c
+ *   a layer opened     its "Home locks it", once a power-on, ~2.5 s (op_laydraw.c lay_hint; the audit's #24)
+ * Not under a question (the modal), the REC ring, a layer's map (but that hint) or NAME (its own hints, op_name.c). Its rows are a band of their own (op_graph.c
  * OP_FOOT, the audit's #6): every screen's content ends above it whether the line shows or not, so the line covers
  * nothing; when it goes, the band is cleared to black and nothing else is drawn again.
  * The words: tools/param_help.json, one table with SLOOP's UI and the web editor (tools/gen_param_help.py ->
@@ -117,8 +118,8 @@ static uint32_t hl_text(void)
  * ever draws on it: no band to draw again) */
 static void hl_pre(uint32_t ov)
 {
-    int vis = (hl_menu() || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u;
-    if (vis && !hl_menu() && !hl_text())
+    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u;
+    if (vis && !hl_menu() && !lay_hint_t && !hl_text())
         vis = 0;                                        /* (a value with no line: nothing; a menu keeps its empty line) */
     if (vis == hl.on)
         return;
@@ -136,14 +137,16 @@ static void hl_post(void)
     uint32_t off, sig;
     if (!hl.on)
         return;
-    off = hl_text();
+    off = lay_hint_t ? 0xFFFFu : hl_text();             /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
     sig = hu(hu(0x4E1Fu, settings.palette), off);
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;
     cv_begin(240, HL_H, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
-    if (off)
+    if (off == 0xFFFFu)
+        cv_text(4, 2, &FONT_S, "Home locks it", C_AMB);
+    else if (off)
         cv_text(4, 2, &FONT_S, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);
 }

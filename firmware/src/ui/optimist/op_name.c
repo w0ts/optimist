@@ -335,8 +335,9 @@ static uint32_t name_leds(uint32_t *d)
     return m;
 }
 
-/* ---- drawing (no footer: the user's ruling, 2026-10-08): the header names it, the cards' band is the name field
- * with the hints (SAVE done, HOME delete / cancel), the panel the keyboard. The field: 12 cells, the cursor a white
+/* ---- drawing: the header names it, the cards' band is the name field and its length ("9/12"), the panel the keyboard,
+ * the help line's place the hints (SAVE done, HOME delete / cancel: the audit's #49; the footer of 2026-10-08 was the
+ * old full-width one). The field: 12 cells, the cursor a white
  * frame, the letter being cycled a cell in the track's colour, an empty name its automatic one, dim. The panel: the
  * cycling key's letters (the one typed lit), the white keys as two rows of 8 (the left octave, then the right), the
  * black keys' functions under their names */
@@ -371,7 +372,6 @@ static void name_draw_field(void)
     str_cpy(b, src, sizeof b);                          /* (the name as it will be stored: never re-cased) */
     cv_begin(240, OH_CARD, C_BLACK);
     cv_box(3, 0, 234, OH_CARD - 1, OP_SURF);
-    cv_text(9, 1, &FONT_S, nm.cur ? "Save done  Home delete" : "Save done  Home cancel", C_GRAY);
     {
         char n[8];
         fmt_int(n, nm.len);
@@ -438,7 +438,17 @@ static void name_draw_keys(void)
     }
     cv_blit(0, OY_PANEL);
 }
-static void name_draw(void)                             /* the cards' band and the panel (op_draw.c op_frame_draw) */
+/* the hints on the help line's place (the audit's #49, style guide 9): the screen's last 18 rows, a rule, the line in the
+ * help line's face and colour; the panel ends above them in every build (the keys end at row 76 + 118) */
+#define NM_FOOT_Y (240 - 18)
+static void name_draw_foot(void)
+{
+    cv_begin(240, 18, C_BLACK);
+    cv_rect(0, 0, 240, 1, C_LINE);
+    cv_text(4, 2, &FONT_S, nm.cur ? "Save done  Home delete" : "Save done  Home cancel", C_AMB);
+    cv_blit(0, NM_FOOT_Y);
+}
+static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */
 {
     uint32_t sig = name_sig();
     if (sig == ui.sig[1] && sig == ui.sig[2])
@@ -446,4 +456,5 @@ static void name_draw(void)                             /* the cards' band and t
     ui.sig[1] = ui.sig[2] = sig;
     name_draw_field();
     name_draw_keys();
+    name_draw_foot();
 }

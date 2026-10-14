@@ -795,7 +795,8 @@ static void hp_reopen(void)
 static void hp_title(char *t, uint32_t n)               /* the held step's card page: "STEP", "EXTRA", "LFO" */
 {
     uint8_t ix[OP_MAXROWS];
-    str_cpy(t, st.hp == 0u ? "STEP" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title, n);
+    const page_t *pg = st.hp >= HP_BASE ? &PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0] : 0;
+    str_cpy(t, st.hp == 0u ? "STEP" : !pg ? "EXTRA" : dr_alias(pg) ? dr_alias(pg) : pg->title, n);   /* (the drum's: "BODY") */
 }
 static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's extras */
 {

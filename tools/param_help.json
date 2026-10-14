@@ -276,7 +276,7 @@
       "NEW": "New project: clears (asks)"}},
     {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave (asks)"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
-      "USED": "Project memory used", "MORE": "Sections that still fit"}},
+      "USED": "Project memory used", "FREE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
       "SLOT": "User kit slot", "SAVE": "Save the user kit (asks)", "ERASE": "Erase the user kit (asks)",
       "RESET": "Reset to the kit sound (asks)", "FX ON": "Drum effects on or off"}},

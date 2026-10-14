@@ -204,6 +204,41 @@ static void snd_name_row(uint32_t r, char *b)
     else
         str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : "SOUND", 12);
 }
+/* the drum track's pages as the list and the header title them (the audit's #19, #20): the shared names stay what the
+ * help line keys on ("SOUND", "SOUND 2", "SENDS"), the titles say what each page holds: the SOUND row (KIT LANE SRC
+ * ACCENT) "Lane", then "Body" (TUNE DECAY SNAP CLICK), "Tone" (BEND CUT DRIVE LEVEL), "Sends" (the lane's), "Kit"; FX's
+ * two send pages "Kit sends" (the kit's send levels, every lane's: "Lane sends" is past the titles' 9 letters) and
+ * "Bus sends" (the drum bus's own; op_names.c), on a picked lane too (next to its own "Sends"). 0: no alias */
+static const char *dr_alias(const page_t *pg)
+{
+    if (!is_drum(TSEL) || !pg)
+        return 0;
+    if (pg->scope == SC_DSND && pg->fam == FAM_EDIT)
+        return pg->id[0] == 0u ? "BODY" : pg->id[0] == 4u ? "TONE" : pg->id[0] == 16u ? "SENDS" : 0;
+    return pg->scope == SC_TRACK && pg->graph == GR_FX ? "KIT SENDS" : 0;
+}
+static void snd_title_row(uint32_t r, char *b)          /* row r's name as titled (b holds 12): dr_alias, else the name */
+{
+    const char *a;
+    snd_name_row(r, b);
+    if (snd_fam == SND_FM6 || !is_drum(TSEL))
+        return;
+    a = snd_page(r) ? dr_alias(snd_page(r)) : "LANE";
+    if (a)
+        str_cpy(b, a, 12);
+}
+/* the synth SOUND row as its list row shows it (the audit's #36): the preset's name over the ENGINE cell's place (the
+ * badge names the engine), then INIT, then SAVE AS in the room left (its 4-letter form SAVE, op_draw.c row_layout); a
+ * name too long for that (10 letters or more) keeps its place whole and SAVE AS stays the card's alone. The cards keep
+ * all four */
+static void snd_list_cells(uint32_t r, cell_t *c)
+{
+    if (snd_fam == SND_FM6 || snd_page(r) || is_drum(TSEL))
+        return;
+    cell_clear(&c[1]);
+    if (str_len(c[0].val) > 9u)
+        cell_clear(&c[3]);
+}
 static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
 {
     if (fam == SND_FM6) {

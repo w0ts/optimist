@@ -23,14 +23,14 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
 #if SEC_LOGGED
 static void sec_mem(uint32_t *pct, uint32_t *more);    /* sections.c: the section log's MEM gauge */
-static void prj_mem(cell_t *c, uint32_t k)             /* MEMORY: USED (a bar) and MORE (sections that fit) */
+static void prj_mem(cell_t *c, uint32_t k)             /* MEMORY: USED (a bar) and FREE (sections that fit) */
 {
     static uint32_t t, pct, more;
     if (!t || fm1_ms - t > 500u) {                      /* (a model of the log: counted twice a second at most) */
         t = fm1_ms | 1u;
         sec_mem(&pct, &more);
     }
-    c->label = k ? "MORE" : "USED";
+    c->label = k ? "FREE" : "USED";                    /* (FREE: the sections that still fit; was MORE, the audit's #43) */
     c->kind = CK_RO;
     fmt_int(c->val, (int32_t)(k ? more : pct));
     c->unit = k ? "" : "%";
