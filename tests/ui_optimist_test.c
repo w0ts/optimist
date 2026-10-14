@@ -526,7 +526,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
-        check(!strcmp(h, "MASTER DELAY"), "its header names it (MASTER DELAY, D3)");
+        check(!strcmp(h, "MASTER INS TONE"), "its header names it (MASTER INS TONE, the first page: the inserts)");
         n = SCR->rows();
         for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);

@@ -175,9 +175,72 @@ static int pg_has_g(uint32_t scr, uint32_t g)            /* a cell of screen scr
         }
     return 0;
 }
+/* a PAGES entry by title (and scope), the page the master FX row was built from */
+static const page_t *pm_old_page(const char *title, uint32_t scope)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (!strcmp(PAGES[i].title, title) && PAGES[i].scope == scope && !(scope == SC_FXSLOT && PAGES[i].id[0] >= FX_NSLOT))
+            return &PAGES[i];
+    return 0;
+}
+/* the master FX screen's order (the user, 2026-10-14: "inserts, then send returns, then fx slots, then macro"), each
+ * moved page's cards as PAGES has them */
+static void pages_master_order_tests(void)
+{
+    static const struct { const char *name, *old; uint8_t scope; } W[] = {
+        {"INS TONE", "MASTER", SC_GLOBAL}, {"INS COMP", "COMP", SC_GLOBAL}, {"INS LIMIT", "LIMIT", SC_GLOBAL},
+        {"RETURNS", 0, 0}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET REV", "REV/CHO", SC_GLOBAL},
+        {"SLOTS", "SLOTS", SC_FXSLOT},
+#if FELUCCA_MACROS
+        {"MACRO", "MACRO", SC_MACRO},
+#endif
+    };
+    static const uint8_t RET[3] = {G_CRET, G_DRET, G_RRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_TUNE, G_CGR};
+    uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
+    char nm[12];
+    reset_ui();
+    turn(EN_ALGO, -1);
+    tap(B_FX);
+    n = SCR->rows();
+    for (r = 0; r < n; r++) {
+        SCR->name(r, nm);
+        if (!strcmp(nm, "RET TYPE"))
+            continue;                                   /* (REV_MULTI builds only: after RET REV) */
+        if (i >= sizeof W / sizeof W[0] || strcmp(nm, W[i].name)) {
+            printf("  master page %u is '%s', not in order\n", r, nm);
+            order = 0;
+            break;
+        }
+        grp = !strncmp(nm, "INS ", 4) ? 1u : !strcmp(nm, "RETURNS") || !strncmp(nm, "RET ", 4) ? 2u : !strcmp(nm, "SLOTS") ? 3u : 4u;
+        order &= grp >= last_grp;
+        last_grp = grp;
+        for (k = 0; k < 4u; k++) {
+            cell_t c, o;
+            SCR->cell(r, k, &c);
+            if (!W[i].old) {                            /* RETURNS: the three return levels (the mixer's) */
+                cards &= k < 3u ? c.vp == &song.g[RET[k]] : c.kind == CK_NONE;
+                if (!(k < 3u ? c.vp == &song.g[RET[k]] : c.kind == CK_NONE))
+                    printf("  %s card %u: not the return\n", nm, k);
+            } else if (!strcmp(W[i].old, "LIMIT")) {    /* LIMIT keeps GAIN CEIL TUNE GR */
+                if (k < 3u && c.vp != &song.g[LIM[k]])
+                    printf("  %s card %u: not LIMIT's\n", nm, k), cards = 0;
+            } else {
+                page_cell(pm_old_page(W[i].old, W[i].scope), k, &o);
+                if (!(c.vp == o.vp && c.kind == o.kind && ((!c.label && !o.label) || (c.label && o.label && !strcmp(c.label, o.label)))))
+                    printf("  %s card %u differs from PAGES' %s\n", nm, k, W[i].old), cards = 0;
+            }
+        }
+        i++;
+    }
+    ok = order && r == n;
+    check(ok, "MASTER's pages come in the order inserts (INS TONE COMP LIMIT), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; LIMIT keeps GAIN CEIL TUNE (GR a read-out), RETURNS has CHO DLY REV RET");
+    reset_ui();
+}
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"DELAY", "REVERB", "SLOTS", "TONE", "COMP", "LIMIT",
+    static const char *const WANT[] = {"INS TONE", "INS COMP", "INS LIMIT", "RETURNS", "RET DELAY", "RET REV", "SLOTS",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -192,21 +255,22 @@ static void pages_master_tests(void)
     n = SCR->rows();
     for (r = 0; r < n; r++) {
         SCR->name(r, nm);
-        if (!strcmp(nm, "REV TYPE") || !strcmp(nm, "INS COMP"))
-            continue;                                   /* (REV_MULTI, the master COMP slot: their own pages) */
+        if (!strcmp(nm, "RET TYPE"))
+            continue;                                   /* (REV_MULTI: its own page) */
         ok &= i < sizeof WANT / sizeof WANT[0] && !strcmp(nm, WANT[i]);
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 7 pages: DELAY REVERB SLOTS TONE COMP LIMIT MACRO" : "D3: MASTER's pages: DELAY REVERB SLOTS TONE COMP LIMIT");
+          FELUCCA_MACROS ? "D3: MASTER's 8 pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS");
+    pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
-    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "MASTER DELAY"), "D3: the screen is MASTER (\"MASTER DELAY\")");
+    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "MASTER INS TONE"), "D3: the screen is MASTER (\"MASTER INS TONE\")");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
     check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
           "D3: BPM, SWING and CLICK are on GLOBAL (TEMPO, REC)");
     ui.scr = SCR_FX;
-    row = glo_find(SCR_FX, "LIMIT");
+    row = glo_find(SCR_FX, "INS LIMIT");
     SCR->cell(row, 2, &c);
     check(row < n && c.vp == &song.g[G_TUNE] && !strcmp(c.label, "TUNE"), "D3: TUNE is on LIMIT (GAIN CEIL TUNE GR)");
     reset_ui();
@@ -627,13 +691,16 @@ static void pages_head_tests(void)
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
-    check(head_is("Delay 1/7") || head_is("Delay 1/6") || head_is("Delay 1/8") || head_is("Delay 1/9"),
-          "D11: MASTER DELAY: \"Delay 1/7\" (was \"master dl 1/9\")");
-    ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "TONE");
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Tone ", 5), "D11: MASTER TONE: \"Tone n/N\" (was \"FX master 5/9\")");
+        check(!strncmp(t, "Ins tone 1/", 11), "D11: MASTER's first page: \"Ins tone 1/N\" (was \"Delay 1/7\" before 2026-10-14)");
+    }
+    ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "INS TONE");
+    {
+        char t[32];
+        head_now(t);
+        check(!strncmp(t, "Ins tone ", 9), "D11: MASTER INS TONE: \"Ins tone n/N\" (was \"FX master 5/9\")");
     }
     reset_ui();
     tap(B_EDIT);

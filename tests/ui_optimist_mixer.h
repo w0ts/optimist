@@ -189,18 +189,20 @@ static void mixer_sets_tests(void)
     check(!FELUCCA_FX_DIST || (mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0) && mx_labels(MXR_LANE0 + 2u, 3, "SOUND", 0, 0, 0)),
           "... then REV DLY CHO, then SOUND");
     check(mx_labels(MXR_MASTER, 0, "FILT", "DUST", "DUCK", 0) &&
-              mx_labels(MXR_MASTER, 1, "S1", "S2 CHO", "S3 DLY", "S4 REV") &&
-              (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 2, "THRS", "RATIO", "GAIN", "CEIL")),
-          "MASTER: FILT DUST DUCK, then the returns (a card a master slot: S1 (empty) S2 CHO S3 DLY S4 REV), then the compressor");
+              (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "S1", "S2 CHO", "S3 DLY", "S4 REV"),
+          "MASTER: FILT DUST DUCK, then the compressor, then the returns (a card a master slot: S1 (empty) S2 CHO S3 DLY S4 REV): "
+          "the master FX screen's order, inserts then returns");
     {   /* MASTER's Returns (2026-10-12): the slots' order, a send's card turns its return (song.g), an empty slot's is "-" */
         cell_t c;
         char h[40];
         int16_t r0 = song.g[G_RRET], c0 = song.g[G_CRET], d0 = song.g[G_DRET];
         uint32_t row0 = ui.row[SCR_HOME], k, any = 0;
+        const uint32_t rs = FELUCCA_MASTER_COMP ? 2u : 1u;   /* (the returns' set: after the compressor's) */
         ui.row[SCR_HOME] = MXR_MASTER;
-        mx.set = 1;
+        mx.set = (uint8_t)rs;
         head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
-        check(!strcmp(h, "MIX RETURNS"), "MASTER's second set: the header names it (Mix returns)");
+        check(!strcmp(h, "MIX RETURNS"), "MASTER's last set: the header names it (Mix returns)");
         mix_cell(MXR_MASTER, 0, &c);
         check(!c.d && !strcmp(c.val, "-"), "... S1 empty (the master slots hold the sends only): \"-\"");
         mix_cell(MXR_MASTER, 3, &c);
@@ -213,14 +215,14 @@ static void mixer_sets_tests(void)
         check(song.g[G_CRET] < c0, "... KNOB 2 (S2 CHO): CHO RET down");
         fxs_load(0, FXT_REV);                           /* REV into S1 (swaps with S4's empty place) */
         mix_cell(MXR_MASTER, 0, &c);
-        check(c.d == &GP[G_RRET] && !strcmp(c.label, "S1 REV") && mx_labels(MXR_MASTER, 1, 0, 0, 0, "S4"),
+        check(c.d == &GP[G_RRET] && !strcmp(c.label, "S1 REV") && mx_labels(MXR_MASTER, rs, 0, 0, 0, "S4"),
               "... REV loaded into S1: its card moves there (the slots' order), S4 empty");
         fxs_load(0, FXT_NONE);                          /* REV in no slot: no card turns it */
         for (k = 0; k < 4u; k++) {
             mix_cell(MXR_MASTER, k, &c);
             any |= c.d == &GP[G_RRET];
         }
-        check(!any && mx_labels(MXR_MASTER, 1, "S1", 0, 0, 0), "... REV in no slot: no card for its return (S1 empty: \"-\")");
+        check(!any && mx_labels(MXR_MASTER, rs, "S1", 0, 0, 0), "... REV in no slot: no card for its return (S1 empty: \"-\")");
         fxs_set(FXS_DEF);
         song.g[G_RRET] = r0, song.g[G_CRET] = c0, song.g[G_DRET] = d0;
         ui.row[SCR_HOME] = (uint8_t)row0;
