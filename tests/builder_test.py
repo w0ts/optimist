@@ -16,7 +16,16 @@ import registry as R  # noqa: E402
 import room as RM  # noqa: E402
 from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
+_real_builds = C.exact_builds                            # (the drift check below reads the real builds)
+
+
+def real_sizes(cfg):
+    e = _real_builds().get(C.exact_key(cfg))
+    return {r: e[r] for r in C.REGIONS} if isinstance(e, dict) and all(r in e for r in C.REGIONS) else None
+
+
 C.exact_sizes = lambda cfg: None                        # (these checks are of the estimate: a real build's sizes in build/ must not replace it)
+C.exact_builds = lambda: {}                             # (nor anchor it: budget's anchors are costs.json's alone here)
 fails = 0
 
 
@@ -157,10 +166,10 @@ check("... an error is still a plain message (str: printed, joined, searched)",
       all(isinstance(e, str) for e in C.validate(dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0))[0]))
 costs = C.load_costs()
 if costs and "MOTION" in items:
-    m16 = C.budget(dict(C.defaults(), MOTION=1), costs)["total"]
-    m4 = C.budget(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)["total"]
-    s4 = C.budget(dict(C.defaults(), SECTIONS=4), costs)["total"]
-    base = C.budget(C.defaults(), costs)["total"]
+    m16 = C.budget(dict(C.defaults(), MOTION=1), costs, anchor=False)["total"]
+    m4 = C.budget(dict(C.defaults(), MOTION=1, SECTIONS=4), costs, anchor=False)["total"]
+    s4 = C.budget(dict(C.defaults(), SECTIONS=4), costs, anchor=False)["total"]
+    base = C.budget(C.defaults(), costs, anchor=False)["total"]
     pair = costs.get("pairs", {}).get("MOTION=1,SECTIONS=4")
     t4, t16 = C.model_terms(dict(C.defaults(), MOTION=1, SECTIONS=4)), C.model_terms(dict(C.defaults(), MOTION=1))
     check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair; the "
@@ -376,14 +385,14 @@ shared = C.kit_shared(costs)
 check("sampled kits: the pair for all five off is measured and the shared samples are tens of KB",
       len(kits) == 5 and shared is not None and shared["flash"] > 50000)
 if shared:
-    all_on = C.budget(C.defaults(), costs)["total"]["flash"]
-    kits_off = C.budget(dict(C.defaults(), **{k: 0 for k in kits}), costs)["total"]["flash"]
-    sampled_off = C.budget(dict(C.defaults(), DRUM_SAMPLED=0), costs)["total"]["flash"]
+    all_on = C.budget(C.defaults(), costs, anchor=False)["total"]["flash"]
+    kits_off = C.budget(dict(C.defaults(), **{k: 0 for k in kits}), costs, anchor=False)["total"]["flash"]
+    sampled_off = C.budget(dict(C.defaults(), DRUM_SAMPLED=0), costs, anchor=False)["total"]["flash"]
     check("sampled kits: all five off saves the shared samples in the estimate",
           abs((all_on - kits_off) - shared["flash"]) <= 1 and abs(kits_off - sampled_off) < 0.01 * all_on)
     check("sampled kits: with the sampled drums off the kits' pair is not counted twice",
-          C.budget(dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in kits}), costs)["total"] == C.budget(
-              dict(C.defaults(), DRUM_SAMPLED=0), costs)["total"])
+          C.budget(dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in kits}), costs, anchor=False)["total"] == C.budget(
+              dict(C.defaults(), DRUM_SAMPLED=0), costs, anchor=False)["total"])
     two = dict(C.defaults(), **{k: 0 for k in kits[1:]})
     sv = C.savings_of(two, costs)
     check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
@@ -516,35 +525,92 @@ check("tools/optimist.py: build and package take --ble-drop, and the BLE test pa
       'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and
       '"BLE_DIAG=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
       (ROOT / "tools" / "optimist.py").read_text())
-# the estimate against real builds: costs.json "checks" holds measurement builds of every profile and of the
-# configurations in tools/builder/estimate/ (a user's own among them), made in the same measure_costs.py run as the
-# deltas. A configuration predicted to fit must fit: the estimate may be below the real build by no more than the
-# fit solver's margin (configure.py FIT_MARGIN; the pool keeps its 8 KiB spare besides, so 512 B there). Above it,
-# it may be by ESTIMATE_OVER: a unity build compiled for size shares helpers between features (one feature's
-# delta pays for a helper another one then gets for free, and inlining in the one unit follows what else is built),
-# so the flash estimate of a configuration far from the defaults stays high: measured 2026-10-08 on optimist
-# fb9479c, +16.4 KB (3.3 %) for the "mots" configuration (61 items away from the defaults), +4.1 KB at most for the
-# profiles. That errs on the safe side; RAM, pool and RAM code are within 0.3 KB.
-ESTIMATE_UNDER = dict(C.FIT_MARGIN, pool=512)
-ESTIMATE_OVER = {"flash": 20480, "ram": 1024, "pool": 1024, "ramtext": 1024}
+# the estimate against real builds (docs/BUILDER.md, Budget). configure.py budget: the real build of the nearest
+# configuration whose build is known (an anchor: the defaults, costs.json "checks", a real build from this source)
+# plus what the measured deltas say the items that differ change. costs.json "checks" holds measurement builds of
+# every profile, of the configurations in tools/builder/estimate/ (a user's own among them) and of each one's probe
+# (measure_costs.py probe: PROBE_ITEMS items changed), made in the same measure_costs.py run as the deltas.
+# 1. self: each of them estimated WITHOUT its own build (its probe, PROBE_ITEMS items away, is then its nearest
+#    anchor, or another check): within ESTIMATE_NEAR. What the menu meets: a few changes from a configuration
+#    built before. Measured 2026-10-14: 4-5 items from an anchor, flash -2.3 to +4.8 KB, RAM within 0.3 KB, pool
+#    within 0.7 KB (LTO shares and inlines code by what else is built: no sum of per-item figures does better).
+#    Then without its probe either (the nearest other check or the defaults, 20-30 items away): printed only,
+#    that is the sum model alone (-13 to +28 KB of flash for the two users' configurations); a configuration
+#    built once is exact from then on (build/exact-sizes.json is an anchor too)
+# 2. drift: costs.json against the real builds `optimist.py test` has just made from this very source
+#    (prepare_tests: every check configuration, user-default, its two BLE builds and the defaults; configure.build
+#    remembers their sizes in build/exact-sizes.json, keyed by configuration and source). The firmware moves
+#    under costs.json at every merge; the self checks compare costs.json with itself (its own builds, as old as
+#    it is), so a stale base or delta passes them. Here each estimate must be within ESTIMATE_TOL of today's real
+#    build: a failure means python3 tools/optimist.py costs (measure_costs.py --missing: the base and the checks
+#    again) or, after a change to an item's code, measure_costs.py --only KEY
+ESTIMATE_TOL = {"flash": 1024, "ram": 256, "pool": 256, "ramtext": 256}
+ESTIMATE_NEAR = {"flash": 6144, "ram": 512, "pool": 1024, "ramtext": 768}
 chk = (costs or {}).get("checks", {})
-check("costs.json: a real build of every check configuration (run measure_costs.py --missing)",
+check("costs.json: a real build of every check configuration and probe (run measure_costs.py --missing)",
       not MC.missing_checks(costs))
-built_checks = {n: e["sizes"] for n, e in chk.items() if e.get("sizes")}
-check("estimate: at least four check configurations built", len(built_checks) >= 4)
+built_checks = {n: e for n, e in chk.items() if e.get("sizes") and C.anchor_cfg(e)}
+check("estimate: at least four check configurations built, each with its probe",
+      sum(1 for n in built_checks if not n.endswith(MC.PROBE) and n + MC.PROBE in built_checks) >= 4)
 for n, e in sorted(chk.items()):
     if e.get("failed"):
         print(f"  note: check configuration {n} did not build ({e['failed']}): tools/builder/verify.py's to fix")
-cfgs = MC.check_configs()
-for n, real in sorted(built_checks.items()):
-    if n not in cfgs:
+
+
+def _err(est, real):
+    return {r: est[r] - real[r] for r in C.REGIONS}
+
+
+def _within(err, tol):
+    return all(abs(err[r]) <= tol[r] for r in C.REGIONS)
+
+
+def _fmt(err):
+    return ", ".join(f"{r} {err[r]:+,}" for r in C.REGIONS)
+
+
+_tol = "+-" + "/".join(str(ESTIMATE_TOL[r]) for r in C.REGIONS) + " B"
+for n, e in sorted(built_checks.items()):
+    cfg, real = C.anchor_cfg(e), e["sizes"]
+    b = C.budget(cfg, costs, use_exact=False, exclude=(n,))
+    err = _err(b["total"], real)
+    check(f"estimate of {n} without its own build (from {b['anchor']}, {b['distance']} items away): within "
+          f"+-{'/'.join(str(ESTIMATE_NEAR[r]) for r in C.REGIONS)} B", _within(err, ESTIMATE_NEAR))
+    print(f"  {n}: estimate - real {_fmt(err)}")
+    if n.endswith(MC.PROBE):
         continue
-    est = C.budget(cfgs[n], costs, use_exact=False)["total"]
-    err = {r: est[r] - real[r] for r in C.REGIONS}
-    check(f"estimate of {n}: within -{'/'.join(str(ESTIMATE_UNDER[r]) for r in C.REGIONS)} "
-          f"+{'/'.join(str(ESTIMATE_OVER[r]) for r in C.REGIONS)} B of its real build",
-          all(-ESTIMATE_UNDER[r] <= err[r] <= ESTIMATE_OVER[r] for r in C.REGIONS))
-    print(f"  {n}: estimate - real " + ", ".join(f"{r} {err[r]:+,}" for r in C.REGIONS))
+    far = C.budget(cfg, costs, use_exact=False, exclude=(n, n + MC.PROBE))
+    ferr = _err(far["total"], real)
+    print(f"  {n} without its probe either (from {far['anchor']}, {far['distance']} items away): estimate - real "
+          f"{_fmt(ferr)}")
+
+
+def gate_configs():
+    """-> [(name, cfg)] the configurations prepare_tests builds (tools/optimist.py), the defaults first, then the
+    check configurations (check_builds)"""
+    def load(sets, drop=None):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return O.load_config(argparse.Namespace(profile=O.DEFAULT_PROFILE, config=None, defaults=False,
+                                                    set=list(sets), name=None, ble_drop=drop))[0]
+    return [("defaults (the base)", C.defaults()),
+            (f"{O.DEFAULT_PROFILE} + BLE test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *O.BLE_TEST_ROOM], "FLUTE")),
+            (f"{O.DEFAULT_PROFILE} + BLE full", load([*O.BLE_FULL_SET, *O.BLE_TEST_ROOM]))] + \
+        sorted(MC.check_configs().items())
+
+
+_built = [(n, cfg, real_sizes(cfg)) for n, cfg in (gate_configs() if costs else [])]
+_have = [x for x in _built if x[2]]
+for n, cfg, real in _built:
+    if real:
+        err = _err(C.budget(cfg, costs, use_exact=False)["total"], real)
+        check(f"drift: the estimate of {n} vs its real build from this source: within {_tol} "
+              "(else: python3 tools/optimist.py costs)", _within(err, ESTIMATE_TOL))
+        print(f"  {n}: estimate - today's real build {_fmt(err)}")
+    elif _have:     # (some built from this source, not this one: measure_costs.py makes the checks only)
+        print(f"  note: drift of {n}: no real build of it from this source (optimist.py test makes it)")
+if not _have:
+    print("  note: drift: no real build from this source in build/exact-sizes.json (optimist.py test makes them; "
+          "--python / --no-build do not): the estimate is not held against today's firmware")
 # ---- the Reserve items (RESERVE_UNDO_KB, RESERVE_FLASH_KB): headroom kept, nothing in the image
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)

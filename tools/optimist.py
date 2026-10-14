@@ -217,6 +217,7 @@ def prepare_tests():
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
+    check_builds()
     print(f"test: building {DEFAULT_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
           "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
           "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
@@ -262,6 +263,20 @@ def prepare_tests():
         print("test: the measurement build failed", file=sys.stderr)
         return 1
     return 0
+
+
+def check_builds():
+    """measurement builds of the builder's check configurations (every profile, tools/builder/estimate/*.config) not
+    built from this source yet: tests/builder_test.py holds the size estimate against them (its drift check), so a
+    costs.json the firmware moved away from fails the normal test run. ~15 s each; made first, so the builds the
+    tests read (the packages, the defaults' felucca.dis) come after"""
+    import measure_costs as MC
+    todo = [(n, cfg) for n, cfg in MC.check_configs().items() if not C.exact_sizes(cfg)]
+    print(f"test: measurement builds of {len(todo)} builder check configurations (the estimate's drift check)")
+    for n, cfg in todo:
+        ok, _, _ = C.build(cfg, f"m-chk-{n}"[:16], measure=True)   # (measure_costs.py measure_checks: the same name, the same bytes)
+        if not ok:
+            print(f"test: the measurement build of check configuration {n} failed (the drift check notes it)")
 
 
 def cmd_test(a):
