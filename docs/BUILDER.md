@@ -324,7 +324,7 @@ These run once: on the master, or as the one send bus each (CHO DLY REV). CHRS a
 | screen data speed (SPI clock) | `LCD_BAUD` | How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost; the faster settings are untested here on hardware. Values: 30 MHz; 12 MHz (as before X0X); 60 MHz. |
 | screen: send only the changed rectangle | `LCD_DIRTY` | Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM. |
 | keys light the notes played | `KEYLIT` | Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > NOTES turns it on and off at run time. |
-| screen brightness (MENU > BRIGHT) (EXPERIMENTAL) | `BRIGHT` | MENU > BRIGHT: the screen backlight in 8 levels (software PWM, saved with the settings). About 36 B of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: always full brightness. |
+| screen brightness (MENU > BRIGHT) (EXPERIMENTAL) | `BRIGHT` | MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: always full brightness.
 | keys ~1 ms sooner (debounce per column) | `KEYS_FAST` | The keys respond about 1 ms sooner (each key is debounced as its column is read); measured on the host: mean press latency 3.3 to 1.7 ms. About 32 B of flash. |
 | menu LIGHTS / KEYS / NOTES (play in the dark) | `LIGHTS` | Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of flash. |
 | knobs: one rest state a detent (no double clicks) | `KNOB_ONEREST` | Counts a knob click as one full encoder cycle, so a pause in the middle of a click no longer doubles the clicks after it. About 0.3 KB of flash; assumes the FM-1's full-cycle detents. |
@@ -538,46 +538,62 @@ item at a time each of them paid the whole store (about 2 KB RAM and 8 to 9 KB p
 the pool `auto_aux` x 4, `auto_slot` x 4 more with SECTIONS 4, and the extras record's read buffer (`sx_rbuf`). The
 measured deltas and pairs leave it out like the reverb buffer. What is not an array is the store's code (about 7 KB of
 flash, 51 B RAM, 704 B pool of tables and glue), which each of the three items still carries when measured alone;
-the pairs MOTION+CHANCE, MOTION+SL24_XSTEP, CHANCE+SL24_XSTEP and the three together take the copies back. Before
+the group AUTO (below: any of MOTION, CHANCE, SL24_XSTEP, COND) counts it once. Before
 (2026-10-09, "mots", integration30 17ceb7d) the estimate was under the real build by 928 B RAM and 3,412 B pool
 (512 B allowed); after it is over by 416 B RAM and 24 B pool.
 
-**Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
-profile and of each configuration in `tools/builder/estimate/` (costs.json "checks", the same source as the
-deltas; `--missing --check` fails when one is not measured), and `tests/builder_test.py` compares the estimate with
-them: it may be below the real build by at most the fit solver's margin (`FIT_MARGIN`: 1,024 B flash, 512 B RAM,
-256 B RAM code; 512 B pool), and above it by at most 20 KB flash and 1 KB in the other regions. The flash estimate
-of a configuration far from the defaults stays high (the one unit compiled for size shares helpers between
-features, and its inlining follows what else is built: e.g. PLOCK adds 4.6 KB to user-default but 0.3 KB to the
-"mots" configuration, where CHORDPLUS, PATTERNS, MACROS, USB_MODE and others already pulled in what it calls). That
-errs on the safe side. A check configuration that does not build is noted, not failed (verify.py's to fix).
+**Anchored estimate (2026-10-14).** The sum model (base + deltas + pairs + groups + computed terms) is right near
+the defaults and drifts the further a configuration is from them: the firmware is one LTO unit compiled for size, so
+a feature's helpers, inlining and UI code follow what else is built. On 2026-10-14 it put a user's Optimist-UI
+configuration 17.7 KB of flash under its real build (the builder said it fit; it was 7.8-17 KB over) and
+user-default 6.6 KB over. So `configure.py budget` now starts from the nearest configuration whose real build is
+known (an anchor: the defaults, every check configuration and probe in costs.json, and every real build made from
+this source, `build/exact-sizes.json`) and adds what the sum model says the differing items change, plus
+`ANCHOR_MARGIN` per differing item (256 B flash, 32 B RAM and RAM code: it errs over). The items both share cost
+exactly what they cost together. A configuration built once is exact from then on, and a few changes from it are
+estimated from it. `budget(..., anchor=False)` is the plain sum (measure_costs.py measures pairs against it). The
+root causes found by bisection that day, now in the model:
 
-| Configuration (optimist fb9479c, 2026-10-08) | Region | Estimate before | Estimate now | Real |
-|---|---|---|---|---|
-| drum-machine | flash | 571,920 | 574,468 | 571,508 |
-| drum-machine | ram | 92,012 | 92,140 | 92,092 |
-| drum-machine | pool | 331,544 | 331,544 | 331,544 |
-| drum-machine | ramtext | 25,072 | 24,788 | 24,888 |
-| everything-that-fits | flash | 570,684 | 572,512 | 572,812 |
-| everything-that-fits | ram | 84,008 | 84,184 | 84,136 |
-| everything-that-fits | pool | 327,856 | 327,856 | 327,856 |
-| everything-that-fits | ramtext | 34,000 | 33,696 | 33,804 |
-| fm-va-studio | flash | 570,552 | 573,624 | 571,952 |
-| fm-va-studio | ram | 96,024 | 96,088 | 96,056 |
-| fm-va-studio | pool | 322,196 | 322,196 | 322,196 |
-| fm-va-studio | ramtext | 28,088 | 27,988 | 28,044 |
-| user-default | flash | 577,364 | 579,464 | 579,088 |
-| user-default | ram | 80,744 | 80,744 | 80,728 |
-| user-default | pool | 307,376 | 307,376 | 307,376 |
-| user-default | ramtext | 30,732 | 30,740 | 30,744 |
-| x0x-drums | flash | 553,916 | 552,500 | 548,436 |
-| x0x-drums | ram | 77,368 | 76,276 | 76,196 |
-| x0x-drums | pool | 294,000 | 294,000 | 294,000 |
-| x0x-drums | ramtext | 25,596 | 24,880 | 25,064 |
-| mots | flash | 518,972 | 518,560 | 502,172 |
-| mots | ram | 89,948 | 98,128 | 98,128 |
-| mots | pool | 304,876 | 304,896 | 304,920 |
-| mots | ramtext | 33,064 | 30,744 | 30,520 |
+- engines.c `part_mem`, the synth parts' engine states in the pool, is a union of FM6, PHYS, GRAIN and ACID: GRAIN off
+  frees 9.3 KB unless PHYS is on. `configure.py part_mem` computes the largest member built (`PART_MEM`, measured by
+  `measure_costs.py --part-mem`; every measurement build checks it against the real symbol, `sizes.json` "symbols").
+- Code built with ANY of a set of items is a group (`GROUPS`, read from the firmware's own `#define`s): the insert
+  slots (`INS_FX`, 0.96 KB RAM and 1.5 KB flash counted once, not per insert) and the automation store's code
+  (`FELUCCA_AUTO`, 9.5 KB of flash: CHANCE off with MOTION, XSTEP and COND still on was 9 KB over as pairs). Each group
+  is measured with the Optimist UI too (`NAME|UI=1`).
+- The Optimist UI is a second firmware for many items (FM6_KEYS, DRUM_EDIT, PARAM_HELP, ICONS: 0.4 to 5 KB each away
+  from their SLOOP-UI deltas): every item value is measured with UI=1 as well (a `UI=1,KEY=V` pair), and every pair.
+- Items only built with another: DRUM_ACCENT needs the automation store (core.h `#undef`s it otherwise: parsed,
+  `NEEDS_AUTO`), SEQTOOLS needs the Optimist UI (`NEEDS`; it put 5.5 KB of flash into user-default's estimate).
+- `project.c sl24_xs` (704 B pool) is built with the store and SLOOP 2.4's import or export; the user sample zones
+  (1.3 KB RAM) with any of SAMPLE, GRAIN, SLICE, DRUM_USR (a pair, all four off); SL24_SAFE with SL24_IMPORT, GLIDE
+  with PATTERNS, CPU_GUARD with ACID and the X0X kits, BLE's bond / central / diagnostics (pairs).
+
+**Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
+profile, of each configuration in `tools/builder/estimate/` (`mots-ui` is a user's own, with the Optimist UI) and of
+each one's probe (`NAME~`: 4 items changed, picked by a hash of the names), costs.json "checks"; `--missing --check`
+fails when one is not measured. `tests/builder_test.py` then:
+
+1. estimates each of them without its own build (from its probe or the other way round, 4-5 items away): within 6 KB
+   of flash, 512 B RAM, 1 KB pool, 768 B RAM code. Measured on optimist f626af77: flash -2.3 to +4.8 KB, RAM
+   -16 to +276 B, pool within 708 B. Without the probe either (8-29 items from the nearest other anchor) it prints the
+   error and does not fail: -13 to +28 KB of flash for the two users' configurations, which is the sum model alone.
+2. **drift**, the check that keeps costs.json honest: `optimist.py test` (prepare_tests) first makes a measurement
+   build of every check configuration from the source under test, then user-default, its two BLE builds and the
+   defaults. Each estimate (costs.json's anchors only) must be within 1 KB of flash and 256 B elsewhere of today's
+   real build. A merge that moves the firmware past that fails the normal test run; `python3 tools/optimist.py costs`
+   (measure_costs.py --missing: the base and every check again) fixes it. `--python` and `--no-build` runs have no
+   real build to compare and say so.
+
+| Configuration (est - real, flash) | Before (99af919a, plain sum) | After: the estimate the menu shows | After: without its own build (4-5 items away) |
+|---|---|---|---|
+| mots-ui (the user's, config/my-profiles/mots.config) | -17,708 | 0 | +4,820 |
+| mots | -12,032 | 0 | +2,568 |
+| user-default | +6,520 | 0 | +1,080 |
+| fm-va-studio | +2,052 | 0 | +2,508 |
+| x0x-drums | +600 | 0 | +1,704 |
+| drum-machine | 0 | 0 | -1,764 |
+| everything-that-fits | -760 | 0 | +2,920 |
 
 **Making room for BLE (BLE replaces samples).** BLE costs about 29.6 KB of flash and 6.2 KB of RAM (costs.json, 2026-10-09;
 11.6 KB of the flash is the radio's start-up tables, captured at build time); its `BLE_DIAG` option (the console's

@@ -68,9 +68,10 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
                         "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
                         "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
-    "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels (software PWM, saved with the settings). "
-                      "About 36 B of flash; X0X reports it working on a real FM-1 but it is not tried here on "
-                      "hardware. Off: always full brightness.",
+    "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level "
+                      "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
+                      "of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: "
+                      "always full brightness.",
     "FELUCCA_DLY_HALVE": "A delay time longer than the delay line is halved (so it stays on the beat) instead of being "
                          "cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as "
                          "1/8). Costs 64 B of flash; off: the time is cut at the line's length.",

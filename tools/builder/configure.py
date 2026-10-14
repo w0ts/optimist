@@ -443,13 +443,31 @@ def built_parent(cfg, key):
 
 def pair_delta(cfg, costs):
     """what items set together cost beyond their own deltas (costs.json "pairs": measured with all of them set,
-    less each one's delta), per region"""
-    out = {r: 0 for r in REGIONS}
+    less each one's delta; and the groups, group_delta), per region"""
+    out = group_delta(cfg, costs)
     for name, d in (costs or {}).get("pairs", {}).items():
         conds = pair_conds(name)
         if all(k in cfg and cfg[k] == v and built_parent(cfg, k) for k, v in conds):   # (an option of an item that is off is not in the build)
             for r in REGIONS:
                 out[r] += d.get(r, 0)
+    return out
+
+
+def group_delta(cfg, costs):
+    """costs.json "groups": items (off by default) that share code and state built with any of them (the insert
+    effects' slots, core.h INS_FX): each one's delta pays the shared part, so with m of them on the sum counts it
+    m - 1 times too often. Per region"""
+    out = {r: 0 for r in REGIONS}
+    groups = (costs or {}).get("groups", {})
+    for name, g in groups.items():
+        if "when" in g:
+            continue
+        for v in groups.values():                       # (a variant measured where its "when" holds: NAME|UI=1)
+            if v.get("when") and v["members"] == g["members"] and all(cfg.get(k) == x for k, x in v["when"].items()):
+                g = v
+        m = sum(1 for k in g["members"] if k in cfg and built(cfg, k) and cfg[k] != R.ITEMS[k].default)
+        for r in REGIONS:
+            out[r] -= max(0, m - 1) * g["shared"].get(r, 0)
     return out
 
 
@@ -482,36 +500,96 @@ AUTO_LIST = 1 + 3 * AUTO_MAX                                                 # a
 AUTO_STORE = 4 + 4 + AUTO_NTRK * AUTO_LIST                                   # auto_store_t (seq/auto.c): psum, on + rsv, 4 lists
 AUTO_AUX = 4                                                                 # storage/auto_proj.c AUTO_AUX
 AUTO_ENC_MAX = 3 + AUTO_NTRK * (1 + 3 * AUTO_MAX)                            # auto.h AUTO_ENC_MAX (> the stepx form's)
+SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.h, 176 B) in the pool, with SL24_IMPORT or SL24_EXPORT
+
+
+def _needs_auto():
+    """-> (keys) the items the firmware switches off without the automation store (core.h: "#if FELUCCA_X &&
+    !FELUCCA_AUTO" then "#undef FELUCCA_X": DRUM_ACCENT's lane is stored as its events), read from the headers so a
+    new one is covered without an edit here"""
+    by_flag = {it.flag: k for k, it in R.ITEMS.items() if it.flag}
+    out = []
+    for h in sorted((ROOT / "firmware" / "src" / "core").glob("*.h")):
+        for f in re.findall(r"^#if (FELUCCA_\w+) && !FELUCCA_AUTO\s*\n#undef \1\b", h.read_text(), re.M):
+            if f in by_flag:
+                out.append(by_flag[f])
+    return tuple(out)
+
+
+NEEDS_AUTO = _needs_auto()
+# items only another item's code includes (the build is the same without it): counted only with that one. Found
+# 2026-10-14: SEQTOOLS (ui/optimist/op_tools.c) put 5.5 KB of flash into user-default's estimate, which has SLOOP's UI
+NEEDS = {"SEQTOOLS": {"UI": 1}}
+
+
+def counted(cfg, key):
+    """the item's measured delta is in this configuration's build (NEEDS_AUTO, NEEDS)"""
+    if key in NEEDS_AUTO and not auto_built(cfg):
+        return False
+    return all(cfg.get(k) == v for k, v in NEEDS.get(key, {}).items())
+
+
+def auto_built(cfg):
+    """the automation store is in the build (backports24seq.h FELUCCA_AUTO)"""
+    f, _ = flags(cfg)
+    return any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS)
 
 
 def auto_store(cfg):
     """-> {region: bytes} of the automation store's storage (seq/auto.h, auto.c, storage/auto_proj.c), built with ANY
     of MOTION, CHANCE, SL24_XSTEP (and so MICRO, FILLS, PLOCK: FELUCCA_AUTO): the working store (auto_w) and the
     undo's copy of a list in main RAM; the project buffers' stores (auto_aux x AUTO_AUX, auto_slot x 4 with
-    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool. Shared by those items: the estimate
-    counts it once (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
+    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool; with SL24_IMPORT or SL24_EXPORT, 2.4's step
+    extras on their way in or out (project.c sl24_xs, pool: found 2026-10-12, 704 B under the estimate). Shared by those
+    items: the estimate counts it once (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     f, _ = flags(cfg)
     if not any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS):
         return {"ram": 0, "pool": 0}
     slots = 0 if f.get("FELUCCA_SECTIONS", 16) > 4 else 4           # (SEC_LOGGED: the sections live in the log)
     rbuf = (4 + AUTO_ENC_MAX + 3) // 4 * 4 if not slots else (AUTO_ENC_MAX + 3) // 4 * 4   # (stepx_log.c / snapshots.c)
-    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf}
+    export = SL24_XS if f.get(R.ITEMS["SL24_EXPORT"].flag, 0) or f.get(R.ITEMS["SL24_IMPORT"].flag, 0) else 0
+    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf + export}
+
+
+# engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of
+# the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440}   # (2026-10-14)
+PART_MEM_NONE = 0                                   # (none built: not in the image)
+
+
+def part_mem(cfg):
+    """-> {region: bytes} of the synth parts' engine states (engines.c part_mem, the pool): the largest member
+    built. A maximum: no per-item delta adds up to it (GRAIN off frees 9.3 KB, but not with PHYS on), so the estimate
+    computes it (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
+    sizes = [n for k, n in PART_MEM.items() if built(cfg, k)]
+    return {"pool": max(sizes) if sizes else PART_MEM_NONE}
 
 
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
-    per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store)"""
+    per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
+    states, part_mem)"""
     d = defaults()
-    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d))]
+    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
 
 
+_SOURCE_STATE = [0.0, None]                      # (when, value): one budget asks for it twice
+
+
 def source_state():
     """what the sizes of a build depend on besides the configuration: the firmware, its assets, build.py and
-    the generators (tools/gen*.py), as committed or staged, plus any uncommitted change there"""
+    the generators (tools/gen*.py), as committed or staged, plus any uncommitted change there (kept 2 s)"""
+    import time
+    if _SOURCE_STATE[1] is None or time.monotonic() - _SOURCE_STATE[0] > 2:
+        _SOURCE_STATE[:] = [time.monotonic(), _source_state()]
+    return _SOURCE_STATE[1]
+
+
+def _source_state():
     def git(*args):
         r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
         return r.stdout if r.returncode == 0 else ""
@@ -525,31 +603,93 @@ def exact_key(cfg):
     return f"{cfg_hash(cfg):08x}-{source_state()}"
 
 
-def exact_sizes(cfg):
-    """the sizes of the last real build of this configuration from the same source, else None"""
-    try:
-        return json.loads(EXACT.read_text()).get(exact_key(cfg))
-    except (OSError, ValueError):
-        return None
-
-
-def remember_sizes(cfg, sizes):
+def exact_builds():
+    """-> {exact_key: {region: bytes, "cfg", "built_hash"}} the real builds remembered (remember_sizes)"""
     try:
         known = json.loads(EXACT.read_text())
     except (OSError, ValueError):
-        known = {}
-    known[exact_key(cfg)] = {r: sizes[r] for r in REGIONS}
+        return {}
+    return known if isinstance(known, dict) else {}
+
+
+def exact_sizes(cfg):
+    """the sizes of the last real build of this configuration from the same source, else None"""
+    e = exact_builds().get(exact_key(cfg))
+    return {r: e[r] for r in REGIONS} if isinstance(e, dict) and all(r in e for r in REGIONS) else None
+
+
+def cfg_diff(cfg):
+    """-> {key: value} the image items a configuration sets away from the defaults (costs.json "checks" and
+    build/exact-sizes.json keep this: the configuration a real build was made as, an anchor of the estimate)"""
+    d, e = effective(defaults()), effective(cfg)
+    return {k: v for k, v in e.items() if v != d[k]}
+
+
+def anchor_record(cfg):
+    """-> {"cfg": cfg_diff, "built_hash"}: what costs.json and build/exact-sizes.json keep of a real build's
+    configuration; built_hash checks it is read back as it was built (a registry default changed since: not)"""
+    diff = cfg_diff(cfg)
+    return {"cfg": diff, "built_hash": f"{cfg_hash(dict(defaults(), **diff)):08x}"}
+
+
+def anchor_cfg(rec):
+    """-> the configuration of an anchor_record, None when it no longer reads back as built"""
+    if not isinstance(rec, dict) or not isinstance(rec.get("cfg"), dict) or any(k not in R.ITEMS for k in rec["cfg"]):
+        return None
+    cfg = dict(defaults(), **rec["cfg"])
+    return cfg if f"{cfg_hash(cfg):08x}" == rec.get("built_hash") else None
+
+
+def remember_sizes(cfg, sizes):
+    known = exact_builds()
+    known[exact_key(cfg)] = dict({r: sizes[r] for r in REGIONS}, **anchor_record(cfg))   # (an anchor: budget)
     EXACT.parent.mkdir(parents=True, exist_ok=True)
     EXACT.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
 
 
-def budget(cfg, costs=None, use_exact=True):
-    """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool}:
-    the total is the last real build's when this configuration was built from this source (unless use_exact is
-    False), else the estimate (the per-item deltas stay estimates either way)"""
-    costs = costs or load_costs()
-    if not costs:
-        return None
+def effective(cfg):
+    """-> {key: value} what the image is built with: every image item, an option of an item left out at its default
+    (the build ignores it), so two configurations that build the same image compare equal"""
+    full = dict(defaults(), **cfg)
+    return {k: full[k] if not it.parent or built(full, it.parent) else it.default
+            for k, it in R.ITEMS.items() if not it.no_image}
+
+
+def distance(a, b):
+    """the number of image items two configurations build differently"""
+    ea, eb = effective(a), effective(b)
+    return sum(1 for k in ea if ea[k] != eb[k])
+
+
+def anchors(costs, use_exact=True, exclude=()):
+    """-> [(name, cfg, real sizes)] the configurations whose real build is known: the defaults (costs.json "base"),
+    the check configurations measured with the deltas (costs.json "checks", each with the configuration it was built
+    as) and, with use_exact, the real builds made from this very source (build/exact-sizes.json); exclude: names
+    left out (tests/builder_test.py: a check configuration is estimated without its own build)"""
+    out = [("defaults", defaults(), costs["base"])] if "defaults" not in exclude else []
+    for n, e in sorted(costs.get("checks", {}).items()):
+        acfg = anchor_cfg(e)
+        if n not in exclude and e.get("sizes") and acfg:
+            out.append((n, acfg, e["sizes"]))
+    if use_exact:
+        src = source_state()
+        for key, e in exact_builds().items():
+            acfg = anchor_cfg(e) if key.endswith(src) else None
+            if acfg:
+                out.append((f"build {key[:8]}", acfg, {r: e[r] for r in REGIONS}))
+    return out
+
+
+# the estimate's margin per item between the configuration and the anchor it is estimated from (budget): the
+# error of a change grows with the number of items changed (LTO shares and inlines differently with what else is
+# built). Measured 2026-10-14 (single changes from the user's configuration, ~/GitHub/optimist-work/estfix): see
+# ANCHOR_MARGIN's users. Errs over: a configuration predicted to fit must fit
+ANCHOR_MARGIN = {"flash": 256, "ram": 32, "pool": 0, "ramtext": 32}
+
+
+def additive(cfg, costs):
+    """-> (total, items, unmeasured) the sum model: the default build, each item's measured delta, the pairs, the
+    computed terms. Its error grows with the distance from the defaults (budget anchors it nearer)"""
     total = dict(costs["base"])
     items, missing = {}, []
     for k, it in R.ITEMS.items():
@@ -561,16 +701,52 @@ def budget(cfg, costs=None, use_exact=True):
         if d is None:
             missing.append(k)
             continue
+        if not counted(cfg, k):
+            continue                                    # (the firmware builds it as off: measured where it is on)
         items[k] = d
         for r in REGIONS:
             total[r] += d.get(r, 0)
     pairs, terms = pair_delta(cfg, costs), model_terms(cfg)
     for r in REGIONS:
         total[r] += pairs[r] + terms[r]
+    return total, items, missing
+
+
+def nearest_anchor(cfg, costs, use_exact=True, exclude=()):
+    """-> (name, cfg, real sizes, distance) the anchor (anchors) the fewest items away; at the same distance the
+    later one (a real build from this source over costs.json's)"""
+    best = None
+    for n, acfg, real in anchors(costs, use_exact, exclude):
+        d = distance(cfg, acfg)
+        if best is None or d <= best[3]:
+            best = (n, acfg, real, d)
+    return best
+
+
+def budget(cfg, costs=None, use_exact=True, anchor=True, exclude=()):
+    """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool,
+    "anchor": name, "distance": items}: the total is the last real build's when this configuration was built from
+    this source (unless use_exact is False), else the estimate: the real build of the nearest configuration whose
+    build is known (nearest_anchor: the defaults, a check configuration, a real build from this source) plus what
+    the sum model (additive) says the items that differ change, plus ANCHOR_MARGIN per such item. Anchored, the
+    items both share cost what they really cost together (LTO shares code between features, so a configuration
+    many items from the defaults is several KB off the plain sum: 17.7 KB of flash for a user's, 2026-10-14);
+    anchor=False: the plain sum (measure_costs.py measures the pairs against it). The per-item deltas stay the sum
+    model's either way"""
+    costs = costs or load_costs()
+    if not costs:
+        return None
+    total, items, missing = additive(cfg, costs)
     exact = exact_sizes(cfg) if use_exact else None
+    ref = nearest_anchor(cfg, costs, use_exact, exclude) if anchor and not exact else None
     if exact:
         total = dict(exact)
-    return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact)}
+    elif ref:
+        name, acfg, real, dist = ref
+        at, _, _ = additive(acfg, costs)
+        total = {r: real[r] + total[r] - at[r] + ANCHOR_MARGIN[r] * dist for r in REGIONS}
+    return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact),
+            "anchor": ref[0] if ref else None, "distance": ref[3] if ref else None}
 
 
 # ---- the reserve (R "Reserve" items: kept headroom, in KB in the .config; tools/build.py refuses a build below it)
@@ -661,6 +837,7 @@ FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3
     ("ENG_SLICE", 0), ("SPLASH", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
     ("FM6_OPL", 0), ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
+    ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)
 ]
 FIT_MARGIN = {"flash": 1024, "ram": 512, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %)
 
@@ -870,7 +1047,7 @@ def fmt_budget(cfg, costs):
     if b["unmeasured"]:
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
     head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
-            else "estimate (measured deltas, +-~0.5 %):")
+            else f"estimate (from the real build of {b['anchor']}, {b['distance']} items away, and the measured deltas):")
     return head + "\n" + "\n".join(rows)
 
 
