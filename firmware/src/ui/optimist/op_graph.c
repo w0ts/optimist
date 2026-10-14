@@ -654,6 +654,8 @@ static void draw_modal(void)
     if (a[0] && text_w(fl, q) <= MODAL_W) {
         int32_t x;
         v[str_len(v) - 1u] = ' ';                       /* "Clear? " -> "Clear " (the "?" goes after the target) */
+        if (!ui.arm_raw && a[0] >= 'A' && a[0] <= 'Z' && a[1] >= 'a' && a[1] <= 'z')
+            a[0] = (char)(a[0] + 32);                   /* (one sentence: "New project?"; "Init T1?" keeps T1) */
         x = cv_text(120 - text_w(fl, q) / 2, 30, fl, v, C_WHITE);
         x = cv_text(x, 30, fl, a, tc);
         cv_text(x, 30, fl, "?", C_WHITE);
@@ -668,7 +670,12 @@ static void draw_modal(void)
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
 {
     char m[sizeof ui.msg];
-    int32_t w = text_w(&FONT_S, op_case(m, ui.msg, sizeof m)) + 24;   /* "T1 cleared" */
+    int32_t w;
+    if (ui.toast_col)                                   /* a preset, a kit, a lane's sound: its name as stored */
+        str_cpy(m, ui.msg, sizeof m);
+    else
+        op_case(m, ui.msg, sizeof m);                   /* our words: "T1 cleared" */
+    w = text_w(&FONT_S, m) + 24;
     uint32_t st = ui.msg_st ? ui.msg_st : msg_status(ui.msg);   /* (the whole message: "DR CLEARED" is green) */
     w = w > 236 ? 236 : w;
     cv_begin((uint32_t)w, 36, C_BLACK);

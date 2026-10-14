@@ -126,7 +126,7 @@ static void gtu_memory_tests(void)
         char t[32], p[12];
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
         head_pos(ui.scr, ui.row[ui.scr], p);
-        check(strstr(t, "GATER") != 0 && strchr(p, '/') != 0, "... the header names it and counts it (n/N)");
+        check(strstr(t, "Gater") != 0 && strchr(p, '/') != 0, "... the header names it and counts it (n/N)");
     }
     tap(B_HOME);
     gtu_fresh();

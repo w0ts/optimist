@@ -133,7 +133,7 @@ static void mixer_sets_tests(void)
         cell_t c;
         mx.set = 1;
         mix_cell(MXR_T1, 0, &c);
-        check(c.d == &INS_DESC[0] && !strcmp(c.label, "S1") && !strcmp(c.val, FELUCCA_FX_DIST ? "DST" : "----"),
+        check(c.d == &INS_DESC[0] && !strcmp(c.label, "S1") && !strcmp(c.val, FELUCCA_FX_DIST ? "DIST" : "----"),
               "the second set, the inserts: S1's TYPE first (DIST by default)");
         mix_cell(MXR_T1, 1, &c);
         check(!FELUCCA_FX_DIST || c.d == &TP[P_DIST], "... then S1's amount (DST)");
@@ -202,7 +202,7 @@ static void mixer_sets_tests(void)
         ui.row[SCR_HOME] = MXR_MASTER;
         mx.set = (uint8_t)rs;
         head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
-        check(!strcmp(h, "MIX RETURNS"), "MASTER's last set: the header names it (Mix returns)");
+        check(!strcmp(h, "Mix returns"), "MASTER's last set: the header names it (Mix returns)");
         mix_cell(MXR_MASTER, 0, &c);
         check(!c.d && !strcmp(c.val, "-"), "... S1 empty (the master slots hold the sends only): \"-\"");
         mix_cell(MXR_MASTER, 3, &c);
@@ -233,7 +233,7 @@ static void mixer_sets_tests(void)
     {
         char h[40];
         head_title(SCR_HOME, mx_row(), h, sizeof h);
-        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 INSERT"), "SELECT: the next knob set; the header names the row and the set (T1 insert)");
+        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 insert"), "SELECT: the next knob set; the header names the row and the set (T1 insert)");
     }
     ui.force = 1;
     frame();

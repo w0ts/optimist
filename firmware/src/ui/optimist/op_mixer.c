@@ -153,7 +153,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
                                                          * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,
                                                          * no CUT, DRIVE, DST, CMP, sends or sound */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_AMUTE, 0);
-        return mx_add(it, n, MG_MIX, "LEVEL", MI_ACC, 0);
+        return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);   /* (the amount, as the SOUND row's ACCENT card: a velocity, not dB) */
     }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */

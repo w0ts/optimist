@@ -983,7 +983,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
                 char d[3] = {'.', (char)('0' + f % 10), 0};
                 str_cpy(c->val + str_len(c->val), d, sizeof c->val - str_len(c->val));
             }
-            c->unit = "ST";
+            c->unit = "steps";
             cell_gauge(c, 0, 0, (int32_t)trk_len(t) * 10, f < 0 ? (int32_t)n * 10 : f);
             return;
         }

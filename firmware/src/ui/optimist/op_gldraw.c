@@ -74,7 +74,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     if (on)
         cv_rect(0, y, 240, ph - 2, bg);
     cv_text(6, ty, &FONT_S, m, on ? C_WHITE : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
-    cv_text(24, ty, &FONT_S, cut(b, op_label(b, c->label ? c->label : "", sizeof b), 12), on ? C_WHITE : C_GRAY);
+    cv_text(24, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? C_WHITE : C_GRAY);
     cut(b, v, 13);
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - (uw ? 4 : 0) - text_w(&FONT_S, b);   /* (a unit: 4 px after the value) */
     cv_text(x, ty, &FONT_S, b, ink);
@@ -110,7 +110,7 @@ static void gl_info_draw(int32_t y0)
         vc = c.col ? c.col : C_AMB;
         ty = y + (ph - (int32_t)FONT_S.h - 3 - 3) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
-        cv_text(6, ty, &FONT_S, op_label(b, c.label, sizeof b), C_GRAY);
+        cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);
         x = 236 - uw - (uw ? 4 : 0) - text_w(&FONT_S, c.val);
         cv_text(x, ty, &FONT_S, cut(lv, c.val, 13), vc);
         if (uw)
