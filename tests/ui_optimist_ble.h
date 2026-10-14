@@ -175,7 +175,7 @@ static void ble_dev_tests(void)
     check(!strcmp(dev_status(), "ENTER THIS CODE ON THE PHONE") && ble_connect_passkey() == 42u,
           "devices: pairing with a code: the prompt and the 6-digit code (000042)");
     dev_screen("opt-ble-devices-passkey");
-    check(px_in(60, (uint32_t)OP_PY + 70u, 130, 36, C_WHITE), "devices: the code is drawn large in the middle of the panel");
+    check(px_in(60, (uint32_t)OP_PY + OH_BODY / 2u - 6u, 130, 28, C_WHITE), "devices: the code is drawn large in the middle of the panel");
     {
         struct ble_keys k;
         memset(&k, 0, sizeof k);

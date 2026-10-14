@@ -8,17 +8,27 @@
  *                afresh (SLOOP's ui_draw.c is not called)
  *   the modal    a question over the panel: the verb big, its target big in its colour, "SAVE yes" / "HOME no";
  *                a red frame when it destroys or replaces the work, amber otherwise. The toast: a result, small */
-#define OY_HEAD 0                       /* the bands (op_draw.c): the header, the cards, the panel (no footer) */
+#define OY_HEAD 0                       /* the bands (op_draw.c): the header, the cards, the panel, the help band */
 #define OH_HEAD 25
 #define OY_CARD 28
 #define OH_CARD 45
 #define OY_PANEL 76
 #define OH_PANEL 123
 #define OH_CARD_2X2 93                  /* the cards 2x2: the big values' band, two rows of BIG_H + 1 */
-#define OY_PANEL_2X2 123                /* ... and the panel under it, 117 rows to the screen's foot */
+#define OY_PANEL_2X2 123                /* ... and the panel under it, to the help band (99 rows; 117 without one) */
+/* the help band (the audit's #6, style guide 9): the screen's last 18 rows belong to the help line (op_help.c) in a build
+ * that has one, whether it shows or not: every screen's content ends above it (the panel, STEP's grid, the mixer's rows,
+ * GLOBAL's list, a layer's tiles), so the line never covers anything and nothing moves when it comes and goes. A build
+ * without the help line has no band: the panel runs to the screen's foot */
+#if FELUCCA_PARAM_HELP
+#define OP_FOOT 18
+#else
+#define OP_FOOT 0
+#endif
+#define OP_FOOT_Y (240 - OP_FOOT)       /* the band's first row: no band draws from here down but the help line's */
 #define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel: 2x2, the mixer 1x4 */
 #define OP_PY (cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)
-#define OP_PH (240 - OP_PY)
+#define OP_PH (OP_FOOT_Y - OP_PY)
 #define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
 #define CARD_W 57
@@ -93,8 +103,8 @@ static const page_t *snd_graph_page(uint32_t r)
 {
     const page_t *p = snd_page(r), *q;
     uint32_t i, n = snd_rows();
-    if (!p || has_graph(p))
-        return p;
+    if (!p || has_graph(p) || (p->fam == FAM_FX && p->scope != SC_DSND))
+        return p;                                       /* (an FX page: its own values, never a neighbour's: #31) */
     for (i = r; i-- > 0u && (q = snd_page(i)) != 0 && q->fam == p->fam;)
         if (has_graph(q))
             return q;
@@ -200,24 +210,40 @@ static void graph_lfo2(uint16_t col)
     cv_line(0, mid, 239, mid, C_LINE);
 }
 #endif
-/* SENDS, INSERTS, BUS SENDS: the amounts as needles, one under each card (SLOOP's graph_fx, copied; params.c
- * fx_needle: an INSERTS TYPE card, an empty slot: none); grey when bypassed */
-static void graph_fx(uint32_t g, uint16_t c)
+/* a SOUND FX page's picture (SENDS, INSERTS, BUS SENDS, COMP, SLICER...): its own four values as needles (SLOOP's
+ * graph_fx's look), read from the page's own cells, so the needles are the cards' values in the cards' order (the audit's
+ * #31: SLOOP's fx_needle read SLOOP's page order, CHO DLY REV under REV DLY CHO). Placed for the 2x2 cards: under each
+ * card's column, the top card's needle left of the bottom one's (KNOB 1 x 32, KNOB 3 x 90 | KNOB 2 x 150, KNOB 4 x 208),
+ * each named under it with its card's label. A value with no form, an insert's TYPE card, an empty slot: no needle;
+ * grey when the track's FX are bypassed, or the insert slot has no instance */
+static const char *card_label(const cell_t *c, char *b, uint32_t n);   /* op_draw.c (the names table's card form) */
+#define FXN_X(k) (((k) & 1u ? 121 : 3) + ((k) & 2u ? 87 : 29))
+static void graph_fx(const page_t *pg, uint16_t c)
 {
-    const track_t *t = TSEL;
-    uint32_t i;
-    int32_t top = 4, bot = GRAPH_H - 4;
-    if (!fx_on(t))
+    uint32_t k;
+    int32_t top = 4, bot = GRAPH_H - 20;
+    if (!fx_on(TSEL))
         c = C_DIM;
-    for (i = 0; i < 4u; i++) {
-        int32_t v = fx_needle(g, i), h = (v < 0 ? 0 : v) * (bot - top) / 127, x = CARD_X(i) + CARD_W / 2;
-        uint16_t nc = g == GR_INS && fxi_state(song.sel, i >> 1) == FXI_FULL ? C_DIM : c;   /* (a slot with no instance: grey) */
-        if (v < 0)
+    for (k = 0; k < 4u && bot - top > 4; k++) {
+        cell_t e;
+        char b[16];
+        uint32_t id = page_id(pg, k);
+        int32_t x = FXN_X(k), h, span;
+        uint16_t nc = pg->graph == GR_INS && fxi_state(song.sel, k >> 1) == FXI_FULL ? C_DIM : c;   /* (a slot with no instance) */
+        page_cell(pg, k, &e);
+        span = e.gmax - e.gmin;
+        if (!e.label || e.gk == GK_NONE || span <= 0 || (id >= PID_INST && id < PID_INST + INS_N))
             continue;
-        h = h > bot - top ? bot - top : h;
+        h = e.gk == GK_BIP ? (e.gv < 0 ? -e.gv : e.gv) * (bot - top) / (span / 2 > 0 ? span / 2 : 1)
+                           : (e.gv - e.gmin) * (bot - top) / span;
+        h = h < 0 ? 0 : h > bot - top ? bot - top : h;
         cv_rect(x, top, 1, bot - top, C_LINE);
         cv_rect(x, bot - h, 1, h, nc);
         cv_rect(x - 3, bot - h, 7, 1, nc);
+        {
+            const char *l = card_label(&e, b, sizeof b);
+            cv_text(x - text_w(&FONT_S, l) / 2, bot + 2, &FONT_S, l, C_GRAY);
+        }
     }
 }
 /* the scale on an octave of keys: the black keys high, the white low, the scale's notes lit, the root white
@@ -578,7 +604,7 @@ static void draw_sound_graph(const page_t *pg)
     case GR_FX:
     case GR_INS:
     case GR_BUS:
-        graph_fx(pg->graph, col);
+        graph_fx(pg, col);
         break;
     case GR_SCALE:
         graph_scale(col);
@@ -597,6 +623,8 @@ static void draw_sound_graph(const page_t *pg)
     default:
         if (pg->scope == SC_DSND && pg->fam == FAM_ENV)
             graph_denv();                               /* (the drum track's ENV: the lane's envelope) */
+        else if (pg->fam == FAM_FX && pg->scope != SC_DSND)
+            graph_fx(pg, col);                          /* (an FX page with no picture of SLOOP's: its own needles, #31) */
         else
             graph_lane();
         break;
@@ -663,8 +691,8 @@ static void draw_modal(void)
         cv_text(120 - text_w(fl, v) / 2, 12, fl, v, C_WHITE);
         cv_text(120 - text_w(ft, a) / 2, 50, ft, a, tc);
     }
-    cv_text(24, 96, &FONT_S, "Home no", C_GRAY);       /* (as the panel: HOME left of SAVE) */
-    cv_text(216 - text_w(&FONT_S, "Save yes"), 96, &FONT_S, "Save yes", C_WHITE);
+    cv_text(24, MODAL_H - 21, &FONT_S, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
+    cv_text(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, &FONT_S, "Save yes", C_WHITE);
     cv_blit(0, OP_PY);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */

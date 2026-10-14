@@ -7,15 +7,10 @@
  * word: gl_val), the value's form under it: a bar over the screen's width, a segmented one for a short list, an on / off
  * value a square mark at the right instead (filled on, outlined off). The cursor line: a bar in the track's colour, ink
  * on it. Lazy, as every band: drawn again when its signature changes. */
-#define GL_TOP OH_HEAD                  /* the list: under the header, to the screen's foot */
-#define GL_BAND (240 - OH_HEAD)
-#if FELUCCA_PARAM_HELP
-#define GL_FOOT 18                      /* the help line's rows (op_help.c HL_H) */
-#else
-#define GL_FOOT 0
-#endif
+#define GL_TOP OH_HEAD                  /* the list: under the header, to the help band (op_graph.c OP_FOOT) */
+#define GL_BAND (OP_FOOT_Y - OH_HEAD)
 #define GL_TOP_Y 3                      /* the page title's top, in the band */
-#define GL_END (GL_BAND - GL_FOOT - 2)  /* the lines' room ends here */
+#define GL_END (GL_BAND - 2)            /* the lines' room ends here */
 #define GL_BX 6                         /* the value bar: the screen's width less a margin each side */
 #define GL_BW 228
 #define GL_BH 4                         /* its thickness */
@@ -76,7 +71,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     cv_text(6, ty, &FONT_S, m, on ? C_WHITE : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
     cv_text(24, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? C_WHITE : C_GRAY);
     cut(b, v, 13);
-    x = (tog ? 236 - GL_CK - 6 : 236) - uw - (uw ? 4 : 0) - text_w(&FONT_S, b);   /* (a unit: 4 px after the value) */
+    x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(&FONT_S, b);   /* (a unit right after the number: "90BPM", style guide 5) */
     cv_text(x, ty, &FONT_S, b, ink);
     if (uw)
         cv_text(236 - uw, ty, &FONT_S, c->unit, on ? C_WHITE : C_DIM);
@@ -111,7 +106,7 @@ static void gl_info_draw(int32_t y0)
         ty = y + (ph - (int32_t)FONT_S.h - 3 - 3) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
         cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);
-        x = 236 - uw - (uw ? 4 : 0) - text_w(&FONT_S, c.val);
+        x = 236 - uw - text_w(&FONT_S, c.val);
         cv_text(x, ty, &FONT_S, cut(lv, c.val, 13), vc);
         if (uw)
             cv_text(236 - uw, ty, &FONT_S, c.unit, C_DIM);

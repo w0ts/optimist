@@ -3,11 +3,13 @@
  * step's, the mixer's sets, the master FX, PROJECT, SONG, TEMPO, SCOPE:
  *   titles   the header's title is never cut: it fits whole with its n/N next to the badge ("2 DIGITAL", "4 ACCENT")
  *   cards    every card label is in capitals and at most 6 characters (an action's object 8)
- *   cells    every list cell is whole (a 4-letter form from the table, never a value cut at 4)
+ *   cells    every list cell is whole (a 4-letter form from the table, never a value cut at 4), and every value of a list
+ *            parameter shows whole in its row as the row stands (op_draw.c row_layout: a 5-letter "BLUES", "REUSE", "L1 RT"
+ *            reflows the row; batch B)
  *   rows     a list row's name is the header's title (the same words, the same case)
  * NAMES_DUMP=file writes every title, label and cell met (the audit's raw list). Included after ui_optimist_hdrnum.h. */
 static FILE *nm_dump;
-static uint32_t nm_bad, nm_seen, nm_long;
+static uint32_t nm_bad, nm_seen, nm_long, nm_vals;
 static void nm_fail(const char *what, const char *a, const char *b)
 {
     if (nm_bad < 40u)
@@ -47,16 +49,25 @@ static int nm_upper(const char *s)                      /* no lowercase letter *
             return 0;
     return 1;
 }
+static int nm_stored(const cell_t *c)                  /* a stored name: the SOUND row's (#36 of the audit) */
+{
+    return c->label && (str_eq(c->label, "PRESET") || str_eq(c->label, "KIT") || str_eq(c->label, "LANE") ||
+                        str_eq(c->label, "SOUND"));
+}
 /* the cards and the list cells of row r of the screen shown */
 static void nm_cells(uint32_t r)
 {
     uint32_t k;
-    int rc;
-    cell_t c;
+    int rc, list = ui.scr != SCR_STEP && ui.scr != SCR_TEMPO && ui.scr != SCR_SCOPE;   /* (never a list: a picture) */
+    cell_t c, row[4];
+    rowl_t L;
     char b[32], w[40], nm[16];
     SCR->name(r, nm);
+    for (k = 0; k < 4u; k++)
+        SCR->cell(r, k, &row[k]);
+    row_layout(row, &L, LC_END(236));                   /* (the narrower row: a list that scrolls) */
     for (k = 0; k < 4u; k++) {
-        SCR->cell(r, k, &c);
+        c = row[k];
         if (c.label && c.label[0]) {
             const char *lab = card_label(&c, b, sizeof b);
             uint32_t mx = c.kind == CK_ACT ? 8u : 6u;
@@ -65,14 +76,12 @@ static void nm_cells(uint32_t r)
             if (!nm_upper(lab) || str_len(lab) > mx)
                 nm_fail("card label", lab, nm);
         }
-        if (ui.scr != SCR_STEP && ui.scr != SCR_TEMPO && ui.scr != SCR_SCOPE &&   /* (never a list: a picture) */
-            (rc = row_cell_text(r, k, &c, b, sizeof b)) != 0) {
-            int name = c.label && (str_eq(c.label, "PRESET") || str_eq(c.label, "KIT") || str_eq(c.label, "LANE") ||
-                                   str_eq(c.label, "SOUND"));   /* (a stored name: the SOUND row's, #36 of the audit) */
+        if (list && L.t[k][0]) {
+            rc = (L.cut >> k) & 1u ? 2 : 1;
             if (nm_dump)
-                fprintf(nm_dump, "L|%s|%s|%s|%s\n", nm_where(w, sizeof w), nm, c.kind == CK_ACT ? (c.val[0] ? c.val : c.label) : c.val, b);
-            if (rc == 2 && !name)
-                nm_fail("list cell cut", b, nm);
+                fprintf(nm_dump, "L|%s|%s|%s|%s\n", nm_where(w, sizeof w), nm, c.kind == CK_ACT ? (c.val[0] ? c.val : c.label) : c.val, L.t[k]);
+            if (rc == 2 && !nm_stored(&c))
+                nm_fail("list cell cut", L.t[k], nm);
         }
         if (c.d && (c.d->fmt == F_ENUM || c.d->fmt == F_ONOFF) && c.gk != GK_NONE) {   /* every value of a list: its cell whole */
             int32_t v;
@@ -82,7 +91,17 @@ static void nm_cells(uint32_t r)
                 param_format(c.d, v, val, &u);
                 if (nm_dump)
                     fprintf(nm_dump, "E|%s|%s|%s\n", c.label, val, nm_cell(val));
-                nm_long += str_len(nm_cell(val)) > 4u;   /* (SLOOP's 5-letter list names: counted, the cell's width is batch B's) */
+                nm_long += str_len(nm_cell(val)) > 4u;   /* (SLOOP's 5-letter list names: whole, the row reflowed) */
+                if (list) {                             /* this value in its row, the others as they stand: whole */
+                    cell_t vr[4];
+                    rowl_t VL;
+                    memcpy(vr, row, sizeof vr);
+                    str_cpy(vr[k].val, val, sizeof vr[k].val);
+                    row_layout(vr, &VL, LC_END(236));
+                    nm_vals++;
+                    if ((VL.cut >> k) & 1u)
+                        nm_fail("list value cut in its row", val, nm);
+                }
             }
         }
     }
@@ -264,7 +283,7 @@ static void names_tests(void)
     nm_settings();
     if (nm_dump)
         fclose(nm_dump);
-    printf("  names: %u headers walked; %u list values longer than a cell (5-letter list names, drawn cut when picked)\n", nm_seen, nm_long);
+    printf("  names: %u headers walked; %u list values longer than 4 letters, %u values laid out in their rows: none cut\n", nm_seen, nm_long, nm_vals);
     check(nm_seen > 200u, "names: every screen, engine, lane and page walked");
     check(!nm_bad, "names: no title cut, every card label in capitals (6 at most), no list cell cut");
     song.g[G_BPM] = bpm;

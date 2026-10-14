@@ -75,16 +75,19 @@ static uint32_t f6_graph_sig(void)                      /* what the algorithm's 
         sig = sig * 31u + (v[FM6_OPB(op + 1u) + FO_OL] != 0 && v[FV_ON + op]);
     return sig;
 }
-/* the algorithm in rows y0 .. y0 + h of the canvas begun (big: larger boxes, the key to the colours) */
+/* the algorithm in rows y0 .. y0 + h of the canvas begun (big: ENV held's map, the key to the colours). The boxes as tall
+ * as the rows let them be, never less than their number (the audit's #25: 12 rows, the digit's 10 of ink and a row of
+ * air each side); rows too short for that: the numbers alone, in the boxes' colours. Each number in its box's middle */
+#define F6_INK 10                       /* a digit's rows of ink (Terminus: rows 2..11 of 16) */
 static void f6_alg_draw(int32_t y0, int32_t h, int big)
 {
     const int16_t *v = f6_ed();
     uint8_t mods[6], car, fb;
     f6_node_t nd[6];
     int16_t cols = 0, rows = 0, cw, rh, px[6], py[6];
-    int32_t tall = !big && h >= 100;                    /* (SOUND's FM6 rows, the rows few: a taller picture, larger boxes) */
-    int32_t bw = big ? 14 : tall ? 13 : 10, bh = big ? 9 : tall ? 10 : 7, foot = big ? 18 : 12, rmax = big ? 30 : tall ? 38 : 24,
-            cmax = big ? 56 : tall ? 52 : 40;
+    int32_t tall = !big && h >= 90;                     /* (SOUND's FM6 rows, the rows few: a taller picture, larger boxes) */
+    int32_t bw = big ? 14 : tall ? 13 : 10, bh = big ? 7 : tall ? 10 : 7, foot = big ? 6 : 12, rmax = big ? 24 : tall ? 38 : 24,
+            cmax = big ? 56 : tall ? 52 : 40, boxed;
     uint32_t op, m, sel = f6_kind(f6.row) == 0u ? f6.target : 6u;
     uint16_t ec = trk_col(song.sel);
     char b[8];
@@ -102,6 +105,9 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
     cw = (int16_t)(cols ? (236 / cols > cmax ? cmax : 236 / cols) : cmax);
     rh = (int16_t)(rows ? ((h - foot) / rows > rmax ? rmax : (h - foot) / rows) : rmax);
     bh = bh * 2 > rh - 2 ? (rh - 2) / 2 : bh;
+    boxed = 2 * bh >= F6_INK + 2;                       /* (room for the number inside its box) */
+    if (!boxed)
+        bh = F6_INK / 2;                                /* (the wires to the number's ink) */
     for (op = 0; op < 6u; op++) {
         px[op] = (int16_t)((240 - cols * cw) / 2 + nd[op].x2 * cw / 2);
         py[op] = (int16_t)(y0 + h - foot - nd[op].row * rh - rh / 2);
@@ -113,32 +119,35 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
             if ((mods[op] >> m) & 1u && nd[m].row >= 0)
                 cv_line(px[m], py[m] + bh, px[op], py[op] - bh, C_DIM);
         if ((car >> op) & 1u)
-            cv_line(px[op], py[op] + bh, px[op], y0 + h - foot + 6, C_DIM);
+            cv_line(px[op], py[op] + bh, px[op], y0 + h - foot / 2, C_DIM);
         if ((fb >> op) & 1u)                            /* lit while its feedback is above 0 */
             f6_loop(px[op], py[op], bw, bh, v[FV_FB] ? C_GRAY : C_LINE);
     }
     if (cols)                                           /* the output */
-        cv_rect((240 - cols * cw) / 2 + cw / 4, y0 + h - foot + 6, cols * cw - cw / 2, 1, C_DIM);
+        cv_rect((240 - cols * cw) / 2 + cw / 4, y0 + h - foot / 2, cols * cw - cw / 2, 1, C_DIM);
     for (op = 0; op < 6u; op++) {
         char n[2] = {(char)('1' + op), 0};
         int on = op == sel, mute = !v[FM6_OPB(op + 1u) + FO_OL] || !v[FV_ON + op];
         uint16_t box = on ? C_WHITE : (car >> op) & 1u ? (mute ? col_shade(ec, 2u) : ec) : C_BLACK;
         if (nd[op].row < 0)
             continue;
-        if (box == C_BLACK)                             /* a modulator: outlined on black, brighter when it sounds */
+        if (!boxed)                                     /* (no room for a box: the number alone, in its box's colour) */
+            cv_text(px[op] - 4, py[op] - 7, &FONT_S, n, box == C_BLACK ? (mute ? C_DIM : C_GRAY) : box);
+        else if (box == C_BLACK)                        /* a modulator: outlined on black, brighter when it sounds */
             cv_frame(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, mute ? C_LINE : C_GRAY);
         else
             cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, box);
-        cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
+        if (boxed)                                      /* (its ink, rows 2..11, in the box's middle) */
+            cv_text(px[op] - 4, py[op] - 7, &FONT_S, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
     }
     str_cpy(b, "Alg ", sizeof b);                       /* "Alg 5", the feedback */
     fmt_int(b + 4, v[FV_ALG] + 1);
     cv_text(4, y0 + 1, &FONT_S, b, C_GRAY);
-    if (big) {
+    if (big) {                                          /* (one line: "Car" in the carriers' colour, the feedback) */
         str_cpy(b, "Fb ", sizeof b);
         fmt_int(b + 3, v[FV_FB]);
-        cv_text(236 - text_w(&FONT_S, "Car"), y0 + 1, &FONT_S, "Car", ec);
-        cv_text(236 - text_w(&FONT_S, b), y0 + 17, &FONT_S, b, v[FV_FB] ? C_GRAY : C_DIM);
+        cv_text(236 - text_w(&FONT_S, b) - 8 - text_w(&FONT_S, "Car"), y0 + 1, &FONT_S, "Car", ec);
+        cv_text(236 - text_w(&FONT_S, b), y0 + 1, &FONT_S, b, v[FV_FB] ? C_GRAY : C_DIM);
     }
 }
 
@@ -155,8 +164,11 @@ static void fm6_lay_title(char *t, uint32_t n)          /* "FM6 OP3", "FM6 PIT",
         str_cpy(t + 4, kd == 1u ? "PIT" : "GLO", n - 4u);
     }
 }
-#define F6_MAP_Y (cards_2x2() ? 80 : 96)                                    /* the black keys' map in the panel */
-static void fm6_lay_paint(void)                         /* (cv_tall: the panel to the screen's foot, no footer) */
+/* the panel, top down: the voice and the page (a line), the algorithm, the black keys' map at the foot (to the help band) */
+#define F6_KEY_H 20                                     /* a key of the map */
+#define F6_KEY_Y ((int32_t)OH_BODY - F6_KEY_H - 1)      /* the map's top */
+#define F6_ALG_Y 15                                     /* the algorithm's top, under the voice's line (4 rows of 14 over the help band) */
+static void fm6_lay_paint(void)                         /* (cv_tall: the panel to the help band, no footer) */
 {
     static const char *const KEYS[10] = {"1", "2", "3", "4", "5", "6", "PI", "GL", "MO", "PO"};
     static const uint8_t KT[10] = {0, 1, 2, 3, 4, 5, FMT_PIT, FMT_GLO, FMT_MONO, FMT_POLY};
@@ -166,17 +178,17 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
     uint16_t ec = trk_col(song.sel);
     fm6_name(nm, f6_ed());
     fm6_row_name(f6.row, pg);
-    f6_alg_draw(0, F6_MAP_Y - 18, 1);
-    cv_text(4, F6_MAP_Y - 17, &FONT_S, nm, C_WHITE);   /* the voice (its name as stored), the page (the names table's) */
+    cv_text(4, 0, &FONT_S, nm, C_WHITE);                /* the voice (its name as stored), the page (the names table's) */
     nm_title(pg, c, sizeof c);
-    cv_text(236 - text_w(&FONT_S, c), F6_MAP_Y - 17, &FONT_S, c, C_GRAY);
+    cv_text(236 - text_w(&FONT_S, c), 0, &FONT_S, c, C_GRAY);
+    f6_alg_draw(F6_ALG_Y, F6_KEY_Y - F6_ALG_Y, 1);
     for (i = 0; i < 10u; i++) {
         uint32_t on = (KT[i] < 6u && kd == 0u && KT[i] == f6.target) || (KT[i] == FMT_PIT && kd == 1u) ||
                       (KT[i] == FMT_GLO && kd == 2u) || (KT[i] == FMT_MONO && (voice == V_MONO || voice == V_LEGATO)) ||
                       (KT[i] == FMT_POLY && voice == V_POLY);
         int32_t x = 6 + (int32_t)i * 21 + (int32_t)GROUP[i] * 6;
-        cv_box(x, F6_MAP_Y + 2, 19, 22, on ? C_WHITE : C_BLACK);
-        cv_text(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_MAP_Y + 5, &FONT_S, KEYS[i], on ? C_BLACK : ec);
+        cv_box(x, F6_KEY_Y, 19, F6_KEY_H, on ? C_WHITE : C_BLACK);
+        cv_text(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_KEY_Y + (F6_KEY_H - F6_INK) / 2 - 2, &FONT_S, KEYS[i], on ? C_BLACK : ec);
     }
 }
 static void fm6_lay_draw(void)

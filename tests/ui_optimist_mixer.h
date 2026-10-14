@@ -28,9 +28,9 @@ static void mixer_walk_tests(void)
     reset_ui();
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == 41 &&
+    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == (OP_FOOT ? 36 : 41) &&
               px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
-          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (MASTER above, out of view)");
+          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (36 over the help band; MASTER above, out of view)");
     for (i = 1; i < MXR_N - MXR_T1; i++) {              /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
@@ -417,8 +417,8 @@ static void mixer_rows_tests(void)
         reset_ui();
         ui.force = 1;
         frame();
-        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
-              "the mixer keeps the 1x4 cards and its four 41 px rows (every other screen is 2x2)");
+        check(!cards_2x2() && MXL_H == (OP_FOOT ? 36 : 41) && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
+              "the mixer keeps the 1x4 cards and its four rows of 41 (36) px (every other screen is 2x2)");
         ppm("opt-mixer-h-2x2");
         reset_ui();
     }

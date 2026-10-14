@@ -44,6 +44,12 @@ static const char NM_CELL[] =
     "MODAL\0MODL\0"              "PIANO\0PNO\0"               "SMOOT\0SMTH\0"              "RATIO\0RTIO\0"
     "PEDAL\0PEDL\0"              "MARK \0MARK\0"
     "\0";
+/* a card label's narrow form, for the mixer's 1x4 cards only (57 px): where the label and its unit cannot share the label
+ * row (6 letters and a unit, 5 and "dB": 8 px a letter, the unit right-aligned), the label gives way, never the unit
+ * (style guide 5); the forms are the names table's own (the cell's LVL, the send's REV DLY CHO on MASTER's returns) */
+static const char NM_NARROW[] =
+    "LEVEL\0LVL\0"               "REV RT\0REV\0"              "DLY RT\0DLY\0"              "CHO RT\0CHO\0"
+    "\0";
 /* key k against s: 1 when it matches whole ('#' any digit, its digit into *dg) */
 static int nm_match(const char *k, const char *s, char *dg)
 {
@@ -83,6 +89,8 @@ static const char *nm_card(const char *s, const char *eng, char *b, uint32_t n)
         return b;
     return s;
 }
+/* a card label's narrow form (NM_NARROW), or s as it is: b holds n */
+static const char *nm_narrow(const char *s, char *b, uint32_t n) { return nm_find(NM_NARROW, s, 0, b, n) ? b : s; }
 /* a list cell's fixed form (4 characters), or s as it is */
 static const char *nm_cell(const char *s)
 {

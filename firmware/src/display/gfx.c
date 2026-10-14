@@ -76,21 +76,7 @@ static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
         cv_px[i] = swap16(bg);
 }
 
-#if FELUCCA_UI == 1 && FELUCCA_PARAM_HELP
-/* the Optimist UI's help line (ui/optimist/op_help.c): while it shows, no blit reaches the screen's rows from cv_clip down */
-static uint32_t cv_clip = 240u;
-static void cv_blit(uint32_t x, uint32_t y)
-{
-    if (y < cv_clip)
-        lcd_blit(x, y, cv_w, y + cv_h > cv_clip ? cv_clip - y : cv_h, cv_px);
-}
-/* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
-static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
-{
-    if (r0 < cv_h && y + r0 < cv_clip)
-        lcd_blit(x, y + r0, cv_w, y + cv_h > cv_clip ? cv_clip - y - r0 : cv_h - r0, cv_px + r0 * cv_w);
-}
-#else
+/* (the Optimist UI's help line has a band of its own, op_graph.c OP_FOOT: no clip) */
 static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x, y, cv_w, cv_h, cv_px); }
 
 /* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
@@ -99,7 +85,6 @@ static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
     if (r0 < cv_h)
         lcd_blit(x, y + r0, cv_w, cv_h - r0, cv_px + r0 * cv_w);
 }
-#endif
 
 static inline void cv_pset(int32_t x, int32_t y, uint16_t c)
 {
