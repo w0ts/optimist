@@ -2,3 +2,5 @@
 # installs them into tools/builder/venv after requirements.txt; a failure here only turns flashing off.
 mido>=1.3
 python-rtmidi>=1.5
+# The serial console tools (tools/fm1_console.py, tools/fm1_cpu.py) on a build with FELUCCA_CDC=1.
+pyserial>=3.5

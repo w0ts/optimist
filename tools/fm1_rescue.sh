@@ -5,8 +5,8 @@
 #   bash tools/fm1_rescue.sh                  (stock V15; uses tools/fm1_rescue.py next to it; see OPTIMIST.md "Recovery")
 #   bash tools/fm1_rescue.sh PACKAGE.fwsc     (any known-good .fwsc instead; it is checked, named, and you type its hash)
 set -e
-DIR="$HOME/fm1-rescue"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(dirname "$HERE")/build/rescue"      # its venv, the stock package and the flash backups (build/ is not tracked)
 STOCK=db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a
 echo
 echo "=== FM-1 rescue ==="

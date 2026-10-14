@@ -17,10 +17,10 @@ up on USB as "WL80UBOOT1.00" (4C4A:8057). macOS then takes it for a
 disk, upsets it, and it reboots into the crash a few seconds later; this script waits for it,
 takes it away from macOS (hence sudo) and keeps it.
 
-  python3 -m venv ~/fm1-rescue && ~/fm1-rescue/bin/pip install pyusb libusb-package
-  sudo ~/fm1-rescue/bin/python fm1_rescue.py FM-1.fwsc            # check and back up, write nothing
-  sudo ~/fm1-rescue/bin/python fm1_rescue.py FM-1.fwsc --write    # then write stock
-  python3 fm1_rescue.py ANY.fwsc --check                          # validate a package, no USB, no sudo
+  python3 -m venv build/rescue/env && build/rescue/env/bin/pip install pyusb libusb-package
+  sudo build/rescue/env/bin/python tools/fm1_rescue.py FM-1.fwsc            # check and back up, write nothing
+  sudo build/rescue/env/bin/python tools/fm1_rescue.py FM-1.fwsc --write    # then write stock
+  python3 tools/fm1_rescue.py ANY.fwsc --check                              # validate a package, no USB, no sudo
 
 FM-1.fwsc is M-VAVE's FM-1 V15 (m-vave.com/download, PC Firmware), the default. ANY other known-good
 .fwsc (an earlier Optimist or Melodee build that booted) can be written too, but only after it passes the
@@ -520,7 +520,7 @@ def main(argv=None, open_dev=None, is_root=None):
                 import usb.core
                 import usb.util
             except ImportError:
-                raise Fail("pyusb is missing: ~/fm1-rescue/bin/pip install pyusb libusb-package")
+                raise Fail("pyusb is missing: build/rescue/env/bin/pip install pyusb libusb-package")
             errors = (Fail, usb.core.USBError)
             open_dev = lambda: open_device(usb, args.wait)
         else:
