@@ -197,6 +197,9 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "lforate_ui.c"            /* LFO RATE: the free gauge from 0, a synced value as a division */
 #include "sloop_gater_ui.c"         /* GATER (INS_GATER): its FX page, the cards, the picture and its playhead */
 #include "sloop_bp_ui.c"           /* SLOOP fixes backported into the SLOOP UI (each names its SLOOP issue) */
+#if FELUCCA_FAVORITES
+#include "favorites_ui.c"          /* favorites: PRESETS KNOB 3 FAV, KNOB 4 LIST */
+#endif
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -1500,6 +1503,9 @@ int main(int argc, char **argv)
     gater_sloop_tests();
 #endif
     sloop_bp_tests();
+#if FELUCCA_FAVORITES
+    favorites_ui_tests();
+#endif
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");

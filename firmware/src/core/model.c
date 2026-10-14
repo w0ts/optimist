@@ -19,6 +19,8 @@ static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
 static void sl24_auto_import(void);
 #endif
 #endif
+#define FAV_SAVE_LATER() (settings_later = 1)       /* (panel.c: written once the audio is quiet, project.c sections_flush) */
+#include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav, fav_list) */
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static uint32_t up_count(void);
@@ -286,7 +288,7 @@ static void bank_resolve(void)
 }
 #define NBANK ((uint32_t)bank_n)                     /* the factory entries */
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
-static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset */
+static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
 {
     uint32_t i, cur = 0;
     if (!bank_ready)
@@ -312,7 +314,7 @@ static uint32_t preset_pos(uint32_t *total)          /* list index of the select
 }
 
 /* list index n (< total) -> engine slot, *k its preset (PRESET_INIT: INIT); NENGINES = user preset, *k its slot */
-static uint32_t preset_at(uint32_t n, uint32_t *k)
+static uint32_t preset_all_at(uint32_t n, uint32_t *k)
 {
     if (!bank_ready)
         bank_resolve();
@@ -334,9 +336,86 @@ static uint32_t preset_at(uint32_t n, uint32_t *k)
     *k = bank_pi[bank_ix[n]];
     return eng_slot_built(BANK[bank_ix[n]].e);
 }
+/* the whole list's name of a sound as the lists show it, below; the favorites' view of the list (core/favorites.c):
+ * with LIST FAV the list is the marked sounds only. preset_pos / preset_at / preset_go's index are the list as shown;
+ * preset_src maps it to the whole list's (preset_kind labels the whole list's) */
 static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : n < NLIST ? "INIT" : "USER"; }
 /* the name of preset k of engine slot e as the lists show it */
 static const char *preset_name(uint32_t e, uint32_t k)
 {
     return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
 }
+#if FELUCCA_FAVORITES
+/* list entry (e, k) of preset_all_at: marked? The engines' own collections (NB_LIST) have no mark */
+static int fav_entry(uint32_t e, uint32_t k)
+{
+    if (e == NENGINES)
+        return fav_user_has(k);
+    return e < NENGINES && fav_has(eng_uid(e), preset_name(e, k));
+}
+static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset; >= *total: not in the list */
+{
+    uint32_t all, cur = preset_all_pos(&all), i, n = 0, pos = 0xFFFFFFFFu;
+    if (!fav_list) {
+        *total = all;
+        return cur;
+    }
+    for (i = 0; i < all; i++) {
+        uint32_t k, e = preset_all_at(i, &k);
+        if (!fav_entry(e, k))
+            continue;
+        if (i == cur)
+            pos = n;
+        n++;
+    }
+    *total = n;
+    return pos == 0xFFFFFFFFu ? n : pos;
+}
+static uint32_t preset_src(uint32_t n)               /* list index n -> the whole list's (its length: no such entry) */
+{
+    uint32_t all, i;
+    if (!fav_list)
+        return n;
+    preset_all_pos(&all);
+    for (i = 0; i < all; i++) {
+        uint32_t k, e = preset_all_at(i, &k);
+        if (fav_entry(e, k) && !n--)
+            return i;
+    }
+    return all;
+}
+static uint32_t preset_at(uint32_t n, uint32_t *k) { return preset_all_at(preset_src(n), k); }
+/* the selected track's sound as a list entry (e = engine slot, or NENGINES: user preset k): 0 if it has none to mark
+ * (the drum track, the engines' own collections, a factory sound the list does not hold) */
+static int fav_cur(uint32_t *e, uint32_t *k)
+{
+    uint32_t all, i, u, ke, kk;
+    if (is_drum(TSEL))
+        return 0;
+#if FELUCCA_NATIVE_BANKS
+    {
+        uint32_t at, r, n = nb_list(&r, ~0u, &at);
+        if (r < n)
+            return 0;
+    }
+#endif
+    u = user_of(TSEL);
+    ke = u < UP_SLOTS ? (uint32_t)NENGINES : TSEL->eng_req % NENGINES;
+    kk = u < UP_SLOTS ? u : TSEL->preset;
+    preset_all_pos(&all);
+    for (i = 0; i < all; i++) {
+        uint32_t k2, e2 = preset_all_at(i, &k2);
+        if (e2 == ke && k2 == kk) {
+            *e = ke;
+            *k = kk;
+            return 1;
+        }
+    }
+    return 0;
+}
+#else
+#define preset_pos preset_all_pos
+#define preset_at preset_all_at
+#define preset_src(n) (n)
+#define fav_list 0u
+#endif

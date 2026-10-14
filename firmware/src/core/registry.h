@@ -420,6 +420,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
                                             * out; SAVE > TOOLS > MISS lists it again (miss.c) */
 #endif
+#ifndef FELUCCA_FAVORITES
+#define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4
+                                            * LIST ALL / FAV (core/favorites.c, model.c; Felucca 1.6; SLOOP's UI) */
+#endif
 #ifndef FELUCCA_CHORD_NAMES
 #define FELUCCA_CHORD_NAMES 1              /* the STEP page names a step's chord: Am, Fmaj7, Bm7b5 (ui.c chord_name, from
                                             * isod89/sloop-fm1 PR #45) */

@@ -176,9 +176,7 @@ src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
 src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
 src/ui/sloop/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
 src/ui/sloop/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
-src/ui/sloop/ui_input.c:edit_param:(int32_t)total | guarded: "if (total)"
 src/ui/sloop/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
-src/ui/sloop/ui_input.c:ui_input:(int32_t)total | guarded: "else if (total)"
 src/ui/sloop/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
 src/ui/sloop/ui_layers.c:step_note_len:len | TLEN
 src/ui/sloop/ui_layers.c:step_note_resize:len | TLEN
@@ -271,3 +269,5 @@ src/ui/optimist/op_tools.c:eu_turn:(int32_t)tl.steps | eu_fit just before: tl.st
 src/system/bench.c:bench_rnd:m | the bench 16 (FELUCCA_BENCH only, never in a release build): every caller passes a non-zero constant (31, 128, 24, 64, 4, 6, 7)
 src/ui/optimist/op_graph.c:graph_fx:(span/2>0?span/2:1) | the ternary: never 0 (UI main loop)
 src/ui/optimist/op_graph.c:graph_fx:span | the loop skips a cell with span <= 0 just above (UI main loop)
+
+src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total

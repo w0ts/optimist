@@ -1397,36 +1397,6 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 
 /* settings + learned panel table: one flash object. The flash copy wins at
  * boot (the .noinit copies are garbage after a power-off). */
-typedef struct {
-    uint32_t magic, palette, lowcut, zoom;
-    panel_t panel;
-#if FELUCCA_ARRANGER
-    arr_rec_t arrangement;                         /* (16 parts; a longer song: the log, paired by its tag) */
-#endif
-    uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
-#if FELUCCA_BRIGHT || BP23_SET
-    uint32_t bright;                               /* appended (bright.c): 0 = full, now always written 0 and never
-                                                    * applied (a saved dim level froze an FM-1 at every boot: bright.c). A
-                                                    * build with BP23_SET and no BRIGHT keeps it as read (its place) */
-#endif
-#if BP23_SET
-    uint32_t bp23;                                 /* appended: the SLOOP 2.3 settings of the FM-1 (bp23_word) */
-#endif
-#if FELUCCA_BLE
-    uint8_t ble_addr[8];                           /* appended (midi_ble.c): the random static BLE address made once,
-                                                    * [6] its mark. Last, so every other build reads the rest as its own */
-    uint8_t ble_rf[BLE_RF_COPY_SIZE];              /* appended after it: the copy of the radio's stored trims (VM 106,
-                                                    * 107, 108, 187; ble/ble_vm.c, its own mark and CRC) */
-    uint8_t ble_bond[BLE_BOND_SIZE];               /* appended after it: a bonded central's key (midi_ble.c; zero
-                                                    * without SMP) */
-    uint8_t ble_dev[BLE_DEV_STORE_SIZE];           /* appended after it: the DEVICES list's LAST and choice (ble/
-                                                    * ble_store.h, io/midi/ble_devices.c; zero: nothing remembered) */
-#endif
-} persist_t;
-#define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
-#if FELUCCA_BRIGHT || BP23_SET
-#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
-#endif
 #include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
 /* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
@@ -1451,14 +1421,6 @@ static void settings_poll(void)                    /* main loop */
 }
 #endif
 #if FELUCCA_ARRANGER
-#define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
-#else
-#define PERSIST_MAGIC 0x50455232u
-#endif
-#if FELUCCA_FLASH
-static persist_t persist_saved;
-#endif
-#if FELUCCA_ARRANGER
 static uint16_t song_tag;                          /* the log's whole chain that goes with the settings record (sections.c) */
 #endif
 
@@ -1470,6 +1432,10 @@ static void sn_boot(void);                         /* snapshots.c */
 #include "sl24/sl24_guard.c"        /* SLOOP 2.4's projects, autosave, FM6 bank, samples kept (never erased), shown as 2.4's */
 #endif
 static uint32_t persist_view_kept;                 /* the settings record's last word as read, when not our VIEW */
+#endif
+#include "persist_rec.c"                      /* persist_t: the settings record's layout, persist_upgrade (older records) */
+#if FELUCCA_FLASH
+static persist_t persist_saved;
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
@@ -1533,61 +1499,7 @@ static void persist_boot(void)                    /* before settings_init / pane
         if (n < 0)
             n = sl25_set_load(&p, sizeof p);       /* (none of ours yet: their 88 bytes, read as 2.4's) */
 #endif
-#if FELUCCA_BLE
-        if (n == (int)__builtin_offsetof(persist_t, ble_dev)) {   /* saved by a BLE build before the device store */
-            memset(p.ble_dev, 0, sizeof p.ble_dev);
-            n = (int)sizeof p;
-        }
-        if (n == (int)__builtin_offsetof(persist_t, ble_bond)) {   /* saved by a BLE build before the bond */
-            memset(p.ble_bond, 0, sizeof p.ble_bond);
-            memset(p.ble_dev, 0, sizeof p.ble_dev);
-            n = (int)sizeof p;
-        }
-        if (n == (int)__builtin_offsetof(persist_t, ble_rf)) {   /* saved by a BLE build before the trim copy */
-            memset(p.ble_rf, 0, sizeof p.ble_rf);
-            memset(p.ble_bond, 0, sizeof p.ble_bond);
-            memset(p.ble_dev, 0, sizeof p.ble_dev);
-            n = (int)sizeof p;
-        }
-        if (n < (int)sizeof p) {                   /* saved by a build without BLE: no address yet, the rest ours */
-            memset(p.ble_addr, 0, sizeof p.ble_addr);
-            memset(p.ble_rf, 0, sizeof p.ble_rf);
-            memset(p.ble_bond, 0, sizeof p.ble_bond);
-            memset(p.ble_dev, 0, sizeof p.ble_dev);
-            if (n == (int)__builtin_offsetof(persist_t, ble_addr))
-                n = (int)sizeof p;
-        }
-#endif
-#if BP23_SET
-        if (n < (int)sizeof p) {                   /* a shorter record (an older build, one with fewer switches) */
-            if (n < PERSIST_NO_VIEW + 4)
-                p.view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
-            if (n < PERSIST_NO_BRIGHT + 4)
-                p.bright = 0;                      /* saved without BRIGHT: full */
-            p.bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
-#if FELUCCA_SL24_SAFE
-            if (n == PERSIST_NO_VIEW + 4 && p.magic == PERSIST_MAGIC && p.view > 1u)
-                p.bp23 = sl_word_in(p.view);       /* SLOOP 2.3 / 2.4's record: their lights word, NOTES inverted (sl24_guard.c) */
-#endif
-            if (n > PERSIST_NO_VIEW && p.magic == PERSIST_MAGIC)
-                n = (int)sizeof p;                 /* (the rest as ours) */
-        }
-#if FELUCCA_SL24_SAFE
-        else if (p.bright == SL25_DSU_MAGIC && p.magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
-            p.bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
-            p.bp23 = p.view > 1u ? sl_word_in(p.view) : 0u;   /* word; the word as 2.4's record gives it */
-        }
-#endif
-#else
-#if FELUCCA_BRIGHT
-        if (n < (int)sizeof p)
-            p.bright = 0;                          /* saved without BRIGHT: full */
-        if (n == PERSIST_NO_BRIGHT)
-            n = (int)sizeof p;                     /* (a build without it: the rest as ours) */
-#endif
-        if (n < (int)sizeof p)
-            p.view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
-#endif
+        n = persist_upgrade(&p, n);
         if (((n == (int)sizeof p || n == PERSIST_NO_VIEW) && p.magic == PERSIST_MAGIC)
 #if FELUCCA_ARRANGER
             || (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)
@@ -1607,6 +1519,9 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
 #if BP23_SET
             bp23_from_word(p.bp23);
+#endif
+#if FELUCCA_FAVORITES
+            persist_fav_load(&p);
 #endif
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
@@ -1702,6 +1617,9 @@ static void settings_save(void)
     p.panel = panel;
 #if FELUCCA_ARRANGER
     arr_to_rec(&p.arrangement, &arrangement, song_tag);
+#endif
+#if FELUCCA_FAVORITES
+    persist_fav_save(&p);
 #endif
 #if FELUCCA_BLE
     memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
