@@ -152,7 +152,7 @@ int main(void)
         int16_t px[NTRK][3];
         px_unpack(&q, px);
         for (k = 0, ok = 1; k < NTRK; k++) {
-            ok &= px[k][0] == (FELUCCA_TRK_FILT ? -20 : 0);
+            ok &= px[k][0] == (TFLT_ON ? -20 : 0);
             ok &= px[k][1] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 15 : 0);
             ok &= px[k][2] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 1 : 0);
         }
@@ -191,7 +191,7 @@ int main(void)
         ok &= k == 1 ? e1 < 0 : e1 >= 0 && x[k].lock[e1].val == 7;    /* (FM6's EDIT locks: dropped) */
         for (i = 0; i < NLOCK; i++)
             ok &= !stepx_lock_used(&x[k].lock[i]) || x[k].lock[i].param < P_COUNT;
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
         {   /* (TFLT lock, val 50, step 4: ours P_TFLT, not our P_FXOFF) */
             int tl = stepx_lock_find(&x[k], 4, P_TFLT);
             ok &= tl >= 0 && x[k].lock[tl].val == 50 && stepx_lock_find(&x[k], 4, P_FXOFF) < 0;
@@ -233,7 +233,7 @@ int main(void)
         ok &= !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) &&
               trk[1].p[P_E0] == 2;
         check("flash: B shows SLOOP 2.4; LOAD offers, LOAD again (4 s) imports it as the working project", ok);
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
         check("... its FILT in use (-20): every part S1 DIST S2 FILTER (2.4's order: fx_rec.c ins_map, no FX record in 2.4's), "
               "heard; the master slots the sends, none displaced", INS_ON(0, FXT_FILT) && ins_slot[0][0] == FXT_DIST &&
               ins_slot[0][1] == FXT_FILT && trk[0].p[P_TFLT] == -20 && !memcmp(fxs_slot, FXS_DEF, FX_NSLOT));

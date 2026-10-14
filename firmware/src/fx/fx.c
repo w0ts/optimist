@@ -1356,7 +1356,7 @@ static HOT void duck_block(uint32_t adv)
 /* (GLIDE_K, glide_next: dsp.c) */
 #endif
 
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
 /* ---- the track FILTER (SLOOP 2.4, isod89/sloop-fm1 v2.4 8d3823f fx.c djf_block / tflt_run, GPL-3.0-only; P_TFLT,
  * FX > FILTER, FX + KNOB 4): the master DJ filter's (djf_process) on each track, v < 0 a low-pass closing, > 0 a
  * high-pass opening, 0 off: the cutoff glides to the knob (no zipper), back at 0 it opens fully, then the filter is
@@ -1370,7 +1370,7 @@ typedef struct {
     uint8_t seed;                                       /* bit per state: the LP starts from its next input (tflt_run) */
     int32_t z[5][2];                                    /* the SVF states: a part's [0]; the drums' L R REV DLY CHO */
 } tflt_t;
-static tflt_t tflt[NTRK];
+static tflt_t tflt[NTRK + 1];                           /* (the tracks', then the master's: its DJ filter, fx-rework) */
 
 /* the SVF states to zero: a loop, not memset (memset is XIP code and this runs from RAM: build.py refuses the call) */
 static HOT void tflt_clear(tflt_t *f)
@@ -1448,16 +1448,26 @@ AINL void tcomp_settings(mc_set_t *s, int32_t amt, uint32_t k)
 {
     const int16_t *cs = ins_cset[k % NTRK];
     int32_t thr = amt > 0 ? -1 - (amt - 1) * 29 / 126 : 0;
-    mc_settings(s, thr, cs[0], cs[1], cs[2], (-thr * MC_SLOPE[cs[0] & 7]) >> 15);
+    mc_settings(s, thr, cs[0], cs[1], cs[2], cs[3] > 0 ? cs[3] - 1 : (-thr * MC_SLOPE[cs[0] & 7]) >> 15);   /* (GAIN 0: AUTO) */
 }
 AINL int tcomp_rest(const mc_t *c) { return !c->gr16 && c->g13 == 8192; }
+/* DYN's limiter on a track (fx-rework, 2026-10-14: the compressor and the limiter one effect): track k's CEIL (its own,
+ * fx_slots.c ins_cset[k][4]; OFF by default) after its compressor and gain, the master's lookahead brickwall at half
+ * its lookahead (master_comp.c tlim_block) on the track's block (a part: mono; the drum bus: L / R). Off at amount 0 with
+ * the rest of DYN. 0.73 ms of delay while it is on */
+static tlim_t tlim[NTRK];
+static int32_t tlim_dr[TLIM_N];                         /* (the drum bus's right line) */
+#define TLIM_DR(k) ((k) % NTRK == TRK_DRUM ? tlim_dr : (int32_t *)0)
 static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n, uint32_t k)
 {
     mc_set_t s;
+    tlim_set(&tlim[k % NTRK], TLIM_DR(k), amt ? ins_cset[k % NTRK][4] : 0);
     if (!amt && tcomp_rest(c))
         return;                                         /* (off and at rest) */
     tcomp_settings(&s, amt, k);
     mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
+    if (tlim[k % NTRK].on)
+        tlim_block(&tlim[k % NTRK], 0, l, 0, n);         /* (a part: mono) */
 }
 
 /* a part not heard this block (silent, or MUTE / SOLO): its insert is not on the mix, yet its state must not freeze
@@ -1475,6 +1485,7 @@ static HOT2 __attribute__((noinline)) void tcomp_quiet(track_t *t, int32_t *b, u
     }
     c->gr16 = c->slow16 = 0;
     c->g13 = 8192;
+    tlim[k].on = 0;                                     /* (its lookahead starts empty with the next note) */
 }
 #if FELUCCA_UI == 1
 /* the Optimist UI's mixer rows (ui/optimist/op_mixdraw.c): part k's COMP insert's gain reduction now, dB x 4 (as
@@ -1496,6 +1507,66 @@ static volatile uint8_t scope_src;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n);
 #define SCOPE_DR 4u
 #endif
+
+/* ---- DUST (an insert type since 2026-10-14, fx-rework: was the master's own): an old sampler and a record. Its amount
+ * 0..127 turns up together: drive into a soft clip, a lower sample rate (held samples, 44.1 -> 11 kHz), fewer bits
+ * (15 -> 8), a one-pole low-pass (open -> ~3 kHz), a little hiss and crackle. The hiss and the crackle are the record
+ * turning: they fade in with PLAY and out (~0.1 s) at STOP, so a stopped SLOOP is silent. Stereo (r: 0, a part's mono
+ * block: the left side's alone), ~25 ops a sample. The master's (mst_dust) is the master DUST of before, sample for
+ * sample */
+typedef struct {
+    int32_t hl, hr, hn;                                 /* held samples, samples left to hold */
+    int32_t ll, lr;                                     /* low-pass states */
+    int32_t rnd, click;                                 /* noise state, a crackle decaying */
+    int32_t bed;                                        /* hiss / crackle level, Q15: 0 stopped, 32767 playing */
+} dust_t;
+static dust_t mst_dust = {0, 0, 0, 0, 0, 0x2545F491, 0, 0};
+#if FELUCCA_FX_DUST
+static dust_t tdust[NTRK] = {{0, 0, 0, 0, 0, 0x2545F491, 0, 0}, {0, 0, 0, 0, 0, 0x1F123BB5, 0, 0},
+                             {0, 0, 0, 0, 0, 0x369BF4C1, 0, 0}, {0, 0, 0, 0, 0, 0x5E2D58D9, 0, 0}};
+#endif
+static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_t *l, int32_t *r, uint32_t n)
+{
+    int32_t hold, shift, a, drive, hiss, i, bed0, bed1;
+    uint32_t pc;
+    if (!d) {
+        s->bed = 0;
+        return;
+    }
+    hold = 1 + d * 3 / 127;
+    shift = d / 18;
+    a = 32767 - d * 165;                                /* one-pole coefficient, Q15 */
+    drive = 4096 + d * 24;                              /* Q12: 1x .. 1.75x */
+    hiss = d * 2;
+    pc = (uint32_t)d * 7u;                              /* crackle: chance per sample, x 2^-22 */
+    bed0 = s->bed;                                      /* ~0.1 s from 0 to full (238 a block of 32) */
+    bed1 = s->bed = clamp(s->bed + (song.playing ? 238 : -238), 0, 32767);
+    for (i = 0; i < (int32_t)n; i++) {
+        int32_t x = l[i], y = r ? r[i] : 0;
+        int32_t bed = bed0 + (((bed1 - bed0) * i) >> CTL_LOG2);
+        uint32_t nz = noise32(&s->rnd);
+        if (--s->hn <= 0) {                             /* sample and hold, then the bits */
+            s->hn = hold;
+            s->hl = softclip(((x >> 2) * drive) >> 10);
+            s->hr = r ? softclip(((y >> 2) * drive) >> 10) : 0;
+            if (shift) {
+                s->hl = crush_tz(s->hl, shift);         /* fewer bits, toward 0: no DC from tails */
+                s->hr = crush_tz(s->hr, shift);
+            }
+        }
+        s->ll += mulq15(s->hl - s->ll, a);
+        if (r)
+            s->lr += mulq15(s->hr - s->lr, a);
+        if ((nz >> 10) < pc)                            /* a speck of dust */
+            s->click = mulq15(((int32_t)(nz & 0x3FFu) - 512) * d / 8, bed);
+        x = s->ll + s->click + mulq15(((int32_t)(nz >> 16) - 32768) * hiss >> 15, bed);
+        y = s->lr + s->click + mulq15(((int32_t)(nz & 0xFFFFu) - 32768) * hiss >> 15, bed);
+        s->click -= s->click >> 2;
+        l[i] = x;
+        if (r)
+            r[i] = y;
+    }
+}
 
 #if DINS
 /* ---- each drum sound's inserts (FX slots phase 5): DIST and COMP per drum voice (NDRUM states, not per lane: two hits
@@ -1591,7 +1662,7 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 #else
 #define INS_IDLE(k) 0u
 #endif
-#define INS_OUT(k, s0, s1) (FXT_BUILT & FXT_INSERT & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_COMP)) | \
+#define INS_OUT(k, s0, s1) (FXT_BUILT & FXT_INSERT & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_DUST)) | \
                                                      INS_IDLE(k)) & ~(FXT_BIT(s0) | FXT_BIT(s1)))
 
 /* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
@@ -1648,6 +1719,14 @@ static HOT2 __attribute__((noinline)) void dbus_comp_run(int32_t amt, uint32_t n
             b[i] = mc_mul13(b[i], dbus_g[i]);           /* (as mc_run applies it: unity is exact) */
     }
 }
+static HOT2 __attribute__((noinline)) void dbus_dyn(int32_t a, uint32_t n, uint32_t nc)   /* DYN: COMP, then CEIL on L / R */
+{
+    tlim_set(&tlim[TRK_DRUM], tlim_dr, a ? ins_cset[TRK_DRUM][4] : 0);
+    if (a || !tcomp_rest(&dbus_comp))                   /* (at 0 it lets go first) */
+        dbus_comp_run(a, n, nc);
+    if (tlim[TRK_DRUM].on)
+        tlim_block(&tlim[TRK_DRUM], tlim_dr, mix_l, mix_r, n);
+}
 #endif
 /* insert type t on the drum bus; live: in a slot and FX on (else at 0: DIST restarts, FILTER opens, COMP lets go) */
 static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, uint32_t n, uint32_t nc)
@@ -1667,7 +1746,7 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
         }
     }
 #endif
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     if (t == FXT_FILT) {                                /* the drum track's FILTER (2.4's): the bus holds the drums alone */
         tflt_t *f = &tflt[TRK_DRUM];
         tsvf_t c;
@@ -1678,15 +1757,16 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
     }
 #endif
 #if FELUCCA_MASTER_COMP
-    if (t == FXT_COMP) {
-        int32_t a = live ? p[P_TCOMP] : 0;
-        if (a || !tcomp_rest(&dbus_comp))               /* (at 0 it lets go first) */
-            dbus_comp_run(a, n, nc);
-    }
+    if (t == FXT_COMP)
+        dbus_dyn(live ? p[P_TCOMP] : 0, n, nc);
 #endif
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_N && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades out, then rests) */
+    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades out, then rests) */
         ifx_bus(t, live ? p[FXT_AMT[t]] : 0, mix_l, mix_r, n);
+#endif
+#if FELUCCA_FX_DUST
+    if (t == FXT_DUST)                                  /* (the bus's L / R; at 0 its bed falls to 0) */
+        dust_run(&tdust[TRK_DRUM], live ? p[P_TDUST] : 0, mix_l, mix_r, n);
 #endif
     (void)p, (void)live, (void)n, (void)nc;
 }
@@ -1743,7 +1823,7 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
     if (ty == FXT_DIST)
         dist_run(&t->dist, live ? t->p[P_DIST] : 0, b, n);
 #endif
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     if (ty == FXT_FILT)
         tflt_part(t, live ? t->p[P_TFLT] : 0, b, n);
 #endif
@@ -1752,8 +1832,12 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
         tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
 #endif
 #if INS_FX
-    if (ty >= FXT_NEW0 && ty < FXT_N && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out, then rests) */
+    if (ty >= FXT_NEW0 && ty < FXT_NEWN && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out, then rests) */
         ifx_part(ty, k, live ? t->p[FXT_AMT[ty]] : 0, b, n);
+#endif
+#if FELUCCA_FX_DUST
+    if (ty == FXT_DUST)
+        dust_run(&tdust[k], live ? t->p[P_TDUST] : 0, b, 0, n);
 #endif
     (void)t, (void)k, (void)ty, (void)live, (void)b, (void)n;
 }
@@ -1805,7 +1889,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
-        if (FELUCCA_FX_DIST || FELUCCA_TRK_FILT || FELUCCA_MASTER_COMP || INS_FX)
+        if (FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST)
             ins_part(t, b, n);                          /* its two insert slots, S1 then S2 (above) */
 #if FELUCCA_UI == 1
         if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */
@@ -1895,107 +1979,62 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #endif
     }
 }
-/* ---- DUST: the master through an old sampler and a record. G_DUST 0..127 turns up together: drive
- * into a soft clip, a lower sample rate (held samples, 44.1 -> 11 kHz), fewer bits (15 -> 8), a
- * one-pole low-pass (open -> ~3 kHz), a little hiss and crackle. The hiss and the crackle are the
- * record turning: they fade in with PLAY and out (~0.1 s) at STOP, so a stopped SLOOP is silent.
- * Stereo, ~25 ops a sample. */
-static struct {
-    int32_t hl, hr, hn;                                 /* held samples, samples left to hold */
-    int32_t ll, lr;                                     /* low-pass states */
-    int32_t rnd, click;                                 /* noise state, a crackle decaying */
-    int32_t bed;                                        /* hiss / crackle level, Q15: 0 stopped, 32767 playing */
-} dust = {0, 0, 0, 0, 0, 0x2545F491, 0, 0};
-
-
-static HOT void dust_process(int32_t *l, int32_t *r, uint32_t n)
-{
-    int32_t d = song.g[G_DUST], hold, shift, a, drive, hiss, i, bed0, bed1;
-    uint32_t pc;
-    if (!d) {
-        dust.bed = 0;
-        return;
-    }
-    hold = 1 + d * 3 / 127;
-    shift = d / 18;
-    a = 32767 - d * 165;                                /* one-pole coefficient, Q15 */
-    drive = 4096 + d * 24;                              /* Q12: 1x .. 1.75x */
-    hiss = d * 2;
-    pc = (uint32_t)d * 7u;                              /* crackle: chance per sample, x 2^-22 */
-    bed0 = dust.bed;                                    /* ~0.1 s from 0 to full (238 a block of 32) */
-    bed1 = dust.bed = clamp(dust.bed + (song.playing ? 238 : -238), 0, 32767);
-    for (i = 0; i < (int32_t)n; i++) {
-        int32_t x = l[i], y = r[i];
-        int32_t bed = bed0 + (((bed1 - bed0) * i) >> CTL_LOG2);
-        uint32_t nz = noise32(&dust.rnd);
-        if (--dust.hn <= 0) {                           /* sample and hold, then the bits */
-            dust.hn = hold;
-            dust.hl = softclip(((x >> 2) * drive) >> 10);
-            dust.hr = softclip(((y >> 2) * drive) >> 10);
-            if (shift) {
-                dust.hl = crush_tz(dust.hl, shift);     /* fewer bits, toward 0: no DC from tails */
-                dust.hr = crush_tz(dust.hr, shift);
-            }
-        }
-        dust.ll += mulq15(dust.hl - dust.ll, a);
-        dust.lr += mulq15(dust.hr - dust.lr, a);
-        if ((nz >> 10) < pc)                            /* a speck of dust */
-            dust.click = mulq15(((int32_t)(nz & 0x3FFu) - 512) * d / 8, bed);
-        x = dust.ll + dust.click + mulq15(((int32_t)(nz >> 16) - 32768) * hiss >> 15, bed);
-        y = dust.lr + dust.click + mulq15(((int32_t)(nz & 0xFFFFu) - 32768) * hiss >> 15, bed);
-        dust.click -= dust.click >> 2;
-        l[i] = x;
-        r[i] = y;
-    }
-}
-
-/* ---- the DJ filter on the master: G_FILT < 0 a low-pass closing, > 0 a high-pass opening, 0 off.
- * The cutoff glides to the knob (no zipper); at 0 it opens fully, then the filter is bypassed. */
-static struct {
-    int32_t cut;                                        /* now, 0..127 << 8 (CUTOFF_HZ index) */
-    int8_t mode;                                        /* -1 LP, 1 HP, 0 off */
-    int32_t l1, l2, r1, r2;
-} djf;
-
-/* a side starts (from open, or the other side): in flash, a block now and then (FAR from djf_process, RAM code) */
-static __attribute__((noinline)) void djf_start(int32_t v, int32_t l0, int32_t r0)
-{
-    djf.l1 = djf.r1 = 0;
-    if (v < 0) {
-        djf.mode = -1;
-        djf.cut = 127 << 8;
-        djf.l2 = clamp(l0, -140000, 140000);            /* (SLOOP 2.6 d30d655 fx.c djf_run, GPL-3.0-only) the LP starts */
-        djf.r2 = clamp(r0, -140000, 140000);            /* at rest on its input: its output is the input (DC: exact), */
-    } else {                                            /* not 0 under a sounding mix (a click) */
-        djf.mode = 1;
-        djf.cut = 0;
-        djf.l2 = djf.r2 = 0;
-    }
-}
-static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
-{
-    int32_t v = song.g[G_FILT], to, i;
-    tsvf_t c;
-    if ((v < 0 && djf.mode >= 0) || (v > 0 && djf.mode <= 0))   /* (switching side: from open) */
-        FAR(djf_start)(v, l[0], r[0]);                  /* (n > 0: a block) */
-    if (!djf.mode)
-        return;
-    to = djf.mode < 0 ? (v < 0 ? (127 << 8) + v * 90 * 4 : 127 << 8) : (v > 0 ? v * 90 * 4 : 0);
-    djf.cut += clamp(to - djf.cut, -384, 384);          /* ~1.5 index a block */
-    if (!v && djf.cut == to) {
-        djf.mode = 0;                                   /* fully open again: off */
-        return;
-    }
-    tsvf_coef(&c, djf.cut, 40);
-    for (i = 0; i < (int32_t)n; i++) {
-        int32_t x = clamp(l[i], -140000, 140000), y = clamp(r[i], -140000, 140000);
-        int32_t fl = tsvf_lp(&c, x, &djf.l1, &djf.l2), fr = tsvf_lp(&c, y, &djf.r1, &djf.r2);
-        l[i] = djf.mode < 0 ? fl : x - fl;
-        r[i] = djf.mode < 0 ? fr : y - fr;
-    }
-}
-
 #include "punch/punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
+
+/* ---- the master's two insert slots (fx_slots.c mst_slot; fx-rework 2026-10-14): after the returns and PUNCH, S1 then
+ * S2, before the master volume. FILT is the DJ filter of before (the track FILTER's code on L / R: tflt_run with no
+ * shift is djf_process's, sample for sample), DUST the master DUST, DYN the master COMP (its limiter stays at the
+ * output, mix_finish); the other types on L / R as on the drum bus. A type in no slot at 0: it lets go, then rests */
+#if FELUCCA_FX_DIST
+static dist_t mst_dist[2];
+#endif
+static HOT2 __attribute__((noinline)) void mst_ins(uint32_t t, int32_t live, int32_t *l, int32_t *r, uint32_t n)
+{
+#if FELUCCA_FX_DIST
+    if (t == FXT_DIST) {
+        int32_t d = live ? mst_amt[FXT_DIST] : 0;
+        dist_run(&mst_dist[0], d, l, n);
+        dist_run(&mst_dist[1], d, r, n);
+    }
+#endif
+#if TFLT_ON
+    if (t == FXT_FILT) {
+        tflt_t *f = &tflt[NTRK];
+        tsvf_t c;
+        if (tflt_block(f, live ? song.g[G_FILT] : 0, &c)) {
+            tflt_run(f, &c, l, n, 0, 0);
+            tflt_run(f, &c, r, n, 1, 0);
+        }
+    }
+#endif
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_DYN)
+        mc_master(live, l, r, n);                       /* COMP, GAIN; LIMIT's switch (master_comp.c; off: nothing) */
+#endif
+    if (t == FXT_DUST)
+        dust_run(&mst_dust, live && FELUCCA_FX_DUST ? song.g[G_DUST] : 0, l, r, n);
+#if INS_FX
+    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu)
+        ifx_mst(t, live ? mst_amt[t] : 0, l, r, n);
+#endif
+    (void)live, (void)l, (void)r, (void)n;
+}
+#if INS_FX
+#define MST_IDLE() ifx_awake[IFX_AW_MST]
+#else
+#define MST_IDLE() 0u
+#endif
+static HOT2 __attribute__((noinline)) void mst_run(int32_t *l, int32_t *r, uint32_t n)
+{
+    uint32_t s0 = mst_slot[0], s1 = mst_slot[1], t, m;
+    mst_ins(s0, MST_ON(s0), l, r, n);
+    mst_ins(s1, MST_ON(s1), l, r, n);
+    m = MST_OK & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_DUST)) | MST_IDLE()) &
+        ~(FXT_BIT(s0) | FXT_BIT(s1));
+    for (t = 0; m; t++, m >>= 1)                        /* (in no slot: at 0) */
+        if (m & 1u)
+            mst_ins(t, 0, l, r, n);
+}
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
 #if FELUCCA_VIS || FELUCCA_UI == 1
 /* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
@@ -2053,15 +2092,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
             mix_r[i] += wet_r[i];
         }
     }
-    if (FELUCCA_FX_DUST)
-        dust_process(mix_l, mix_r, n);
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
-    if (FELUCCA_FX_DJF)
-        djf_process(mix_l, mix_r, n);
-#if FELUCCA_MASTER_COMP
-    mc_master(mix_l, mix_r, n);                         /* COMP, GAIN; LIMIT's switch (master_comp.c; off: nothing) */
-#endif
+    mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
 #if FELUCCA_VIS
     FAR(vis_tap_block)(mix_l, mix_r, n);                /* the visualiser: this block's mix, copied (ui_vis.c) */
 #elif FELUCCA_UI == 1

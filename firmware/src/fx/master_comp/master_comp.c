@@ -154,19 +154,19 @@ static HOT2 __attribute__((noinline)) void mc_run(mc_t *c, const mc_set_t *s, co
 /* ---- the limiter */
 static mlim_t mlim;
 
-AINL void mlim_reset(void)                             /* (inlined: called from RAM code) */
+AINL void mlim_reset(mlim_t *m)                             /* (inlined: called from RAM code) */
 {
     uint32_t i;
     for (i = 0; i < MLIM_N; i++) {
-        mlim.ring[i] = 0;
-        mlim.dl[i] = mlim.dr[i] = 0;
+        m->ring[i] = 0;
+        m->dl[i] = m->dr[i] = 0;
     }
-    mlim.hold = mlim.m2 = mlim.env16 = mlim.sum = 0;
-    mlim.cnt = MLIM_HOLD;
-    mlim.pos = 0;
+    m->hold = m->m2 = m->env16 = m->sum = 0;
+    m->cnt = MLIM_HOLD;
+    m->pos = 0;
 }
 
-/* one sample: in, its need recorded; out, the sample MLIM_N before with the reduction averaged over the box */
+/* one sample of the master's limiter: in, its need recorded; out, the sample MLIM_N before with the reduction averaged over the box */
 AINL void mlim_step(int32_t *l, int32_t *r)
 {
     int32_t al = *l < 0 ? -*l : *l, ar = *r < 0 ? -*r : *r, a = al > ar ? al : ar, q = 0, h16, e, s8, ol, orr;
@@ -228,6 +228,92 @@ AINL void mlim_step(int32_t *l, int32_t *r)
     *l = clamp(ol, -32767, 32767);                      /* (never reached: the ceiling is lower; a last guard) */
     *r = clamp(orr, -32767, 32767);
 }
+/* ---- a track's limiter (DYN's CEIL on a track, fx.c tcomp_run / dbus_dyn; fx-rework 2026-10-14): the same brickwall at
+ * half the lookahead (TLIM_N 32 samples, 0.73 ms, the box as long), so a track's costs half the master's RAM; a part's
+ * is mono (its one delay line), the drum bus's stereo (tlim2_t: a second line). The steps are the master's
+ * (mlim_step): the need held for TLIM_N + 1 samples, released over 80 ms, averaged over the box, so no sample passes
+ * the ceiling either */
+AINL void tlim_reset(tlim_t *m, int32_t *dr)
+{
+    uint32_t i;
+    for (i = 0; i < TLIM_N; i++) {
+        m->ring[i] = 0;
+        m->dl[i] = 0;
+        if (dr)
+            dr[i] = 0;
+    }
+    m->hold = m->m2 = m->env16 = m->sum = 0;
+    m->cnt = TLIM_N + 1u;
+    m->pos = 0;
+    m->s8 = 0, m->g13 = 8192;
+}
+AINL void tlim_set(tlim_t *m, int32_t *dr, int32_t ceil)   /* CEIL (N_CCEIL: 0 OFF), once a block */
+{
+    if (ceil > 0 && ceil <= 7) {
+        if (!m->on)
+            tlim_reset(m, dr);                          /* (from OFF: an empty lookahead) */
+        m->c8 = MLIM_C8[ceil - 1];
+        m->clin = MLIM_CLIN[ceil - 1];
+        m->on = 1;
+    } else {
+        m->on = 0;
+    }
+}
+/* n samples of l (and r, with its line dr: the drum bus) through limiter m; the key both sides' peak */
+static HOT2 __attribute__((noinline)) void tlim_block(tlim_t *m, int32_t *dr, int32_t *l, int32_t *r, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t al = l[i] < 0 ? -l[i] : l[i], ar = r ? (r[i] < 0 ? -r[i] : r[i]) : 0, a = al > ar ? al : ar, q = 0, h16, e, s8;
+        int32_t ol, orr = 0;
+        uint32_t p = m->pos;
+        if (a > m->clin) {
+            q = mc_log2((uint32_t)a) - m->c8;
+            q = q < 0 ? 0 : q;
+        }
+        if (q >= m->hold) {
+            m->hold = q;
+            m->cnt = TLIM_N + 1u;
+            m->m2 = 0;
+        } else {
+            if (q > m->m2)
+                m->m2 = q;
+            if (--m->cnt == 0) {
+                m->hold = m->m2;
+                m->cnt = TLIM_N + 1u;
+                m->m2 = 0;
+            }
+        }
+        h16 = m->hold << 8;
+        e = m->env16;
+        if (h16 >= e)
+            e = h16;
+        else
+            e -= (((e - h16) >> 4) * MLIM_K20 >> 16) + 1;
+        e = e < h16 ? h16 : e;
+        m->env16 = e;
+        e = (e + 255) >> 8;
+        m->sum += e - m->ring[p];
+        m->ring[p] = (uint16_t)e;
+        s8 = (m->sum + (int32_t)TLIM_N - 1) >> 5;       /* the box's mean, rounded up (TLIM_N 32) */
+        ol = m->dl[p], m->dl[p] = l[i];
+        if (r)
+            orr = dr[p], dr[p] = r[i];
+        m->pos = (p + 1u) & (TLIM_N - 1u);
+        if (s8) {
+            if (s8 != m->s8) {
+                m->s8 = s8;
+                m->g13 = mc_exp2(-(s8 << 8));
+            }
+            ol = mc_mul13(ol, m->g13);
+            orr = mc_mul13(orr, m->g13);
+        }
+        l[i] = clamp(ol, -32767, 32767);
+        if (r)
+            r[i] = clamp(orr, -32767, 32767);
+    }
+}
+_Static_assert(TLIM_N == 32u, "tlim_block: the box's mean is >> 5");
 _Static_assert(MLIM_N == 64u, "mlim_step: the box's mean is >> 6");
 static void mlim_sample(int32_t *l, int32_t *r) { mlim_step(l, r); }   /* (one sample: tests/master_comp_test.c) */
 
@@ -252,23 +338,29 @@ static HOT2 __attribute__((noinline)) void mlim_block(const int32_t *ml, const i
 static mc_t mc = {0, 0, 8192, 0};
 static mc_set_t mc_s;
 
-/* fx.c mix_finish, once a block on the mix bus (before the master volume): the settings, the compressor and the gain,
- * and the limiter's switch for mix_finish. Off (THRS OFF, GAIN 0): nothing is touched */
-static HOT2 __attribute__((noinline)) void mc_master(int32_t *l, int32_t *r, uint32_t n)
+/* a limiter's CEIL (N_CCEIL: 0 OFF, 1..7), once a block: from OFF its lookahead starts empty */
+AINL void mlim_set(mlim_t *m, int32_t ceil)
 {
-    int32_t ceil = song.g[G_CCEIL];
     if (ceil > 0 && ceil <= 7) {
-        if (!mlim.on || mlim.c8 != MLIM_C8[ceil - 1]) {
-            if (!mlim.on)
-                mlim_reset();                           /* (from OFF: an empty lookahead) */
-            mlim.c8 = MLIM_C8[ceil - 1];
-            mlim.clin = MLIM_CLIN[ceil - 1];
+        if (!m->on || m->c8 != MLIM_C8[ceil - 1]) {
+            if (!m->on)
+                mlim_reset(m);                          /* (from OFF: an empty lookahead) */
+            m->c8 = MLIM_C8[ceil - 1];
+            m->clin = MLIM_CLIN[ceil - 1];
         }
-        mlim.on = 1;
+        m->on = 1;
     } else {
-        mlim.on = 0;
+        m->on = 0;
     }
-    mc_settings(&mc_s, song.g[G_CTHR], song.g[G_CRAT], song.g[G_CATK], song.g[G_CREL], song.g[G_CGAIN]);
+}
+
+/* fx.c mix_finish, once a block on the mix bus (before the master volume): the settings, the compressor and the gain,
+ * and the limiter's switch for mix_finish. Off (THRS OFF, GAIN 0), or DYN in neither master slot (on 0, fx-rework
+ * 2026-10-14: the master's COMP + LIMIT are its DYN insert): nothing is touched */
+static HOT2 __attribute__((noinline)) void mc_master(int32_t on, int32_t *l, int32_t *r, uint32_t n)
+{
+    mlim_set(&mlim, on ? song.g[G_CCEIL] : 0);
+    mc_settings(&mc_s, on ? song.g[G_CTHR] : 0, song.g[G_CRAT], song.g[G_CATK], song.g[G_CREL], on ? song.g[G_CGAIN] : 0);
     if (!mc_s.on && !mc_s.gain16) {                     /* off: the next start from rest */
         mc.gr16 = mc.slow16 = 0;
         mc.g13 = 8192;

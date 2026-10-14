@@ -114,14 +114,14 @@ static void t_ins(void)
     const param_desc_t *d;
     uint32_t k, ok = 1;
     for (k = 0; k < NTRK; k++)
-        ok &= ins_is(k, FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE, FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE);
+        ok &= ins_is(k, FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE, TFLT_ON ? FXT_FILT : FXT_NONE);
     check("the default on every track: S1 DIST, S2 FILTER (built: else empty) (D5)", ok && ins_has(0, FXT_DIST) == 1u &&
-          ins_has(3, FXT_FILT) == (FELUCCA_TRK_FILT ? 2u : 0u) && ins_has(1, FXT_COMP) == 0u && ins_amt(2, 0) == P_DIST);
+          ins_has(3, FXT_FILT) == (TFLT_ON ? 2u : 0u) && ins_has(1, FXT_COMP) == 0u && ins_amt(2, 0) == P_DIST);
 #if FELUCCA_MASTER_COMP
     ins_load(1, 1, FXT_COMP);
-    check("COMP into T2's S2: T2 S1 DIST S2 COMP, the others as they were; its amount P_TCOMP (CMP)",
+    check("COMP into T2's S2: T2 S1 DIST S2 COMP, the others as they were; its amount P_TCOMP (DYN)",
           ins_is(1, FXT_DIST, FXT_COMP) && ins_amt(1, 1) == P_TCOMP && ins_has(1, FXT_COMP) == 2u && ins_dflt() == 0 &&
-          ins_is(0, D0, D1) && !strcmp(TP[ins_amt(1, 1)].label, "CMP"));
+          ins_is(0, D0, D1) && !strcmp(TP[ins_amt(1, 1)].label, "DYN"));
     ins_load(1, 0, FXT_COMP);
     check("... COMP into S1: the other slot's type, so the two swap (D3): S1 COMP, S2 DIST", ins_is(1, FXT_COMP, FXT_DIST));
     ins_load(1, 1, FXT_NONE);
@@ -151,7 +151,7 @@ static void t_ins(void)
     song.sel = 0;
 }
 
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
 static int16_t r_tflt;                                  /* (the renders' track FILTER: part 1 and the drums) */
 #endif
 #if FELUCCA_MASTER_COMP
@@ -191,7 +191,7 @@ static uint64_t render(const uint8_t *lay, const ins_t ins, int dist, int cho, i
         trk[0].p[P_DLY] = (int16_t)dly, trk[0].p[P_REV] = (int16_t)rev;
         for (i = 0; i < DRUM_LANES; i++)
             dsend[i] = dsend_word(lanes == 1 ? 20u : 0u, lanes ? 12u : 0u, lanes ? 9u : 0u);   /* (2: no REV) */
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
         trk[0].p[P_TFLT] = r_tflt, TDRUM->p[P_TFLT] = (int16_t)(r_tflt / 2);
 #endif
 #if FELUCCA_MASTER_COMP
@@ -249,7 +249,7 @@ static void t_audio(void)
         check("... DST 90 heard after the gate (the mix changes)", render(FXS_DEF, 0, 90, 60, 50, 80, 1) != render(FXS_DEF, 0, 0, 60, 50, 80, 1));
         r_slc = 0;
     }
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     {
         static const ins_t FD = {{FXT_FILT, FXT_DIST}, {D0, D1}, {D0, D1}, {D0, D1}};
         uint64_t a, b;
@@ -363,7 +363,7 @@ static void t_comp(void)
     int16_t *v;
     uint32_t pg = NPAGES;
     for (i = 0; i < NPAGES; i++)
-        if (!strcmp(PAGES[i].title, "CMP"))
+        if (!strcmp(PAGES[i].title, "DYN"))
             pg = i;
     song.sel = 0;
     check("FX > CMP: there, and hidden while none of the selected track's slots holds the COMP", pg < NPAGES && !page_shown(&PAGES[pg]));
@@ -705,14 +705,14 @@ static void t_map(void)
             trk[k].p[drop] = TP[drop].def;
     drop = ins_map(FXS_OLD, 1, m);
     check("no record (an old project, a 2.4 import): every part S1 DIST, S2 FILTER (built; rule 3, rule 5), none dropped",
-          !drop && m[0][0] == FXT_DIST && m[1][1] == (FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE) && m[3][0] == FXT_DIST);
+          !drop && m[0][0] == FXT_DIST && m[1][1] == (TFLT_ON ? FXT_FILT : FXT_NONE) && m[3][0] == FXT_DIST);
     drop = ins_map(FXS_OLD, 0, m);
     check("the old default layout (DIST CHO DLY REV): the same (the new track's default, D5)", !drop &&
           !memcmp(m, INS_D, sizeof m));
     drop = ins_map(NOINS, 0, m);
     check("no insert in the old layout: S1 empty, S2 the FILTER (silent at 0: rule 5)", !drop && m[0][0] == FXT_NONE &&
-          m[0][1] == (FELUCCA_TRK_FILT ? FXT_FILT : FXT_NONE));
-#if FELUCCA_TRK_FILT
+          m[0][1] == (TFLT_ON ? FXT_FILT : FXT_NONE));
+#if TFLT_ON
     trk[1].p[P_TFLT] = -20;
     drop = ins_map(FXS_OLD, 1, m);
     check("no record, T2's FILT in use: S1 DIST S2 FILTER (2.4's order; no send displaced)", m[1][0] == FXT_DIST && m[1][1] == FXT_FILT);
@@ -925,6 +925,174 @@ static void t_stores(void)
     ins_all(INS_D);
 }
 
+/* ---- fx-rework (2026-10-14): the master's two insert slots, DYN (COMP + LIMIT), FILT = the DJ filter, DUST an insert */
+#include "fx_rework_ref.h"
+static void sig(int32_t *l, int32_t *r, uint32_t blk)  /* a loud stereo test signal, block blk */
+{
+    uint32_t i;
+    for (i = 0; i < CTL; i++) {
+        uint32_t t = blk * CTL + i;
+        l[i] = (int32_t)((t * 2654435761u) >> 17) - 16384 + ((t & 64u) ? 9000 : -9000);
+        r[i] = (int32_t)((t * 40503u) & 0x7FFFu) - 16384;
+    }
+}
+static void t_master(void)
+{
+    static const uint8_t DEF[2] = {MST_DEF0, MST_DEF1};
+    int16_t *v;
+    const param_desc_t *d;
+    uint8_t m[INS_N], b[FXR_MAX];
+    uint32_t i, k, n, ok, drop;
+    int32_t l[CTL], r[CTL], l2[CTL], r2[CTL];
+    mst_defaults();
+    check("the master's default: S1 FILT, S2 DYN (those built)", mst_slot[0] == DEF[0] && mst_slot[1] == DEF[1]);
+#if TFLT_ON && FELUCCA_MASTER_COMP
+    mst_load(0, FXT_DYN);
+    check("... DYN into S1: the two swap", mst_slot[0] == DEF[1] && mst_slot[1] == DEF[0]);
+#endif
+    mst_defaults();
+    d = fxs_desc(FXS_ID_MST, &v);
+    for (i = 0, ok = d != 0; d && i <= (uint32_t)d->max; i++)
+        ok &= mst_list[i] != FXT_CHRS && mst_list[i] != FXT_ECHO && mst_list[i] != FXT_GATE;
+    check("the master's TYPE list: ---- and the inserts built but CHRS ECHO GATER; S1's entry FILT", ok &&
+          (!TFLT_ON || mst_list[*v] == FXT_FILT));
+#if FELUCCA_MASTER_COMP
+    d = fxs_desc(FXS_ID_MST + 2u + (mst_slot[0] != FXT_DYN), &v);
+    check("... S2's amount: DYN's THRS (G_CTHR); its list name DYN", d == &GP[G_CTHR] && v == &song.g[G_CTHR] &&
+          !strcmp(TP[P_TCOMP].label, "DYN"));
+#endif
+    song.g[G_FILT] = song.g[G_DUST] = song.g[G_CTHR] = song.g[G_CGAIN] = song.g[G_CCEIL] = 0;
+    drop = mst_map(m);
+    check("an old project with no master effect: FILT DYN (unused, at 0: bypassed)", !drop && m[0] == DEF[0] && m[1] == DEF[1]);
+#if FELUCCA_FX_DUST && TFLT_ON && FELUCCA_MASTER_COMP
+    song.g[G_DUST] = 30;
+    drop = mst_map(m);
+    check("... DUST used (no COMP, no CEIL): DUST then FILT (the old order)", !drop && m[0] == FXT_DUST && m[1] == FXT_FILT);
+    song.g[G_FILT] = -20, song.g[G_CCEIL] = 6;
+    drop = mst_map(m);
+    check("... DUST FILT and DYN all used: FILT left out (reported: ins_drop's master bit), DUST DYN", drop &&
+          m[0] == FXT_DUST && m[1] == FXT_DYN);
+    song.g[G_DUST] = 0;
+    drop = mst_map(m);
+    check("... FILT and DYN used: FILT DYN", !drop && m[0] == FXT_FILT && m[1] == FXT_DYN);
+#endif
+    song.g[G_FILT] = song.g[G_DUST] = 0, song.g[G_CCEIL] = GP[G_CCEIL].def;
+    fxs_set(FXS_DEF);
+    ins_all(INS_D);
+    mst_defaults();
+    check("the new project's master (FILT DYN, CEIL on): no record", fxr_encode(b) == 0u);
+    mst_load(0, FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE);
+    mst_amt[FXT_DIST] = 77;
+    n = fxr_encode(b);
+    mst_defaults();
+    mst_amt[FXT_DIST] = 0;
+    ok = fxr_decode(b, n, 1);
+    check("the master's slots and amounts: MST_TLV, back with a load", ok && mst_slot[0] == (FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE) &&
+          mst_slot[1] == DEF[1] && mst_amt[FXT_DIST] == (FELUCCA_FX_DIST ? 77 : 0) && (n > FXR_HEAD || !FELUCCA_FX_DIST));
+    ok = fxr_decode(0, 0, 1);
+    check("... no record: the mapping (FILT DYN), no amount", mst_slot[0] == DEF[0] && mst_slot[1] == DEF[1] && !mst_amt[FXT_DIST]);
+#if FELUCCA_MASTER_COMP
+    ins_cset[2][3] = 5, ins_cset[2][4] = 3;
+    n = fxr_encode(b);
+    ins_cset[2][3] = ins_cset[2][4] = 0;
+    check("a track's DYN GAIN and CEIL: in the slots' TLV (31 bytes), back with a load", fxr_decode(b, n, 1) &&
+          ins_cset[2][3] == 5 && ins_cset[2][4] == 3 && !ins_cset[1][3]);
+    ins_cset[2][3] = ins_cset[2][4] = 0;
+    {   /* the track limiter: a square far over -1 dB stays under the ceiling (after the lookahead) */
+        mc_t c = {0, 0, 8192, 0};
+        int32_t x[CTL], pk = 0;
+        ins_cset[0][4] = 4;                            /* (-1.0 dB) */
+        for (n = 0; n < 100u; n++) {
+            for (i = 0; i < CTL; i++)
+                x[i] = (i & 4u) ? 60000 : -60000;
+            tcomp_run(&c, 1, x, x, CTL, 0);
+            for (i = 0; n > 4u && i < CTL; i++)
+                pk = x[i] > pk ? x[i] : -x[i] > pk ? -x[i] : pk;
+        }
+        check("DYN's CEIL on a part: a square at +5 dB over full scale held under -1 dB", pk > 20000 && pk <= MLIM_CLIN[3]);
+        ins_cset[0][4] = 0;
+        tcomp_run(&c, 0, x, x, CTL, 0);
+        check("... at 0: the limiter off", !tlim[0].on);
+    }
+    {   /* the drum bus's (stereo, its own right line): noise far over the ceiling, both sides held under it */
+        int32_t xl[CTL], xr[CTL], pk = 0;
+        uint32_t seed = 1;
+        tlim_set(&tlim[TRK_DRUM], tlim_dr, 0);
+        tlim_set(&tlim[TRK_DRUM], tlim_dr, 6);         /* (-3.0 dB) */
+        for (n = 0; n < 200u; n++) {
+            for (i = 0; i < CTL; i++) {
+                seed = seed * 1664525u + 1013904223u;
+                xl[i] = (int32_t)(seed >> 15) - 65536;
+                xr[i] = -xl[i] / 2 + (int32_t)(seed & 4095u);
+            }
+            tlim_block(&tlim[TRK_DRUM], tlim_dr, xl, xr, CTL);
+            for (i = 0; n > 2u && i < CTL; i++) {
+                int32_t a = xl[i] < 0 ? -xl[i] : xl[i], b = xr[i] < 0 ? -xr[i] : xr[i];
+                pk = a > pk ? a : b > pk ? b : pk;
+            }
+        }
+        tlim_set(&tlim[TRK_DRUM], tlim_dr, 0);
+        check("the drum bus's DYN CEIL (stereo, half the lookahead): noise at +6 dB over full scale held at -3 dB on both "
+              "sides (within 0.02 dB: the box's rounding)", pk > 15000 && pk <= MLIM_CLIN[5] + MLIM_CLIN[5] / 400);
+    }
+#endif
+#if TFLT_ON
+    {   /* FILT on the master: the DJ filter of before, sample for sample (fx_rework_ref.h), LP then HP then open */
+        static const int16_t V[6] = {-40, -40, 25, 63, 0, 0};
+        uint32_t same = 1;
+        song.g[G_CTHR] = song.g[G_CGAIN] = 0, song.g[G_CCEIL] = 0;
+        mst_defaults();
+        memset(&ref_djf, 0, sizeof ref_djf);
+        memset(&tflt[NTRK], 0, sizeof tflt[NTRK]);
+        for (k = 0; k < 6u * 40u; k++) {
+            song.g[G_FILT] = V[k / 40u];
+            sig(l, r, k), sig(l2, r2, k);
+            ref_djf_process(l2, r2, CTL);
+            mst_run(l, r, CTL);
+            same &= !memcmp(l, l2, sizeof l) && !memcmp(r, r2, sizeof r);
+        }
+        check("FILT on the master: the DJ filter of before, sample for sample (LP, HP, back open)", same);
+        mst_put((const uint8_t[2]){FXT_NONE, FXT_NONE});
+        song.g[G_FILT] = -50;
+        sig(l, r, 7), sig(l2, r2, 7);
+        for (k = 0; k < 200u; k++)
+            mst_run(l, r, CTL), sig(l, r, 7);
+        mst_run(l, r, CTL);
+        check("... FILT in no master slot, its knob turned: the mix as it is (glided open, then off)",
+              !memcmp(l, l2, sizeof l) && !memcmp(r, r2, sizeof r));
+        song.g[G_FILT] = 0;
+    }
+#endif
+#if FELUCCA_FX_DUST
+    {   /* DUST on the master: the master DUST of before, sample for sample */
+        uint32_t same = 1;
+        static const uint8_t DU[2] = {FXT_DUST, FXT_NONE};
+        mst_put(DU);
+        song.playing = 1;
+        for (k = 0; k < 300u; k++) {
+            song.g[G_DUST] = (int16_t)(k < 150u ? 90 : k < 250u ? 20 : 0);
+            sig(l, r, k), sig(l2, r2, k);
+            ref_dust_process(l2, r2, CTL);
+            mst_run(l, r, CTL);
+            same &= !memcmp(l, l2, sizeof l) && !memcmp(r, r2, sizeof r);
+        }
+        song.playing = 0, song.g[G_DUST] = 0;
+        check("DUST on the master: the master DUST of before, sample for sample", same);
+        ins_load(1, 0, FXT_DUST);
+        trk[1].p[P_TDUST] = 60;
+        check("DUST on a track: its slot, its amount P_TDUST; in the FX record", ins_has(1, FXT_DUST) == 1u && ins_amt(1, 0) == P_TDUST);
+        n = fxr_encode(b);
+        trk[1].p[P_TDUST] = 0;
+        check("... back with a load", fxr_decode(b, n, 1) && trk[1].p[P_TDUST] == 60 && ins_has(1, FXT_DUST) == 1u);
+        trk[1].p[P_TDUST] = 0;
+        ins_all(INS_D);
+    }
+#endif
+    song.g[G_CCEIL] = GP[G_CCEIL].def;
+    mst_defaults();
+    fxs_set(FXS_DEF);
+}
+
 int main(void)
 {
     t_layout();
@@ -937,6 +1105,7 @@ int main(void)
     t_map();
     t_record();
     t_stores();
+    t_master();
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

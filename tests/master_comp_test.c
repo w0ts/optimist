@@ -210,7 +210,7 @@ static void t_unity(void)
     for (k = 0; k < 100u; k++) {
         for (i = 0; i < CTL; i++)
             l0[i] = l[i] = (int32_t)(k * 977u + i * 131u) - 50000, r0[i] = r[i] = 300000 - (int32_t)(i * 9000u);
-        mc_master(l, r, CTL);
+        mc_master(1, l, r, CTL);
         same &= !memcmp(l, l0, sizeof l) && !memcmp(r, r0, sizeof r) && !mlim.on;
     }
     check(same, "THRS OFF, GAIN 0, CEIL OFF: mc_master touches nothing, the limiter is off");
@@ -222,7 +222,7 @@ static void lim_set(int ceil)
     int32_t l[CTL] = {0}, r[CTL] = {0};
     song.g[G_CTHR] = 0, song.g[G_CGAIN] = 0, song.g[G_CCEIL] = (int16_t)ceil;
     mlim.on = 0;
-    mc_master(l, r, CTL);
+    mc_master(1, l, r, CTL);
 }
 static void t_limiter(void)
 {

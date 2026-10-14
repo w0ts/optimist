@@ -25,6 +25,10 @@ static int motion_param(const track_t *t, uint32_t id)
 {
     if (id >= P_COUNT)
         return 0;
+#if FELUCCA_FX_DUST
+    if (id == P_TDUST)
+        return 1;                                            /* (the DUST insert's amount: fx_slots.c, every track) */
+#endif
 #if FELUCCA_LFO2
     if (id >= P_L2RATE)
         return 0;                                            /* (LFO 2: no stored id of its own yet, auto.c mot_id) */
@@ -43,7 +47,7 @@ static int motion_param(const track_t *t, uint32_t id)
 #endif
 #if SL24_TP
     if (id > P_E7)
-        return FELUCCA_TRK_FILT && id == P_TFLT;             /* (SLOOP 2.4's FILT, on every track: a sweep) */
+        return TFLT_ON && id == P_TFLT;                      /* (the FILTER insert, SLOOP 2.4's FILT: a sweep) */
 #endif
     if (id >= P_E0)
         return !is_drum(t) || id == P_DACC;                  /* (the drum track's P_E0 is its kit; its P_E1 the ACCENT
