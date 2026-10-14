@@ -312,9 +312,9 @@
       "MUTE": "Mute the row", "VOLUME": "Volume of the row", "LEVEL": "Level of the lane (dB)",
       "CUT": "Filter cutoff of the lane"}},
     {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP", "params": {
-      "DRIVE": {"text": "Drive of the lane", "if": "FELUCCA_FX_DIST"},
-      "DST": {"text": "Distortion of the lane", "if": "FELUCCA_FX_DIST"},
-      "CMP": {"text": "Compressor of the lane", "if": "FELUCCA_MASTER_COMP"}}},
+      "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_FX_DIST"},
+      "DST": {"text": "Distortion of the sound", "if": "FELUCCA_FX_DIST"},
+      "CMP": {"text": "Compressor of the sound", "if": "FELUCCA_MASTER_COMP"}}},
     {"kind": "op", "ctx": "RETURNS", "params": {
       "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
