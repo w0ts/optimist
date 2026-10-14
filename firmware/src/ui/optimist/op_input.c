@@ -47,8 +47,27 @@ static int keys_none(void)
     return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
+/* ALGORITHM walks the track only where there is one (the user, 2026-10-14: "it makes no sense to change track when i am
+ * on a page that has no track"). The header's classification (HEAD_TRK_SCR / HEAD_TRK_LY, op_draw.c), so the badge and
+ * the walk agree, plus the mixer (its rows are the tracks) and SCOPE (no badge, but its source follows ALGORITHM). Inert:
+ * GLOBAL, SYSTEM (BLE list), PROJECT, SONG, MASTER FX (opened by the FX button; reached by the walk it is the walk's MASTER
+ * stop and ALGORITHM right leaves it), TEMPO, NAME, an armed question; a held layer follows the layer's
+ * own flag (ERASE, STEP, SCALE, OPS walk; FX, ROLL, MIX, SONG, PATTERNS-all do not). The master FX cards in a layer
+ * (ui.master) keep the walk: it is how you leave MASTER */
+static int algo_has_track(void)
+{
+    uint32_t l = lay_now();
+    if (name_on() || op_armed())
+        return 0;
+    if (l != LY_PLAY)
+        return HEAD_TRK_LY[l % LY_COUNT];
+    if (ui.scr == SCR_FX)
+        return fx_by_walk;                              /* (MASTER reached by the walk: ALGORITHM right leaves it; opened by FX: no track) */
+    return ui.scr == SCR_HOME || ui.scr == SCR_SCOPE || HEAD_TRK_SCR[ui.scr % SCR_N];
+}
 static void op_enter(uint32_t scr)
 {
+    fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
     uint8_t from_master = ui.scr == SCR_HOME && mx_row() == MXR_MASTER;   /* (SCOPE opened on the mixer's MASTER row: its source) */
     if (ui.scr == SCR_SCOPE)
         ui.master = 0;                                  /* (the scope's MASTER source goes with the scope) */

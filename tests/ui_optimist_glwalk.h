@@ -338,7 +338,8 @@ static void glwalk_tests(void)
 {
     static int16_t g0[sizeof song.g / sizeof song.g[0]], b0[BPS_COUNT];
     uint32_t s, i, n, ok, acts = 0, pal = settings.palette, low = settings.lowcut;
-    int16_t len = TSEL->p[P_SLEN];
+    __typeof__(TSEL) t0 = TSEL;
+    int16_t len = t0->p[P_SLEN];
     cell_t c;
     char v[16];
     memcpy(g0, song.g, sizeof g0);
@@ -381,6 +382,6 @@ static void glwalk_tests(void)
     settings.palette = pal;
     palette_set(pal);
     settings.lowcut = low;
-    TSEL->p[P_SLEN] = len;
+    t0->p[P_SLEN] = len;
     reset_ui();
 }
