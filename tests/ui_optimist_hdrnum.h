@@ -1,6 +1,6 @@
 /* The track number in the header's badge (the user, 2026-10-14: "we should always have the track number on the top left
  * with the engine/preset"). op_draw.c head_badge / head_preset:
- *   the badge      "T1 ANALOG", "T3 <engine>", "DR DRUMS"; a picked lane "DR SNARE", the accent lane "DR ACCENT"
+ *   the badge      "1 ANALOG", "3 <engine>", "4 DRUMS"; a picked lane "4 SNARE", the accent lane "4 ACCENT"
  *   the preset     after the page's name, in the track's colour, only where it fits whole; dropped before the name shortens
  *   the n/N        always whole, with or without the preset
  *   no badge       non-track pages unchanged; MASTER keeps its own badge
@@ -8,7 +8,7 @@
 static void hn_badge_is(uint32_t trk, const char *eng, const char *what)
 {
     char b[24], w[32];
-    str_cpy(w, trk_tag(trk), sizeof w);
+    fmt_int(w, (int32_t)trk + 1);
     str_cpy(w + str_len(w), " ", sizeof w - str_len(w));
     str_cpy(w + str_len(w), eng, sizeof w - str_len(w));
     check(!strcmp(head_badge(b, sizeof b), w), what);
@@ -45,7 +45,7 @@ static void header_tracknum_tests(void)
     op_enter(SCR_SOUND);
     for (k = 0; k < 3; k++) {
         song.sel = (uint8_t)k;
-        hn_badge_is(k, ENGINES[trk[k].eng_req % NENGINES]->name, "the badge: the track code and the engine (T1, T2, T3)");
+        hn_badge_is(k, ENGINES[trk[k].eng_req % NENGINES]->name, "the badge: the track number and the engine (1, 2, 3)");
         frame();
         ok &= (uint32_t)px_in(2, 3, 20, 19, trk_col(k));
     }
@@ -53,14 +53,14 @@ static void header_tracknum_tests(void)
     song.sel = TRK_DRUM;
     lane_select(0);
     ui.lane = 0;
-    hn_badge_is(TRK_DRUM, "DRUMS", "the drum track: DR DRUMS");
+    hn_badge_is(TRK_DRUM, "DRUMS", "the drum track: 4 DRUMS");
 #if ACC_UI
     acc_pick();
     press(B_HOME);
     kdown(DACC_KEY);
     kup(DACC_KEY);
     release(B_HOME);
-    hn_badge_is(TRK_DRUM, "ACCENT", "the accent lane: DR ACCENT");
+    hn_badge_is(TRK_DRUM, "ACCENT", "the accent lane: 4 ACCENT");
 #endif
     reset_ui();
     frames(120);
@@ -71,10 +71,10 @@ static void header_tracknum_tests(void)
     {
         char b[24], w[32];
         const char *l = head_engine();
-        str_cpy(w, "DR ", sizeof w);
-        str_cpy(w + 3, l, sizeof w - 3u);
-        check(lane_picked() && !strcmp(head_badge(b, sizeof b), w) && !strncmp(b, "DR ", 3) && strcmp(l, "DRUMS"),
-              "a picked lane: DR and the lane's name");
+        str_cpy(w, "4 ", sizeof w);
+        str_cpy(w + 2, l, sizeof w - 2u);
+        check(lane_picked() && !strcmp(head_badge(b, sizeof b), w) && !strncmp(b, "4 ", 2) && strcmp(l, "DRUMS"),
+              "a picked lane: 4 and the lane's name");
     }
     /* every SOUND row on each synth track: the n/N whole at the title's end, the preset only when it fits, never over the loop position */
     for (k = 0; k < 3; k++) {

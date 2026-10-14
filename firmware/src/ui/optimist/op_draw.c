@@ -193,10 +193,10 @@ static const char *head_engine(void)
     return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
 }
 /* the track page's badge (the user, 2026-10-14: "we should always have the track number on the top left with the engine/
- * preset"): the track code and the engine, "T2 DIGITAL", "DR DRUMS", "DR SNARE" for a picked lane, "DR ACCENT" */
+ * preset"): the track code and the engine, "2 DIGITAL", "4 DRUMS", "4 SNARE" for a picked lane, "4 ACCENT" */
 static const char *head_badge(char *b, uint32_t n)
 {
-    str_cpy(b, trk_tag(song.sel), n);
+    fmt_int(b, (int32_t)song.sel % NTRK + 1);           /* (the number only: 1 2 3, the drum track 4) */
     str_cpy(b + str_len(b), " ", n - str_len(b));
     str_cpy(b + str_len(b), head_engine(), n - str_len(b));
     return b;
@@ -340,7 +340,7 @@ static void draw_head(void)
     if (!badge)
         eng = "";                                       /* (no badge: the title starts at the left margin) */
     else if (trkb)
-        eng = head_badge(bt, sizeof bt);                /* (a track page: "T2 DIGITAL") */
+        eng = head_badge(bt, sizeof bt);                /* (a track page: "2 DIGITAL") */
     head_preset(pr, trkb);
     bw = badge ? text_w(&FONT_S, eng) + 8 : 0;
     pos[0] = 0;
