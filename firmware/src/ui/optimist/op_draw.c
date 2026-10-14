@@ -312,8 +312,8 @@ typedef struct {
 } head_t;
 /* the badge of a page that is not a track's, and the title it leaves (the audit's #11): MASTER (the master FX, the mixer's
  * MASTER row, MASTER in a layer: the layer's name the title), a layer that is not the track's (its name; "Locked" the
- * title while HOME holds it open), NAME (the slot the title), the screen's (GLOBAL, SYSTEM: no title, the list's own big
- * title says the page, op_gldraw.c), else the screen's name (MIX, PROJECT, SONG, TEMPO, SCOPE; style guide 1: the title
+ * title while HOME holds it open), NAME (the slot the title), the screen's (GLOBAL, SYSTEM: the page's name and n/N
+ * the title, as everywhere), else the screen's name (MIX, PROJECT, SONG, TEMPO, SCOPE; style guide 1: the title
  * is then the page's name alone, never the screen's word again). 1: the title is t's already */
 static int head_other(head_t *h)
 {
@@ -338,7 +338,15 @@ static int head_other(head_t *h)
         return 1;
     }
     h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : SCR_NAME[ui.scr % SCR_N];
-    return gl_scr(ui.scr);                              /* (GLOBAL, SYSTEM: the title is the list's, t stays empty) */
+    if (!gl_scr(ui.scr))
+        return 0;
+    {
+        char b[32];
+        gl_ptitle(ui.scr == SCR_SYSTEM, ui.row[ui.scr], b, sizeof b);   /* (GLOBAL, SYSTEM: the page's name, cased: "Channels 5/5") */
+        str_cpy(h->t, b, sizeof h->t);
+        head_pos(ui.scr, ui.row[ui.scr], h->pos);
+    }
+    return 1;
 }
 /* a title's deliberate short form, for a header short of room (the user's ruling, 2026-10-14: bar.beat always stays, the
  * title shortens, never a cut mid-word, the n/N whole): a continuation's number joins its word ("Voice 2" -> "Voice2"),

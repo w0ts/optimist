@@ -122,7 +122,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | Control | Always means |
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
-| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows. It is the track and never anything else (section 26: not GLOBAL's or SYSTEM's cursor either), and **only where there is a track** (section 28: on GLOBAL, SYSTEM, PROJECT, SONG, TEMPO, NAME and the global layers it does nothing) |
+| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows. It is the track and never anything else, and **only where there is a track** (section 28: on PROJECT, SONG, TEMPO, NAME and the global layers it does nothing); **the one exception: on GLOBAL's and SYSTEM's lists it scrolls the cursor one line a detent, across the pages** (section 31, 2026-10-14, the user: *"ALGORITHM should scroll one item at a time"*) |
 | **PRESETS** | **browses the selected track's presets** (the drum track: its kits; a drum lane on an instrument: that lane's sound, section 16), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2), and GLOBAL / SYSTEM, where it does nothing (2026-10-13, section 27: a knob is line k, YES runs an action). HOME held + PRESETS: the next / previous engine's first sound (on STEP and GLOBAL / SYSTEM: nothing). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
@@ -2509,7 +2509,7 @@ systems settings (track presets and current track)"; then "select scroll by page
 other pages", "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the
 page moves line by line)", and "glo still pages thru pages of glo and then system, it should switch between the two".
 
-**Logical pages (feat/settings-pages, 2026-10-13; the user: "grouped in logical pages, dont cut a page in the middle", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should be on one page").** A page is one section: sections are never combined to fill a page, a short one leaves the page's last lines empty (their knobs do nothing). Only a section of more than 4 lines is split, between its rows (REC: MODE LENGTH START CLICK, then QUANT: "Rec 1/2" over each page). The pages are made from the lines the build has (op_global.c `gl_build`, `gl_sid`: a section's lines, REC 2's being REC's), so DUAL, BLE, CDC, CLKOUT, BRIGHT, LIGHTS, REC_MODES move the rest up and no page number is fixed. The header's n/N counts the pages; SELECT steps a page (the cursor on its first line), knob k is line k of its page (ALGORITHM is the track here as everywhere, section 26). Tests: tests/ui_optimist_glpages.h (every variant).
+**Logical pages (feat/settings-pages, 2026-10-13; the user: "grouped in logical pages, dont cut a page in the middle", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should be on one page").** A page is one section: sections are never combined to fill a page, a short one leaves the page's last lines empty (their knobs do nothing). Only a section of more than 4 lines is split, between its rows (REC: MODE LENGTH START CLICK, then QUANT: "Rec 1/2" over each page). The pages are made from the lines the build has (op_global.c `gl_build`, `gl_sid`: a section's lines, REC 2's being REC's), so DUAL, BLE, CDC, CLKOUT, BRIGHT, LIGHTS, REC_MODES move the rest up and no page number is fixed. The header's n/N counts the pages; SELECT steps a page (the cursor on its first line), knob k is line k of its page (ALGORITHM scrolls the lines here, section 31). Tests: tests/ui_optimist_glpages.h (every variant).
 
 **The look.** GLOBAL and SYSTEM have no cards. Under the header, to the screen's foot, one page of up to 4 lines; a line is one
 setting: its knob's number (1..4) at the left, the setting's name, its value on the right as the cards wrote it (the
@@ -2823,7 +2823,8 @@ ALGORITHM).
 | Where | ALGORITHM |
 |---|---|
 | the mixer, SOUND (and its lanes), STEP, SCOPE | walks (MASTER T1 T2 T3 DR, the 16 lanes), as section 16 |
-| GLOBAL, SYSTEM (+ the BLE devices list), PROJECT, SONG, TEMPO (PLAY held), NAME, an asked question | **nothing**: no track, no screen, no cursor, no setting |
+| GLOBAL, SYSTEM (their lists) | **scrolls the cursor** a line a detent, across the pages (the page follows), stopping at the ends (op_global.c `glo_walk`; **reverses this section's earlier rule for these two screens only**, 2026-10-14, section 31). No track, no screen, no setting changes; a layer held over them keeps the layer's rule |
+| the BLE devices list, PROJECT, SONG, TEMPO (PLAY held), NAME, an asked question | **nothing**: no track, no screen, no cursor, no setting |
 | the master FX screen opened by the FX button or the mixer | **nothing** |
 | the master FX screen reached by the walk (left of T1 on SOUND / STEP) | walks: right goes back to the page, so the jump has a way out (`fx_by_walk`, op_walk.c; cleared by any `op_enter`) |
 | layers over a page: EDIT (erase), SCL (scale), ENV on FM6 (operators), STEP | walk, the layer's ui.master as section 26 |
@@ -2832,7 +2833,7 @@ ALGORITHM).
 The jump to the master FX screen from PROJECT / SYSTEM / GLOBAL / SONG / SCOPE / TEMPO (op_walk.c) is gone with the walk there. Judgment
 call: the master FX screen is inert when opened by FX (no track); only when ALGORITHM put you there does it keep the walk, else the jump
 from SOUND / STEP would be a dead end. FX held on the mixer's MASTER row still shows the master cards.
-Tests: tests/ui_optimist_algotrack.h (`at_inert_tests`), ui_optimist_algo.h (SCOPE, the EDIT / SCL layers), ui_optimist_master.h (the FX layer).
+Tests: tests/ui_optimist_algotrack.h (`at_inert_tests`: PROJECT, SONG, the master FX; `at_replacement_tests`: GLOBAL and SYSTEM scroll), ui_optimist_algo.h (SCOPE, the EDIT / SCL layers), ui_optimist_master.h (the FX layer).
 
 ## 29. The ACCENT lane (feat/accent-ui on feat/drum-accent, 2026-10-14)
 
@@ -2880,10 +2881,12 @@ Tests: tests/ui_optimist_lanevals.h (two lanes picked on SOUND and from STEP, th
 
 The user, from a screenshot of "Global channels 5/5". Section 20's lists (GLOBAL, SYSTEM; op_gldraw.c) are redrawn:
 
-- **Header**: only "Global" or "System" (op_draw.c draw_head); the right side (bar.beat, BPM) stays.
-- **Page title**, under it, in the large face (the cards' `font_big`): the section's name and the page n/N, "Channels 5/5", the n/N dim. The sections' small rules are gone. A title that does not fit 228 px in the large face (16 px a letter: the joined "Screen & audio 2/6", "Connections 4/6") is drawn in the small face.
-- **The 4 lines** share the room between the title and the help line evenly (`gl_pitch`); a page of fewer lines keeps that pitch. Name left, value right, the value's form under it.
+- **Header** (2026-10-14, the user: *"move back the title in the top bar"*, reversing the first version of this section): the badge GLOBAL / SYSTEM, then the page's title and n/N as on every screen ("Channels 5/5", the n/N grey; op_draw.c `head_other` takes the name from `gl_ptitle`), then bar.beat and BPM, which always stay. A title short of room takes its short form from the names table (op_names.c `NM_SHORT`: "Screen & audio" -> "Scr & aud", "Connections" -> "Connect"), never a cut. **There is no title line under the header any more**: its room went to the lines.
+- **Page title**: the section's name, or a joined pair's (above); the n/N is dropped on a screen of one page.
+- **The 4 lines** share the room between the header and the help line evenly (`gl_pitch`); a page of fewer lines keeps that pitch. Name left, value right, the value's form under it.
 - **Value forms**: a ranged value is a bar 4 px thick over the screen's width (6..234), the trough a line; a multi-choice list (Auto: Int / USB / TRS, Keys / Seq, Notes / Clock, COLOR) is a segmented bar, one segment per choice, the chosen one lit; an **on / off value (ON, OFF; the radio's LINK, NO CAL) has no bar but a square mark at the right**, filled when on, outlined when off, in the line's colour (a pill is too thin at this size). Read-outs keep their bars, actions their verb.
+- **The cursor line is inverted** (2026-10-14, the user: *"invert the highlight"*): no coloured background; the line's text (the number, the name, the value and unit) is drawn in the line's colour (the knob's with KNOB COLORS, else the track's) on the normal background, the other lines keeping grey names and white values. The bar, the on / off mark and the segments are as on every line (the cursor's in the line's colour). **The other lists keep the full-colour cursor background (section 34): the two list styles now differ** (open: unify?).
+- **ALGORITHM scrolls the lines** one a detent across the pages (section 28); knob k still edits line k of the page, SELECT pages, HOME + a knob resets.
 - **Joined pages** (op_global.c `GL_JOIN`, one table): SYSTEM's SCREEN and AUDIO share one page, "Screen & audio", and USB and BLUETOOTH share "Connections", when together they are 4 lines or fewer in the build; otherwise each keeps its own pages. The BLE line's YES still opens the devices. A page is one section or one joined pair (the layout test allows exactly those).
 - **Keys**: the LIGHTS section is "Keys", its lines BUTTONS (the button glow OFF / LOW / MID / HIGH) and KEYS (OFF / C / WHITE / ALL); the settings word is unchanged. SYSTEM's order: Info, Screen & audio, Keys, Connections, Calibrate, About.
 - **INFO** (SYSTEM's first page, replacing CPU): one dense read-only page that is not 4 lines: CLOCK, CPU0 (LOAD), the 2ND CORE line (always there, 7 lines in every build: `2ND CORE ON` + the CPU1 load %; `2ND CORE OFF` + why in amber, from `dual_why_name`, until power-off; `2ND CORE` + `NOT IN BUILD` in a DUAL=0 build), then FLASH, RAM, POOL and RAM CODE as used/total KB with a bar. The memory is read at run time from the linker's symbols (firmware/app.ld: `_pi_load`, `_bss_end`, `_pool_end`, `_rt_end`, `_rh_end` and the region sizes `_flash_len`, `_ram_len`, `_pool_len`, `_rtxt_len`), so it is true for the running image. No knob does anything there.
@@ -2891,7 +2894,7 @@ The user, from a screenshot of "Global channels 5/5". Section 20's lists (GLOBAL
 - **About** (4 lines, one page): VERSION (and the commit it was built from, `-DFELUCCA_COMMIT` from tools/build.py), BUILD (date and time, the compiler's), CHIP (AC791N, the cores), REPO (github.com/w0ts/optimist).
 - Help lines: KEYS / BUTTONS "Buttons glow in the dark", KEYS "Which keys glow", INFO, BUILD, CHIP, REPO (tools/param_help.json; the 232 px limit shortened the user's wording).
 
-Tests: tests/ui_optimist_glstyle.h (header, titles, pitch, bars, marks, joined pages, INFO, About); glpages, glo, glwalk, core and pages updated.
+Tests: tests/ui_optimist_glstyle.h (header: the badge, the title and n/N whole, bar.beat; no title line; pitch, bars, marks, joined pages, INFO, About); ui_optimist_curline.h (no fill, the line's colour on the cursor's text); ui_optimist_algotrack.h (the scroll); glpages, glo, glwalk, core and pages updated.
 
 ## 32. The names table (feat/ui-names, 2026-10-14; the coherence audit's batch A)
 

@@ -1,35 +1,33 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* GLOBAL and SYSTEM drawn as a list (op_global.c; docs/UI-OPTIMIST-DESIGN.md section 20): no cards, the page's 4 lines
- * from under the header to the screen's foot, under the page's title in the large face ("Channels 5/5": the section's name,
- * or a joined pair's, and the page n/N; the header says only Global or System). The 4 lines share the room down to the help
- * line evenly (gl_pitch). A line: its knob's number (1..4, in the knob's colour with KNOB COLORS; dim on a read-out, which
+ * from under the header to the screen's foot (the page's title is the header's, next to the GLOBAL / SYSTEM badge:
+ * "Channels 5/5", op_draw.c head_other; no title line here, the user, 2026-10-14). The 4 lines share the room down to the
+ * help line evenly (gl_pitch). A line: its knob's number (1..4, in the knob's colour with KNOB COLORS; dim on a read-out, which
  * no knob turns), the setting's name, its value on the right as the cards write it (amber: a read-out, or an action's
  * word: gl_val), the value's form under it: a bar over the screen's width, a segmented one for a short list, an on / off
- * value a square mark at the right instead (filled on, outlined off). The cursor line: a bar in the track's colour, ink
- * on it. Lazy, as every band: drawn again when its signature changes. */
+ * value a square mark at the right instead (filled on, outlined off). The cursor line: no fill, its text (the number, the name,
+ * the value) in the line's colour (the knob's with KNOB COLORS, else the track's; the user, 2026-10-14, "invert the highlight"). Lazy, as every band: drawn again when its signature changes. */
 #define GL_TOP OH_HEAD                  /* the list: under the header, to the help band (op_graph.c OP_FOOT) */
 #define GL_BAND (OP_FOOT_Y - OH_HEAD)
-#define GL_TOP_Y 3                      /* the page title's top, in the band */
+#define GL_TOP_Y 3                      /* the first line's top, in the band */
 #define GL_END (GL_BAND - 2)            /* the lines' room ends here */
 #define GL_BX 6                         /* the value bar: the screen's width less a margin each side */
 #define GL_BW 228
 #define GL_BH 4                         /* its thickness */
-#define GL_TW 228                       /* the title's room */
 #define GL_CK 10                        /* the on / off mark's side */
-static const felucca_font_t *font_big(void);            /* op_graph.c (the large face with lower case) */
 static struct {
     uint32_t s, first, end, n, cur;
     uint16_t bar;
 } gld;                                                  /* what gl_paint draws (gl_draw) */
-/* the line pitch: 4 lines fill the room between the page title and the help line; a page of fewer lines keeps it */
+/* the line pitch: 4 lines fill the room between the header and the help line; a page of fewer lines keeps it */
 static int32_t gl_pitch(void)
 {
-    return (GL_END - (GL_TOP_Y + (int32_t)font_big()->h + 3)) / (int32_t)GL_PAGE;
+    return (GL_END - GL_TOP_Y) / (int32_t)GL_PAGE;
 }
 /* a line's rows from its top y: the text, then the bar under it, centred in the pitch */
 static int32_t gl_ty(int32_t y, int32_t bh) { return y + (gl_pitch() - 2 - (int32_t)FONT_S.h - 3 - bh) / 2; }
 static int32_t gl_by(int32_t y) { return gl_ty(y, GL_BH) + (int32_t)FONT_S.h + 3; }
-static int32_t gl_y0(void) { return GL_TOP_Y + (int32_t)font_big()->h + 3; }   /* the first line's top */
+static int32_t gl_y0(void) { return GL_TOP_Y; }   /* the first line's top */
 /* a line's value as drawn: an action says what it does (the user, 2026-10-13: lines showing "YES" read as dead), RUN
  * when its cell names nothing; YES runs it (op_global.c gl_yes) */
 static const char *gl_val(const cell_t *c) { return c->kind != CK_ACT ? c->val : c->val[0] ? c->val : "RUN"; }
@@ -58,30 +56,28 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     char b[16], m[2], lv[14];
     const char *v = gl_text(c, lv);
     uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : c->kind == CK_RO ? C_GRAY : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
-    int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ph = gl_pitch(), ty, by;
+    int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ty, by;
     uint32_t tog = gl_tog(c);                           /* on / off: the mark, no bar */
     uint32_t bar = c->kind != CK_ACT && c->gk != GK_NONE && !tog;
-    uint16_t bg = cur_bg(knob_col(k, gld.bar)), ink = on ? C_WHITE : vc;
+    uint16_t lc = knob_col(k, gld.bar), ink = on ? lc : vc;     /* (the cursor line: its text in the line's colour, no fill) */
     ty = gl_ty(y, GL_BH);                               /* (the text, then the bar, centred in the line) */
     by = gl_by(y);
     m[0] = (char)('1' + k);
     m[1] = 0;
-    if (on)
-        cv_rect(0, y, 240, ph - 2, bg);
-    cv_text(6, ty, &FONT_S, m, on ? C_WHITE : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
-    cv_text(24, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? C_WHITE : C_GRAY);
+    cv_text(6, ty, &FONT_S, m, on ? lc : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
+    cv_text(24, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
     cut(b, v, 13);
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(&FONT_S, b);   /* (a unit right after the number: "90BPM", style guide 5) */
     cv_text(x, ty, &FONT_S, b, ink);
     if (uw)
-        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? C_WHITE : C_DIM);
+        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? lc : C_DIM);
     if (tog)
-        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, on ? bg : C_BLACK);
+        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, C_BLACK);
     else if (bar) {
         cell_t g = *c;
         if (g.gk == GK_PILL)
             g.gk = GK_DOTS;                             /* (a two-way choice: two segments, the chosen one lit) */
-        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, on ? cur_trough(bg) : C_LINE);
+        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, C_LINE);
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, a bar
@@ -117,21 +113,8 @@ static void gl_info_draw(int32_t y0)
 static void gl_paint(void)
 {
     uint32_t i;
-    int32_t y = gl_y0(), w;
-    char t[24];
+    int32_t y = gl_y0();
     cell_t c;
-    gl_title(gld.s, gld.first, t, sizeof t);            /* the page's title: the name, its n/N dim; the large face, the small one */
-    for (w = (int32_t)str_len(t); w > 0 && t[w - 1] != ' '; w--)    /* when a joined pair's name is too long for it (16 px a letter) */
-        ;
-    if (w < 1 || gl_npg(gld.s) < 2u) {
-        cv_text(6, GL_TOP_Y, font_big(), t, C_HI);
-    } else {
-        const felucca_font_t *f = text_w(font_big(), t) <= GL_TW ? font_big() : &FONT_S;
-        int32_t ty = GL_TOP_Y + ((int32_t)font_big()->h - (int32_t)f->h) / 2;
-        t[w - 1] = 0;
-        w = cv_text(6, ty, f, t, C_HI);
-        cv_text(w + text_w(f, " "), ty, f, t + str_len(t) + 1, C_DIM);
-    }
     if (gl_info()) {
         gl_info_draw(y);
         return;

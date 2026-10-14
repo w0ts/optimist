@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the cursor row of every vertical list (fix/cursor-line, 2026-10-14; the user: the orange bar with
  * grey text was hard to read, then: the dark tint is not recognisable). The row's background is the colour the context uses at
- * FULL strength (the track's colour on a track list, the knob's colour on a GLOBAL / SYSTEM line with KNOB COLORS, else the
- * track's), and the row's text is white: no black ink. Every colour that can be that background (the engine and kit-kind
+ * FULL strength (the track's colour on a track list), and the row's text is white: no black ink. Every colour that can be that background (the engine and kit-kind
  * colours, the knob colours) holds white text at a WCAG contrast >= 3:1, computed here from the RGB565 values. */
 static double cl_lin(uint32_t v8)                       /* an 8-bit sRGB channel, linear */
 {
@@ -53,6 +52,8 @@ static int cl_row(const char *what, int32_t y, int32_t h, uint16_t full, uint16_
                cl_count(0, y, 3, y + h, full));
     return ok;
 }
+/* GLOBAL, SYSTEM (the user, 2026-10-14, "invert the highlight"): the cursor line has no fill, its text (number, name, value) is the
+ * line's colour; the other lines' names stay grey. The label's columns (x 24..120) hold the line's colour on the cursor line only */
 static int cl_gl(uint32_t scr, uint32_t colors)
 {
     uint32_t s = scr == SCR_SYSTEM, i, ok = 1;
@@ -60,7 +61,7 @@ static int cl_gl(uint32_t scr, uint32_t colors)
     knob_colors = colors;
     op_enter(scr);
     for (i = 0; i < gl_n(s) && ok; i++) {
-        uint32_t f, k;
+        uint32_t f, k, j;
         ui.row[scr] = (uint8_t)i;
         ui.force = 1;
         frame();
@@ -68,8 +69,16 @@ static int cl_gl(uint32_t scr, uint32_t colors)
         k = i - f;
         if (gl_info() || k >= GL_PAGE)
             continue;
-        ok &= cl_row(scr == SCR_SYSTEM ? "SYSTEM" : "GLOBAL", OH_HEAD + gl_y0() + (int32_t)k * gl_pitch(), gl_pitch() - 2,
-                     knob_col(k, trk_col(song.sel)), cur_bg(knob_col(k, trk_col(song.sel))));
+        for (j = 0; j < gld.end - f; j++) {
+            int32_t y = OH_HEAD + gl_y0() + (int32_t)j * gl_pitch(), h = gl_pitch() - 2;
+            uint16_t lc = knob_col(j, trk_col(song.sel));
+            int32_t ty = OH_HEAD + gl_ty(gl_y0() + (int32_t)j * gl_pitch(), GL_BH), te = ty + (int32_t)FONT_S.h;   /* (the text rows: the bar under them keeps its colour) */
+            uint32_t lab = cl_count(24, ty, 120, te, lc), fill = cl_count(0, y, 3, y + h, lc) + cl_count(0, y, 3, y + h, C_WHITE);
+            ok &= fill == 0u && screen[(y + 1) * 240 + 1] == swap16(C_BLACK);   /* (no fill, whatever the line) */
+            ok &= j == k ? lab > 8u && cl_count(24, ty, 120, te, C_WHITE) == 0u : lab == 0u;   /* (the name in the line's colour on the cursor, grey elsewhere) */
+            if (!ok)
+                printf("  curline: %s line %u (cursor %u): label px %u, fill px %u\n", scr == SCR_SYSTEM ? "SYSTEM" : "GLOBAL", f + j, i, lab, fill);
+        }
     }
     knob_colors = (uint8_t)keep;
     return ok;
@@ -97,8 +106,8 @@ static void curline_tests(void)
     reset_ui();
     check(cl_palette_contrast(), "cursor colours: white text on every engine, kit-kind and knob colour holds >= 3:1 (WCAG)");
     song.sel = 0;
-    check(cl_gl(SCR_GLOBAL, 0u) && cl_gl(SCR_GLOBAL, 1u), "GLOBAL: the cursor line is its line's colour at full strength, its text white");
-    check(cl_gl(SCR_SYSTEM, 0u) && cl_gl(SCR_SYSTEM, 1u), "SYSTEM: the cursor line is its line's colour at full strength, its text white");
+    check(cl_gl(SCR_GLOBAL, 0u) && cl_gl(SCR_GLOBAL, 1u), "GLOBAL: the cursor line has no fill, its text is the line's colour (the others' names grey)");
+    check(cl_gl(SCR_SYSTEM, 0u) && cl_gl(SCR_SYSTEM, 1u), "SYSTEM: the cursor line has no fill, its text is the line's colour (the others' names grey)");
     check(cl_list("PROJECT", SCR_PROJECT, 0u, 4u), "PROJECT: the cursor row is the track's colour at full strength, its text white");
     for (r = 0; r < 4u; r++) {                          /* a SOUND list: the first rows of SOUND with no picture */
         uint32_t i;

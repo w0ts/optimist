@@ -28,6 +28,7 @@ static const char NM_TITLE[] =
 static const char NM_SHORT[] =
     "Pattern\0Pat\0"           "Scale2\0Scl2\0"            "Voice2\0Vox2\0"            "Kit sends\0Kit snd\0"
     "Bus sends\0Bus snd\0"       "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "Slicer\0Slcr\0"
+    "Screen & audio\0Scr & aud\0" "Connections\0Connect\0"
     "\0";
 static const char NM_CARD[] =
     "VOLUME\0LEVEL\0"            "LVL\0LEVEL\0"               "DST\0DIST\0"                "DST A\0DEST A\0"

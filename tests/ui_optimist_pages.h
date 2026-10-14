@@ -621,7 +621,7 @@ static int hd_badge_is(const char *b)                  /* the header's badge now
 }
 static uint32_t head_bad;
 static void head_ok(const char *where)                  /* the header now: a badge, a capital first, the n/N whole (GLOBAL,
-                                                         * SYSTEM: the badge alone, the list has the page's title) */
+                                                         * SYSTEM too: the page's name and n/N, 2026-10-14) */
 {
     char t[32];
     uint32_t i, n;
@@ -629,7 +629,7 @@ static void head_ok(const char *where)                  /* the header now: a bad
     head_make(&h);
     head_now(t);
     n = str_len(t);
-    if (!h.badge || !h.eng[0] || (!n && !gl_scr(ui.scr))) {
+    if (!h.badge || !h.eng[0] || !n) {
         printf("  header %s: no badge or no title '%s' '%s'\n", where, h.eng, t);
         head_bad++;
         return;
@@ -710,19 +710,20 @@ static void pages_head_tests(void)
     reset_ui();
     check(head_bad == 0u, "D11: every header of SOUND (every track, family), GLOBAL, SYSTEM, PROJECT, MASTER, SONG, SCOPE: "
                           "a capital first, no digit before n/N");
-    {   /* GLOBAL and SYSTEM: the header says the screen alone; the page's name and n/N are the list's own title
-         * (section 31, tests/ui_optimist_glstyle.h) */
+    {   /* GLOBAL and SYSTEM: the badge, the page's name and n/N (2026-10-14: the title is back in the top bar; section 31) */
         char t[32];
         op_enter(SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!t[0] && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, no title (the page's title is the list's)");
+        check(!strncmp(t, "Tempo 1/", 8) && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, \"Tempo 1/N\"");
+#if FELUCCA_REC_MODES
         line_named(SCR_GLOBAL, "QUANT");
         head_now(t);
-        check(!t[0] && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): still the badge alone");
+        check(!strncmp(t, "Rec 2 ", 6) && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): the badge GLOBAL, \"Rec 2 n/N\"");
+#endif
         line_named(SCR_SYSTEM, "COLOR");
         head_now(t);
-        check(!t[0] && hd_badge_is("SYSTEM"), "D11: SYSTEM's COLOR line: the badge SYSTEM alone");
+        check(t[0] && strstr(t, "aud") && hd_badge_is("SYSTEM"), "D11: SYSTEM's COLOR line: the badge SYSTEM, the joined page's short title (\"Scr & aud n/N\")");
     }
     reset_ui();
     turn(EN_ALGO, -1);

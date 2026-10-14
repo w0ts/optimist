@@ -50,7 +50,7 @@ static int keys_none(void)
 /* ALGORITHM walks the track only where there is one (the user, 2026-10-14: "it makes no sense to change track when i am
  * on a page that has no track"). The header's classification (HEAD_TRK_SCR / HEAD_TRK_LY, op_draw.c), so the badge and
  * the walk agree, plus the mixer (its rows are the tracks) and SCOPE (no badge, but its source follows ALGORITHM). Inert:
- * GLOBAL, SYSTEM (BLE list), PROJECT, SONG, MASTER FX (opened by the FX button; reached by the walk it is the walk's MASTER
+ * SYSTEM (BLE list; GLOBAL and SYSTEM's lists: ALGORITHM scrolls their lines, glo_walk), PROJECT, SONG, MASTER FX (opened by the FX button; reached by the walk it is the walk's MASTER
  * stop and ALGORITHM right leaves it), TEMPO, NAME, an armed question; a held layer follows the layer's
  * own flag (ERASE, STEP, SCALE, OPS walk; FX, ROLL, MIX, SONG, PATTERNS-all do not). The master FX cards in a layer
  * (ui.master) keep the walk: it is how you leave MASTER */
@@ -541,7 +541,10 @@ static void op_knobs(uint32_t home)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
                                                          * not in a free take) */
-        algo_walk(s, 0);                                /* (GLOBAL, SYSTEM too: never their cursor, the knobs pick the line) */
+        if (glo_cycle() && lay_now() == LY_PLAY && !name_on())
+            glo_walk(s);                                /* (GLOBAL, SYSTEM: the cursor a line a detent, no track here; a layer over them keeps the walk's rules) */
+        else
+            algo_walk(s, 0);
         turned = 1;
     }
     op_rows_fix();
