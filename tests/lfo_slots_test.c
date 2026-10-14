@@ -396,6 +396,54 @@ static void t_names(void)
 #endif
 }
 
+/* phase 2 names: INS1 / INS2 show the type the selected track's slot holds, as INSERTS names it; empty: "S1 --" */
+static void t_ins_names(void)
+{
+    char b[16];
+    uint32_t t, u, ok = 1, n = 0, sw = 0;
+    init();
+    song.sel = 1;
+    for (t = 0; t < FXT_N; t++) {
+        if (!((FXT_BUILT & FXT_INSERT) >> t & 1u))
+            continue;
+        ins_load(song.sel, 0, t);
+        dest_text(&TP[P_L1DA], LT_INS1, b);
+        ok &= !strcmp(b, TP[FXT_AMT[t]].label) && strlen(b) <= 5u;
+        ins_load(song.sel, 1, t);                      /* (the same type moves from S1 to S2: S1 takes S2's old one) */
+        dest_text(&TP[P_L1DA], LT_INS2, b);
+        ok &= !strcmp(b, TP[FXT_AMT[t]].label);
+        n++;
+    }
+    check(ok && n > 0, "ins names: INS1 / INS2 show the held type's INSERTS name, <= 5 characters");
+    ins_load(song.sel, 0, FXT_NONE);
+    ins_load(song.sel, 1, FXT_NONE);
+    dest_text(&TP[P_L1DA], LT_INS1, b);
+    ok = !strcmp(b, "S1 --");
+    dest_text(&TP[P_L1DB], LT_INS2, b);
+    ok &= !strcmp(b, "S2 --");
+    check(ok, "ins names: an empty slot shows S1 -- / S2 --");
+    for (t = 0; t < FXT_N; t++)
+        for (u = t + 1u; u < FXT_N; u++) {
+            if (!((FXT_BUILT & FXT_INSERT) >> t & 1u) || !((FXT_BUILT & FXT_INSERT) >> u & 1u) || sw)
+                continue;
+            ins_load(song.sel, 0, t);
+            ins_load(song.sel, 1, u);
+            ins_load(song.sel, 0, u);                  /* S1 takes S2's type: they swap */
+            dest_text(&TP[P_L1DA], LT_INS1, b);
+            ok = !strcmp(b, TP[FXT_AMT[u]].label);
+            dest_text(&TP[P_L1DA], LT_INS2, b);
+            ok &= !strcmp(b, TP[FXT_AMT[t]].label);
+            sw = 1;
+            check(ok, "ins names: a swap of S1 / S2 swaps the names");
+        }
+    song.sel = 0;
+    ins_load(1, 0, FXT_NONE);
+    ins_load(1, 1, FXT_NONE);
+    ins_load(0, 0, FXT_NONE);
+    dest_text(&TP[P_L1DA], LT_INS1, b);
+    check(!strcmp(b, "S1 --"), "ins names: the selected track's slots, not another's");
+}
+
 int main(void)
 {
     t_depths();
@@ -403,6 +451,7 @@ int main(void)
     t_stored();
     t_values();
     t_names();
+    t_ins_names();
 #if FELUCCA_LFO2
     t_cross();
 #endif
