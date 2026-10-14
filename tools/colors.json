@@ -1,25 +1,25 @@
 {
  "about": "One colour per engine and per drum source kind, and the status colours: the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs) and the device (tools/gen_colors.py: build/gen/felucca_colors.h, RGB565; firmware/src/ui/sloop/ui_colors.c). Colour carries meaning only: engine, kind, status.",
  "engines": {
-  "ANALOG": "#e8892f",
-  "DIGITAL": "#2f9fe0",
+  "ANALOG": "#ca8325",
+  "DIGITAL": "#2e9bda",
   "PHASE": "#8e6ad8",
   "LOFI": "#a8784a",
-  "SAMPLE": "#22a884",
+  "SAMPLE": "#22a783",
   "VOICE": "#d9578a",
-  "TRIO": "#c9a92a",
-  "WHEEL": "#6aa83a",
-  "GRAIN": "#2fb8c8",
+  "TRIO": "#af9325",
+  "WHEEL": "#67a338",
+  "GRAIN": "#2aa3b1",
   "FM6": "#5866e0",
-  "SUPER": "#e07a5f",
-  "SLICE": "#7f9cb0",
+  "SUPER": "#da775d",
+  "SLICE": "#7b97ab",
   "PHYS": "#9a8f3e",
-  "ACID": "#a8c83a",
-  "CZ": "#7ac8f0"
+  "ACID": "#869f2e",
+  "CZ": "#5f9bba"
  },
  "kinds": {
-  "synth": "#ef7d57",
-  "sampled": "#3fae9f",
+  "synth": "#e76f54",
+  "sampled": "#3ba395",
   "x0x": "#b860c8",
   "usr": "#d0a830",
   "userkit": "#6f8fe0"

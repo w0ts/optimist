@@ -10,8 +10,8 @@
 #include <stdint.h>
 #define KNOBCOL_N 4u
 static uint8_t knob_colors;                                   /* 0 OFF, 1 ON */
-/* RGB565, bright enough on the dark panel: blue #1E88E5, yellow #F4C430, pink #E0218A, orange #FF5A1F */
-static const uint16_t KNOB_COL[KNOBCOL_N] = {0x1C5Cu, 0xF626u, 0xE111u, 0xFAC3u};
+/* RGB565, every one >= 3:1 against white text (the cursor row's background; 2026-10-14): blue #1E88E5, yellow #B28F23 (a mustard), pink #E0218A, orange #FF5A1F */
+static const uint16_t KNOB_COL[KNOBCOL_N] = {0x1C5Cu, 0xB464u, 0xE111u, 0xFAC3u};
 static uint16_t knob_col(uint32_t k, uint16_t def)
 {
     return knob_colors && k < KNOBCOL_N ? KNOB_COL[k] : def;

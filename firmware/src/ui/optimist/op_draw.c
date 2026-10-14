@@ -612,7 +612,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
     cell_t c, e;
     int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
-        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: a dark tint of the track's colour, text white */
+        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, text white */
     y += (rh - ROW_H) / 2;
     SCR->name(i, nm);
     cv_text(4, y + 1, &FONT_S, op_case(b, cut(nm, nm, 9), sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV dest" */
@@ -630,7 +630,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
             cv_text(x, y + 1, &FONT_S, cut(b, op_label(b, c.label, sizeof b), w > 7u ? 7u : w), on ? C_WHITE : C_DIM);
         else if (c.val[0])
             cv_text(x, y + 1, &FONT_S, cut(b, c.val, c.gk != GK_NONE ? 4u : w > 13u ? 13u : w), on ? C_WHITE : C_HI);
-        draw_gauge(x, y + 16, 36, gh, &c, c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
+        draw_gauge(x, y + 16, 36, gh, &c, on ? C_WHITE : c.col ? c.col : C_AMB, on ? cur_trough(bar) : C_LINE);
     }
 }
 /* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in

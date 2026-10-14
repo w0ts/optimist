@@ -408,7 +408,7 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
         if ((uint32_t)k >= n && !on)                    /* (unlit: outlined on black) */
             cv_frame(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), C_LINE);
         else
-            cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? C_WHITE : C_GRAY) : col_shade(bdp.bar, 5u));
+            cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? C_WHITE : C_GRAY) : cur_trough(bdp.bar));
 }
 /* a row's text: NONE's is our words (sentence case), a device's name stays as it advertises itself */
 static void dev_row_text(char *out, uint32_t room, uint32_t row, const char *nm)
@@ -443,7 +443,7 @@ static void dev_paint(void)                             /* the panel's band in i
         uint32_t bars;
         ble_dev_row(i, bdp.last, bdp.near, nm, &tag, &chosen, &bars);
         if (on)
-            cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: a dark tint, text white */
+            cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: the track's colour, text white */
         if (chosen)
             cv_rect(4, y + 7, 6, 6, on ? C_WHITE : C_HI);   /* the choice (NONE or LAST) */
         if (i && (!tag[0] || str_len(tag) <= 4u)) {      /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
