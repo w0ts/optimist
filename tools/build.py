@@ -251,6 +251,12 @@ def build_app():
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
+    try:    # the commit the build comes from, for SYSTEM > ABOUT ("" outside a checkout)
+        commit = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], cwd=FW, capture_output=True, text=True, check=True).stdout.strip()
+        if re.fullmatch(r"[0-9a-f]{7,40}", commit):
+            flags.append(f'-DFELUCCA_COMMIT="{commit}"')
+    except (OSError, subprocess.CalledProcessError):
+        pass
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
     # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions

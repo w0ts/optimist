@@ -213,9 +213,6 @@ static const char *op_case(char *b, const char *s, uint32_t n)
     b[i] = 0;
     return b;
 }
-/* a GLOBAL / SYSTEM line's name (op_gldraw.c): 5 characters or fewer as a panel legend, longer ones in sentence case. The
- * cards take theirs from the names table, in capitals (op_names.c nm_card) */
-static const char *op_label(char *b, const char *s, uint32_t n) { return str_len(s) <= 5u ? s : op_case(b, s, n); }
 
 /* "T1".."T3", "DR": a track's short name */
 static const char *trk_tag(uint32_t i)

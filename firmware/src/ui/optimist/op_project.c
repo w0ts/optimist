@@ -520,18 +520,17 @@ static void dev_draw(uint32_t y, uint32_t h)
 #endif
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_CORE };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT, SI_BUILD, SI_CHIP, SI_REPO };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"CPU", {SI_MHZ, SI_CPU, SI_IF(DUAL_LOAD, SI_CPU1), SI_IF(DUAL_LOAD, SI_CORE)}},   /* first: the clock and the load (the user, 2026-10-12, D2: "in
-                                                         * system. freq+cpu load."; GLO's cycle reaches it here). A DUAL=2
-                                                         * build: CPU0 and CPU1, each core's (the user, 2026-10-12), and 2ND CORE AUTO / OFF as the page's
-                                                         * fourth line (dual_mode.h) */
+    {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
+                                                         * load of each core, the memory (the user, 2026-10-14). The second core is always on:
+                                                         * no 2ND CORE line; dual.c's guard still parks it and the page says why */
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
-#if FELUCCA_LIGHTS
-    {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
-#endif
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
+#if FELUCCA_LIGHTS
+    {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
+#endif
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
@@ -539,7 +538,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"BLUETOOTH", {SI_BLE, SI_NONE, SI_NONE, SI_NONE}},   /* (the radio: ON / OFF, and what it is doing) */
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
-    {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
+    {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_INCLK, SI_IN),
@@ -588,20 +587,47 @@ static int32_t sys_step(int32_t v, int32_t s, int32_t max)   /* a knob stops at 
 {
     return s ? clamp(v + (s > 0 ? 1 : -1), 0, max) : (v >= max ? 0 : v + 1);
 }
-static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
+/* the memory in use of the running image, from the linker's own symbols (firmware/app.ld), so it is true for what runs:
+ * i 0 flash (the image up to the end of what main.c copies at boot), 1 RAM (.data + .bss, and .ram_hot2), 2 the pool, 3 RAM
+ * code; *tot the region's size. The host test has its own numbers (host_mem) */
+#ifndef FELUCCA_COMMIT
+#define FELUCCA_COMMIT ""
+#endif
+#if FELUCCA_HOST_MEM
+static uint32_t sys_mem(uint32_t i, uint32_t *tot)
+{
+    *tot = host_mem[i & 3u][1];
+    return host_mem[i & 3u][0];
+}
+#else
+extern uint32_t _xip_org[], _flash_len[], _pi_load[], _pi_start[], _pi_end[], _ram_org[], _ram_len[], _bss_end[];
+extern uint32_t _pool_start[], _pool_end[], _pool_len[], _rt_start[], _rt_end[], _rh_start[], _rh_end[], _rtxt_len[];
+#define MEMU(a) ((uint32_t)(uintptr_t)(a))
+static uint32_t sys_mem(uint32_t i, uint32_t *tot)
+{
+    switch (i & 3u) {
+    case 0:
+        *tot = MEMU(_flash_len);
+        return MEMU(_pi_load) + MEMU(_pi_end) - MEMU(_pi_start) - MEMU(_xip_org);
+    case 1:
+        *tot = MEMU(_ram_len);
+        return MEMU(_bss_end) - MEMU(_ram_org);
+    case 2:
+        *tot = MEMU(_pool_len);
+        return MEMU(_pool_end) - MEMU(_pool_start);
+    default:
+        *tot = MEMU(_rtxt_len);
+        return MEMU(_rt_end) - MEMU(_rt_start) + MEMU(_rh_end) - MEMU(_rh_start);
+    }
+}
+#endif
+static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
     static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
     static const char *const KY[4] = {"OFF", "C", "WHITE", "ALL"};
     static const char *const LC[3] = {"OFF", "LOWCUT", "BASS+"};
-    uint32_t it = sys_item(r, k);
     int16_t *vp;
     const param_desc_t *d;
-#if FELUCCA_BLE
-    if (bdv.open) {
-        dev_cell(r, k, c);
-        return;
-    }
-#endif
     d = sys_desc(it, &vp);
     if (d) {
         cell_param(c, d, vp);
@@ -630,7 +656,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
 #if FELUCCA_LIGHTS
     case SI_LIGHTS:
-        c->label = "LIGHTS";
+        c->label = "BUTTONS";
         str_cpy(c->val, LV[lights_lvl & 3u], sizeof c->val);
         cell_gauge(c, 1, 0, LIGHTS_N - 1, lights_lvl);
         break;
@@ -682,13 +708,43 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_gauge(c, 0, 0, 100, pct < 0 ? 0 : pct);
         break;
     }
-    case SI_CORE:                                       /* 2ND CORE AUTO / OFF (dual_mode.h; the settings word's bits 27..28) */
-        c->label = "2ND CORE";
-        str_cpy(c->val, dual_mode == DUALM_OFF ? "OFF" : "AUTO", sizeof c->val);
-        c->col = dual_mode == dual.boot_mode ? 0 : C_AMB;   /* (amber: the next start applies it) */
-        cell_gauge(c, 1, 0, 1, dual_mode == DUALM_OFF);
-        break;
 #endif
+    case SI_INFO:                                       /* the info page's one line (op_gldraw.c draws the page itself) */
+        c->label = "INFO";
+        c->kind = CK_RO;
+        break;
+    case SI_FLASH:
+    case SI_RAM:
+    case SI_POOL:
+    case SI_RTXT: {                                     /* the memory in use of the running image, used/total in KB */
+        uint32_t tot, use = sys_mem(it - SI_FLASH, &tot), pct = tot ? use * 100u / tot : 0u;
+        c->label = it == SI_FLASH ? "FLASH" : it == SI_RAM ? "RAM" : it == SI_POOL ? "POOL" : "RAM CODE";
+        c->kind = CK_RO;
+        fmt_int(c->val, (int32_t)(use >> 10));
+        c->val[str_len(c->val) + 1u] = 0;
+        c->val[str_len(c->val)] = '/';
+        fmt_int(c->val + str_len(c->val), (int32_t)(tot >> 10));
+        c->unit = "KB";
+        cell_gauge(c, 0, 0, 100, (int32_t)pct);
+        break;
+    }
+    case SI_BUILD:                                      /* the build's date and time (the compiler's) */
+        c->label = "BUILD";
+        c->kind = CK_RO;
+        str_cpy(c->val, __DATE__, sizeof c->val);
+        c->unit = __TIME__;
+        break;
+    case SI_CHIP:
+        c->label = "CHIP";
+        c->kind = CK_RO;
+        str_cpy(c->val, "AC791N", sizeof c->val);
+        c->unit = DUAL_LOAD ? "2 cores" : "1 core";
+        break;
+    case SI_REPO:                                       /* the source, as text: the link right-aligned in the unit */
+        c->label = " ";                                 /* (blank: the link takes the line's width, the label must not be empty for the help) */
+        c->kind = CK_RO;
+        c->unit = "github.com/w0ts/optimist";
+        break;
     case SI_MHZ:
         c->label = "CLOCK";
         c->kind = CK_RO;
@@ -723,6 +779,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->label = "VERSION";
         c->kind = CK_RO;
         str_cpy(c->val, v + (str_len(v) > 9u && !memcmp(v, "OPTIMIST ", 9) ? 9u : 0u), sizeof c->val);  /* "OPTIMIST 0.1": 0.1 */
+        c->unit = FELUCCA_COMMIT;                       /* (the commit it was built from, "" without) */
         break;
     }
     default:
@@ -730,6 +787,24 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         break;
     }
     (void)LV, (void)KY;
+}
+static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
+{
+#if FELUCCA_BLE
+    if (bdv.open) {
+        dev_cell(r, k, c);
+        return;
+    }
+#endif
+    sys_it_cell(sys_item(r, k), c);
+}
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, the load of each core, the memory */
+#define INFO_N (DUAL_LOAD ? 7u : 6u)
+static void sys_info_cell(uint32_t i, cell_t *c)
+{
+    static const uint8_t INFO[7] = {SI_MHZ, SI_CPU, SI_IF(DUAL_LOAD, SI_CPU1), SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};
+    uint32_t j = DUAL_LOAD || i < 2u ? i : i + 1u;      /* (without DUAL: no CPU1 line) */
+    sys_it_cell(INFO[j % 7u], c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */
 static void sys_set(uint32_t it, int32_t s)
@@ -765,11 +840,6 @@ static void sys_set(uint32_t it, int32_t s)
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
         clko_on = (uint8_t)sys_step(clko_on, s, 1);
-        break;
-#endif
-#if DUAL_LOAD
-    case SI_CORE:                                       /* right OFF, left AUTO, YES the other (kept in the settings word) */
-        dual_mode = (uint8_t)sys_step(dual_mode == DUALM_OFF, s, 1);
         break;
 #endif
     case SI_LOWCUT:
@@ -842,11 +912,6 @@ static int sys_factory(uint32_t it)
         clko_on = 0;
         break;
 #endif
-#if DUAL_LOAD
-    case SI_CORE:
-        dual_mode = DUALM_AUTO;
-        break;
-#endif
     default:
         return 0;                                       /* (BLE, the read-outs, PANEL: nothing) */
     }
@@ -903,7 +968,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty = 1;
         return 1;
     }
-    if (it == SI_NONE || it == SI_CPU || it == SI_MHZ || (DUAL_LOAD && it == SI_CPU1))
+    if (it == SI_NONE || it >= SI_INFO || it == SI_CPU || it == SI_MHZ || (DUAL_LOAD && it == SI_CPU1))
         return 0;
     sys_set(it, 0);
     return 1;

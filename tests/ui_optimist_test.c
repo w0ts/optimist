@@ -17,9 +17,11 @@
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
 #endif
+#define FELUCCA_HOST_MEM 1              /* SYSTEM > INFO's memory: the linker's symbols have no host value, these stand in */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+static const uint32_t host_mem[4][2] = {{300u * 1024u, 568u * 1024u}, {70u * 1024u, 96u * 1024u}, {200u * 1024u, 336u * 1024u}, {26u * 1024u, 32512u}};
 #include <assert.h>
 static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
@@ -277,7 +279,9 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && !strcmp(c.label, "VERSION")) ||   /* (a name: no range) */
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") ||
+                                                                 !strcmp(c.label, "BUILD") || !strcmp(c.label, "CHIP") ||
+                                                                 !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
@@ -769,9 +773,10 @@ static void message_tests(void)
                 bad++;
             }
         check(!bad, "titles, messages, questions in sentence case (T1, DR, ENV, BPM, UI kept)");
-        check(!strcmp(op_label(b, "ATK", sizeof b), "ATK") && !strcmp(op_label(b, "FILT", sizeof b), "FILT") &&
-              !strcmp(op_label(b, "ENGINE", sizeof b), "Engine") && !strcmp(op_label(b, "SAVE AS", sizeof b), "Save as"),
-              "card labels: 5 letters or fewer as printed (ATK, FILT), longer ones in sentence case");
+        check(!strcmp(nm_card("ATK", 0, b, sizeof b), "ATK") && !strcmp(nm_card("FILT", 0, b, sizeof b), "FILTER") &&
+              !strcmp(nm_card("ENGINE", 0, b, sizeof b), "ENGINE") && !strcmp(nm_card("DTN", 0, b, sizeof b), "DETUNE") &&
+              !strcmp(nm_card("R2", "DIGITAL", b, sizeof b), "RAT2") && !strcmp(nm_card("R2", "FM6", b, sizeof b), "R2"),
+              "card labels: the names table's, in capitals whatever the length (FILTER, ENGINE, DETUNE; DIGITAL's RAT2)");
         check(!strcmp(op_case(b, "ABCDEFGHIJ", 6), "Abcde"), "the case helper keeps to its buffer");
     }
     reset_ui();
@@ -2388,6 +2393,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_glwalk.h"                     /* 2026-10-13: every GLOBAL / SYSTEM line walked: knob, PRESETS, actions RUN */
 #include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
+#include "ui_optimist_glstyle.h"                    /* 2026-10-14: the look of the lists (title, full-width bars, toggles, joined pages, INFO, About) */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
@@ -2535,6 +2541,7 @@ int main(int argc, char **argv)
     glo_tests();
     glwalk_tests();
     glpages_tests();
+    glstyle_tests();
     help_tests();
     risk_tests();
     risk_edits_tests();

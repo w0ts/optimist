@@ -33,7 +33,7 @@ static const char NM_CARD[] =
     "SLD\0SLIDE\0"               "DRV\0DRIVE\0"               "LENGTH\0LEN\0"              "RATCHET\0RATCH\0"
     "GLD\0GLIDE\0"               "MOTN\0MOTION\0"             "ENRGY\0ENERGY\0"            "COLR\0COLOR\0"
     "CHO RET\0CHO RT\0"          "DLY RET\0DLY RT\0"          "REV RET\0REV RT\0"          "S# CHO\0CHO RT\0"
-    "S# DLY\0DLY RT\0"           "S# REV\0REV RT\0"           "ACID LINE\0LINE\0"          "BPM\0TEMPO\0"              "TRK FLT\0FILTER\0"          "DIGITAL:R#\0RAT#\0"
+    "S# DLY\0DLY RT\0"           "S# REV\0REV RT\0"           "ACID LINE\0LINE\0"          "BPM\0TEMPO\0"              "TRK FLT\0FILTER\0"          "CLK IN\0SYNC\0"          "DIGITAL:R#\0RAT#\0"
     "\0";
 static const char NM_CELL[] =
     "ANALOG\0ANLG\0"             "DIGITAL\0DGTL\0"            "PHASE\0PHSE\0"              "SAMPLE\0SMPL\0"

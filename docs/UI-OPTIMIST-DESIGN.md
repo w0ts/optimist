@@ -225,7 +225,7 @@ chosen from the value's range alone (its descriptor's min, max and kind: `param_
 | on / off (FX, SERIAL, MUTE) | a pill, filled when on | the same; the mixer's FX |
 | a name (a preset, a sound) or an action | text | |
 
-**Text casing** [D, 2026-10-08; names table 2026-10-14, section 31]: sentence case for UI words, capitals for labels.
+**Text casing** [D, 2026-10-08; names table 2026-10-14, section 32]: sentence case for UI words, capitals for labels.
 Screen titles, row names, messages, toasts, the modal's question and target, and the hints are sentence case (*Mix master*,
 *Save?*, *Project 1*, *Clear DR?*, *New project?*, *T1 cleared*, *Home back*); every card label is in capitals whatever its
 length (LEVEL, DETUNE, DEST A: the names table, `op_names.c`), as are list cells, track names (T1, DR), acronyms (FX, LFO,
@@ -467,14 +467,14 @@ the letters [D]; kits keep numbers.
 
 ### 4.7 SYSTEM
 
-**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **CPU (CLOCK MHz · LOAD %, read-outs; first, section 17, D2; a DUAL=2 build: CLOCK · CPU0 % · CPU1 %, CPU1 OFF when the core is down)**, SCREEN (COLOR BRIGHT -
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31: CLOCK, the loads, the memory, read-outs; first)**, SCREEN (COLOR BRIGHT -
 KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
 the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
 
-**2ND CORE (DUAL builds only, `FELUCCA_DUAL` 2; PROPOSED, not yet seen on hardware).** The CPU section is CLOCK · CPU0 · CPU1 ·
+**2ND CORE (REMOVED 2026-10-14, section 31: the core is always on; what follows is the old design).** The CPU section is CLOCK · CPU0 · CPU1 ·
 **2ND CORE**, exactly one page of 4 lines (a single-core build has no such line: CLOCK · LOAD, the next section on page 1).
 2ND CORE is **AUTO** (default: the second core starts at power-on and is held for the session on its first misread, wrong
 canary, late job or fault) or **OFF** (one core). The knob (KNOB 4 on that page) or PRESETS edits it (right OFF, left AUTO),
@@ -2846,7 +2846,7 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
 - **STEP**: a 17th row "AC" under the 16 sounds (12 px rows), edited as any lane's (tap, level, ratchet, HOME + step). The held step's
   first page is LEVEL RATCHET ACCENT (no TUNE / DECAY: no sound); KNOB 3 locks the ACCENT amount on the step (needs the accent hit there,
   as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount records as motion (YES: a lock <-> a hold). STEP's LANE page of the lane shows the amount alone. TOOLS and EUCLID work on the lane.
-- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's ACCENT card (that row: MUTE, ACCENT; section 31).
+- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's ACCENT card (that row: MUTE, ACCENT; section 32).
 - **Pages**: the lane has no SOUND, SOURCE, KIT, ENV or LFO pages (`sound_page`); `lane_snd()` guards every per-lane sound array (dl.*, the
   names); PRESETS on it steps the kit as on DR; the SOUND row's picture says "+amount to the hits".
 - **ALGORITHM** walks on past the 16th lane to the ACCENT lane (the mixer's row `MXR_ACC`: a lane's card layout, MUTE's slot empty until the lane's sequencer mute lands (core follow-up), LEVEL = the ACCENT amount, no CUT / sends / sound, across the foot of the
@@ -2863,7 +2863,7 @@ switch drum lane the value remain the same; remember on a lane i want to see the
 drum track's (`dsend_kit`, the bus), the same under every lane. The rule, on every page reached while a lane is picked (`lane_picked()`,
 the ACCENT lane included): **a value the lane has of its own is the lane's; a value only the track has stays the track's and is tagged DR.**
 - **The lane's pages** (op_cells.c `LANE_FX_PG`, this UI's own, like the lane's LFO; only with a lane picked, never on DR): **INSERTS**
-  (the sound's own DST, CMP, DRIVE: always heard) and **SENDS** (its REV DLY CHO, those the master slots hold, 0..31 shown in %: `lane_send_vid`; section 31). They open the FX family,
+  (the sound's own DST, CMP, DRIVE: always heard) and **SENDS** (its REV DLY CHO, those the master slots hold, 0..31 shown in %: `lane_send_vid`; section 32). They open the FX family,
   ahead of the track's. DRIVE records as the lane's motion (`lane_value_rec`); the sends, DST and CMP are patch values, as on SOUND 3 and the mixer's lane rows (no lane event
   exists for them; the lane's LFO has no send destination either), so the card edits what it shows. The ACCENT lane has no sound, so neither page.
 - **The track's, kept and tagged**: the drum bus's inserts are "DR INSERT", the kit send levels "DR SENDS" (the lane pages took the plain names), then BUS SENDS, SLICER, FILTER, GATER, CMP;
@@ -2874,7 +2874,24 @@ the ACCENT lane included): **a value the lane has of its own is the lane's; a va
   Step-wide values (NUDGE, chance, fill, condition on a held step) belong to the step, not to a lane.
 Tests: tests/ui_optimist_lanevals.h (two lanes picked on SOUND and from STEP, the sends of each shown and edited alone; the DR tags; DR itself).
 
-## 31. The names table (feat/ui-names, 2026-10-14; the coherence audit's batch A)
+## 31. The settings lists' look (feat/settings-look, 2026-10-14)
+
+The user, from a screenshot of "Global channels 5/5". Section 20's lists (GLOBAL, SYSTEM; op_gldraw.c) are redrawn:
+
+- **Header**: only "Global" or "System" (op_draw.c draw_head); the right side (bar.beat, BPM) stays.
+- **Page title**, under it, in the large face (the cards' `font_big`): the section's name and the page n/N, "Channels 5/5", the n/N dim. The sections' small rules are gone. A title that does not fit 228 px in the large face (16 px a letter: the joined "Screen & audio 2/6", "Connections 4/6") is drawn in the small face.
+- **The 4 lines** share the room between the title and the help line evenly (`gl_pitch`); a page of fewer lines keeps that pitch. Name left, value right, the value's form under it.
+- **Value forms**: a ranged value is a bar 4 px thick over the screen's width (6..234), the trough a line; a multi-choice list (Auto: Int / USB / TRS, Keys / Seq, Notes / Clock, COLOR) is a segmented bar, one segment per choice, the chosen one lit; an **on / off value (ON, OFF; the radio's LINK, NO CAL) has no bar but a square mark at the right**, filled when on, outlined when off, in the line's colour (a pill is too thin at this size). Read-outs keep their bars, actions their verb.
+- **Joined pages** (op_global.c `GL_JOIN`, one table): SYSTEM's SCREEN and AUDIO share one page, "Screen & audio", and USB and BLUETOOTH share "Connections", when together they are 4 lines or fewer in the build; otherwise each keeps its own pages. The BLE line's YES still opens the devices. A page is one section or one joined pair (the layout test allows exactly those).
+- **Keys**: the LIGHTS section is "Keys", its lines BUTTONS (the button glow OFF / LOW / MID / HIGH) and KEYS (OFF / C / WHITE / ALL); the settings word is unchanged. SYSTEM's order: Info, Screen & audio, Keys, Connections, Calibrate, About.
+- **INFO** (SYSTEM's first page, replacing CPU): one dense read-only page that is not 4 lines: CLOCK, CPU0 (LOAD), CPU1 (or why it is down, DUAL), then FLASH, RAM, POOL and RAM CODE as used/total KB with a bar. The memory is read at run time from the linker's symbols (firmware/app.ld: `_pi_load`, `_bss_end`, `_pool_end`, `_rt_end`, `_rh_end` and the region sizes `_flash_len`, `_ram_len`, `_pool_len`, `_rtxt_len`), so it is true for the running image. No knob does anything there.
+- **2ND CORE is gone**: the second core is always on, `dual_mode` stays AUTO. The guard in dual.c still parks the core on a misread, a canary, a late job or a fault and INFO's CPU1 line says why. With no menu to set it back (`DUAL_MODE_MENU` 0), the self-disable lasts for the session and is not saved; a stored OFF from an older build is dropped when the Optimist UI loads its settings; a boot that crashed in its first 30 s still stays on one core.
+- **About** (4 lines, one page): VERSION (and the commit it was built from, `-DFELUCCA_COMMIT` from tools/build.py), BUILD (date and time, the compiler's), CHIP (AC791N, the cores), REPO (github.com/w0ts/optimist).
+- Help lines: KEYS / BUTTONS "Buttons glow in the dark", KEYS "Which keys glow", INFO, BUILD, CHIP, REPO (tools/param_help.json; the 232 px limit shortened the user's wording).
+
+Tests: tests/ui_optimist_glstyle.h (header, titles, pitch, bars, marks, joined pages, INFO, About); glpages, glo, glwalk, core and pages updated.
+
+## 32. The names table (feat/ui-names, 2026-10-14; the coherence audit's batch A)
 
 The audit (optimist-work/visaudit: STYLE.md, FINDINGS.md) found titles cut per engine ("ENV de", "LFO2 D", "Patter"), labels
 cased by length, stored names re-cased, one thing under several names (DST for the distortion and for the LFO's destination;
@@ -2888,8 +2905,9 @@ engines, tools/param_help.json), so SLOOP's UI and the web editor are unchanged.
   *LFO2 to*, INSERTS *Insert* (as the mixer's set), SCL *Scale*, FLT 2 *Filter 2*, DR INSERT *DR ins*, BUS SENDS *Bus send*,
   CMP *Comp*, MASTER's RET DELAY / RET REV *Delay* / *Reverb*, FM6's OPn LEVEL *OPn out*, OPn RATES *OPn rate*, OPn LEVELS
   *OPn level*, OPn KEY SCA *OPn scale*, OPn CURVES *OPn curve*, PIT RATES / LVLS *Pit rate* / *Pit level*; the rest in
-  sentence case as named. A track's page (SOUND, STEP: the badge names the track) and GLOBAL / SYSTEM (the badge names the
-  screen) show the title alone, never the screen's word; the other screens keep it (*Master ins tone*, *Project tools*).
+  sentence case as named. A track's page (SOUND, STEP: the badge names the track) shows the title alone, never the screen's
+  word; GLOBAL / SYSTEM's header says only *Global* / *System* (section 31); the other screens keep the screen's word
+  (*Master ins tone*, *Project tools*). GLOBAL / SYSTEM's line names follow the card rule: capitals (KNOB COLORS, CLK IN, LOWCUT).
 - **The header's room**: the badge's text 2 px inside it, the title 5 px after it, its room ending 1 px before the REC
   mark; SOUND's whole list (every family, ALGORITHM back from MASTER) counts a row within its family, as its page button
   shows it ("Voice 4/5", not "Voice 17/25"). A title is cut only where the table fails (`head_finish` says so; the test
@@ -2899,7 +2917,8 @@ engines, tools/param_help.json), so SLOOP's UI and the web editor are unchanged.
   FLT FILTER, PIT PITCH, SHP SHAPE, TRN / TRNSP TRANSP, DTN / DTUNE DETUNE, RES RESO, SWG SWING, SCL SCALE, QNT QUANT, ACC
   ACCENT, SLD SLIDE, DRV DRIVE, LENGTH LEN, RATCHET RATCH, GLD GLIDE, MOTN MOTION, ENRGY ENERGY, COLR COLOR, the returns
   REV RT / DLY RT / CHO RT, BPM TEMPO (its unit says BPM), DIGITAL's R2..R4 RAT2..RAT4 (FM6's R1..R4 are rates), TRK FLT
-  FILTER (the FX layer: the track's tag in the unit's place, beside the master's FILTER), ACID LINE LINE.
+  FILTER (the FX layer: the track's tag in the unit's place, beside the master's FILTER), ACID LINE LINE, GLOBAL's CLK IN
+  SYNC (as TEMPO's card; the value: A:INT on a card, "Auto: Int" in the lists and the tempo panel).
 - **List cells** (`nm_cell`): engines ANLG DGTL PHSE LOFI SMPL VOX WHL GRN FM6 PHYS ACID, verbs LOAD SAVE NEW INIT CLR ERS
   RST INS DEL (SAVE AS: SAVE), DIST, COMP, USED / - for a scene. The 5-letter names of SLOOP's lists (BLUES, REUSE, L1 RT ...)
   still show their first 4 letters when picked: the cell's width is batch B's.

@@ -383,6 +383,8 @@ static void head_make(head_t *h)
     } else {
         head_pos(ui.scr, ui.row[ui.scr], h->pos);
         head_title_c(ui.scr, ui.row[ui.scr], h->t, sizeof h->t, h->pos[0] != 0);
+        if (gl_scr(ui.scr))                             /* GLOBAL, SYSTEM: the screen's name alone (the page's name and n/N are */
+            op_case(h->t, SCR_NAME[ui.scr], sizeof h->t), h->pos[0] = 0;   /* the list's own title, op_gldraw.c) */
     }
     loop_pos(TSEL, h->r);
     if (ui.scr == SCR_STEP)

@@ -61,38 +61,32 @@ static void pages_nav_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE, "D9: HOME tapped on the mixer: SCOPE, as before");
     tap(B_HOME);
-    /* D2 */
+    /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
-    SCREENS[SCR_SYSTEM].cell(0, 0, &c);
-    SCREENS[SCR_SYSTEM].cell(0, 1, &c2);
+    sys_info_cell(0, &c);
+    sys_info_cell(1, &c2);
+    check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
+          c2.kind == CK_RO && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD") && !strcmp(c2.unit, "%"),
+          "D2: SYSTEM's first page INFO: CLOCK (MHz) and the load (%), read-outs");
 #if DUAL_LOAD
-    check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
-          c2.kind == CK_RO && !strcmp(c2.label, "CPU0") && !strcmp(c2.unit, "%"),
-          "D2 DUAL: SYSTEM's first row: CPU, CLOCK (MHz) and CPU0 (%), read-outs");
-    {   /* KNOB 3: CPU1's load (dual_load.h), OFF when the core is down; YES and a turn do nothing */
+    {   /* CPU1's load (dual_load.h), the reason when the core is down; a read-out */
         uint32_t q = dual_c1_q8;
         dual_c1_q8 = 128u;
         memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        sys_info_cell(2, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
-              "DUAL: SYSTEM's CPU row, KNOB 3: CPU1 50 %, a read-out");
+              "DUAL: INFO's third line: CPU1 50 %, a read-out");
         dual_c1_q8 = DUAL_C1_OFF;
         memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        sys_info_cell(2, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "OFF"),
               "DUAL: CPU1 down: its cell reads OFF");
         dual_c1_q8 = q;
-        memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 3, &c2);
-        check(c2.kind == CK_VAL && !strcmp(c2.label, "2ND CORE"), "DUAL: KNOB 4 of the CPU row is 2ND CORE (AUTO / OFF)");
     }
 #else
-    check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
-          c2.kind == CK_RO && !strcmp(c2.label, "LOAD") && !strcmp(c2.unit, "%"),
-          "D2: SYSTEM's first row: CPU, CLOCK (MHz) and LOAD (%), read-outs");
     memset(&c2, 0, sizeof c2);
-    SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
-    check(c2.kind != CK_RO, "D2: a single-core build: KNOB 3 of the CPU row is empty (no CPU1)");
+    sys_info_cell(2, &c2);
+    check(strcmp(c2.label, "CPU1") && !strcmp(c2.label, "FLASH"), "D2: a single-core build: INFO has no CPU1 line (the memory follows the load)");
 #endif
     /* D6 */
     reset_ui();
@@ -687,21 +681,19 @@ static void pages_head_tests(void)
     reset_ui();
     check(head_bad == 0u, "D11: every header of SOUND (every track, family), GLOBAL, SYSTEM, PROJECT, MASTER, SONG, SCOPE: "
                           "a capital first, no digit before n/N");
-    {   /* GLOBAL and SYSTEM: the cursor line's section, the page n/N (section 20) */
-        char t[32], w[32];
-        uint32_t l;
+    {   /* GLOBAL and SYSTEM: the header says the screen alone; the page's name and n/N are the list's own title
+         * (section 31, tests/ui_optimist_glstyle.h) */
+        char t[32];
         op_enter(SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!strncmp(t, "Tempo 1/", 8), "D11: GLOBAL's first line: \"Tempo 1/N\" (the page of 4 lines)");
-        l = line_named(SCR_GLOBAL, "QUANT");
+        check(!strcmp(t, "Global"), "D11: GLOBAL's header: \"Global\" (the page's title is the list's)");
+        line_named(SCR_GLOBAL, "QUANT");
         head_now(t);
-        snprintf(w, sizeof w, "Rec %u/", gl_pg(ui.scr == SCR_SYSTEM, l) + 1u);
-        check(!strncmp(t, w, strlen(w)), "D11: GLOBAL's QUANT line (REC 2): \"Rec n/N\", its page");
-        l = line_named(SCR_SYSTEM, "COLOR");
+        check(!strcmp(t, "Global"), "D11: GLOBAL's QUANT line (REC 2): still \"Global\"");
+        line_named(SCR_SYSTEM, "COLOR");
         head_now(t);
-        snprintf(w, sizeof w, "Screen %u/", gl_pg(ui.scr == SCR_SYSTEM, l) + 1u);
-        check(!strncmp(t, w, strlen(w)), "D11: SYSTEM's COLOR line: \"Screen n/N\", its page");
+        check(!strcmp(t, "System"), "D11: SYSTEM's COLOR line: \"System\"");
     }
     reset_ui();
     turn(EN_ALGO, -1);

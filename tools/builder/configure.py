@@ -682,9 +682,11 @@ def anchors(costs, use_exact=True, exclude=()):
 
 # the estimate's margin per item between the configuration and the anchor it is estimated from (budget): the
 # error of a change grows with the number of items changed (LTO shares and inlines differently with what else is
-# built). Measured 2026-10-14 (single changes from the user's configuration, ~/GitHub/optimist-work/estfix): see
-# ANCHOR_MARGIN's users. Errs over: a configuration predicted to fit must fit
-ANCHOR_MARGIN = {"flash": 256, "ram": 32, "pool": 0, "ramtext": 32}
+# built). Flash only: 150 single changes from a user's configuration (2026-10-14) were off by 0.2 KB of flash at the
+# median and 1.5 KB at the 90th percentile, either way, while RAM, pool and RAM code were 0 at the median (a RAM
+# margin of 32 B an item put the BLE test builds, 18 items from user-default, 576 B over). Errs over: a
+# configuration predicted to fit must fit
+ANCHOR_MARGIN = {"flash": 256, "ram": 0, "pool": 0, "ramtext": 0}
 
 
 def additive(cfg, costs):

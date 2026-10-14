@@ -140,8 +140,8 @@ static void nm_step(void)                               /* STEP: its pages' card
             char b[32];
             for (k = 0; k < 4u; k++) {
                 SCREENS[SCR_STEP].cell(ui.row[SCR_STEP], k, &c);
-                if (c.label && c.label[0] && (!nm_upper(card_label(&c, b, sizeof b)) || str_len(b) > 6u))
-                    nm_fail("held step card label", b, "STEP");
+                if (c.label && c.label[0] && (!nm_upper(card_label(&c, b, sizeof b)) || str_len(card_label(&c, b, sizeof b)) > 6u))
+                    nm_fail("held step card label", card_label(&c, b, sizeof b), "STEP");
                 if (nm_dump && c.label && c.label[0])
                     fprintf(nm_dump, "C|held|STEP|%u|%s|%s|%s|%s\n", p, c.label, card_label(&c, b, sizeof b), c.val, c.unit);
             }
@@ -178,11 +178,35 @@ static void nm_layers(void)                             /* every layer's four ca
             lay_cell(k, &c);
             if (nm_dump && c.label && c.label[0])
                 fprintf(nm_dump, "C|layer|%u|%s|%s|%s|%s\n", l, c.label, card_label(&c, b, sizeof b), c.val, c.unit);
-            if (c.label && c.label[0] && (!nm_upper(card_label(&c, b, sizeof b)) || str_len(b) > 6u))
-                nm_fail("layer card label", b, "layer");
+            if (c.label && c.label[0] && (!nm_upper(card_label(&c, b, sizeof b)) || str_len(card_label(&c, b, sizeof b)) > 6u))
+                nm_fail("layer card label", card_label(&c, b, sizeof b), "layer");
         }
     }
     lay.shown = LY_PLAY;
+}
+static void nm_settings(void)                           /* GLOBAL and SYSTEM: every line's name in capitals, the header */
+{
+    uint32_t sys, r, n;
+    cell_t c;
+    char b[32];
+    for (sys = 0; sys < 2u; sys++) {
+        op_enter(sys ? SCR_SYSTEM : SCR_GLOBAL);
+        n = SCR->rows();
+        for (r = 0; r < n; r++) {
+            ui.row[ui.scr] = (uint8_t)r;
+            nm_head();
+            gl_cell(sys, r, &c);
+            if (!c.label || !c.label[0])
+                continue;
+            {
+                const char *l = nm_card(c.label, 0, b, sizeof b);
+                if (nm_dump)
+                    fprintf(nm_dump, "S|%s|%u|%s|%s|%s|%s\n", SCR_NAME[ui.scr], r, c.label, l, c.val, c.unit);
+                if (!nm_upper(l) || str_len(l) > 12u)
+                    nm_fail("settings line name", l, SCR_NAME[ui.scr]);
+            }
+        }
+    }
 }
 static void nm_track(uint32_t t)
 {
@@ -237,6 +261,7 @@ static void names_tests(void)
     op_enter(SCR_SCOPE);
     nm_rows(SCR_SCOPE);
     nm_layers();
+    nm_settings();
     if (nm_dump)
         fclose(nm_dump);
     printf("  names: %u headers walked; %u list values longer than a cell (5-letter list names, drawn cut when picked)\n", nm_seen, nm_long);

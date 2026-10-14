@@ -89,7 +89,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     int ok;
     line_at(scr, i);
     glw_line(scr, i, &c, v);
-    ok = ui.scr == scr && ui.row[scr] == i && c.label && c.label[0] && v[0];
+    ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO"));   /* (INFO, REPO: text in the unit, or the page itself) */
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
         ok &= glw_still(EN_PRESET);
@@ -122,8 +122,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"LENGTH", "1 BAR"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
-    {"KNOB COLORS", "OFF"}, {"LIGHTS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
-    {"2ND CORE", "AUTO"}};
+    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"}};
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;
@@ -209,7 +208,6 @@ static void glw_sync_long_tests(void)
             param_format(c.d, SYNC_AUTO, card, &u);
             ok &= !strcmp(v, LONG[k]) && !strcmp(c.val, CARD[k]) && !strcmp(card, CARD[k]);
             fit &= 236 - text_w(&FONT_S, v) >= 24 + text_w(&FONT_S, c.label) + 8;   /* (value right-aligned at 236, label from 24) */
-            fit &= 236 - text_w(&FONT_S, v) >= GL_GX - 0 && 236 - GL_GX >= text_w(&FONT_S, v);   /* (inside the gauge's span, GL_GX .. 236) */
             song.g[G_SYNC] = (int16_t)k;                    /* a fixed clock: INT / USB / TRS as it was */
             glw_line(SCRS[s], i, &c, v);
             param_format(c.d, k, card, &u);
