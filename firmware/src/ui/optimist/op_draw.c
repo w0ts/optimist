@@ -683,7 +683,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
     cell_t c;
     int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
-        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: a dark tint of the track's colour, text white */
+        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, text white */
     y += (rh - ROW_H) / 2;
     SCR->name(i, nm);
     cv_text(4, y + 1, &FONT_S, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
@@ -694,7 +694,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         SCR->cell(i, k, &c);
         if (row_cell_text(i, k, &c, b, sizeof b))
             cv_text(x, y + 1, &FONT_S, b, on ? C_WHITE : c.kind == CK_ACT ? C_DIM : C_HI);   /* (an action: its verb, dim) */
-        draw_gauge(x, y + 16, 36, gh, &c, c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
+        draw_gauge(x, y + 16, 36, gh, &c, on ? C_WHITE : c.col ? c.col : C_AMB, on ? cur_trough(bar) : C_LINE);
     }
 }
 /* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in

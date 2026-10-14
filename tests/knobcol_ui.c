@@ -16,8 +16,8 @@ static void knobcol_ui_tests(void)
         ok &= knob_col(k, 0x1234u) == KNOB_COL[k] && KNOB_COL[k] != 0u;
     ok &= knob_col(4, 0x1234u) == 0x1234u && knob_col(200, 7u) == 7u;
     check(ok, "KNOB COLORS on: knob_col is the table's colour for knobs 1..4, the default beyond");
-    ok = KNOB_COL[0] == 0x1C5Cu && KNOB_COL[1] == 0xF626u && KNOB_COL[2] == 0xE111u && KNOB_COL[3] == 0xFAC3u;
-    check(ok, "KNOB COLORS: blue #1E88E5, yellow #F4C430, pink #E0218A, orange #FF5A1F (RGB565)");
+    ok = KNOB_COL[0] == 0x1C5Cu && KNOB_COL[1] == 0xB464u && KNOB_COL[2] == 0xE111u && KNOB_COL[3] == 0xFAC3u;
+    check(ok, "KNOB COLORS: blue #1E88E5, yellow #B28F23, pink #E0218A, orange #FF5A1F (RGB565)");
     {   /* te_dials (the mixer, layers, drums, FM6, tempo dials): KNOB COLORS is in its cache signature, dial_col is knob_col */
         static const char *const lab[4] = {"a", "b", "c", "d"}, *const val[4] = {"1", "2", "3", "4"};
         static const int32_t ratio[4] = {0, 250, 500, 1000};

@@ -81,12 +81,12 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     if (uw)
         cv_text(236 - uw, ty, &FONT_S, c->unit, on ? C_WHITE : C_DIM);
     if (tog)
-        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), vc, on ? bg : C_BLACK);
+        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, on ? bg : C_BLACK);
     else if (bar) {
         cell_t g = *c;
         if (g.gk == GK_PILL)
             g.gk = GK_DOTS;                             /* (a two-way choice: two segments, the chosen one lit) */
-        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, vc, on ? col_shade(vc, 5u) : C_LINE);
+        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, on ? cur_trough(bg) : C_LINE);
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, a bar

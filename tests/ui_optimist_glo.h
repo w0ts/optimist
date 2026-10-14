@@ -122,8 +122,8 @@ static void glo_draw_tests(void)
     frames(2);
     for (k = 2; k < 3u; k++)                            /* (line 1 the cursor: white ink; 2 NUDGE a read-out: dim; Tempo has 3 lines) */
         ok &= (uint32_t)px_in(4, OH_HEAD, 12, 240 - OH_HEAD, KNOB_COL[k]);
-    check(ok && px_in(0, OH_HEAD, 240, 60, cur_bg(KNOB_COL[0])) && !px_in(0, OH_HEAD, 240, 60, KNOB_COL[0]) && !cards_band_is(BAND_2X2),
-          "GLOBAL drawn: no cards, the lines marked 1..4 at the left (knob colours), the cursor line a dark tint of its knob's colour");
+    check(ok && px_in(0, OH_HEAD, 240, 60, KNOB_COL[0]) && !cards_band_is(BAND_2X2),
+          "GLOBAL drawn: no cards, the lines marked 1..4 at the left (knob colours), the cursor line its knob's colour at full strength");
     ppm("opt-glo-global-top");
     knob_colors = 0;
     turn(EN_SELECT, 1);
