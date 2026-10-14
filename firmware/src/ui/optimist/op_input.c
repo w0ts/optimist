@@ -197,6 +197,9 @@ static void op_yes(void)
 static void op_no(void)
 {
     if (op_armed()) {
+#if FELUCCA_SEQTOOLS
+        (void)ng_no();                                  /* (a note generator's "Keep?": NO gives the pattern back, op_tools.c) */
+#endif
         op_disarm();                                    /* cancel */
         return;
     }

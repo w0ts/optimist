@@ -2050,12 +2050,14 @@ static void auto_step_tests(void)
         }
         key(WK(3));                                     /* (tapped: the note goes, its step-only events with it) */
         check(hold_get(t, 3, id, &v), "a set step tapped: cleared, its hold event stays (the motion is the pattern's)");
-        fm1_in.buttons |= BT(B_HOME);
+        (void)lock_set(t, 3, P_PAN, 5);
+        fm1_in.buttons |= BT(B_OCTDN);
         kdown(WK(3));
         kup(WK(3));
-        fm1_in.buttons &= ~BT(B_HOME);
+        fm1_in.buttons &= ~BT(B_OCTDN);
         frame();
-        check(!hold_get(t, 3, id, &v) && !AL(t)->n, "HOME + the step: every event of it gone, its motion too");
+        check(hold_get(t, 3, id, &v) && !lock_get(t, 3, P_PAN, &v), "SHIFT (OCT- held) + the step: its p-locks cleared, its motion stays");
+        AL(t)->n = 0;                                   /* (the motion was this test's; the next tests start clean) */
     }
 #endif
 #if FELUCCA_CHANCE

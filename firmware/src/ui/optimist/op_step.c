@@ -20,9 +20,9 @@
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
  *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
  *                         family's next page, past the last the first
- *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance);
- *                         a step held, HOME tapped: the same (held_clear). Drum track: SEQ + a step clears it,
- *                         HOME + a key is the pick below
+ *   SHIFT held + a step   the step's p-locks cleared (the notes, nudge, fill, chance and motion stay; SHIFT is OCT- held,
+ *                         and SHIFT + the knob its default). A step held, HOME tapped: the step cleared (held_clear).
+ *                         Drum track: SEQ + a step clears it, HOME + a key is the pick below
  *   HOME held + keys      the drum track's pick: the keys play (ly_lock is let go while HOME is down, the sound only
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
  *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
@@ -259,6 +259,31 @@ static int step_shown(const track_t *t, uint32_t idx)
     return step_has(t, idx);
 }
 
+/* SHIFT (OCT- held; controls-nav's op_shift() on merge) */
+#define STEP_SHIFT(held) (((held) & (1u << panel.btn[B_OCTDN])) != 0u)
+/* step idx's p-locks go (IRQ off): the step-only events of a parameter, a drum lane's values included; the step's notes,
+ * its nudge, fill, chance and condition (the pseudo-parameters) and its motion stay; -> how many */
+static uint32_t step_unlock(track_t *t, uint32_t idx)
+{
+    uint32_t n = 0;
+#if FELUCCA_AUTO
+    auto_list_t *l = AL(t);
+    uint32_t i, m = 0;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++) {
+        const auto_ev_t *e = &l->ev[i];
+        if ((e->place & AUTO_STEP) == idx && (e->place & AUTO_ONLY) && !AUTO_PSEUDO(e->param))
+            n++;
+        else
+            l->ev[m++] = *e;
+    }
+    l->n = (uint8_t)m;
+    if (n)
+        auto_touch(trk_index(t));
+#else
+    (void)t, (void)idx;
+#endif
+    return n;
+}
 /* a step key down / up (seq.c lk_q, LY_STEP): white key w is step 16 page + w; black keys do nothing here */
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
@@ -299,7 +324,18 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
-    if (held & (1u << panel.btn[is_drum(t) ? B_SEQ : B_HOME])) {   /* the drum track's SEQ, a synth track's HOME + the step: cleared, everything of it */
+    if (STEP_SHIFT(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
+                                                         * step not hit yet: OCT- is its ghost hit, seq.c) */
+        uint32_t n;
+        undo_mark(t, st.sess);
+        fm1_irq_off();
+        n = step_unlock(t, idx);
+        fm1_irq_on();
+        sync_reload = 1;
+        ui_message(n ? "LOCKS CLEARED" : "NO LOCKS");
+        return;
+    }
+    if (is_drum(t) && (held & (1u << panel.btn[B_SEQ]))) {   /* the drum track's SEQ + the step: cleared, everything of it */
         undo_mark(t, st.sess);
         fm1_irq_off();
         step_wipe(t, idx, 1);
@@ -1083,7 +1119,7 @@ static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
     uint32_t i, n;
 #if FELUCCA_SEQTOOLS
     if (stp_tl(r) >= 0)
-        return tl_yes((uint32_t)stp_tl(r), k);   /* (no question: undo covers it, the user 2026-10-13) */
+        return tl_yes((uint32_t)stp_tl(r), k, ok);   /* (asks first, as every action card; one undo) */
 #endif
     if (!stp_is_lane(r))
         return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
