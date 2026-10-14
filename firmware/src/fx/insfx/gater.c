@@ -122,4 +122,37 @@ static HOT2 __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const track_t 
     }
     s->c = c;
 }
+/* GATER's picture (GR_GATE: ui/optimist/op_graph.c, ui/sloop/ui_draw.c; main loop, flash). Track t's gain at each of
+ * IGT_PN columns, IGT_PW a step over the 16 steps: 255 open .. 0 shut at DEPTH, as ifx_gater makes it (a pulse a step, or
+ * half of it before another pulse; a ramp of 2^((SHAPE - 127) / 16) / 2 of a step, 1 px at the least; the swing and the
+ * tempo are left out). DEPTH 0 (off) is drawn at 127, the gate it would be. Two passes: the second starts where the first ended */
+#define IGT_PW 14u
+#define IGT_PN (16u * IGT_PW)
+static void igt_profile(const track_t *t, uint8_t *g)
+{
+    uint32_t pat = IGT_PAT[(uint32_t)t->p[P_TGPAT] % IGT_NPAT], nx = (pat >> 1 | pat << 15) & 0xFFFFu, i, pass;
+    uint32_t e = 127u - (uint32_t)clamp(t->p[P_TGSHP], 0, 127), sl = ((uint32_t)IGT_EXP16[e & 15u] << (e >> 4)) / 448u;
+    int32_t a = t->p[P_TGATE], c = 0, cd, s = (int32_t)(sl > 256u ? 256u : sl);
+    a = a <= 0 ? 127 : a;
+    cd = a >= 127 ? 256 : (a * 258) >> 7;
+    for (pass = 0; pass < 2u; pass++)
+        for (i = 0; i < IGT_PN; i++) {
+            uint32_t k = i / IGT_PW, x = i - k * IGT_PW;
+            int32_t open = (pat >> k & 1u) && (!(nx >> k & 1u) || x < IGT_PW / 2u);
+            c += clamp((open ? 0 : cd) - c, -s, s);
+            if (pass)
+                g[i] = (uint8_t)(255 - (c > 255 ? 255 : c));
+        }
+}
+/* the step track k's gate is at (0 .. 15). Playing: from the transport's clock as igt_block takes it (so a silent track, whose
+ * gate is not run, still shows it); stopped: its phase at the end of the last block, which runs on */
+static uint32_t igt_step(uint32_t k)
+{
+    uint32_t r = (uint32_t)trk[k % NTRK].p[P_TGRATE] % 6u, ph;
+    if (song.playing)
+        ph = clk_beat * ((uint32_t)IGT_DEN[r] << 28) + (uint32_t)(((uint64_t)clk_pos * IGT_KC[r]) >> 21);
+    else
+        ph = ifx_gate[k % NTRK].ph;
+    return (ph >> 28) & 15u;
+}
 #endif

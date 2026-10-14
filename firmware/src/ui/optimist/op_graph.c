@@ -80,7 +80,11 @@ static int32_t gr_h = 58;
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX || pg->graph == GR_INS || pg->graph == GR_BUS ||
-           pg->graph == GR_LFO2 || pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP;
+           pg->graph == GR_LFO2 || pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP
+#if FELUCCA_INS_GATER
+           || pg->graph == GR_GATE
+#endif
+        ;
 }
 /* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
  * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
@@ -328,6 +332,39 @@ static void graph_steps(uint16_t col)                    /* the pattern: every s
         cv_box(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_BLACK);
     }
 }
+#if FELUCCA_INS_GATER
+/* GATER (SOUND > GATER; insfx/gater.c igt_profile): the pattern's 16 steps as a strip (a pulse lit), under it the gate's
+ * gain as DEPTH and SHAPE make it (a shut step stays as high as 127 - DEPTH, the ramps as long as SHAPE), under that the
+ * step the gate is at now, white. Off (DEPTH 0): the gate it would be, dim, no playhead. 224 px, 14 a step, from x 8 */
+#define GT_X0 8
+static void graph_gater(uint16_t col)
+{
+    const track_t *t = TSEL;
+    uint8_t g[IGT_PN];
+    uint32_t i, k, on = t->p[P_TGATE] > 0, pat = IGT_PAT[(uint32_t)t->p[P_TGPAT] % IGT_NPAT], cur = igt_step(song.sel);
+    int32_t top = GR_TOP, bot = GR_BOT - 6, y0 = top + 8, h = bot - y0, run;
+    uint16_t c = on ? col : C_DIM;
+    if (h < 8)
+        return;
+    igt_profile(t, g);
+    for (k = 0; k < 16u; k++) {                         /* the steps: the pattern */
+        int32_t x = GT_X0 + (int32_t)k * (int32_t)IGT_PW;
+        cv_rect(x, top, 12, 4, pat >> k & 1u ? c : C_LINE);
+        if (!(k & 3u))
+            cv_rect(x - 1, bot + 1, 1, 3, C_LINE);      /* (the beats) */
+    }
+    cv_line(GT_X0 - 2, bot + 1, GT_X0 + (int32_t)IGT_PN + 1, bot + 1, C_LINE);
+    for (i = 0; i < IGT_PN; i += (uint32_t)run) {       /* the gain: runs of one height */
+        int32_t hh = h * g[i] / 255;
+        for (run = 1; i + (uint32_t)run < IGT_PN && h * g[i + (uint32_t)run] / 255 == hh; run++)
+            ;
+        if (hh)
+            cv_rect(GT_X0 + (int32_t)i, bot - hh + 1, run, hh, c);
+    }
+    if (on)
+        cv_rect(GT_X0 + (int32_t)cur * (int32_t)IGT_PW, bot + 3, 12, 3, C_WHITE);
+}
+#endif
 /* the drum lane: its name big in its source's colour, its sound under it (the lane's pages: they edit it); the SOUND
  * row on DR itself (kit): the kit big in its kind's colour, its style (what PRESETS steps there) */
 static void graph_lane_of(int kit)
@@ -507,6 +544,9 @@ static uint32_t graph_sig(void)
         h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u + fxi_state(song.sel, i & 1u) * 7919u;
     for (i = 0; i < NSTEP; i++)
         h = h * 3u + trk_on_step(song.sel, i);
+#if FELUCCA_INS_GATER
+    h = h * 31u + (t->p[P_TGATE] > 0 ? igt_step(song.sel) + 1u : 0u);   /* (GATER's playhead) */
+#endif
     h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
     for (i = 0; i < DE_N; i++)
         h = h * 31u + (uint8_t)dl.ofs[lane_selected()][i];
@@ -543,6 +583,11 @@ static void draw_sound_graph(const page_t *pg)
     case GR_ARP:
         graph_arp(col);
         break;
+#if FELUCCA_INS_GATER
+    case GR_GATE:
+        graph_gater(col);
+        break;
+#endif
     default:
         if (pg->scope == SC_DSND && pg->fam == FAM_ENV)
             graph_denv();                               /* (the drum track's ENV: the lane's envelope) */

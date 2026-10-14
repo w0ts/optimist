@@ -68,6 +68,9 @@
       "TYPE": "Reverb algorithm"}},
     {"kind": "page", "ctx": "CMP", "if": "FELUCCA_MASTER_COMP", "params": {
       "RATIO": "This track's compressor ratio", "ATK": "This track's comp. attack", "REL": "This track's comp. release"}},
+    {"kind": "page", "ctx": "GATER", "if": "FELUCCA_INS_GATER", "params": {
+      "DEPTH": "How far the gate shuts steps", "PAT": "Gate pattern: 16 steps", "RATE": "Gate step length (in tempo)",
+      "SHAPE": "Gate edges: hard to smooth"}},
     {"kind": "page", "ctx": "SLOTS", "params": {
       "S1": "Send in master slot 1 (swaps)", "S2": "Send in master slot 2 (swaps)", "S3": "Send in master slot 3 (swaps)",
       "S4": "Send in master slot 4 (swaps)"}},

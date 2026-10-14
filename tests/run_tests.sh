@@ -700,6 +700,17 @@ for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=4" "-DFELUCCA_INS_CHORUS=1 
         run "Optimist UI, limited inserts (${m}): the free count, WAIT, IN USE, FULL dim, a type with no instance hidden, the help lines" "$OUT/ui_optimist_fxi_test$nu" "$OUT/optimist-fxi$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
+# GATER's pages and picture on both UIs (tests/ui_optimist_gater.h, tests/sloop_gater_ui.c): its row only while a slot holds it
+# (a synth track, the drum track), the cards, the pattern's name, RATE as a division, the picture's playhead, the help lines
+for m in "-DFELUCCA_INS_GATER=1" "-DFELUCCA_INS_GATER=1 -DFELUCCA_PARAM_HELP=1"; do
+    job; ( jobin
+        mkdir -p "$OUT/optimist-gater$nu" "$OUT/pages-gater$nu"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_optimist_gater_test$nu" tests/ui_optimist_test.c -lm
+        run "Optimist UI, GATER (${m}): its FX row only while a slot holds it (T1, the drum track), DEPTH PAT RATE SHAPE, the pattern's name, RATE a division, the page remembered, the picture and its playhead, the help lines" "$OUT/ui_optimist_gater_test$nu" "$OUT/optimist-gater$nu"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_gater_test$nu" tests/ui_pages_test.c -lm
+        run "SLOOP UI, GATER (${m}): the page in the FX family, DEPTH PAT RATE SHAPE, the icons, the picture and its playhead, the help lines" "$OUT/ui_pages_gater_test$nu" "$OUT/pages-gater$nu"
+    ) >"$U.out" 2>&1 & jobbg
+done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
     run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
@@ -738,7 +749,7 @@ job; ( jobin
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1"; do
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1" "-DFELUCCA_INS_GATER=1"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
         mkdir -p "$OUT/help"

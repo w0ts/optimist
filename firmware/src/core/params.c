@@ -628,7 +628,8 @@ _Static_assert(P_COUNT < PID_INST, "the page ids past the track values");
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP, GR_INS, GR_BUS,
-       GR_LFO2 };                /* (LFO 2's wave: the Optimist UI draws it, SLOOP's has no graph there) */
+       GR_LFO2,                  /* (LFO 2's wave: the Optimist UI draws it, SLOOP's has no graph there) */
+       GR_GATE };                /* GATER's 16 steps and the gate's shape (insfx/gater.c igt_profile) */
 
 typedef struct {
     const char *title;
@@ -663,6 +664,11 @@ static const page_t PAGES[] = {
     {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
 #if FELUCCA_MASTER_COMP
     {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the track COMP's RATIO ATK REL (its own: fx_slots.c ins_cset) */
+#endif
+#if FELUCCA_INS_GATER
+    /* GATER (insfx/gater.c): DEPTH (page_desc names P_TGATE so; INSERTS' card keeps GATER), PAT, RATE, SHAPE; page_shown:
+     * only while one of the track's slots holds it; the drum track's too (it gates the drum bus) */
+    {"GATER", FAM_FX, SC_TRACK, GR_GATE, {P_TGATE, P_TGPAT, P_TGRATE, P_TGSHP}},
 #endif
 #if FELUCCA_UI == 1
     {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
@@ -807,6 +813,9 @@ static int page_for_drum(const page_t *pg)
 #if FELUCCA_TRK_FILT
                                       || pg->id[0] == P_TFLT   /* (FX > FILTER: the drum bus and its sends) */
 #endif
+#if FELUCCA_INS_GATER
+                                      || pg->graph == GR_GATE   /* (FX > GATER: the drum bus's gate) */
+#endif
                                       );
 }
 
@@ -845,6 +854,10 @@ static int page_shown(const page_t *pg)
 #if FELUCCA_TRK_FILT
     if (pg->scope == SC_TRACK && pg->id[0] == P_TFLT)
         return INS_ON(song.sel, FXT_FILT);            /* FILTER: while one of the track's slots holds it */
+#endif
+#if FELUCCA_INS_GATER
+    if (pg->graph == GR_GATE)
+        return INS_ON(song.sel, FXT_GATE);            /* GATER: while one of the track's slots holds it */
 #endif
     if (pg->graph == GR_INS)
         return (FXT_BUILT & FXT_INSERT) != 0u;        /* INSERTS: any insert built */
@@ -972,6 +985,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = &song.g[id];
         return &GP[id];
     }
+#if FELUCCA_INS_GATER
+    if (pg->graph == GR_GATE && id == P_TGATE) {      /* GATER's amount, DEPTH on its own page (INSERTS: GATER, by type) */
+        static const param_desc_t GT_DEPTH = PD("DEPTH", F_PCT, 0, 127, 0);
+        *valp = &TSEL->p[id];
+        return &GT_DEPTH;
+    }
+#endif
     *valp = &TSEL->p[id];
     return track_desc(TSEL, id);
 }

@@ -71,6 +71,9 @@ static const icon_map_t ICON_MAP[] = {
     {"NOTE", ICON_PITCH}, {"STEP", ICON_STEPS}, {"FLAG", ICON_ACCENT}, {"ACC", ICON_ACCENT}, {"SLD", ICON_SLIDE}, {"USB", ICON_MIDI},
     {"TRACK", ICON_MIX}, {"VIEW", ICON_STEPS},                  /* TRACKS page (LEVEL, LEN, PAN: above) */
     {"SLCR", ICON_SLICE}, {"PAT", ICON_STEPS}, {"DEPTH", ICON_MIX},   /* SLICER page (RATE: param_icon) */
+#if FELUCCA_INS_GATER
+    {"GATER", ICON_GATE}, {"SHAPE", ICON_SHAPE},   /* GATER: INSERTS' card, its SHAPE (DEPTH PAT above; RATE: param_icon) */
+#endif
 #if FELUCCA_MACROS
     {"COLOR", ICON_TONE}, {"MOTN", ICON_VIBRATO}, {"SPACE", ICON_REVERB}, {"ENRGY", ICON_DRIVE},   /* GLO > MACRO */
 #endif
@@ -113,8 +116,12 @@ static uint32_t param_icon(const param_desc_t *d, int32_t v)
 #endif
     )
         return ICON_LFO_WAVE;                /* "WAVE" is also the oscillator wave */
-    if (d == &TP[P_ARATE] || d == &TP[P_SLRATE])
-        return ICON_DIVISION;                 /* arp / SLICER RATE is a note division, not Hz */
+    if (d == &TP[P_ARATE] || d == &TP[P_SLRATE]
+#if FELUCCA_INS_GATER
+        || d == &TP[P_TGRATE]
+#endif
+    )
+        return ICON_DIVISION;                 /* arp / SLICER / GATER RATE is a note division, not Hz */
     if (d->names == N_TRIO_MODE)
         return ICON_CUTOFF;                   /* TRIO's MODE is the filter type, not the arp mode */
 #if FELUCCA_SLICE

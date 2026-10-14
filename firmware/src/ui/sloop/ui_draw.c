@@ -506,6 +506,27 @@ static void graph_slicer(const track_t *t, uint16_t c)
             cv_rect(x, 85, 11, 3, C_WHITE);
     }
 }
+#if FELUCCA_INS_GATER
+/* GATER (insfx/gater.c igt_profile; the Optimist UI's graph_gater): the pattern's steps as a strip, under it the gate's
+ * gain as DEPTH and SHAPE make it, the step it is at now in white under that (off: dim, no playhead) */
+static void graph_gater(const track_t *t, uint16_t c)
+{
+    uint8_t g[IGT_PN];
+    uint32_t i, k, on = t->p[P_TGATE] > 0, pat = IGT_PAT[(uint32_t)t->p[P_TGPAT] % IGT_NPAT];
+    uint16_t col = on ? c : C_DIM;
+    igt_profile(t, g);
+    for (k = 0; k < 16u; k++)
+        cv_rect(8 + (int32_t)(k * IGT_PW), 10, 12, 4, pat >> k & 1u ? col : C_LINE);
+    cv_rect(6, 79, (int32_t)IGT_PN + 4, 1, C_LINE);
+    for (i = 0; i < IGT_PN; i++) {
+        int32_t h = 58 * g[i] / 255;
+        if (h)
+            cv_rect(8 + (int32_t)i, 79 - h, 1, h, col);
+    }
+    if (on)
+        cv_rect(8 + (int32_t)(igt_step(song.sel) * IGT_PW), 85, 12, 3, C_WHITE);
+}
+#endif
 /* the drum track's steps for a signature: which have a hit, and the events of its store (a chance) */
 static uint32_t drum_hash(const track_t *t)
 {
@@ -561,6 +582,10 @@ static uint32_t graph_signature(void)
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
+#if FELUCCA_INS_GATER
+    if (pg->graph == GR_GATE && t->p[P_TGATE] > 0)   /* GATER's step playing */
+        h ^= (igt_step(song.sel) + 1u) * 2654435761u;
+#endif
 #if FELUCCA_SNAPSHOTS
     if (pg->graph == GR_SNAP)                        /* (the area changed, the row chosen) */
         h ^= sn_ui_sig() * 2654435761u + ui.sslot * 7919u + (uint32_t)sn_ui_fits() * 31u;
@@ -952,6 +977,11 @@ static void draw_graph(void)
         case GR_SLCR:
             graph_slicer(t, c);
             break;
+#if FELUCCA_INS_GATER
+        case GR_GATE:
+            graph_gater(t, c);
+            break;
+#endif
 #if DL_UI
         case GR_DSND:
             graph_dsnd(gr_top - 6, gr_bot, c);
