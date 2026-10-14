@@ -29,7 +29,7 @@ static int cp_list(void)
 {
     char p[12];
     return lst.pic == 0u && lst.shown > 0u && OP_PY == OY_PANEL_2X2 && cards_band_is(BAND_2X2) &&
-           px_in(0, (uint32_t)OP_PY, 236, OP_PH, trk_col(song.sel)) && (cp_pos(p) || SCR->rows() < 2u);
+           px_in(0, (uint32_t)OP_PY, 236, OP_PH, cur_bg(trk_col(song.sel))) && (cp_pos(p) || SCR->rows() < 2u);
 }
 static void cards_pic_tests(void)
 {
