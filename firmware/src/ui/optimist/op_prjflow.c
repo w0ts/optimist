@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* PROJECT (docs/UI-OPTIMIST-DESIGN.md section 4.6, 2026-10-14 flow). A storage row (PROJECT, SNAPSHOT, USER) is four cards:
- * BANK (only a store of more than 16 slots), OPERATION (LOAD, the default; SAVE; CLEAR), ITEM (the slot, a knob that walks
+ * BANK (only a store of more than 16 slots), OPERATION (LOAD, the default; SAVE; DELETE), ITEM (the slot, a knob that walks
  * all of them, the bank following) and, on PROJECT, NEW (a blank project: it touches no slot). The 16 white keys are the
  * slots of the current bank: key n selects item n AND runs the operation on it, through the confirm; YES runs it on the
  * ITEM the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation goes back to LOAD
@@ -29,8 +29,8 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
-enum { PO_LOAD, PO_SAVE, PO_CLEAR };                    /* the operations, in the knob's order */
-static const char *const PO_NAME[3] = {"LOAD", "SAVE", "CLEAR"};
+enum { PO_LOAD, PO_SAVE, PO_DELETE };                    /* the operations, in the knob's order */
+static const char *const PO_NAME[3] = {"LOAD", "SAVE", "DELETE"};
 static const uint8_t PO_CODE[3] = {0, 2, 1};            /* up_ui, sn_ui: 0 load, 1 clear / erase, 2 save */
 #define PRJ_BANK 16u                                    /* the slots one bank holds: the 16 keys */
 #if SEC_LOGGED
@@ -110,7 +110,7 @@ static void prj_slot_label(uint32_t kind, uint32_t s, char *l)    /* "3", "U03",
 }
 static uint32_t prj_slots_row(uint32_t kind) { return kind <= PR_USER; }     /* a row with slots */
 static uint32_t prj_banks(uint32_t kind) { return (prj_slot_n(kind) + PRJ_BANK - 1u) >> 4; }   /* > 1: the BANK card */
-static uint32_t prj_nops(uint32_t kind) { return kind == PR_PROJECT ? 2u : 3u; }   /* (a project slot has no CLEAR: it
+static uint32_t prj_nops(uint32_t kind) { return kind == PR_PROJECT ? 2u : 3u; }   /* (a project slot has no DELETE: it
                                                          * is overwritten or kept; NEW blanks the work, op below) */
 
 /* ---- the operation: LOAD at first, and again after an action, when the row changes or the screen is left (op_enter) */
@@ -125,11 +125,13 @@ static uint32_t prj_op(void)
     return prj_op_v;
 }
 /* red only for what destroys or replaces work (style guide 7), one rule for the card's verb and the modal's frame: a
- * SAVE or CLEAR of slot s that holds something; a LOAD of one while the work is not as stored; NEW always (it drops the
+ * SAVE or DELETE of slot s that holds something; a LOAD of one while the work is not as stored; NEW always (it drops the
  * project in memory) */
 static uint32_t prj_danger(uint32_t kind, uint32_t op, uint32_t s)
 {
     uint32_t u = prj_slot_used(kind, s);
+    if (op == PO_LOAD && kind == PR_USER)
+        return u && !is_drum(TSEL) && snd_edited(song.sel);   /* (a user preset replaces the sound only: asked over edits, ed_ask's rule) */
     return op == PO_LOAD ? u && work_changed() : u;
 }
 

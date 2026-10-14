@@ -239,11 +239,11 @@ static void risk_tests(void)
     rk_cell(SCR_PROJECT, "PROJECT", "NEW");
     ui.user_slot = 0;                                   /* (U01: used in the test's store) */
     rk_prj("USER", PO_LOAD);
-    rk_prj("USER", PO_CLEAR);
+    rk_prj("USER", PO_DELETE);
     rk_prj("USER", PO_SAVE);
 #if FELUCCA_SNAPSHOTS
     rk_prj("SNAPSHOT", PO_LOAD);
-    rk_prj("SNAPSHOT", PO_CLEAR);
+    rk_prj("SNAPSHOT", PO_DELETE);
 #endif
 #if SL24_AUTO
     rk_cell(SCR_PROJECT, "SLOOP", "IMPORT");

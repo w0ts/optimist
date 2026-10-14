@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, PROJECT's load / save flow (the user, 2026-10-14: "select bank, the operation, then press one
  * of the 16 keys and confirm with the popup yes/no. Default action is load"; "one knob for the item, and below we
- * display the info about the item"): BANK (a store of more than 16 slots), OPERATION (LOAD, SAVE, CLEAR), ITEM (the
+ * display the info about the item"): BANK (a store of more than 16 slots), OPERATION (LOAD, SAVE, DELETE), ITEM (the
  * slot), NEW (a blank project, no slot touched). A key selects the item and runs the operation through the confirm; YES
- * runs it on the ITEM; a free slot to LOAD or CLEAR is a toast. Included after ui_optimist_actcards.h. */
+ * runs it on the ITEM; a free slot to LOAD or DELETE is a toast. Included after ui_optimist_actcards.h. */
 static uint32_t pf_row(uint32_t kind)
 {
     uint32_t r;
@@ -52,7 +52,7 @@ static void prjflow_tests(void)
         turn(EN_K2, 1);
         check(!strcmp(pf_val(r, 1), "SAVE") && !op_armed(), "OPERATION knob: SAVE, nothing asked");
         turn(EN_K2, 1);
-        check(!strcmp(pf_val(r, 1), nops == 3u ? "CLEAR" : "SAVE"), nops == 3u ? "OPERATION knob: CLEAR" : "PROJECT has no CLEAR: the knob stops at SAVE");
+        check(!strcmp(pf_val(r, 1), nops == 3u ? "DELETE" : "SAVE"), nops == 3u ? "OPERATION knob: DELETE" : "PROJECT has no DELETE: the knob stops at SAVE");
         turn(EN_K2, 5);
         turn(EN_K2, -1);
         turn(EN_K2, -1);
@@ -94,6 +94,11 @@ static void prjflow_tests(void)
     pf_key(1);
     tap(B_SAVE);
     check(!op_armed() && up_ops[0] == 1u && !strcmp(pf_val(r, 1), "LOAD"), "... YES: loaded");
+    rk_edit();
+    pf_key(1);
+    check(op_armed() && ui.arm_danger && !strcmp(ui.arm_q, "LOAD USER U02?"), "USER, LOAD over an edited sound: asked, red");
+    tap(B_HOME);
+    snd_mark(song.sel);
     turn(EN_K2, 1);
     pf_key(0);
     check(op_armed() && !strcmp(ui.arm_q, "SAVE USER U01?") && ui.arm_danger, "USER, SAVE over a used slot: asks, red");
@@ -106,10 +111,10 @@ static void prjflow_tests(void)
     turn(EN_K2, 1);
     h0 = up_ops[1];
     pf_key(1);
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR USER U02?") && ui.arm_danger, "USER, CLEAR: asks, red");
+    check(op_armed() && !strcmp(ui.arm_q, "DELETE USER U02?") && ui.arm_danger, "USER, DELETE: asks, red");
     tap(B_SAVE);
-    check(up_ops[1] == h0 + 1u && !strcmp(pf_val(r, 1), "LOAD"), "... YES: cleared, and LOAD again (a stray key never saves)");
-    /* a free slot: LOAD and CLEAR have nothing to do, a toast and no question */
+    check(up_ops[1] == h0 + 1u && !strcmp(pf_val(r, 1), "LOAD"), "... YES: deleted, and LOAD again (a stray key never saves)");
+    /* a free slot: LOAD and DELETE have nothing to do, a toast and no question */
     h0 = rk_state();
     pf_key(9);
     check(!op_armed() && ui.toast_t && !strcmp(ui.msg, "SLOT U10 IS EMPTY") && rk_state() == h0 && ui.user_slot == 9u, "LOAD of a free slot: toast \"Slot U10 is empty\", no question");
@@ -117,7 +122,7 @@ static void prjflow_tests(void)
     turn(EN_K2, 1);
     ui.toast_t = 0;
     pf_key(10);
-    check(!op_armed() && ui.toast_t && !strcmp(ui.msg, "SLOT U11 IS EMPTY") && rk_state() == h0, "CLEAR of a free slot: the same toast");
+    check(!op_armed() && ui.toast_t && !strcmp(ui.msg, "SLOT U11 IS EMPTY") && rk_state() == h0, "DELETE of a free slot: the same toast");
     /* YES with no key: the operation on the knob's item */
     r = pf_row(PR_USER);
     ui.user_slot = 1;
