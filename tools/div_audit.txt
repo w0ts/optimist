@@ -66,6 +66,7 @@ src/fx/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over
 src/fx/fx.c:__attribute__:(m|1) | "| 1" (dbus_sends: the largest drum-track send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
 src/ui/knob_accel.h:knob_accel:a | only when a > 1
+src/ui/splash.c:lg_seg:len | a stroke's length (Q4) from LG_SEGS, a const table whose strokes all have two different ends: at least 16
 src/display/lcd.c:lcd_fill:w | returns when w is 0
 src/io/midi/midi_control.c:midi_expr:(c->bend<0?8192:8191) | 8192 or 8191
 src/core/params.c:param_format:(uint32_t)(d->max-d->min+1) | descriptors (const) have max >= min, so >= 1
