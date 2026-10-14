@@ -192,6 +192,27 @@ static const char *head_engine(void)
     }
     return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
 }
+/* the track page's badge (the user, 2026-10-14: "we should always have the track number on the top left with the engine/
+ * preset"): the track code and the engine, "2 DIGITAL", "4 DRUMS", "4 SNARE" for a picked lane, "4 ACCENT" */
+static const char *head_badge(char *b, uint32_t n)
+{
+    fmt_int(b, (int32_t)song.sel % NTRK + 1);           /* (the number only: 1 2 3, the drum track 4) */
+    str_cpy(b + str_len(b), " ", n - str_len(b));
+    str_cpy(b + str_len(b), head_engine(), n - str_len(b));
+    return b;
+}
+/* the preset follows the page's name where it fits whole (the title keeps its room first; the preset is dropped before
+ * the name shortens): the track's sound, cased ("Inserts 1/4  Warm pad"); a picked lane has none, MASTER and the
+ * non-track pages no badge. pr (14 bytes) is empty when none */
+static void head_preset(char *pr, uint32_t badge_trk)
+{
+    char nm[16];
+    pr[0] = 0;
+    if (!badge_trk || lane_picked())
+        return;
+    snd_name(song.sel, nm);
+    op_case(pr, nm, 16);
+}
 /* the track's name on a track change (the user, 2026-10-11): ~1.5 s in the header, on every screen, the badge "TRACK 2"
  * in the track's colour, then its engine in that colour and its preset; a synth track only (the drum track and MASTER:
  * none). Then the normal header comes back. Drawn as the header always is, by its signature: in place, no clear */
@@ -303,6 +324,7 @@ static void draw_head(void)
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
     uint16_t tc = lane_picked() ? op_lane_col(lane_selected()) : trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
+    const char *eng0 = eng;
     if (ui.scr == SCR_FX || ui.master                   /* MASTER: its badge in C_HI, as the mixer's M row; the mixer's */
         || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
         eng = "MASTER";
@@ -311,10 +333,15 @@ static void draw_head(void)
         eng = SCR_NAME[ui.scr];
         tc = C_HI;
     }
-    int32_t bw, tx, room;
+    char bt[24], pr[16];
+    int32_t bw, tx, room, tw;
     uint32_t badge = head_has_track() || ui.msg_t;
+    uint32_t trkb = badge && !ui.msg_t && eng == eng0;
     if (!badge)
         eng = "";                                       /* (no badge: the title starts at the left margin) */
+    else if (trkb)
+        eng = head_badge(bt, sizeof bt);                /* (a track page: "2 DIGITAL") */
+    head_preset(pr, trkb);
     bw = badge ? text_w(&FONT_S, eng) + 8 : 0;
     pos[0] = 0;
     t[0] = 0;
@@ -344,6 +371,7 @@ static void draw_head(void)
         str_cpy(t + str_len(t), c, sizeof t - str_len(t));
     }
     sig = hs(hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm), eng);
+    sig = hs(sig, pr);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     tflash_tick();
     if (tf.t && !ui.msg_t && !name_on()) {
@@ -363,7 +391,9 @@ static void draw_head(void)
             cv_rect(2, 3, bw, 19, tc);                  /* the track's engine, in its colour */
             cv_text(6, 4, &FONT_S, eng, C_BLACK);
         }
-        cv_text(tx, 4, &FONT_S, cut(c, t, room > 8 ? (uint32_t)room / 8u : 1u), mc);   /* (cased above) */
+        tw = cv_text(tx, 4, &FONT_S, cut(c, t, room > 8 ? (uint32_t)room / 8u : 1u), mc);   /* (cased above) */
+        if (pr[0] && tw + 8 + text_w(&FONT_S, pr) <= tx + room)   /* (the preset, if it fits whole) */
+            cv_text(tw + 8, 4, &FONT_S, pr, tc);
         cv_text(236 - text_w(&FONT_S, bpm), 4, &FONT_S, bpm, C_HI);
         if (r[0])
             cv_text(236 - text_w(&FONT_S, bpm) - 8 - text_w(&FONT_S, r), 4, &FONT_S, r, song.playing ? C_OK : C_DIM);
