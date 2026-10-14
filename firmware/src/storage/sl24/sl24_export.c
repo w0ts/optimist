@@ -93,8 +93,10 @@ enum {                                                  /* what an export lost (
     SX24_LFO2 = 8388608,                                /* (a part's LFO 2 not written as 2.4's LFO: sl24_l2_out; the second
                                                          * word's bit 9) */
                                                         /* (bit 10: another branch's) */
-    SX24_LFODEST = 33554432                             /* (a part's LFO DEST slot not one of 2.4's depths: another
+    SX24_LFODEST = 33554432,                            /* (a part's LFO DEST slot not one of 2.4's depths: another
                                                          * destination, AMP < 0; the second word's bit 11) */
+    SX24_DACC = 67108864                                /* (the drum track's ACCENT lane, seq/ngate.h: 2.4 and 2.6 have no
+                                                         * drum accent; the second word's bit 12; ed_sl24.c) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,

@@ -51,6 +51,7 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
 #define MOT_TAIL_END (P_ENG_END + MOT_NTAIL)
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
 _Static_assert(MOT_TAIL_END <= AUTO_NGATE0, "the note ends and the drum lanes' ids (auto.h): past every build's stored track ids");
+_Static_assert(MOT_TAIL_END <= AUTO_ACC, "the ACCENT lane's id (auto.h): past every build's stored track ids");
 /* each stored tail id's value in this build (P_COUNT: none here). LFO 2's values (P_L2RATE ..) have no stored id: none
  * maps to them (an event stored past 2.4's in a build without them is never LFO 2's) */
 static const uint8_t MOT_TAIL[MOT_NTAIL] = {

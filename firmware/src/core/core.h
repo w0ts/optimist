@@ -392,12 +392,33 @@ typedef struct {
 } step_t;
 #define STEP_SN ((uint32_t)sizeof(pstep_t))   /* a stored step's bytes */
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
-typedef struct {                 /* a step of the drum track (10 bytes, the size of a stored step) */
+/* the drum track's 17th step lane, the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
+ * (steps, level, ratchet, length, the edits, the tools, patterns, sections, snapshots), no sound of its own; its
+ * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC), its ratchet hits too, scaled by the accent
+ * step's own level (drums.c dacc_vel); its own ratchet is kept and edited, and changes nothing. The step's chance, condition
+ * and fill are the step's: an accent plays exactly when its step does. DRUM_SLANES: the step lanes */
+#define DRUM_ACC 16u
+#define DRUM_SLANES 17u
+/* the ACCENT amount: the drum track's P_E1 (its EDIT values after the kit are free; stored with the track as amount -
+ * DACC_DEF, so a project from before loads the default); velocity added to an accented hit, 0..DACC_MAX */
+#define P_DACC P_E1
+#define DACC_MAX 127
+#define DACC_DEF 27              /* a NORM hit (velocity 100) accented plays 127: the X0X kits' own accent */
+#if FELUCCA_DRUM_ACCENT && !FELUCCA_AUTO
+#undef FELUCCA_DRUM_ACCENT
+#define FELUCCA_DRUM_ACCENT 0    /* (the lane is stored as events of the automation store: without it, none) */
+#endif
+typedef struct {                 /* a step of the drum track (in RAM; stored: its first 10 bytes, a stored step's size) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */
     uint8_t rat[4];              /* 2 bits per lane: ratchet */
+    uint8_t acc;                 /* the ACCENT lane: bit 0 on, bits 1..2 its level, bits 3..4 its ratchet. Not in the
+                                  * stored step: every stored copy keeps it as an event (seq/ngate.h, auto.h AUTO_ACC) */
 } dstep_t;
-_Static_assert(sizeof(pstep_t) == 10 && sizeof(dstep_t) == 10 && sizeof(step_t) == 14 &&
+#define DSTEP_SN 10u             /* a drum step's stored bytes (on, lvl, rat) */
+typedef struct { uint8_t on[2], lvl[4], rat[4]; } dstep_sn_t;   /* a drum step as stored (dstep_t without its acc) */
+_Static_assert(sizeof(pstep_t) == 10 && sizeof(dstep_t) == DSTEP_SN + 1u && sizeof(dstep_sn_t) == DSTEP_SN && sizeof(step_t) == 14 &&
+               __builtin_offsetof(dstep_t, acc) == DSTEP_SN && NSTEP * sizeof(dstep_t) <= NSTEP * sizeof(step_t) &&
                __builtin_offsetof(step_t, ngate) == sizeof(pstep_t), "a stored step is 10 bytes on every track");
 
 typedef struct {                 /* one DIST insert's state (fx.c dist_run): a part's now, a voice's or an FX slot's later */

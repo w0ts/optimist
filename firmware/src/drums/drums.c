@@ -117,6 +117,10 @@ static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: t
     "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
 static const char *const LANE_CODE[DRUM_LANES] = {     /* 2 characters: the mixer's rows, the drum grids' lanes */
     "BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS", "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
+/* the ACCENT lane's names (core.h DRUM_ACC: lane 16, no sound; LANE_NAME / LANE_SHORT / LANE_CODE are the 16 sounds') */
+#define DACC_NAME "ACCENT"
+#define DACC_SHORT "accnt"
+#define DACC_CODE "AC"
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
     /* 35 */ 1, 0, 7, 2, 3, 8, 9, 4, 9, 6,
@@ -145,14 +149,32 @@ static uint32_t key_of_lane(uint32_t l)
     return (l / 7u) * 12u + K[l % 7u];
 }
 
-/* drum steps: a lane's bit, level, ratchet */
-static int dstep_has(const dstep_t *s, uint32_t l) { return (s->on[(l >> 3) & 1u] >> (l & 7u)) & 1u; }
-static uint32_t dstep_lvl(const dstep_t *s, uint32_t l) { return (s->lvl[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u; }
-static uint32_t dstep_rat(const dstep_t *s, uint32_t l) { return (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u; }
+/* drum steps: a lane's bit, level, ratchet. Lane DRUM_ACC (16, the ACCENT lane: core.h) is the step's acc byte (bit 0
+ * on, bits 1..2 level, bits 3..4 ratchet); dstep_mask is the 16 sounds', dstep_lanes every step lane's */
+#define DACC_ON 1u
+#define DACC_LVL(a) (((uint32_t)(a) >> 1) & 3u)
+#define DACC_RAT(a) (((uint32_t)(a) >> 3) & 3u)
+static int dstep_has(const dstep_t *s, uint32_t l)
+{
+    return l == DRUM_ACC ? (int)(s->acc & DACC_ON) : (s->on[(l >> 3) & 1u] >> (l & 7u)) & 1u;
+}
+static uint32_t dstep_lvl(const dstep_t *s, uint32_t l)
+{
+    return l == DRUM_ACC ? DACC_LVL(s->acc) : (s->lvl[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
+}
+static uint32_t dstep_rat(const dstep_t *s, uint32_t l)
+{
+    return l == DRUM_ACC ? DACC_RAT(s->acc) : (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
+}
 static uint32_t dstep_mask(const dstep_t *s) { return (uint32_t)s->on[0] | (uint32_t)s->on[1] << 8; }
+static uint32_t dstep_lanes(const dstep_t *s) { return dstep_mask(s) | (uint32_t)(s->acc & DACC_ON) << DRUM_ACC; }
 static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* lane on, with its level and ratchet */
 {
     uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
+    if (l == DRUM_ACC) {
+        s->acc = (uint8_t)(DACC_ON | (lvl & 3u) << 1 | (rat & 3u) << 3);
+        return;
+    }
     s->on[(l >> 3) & 1u] |= (uint8_t)(1u << (l & 7u));
     s->lvl[b] = (uint8_t)((s->lvl[b] & ~(3u << sh)) | (lvl & 3u) << sh);
     s->rat[b] = (uint8_t)((s->rat[b] & ~(3u << sh)) | (rat & 3u) << sh);
@@ -160,9 +182,26 @@ static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* l
 static void dstep_clr(dstep_t *s, uint32_t l)                                /* lane off */
 {
     uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
+    if (l == DRUM_ACC) {
+        s->acc = 0;
+        return;
+    }
     s->on[(l >> 3) & 1u] &= (uint8_t)~(1u << (l & 7u));
     s->lvl[b] &= (uint8_t)~(3u << sh);
     s->rat[b] &= (uint8_t)~(3u << sh);
+}
+/* the ACCENT lane (FELUCCA_DRUM_ACCENT): velocity vel of a hit of a step whose accent byte is acc, the drum track's
+ * ACCENT amount amt (0..DACC_MAX) added, scaled by the accent step's own level as a hit's velocity is (lvl_vel:
+ * NORM x1, GHOST x0.42, SOFT x0.72, HARD x1.27; Q7), at most 127. No accent, amount 0: vel as it was (the ISR: no
+ * division) */
+static uint32_t dacc_vel(uint32_t vel, uint32_t acc, int32_t amt)
+{
+    static const uint8_t F[4] = {128, 54, 92, 163};
+    uint32_t a;
+    if (!(acc & DACC_ON) || amt <= 0)
+        return vel;
+    a = vel + (((uint32_t)(amt > DACC_MAX ? DACC_MAX : amt) * F[DACC_LVL(acc)]) >> 7);
+    return a > 127u ? 127u : a;
 }
 
 /* the velocity of a level: as played (LV_NORM: vel), ghost, soft, hard */

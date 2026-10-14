@@ -51,6 +51,11 @@ _Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND, "lane ids below the pseudo
 #define AUTO_NGATE0 0x78u
 #define AUTO_IS_NGATE(p) ((uint32_t)(p) - AUTO_NGATE0 < 4u)
 _Static_assert(AUTO_NGATE0 + 4u == AUTO_LANE0, "the note ends: just below the drum lanes' ids");
+/* the drum track's ACCENT lane (core.h DRUM_ACC) in the stored forms only (seq/ngate.h: the working steps hold it, the
+ * working lists never): step-only, value the step's acc byte (1..31: on, level, ratchet). Past every build's stored
+ * track ids, below the note ends: an older build keeps them and plays none (mot_id: P_COUNT, no lock) */
+#define AUTO_ACC 0x77u
+_Static_assert(AUTO_ACC + 1u == AUTO_NGATE0, "the ACCENT lane: just below the note ends' ids");
 #define AUTO_HOLDS 1u                    /* auto_drop_*: which kinds */
 #define AUTO_ONLYS 2u
 

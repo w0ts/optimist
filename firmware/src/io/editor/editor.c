@@ -311,6 +311,8 @@ static void ed_sync(void)                                /* main loop */
 static const param_desc_t *ed_tdesc(const track_t *t, uint32_t id)   /* the static ones: an engine's */
 {                                                                     /* desc hook is the device display only */
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
+    if (is_drum(t) && id == P_DACC)
+        return &DRUM_ACC_DESC;                                        /* (the ACCENT amount) */
     if (id >= P_E0 && id <= P_E7) {
         const engine_t *e = ENGINES[t->eng_req % NENGINES];
         const param_desc_t *d = ENG_IS(e, FM6) ? fm6_ed_desc(id - P_E0) : 0;   /* (FM6's ENGINE: the modes built; */
@@ -624,21 +626,15 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_step_out(&trk[a[0]], a[1], 1);
         break;
     case ED_DRUM_STEP: {                                   /* index [, on 16 bits, lvl 32 bits, rat 32 bits as 7-bit groups]
-                                                            * -> index, on (3), lvl (5), rat (5): the drum track's 16 lanes */
+                                                            * -> index, on (3), lvl (5), rat (5): the drum track's 16 lanes
+                                                            * and the ACCENT lane (on bit 16, the fifth groups' bits 4..5) */
         dstep_t *d;
-        uint32_t on, lv, rt;
         if (na < 1u || a[0] >= NSTEP)
             return;
         d = &TDRUM->dstep[a[0]];
         if (na >= 14u) {
-            on = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)(a[3] & 3u) << 14;
-            lv = (uint32_t)a[4] | (uint32_t)a[5] << 7 | (uint32_t)a[6] << 14 | (uint32_t)a[7] << 21 | (uint32_t)(a[8] & 15u) << 28;
-            rt = (uint32_t)a[9] | (uint32_t)a[10] << 7 | (uint32_t)a[11] << 14 | (uint32_t)a[12] << 21 | (uint32_t)(a[13] & 15u) << 28;
             fm1_irq_off();
-            memset(d, 0, sizeof *d);
-            for (i = 0; i < DRUM_LANES; i++)
-                if ((on >> i) & 1u)
-                    dstep_set(d, i, (lv >> (2u * i)) & 3u, (rt >> (2u * i)) & 3u);
+            ed_dstep_in(d, a);                              /* (ed_steps.c: the 16 lanes and the ACCENT lane) */
             fm1_irq_on();
             ui.force = 1;
             if (song.sel == TRK_DRUM)

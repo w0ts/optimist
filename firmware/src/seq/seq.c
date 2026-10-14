@@ -188,6 +188,21 @@ static int kb_raw(const track_t *t)
 #include "qnt_seq.c"           /* SCL > QNT SEQ: sequenced notes snap to the scale (from Felucca 1.0.1) */
 #endif
 
+/* key k on the drum track -> its lane: a white key's sound (drums.c lane_of_key); the Optimist UI with the ACCENT
+ * lane and DACC_KEY_ON (the UI's switch: it shows the lane): its lowest black key (F#, key 1) is the ACCENT lane
+ * (played: recorded, erased, rolled as a lane, no sound) */
+#define DACC_KEY 1u
+#ifndef DACC_KEY_ON
+#define DACC_KEY_ON 0
+#endif
+static uint32_t kb_drum_lane(uint32_t k)
+{
+#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+    if (k == DACC_KEY)
+        return DRUM_ACC;
+#endif
+    return lane_of_key(k);
+}
 /* key k -> note on a synth part (KB_SILENT: none) */
 static uint32_t kb_map(const track_t *t, uint32_t k)
 {
@@ -1075,7 +1090,7 @@ static int track_empty(const track_t *t)
 {
     uint32_t k;
     for (k = 0; k < NSTEP; k++)
-        if (is_drum(t) ? dstep_mask(&t->dstep[k]) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
+        if (is_drum(t) ? dstep_lanes(&t->dstep[k]) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
             return 0;
     return 1;
 }
@@ -1402,7 +1417,7 @@ static void ft_block(void)
 /* EDIT + key: that note / sound goes from the selected pattern. Playing: from the step playing and
  * every step the sequencer enters while the key is held (MPC style); stopped: from every step. */
 static uint8_t er_trk;
-static uint16_t er_lanes;                     /* drums: lanes held */
+static uint32_t er_lanes;                     /* drums: lanes held (bit DRUM_ACC: the ACCENT lane) */
 static uint32_t er_notes[4];                  /* synth: notes held (bit per MIDI note) */
 static volatile uint8_t er_flash;             /* something was erased (the UI flashes) */
 
@@ -1411,7 +1426,7 @@ static void erase_step(track_t *t, uint32_t idx)
 {
     if (is_drum(t)) {
         dstep_t *s = &t->dstep[idx];
-        uint32_t l, m = dstep_mask(s) & er_lanes;
+        uint32_t l, m = dstep_lanes(s) & er_lanes;
         for (l = 0; m; l++, m >>= 1)
             if (m & 1u) {
                 dstep_clr(s, l);
@@ -1702,14 +1717,15 @@ static void input_off(track_t *t, uint32_t note)
 static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
 {
     track_t *t = TDRUM;
-    lane &= 15u;
+    lane = lane == DRUM_ACC ? DRUM_ACC : lane & 15u;
     pen_lane = (uint8_t)lane;
     arm_start(t);
-    if (ft_on && ft_trk == TRK_DRUM)
+    if (ft_on && ft_trk == TRK_DRUM && lane != DRUM_ACC)
         ft_note_on(lane, lvl);
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
         rec_hit(t, lane, lvl, rat);
-    trk_note_on(t, LANE_NOTE[lane], lvl_vel(lvl, 100));
+    if (lane != DRUM_ACC)                           /* (the ACCENT lane: recorded, no sound of its own) */
+        trk_note_on(t, LANE_NOTE[lane], lvl_vel(lvl, 100));
 }
 
 /* -------------------------------------------------------------- roll --- */
@@ -1732,7 +1748,7 @@ static uint32_t roll_lanes(const track_t *t)
     uint32_t r, m = 0;
     for (r = 0; r < NROLL; r++)
         if (roll[r].on && roll[r].trk == trk_index(t))
-            m |= 1u << (roll[r].note & 15u);
+            m |= roll[r].note == DRUM_ACC ? 0u : 1u << (roll[r].note & 15u);   /* (an ACCENT roll: the hits play on) */
     return m;
 }
 static int roll_has(const track_t *t, uint32_t note)
@@ -1757,7 +1773,8 @@ static void roll_hit(uint32_t r)
     }
     if (is_drum(t)) {
         drum_input(roll[r].note, roll[r].lvl, rat, rec || !armed);
-        seq_out_on(t, LANE_NOTE[roll[r].note & 15u], lvl_vel(roll[r].lvl, 100));
+        if (roll[r].note != DRUM_ACC)
+            seq_out_on(t, LANE_NOTE[roll[r].note & 15u], lvl_vel(roll[r].lvl, 100));
         return;
     }
     arm_start(t);
@@ -1953,9 +1970,9 @@ static void key_down(uint32_t k)
             er_trk = (uint8_t)sel;
         }
         if (is_drum(t)) {
-            kb_nt[k][0] = (uint8_t)lane_of_key(k);
+            kb_nt[k][0] = (uint8_t)kb_drum_lane(k);
             kb_n[k] = 1;
-            er_lanes |= (uint16_t)(1u << kb_nt[k][0]);
+            er_lanes |= 1u << kb_nt[k][0];
         } else {
             uint32_t n = kb_map(t, k);
             if (n == KB_SILENT)
@@ -1980,9 +1997,9 @@ static void key_down(uint32_t k)
     }
 #endif
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
-        uint32_t lane = lane_of_key(k), lvl = key_lvl();
+        uint32_t lane = kb_drum_lane(k), lvl = key_lvl();
 #if FELUCCA_UI == 1
-        if (punch_key(k) < 0)                         /* the Optimist UI: only the 16 white keys play lanes, the upper keys */
+        if (lane != DRUM_ACC && punch_key(k) < 0)     /* the Optimist UI: only the 16 white keys play lanes, the upper keys */
             return;                                   /* play nothing (the user, 2026-10-13; SLOOP's UI: the lane on their left) */
 #endif
         kb_nt[k][0] = (uint8_t)lane;
@@ -1995,7 +2012,8 @@ static void key_down(uint32_t k)
         kb_kind[k] = KS_DRUM;
         drum_input(lane, lvl, 0, 1);
         mc = trk_midi_ch(sel);
-        midi_key_out(mc, LANE_NOTE[lane], lvl_vel(lvl, 100));
+        if (lane != DRUM_ACC)
+            midi_key_out(mc, LANE_NOTE[lane], lvl_vel(lvl, 100));
         return;
     }
     {
@@ -2078,7 +2096,7 @@ static void key_up(uint32_t k)
 #endif
     case KS_ERASE:
         if (is_drum(t))
-            er_lanes &= (uint16_t)~(1u << kb_nt[k][0]);
+            er_lanes &= ~(1u << kb_nt[k][0]);
         else
             for (i = 0; i < kb_n[k]; i++)
                 er_notes[(kb_nt[k][i] >> 5) & 3u] &= ~(1u << (kb_nt[k][i] & 31u));
@@ -2096,6 +2114,8 @@ static void key_up(uint32_t k)
         }
         return;
     case KS_DRUM:
+        if (kb_nt[k][0] == DRUM_ACC)
+            return;                                 /* (the ACCENT lane: no note was sent) */
         if (ft_on && ft_trk == TRK_DRUM)
             ft_note_off(kb_nt[k][0]);
         mc = trk_midi_ch(TRK_DRUM);
@@ -2611,6 +2631,13 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 #define EN_STEP(t, s, idx) (s)                       /* (the step as ENERGY's band plays it: macro.c) */
 #define EN_CUR(s) (s)
 #endif
+#if FELUCCA_DRUM_ACCENT
+/* a hit's velocity on drum step s: its ACCENT lane's step raises it by the ACCENT amount (drums.c dacc_vel; a lock or
+ * motion of the amount is in p[] already: auto_step ran) */
+#define DACC_VEL(v, s) dacc_vel((v), (s)->acc, TDRUM->p[P_DACC])
+#else
+#define DACC_VEL(v, s) (v)
+#endif
 /* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
 static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
@@ -2618,8 +2645,9 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
     seq_out_track_off(t);                           /* the last step's hits end here */
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
-            trk_note_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100));
-            seq_out_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100));
+            uint32_t v = DACC_VEL(lvl_vel(dstep_lvl(s, l), 100), s);   /* (the ACCENT lane's step: every hit raised) */
+            trk_note_on(t, LANE_NOTE[l], v);
+            seq_out_on(t, LANE_NOTE[l], v);
         }
 }
 
@@ -2649,8 +2677,8 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             if (h > done && h < hits) {
                 t->rat_lanes = (t->rat_lanes & ~(3u << (2u * i))) | h << (2u * i);
                 ev_at(into - h * slen / hits);
-                trk_note_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100));
-                seq_out_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100));
+                trk_note_on(t, LANE_NOTE[i], DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
+                seq_out_on(t, LANE_NOTE[i], DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
             }
         }
         return;

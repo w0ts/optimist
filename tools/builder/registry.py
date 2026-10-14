@@ -290,6 +290,14 @@ _add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)"
           "HC and the claves (note 75). About 30 KB of flash and uses floating point; emulator-tested only. A build "
           "without it plays the synthesised 808 for it and keeps the kit")
 
+_add("DRUM_ACCENT", "FELUCCA_DRUM_ACCENT", "drum ACCENT lane (909 style)", D, 340,
+     desc="A 17th step lane on the drum track, the ACCENT lane: no sound of its own, its steps raise every hit of the "
+          "step by the drum track's ACCENT amount (0 to 127 velocity, default 27: a normal hit plays at full velocity), "
+          "into each kit's own velocity response (the X0X 909 / 808: their accent input); MIDI out sends the raised "
+          "velocity. It works as a lane: steps, levels, ratchets, chance and conditions, copy, erase, the STEP tools, "
+          "patterns, sections, snapshots. Off: the lane is kept and edited but not heard. Needs the automation store "
+          "(motion, locks, chance or conditions).")
+
 # ---- sample sets (generator: FELUCCA_SAMPLES_SKIP; set numbers stay)
 S = "Sample sets"
 _SET_DESC = {

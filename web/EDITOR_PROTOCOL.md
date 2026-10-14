@@ -277,6 +277,15 @@ chorus', delay's and reverb's return level (0..127, 127 unity), kept in the proj
   32 bits each (lane l in bits 2l..2l+1), sent as 5 × 7 bits LSB first. A set replaces the whole step;
   the lanes that are off read back with level and ratchet 0. An index ≥ NSTEP gets no reply. Not a push:
   `STEP_CHANGED` with the drum track selected means "re-read `DRUM_STEP` of that index".
+- **The ACCENT lane** (2026-10-14, `FELUCCA_DRUM_ACCENT`; no version change: the bits were always sent as 0): lane 16,
+  a 17th step lane with no sound of its own. Its step raises every hit of that step by the drum track's ACCENT amount
+  (the drum track's parameter `P_E1`, 0..127, default 27: a NORM hit at 100 plays 127), scaled by the accent step's own
+  level (NORM x1, GHOST x0.42, SOFT x0.72, HARD x1.27), at most velocity 127; MIDI out sends that velocity. In
+  `DRUM_STEP` (and `STEPS`) it is bit 16 of `on` (the third byte's bit 2) and bits 32..33 of `lvl` and `rat` (the fifth
+  group's bits 4..5). A write without those bits (an older editor) turns the step's accent off. In every stored form
+  (projects, sections, patterns, snapshots, backups) it is a step-only event of the drum track's list, param 0x77,
+  value the lane's byte (bit 0 on, bits 1..2 level, bits 3..4 ratchet); the working list (`AUTO_GET`) never holds it,
+  and `AUTO_SET` refuses it (rc 1).
 - **The drum track through the old commands:** `STEP_GET` / `TRACK_STEP` give its first 4 lanes that are
   on as GM notes (lane order), time NOTE (REST if none), flag 1 (accent) if one of them is HARD, vel 100,
   and lvl / hi / rat 0. A `STEP_SET` / `TRACK_STEP` write puts each note on its nearest lane (GM 35..81,
@@ -655,6 +664,9 @@ the editor shows no button. Nothing is written to flash.
   LFO, NOTE and BI); a LFO 2 alone (the part's LFO DEST off) is written as 2.4's LFO (its RATE, WAVE, its slots as the
   depths). Bit 11 (the mask's bit 25, `SX24_LFODEST`): a slot of a part's LFO DEST that is no depth of 2.4's (another
   DEST, AMP below 0): left out; the slots on PIT FLT SHP AMP are written as the depths (AMT / 2; AMP as it is).
+  Bit 12 (the mask's bit 26, `SX24_DACC`): the drum track's ACCENT lane (above, `DRUM_STEP`), which 2.4 and 2.6 have
+  not: left out (the hits keep their own levels). The ACCENT amount travels in the drum track's `P_E1` slot, which 2.4
+  and 2.6 never read, so a round trip keeps it.
 
 **The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
   it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two
@@ -780,7 +792,8 @@ it (ranges -24..24, -64..63 x 3, -24..24, -64..63 x 2, -24..6; AUTO_SET clamps t
 lock on that step (heard by every hit of the lane during the step), a hold event the lane's motion; both are heard at the
 lane's hits (a sounding hit keeps the values it started with), over the lane's own values, never written into them. A part
 refuses them (rc 1). A firmware before them keeps such events in the list and in every stored form, and plays none.
-0xFC stays free; the stored track ids end below 0x7C in every build. The editor's `autoLane(param)` reads an id.
+0xFC stays free; the stored track ids end below 0x77 in every build (0x77: the ACCENT lane's stored events, 0x78..0x7B:
+the notes' own ends, neither ever in a working list). The editor's `autoLane(param)` reads an id.
 
 ## SLOOP 2.4's step extras (commands 72..77)
 

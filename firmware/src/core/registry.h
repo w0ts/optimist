@@ -433,6 +433,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * an overview of the 16 sounds, SEQ + EDIT picks the sound on the white keys,
                                             * the page follows the playhead (ui_drumstep.c; PR #45 of isod89/sloop-fm1) */
 #endif
+#ifndef FELUCCA_DRUM_ACCENT
+#define FELUCCA_DRUM_ACCENT 1              /* the drum track's ACCENT lane is heard: its steps raise every hit of the step
+                                            * by the ACCENT amount (drums.c dacc_vel, seq.c drum_step); off: the lane is
+                                            * kept, edited and stored as ever, not heard. Needs the automation store */
+#endif
 #ifndef FELUCCA_MACROS
 #define FELUCCA_MACROS 0                   /* GLO > MACRO: COLOR MOTION SPACE ENERGY, after Flowstate (macro.c) */
 #endif

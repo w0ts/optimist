@@ -28,6 +28,7 @@ enum { TL_REV, TL_RND, TL_COOK, TL_LEN };
 #define TL_SNARE 2u
 #define TL_HATC 4u
 #define TL_HATO 5u
+#define TL_ALL ((1u << DRUM_SLANES) - 1u)      /* every step lane: the 16 sounds and the ACCENT lane (core.h DRUM_ACC) */
 static struct {
     uint8_t half;                       /* LENGTH armed: 0 x2 (DOUBLE), 1 1/2 (HALF) */
     uint8_t hits, steps, rot;           /* EUCLID's values (kept until the power goes, as Felucca's) */
@@ -81,7 +82,7 @@ static void tl_unlock(track_t *t, uint32_t len)
                 (void)auto_step_clear(t, i, AUTO_ONLYS);
             continue;
         }
-        if (dstep_mask(&tl_was_d()[i]) && !dstep_mask(&t->dstep[i])) {
+        if (dstep_lanes(&tl_was_d()[i]) && !dstep_lanes(&t->dstep[i])) {   /* (the ACCENT lane is a lane) */
             (void)auto_step_clear(t, i, AUTO_ONLYS);
             continue;
         }
@@ -397,7 +398,7 @@ static uint32_t tl_hit_nth(const track_t *t, uint32_t len, uint32_t lm, uint32_t
 {
     uint32_t i, l, c = 0;
     for (i = 0; i < len; i++)
-        for (l = 0; l < DRUM_LANES; l++)
+        for (l = 0; l < DRUM_SLANES; l++)
             if (((lm >> l) & 1u) && dstep_has(&t->dstep[i], l) && (i || l != TL_KICK) && c++ == n) {
                 *ip = i, *lp = l;
                 return 1;
@@ -418,12 +419,12 @@ static uint32_t tl_cook_hit(track_t *t, uint32_t len, uint32_t lm)
     uint32_t i = 0, l = 0, j, r = tl_rnd(4), n = tl_hit_nth(t, len, lm, ~0u, &i, &l), used = 0, lv, rt;
     if (r == 2u || !n) {                                /* add: on a lane in use (none: the closed hat, or the lane) */
         for (j = 0; j < len; j++)
-            used |= dstep_mask(&t->dstep[j]);
+            used |= dstep_lanes(&t->dstep[j]);
         used &= lm;
-        l = (lm >> TL_HATC) & 1u ? TL_HATC : (uint32_t)__builtin_ctz(lm | 1u << DRUM_LANES) & 15u;
-        for (j = tl_rnd(DRUM_LANES); used && j < 2u * DRUM_LANES; j++)
-            if ((used >> (j % DRUM_LANES)) & 1u) {
-                l = j % DRUM_LANES;
+        l = (lm >> TL_HATC) & 1u ? TL_HATC : (uint32_t)__builtin_ctz(lm | 1u << DRUM_SLANES) % DRUM_SLANES;
+        for (j = tl_rnd(DRUM_SLANES); used && j < 2u * DRUM_SLANES; j++)
+            if ((used >> (j % DRUM_SLANES)) & 1u) {
+                l = j % DRUM_SLANES;
                 break;
             }
         j = tl_rnd(len);
@@ -644,7 +645,7 @@ static int tl_yes(uint32_t pg, uint32_t k)
         return 1;
     }
     for (i = 0; i < len; i++)                           /* (COOK: something to cook) */
-        n += is_drum(t) ? (uint32_t)__builtin_popcount(dstep_mask(&t->dstep[i]) & (lane >= 0 ? 1u << lane : 0xFFFFu))
+        n += is_drum(t) ? (uint32_t)__builtin_popcount(dstep_lanes(&t->dstep[i]) & (lane >= 0 ? 1u << lane : TL_ALL))
                         : (uint32_t)tl_gate(&t->step[i]);
     if (k == TL_COOK && !n) {
         tl_say("NOTHING TO COOK", "");
@@ -668,7 +669,7 @@ static int tl_yes(uint32_t pg, uint32_t k)
         what = " RANDOM";
     } else {
         if (is_drum(t))
-            tl_cook_drum(t, len, n, lane >= 0 ? 1u << (uint32_t)lane : 0xFFFFu);
+            tl_cook_drum(t, len, n, lane >= 0 ? 1u << (uint32_t)lane : TL_ALL);
         else
             tl_cook_notes(t, len);
         what = " COOKED";

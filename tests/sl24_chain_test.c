@@ -28,7 +28,7 @@ static void capture(uint32_t slot)
     memcpy(p->g, song.g, sizeof song.g);
     for (i = 0; i < NTRK; i++) {
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
-        memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
+        steps_store(p->t[i].step, &trk[i], i);         /* (the stored steps: the drum track's 10 bytes a step) */
         p->t[i].engine = trk[i].eng_req;
         p->t[i].preset = trk[i].preset;
     }
