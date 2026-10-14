@@ -66,7 +66,7 @@
 #endif
 #ifndef FELUCCA_ENG_JUNO
 #define FELUCCA_ENG_JUNO 0                 /* JUNO (the Juno-106 voice of fm-106 / KR-106: eng_juno.c, backports.h) */
-#endif                                     /* (UID 14 is reserved for it: feat/engine-juno; without it the slot stays empty) */
+#endif                                     /* (UID 14 is JUNO's; a build without its engine files leaves the slot empty) */
 #ifndef FELUCCA_ENG_NOISE
 #define FELUCCA_ENG_NOISE 0                /* NOISE (Felucca-Engines eng_noise.c, MIT: engines/noise/eng_noise.c, backports.h) */
 #endif
