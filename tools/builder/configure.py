@@ -85,9 +85,10 @@ def parse(text, base=None, strict=True):
         if k in R.MIGRATE:                              # (an item that became others: registry.py MIGRATE)
             cfg.update(R.MIGRATE[k](v))
             continue
-        if k not in R.ITEMS:
+        if k not in R.ITEMS:                            # (a newer or an older builder's item: ignored, said so)
             if strict:
-                raise ConfigError(f"line {n}: unknown item {k}")
+                print(f"warning: line {n}: {k} is not an item of this builder and the setting is ignored",
+                      file=sys.stderr)
             continue
         cfg[k] = v
     return cfg, name
