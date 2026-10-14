@@ -1,8 +1,8 @@
 {
  "base": {
-  "flash": 629880,
+  "flash": 630164,
   "ram": 73148,
-  "pool": 355440,
+  "pool": 355524,
   "ramtext": 34896
  },
  "deltas": {
@@ -1343,9 +1343,25 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "DRUM_ACCENT": {
+   "0": {
+    "flash": 4,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "INS_GATER": {
+   "1": {
+    "flash": 2284,
+    "ram": 1520,
+    "pool": 96,
+    "ramtext": 8
+   }
   }
  },
- "measured": "2026-10-13 20:02",
+ "measured": "2026-10-14 04:58",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1367,56 +1383,56 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "3405387a",
+   "hash": "00bd88cc",
    "sizes": {
-    "flash": 603888,
+    "flash": 604204,
     "ram": 69568,
-    "pool": 355088,
-    "ramtext": 26024
+    "pool": 355172,
+    "ramtext": 26020
    }
   },
   "everything-that-fits": {
-   "hash": "612d7b45",
+   "hash": "6e13193f",
    "sizes": {
-    "flash": 601168,
-    "ram": 61180,
-    "pool": 340040,
+    "flash": 601612,
+    "ram": 61196,
+    "pool": 340124,
     "ramtext": 34824
    }
   },
   "fm-va-studio": {
-   "hash": "140ba996",
+   "hash": "5fbf25a0",
    "sizes": {
-    "flash": 601308,
+    "flash": 601812,
     "ram": 73148,
-    "pool": 346092,
+    "pool": 346176,
     "ramtext": 28872
    }
   },
   "user-default": {
-   "hash": "48c973b1",
+   "hash": "11bcd427",
    "sizes": {
-    "flash": 537244,
+    "flash": 537896,
     "ram": 57036,
-    "pool": 317000,
-    "ramtext": 31504
+    "pool": 317084,
+    "ramtext": 31516
    }
   },
   "x0x-drums": {
-   "hash": "246a86bc",
+   "hash": "18112632",
    "sizes": {
-    "flash": 580948,
-    "ram": 53656,
-    "pool": 316520,
-    "ramtext": 26160
+    "flash": 581524,
+    "ram": 53672,
+    "pool": 316604,
+    "ramtext": 26124
    }
   },
   "mots": {
-   "hash": "2a920f77",
+   "hash": "008f9099",
    "sizes": {
-    "flash": 538492,
+    "flash": 539068,
     "ram": 58900,
-    "pool": 314664,
+    "pool": 314748,
     "ramtext": 32820
    }
   }
