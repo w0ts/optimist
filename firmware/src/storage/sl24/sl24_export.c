@@ -244,6 +244,8 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     pj_to_p(v, q->t[k].p);
     if (k == TRK_DRUM && l2_tagged(q))                  /* (its LFO slots held the parts' LFO 2: project.c l2_pack) */
         l2_slots_def(v);
+    if (k == TRK_DRUM && vc_tagged(q))                  /* (its VOICE slot held the parts' VOICES: project.c vc_pack) */
+        v[P_VOICE] = TP[P_VOICE].def;
     for (i = 0; i < SL24_COMMON; i++)
         sl24_w16(o + 2u * i, v[i]);
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));

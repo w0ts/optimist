@@ -434,6 +434,21 @@ int main(void)
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
     bad += check("the working project: capture -> apply round trip (levels, lanes, DUST, FX off)", ok);
+    {   /* VOICES: kept per part in the drum track's VOICE slot; a project of before (a mode 0..3 there) reads as AUTO */
+        project_t o;
+        int16_t old_mode = 2;
+        trk[0].p[P_VOICES] = 4, trk[1].p[P_VOICES] = 0, trk[2].p[P_VOICES] = 7;
+        proj_capture(&o, &tdl);
+        host_tracks_init();
+        proj_apply(&o, &tdl, 1);
+        ok = trk[0].p[P_VOICES] == 4 && trk[1].p[P_VOICES] == 0 && trk[2].p[P_VOICES] == 7 && trk[TRK_DRUM].p[P_VOICE] == TP[P_VOICE].def;
+        proj_capture(&o, &tdl);
+        o.t[TRK_DRUM].p[P_VOICE] = old_mode;               /* a project of before: the drum track's own mode */
+        o.sum = proj_sum(&o);
+        proj_apply(&o, &tdl, 1);
+        ok &= trk[0].p[P_VOICES] == 0 && trk[1].p[P_VOICES] == 0 && trk[2].p[P_VOICES] == 0 && trk[TRK_DRUM].p[P_VOICE] == old_mode;
+        bad += check("VOICES: capture -> apply round trip; a project of before: AUTO (the engine's own)", ok);
+    }
     {   /* SYNC is the HOME menu's, device-wide: a project neither loads nor (meaningfully) carries it; the clock followed
          * (G_MIDI) is a status, never saved; a new one is AUTO */
         project_t o = q;

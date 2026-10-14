@@ -23,8 +23,8 @@ static uint8_t motion_base_valid, motion_full;
 /* the parameters a motion may set (on track t) */
 static int motion_param(const track_t *t, uint32_t id)
 {
-    if (id >= P_COUNT)
-        return 0;
+    if (id >= P_COUNT || id == P_VOICES)
+        return 0;                                            /* (VOICES: not lockable, no stored id: auto.c MOT_TAIL) */
 #if FELUCCA_LFO2
     if (id >= P_L2RATE)
         return 0;                                            /* (LFO 2: no stored id of its own yet, auto.c mot_id) */

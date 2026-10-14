@@ -35,6 +35,7 @@ static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE", "ALL"};   /* Q_OFF
 #define Q_LAST Q_ALL
 #endif
 static const char *const N_VOICE[] = {"POLY", "MONO", "LEG", "UNI"};   /* V_POLY .. V_UNISON */
+static const char *const N_VOICES[] = {"AUTO", "1", "2", "3", "4", "5", "6", "7", "8"};   /* P_VOICES: 0 = the engine's own */
 static const char *const N_GLMODE[] = {"RATE", "TIME"};
 static const char *const N_PRIO[] = {"LAST", "LOW", "HIGH"};
 static const char *const N_ALLOC[] = {"ROT", "REUSE"};
@@ -181,6 +182,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
+    [P_VOICES] = PE("VOICES", N_VOICES, 0),               /* POLY / UNISON voice count (voice.c trk_nvoice); AUTO = the engine's */
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
 /* an automation event (a motion, a lock: stored before LFO DEST had slots, or SLOOP 2.4's) on a depth of before
@@ -702,7 +704,7 @@ static const page_t PAGES[] = {
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
 #if FELUCCA_UI == 1
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, 0xFF, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
+    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_VOICES, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
 #else
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
 #endif
