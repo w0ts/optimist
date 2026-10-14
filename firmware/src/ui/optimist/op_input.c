@@ -106,7 +106,7 @@ static uint32_t op_cursor_page(void)
     if (ui.scr == SCR_SOUND && snd_page(r))             /* (a lane's LFO, this UI's own page: PAGES' LFO) */
         return lane_lfo_pg(snd_page(r)) ? page_first(FAM_LFO) : lane_fx_pg(snd_page(r)) ? page_first(FAM_FX) : smp_pg(snd_page(r)) ? src_page_ix() : (uint32_t)(snd_page(r) - PAGES);
     if (ui.scr == SCR_FX)
-        return fx_ix[r % OP_MAXROWS];
+        return fx_ix[r % OP_MAXROWS] == FX_RET_IX ? page_first(FAM_FX) : fx_ix[r % OP_MAXROWS];
     if (ui.scr == SCR_PROJECT && prj_kind(r) == PR_TOOLS)
         return (uint32_t)(tools_page() - PAGES);
     return page_first(FAM_TRK);

@@ -137,18 +137,17 @@ static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
-    if (r == MXR_MASTER) {                              /* filter, dust, duck; the returns; then the compressor */
+    if (r == MXR_MASTER) {                              /* filter, dust, duck; the compressor; then the returns (the master FX screen's order) */
         n = mx_add(it, n, MG_MIX, "FILT", MI_GLOB, G_FILT);
         n = mx_add(it, n, MG_MIX, "DUST", MI_GLOB, G_DUST);
         n = mx_add(it, n, MG_MIX, "DUCK", MI_GLOB, G_DUCK);
-        n = mx_items_ret(it, n);
 #if FELUCCA_MASTER_COMP
         n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
         n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
         n = mx_add(it, n, MG_INS, "GAIN", MI_GLOB, G_CGAIN);
         n = mx_add(it, n, MG_INS, "CEIL", MI_GLOB, G_CCEIL);
 #endif
-        return n;
+        return mx_items_ret(it, n);
     }
     if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE its sequencer
                                                          * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,

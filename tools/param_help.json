@@ -328,7 +328,8 @@
       "DST": {"text": "Distortion of the sound", "if": "FELUCCA_FX_DIST"},
       "CMP": {"text": "Compressor of the sound", "if": "FELUCCA_MASTER_COMP"}}},
     {"kind": "op", "ctx": "RETURNS", "params": {
-      "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level"}},
+      "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level",
+      "REV RET": "Reverb return level", "DLY RET": "Delay return level", "CHO RET": "Chorus return level"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
       "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order (asks)",
       "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Insert a copy (asks)",

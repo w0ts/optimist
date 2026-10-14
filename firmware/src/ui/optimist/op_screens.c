@@ -344,19 +344,47 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
-/* ---- MASTER (SCR_FX): the global effects' pages (the user, 2026-10-12, D3): DELAY REVERB SLOTS TONE COMP LIMIT MACRO.
- * PAGES keeps SLOOP's titles (its UI draws them: ui/sloop/ui_draw.c); the names shown are this table's. TUNE, whose
- * page (PAGES' GLOBAL) is gone, sits on LIMIT's free card: GAIN CEIL TUNE GR */
-static const char *const FX_ALIAS[][2] = {{"DLY", "DELAY"}, {"REV/CHO", "REVERB"}, {"REVERB", "REV TYPE"},
-                                          {"MASTER", "TONE"}, {"CMP", "INS COMP"}};
+/* ---- MASTER (SCR_FX): the global effects' pages, in the signal's order (the user, 2026-10-14: "we should have inserts,
+ * then send returns, then fx slots, then macro"): INS TONE INS COMP INS LIMIT (the master bus' own inserts), RETURNS
+ * RET DELAY RET REV [RET TYPE] (the return levels, then the effects they return), SLOTS, MACRO. PAGES keeps SLOOP's
+ * order and titles (its UI draws them: ui/sloop/ui_draw.c); the order and names shown are this table's (FX_ORDER, a
+ * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, sits
+ * on LIMIT's free card: GAIN CEIL TUNE GR */
+static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET REV"}, {"REVERB", "RET TYPE"},
+                                          {"MASTER", "INS TONE"}, {"COMP", "INS COMP"}, {"LIMIT", "INS LIMIT"}};
+static const char *const FX_ORDER[] = {"MASTER", "COMP", "LIMIT", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_TUNE, G_CGR}};
+static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_CRET, G_DRET, G_RRET, 0xFF}};   /* (as the mixer's) */
+#define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */
 static uint8_t fx_ix[OP_MAXROWS];
-static const page_t *fx_pg(uint32_t r)
+static const page_t *fx_pg_of(uint32_t ix)
 {
-    const page_t *pg = &PAGES[fx_ix[r % OP_MAXROWS]];
+    const page_t *pg = ix == FX_RET_IX ? &FX_RET : &PAGES[ix];
     return pg->scope == SC_GLOBAL && pg->id[0] == G_CGAIN ? &FX_LIMIT : pg;
 }
-static uint32_t fxs_rows(void) { return page_rows(fx_page, fx_ix); }
+static const page_t *fx_pg(uint32_t r) { return fx_pg_of(fx_ix[r % OP_MAXROWS]); }
+static uint32_t fx_rank(uint32_t ix)
+{
+    const char *t = (ix == FX_RET_IX ? &FX_RET : &PAGES[ix])->title;
+    uint32_t i;
+    for (i = 0; i < sizeof FX_ORDER / sizeof FX_ORDER[0]; i++)
+        if (str_eq(t, FX_ORDER[i]))
+            break;
+    return i;
+}
+static uint32_t fxs_rows(void)
+{
+    uint32_t n = page_rows(fx_page, fx_ix), i, j;
+    if (n < OP_MAXROWS)
+        fx_ix[n++] = FX_RET_IX;
+    for (i = 1; i < n; i++) {                           /* PAGES' order to this one's (stable insertion sort) */
+        uint8_t v = fx_ix[i];
+        for (j = i; j && fx_rank(fx_ix[j - 1u]) > fx_rank(v); j--)
+            fx_ix[j] = fx_ix[j - 1u];
+        fx_ix[j] = v;
+    }
+    return n;
+}
 static void fxs_name(uint32_t r, char *b)
 {
     const char *t = fx_pg(r)->title;
@@ -368,6 +396,12 @@ static void fxs_name(uint32_t r, char *b)
         }
     str_cpy(b, t, 12);
 }
-static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(fx_pg(r), k, c); }
+static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
+{
+    static const char *const RL[3] = {"CHO RET", "DLY RET", "REV RET"};
+    page_cell(fx_pg(r), k, c);
+    if (fx_pg(r) == &FX_RET && k < 3u)
+        c->label = RL[k];
+}
 static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(fx_pg(r), k, s, fine); }
 static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, fx_pg(r), k, ok); }

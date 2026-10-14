@@ -267,7 +267,7 @@ alone on the whole panel. The mixer keeps its 1x4 cards (every other screen is 2
 
 | Row | Its knob sets (SELECT) | Notes |
 |---|---|---|
-| **MASTER** (above T1) | FILT · DUST · DUCK; then the **returns** (2026-10-12, header *Mix returns*): a card a FX slot, S1 · S2 · S3 · S4 in the slots' order, named after its type (*S2 CHO*, as FX > SLOTS shows it): a send's (CHO, DLY, REV) card turns that effect's return level, an insert's (DST, FILT, CMP) or an empty slot's shows "-" and does nothing; then the compressor THRS · RATIO · GAIN · CEIL (section 13) | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out. The returns (the user, 2026-10-12: "on the mixer screen Master, we should have a volume control for the return tracks"): CHO RET, DLY RET, REV RET, 0..127 shown 0..100 %, 100 % (unity) by default, the mix as before; 0 silences that effect and stops its bus (core.h G_CRET; fx.c). One instance per type (fx_slots.c), so one return per send, wherever it sits; DLY RET is apart from the delay's own MIX. No send in any slot: no Returns set |
+| **MASTER** (above T1) | FILT · DUST · DUCK; then the compressor THRS · RATIO · GAIN · CEIL (section 13; header *Mix comp*); then the **returns** (last since 2026-10-14, the master FX screen's order: inserts, returns; 2026-10-12, header *Mix returns*): a card a FX slot, S1 · S2 · S3 · S4 in the slots' order, named after its type (*S2 CHO*, as FX > SLOTS shows it): a send's (CHO, DLY, REV) card turns that effect's return level, an insert's (DST, FILT, CMP) or an empty slot's shows "-" and does nothing | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out. The returns (the user, 2026-10-12: "on the mixer screen Master, we should have a volume control for the return tracks"): CHO RET, DLY RET, REV RET, 0..127 shown 0..100 %, 100 % (unity) by default, the mix as before; 0 silences that effect and stops its bus (core.h G_CRET; fx.c). One instance per type (fx_slots.c), so one return per send, wherever it sits; DLY RET is apart from the delay's own MIX. No send in any slot: no Returns set |
 | **T1 · T2 · T3** | the mix MUTE · VOLUME · PAN (MUTE: 2026-10-12, section 16); the inserts S1 TYPE · S1's amount · S2 TYPE · S2's amount (the track's two insert slots, section 20); the sends REV · DLY · CHO; then FX on / dry · SOUND (section 13) | the sends only in a master slot |
 | **DR** | MUTE · VOLUME (GLO > DRUMS); its two insert slots (the drum bus, as a track's); its send LEVELS REV · DLY · CHO (0..100 %, section 20); FX on · KIT (section 13) | the drum track as a whole; its sequence shows every lane merged |
 | **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | MUTE (the lane's own) · LEVEL · CUT (in PAN's place: a sound has no pan); DRIVE · DST · CMP (the sound's own inserts, always heard); REV · DLY · CHO; SOUND (section 13) | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
@@ -423,19 +423,21 @@ this screen, so you hear it). On an FM6 track ENV held stays the operator editor
 ### 4.4 MASTER (the master FX)
 
 Reached by FX tapped on the mixer's MASTER row, or ALGORITHM left of T1 on any page (section 16); FX tapped again: its
-next page. The badge reads MASTER, the header the page ("Delay 1/7"). Its pages (section 17, D3; 2026-10-12):
+next page. The badge reads MASTER, the header the page ("Ins tone 1/8"). Its pages (section 17, D3; 2026-10-12) **in the signal's order since 2026-10-14** (the user: "the master fx menu is a bit strange... we should have inserts, then send returns, then fx slots, then macro"): the master bus' **inserts** (INS TONE, INS COMP, INS LIMIT), the **returns** (RETURNS, the three return levels, then the effects they return: RET DELAY, RET REV, RET TYPE), the **slots** (SLOTS), the **macros** (MACRO). Page memory is the row number (RAM only): the order changed, no stored index points anywhere.
 
 | Page | KNOB 1 · 2 · 3 · 4 |
 |---|---|
-| DELAY | TIME · FDBK · COLR · MIX |
-| REVERB | SIZE · DAMP · CRT · CDP (the chorus' rate and depth) |
-| REV TYPE | TYPE (builds with several reverbs) |
-| INS COMP | RATIO · ATK · REL of the COMP insert (builds with the master COMP slot) |
+| INS TONE | DUST · DUCK · FILT · ROLL |
+| INS COMP | THRS · RATIO · ATK · REL (the master compressor) |
+| INS LIMIT | GAIN · CEIL · **TUNE** · GR (a read-out) |
+| RETURNS | CHO RET · DLY RET · REV RET (the FX returns, 100 % unity: the same values as the mixer's MASTER returns set, which keeps one card a slot) |
+| RET DELAY | TIME · FDBK · COLR · MIX |
+| RET REV | SIZE · DAMP · CRT · CDP (the chorus' rate and depth) |
+| RET TYPE | TYPE (builds with several reverbs) |
 | SLOTS | the four FX slots' types |
-| TONE | DUST · DUCK · FILT · ROLL |
-| COMP | THRS · RATIO · ATK · REL |
-| LIMIT | GAIN · CEIL · **TUNE** · GR (a read-out) |
 | MACRO | COLOR · MOTN · SPACE · ENRGY (MACROS builds) |
+
+The mixer's MASTER row follows the same order: FILT · DUST · DUCK, the compressor, then the returns. Page names are at most 9 characters (a host check); the badge MASTER already names the screen, so the header reads *Ins tone 1/8*, *Ret delay 5/8*, *Slots 7/8*. (op_screens.c `FX_ORDER`, `fxs_rows`: PAGES keeps SLOOP's order for the SLOOP UI.) Before 2026-10-14: DELAY REVERB REV TYPE SLOTS TONE COMP LIMIT MACRO, with no RETURNS page (the return levels were on the mixer only).
 
 The GLOBAL page (BPM SWING CLICK TUNE) and the DRUMS page (the drum level) are gone: BPM and SWING are GLOBAL's TEMPO
 row, CLICK its REC row, the drum level the mixer's DR row (VOLUME); TUNE moved to LIMIT's free card. The names are the
@@ -2308,7 +2310,7 @@ differs from the proposal's recommendation, the decision is what was built.
 |---|---|---|
 | D1 (revised by the user the same day; superseded by section 20: GLO switches GLOBAL / SYSTEM, SELECT and ALGORITHM stay within the screen) | GLO tapped keeps paging through one cycle: GLOBAL's rows, then SYSTEM's (CPU first), then GLOBAL's first; SELECT walks the same sequence. HOME held on the mixer no longer opens SYSTEM | op_global.c `glo_step` / `glo_tap`, op_input.c `op_knobs` (SELECT stops at the cycle's two ends); GLOBAL's SYSTEM row gone (the cycle reaches SYSTEM); the badge reads GLOBAL or SYSTEM, the n/N counts within the screen ("CPU 1/7"), which keeps each list's numbers short and says when the screen changes; GLO on the BLE devices list closes it; `op_tap`: HOME held alone on the mixer does nothing; the GLO LED full on both |
 | D2 | CPU in SYSTEM only: its first row is CLOCK (MHz) + LOAD. No header warning | op_project.c `SYS`: CPU first, CLOCK then LOAD (read-outs) |
-| D3 | the master FX is MASTER, 7 pages: DELAY REVERB SLOTS TONE COMP LIMIT MACRO; its GLOBAL and DRUMS pages go | section 4.4; op_cells.c `fx_page`, op_screens.c `FX_ALIAS` / `FX_LIMIT`, op_state.c `SCR_NAME` |
+| D3 | the master FX is MASTER, 8 pages in the order INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS, MACRO (2026-10-14; first 7 pages: DELAY REVERB SLOTS TONE COMP LIMIT MACRO); its GLOBAL and DRUMS pages go | section 4.4; op_cells.c `fx_page`, op_screens.c `FX_ALIAS` / `FX_LIMIT`, op_state.c `SCR_NAME` |
 | D4 / D5 | keep both: SYNC stays on TEMPO and MIDI; TUNE stays with the master | TUNE on MASTER's LIMIT page (GAIN CEIL TUNE GR): its page went with D3, TONE is full, LIMIT had the one free card |
 | D6 | SAVE tapped on the mixer: always PROJECT | op_input.c `mx_quiet`; the mixer's YES (`mix_yes`) does nothing: FX on and MUTE are knobs |
 | D7 | the SOUND row (PRESET ENGINE INIT SAVE AS) is EDIT's first row | op_screens.c `snd_first`; EDIT's LED full on it |
@@ -2354,7 +2356,7 @@ The selected drum lane's key is no longer full on every screen (it meant somethi
 LIGHTS / KEYS backlight is off while a mode lights its keys.
 
 **Headers** (D11). draw_head cuts the title to its room first (the screen's word goes first, as before) and cases it
-after, so it never starts lower case: "Tempo 1/6", "Screen 2/7", "Master 1/2", "Delay 1/7". With the n/N shown, a
+after, so it never starts lower case: "Tempo 1/6", "Screen 2/7", "Master 1/2", "Ins tone 1/8". With the n/N shown, a
 continuation page says its number once (op_draw.c `HEAD_CONT`: EDIT 1 / 2, REC 2, ARP 2, SCL 2, VOICE 2, SOUND 2 / 3,
 STEP 2, FM6's LFO 2): "Edit 2/8", "Rec 3/6", "ARP 2/2". OSC 2, FLT 2, ENV2 and SONG's PART n keep their number (a
 second unit, a part). Long names are still cut to the room left of the loop position and the tempo ("Clock O 5/6"
