@@ -263,13 +263,13 @@ static int gls_info_page(void)
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out and its bar fits the page) */
     song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading its bars and the raw count (no invented percentage) */
-    sys_info_cell(INFO_N - 1u, &c);
+    sys_info_cell(INFO_BASE - 1u, &c);
     ok &= c.kind == CK_RO && !strcmp(c.label, "BATTERY") && !strcmp(c.val, "NO READING");
     song.batt_raw = 612;
-    sys_info_cell(INFO_N - 1u, &c);
+    sys_info_cell(INFO_BASE - 1u, &c);
     ok &= !strcmp(c.val, "3/3 612") && c.gk == GK_BAR && c.gv == 3;
     song.batt_raw = 540;
-    sys_info_cell(INFO_N - 1u, &c);
+    sys_info_cell(INFO_BASE - 1u, &c);
     ok &= !strcmp(c.val, "1/3 540") && c.gv == 1;
     for (i = 0; i < INFO_N; i++) {                      /* no line is the memory's any more */
         sys_info_cell(i, &c);
@@ -278,7 +278,7 @@ static int gls_info_page(void)
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
     frame();
-    for (i = 0; i < INFO_N; i++) {                      /* the page draws every line's bar full width */
+    for (i = 0; i < INFO_BASE; i++) {                   /* the page draws every line's bar full width (the USB AUDIO lines after them are text only) */
         int32_t a, b, y = OH_HEAD + gl_y0() + (int32_t)i * ph, ty = y + (ph - (int32_t)FONT_S.h - 6) / 2, by = ty + (int32_t)FONT_S.h + 3;
         sys_info_cell(i, &c);
         ok &= gls_rowpx(by + 2, 0, 240, &a, &b) > 0u && a <= GL_BX + 1 && b >= GL_BX + GL_BW - 3;   /* (the trough, whatever the value) */
