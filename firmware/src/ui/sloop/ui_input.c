@@ -855,7 +855,6 @@ static void undo_chord(uint32_t pressed)
     undo_say(redo);
 }
 
-#if FELUCCA_LAYER_QUIET
 /* #39 (after Felucca 1.0.2, hugelton/Felucca db70550, ui_layer.c layer_knobs_quiet, by Leo Kuroshita,
  * GPL-3.0-only): KNOB 1..4 belong to no page while a layer lets go: the frame its button is let go (the turns read
  * then were made with it held: a combo, no tap) and LY_QUIET_MS after a layer that opened or was used closed.
@@ -873,7 +872,6 @@ static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns t
     enc_hold |= 15u << EN_K1;                             /* #102: none read again in this pass */
     return any;
 }
-#endif
 
 /* the layers, once a frame: which one is held (or locked), the taps on release, its keys and knobs.
  * Returns 1 while one is held or locked (the page does not take the knobs then) */
@@ -892,10 +890,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             *pressed &= ~eat;
         }
     }
-#if FELUCCA_LAYER_QUIET
     if (*pressed)
         ly_quiet = 0;                                     /* a button pressed since: the hand has moved on */
-#endif
     for (l = LY_FX; l < LY_COUNT; l++) {
         uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u && (l != LY_OPS || ly_ops_on);
         if (d && !down[l]) {
@@ -909,7 +905,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
-#if FELUCCA_LAYER_QUIET
         if (!d && down[l]) {
             if (knobs_drop())
                 used[l] = 1;                              /* a knob turned as it was let go: a combo, no tap */
@@ -918,7 +913,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 ly_quiet_t = now;
             }
         }
-#endif
         if (!d && down[l] && !used[l] && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
 #if FELUCCA_QCHAIN
@@ -950,12 +944,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
     if (held == LY_PLAY) {
-#if FELUCCA_LAYER_QUIET
         if (ly_quiet && now - ly_quiet_t < LY_QUIET_MS)
             knobs_drop();                                 /* the hand still turning: not the page's */
         else
             ly_quiet = 0;
-#endif
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;

@@ -34,7 +34,7 @@ CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the log: sec_*_test, sections_test)
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
-BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_DLY_HALVE=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1"
+BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1"
 # the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO with 2 and 1
 # instances (fxi.c)
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1"
@@ -160,12 +160,8 @@ job; ( jobin
     run "knobs (Felucca 1.6 #63 / #126): a still knob chattering, 12-click turns to 300/s, slow bouncy turns, a reversal" "$OUT/encoder_felucca_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=0 -o "$OUT/keys_test0" tests/keys_test.c
-    run "keys: integrating debounce (FELUCCA_KEYS_FAST=0): latency, glitch, bounce, chatter" "$OUT/keys_test0"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=1 -o "$OUT/keys_test1" tests/keys_test.c
-    run "keys: read with their column (SLOOP 2.3, FELUCCA_KEYS_FAST=1): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test1"
+    $CC -w -Ifirmware/hal -o "$OUT/keys_test" tests/keys_test.c
+    run "keys: read with their column (SLOOP 2.3): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
@@ -184,11 +180,7 @@ job; ( jobin
 
 job; ( jobin
     $CC -o "$OUT/storage_test" tests/storage_test.c
-    run "flash storage (A/B, torn writes)" "$OUT/storage_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -DFELUCCA_ST_STRICT=1 -o "$OUT/storage_test_strict" tests/storage_test.c
-    run "flash storage, strict (SLOOP 2.3: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test_strict"
+    run "flash storage (A/B, torn writes; SLOOP 2.3's checks: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -DFELUCCA_UP_FM6=1 -o "$OUT/storage_test_upf" tests/storage_test.c
@@ -388,7 +380,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/regress_lfo2" tests/regress.c -lm
     run "regression with LFO 2 built: the same golden renders (off by default), its CPU (cpu/lfo2/off, on)" "$OUT/regress_lfo2" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
-BP23_ON="-DFELUCCA_MONO_RELEASE=1 -DFELUCCA_ST_STRICT=1 -DFELUCCA_USB_FLOW=1 -DFELUCCA_SHED_FADE=1 -DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
+BP23_ON="-DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
     run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
@@ -825,11 +817,7 @@ job; ( jobin
 
 job; ( jobin
     $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
-    run "TRS MIDI parser" "$OUT/midi_uart_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -DFELUCCA_USB_FLOW=1 -DFELUCCA_TRS_NOISE=1 -o "$OUT/midi_uart_flow_test" tests/midi_uart_test.c
-    run "TRS / USB MIDI parser with USB flow control and TRS_NOISE (SLOOP 2.3: a flood loses nothing, malformed ignored, an FD at the reader)" "$OUT/midi_uart_flow_test"
+    run "TRS / USB MIDI parser (SLOOP 2.3: USB flow control, a flood loses nothing, malformed ignored; an FD at the TRS reader)" "$OUT/midi_uart_test"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

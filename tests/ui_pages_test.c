@@ -914,7 +914,6 @@ int main(int argc, char **argv)
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
 
     /* ---- knob turns as a layer is let go (Felucca 1.0.2 #39): they must not reach the page underneath */
-#if FELUCCA_LAYER_QUIET
     {
         int16_t mode0, p0[P_COUNT], g0[G_COUNT];
         uint32_t k, moved;
@@ -947,7 +946,6 @@ int main(int argc, char **argv)
         check(moved == 1, "#39: a knob 320 ms after the layer closed edits the page again");
         memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
     }
-#endif
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();

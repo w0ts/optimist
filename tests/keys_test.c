@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* hal/fm1_input.h's key debounce, built both ways (tests/run_tests.sh):
- *   FELUCCA_KEYS_FAST=0  integrating: a press after 3 frames closed, counted at the frame's end
- *   FELUCCA_KEYS_FAST=1  SLOOP 2.3 / Felucca 1.0: as each column is read, a press after 2 samples closed in a
- *                        row, a release after 8 open in a row
+/* hal/fm1_input.h's key debounce (SLOOP 2.3 / Felucca 1.0, the only one since 2026-10-14; before, the integrating
+ * one at the frame's end was the other build): as each column is read, a press after 2 samples closed in a row, a
+ * release after 8 open in a row
  * Time in TIMER5 ticks (0.1 ms): the scan reads column c at tick 11 k + c of frame k; the frame's end
  * (fm1__frame) is at tick 11 k + 11. Every key, contact closure at every phase of the scan: the press latency,
  * then a one-sample glitch (no press), bounce on the way down (one press), chatter on release (one release). */
@@ -13,7 +12,7 @@
 static int fails;
 static void check(int ok, const char *what)
 {
-    printf("keys (%s): %-62s %s\n", FELUCCA_KEYS_FAST ? "fast" : "2.2 ", what, ok ? "ok" : "FAIL");
+    printf("keys: %-62s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
 
@@ -38,9 +37,7 @@ static void scan_tick(void)                          /* one column read (as fm1_
     for (r = 1; r < 5u; r++)
         if (FM1_KEYMAP[r][c] >= 0 && level[FM1_KEYMAP[r][c]])
             fm1_in.raw[c] |= (uint8_t)(1u << r);
-#if FELUCCA_KEYS_FAST
     fm1__keys(c);
-#endif
     tick++;
     if (tick % FM1_NCOL == 0u)
         fm1__frame();
@@ -106,13 +103,9 @@ int main(void)
             chatter_ok &= !down(id) && !edges(id);
         }
     }
-    printf("keys (%s): press latency from contact closure: mean %.2f ms, worst %.1f ms (%u cases)\n",
-           FELUCCA_KEYS_FAST ? "fast" : "2.2 ", sum * 0.1 / n, worst * 0.1, n);
-#if FELUCCA_KEYS_FAST
+    printf("keys: press latency from contact closure: mean %.2f ms, worst %.1f ms (%u cases)\n",
+           sum * 0.1 / n, worst * 0.1, n);
     check(worst <= 2u * FM1_NCOL + 1u, "a press within 2 frames (2.2 ms) of the closure, every key and phase");
-#else
-    check(worst <= 4u * FM1_NCOL, "a press within 4 frames of the closure, every key and phase");
-#endif
     check(glitch_ok, "a closed sample alone plays nothing");
     check(bounce_ok, "a bounce on the way down: one press");
     check(chatter_ok, "chatter on the way up: one release, no second press");

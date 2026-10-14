@@ -106,7 +106,6 @@ static void sl24_ui_tests(void)
     release(B_FX); frames(30);
     transport_req = 2; frame(); frames(2);
     memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
-#if FELUCCA_LAYER_QUIET
     /* ---- #102: the frame a layer is let go: its knobs dropped (#39), and none counted after that read either */
     go_home(); frames(30);
     memcpy(p0, TSEL->p, sizeof p0); memcpy(g0, song.g, sizeof g0);
@@ -120,7 +119,6 @@ static void sl24_ui_tests(void)
     check(moved == 0, "#102: a layer let go: a knob's late detent in that pass does not edit the page");
     frames(30);
     memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
-#endif
     memset(encs_late, 0, sizeof encs_late);
     sl24_units_tests();
     sl24_drum_step_page_tests();

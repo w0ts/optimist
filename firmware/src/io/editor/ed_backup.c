@@ -33,7 +33,7 @@
  *   48 BK_END     0 abort / 1 done -> rc; done: the FM-1 restarts once the reply is out, and loads it all
  * rc: 0 ok, 1 arguments, 2 CRC (a chunk, or the whole object at COMMIT), 3 the transport plays, 4 no flash,
  * 5 not in this build (never written blindly), 6 too long, 7 the storage write failed (the old copy stays),
- * 8 not a valid object: the firmware would not load it (FELUCCA_BK_CHECK; nothing written).
+ * 8 not a valid object: the firmware would not load it (SLOOP 2.3; nothing written).
  * A restore opens a session at its first BEGIN: whatever is only in RAM goes to flash first (live sections,
  * song, the working project), then project.c's proj_tmp holds the object being received (proj_put and the
  * kit bank refuse meanwhile; a session left for 10 s ends by itself). An object is written only by its
@@ -559,8 +559,7 @@ static uint32_t bk_commit_sec(uint32_t i)
 static uint32_t bk_commit_sec(uint32_t i) { (void)i; return 1; }
 #endif
 
-#if FELUCCA_BK_CHECK
-/* FELUCCA_BK_CHECK (after SLOOP 2.3's restore, isod89 d691ba7, GPL-3.0: each object checked at its commit as a load
+/* The restore check (always built; after SLOOP 2.3's restore, isod89 d691ba7, GPL-3.0: each object checked at its commit as a load
  * checks it): a storage object only if the firmware would load it. Today's formats in full (a project's size and sum,
  * the settings' calibration a permutation, a bank's or kit bank's shape); an older project or settings format by its
  * magic (the load converts it and checks it then). 1: it would load */
@@ -630,9 +629,6 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
     return 1;
 }
 #define BK_ST_OK(i) (BK_OBJS[i].kind != BK_ST || bk_st_ok(BK_OBJS[i].id, BK_BUF, bk.len))
-#else
-#define BK_ST_OK(i) 1
-#endif
 
 static void bk_close(void)
 {
@@ -760,10 +756,8 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             rc = 3;
         else if (bk.got != bk.len || st_crc32(BK_BUF, bk.len) != bk.crc)
             rc = 2;
-#if FELUCCA_BK_CHECK
         else if (!BK_ST_OK(i))
             rc = 8;                                            /* the firmware would not load it: not written */
-#endif
         else if (dry)
             rc = 0;                                            /* a check only: the object stays unwritten */
         else if (BK_OBJS[i].kind >= BK_SEC)

@@ -438,7 +438,6 @@ static void t_bassplus(void)
     }
 }
 #endif
-#if FELUCCA_DLY_HALVE
 static void t_dly_halve(void)
 {
     reset(120);
@@ -450,7 +449,6 @@ static void t_dly_halve(void)
     song.g[G_BPM] = 120;
     check(delay_samples() == div_samples(0), "delay halve: a 1/4 that fits plays as before");
 }
-#endif
 
 #if FELUCCA_MOTION
 static void t_motion(void)
@@ -747,9 +745,7 @@ int main(void)
 #if FELUCCA_BASSPLUS
     t_bassplus();
 #endif
-#if FELUCCA_DLY_HALVE
     t_dly_halve();
-#endif
 #if FELUCCA_MOTION
     t_motion();
 #endif

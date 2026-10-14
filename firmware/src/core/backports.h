@@ -12,7 +12,6 @@
  *   FELUCCA_SPRING    REV/CHO > TYPE: a spring reverb                  Felucca 1.0 (727f272)
  *   FELUCCA_BASSPLUS  MASTER > BASS+: small-speaker bass               Felucca 1.0 (727f272)
  *   FELUCCA_BRIGHT    SYSTEM menu: the screen's backlight level         X0X (charlesvestal/fm1-x0x 61654ba)
- *   FELUCCA_DLY_HALVE a delay longer than the line halves (on beat)    X0X (charlesvestal/fm1-x0x 892a3b5)
  *   FELUCCA_MOTION    knob moves recorded per step                     Felucca 1.0 (727f272)
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
@@ -20,8 +19,6 @@
  *                                                                      Open303 parts MIT) EXPERIMENTAL
  *   FELUCCA_ENG_CZ    the CZ engine (CZ-1 tones, 2 lines x 3 envelopes) Melodee 0.11 (keremimo/melodee v0.11;
  *                                                                      uPD933 parts BSD-3-Clause)
- *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
- *                     the page's (and 250 ms after it closed)
  * Felucca 1.0.2 / 1.0.3 small options (default off):
  *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58)
  *   FELUCCA_DIV_ORDER divisions in length order on knobs and gauges   Felucca 1.0.2 (db70550, #48)
@@ -49,9 +46,6 @@
 #ifndef FELUCCA_BRIGHT
 #define FELUCCA_BRIGHT 1         /* MENU > BRIGHT: the backlight, 1..8. EXPERIMENTAL: froze an FM-1 on X0X before the PA2 fix (bright.c); boots full */
 #endif
-#ifndef FELUCCA_DLY_HALVE
-#define FELUCCA_DLY_HALVE 1      /* a delay time longer than the line halves (on the beat) instead of being cut */
-#endif
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */
 #endif
@@ -78,9 +72,6 @@
 #endif
 #ifndef FELUCCA_UP_FM6
 #define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0x95000 / 0x96000) */
-#endif
-#ifndef FELUCCA_LAYER_QUIET
-#define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
 #endif
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
