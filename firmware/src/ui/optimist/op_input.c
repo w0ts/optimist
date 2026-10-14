@@ -636,6 +636,8 @@ static void ui_input(void)
             op_t0[id] = fm1_ms;
             op_press(panel_btn_of(id), held | pressed);
         }
+    if (!op_shift2(held))
+        mx_s2_done = 0;                                 /* (SHIFT2 + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
     rec_held(held);                                     /* REC held: the ring, the track cleared */
