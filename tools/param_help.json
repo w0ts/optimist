@@ -292,6 +292,9 @@
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
+    {"kind": "op", "ctx": "INSERTS", "if": "DL_ANY", "params": {
+      "LANE PRESET": "This lane's sound (asks)", "LANE SLOT": "User sample of this lane",
+      "NO KIT": "Nothing to pick for this lane"}},
     {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT LANE": "Raises every hit of its step",
       "ACCENT LEVEL": "Accent amount added to hits"}},

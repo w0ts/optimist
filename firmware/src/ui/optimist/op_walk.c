@@ -192,3 +192,58 @@ static const char *lane_sound_name(uint32_t l)
     uint32_t i = dsnd_src_idx(dl.src[l & 15u]);
     return i ? DS_SRC_NAMES[i] : drum_kit_name();
 }
+
+/* The SOUND row's first card on the drum track follows the lane's source (the user, 2026-10-14: "its first card should not
+ * allow to switch kit"; as PRESETS does, above): DR itself or a lane on the KIT, the KIT (the track's); a lane on an
+ * instrument, that lane's PRESET (its source, lane_sound_step); on a user sample, its SLOT (USR1..3); a lane with nothing to
+ * pick (the ACCENT lane, a build with no source list), KIT dim "-", a turn does nothing. HOME + the knob: the first sound of
+ * the kind the lane is on (USR1 for a sample), the kit has no default to go back to. The risk-asks are PRESETS' */
+static uint32_t lane_card_form(void)
+{
+    uint32_t l = lane_selected(), s;
+    if (!lane_picked())
+        return LCF_KIT;
+    if (!lane_snd())
+        return LCF_NONE;
+    s = dl.src[l];
+    if (s == DL_KIT)
+        return LCF_KIT;
+    if (ls_count(l) < 2u)
+        return LCF_NONE;
+    return FELUCCA_DRUM_USR && s >= DL_USR && s < DL_USR + SMP_USER_SLOTS ? LCF_SLOT : LCF_PRESET;
+}
+static uint32_t lane_card_pos(uint32_t *n)              /* the card's place in its list (and its length) */
+{
+    uint32_t l = lane_selected();
+    if (lane_card_form() == LCF_SLOT) {
+        *n = SMP_USER_SLOTS;
+        return dl.src[l] - DL_USR;
+    }
+    *n = ls_count(l);
+    return ls_cur(l, *n);
+}
+static void lane_usr_step(int32_t s)                    /* SLOT: USR1..3, round */
+{
+    uint32_t l = lane_selected(), i = (uint32_t)((int32_t)(dl.src[l] - DL_USR) + s % SMP_USER_SLOTS + SMP_USER_SLOTS) % SMP_USER_SLOTS;
+    if (i == dl.src[l] - DL_USR || ed_ask(EK_LUSR, s))
+        return;
+    ls_set(l, 1u + i);                                  /* (the list's USR entries are 1..3) */
+    ed_done();
+}
+static void lane_card_first(void)                       /* HOME + the knob: the first sound of the kind it is on */
+{
+    uint32_t l = lane_selected(), n = ls_count(l), cur = ls_cur(l, n), k = ls_kind(cur), i;
+    for (i = 0; i < n && !(ls_ok(i) && ls_kind(i) == k); i++)
+        ;
+    if (i >= n || i == cur || ed_ask(EK_LFIRST, 1))
+        return;
+    ls_set(l, i);
+    ed_done();
+}
+static void lane_card_turn(uint32_t form, int32_t s)
+{
+    if (form == LCF_SLOT)
+        lane_usr_step(s);
+    else if (form == LCF_PRESET)
+        lane_sound_step(s);
+}
