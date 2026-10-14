@@ -269,3 +269,5 @@ src/ui/optimist/op_tools.c:eu_hit:n | n = tl.steps, or 1 when it is 0
 src/ui/optimist/op_tools.c:eu_turn:(int32_t)tl.steps | eu_fit just before: tl.steps 1..LEN
 src/system/bench.c:bench_rnd:m | the bench 16 (FELUCCA_BENCH only, never in a release build): every caller passes a non-zero constant (31, 128, 24, 64, 4, 6, 7)
 src/ui/optimist/op_project.c:sys_it_cell:tot | the divide is behind "tot ?" (the region size, a linker constant, never 0)
+src/ui/optimist/op_graph.c:graph_fx:(span/2>0?span/2:1) | the ternary: never 0 (UI main loop)
+src/ui/optimist/op_graph.c:graph_fx:span | the loop skips a cell with span <= 0 just above (UI main loop)
