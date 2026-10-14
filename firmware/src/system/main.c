@@ -24,6 +24,7 @@ void fm1_timer5_irq(void)
         static uint32_t last_poll;
         uint32_t start = fm1_ticks();
         if (!last_poll || start - last_poll >= 250u * FM1_TICKS_PER_US) {
+            ua_poll_gap(start, last_poll ? start - last_poll : 0u);
             last_poll = start;
             usb_poll();                         /* at most 4 kHz: all USB SIE traffic lives here */
         } else {

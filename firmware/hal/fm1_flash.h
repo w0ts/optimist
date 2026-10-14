@@ -218,8 +218,23 @@ static void fl_plain_window_init(void)
 #ifndef FM1_FLASH_ENTER                         /* a check with IRQs off before every flash operation */
 #define FM1_FLASH_ENTER() ((void)0)               /* (the dual-core build: CPU1 off the flash, src/dual.c) */
 #endif
+#if defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO
+/* USB audio builds: the longest interrupts-off window a flash operation held (TIMER4 ticks, SYSTEM > INFO). The
+ * window's start is the token irq_save returns (the callers pass it back unchanged). */
+#include "fm1_time.h"
+static uint32_t fm1_irqoff_max;
+static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); FM1_FLASH_ENTER(); return fm1_ticks(); }
+static inline void irq_restore(uint32_t f)
+{
+    uint32_t d = fm1_ticks() - f;
+    if (d > fm1_irqoff_max)
+        fm1_irqoff_max = d;
+    __asm__ volatile("csync\n\tsti" ::: "memory");
+}
+#else
 static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); FM1_FLASH_ENTER(); return 0; }
 static inline void irq_restore(uint32_t f) { (void)f; __asm__ volatile("csync\n\tsti" ::: "memory"); }
+#endif
 
 static int fl_erase4k(uint32_t off, uint32_t *took_us)
 {
