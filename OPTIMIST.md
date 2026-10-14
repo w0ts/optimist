@@ -707,7 +707,7 @@ A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM i
 Ported from SLOOP 2.3 by isod89 (GPL-3.0; many of them after Felucca 1.0 / 1.0.1 by Leo Kuroshita), each its own switch:
 
 - **USB MIDI in loses nothing** (always built): when a lot of MIDI arrives at once from a computer, the computer is asked to wait (no note-off dropped, no hanging note); a malformed message is ignored.
-- **Overload** (`FELUCCA_SHED_FADE`): when the processor is overloaded twice in a row, one voice fades out at a time, never a track's bass (its lowest POLY note) or its MONO / LEGATO / UNISON lead, instead of the oldest note going into its release.
+- **Overload** (always built): when the processor is overloaded twice in a row, one voice fades out at a time, never a track's bass (its lowest POLY note) or its MONO / LEGATO / UNISON lead, instead of the oldest note going into its release.
 - **Keys about a millisecond sooner** (`FELUCCA_KEYS_FAST`): a key is read as its column is scanned, a press after two samples closed (host-measured: 3.3 -> 1.7 ms from the contact).
 - **No stuck note after a VOICE change** (always built): a key let go just after POLY / MONO changed no longer comes back.
 - **Stricter checks of what is read from the flash** (always built): a stored record counts only in the copy it was written to; the calibration table must give each label its own button and knob.

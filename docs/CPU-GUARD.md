@@ -29,7 +29,7 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
     before that half renders.
 
   A lone late half after a normal one is a spike, not a load (a flash write, another interrupt's burst), and steps
-  nothing, as `audio.c`'s `FELUCCA_SHED_FADE` already treated it. Until 2026-10-12 it stepped at once, and its own
+  nothing, as `audio.c`'s overload fade (SLOOP 2.3, always built) already treated it. Until 2026-10-12 it stepped at once, and its own
   time counted as what the level saved (below), so the level never came off: on the user's FM-1, at ~41 % load,
   "once after some time the reverb stops producing any sound" (the REVERB level, held for ever).
 

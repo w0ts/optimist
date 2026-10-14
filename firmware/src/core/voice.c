@@ -355,7 +355,6 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
     return low;
 }
 
-#if FELUCCA_SHED_FADE
 /* overload (SLOOP 2.3, after Felucca 1.0; audio.c asks for it when two halves in a row took > 85 % of their
  * time): fade one voice out over the next block (voice_kill: no click), one more each half while it lasts.
  * First the quietest releasing voice; else the oldest held one that is neither a POLY part's lowest note (the
@@ -390,7 +389,6 @@ static __attribute__((noinline)) void shed_voice(void)   /* (cold: only when ove
         shed_count++;
     }
 }
-#endif
 
 /* the voice to give up for a new one (see the top); soft: only released voices and
  * extra UNISON voices of other parts. Returns its index, *pp its part; NVOICE = none */
