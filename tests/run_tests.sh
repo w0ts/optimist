@@ -269,6 +269,10 @@ job; ( jobin
     run "JUNO engine (FELUCCA_ENG_JUNO=1): UID 14, every preset audible / bounded / voices free, tests/golden_juno.txt, level, EDIT values, 6 voices, retrigger" "$OUT/juno_test" tests/golden_juno.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -o "$OUT/juno_cho_test" tests/juno_cho_test.c
+    run "JUNO CHORUS (fx/junocho/juno_cho.h): MIX 0 dry, each MODE stereo / bounded / as before, mid-side, headroom" "$OUT/juno_cho_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     # the reverb (fx.c): at 44.1 kHz, then with REV_HALF (the tank at 22.05 kHz) against those numbers; SPRING beside it
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/reverb_test" tests/reverb_test.c -lm
     run "reverb: decay, level, bands, the tail to exactly 0 and idle" "$OUT/reverb_test" "$OUT/reverb_full.txt"
