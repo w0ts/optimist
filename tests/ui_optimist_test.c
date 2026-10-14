@@ -2472,6 +2472,7 @@ static void led_tests(void)
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
+#include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 
 int main(int argc, char **argv)
 {
@@ -2554,6 +2555,7 @@ int main(int argc, char **argv)
     risk_tests();
     risk_edits_tests();
     actcards_tests();
+    colours_tests();
     algo_tests();
     mute_tests();
     smute_tests();

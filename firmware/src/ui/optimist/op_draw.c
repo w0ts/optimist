@@ -452,7 +452,7 @@ static void draw_head(void)
         if (h.r[0])
             cv_text(bx - 8 - text_w(&FONT_S, h.r), 4, &FONT_S, h.r, song.playing ? C_OK : C_DIM);
         if (rec)
-            cv_rect(bx - 16 - text_w(&FONT_S, h.r), 9, 6, 6, C_ERR);   /* recording / armed */
+            cv_rect(bx - 16 - text_w(&FONT_S, h.r), 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }
     cv_line(0, OH_HEAD - 1, 239, OH_HEAD - 1, C_LINE);
     cv_blit(0, OY_HEAD);
@@ -474,7 +474,11 @@ static void effv_bar(int32_t x, int32_t y, int32_t w, const cell_t *c, uint32_t 
  * small above (obj, else the label over a val), destructive ones in the alarm colour; YES does it, and asks first */
 static const char *act_verb(const cell_t *c) { return c->val[0] ? c->val : c->label; }
 static const char *act_small(const cell_t *c) { return c->obj ? c->obj : c->val[0] ? c->label : ""; }
-static uint16_t act_col(const cell_t *c, uint32_t hot) { return c->danger ? C_ERR : hot ? C_WHITE : C_AMB; }
+/* (a verb takes a status colour only, never an identity colour: SONG REC while it records / waits is green / amber) */
+static uint16_t act_col(const cell_t *c, uint32_t hot)
+{
+    return c->danger ? C_ERR : hot ? C_WHITE : c->col == C_OK || c->col == C_WARN ? c->col : C_AMB;
+}
 /* a card's label as drawn: the action's object, else the label; the names table's card form (capitals, 6 at most) */
 static const char *card_label(const cell_t *c, char *b, uint32_t n)
 {
@@ -484,7 +488,7 @@ static const char *card_label(const cell_t *c, char *b, uint32_t n)
 static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
     char b[16];
-    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
+    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_GRAY) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
     int32_t vx;
     cv_box(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
     if (c->col)
@@ -492,10 +496,10 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     if (hot)
         cv_rect(x, 0, CARD_W, 2, C_WHITE);              /* the hot cell: PRESETS and YES act on it */
     if (c->mark == 2u) {                                /* a hold event on the step held: an arrow, top right */
-        cv_rect(x + CARD_W - 10, 7, 6, 2, C_AMB);
-        cv_rect(x + CARD_W - 5, 5, 1, 6, C_AMB);
-        cv_rect(x + CARD_W - 4, 6, 1, 4, C_AMB);
-        cv_rect(x + CARD_W - 3, 7, 1, 2, C_AMB);
+        cv_rect(x + CARD_W - 10, 7, 6, 2, C_WARN);
+        cv_rect(x + CARD_W - 5, 5, 1, 6, C_WARN);
+        cv_rect(x + CARD_W - 4, 6, 1, 4, C_WARN);
+        cv_rect(x + CARD_W - 3, 7, 1, 2, C_WARN);
     } else if (c->mark) {                               /* a lock on the step held: a padlock, top right */
         cv_rect(x + CARD_W - 9, 7, 7, 5, C_WARN);
         cv_rect(x + CARD_W - 8, 4, 1, 3, C_WARN);
@@ -505,7 +509,7 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     if (!c->label)
         return;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + CARD_W - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_AMB);
+        cv_text(x + CARD_W - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_GRAY);
     {
         const char *lab = card_label(c, b, sizeof b);   /* (the names table's: in capitals, 6 at most) */
         cv_text(x + (text_w(&FONT_S, lab) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY));
@@ -535,17 +539,17 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     char b[16];
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
     int32_t dw = c->dr ? text_w(&FONT_S, "DR") + 4 : 0;   /* (the DR tag's room, top right) */
-    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
+    uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_GRAY) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
     cv_box(x, y, BIG_W, BIG_H, OP_SURF);
     if (c->col)
         cv_rect(x, y, 2, BIG_H, c->col);
     if (hot)
         cv_rect(x, y, BIG_W, 2, C_WHITE);
     if (c->mark == 2u) {                                /* a hold event on the step held: an arrow, top right */
-        cv_rect(x + BIG_W - 10, y + 7, 6, 2, C_AMB);
-        cv_rect(x + BIG_W - 5, y + 5, 1, 6, C_AMB);
-        cv_rect(x + BIG_W - 4, y + 6, 1, 4, C_AMB);
-        cv_rect(x + BIG_W - 3, y + 7, 1, 2, C_AMB);
+        cv_rect(x + BIG_W - 10, y + 7, 6, 2, C_WARN);
+        cv_rect(x + BIG_W - 5, y + 5, 1, 6, C_WARN);
+        cv_rect(x + BIG_W - 4, y + 6, 1, 4, C_WARN);
+        cv_rect(x + BIG_W - 3, y + 7, 1, 2, C_WARN);
         uw += 10;
     } else if (c->mark) {                               /* a lock on the step held: a padlock, top right */
         cv_rect(x + BIG_W - 9, y + 7, 7, 5, C_WARN);
@@ -556,7 +560,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         return;
     uw += dw;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + BIG_W - 3 - text_w(&FONT_S, "DR"), y + 2, &FONT_S, "DR", C_AMB);
+        cv_text(x + BIG_W - 3 - text_w(&FONT_S, "DR"), y + 2, &FONT_S, "DR", C_GRAY);
     {
         char l[16];
         cv_text(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
@@ -703,7 +707,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         int32_t x = 80 + 40 * (int32_t)k;
         SCR->cell(i, k, &c);
         if (row_cell_text(i, k, &c, b, sizeof b))
-            cv_text(x, y + 1, &FONT_S, b, on ? C_WHITE : c.kind == CK_ACT ? C_DIM : C_HI);   /* (an action: its verb, dim) */
+            cv_text(x, y + 1, &FONT_S, b, on ? C_WHITE : c.kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
         draw_gauge(x, y + 16, 36, gh, &c, on ? C_WHITE : c.col ? c.col : C_AMB, on ? cur_trough(bar) : C_LINE);
     }
 }
