@@ -90,7 +90,11 @@ static void bp23_from_word(uint32_t w)
     clko_on = (uint8_t)((w >> 26) & 1u);              /* (a word without the bit: no clock sent) */
 #endif
 #if FELUCCA_DUAL
+#if defined(FELUCCA_UI) && FELUCCA_UI == 1
+    dual_mode = DUALM_AUTO;                           /* (the Optimist UI has no 2ND CORE line: always on, a stored OFF from before is dropped) */
+#else
     dual_mode = (uint8_t)dual_mode_in(w);             /* (a word without the bits: AUTO; read before dual_boot) */
+#endif
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

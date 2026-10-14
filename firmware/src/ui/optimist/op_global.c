@@ -81,7 +81,7 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
 }
 /* ---- the pages (the user, 2026-10-13: "the global and system screen should be grouped in logical pages, dont cut a page
  * in the middle if possible", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should
- * be on one page"). A page is one section (gl_sid: REC 2's lines are REC's): sections are never combined to fill a page,
+ * be on one page"). A page is one section (gl_sid: REC 2's lines are REC's), or a joined pair (GL_JOIN: Screen & audio, USB + Bluetooth (Connections)), sections are otherwise never combined to fill a page,
  * a short one leaves its page's last lines empty and their knobs do nothing. Only a section of more than 4 lines is split,
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
@@ -90,9 +90,25 @@ static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: on
     uint32_t u = e >> 2;
     return s || u >= GL_SYS0 ? 8u + (s ? u : glo_sys(u)) : u == TPR_REC2 ? (uint32_t)TPR_REC : u;
 }
+/* joined pages (the user, 2026-10-14: "Screen and Audio could be on one page", "USB and Bluetooth go together"): two
+ * neighbouring sections of SYSTEM that fit one page together (4 lines at most) share it, the page titled by GL_JOIN's
+ * name (written as drawn); when they do not fit (a build with more lines) each keeps its own pages. One table: a pair is one entry */
+static const struct { const char *a, *b, *title; } GL_JOIN[] = {
+    {"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BLUETOOTH", "Connections"}};
+#define GL_NJOIN (sizeof GL_JOIN / sizeof GL_JOIN[0])
+static const char *gl_rowname(uint32_t s, uint32_t e) { return SYS[(s ? e >> 2 : glo_sys(e >> 2)) % NSYS].name; }
+static uint32_t gl_grp(uint32_t s, uint32_t e)          /* entry e's page group: its section, or its joined pair's */
+{
+    uint32_t j;
+    if (s)
+        for (j = 0; j < GL_NJOIN; j++)
+            if (str_eq(gl_rowname(s, e), GL_JOIN[j].a) || str_eq(gl_rowname(s, e), GL_JOIN[j].b))
+                return 64u + j;
+    return gl_sid(s, e);
+}
 static void gl_build(void)
 {
-    uint32_t s, u, k, n, n0, np, cnt, i, same;
+    uint32_t s, u, k, n, n0, np, cnt, i, same, grp;
     if (gll.ok)
         return;
     for (s = 0; s < 2u; s++) {
@@ -104,7 +120,8 @@ static void gl_build(void)
             if (n == n0)
                 continue;
             same = n0 && gl_sid(s, gll.at[s][n0]) == gl_sid(s, gll.at[s][n0 - 1u]);
-            if (!same || cnt + n - n0 > GL_PAGE) {      /* (the next page: another section, or this one is full) */
+            grp = n0 && gl_grp(s, gll.at[s][n0]) == gl_grp(s, gll.at[s][n0 - 1u]);
+            if (!grp || cnt + n - n0 > GL_PAGE) {       /* (the next page: another group, or this one is full) */
                 if (same)
                     gll.cont[s] |= (uint16_t)(1u << np);   /* (one section over two pages: REC) */
                 gll.pf[s][np++] = (uint8_t)n0;
@@ -174,21 +191,33 @@ static void gl_sect(uint32_t s, uint32_t i, char *b)    /* line i's section: its
 {
     gl_secname(s, gl_ent(s, i), b);
 }
-static void gl_split(uint32_t s, uint32_t i, char *b)   /* the page of line i is one of a section's pages (REC's): " 1/2" after its name b */
+/* the title of the page of line i, n bytes into b, cased: its section's name, or a joined pair's when the page holds both
+ * ("Screen & audio") */
+static void gl_ptitle(uint32_t s, uint32_t i, char *b, uint32_t n)
 {
-    uint32_t p = gl_pg(s, i), a = p, z = p, c = gll.cont[s & 1u];
-    while (c >> a & 1u)
-        a--;
-    while (c >> (z + 1u) & 1u)
-        z++;
-    if (a == z)
-        return;
-    b += str_len(b);
-    *b++ = ' ';
-    fmt_int(b, (int32_t)(p - a) + 1);
-    b += str_len(b);
-    *b++ = '/';
-    fmt_int(b, (int32_t)(z - a) + 1);
+    char t[24];
+    uint32_t f = gl_first(s, i), z = gl_end(s, i) - 1u, j;
+    gl_sect(s, f, t);
+    op_case(b, t, n);
+    if (s && gl_sid(s, gl_ent(s, f)) != gl_sid(s, gl_ent(s, z)))
+        for (j = 0; j < GL_NJOIN; j++)
+            if (str_eq(gl_rowname(s, gl_ent(s, f)), GL_JOIN[j].a))
+                str_cpy(b, GL_JOIN[j].title, n);
+}
+
+/* the page's title as the list draws it (the header says only Global or System): "Channels 5/5", the n/N dropped on a
+ * screen of one page */
+static void gl_title(uint32_t s, uint32_t i, char *b, uint32_t n)
+{
+    gl_ptitle(s, i, b, n);
+    if (gl_npg(s) > 1u) {
+        uint32_t k = str_len(b);
+        b[k++] = ' ';
+        fmt_int(b + k, (int32_t)gl_pg(s, i) + 1);
+        k = str_len(b);
+        b[k++] = '/';
+        fmt_int(b + k, (int32_t)gl_npg(s));
+    }
 }
 
 /* the screens' functions: a row is a line (the cursor's), a cell the 4 lines of its page */

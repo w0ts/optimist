@@ -61,38 +61,32 @@ static void pages_nav_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE, "D9: HOME tapped on the mixer: SCOPE, as before");
     tap(B_HOME);
-    /* D2 */
+    /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
-    SCREENS[SCR_SYSTEM].cell(0, 0, &c);
-    SCREENS[SCR_SYSTEM].cell(0, 1, &c2);
+    sys_info_cell(0, &c);
+    sys_info_cell(1, &c2);
+    check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
+          c2.kind == CK_RO && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD") && !strcmp(c2.unit, "%"),
+          "D2: SYSTEM's first page INFO: CLOCK (MHz) and the load (%), read-outs");
 #if DUAL_LOAD
-    check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
-          c2.kind == CK_RO && !strcmp(c2.label, "CPU0") && !strcmp(c2.unit, "%"),
-          "D2 DUAL: SYSTEM's first row: CPU, CLOCK (MHz) and CPU0 (%), read-outs");
-    {   /* KNOB 3: CPU1's load (dual_load.h), OFF when the core is down; YES and a turn do nothing */
+    {   /* CPU1's load (dual_load.h), the reason when the core is down; a read-out */
         uint32_t q = dual_c1_q8;
         dual_c1_q8 = 128u;
         memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        sys_info_cell(2, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
-              "DUAL: SYSTEM's CPU row, KNOB 3: CPU1 50 %, a read-out");
+              "DUAL: INFO's third line: CPU1 50 %, a read-out");
         dual_c1_q8 = DUAL_C1_OFF;
         memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
+        sys_info_cell(2, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "CPU1") && !strcmp(c2.val, "OFF"),
               "DUAL: CPU1 down: its cell reads OFF");
         dual_c1_q8 = q;
-        memset(&c2, 0, sizeof c2);
-        SCREENS[SCR_SYSTEM].cell(0, 3, &c2);
-        check(c2.kind == CK_VAL && !strcmp(c2.label, "2ND CORE"), "DUAL: KNOB 4 of the CPU row is 2ND CORE (AUTO / OFF)");
     }
 #else
-    check(!strcmp(nm, "CPU") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
-          c2.kind == CK_RO && !strcmp(c2.label, "LOAD") && !strcmp(c2.unit, "%"),
-          "D2: SYSTEM's first row: CPU, CLOCK (MHz) and LOAD (%), read-outs");
     memset(&c2, 0, sizeof c2);
-    SCREENS[SCR_SYSTEM].cell(0, 2, &c2);
-    check(c2.kind != CK_RO, "D2: a single-core build: KNOB 3 of the CPU row is empty (no CPU1)");
+    sys_info_cell(2, &c2);
+    check(strcmp(c2.label, "CPU1") && !strcmp(c2.label, "FLASH"), "D2: a single-core build: INFO has no CPU1 line (the memory follows the load)");
 #endif
     /* D6 */
     reset_ui();
