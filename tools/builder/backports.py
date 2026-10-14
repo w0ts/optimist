@@ -25,7 +25,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
     "FELUCCA_KEYS_FAST": "keys ~1 ms sooner (debounce per column)",
     "FELUCCA_SHED_FADE": "overload: fade a voice, keep bass and lead",
-    "FELUCCA_USB_FLOW": "USB MIDI in: flow control, malformed ignored",
     "FELUCCA_BK_CHECK": "restore: an object refused unless it would load",
     "FELUCCA_TRS_NOISE": "TRS MIDI in: line noise no longer deafens the jack",
     "FELUCCA_LAYER_QUIET": "knobs quiet as a layer button is let go",
@@ -87,8 +86,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
                       "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
                       "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
-    "FELUCCA_USB_FLOW": "USB MIDI in: asks the computer to wait when the device is busy instead of dropping messages, "
-                        "and ignores malformed ones. About 0.3 KB of flash; the TRS jack cannot be held back.",
     "FELUCCA_SHED_FADE": "Under overload, fades out one voice at a time and never the bass or the lead, instead of "
                          "cutting voices; the sound changes only under overload. About 0.1 KB of flash.",
     "FELUCCA_KEYS_FAST": "The keys respond about 1 ms sooner (each key is debounced as its column is read); measured "
@@ -226,7 +223,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_REC_MODES": 105,
     "FELUCCA_KEYS_FAST": 104,
     "FELUCCA_SHED_FADE": 103,
-    "FELUCCA_USB_FLOW": 102,
+    # (102: FELUCCA_USB_FLOW, retired 2026-10-14: always built; never reuse the bit)
     # (101: FELUCCA_ST_STRICT, retired 2026-10-14: always built; never reuse the bit)
     # (100: FELUCCA_MONO_RELEASE, retired 2026-10-14: always built; never reuse the bit)
     "FELUCCA_LAYER_QUIET": 130,

@@ -4,7 +4,6 @@
  * backports.h (tools/backports.json: provenance, measured cost). A switch at 0 builds exactly the firmware
  * without it. Included by backports.h.
  *
- *   FELUCCA_USB_FLOW      USB MIDI in: nothing dropped under load (NAK), malformed ignored  SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
@@ -20,10 +19,6 @@
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
-#ifndef FELUCCA_USB_FLOW
-#define FELUCCA_USB_FLOW 1       /* usb.c: an EP1 OUT packet waits in the endpoint (the host is NAKed) until the MIDI
-                                  * ring has room; malformed events and stray status bytes in SysEx are ignored */
-#endif
 #ifndef FELUCCA_SHED_FADE
 #define FELUCCA_SHED_FADE 1      /* audio.c shed_voice: a held voice fades (voice_kill) instead of being released, never a
                                   * part's bass (POLY) or lead (MONO...); only after two overloaded halves in a row */
@@ -57,6 +52,9 @@
 #endif
 #if defined(FELUCCA_ST_STRICT) && !FELUCCA_ST_STRICT
 #error "FELUCCA_ST_STRICT was retired: the stricter flash read-back checks are always built (SLOOP 2.3 .. 2.6)"
+#endif
+#if defined(FELUCCA_USB_FLOW) && !FELUCCA_USB_FLOW
+#error "FELUCCA_USB_FLOW was retired: USB MIDI in flow control (NAK) is always built (SLOOP 2.3 .. 2.6)"
 #endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */

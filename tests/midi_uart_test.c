@@ -184,7 +184,6 @@ static int test_uart_ring(void)
     return bad;
 }
 
-#if FELUCCA_USB_FLOW
 /* SLOOP 2.3 USB MIDI in: back-pressure instead of drops (ep1_rx leaves the packet while !ep1_room: NAK), malformed
  * events ignored, stray status bytes in a SysEx end it */
 static int test_usb_flow(void)
@@ -265,7 +264,6 @@ static int test_usb_flow(void)
     mi_r = mi_w;
     return bad;
 }
-#endif
 
 int main(void)
 {
@@ -341,9 +339,7 @@ int main(void)
     }
     bad += (uint32_t)test_uart_ring();
     bad += (uint32_t)test_usb_sysex();
-#if FELUCCA_USB_FLOW
     bad += (uint32_t)test_usb_flow();
-#endif
     printf("%s\n", bad ? "MIDI PARSER TEST FAILED" : "midi parser test passed");
     return (int)bad;
 }
