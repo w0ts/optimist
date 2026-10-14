@@ -7,8 +7,9 @@ installer does (it needs mido and python-rtmidi: `python tools/optimist.py setup
   install(plan)       -> fm1_install.py PACKAGE --yes (never --force: only a package with the Felucca loader)
 
 Never picks a stock or foreign package: the default is the newest build/optimist-*.fwsc, and a package must be an
-Optimist one (identity FM-1_7XX) that fm1_install.load_package accepts. Nothing here touches MIDI itself: every
-device access goes through run_tool() (fm1_install.py in a subprocess), which the tests replace."""
+Optimist one (identity FM-1_700, or FM-1_720 .. 769 for a release) that fm1_install.load_package accepts.
+Nothing here touches MIDI itself: every device access goes through run_tool() (fm1_install.py in a subprocess),
+which the tests replace."""
 import re
 import subprocess
 import sys
@@ -23,7 +24,7 @@ import fm1_install as FI  # noqa: E402
 import stamp  # noqa: E402
 
 TOOL = HERE / "fm1_install.py"
-OPTIMIST_ID = re.compile(r"FM-1_7\d\d")                  # (Optimist's own identity; SLOOP / Felucca are FM-1_9XX)
+OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)")         # (Optimist: 700 development, 720..769 releases; BUILDING.md)
 NEED = "needs mido and python-rtmidi in the builder venv: run `make setup` (python tools/optimist.py setup)"
 RECOVER = ("If the install is cut off the FM-1 stays in update mode: run flash again to finish. If it no longer "
            "starts: hold OCT- alone while switching on (USB rescue) and flash again, or go back to the official "
@@ -91,8 +92,8 @@ def check_package(path):
     except FI.InstallError as e:
         raise FlashError(str(e), 2)
     if not OPTIMIST_ID.fullmatch(product):
-        raise FlashError(f"{p.name}: identity {product}, not an Optimist build (FM-1_7XX); not flashed from here "
-                         "(tools/fm1_install.py installs other Felucca packages)", 2)
+        raise FlashError(f"{p.name}: identity {product}, not an Optimist build (FM-1_700, FM-1_720 .. FM-1_769); "
+                         "not flashed from here (tools/fm1_install.py installs other Felucca packages)", 2)
     return product
 
 

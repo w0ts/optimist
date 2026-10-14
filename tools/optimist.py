@@ -352,7 +352,7 @@ def parser():
     p.set_defaults(fn=cmd_builder)
     p = sub.add_parser("build", help="build a configuration: build/felucca.fwsc and its -ui.zip")
     add_config_args(p)
-    p.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7XY, version X.Y")
+    p.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7(X+2)Y, version X.Y")
     p.add_argument("--measure", action="store_true", help="measurement build (links past the slot, no package)")
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")

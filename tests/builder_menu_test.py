@@ -232,9 +232,9 @@ async def main():
 
     def fake_tool(args, capture=True):
         calls.append(list(args))
-        return (0, "Optimist_705  [running]  port: FM-1") if "--info" in args else (0, "writing 100%\ndone: the FM-1 runs Optimist_705")
+        return (0, "Optimist_730  [running]  port: FM-1") if "--info" in args else (0, "writing 100%\ndone: the FM-1 runs Optimist_730")
     saved = (FL.run_tool, FL.FI.load_package, FL.last_package)
-    FL.run_tool, FL.FI.load_package = fake_tool, (lambda path, force: ("FM-1_705", b""))
+    FL.run_tool, FL.FI.load_package = fake_tool, (lambda path, force: ("FM-1_730", b""))
     with tempfile.TemporaryDirectory() as td:
         pkg = Path(td) / "optimist-1.0-x.fwsc"
         pkg.write_bytes(b"x")
@@ -263,7 +263,7 @@ async def main():
                         break
                 title = str(app.screen.title_) if type(app.screen).__name__ == "Pick" else ""
                 check("f: a confirmation screen with the running identity, the package and the recovery",
-                      "Optimist_705  [running]" in title and pkg.name in title and "FM-1_705" in title and
+                      "Optimist_730  [running]" in title and pkg.name in title and "FM-1_730" in title and
                       "Rescue, going back" in title and app.screen.options[0] == "Cancel")
                 check("... only the identity was read so far (nothing written before the answer)",
                       calls == [["--info"]])

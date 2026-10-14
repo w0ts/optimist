@@ -213,7 +213,7 @@ def installs():
     rc, out, err = cli([p, "--yes"], dev)
     ok(rc == 0 and dev.bad == 0 and dev.upgrades == 1 and "update mode" in out, "install: device already in update mode -> finishes the write")
 
-    # package identity (docs: BUILDING.md "Package identity"): Optimist is FM-1_7XY; the loaders of
+    # package identity (docs: BUILDING.md "Package identity"): Optimist is FM-1_700 / 720-769; the loaders of
     # Optimist (ota-FM-1_7XX) and of SLOOP / Felucca / X0X (ota-FM-1_9XX) speak the same protocol and
     # are resumed; any other loader (M-VAVE ota-FM-1_0XX, Lunar's planned 5XX) is foreign
     for ident in ("ota-FM-1_700", "ota-FM-1_712", "ota-FM-1_905"):

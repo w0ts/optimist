@@ -63,7 +63,7 @@ static void dual_flash_enter(void);
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 7XY) */
+#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 700, releases 720-769) */
 #endif
 #ifndef FELUCCA_UNDO_HISTORY
 #define FELUCCA_UNDO_HISTORY 1   /* undo / redo: a history of many levels in the memory left over (undo.c,
