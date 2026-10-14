@@ -368,6 +368,53 @@ static void preset_go(uint32_t n)                    /* load list index n into t
     ui.force = 1;
 }
 
+#if FELUCCA_FAVORITES
+/* SAVE > PRESETS KNOB 3: the selected track's sound is a favorite (Felucca 1.6). The mark is a settings change: written
+ * once the audio is quiet and the panel idle (settings_later; project.c sections_flush), never on a detent */
+static int preset_favorite(void)
+{
+    uint32_t e, k;
+    return fav_cur(&e, &k) && fav_entry(e, k);
+}
+static void preset_mark(int on)
+{
+    uint32_t e, k;
+    int r;
+    if (!fav_cur(&e, &k))
+        return;
+    r = e == NENGINES ? fav_user_set(k, on) : fav_set(eng_uid(e), preset_name(e, k), on);
+    if (r < 0) {
+        ui_message("FAVORITES FULL");
+    } else if (r) {
+        settings_later = 1;
+        ui.force = 1;
+    }
+}
+static void fav_list_set(uint32_t on)                /* KNOB 4: LIST FAV (the marked sounds only) / ALL */
+{
+    if (fav_list != (uint8_t)on) {
+        fav_list = (uint8_t)on;
+        ui.force = 1;
+    }
+}
+#endif
+/* PRESETS, KNOB 1 or the TRACKS knob: steps along the list (what is shown: all, or the favorites). A sound not in
+ * the list: the first / last of it. None marked in LIST FAV: it says so */
+static void preset_move(int32_t steps)
+{
+    uint32_t total, cur = preset_pos(&total);
+    int32_t t = (int32_t)total;
+    if (!total) {
+        if (fav_list)
+            ui_message("NO FAVORITES");
+        return;
+    }
+    if (cur >= total)
+        preset_go(steps > 0 ? (uint32_t)((steps - 1) % t) : (uint32_t)(t - 1 - (-steps - 1) % t));
+    else
+        preset_go((uint32_t)(((int32_t)cur + steps % t + t) % t));
+}
+
 /* select track i (KNOB 1 on TRACKS, the editor): its sound, pages and pattern from now on */
 static void track_select(uint32_t i)
 {

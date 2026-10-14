@@ -580,6 +580,10 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
+#if FELUCCA_FAVORITES
+    if (pg->graph == GR_BROWSE)                      /* (the marks and the list shown change what the rows show) */
+        h = (h ^ (fav_count() * 131u + fav.user * 2654435761u + fav_list * 40503u + (uint32_t)preset_favorite() * 7u)) * 16777619u;
+#endif
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
 #if FELUCCA_INS_GATER
@@ -610,13 +614,24 @@ static void graph_browse(void)
 {
     uint32_t total, cur = preset_pos(&total), e, k;
     int32_t row;
-    if (!total)
+    if (!total) {
+        if (fav_list)
+            cv_text(14, 4 + 3 * 17, &FONT_S, "NO FAVORITES", C_DIM);
         return;
+    }
     for (row = -3; row <= 3; row++) {
         int32_t y = 4 + (row + 3) * 17;
         char tag[5], nm[13];
         int sel = row == 0;
         uint32_t n = (cur + total * 4u + (uint32_t)row) % total;
+#if FELUCCA_FAVORITES
+        if (fav_list) {                                  /* the favorites: a window, not a carousel (a short list would repeat) */
+            int32_t at = (int32_t)cur + row;
+            if (at < 0 || at >= (int32_t)total)
+                continue;
+            n = (uint32_t)at;
+        }
+#endif
         e = preset_at(n, &k);
         if (e == NENGINES) {                             /* user preset: "U07" and its name */
             up_slot_label(tag, k);
@@ -626,7 +641,7 @@ static void graph_browse(void)
             nb_row(k, tag, nm);
 #endif
         } else {                                         /* its kind: BASS, KEYS, PAD... */
-            str_cpy(tag, preset_kind(n), sizeof tag);
+            str_cpy(tag, preset_kind(preset_src(n)), sizeof tag);
             str_cpy(nm, preset_name(e, k), sizeof nm);
         }
         if (sel)
@@ -635,6 +650,10 @@ static void graph_browse(void)
             cv_rect(9, y + 3, 2, 11, sel ? ENG_COL[e] : col_shade(ENG_COL[e], 5u));
         cv_text(14, y, &FONT_S, tag, sel ? C_GRAY : C_DIM);
         cv_text(54, y, &FONT_S, nm, sel ? C_WHITE : C_GRAY);
+#if FELUCCA_FAVORITES
+        if (fav_entry(e, k))                             /* a favorite: a star after the tag (the list FAV: all of them) */
+            cv_text(46, y, &FONT_S, "*", sel ? C_WHITE : C_GRAY);
+#endif
     }
 }
 
@@ -1247,8 +1266,16 @@ static void draw_columns(void)
             }
             draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, o, VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
         }
+#if FELUCCA_FAVORITES
+        {   /* FAV: this sound is a favorite (-- when it has no mark: the drum track, the FM6 / CZ collections); LIST: ALL / FAV */
+            uint32_t fe, fk, can = fav_cur(&fe, &fk);
+            draw_column(2, "FAV", can ? (preset_favorite() ? "ON" : "OFF") : "--", "", can ? VAL(2u) : C_DIM, -1, ICON_NONE);
+            draw_column(3, "LIST", fav_list ? "FAV" : "ALL", "", VAL(3u), -1, ICON_NONE);
+        }
+#else
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
+#endif
         return;
     }
 #if FELUCCA_SNAPSHOTS

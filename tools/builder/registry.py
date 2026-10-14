@@ -616,6 +616,16 @@ _add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums
           "keys play the pads on the grid page, as before.",
      notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
             "(Erbubar23). Tested in the host UI tests only, not on a device.")
+_add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
+     desc="SAVE > PRESETS (SLOOP's UI): KNOB 3 FAV marks the selected track's sound as a favorite (ON / OFF), KNOB 4 LIST "
+          "shows ALL or only the favorites (the PRESETS knob and KNOB 1 then walk just those); a marked sound shows a star "
+          "in the list. Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
+          "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
+          "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
+          "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "
+          "Off: PRESETS KNOB 3 and 4 stay empty.",
+     notice="After Felucca 1.6's favorites by Leo Kuroshita (GPL-3.0). Tested in the host UI and storage tests only, not on "
+            "a device.")
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "

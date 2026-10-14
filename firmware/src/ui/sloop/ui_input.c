@@ -485,9 +485,13 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
     if (pg->graph == GR_BROWSE) {                         /* KNOB 1: one preset, KNOB 2: the next / previous engine */
         if (slot == 0u && !is_drum(TSEL)) {
-            uint32_t total, cur = preset_pos(&total);
-            if (total)
-                preset_go((uint32_t)(((int32_t)cur + steps % (int32_t)total + (int32_t)total) % (int32_t)total));
+            preset_move(steps);
+#if FELUCCA_FAVORITES
+        } else if (slot == 2u) {                          /* FAV: this sound is a favorite (a set: right ON, left OFF) */
+            preset_mark(steps > 0);
+        } else if (slot == 3u) {                          /* LIST: ALL / FAV (the marked sounds only) */
+            fav_list_set(steps > 0);
+#endif
         } else if (slot == 1u && !is_drum(TSEL)) {
 #if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
         {
@@ -1294,11 +1298,10 @@ static void ui_input(void)
         /* PRESETS browses the selected part's presets (all engines, then user presets) on the PRESETS
          * page and TRACKS only (the drum track: its kits); elsewhere a stray turn would throw away the sound
          * being edited. Every detent counts */
-        uint32_t total, cur = preset_pos(&total);
         if (is_drum(TSEL))
             drum_kit_step(s);                           /* (the user kits after the factory ones) */
-        else if (total)
-            preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+        else
+            preset_move(s);
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {   /* ALGORITHM: the selected track, on every page (not in a take) */
         if (cur_page()->scope == SC_TRK)

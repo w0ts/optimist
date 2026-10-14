@@ -7,7 +7,7 @@
  *   CZ   U01..U26: OBJ_CZBANK (storage.c, A/B below the snapshot area): u32 used, then 26 Casio CZ-1 tones of 144 B
  *        (128 synthesis bytes, the 16-byte name; Casio's MIDI layout, as Melodee keeps them), read in place (czb_xip)
  * Melodee has 64 FM6 and 128 CZ slots; Optimist's flash has the bank's 32 and one object's 26. A track refers to its
- * slot (VOICE / TONE): a slot written again changes the tracks playing it. Not ported: favorites, CZ STORE on the
+ * slot (VOICE / TONE): a slot written again changes the tracks playing it. Favorites: core/favorites.c, not for these banks. Not ported: CZ STORE on the
  * device (the editor stores CZ tones). */
 enum { NB_NONE, NB_FM6, NB_CZ };
 
