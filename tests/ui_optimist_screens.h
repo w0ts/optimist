@@ -77,25 +77,9 @@ static void se_names_tests(void)
 #endif
     reset_ui();
     song.sel = 0;
-#if FELUCCA_ANALOG2 || 1
-    {   /* #36: the synth SOUND row in the list */
-        cell_t c[4];
-        rowl_t L;
-        uint32_t k;
-        op_enter(SCR_SOUND);
-        snd_family(SND_ALL);
-        ui.row[SCR_SOUND] = 0;
-        for (k = 0; k < 4u; k++)
-            SCR->cell(0, k, &c[k]);
-        snd_list_cells(0, c);
-        row_layout(c, &L, LC_END(236));
-        check(!strcmp(L.t[0], c[0].val) && !L.t[1][0] && !strcmp(L.t[2], "INIT") &&
-                  (!strcmp(L.t[3], "SAVE") || !strcmp(L.t[3], "SAVE AS") || str_len(c[0].val) > 9u) && !L.cut,
-              "#36: the SOUND row: the name whole over two cells, INIT, SAVE (was \"808 ANLG INIT SAVE\")");
-        SCR->cell(0, 1, &c[1]);
-        check(c[1].label && !strcmp(c[1].label, "ENGINE"), "#36: ... the ENGINE card stays (the cards keep all four)");
-    }
-#endif
+    op_enter(SCR_SOUND);                                /* (no synth SOUND row: PRESETS is the one place for a sound, 2026-10-14) */
+    snd_family(SND_ALL);
+    check(snd_page(0) != 0, "a synth track's SOUND screen opens on a page: no PRESET ENGINE INIT SAVE AS row");
 }
 static void se_header_tests(void)
 {

@@ -65,6 +65,13 @@ static void pre_toast(void)
     e = pre_entry(cur, nm);
     pre_engine(e, en);
     str_cpy(m, nm, sizeof m);
+#if FELUCCA_FAVORITES
+    {
+        uint32_t fk, fe = preset_at(cur, &fk);
+        if (fav_entry(fe, fk))
+            str_cpy(m + str_len(m), " *", sizeof m - str_len(m));   /* (a favorite: the star after its name) */
+    }
+#endif
     str_cpy(m + str_len(m), " (", sizeof m - str_len(m));
     str_cpy(m + str_len(m), en, sizeof m - str_len(m));
     str_cpy(m + str_len(m), ")", sizeof m - str_len(m));
@@ -73,6 +80,24 @@ static void pre_toast(void)
     ui.toast_next = 0;
     ui.toast_col = e < NENGINES ? ENG_COL[e] : C_HI;
 }
+#if FELUCCA_FAVORITES
+/* a toast over the sound playing: "FAV + NAME" marked, "FAV - NAME" unmarked; the list kept: "FAVORITES ONLY" / "ALL SOUNDS" */
+static void pre_toast_fav(const char *what)
+{
+    char nm[16], m[30];
+    if (what) {
+        str_cpy(m, what, sizeof m);
+    } else {
+        snd_name(song.sel, nm);
+        str_cpy(m, op_fav_here() ? "FAV + " : "FAV - ", sizeof m);
+        str_cpy(m + str_len(m), nm, sizeof m - str_len(m));
+    }
+    ui.toast_next = 1;
+    ui_message(m);
+    ui.toast_next = 0;
+    ui.toast_col = C_HI;
+}
+#endif
 static uint32_t pre_sig(void)
 {
     uint32_t total, cur = preset_pos(&total);

@@ -275,7 +275,7 @@
       "ACTION": "Load, save, clear, then a key", "ITEM": "Slot: turn or key (dim: free)"}},
     {"kind": "op", "ctx": "USER", "params": {
       "BANK": "16 slots a bank (the keys)", "ACTION": "Load, save, clear, then a key",
-      "ITEM": "Slot: turn or key (dim: free)"}},
+      "ITEM": "Slot: turn or key (dim: free)", "INIT": "Reset the sound (asks)"}},
     {"kind": "op", "ctx": "TOOLS", "params": {
       "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
@@ -295,8 +295,6 @@
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"},
       "FX ON": "Track effects on or off"}},
-    {"kind": "op", "ctx": "FAVS", "if": "FELUCCA_FAVORITES", "params": {
-      "FAV": "Mark this sound a favorite", "LIST": "Browse all, or only favorites"}},
     {"kind": "op", "ctx": "SOUND", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {

@@ -90,13 +90,14 @@ static int algo_has_track(void);                        /* op_input.c: the pages
 static void algo_walk(int32_t s, int lay);              /* op_walk.c: ALGORITHM, on every page and layer */
 static void lane_sound_step(int32_t s);                 /* op_walk.c: PRESETS on a lane, its own sound */
 static int lane_presets(void);
+#if FELUCCA_FAVORITES
+static int op_fav_here(void);                           /* op_screens.c: FAVORITES, marked and browsed where presets are picked (PRESETS) */
+static void op_fav_mark(int on);
+static void op_fav_list(uint32_t on);
+static void pre_toast_fav(const char *what);            /* op_preset.c */
+#endif
 static void lane_kind_step(int32_t s);
 static const char *lane_sound_name(uint32_t l);
-enum { LCF_KIT, LCF_PRESET, LCF_SLOT, LCF_NONE };       /* the SOUND row's first card on the drum track (op_walk.c lane_card_form) */
-static uint32_t lane_card_form(void);
-static uint32_t lane_card_pos(uint32_t *n);
-static void lane_card_turn(uint32_t form, int32_t s);
-static void lane_card_first(void);
 
 /* The drum track's ACCENT lane (core.h DRUM_ACC, lane 16) as this UI shows it: a lane as the others (a row in the grid,
  * the mixer and the walk, a key, a name), with no sound. lane_selected() is 0..DRUM_UILANES - 1; the per-lane SOUND

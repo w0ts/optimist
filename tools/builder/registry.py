@@ -619,8 +619,8 @@ _add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums
 _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
      desc="SAVE > PRESETS (SLOOP's UI): KNOB 3 FAV marks the selected track's sound as a favorite (ON / OFF), KNOB 4 LIST "
           "shows ALL or only the favorites (the PRESETS knob and KNOB 1 then walk just those); a marked sound shows a star "
-          "in the list. The Optimist UI: a FAVS row under SOUND, KNOB 1 FAV and KNOB 2 LIST the same (about 1.5 KB more "
-          "there). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
+          "in the list. The Optimist UI: with the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT "
+          "browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
           "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
           "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
           "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "

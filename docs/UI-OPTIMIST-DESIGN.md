@@ -3183,3 +3183,11 @@ marks and HOME held + PRESETS clears: no row, but PRESETS under HOME is already 
 Tests: tests/ui_optimist_favorites.h (the row, the cards, FAV and LIST by knob, YES and HOME, the walk and its edges, the star, the
 user preset, the drum track); the EDIT tap counts in ui_optimist_mixer.h, _cardspic.h and _pages.h follow the new row; a build
 without FAVORITES runs the whole test again (tests/run_tests.sh).
+
+**2026-10-15, no preset rows (the user: "I don't want preset everywhere. We have a preset button, that is enough").** The SOUND row
+(PRESET ENGINE INIT SAVE AS) and the FAVS row are gone from EDIT; a synth track's rows are its pages; the drum track's first row is the
+lane's SRC and ACCENT. Favorites now live where presets are picked: **SHIFT2 (OCT+ held) + PRESETS** marks the sound playing (right) or
+clears it (left), toast "FAV + NAME" / "FAV - NAME"; **SHIFT2 + SELECT** browses only the favorites (right, "FAVORITES ONLY") or every sound
+(left); a PRESETS toast puts a star after a favorite's name; **PROJECT > USER: SHIFT2 + the ITEM knob** marks the slot (a star after its
+name in the info). SHIFT + PRESETS is still the engine step. INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE. The store and the
+list filter are unchanged; the drum track has no mark.

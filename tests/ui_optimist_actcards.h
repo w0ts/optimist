@@ -195,14 +195,12 @@ static void actcards_tests(void)
     check(!strcmp(act_verb(&c), "NEW") && !strcmp(act_small(&c), "PROJECT") && c.danger, "PROJECT NEW: NEW over PROJECT, in the alarm colour");
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 1, &c);
     check(c.kind == CK_VAL && !strcmp(c.label, "ACTION") && !strcmp(c.val, "LOAD"), "PROJECT's OPERATION card says LOAD at first");
-    rk_at(SCR_SOUND, "SOUND", "INIT");
-    SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 2, &c);
-    check(!strcmp(act_verb(&c), "INIT") && !strcmp(act_small(&c), "SOUND") && c.danger, "SOUND INIT: INIT over SOUND, alarm");
-    SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 3, &c);
-    check(!strcmp(act_verb(&c), "SAVE AS") && !c.danger, "SOUND SAVE AS: SAVE AS, amber");
+    rk_at(SCR_PROJECT, "USER", "INIT");                 /* (INIT's home: PROJECT > USER's 4th card) */
+    SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 3, &c);
+    check(!strcmp(act_verb(&c), "INIT") && !strcmp(act_small(&c), "SOUND") && c.danger, "USER INIT: INIT over SOUND, alarm");
     ui.force = 1;
     frame();
-    check(ac_band_has(C_ERR), "SOUND row 1: INIT drawn in the alarm colour");
+    check(ac_band_has(C_ERR), "USER row: INIT drawn in the alarm colour");
     rk_at(SCR_SYSTEM, 0, "PANEL");
     SCREENS[SCR_SYSTEM].cell(ui.row[SCR_SYSTEM], 0, &c);
     check(!strcmp(act_verb(&c), "CALIBRATE") && !strcmp(act_small(&c), "PANEL"), "SYSTEM PANEL: CALIBRATE over PANEL");

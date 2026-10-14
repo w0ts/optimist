@@ -192,6 +192,8 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     } else if (k == 3u && kind == PR_PROJECT) {
         cell_act(c, "PROJECT", "NEW", 0, 1);            /* (a blank project, no slot touched; red: it drops the work) */
+    } else if (k == 3u && kind == PR_USER) {
+        cell_act(c, "SOUND", "INIT", 0, 1);             /* (the selected track's sound back to its engine's defaults: INIT's home, the user 2026-10-14) */
     }
 }
 
@@ -205,6 +207,17 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     }
     if (kind > PR_USER)
         return;                                         /* (SLOOP, MEMORY: nothing to turn) */
+#if FELUCCA_FAVORITES
+    if (kind == PR_USER && k == 2u && s != OP_RESET && op_shift2(fm1_in.buttons)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
+        uint32_t slot = prj_slot_cur(kind);
+        if (up_used(slot) && fav_user_set(slot, s > 0)) {
+            settings_later = 1;                         /* (written once the audio is quiet: op_fav_mark) */
+            ui.force = 1;
+            pre_toast_fav(s > 0 ? "FAV + USER PRESET" : "FAV - USER PRESET");
+        }
+        return;
+    }
+#endif
     if (k == 1u) {
         uint32_t op = prj_op();
         prj_op_v = (uint8_t)(s == OP_RESET ? PO_LOAD : clamp((int32_t)op + d, 0, (int32_t)prj_nops(kind) - 1));
@@ -306,6 +319,8 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         ui.force = 1;
         return 1;
     }
+    if (kind == PR_USER && k == 3u)
+        return snd_init_yes(SCR_PROJECT, r, k, ok);
     if (kind > PR_USER)
         return 0;
     if (!ok)
@@ -388,6 +403,10 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
     } else if (kind == PR_USER) {
         uint32_t e = up_engine_slot(s);
         up_name(s, pdp.name);
+#if FELUCCA_FAVORITES
+        if (fav_user_has(s))
+            str_cpy(pdp.name + str_len(pdp.name), " *", sizeof pdp.name - str_len(pdp.name));   /* (a favorite: the star after its name) */
+#endif
         str_cpy(pdp.d1, "ENGINE", sizeof pdp.d1);
         str_cpy(pdp.d2, e < NENGINES ? ENGINES[e]->name : "NOT IN THIS BUILD", sizeof pdp.d2);
         pdp.col2 = e < NENGINES ? C_WHITE : C_WARN;

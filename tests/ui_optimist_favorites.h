@@ -1,22 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Favorites in the Optimist UI (FELUCCA_FAVORITES; docs/UI-OPTIMIST-DESIGN.md section 37), included by ui_optimist_test.c
- * after WK / kdown / kup. The SOUND row (PRESET ENGINE INIT SAVE AS) has no spare knob, so a row of its own follows it on
- * a synth track: FAVS, KNOB 1 FAV, KNOB 2 LIST.
- *   KNOB 1  FAV   ON / OFF for the selected track's sound: right marks, left clears (a set, not a toggle); YES toggles;
- *                 HOME held + the knob clears; saved later (settings_later), never on a detent; the drum track has no
- *                 FAVS row
- *   KNOB 2  LIST  ALL / FAV: PRESETS, the SOUND row's PRESET card and HOME held + PRESETS (the next instrument) then walk
- *                 only the marked sounds; from a sound not marked the first step goes to the first / last marked; none
- *                 marked: "NO FAVORITES", the sound stays; HOME held + the knob: ALL
- * The marks are the store of core/favorites.c, shared with SLOOP's UI (tests/favorites_ui.c checks that side). */
+ * after WK / kdown / kup. Favorites live where presets are picked (the user, 2026-10-14: "we have a preset button, that is
+ * enough"): no SOUND / FAVS row on EDIT.
+ *   SHIFT2 (OCT+ held) + PRESETS   marks the sound playing (right) or clears it (left): a set, not a toggle; a toast
+ *                                  "FAV + NAME" / "FAV - NAME"; saved later (settings_later), never on a detent
+ *   SHIFT2 + SELECT                browses only the marked sounds (right, "FAVORITES ONLY") or every sound (left)
+ *   PRESETS / SHIFT + PRESETS      then walk only the marked sounds; from a sound not marked the first step goes to the
+ *                                  first / last marked; none marked: "NO FAVORITES", the sound stays
+ *   the toast of a PRESETS turn    puts a star after a favorite's name; PROJECT > USER: SHIFT2 + the ITEM knob marks the slot
+ * The drum track has no mark. The marks are the store of core/favorites.c, shared with SLOOP's UI (tests/favorites_ui.c). */
 #if FELUCCA_FAVORITES
-static uint32_t fv_sum(void)                            /* the picture under the cards (y 124 on, the panel; the hot card's lit state is above) */
-{
-    uint32_t i, s = 0;
-    for (i = 124u * 240u; i < band_y * 240u; i++)       /* (not the help band) */
-        s = s * 31u + screen[i];
-    return s;
-}
 static uint32_t fv_here(void)                           /* the selected track's sound as preset_at gives it, one number */
 {
     uint32_t u = user_of(TSEL);
@@ -37,81 +30,39 @@ static void fv_open(uint32_t trk)                       /* SOUND > EDIT on track
     tap(B_EDIT);
     frames(2);
 }
-static void fv_cell(uint32_t r, uint32_t k, cell_t *c) { SCREENS[SCR_SOUND].cell(r, k, c); }
-static int fv_val(uint32_t k, const char *want)         /* the FAVS row's card k reads want */
-{
-    cell_t c;
-    fv_cell(1, k, &c);
-    return !strcmp(c.val, want);
-}
-static void fv_home_turn(uint32_t enc, int32_t s)       /* SHIFT (OCT- held, was HOME) + a knob */
+static void fv_shift_turn(uint32_t enc, int32_t s)      /* SHIFT (OCT- held) + a knob */
 {
     fm1_in.buttons |= BT(B_OCTDN);
     turn(enc, s);
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
 }
+static void fv_shift2_turn(uint32_t enc, int32_t s)     /* SHIFT2 (OCT+ held) + a knob */
+{
+    fm1_in.buttons |= BT(B_OCTUP);
+    turn(enc, s);
+    fm1_in.buttons &= ~BT(B_OCTUP);
+    frame();
+}
 static void favorites_tests(void)
 {
-    uint32_t i, n, all, total, sum_off, sum_on, mark[3], idx[3] = {9, 41, 77};
-    cell_t c;
-    char nm[12], title[40];
+    uint32_t i, all, total, mark[3], idx[3] = {9, 41, 77};
+    char nm[12];
 
     fv_open(0);
-    n = snd_rows();
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == 0u, "favorites: EDIT opens SOUND on the SOUND row");
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && snd_page(0) && snd_page(0)->fam == FAM_EDIT, "favorites: EDIT opens on its first page: no SOUND row, no FAVS row");
     SCREENS[SCR_SOUND].name(0, nm);
-    check(!strcmp(nm, "SOUND"), "... row 1 is still the SOUND row");
-    SCREENS[SCR_SOUND].name(1, nm);
-    check(!strcmp(nm, "FAVS") && !snd_page(1) && snd_page(2), "... FAVS follows it, then the engine's pages");
-    fv_cell(1, 0, &c);
-    check(c.label && !strcmp(c.label, "FAV") && c.kind == CK_VAL && c.gk == GK_PILL && fv_val(0, "OFF"), "... KNOB 1 FAV, OFF, a pill");
-    fv_cell(1, 1, &c);
-    check(c.label && !strcmp(c.label, "LIST") && c.kind == CK_VAL && fv_val(1, "ALL"), "... KNOB 2 LIST, ALL");
-    fv_cell(1, 2, &c);
-    check(!c.label, "... KNOB 3 and 4 empty");
-    fv_cell(0, 2, &c);
-    check(c.label && !strcmp(c.label, "INIT") && c.kind == CK_ACT, "... the SOUND row keeps INIT (KNOB 3) and SAVE AS (KNOB 4)");
-    fv_cell(0, 3, &c);
-    check(c.label && !strcmp(c.label, "SAVE AS"), "... SAVE AS");
-
-    turn(EN_SELECT, 1);
-    check(ui.row[SCR_SOUND] == 1u, "SELECT: the FAVS row");
-    head_title(SCR_SOUND, 1, title, sizeof title);
-    check(!strcmp(title, "Favs"), "... the header names it Favs");
-    frame();
-    ppm("opt-sound-favorites-off");
-    sum_off = fv_sum();
-
+    check(strcmp(nm, "FAVS") != 0 && strcmp(nm, "SOUND") != 0, "... no row of that name");
     settings_later = 0;
-    turn(EN_K1, 1);
-    check(fav_count() == 1u && fv_val(0, "ON"), "KNOB 1 right: FAV ON for the sound");
+    ui.msg[0] = 0;
+    fv_shift2_turn(EN_PRESET, 1);
+    check(fav_count() == 1u && op_fav_here(), "SHIFT2 + PRESETS right: the sound is a favorite");
     check(settings_later == 1u, "... saved later (settings_later), not at once");
-    frames(2);
-    sum_on = fv_sum();
-    check(sum_on != sum_off, "... the picture shows it (the star after the name)");
-    ppm("opt-sound-favorites-on");
-    turn(EN_K1, 1);
-    check(fav_count() == 1u && fv_val(0, "ON"), "KNOB 1 right again: still ON (a set, not a toggle)");
-    turn(EN_K1, -1);
-    check(fav_count() == 0u && fv_val(0, "OFF"), "KNOB 1 left: OFF");
-    frames(2);
-    ppm("opt-sound-favorites-off2");
-    check(fv_sum() == sum_off, "... the screen as before");
-    ui.hot = 0;
-    tap(B_SAVE);
-    check(fav_count() == 1u, "YES on the FAV card: marks");
-    tap(B_SAVE);
-    check(fav_count() == 0u, "YES again: clears");
-    turn(EN_K1, 1);
-    fv_home_turn(EN_K1, 1);
-    check(fav_count() == 0u && fv_val(0, "OFF"), "HOME held + KNOB 1: cleared (the grammar's clear)");
-    turn(EN_K2, 1);
-    check(fav_list == 1u && fv_val(1, "FAV"), "KNOB 2 right: LIST FAV");
-    turn(EN_K2, 1);
-    check(fav_list == 1u, "... again: stays FAV (a set)");
-    fv_home_turn(EN_K2, 1);
-    check(fav_list == 0u && fv_val(1, "ALL"), "HOME held + KNOB 2: LIST ALL");
+    check(!strncmp(ui.msg, "FAV + ", 6), "... the toast says it");
+    fv_shift2_turn(EN_PRESET, 1);
+    check(fav_count() == 1u, "... right again: still one (a set, not a toggle)");
+    fv_shift2_turn(EN_PRESET, -1);
+    check(fav_count() == 0u && !op_fav_here() && !strncmp(ui.msg, "FAV - ", 6), "SHIFT2 + PRESETS left: cleared, \"FAV - NAME\"");
 
     /* three sounds marked, in the list's order */
     fav_list = 0;
@@ -125,24 +76,26 @@ static void favorites_tests(void)
             idx[i]++;                                   /* (a factory sound: the engines' own collections, NATIVE_BANKS, have no mark) */
         op_preset_go(idx[i]);
         mark[i] = fv_here();
-        turn(EN_K1, 1);
+        fv_shift2_turn(EN_PRESET, 1);
     }
-    check(fav_count() == 3u, "three sounds marked, by KNOB 1");
-    turn(EN_K2, 1);
+    check(fav_count() == 3u, "three sounds marked, by SHIFT2 + PRESETS");
+    ui.msg[0] = 0;
+    fv_shift2_turn(EN_SELECT, 1);
     preset_pos(&total);
-    check(fav_list == 1u && total == 3u, "KNOB 2 right: the list is the three");
+    check(fav_list == 1u && total == 3u && !strcmp(ui.msg, "FAVORITES ONLY"), "SHIFT2 + SELECT right: the list is the three, \"FAVORITES ONLY\"");
     check(fv_at(0) == mark[0] && fv_at(1) == mark[1] && fv_at(2) == mark[2], "... in the list's order");
-    ui.force = 1;
-    frame();
-    ppm("opt-sound-favorites-list");
+    check(ui.row[SCR_SOUND] == 0u, "... the cursor row did not move (SELECT was the filter's)");
     turn(EN_PRESET, 1);
     check(fv_here() == mark[0], "PRESETS, one on from the last of the three: the first (wraps)");
+    ui.msg[0] = 0;
+    pre_toast();
+    check(strstr(ui.msg, " *") != 0, "... the toast puts a star after a favorite's name");
     turn(EN_PRESET, 1);
     check(fv_here() == mark[1], "... one on: the second");
     turn(EN_PRESET, -2);
     check(fv_here() == mark[2], "... two back: the last");
-    fv_home_turn(EN_PRESET, 1);
-    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "HOME held + PRESETS (the next instrument): one of the favorites");
+    fv_shift_turn(EN_PRESET, 1);
+    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT + PRESETS (the next instrument): one of the favorites");
     fav_list = 0;
     op_preset_go(60);
     fav_list = 1;
@@ -156,20 +109,11 @@ static void favorites_tests(void)
     fav_list = 0;
     op_preset_go(60);
     fav_list = 1;
-    frames(2);
-    ppm("opt-sound-favorites-outside");
-    fv_home_turn(EN_PRESET, 1);
-    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "HOME held + PRESETS from a sound not marked: a favorite");
-    ui.row[SCR_SOUND] = 0;
-    ui.force = 1;
-    frames(2);
-    ppm("opt-sound-favorites-row0");
-    turn(EN_K1, -1);                                    /* (the SOUND row's PRESET card: the favorites too) */
-    check(fv_here() == mark[2] || fv_here() == mark[0] || fv_here() == mark[1], "the SOUND row's PRESET card walks the favorites");
-    ui.row[SCR_SOUND] = 1;
-    turn(EN_K2, -1);
+    fv_shift_turn(EN_PRESET, 1);
+    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT + PRESETS from a sound not marked: a favorite");
+    fv_shift2_turn(EN_SELECT, -1);
     preset_pos(&total);
-    check(fav_list == 0u && total == all, "KNOB 2 left: LIST ALL, the whole list is back");
+    check(fav_list == 0u && total == all, "SHIFT2 + SELECT left: every sound, the whole list is back");
 
     /* none marked, LIST FAV */
     memset(&fav, 0, sizeof fav);
@@ -181,11 +125,8 @@ static void favorites_tests(void)
         turn(EN_PRESET, 1);
         check(total == 0u && fv_here() == here, "no favorites, LIST FAV: the sound stays");
         check(!strcmp(ui.msg, "NO FAVORITES"), "... NO FAVORITES says so");
-        fv_home_turn(EN_PRESET, 1);
-        check(fv_here() == here, "... HOME held + PRESETS too");
-        ui.force = 1;
-        frames(2);
-        ppm("opt-sound-favorites-none");
+        fv_shift_turn(EN_PRESET, 1);
+        check(fv_here() == here, "... SHIFT + PRESETS too");
     }
     fav_list = 0;
 
@@ -193,39 +134,43 @@ static void favorites_tests(void)
     memset(&fav, 0, sizeof fav);
     trk[0].user = 1;
     check(user_of(TSEL) == 0u, "a user preset loaded");
-    ui.row[SCR_SOUND] = 1;
-    frame();
     if (up_used(0)) {
-        turn(EN_K1, 1);
-        check(fav_user_has(0) && !fav_count() && fv_val(0, "ON"), "KNOB 1 marks it by its slot (no factory place used)");
-        turn(EN_K2, 1);
+        fv_shift2_turn(EN_PRESET, 1);
+        check(fav_user_has(0) && !fav_count(), "SHIFT2 + PRESETS marks it by its slot (no factory place used)");
+        fv_shift2_turn(EN_SELECT, 1);
         preset_pos(&total);
         check(total == 1u && fv_at(0) == ((uint32_t)NENGINES << 16 | 0u), "LIST FAV: the user preset is the list");
         fav_list = 0;
-        turn(EN_K1, -1);
-        check(!fav_user_has(0), "KNOB 1 left clears it");
+        fv_shift2_turn(EN_PRESET, -1);
+        check(!fav_user_has(0), "SHIFT2 + PRESETS left clears it");
     }
     trk[0].user = 0;
     memset(&fav, 0, sizeof fav);
     fav_list = 0;
 
-    /* the drum track has no FAVS row */
+    /* PROJECT > USER: SHIFT2 + the ITEM knob marks the slot */
+    reset_ui();
+    op_enter(SCR_PROJECT);
+    for (i = 0; i < NPRJ && prj_kind(i) != PR_USER; i++)
+        ;
+    ui.row[SCR_PROJECT] = (uint8_t)i;
+    ui.user_slot = 0;
+    if (up_used(0)) {
+        fv_shift2_turn(EN_K3, 1);
+        check(fav_user_has(0), "PROJECT > USER: SHIFT2 + the ITEM knob marks the slot");
+        fv_shift2_turn(EN_K3, -1);
+        check(!fav_user_has(0), "... left clears it");
+    }
+    memset(&fav, 0, sizeof fav);
+
+    /* the drum track has no mark */
     for (i = 0; i < NTRK && !is_drum(&trk[i]); i++)
         ;
     if (i < NTRK) {
         fv_open(i);
-        SCREENS[SCR_SOUND].name(1, nm);
-        check(strcmp(nm, "FAVS") != 0 && snd_rows() >= 2u, "the drum track: no FAVS row");
-        fv_cell(0, 0, &c);
-        check(c.label && strcmp(c.label, "FAV") != 0, "... its SOUND row is the kit's");
+        fv_shift2_turn(EN_PRESET, 1);
+        check(fav_count() == 0u && !fav_user_has(0), "the drum track: SHIFT2 + PRESETS marks nothing");
     }
-    /* an engine's own page family has no such row */
-    fv_open(0);
-    tap(B_ENV);
-    frames(2);
-    SCREENS[SCR_SOUND].name(0, nm);
-    check(strcmp(nm, "FAVS") != 0 && (snd_fam == FAM_ENV || snd_fam == SND_FM6), "ENV tapped: only the envelopes' rows, no FAVS");
-    check(snd_rows() < n, "... (the whole list was longer)");
     memset(&fav, 0, sizeof fav);
     fav_list = 0;
     reset_ui();

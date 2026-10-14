@@ -54,7 +54,7 @@ static void drum_env_tests(void)
     }
     tap(B_EDIT);
     for (r = 0, n = SCR->rows(), only = 0; r < n; r++)
-        if (snd_page(r)->id[0] == 0u && snd_page(r)->scope == SC_DSND) {
+        if (snd_page(r) && snd_page(r)->id[0] == 0u && snd_page(r)->scope == SC_DSND) {
             cell_t c;
             lane_select(2);
             page_cell(snd_page(r), 1, &c);

@@ -77,6 +77,7 @@ static int lo_one_ok(void)                              /* the one-card pages ke
     char nm[16];
     SCR->name(ui.row[ui.scr], nm);
     return (ui.scr == SCR_TEMPO && FELUCCA_REC_MODES && str_eq(nm, "REC 2")) ||   /* (TEMPO and REC full: QUANT alone) */
+           (ui.scr == SCR_SOUND && is_drum(TSEL) && str_eq(nm, "SOUND")) ||   /* (the drum lane row: SRC or ACCENT alone) */
            (ui.scr == SCR_SOUND && !FELUCCA_CHORDPLUS && str_eq(nm, "SCL 2"));    /* (SCL full: TRANSP alone, no CHORD+) */
 }
 static void lo_row(uint32_t r, int pages)

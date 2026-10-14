@@ -108,18 +108,13 @@ static void pages_nav_tests(void)
     reset_ui();
     tap(B_EDIT);
     frames(2);
-    SCR->cell(0, 0, &c);
-    SCR->cell(0, 2, &c2);
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && !strcmp(c.label, "PRESET") &&
-          !strcmp(c2.label, "INIT") && led_lvl(B_EDIT) == 2, "D7: EDIT tapped: its first row is SOUND (PRESET ENGINE INIT SAVE AS), EDIT full");
+    (void)c, (void)c2;
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && snd_page(0) && snd_page(0)->fam == FAM_EDIT && led_lvl(B_EDIT) == 2,
+          "D7: EDIT tapped: its first row is the first edit page (no SOUND row), EDIT full");
     tap(B_EDIT);
-    if (FV_ROWS) {
-        check(!snd_page(ui.row[SCR_SOUND]) && ui.row[SCR_SOUND] == 1u, "D7: EDIT again: FAVS, the row under SOUND (FELUCCA_FAVORITES)");
-        tap(B_EDIT);
-    }
     check(snd_page(ui.row[SCR_SOUND]) && snd_page(ui.row[SCR_SOUND])->fam == FAM_EDIT, "D7: EDIT again: the edit pages");
     tap(B_ENV);
-    check(snd_page(0) != 0, "D7: the other families have no SOUND row");
+    check(snd_fam == SND_FM6 || snd_page(0) != 0, "D7: the other families have no SOUND row");
     /* D8 */
     reset_ui();
     press(B_SAVE);
@@ -591,10 +586,16 @@ static void pages_keys_tests(void)
         tap(B_HOME);
     }
     reset_ui();
-    op_enter(SCR_SOUND);
-    ui.row[SCR_SOUND] = 0;
-    turn(EN_K4, 1);
-    tap(B_SAVE);                                        /* SAVE AS: asks, then NAME */
+    op_enter(SCR_PROJECT);                              /* SAVE AS: PROJECT > USER, SAVE: asks, then NAME */
+    {
+        uint32_t pr;
+        for (pr = 0; pr < NPRJ && prj_kind(pr) != PR_USER; pr++)
+            ;
+        ui.row[SCR_PROJECT] = (uint8_t)pr;
+    }
+    ui.user_slot = 2;
+    turn(EN_K2, 1);
+    tap(B_SAVE);
     tap(B_SAVE);
     frames(2);
     {
@@ -745,14 +746,10 @@ static void pages_head_tests(void)
     }
     reset_ui();
     tap(B_EDIT);
-    tap(B_EDIT);
-    if (FV_ROWS)
-        tap(B_EDIT);
     {
         char t[32], want[16];
         head_now(t);
-        snprintf(want, sizeof want, "Edit 1 %d/", 2 + FV_ROWS);   /* (SOUND, FAVS, then Edit 1) */
-        check(!strncmp(t, want, 9), "#2: EDIT 1: \"Edit 1 n/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
+        check(!strncmp(t, "Edit 1 1/", 9), "#2: EDIT 1: \"Edit 1 1/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
     }
     reset_ui();
 }
@@ -785,7 +782,7 @@ static void pages_select_tests(void)
     tap(B_EDIT);                                        /* the drum SOUND row: KIT, LANE (a read-out) */
     SCR->cell(0, 1, &c);
     turn(EN_K2, 2);
-    check(!c.label && lane_selected() == 3u, "rule: the drum SOUND row has no second card (the LANE read-out is gone); KNOB 2 leaves the lane");
+    check(lane_selected() == 3u, "rule: the drum SOUND row has no LANE card (gone); KNOB 2 leaves the lane");
     ok = 1;
     for (i = 0; i < 5u; i++) {
         turn(EN_SELECT, 1);

@@ -719,12 +719,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FX_DUST=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nodust_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without DUST built: no DUST card on the mixer's MASTER set, the master FX (INS TONE: the built values first) or a layer; the badges, the empty rule" "$OUT/ui_optimist_nodust_test" "$OUT/optimist-nodust"
 ) >"$U.out" 2>&1 & jobbg
-# favorites (tests/ui_optimist_favorites.h): the FAVS row under the SOUND row is in the default build above; without them the SOUND
-# row is alone, EDIT's second tap is the first engine page, PRESETS walks the whole list
+# favorites (tests/ui_optimist_favorites.h): favorites marked and browsed with the presets (SHIFT2 + PRESETS / SELECT) are in the default build above; without them the
+# two gestures do nothing and PRESETS walks the whole list
 job; ( jobin
     mkdir -p "$OUT/optimist-nofav"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FAVORITES=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nofav_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI without favorites built: no FAVS row, the SOUND row's PRESETS and HOME + PRESETS walk the whole list" "$OUT/ui_optimist_nofav_test" "$OUT/optimist-nofav"
+    run "Optimist UI without favorites built: SHIFT2 + PRESETS / SELECT do nothing, PRESETS and SHIFT + PRESETS walk the whole list" "$OUT/ui_optimist_nofav_test" "$OUT/optimist-nofav"
 ) >"$U.out" 2>&1 & jobbg
 # the user's own build (tests/profiles/mots-like.config, a copy of config/my-profiles/mots.config of 2026-10-14; the flags are
 # the builder's for it, tools/config_flags.py): knob acceleration, DIV_ORDER, no SLICER, the X0X kits, PARAM_HELP, patterns...
