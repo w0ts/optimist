@@ -193,9 +193,9 @@ enum {                          /* per-track parameters */
      * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
     P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
 #endif
-    /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's own (JUNO 6, ACID 1 ...),
+    /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
      * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
-     * preset (param_kept), not lockable; a project keeps it packed in the drum track's VOICE slot (project.c vc_pack) */
+     * preset (param_kept), not lockable; stored in a project in the FX record (fx_rec.c VCNT_TLV) */
     P_VOICES,
     P_COUNT
 };
@@ -623,6 +623,7 @@ AINL int trk_silent(const track_t *t)
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
+AINL uint32_t eng_vmax(const engine_t *e) { return e->poly && e->poly < NPOLY ? e->poly : NPOLY; }   /* the engine's voices */
 uint32_t trk_nvoice(const track_t *t);   /* voice.c: the voices POLY and UNISON may use: min(VOICES, the engine's cap) */
 #if FELUCCA_ANALOG2
 /* ENV2's values outside a track's stored ones (P_A2ESUS .. P_A2ESDT, every one fits a signed byte): six values

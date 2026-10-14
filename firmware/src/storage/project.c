@@ -898,24 +898,6 @@ static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0
 #endif
 #endif
 
-/* the parts' VOICES (core.h P_VOICES, 0 = the engine's own): the drum track never plays a VOICE mode, so its VOICE slot
- * (a mode 0..3 in a project of before) holds VC_TAG | part 1's VOICES | part 2's << 4 | part 3's << 8 when any part
- * has one, 4 bits each; no format change, a project of before reads as every part at the engine's own. */
-#define VC_TAG 0x4000u
-_Static_assert(NPART == 3 && P_VOICES > P_E7 && VC_TAG > 0x3FFu, "vc: three nibbles under the tag");
-static void vc_pack(project_t *p, const int16_t *vc)         /* vc[NPART] */
-{
-    uint32_t k, w = 0;
-    for (k = 0; k < NPART; k++)
-        w |= ((uint32_t)vc[k] & 15u) << (4u * k);
-    if (w)
-        p->t[TRK_DRUM].p[P_VOICE] = (int16_t)(VC_TAG | w);
-}
-static int vc_tagged(const project_t *p) { return ((uint16_t)p->t[TRK_DRUM].p[P_VOICE] & 0xF000u) == VC_TAG; }
-static int16_t vc_get(const project_t *p, uint32_t k)       /* part k's VOICES, 0 without the tag */
-{
-    return vc_tagged(p) ? (int16_t)(((uint16_t)p->t[TRK_DRUM].p[P_VOICE] >> (4u * k)) & 15u) : 0;
-}
 #if FELUCCA_PATTERNS
 static void pat_mark(const project_t *p, int apply);   /* pat.c */
 #endif
@@ -929,7 +911,6 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_LFO2
     int16_t l2[NPART][L2_NV];                           /* (the parts' LFO 2: l2_pack) */
 #endif
-    int16_t vc[NPART];                                  /* (the parts' VOICES: vc_pack) */
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
@@ -948,8 +929,6 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         if (i == TRK_DRUM)                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
             v[P_DIST] = v[P_CHOR] = v[P_DLY] = v[P_REV] = 0;
         pj_from_p(p->t[i].p, v);
-        if (i < NPART)
-            vc[i] = v[P_VOICES];
         if (i == TRK_DRUM)                              /* (the ACCENT amount stored from its default: 0 in a project of before) */
             p->t[i].p[PJ_E0 + (P_DACC - P_E0)] = (int16_t)(v[P_DACC] - DACC_DEF);
 #if SL24_TP
@@ -999,7 +978,6 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_LFO2
     l2_pack(p, l2);                                     /* (the same: its LFO slots) */
 #endif
-    vc_pack(p, vc);                                     /* (the drum track's VOICE slot) */
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO
     auto_capture_store(p);                              /* its automation (auto_proj.c) */
@@ -1076,9 +1054,6 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
         (void)pxt;
 #endif
-        v[P_VOICES] = k < NPART ? vc_get(p, k) : 0;     /* (older projects: 0, the engine's own) */
-        if (k == TRK_DRUM && vc_tagged(p))              /* (its VOICE slot held them: the drum track's default) */
-            v[P_VOICE] = TP[P_VOICE].def;
         if (k == TRK_DRUM && l2t)                       /* (its LFO slots that held LFO 2: the drum track's defaults) */
             l2_slots_def(v);
         if (k < NPART) {                                /* LFO DEST's slots from their stored form (params.c lfo1_load) */

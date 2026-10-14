@@ -332,8 +332,7 @@ static HOT void track_lfo_tick(track_t *t)
 /* voices the part may use (POLY and UNISON): min(VOICES, the engine's cap), the cap else all of them */
 uint32_t trk_nvoice(const track_t *t)
 {
-    uint32_t c = ENGINES[t->engine]->poly, u = (uint32_t)t->p[P_VOICES];
-    c = c && c < NPOLY ? c : NPOLY;
+    uint32_t c = eng_vmax(ENGINES[t->engine]), u = (uint32_t)t->p[P_VOICES];
     return u && u < c ? u : c;                          /* (VOICES: at most the engine's own cap) */
 }
 
