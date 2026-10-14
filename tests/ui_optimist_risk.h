@@ -78,6 +78,31 @@ static void rk_cell(uint32_t scr, const char *row, const char *lab)   /* YES on 
     tap(B_SAVE);
     rk_after(lab, h0);
 }
+/* PROJECT's storage rows: operation op (PO_*) on the row's current item, YES; a free slot has nothing to load or clear: no
+ * question (op_prjflow.c) */
+static void rk_prj(const char *row, uint32_t op)
+{
+    uint32_t r, h0;
+    char nm[16];
+    op_enter(SCR_PROJECT);
+    frame();
+    for (r = 0; r < SCREENS[SCR_PROJECT].rows(); r++) {
+        SCREENS[SCR_PROJECT].name(r, nm);
+        if (!strcmp(nm, row))
+            break;
+    }
+    if (r >= SCREENS[SCR_PROJECT].rows())
+        return;
+    ui.row[SCR_PROJECT] = (uint8_t)r;
+    prj_op_row = (uint8_t)r;
+    prj_op_v = (uint8_t)op;
+    ui.hot = 2;
+    if (op != PO_SAVE && !prj_slot_used(prj_kind(r), prj_slot_cur(prj_kind(r))))
+        return;
+    h0 = rk_state();
+    tap(B_SAVE);
+    rk_after(PO_NAME[op], h0);
+}
 static void rk_combo(uint32_t b, const char *what)      /* HOME held + b */
 {
     uint32_t h0;
@@ -209,17 +234,16 @@ static void risk_tests(void)
     rk_ok = 1;
     song.g[G_SLOT] = 1;
     rk_edit();                                          /* (the work changed, the sound edited: what LOAD, INIT ask over) */
-    rk_cell(SCR_PROJECT, "PROJECT", "LOAD");            /* LOAD over the work */
-    if (project_used(prj_slot()))
-        rk_cell(SCR_PROJECT, "PROJECT", "SAVE");        /* over a used slot (an empty one: no question) */
+    rk_prj("PROJECT", PO_LOAD);                         /* LOAD over the work */
+    rk_prj("PROJECT", PO_SAVE);                         /* SAVE (asks even into a free slot) */
     rk_cell(SCR_PROJECT, "PROJECT", "NEW");
     ui.user_slot = 0;                                   /* (U01: used in the test's store) */
-    rk_cell(SCR_PROJECT, "USER", "LOAD");
-    rk_cell(SCR_PROJECT, "USER", "ERASE");
-    rk_cell(SCR_PROJECT, "USER", "SAVE");
+    rk_prj("USER", PO_LOAD);
+    rk_prj("USER", PO_CLEAR);
+    rk_prj("USER", PO_SAVE);
 #if FELUCCA_SNAPSHOTS
-    rk_cell(SCR_PROJECT, "SNAPSHOT", "LOAD");
-    rk_cell(SCR_PROJECT, "SNAPSHOT", "CLEAR");
+    rk_prj("SNAPSHOT", PO_LOAD);
+    rk_prj("SNAPSHOT", PO_CLEAR);
 #endif
 #if SL24_AUTO
     rk_cell(SCR_PROJECT, "SLOOP", "IMPORT");

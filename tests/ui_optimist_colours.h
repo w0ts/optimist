@@ -125,7 +125,7 @@ static void cc_red_tests(void)
           "the header's REC mark: recording green, waiting amber");
     /* the modal is red exactly when its card is, on PROJECT / SNAPSHOT / USER: SAVE over a used slot is red, into a free one not */
     for (kind = 0; kind < 3u; kind++) {
-        uint32_t row, k2 = kind == PR_PROJECT ? 2u : 3u;
+        uint32_t row;
         reset_ui();
         song.sel = 0;
         op_enter(SCR_PROJECT);
@@ -134,12 +134,14 @@ static void cc_red_tests(void)
         if (row >= NPRJ)
             continue;
         ui.row[SCR_PROJECT] = (uint8_t)row;
-        SCREENS[SCR_PROJECT].cell(row, k2, &c);
-        ok &= !strcmp(act_verb(&c), "SAVE") && c.danger == (uint8_t)(prj_used(kind) != 0u);
-        ui.hot = (uint8_t)k2;
+        prj_op_row = (uint8_t)row;
+        prj_op_v = PO_SAVE;                             /* (OPERATION on SAVE) */
+        SCREENS[SCR_PROJECT].cell(row, 1, &c);
+        ok &= !strcmp(c.val, "SAVE") && c.col == (prj_slot_used(kind, prj_slot_cur(kind)) ? C_ERR : 0);
+        ui.hot = 1;
         frame();
         tap(B_SAVE);
-        ok &= op_armed() && ui.arm_danger == c.danger;
+        ok &= op_armed() && ui.arm_danger == (uint8_t)(prj_slot_used(kind, prj_slot_cur(kind)) != 0u);
         op_disarm();
     }
     check(ok, "PROJECT / SNAPSHOT / USER: SAVE is red over a used slot, neutral into a free one; the modal agrees with the card");
@@ -168,7 +170,7 @@ static void cc_dim_walk(uint32_t scr, uint32_t tr, uint32_t *bad_dim, uint32_t *
             SCREENS[scr].cell(r, k, &c);
             SCREENS[scr].name(r, nm);
             if (c.label && (c.dim || c.col == C_DIM) &&
-                !(!strcmp(c.val, "EMPTY") || !strcmp(c.val, "NOT IN BUILD") || !strcmp(c.label, "SLOT") || !strcmp(c.label, "SCENE"))) {
+                !(!strcmp(c.val, "EMPTY") || !strcmp(c.val, "NOT IN BUILD") || !strcmp(c.label, "SLOT") || !strcmp(c.label, "ITEM") || !strcmp(c.label, "SCENE"))) {
                 printf("  colours: screen %u row %s cell %u (%s = %s) is dim but not free / unused\n", scr, nm, k, c.label, c.val);
                 (*bad_dim)++;
             }

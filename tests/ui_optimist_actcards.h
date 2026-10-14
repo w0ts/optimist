@@ -90,17 +90,21 @@ static void ac_key_tests(void)
     kdown(k);
     check(song.g[G_SLOT] == 3 && ly_lock == LY_STEP && kb_kind[k] == KS_UI, "PROJECT, PROJECT row: key 3 picks slot 3, and plays nothing (the UI's)");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = WK(12);
     kdown(k);
     check(song.g[G_SLOT] == (FELUCCA_SECTIONS > 12 ? 13 : 3), "... a key past the slots: nothing (4 here)");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = WK(2);
     kdown(k);
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = 1u;                                             /* (a black key: silent, picks nothing) */
     kdown(k);
     check(song.g[G_SLOT] == 3 && kb_kind[k] == KS_UI, "... a black key: silent, picks nothing");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     for (w = 0; w < FELUCCA_SECTIONS && w < 16u; w++)
         used |= (uint32_t)(project_used(w) != 0) << w;
     keys_lit(&f, &d);
@@ -136,11 +140,13 @@ static void ac_key_tests(void)
     kdown(k);
     check(ui.user_slot == 19u, "USER row: key 4 picks the 4th slot of the page the cursor is on (U17 .. U32: U20)");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = WK(15);
     ui.user_slot = 2;
     kdown(k);
     check(ui.user_slot == 15u, "... on page 1, key 16 is U16");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
 #if FELUCCA_SNAPSHOTS
     for (r = 0; r < NPRJ && prj_kind(r) != PR_SNAP; r++)
         ;
@@ -150,6 +156,7 @@ static void ac_key_tests(void)
     kdown(k);
     check(ui.snap_slot == 1u && ly_lock == LY_STEP, "SNAPSHOT row: key 2 picks snapshot 2");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
 #endif
     for (r = 0; r < NPRJ && prj_kind(r) != PR_TOOLS; r++)
         ;
@@ -159,6 +166,7 @@ static void ac_key_tests(void)
     kdown(k);
     check(ly_lock == LY_STEP && kb_kind[k] == KS_UI, "PROJECT's TOOLS row: the keys play nothing either");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     keys_lit(&f, &d);
     check(!(f | d), "... and light nothing");
     op_enter(SCR_HOME);
@@ -166,6 +174,7 @@ static void ac_key_tests(void)
     kdown(k);
     check(ly_lock == LY_PLAY && kb_kind[k] != KS_UI, "leaving PROJECT: the keys play again");
     kup(k);
+    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     reset_ui();
 }
 static void actcards_tests(void)
@@ -181,15 +190,11 @@ static void actcards_tests(void)
     printf("  actcards: %u action cards walked\n", ac_cards);
     check(ac_cards >= 8u && !ac_bad, "every action card on every screen and row: the verb (never YES), YES asks, HOME cancels");
     reset_ui();
-    rk_at(SCR_PROJECT, "PROJECT", "LOAD");
-    SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 1, &c);
-    check(!strcmp(act_verb(&c), "LOAD") && !strcmp(act_small(&c), "PROJECT") && c.danger == (uint8_t)(prj_used(PR_PROJECT) && work_changed()) && !strcmp(c.label, "LOAD"),
-          "PROJECT LOAD: the card says LOAD over PROJECT; the list column keeps its label");
+    rk_at(SCR_PROJECT, "PROJECT", "NEW");
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 3, &c);
-    check(!strcmp(act_verb(&c), "NEW") && c.danger, "PROJECT NEW: NEW, in the alarm colour");
-    rk_at(SCR_PROJECT, "USER", "ERASE");
-    SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 2, &c);
-    check(!strcmp(act_verb(&c), "ERASE") && !strcmp(act_small(&c), "USER") && c.danger, "USER ERASE: ERASE over USER, alarm");
+    check(!strcmp(act_verb(&c), "NEW") && !strcmp(act_small(&c), "PROJECT") && c.danger, "PROJECT NEW: NEW over PROJECT, in the alarm colour");
+    SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 1, &c);
+    check(c.kind == CK_VAL && !strcmp(c.label, "ACTION") && !strcmp(c.val, "LOAD"), "PROJECT's OPERATION card says LOAD at first");
     rk_at(SCR_SOUND, "SOUND", "INIT");
     SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 2, &c);
     check(!strcmp(act_verb(&c), "INIT") && !strcmp(act_small(&c), "SOUND") && c.danger, "SOUND INIT: INIT over SOUND, alarm");

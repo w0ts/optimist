@@ -1058,6 +1058,8 @@ static void op_frame_draw(void)
         else if (dev_listing())
             dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */
 #endif
+        else if (prj_listing())
+            prj_draw(OP_PY, OH_BODY);                   /* PROJECT's slot rows: the strip and the item (op_prjflow.c) */
         else
             draw_list();
         if (ov == 2u) {                                 /* the toast over the live panel: again when it redrew */

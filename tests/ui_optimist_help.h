@@ -94,9 +94,12 @@ static void help_tests(void)
         }
     check(ok, "PROJECT: every cell's help on the last line (an action that asks says so)");
     ui.row[SCR_PROJECT] = 0;
-    ui.hot = 1;                                         /* (the PROJECT row's LOAD) */
+    ui.hot = 1;                                         /* (the PROJECT row's ACTION card) */
     frame();
-    check(hlt_text_is("Load the project (asks)"), "... PROJECT LOAD: \"Load the project (asks)\"");
+    check(hlt_text_is("Load or save, then a key"), "... PROJECT ACTION: \"Load or save, then a key\"");
+    ui.hot = 3;
+    frame();
+    check(hlt_text_is("Blank project (slots kept)"), "... PROJECT NEW: \"Blank project (slots kept)\" (it clears the work, no slot)");
     check(OP_PY + LIST_H == HL_Y, "... PROJECT's rows end over the help line");
     op_enter(SCR_SOUND);                                /* a value turned: the line ~2 s, then gone */
     ui.row[SCR_SOUND] = 1;

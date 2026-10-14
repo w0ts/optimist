@@ -19,7 +19,7 @@
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
  * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_tools.c (STEP's TOOLS and EUCLID), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO), op_walk.c
  * (ALGORITHM's walk, a lane's own sound),
- * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM), op_global.c (GLOBAL, GLO
+ * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_prjflow.c (PROJECT), op_project.c (SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
@@ -51,6 +51,7 @@
 #include "op_walk.c"
 #include "op_song.c"
 #include "op_combos.c"
+#include "op_prjflow.c"            /* PROJECT: BANK / OPERATION / ITEM, the keys, the info panel */
 #include "op_project.c"
 #include "op_global.c"
 #include "op_graph.c"
