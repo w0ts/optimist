@@ -38,7 +38,7 @@ The sections "Inherited from SLOOP 2.x" below are history: they list what SLOOP'
 - **MPC swing** (50–75 %), a sample-accurate clock (no drift, any tempo), tighter glides for the 808s.
 - **Master:** **DUST** (an old sampler and a record: bits, rate, crackle), **DUCK** (the kick pumps the synths), **FILT** (DJ filter: low-pass ← OFF → high-pass).
 - **Web editor:** the drum track as a 16-lane grid with levels and ratchets, the kit, the master page.
-- **Safer updates:** the installer checks the package's SHA-256 and only resumes the update loader of an Optimist, SLOOP or Felucca firmware; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know.
+- **Safer updates:** the installer checks the package's SHA-256 and only resumes the update loader of an Optimist, SLOOP or Felucca firmware; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know. Before anything is erased, the FM-1 refuses a package made for another device or one whose firmware area is not exactly the FM-1's (the update screen shows FAILED -15; after Felucca 1.6.1), and a cut-short or damaged one (FAILED -6 or -16). A package that would write past the firmware area (Baud Girl's) is refused too: go back to V15 first.
 
 ---
 

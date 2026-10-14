@@ -20,7 +20,7 @@ static uint8_t *logical;
 static size_t logical_len;
 static uint8_t rx[1024];                 /* one pending host frame (7-bit bytes) */
 static uint32_t rx_len, rx_full;
-static uint32_t now_ms, requests, ident_replies, mute_after = 0xFFFFFFFFu, bad_erase;
+static uint32_t now_ms, requests, ident_replies, mute_after = 0xFFFFFFFFu, bad_erase, erases, first_erase_req;
 static int committed;
 static uint8_t committed_parm[112];
 static int32_t last_code;
@@ -77,7 +77,8 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
         memset(m + 14, 0, len);
         memcpy(m + 14, "success", 8);
     } else {
-        if (addr + len > logical_len) { printf("read past the package %#x\n", addr); exit(1); }
+        if (addr + len > logical_len)
+            return 0;                                     /* past a cut-short package: the host has nothing to send */
         memcpy(m + 14, logical + addr, len);
         if (corrupt_at && corrupt_at >= logical + addr && corrupt_at < logical + addr + len)
             m[14 + (corrupt_at - (logical + addr))] ^= 0x01;
@@ -99,6 +100,8 @@ static void ota_idle(void) { now_ms += 1; }
 static int ota_erase(uint32_t off)
 {
     if (off < 0xE0000u || off >= 0xE5000u || (off & 0xFFFu)) { bad_erase++; return -8; }
+    if (!erases++)
+        first_erase_req = requests;                       /* the read requests before anything was erased */
     memset(nor + off, 0xFF, 4096);
     return 0;
 }
@@ -131,6 +134,43 @@ static uint32_t ota_body_off(void)                  /* ota.bin data + 0x20 in th
     return 0;
 }
 
+/* rewrite flash.bin's size in the logical image's UFW entry list (the entries' and the header's CRCs too): a package
+ * for the same chip whose app area is another board's size (after Felucca 1.6.1's tests) */
+static void set_fl_size(uint8_t *lg, uint32_t size)
+{
+    uint8_t h[0x40 + 11 * 0x50];
+    uint32_t i, n;
+    memcpy(h, lg, sizeof h);
+    ota_jl_enc(h, 0x40);
+    n = ota_rd16(h + 8);
+    for (i = 0; i < n; i++) {
+        uint8_t *e = h + 0x40 + i * 0x50u;
+        ota_jl_enc(e, 0x50);
+        if (ota_rd16(e) == 0)
+            ota_wr32(e + 12, size);
+        ota_jl_enc(e, 0x50);
+    }
+    ota_wr16(h + 2, ota_crc16(h + 0x40, n * 0x50u, 0));   /* (over the entries as stored) */
+    ota_wr16(h, ota_crc16(h + 2, 0x3E, 0));
+    ota_jl_enc(h, 0x40);
+    memcpy(lg, h, 0x40 + n * 0x50u);
+}
+
+static uint32_t fl_entry(uint32_t field)            /* flash.bin's UFW entry: 8 = its offset, 12 = its size */
+{
+    uint8_t h[0x400];
+    uint32_t i, n;
+    memcpy(h, logical, sizeof h);
+    ota_jl_enc(h, 0x40);
+    n = ota_rd16(h + 8);
+    for (i = 0; i < n; i++) {
+        uint8_t *e = h + 0x40 + i * 0x50u;
+        ota_jl_enc(e, 0x50);
+        if (ota_rd16(e) == 0) return ota_rd32(e + field);
+    }
+    return 0;
+}
+
 static int check(const char *what, int ok)
 {
     printf("%-52s %s\n", what, ok ? "ok" : "FAIL");
@@ -149,7 +189,7 @@ static void reset_dev(void)
     memset(nor, 0xFF, sizeof nor);
     memcpy(nor, logical + 0x400, 0x4000);                 /* device flash head = package flash.bin head */
     rx_full = 0; requests = 0; ident_replies = 0; committed = 0; last_code = 0;
-    mute_after = 0xFFFFFFFFu; corrupt_at = NULL; bad_erase = 0;
+    mute_after = 0xFFFFFFFFu; corrupt_at = NULL; bad_erase = 0; erases = 0; first_erase_req = 0;
 }
 
 int main(int argc, char **argv)
@@ -190,8 +230,8 @@ int main(int argc, char **argv)
     reset_dev();
     rc = ota_session();
     printf("  %u requests\n", requests);
-    bad += check("session commits", rc == 0 && committed);
-    bad += check("headers + loader + confirm, no head reads", requests >= 10 && requests <= 30);
+    bad += check("session commits (flash.bin exactly the app area)", rc == 0 && committed && fl_entry(12) == 0x93000u);
+    bad += check("headers + loader twice + confirm, no head reads", requests >= 10 && requests <= 45);
     {
         uint8_t *h = nor + 0xE0000, *p = committed_parm;
         bad += check("staged body == the package's loader", !memcmp(nor + 0xE0020, logical + ota_body_off(), 64));
@@ -207,11 +247,75 @@ int main(int argc, char **argv)
     bad += check("boot cleanup erases the area", ota_boot_cleanup() == 1 && area_erased());
     bad += check("second boot: nothing to do", ota_boot_cleanup() == 0);
 
+    /* everything below is refused before anything is erased (the staging area included): another board's package,
+     * a cut-short one, a damaged or foreign update loader. A failure once the staging began still erases it. */
+    {
+        static const uint32_t SZ[3] = {0x9D000u, 0xB7000u, 0x93000u - 1u};   /* an SMK-37's app area; a stock-loader
+                                                                              * package that writes past the app
+                                                                              * area (Baud Girl's 0xB7000); one
+                                                                              * byte short */
+        static const char *const WHAT[3] = {"another board's size (0x9D000): -15, nothing erased",
+                                            "a flash.bin past the app area (0xB7000): -15, nothing erased",
+                                            "a flash.bin a byte short: -15, nothing erased"};
+        uint8_t keep[0x40 + 11 * 0x50];
+        uint32_t k;
+        memcpy(keep, logical, sizeof keep);
+        for (k = 0; k < 3u; k++) {
+            reset_dev();
+            set_fl_size(logical, SZ[k]);
+            rc = ota_session();
+            bad += check(WHAT[k], rc == -15 && !committed && erases == 0 && last_code == -15);
+            memcpy(logical, keep, sizeof keep);
+        }
+    }
+    {
+        size_t full = logical_len;
+        uint32_t body = ota_body_off();
+        reset_dev();
+        logical_len = body + 0x800u;                       /* cut in the middle of the update loader */
+        rc = ota_session();
+        bad += check("cut short in the loader: refused, nothing erased", rc < 0 && !committed && erases == 0);
+        reset_dev();
+        logical_len = fl_entry(8) + 0x1000u;               /* cut inside flash.bin (the loader is after it) */
+        rc = ota_session();
+        bad += check("cut short in flash.bin: refused, nothing erased", rc < 0 && !committed && erases == 0);
+        logical_len = full;
+        reset_dev();
+        corrupt_at = logical + body + 0x400u;              /* the loader damaged on the way, every time */
+        rc = ota_session();
+        bad += check("a damaged loader: -16, nothing erased", rc == -16 && !committed && erases == 0);
+        {
+            uint8_t *mark = NULL;
+            uint32_t j;
+            for (j = 0; j < 0x80u && !mark; j++)
+                if (!memcmp(logical + body + j, "FELUCCA-LOADER-1", 16))
+                    mark = logical + body + j;
+            reset_dev();
+            if (mark)
+                mark[3] ^= 0x20;                           /* "FELucca-...": not ours, not the official loader */
+            rc = ota_session();
+            bad += check("a foreign update loader: -7, nothing erased", mark && rc == -7 && !committed && erases == 0);
+            if (mark)
+                mark[3] ^= 0x20;
+        }
+    }
+
     /* host disappears in the middle */
     reset_dev();
     mute_after = 4;
     rc = ota_session();
     bad += check("host gone -> no commit, area clean", rc < 0 && !committed && area_erased());
+    {
+        uint32_t at;
+        reset_dev();
+        rc = ota_session();
+        at = first_erase_req;                              /* requests answered before the first erase */
+        reset_dev();
+        mute_after = at + 2u;                              /* gone while the loader is being staged */
+        rc = ota_session();
+        bad += check("host gone while staging -> no commit, area erased again", rc < 0 && !committed && erases > 5u &&
+                     area_erased());
+    }
 
     /* host never confirms */
     reset_dev();
