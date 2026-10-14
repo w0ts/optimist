@@ -761,6 +761,32 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
             m |= 1u << (op_pg(i)->fam % 32u);
     return m;
 }
+/* OCT- / OCT+ glow like any button, only where a tap or a hold + something does something (the user, 2026-10-14: "oct +/-
+ * should be lit up only when they do something"). Both: the octave where the note keys play on a synth track (a tap on
+ * release; a held step's notes; both = octave 0 / FOLLOW), STEP on the drum track (ghost / hard held), the TEMPO nudge.
+ * OCT- is SHIFT, so also where a SHIFT combo exists: SOUND (knob reset,
+ * PRESETS), STEP, the mixer off MASTER (reset, the lane pick, SHIFT + key), the BLE devices list (FORGET LAST). OCT+ is
+ * SHIFT2, so also the mixer off MASTER (the volume card's mute). Dark: the NAME screen, MASTER, GLOBAL (but the tempo
+ * line), SYSTEM, PROJECT, SONG, SCOPE and the other pages of no keys */
+#if FELUCCA_BLE
+static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
+#endif
+static uint32_t op_oct_avail(void)
+{
+    uint32_t both = 1u << B_OCTDN | 1u << B_OCTUP, m = 0;
+    int mixer = ui.scr == SCR_HOME && !mx_on_master();
+    if ((!keys_none() && !is_drum(TSEL)) || (ui.scr == SCR_STEP && is_drum(TSEL)) || tempo_nudging())
+        m = both;
+    if (mixer || ui.scr == SCR_SOUND || ui.scr == SCR_STEP)
+        m |= 1u << B_OCTDN;
+#if FELUCCA_BLE
+    if (dev_listing())
+        m |= 1u << B_OCTDN;
+#endif
+    if (mixer)
+        m |= 1u << B_OCTUP;
+    return m;
+}
 static uint32_t op_btn_avail(void)                      /* a bit per panel button (B_*) that has a function now */
 {
     static const uint8_t PAGE_BTN[] = {B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_ARP};
@@ -768,7 +794,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
     uint32_t m = 1u << B_HOME | 1u << B_SAVE | 1u << B_PLAY, fam, i, l;
     if (name_on())
         return m;
-    m |= 1u << B_REC | 1u << B_OCTDN | 1u << B_OCTUP | 1u << B_GLO | 1u << B_SEQ;
+    m |= 1u << B_REC | 1u << B_GLO | 1u << B_SEQ | op_oct_avail();
     fam = op_fam_mask();
     for (i = 0; i < sizeof PAGE_BTN; i++) {
         uint32_t b = PAGE_BTN[i];
@@ -822,8 +848,8 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
     } else {
-        led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
-        led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
+        led_put(nl, panel.btn[B_OCTDN], song.octave < 0 && ((avail >> B_OCTDN) & 1u));   /* (the octave shown only where it works) */
+        led_put(nl, panel.btn[B_OCTUP], song.octave > 0 && ((avail >> B_OCTUP) & 1u));
     }
     keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
     for (c = 0; c < 27u; c++) {
