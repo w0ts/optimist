@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""insfx: the further insert types at the panel (SLOOP's UI; fx/insfx/insfx.c: FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO, each a
+"""insfx: the further insert types at the panel (SLOOP's UI; fx/insfx/insfx.c: FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER, each a
 builder item, INS_*). For every one this build has: FX > INSERTS lists it; into T1's S1, at amount 0 the same samples as
 the default layout (bit for bit); at 127 heard (the capture differs); with T1's FX bypassed (GLO + white 9) the
 bypassed default's samples (no sends either);
@@ -10,7 +10,8 @@ import fxkit as X
 
 T1_KEY = F.white(5)
 GAP = 1.0
-NEW = (7, 8, 9, 10, 11, 12, 13, 14)               # (13 14: CHRS ECHO, an instance each from the main loop: fxi.c)
+NEW = (7, 8, 9, 10, 11, 12, 13, 14, 15)           # (13 14: CHRS ECHO, an instance each from the main loop: fxi.c; 15
+                                                  # GATER: stopped, it runs on at the tempo, TRNC1's 2nd step closed)
 # the bypassed capture against the first dry one: up to 2 LSB. The master's DC blocker (fx.c dc_block) keeps its step's
 # remainder (0..4095) for ever, so most likely (not traced) the small DC a loud FOLD or FRMT left in the mix moves a later sample by
 # 1 LSB (measured: 1.53e-05, after 1 s or 4 s alike); the insert itself is not running (back at 0: exact)

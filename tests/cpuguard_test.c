@@ -150,7 +150,7 @@ static void test_model(void)
                 ok &= cg_est() == e1;
                 trk[0].p[P_FXOFF] = 0, trk[0].p[FXT_AMT[t]] = 0;
 #if INS_LIM
-                if (t >= FXT_LIM0) {                    /* (a limited type: not counted on a track left without an
+                if (FXT_IS_LIM(t)) {                    /* (a limited type: not counted on a track left without an
                                                          * instance; ECHO's one is T1's, then the drum track's) */
                     TDRUM->p[FXT_AMT[t]] = 90;
                     ok &= ifx_has(t, TRK_DRUM) || cg_est() == e1;

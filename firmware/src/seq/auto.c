@@ -45,9 +45,9 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
  * the id 2.4's FILT has elsewhere: without the map a FILT event from a TRK_FILT build played as COMP here. An event for
  * a value after P_E7 that this build lacks is kept and not played: it plays again in a build that has the value. The
  * pseudo-parameters come after every stored id (auto.h) */
-#define MOT_NTAIL 12u                                         /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP,
+#define MOT_NTAIL 13u                                         /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP,
                                                               * +4 .. +9 the further inserts' FOLD FUZZ PHSR FLNG FRMT WIDE,
-                                                              * +10 +11 CHRS ECHO) */
+                                                              * +10 +11 CHRS ECHO, +12 GATER's DEPTH) */
 #define MOT_TAIL_END (P_ENG_END + MOT_NTAIL)
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
 _Static_assert(MOT_TAIL_END <= AUTO_NGATE0, "the note ends and the drum lanes' ids (auto.h): past every build's stored track ids");
@@ -65,9 +65,9 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
     P_COUNT,
 #endif
 #if INS_FX
-    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO,
+    P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO, P_TGATE,
 #else
-    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
+    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
 #endif
 };
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */

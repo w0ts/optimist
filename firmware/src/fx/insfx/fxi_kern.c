@@ -17,11 +17,11 @@
  * its send's line lent while the send is in no master slot (fxi.c "Lending"; FXI_LND below). Its evict flag (fxi.c,
  * the line going back to the send) fades it out as at amount 0. */
 #if INS_LIM
-#define FXI_NL ((uint32_t)(FXT_N - FXT_LIM0))           /* the limited types: CHRS ECHO */
+#define FXI_NL ((uint32_t)(FXT_LIMN - FXT_LIM0))        /* the limited types: CHRS ECHO */
 #define FXI_NONE 0xFFu
 _Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_INS_DELAY >= 0 && FELUCCA_INS_DELAY <= NTRK,
                "an instance count: 0 .. a track each");
-_Static_assert(FXT_LIM0 == FXT_N - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO the last two types");
+_Static_assert(FXT_LIM0 == FXT_LIMN - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO the two limited types");
 static const uint8_t FXI_CAP[2] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY};   /* (by type, from FXT_LIM0) */
 /* the instances a send's line can lend (fxi.c, "Lending"): CHRS in the chorus send's 2048 samples (2 lines of 1024),
  * ECHO in the delay send's (its lines of 4096: 4 at any DLY_LEN, 16384 the shortest), never more than the tracks left
@@ -184,7 +184,7 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
 AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
 {
     uint32_t i;
-    if (ty < FXT_LIM0 || ty >= FXT_N || (i = ifx_lim_at(ty, k)) == FXI_NONE)
+    if (!FXT_IS_LIM(ty) || (i = ifx_lim_at(ty, k)) == FXI_NONE)
         return 0;
 #if FELUCCA_INS_CHORUS
     if (ty == FXT_CHRS)

@@ -458,6 +458,13 @@ _add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the 
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
           "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off."
           + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
+# GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
+_add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
+     desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
+          "and the sequencer's steps (it restarts with PLAY, follows the swing): one of 16 built-in 16-step patterns "
+          "(trance gates, 1/8 and 1/16 chops, offbeats, dotted, clave), a RATE of 1/8, 1/16, 1/32 or their triplets, "
+          "DEPTH (the amount: how far a closed step closes, 0 off) and SHAPE (hard to smooth). Every track can run it "
+          "at once.", symbols=("ifx_gate",), notice="Tested in the host tests only, not on a device.")
 _add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), STRUM, VLEAD", "Sequencer", 206, default=0,
      provenance=SLOOP_24,
      desc="With a chord mode on (SCL > CHORD), the black keys change the chord played: F# major <-> minor, G# adds "

@@ -319,6 +319,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_DELAY
 #define FELUCCA_INS_DELAY 0                /* ECHO: a 75 ms slapback with feedback, 8 KB of pool an instance */
 #endif
+#ifndef FELUCCA_INS_GATER
+#define FELUCCA_INS_GATER 0                /* GATER: a tempo-synced 16-step volume gate (fx/insfx/gater.c), any number */
+#endif
 #ifndef FELUCCA_CHORDPLUS
 #define FELUCCA_CHORDPLUS 0               /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2
                                             * STRUM and VLEAD (seq.c chord_play_notes, voice.c strum_*) */
