@@ -51,7 +51,11 @@ static void cell_act(cell_t *c, const char *obj, const char *label, const char *
     if (verb)
         str_cpy(c->val, verb, sizeof c->val);
 }
-static int is_go(const param_desc_t *d)              /* a GO button: YES does it, a turn does nothing */
+/* recording is a thing that runs, not one that destroys (style guide 7: red only destroys or replaces): green while it
+ * records, amber (pending) while it waits for the first note or the bar; the song's REC: 2 recording, 1 armed */
+static uint16_t rec_col(uint32_t recording, uint32_t waiting) { return recording ? C_OK : waiting ? C_WARN : 0; }
+static uint16_t srec_col(void) { return rec_col(srec == 2u, srec == 1u); }
+static int is_go(const param_desc_t *d)             /* a GO button: YES does it, a turn does nothing */
 {
 #if BP_SET_ANY
     if (d->names == N_BPGO)                             /* (ACID GEN > GEN) */
@@ -59,7 +63,10 @@ static int is_go(const param_desc_t *d)              /* a GO button: YES does it
 #endif
     return d->fmt == F_ENUM && d->names == N_GO;
 }
-static int is_toggle(const param_desc_t *d) { return d->fmt == F_ONOFF || (d->fmt == F_ENUM && d->max - d->min == 1); }
+/* a GO button that destroys or replaces work is red, card and modal alike (style guide 7): every one but a SAVE (into a
+ * free slot: neutral) and the ACID line's GEN (a new line, the undo keeps the old one) */
+static uint32_t go_danger(const param_desc_t *d) { return !str_eq(d->label, "SAVE") && !str_eq(d->label, "GEN"); }
+static int is_toggle(const param_desc_t *d){ return d->fmt == F_ONOFF || (d->fmt == F_ENUM && d->max - d->min == 1); }
 /* the form of a value v in min..max: a list (enum) or a number, by its range */
 static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32_t v)
 {
@@ -128,7 +135,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
         const char *l = d->label;                       /* (the object and the verb a card shows; the label stays the list's) */
         cell_act(c, str_eq(l, "NEW") ? "PROJECT" : str_eq(l, "CLRSQ") ? "PATTERN" : str_eq(l, "INIT") ? "SOUND" :
                     str_eq(l, "GEN") ? "ACID LINE" : "KIT", l, str_eq(l, "CLRSQ") ? "CLEAR" : 0,
-                 !str_eq(l, "SAVE") && !str_eq(l, "GEN"));
+                 go_danger(d));
         return;
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
@@ -650,7 +657,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
             arg = id == 15u ? LANE_NAME[lane_selected()] : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
         else if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
             arg = "";                                   /* "NEW?" */
-        op_arm(scr, row, k, d->label, arg, 1);
+        op_arm(scr, row, k, d->label, arg, go_danger(d));
         return 1;
     }
     if (pg->scope == SC_DSND) {

@@ -203,9 +203,10 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             str_cpy(c->val, arrangement_enabled ? "SONG" : "LOOP", sizeof c->val);
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 1u) {
-            cell_act(c, "SONG", "REC", 0, !srec);   /* an action card: a turn only
-                                                         * picks it, YES arms (asks over a song) or stops (the user, 2026-10-13) */
-            c->col = srec ? C_ERR : 0;
+            cell_act(c, "SONG", "REC", 0, 0);           /* an action card: a turn only picks it, YES arms (asks over
+                                                         * a song: the modal is the red one) or stops (the user, 2026-10-13);
+                                                         * not destructive itself: never red (style guide 7) */
+            c->col = srec_col();
         } else if (k == 2u) {
 #if SEC_LOGGED
             prj_mem(c, 0);                              /* (op_project.c: the MEM gauge) */

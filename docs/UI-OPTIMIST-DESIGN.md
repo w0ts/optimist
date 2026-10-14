@@ -2982,3 +2982,36 @@ Tests: tests/ui_optimist_layout.h (every screen, engine, the drum track and each
 and set, the mixer's sets, the master FX, PROJECT, SONG, TEMPO, SCOPE, GLOBAL, SYSTEM, the layers plain and on MASTER: a
 badge, the title not repeating it, the empty rule, no one-card page but the two kept, no DUST unbuilt; the merges);
 run_tests.sh runs it once more without DUST built.
+
+## 34. Colour means something (feat/ui-colours, 2026-10-14; the coherence audit's batch C)
+
+The audit's items #26, #27, #39, #47 and the amber / green checks (STYLE.md section 7). Colour choices only: no geometry.
+- **Mute tiles** (#26): the GLO layer's MUTE T1..T4 tiles are outlined (black, a band in the track's colour, as the SOLO
+  tiles) while the track is heard and filled in the track's colour only when it is muted (they were filled when nothing
+  was muted). op_laydraw.c `tiles_fill`.
+- **Red only destroys or replaces work** (#27). One predicate per action, shared by the card's verb and the modal's frame
+  (a modal that is not red keeps the amber frame: pending until YES):
+  - SONG REC is never red: the card's verb and the song layer's REC read-out are green while recording, amber while
+    armed; the "Record over song?" modal (a stored song of parts) is the red one. The header's REC mark follows
+    (`rec_col`: recording green, waiting for the note amber). op_cells.c `rec_col`, `srec_col`, op_draw.c `act_col`.
+  - PROJECT / SNAPSHOT / USER (`prj_danger`): SAVE, CLEAR and ERASE are red over a slot that holds something and neutral
+    into a free one; LOAD is red when the work is not as stored (it replaces edits), neutral otherwise; NEW is always red;
+    IMPORT is red on the card too (as its modal). The card and the modal agree (the card's SAVE was white over a used slot).
+  - GO buttons on the pages (`go_danger`): every one is red but SAVE (a kit into a slot) and the ACID line's GEN; the
+    modal now follows the card (SAVE and GEN asked in red before). FM6: STORE and INIT red, SEND neutral, card and modal.
+  - Unchanged and right: SOUND INIT red, SAVE AS neutral (a new preset), PART DELETE red / INSERT neutral, the scene /
+    pattern STORE (asked only over a used slot) and CLEAR red, DISCARD, FORGET red, CONNECT / CALIBRATE neutral.
+- **Dim is free / unused** (#39): the SONG SCENE value and the SLOT cards were already dim only when nothing is stored
+  there; what was dim for another reason is grey: a list row's action verbs (LOAD SAVE...: labels). Units and the empty
+  step marks stay dim (typography of a value, an empty cell). Kept as unused: scale degrees outside the scale, steps the
+  probability cuts, a muted operator or sequencer lane.
+- **Amber is changed / pending / gain reduction / a notice** (C_WARN). The palette's fourth step (C_AMB, "secondary
+  text") is not amber: a read-out (RO cell) is C_GRAY in cards and the settings lists; the state marks that meant amber
+  now are C_WARN (SERIAL pending a restart, BLE NO CAL, CLK OUT blocked, the 2ND CORE OFF reason, a hold event's arrow,
+  the step lock's hold arrow); the drum track's "DR" tag and a device's status tag are grey.
+- **SUPER** (#47): SUPER's colour moves from #da775d to #c653af (a magenta, hue 312) so ANALOG (34), the drum coral (11) and
+  SUPER differ by >= 15 degrees of hue and SUPER holds white text at 4:1 (it is >= 15 degrees from every engine and kit
+  colour). tools/colors.json and web/editor.html (the web editor's test checks them equal); SLOOP's UI draws the same table.
+Tests: tests/ui_optimist_colours.h (mute tiles; every action card walked against the list of what may be red, the SONG
+REC colours, SAVE red exactly over a used slot and the modal equal to the card; dim only on free / unused; no cell in the
+palette's secondary step; the three hues).
