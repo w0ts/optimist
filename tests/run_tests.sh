@@ -709,6 +709,14 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FX_DUST=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nodust_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without DUST built: no DUST card on the mixer's MASTER set, the master FX (INS TONE: the built values first) or a layer; the badges, the empty rule" "$OUT/ui_optimist_nodust_test" "$OUT/optimist-nodust"
 ) >"$U.out" 2>&1 & jobbg
+# the user's own build (tests/profiles/mots-like.config, a copy of config/my-profiles/mots.config of 2026-10-14; the flags are
+# the builder's for it, tools/config_flags.py): knob acceleration, DIV_ORDER, no SLICER, the X0X kits, PARAM_HELP, patterns...
+job; ( jobin
+    mkdir -p "$OUT/optimist-mots"
+    MOTS_FLAGS=$(python3 tools/config_flags.py tests/profiles/mots-like.config)
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $MOTS_FLAGS -o "$OUT/ui_optimist_mots_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with the mots-like build's flags (tests/profiles/mots-like.config): the whole test, as the user flashes it" "$OUT/ui_optimist_mots_test" "$OUT/optimist-mots"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
     run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"

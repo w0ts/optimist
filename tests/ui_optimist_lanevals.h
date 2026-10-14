@@ -128,7 +128,7 @@ static void lv_dr_tag_tests(void)
     r = lv_row_named("BUS SENDS");
     check(r < SCR->rows() && lv_row_dr(r), "BUS SENDS: the drum bus's own, tagged DR");
     r = lv_row_named("SLICER");
-    check(r < SCR->rows() && lv_row_dr(r), "SLICER: tagged DR");
+    check(FELUCCA_FX_SLICER ? r < SCR->rows() && lv_row_dr(r) : r >= SCR->rows(), "SLICER: tagged DR (no row when not built)");
     op_enter(SCR_SOUND);
     snd_family(SND_ALL);
     r = lv_row_named("PATTERN");
