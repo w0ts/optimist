@@ -594,6 +594,15 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
             v->s[0] = s0;                               /* filter */
             v->s[1] = s1;
             v->s[4] = s4;                               /* the sample waiting for its step corrections */
+#if FELUCCA_ENG_NOISE
+        } else if (ENG_IS(e, NOISE)) {
+            v->s[0] = s0;                               /* the filter, the pink poles and the brown pole (the */
+            v->s[1] = s1;                               /* original's keep 0xF3); the generator s[2], the drift */
+            v->s[4] = s4;                               /* s[3] as note_on left them */
+            v->s[5] = s5;
+            v->s[6] = s6;
+            v->s[7] = s7;
+#endif
 #if !FELUCCA_ANALOG2
         } else if (ENG_IS(e, SUPER)) {
             v->s[0] = s0;                               /* filter, its second stage, the sub phase */

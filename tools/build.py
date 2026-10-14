@@ -206,6 +206,7 @@ ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unus
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ",
                   "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
+BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
