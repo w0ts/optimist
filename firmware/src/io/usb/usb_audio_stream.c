@@ -27,6 +27,8 @@ static struct {
     int32_t play_fill_q8, cap_fill_q8;
     uint32_t play_underruns, play_overruns, cap_underruns, cap_overruns, bad_packets;
     uint32_t rx_packets, tx_packets, missed_frames;
+    /* (diagnostics, SYSTEM > INFO; new fields stay at the END: the emulator test reads the counters above by offset) */
+    uint32_t poll_t, rx_t, gap_max, gap_n, fill_lo1;   /* TIMER4 ticks (24 MHz): the poll now / the last packet's; the longest poll gap and the count over 900 us; the lowest ring fill + 1 (0: none) */
 } ua;
 static int16_t ua_play[UA_RING * 2u] __attribute__((section(".pool")));
 static int16_t ua_cap[UA_RING * UA_CAP_CHANNELS] __attribute__((section(".pool")));
@@ -161,11 +163,17 @@ static void ua_receive(const uint8_t *p, uint32_t bytes)
         ua.pw++;
     }
     ua.rx_packets++;
+    ua.rx_t = ua.poll_t;                       /* (the poll that took it) */
 }
 
 /* Called once per observed USB frame, not once per poll or audio callback. */
 static void ua_sof(void)
 {
+    if (ua.play_ready) {
+        uint32_t f = ua.pw - ua.pr + 1u;
+        if (!ua.fill_lo1 || f < ua.fill_lo1)
+            ua.fill_lo1 = f;
+    }
     if (ua.play_ready)
         ua.play_fill_q8 += ((int32_t)(ua.pw - ua.pr) * 256 - ua.play_fill_q8) / 32;
     if (ua.cap_ready)
@@ -185,6 +193,25 @@ static uint32_t ua_rate(int32_t error_q8)
 static uint32_t ua_feedback(void)
 {
     return ua_rate(UA_TARGET * 256 - ua.play_fill_q8);
+}
+
+/* the TIMER5 poll's gap since the last one (ticks), while a stream runs (main.c fm1_timer5_irq) */
+static inline void ua_poll_gap(uint32_t now, uint32_t gap)
+{
+    ua.poll_t = now;
+    if (!ua.play_alt)
+        return;
+    if (gap > ua.gap_max)
+        ua.gap_max = gap;
+    if (gap > 900u * 24u)                      /* 900 us of 24 MHz ticks */
+        ua.gap_n++;
+}
+
+/* the computer is streaming into the FM-1 (a packet in the last 300 ms; now: fm1_ticks()): deferrable flash writes wait
+ * (project.c audio_quiet) */
+static int ua_streaming(uint32_t now)
+{
+    return ua.play_alt && now - ua.rx_t < 300u * 24000u;
 }
 
 static uint32_t ua_transmit(uint8_t *p)

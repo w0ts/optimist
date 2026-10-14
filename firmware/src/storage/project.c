@@ -1311,6 +1311,10 @@ static int autosave_put(uint32_t h)
 static int audio_quiet(void)
 {
     uint32_t p, i;
+#if FELUCCA_USB_AUDIO
+    if (ua_streaming(fm1_ticks()))                         /* a flash write holds every IRQ off: the computer's stream would glitch */
+        return 0;
+#endif
     for (p = 0; p < NPART; p++)
         for (i = 0; i < NVOICE; i++)
             if (trk[p].v[i].active)

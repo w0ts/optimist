@@ -550,12 +550,75 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     sys_it_cell(sys_item(r, k), c);
 }
-/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the memory */
-#define INFO_N 7u
+#if FELUCCA_USB_AUDIO
+/* the USB AUDIO lines at the end of the info page (the glitch diagnostics, 2026-10-14): counters since boot, read only.
+ * U/O/M/B: playback underruns / overruns / missed USB frames / bad packets. RX/FB: packets received (thousands) / the
+ * feedback sent to the computer (Hz). LOW/GAP: the ring's lowest fill (frames of 1024, target 512) / the longest gap
+ * between two USB polls (us) / the gaps over 900 us. FLASH OFF: the longest interrupts-off window of a flash op (us) */
+#define INFO_UA 4u
+static void ua_put(char *b, uint32_t v, char sep)        /* v capped at 999999, then sep, appended */
+{
+    uint32_t n = str_len(b);
+    fmt_int(b + n, (int32_t)(v > 999999u ? 999999u : v));
+    n = str_len(b);
+    b[n] = sep;
+    b[n + 1u] = 0;
+}
+static void sys_ua_cell(uint32_t i, cell_t *c)
+{
+    char *v = c->val;
+    cell_clear(c);
+    c->kind = CK_RO;
+    switch (i) {
+    case 0:
+        c->label = "UA U/O/M/B";
+        ua_put(v, ua.play_underruns, '/');
+        ua_put(v, ua.play_overruns, '/');
+        ua_put(v, ua.missed_frames, '/');
+        ua_put(v, ua.bad_packets, 0);
+        c->col = ua.play_underruns | ua.play_overruns | ua.missed_frames | ua.bad_packets ? C_WARN : 0;
+        break;
+    case 1:
+        c->label = "UA RX/FB";
+        ua_put(v, ua.rx_packets / 1000u, '/');
+        ua_put(v, (ua_feedback() * 1000u) >> 14, 0);
+        c->unit = "k/Hz";
+        break;
+    case 2:
+        c->label = "UA LOW/GAP";
+        if (ua.fill_lo1)
+            ua_put(v, ua.fill_lo1 - 1u, '/');
+        else
+            str_cpy(v, "--/", 4);
+        ua_put(v, ua.gap_max / 24u, '/');
+        ua_put(v, ua.gap_n, 0);
+        c->unit = "fr/us/n";
+        c->col = ua.gap_n ? C_WARN : 0;
+        break;
+    default:
+        c->label = "FLASH OFF";
+        ua_put(v, fm1_irqoff_max / 24u, 0);
+        c->unit = "us";
+        break;
+    }
+}
+#else
+#define INFO_UA 0u
+#endif
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the memory,
+ * then the USB AUDIO diagnostics (USB audio builds) */
+#define INFO_N (7u + INFO_UA)
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
-    static const uint8_t INFO[INFO_N] = {SI_MHZ, SI_CPU, SI_CPU1, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
-    sys_it_cell(INFO[i % INFO_N], c);
+    static const uint8_t INFO[7] = {SI_MHZ, SI_CPU, SI_CPU1, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
+    i %= INFO_N;
+#if FELUCCA_USB_AUDIO
+    if (i >= 7u) {
+        sys_ua_cell(i - 7u, c);
+        return;
+    }
+#endif
+    sys_it_cell(INFO[i], c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */
 static void sys_set(uint32_t it, int32_t s)
