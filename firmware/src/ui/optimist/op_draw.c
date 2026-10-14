@@ -64,7 +64,7 @@ static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a ov
 static uint32_t hu(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t hc(uint32_t h, const cell_t *c)        /* a cell's signature: all it draws */
 {
-    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
+    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u + c->dr * 512u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
     return hs(h, c->unit);
 }
 
@@ -414,6 +414,8 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     }
     if (!c->label)
         return;
+    if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
+        cv_text(x + CARD_W - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_AMB);
     {
         const char *lab = c->kind == CK_ACT ? act_small(c) : c->label;
         cv_text(x + (text_w(&FONT_S, lab) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, cut(b, op_label(b, lab, sizeof b), 7),
@@ -443,6 +445,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
     char b[16];
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
+    int32_t dw = c->dr ? text_w(&FONT_S, "DR") + 4 : 0;   /* (the DR tag's room, top right) */
     uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
     cv_box(x, y, BIG_W, BIG_H, OP_SURF);
     if (c->col)
@@ -462,13 +465,16 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     }
     if (!c->label)
         return;
+    uw += dw;
+    if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
+        cv_text(x + BIG_W - 3 - text_w(&FONT_S, "DR"), y + 2, &FONT_S, "DR", C_AMB);
     {
         char l[16];
         const char *lab = c->kind == CK_ACT ? act_small(c) : c->label;
         cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, lab, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
     }
     if (c->unit[0])
-        cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0), y + 2, &FONT_S, c->unit, C_DIM);
+        cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0) - dw, y + 2, &FONT_S, c->unit, C_DIM);
     if (c->kind == CK_ACT) {
         const char *v = act_verb(c);
         if (text_w(font_big(), v) <= BIG_W - 10)

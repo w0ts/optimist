@@ -2457,6 +2457,7 @@ static void led_tests(void)
 #include "ui_optimist_lfo2.h"                      /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
+#include "ui_optimist_lanevals.h"                  /* a picked lane shows the lane's values; the drum track's own tagged DR */
 
 int main(int argc, char **argv)
 {
@@ -2572,6 +2573,7 @@ int main(int argc, char **argv)
     cond_card_tests();
 #endif
     accent_ui_tests();
+    lanevals_tests();
 #if FELUCCA_BLE
     ble_tests();
 #endif
