@@ -87,7 +87,7 @@ typedef struct {                               /* one track; the drum track igno
     uint8_t engine, preset;
     union {
         pstep_t step[NSTEP];
-        dstep_t dstep[NSTEP];                  /* (the drum track: 16 lanes, the same size) */
+        dstep_sn_t dstep[NSTEP];               /* (the drum track: 16 lanes, the same size; its ACCENT lane: an event) */
     };
 } proj_trk_t;
 typedef struct {
@@ -117,7 +117,7 @@ typedef struct {                               /* a track of format 4, read only
     uint8_t engine, preset;
     union {
         pstep_t step[NSTEP];
-        dstep_t dstep[NSTEP];
+        dstep_sn_t dstep[NSTEP];
     };
 } proj_trk_v4_t;
 typedef struct {                               /* format 4 (SLOOP 2.0 .. 2.2), read only */
@@ -274,14 +274,15 @@ static void step_from8(pstep_t *d, const step8_t *s)
     d->lvl = d->rat = 0;
 }
 /* an old drum step (GM notes) into the drum track's lanes; its velocity / accent -> their level */
-static void dstep_from8(dstep_t *d, const step8_t *s)
+static void dstep_from8(dstep_sn_t *o, const step8_t *s)
 {
     uint32_t i, lvl = (s->flags & SF_ACCENT) || s->vel > 115u ? LV_HARD : !s->vel ? LV_NORM : vel_lvl(s->vel);
-    memset(d, 0, sizeof *d);
-    if (s->time != ST_NOTE)
-        return;
-    for (i = 0; i < s->n && i < 4u; i++)
-        dstep_set(d, lane_of_note(s->note[i] & 127u), lvl, 0);
+    dstep_t d;
+    memset(&d, 0, sizeof d);
+    if (s->time == ST_NOTE)
+        for (i = 0; i < s->n && i < 4u; i++)
+            dstep_set(&d, lane_of_note(s->note[i] & 127u), lvl, 0);
+    memcpy(o, &d, DSTEP_SN);
 }
 static int16_t swing_from_v3(int32_t v) { return (int16_t)clamp((v * 4 + 2) / 5, 0, 100); }   /* /250 -> /200 */
 
@@ -928,6 +929,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         if (i == TRK_DRUM)                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
             v[P_DIST] = v[P_CHOR] = v[P_DLY] = v[P_REV] = 0;
         pj_from_p(p->t[i].p, v);
+        if (i == TRK_DRUM)                              /* (the ACCENT amount stored from its default: 0 in a project of before) */
+            p->t[i].p[PJ_E0 + (P_DACC - P_E0)] = (int16_t)(v[P_DACC] - DACC_DEF);
 #if SL24_TP
         memcpy(px[i], &v[P_TFLT], sizeof px[i]);
 #endif
@@ -1033,6 +1036,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
         pj_to_p(v, s->p);
+        if (k == TRK_DRUM)                              /* (the ACCENT amount: stored from its default) */
+            v[P_DACC] = (int16_t)(v[P_DACC] + DACC_DEF);
 #if FELUCCA_ANALOG2
         if (k == TRK_DRUM)                              /* (its ANALOG 2 slots hold the parts' ENV2 values) */
             for (i = P_A2WAVE; i < P_E0; i++)
@@ -1061,6 +1066,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
+                                    k == TRK_DRUM && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(v[i], d->min, d->max);
         }

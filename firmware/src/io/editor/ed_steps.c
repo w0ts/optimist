@@ -55,19 +55,37 @@ static void ed_step_out(const track_t *t, uint32_t i, uint32_t ends)
             ed_b(ngate_of(st, k));                       /* v12: its own end, 0 = the step's GATE */
     }
 }
-/* the drum track's step as DRUM_STEP sends it: on (16 bits as 3 x 7), lvl and rat (32 bits each as 5 x 7) */
+/* the drum track's step as DRUM_STEP sends it: on (16 bits as 3 x 7; bit 16 the ACCENT lane), lvl and rat (32 bits
+ * each as 5 x 7; bits 32..33 the ACCENT lane's: the fifth group's bits 4..5) */
 static void ed_dstep_out(const dstep_t *d)
 {
-    uint32_t i, on = dstep_mask(d);
+    uint32_t i, on = dstep_lanes(d);
     uint32_t lv = (uint32_t)d->lvl[0] | (uint32_t)d->lvl[1] << 8 | (uint32_t)d->lvl[2] << 16 | (uint32_t)d->lvl[3] << 24;
     uint32_t rt = (uint32_t)d->rat[0] | (uint32_t)d->rat[1] << 8 | (uint32_t)d->rat[2] << 16 | (uint32_t)d->rat[3] << 24;
     ed_b(on);
     ed_b(on >> 7);
     ed_b(on >> 14);
-    for (i = 0; i < 5u; i++)
+    for (i = 0; i < 4u; i++)
         ed_b(lv >> (7u * i));
-    for (i = 0; i < 5u; i++)
+    ed_b(lv >> 28 | dstep_lvl(d, DRUM_ACC) << 4);
+    for (i = 0; i < 4u; i++)
         ed_b(rt >> (7u * i));
+    ed_b(rt >> 28 | dstep_rat(d, DRUM_ACC) << 4);
+}
+/* a DRUM_STEP write (index, on 3, lvl 5, rat 5 at a: 14 bytes) into d: its 16 lanes, the ACCENT lane from the bits a
+ * v5 editor sent as 0 (on bit 16, the fifth groups' bits 4..5) */
+static void ed_dstep_in(dstep_t *d, const uint8_t *a)
+{
+    uint32_t i, on, lv, rt;
+    on = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)(a[3] & 3u) << 14;
+    lv = (uint32_t)a[4] | (uint32_t)a[5] << 7 | (uint32_t)a[6] << 14 | (uint32_t)a[7] << 21 | (uint32_t)(a[8] & 15u) << 28;
+    rt = (uint32_t)a[9] | (uint32_t)a[10] << 7 | (uint32_t)a[11] << 14 | (uint32_t)a[12] << 21 | (uint32_t)(a[13] & 15u) << 28;
+    memset(d, 0, sizeof *d);
+    for (i = 0; i < DRUM_LANES; i++)
+        if ((on >> i) & 1u)
+            dstep_set(d, i, (lv >> (2u * i)) & 3u, (rt >> (2u * i)) & 3u);
+    if (a[3] & 4u)
+        dstep_set(d, DRUM_ACC, (a[8] >> 4) & 3u, (a[13] >> 4) & 3u);
 }
 /* a v1..v4 step written into the drum track: its notes onto their lanes */
 static void ed_dstep_from_old(dstep_t *d, const uint8_t *a)

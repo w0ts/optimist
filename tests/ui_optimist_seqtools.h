@@ -62,6 +62,62 @@ static uint32_t stt_spans(const track_t *t, uint32_t *sp)
             sp[n++] = note_span(t, i, 0);
     return n;
 }
+/* the drum track's ACCENT lane (core.h DRUM_ACC) as a lane for the tools: that lane alone, or with the kit */
+static uint32_t stt_acc(const track_t *t, uint32_t len)  /* its steps, a bit each */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < len; i++)
+        m |= (uint32_t)dstep_has(&t->dstep[i], DRUM_ACC) << i;
+    return m;
+}
+static void accent_tools_tests(void)
+{
+    track_t *t = TDRUM;
+    uint32_t i, kick = 0, n, m;
+    reset_ui();
+    song.sel = TRK_DRUM;
+    t->p[P_SLEN] = 8;
+    memset(t->dstep, 0, sizeof t->dstep);
+    for (i = 0; i < 8u; i += 2u)
+        dstep_set(&t->dstep[i], 0, LV_NORM, 0), kick |= 1u << i;
+    dstep_set(&t->dstep[1], DRUM_ACC, LV_HARD, 1);
+    dstep_set(&t->dstep[2], DRUM_ACC, LV_NORM, 0);
+    tl_mark(t);
+    tl_reverse(t, 8, (int32_t)DRUM_ACC);
+    for (i = 0, n = 0; i < 8u; i++)
+        n |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+    check(stt_acc(t, 8) == (1u << 6 | 1u << 5) && dstep_lvl(&t->dstep[6], DRUM_ACC) == LV_HARD &&
+          dstep_rat(&t->dstep[6], DRUM_ACC) == 1u && n == kick, "the ACCENT lane: REVERSE that lane (its level and ratchet), the kick as it was");
+    tl_mark(t);
+    tl_reverse(t, 8, -1);
+    for (i = 0, n = 0; i < 8u; i++)
+        n |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+    check(stt_acc(t, 8) == (1u << 1 | 1u << 2) && n == (kick << 1 & 0xFFu), "... REVERSE of the kit: the accents with their steps");
+    kick = n;
+    for (i = 0; i < 8u; i++)
+        dstep_clr(&t->dstep[i], DRUM_ACC);
+    tl_euclid(t, 8, DRUM_ACC, 3, 0, 0);
+    for (i = 0, n = 0, m = 0; i < 8u; i++)
+        n += (uint32_t)dstep_has(&t->dstep[i], DRUM_ACC), m |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+    check(n == 3u && m == kick, "EUCLID into the ACCENT lane: 3 of 8, the kick as it was");
+    tl_lane_rnd(t, 8, DRUM_ACC, 0);
+    for (i = 0, n = 0, m = 0; i < 8u; i++)
+        n += (uint32_t)dstep_has(&t->dstep[i], DRUM_ACC), m |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+    check(n >= 1u && m == kick, "RANDOM on the ACCENT lane: at least one accent, the kick as it was");
+    m = stt_acc(t, 8);
+    tl_cook_drum(t, 8, n, 1u << DRUM_ACC);
+    for (i = 0, n = 0; i < 8u; i++)
+        n |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+    check(n == kick, "COOK on the ACCENT lane: the kick as it was");
+    tl_double_do(t, 8);
+    check(trk_len(t) == 16u && stt_acc(t, 16) == (stt_acc(t, 8) | stt_acc(t, 8) << 8), "LENGTH x2: the accents copied with their steps");
+    t->p[P_SLEN] = 8;
+    m = stt_acc(t, 8);
+    pattern_rotate(t, 1);
+    check(stt_acc(t, 8) == ((m << 1 | m >> 7) & 0xFFu), "EDIT SHIFT: the accents one step later with the hits");
+    memset(t->dstep, 0, sizeof t->dstep);
+    t->p[P_SLEN] = 16;
+}
 static void seqtools_tests(void)
 {
     track_t *t = &trk[0];
@@ -217,6 +273,7 @@ static void seqtools_tests(void)
     AL(t)->n = 0;
 #endif
     track_defaults_steps(t);
+    accent_tools_tests();
 }
 #endif
 #if FELUCCA_COND

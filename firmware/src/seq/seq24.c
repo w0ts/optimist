@@ -81,6 +81,8 @@ static const param_desc_t *lock_desc(const track_t *t, uint32_t id)
 {
     if (is_drum(t) && id == P_E0)
         return &DRUM_KIT_DESC;
+    if (is_drum(t) && id == P_DACC)
+        return &DRUM_ACC_DESC;                                      /* (the ACCENT amount: a lock, a motion of it) */
     if (id >= P_E0 && id <= P_E7)
         return &ENGINES[t->engine % NENGINES]->edit[id - P_E0];
     return &TP[id % P_COUNT];

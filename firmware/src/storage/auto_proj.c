@@ -161,14 +161,16 @@ static void ngate_apply(void)
     for (k = 0; k < NTRK; k++)
         ngate_apply_trk(k);
 }
-/* a hash of the working store and the steps' own ends (the autosave saves when the project, its automation or a
- * note's own end changed: a project_t has no own ends) */
+/* a hash of the working store, the steps' own ends and the ACCENT lane (the autosave saves when the project, its
+ * automation, a note's own end or an accent changed: a project_t has neither) */
 static uint32_t auto_hash(void)
 {
     uint32_t k, i, h = proj_hash(&auto_w.on, sizeof auto_w - __builtin_offsetof(auto_store_t, on));
     for (k = 0; k < NPART; k++)
         for (i = 0; i < NSTEP; i++)
             h = (h ^ proj_hash(trk[k].step[i].ngate, sizeof trk[k].step[i].ngate)) * 16777619u;
+    for (i = 0; i < NSTEP; i++)                         /* (the drum track's ACCENT lane: not in a project_t either) */
+        h = (h ^ TDRUM->dstep[i].acc) * 16777619u;
     return h;
 }
 

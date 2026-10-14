@@ -16,18 +16,23 @@
  * buffer is applied to the working tracks (proj_apply, pat.c pat_take). A buffer's store is what every stored form
  * (the project's extras record, a section, a pattern record, a snapshot) is written from, so they all carry them.
  * An older build keeps the events and plays none of them (mot_id: P_COUNT, no lock): its notes end at the steps.
- * A list full when unfolding: that note's end is not kept (it plays the step's GATE after a load). */
+ * A list full when unfolding: that note's end is not kept (it plays the step's GATE after a load).
+ *
+ * The drum track's ACCENT lane (core.h DRUM_ACC, dstep_t.acc) is kept the same way, at the same places: each step with
+ * it on is a step-only event AUTO_ACC (auto.h), value its acc byte; no event: no accent (a project from before). */
 #ifndef FELUCCA_NGATE_H
 #define FELUCCA_NGATE_H
 
 #include "auto.h"
 
-/* a track's stored steps <-> its working steps (the drum track: its 16-lane steps, 10 bytes each in both) */
+/* a track's stored steps <-> its working steps (the drum track: its 16-lane steps, 10 bytes each stored; the ACCENT
+ * lane's byte: an event, below) */
 static inline void steps_store(pstep_t *d, const track_t *t, uint32_t k)
 {
     uint32_t i;
     if (k == TRK_DRUM) {
-        memcpy(d, t->dstep, NSTEP * sizeof(dstep_t));
+        for (i = 0; i < NSTEP; i++)
+            memcpy(&d[i], &t->dstep[i], DSTEP_SN);
         return;
     }
     for (i = 0; i < NSTEP; i++)
@@ -37,8 +42,9 @@ static inline void steps_load(track_t *t, uint32_t k, const pstep_t *s)
 {
     uint32_t i;
     if (k == TRK_DRUM) {
-        memset(t->step, 0, sizeof t->step);
-        memcpy(t->dstep, s, NSTEP * sizeof(dstep_t));
+        memset(t->step, 0, sizeof t->step);          /* (the ACCENT lane too: ngate_fold puts it back) */
+        for (i = 0; i < NSTEP; i++)
+            memcpy(&t->dstep[i], &s[i], DSTEP_SN);
         return;
     }
     for (i = 0; i < NSTEP; i++) {
@@ -51,12 +57,22 @@ static inline uint32_t ngate_of(const step_t *s, uint32_t k)
 {
     return s->time == ST_NOTE && k < s->n && k < 4u && !s->rat ? s->ngate[k] : 0u;
 }
-/* the steps' own ends added to list l as events (track k; the drum track has none); -> the ends that did not fit */
+/* the drum track's ACCENT lane (st: its steps' union, trk[].step) added to list l as events; -> the steps that did not fit */
+static inline uint32_t dacc_unfold(auto_list_t *l, const step_t *st)
+{
+    const dstep_t *d = (const dstep_t *)(const void *)st;
+    uint32_t i, cut = 0;
+    for (i = 0; i < NSTEP; i++)
+        if ((d[i].acc & 1u) && auto_put(l, i | AUTO_ONLY, AUTO_ACC, d[i].acc & 31u) < 0)
+            cut++;
+    return cut;
+}
+/* the steps' own ends added to list l as events (track k; the drum track: its ACCENT lane); -> the ends that did not fit */
 static inline uint32_t ngate_unfold(auto_list_t *l, const step_t *st, uint32_t k)
 {
     uint32_t i, j, cut = 0;
     if (k == TRK_DRUM)
-        return 0;
+        return dacc_unfold(l, st);
     for (i = 0; i < NSTEP; i++)
         for (j = 0; j < 4u; j++) {
             uint32_t g = ngate_of(&st[i], j);
@@ -66,12 +82,19 @@ static inline uint32_t ngate_unfold(auto_list_t *l, const step_t *st, uint32_t k
     return cut;
 }
 /* list l's own-end events into the steps (track k), every one of them taken out of l (the drum track: dropped,
- * they mean nothing there); -> how many were taken out */
+ * they mean nothing there); the ACCENT lane's events the same way (the drum track's steps; on a part: dropped);
+ * -> how many were taken out */
 static inline uint32_t ngate_fold(step_t *st, auto_list_t *l, uint32_t k)
 {
     uint32_t i, n = 0, out = 0;
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         const auto_ev_t *e = &l->ev[i];
+        if (e->param == AUTO_ACC) {
+            out++;
+            if (k == TRK_DRUM && (e->place & AUTO_ONLY) && (e->value & 1))
+                ((dstep_t *)(void *)st)[e->place & AUTO_STEP].acc = (uint8_t)(e->value & 31);
+            continue;
+        }
         if (!AUTO_IS_NGATE(e->param)) {
             l->ev[n++] = *e;
             continue;
@@ -97,6 +120,16 @@ static inline int ngate_any(const step_t *st, uint32_t k)
         for (j = 0; j < 4u; j++)
             if (ngate_of(&st[i], j))
                 return 1;
+    return 0;
+}
+/* the drum track's steps (st: the union) hold an ACCENT lane step (the SLOOP 2.4 export: 2.4 has none) */
+static inline int dacc_any(const step_t *st)
+{
+    const dstep_t *d = (const dstep_t *)(const void *)st;
+    uint32_t i;
+    for (i = 0; i < NSTEP; i++)
+        if (d[i].acc & 1u)
+            return 1;
     return 0;
 }
 /* the own ends a track's steps hold (the list's room: the live recording keeps one only while the list has room) */

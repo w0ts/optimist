@@ -307,9 +307,13 @@ static const param_desc_t GP[G_COUNT] = {
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
+/* the drum track's ACCENT amount (core.h P_DACC: its P_E1), velocity added to an accented hit (drums.c dacc_vel) */
+static const param_desc_t DRUM_ACC_DESC = {"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF, 0, 0};
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
+    if (is_drum(t) && id == P_DACC)
+        return &DRUM_ACC_DESC;
     if (id >= P_E0 && id <= P_E7) {                   /* the engine asked for (t->engine follows after a fade) */
         const engine_t *e = ENGINES[t->eng_req % NENGINES];
         const param_desc_t *d = e->desc ? e->desc(t, id - P_E0) : 0;   /* a mode-dependent label / names */

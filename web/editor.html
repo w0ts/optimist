@@ -1923,14 +1923,14 @@ const parse = {
     const r = new Reader(a);
     return stepExt(r, a, { track: r.b(), index: r.b(), n: r.b(), notes: [r.b(), r.b(), r.b(), r.b()], time: r.b(), flags: r.b(), vel: r.b() });
   },
-  /* v5: the drum track's step: the lanes on (16 bits), their levels and ratchets (2 bits each) */
+  /* v5: the drum track's step: the lanes on (16 bits; bit 16, 2026-10-14: the ACCENT lane), their levels and ratchets (2 bits each) */
   [CMD.DRUM_STEP](a) {
     const r = new Reader(a);
-    const o = { index: r.b(), on: r.b() | (r.b() << 7) | ((r.b() & 3) << 14), lvl: [], rat: [] };
+    const o = { index: r.b(), on: r.b() | (r.b() << 7) | ((r.b() & 7) << 14), lvl: [], rat: [] };
     let lv = 0, rt = 0;
     for (let k = 0; k < 5; k++) lv += r.b() * 2 ** (7 * k);
     for (let k = 0; k < 5; k++) rt += r.b() * 2 ** (7 * k);
-    for (let l = 0; l < 16; l++) {
+    for (let l = 0; l < 17; l++) {
       const on = (o.on >> l) & 1;
       o.lvl.push(on ? Math.floor(lv / 4 ** l) % 4 : 0);
       o.rat.push(on ? Math.floor(rt / 4 ** l) % 4 : 0);
@@ -2161,13 +2161,13 @@ const req = {
          (st.rat | 0) & 0x7F, ...(ends || [])];
     return [CMD.STEP_SET, [i, n, ...notes, Math.max(0, Math.min(2, st.time | 0)), st.flags & 3, (st.vel | 0) & 0x7F, ...ext]];
   },
-  /* v5: get (d == null) or set the drum track's step i: {on: 16 bits, lvl[16], rat[16]} */
+  /* v5: get (d == null) or set the drum track's step i: {on: 16 bits (bit 16: the ACCENT lane, 2026-10-14), lvl[17], rat[17]} */
   drumStep: (i, d) => {
     if (!d) return [CMD.DRUM_STEP, [i & 0x7F]];
     let lv = 0, rt = 0;
-    for (let l = 0; l < 16; l++) if ((d.on >> l) & 1) { lv += ((d.lvl[l] | 0) & 3) * 4 ** l; rt += ((d.rat[l] | 0) & 3) * 4 ** l; }
+    for (let l = 0; l < 17; l++) if ((d.on >> l) & 1) { lv += ((d.lvl[l] | 0) & 3) * 4 ** l; rt += ((d.rat[l] | 0) & 3) * 4 ** l; }
     const g7 = (x, n) => Array.from({ length: n }, (_, k) => Math.floor(x / 2 ** (7 * k)) & 0x7F);
-    return [CMD.DRUM_STEP, [i & 0x7F, ...g7(d.on & 0xFFFF, 3), ...g7(lv, 5), ...g7(rt, 5)]];
+    return [CMD.DRUM_STEP, [i & 0x7F, ...g7(d.on & 0x1FFFF, 3), ...g7(lv, 5), ...g7(rt, 5)]];
   },
   preset: (e, p) => [CMD.PRESET, [e & 0x7F, p & 0x7F]],
   project: (op, slot) => { if (![0, 1, 2].includes(op)) throw new Error("bad PROJECT op"); return [CMD.PROJECT, [op, slot & 3]]; },   /* 0 load, 1 save, 2 query */

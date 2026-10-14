@@ -176,6 +176,8 @@ static void track_defaults(track_t *t)
     for (i = P_ENG_END; i < P_COUNT; i++)            /* (SLOOP 2.4's FILT, STRUM, VLEAD; the COMP insert's amount) */
         t->p[i] = TP[i].def;
 #endif
+    if (is_drum(t))
+        t->p[P_DACC] = DACC_DEF;                     /* (the ACCENT amount: core.h; the kit is the caller's) */
     track_defaults_steps(t);
 }
 

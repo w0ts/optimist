@@ -367,6 +367,7 @@ static const dstep_t *en_step(const track_t *t, const dstep_t *s, uint32_t idx)
     if (!b)
         m &= EN_CORE;
     memset(&en.cur, 0, sizeof en.cur);
+    en.cur.acc = s->acc;                               /* (the ACCENT lane as it is: the band changes the sounds) */
     for (l = 0; m; l++, m >>= 1) {
         uint32_t lv = dstep_lvl(s, l), rat = b < 2u ? 0u : dstep_rat(s, l);
         if (!(m & 1u) || (b == 1u && lv == LV_GHOST))
