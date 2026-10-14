@@ -82,7 +82,11 @@ static void gtu_page_tests(void)
     check(!strcmp(c.val, "1/16") && c.gk == GK_DOTS && c.gv == 1 && c.gmax == 5, "RATE: a division, 1/16, the list form (one of six lit)");
     turn(EN_K3, 1);
     SCR->cell(r, 2, &c);
-    check(trk[0].p[P_TGRATE] == 2 && !strcmp(c.val, "1/32") && c.gv == 2, "... KNOB 3 turned: 1/32");
+    {                                                   /* one step in the order shown: 1/32 (stored 2), with DIV_ORDER (the user's) 16T (stored 4) */
+        int32_t nx = FELUCCA_DIV_ORDER ? 4 : 2;
+        check(nx == param_step(&TP[P_TGRATE], 1, 1) && trk[0].p[P_TGRATE] == nx && !strcmp(c.val, TP[P_TGRATE].names[nx]) && c.gv == nx,
+              "... KNOB 3 turned: the next division (1/32; 16T with DIV_ORDER)");
+    }
     turn(EN_K1, 40);
     check(trk[0].p[P_TGATE] == 40, "KNOB 1 turned: DEPTH 40");
     turn(EN_K4, 30);

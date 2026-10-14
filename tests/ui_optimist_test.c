@@ -21,6 +21,9 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+#if FELUCCA_KNOB_ACCEL
+#include "../firmware/src/ui/knob_accel.h"     /* (felucca.c includes it: the knobs' acceleration, a build with FELUCCA_KNOB_ACCEL=1 such as the user's) */
+#endif
 static const uint32_t host_mem[4][2] = {{300u * 1024u, 568u * 1024u}, {70u * 1024u, 96u * 1024u}, {200u * 1024u, 336u * 1024u}, {26u * 1024u, 32512u}};
 #include <assert.h>
 static uint16_t screen[240 * 240];
@@ -111,6 +114,9 @@ static void settings_save(void) {}
 static void song_backup(void) {}
 static void song_restore(void) {}
 static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
+#if FELUCCA_MOTION
+static void motion_flash_read(uint32_t obj, const project_t *p) { (void)obj; (void)p; }   /* (sections.c's migration reads the motion store; the real one is project.c's, not linked here) */
+#endif
 #include "../firmware/src/storage/sections/sections.c"
 static uint32_t arr_saves;
 static void arrangement_save(void) { arr_saves++; ui_message("SONG SAVED"); }
@@ -154,6 +160,12 @@ static uint32_t fm6_stores, fm6_sends, fm6_inits;      /* FM6's STORE row (engin
 static void fm6_store(uint32_t k) { (void)k; fm6_stores++; ui_message("STORED"); }
 static void fm6_send(void) { fm6_sends++; }
 static void fm6_init_voice(void) { fm6_inits++; }
+#if FELUCCA_NATIVE_BANKS                                /* the FM6 / CZ collections in PRESETS (storage/nbank.c): no flash here, none stored */
+static uint32_t nb_kind(const track_t *t) { (void)t; return 0; }
+static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at) { (void)rank; (void)n; (void)at; return 0; }
+static void nb_name(uint32_t kind, uint32_t k, char *nm) { (void)kind; (void)k; nm[0] = 0; }
+static void nb_load(uint32_t k) { (void)k; }
+#endif
 #include "snap_ui_stub.h"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_PATTERNS                                   /* (with the section log: its NOR image holds the bank too) */
@@ -223,7 +235,17 @@ static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
-static void turn(uint32_t role, int32_t s) { encs[panel.enc[role]] += s; frame(); }
+/* a turn of s detents: slow (80 ms a detent) when the knobs accelerate (FELUCCA_KNOB_ACCEL, a build such as the user's):
+ * the tests count detents, the acceleration has its own (knob_accel_test.c). The time since the knob's last detent is set,
+ * the clock does not move. */
+static void turn(uint32_t role, int32_t s)
+{
+#if FELUCCA_KNOB_ACCEL
+    ui.enc_t[role] = fm1_ticks() - (uint32_t)(s < 0 ? -s : s) * 80u * 1000u * 24u;
+#endif
+    encs[panel.enc[role]] += s;
+    frame();
+}
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);

@@ -109,6 +109,8 @@ static void master_tests(void)
     {
         uint32_t kit = drum_kit_pos();
         turn(EN_PRESET, -1);
+        if (drum_kit_pos() == kit)                      /* (the first kit built: the list stops there, the other way is the next) */
+            turn(EN_PRESET, 1);
         check(drum_kit_pos() != kit, "PRESETS on the drum track: the next kit");
     }
     /* STEP: PRESETS pages the window on every track (the user, 2026-10-11: "in the step sequencer it scroll pages thru
