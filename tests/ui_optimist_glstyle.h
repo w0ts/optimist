@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the look of GLOBAL's and SYSTEM's lists (feat/settings-look, 2026-10-14; the user, from a
  * screenshot of "Global channels 5/5"). Checked in every variant:
- *   header      says Global or System and nothing of the page: the same pixels on every page
- *   title       the page's own title in the large face, "Channels 5/5": name + n/N, fitting the screen
+ *   header      the GLOBAL / SYSTEM badge, the page's title and n/N ("Channels 5/5", a short form when the room is short, never
+ *               cut), bar.beat and the tempo (2026-10-14: the title is back in the top bar)
+ *   title       no title line under the header: the lines have its room
  *   bars        a ranged value's bar spans the screen's width (GL_BX .. GL_BX + GL_BW), 4 px thick
  *   toggles     an on / off value has the square mark and no bar
  *   pitch       the 4 lines fill the room between the title and the help line
@@ -30,26 +31,66 @@ static uint32_t gls_header_hash(void)
         h = (h ^ screen[i]) * 16777619u;
     return h;
 }
+/* the header of every page: the GLOBAL / SYSTEM badge, then the page's title and n/N (a short form where the room is short,
+ * never cut), bar.beat and the tempo at the right (the user, 2026-10-14: "move back the title in the top bar") */
 static int gls_header(void)
 {
-    uint32_t s, ok = 1, h0, p;
+    uint32_t s, ok = 1, p, hashes = 0, h0 = 0;
     for (s = 0; s < 2u; s++) {
         uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL, np = gl_npg(s);
-        op_enter(scr);
-        ui.row[scr] = 0;
-        frame();
-        h0 = gls_header_hash();
-        for (p = 1; p < np; p++) {
-            ui.row[scr] = (uint8_t)gl_pfirst(s, p);
+        for (p = 0; p < np; p++) {
+            head_t h;
+            char nm[24], pos[12], full[32];
+            uint32_t f = gl_pfirst(s, p);
+            op_enter(scr);
+            ui.row[scr] = (uint8_t)f;
             frame();
-            ok &= gls_header_hash() == h0;              /* (the header never shows the page) */
+            head_make(&h);
+            gl_ptitle(s, f, nm, sizeof nm);
+            snprintf(pos, sizeof pos, " %u/%u", p + 1u, np);
+            snprintf(full, sizeof full, "%s", h.t);        /* (head_make's t holds the n/N already) */
+            if (getenv("GLSTYLE_DUMP"))
+                printf("  glstyle: header '%s' + '%s' (name '%s'), %d of %d px, bar.beat '%s'\n", h.t, h.pos, nm, (int)strlen(full) * 8, h.room, h.r);
+            ok &= !strcmp(h.eng, s ? "SYSTEM" : "GLOBAL") && h.t[0] >= 'A' && h.t[0] <= 'Z' && !h.cut;
+            ok &= np < 2u ? !h.pos[0] : !strcmp(h.pos, pos);
+            ok &= (int32_t)strlen(full) * 8 <= h.room && h.r[0] && h.bpm[0];   /* (whole in its room, bar.beat and the tempo kept) */
+            ok &= !strncmp(h.t, nm, strlen(nm)) || nm_find(NM_SHORT, nm, 0, full, sizeof full);   /* (the name, or its table's short form) */
+            ok &= !strstr(h.t, "Global") && !strstr(h.t, "System");
+            if (!hashes++)
+                h0 = gls_header_hash();
+            if (np > 1u && p == 1u)
+                ok &= gls_header_hash() != h0;          /* (the title is drawn: another page, another header) */
+            if (!ok) {
+                printf("  glstyle: header '%s' + '%s' (name '%s') screen %u page %u: room %d, bar.beat '%s'\n", h.t, h.pos, nm, s, p, h.room, h.r);
+                return 0;
+            }
         }
     }
-    op_enter(SCR_TEMPO);
-    frame();
-    ok &= gls_header_hash() != h0;                      /* (the check sees the header at all) */
+    return 1;
+}
+/* the big title line is gone: the band's rows above the first line's text are dark on every page (the cursor has no fill) */
+static int gls_no_title(void)
+{
+    uint32_t s, p, ok = 1;
+    for (s = 0; s < 2u; s++) {
+        uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL;
+        for (p = 0; p < gl_npg(s); p++) {
+            int32_t y, a, b;
+            op_enter(scr);
+            ui.row[scr] = (uint8_t)gl_pfirst(s, p);
+            frame();
+            if (gl_info())
+                continue;                               /* (INFO is read-outs from the top of the band, no 4-line pitch) */
+            for (y = OH_HEAD; y < OH_HEAD + gl_ty(gl_y0(), GL_BH); y++)
+                if (gls_rowpx(y, 0, 240, &a, &b)) {
+                    ok = 0;
+                    if (getenv("GLSTYLE_DUMP"))
+                        printf("  glstyle: screen %u page %u: lit row %d (%d..%d), band from %d, first text %d\n", s, p, y, a, b, OH_HEAD, OH_HEAD + gl_ty(gl_y0(), GL_BH));
+                }
+        }
+    }
     if (!ok)
-        printf("  glstyle: header changes with the page\n");
+        printf("  glstyle: lit pixels above the first line (a title line?)\n");
     return (int)ok;
 }
 static int gls_titles(void)
@@ -58,27 +99,25 @@ static int gls_titles(void)
     char t[24], want[24];
     for (s = 0; s < 2u; s++)
         for (p = 0; p < gl_npg(s); p++) {
-            uint32_t f = gl_pfirst(s, p);
-            char nm[24], num[12];
-            gl_title(s, f, t, sizeof t);
-            gl_ptitle(s, f, nm, sizeof nm);
-            snprintf(num, sizeof num, " %u/%u", p + 1u, gl_npg(s));
-            snprintf(want, sizeof want, "%s%s", nm, gl_npg(s) > 1u ? num : "");
-            ok &= !strcmp(t, want) && nm[0] >= 'A' && nm[0] <= 'Z' && !strstr(t, "Global") && !strstr(t, "System");
-            if (getenv("GLSTYLE_DUMP"))
-                printf("  glstyle: '%s' %d px, name alone %d, n/N %d\n", t, text_w(font_big(), t), text_w(font_big(), nm), text_w(font_big(), num));
-            ok &= text_w(font_big(), t) <= GL_TW || ((strchr(t, '&') || strstr(t, "Connections")) && text_w(&FONT_S, t) <= GL_TW);   /* (the large face; a joined pair's long name the small) */
+            gl_ptitle(s, gl_pfirst(s, p), t, sizeof t);
+            ok &= t[0] >= 'A' && t[0] <= 'Z' && !strstr(t, "Global") && !strstr(t, "System");
             if (!ok) {
-                printf("  glstyle: title '%s' (%d px) screen %u page %u\n", t, text_w(font_big(), t), s, p);
+                printf("  glstyle: title '%s' screen %u page %u\n", t, s, p);
                 return 0;
             }
         }
     /* the sample: GLOBAL's last page is Channels n/N */
-    gl_title(0, gl_pfirst(0, gl_npg(0) - 1u), t, sizeof t);
-    snprintf(want, sizeof want, "Channels %u/%u", gl_npg(0), gl_npg(0));
-    ok &= !strcmp(t, want);
-    if (!ok)
-        printf("  glstyle: GLOBAL's last title '%s'\n", t);
+    {
+        head_t h;
+        op_enter(SCR_GLOBAL);
+        ui.row[SCR_GLOBAL] = (uint8_t)gl_pfirst(0, gl_npg(0) - 1u);
+        frame();
+        head_make(&h);
+        snprintf(want, sizeof want, "Channels %u/%u", gl_npg(0), gl_npg(0));
+        ok &= !strcmp(h.t, want);
+        if (!ok)
+            printf("  glstyle: GLOBAL's last title '%s' '%s'\n", h.t, h.pos);
+    }
     return (int)ok;
 }
 /* every line of every page but the cursor's: ranged values with a full-width bar, on / off values a mark and no bar */
@@ -248,9 +287,10 @@ static void glstyle_tests(void)
     uint32_t bars = 0, toggles = 0;
     reset_ui();
     song.sel = 0;
-    check(gls_header(), "GLOBAL, SYSTEM: the header says only Global / System (the same on every page)");
-    check(gls_titles(), "GLOBAL, SYSTEM: each page's title is its name and n/N in the large face (\"Channels 5/5\"), whole on the screen");
-    check(gls_fit(), "GLOBAL, SYSTEM: the 4 lines fill the room between the title and the help line");
+    check(gls_header(), "GLOBAL, SYSTEM: the header is the badge, the page's title and n/N (not cut, a short form if the room is short), bar.beat and the tempo");
+    check(gls_titles(), "GLOBAL, SYSTEM: each page's title is its name in sentence case (GLOBAL's last page \"Channels\" n/N)");
+    check(gls_no_title(), "GLOBAL, SYSTEM: no big title line under the header");
+    check(gls_fit(), "GLOBAL, SYSTEM: the 4 lines fill the room between the header and the help line");
     {
         int fo = gls_forms(&bars, &toggles);
         if (getenv("GLSTYLE_DUMP") || !fo || bars <= 8u || toggles == 0u)

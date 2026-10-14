@@ -38,7 +38,7 @@ static int lo_row_is_screen(void)
     op_case(b, SCR_NAME[ui.scr % SCR_N], sizeof b);
     return str_eq(t, b) && ui.scr != SCR_HOME;
 }
-/* the header now: a badge, the title not repeating it (GLOBAL, SYSTEM: the badge alone) */
+/* the header now: a badge, the title not repeating it (GLOBAL, SYSTEM too: the page's name) */
 static void lo_head(void)
 {
     head_t h;
@@ -48,7 +48,7 @@ static void lo_head(void)
     lo_heads++;
     if (!h.badge || !h.eng || !h.eng[0])
         lo_fail("no badge", h.t, lo_where(w, sizeof w));
-    else if (!h.t[0] && !gl_scr(ui.scr) && lay.shown == LY_PLAY)
+    else if (!h.t[0] && lay.shown == LY_PLAY)
         lo_fail("no title", h.eng, lo_where(w, sizeof w));
     else if (str_len(h.eng) > 3u && strstr(h.t, op_case(b, h.eng, sizeof b)) == h.t &&
              (h.t[str_len(b)] == ' ' || !h.t[str_len(b)]) && !lo_row_is_screen())

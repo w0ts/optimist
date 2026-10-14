@@ -208,21 +208,6 @@ static void gl_ptitle(uint32_t s, uint32_t i, char *b, uint32_t n)
                 str_cpy(b, GL_JOIN[j].title, n);
 }
 
-/* the page's title as the list draws it (the header says only Global or System): "Channels 5/5", the n/N dropped on a
- * screen of one page */
-static void gl_title(uint32_t s, uint32_t i, char *b, uint32_t n)
-{
-    gl_ptitle(s, i, b, n);
-    if (gl_npg(s) > 1u) {
-        uint32_t k = str_len(b);
-        b[k++] = ' ';
-        fmt_int(b + k, (int32_t)gl_pg(s, i) + 1);
-        k = str_len(b);
-        b[k++] = '/';
-        fmt_int(b + k, (int32_t)gl_npg(s));
-    }
-}
-
 /* the screens' functions: a row is a line (the cursor's), a cell the 4 lines of its page */
 static uint32_t gls_rows(void) { return gl_n(0); }
 static void gls_name(uint32_t r, char *b) { gl_sect(0, r, b); }
@@ -291,6 +276,14 @@ static void gl_pick(uint32_t r, uint32_t k)             /* KNOB k turned (op_inp
         ui.row[ui.scr] = (uint8_t)i;
         op_disarm();
     }
+}
+/* ALGORITHM: the cursor a line a detent, across the pages (the page follows), stopping at the ends (the user, 2026-10-14: "ALGORITHM
+ * should scroll one item at a time" on GLOBAL and SYSTEM; the one exception to ALGORITHM being the track, op_input.c) */
+static void glo_walk(int32_t s)
+{
+    uint32_t sc = ui.scr == SCR_SYSTEM, n = gl_n(sc);
+    if (n)
+        gl_at((uint32_t)clamp((int32_t)ui.row[ui.scr] + s, 0, (int32_t)n - 1));
 }
 static int gl_on_tempo(void)                            /* GLOBAL's page shows Tempo's lines: OCT nudges (op_tempo.c) */
 {                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */

@@ -3,7 +3,8 @@
  * 2026-10-13: "ALGORITHM moves track - NO. only the track!"). On every screen and in every performance layer a turn moves
  * the walk (MASTER T1 T2 T3 DR, the 16 lanes) and changes no setting, no cursor row, no page; and the controls that had
  * been ALGORITHM's elsewhere work without it: on GLOBAL and SYSTEM SELECT pages and a knob picks its line, on the BLE
- * devices list SELECT moves the cursor. Included after ui_optimist_pagemem.h. */
+ * devices list SELECT moves the cursor. The one exception (the user, 2026-10-14: "ALGORITHM should scroll one item at a time"):
+ * on GLOBAL and SYSTEM's lists ALGORITHM scrolls the lines, one a detent across the pages (op_global.c glo_walk). Included after ui_optimist_pagemem.h. */
 static uint32_t at_sum(void)                            /* everything ALGORITHM must leave alone, folded: the globals, every track's
                                                          * sound and pattern (not its running state) */
 {
@@ -91,7 +92,7 @@ static uint32_t at_inert_state(void)
 }
 static void at_inert_tests(void)
 {
-    static const uint8_t PG[] = {SCR_GLOBAL, SCR_SYSTEM, SCR_PROJECT, SCR_SONG, SCR_FX};
+    static const uint8_t PG[] = {SCR_PROJECT, SCR_SONG, SCR_FX};
     static const uint8_t BTN[] = {B_FX, B_ARP, B_GLO, B_SAVE
 #if FELUCCA_PATTERNS
                                   , B_LFO               /* (the patterns layer; without them LFO is only SHIFT) */
@@ -114,7 +115,7 @@ static void at_inert_tests(void)
             printf("  algotrack: %s moved on ALGORITHM (state %x -> %x)\n", SCR_NAME[PG[i]], st, at_inert_state());
         ok &= !bad;
     }
-    check(ok, "ALGORITHM does nothing on GLOBAL, SYSTEM, PROJECT, SONG and the master FX screen (no track, screen, row or setting)");
+    check(ok, "ALGORITHM does nothing on PROJECT, SONG and the master FX screen (no track, screen, row or setting; GLOBAL and SYSTEM scroll their lines)");
     ok = 1;
     for (i = 0; i < sizeof BTN; i++) {                  /* layers over the SOUND page of T2: FX ARP GLO LFO SAVE are global */
         uint32_t bad;
@@ -158,7 +159,7 @@ static void at_inert_tests(void)
 static void at_replacement_tests(void)
 {
     uint32_t s, ok = 1;
-    for (s = 0; s < 2u; s++) {                          /* GLOBAL, SYSTEM: SELECT pages; knob k picks line k, ALGORITHM leaves it */
+    for (s = 0; s < 2u; s++) {                          /* GLOBAL, SYSTEM: SELECT pages; knob k picks line k, ALGORITHM scrolls the lines */
         uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL, k, i, np;
         reset_ui();
         song.sel = 0;
@@ -184,14 +185,30 @@ static void at_replacement_tests(void)
                 turn(EN_K1 + k, -1);
             }
         }
-        {
-            uint32_t was = ui.row[scr], sum = at_sum();
-            turn(EN_ALGO, 2);
-            turn(EN_ALGO, -2);
-            ok &= ui.row[scr] == was && ui.scr == scr && at_sum() == sum && song.sel == 0u;
+        {   /* ALGORITHM (the user, 2026-10-14): the cursor a line a detent, across the pages, stopping at the ends; no track, no setting */
+            uint32_t i, sum = at_sum(), st;
+            ui.row[scr] = 0;
+            frame();
+            st = at_inert_state() & ~(0xFFu << 16);
+            for (i = 1; i < gl_n(s); i++) {
+                turn(EN_ALGO, 1);
+                ok &= ui.row[scr] == i && gl_pg(s, i) == gl_pg(s, ui.row[scr]) && ui.hot == i - gl_first(s, i);
+            }
+            turn(EN_ALGO, 5);
+            ok &= ui.row[scr] == gl_n(s) - 1u;           /* (stops at the last line) */
+            for (i = gl_n(s) - 1u; i > 0; i--) {
+                turn(EN_ALGO, -1);
+                ok &= ui.row[scr] == i - 1u;
+            }
+            turn(EN_ALGO, -5);
+            ok &= ui.row[scr] == 0u && (at_inert_state() & ~(0xFFu << 16)) == st && at_sum() == sum && song.sel == 0u && ui.scr == scr;
+            turn(EN_ALGO, 3);
+            ok &= ui.row[scr] == (gl_n(s) > 3u ? 3u : gl_n(s) - 1u);   /* (several detents at once) */
+            if (!ok)
+                printf("  algotrack: %s ALGORITHM scroll wrong (row %u)\n", scr == SCR_SYSTEM ? "SYSTEM" : "GLOBAL", ui.row[scr]);
         }
     }
-    check(ok, "GLOBAL, SYSTEM: SELECT pages, knob k picks line k, ALGORITHM never moves the cursor");
+    check(ok, "GLOBAL, SYSTEM: SELECT pages, knob k picks line k, ALGORITHM scrolls one line a detent across the pages (no track, no setting)");
     reset_ui();
 }
 static void algotrack_tests(void)

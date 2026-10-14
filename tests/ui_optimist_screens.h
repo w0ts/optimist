@@ -139,8 +139,8 @@ static void se_header_tests(void)
             if (gl_ent(0, i) >> 2 == TPR_REC2)
                 break;
         }
-        gl_title(0, i < n ? i : 0, t, sizeof t);
-        check(i < n && !strncmp(t, "Rec 2 ", 6), "#2: GLOBAL's REC 2 page: \"Rec 2 3/5\" (was \"Rec 3/5\")");
+        gl_ptitle(0, i < n ? i : 0, t, sizeof t);
+        check(i < n && !strcmp(t, "Rec 2"), "#2: GLOBAL's REC 2 page: \"Rec 2 3/5\" (was \"Rec 3/5\")");
     }
 #endif
     {   /* GLOBAL's LENGTH: the number and its unit */
