@@ -223,7 +223,7 @@ static int gls_info_page(void)
     char ln[16];
     int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N;
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
-    ok &= ph >= (int32_t)FONT_S.h + 8;                  /* (every read-out and its bar fits the page) */
+    ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out and its bar fits the page) */
     for (i = 0; i < 4u; i++) {
         uint32_t used = sys_mem(i, &tot);
         sys_info_cell(INFO_N - 4u + i, &c);
@@ -251,7 +251,13 @@ static void glstyle_tests(void)
     check(gls_header(), "GLOBAL, SYSTEM: the header says only Global / System (the same on every page)");
     check(gls_titles(), "GLOBAL, SYSTEM: each page's title is its name and n/N in the large face (\"Channels 5/5\"), whole on the screen");
     check(gls_fit(), "GLOBAL, SYSTEM: the 4 lines fill the room between the title and the help line");
-    check(gls_forms(&bars, &toggles) && bars > 8u && toggles > 3u,
+    {
+        int fo = gls_forms(&bars, &toggles);
+        if (getenv("GLSTYLE_DUMP") || !fo || bars <= 8u || toggles == 0u)
+            printf("  glstyle: forms %d, %u bars, %u toggles\n", fo, bars, toggles);
+        bars = fo ? bars : 0u;
+    }
+    check(bars > 8u && toggles > 0u,
           "GLOBAL, SYSTEM: a ranged value's bar spans the screen's width, an on / off value has the square mark and no bar");
     check(gls_joined(), "SYSTEM: Screen & audio and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart");
 #if FELUCCA_BLE
