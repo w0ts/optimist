@@ -585,8 +585,10 @@ _add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U
           "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
           "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
-     desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); "
-     "off: a dark screen until the UI")
+     choices=((1, "dinghy"), (2, "ring"), (0, "off")),
+     desc="the Optimist logo, the name and the version for 0.9 s at power-on, drawn (no bitmap). Dinghy: an "
+     "Optimist with the class emblem on its sail (1.0 KB of flash); ring: the emblem alone, large, the logo before "
+     "the dinghy (0.5 KB); off: a dark screen until the UI")
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52,
      desc="A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the "
           "labels get their full width back.")
