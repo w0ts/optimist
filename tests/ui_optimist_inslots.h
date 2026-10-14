@@ -65,21 +65,21 @@ static void inslots_tests(void)
 #endif
     r = ins_row("SENDS");
     SCR->cell(r < SCR->rows() ? r : 0u, 0, &c);
-    check(r < SCR->rows() && (!FELUCCA_FX_CHORUS || c.d == &TP[P_CHOR]), "SENDS: the master sends in their slots' order (CHO first)");
+    check(r < SCR->rows() && (!FELUCCA_FX_REVERB || c.d == &TP[P_REV]), "SENDS: the master sends REV DLY CHO (REV first, the one order)");
     check(ins_row("BUS SENDS") >= SCR->rows(), "BUS SENDS: not a synth track's row");
     song.sel = TRK_DRUM;
     r = ins_row("SENDS");
     SCR->cell(r < SCR->rows() ? r : 0u, 0, &c);
-    check(r < SCR->rows() && (!FELUCCA_FX_CHORUS || (c.vp == &dsend_kit[2] && !strcmp(c.val, "100") && c.d->fmt == F_PCT)),
-          "the drum track's SENDS: its send LEVELS (CHO at 100 %), not ON / OFF");
+    check(r < SCR->rows() && (!FELUCCA_FX_REVERB || (c.vp == &dsend_kit[0] && !strcmp(c.val, "100") && c.d->fmt == F_PCT)),
+          "the drum track's SENDS: its send LEVELS (REV at 100 %), not ON / OFF");
     ui.row[SCR_SOUND] = (uint8_t)r;
     frame();
     turn(EN_K1, -10);
-    check(!FELUCCA_FX_CHORUS || (dsend_kit[2] < DKS_DEF && dsend_kit[0] == DKS_DEF), "... KNOB 1 turned: the CHO level down, REV's kept");
+    check(!FELUCCA_FX_REVERB || (dsend_kit[0] < DKS_DEF && dsend_kit[2] == DKS_DEF), "... KNOB 1 turned: the REV level down, CHO's kept");
     dsend_kit[0] = dsend_kit[1] = dsend_kit[2] = DKS_DEF;
     r = ins_row("BUS SENDS");
     SCR->cell(r < SCR->rows() ? r : 0u, 0, &c);
-    check(r < SCR->rows() && (!FELUCCA_FX_CHORUS || c.vp == &TDRUM->p[P_CHOR]), "... BUS SENDS: the drum bus's own sends");
+    check(r < SCR->rows() && (!FELUCCA_FX_REVERB || c.vp == &TDRUM->p[P_REV]), "... BUS SENDS: the drum bus's own sends (REV first)");
     r = ins_row("INSERTS");
     SCR->cell(r < SCR->rows() ? r : 0u, 1, &c);
     check(r < SCR->rows() && (!FELUCCA_FX_DIST || c.vp == &TDRUM->p[P_DIST]), "... INSERTS: the drum bus's slots (S1's DST the bus's)");

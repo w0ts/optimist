@@ -157,7 +157,7 @@ static void lv_dr_tests(void)
     r = lv_row_named("SENDS");
     check(r < SCR->rows(), "DR itself picked, FX: SENDS");
     SCR->cell(r, 0, &c);
-    check(c.vp == &dsend_kit[2] && c.gv == 70 && !c.dr, "... the drum track's send levels (CHO 70), as before");
+    check(c.vp == &dsend_kit[0] && c.gv == 50 && !c.dr, "... the drum track's send levels (REV 50 first), as before");
     check(lv_row_named("DR SENDS") >= SCR->rows() && lv_row_named("DR INSERT") >= SCR->rows(), "... no \"DR\" rows: the names are the plain ones");
     r = lv_row_named("INSERTS");
     check(r < SCR->rows() && lv_card(r, "S1") && lv_row_plain(r), "... INSERTS: the drum bus's S1 / S2, no tag");
