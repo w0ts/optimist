@@ -28,7 +28,7 @@ static uint32_t glo_expect(uint32_t s, cell_t *out, char (*sec)[12], uint32_t ma
                 sys_cell(u, k, &c);
             else
                 glo_cell(u, k, &c);
-            if (c.kind == CK_NONE || n >= max || (!s && u == TPR_TEMPO && k == 3u))   /* (SYNC: PLAY's TEMPO page only; GLOBAL has CLK IN) */
+            if (c.kind == CK_NONE || n >= max)          /* (Tempo's fourth line: TUNE, glo_cell; SYNC is PLAY's TEMPO page's) */
                 continue;
             out[n] = c;
             if (s || u >= GL_SYS0)

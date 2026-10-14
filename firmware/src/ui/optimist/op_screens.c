@@ -516,15 +516,20 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- MASTER (SCR_FX): the global effects' pages, in the signal's order (the user, 2026-10-14: "we should have inserts,
- * then send returns, then fx slots, then macro"): INS TONE INS COMP INS LIMIT (the master bus' own inserts), RETURNS
+ * then send returns, then fx slots, then macro"): INSERTS (the master's two insert slots, fx-rework 2026-10-14: its FILT,
+ * DUST and DYN are insert types now), INS DYN 1 INS DYN 2 (DYN's settings, while a master slot holds it: the compressor
+ * THRS RATIO ATK REL, then GAIN CEIL and the reduction), DUCK (the kick ducking the parts: MASTER's page without its
+ * DUST and FILT, now insert amounts), RETURNS
  * RET DELAY RET REV (the return levels, then the effects they return; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
  * order and titles (its UI draws them: ui/sloop/ui_draw.c); the order and names shown are this table's (FX_ORDER, a
- * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, sits
- * on LIMIT's free card: GAIN CEIL TUNE GR */
+ * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, is
+ * GLOBAL's Tempo list's fourth line (op_global.c; it sat on LIMIT's free card until fx-rework) */
 static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET REV"}, {"REVERB", "RET TYPE"},
-                                          {"MASTER", "INS TONE"}, {"COMP", "INS COMP"}, {"LIMIT", "INS LIMIT"}};
-static const char *const FX_ORDER[] = {"MASTER", "COMP", "LIMIT", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS", "MACRO"};
-static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_TUNE, G_CGR}};
+                                          {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
+                                          {"MASTER", "DUCK"}};
+static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MASTER", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS",
+                                       "MACRO"};
+static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
 static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */
 #define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */
 static uint8_t fx_ix[OP_MAXROWS];
@@ -607,7 +612,8 @@ static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
             }
             break;
         }
-        if (id != 0xFFu && pg->scope == SC_GLOBAL && (!cell_built(pg, id) || (pg == &FX_RET && *j < 3u && !FXS_ON(RT[*j]))))
+        if (id != 0xFFu && pg->scope == SC_GLOBAL && (!cell_built(pg, id) || (pg == &FX_RET && *j < 3u && !FXS_ON(RT[*j])) ||
+                                                      id == G_DUST || id == G_FILT))   /* (DUST FILT: INSERTS' amounts) */
             continue;
         if (n++ == (k & 3u))
             return pg;

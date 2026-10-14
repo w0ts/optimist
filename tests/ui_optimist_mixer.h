@@ -138,7 +138,7 @@ static void mixer_sets_tests(void)
         mix_cell(MXR_T1, 1, &c);
         check(!FELUCCA_FX_DIST || c.d == &TP[P_DIST], "... then S1's amount (DST)");
         mix_cell(MXR_T1, 3, &c);
-        check(!FELUCCA_TRK_FILT || c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0], "... S2's amount the track's FILTER");
+        check(!TFLT_ON || c.d == &TP[FXT_AMT[FXT_FILT]], "... S2's amount the track's FILTER");
         mx.set = 2;
         mix_cell(MXR_T1, 0, &c);
         check(!FELUCCA_FX_REVERB || c.d == &TP[P_REV], "the third set, the sends: REV first (in a slot), then DLY CHO");
@@ -188,17 +188,22 @@ static void mixer_sets_tests(void)
           "a lane: MUTE LEVEL CUT, then DRIVE DST CMP (the sound's own inserts: always heard)");
     check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0),
           "... then REV DLY CHO (no SOUND card)");
-    check(mx_labels(MXR_MASTER, 0, FELUCCA_FX_DJF ? "FILT" : FELUCCA_FX_DUST ? "DUST" : "DUCK", 0, 0, 0) &&
+    mst_defaults();
+    check(mx_labels(MXR_MASTER, 0, "S1", 0, "S2", 0) &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "REV RET", "DLY RET", "CHO RET", 0),
-          "MASTER: FILT DUST DUCK (those built), then the compressor, then the returns (a card a send a slot holds: REV DLY "
-          "CHO RET, the one order; no card for an empty slot or an insert): inserts then returns");
-    {   /* the mix set: no card for a value the build lacks (the audit's #22: DUST 0% on a build without DUST) */
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "REV RET", "DLY RET", "CHO RET", 0) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, "DUCK", 0, 0, 0),
+          "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
+          "REV DLY CHO RET, the one order), DUCK (fx-rework)");
+    {   /* the master's TYPE card: DYN out of its slots, its set gone; DUST / FILT never a card of their own */
         mitem_t it[MX_MAXI];
-        uint32_t n = mx_items(MXR_MASTER, it), i, dust = 0;
+        uint32_t n, i, own = 0;
+        mst_put((const uint8_t[2]){FXT_NONE, FXT_NONE});
+        n = mx_items(MXR_MASTER, it);
         for (i = 0; i < n; i++)
-            dust |= it[i].kind == MI_GLOB && it[i].id == G_DUST;
-        check(dust == (uint32_t)FELUCCA_FX_DUST, "MASTER's mix set: DUST only when built (the audit's #22)");
+            own |= it[i].kind == MI_GLOB && (it[i].id == G_DUST || it[i].id == G_FILT || it[i].id == G_CTHR);
+        check(!own, "MASTER: no DUST FILT card, and no DYN set while no master slot holds DYN");
+        mst_defaults();
     }
     {   /* MASTER's Returns (2026-10-12; batch D: REV DLY CHO, a card a send in a slot, the master FX's RETURNS order) */
         cell_t c;

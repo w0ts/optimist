@@ -36,7 +36,7 @@ static void mixer_page_tests(void)
     {
         int16_t x;
         check(mix_kind_id(0, MD_INS1) == (FELUCCA_FX_DIST ? P_DIST : 0xFFu), "mixer: INSERT is the row's S1 (DIST)");
-        check(FELUCCA_TRK_FILT || mix_desc(0, MD_INS2, &x) == 0, "mixer: S2 empty (no FILTER built): INSERT 2 is empty (\"--\")");
+        check(TFLT_ON || mix_desc(0, MD_INS2, &x) == 0, "mixer: S2 empty (no FILTER built): INSERT 2 is empty (\"--\")");
         check(mix_desc(0, MD_COMP, &x) == 0, "mixer: no COMP in the row's slots: COMP is empty");
     }
     if (FELUCCA_MASTER_COMP && FELUCCA_FX_DIST) {      /* COMP in S2: INSERT 2 and COMP are both it */

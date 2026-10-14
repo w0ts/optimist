@@ -26,8 +26,16 @@
 #define GL_NSYS ((uint32_t)NSYS_GLO)
 static uint32_t glo_rows(void) { return GL_SYS0 + GL_NSYS; }
 static uint32_t glo_sys(uint32_t r) { return NSYS_SETUP + (r - GL_SYS0); }   /* its SYS row */
+/* Tempo's fourth line: TUNE (fx-rework 2026-10-14: it sat on the master's LIMIT page; SYNC, PLAY's TEMPO page's fourth
+ * card, is CLK IN on the MIDI page here) */
+#define GL_TUNE(r, k) ((r) == TPR_TEMPO && (k) == 3u)
 static void glo_cell(uint32_t r, uint32_t k, cell_t *c)
 {
+    if (GL_TUNE(r, k)) {
+        cell_clear(c);
+        cell_param(c, &GP[G_TUNE], &song.g[G_TUNE]);
+        return;
+    }
     if (r < GL_SYS0)
         tp_cell(r, k, c);
     else
@@ -35,14 +43,16 @@ static void glo_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void glo_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
-    if (r < GL_SYS0)
+    if (GL_TUNE(r, k))
+        val_turn(&GP[G_TUNE], &song.g[G_TUNE], k, s, fine);
+    else if (r < GL_SYS0)
         tp_turn(r, k, s, fine);
     else
         sys_turn(glo_sys(r), k, s, fine);
 }
 static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    return r < GL_SYS0 ? tp_yes(r, k, ok) : sys_yes(glo_sys(r), k, ok);
+    return GL_TUNE(r, k) ? 0 : r < GL_SYS0 ? tp_yes(r, k, ok) : sys_yes(glo_sys(r), k, ok);
 }
 
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
@@ -66,8 +76,8 @@ static int gl_has(uint32_t s, uint32_t u, uint32_t k)   /* row u's cell k is a l
     cell_t c;
     if (s || u >= GL_SYS0)
         return sys_item(s ? u : glo_sys(u), k) != SI_NONE;
-    if (u == TPR_TEMPO && k == 3u)                      /* (SYNC: PLAY's TEMPO page has it; here it is CLK IN, on the MIDI page) */
-        return 0;
+    if (u == TPR_TEMPO && k == 3u)                      /* (SYNC: PLAY's TEMPO page has it, CLK IN here; its line here is TUNE) */
+        return 1;
     tp_cell(u, k, &c);
     return c.kind != CK_NONE;
 }

@@ -442,7 +442,8 @@ static void op_dsnd_tick(void)
 }
 
 /* ---- rows made of PAGES */
-#define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (pg)->id[0] >= FX_NSLOT)   /* FX > CMP: the track COMP's RATIO ATK REL */
+#define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (pg)->id[0] >= FX_NSLOT && (pg)->id[0] < FXS_ID_INS)   /* FX > DYN, DYN 2:
+                                                        * the track DYN's settings */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
     if (pg->scope == SC_DSND && is_drum(TSEL) && lane_acc())
@@ -568,6 +569,8 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
         }
     }
 #endif                                                  /* (a MACRO's motion: SLOOP's macro_ui.c, not here yet) */
+    if (pg->scope == SC_FXSLOT && fxs_type_set(id, v))  /* MST INS: the master's S1 / S2 TYPE (fx_slots.c) */
+        return;
     if (pg->scope == SC_FXSLOT && id < FX_NSLOT)        /* FX > SLOTS: load the type (a type held elsewhere swaps) */
         fxs_load(id, fxs_list[v]);
     if (pg->scope == SC_DSND && !lane_value_rec(lane_selected(), id, v))

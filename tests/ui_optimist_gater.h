@@ -31,6 +31,8 @@ static void gtu_fresh(void)
     fxi_init();
     fxi_poll();
     song.sel = 0;
+    trk[0].p[P_TGATE] = 0;                              /* (the earlier fuzz may have turned T1's GATER) */
+    fxs_gx_def(0);
 }
 /* the leftmost white pixel of the panel below the cards (the playhead is the only white there), -1 none */
 static int32_t gtu_white_x(void)

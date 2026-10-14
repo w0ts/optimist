@@ -230,7 +230,8 @@ static void glw_sync_long_tests(void)
             k++;
         }
         pg_ok &= k == n && gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
-        check(pg_ok && !gl_has(0, TPR_TEMPO, 3), "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT (one page, no MIDI IN, no CLK read-out); GLOBAL's Tempo has no SYNC");
+        glo_cell(TPR_TEMPO, 3, &c);
+        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT (one page, no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
         tp_cell(TPR_TEMPO, 3, &c);
         check(!FELUCCA_MIDI_CLOCK || (c.kind == CK_VAL && !strcmp(c.label, "SYNC")), "PLAY's TEMPO page still has SYNC (its 4th card)");
     }
