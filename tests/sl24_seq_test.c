@@ -266,7 +266,7 @@ static void t_locks(void)
     b = t->p[P_ED_FLT];
     check(lock_set(t, 2, P_ED_FLT, 40) && lock_set(t, 2, P_PAN, -30) && lock_set(t, 3, P_PAN, 20),
           "PLOCK: three locks set (two on one step)");
-    check(!lock_set(t, 2, P_SDIV, 1) && !lock_set(t, 2, P_ARATE, 1), "PLOCK: DIV and the arp's RATE are not lockable");
+    check(!lock_set(t, 2, P_SDIV, 1) && !lock_set(t, 2, P_VOICE, 1), "PLOCK: DIV and the voice allocation are not lockable (the arp's RATE is, since seq-tools)");
     transport_req = 1;
     v2 = val_at_step(t, P_ED_FLT, 2), p2 = t->p[P_PAN];
     v3 = val_at_step(t, P_ED_FLT, 3), p3 = t->p[P_PAN];
