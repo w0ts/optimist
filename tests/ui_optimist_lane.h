@@ -52,18 +52,18 @@ static void lane_preview_tests(void)
     aud_lanes = 0;
     turn(EN_ALGO, 1);
     check(song.sel == 1u && aud_lanes == 0u, "a synth track selected: no preview");
-    /* the pick's key: SEQ held + a drum key on STEP */
+    /* the pick's key: HOME held + a drum key on STEP */
     song.sel = TRK_DRUM;
     frame();
     tap(B_SEQ);
     lane_select(0);
     k = WK(6);
-    fm1_in.buttons |= BT(B_SEQ);
+    fm1_in.buttons |= BT(B_HOME);
     frame();
     aud_lanes = 0;
     kdown(k);
     check(lane_selected() == 6u && ly_lock == LY_PLAY && kb_kind[k] != KS_UI && aud_lanes == 0u,
-          "stopped, SEQ held + a drum key: the lane picked, its key plays (the preview), no second one");
+          "stopped, HOME held + a drum key: the lane picked, its key plays (the preview), no second one");
     kup(k);
     lane_transport(1);
     lane_select(0);
@@ -71,14 +71,14 @@ static void lane_preview_tests(void)
     memcpy(ln_before, TSEL->dstep, sizeof ln_before);
     kdown(k);
     check(lane_selected() == 6u && ly_lock == LY_STEP && kb_kind[k] == KS_UI && aud_lanes == 0u,
-          "playing, SEQ held + a drum key: the lane picked silently (the key reaches the UI only)");
+          "playing, HOME held + a drum key: the lane picked silently (the key reaches the UI only)");
     {
         kup(k);
         check(!memcmp(ln_before, TSEL->dstep, sizeof ln_before), "... and no step set by it");
     }
-    fm1_in.buttons &= ~BT(B_SEQ);
+    fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(ly_lock == LY_STEP && ui.scr == SCR_STEP, "SEQ let go: the keys are steps again");
+    check(ly_lock == LY_STEP && ui.scr == SCR_STEP, "HOME let go: the keys are steps again");
     tap(B_HOME);                                        /* the mixer: HOME held + a drum key, playing */
     lane_select(0);
     fm1_in.buttons |= BT(B_HOME);

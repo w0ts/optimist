@@ -85,7 +85,7 @@ static const char *lane_sound_name(uint32_t l);
 /* The drum track's ACCENT lane (core.h DRUM_ACC, lane 16) as this UI shows it: a lane as the others (a row in the grid,
  * the mixer and the walk, a key, a name), with no sound. lane_selected() is 0..DRUM_UILANES - 1; the per-lane SOUND
  * arrays (dl.*, dsend, the 16 names) only know the 16 sounds, so every site that indexes them asks lane_snd() first.
- * Black key 1 is its key where the build has it (core.h DACC_KEY_ON) */
+ * The last upper key (25) is its key where the build has it (core.h DACC_KEY_ON) */
 #define ACC_UI (FELUCCA_DRUM_ACCENT && DACC_KEY_ON)
 static int lane_acc(void) { return ACC_UI && lane_selected() == DRUM_ACC; }   /* the accent lane is the selected one */
 static int lane_snd(void) { return !lane_acc(); }                              /* the selected lane has a sound */

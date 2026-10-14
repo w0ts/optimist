@@ -300,12 +300,13 @@ static void lane_pick_from(uint32_t l, int key)
         audition_lane(l);                               /* (the ACCENT lane has no sound to preview) */                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
 static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
-/* the pick's modifier held on the drum track: SEQ on STEP, HOME elsewhere (on STEP HOME + a key clears a step) */
+/* the pick's modifier held on the drum track: HOME, on every page (on STEP too, unless a step is held: HOME then clears it;
+ * SEQ + a key on STEP clears the step) */
 static int pick_mod(uint32_t held)
 {
     if (!is_drum(TSEL))
         return 0;
-    return ui.scr == SCR_STEP ? (held & (1u << panel.btn[B_SEQ])) != 0u : (held & (1u << panel.btn[B_HOME])) != 0u;
+    return ui.scr == SCR_STEP ? step_pick(held) : (held & (1u << panel.btn[B_HOME])) != 0u;
 }
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
@@ -324,7 +325,7 @@ static void smute_notes(uint32_t notes)
             int32_t m = smute_key(id);
             if (m >= 0) {
                 int on = smute_toggle(m);
-                ui_say(m >= 16 ? trk_tag((uint32_t)m - 16u) : LANE_CODE[m], on ? " SEQ MUTE" : " SEQ ON");
+                ui_say(m == SMUTE_ACC ? DACC_CODE : m >= 16 ? trk_tag((uint32_t)m - 16u) : LANE_CODE[m], on ? " SEQ MUTE" : " SEQ ON");
             }
         }
 }
@@ -584,8 +585,8 @@ static void op_drain(uint32_t held)
                 prj_key(e & 0x7Fu, 1);                  /* (PROJECT: the key picks the slot; no track, no other job) */
             continue;                                   /* (a press; its release goes on: a step held before the page changed) */
         }
-        if ((e >> 8) == LY_STEP && (pick_mod(held) || mute_mod(held)))
-            continue;                                   /* (the silent pick's key: no step) */
+        if ((e >> 8) == LY_STEP && ((e >> 7) & 1u) && (pick_mod(held) || mute_mod(held)))
+            continue;                                   /* (the silent pick's key: no step; its release goes on, as a held step's must) */
         if ((e >> 8) == LY_STEP)
             step_key(e & 0x7Fu, (e >> 7) & 1u, held);
         else
@@ -714,7 +715,7 @@ static uint32_t step_leds(uint32_t blink)
         return m;
     }
     for (w = 0; w < 16u; w++) {
-        uint32_t idx = st.page * 16u + w, on = idx < len && step_has(t, idx);
+        uint32_t idx = st.page * 16u + w, on = idx < len && step_shown(t, idx);
         if (song.playing && idx == at)
             on = blink;                                 /* the playhead's key */
         if ((st.held >> w) & 1u)

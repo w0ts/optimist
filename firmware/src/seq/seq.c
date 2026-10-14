@@ -189,7 +189,7 @@ static int kb_raw(const track_t *t)
 #endif
 
 /* key k on the drum track -> its lane: a white key's sound (drums.c lane_of_key); the Optimist UI with the ACCENT
- * lane and DACC_KEY_ON (the UI's switch: it shows the lane): its lowest black key (F#, key 1) is the ACCENT lane
+ * lane and DACC_KEY_ON (the UI's switch: it shows the lane): its last upper key (F#, key 25: DACC_KEY) is the ACCENT lane
  * (played: recorded, erased, rolled as a lane, no sound) */
 static uint32_t kb_drum_lane(uint32_t k)
 {

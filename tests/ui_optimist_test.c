@@ -870,11 +870,28 @@ static void step_keys_tests(void)
     key(WK(1));
     release(B_OCTDN);
     check(dstep_lvl(&t->dstep[1], 2) == LV_GHOST, "drums: OCT- held + a step: a ghost hit (OCT keeps its job)");
+    dstep_set(&t->dstep[5], 2, LV_NORM, 0);
+    press(B_HOME);
+    key(WK(5));
+    release(B_HOME);
+    check(lane_selected() == 5 && pen_lane == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP && dstep_has(&t->dstep[5], 2),
+          "drums: HOME held + a key: the lane picked, heard, no step cleared; HOME let go, the keys are steps again");
     press(B_SEQ);
     key(WK(5));
     release(B_SEQ);
-    check(lane_selected() == 5 && pen_lane == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP,
-          "drums: SEQ held + a key: the lane picked, heard; SEQ let go, the keys are steps again");
+    check(lane_selected() == 5 && !dstep_mask(&t->dstep[5]) && ui.scr == SCR_STEP && ly_lock == LY_STEP && !st.play,
+          "drums: SEQ held + a key: the step cleared, no lane picked; SEQ let go, no page turned");
+    {
+        uint32_t lanes_before = lane_selected();
+        dstep_set(&t->dstep[6], 1, LV_NORM, 0);
+        lane_select(2);
+        press(B_SEQ);
+        key(WK(6));
+        release(B_SEQ);
+        check(lane_selected() == 2u && !dstep_lanes(&t->dstep[6]) && lanes_before == 5u,
+              "drums: SEQ + a key clears the whole step (any lane's hit) and picks no lane");
+        lane_select(5);
+    }
     key(WK(4));
     check(dstep_has(&t->dstep[4], 5), "drums: the next tapped step takes the pick");
     kdown(WK(4));
@@ -904,12 +921,24 @@ static void step_keys_tests(void)
     frame();
     check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "a step held, HOME tapped: cleared, STEP stays");
     key(WK(4));
+    fm1_in.buttons |= BT(B_SEQ);
+    frame();
+    key(WK(4));
+    fm1_in.buttons &= ~BT(B_SEQ);
+    frame();
+    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP && ui.row[SCR_STEP] == 0, "drums: SEQ held + a step: cleared (no NO, no page turned)");
+    key(WK(4));
     fm1_in.buttons |= BT(B_HOME);
     frame();
     key(WK(4));
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "HOME held + a step: cleared (no NO)");
+    check(dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "drums: HOME held + a key: the step stays (the key picks), no clear");
+    lane_select(5);
+    press(B_SEQ);
+    key(WK(4));
+    release(B_SEQ);                                     /* (cleared again, as the following tests expect) */
+    check(!dstep_mask(&t->dstep[4]), "drums: ... SEQ + the key clears it");
     seq_long();
     check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
     key(WK(7));
