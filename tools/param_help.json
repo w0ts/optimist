@@ -194,6 +194,9 @@
     {"kind": "eng", "ctx": "CZ", "if": "FELUCCA_ENG_CZ", "params": {
       "TONE": "CZ tone", "DCW": "Wave bend depth (DCW)", "W.TIM": "DCW envelope times", "DTN": "Line 2 detune (cents)",
       "A.TIM": "Level envelope times", "LINE": "Line select", "MOD": "Ring or noise mod", "VIB": "Vibrato depth"}},
+    {"kind": "eng", "ctx": "JUNO", "if": "FELUCCA_ENG_JUNO", "params": {
+      "WAVE": "Saw, pulse or both", "PW": "Pulse width", "SUB": "Sub oscillator level", "NOIS": "Noise level",
+      "CUT": "Filter cutoff", "RES": "Filter resonance", "KEY": "Cutoff key tracking", "HPF": "High-pass filter"}},
 
     {"kind": "fm6", "ctx": "freq", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
       "mode": "Ratio or fixed frequency", "coars": "Coarse frequency", "fine": "Fine frequency", "dtune": "Operator detune"}},

@@ -15,7 +15,8 @@
   "SLICE": "#7b97ab",
   "PHYS": "#9a8f3e",
   "ACID": "#869f2e",
-  "CZ": "#5f9bba"
+  "CZ": "#5f9bba",
+  "JUNO": "#cf5f3f"
  },
  "kinds": {
   "synth": "#e76f54",
