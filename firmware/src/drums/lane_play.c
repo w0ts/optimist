@@ -217,7 +217,10 @@ _Static_assert(DE_N == 8u && sizeof dl.ofs[0] == 8u, "a lane's offsets: two word
 AINL uint32_t dl_play_ofs(uint32_t l, uint32_t *w)
 {
     int8_t *o = (int8_t *)w;
-    uint32_t v, m;
+    uint32_t v;
+#if DLA_ON
+    uint32_t m;
+#endif
     if (l >= DRUM_LANES || !(DLA_ANY(l) | ((uint32_t)(dlfo_on >> l) & 1u)))
         return 0;                          /* (none on l: dl_ofs, as before) */
     __builtin_memcpy(w, __builtin_assume_aligned(dl.ofs[l], 4), DE_N);   /* (two words: dl is aligned; libc.c memcpy copies bytes) */
