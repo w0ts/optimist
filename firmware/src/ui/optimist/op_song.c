@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SONG (docs/UI-OPTIMIST-DESIGN.md section 4.5, phase 4): scenes, patterns, the chain. Entered by SAVE held + SELECT
  * turned, on any screen (op_song.c song_shortcut; the SCENES layer, SAVE held, says "Select: song").
- *   SCENE A .. P  T1 T2 T3 DR: the pattern each track plays in it ("3", "KEEP", "--"; a plain section "SEC");
+ *   SCENE A .. P  T1 T2 T3 DR: the pattern each track plays in it ("3", "KEEP", "-" none; a plain section "SEC");
  *                 the hot cell's KNOB edits its reference (PRESETS is the track's sound; stopped; written once it rests, pat.c pat_scene_ref_set);
  *                 YES launches it at the next bar (stopped: loads it); REC stores the loop into it (asked over a
  *                 used one); HOME + REC clears it (asked). The playing scene green, a queued one amber, "*": its
@@ -72,7 +72,7 @@ static uint32_t song_ref(uint32_t s, uint32_t k)        /* scene s's reference o
         return sg.refs[s][k];
     return (sg.used >> s) & 1u ? SG_SEC : PAT_NONE;
 }
-/* the reference v of track k one step on: "--", KEEP, then the stored slots in order */
+/* the reference v of track k one step on: none ("-"), KEEP, then the stored slots in order */
 static uint32_t song_ref_step(uint32_t k, uint32_t v, int32_t s)
 {
 #if FELUCCA_PATTERNS
@@ -149,7 +149,7 @@ static void song_slot_cell(cell_t *c, uint32_t v)       /* a pattern reference a
         fmt_int(c->val, (int32_t)v + 1);
         cell_gauge(c, 1, 0, 15, (int32_t)v);
     } else {
-        str_cpy(c->val, v == PAT_KEEP ? "KEEP" : v == SG_SEC ? "SEC" : "--", sizeof c->val);
+        str_cpy(c->val, v == PAT_KEEP ? "KEEP" : v == SG_SEC ? "SEC" : "-", sizeof c->val);   /* (none: "-", audit #7) */
     }
 }
 #if FELUCCA_PATTERNS
@@ -187,6 +187,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
         c->label = "SCENE";
         c->kind = CK_RO;
         str_cpy(c->val, (sg.used >> a) & 1u ? "STORED" : "EMPTY", sizeof c->val);
+        c->dim = (uint8_t)!((sg.used >> a) & 1u);      /* (an empty scene: EMPTY, dim, audit #7) */
         cell_gauge(c, 1, 0, 1, (int32_t)((sg.used >> a) & 1u));
 #endif
         return;

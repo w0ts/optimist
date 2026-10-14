@@ -311,24 +311,26 @@ static void acc_step_tests(void)
 #else
     kup(WK(6));
 #endif
-    /* the lane's own STEP page: the amount alone */
+    /* the lane's own STEP page is gone (batch D, the audit's #21: its amount alone was a page of one card; it is the SOUND
+     * row's ACCENT card and the mixer's ACCENT row): Pattern, then the tools */
     memset(t->dstep, 0, sizeof t->dstep);
-    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
+    ui.row[SCR_STEP] = 0;
     frames(2);
-    SCR->cell(STP_LANE0, 0, &c);
-    ok = c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC];
-    SCR->cell(STP_LANE0, 1, &c);
-    ok &= !c.label || !c.label[0];
-    check(ok, "STEP's LANE page of the ACCENT lane: the amount, no sound's values");
-    TDRUM->p[P_DACC] = DACC_DEF;
-    turn(EN_K1, 4);
-    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 1 turns it");
-    TDRUM->p[P_DACC] = DACC_DEF;
     {
         char nm[12];
-        step_name(STP_LANE0, nm);
-        check(!strcmp(nm, "ACCENT"), "... the page is named after the lane");
+        uint32_t r;
+        ok = SCREENS[SCR_STEP].rows() == STP_LANE0 + STP_TL;
+        for (r = 0; r < SCREENS[SCR_STEP].rows(); r++) {
+            step_name(r, nm);
+            ok &= !str_eq(nm, "ACCENT") && !stp_is_lane(r);
+        }
+        check(ok, "STEP on the ACCENT lane: no LANE page (its amount alone), Pattern and the tools");
     }
+    op_enter(SCR_SOUND);
+    ui.row[SCR_SOUND] = 0;
+    frames(2);
+    SCR->cell(0, 3, &c);
+    check(c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC], "... the amount: the SOUND row's ACCENT card");
     reset_ui();
     memset(t->dstep, 0, sizeof t->dstep);
 }
@@ -507,10 +509,7 @@ static void acc_help_tests(void)
     ui.row[SCR_HOME] = MXR_ACC;
     mix_cell(MXR_ACC, 1, &c);
     check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT LEVEL card");
-    op_enter(SCR_STEP);
-    ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
-    step_cell(STP_LANE0, 0, &c);
-    check(hl_find(SCR_STEP, STP_LANE0, &c) != 0u, "... and STEP's ACCENT page");
+    /* (STEP's ACCENT page is gone, batch D: the amount is the SOUND row's card, checked above) */
     reset_ui();
 }
 #endif

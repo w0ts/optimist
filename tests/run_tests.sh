@@ -703,6 +703,12 @@ for m in "-DFELUCCA_INS_GATER=1" "-DFELUCCA_INS_GATER=1 -DFELUCCA_PARAM_HELP=1";
         run "SLOOP UI, GATER (${m}): the page in the FX family, DEPTH PAT RATE SHAPE, the icons, the picture and its playhead, the help lines" "$OUT/ui_pages_gater_test$nu" "$OUT/pages-gater$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
+# batch D (tests/ui_optimist_layout.h) on a build without DUST: no DUST card anywhere (the mixer, the master FX, the layers)
+job; ( jobin
+    mkdir -p "$OUT/optimist-nodust"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FX_DUST=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nodust_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI without DUST built: no DUST card on the mixer's MASTER set, the master FX (INS TONE: the built values first) or a layer; the badges, the empty rule" "$OUT/ui_optimist_nodust_test" "$OUT/optimist-nodust"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
     run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"

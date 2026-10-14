@@ -20,6 +20,7 @@
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
+static const char *lay_badge(void);
 static void lay_draw_cards(void);
 static void lay_draw_tiles(void);
 static uint32_t tempo_sig(void);
@@ -91,19 +92,18 @@ static void loop_pos(const track_t *t, char *b)
  * not display the track in the header"). The rule: the badge only where the page's values belong to the selected
  * track / lane. One flag per screen and per layer, so a change is one digit. The mixer's title carries the row's name
  * ("SNARE LEVELS"), SONG's PATTERNS row is every track's, SCOPE picks its own source, TEMPO's rows are the project's REC
- * settings; the MASTER pages show no track either (their title says MASTER) */
+ * settings; the MASTER pages show no track either. Those pages' badge names the screen instead (head_other, the
+ * audit's #11) */
 static const uint8_t HEAD_TRK_SCR[SCR_N] = {
     [SCR_HOME] = 0, [SCR_SOUND] = 1, [SCR_FX] = 0, [SCR_PROJECT] = 0, [SCR_SYSTEM] = 0,
     [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0};
 static void head_cont(char *t);
-/* the page's title into t (n bytes), as drawn (sentence case, the names table's: op_names.c): the cursor row's name; on a
- * page that is not a track's (no badge) after the screen's word ("Master ins tone", "Project tools"), the row alone where
- * it starts with that word ("Project"). cont: the n/N is shown, a continuation page's number goes ("Edit 1" -> "Edit") */
+/* the page's title into t (n bytes), as drawn (sentence case, the names table's: op_names.c): the cursor row's name alone,
+ * the badge names the screen ("Ins tone", "Tools", "Scene A"); the mixer's track rows: the row's name and the set ("T1 mix").
+ * cont: the n/N is shown, a continuation page's number goes ("Edit 1" -> "Edit") */
 static void head_title_c(uint32_t scr, uint32_t row, char *t, uint32_t n, int cont)
 {
-    const char *s = SCR_NAME[scr % SCR_N];
     char r[32], d[32];
-    uint32_t k;
     if (scr == SCR_STEP && st.held && ui.cards_t) {     /* a step held, its cards up: their page, "LFO 5/21" (a tap shows
                                                          * no cards: the header stays the window's) */
         hp_title(r, sizeof r);
@@ -122,23 +122,12 @@ static void head_title_c(uint32_t scr, uint32_t row, char *t, uint32_t n, int co
     if (cont)
         head_cont(r);
     nm_title(r, d, sizeof d);
-    if (scr == SCR_HOME && row % MXR_N != MXR_MASTER) { /* the mixer: the row's name as stored and the set, "snare sends" */
-        str_cpy(t, row % MXR_N >= MXR_LANE0 ? lane_short(row % MXR_N - MXR_LANE0) : trk_tag(mx_trk_of(row % MXR_N)), n);
-        str_cpy(t + str_len(t), " ", n - str_len(t));
-    } else if (HEAD_TRK_SCR[scr % SCR_N] || gl_scr(scr)) {   /* a track's page: the badge names the track, the title the
-                                                         * page; GLOBAL, SYSTEM: the badge names the screen */
+    if (scr != SCR_HOME || row % MXR_N == MXR_MASTER) { /* the page's name alone: the badge names the track or the screen */
         str_cpy(t, d, n);
         return;
-    } else {
-        for (k = 0; s[k] && s[k] == r[k]; k++)
-            ;
-        if (!s[k] && (!r[k] || r[k] == ' ')) {          /* (the row starts with the screen's word: "Project") */
-            str_cpy(t, d, n);
-            return;
-        }
-        op_case(t, s, n);                               /* ("Master", "Song") */
-        str_cpy(t + str_len(t), " ", n - str_len(t));
     }
+    str_cpy(t, row % MXR_N >= MXR_LANE0 ? lane_short(row % MXR_N - MXR_LANE0) : trk_tag(mx_trk_of(row % MXR_N)), n);
+    str_cpy(t + str_len(t), " ", n - str_len(t));       /* (the mixer: the row's name as stored and the set, "snare sends") */
     if (d[0] >= 'A' && d[0] <= 'Z' && d[1] >= 'a' && d[1] <= 'z')
         d[0] = (char)(d[0] + 32);                       /* (a word goes on the sentence: "ins tone"; "T1", "ENV" stay) */
     str_cpy(t + str_len(t), d, n - str_len(t));
@@ -349,48 +338,69 @@ typedef struct {
     uint8_t badge, cut;                 /* a badge drawn; the title cut to its room (never, on a track page) */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
+/* the badge of a page that is not a track's, and the title it leaves (the audit's #11): MASTER (the master FX, the mixer's
+ * MASTER row, MASTER in a layer: the layer's name the title), a layer that is not the track's (its name; "Locked" the
+ * title while HOME holds it open), NAME (the slot the title), the screen's (GLOBAL, SYSTEM: no title, the list's own big
+ * title says the page, op_gldraw.c), else the screen's name (MIX, PROJECT, SONG, TEMPO, SCOPE; style guide 1: the title
+ * is then the page's name alone, never the screen's word again). 1: the title is t's already */
+static int head_other(head_t *h)
+{
+    h->tc = C_HI;
+    if (name_on()) {
+        char b[32];
+        h->eng = "NAME";
+        name_title(b, sizeof b);                        /* ("NAME U03": the slot after the screen's word) */
+        nm_title(b + 5, h->t, sizeof h->t);
+        return 1;
+    }
+    if (lay.shown != LY_PLAY) {
+        if (ui.master) {
+            char b[32];                                 /* (the layer's name, "FX", over MASTER) */
+            h->eng = "MASTER";
+            lay_title(b, sizeof b);
+            nm_title(b, h->t, sizeof h->t);
+        } else {
+            h->eng = lay_badge();                       /* ("SCENES", "REPEAT") */
+            str_cpy(h->t, lay.lock != LY_PLAY ? "Locked" : "", sizeof h->t);
+        }
+        return 1;
+    }
+    h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : SCR_NAME[ui.scr % SCR_N];
+    return gl_scr(ui.scr);                              /* (GLOBAL, SYSTEM: the title is the list's, t stays empty) */
+}
 static void head_make(head_t *h)
 {
-    const char *eng0 = head_engine();
-    uint32_t trkb;
+    uint32_t trkb = !ui.msg_t && head_has_track(), done = 0;
     h->tc = lane_picked() ? op_lane_col(lane_selected()) : trk_col(song.sel);
     h->mc = C_HI;
-    h->eng = eng0;
-    if (ui.scr == SCR_FX || ui.master                   /* MASTER: its badge in C_HI, as the mixer's M row; the mixer's */
-        || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
-        h->eng = "MASTER";
-        h->tc = C_HI;
-    } else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY) {   /* GLOBAL, SYSTEM: the badge names the screen (one GLO cycle) */
-        h->eng = SCR_NAME[ui.scr];
-        h->tc = C_HI;
-    }
-    h->badge = (uint8_t)(head_has_track() || ui.msg_t);
-    trkb = h->badge && !ui.msg_t && h->eng == eng0;
-    if (!h->badge)
-        h->eng = "";                                    /* (no badge: the title starts at the left margin) */
-    else if (trkb)
-        h->eng = head_badge(h->bt, sizeof h->bt);       /* (a track page: "2 DIGITAL") */
-    head_preset(h->pr, trkb);
-    h->bw = h->badge ? text_w(&FONT_S, h->eng) + HEAD_PAD * 2 : 0;
     h->pos[0] = 0;
     h->t[0] = 0;
+    h->badge = 1;                                       /* (every screen: the audit's #11; a message takes the header whole) */
+    if (trkb)
+        h->eng = head_badge(h->bt, sizeof h->bt);       /* (a track page: "2 DIGITAL") */
+    else if (!ui.msg_t)
+        done = (uint32_t)head_other(h);
+    else
+        h->eng = "";
+    head_preset(h->pr, trkb);
+    h->bw = text_w(&FONT_S, h->eng) + HEAD_PAD * 2;
     if (ui.msg_t) {
         h->mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
-    } else if (name_on()) {
-        name_title(h->t, sizeof h->t);                  /* NAME: "Name U03", "Name project 3" */
+    } else if (done) {
+        ;                                               /* (the title head_other gave) */
     } else if (lay.shown != LY_PLAY) {
-        lay_title(h->t, sizeof h->t);                   /* a layer: its name ("Scenes", "FX locked") */
+        char b[32];                                     /* a track's layer: its name ("Key", "Erase locked") */
+        lay_title(b, sizeof b);
+        nm_title(b, h->t, sizeof h->t);
     } else {
         head_pos(ui.scr, ui.row[ui.scr], h->pos);
         head_title_c(ui.scr, ui.row[ui.scr], h->t, sizeof h->t, h->pos[0] != 0);
-        if (gl_scr(ui.scr))                             /* GLOBAL, SYSTEM: the screen's name alone (the page's name and n/N are */
-            op_case(h->t, SCR_NAME[ui.scr], sizeof h->t), h->pos[0] = 0;   /* the list's own title, op_gldraw.c) */
     }
     loop_pos(TSEL, h->r);
     if (ui.scr == SCR_STEP)
         h->r[0] = 0;                                    /* (STEP: the grid shows the playhead; the room is the pick's) */
     fmt_int(h->bpm, song.g[G_BPM]);
-    h->tx = h->badge ? 2 + h->bw + HEAD_GAP : 6;        /* the title's room, left of the position and the tempo */
+    h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
     h->room = head_room(h->tx, h->bpm, h->r);
     h->cut = (uint8_t)head_finish(h->t, h->pos, h->room);
     if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !ui.cards_t && !lane_picked()) {   /* STEP: the window,
@@ -418,7 +428,7 @@ static void draw_head(void)
     sig = hs(sig, h.pr);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     tflash_tick();
-    if (tf.t && !ui.msg_t && !name_on()) {
+    if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
     }
@@ -426,8 +436,8 @@ static void draw_head(void)
         return;
     ui.sig[0] = sig;
     cv_begin(240, OH_HEAD, C_BLACK);
-    if (tf.t && !ui.msg_t && !name_on()) {
-        draw_head_flash(h.tc);
+    if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
+        draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */
     } else if (ui.msg_t) {
         cv_text(4, 4, &FONT_S, op_case(c, ui.msg, sizeof c), h.mc);   /* (sentence case: "T1 cleared") */
     } else {

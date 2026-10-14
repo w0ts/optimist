@@ -34,13 +34,9 @@ static void scope_cell(uint32_t r, uint32_t k, cell_t *c)
         page_cell(&SCOPE_MASTER, k, c);
         return;
     }
-    cell_param(c, scope_desc(r, k, &vp), vp);
-    if (!c->d) {
-        cell_clear(c);
-        c->label = TP[SCOPE_TRK_ID[k & 3u]].label;
-        str_cpy(c->val, "-", sizeof c->val);
-    }
-    c->col = trk_col(r - 1u);
+    cell_param(c, scope_desc(r, k, &vp), vp);           /* (a value the track or the build has not: the frame alone, #7) */
+    if (c->d)
+        c->col = trk_col(r - 1u);
 }
 static void scope_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {

@@ -115,12 +115,12 @@ static void cards_pic_tests(void)
     op_enter(SCR_TEMPO);
     cp_draw();
     ppm("opt-cardspic-tempo");
-    check(lst.pic == 3u && lst.shown == 0u && gr_h == OH_BODY && cp_pos(p) && !strcmp(p, " 1/3") &&
+    check(lst.pic == 3u && lst.shown == 0u && gr_h == OH_BODY && cp_pos(p) && !strcmp(p, FELUCCA_REC_MODES ? " 1/3" : " 1/2") &&
           px_in(8, (uint32_t)OP_PY + 20u, 100, 50, C_WHITE),
-          "2x2: TEMPO, the tempo big and the beat alone on the panel, the header 1/3");
+          "2x2: TEMPO, the tempo big and the beat alone on the panel, the header 1/3 (1/2 without REC MODES: QUANT on REC)");
     turn(EN_SELECT, 1);
     frames(2);
-    check(cp_pos(p) && !strcmp(p, " 2/3") && lst.shown == 0u, "... SELECT: the REC row, the header 2/3");
+    check(cp_pos(p) && !strcmp(p, FELUCCA_REC_MODES ? " 2/3" : " 2/2") && lst.shown == 0u, "... SELECT: the REC row, the header 2/3 (2/2)");
     /* SCOPE: the trace to the foot, no tabs; the header names the source and its n/N */
     reset_ui();
     op_enter(SCR_SCOPE);

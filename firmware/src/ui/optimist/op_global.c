@@ -304,7 +304,7 @@ static const screen_t SCREENS[SCR_N] = {
     {sls_rows, sls_name, sls_cell, sls_turn, sls_yes},
     {step_rows, step_name, step_cell, step_turn, step_yes},
     {song_rows, song_name, song_cell, song_turn, song_yes},
-    {tp_rows, tp_name, tp_cell, tp_turn, tp_yes},
+    {tps_rows, tp_name, tps_cell, tps_turn, tps_yes},
     {scope_rows, scope_name, scope_cell, scope_turn, scope_yes},
     {gls_rows, gls_name, gls_cell, gls_turn, gls_yes},
 };
