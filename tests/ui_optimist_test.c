@@ -711,7 +711,7 @@ static void confirm_tests(void)
     tap(B_SAVE);
     check(song.g[G_BPM] == GP[G_BPM].def && !strcmp(ui.msg, "NEW PROJECT"), "YES again: a new project");
     song.g[G_SLOT] = 4;                                 /* (project_used: slots 1, 2) */
-    turn(EN_K3, 1);
+    turn(EN_K2, 1);                                     /* (OPERATION: SAVE) */
     saves = 0;
     tap(B_SAVE);
     check(ui.arm_scr == SCR_PROJECT && !strcmp(ui.arm_q, "SAVE PROJECT 4?") && !ui.arm_danger && saves == 0 && !name_on(),
@@ -727,6 +727,8 @@ static void confirm_tests(void)
 #endif
     check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: asked, then saved");
     song.g[G_SLOT] = 1;
+    check(prj_op() == PO_LOAD, "the operation is LOAD again after an action");
+    turn(EN_K2, 1);
     tap(B_SAVE);
     check(saves == 1 && !strcmp(ui.arm_q, "SAVE PROJECT 1?") && ui.arm_danger, "PROJECT SAVE over a used slot: asks, red");
     ui.force = 1;
@@ -738,10 +740,11 @@ static void confirm_tests(void)
         ;
     ui.row[SCR_PROJECT] = (uint8_t)r;
     ui.user_slot = 1;
-    turn(EN_K3, 1);
+    turn(EN_K2, 1);
+    turn(EN_K2, 1);                                     /* (LOAD, SAVE, CLEAR) */
     tap(B_SAVE);
     tap(B_SAVE);
-    check(up_ops[1] == 1, "USER ERASE: asks, then erases");
+    check(up_ops[1] == 1, "USER CLEAR: asks, then erases");
     {
         uint32_t p = settings.palette, w = line_named(SCR_SYSTEM, "COLOR");   /* (the first lines are CPU's, read-outs: D2) */
         ui.force = 1;
@@ -2140,9 +2143,9 @@ static void name_tests(void)
         ;
     ui.row[SCR_PROJECT] = (uint8_t)l;
     ui.user_slot = 5;
-    turn(EN_K4, 1);
+    turn(EN_K2, 1);                                     /* (OPERATION: SAVE) */
     tap(B_SAVE);
-    check(op_armed() && !name_on() && !strcmp(ui.arm_q, "SAVE PRESET U06?"), "PROJECT's USER SAVE: asks first");
+    check(op_armed() && !name_on() && !strcmp(ui.arm_q, "SAVE USER U06?"), "PROJECT's USER SAVE: asks first");
     tap(B_SAVE);
     check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: then NAME");
     tap(B_SAVE);
@@ -2153,7 +2156,7 @@ static void name_tests(void)
         ui.row[SCR_PROJECT] = 0;                        /* PROJECT: slot 9, empty */
         song.g[G_SLOT] = 9;
         frame();
-        turn(EN_K3, 1);
+        turn(EN_K2, 1);
         tap(B_SAVE);
         tap(B_SAVE);
         check(name_on() && nm.kind == NK_PROJ && nm.slot == 8u && !strcmp(nm.s, "PROJECT 9"),
@@ -2167,7 +2170,7 @@ static void name_tests(void)
         tap(B_SAVE);
         sec_name(8, b);
         check(!name_on() && project_used(8) && !strcmp(b, "CD"), "... SAVE: the project saved, its name in the log");
-        turn(EN_K3, 1);
+        turn(EN_K2, 1);
         tap(B_SAVE);
         tap(B_SAVE);                                    /* (over a used slot: asked, then NAME) */
         check(name_on() && !strcmp(nm.s, "CD"), "saved again: asked, then NAME prefilled with its name");
@@ -2428,6 +2431,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
+#include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
@@ -2585,6 +2589,7 @@ int main(int argc, char **argv)
     risk_tests();
     risk_edits_tests();
     actcards_tests();
+    prjflow_tests();
     colours_tests();
     algo_tests();
     mute_tests();

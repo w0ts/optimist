@@ -140,6 +140,8 @@ static void cards_pic_tests(void)
             op_enter(S[i]);
             for (r = 0; r < SCR->rows() && ok; r++) {
                 ui.row[S[i]] = (uint8_t)r;
+                if (S[i] == SCR_PROJECT && prj_slots_row(prj_kind(r)))
+                    continue;                           /* (a store's slots: the strip and the item, op_prjflow.c) */
                 cp_draw();
                 ok &= (uint32_t)(lst.pic ? S[i] == SCR_SONG && lst.shown > 0u : cp_list());   /* (SONG's PATTERNS: the grid and the rows) */
                 if (!ok)

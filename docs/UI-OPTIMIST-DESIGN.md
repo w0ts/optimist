@@ -458,12 +458,41 @@ Launching stays on the held layers for performance (section 4.9): SAVE held = sc
 
 ### 4.6 PROJECT
 
-Rows: PROJECT (SLOT · LOAD · SAVE · NEW), SNAPSHOT (SLOT · LOAD · CLEAR · SAVE), USER PRESET (SLOT · LOAD · ERASE ·
-SAVE), TOOLS (CLEAR SEQ · INIT SOUND · MISSING · NEW), SLOOP 2.4 (the import of its slots and autosave, as built),
-and the MEM gauge. **An action cell does nothing when turned**: YES does it, with the confirm when it destroys. This
-replaces "a second detent arms" everywhere. The panel lists the slots with their names, sizes and dots (the
-SNAPSHOT list as today). Projects and user presets are named on Felucca's NAME screen when saved, the keys typing
-the letters [D]; kits keep numbers.
+Rows: PROJECT, SNAPSHOT, USER (the stores with slots), TOOLS (CLEAR SEQ · INIT SOUND · MISSING · NEW), SLOOP 2.4 (the
+import of its slots and autosave, as built) and the MEM gauge. **A storage row is BANK · ACTION · ITEM · (NEW)**
+(2026-10-14, the user: "select bank (if there are more than 16), the operation (save, load, delete/clear), and then press
+one of the 16 keys and then confirm with the popup yes/no. Default action is load"; "one knob for the item, and below we
+display the info about the item"; "NEW is just clearing what is in memory and creating something blank"), `op_prjflow.c`:
+
+| Card | What | Notes |
+|---|---|---|
+| 1 BANK | the bank of 16 slots the keys are | **only on a store of more than 16 slots** (USER: 32, 2 banks); otherwise an empty card. Turning it goes to the same place in the other bank |
+| 2 ACTION | **LOAD** (the default), SAVE, CLEAR | the card says ACTION (the card labels are 6 letters at most; the help line says "Load, save, clear, then a key"). CLEAR is the one verb for removing a slot (the names table: USER's old ERASE is CLEAR too). **PROJECT has LOAD and SAVE only**: a project slot has no clear (nothing in the section log deletes a slot; NEW is the blank project). The value is red when it would destroy or replace (the rule below) |
+| 3 ITEM | the slot | one knob that **walks all the slots, across the banks** (the BANK card follows); dim when free, the snapshots in their status colours |
+| 4 | PROJECT: **NEW**, an action card with its confirm "New project?" (always red: it drops the work in memory); SNAPSHOT, USER: empty | NEW touches **no slot** (the help line: "Blank project (slots kept)") and is not an ACTION |
+
+- **The 16 white keys are the slots of the current bank: key n selects item n AND runs the action on it**, through the
+  existing confirm (SAVE yes, HOME no, 3 s): "Load project 3?", "Save snapshot 2?", "Clear user U18?". The ITEM follows the
+  key, so the knob and the key LEDs (a used slot full, a free one dim, the item blinking) always agree.
+- **YES on the row (any card but NEW) runs the action on the ITEM** the knob is on, with the same confirm: the knob path
+  works without the keys.
+- **A free slot to LOAD or CLEAR has nothing to do**: a toast "Slot U10 is empty", no question. SAVE into a free slot asks
+  (neutral).
+- **The action goes back to LOAD after each action, when the row changes and when the screen is left** (`op_enter`): a
+  stray key never saves. HOME on the question keeps the action as chosen.
+- Risk colours (`prj_danger`, card and modal alike): SAVE over a used slot and CLEAR of a used one are red; LOAD is red only
+  when the work is not as stored (it replaces edits), neutral otherwise; SAVE into a free slot neutral; NEW always red.
+- **The panel under the cards** (replaces the row list on the storage rows; TOOLS, SLOOP and MEMORY keep theirs): a strip of
+  the bank's slots (used filled, free outlined, the item framed in the track's colour), then the sentence a key would run
+  now in the action's colour ("Load project 3", red when it would replace), the item's name large, and its info read from
+  what is stored, nothing scanned: a project its name (the section log's, `sec_name`; "Project 3" without one) and stored /
+  free; a snapshot its name, its status (saved, saved by another build in amber, damaged in red) and its size in KB; a user
+  preset its name and engine (in amber when the engine is not in the build). A project's tempo and size are not shown: they
+  would need the record read.
+- Projects and user presets are named on Felucca's NAME screen when saved, the keys typing the letters [D]; kits keep
+  numbers (the drum track's user kits are the KIT page's, not PROJECT's).
+- Tests: tests/ui_optimist_prjflow.h (the default, the knob, a key with each action, HOME, YES, the free slot toast, BANK
+  only past 16, the ITEM walk across banks, the keys moving the item, the return to LOAD, NEW, the info per store).
 
 ### 4.7 SYSTEM
 
@@ -840,7 +869,7 @@ a unit and a kind (a value, a read-out, an action, a row to enter), most of them
 | HOME (MIX) | MASTER (BPM SWING LEVEL FILT), LEVEL, PAN, FX, DRIVE, REV, DLY, CHO, FILTER (when built), SOUND ▸, FX ▸, PROJECT ▸, SYSTEM ▸ | the cards: KNOB k = track k (T1 T2 T3 DR in their engine colours); the panel: four columns with the name, the fader, the meter (`meter_ui_take`), M / S / R badges and the 16 steps playing |
 | SOUND | the SOUND row (PRESET ENGINE INIT SAVE AS; the drum track: KIT LANE), then the track's PAGES in their order as `page_shown` / `page_for_drum` leave them | the drum track's rows are the selected lane's (`lane_sel`) |
 | FX | the global FX and GLO pages (DLY, REV/CHO, REVERB, CMP, SLOTS, GLOBAL, MASTER, COMP, LIMIT, MACRO, DRUMS) | section 4.4, built because it costs only its row filter |
-| PROJECT | PROJECT (SLOT LOAD SAVE NEW), SNAPSHOT (SLOT LOAD CLEAR SAVE), USER (SLOT LOAD ERASE SAVE), TOOLS (the TOOLS page: CLRSQ INIT MISS NEW), SLOOP 2.4 (IMPORT) | a slot lit when used, dim when empty; snapshots in their status colours |
+| PROJECT | PROJECT (ACTION ITEM NEW), SNAPSHOT (ACTION ITEM), USER (BANK ACTION ITEM), TOOLS (the TOOLS page: CLRSQ INIT MISS NEW), SLOOP 2.4 (IMPORT) | the slots as a strip and the item's info (section 4.6); a slot lit when used, dim when empty; snapshots in their status colours |
 | SYSTEM | SCREEN (COLOR BRIGHT), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT), MIDI (OUT IN SYNC CLK), CHANNELS (T1 T2 T3 DR), USB (SERIAL), CPU (LOAD CLOCK), CALIBRATE (PANEL), ABOUT (VERSION) | saved to flash when SYSTEM is left (once stopped, as SLOOP's menu) |
 
 The grammar as built: SELECT the row (stops at the ends), ALGORITHM the track, PRESETS the selected track's sound
@@ -2758,7 +2787,7 @@ clears the memory, as a power-on.
 
 **2026-10-13: wide values in the GLOBAL list (the user: "Auto: Int", "seq/key", "notes, clock")**. op_cells.c `value_long`: the list (op_gldraw.c `gl_text`) and the tempo panel (op_laydraw.c) write SYNC AUTO as *Auto: Int* / *Auto: USB* / *Auto: TRS* (the clock followed, G_MIDI) and MIDI OUT / IN as *Keys* *Seq* / *Notes* *Clock*; the cards and param_format keep the 5-character *A:INT* ..., *KEYS* ... A fixed SYNC still reads INT / USB / TRS. There is no Both, Other or All option (bp_set.c: two options each, one settings-word bit each), none was added. GLOBAL's MIDI page is CLK IN (SYNC), CLK OUT, MIDI IN, MIDI OUT in one page; GLOBAL's Tempo is BPM NUDGE SWING; PLAY's TEMPO page keeps SYNC as its 4th card. A fixed SYNC reads *Int* / *USB* / *TRS* in the list (cards INT / USB / TRS). "Auto: Int" follows the clock live (G_MIDI = clock_sync.c's source; the line's signature holds its text, tempo_sig holds G_MIDI).
 
-**2026-10-13: action cards, and PROJECT's keys** (feat/action-cards; the user, from screenshots). An action card's big value is the **verb itself**, never "YES": the small label above is its object (`cell_t.obj`: PROJECT, SNAPSHOT, USER, SOUND, PART, SONG, PATTERN, KIT, VOICE, DEVICE, SLOOP, ACID LINE), the verb is its `val` when set (CLRSQ shows CLEAR, PANEL shows CALIBRATE over PANEL) else its label; the narrow list columns keep the label. CLEAR, ERASE, NEW, INIT and DELETE are drawn in the alarm colour (`cell_t.danger`, C_ERR). **Running one always asks** (the modal, SAVE yes, HOME no, 3 s), changed work or not: PROJECT LOAD / SAVE / NEW, SNAPSHOT, USER, SOUND INIT and SAVE AS, TOOLS, the KIT page's SAVE / ERASE / RESET, SONG SAVE / INSERT / DELETE, FM6's STORE / SEND / INIT, the BLE devices' CHOOSE / CONNECT (the modal puts "Connect?" over the device's name as advertised, "Connect device?" when none is known). STEP's REVERSE / RANDOM / COOK show their verb but run at once, no question: undo covers them; the smarter asks of the other paths (PRESETS over edits, a scene load over a changed work) are unchanged. A knob turn only picks an action card, it never runs or arms it (the old "twice" scheme belongs to the SLOOP UI). Help lines say "(asks)", never "(twice)". **On PROJECT the note keys pick the slot** and play nothing (`ly_lock` = LY_STEP, `prj_key`): on PROJECT, SNAPSHOT and USER the 16 white keys pick the cursor row's slot, key n = slot n (USER: the n-th of the 16 slots of the page the cursor is on, U01..U16 or U17..U32); lit: a used slot full, a free one dim, the selected one blinking (`prj_keys_lit`); HOME + a drum key no longer picks the lane there (section 24b). Leaving PROJECT restores the keys. Tests: tests/ui_optimist_actcards.h.
+**2026-10-13: action cards, and PROJECT's keys** (feat/action-cards; the user, from screenshots). An action card's big value is the **verb itself**, never "YES": the small label above is its object (`cell_t.obj`: PROJECT, SNAPSHOT, USER, SOUND, PART, SONG, PATTERN, KIT, VOICE, DEVICE, SLOOP, ACID LINE), the verb is its `val` when set (CLRSQ shows CLEAR, PANEL shows CALIBRATE over PANEL) else its label; the narrow list columns keep the label. CLEAR, ERASE, NEW, INIT and DELETE are drawn in the alarm colour (`cell_t.danger`, C_ERR). **Running one always asks** (the modal, SAVE yes, HOME no, 3 s), changed work or not: PROJECT LOAD / SAVE / NEW, SNAPSHOT, USER, SOUND INIT and SAVE AS, TOOLS, the KIT page's SAVE / ERASE / RESET, SONG SAVE / INSERT / DELETE, FM6's STORE / SEND / INIT, the BLE devices' CHOOSE / CONNECT (the modal puts "Connect?" over the device's name as advertised, "Connect device?" when none is known). STEP's REVERSE / RANDOM / COOK show their verb but run at once, no question: undo covers them; the smarter asks of the other paths (PRESETS over edits, a scene load over a changed work) are unchanged. A knob turn only picks an action card, it never runs or arms it (the old "twice" scheme belongs to the SLOOP UI). Help lines say "(asks)", never "(twice)". **On PROJECT the note keys pick the slot** (2026-10-14: and run the action on it, the SLOT / LOAD / SAVE / CLEAR cards gone: section 4.6) and play nothing (`ly_lock` = LY_STEP, `prj_key`): on PROJECT, SNAPSHOT and USER the 16 white keys pick the cursor row's slot, key n = slot n (USER: the n-th of the 16 slots of the page the cursor is on, U01..U16 or U17..U32); lit: a used slot full, a free one dim, the selected one blinking (`prj_keys_lit`); HOME + a drum key no longer picks the lane there (section 24b). Leaving PROJECT restores the keys. Tests: tests/ui_optimist_actcards.h.
 
 ## 24b. Pages with no track: the note keys do nothing (2026-10-13)
 
@@ -2996,7 +3025,7 @@ The audit's items #26, #27, #39, #47 and the amber / green checks (STYLE.md sect
   - SONG REC is never red: the card's verb and the song layer's REC read-out are green while recording, amber while
     armed; the "Record over song?" modal (a stored song of parts) is the red one. The header's REC mark follows
     (`rec_col`: recording green, waiting for the note amber). op_cells.c `rec_col`, `srec_col`, op_draw.c `act_col`.
-  - PROJECT / SNAPSHOT / USER (`prj_danger`): SAVE, CLEAR and ERASE are red over a slot that holds something and neutral
+  - PROJECT / SNAPSHOT / USER (`prj_danger(kind, action, slot)`, 2026-10-14: the ACTION card's value and the modal): SAVE and CLEAR are red over a slot that holds something and neutral
     into a free one; LOAD is red when the work is not as stored (it replaces edits), neutral otherwise; NEW is always red;
     IMPORT is red on the card too (as its modal). The card and the modal agree (the card's SAVE was white over a used slot).
   - GO buttons on the pages (`go_danger`): every one is red but SAVE (a kit into a slot) and the ACID line's GEN; the

@@ -218,6 +218,10 @@ static void layout_tests(void)
     frames(3);
     check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND ARP: its picture alone, no rows (2026-10-12)");
     op_enter(SCR_PROJECT);
+    uint32_t tl;
+    for (tl = 0; tl < NPRJ && prj_kind(tl) != PR_TOOLS; tl++)   /* (PROJECT's slot rows have their own panel: op_prjflow.c) */
+        ;
+    ui.row[SCR_PROJECT] = (uint8_t)tl;
     frames(3);
     check(lst.pic == 0u && lst.shown > 0u && lst.rh <= 40, "a page with no picture: its rows, the row pitch capped at 40");
     reset_ui();
