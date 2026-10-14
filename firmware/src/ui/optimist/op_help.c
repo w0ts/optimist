@@ -63,6 +63,10 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
         return o;                                       /* (a limited insert type's own line, FULL's) */
     SCREENS[scr % SCR_N].name(row, nm);
     o = ph_find(PH_OP, nm, c->label);
+    if (!o && c->label[0] == 'S' && c->label[1] >= '1' && c->label[1] <= '9' && c->label[2] == ' ')
+        o = ph_find(PH_OP, nm, c->label + 3);           /* (MASTER's returns, "S2 CHO": the type's line) */
+    if (!o && str_eq(nm, "INSERT"))
+        o = ph_find(PH_PAGE, "INSERTS", c->label);      /* (the mixer's INSERT set: any insert type shows its own line, SOUND > INSERTS') */
     if (!o)
         o = ph_find(PH_OP, SCR_NAME[scr % SCR_N], c->label);
     if (!o && c->d)
