@@ -56,6 +56,16 @@ static void mute_tests(void)
     dlm_set_mute(2, 0);
     mute_card(MXR_MASTER, &c);
     check(!c.label || strcmp(c.label, "MUTE"), "MASTER: no MUTE card");
+    reset_ui();
+    ui.row[SCR_HOME] = MXR_MASTER;
+    frames(2);
+    key(WK(0));
+    check(ly_lock == LY_STEP, "the mixer on MASTER: the keys reach the UI only (silent)");
+    reset_ui();
+    op_enter(SCR_FX);
+    frames(2);
+    tap(B_SAVE);
+    check(ui.scr == SCR_PROJECT, "SAVE tapped on the master FX page: PROJECT (SAVE works on every page but SEQ)");
     song.sel = 0;
     reset_ui();
 }

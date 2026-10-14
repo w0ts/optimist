@@ -38,13 +38,13 @@ static void op_row_pick(uint32_t r)
 static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL; }   /* SYSTEM's settings shown */
 /* the pages with no track context (the user, 2026-10-13: "on pages that are global, save/load, glo, system, the keyboard
  * notes keys should not do anything", then "global pages dont play tracks. period."): GLOBAL, SYSTEM (the BLE devices
- * list too), PROJECT, MASTER FX, SCOPE and SONG. Their keys play and send nothing, light nothing and start no pick or
+ * list too), PROJECT, MASTER FX, the mixer's MASTER row, SCOPE and SONG. Their keys play and send nothing, light nothing and start no pick or
  * record. Kept: PROJECT's slot rows pick the slot (op_project.c prj_key); SONG's PATTERNS row launches patterns; TEMPO's
  * keys (PLAY held) are the MIX layer's, they tap the tempo and play nothing. The layers (a held button) are not these
  * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
 static int keys_none(void)
 {
-    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE
+    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master()
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
 /* ALGORITHM walks the track only where there is one (the user, 2026-10-14: "it makes no sense to change track when i am
@@ -192,7 +192,9 @@ static void op_yes(void)
         held_yes();
         return;
     }
-    SCR->yes(ui.row[ui.scr], ui.hot, 0);
+    if (!SCR->yes(ui.row[ui.scr], ui.hot, 0) && ui.scr != SCR_STEP && ui.scr != SCR_PROJECT && !sys_scr(ui.scr))
+        op_enter(SCR_PROJECT);                          /* SAVE works on every page but SEQ (where it is "reverse", the user, 2026-10-14): where YES has
+                                                         * nothing to do it opens PROJECT, as on the mixer */
 }
 static void op_no(void)
 {
