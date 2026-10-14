@@ -122,7 +122,7 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | Control | Always means |
 |---|---|
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
-| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows. It is the track and never anything else (section 26: not GLOBAL's or SYSTEM's cursor either) |
+| **ALGORITHM** | the walk, the same on every page and layer (2026-10-12, section 16): MASTER, T1 T2 T3, DR, the 16 drum lanes, stopping at both ends. Every screen retargets to it, the colour follows. It is the track and never anything else (section 26: not GLOBAL's or SYSTEM's cursor either), and **only where there is a track** (section 28: on GLOBAL, SYSTEM, PROJECT, SONG, TEMPO, NAME and the global layers it does nothing) |
 | **PRESETS** | **browses the selected track's presets** (the drum track: its kits; a drum lane on an instrument: that lane's sound, section 16), one a detent, on every screen (2026-10-10, section 12) but STEP, where it pages the window (2026-10-11, section 4.2), and GLOBAL / SYSTEM, where it does nothing (2026-10-13, section 27: a knob is line k, YES runs an action). HOME held + PRESETS: the next / previous engine's first sound (on STEP and GLOBAL / SYSTEM: nothing). It is no longer the hot cell's value, a layer's hot knob or a held step's chance; under a question, the REC ring, the NAME screen or on MASTER it does nothing |
 | **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
@@ -2524,7 +2524,7 @@ COLORS' label is the full name now (it was COLORS to fit a card).
 |---|---|
 | KNOB 1..4 | the page's line 1..4 (its number at the left); the turn makes that line the cursor |
 | SELECT | the page: a page of 4 lines a detent, within the screen, stopping at its ends; the cursor on the page's first line |
-| ALGORITHM | the track walk, as on every screen (op_walk.c, section 26); never the cursor (the user, 2026-10-13: "ALGORITHM moves track - NO. only the track!"). It was a line-by-line cursor until then |
+| ALGORITHM | **nothing (no track here, section 28)**; it was the track walk (op_walk.c, section 26); never the cursor (the user, 2026-10-13: "ALGORITHM moves track - NO. only the track!"). It was a line-by-line cursor until then |
 | PRESETS | the cursor line's value; HOME held + PRESETS: back to its default (the values with a descriptor: BPM, SWING, SYNC, CLICK, QUANT, MIDI OUT / IN, the channels); the others to their FACTORY value, what a blank FM-1 or an empty settings record gives (the user, 2026-10-13): MODE FREE, LENGTH 1 bar, START NOTE, CLK OUT OFF, COLOR MONO, BRIGHT 8, KNOB COLORS OFF, LIGHTS and KEYS OFF, LOWCUT OFF, SERIAL OFF, HOLD 350 ms, 2ND CORE AUTO. BLE is never reset (a reset must not drop a live connection). An action line: runs it, as YES (PANEL asks first). A read-out: nothing. Never the track or its sound on these screens |
 | SAVE (YES) | the cursor line: an action (PANEL asks first; VERSION says it; BLE opens the devices list), an on / off value toggled |
 | GLO tapped | from any other screen GLOBAL; on GLOBAL SYSTEM; on SYSTEM (the devices list too, which closes) GLOBAL. Each screen keeps its cursor line |
@@ -2787,7 +2787,7 @@ Changed:
 | 9 | the SOUND row's ENGINE card loaded the engine's defaults, HOME + PRESETS its first preset | **both: the next engine with its FIRST preset**; one edited-sound confirm ("Discard T2 edits?") for both | op_screens.c `snd_turn` calls `op_engine_step`; `snd_engine_step`, `EK_SNDENG` gone |
 | 16a | SONG MODE row, KNOB 2 toggled SONG REC | KNOB 2 only **picks** the REC card (an action card: ARM / STOP); **YES arms it** through "Record over song?" (over a stored song of parts). SAVE + REC unchanged | op_song.c |
 | 10 | GLOBAL / SYSTEM: PRESETS set the cursor line and ran an action line | **PRESETS does nothing there** (HOME + PRESETS neither): a knob is line k, HOME + knob its default, **YES runs an action card** (CALIBRATE asks) | op_input.c `op_presets_turn`; `gl_presets` gone |
-| 12 | SCOPE: SELECT picked the source (MASTER T1 T2 T3 DR) | **the source is ALGORITHM's**: the selected track (a drum lane: DR), **MASTER = the master output** (`ui.master`; ALGORITHM left of T1 stays on SCOPE, the one exception to the master-FX jump; opened from the mixer's MASTER row it starts on the master). SCOPE has one page, so SELECT has nothing to move and the header shows no n/N; the tabs under the trace stay as the read-out | op_scope.c `scope_row`, op_walk.c, op_input.c `op_enter` |
+| 12 | SCOPE: SELECT picked the source (MASTER T1 T2 T3 DR) | **the source is ALGORITHM's**: the selected track (a drum lane: DR), **MASTER = the master output** (`ui.master`; ALGORITHM left of T1 stays on SCOPE, the one exception to the master-FX jump; SCOPE has no badge but its source is the track, so it is a track page for ALGORITHM (section 28); opened from the mixer's MASTER row it starts on the master). SCOPE has one page, so SELECT has nothing to move and the header shows no n/N; the tabs under the trace stay as the read-out | op_scope.c `scope_row`, op_walk.c, op_input.c `op_enter` |
 | 13 | on the drum track an upper key played and picked the lane on its left | **only the 16 white keys play and pick lanes**; the upper keys are silent (UI=1 only: seq.c `key_down`, op_input.c). HOME + upper keys 1-4 on the mixer (sequencer mutes) and GLO + upper keys (FX bypass) are layer keys and stay; the ERASE layer on a drum track is unchanged | seq.c, op_input.c |
 | 15 | patterns layer (LFO held): black 6 + n store, 7 + a, b copy, 8 + n clear | **LFO held, then SAVE + key n stores** the working pattern into slot n (asked over a used one), **HOME + key n clears** it (asked), as on SONG's PATTERNS row. Copy = launch the source (key n), then SAVE + the target key. Black 6 / 7 / 8 do nothing; 1-4 (track), 5 (stop), 9 (duplicate), 10 + n (scene) stay. HOME + LFO still locks the layer, decided when one of the two is let go: if a slot was cleared with HOME held, no lock. SAVE then LFO is still SAVE + LFO = save the sound (press LFO first) | op_layers.c `pat_layer_key`, op_combos.c, op_keys.c |
 | 1 (accident) | on STEP HOME + PRESETS changed the engine (branch order) | **does nothing** (no engine change, no scroll); PRESETS alone still scrolls the window | op_input.c `op_presets_turn` |
@@ -2798,3 +2798,25 @@ Tests: tests/ui_optimist_uniform.h (every item: the old behaviour gone, the new 
 encoded the removed behaviour were rewritten: ui_optimist_cards2.h (the roll), ui_optimist_step35.h, ui_optimist_test.c (the confirm idiom,
 the patterns layer, SCOPE), ui_optimist_risk.h (HOME + REC), ui_optimist_rechold.h, ui_optimist_glwalk.h and ui_optimist_glo.h (PRESETS on
 GLOBAL / SYSTEM), ui_optimist_mixer.h (SCOPE), ui_optimist_algotrack.h (SCOPE's MASTER), ui_optimist_cardspic.h.
+
+## 28. ALGORITHM does nothing where there is no track (fix/algo-none, 2026-10-14)
+
+The user: *"it makes no sense to change track when i am on a page that has no track"*. Section 26 made ALGORITHM walk on every screen;
+that goes. One predicate, `algo_has_track()` (op_input.c, next to `keys_none()`), asked by `algo_walk` (op_walk.c) before anything moves.
+It uses the header's classification (`HEAD_TRK_SCR` / `HEAD_TRK_LY`, op_draw.c: the badge only where the page's values belong to the track),
+so the badge and the walk agree, with two additions: the mixer (its rows are the tracks) and SCOPE (no badge, but its source follows
+ALGORITHM).
+
+| Where | ALGORITHM |
+|---|---|
+| the mixer, SOUND (and its lanes), STEP, SCOPE | walks (MASTER T1 T2 T3 DR, the 16 lanes), as section 16 |
+| GLOBAL, SYSTEM (+ the BLE devices list), PROJECT, SONG, TEMPO (PLAY held), NAME, an asked question | **nothing**: no track, no screen, no cursor, no setting |
+| the master FX screen opened by the FX button or the mixer | **nothing** |
+| the master FX screen reached by the walk (left of T1 on SOUND / STEP) | walks: right goes back to the page, so the jump has a way out (`fx_by_walk`, op_walk.c; cleared by any `op_enter`) |
+| layers over a page: EDIT (erase), SCL (scale), ENV on FM6 (operators), STEP | walk, the layer's ui.master as section 26 |
+| layers: FX, ARP (roll), GLO (mix), SAVE (scenes), LFO (all patterns) | **nothing** (the header gives them no badge: filter, dust and duck are the song's, the others are every track's) |
+
+The jump to the master FX screen from PROJECT / SYSTEM / GLOBAL / SONG / SCOPE / TEMPO (op_walk.c) is gone with the walk there. Judgment
+call: the master FX screen is inert when opened by FX (no track); only when ALGORITHM put you there does it keep the walk, else the jump
+from SOUND / STEP would be a dead end. FX held on the mixer's MASTER row still shows the master cards.
+Tests: tests/ui_optimist_algotrack.h (`at_inert_tests`), ui_optimist_algo.h (SCOPE, the EDIT / SCL layers), ui_optimist_master.h (the FX layer).

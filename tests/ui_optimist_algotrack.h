@@ -26,8 +26,8 @@ static void at_screen_tests(void)
     uint32_t scr, ok = 1;
     for (scr = 0; scr < SCR_N; scr++) {
         uint32_t sum, row, p, bad = 0;
-        if (scr == SCR_FX || scr == SCR_TEMPO)
-            continue;                                   /* (MASTER itself; TEMPO is a page of the screen under it: below) */
+        if (scr != SCR_HOME && scr != SCR_SOUND && scr != SCR_STEP && scr != SCR_SCOPE)
+            continue;                                   /* (the pages with no track: at_inert_tests; MASTER FX, TEMPO there too) */
         reset_ui();
         lane_transport(0);
         song.sel = 0;
@@ -58,7 +58,7 @@ static void at_screen_tests(void)
 }
 static void at_layer_tests(void)
 {
-    static const uint8_t BTN[] = {B_FX, B_EDIT, B_ARP, B_SCL, B_GLO, B_LFO, B_SAVE};
+    static const uint8_t BTN[] = {B_EDIT, B_SCL};       /* (the layers per track; the others: at_inert_tests) */
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof BTN; i++) {
         uint32_t sum, scr, bad = 0;
@@ -80,22 +80,80 @@ static void at_layer_tests(void)
             printf("  algotrack: layer button %u wrong (sel %u)\n", BTN[i], song.sel);
         ok &= !bad;
     }
-    check(ok, "ALGORITHM in every performance layer (FX EDIT ARP SCL GLO LFO SAVE held): the track only, no setting");
+    check(ok, "ALGORITHM in the per-track layers (EDIT SCL held): the track only, no setting");
 }
-static void at_tempo_tests(void)
+/* ALGORITHM does nothing where there is no track (the user, 2026-10-14: "it makes no sense to change track when i am on a
+ * page that has no track"): no track, no screen, no cursor, no setting. The pages, the layers the header gives no badge,
+ * TEMPO, NAME; the master FX screen opened by the FX button (reached by the walk it is the walk's: ui_optimist_algo.h) */
+static uint32_t at_inert_state(void)
 {
-    uint32_t sum, ok;
+    return ui.scr | (uint32_t)song.sel << 8 | (uint32_t)ui.row[ui.scr] << 16 | (uint32_t)ui.master << 24 | (uint32_t)lane_picked() << 25;
+}
+static void at_inert_tests(void)
+{
+    static const uint8_t PG[] = {SCR_GLOBAL, SCR_SYSTEM, SCR_PROJECT, SCR_SONG, SCR_FX};
+    static const uint8_t BTN[] = {B_FX, B_ARP, B_GLO, B_SAVE
+#if FELUCCA_PATTERNS
+                                  , B_LFO               /* (the patterns layer; without them LFO is only SHIFT) */
+#endif
+    };
+    uint32_t i, ok = 1, sum, st;
+    for (i = 0; i < sizeof PG; i++) {
+        uint32_t bad;
+        reset_ui();
+        song.sel = 1;
+        op_enter(PG[i]);
+        frames(2);
+        sum = at_sum();
+        st = at_inert_state();
+        turn(EN_ALGO, 1);
+        turn(EN_ALGO, -3);
+        turn(EN_ALGO, 40);
+        bad = !(at_inert_state() == st && at_sum() == sum);
+        if (bad)
+            printf("  algotrack: %s moved on ALGORITHM (state %x -> %x)\n", SCR_NAME[PG[i]], st, at_inert_state());
+        ok &= !bad;
+    }
+    check(ok, "ALGORITHM does nothing on GLOBAL, SYSTEM, PROJECT, SONG and the master FX screen (no track, screen, row or setting)");
+    ok = 1;
+    for (i = 0; i < sizeof BTN; i++) {                  /* layers over the SOUND page of T2: FX ARP GLO LFO SAVE are global */
+        uint32_t bad;
+        reset_ui();
+        song.sel = 1;
+        tap(B_ENV);
+        sum = at_sum();
+        st = at_inert_state();
+        press(BTN[i]);
+        frames(HOLD_FRAMES);
+        turn(EN_ALGO, 2);
+        turn(EN_ALGO, -5);
+        bad = !(song.sel == 1u && ui.scr == SCR_SOUND && at_sum() == sum);
+        release(BTN[i]);
+        frames(HOLD_FRAMES);
+        bad |= !(at_inert_state() == st);
+        if (bad)
+            printf("  algotrack: layer button %u moved on ALGORITHM\n", BTN[i]);
+        ok &= !bad;
+    }
+    check(ok, "ALGORITHM does nothing in the global layers (FX ARP GLO LFO SAVE held): no track, no setting");
     reset_ui();
-    song.sel = 0;
+    song.sel = 1;
     sum = at_sum();
     press(B_PLAY);
     frames(HOLD_FRAMES);
     ok = ui.scr == SCR_TEMPO;
     turn(EN_ALGO, 1);
-    ok &= song.sel == 1u && at_sum() == sum;
+    turn(EN_ALGO, -4);
+    ok &= ui.scr == SCR_TEMPO && song.sel == 1u && at_sum() == sum;
     release(B_PLAY);
     frames(2);
-    check(ok, "ALGORITHM on the TEMPO page (PLAY held): the track only, no setting");
+    check(ok, "ALGORITHM does nothing on the TEMPO page (PLAY held)");
+    reset_ui();
+    song.sel = 1;
+    tap(B_ENV);
+    ok = al_walk(1) == MXR_T1 + 2u && song.sel == 2u;   /* (the track pages still walk) */
+    check(ok, "ALGORITHM still walks on SOUND");
+    reset_ui();
 }
 static void at_replacement_tests(void)
 {
@@ -140,6 +198,6 @@ static void algotrack_tests(void)
 {
     at_screen_tests();
     at_layer_tests();
-    at_tempo_tests();
+    at_inert_tests();
     at_replacement_tests();
 }

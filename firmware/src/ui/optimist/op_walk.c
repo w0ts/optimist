@@ -31,6 +31,7 @@ static void walk_inplace(void)
     ui.force = 0;
     op_repaint();
 }
+static uint8_t fx_by_walk;                              /* the master FX screen was reached by the walk (op_input.c algo_has_track) */
 static void walk_master_in(void)                        /* a page to MASTER: the FX screen; the page, family, row kept */
 {
     uint8_t scr = ui.scr == SCR_TEMPO ? tp.prev : ui.scr, fam = snd_fam, row = ui.row[scr % SCR_N];   /* (the TEMPO page:
@@ -38,6 +39,7 @@ static void walk_master_in(void)                        /* a page to MASTER: the
     if (scr == SCR_TEMPO || scr == SCR_FX)
         scr = SCR_SOUND;
     op_enter(SCR_FX);
+    fx_by_walk = 1;
     ui.m_scr = scr;
     ui.m_fam = fam;
     ui.m_row = row;
@@ -101,7 +103,11 @@ static void walk_to(uint32_t p, int lay)
 /* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */
 static void algo_walk(int32_t s, int lay)
 {
-    uint32_t p = walk_pos(lay), n = (uint32_t)clamp((int32_t)p + s, MXR_MASTER, MXR_N - 1);
+    uint32_t p, n;
+    if (!algo_has_track())
+        return;                                         /* (a page with no track: nothing, op_input.c) */
+    p = walk_pos(lay);
+    n = (uint32_t)clamp((int32_t)p + s, MXR_MASTER, MXR_N - 1);
     if (n != p)
         walk_to(n, lay);
 }

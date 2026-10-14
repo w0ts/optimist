@@ -167,7 +167,14 @@ static void master_tests(void)
     pre = TSEL->preset;
     eng = TSEL->eng_req;
     turn(EN_ALGO, -1);
-    check(ui.master && song.sel == 0u, "FX held, ALGORITHM left from T1: MASTER (a UI state: song.sel stays T1)");
+    check(!ui.master && song.sel == 0u && ui.scr == SCR_HOME, "FX held, ALGORITHM left from T1: nothing (the FX layer is not per track, 2026-10-14)");
+    release(B_FX);
+    frames(2);
+    mx_apply(MXR_MASTER);                               /* (the master FX cards: FX held on the mixer's MASTER row) */
+    frames(2);
+    press(B_FX);
+    frames(HOLD_FRAMES);
+    check(ui.master && song.sel == 0u, "FX held on the mixer's MASTER row: the master FX cards (a UI state: song.sel stays T1)");
     lay_cell(0, &c);
     check(c.label && str_eq(c.label, "FILTER"), "... KNOB 1 FILTER");
     lay_cell(3, &c);
@@ -180,7 +187,7 @@ static void master_tests(void)
     turn(EN_PRESET, 2);
     check(TSEL->preset == pre && TSEL->eng_req == eng, "... PRESETS on MASTER: nothing");
     turn(EN_ALGO, 1);
-    check(!ui.master && song.sel == 0u, "ALGORITHM right: T1 again");
+    check(ui.master && song.sel == 0u, "ALGORITHM right in the FX layer: nothing");
     release(B_FX);
     frames(2);
     /* STEP: MASTER is the master FX screen, as on every page (2026-10-12: "i want uniformity"; ui_optimist_algo.h) */

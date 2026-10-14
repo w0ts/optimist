@@ -75,6 +75,7 @@ static struct {
  * SCREEN > CARDS choice (1x4 or 2x2) is gone; its settings word bit 23 is no longer read (storage/settings_word.c) */
 static int cards_2x2(void);                             /* op_layers.c (it reads the layer shown) */
 static int lane_picked(void);                               /* op_mixer.c: a drum lane selected, not DR itself */
+static int algo_has_track(void);                        /* op_input.c: the pages ALGORITHM walks on */
 static void algo_walk(int32_t s, int lay);              /* op_walk.c: ALGORITHM, on every page and layer */
 static void lane_sound_step(int32_t s);                 /* op_walk.c: PRESETS on a lane, its own sound */
 static int lane_presets(void);

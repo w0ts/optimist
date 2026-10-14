@@ -79,8 +79,8 @@ static void algo_every_tests(void)
 {
     static const uint8_t PB[] = {B_ENV, B_LFO, B_EDIT, B_ARP, B_SCL, B_FX, B_SEQ};   /* (GLO: GLOBAL, whose ALGORITHM moves
                                                          * its cursor: ui_optimist_glo.h) */
-    static const uint8_t SC[] = {SCR_PROJECT, SCR_SONG, SCR_SCOPE};
-    static const uint8_t LB[] = {B_FX, B_ARP, B_SCL, B_EDIT, B_GLO};
+    static const uint8_t SC[] = {SCR_SCOPE};                /* (PROJECT, SONG: no track, ALGORITHM does nothing: ui_optimist_algonone.h) */
+    static const uint8_t LB[] = {B_SCL, B_EDIT};            /* (the layers per track: FX ARP GLO SAVE LFO are not: ui_optimist_algonone.h) */
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof PB; i++) {
         reset_ui();
@@ -98,7 +98,7 @@ static void algo_every_tests(void)
         frame();
         ok &= (uint32_t)al_full_walk(SC[i], 0, SCR_NAME[SC[i]]);
     }
-    check(ok, "walk, PROJECT SONG SCOPE: the same walk");
+    check(ok, "walk, SCOPE: the same walk (its source follows ALGORITHM)");
     reset_ui();
     song.sel = 0;
     frame();
@@ -117,7 +117,7 @@ static void algo_every_tests(void)
         release(LB[i]);
         frames(2);
     }
-    check(ok, "walk, the FX ARP SCL EDIT GLO layers: the same walk, MASTER their ui.master");
+    check(ok, "walk, the SCL and EDIT layers: the same walk, MASTER their ui.master");
     /* MASTER on a page with no master values: the master FX screen, the badge MASTER; right: the page again */
     reset_ui();
     song.sel = 0;
