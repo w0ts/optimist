@@ -7,7 +7,7 @@
  * FX (the global effects), PROJECT, SYSTEM, STEP (the keys as the 16 steps of a window, the drum grid, the roll),
  * SONG (scenes, patterns, the chain), TEMPO (PLAY held), GLOBAL (GLO tapped), the DRUM MIXER (the 16 sounds as strips), SCOPE (the
  * master's or a track's wave). A page button held is a performance layer (its map).
- * Drawn with the Terminus font in Felucca 1.0's structure (the header 0..24, the cards 28..72, the panel 76..239,
+ * Drawn with the Terminus font in Felucca 1.0's structure (the header 0..24, the cards, the panel to the help band 222..239,
  * no footer; the mixers' strips 27..239); the Felucca look is phase 5. Main loop only: nothing here runs in the audio
  * interrupt (the SCOPE's tap is in fx.c).
  *

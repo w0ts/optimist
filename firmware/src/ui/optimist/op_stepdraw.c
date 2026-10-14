@@ -14,9 +14,9 @@
                                          * a column is SG_CW wide, its cell SG_CW - 2 (the roll's note SG_CW - 1) */
 #define SG_CW 13
 #define SG_TOP 1
-#define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
-#define SP_H (240 - SP_Y)
-#define SG_H 204                        /* the 16 lanes' rows; the roll's height: the panel less the marks and the playhead */
+#define SP_Y 25                         /* the panel: from under the header to the help band (OP_FOOT), no cards (they overlay it) */
+#define SP_H (OP_FOOT_Y - SP_Y)
+#define SG_H (SP_H - 11)                /* the 17 lanes' rows (12 px; 10 or 11 over the help band), the roll's height: the panel less the marks and the playhead */
 #define SG_LY(l) (SG_TOP + (int32_t)(l) * SG_H / (int32_t)DRUM_UILANES)   /* lane l's row: 12 or 13 px (17 lanes with the ACCENT lane: 12), the remainder spread out */
 #define SG_LH (SG_H / (int32_t)DRUM_UILANES)   /* (the least a row is) */
 #define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
@@ -64,7 +64,7 @@ static void sg_drums(const track_t *t)
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
         uint16_t c = op_lane_col(l);
         cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
-        cv_text(6, y + (lh - 16) / 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11) */
+        cv_text(6, y + (lh - 11) / 2 - 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
@@ -403,8 +403,11 @@ static void step_frame(void)
         ui.sig[2] = 0;
     under = ui.sig[2];
     draw_step_panel();
-    if (want && (!on || ui.sig[2] != under))
+    if (want && (!on || ui.sig[2] != under)) {
         ui.sig[1] = 0;
+        cv_begin(240, OY_CARD - SP_Y, C_BLACK);         /* the rows between the header and the cards: no grid fragments */
+        cv_blit(0, SP_Y);                               /* behind the overlay (the audit's #16) */
+    }
     if (ui.sig[2] != under || !inf)
         isig = 0;
     on = (uint8_t)want;

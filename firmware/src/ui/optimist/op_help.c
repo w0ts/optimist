@@ -7,8 +7,9 @@
  *   a vertical menu    GLOBAL and SYSTEM's settings list (the cursor line) and PROJECT (the cursor row's hot cell): always
  *                      there, the list made shorter for it (op_gldraw.c GL_LINE_H, op_draw.c LIST_H); an action that
  *                      asks first says so ("(asks)")
- * Not under a question (the modal), the REC ring, a layer's map or NAME. While the line shows nothing else is drawn on
- * its rows (gfx.c cv_clip); when it goes, every band is drawn again over itself (op_repaint: in place, no flash).
+ * Not under a question (the modal), the REC ring, a layer's map or NAME. Its rows are a band of their own (op_graph.c
+ * OP_FOOT, the audit's #6): every screen's content ends above it whether the line shows or not, so the line covers
+ * nothing; when it goes, the band is cleared to black and nothing else is drawn again.
  * The words: tools/param_help.json, one table with SLOOP's UI and the web editor (tools/gen_param_help.py ->
  * build/gen/felucca_param_help.h, PH_BLOB, a const string in flash: only the lines of the features built; the texts
  * packed, ui/ph_blob.c, unpacked into a line on the stack when drawn). A line is
@@ -17,13 +18,13 @@
  * the line is about changes, never every frame; main loop only, nothing in RAM code. Included after op_gldraw.c. */
 #if FELUCCA_PARAM_HELP
 #include "../ph_blob.c"                  /* ph_find, ph_text (the texts packed) */
-#define HL_H 18                         /* the line: a rule, then the small face (16 rows) */
-#define HL_Y (240 - HL_H)
+#define HL_H OP_FOOT                    /* the line: a rule, then the small face (16 rows): the help band */
+#define HL_Y OP_FOOT_Y
 #define HL_FRAMES 120u                  /* ~2 s at the UI's ~60 frames a second after a value's last detent */
 static struct {
     uint8_t t;                          /* frames the line stays after a turn (0: only a vertical menu shows it) */
     uint8_t scr, row, k;                /* the value turned */
-    uint8_t on;                         /* shown now (cv_clip keeps the bands off its rows) */
+    uint8_t on;                         /* shown now (the band: its own rows, op_graph.c OP_FOOT) */
     uint16_t off;                       /* its line in PH_BLOB, 0: none */
     struct {                            /* what off was found for (kept whole: a hash mixed labels' addresses) */
         const char *label;
@@ -75,7 +76,6 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
 }
 /* a vertical menu: the line always there (GLOBAL and SYSTEM's settings list, PROJECT's rows) */
 static int hl_menu(void) { return (glo_cycle() || ui.scr == SCR_PROJECT) && lay.shown == LY_PLAY && !name_on(); }
-static int32_t hl_room(void) { return ui.scr == SCR_PROJECT && hl_menu() ? HL_H : 0; }   /* (op_draw.c LIST_H) */
 /* knob k turned on the cursor row (op_input.c op_knobs): its line for HL_FRAMES */
 static void hl_note(uint32_t k)
 {
@@ -113,7 +113,8 @@ static uint32_t hl_text(void)
     }
     return hl.off;
 }
-/* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the bands come back over its rows */
+/* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the band is cleared (nothing else
+ * ever draws on it: no band to draw again) */
 static void hl_pre(uint32_t ov)
 {
     int vis = (hl_menu() || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u;
@@ -122,10 +123,11 @@ static void hl_pre(uint32_t ov)
     if (vis == hl.on)
         return;
     hl.on = (uint8_t)vis;
-    cv_clip = vis ? (uint32_t)HL_Y : 240u;
     ui.sig[5] = 0;
-    if (!vis)
-        op_repaint();                                   /* (every band again, in place: what the line covered) */
+    if (!vis) {
+        cv_begin(240, HL_H, C_BLACK);
+        cv_blit(0, HL_Y);
+    }
 }
 /* after the bands: the line, when what it says changed */
 static void hl_post(void)
@@ -139,12 +141,10 @@ static void hl_post(void)
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;
-    cv_clip = 240u;
     cv_begin(240, HL_H, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
     if (off)
         cv_text(4, 2, &FONT_S, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);
-    cv_clip = (uint32_t)HL_Y;
 }
 #endif

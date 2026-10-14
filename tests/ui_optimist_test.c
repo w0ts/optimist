@@ -25,10 +25,14 @@ static const uint32_t host_mem[4][2] = {{300u * 1024u, 568u * 1024u}, {70u * 102
 #include <assert.h>
 static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
+static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
+                                                         * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
+    if (y + h > band_y && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
+        band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = p[j * w + i];
@@ -2472,6 +2476,7 @@ static void led_tests(void)
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
+#include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 
 int main(int argc, char **argv)
@@ -2491,6 +2496,7 @@ int main(int argc, char **argv)
     sec_boot();
 #endif
     tracks_default();
+    band_y = (uint32_t)OP_FOOT_Y;                       /* (no band without the help line: 240) */
     panel = PANEL_DEFAULT;
     settings_init();
     layers_init();
@@ -2506,6 +2512,7 @@ int main(int argc, char **argv)
     header_tracknum_tests();
     names_tests();
     bd_layout_tests();
+    geometry_tests();
     mixer_tests();
     scope_tests();
     step_keys_tests();
@@ -2600,6 +2607,9 @@ int main(int argc, char **argv)
 #endif
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
+    if (band_hits)
+        printf("  geometry: %u blits reached the help band\n", band_hits);
+    check(!band_hits, "#6 the whole run (every test, the random frames): no blit in the help band but the help line's");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 }

@@ -19,32 +19,34 @@
  *                           the lanes merged; at the foot (y +34) the VU meter, a 3 px bar: the level filling from the
  *                           left, its peak falling; the compressor's gain reduction pushing in from the right in amber,
  *                           3 px a dB, only on a row whose compressor works (a part's COMP insert: fx.c tcomp_gr_q4)
- *   SOUNDS     past DR: the 16 drum lanes at once, two columns of eight (lanes 1-8 left, 9-16 right), 120 x 20 px a
+ *   SOUNDS     past DR: the 16 drum lanes at once, two columns of eight (lanes 1-8 left, 9-16 right), the ACCENT lane a
+ *              ninth row across both (its steps as a channel's, no meter: it has no sound), 120 x 18 px a
  *              lane: its colour chip and code (BD SD CH ...; muted: the code in the M badge's colour), its own hits
  *              on the 16 steps of the page playing (6 px a step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
  *              have no level of their own to read). The header names the lane ("Snare mix")
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
  * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
 #define MXL_N 4u                        /* the channels a screen */
-#define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4) */
+#define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
+                                         * help band 36: the panel 146) */
 #define MXL_VX 28                       /* a channel's meter and steps: the width left of the code */
 #define MXL_VW 210
 #define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
                                          * name and the preset", so the meter and the steps went thin) */
-#define MXL_SY 20                       /* the steps in their row: small cells, 6 px, the page bars under them */
+#define MXL_SY (MXL_H - 21)             /* the steps in their row: small cells, 6 px, the page bars under them (20; 15) */
 #define MXL_SH 6
 #define MXL_SP 13                       /* a step's pitch, its cell 11 */
-#define MXL_VY 34                       /* the meter in its row: a thin bar */
+#define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
 #define MXS_ROWS 8u                     /* SOUNDS: eight lanes a column, two columns */
-#define MXA_H 20                        /* ... and under them, the ACCENT lane's row across both (core.h DRUM_UILANES) */
+#define MXS_NROW (MXS_ROWS + (uint32_t)ACC_UI)   /* ... and under them, the ACCENT lane's row across both, a ninth row of the
+                                         * same height (the audit's #34; core.h DRUM_UILANES) */
 #define MXS_W 120
 #define MXS_VX 22                       /* a lane's steps and meter, from its cell's left */
 #define MXS_SP 6                        /* a step's pitch, its cell 5 */
 #define MXS_SY 3
 #define MXS_SH 7
-#define MXS_VY 13
 #define MXS_VW 94
 #define MXS_VH 3
 #define MXM_X 8                         /* MASTER: the tall meter */
@@ -97,16 +99,17 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
         q->sx = MXL_VX, q->sy = MXL_SY, q->sp = MXL_SP, q->sh = MXL_SH;
         q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
-        uint32_t l = r - MXR_LANE0, row = l % MXS_ROWS;
-        const int32_t ph = OP_PH - (ACC_UI ? MXA_H : 0);   /* (the 16 sounds above the ACCENT lane's row) */
-        q->x = (int32_t)(l / MXS_ROWS) * MXS_W;
-        q->y = (int32_t)row * ph / (int32_t)MXS_ROWS;
-        q->h = (int32_t)(row + 1u) * ph / (int32_t)MXS_ROWS - q->y;
-        q->w = MXS_W;
-        if (mx_is_acc(r))
-            q->x = 0, q->y = ph, q->h = MXA_H, q->w = 240;
+        uint32_t l = r - MXR_LANE0, row = mx_is_acc(r) ? MXS_ROWS : l % MXS_ROWS;
+        q->x = mx_is_acc(r) ? 0 : (int32_t)(l / MXS_ROWS) * MXS_W;   /* (the ACCENT lane: the ninth row, across both columns) */
+        q->y = (int32_t)row * OP_PH / (int32_t)MXS_NROW;
+        q->h = (int32_t)(row + 1u) * OP_PH / (int32_t)MXS_NROW - q->y;
+        q->w = mx_is_acc(r) ? 240 : MXS_W;
         q->sx = MXS_VX, q->sy = MXS_SY, q->sp = MXS_SP, q->sh = MXS_SH;
-        q->vx = MXS_VX, q->vy = MXS_VY, q->vw = MXS_VW, q->vh = MXS_VH;
+        q->vx = MXS_VX, q->vy = q->h - 4, q->vw = MXS_VW, q->vh = MXS_VH;   /* (the meter over the row's rule: 18 px rows, 16) */
+        if (mx_is_acc(r)) {                             /* (no sound, no meter: its steps over the width, as a channel's) */
+            q->sx = MXL_VX, q->sp = MXL_SP, q->sh = q->h - 6;
+            q->vw = 0;
+        }
     }
 }
 static const char *mx_code(uint32_t r)                  /* the row's code at its left */
@@ -205,7 +208,8 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
             cv_text(15, q.y + 18, &FONT_S, "X", C_GRAY);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
-    mx_vu_paint(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
+    if (q.vw)
+        mx_vu_paint(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
 }
 static void mx_paint(void)                              /* the group in view (cv_tall) */
 {
@@ -215,7 +219,7 @@ static void mx_paint(void)                              /* the group in view (cv
         return;
     }
     if (mxd.first == MXR_LANE0)
-        cv_rect(MXS_W - 1, 0, 1, OP_PH - (ACC_UI ? MXA_H : 0), C_LINE);   /* (the two columns) */
+        cv_rect(MXS_W - 1, 0, 1, (int32_t)MXS_ROWS * OP_PH / (int32_t)MXS_NROW, C_LINE);   /* (the two columns) */
     for (i = mxd.first; i < mxd.last; i++)
         mx_paint_row(i);
 }
@@ -417,7 +421,8 @@ static void mx_draw(void)
     for (i = mxd.first; i < mxd.last; i++) {
         mrect_t q;
         mx_rect(i, &q);
-        mx_vu_at(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mx_level(i, trk_lv), mx_gr_px(i, q.vw));
+        if (q.vw)                                       /* (the ACCENT lane: no meter) */
+            mx_vu_at(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mx_level(i, trk_lv), mx_gr_px(i, q.vw));
         mx_steps(i);
     }
 }

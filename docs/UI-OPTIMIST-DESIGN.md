@@ -3015,3 +3015,51 @@ The audit's items #26, #27, #39, #47 and the amber / green checks (STYLE.md sect
 Tests: tests/ui_optimist_colours.h (mute tiles; every action card walked against the list of what may be red, the SONG
 REC colours, SAVE red exactly over a used slot and the modal equal to the card; dim only on free / unused; no cell in the
 palette's secondary step; the three hues).
+## 35. Geometry (feat/ui-geometry, 2026-10-14; the coherence audit's batch B)
+
+The style guide's sections 3, 5, 8 and 9 (optimist-work/visaudit/STYLE.md) as drawn. UI=0 unchanged.
+
+- **The help band** (#6, style guide 9). A build with the help line (PARAM_HELP) gives the screen's last 18 rows
+  (y 222..239) to it, **whether the line shows or not** (op_graph.c `OP_FOOT`, `OP_FOOT_Y`; `OP_PH` ends there). Reserving it
+  always was picked over making room only while the line shows: the line comes for ~2 s on every detent, and the list,
+  the mixer's rows and the pictures would jump each time. Every screen's content ends above it: the list (five rows of 19
+  px under the 2x2 cards, `ROW_H`; 20 without the band), the pictures, the mixer's rows (36 px channels; nine lane rows),
+  STEP's grid (the lanes 10-11 px, the marks and the playhead strip at y 218..221; the roll as tall as fits), GLOBAL /
+  SYSTEM's list (its lines where they were), a layer's tiles (19 px rows, the state line under them), FM6's ENV held map,
+  the modal (its *Home no / Save yes* from the box's foot), the REC ring (28 px over the band), the BLE devices. Nothing
+  else ever draws in the band: the help line no longer clips the bands (gfx.c `cv_clip` is gone) nor redraws them when it
+  goes, it clears its band. A build without the help line has no band: everything runs to the foot as before.
+- **Units in the label row** (#12, style guide 5). Every card, the mixer's 1x4 cards too: the label at the left, the unit
+  right-aligned in the label row, never after the value (so a long value never drops it: *-10.0* and *dB* both show). A
+  value that carries its unit (the compressors' ATK / REL *10ms*, a list of names) shows its number on the card and the unit
+  above it (op_draw.c `card_unit`); the lists keep *10ms* whole. On a 57-px card a label and its unit need 3 px of air: the
+  two that cannot (LEVEL + dB, REV RT / DLY RT / CHO RT + %) take their narrow form there, LVL / REV / DLY / CHO
+  (op_names.c `NM_NARROW`): the label gives way, never the unit. Lists: the unit right after the number, no space; GLOBAL /
+  SYSTEM's lines lose their 4-px gap (*90BPM*, *0%*; the one change to the settings look, by that rule).
+- **The list's columns** (#23 and batch A's cut 5-letter cells, style guide 3). A row's name has its column (9 characters
+  from x 4), then a character's gap, then the four cells at x 84 + 38 k (four characters and a gap). A text longer than its
+  place reflows its row: it keeps its place and pushes the cells after it right (6 px apart at least), or a long last one
+  pulls the ones before it left, while the row fits; only a row that cannot hold every text whole gives a character, the
+  longest text first, its names-table form first (op_draw.c `row_layout`). *BLUES*, *REUSE*, *L1 RT*, *L2 AMT*, *100ms*,
+  *1/16D* show whole; the columns stay put on every row that needs no room. No more *Ret delay8T*.
+- **STEP's held-step cards** (#16): the three rows between the header and the cards (y 25..27) are cleared when the cards
+  come up: no grid fragments behind them (op_stepdraw.c `step_frame`).
+- **FM6's operator map** (#25): the boxes are as tall as the rows allow but never less than their number (12 rows: the
+  digit's 10 of ink inside, centred); rows too short for that draw the numbers alone, in the boxes' colours, never a box
+  over its number. ENV held's map: the voice and the page on the first line, the algorithm (*Alg n*, *Car Fb n* on its
+  top line), the black keys' map at the foot (op_fm6draw.c `F6_*`); every algorithm's four rows fit at 14 px.
+- **The FX picture** (#31): a SOUND FX page's picture is its own four values, read from the page's cells, in the cards'
+  order (SLOOP's `fx_needle` read SLOOP's order: CHO DLY REV under REV DLY CHO), the needles placed for the 2x2 cards
+  under each card's column (KNOB 1 x 32, KNOB 3 x 90 | KNOB 2 x 150, KNOB 4 x 208) and named with their card's label. An
+  FX page with no picture of its own (COMP, SLICER) shows its own needles, never a neighbour's (op_graph.c `graph_fx`,
+  `snd_graph_page`). An insert's TYPE card has no needle.
+- **The mixer's ACCENT lane** (#34): a ninth row across both columns, as tall as the lanes' (146 / 9 px), its steps over
+  the width at a channel's pitch, no meter (it has no sound) (op_mixdraw.c `mx_rect`, `MXS_NROW`).
+
+Tests: tests/ui_optimist_geometry.h: no blit reaches the help band but the line's own in the whole run (every test and the
+20000 random frames; counted in the harness's lcd_blit) and the band black on every screen and layer with the line off;
+every mixer card's unit beside its label; *10ms* split on the card; every list row's name column and cells apart and inside
+the row; the held-step strip black; the FX needles the page's values, placed and named; the ACCENT row full width; FM6's
+boxes for every algorithm. tests/ui_optimist_names.h: every value of every list parameter laid out whole in its row.
+Updated for the band: the mixer's row height, STEP's foot, the SOUND picture's foot, GLOBAL's foot, the BLE code's place,
+the help line's going.

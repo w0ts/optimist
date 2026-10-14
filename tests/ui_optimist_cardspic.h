@@ -17,12 +17,13 @@ static int cp_pos(char *p)                              /* the header's n/N for 
     head_pos(ui.scr, ui.row[ui.scr], p);
     return p[0] == ' ' && strchr(p, '/') != 0;
 }
-/* the picture alone on the whole panel, in the track's colour down to the panel's foot (y0 .. 240: what a row there was) */
+/* the picture alone on the whole panel, in the track's colour down to the panel's foot (y0 .. the help band: what a row
+ * there was) */
 static int cp_pic_alone(uint32_t pic, uint32_t y0)
 {
     char p[12];
     return lst.pic == pic && lst.shown == 0u && gr_h == OH_BODY && OP_PY == OY_PANEL_2X2 && cards_band_is(BAND_2X2) &&
-           px_in(0, y0, 240, 240 - y0, trk_col(song.sel)) && cp_pos(p);
+           px_in(0, y0, 240, OP_FOOT_Y - y0, trk_col(song.sel)) && cp_pos(p);
 }
 /* no picture: the rows under the 2x2 cards, the cursor's bar among them, the header's n/N (one row: none) */
 static int cp_list(void)
@@ -41,7 +42,7 @@ static void cards_pic_tests(void)
     tap(B_ENV);
     cp_draw();
     ppm("opt-cardspic-sound-env");
-    check(ui.scr == SCR_SOUND && cp_pic_alone(1u, 222u), "2x2: SOUND ENV, the envelope alone on the panel (its attack at the foot), the header's n/N");
+    check(ui.scr == SCR_SOUND && cp_pic_alone(1u, OP_FOOT_Y - 18u), "2x2: SOUND ENV, the envelope alone on the panel (its attack at the foot), the header's n/N");
     /* SOUND LFO, the FX row's needles, ARP, SCL */
     tap(B_LFO);
     cp_draw();

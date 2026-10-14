@@ -3,14 +3,14 @@
  * cards are its four knobs (their forms as everywhere), the panel its 16 tiles (the white keys, 4 x 4, in the
  * instruments' colours: a drum lane in its source's, a track in its engine's), under them the layer's
  * state (the scale, the chain, a modifier key held); no footer. Sentence case as drawn (op_case). The panel to the
- * screen's foot in two passes (cv_tall). */
+ * help band (or the screen's foot) in two passes (cv_tall). */
 typedef struct {
     char lab[8];
     uint16_t bg, fg, top;               /* fill, text, a 3-px band at the top (0: none) */
 } tile_t;
 static const char *const LAY_NAME[LY_COUNT] = {"", "FX", "ERASE", "REPEAT", "", "KEY", "MIX", "SCENES", "",
                                                FIF(FELUCCA_PATTERNS)("PATTERNS")};
-#define TILE_H (cards_2x2() ? 24 : 36)   /* a row of tiles; 4 rows in the panel, the layer's state under them */
+#define TILE_H (cards_2x2() ? (OP_PH - 20) / 4 : 36)   /* a row of tiles; 4 rows in the panel, the layer's state under them (24; 19 over the help band) */
 #define LAY_SUB_Y (4 * TILE_H + 2)
 static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the state under them) */
 

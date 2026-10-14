@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, the help line (op_help.c, FELUCCA_PARAM_HELP; the user, 2026-10-13: "a help text on the
  * bottom last line ... displayed everywhere when i modify a value or in the vertical menus"):
  *   menus     GLOBAL, SYSTEM: every line has its text, the table's, fitting the line (232 px); PROJECT: every cell
- *   a turn    SOUND, the mixer: the line shows on a value's turn, the bands keep off its rows, it goes ~2 s after
+ *   a turn    SOUND, the mixer: the line shows on a value's turn in its own band, it goes ~2 s after
  *   missing   every SOUND / MASTER / mixer / STEP / SONG / TEMPO value without a line is listed (information)
  * Included after ui_optimist_glwalk.h. A build without PARAM_HELP: none of it. */
 #if FELUCCA_PARAM_HELP
@@ -112,7 +112,7 @@ static void help_tests(void)
     frames(HL_FRAMES / 2u + 10u);
     check(hl.on, "... still there while it turns and ~2 s after the last detent");
     frames(HL_FRAMES / 2u);
-    check(!hl.on && cv_clip == 240u, "... then gone, the bands drawn over its rows again");
+    check(!hl.on && !hlt_strip_lit(), "... then gone, its band black again (nothing else ever draws there)");
     turn(EN_K1, 1);
     frame();
     op_enter(SCR_HOME);

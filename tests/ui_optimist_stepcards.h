@@ -42,7 +42,7 @@ static void step_cards_tests(void)
         frames(15);
         check(ui.cards_t == 0u && sc_grid_up(), "... after the timeout the grid is drawn whole again");
         check(px_in(2, SP_Y + SG_LY(15), 6, SG_LY(16) - SG_LY(15) - 1, lane_col(15)) && px_in(0, SP_Y + SG_LY(15), 240, 1, C_BLACK) &&
-              SP_Y + SG_PH_Y + 4 == 240 && SG_LY(16) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip at y 236)");
+              SP_Y + SG_PH_Y + 4 == OP_FOOT_Y && SG_LY(16) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip over the help band)");
         /* a page change: SEQ tapped to the next STEP page */
         tap(B_SEQ);
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");

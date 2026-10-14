@@ -3,18 +3,19 @@
  *   y   0..24   the header: the selected track's engine (in its colour), the screen and row, the loop position, the
  *               tempo; a passive message (2.5 s: MISSING, RECORDING) takes it over
  *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white)
- *   y  76..239  the panel (to the screen's foot: no footer, the user, 2026-10-08): the list of rows (each value a number over its form; the cursor row a bar in the track's
+ *   y 76..221   the panel (no footer, the user, 2026-10-08; to the screen's foot without the help line): the list of rows (each value a number over its form; the cursor row a bar in the track's
  *               colour; on SOUND the cursor row's graph above it), or STEP's grid / roll (op_stepdraw.c), or the
  *               scope (op_scope.c); a question covers it with the modal, the result of a confirmed action shows as a
  *               toast in its middle
  *               the mixer's panel: a row a track, MASTER above T1, the drum lanes after DR (op_mixdraw.c)
+ *   y 222..239  the help band (a build with the help line, op_graph.c OP_FOOT): the help line's alone, black without it
  * What the footer said went elsewhere: STEP's window and pick to the header, a held step's values under its grid,
  * a layer's "Home locks it" to the header once.
  * Lazy: each band remembers a signature of what it drew and is drawn again only when that changes; the meters
  * and the playheads are small canvases of their own, so a playing mixer never redraws a whole band. Each band is
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
-#define ROW_H 20
-#define OH_BODY OP_PH                 /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
+#define ROW_H (OP_FOOT ? 19 : 20)       /* a list row: 5 under the 2x2 cards, over the help band too (99 rows: 19 each) */
+#define OH_BODY OP_PH                 /* the panel to the help band (or the screen's foot): no footer (the user, 2026-10-08) */
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 5 rows under the 2x2 cards (draw_list) */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
@@ -37,11 +38,9 @@ static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's a
 static void f6_alg_draw(int32_t y0, int32_t h, int big);
 static void gl_draw(void);                              /* op_gldraw.c: GLOBAL and SYSTEM's list */
 #if FELUCCA_PARAM_HELP
-static int32_t hl_room(void);                           /* op_help.c: the help line */
-static void hl_pre(uint32_t ov);
+static void hl_pre(uint32_t ov);                        /* op_help.c: the help line, in its band */
 static void hl_post(void);
 #else
-#define hl_room() 0
 #define hl_pre(ov) ((void)(ov))
 #define hl_post() ((void)0)
 #endif
@@ -54,7 +53,7 @@ static void hl_tick(void);
 #define HL_NOTE(k) ((void)(k))
 #define HL_TICK() ((void)0)
 #endif
-#define LIST_H ((int32_t)OH_BODY - hl_room())  /* the rows' panel: over the help line on PROJECT (op_help.c) */
+#define LIST_H ((int32_t)OH_BODY)       /* the rows' panel: over the help band (op_graph.c OP_FOOT) on every screen */
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -485,11 +484,42 @@ static const char *card_label(const cell_t *c, char *b, uint32_t n)
     const char *eng = (ui.scr == SCR_SOUND || ui.scr == SCR_STEP) && !is_drum(TSEL) ? ENGINES[TSEL->eng_req % NENGINES]->name : 0;
     return nm_card(c->kind == CK_ACT ? act_small(c) : c->label, eng, b, n);
 }
+/* a value as a card draws it, into v (n bytes), and its unit (style guide 5: the unit in the label row, on every card): the
+ * cell's unit, or one the value carries itself split off its number ("10ms": a list of names, the compressors' ATK REL;
+ * the lists keep "10ms" whole) */
+static const char *card_unit(const cell_t *c, char *v, uint32_t n)
+{
+    static const char *const U[5] = {"ms", "Hz", "dB", "%", "s"};
+    uint32_t i, l, m;
+    str_cpy(v, c->val, n);
+    if (c->unit[0] || c->kind == CK_ACT)
+        return c->unit;
+    l = str_len(v);
+    for (i = 0; i < 5u; i++) {
+        m = str_len(U[i]);
+        if (l > m && str_eq(v + l - m, U[i]) && v[l - m - 1u] >= '0' && v[l - m - 1u] <= '9') {
+            v[l - m] = 0;
+            return U[i];
+        }
+    }
+    return "";
+}
+/* a 1x4 card's label row (the mixer's, 57 px): the label from the left, the unit right-aligned left of the DR tag and the
+ * lock mark; a label that cannot leave 3 px of air before the unit takes its narrow form (op_names.c NM_NARROW: LVL) */
+#define CARD_UX(x, uw, rw) ((x) + CARD_W - 1 - (uw) - (rw))   /* the unit's x (rw: the tag's and the mark's room) */
+static const char *card_label_n(const cell_t *c, const char *u, char *b, uint32_t n, char *nb)
+{
+    const char *lab = card_label(c, b, n);
+    int32_t uw = u[0] ? text_w(&FONT_S, u) : 0, rw = (c->dr ? text_w(&FONT_S, "DR") + 4 : 0) + (c->mark ? 10 : 0);
+    if (uw && 3 + text_w(&FONT_S, lab) + 4 > CARD_UX(0, uw, rw))
+        lab = nm_narrow(lab, nb, 12);
+    return lab;
+}
 static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
-    char b[16];
+    char b[16], v[16], nb[12];
+    const char *u = card_unit(c, v, sizeof v);
     uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_GRAY) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
-    int32_t vx;
     cv_box(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
     if (c->col)
         cv_rect(x, 0, 2, OH_CARD - 1, c->col);          /* the track's / the engine's colour */
@@ -511,16 +541,17 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
         cv_text(x + CARD_W - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_GRAY);
     {
-        const char *lab = card_label(c, b, sizeof b);   /* (the names table's: in capitals, 6 at most) */
+        const char *lab = card_label_n(c, u, b, sizeof b, nb);   /* (the names table's: in capitals, 6 at most) */
         cv_text(x + (text_w(&FONT_S, lab) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY));
     }
+    if (u[0])                                           /* the unit: the label row, right-aligned (never after the value) */
+        cv_text(CARD_UX(x, text_w(&FONT_S, u), (c->dr ? text_w(&FONT_S, "DR") + 4 : 0) + (c->mark ? 10 : 0)), 3, &FONT_S, u,
+                C_DIM);
     if (c->kind == CK_ACT) {
         cv_text(x + 3, 20, &FONT_S, cut(b, act_verb(c), 6), act_col(c, hot));
         return;
     }
-    vx = cv_text(x + 3, 20, &FONT_S, cut(b, c->val, 6), vc);
-    if (c->unit[0] && vx + text_w(&FONT_S, c->unit) <= x + CARD_W - 1)
-        cv_text(vx, 20, &FONT_S, c->unit, C_DIM);
+    cv_text(x + 3, 20, &FONT_S, cut(b, v, 6), vc);
     if (c->ak) {                                        /* two bars: entered, then the actual value (op_effval.c) */
         draw_gauge(x + 4, EFFV_Y1 - 4, CARD_W - 8, 2, c, vc, C_LINE);
         effv_bar(x + 4, EFFV_Y1, CARD_W - 8, c, hot);
@@ -536,8 +567,9 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 #define BIG_H 46
 static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
-    char b[16];
-    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
+    char b[16], v[16];
+    const char *u = card_unit(c, v, sizeof v);          /* ("10ms": 10, its unit in the label row) */
+    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = u[0] ? text_w(&FONT_S, u) + 4 : 0;
     int32_t dw = c->dr ? text_w(&FONT_S, "DR") + 4 : 0;   /* (the DR tag's room, top right) */
     uint16_t vc = c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_GRAY) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
     cv_box(x, y, BIG_W, BIG_H, OP_SURF);
@@ -565,22 +597,22 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         char l[16];
         cv_text(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
     }
-    if (c->unit[0])
-        cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0) - dw, y + 2, &FONT_S, c->unit, C_DIM);
+    if (u[0])
+        cv_text(x + BIG_W - 3 - text_w(&FONT_S, u) - (c->mark ? 10 : 0) - dw, y + 2, &FONT_S, u, C_DIM);
     if (c->kind == CK_ACT) {
-        const char *v = act_verb(c);
-        if (text_w(font_big(), v) <= BIG_W - 10)
-            cv_text(x + 5, y + 13, font_big(), v, act_col(c, hot));
-        else if (text_w(font_big(), v) <= BIG_W - 4)   /* (a 7-letter verb, REVERSE: large too, from the card's edge) */
-            cv_text(x + 2, y + 13, font_big(), v, act_col(c, hot));
+        const char *vb = act_verb(c);
+        if (text_w(font_big(), vb) <= BIG_W - 10)
+            cv_text(x + 5, y + 13, font_big(), vb, act_col(c, hot));
+        else if (text_w(font_big(), vb) <= BIG_W - 4)   /* (a 7-letter verb, REVERSE: large too, from the card's edge) */
+            cv_text(x + 2, y + 13, font_big(), vb, act_col(c, hot));
         else
-            cv_text(x + 5, y + 20, &FONT_S, cut(b, v, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
+            cv_text(x + 5, y + 20, &FONT_S, cut(b, vb, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
         return;
     }
-    if (text_w(font_big(), c->val) <= BIG_W - 10)
-        cv_text(x + 5, y + 13, font_big(), c->val, vc);
+    if (text_w(font_big(), v) <= BIG_W - 10)
+        cv_text(x + 5, y + 13, font_big(), v, vc);
     else
-        cv_text(x + 5, y + 20, &FONT_S, cut(b, c->val, 13), vc);
+        cv_text(x + 5, y + 20, &FONT_S, cut(b, v, 13), vc);
     draw_gauge(x + 5, y + BIG_H - 3, BIG_W - 10, 2, c, vc, C_LINE);
     if (c->ak)                                          /* the actual value's bar, over the entered one (op_effval.c) */
         effv_bar(x + 5, y + EFFV_Y2, BIG_W - 10, c, hot);
@@ -667,48 +699,99 @@ static void draw_cards(void)
 /* ---- the panel: the rows, each value a number over its form; SOUND: the cursor row's graph on top */
 /* a row rh px high (ROW_H, or taller when a page's few rows fill the panel: its text and gauge stay together, in the
  * middle of the row, the gauge thicker) */
-/* cell k of row i (c) as the list shows it, into b (n bytes): 4 characters, more over the empty cells after it (the list
- * cell form of the names table, op_names.c: "ANLG", "INS", "DEL"); 0: nothing, 2: cut to its room */
-static int row_cell_text(uint32_t i, uint32_t k, const cell_t *c, char *b, uint32_t n)
+/* A list row's columns (the audit's #23 and the cut 5-letter cells; style guide 3): the row's name from x 4, 9 characters
+ * at most, then a character's gap, then the four cells at their places LC_X0 + LC_P k (4 characters and a gap each). A
+ * text longer than its place reflows the row: it keeps its place and pushes the cells after it right, at least LC_GAP
+ * apart, or a long last one pulls the cells before it left, as long as the row fits its width; only a row that cannot hold
+ * every text whole gives up a character, the longest text first (its 4-letter form from the names table first: "ANLG",
+ * "INS"). So "BLUES", "REUSE", "L1 RT", "100ms" show whole beside their neighbours, and the columns stay where they are
+ * on every row that needs no room */
+#define LC_NAME_X 4                     /* the row's name */
+#define LC_X0 (LC_NAME_X + 9 * 8 + 8)   /* the first cell: the longest name (9) and a character's gap */
+#define LC_P 38                         /* a cell's place */
+#define LC_GAP 6                        /* the least room between two texts (8 px of ink apart) */
+#define LC_TXT 14                       /* a text's bytes (13 characters at most: a name over the empty cells after it) */
+typedef struct {
+    char t[4][LC_TXT];                  /* the texts as drawn ("" none) */
+    int16_t x[4];                       /* each cell's x (its text and its form) */
+    uint8_t cut;                        /* bit k: cell k's text cut (the row could not hold it whole) */
+} rowl_t;
+static int32_t lc_w(const rowl_t *L, uint32_t k) { return 8 * (int32_t)str_len(L->t[k]); }
+/* the places for the texts as they are: 1 when they fit in end (the row's width), else 0 */
+static int lc_place(rowl_t *L, int32_t end)
 {
-    cell_t e;
-    uint32_t j, w;
-    for (j = k + 1u, w = 4u; j < 4u; j++, w += 5u) {
-        SCR->cell(i, j, &e);
-        if (e.label || e.val[0])
-            break;
+    int32_t late[4], lim = end, prev = LC_X0, k;        /* (never into the name's column) */
+    for (k = 3; k >= 0; k--) {                          /* the latest each text may start, from the right */
+        late[k] = lim - lc_w(L, (uint32_t)k);
+        if (L->t[k][0])
+            lim = late[k] - LC_GAP;
     }
-    if (c->kind == CK_ACT && c->label)
-        str_cpy(b, nm_cell(c->val[0] ? c->val : c->label), n);
-    else if (c->val[0])
-        str_cpy(b, c->gk != GK_NONE || str_len(c->val) > w ? nm_cell(c->val) : c->val, n);
-    else
-        return 0;
-    w = c->gk != GK_NONE ? 4u : w > 13u ? 13u : w;
-    if (str_len(b) <= w)
-        return 1;
-    b[w] = 0;                                           /* (a value the table lacks: cut; tests/ui_optimist_names.h) */
-    return 2;
+    for (k = 0; k < 4; k++) {                           /* its place, or after the text before it, or pulled left */
+        int32_t slot = LC_X0 + LC_P * k, x = slot > prev ? slot : prev;
+        if (!L->t[k][0]) {
+            L->x[k] = (int16_t)slot;
+            continue;
+        }
+        x = x > late[k] ? late[k] : x;
+        if (x < prev)
+            return 0;
+        L->x[k] = (int16_t)x;
+        prev = x + lc_w(L, (uint32_t)k) + LC_GAP;
+    }
+    return 1;
 }
+/* a row's texts and places in a row end px wide (the scroll bar's room off), the cells c[4] read: 0 when the row is empty */
+static uint32_t row_layout(const cell_t *c, rowl_t *L, int32_t end)
+{
+    uint32_t k, any = 0;
+    memset(L, 0, sizeof *L);
+    for (k = 0; k < 4u; k++) {
+        const cell_t *e = &c[k];
+        if (e->kind == CK_ACT && e->label)
+            str_cpy(L->t[k], nm_cell(e->val[0] ? e->val : e->label), LC_TXT);
+        else if (e->val[0])
+            str_cpy(L->t[k], e->gk != GK_NONE ? nm_cell(e->val) : e->val, LC_TXT);
+        any |= L->t[k][0] != 0;
+    }
+    while (!lc_place(L, end)) {                         /* (too long for the row: the longest text gives a character) */
+        uint32_t m = 0;
+        for (k = 1; k < 4u; k++)
+            m = str_len(L->t[k]) > str_len(L->t[m]) ? k : m;
+        if (str_len(L->t[m]) <= 1u)
+            break;
+        if (!str_eq(nm_cell(L->t[m]), L->t[m]) && str_len(nm_cell(L->t[m])) < str_len(L->t[m]))
+            str_cpy(L->t[m], nm_cell(L->t[m]), LC_TXT);  /* (its fixed form first: never a cut word the table has) */
+        else {
+            L->t[m][str_len(L->t[m]) - 1u] = 0;
+            L->cut |= (uint8_t)(1u << m);               /* (a value the row cannot hold: tests/ui_optimist_names.h) */
+        }
+    }
+    return any;
+}
+#define LC_END(wide) ((wide) - 4)       /* a row's texts end here: the screen less a margin (the scroll bar's) */
 static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide, int32_t rh)
 {
     char nm[12], b[16];
     uint32_t k;
-    cell_t c;
+    cell_t c[4];
+    rowl_t L;
     int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
         cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, text white */
     y += (rh - ROW_H) / 2;
     SCR->name(i, nm);
-    cv_text(4, y + 1, &FONT_S, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
+    cv_text(LC_NAME_X, y + 1, &FONT_S, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
         cv_rect(70, y + 5, 7, 7, song_row_col(i));
+    for (k = 0; k < 4u; k++)
+        SCR->cell(i, k, &c[k]);
+    row_layout(c, &L, LC_END(wide));
     for (k = 0; k < 4u; k++) {
-        int32_t x = 80 + 40 * (int32_t)k;
-        SCR->cell(i, k, &c);
-        if (row_cell_text(i, k, &c, b, sizeof b))
-            cv_text(x, y + 1, &FONT_S, b, on ? C_WHITE : c.kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
-        draw_gauge(x, y + 16, 36, gh, &c, on ? C_WHITE : c.col ? c.col : C_AMB, on ? cur_trough(bar) : C_LINE);
+        int32_t x = L.x[k], gw = (k < 3u ? L.x[k + 1u] : LC_END(wide)) - x - 2;   /* (the form: to the next cell's place) */
+        if (L.t[k][0])
+            cv_text(x, y + 1, &FONT_S, L.t[k], on ? C_WHITE : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
+        draw_gauge(x, y + 16, gw > LC_P - 2 && k == 3u ? LC_P - 2 : gw, gh, &c[k], on ? C_WHITE : c[k].col ? c[k].col : C_AMB,
+                   on ? cur_trough(bar) : C_LINE);
     }
 }
 /* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in
@@ -860,24 +943,26 @@ static void draw_under(void)
 static uint32_t op_overlay(void) { return rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
 /* REC held: the ring over the panel (SLOOP's hold screen's ring, copied: 36 px, 7 thick, filling clockwise from the
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
+#define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
+#define RING_CY ((MODAL_H - (2 * RING_R + 36)) / 2 + RING_R)   /* its centre: the ring and its two lines in the panel's middle */
 static void draw_ring(void)
 {
     uint32_t el = fm1_ms - rh.t1;
-    int32_t a, rr, end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS), cy = MODAL_H / 2 - 14;
+    int32_t a, rr, end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS), cy = RING_CY;
     uint16_t tc = trk_col(rh.trk);
     char b[16];
     cv_begin(240, MODAL_H, C_BLACK);
     for (a = 0; a < 1024; a += 2) {
         int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
         uint16_t c = a <= end ? tc : C_LINE;
-        for (rr = 30; rr <= 36; rr++)
-            if (a <= end || rr == 33)                   /* (the part to come: a thin line on black) */
+        for (rr = RING_R - 6; rr <= RING_R; rr++)
+            if (a <= end || rr == RING_R - 3)           /* (the part to come: a thin line on black) */
                 cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
     }
     str_cpy(b, "Clear ", sizeof b);
     str_cpy(b + 6, trk_tag(rh.trk), sizeof b - 6u);
-    cv_text(120 - text_w(&FONT_S, b) / 2, cy + 40, &FONT_S, b, tc);
-    cv_text(120 - text_w(&FONT_S, "Keep holding") / 2, cy + 56, &FONT_S, "Keep holding", C_GRAY);
+    cv_text(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, &FONT_S, b, tc);
+    cv_text(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
     cv_blit(0, OP_PY);
 }
 static void draw_overlay(uint32_t ov)

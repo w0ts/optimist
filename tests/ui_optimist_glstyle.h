@@ -139,7 +139,7 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
 }
 static int gls_fit(void)
 {
-    int32_t foot = 240 - GL_FOOT, bottom = OH_HEAD + gl_y0() + 4 * gl_pitch();
+    int32_t foot = OP_FOOT_Y, bottom = OH_HEAD + gl_y0() + 4 * gl_pitch();   /* (the help band: op_graph.c OP_FOOT) */
     int ok = gl_pitch() >= (int32_t)FONT_S.h + 3 + GL_BH + 4 && bottom <= foot && foot - bottom <= 12;
     if (!ok)
         printf("  glstyle: pitch %d, 4 lines end at %d, the foot %d\n", gl_pitch(), bottom, foot);
