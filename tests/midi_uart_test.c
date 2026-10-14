@@ -172,14 +172,8 @@ static int test_uart_ring(void)
     ok = mi_w == mi_r;                                /* (alone it may still be an unwritten slot) */
     dma_put((const uint8_t[]){0x90, 0x3E, 0x40}, 3);
     uart_midi_peek();
-#if FELUCCA_TRS_NOISE
     ok &= mi_w - mi_r == 1u && midi_in_q[(mi_w - 1u) % MQ] == 0x403E9009u && um.rd == dma_w && ring_clean();
-    bad += check("uart peek: an FD at the reader, then a note: the note is read (TRS_NOISE)", ok);
-#else
-    ok &= mi_w == mi_r;                               /* (the reader waits on the FD: the jack is deaf) */
-    bad += check("uart peek: an FD at the reader stalls it (without FELUCCA_TRS_NOISE)", ok);
-    um_drain(0);                                      /* (clean up for what follows) */
-#endif
+    bad += check("uart peek: an FD at the reader, then a note: the note is read (SLOOP 2.3)", ok);
     mi_r = mi_w;
     return bad;
 }

@@ -10,8 +10,6 @@
  *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
  *   FELUCCA_GLIDE         part level, pan and sends, MASTER, the drum track's level, pan and lane sends glide over
  *                         ~10 ms (no zipper)                       X0X 0.10.1-beta (charlesvestal/fm1-x0x 49b1fc8)
- *   FELUCCA_TRS_NOISE     TRS MIDI in: a received FD at the reader no longer stalls the jack until a restart
- *                                                          SLOOP 2.3 (Felucca [Salt] by ChanceTheMaker)
  *   FELUCCA_BK_CHECK      restore: each storage object checked at its commit as a load checks it, else refused
  *                                                                                        SLOOP 2.3 */
 #ifndef FELUCCA_BACKPORTS23_H
@@ -25,9 +23,6 @@
 #endif
 #ifndef FELUCCA_GLIDE
 #define FELUCCA_GLIDE 0          /* fx.c glide_next: mix_part, mix_finish (MASTER); drums.c drums_mix (dgl) */
-#endif
-#ifndef FELUCCA_TRS_NOISE
-#define FELUCCA_TRS_NOISE 1      /* midi_uart.c uart_midi_peek: looks one slot past an FD at the reader */
 #endif
 #ifndef FELUCCA_BK_CHECK
 #define FELUCCA_BK_CHECK 1       /* ed_backup.c BK_COMMIT: a storage object written only if a load would take it (rc 8) */
@@ -51,6 +46,9 @@
 #endif
 #if defined(FELUCCA_KEYS_FAST) && !FELUCCA_KEYS_FAST
 #error "FELUCCA_KEYS_FAST was retired: the keys are always read with their column (SLOOP 2.3 .. 2.6)"
+#endif
+#if defined(FELUCCA_TRS_NOISE) && !FELUCCA_TRS_NOISE
+#error "FELUCCA_TRS_NOISE was retired: TRS MIDI in past line noise (an FD at the reader) is always built (SLOOP 2.3 .. 2.6)"
 #endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */

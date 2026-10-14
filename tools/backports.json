@@ -458,34 +458,6 @@
       "warning": true
     },
     {
-      "switch": "FELUCCA_TRS_NOISE",
-      "title": "TRS MIDI in: a received FD (line noise) where the reader stands no longer deafens the jack until a restart",
-      "default": 1,
-      "group": "midi",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "d691ba7 (SLOOP 2.3)",
-        "author": "isod89 (the read by content from Felucca [Salt] 0.9-salt14 by ChanceTheMaker)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/midi_uart.c um_drain"
-      },
-      "files": [
-        "firmware/src/io/midi/midi_uart.c uart_midi_peek"
-      ],
-      "cost": {
-        "flash": 16,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "one more byte read per 10 kHz tick while the ring is idle",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "compared: both read the ring by content (ours from Melodee, with byte times for the MIDI clock); 2.3's drain passes over an FD at the reader, our 10 kHz peek did not look past it (tests/midi_uart_test.c: stalls without, read with)",
-      "notice": "TRS MIDI input fix after SLOOP 2.3 by isod89 and Felucca [Salt] by ChanceTheMaker (GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_BK_CHECK",
       "title": "Restore from a backup: each storage object written only if the firmware would load it (else refused, rc 8)",
       "default": 1,

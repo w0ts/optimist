@@ -817,11 +817,7 @@ job; ( jobin
 
 job; ( jobin
     $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
-    run "TRS / USB MIDI parser (USB flow control, SLOOP 2.3: a flood loses nothing, malformed ignored)" "$OUT/midi_uart_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -DFELUCCA_TRS_NOISE=1 -o "$OUT/midi_uart_flow_test" tests/midi_uart_test.c
-    run "TRS / USB MIDI parser with TRS_NOISE (SLOOP 2.3: an FD at the reader)" "$OUT/midi_uart_flow_test"
+    run "TRS / USB MIDI parser (SLOOP 2.3: USB flow control, a flood loses nothing, malformed ignored; an FD at the TRS reader)" "$OUT/midi_uart_test"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
