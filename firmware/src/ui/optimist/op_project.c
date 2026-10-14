@@ -694,21 +694,33 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "%";
         cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
         break;
+    case SI_CPU1: {                                     /* the second core: ON and its share of each audio half (dual_load.h), OFF and why, or not in the build */
 #if DUAL_LOAD
-    case SI_CPU1: {                                     /* the second core's share of each audio half (dual_load.h) */
         int32_t pct = dual_c1_pct();
-        c->label = "CPU1";
         c->kind = CK_RO;
-        if (pct < 0)                                    /* (down: CPU0 renders everything, dual.c; why it is down, else OFF) */
-            str_cpy(c->val, dual.why ? dual_why_name(dual.why) : "OFF", sizeof c->val);
-        else
+        if (pct < 0) {                                  /* (down: CPU0 renders everything, dual.c; why it is down, else NO REASON) */
+            c->label = "2ND CORE OFF";
+            str_cpy(c->val, dual.why ? dual_why_name(dual.why) : "NO REASON", sizeof c->val);
+            c->unit = "";
+            c->col = C_AMB;
+            cell_gauge(c, 0, 0, 100, 0);
+        } else {
+            c->label = "2ND CORE ON";
             fmt_int(c->val, pct);
-        c->unit = pct < 0 ? "" : "%";
-        c->col = pct < 0 ? C_AMB : 0;
-        cell_gauge(c, 0, 0, 100, pct < 0 ? 0 : pct);
+            c->unit = "%";
+            c->col = 0;
+            cell_gauge(c, 0, 0, 100, pct);
+        }
+#else
+        c->label = "2ND CORE";
+        c->kind = CK_RO;
+        str_cpy(c->val, "NOT IN BUILD", sizeof c->val);
+        c->unit = "";
+        c->col = C_DIM;
+        cell_gauge(c, 0, 0, 100, 0);
+#endif
         break;
     }
-#endif
     case SI_INFO:                                       /* the info page's one line (op_gldraw.c draws the page itself) */
         c->label = "INFO";
         c->kind = CK_RO;
@@ -798,13 +810,12 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     sys_it_cell(sys_item(r, k), c);
 }
-/* the info page's lines (op_gldraw.c gl_info_draw): the clock, the load of each core, the memory */
-#define INFO_N (DUAL_LOAD ? 7u : 6u)
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the memory */
+#define INFO_N 7u
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
-    static const uint8_t INFO[7] = {SI_MHZ, SI_CPU, SI_IF(DUAL_LOAD, SI_CPU1), SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};
-    uint32_t j = DUAL_LOAD || i < 2u ? i : i + 1u;      /* (without DUAL: no CPU1 line) */
-    sys_it_cell(INFO[j % 7u], c);
+    static const uint8_t INFO[INFO_N] = {SI_MHZ, SI_CPU, SI_CPU1, SI_FLASH, SI_RAM, SI_POOL, SI_RTXT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
+    sys_it_cell(INFO[i % INFO_N], c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */
 static void sys_set(uint32_t it, int32_t s)
@@ -968,7 +979,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty = 1;
         return 1;
     }
-    if (it == SI_NONE || it >= SI_INFO || it == SI_CPU || it == SI_MHZ || (DUAL_LOAD && it == SI_CPU1))
+    if (it == SI_NONE || it >= SI_INFO || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
         return 0;
     sys_set(it, 0);
     return 1;
