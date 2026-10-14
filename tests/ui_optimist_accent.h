@@ -2,7 +2,8 @@
 /* tests/ui_optimist_test.c, the drum track's ACCENT lane on the Optimist UI (core.h DRUM_ACC, lane 16: the core of
  * feat/drum-accent; the user's ruling: "it should work like any other drum track, it is a drum track. just no audio
  * output, no synth engine. but everything else is the same"):
- *   black key 1       picks the lane (HOME + the key, SEQ + the key on STEP, the key played) and plays it silently
+ *   the last upper key  (key 25) picks the lane (HOME + the key, on STEP too; the key played) and plays it silently;
+ *                     SEQ + it on STEP: nothing (the keys there are steps); upper key 1 is silent, as the other upper keys
  *   STEP              a 17th row of the grid, the steps edited as any lane's; the held step: LEVEL RATCHET ACCENT
  *   the ACCENT amount the SOUND row's fourth card on every lane, the lane's STEP page, the mixer's ACCENT row; a lock
  *   ALGORITHM         the walk goes on past the 16th lane to the ACCENT lane
@@ -32,7 +33,7 @@ static void acc_key_tests(void)
     kup(DACC_KEY);
     release(B_HOME);
     check(lane_selected() == DRUM_ACC && ui.lane == 1u && lane_picked() && drums.hits == 0u && aud_lanes == 0u,
-          "SOUND, HOME held + key 1: the ACCENT lane picked, silent");
+          "SOUND, HOME held + the last upper key: the ACCENT lane picked, silent");
     check(!strcmp(head_engine(), "ACCENT"), "... the header's badge: ACCENT");
     lane_select(3);
     for (i = 0; i < 4u; i++)
@@ -40,26 +41,38 @@ static void acc_key_tests(void)
     drums.hits = 0;
     kdown(DACC_KEY);
     check(lane_selected() == DRUM_ACC && kb_kind[DACC_KEY] == KS_DRUM && drums.hits == 0u,
-          "SOUND, key 1 played: the lane picked (the keys play), no sound");
+          "SOUND, the last upper key played: the lane picked (the keys play), no sound");
     kup(DACC_KEY);
     check(kb_kind[DACC_KEY] == KS_NONE, "... and let go");
     lane_select(3);
     op_enter(SCR_STEP);
     frames(2);
+    press(B_HOME);
+    kdown(DACC_KEY);
+    kup(DACC_KEY);
+    release(B_HOME);
+    check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
+          "STEP, HOME held + the last upper key: the ACCENT lane picked, silent");
+    for (i = 0; i < 16u; i++) {                         /* a white key still picks its lane, the last upper key only the accent */
+        lane_select(DRUM_ACC);
+        press(B_HOME);
+        kdown(WK(i));
+        kup(WK(i));
+        release(B_HOME);
+        ok &= lane_selected() == i;
+    }
+    check(ok, "... HOME + a white key picks its sound");
+    lane_select(3);
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    dstep_set(&TDRUM->dstep[0], DRUM_ACC, LV_NORM, 0);
     press(B_SEQ);
     kdown(DACC_KEY);
     kup(DACC_KEY);
     release(B_SEQ);
-    check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u, "STEP, SEQ held + key 1: the ACCENT lane picked, silent");
-    for (i = 0; i < 16u; i++) {                         /* a white key still picks its lane, key 1 only the accent */
-        lane_select(DRUM_ACC);
-        press(B_SEQ);
-        kdown(WK(i));
-        kup(WK(i));
-        release(B_SEQ);
-        ok &= lane_selected() == i;
-    }
-    check(ok, "... SEQ + a white key still picks its sound");
+    check(lane_selected() == 3u && dstep_has(&TDRUM->dstep[0], DRUM_ACC),
+          "STEP, SEQ held + the last upper key: nothing (no lane picked, no step cleared)");
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    frames(2);
     /* the keys while recording: a hit of the accent lane into the step playing */
     reset_ui();
     song.sel = TRK_DRUM;
@@ -72,13 +85,13 @@ static void acc_key_tests(void)
     kup(DACC_KEY);
     for (i = 0, ok = 0; i < NSTEP; i++)
         ok |= (uint32_t)dstep_has(&TDRUM->dstep[i], DRUM_ACC);
-    check(ok, "REC playing, key 1: an accent recorded");
+    check(ok, "REC playing, the last upper key: an accent recorded");
     song.rec = 0;
     lane_transport(0);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     reset_ui();
 }
-static void acc_layers_tests(void)                      /* key 1's meaning in a held layer is that layer's */
+static void acc_layers_tests(void)                      /* an upper key's meaning in a held layer is that layer's */
 {
     static const uint8_t BTN[] = {B_GLO,
 #if FELUCCA_PATTERNS
@@ -97,18 +110,39 @@ static void acc_layers_tests(void)                      /* key 1's meaning in a 
         release(BTN[i]);
         frames(2);
     }
-    check(ok, "a layer held (GLO, LFO with the patterns, EDIT), key 1: the layer's key, no accent picked or played");
+    check(ok, "a layer held (GLO, LFO with the patterns, EDIT), the last upper key: the layer's key, no accent picked or played");
     acc_pick();
     go_home();
     frame();
     lane_select(2);
     smute_trk = 0;
     press(B_HOME);
+    kdown(1);
+    kup(1);
+    release(B_HOME);
+    check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, HOME held + upper key 1: T1's sequencer mute, as ever");
+    smute_trk = 0;
+    smute_lane = 0;
+    press(B_HOME);
+    frames(HOLD_FRAMES);
     kdown(DACC_KEY);
     kup(DACC_KEY);
+    check(smute_lane_on(DRUM_ACC) && smute_trk == 0u && !smute_lane_on(2) && lane_selected() == 2u && drums.hits == 0u,
+          "the mixer, HOME held + the last upper key: the ACCENT lane's sequencer mute on (nothing else, no lane picked)");
+    {
+        uint32_t f = 0, d = 0;
+        keys_lit(&f, &d);
+        check((f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... its LED full (muted), the key in the dim set too");
+    }
+    kdown(DACC_KEY);
+    kup(DACC_KEY);
+    {
+        uint32_t f = 0, d = 0;
+        keys_lit(&f, &d);
+        check(!smute_lane_on(DRUM_ACC) && !(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... the key again: off, its LED dim");
+    }
     release(B_HOME);
-    check(smute_trk_on(0) && lane_selected() == 2u, "the mixer, HOME held + key 1: T1's sequencer mute, as ever");
-    smute_trk = 0;
+    smute_lane = 0;
     reset_ui();
 }
 static void acc_sound_tests(void)
@@ -209,11 +243,11 @@ static void acc_step_tests(void)
     lane_select(DRUM_ACC);
     key(WK(5));
     check(dstep_has(&t->dstep[5], 2) && dstep_has(&t->dstep[5], DRUM_ACC), "a step with a hit and an accent: both");
-    press(B_HOME);
+    press(B_SEQ);
     kdown(WK(5));
     kup(WK(5));
-    release(B_HOME);
-    check(!dstep_lanes(&t->dstep[5]), "HOME + the step: the whole step cleared, the accent too");
+    release(B_SEQ);
+    check(!dstep_lanes(&t->dstep[5]), "SEQ + the step: the whole step cleared, the accent too");
     key(WK(6));
     kdown(WK(6));
     frames(HOLD_FRAMES);
@@ -442,19 +476,20 @@ static void acc_motion_tests(void)                      /* REC playing, the ACCE
 #endif
 static void acc_other_keys_tests(void)                  /* the other upper keys stay silent on the drum track */
 {
-    static const uint8_t BLACK[4] = {3, 5, 8, 10};
+    static const uint8_t BLACK[10] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22};   /* (the ten upper keys but the last: 25) */
     uint32_t i, ok = 1;
     acc_pick();
     lane_select(2);
     ui.lane = 1;
-    for (i = 0; i < 4u; i++) {
+    for (i = 0; i < 10u; i++) {
         drums.hits = 0;
         aud_lanes = 0;
         kdown(BLACK[i]);
         ok &= kb_kind[BLACK[i]] == KS_NONE && aud_lanes == 0u && drums.hits == 0u && lane_selected() == 2u;
         kup(BLACK[i]);
     }
-    check(ok, "the other four upper keys: silent, no lane picked (key 1 is the ACCENT lane's alone)");
+    check(ok, "the other ten upper keys, key 1 too: silent, no lane picked (the last upper key is the ACCENT lane's alone)");
+    check(DACC_KEY == 25u && kb_drum_lane(1) != DRUM_ACC && key_of_lane(DRUM_ACC) == DACC_KEY, "(the ACCENT lane's key is the lone last upper key, 25)");
     reset_ui();
 }
 #if FELUCCA_PARAM_HELP

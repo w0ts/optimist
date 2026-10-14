@@ -84,15 +84,15 @@ static void smute_tests(void)
     press(B_HOME);
     frames(HOLD_FRAMES);
     keys_lit(&f, &d);
-    check(f == ((1u << key_of_lane(2)) | (1u << smute_black(0))) && (d | f) == (keys_white(16) | (1u << 1) | (1u << 3) | (1u << 5) | (1u << 8)),
-          "HOME held: the 16 drum keys and the 4 black keys lit, the muted lane and T1 full, the rest dim");
+    check(f == ((1u << key_of_lane(2)) | (1u << smute_black(0))) && (d | f) == (keys_white(16) | (1u << 1) | (1u << 3) | (1u << 5) | (1u << 8) | (ACC_UI ? 1u << DACC_KEY : 0u)),
+          "HOME held: the 16 drum keys, the 4 black keys and the last upper key lit, the muted lane and T1 full, the rest dim");
     release(B_HOME);
     frames(2);
     keys_lit(&f, &d);
     check(!f && !d, "HOME let go: the keys dark again");
     smute_clear();
 
-    /* the other screens keep the pick; STEP keeps the clear */
+    /* the other screens keep the pick; STEP picks too (HOME + a key), SEQ + a key there clears */
     reset_ui();
     song.sel = TRK_DRUM;
     lane_select(0);
@@ -107,10 +107,15 @@ static void smute_tests(void)
     op_enter(SCR_STEP);
     frames(2);
     dstep_set(&TDRUM->dstep[4], lane_selected(), LV_NORM, 0);
+    press(B_SEQ);
+    key(key_of_lane(4));
+    release(B_SEQ);
+    check(smute_lane == 0u && smute_trk == 0u && !dstep_has(&TDRUM->dstep[4], lane_selected()), "STEP: SEQ held + a step clears it, mutes nothing");
+    dstep_set(&TDRUM->dstep[4], 4, LV_NORM, 0);
     press(B_HOME);
     key(key_of_lane(4));
     release(B_HOME);
-    check(smute_lane == 0u && smute_trk == 0u && !dstep_has(&TDRUM->dstep[4], lane_selected()), "STEP: HOME held + a step still clears it, mutes nothing");
+    check(smute_lane == 0u && smute_trk == 0u && lane_selected() == 4u && dstep_has(&TDRUM->dstep[4], 4), "STEP: HOME held + a key picks the lane, clears and mutes nothing");
     smute_clear();
     song.sel = 0;
     reset_ui();

@@ -90,14 +90,19 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
         aud_lanes = 0;
         lane_select(0);
         kdown(k);
-        if (i == 0u && ACC_UI)                          /* key 1 is the ACCENT lane's: it plays (silently) and picks it */
-            ok &= kb_kind[k] == KS_DRUM && aud_lanes == 0u && lane_selected() == DRUM_ACC;
-        else
-            ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
+        ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
         kup(k);
     }
     lane_select(0);
-    check(ok, "the drum track: an upper key plays nothing and picks no lane (it used to play the lane on its left); key 1, the ACCENT lane's, is the exception");
+    check(ok, "the drum track: an upper key (key 1 too) plays nothing and picks no lane (it used to play the lane on its left)");
+    if (ACC_UI) {                                       /* the last upper key is the ACCENT lane's: it plays (silently) and picks it */
+        aud_lanes = 0;
+        kdown(DACC_KEY);
+        ok = kb_kind[DACC_KEY] == KS_DRUM && aud_lanes == 0u && lane_selected() == DRUM_ACC;
+        kup(DACC_KEY);
+        lane_select(0);
+        check(ok, "... the last upper key, the ACCENT lane's, is the exception");
+    }
     aud_lanes = 0;
     kdown(WK(3));
     check(kb_kind[WK(3)] == KS_DRUM, "... a white key still plays its lane");
@@ -110,11 +115,11 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
         lane_select(0);
         kdown(BLACK[i]);
         kup(BLACK[i]);
-        ok2 &= lane_selected() == (i == 0u && ACC_UI ? DRUM_ACC : 0u);
+        ok2 &= lane_selected() == 0u;
     }
     release(B_HOME);
     lane_select(0);
-    check(ok2, "HOME held + an upper key off the mixer: no lane picked either (key 1: the ACCENT lane)");
+    check(ok2, "HOME held + an upper key off the mixer: no lane picked either (the last upper key: the ACCENT lane)");
     press(B_HOME);
     kdown(WK(5));
     kup(WK(5));

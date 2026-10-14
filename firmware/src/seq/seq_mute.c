@@ -27,6 +27,10 @@ static int32_t smute_key(uint32_t k)
     int32_t i;
     if (k >= 27u)
         return -1;
+#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+    if (k == DACC_KEY)
+        return SMUTE_ACC;                          /* (the last upper key: the ACCENT lane's sequencer mute) */
+#endif
     i = W[k % 12u];
     if (i >= 0)
         return (int32_t)((k / 12u) * 7u) + i;      /* (k 26: lane 15) */
@@ -66,7 +70,7 @@ static uint32_t smute_keys_lit(void)
     uint32_t k, m = 0;
     for (k = 0; k < 27u; k++) {
         int32_t id = smute_key(k);
-        if (id >= 16 ? smute_trk_on((uint32_t)id - 16u) : id >= 0 && smute_lane_on((uint32_t)id))
+        if (id == SMUTE_ACC ? smute_lane_on(DRUM_ACC) : id >= 16 ? smute_trk_on((uint32_t)id - 16u) : id >= 0 && smute_lane_on((uint32_t)id))
             m |= 1u << k;
     }
     return m;

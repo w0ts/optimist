@@ -396,14 +396,38 @@ static void pages_keys_tests(void)
     keys_are(0, 0, "D10: the mixer, the drum track: the keys play, all dark (the lane key only where keys pick lanes)");
     press(B_HOME);
     frames(HOLD_FRAMES);
-    keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8,
-             "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes and the 4 black keys dim, none muted");
+    keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | (ACC_UI ? 1u << DACC_KEY : 0u),
+             "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes, the 4 black keys and the last upper key (ACCENT) dim, none muted");
     release(B_HOME);
     tap(B_EDIT);
     press(B_HOME);
     frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, HOME held: the 16 lanes (and key 1, ACCENT) dim, the selected one full");
+    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, HOME held: the 16 lanes (and the last upper key, ACCENT) dim, the selected one full");
     release(B_HOME);
+    reset_ui();
+    song.sel = TRK_DRUM;
+    op_enter(SCR_STEP);
+    lane_select(4);
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    dstep_set(&TDRUM->dstep[2], 4, LV_NORM, 0);
+    dstep_set(&TDRUM->dstep[3], 7, LV_NORM, 0);
+    frames(2);
+    press(B_HOME);
+    frames(HOLD_FRAMES);
+    keys_are(kw(4), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "STEP, the drum track, HOME held: the 16 lanes (and the last upper key) dim, the selected one full, as elsewhere");
+    release(B_HOME);                                    /* (a tap: NO, off STEP) */
+    op_enter(SCR_STEP);
+    frames(2);
+    press(B_SEQ);
+    frames(HOLD_FRAMES);
+    {
+        uint32_t f = 0, d = 0, len = trk_len(TDRUM), w, edim = 0;
+        keys_lit(&f, &d);
+        for (w = 0; w < 16u && w < len; w++)
+            edim |= (w == 2u || w == 3u) ? 0u : kw(w);
+        check(f == (kw(2) | kw(3)) && d == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
+    }
+    release(B_SEQ);
     reset_ui();
     song.sel = 0;
     frames(2);
