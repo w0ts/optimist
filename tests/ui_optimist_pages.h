@@ -521,7 +521,8 @@ static void pages_keys_tests(void)
 static void head_now(char *t)                           /* the header's title now, as draw_head makes it */
 {
     char r[16], bpm[8], pos[12];
-    const char *eng = head_engine();
+    char bt[24];
+    const char *eng = head_has_track() ? head_badge(bt, sizeof bt) : head_engine();
     if (ui.scr == SCR_FX || ui.master || (lay.shown == LY_PLAY && mx_on_master()))
         eng = "MASTER";
     else if ((ui.scr == SCR_GLOBAL || ui.scr == SCR_SYSTEM) && lay.shown == LY_PLAY)
