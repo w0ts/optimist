@@ -553,7 +553,7 @@ static void lock_cell_id(int32_t id, const param_desc_t *d, cell_t *c)
         c->vp = &TSEL->p[id];
     }
     c->mark = (uint8_t)q;                               /* (op_draw.c: 1 a padlock, 2 a hold's arrow) */
-    c->col = q == 1u ? C_WARN : q ? C_AMB : 0;
+    c->col = q == 1u ? C_WARN : q ? C_WARN : 0;
     param_format(d, v, c->val, &c->unit);
     cell_gauge_d(c, d, v);
 }

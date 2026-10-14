@@ -57,7 +57,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 {
     char b[16], m[2], lv[14];
     const char *v = gl_text(c, lv);
-    uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
+    uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : c->kind == CK_RO ? C_GRAY : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
     int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ph = gl_pitch(), ty, by;
     uint32_t tog = gl_tog(c);                           /* on / off: the mark, no bar */
     uint32_t bar = c->kind != CK_ACT && c->gk != GK_NONE && !tog;
@@ -102,7 +102,7 @@ static void gl_info_draw(int32_t y0)
         int32_t y = y0 + (int32_t)i * ph;
         uint16_t vc;
         sys_info_cell(i, &c);
-        vc = c.col ? c.col : C_AMB;
+        vc = c.col ? c.col : C_GRAY;
         ty = y + (ph - (int32_t)FONT_S.h - 3 - 3) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
         cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);

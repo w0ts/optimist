@@ -23,7 +23,7 @@ static void core_row_tests(void)
         dual_c1_q8 = DUAL_C1_OFF;
         dual.why = DUAL_MISREAD;
         sys_info_cell(2, &c);
-        check(!strcmp(c.label, "2ND CORE OFF") && !strcmp(c.val, "MISREAD") && !strcmp(c.unit, "") && c.col == C_AMB, "2ND CORE OFF on a misread: MISREAD, amber");
+        check(!strcmp(c.label, "2ND CORE OFF") && !strcmp(c.val, "MISREAD") && !strcmp(c.unit, "") && c.col == C_WARN, "2ND CORE OFF on a misread: MISREAD, amber (C_WARN)");
         dual.why = DUAL_CANARY;
         sys_info_cell(2, &c);
         check(!strcmp(c.val, "CANARY"), "CPU1 down on the canary: CANARY");

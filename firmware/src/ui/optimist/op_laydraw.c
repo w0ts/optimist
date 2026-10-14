@@ -94,7 +94,7 @@ static void lay_cell(uint32_t k, cell_t *c)
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 3u) {
             str_cpy(c->val, srec == 2u ? "REC" : srec ? "ARMED" : "OFF", sizeof c->val);
-            c->col = srec ? C_ERR : 0;
+            c->col = srec_col();
             cell_gauge(c, 1, 0, 2, srec);
         }
     }
@@ -186,7 +186,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(b, "MUTE ", sizeof b);
             str_cpy(b + 5, trk_tag(i), 3);
-            tile_set(&tl[i], b, m ? OP_SURF : trk_col(i), m ? C_DIM : C_BLACK, 0);
+            tile_set(&tl[i], b, m ? trk_col(i) : OP_SURF, m ? C_BLACK : C_HI, m ? 0 : trk_col(i));   /* (filled = muted; heard = outlined, as SOLO) */
             str_cpy(b, "SOLO ", sizeof b);
             str_cpy(b + 5, trk_tag(i), 3);
             tile_set(&tl[4 + i], b, so ? C_WHITE : OP_SURF, so ? C_BLACK : C_HI, trk_col(i));

@@ -52,6 +52,32 @@ static uint32_t prj_kind(uint32_t r) { return PRJ[r % NPRJ]; }
 static uint32_t prj_rows(void) { return NPRJ; }
 static void prj_name(uint32_t r, char *b) { str_cpy(b, PRJ_NAME[prj_kind(r)], 12); }
 static uint32_t prj_slot(void) { return (uint32_t)clamp(song.g[G_SLOT], 1, FELUCCA_SECTIONS) - 1u; }
+/* the slot a PROJECT / SNAPSHOT / USER row points at holds something */
+static uint32_t prj_used(uint32_t kind)
+{
+    if (kind == PR_PROJECT)
+        return (uint32_t)project_used(prj_slot());
+    if (kind == PR_USER)
+        return (uint32_t)up_used(ui.user_slot);
+#if FELUCCA_SNAPSHOTS
+    {
+        char nm[16];
+        uint32_t bytes;
+        return sn_ui_row(ui.snap_slot, nm, &bytes) != 0u;
+    }
+#else
+    return 0;
+#endif
+}
+/* red only for what destroys or replaces work (style guide 7), one rule for the card's verb and the modal's frame: a
+ * SAVE, CLEAR or ERASE of a slot that holds something; a LOAD of one while the work is not as stored; NEW always (it
+ * drops the project in memory) */
+static uint32_t prj_danger(uint32_t kind, uint32_t k)
+{
+    if (kind == PR_PROJECT && k == 3u)
+        return 1u;
+    return k == 1u ? prj_used(kind) && work_changed() : prj_used(kind);
+}
 
 static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
 {
@@ -70,13 +96,13 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     if (kind == PR_A24) {
         if (!k)
-            cell_act(c, "SLOOP", "IMPORT", 0, 0);
+            cell_act(c, "SLOOP", "IMPORT", 0, 1);       /* (it replaces the work: red, as its modal) */
         return;
     }
     if (k) {                                            /* the GO buttons */
         const char *v = PRJ_GO[kind][k - 1u];
         cell_act(c, kind == PR_PROJECT ? "PROJECT" : kind == PR_SNAP ? "SNAPSHOT" : "USER", v, 0,
-                 str_eq(v, "NEW") || str_eq(v, "CLEAR") || str_eq(v, "ERASE"));   /* (the user, 2026-10-13: the verb) */
+                 prj_danger(kind, k));                  /* (the user, 2026-10-13: the verb; red when it replaces) */
         return;
     }
     c->label = "SLOT";
@@ -122,7 +148,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 
 static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    uint32_t kind = prj_kind(r), used = 0;
+    uint32_t kind = prj_kind(r);
     char l[8];
     if (kind == PR_TOOLS)
         return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
@@ -141,23 +167,16 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
     if (!k)
         return 0;
-    if (kind == PR_PROJECT) {
+    if (kind == PR_PROJECT)
         fmt_int(l, (int32_t)prj_slot() + 1);
-        used = (uint32_t)project_used(prj_slot());
-    } else if (kind == PR_USER) {
+    else if (kind == PR_USER)
         up_slot_label(l, ui.user_slot);
-        used = (uint32_t)up_used(ui.user_slot);
-    }
 #if FELUCCA_SNAPSHOTS
-    else {
-        char nm[16];
-        uint32_t bytes;
+    else
         sn_ui_label(l, ui.snap_slot);
-        used = sn_ui_row(ui.snap_slot, nm, &bytes) != 0u;
-    }
 #endif
-    /* every action card asks first, changed work or not (the user, 2026-10-13); amber for a SAVE into an empty slot, red for
-     * the rest (the SAVE cell: 2 on PROJECT, 3 on SNAPSHOT and USER) */
+    /* every action card asks first, changed work or not (the user, 2026-10-13); the frame is red when it replaces or
+     * destroys work (prj_danger: a slot that holds something, NEW), neutral for a SAVE or LOAD of an empty slot */
     if (!ok) {
         static const char *const WHAT[3] = {"PROJECT ", "SNAPSHOT ", "PRESET "};
         char t[14];                                     /* the target: "PROJECT 3", "SNAPSHOT 2", "PRESET U03" */
@@ -166,8 +185,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
             str_cpy(t + str_len(t), l, sizeof t - str_len(t));
         else
             t[7] = 0;
-        /* red: it destroys or replaces the work; amber: a snapshot saved into an empty slot */
-        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], t, !(k == (kind == PR_PROJECT ? 2u : 3u) && !used));
+        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], t, prj_danger(kind, k));
         return 1;
     }
     if (kind == PR_PROJECT) {
@@ -453,7 +471,7 @@ static void dev_paint(void)                             /* the panel's band in i
         if (tag[0]) {
             op_case(b, tag, sizeof b);
             right -= text_w(&FONT_S, b);
-            cv_text(right, y + 1, &FONT_S, b, on ? C_WHITE : C_AMB);
+            cv_text(right, y + 1, &FONT_S, b, on ? C_WHITE : C_GRAY);
             right -= 8;
         }
         room = right - 16;
@@ -675,7 +693,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_USB:
         c->label = "SERIAL";
         str_cpy(c->val, usb_serial ? "ON" : "OFF", sizeof c->val);
-        c->col = usb_serial == usb_cdc_on ? 0 : C_AMB;  /* (amber: a restart applies it) */
+        c->col = usb_serial == usb_cdc_on ? 0 : C_WARN;  /* (amber: a restart applies it) */
         cell_gauge(c, 1, 0, 1, usb_serial != 0u);
         break;
 #endif
@@ -683,7 +701,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_BLE:
         c->label = "BLE";
         str_cpy(c->val, !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : ble_up && ble_connected() ? "LINK" : "ON", sizeof c->val);
-        c->col = ble_on && !ble_radio_ok() ? C_AMB : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
+        c->col = ble_on && !ble_radio_ok() ? C_WARN : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
         cell_gauge(c, 1, 0, 1, ble_on != 0u);
         break;
 #endif
@@ -702,7 +720,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->label = "2ND CORE OFF";
             str_cpy(c->val, dual.why ? dual_why_name(dual.why) : "NO REASON", sizeof c->val);
             c->unit = "";
-            c->col = C_AMB;
+            c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
         } else {
             c->label = "2ND CORE ON";
@@ -779,7 +797,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
         c->label = "CLK OUT";
         str_cpy(c->val, clko_on ? "ON" : "OFF", sizeof c->val);
-        c->col = clko_blocked() ? C_AMB : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
+        c->col = clko_blocked() ? C_WARN : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
         cell_gauge(c, 1, 0, 1, clko_on != 0u);
         break;
 #endif

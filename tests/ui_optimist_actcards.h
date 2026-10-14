@@ -183,7 +183,7 @@ static void actcards_tests(void)
     reset_ui();
     rk_at(SCR_PROJECT, "PROJECT", "LOAD");
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 1, &c);
-    check(!strcmp(act_verb(&c), "LOAD") && !strcmp(act_small(&c), "PROJECT") && !c.danger && !strcmp(c.label, "LOAD"),
+    check(!strcmp(act_verb(&c), "LOAD") && !strcmp(act_small(&c), "PROJECT") && c.danger == (uint8_t)(prj_used(PR_PROJECT) && work_changed()) && !strcmp(c.label, "LOAD"),
           "PROJECT LOAD: the card says LOAD over PROJECT; the list column keeps its label");
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], 3, &c);
     check(!strcmp(act_verb(&c), "NEW") && c.danger, "PROJECT NEW: NEW, in the alarm colour");
