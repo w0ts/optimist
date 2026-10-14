@@ -10,8 +10,7 @@
  *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
  *   FELUCCA_GLIDE         part level, pan and sends, MASTER, the drum track's level, pan and lane sends glide over
  *                         ~10 ms (no zipper)                       X0X 0.10.1-beta (charlesvestal/fm1-x0x 49b1fc8)
- *   FELUCCA_BK_CHECK      restore: each storage object checked at its commit as a load checks it, else refused
- *                                                                                        SLOOP 2.3 */
+ * The fixes of SLOOP 2.3 that were switches here are always built since 2026-10-14 (the refusals below). */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -23,9 +22,6 @@
 #endif
 #ifndef FELUCCA_GLIDE
 #define FELUCCA_GLIDE 0          /* fx.c glide_next: mix_part, mix_finish (MASTER); drums.c drums_mix (dgl) */
-#endif
-#ifndef FELUCCA_BK_CHECK
-#define FELUCCA_BK_CHECK 1       /* ed_backup.c BK_COMMIT: a storage object written only if a load would take it (rc 8) */
 #endif
 #ifndef FELUCCA_VIS
 #define FELUCCA_VIS 0            /* SLOOP 2.4's visualiser (backports24.h; here for BP23_SET: its style is in the settings word) */
@@ -49,6 +45,9 @@
 #endif
 #if defined(FELUCCA_TRS_NOISE) && !FELUCCA_TRS_NOISE
 #error "FELUCCA_TRS_NOISE was retired: TRS MIDI in past line noise (an FD at the reader) is always built (SLOOP 2.3 .. 2.6)"
+#endif
+#if defined(FELUCCA_BK_CHECK) && !FELUCCA_BK_CHECK
+#error "FELUCCA_BK_CHECK was retired: a restore always checks each object as a load would (SLOOP 2.3 .. 2.6)"
 #endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */

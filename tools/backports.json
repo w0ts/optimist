@@ -458,36 +458,6 @@
       "warning": true
     },
     {
-      "switch": "FELUCCA_BK_CHECK",
-      "title": "Restore from a backup: each storage object written only if the firmware would load it (else refused, rc 8)",
-      "default": 1,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "d691ba7 (SLOOP 2.3)",
-        "author": "isod89",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/editor.c ed_bk_commit, firmware/src/project.c settings_restore / project_restore / panel_valid"
-      },
-      "files": [
-        "firmware/src/io/editor/ed_backup.c bk_st_ok, bk_panel_ok, ED_BK_COMMIT",
-        "web/editor.html BK.RC",
-        "web/EDITOR_PROTOCOL.md"
-      ],
-      "cost": {
-        "flash": 432,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "one pass over the object at its COMMIT (a project's sum)",
-        "project_bytes": 0
-      },
-      "storage": "none (the objects are written as before; only refused ones are not)",
-      "limits": "compared: ours is kept (every stored object incl. FM6 bank, kit bank, drum records, the section log, a whole-session restore, restart when done); 2.3's restore checks each object as a load would before writing it, which ours did not (only CRCs): taken. Today's formats in full, older project / settings formats by their magic (their load converts and checks them)",
-      "notice": "Restore checks after SLOOP 2.3 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_LAYER_QUIET",
       "title": "Knob turns as a layer is let go: no tap, not the page's (and 250 ms after a used layer closes)",
       "default": 1,

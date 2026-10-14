@@ -410,7 +410,6 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
 | `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.9 KB flash, +3.1 KB RAM (everything-that-fits: +7.3 KB, +3.2 KB, +32 B RAM code); on in everything-that-fits |
-| `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +432 B flash |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |
 | `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.6 KB flash, +152 B RAMTEXT |
 | `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |

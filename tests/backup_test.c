@@ -396,7 +396,6 @@ int main(void)
         a[0] = 99;
         check("an unknown object: no reply", !cmd(ED_BK_READ, a, 4) && !cmd(ED_BK_BEGIN, a, 9));
     }
-#if FELUCCA_BK_CHECK
     /* SLOOP 2.3's restore check: an object the firmware would not load is refused at its COMMIT (rc 8), nothing
      * written; today's formats checked in full, an older project by its magic */
     {
@@ -448,7 +447,6 @@ int main(void)
         }
         cmd(ED_BK_END, (const uint8_t *)"\0", 1);
     }
-#endif
     for (k = 0; k < nobj; k++)
         free(objs[k].data);
     printf(fails ? "BACKUP TEST FAILED\n" : "backup test passed\n");
