@@ -86,6 +86,9 @@ static struct { uint8_t up, why, boot_mode; } dual;   /* up, DUAL_* why it is do
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
 static uint32_t saves, loads, up_ops[3];
+#if FELUCCA_USB_AUDIO
+static uint32_t fm1_irqoff_max;                /* SYSTEM > INFO's "FLASH OFF" line reads hal/fm1_flash.h's counter (not linked here) */
+#endif
 #if FELUCCA_PATTERNS
 #define PROJ_HOST 1
 #include "../firmware/src/storage/project.c"
