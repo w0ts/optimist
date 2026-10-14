@@ -178,7 +178,7 @@ static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
 }
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
-    if (is_drum(t)) {                                   /* (OCT- / OCT+ held: a ghost / hard hit) */
+    if (is_drum(t)) {                                   /* (OCT+ held: a hard hit; OCT- is SHIFT) */
         uint32_t lv = fm1_in.buttons & dyn_bit[0] ? LV_GHOST : fm1_in.buttons & dyn_bit[1] ? LV_HARD : LV_NORM;
         dstep_set(&t->dstep[idx], lane_selected(), lv, 0);
     } else {
@@ -276,7 +276,13 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         if ((st.pend & bit) && fm1_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
             undo_mark(t, st.sess);
             fm1_irq_off();
-            if (step_has(t, idx))
+            if (step_has(t, idx) && is_drum(t) && lane_selected() != DRUM_ACC && dstep_has(&t->dstep[idx], lane_selected()) &&
+                dstep_lvl(&t->dstep[idx], lane_selected()) <= LV_HARD && dstep_lvl(&t->dstep[idx], lane_selected()) != LV_GHOST &&
+                dstep_lvl(&t->dstep[idx], lane_selected()) != LV_SOFT)   /* a drum hit tapped: normal -> hard -> ghost -> off (the user, 2026-10-14) */
+                dstep_set(&t->dstep[idx], lane_selected(),
+                          dstep_lvl(&t->dstep[idx], lane_selected()) == LV_NORM ? LV_HARD : LV_GHOST,
+                          dstep_rat(&t->dstep[idx], lane_selected()));
+            else if (step_has(t, idx))
                 is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
             else if (step_kept(t, idx))
                 step_back(t, idx);                      /* (the pitch it had) */

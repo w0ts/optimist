@@ -899,7 +899,11 @@ static void step_keys_tests(void)
     frame();
     ppm("opt-step-drums");
     key(WK(0));
-    check(!dstep_mask(&t->dstep[0]), "drums: a set step tapped: cleared");
+    check(dstep_has(&t->dstep[0], 2) && dstep_lvl(&t->dstep[0], 2) == LV_HARD, "drums: a set step tapped: hard");
+    key(WK(0));
+    check(dstep_has(&t->dstep[0], 2) && dstep_lvl(&t->dstep[0], 2) == LV_GHOST, "drums: ... tapped again: ghost");
+    key(WK(0));
+    check(!dstep_mask(&t->dstep[0]), "drums: ... tapped again: off (normal -> hard -> ghost -> off)");
     press(B_OCTUP);
     key(WK(1));
     release(B_OCTUP);
@@ -953,7 +957,8 @@ static void step_keys_tests(void)
     fm1_in.buttons &= ~BT(B_OCTDN);
     kup(WK(4));
     frame();
-    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "a step held, HOME tapped: cleared, STEP stays");
+    check(dstep_has(&t->dstep[4], 5) && dstep_lvl(&t->dstep[4], 5) == LV_GHOST && ui.scr == SCR_STEP,
+          "a step held (a hard hit), let go as a tap: the cycle's next, ghost, STEP stays");
     key(WK(4));
     fm1_in.buttons |= BT(B_SEQ);
     frame();
