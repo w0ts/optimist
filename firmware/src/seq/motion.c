@@ -46,7 +46,8 @@ static int motion_param(const track_t *t, uint32_t id)
         return FELUCCA_TRK_FILT && id == P_TFLT;             /* (SLOOP 2.4's FILT, on every track: a sweep) */
 #endif
     if (id >= P_E0)
-        return !is_drum(t);                                  /* (the drum track's P_E0 is its kit) */
+        return !is_drum(t) || id == P_DACC;                  /* (the drum track's P_E0 is its kit; its P_E1 the ACCENT
+                                                              * amount, a sweep as any value: core.h P_DACC) */
     return id <= P_REL || (id >= P_ED_FLT && id <= P_ED_SHP) || (id >= P_LRATE && id <= P_LFADE && id != P_LWAVE) ||
            (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN || id == P_DETUNE || id == P_SLDEPTH
 #if FELUCCA_ANALOG2

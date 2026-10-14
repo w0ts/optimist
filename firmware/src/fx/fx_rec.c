@@ -38,7 +38,7 @@ _Static_assert(INS_TLV_N == 23u, "the track slots' TLV: 8 + 12 + 3");
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC <= FXR_MAX, "the FX record: every TLV fits");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
 static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */

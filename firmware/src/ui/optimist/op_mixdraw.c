@@ -76,7 +76,7 @@ typedef struct {
 
 static uint32_t mx_smuted(uint32_t r)                   /* row r's sequencer muted (seq_mute.c): its steps dimmed, a badge */
 {
-    return r == MXR_MASTER || mx_is_acc(r) ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
+    return r == MXR_MASTER ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
 }
 static uint32_t mx_lmuted(uint32_t r) { return r >= MXR_LANE0 && !mx_is_acc(r) && dlm_muted(r - MXR_LANE0); }   /* (the accent: no mute) */
 static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : MV_SOUNDS; }

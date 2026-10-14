@@ -21,7 +21,7 @@
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_UILANES };
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE };
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
  * 1 DLY, 2 CHO); MI_ACC: the ACCENT amount (core.h P_DACC), the ACCENT lane's one card */
@@ -150,8 +150,12 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #endif
         return n;
     }
-    if (mx_is_acc(r))                                   /* the ACCENT lane: no sound, no level: its amount alone */
-        return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);
+    if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE its sequencer
+                                                         * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,
+                                                         * no CUT, DRIVE, DST, CMP, sends or sound */
+        n = mx_add(it, n, MG_MIX, "MUTE", MI_AMUTE, 0);
+        return mx_add(it, n, MG_MIX, "LEVEL", MI_ACC, 0);
+    }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
@@ -271,6 +275,10 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         *vp = &dsend_kit[m->id % 3u];
         return &DKS_D[m->id % 3u];
     }
+    case MI_AMUTE:                                      /* the ACCENT lane's sequencer mute (a copy of its bit) */
+        mx_lmute_v = (int16_t)smute_lane_on(DRUM_ACC);
+        *vp = &mx_lmute_v;
+        return &MX_LMUTE;
     case MI_LMUTE:                                      /* (a copy of the mask's bit: mx_lane_mute writes it) */
         mx_lmute_v = (int16_t)dlm_muted(r - MXR_LANE0);
         *vp = &mx_lmute_v;
@@ -340,6 +348,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
+    if (m.kind == MI_ACC)
+        c->hlp = "ACCENT LEVEL";                        /* (op_help.c: its own line, the amount) */
     c->col = mx_col(r);
 }
 static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value id (the offsets and the sends) */
@@ -363,7 +373,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)
         return;
-    if (m.kind == MI_LMUTE)
+    if (m.kind == MI_AMUTE) {
+        if ((s == OP_RESET ? 0 : param_step(d, *vp, s) != 0) != (*vp != 0))
+            (void)smute_toggle(SMUTE_ACC);
+    } else if (m.kind == MI_LMUTE)
         dlm_set_mute(r - MXR_LANE0, s == OP_RESET ? 0 : param_step(d, *vp, s) != 0);
     else if (m.kind == MI_INST) {                       /* a slot's TYPE: the other slot's swaps them (no reset) */
         if (s != OP_RESET)

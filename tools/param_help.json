@@ -289,12 +289,11 @@
       "FX ON": "Track effects on or off"}},
     {"kind": "op", "ctx": "SOUND", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
-    {"kind": "op", "ctx": "MIX", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
-      "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
-      "ACCENT LANE": "Raises every hit of its step"}},
+      "ACCENT LANE": "Raises every hit of its step",
+      "ACCENT LEVEL": "Accent amount added to hits"}},
     {"kind": "page", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},

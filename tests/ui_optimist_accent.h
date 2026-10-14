@@ -248,8 +248,15 @@ static void acc_step_tests(void)
         turn(EN_K3, 6);
         ui.hot = 2;
         tap(B_SAVE);
+#if FELUCCA_MOTION
+        check(hold_get(t, 6, P_DACC, &x) && !lock_get(t, 6, P_DACC, &x),
+              "YES: the amount is a motion value like any lane's: the lock becomes a hold (until the next)");
+        tap(B_SAVE);
+        check(lock_get(t, 6, P_DACC, &x) && !hold_get(t, 6, P_DACC, &x), "YES again: this step only");
+#else
         check(lock_get(t, 6, P_DACC, &x) && !hold_get(t, 6, P_DACC, &x) && str_eq(ui.msg, "NO HOLD HERE"),
-              "YES: the amount is not a motion value (motion.c motion_param: the drum track's P_E1): the lock stays, \"no hold here\"");
+              "YES (no motion built): no hold, the lock stays, as any value's");
+#endif
     }
     kup(WK(6));
     kdown(WK(9));                                       /* step 10: no accent there */
@@ -320,14 +327,48 @@ static void acc_walk_tests(void)
     turn(EN_ALGO, 40);
     frames(2);
     ok = mx_row() == MXR_ACC && mxd.first == MXR_LANE0;
+    {
+        cell_t l;
+        mix_cell(MXR_LANE0 + 4u, 0, &l);
+        ok &= l.label && !strcmp(l.label, "MUTE");
+        mix_cell(MXR_LANE0 + 4u, 1, &l);
+        ok &= l.label && !strcmp(l.label, "LEVEL");
+    }
     mix_cell(MXR_ACC, 0, &c);
-    ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC];
+    ok &= c.label && !strcmp(c.label, "MUTE");           /* (the lane's sequencer mute: smute_toggle(SMUTE_ACC)) */
     mix_cell(MXR_ACC, 1, &c);
+    ok &= c.label && !strcmp(c.label, "LEVEL") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
+    mix_cell(MXR_ACC, 2, &c);
     ok &= !c.label || !c.label[0];
-    check(ok, "the mixer's ACCENT row: one card, the amount");
+    mix_cell(MXR_ACC, 3, &c);
+    ok &= !c.label || !c.label[0];
+    check(ok, "the mixer's ACCENT row: a lane's layout (MUTE, LEVEL = the amount), no CUT, sends or sound");
+    check(mx_sets(MXR_ACC) == 1u, "... one set of cards");
     TDRUM->p[P_DACC] = DACC_DEF;
-    turn(EN_K1, 4);
-    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 1 turns it");
+    turn(EN_K2, 4);
+    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 2 (LEVEL) turns the amount");
+    press(B_HOME);
+    turn(EN_K2, 1);
+    release(B_HOME);
+    check(TDRUM->p[P_DACC] == DACC_DEF, "... HOME + KNOB 2: back to 27");
+    turn(EN_K3, 3);
+    turn(EN_K4, 3);
+    check(TDRUM->p[P_DACC] == DACC_DEF, "... the empty cards: inert");
+    smute_lane = 0;
+    turn(EN_K1, 1);
+    check(smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && !dlm_muted(0), "KNOB 1 (MUTE): the ACCENT lane's sequencer mute on");
+    frames(130);                                        /* (the help line, over the foot a while after a turn, gone) */
+    ui.force = 1;
+    frames(2);
+    check(px_in(6, mx_row_y(MXR_ACC) + 2u, 30, 12, C_GRAY), "... the row drawn muted (its code grey)");
+    turn(EN_K1, -1);
+    check(!smute_lane_on(DRUM_ACC), "... and off");
+    turn(EN_K1, 1);
+    press(B_HOME);
+    turn(EN_K1, 1);
+    release(B_HOME);
+    check(!smute_lane_on(DRUM_ACC), "HOME + KNOB 1: MUTE off (the default)");
+    smute_lane = 0;
     TDRUM->p[P_DACC] = DACC_DEF;
     ui.force = 1;
     frames(2);
@@ -373,6 +414,32 @@ static void acc_guard_tests(void)                       /* every screen, the acc
     check(1, "the ACCENT lane selected on every screen, row and page: drawn, no crash");
     reset_ui();
 }
+#if FELUCCA_MOTION
+static void acc_motion_tests(void)                      /* REC playing, the ACCENT amount turned: recorded as motion (a hold event) */
+{
+    const auto_list_t *a;
+    uint32_t i, n = 0;
+    acc_pick();
+    lane_select(DRUM_ACC);
+    ui.lane = 1;
+    AL(TDRUM)->n = 0;
+    auto_w.on = 0;
+    TDRUM->p[P_DACC] = DACC_DEF;
+    lane_transport(1);
+    song.rec = 1u << TRK_DRUM;
+    turn(EN_K4, 5);
+    a = AL(TDRUM);
+    for (i = 0; i < a->n; i++)
+        n += a->ev[i].param == mot_sid(P_DACC) && !(a->ev[i].place & AUTO_ONLY);
+    check(n >= 1u, "REC playing, the ACCENT amount turned: a motion event recorded");
+    song.rec = 0;
+    lane_transport(0);
+    AL(TDRUM)->n = 0;
+    auto_w.on = 0;
+    TDRUM->p[P_DACC] = DACC_DEF;
+    reset_ui();
+}
+#endif
 static void acc_other_keys_tests(void)                  /* the other upper keys stay silent on the drum track */
 {
     static const uint8_t BLACK[4] = {3, 5, 8, 10};
@@ -403,8 +470,8 @@ static void acc_help_tests(void)
     check(hl_find(SCR_SOUND, 0, &c) != 0u, "... and the LANE card of the ACCENT lane");
     go_home();
     ui.row[SCR_HOME] = MXR_ACC;
-    mix_cell(MXR_ACC, 0, &c);
-    check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT card");
+    mix_cell(MXR_ACC, 1, &c);
+    check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT LEVEL card");
     op_enter(SCR_STEP);
     ui.row[SCR_STEP] = (uint8_t)STP_LANE0;
     step_cell(STP_LANE0, 0, &c);
@@ -417,6 +484,9 @@ static void accent_ui_tests(void)
     acc_key_tests();
     acc_layers_tests();
     acc_other_keys_tests();
+#if FELUCCA_MOTION
+    acc_motion_tests();
+#endif
     acc_sound_tests();
     acc_step_tests();
     acc_walk_tests();
