@@ -2832,13 +2832,12 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
   Held-layer meanings of key 1 are unchanged (HOME on the mixer: T1's sequencer mute; GLO, LFO layers). The pick's key LEDs dim key 1 too.
 - **STEP**: a 17th row "AC" under the 16 sounds (12 px rows), edited as any lane's (tap, level, ratchet, HOME + step). The held step's
   first page is LEVEL RATCHET ACCENT (no TUNE / DECAY: no sound); KNOB 3 locks the ACCENT amount on the step (needs the accent hit there,
-  as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount is not a motion value (motion.c
-  `motion_param`): YES on it says "NO HOLD HERE". STEP's LANE page of the lane shows the amount alone. TOOLS and EUCLID work on the lane.
-- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the only card of the lane's mixer row.
+  as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount records as motion (YES: a lock <-> a hold). STEP's LANE page of the lane shows the amount alone. TOOLS and EUCLID work on the lane.
+- **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's LEVEL card (that row: MUTE, LEVEL).
 - **Pages**: the lane has no SOUND, SOURCE, KIT, ENV or LFO pages (`sound_page`); `lane_snd()` guards every per-lane sound array (dl.*, the
   names); PRESETS on it steps the kit as on DR; the SOUND row's picture says "+amount to the hits".
 - **ALGORITHM** walks on past the 16th lane to the ACCENT lane (the mixer's row `MXR_ACC`: a lane's card layout, MUTE's slot empty until the lane's sequencer mute lands (core follow-up), LEVEL = the ACCENT amount, no CUT / sends / sound, across the foot of the
-  SOUNDS view, `MXA_H`); the header badge says ACCENT. No sequencer mute for the lane (seq_mute.c has no bit for it), and the ERASE /
+  SOUNDS view, `MXA_H`); the header badge says ACCENT. The row's MUTE is the lane's sequencer mute (seq_mute.c `SMUTE_ACC`, no key: HOME + key 1 stays T1's), and the ERASE /
   REPEAT layer tiles stay the 16 sounds (key 1 still erases / repeats the lane).
 - **Help lines** (tools/param_help.json, ops SOUND / STEPS "ACCENT"; the mixer row's LEVEL "Accent amount added to hits": "Velocity added on accent step"; the lane's: "Raises every hit
   of its step"), shortened to the 29 characters of the line.
