@@ -329,6 +329,13 @@ Stage 2 (parts 2 and 3 on CPU1), only after stage 1 passed:
   problem: then add D-cache flushes or the SDK's barriers, see 3.2).
 - Save while playing; edit parameters while playing; switch engines on parts 2 / 3; USB MIDI in.
 - If "CPU1 OFF TIMEOUT / FAULT" appears: note when; it fell back, the device should keep working.
+- 2026-10-14, the first report from a device (mots, 32b8b927): SYSTEM > INFO "2ND CORE OFF TIMEOUT", no USB stream.
+  Cause not measured. Since f36e1b47: CPU0 wakes CPU1 again (latch cleared, set again) every 100 us while a posted
+  job is not picked up (`took`), in case `idle` does not wake on a wake latched before it executes (a wake posted
+  as CPU1 leaves its handler would be lost) [HW?]; a join whose job finished while CPU0 was in TIMER5 is not a
+  TIMEOUT; INFO shows CPU1 JOB/REWAKE (jobs in thousands / wakes sent again) and CPU1 STOP (`<s>s W`: the job never
+  picked up, `<s>s J<n>`: in job n, 1-4 a part, 5 the drums, 6 the reverb; unit: CPU0's wait). Emulator:
+  `DUAL_FAILTEST=6` (one lost wake at job 3000) recovers with 1 rewake, no late half.
 
 What to watch overall: resets (and when), the screen message, audio glitches on parts 2-3 only, the
 console counters, battery drain (CPU1 sleeps between jobs with `FELUCCA_DUAL_IDLE`, the default:
