@@ -1048,14 +1048,6 @@
     "ramtext": 0
    }
   },
-  "DLY_HALVE": {
-   "0": {
-    "flash": 4,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "MOTION": {
    "1": {
     "flash": 14032,
@@ -1088,46 +1080,6 @@
     "ramtext": -48
    }
   },
-  "MONO_RELEASE": {
-   "0": {
-    "flash": 4,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "ST_STRICT": {
-   "0": {
-    "flash": -108,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "USB_FLOW": {
-   "0": {
-    "flash": -448,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "SHED_FADE": {
-   "0": {
-    "flash": -80,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "KEYS_FAST": {
-   "0": {
-    "flash": -28,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "REC_MODES": {
    "1": {
     "flash": 1272,
@@ -1150,30 +1102,6 @@
     "ram": 224,
     "pool": 0,
     "ramtext": 860
-   }
-  },
-  "TRS_NOISE": {
-   "0": {
-    "flash": -12,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "BK_CHECK": {
-   "0": {
-    "flash": -368,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "LAYER_QUIET": {
-   "0": {
-    "flash": -188,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
    }
   },
   "BPM_LOCK": {
@@ -1353,7 +1281,7 @@
    }
   }
  },
- "measured": "2026-10-14 10:05",
+ "measured": "2026-10-14 10:15",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1573,7 +1501,7 @@
    },
    "built_hash": "79952091",
    "sizes": {
-    "flash": 536244,
+    "flash": 536292,
     "ram": 75640,
     "pool": 318444,
     "ramtext": 27584
@@ -1790,7 +1718,7 @@
    }
   },
   "user-default~": {
-   "hash": "076ddd30",
+   "hash": "084fdbe6",
    "cfg": {
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
@@ -1809,7 +1737,7 @@
     "CHANCE": 1,
     "KEYLIT": 0,
     "MOTION": 1,
-    "TRS_NOISE": 0,
+    "ENG_ACID": 1,
     "UP_FM6": 1,
     "SL24_XSTEP": 1,
     "MICRO": 1,
@@ -1818,16 +1746,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "076ddd30",
+   "built_hash": "084fdbe6",
    "sizes": {
-    "flash": 537568,
-    "ram": 61772,
+    "flash": 552340,
+    "ram": 62060,
     "pool": 317084,
     "ramtext": 30668
    }
   },
   "x0x-drums~": {
-   "hash": "6af11c49",
+   "hash": "370b9fc3",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_FORMANT": 0,
@@ -1847,15 +1775,15 @@
     "PATTERNS": 1,
     "USB_MODE": 1,
     "LCD_BAUD": 4,
-    "USB_FLOW": 0,
+    "GLIDE": 1,
     "SL24_EDIMPORT": 1
    },
-   "built_hash": "6af11c49",
+   "built_hash": "370b9fc3",
    "sizes": {
-    "flash": 584148,
-    "ram": 53704,
+    "flash": 585968,
+    "ram": 53928,
     "pool": 316992,
-    "ramtext": 27228
+    "ramtext": 27968
    }
   },
   "mots-ui~": {
@@ -1929,7 +1857,7 @@
    },
    "built_hash": "70423016",
    "sizes": {
-    "flash": 515808,
+    "flash": 515856,
     "ram": 74568,
     "pool": 317652,
     "ramtext": 27208
@@ -3033,12 +2961,6 @@
    "pool": 0,
    "ramtext": -28
   },
-  "UI=1,DLY_HALVE=0": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
   "UI=1,MOTION=1": {
    "flash": 1636,
    "ram": -32,
@@ -3063,36 +2985,6 @@
    "pool": 0,
    "ramtext": 84
   },
-  "UI=1,MONO_RELEASE=0": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,ST_STRICT=0": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,USB_FLOW=0": {
-   "flash": 484,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,SHED_FADE=0": {
-   "flash": 8,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,KEYS_FAST=0": {
-   "flash": 16,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
   "UI=1,REC_MODES=1": {
    "flash": -708,
    "ram": -48,
@@ -3110,24 +3002,6 @@
    "ram": 16,
    "pool": 0,
    "ramtext": 56
-  },
-  "UI=1,TRS_NOISE=0": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,BK_CHECK=0": {
-   "flash": -60,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,LAYER_QUIET=0": {
-   "flash": 192,
-   "ram": 16,
-   "pool": 0,
-   "ramtext": 0
   },
   "UI=1,BPM_LOCK=1": {
    "flash": 368,
@@ -3430,7 +3304,7 @@
    "ramtext": -56
   },
   "UI=1,BRIGHT=0": {
-   "flash": 4328,
+   "flash": 4384,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
