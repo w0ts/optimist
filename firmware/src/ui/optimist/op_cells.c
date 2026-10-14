@@ -254,12 +254,12 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
 #define lane_lfo_pg(pg) 0
 #define LFO_PGN 0u
 #endif
-/* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's own
- * DRIVE, DST, CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
+/* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's two
+ * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
 #if DL_UI
-static const page_t LANE_FX_PG[2] = {{"INSERTS", FAM_FX, SC_DSND, GR_DSND, {19, 20, DE_DRIVE, 0xFF}},
+static const page_t LANE_FX_PG[2] = {{"INSERTS", FAM_FX, SC_DSND, GR_DSND, {21, 19, 22, 20}},   /* (S1 TYPE, its amount, S2 ..) */
                                      {"SENDS", FAM_FX, SC_DSND, GR_DSND, {LSEND0, LSEND0 + 1, LSEND0 + 2, 0xFF}}};
 static int lane_fx_pg(const page_t *pg) { return pg == &LANE_FX_PG[0] || pg == &LANE_FX_PG[1]; }
 #define FX_PGN 2u
@@ -613,8 +613,10 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     }
 #endif
     if (s == OP_RESET) {
-        if (pg->scope == SC_FXSLOT || (id >= PID_INST && id < PID_INST + INS_N) || (pg->scope == SC_DSND && id >= 8u && id < 16u))
-            return;                                     /* (a slot's type, a lane's source: no default to go back to) */
+        if (pg->scope == SC_FXSLOT || (id >= PID_INST && id < PID_INST + INS_N) || (pg->scope == SC_DSND && id >= 8u && id < 16u) ||
+            (pg->scope == SC_DSND && (id == 21u || id == 22u)))
+            return;                                     /* (a slot's type, a lane's source, a lane slot's type: no default
+                                                         * to go back to) */
         page_set(pg, k, vp, d->def, 0);
         return;
     }

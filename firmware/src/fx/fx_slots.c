@@ -220,6 +220,7 @@ static uint32_t ins_amt(uint32_t k, uint32_t s)
 }
 /* every track's slots the default (a new project, the host tests) */
 static void mst_defaults(void);
+static void lin_defaults(void);
 static void ins_defaults(void)
 {
     static const uint8_t D[INS_N] = {INS_DEF0, INS_DEF1};
@@ -227,6 +228,7 @@ static void ins_defaults(void)
     for (k = 0; k < NTRK; k++)
         ins_put(k, D);
     mst_defaults();
+    lin_defaults();
 }
 
 /* ---- the master's two insert slots (fx-rework, 2026-10-14: "each track should have two inserts (including master ...)"):
@@ -276,6 +278,110 @@ static void mst_defaults(void)
 {
     static const uint8_t D[INS_N] = {MST_DEF0, MST_DEF1};
     mst_put(D);
+}
+
+/* ---- each drum sound's two insert slots (fx-rework 2026-10-14: "each track should have two inserts (including ...
+ * drum sub tracks)"; were a fixed DST and CMP, D7). Run per drum voice (fx.c dins_post), S1 then S2, on the voice's
+ * block. The types a voice can hold: those whose state is a few words (LIN_T; a lane has no stereo, no line, no
+ * tempo): DIST, DYN (its compressor, the drum track's RATIO ATK REL, no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT. The
+ * amounts are the slot's (drum_sends.c dins_amt[s][l]; a type change resets it: the ranges differ), stored in the FX
+ * record as before (DIST's and COMP's TLVs: S1's, S2's), the slots in LIN_TLV (fx_rec.c) only when not the default
+ * S1 DIST, S2 DYN: every project of before plays as it did */
+static const uint8_t LIN_T[] = {FXT_NONE, FXT_DIST, FXT_DYN, FXT_FILT, FXT_DUST, FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FRMT};   /* (the
+                                                        * stored index: never reorder) */
+#define LIN_NT ((uint32_t)sizeof LIN_T)
+#define LIN_OK (FXT_BUILT & (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DUST) | FXT_BIT(FXT_FOLD) | \
+                             FXT_BIT(FXT_FUZZ) | FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FRMT)))
+#define LIN_DEF0 (FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE)
+#define LIN_DEF1 (FELUCCA_MASTER_COMP ? FXT_DYN : FXT_NONE)
+#define LIN_D2 {LIN_DEF0, LIN_DEF1}
+#define LIN_D8 LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2
+_Static_assert(DRUM_LANES == 16, "lin_slot's initialiser: 16 lanes");
+static uint8_t lin_slot[DRUM_LANES][INS_N] = {LIN_D8, LIN_D8};
+static void lin_put(uint32_t l, const uint8_t *s)      /* lane l's slots (a type not of LIN_T: empty; twice: S2 empty) */
+{
+    uint32_t a = s[0] < FXT_N && (LIN_OK >> s[0] & 1u) ? s[0] : (uint32_t)FXT_NONE;
+    uint32_t b = s[1] < FXT_N && (LIN_OK >> s[1] & 1u) && s[1] != a ? s[1] : (uint32_t)FXT_NONE;
+    fm1_irq_off();
+    lin_slot[l % DRUM_LANES][0] = (uint8_t)a, lin_slot[l % DRUM_LANES][1] = (uint8_t)b;
+    fm1_irq_on();
+}
+static void lin_defaults(void)
+{
+    static const uint8_t D[INS_N] = {LIN_DEF0, LIN_DEF1};
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        lin_put(l, D);
+}
+static int lin_dflt(void)                              /* every lane's slots the default */
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        if (lin_slot[l][0] != LIN_DEF0 || lin_slot[l][1] != LIN_DEF1)
+            return 0;
+    return 1;
+}
+/* the amount of lane l's slot s as the audio reads it (the FILTER's bipolar) */
+AINL int32_t lin_amt(uint32_t l, uint32_t s)
+{
+    int32_t v = dins_amt[s & 1u][l % DRUM_LANES];
+    return lin_slot[l % DRUM_LANES][s & 1u] == FXT_FILT ? (int32_t)(int8_t)v : v > 127 ? 127 : v;   /* (a record's byte: raw) */
+}
+static int16_t lin_v[4];
+static const char *lin_names[LIN_NT];
+static uint8_t lin_list[LIN_NT];
+static param_desc_t lin_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, lin_names, 0}, {"S2", F_ENUM, 0, 0, 0, lin_names, 0}};
+/* lane l's value id: 0, 1 slot S1's / S2's amount (its type's track amount descriptor; empty: none), 2, 3 their TYPE */
+static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp)
+{
+    uint32_t s = id & 1u, t = lin_slot[l % DRUM_LANES][s], i, n = 0;
+    if (id < 2u) {
+        if (!(t < FXT_N && (LIN_OK >> t & 1u)) || FXT_AMT[t] == 0xFFu)
+            return 0;
+        lin_v[s] = (int16_t)lin_amt(l, s);
+        *vp = &lin_v[s];
+        return &TP[FXT_AMT[t]];
+    }
+    lin_v[2u + s] = 0;
+    for (i = 0; i < LIN_NT; i++)
+        if (LIN_T[i] == FXT_NONE || LIN_OK >> LIN_T[i] & 1u) {
+            lin_names[n] = LIN_T[i] == FXT_NONE ? "----" : TP[FXT_AMT[LIN_T[i]]].label;
+            if (LIN_T[i] == t)
+                lin_v[2u + s] = (int16_t)n;
+            lin_list[n++] = LIN_T[i];
+        }
+    lin_td[s].max = (int16_t)(n - 1u);
+    *vp = &lin_v[2u + s];
+    return &lin_td[s];
+}
+/* lane l's value id set to v (a TYPE: a list index; the other slot's type swaps the two, their amounts with them) */
+static void lin_set(uint32_t l, uint32_t id, int32_t v)
+{
+    uint32_t s = id & 1u, t;
+    uint8_t w[INS_N];
+    l %= DRUM_LANES;
+    if (id < 2u) {
+        t = lin_slot[l][s];
+        if (t < FXT_N && FXT_AMT[t] != 0xFFu)
+            dins_amt[s][l] = (uint8_t)(int8_t)clamp(v, TP[FXT_AMT[t]].min, TP[FXT_AMT[t]].max);
+        return;
+    }
+    {
+        int16_t *vp;
+        (void)lin_desc(l, id, &vp);                    /* (the list as shown: the types built) */
+    }
+    t = lin_list[(uint32_t)v % LIN_NT];
+    w[0] = lin_slot[l][0], w[1] = lin_slot[l][1];
+    if (t == w[s])
+        return;
+    if (t != FXT_NONE && w[s ^ 1u] == t) {             /* (swapped with its amount) */
+        uint8_t a = dins_amt[0][l];
+        dins_amt[0][l] = dins_amt[1][l], dins_amt[1][l] = a;
+        w[s ^ 1u] = w[s];
+    } else
+        dins_amt[s][l] = 0;                            /* (another type: from 0) */
+    w[s] = (uint8_t)t;
+    lin_put(l, w);
 }
 
 /* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). The drum track's amounts (the drum bus:
@@ -426,7 +532,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
     if (t == FXT_DIST && n >= 1u + DRUM_LANES)
         for (k = 0; k < DRUM_LANES; k++)
-            dins_amt[0][k] = (uint8_t)(a[1u + k] > 127u ? 127u : a[1u + k]);
+            dins_amt[0][k] = a[1u + k];                /* (S1's amount: raw, lin_amt reads it by its type) */
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP && n >= FXT_TLV_COMP) {
         for (k = 1; k < NTRK; k++)
@@ -434,7 +540,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         for (k = 0; all && k < 3u * NTRK; k++)       /* (every track's: the track slots' TLV may follow) */
             ins_cset[k / 3u][k % 3u] = (int16_t)clamp(a[NTRK + k % 3u], GP[G_CRAT + k % 3u].min, GP[G_CRAT + k % 3u].max);
         for (k = 0; n >= FXT_TLV_COMP + DRUM_LANES && k < DRUM_LANES; k++)
-            dins_amt[1][k] = (uint8_t)(a[FXT_TLV_COMP + k] > 127u ? 127u : a[FXT_TLV_COMP + k]);
+            dins_amt[1][k] = a[FXT_TLV_COMP + k];      /* (S2's) */
     }
 #endif
     (void)t, (void)a, (void)n, (void)all, (void)k;

@@ -200,3 +200,12 @@ cpu/fx/dbus_chrs 939
 cpu/fx/dbus_echo 922
 cpu/fx/dbus_gate 898
 cpu/fx/ins_worst 2661
+cpu/fx/part_dust 1240
+cpu/fx/dbus_dust 939
+cpu/fx/part_lim 1291
+cpu/fx/dvoice_filt 566
+cpu/fx/dvoice_dust 608
+cpu/fx/dvoice_fold 561
+cpu/fx/dvoice_fuzz 575
+cpu/fx/dvoice_phsr 602
+cpu/fx/dvoice_frmt 648

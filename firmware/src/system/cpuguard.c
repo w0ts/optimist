@@ -65,12 +65,16 @@ static uint32_t cg_ins_part(uint32_t p)
 #if FELUCCA_FX_DIST
     n += on && INS_ON(p, FXT_DIST) && trk[p].p[P_DIST] ? CG_COST_PDIST : 0u;
 #endif
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     n += tflt[p].mode ? CG_COST_PFILT : 0u;
 #endif
 #if FELUCCA_MASTER_COMP
     if ((on && INS_ON(p, FXT_COMP) && trk[p].p[P_TCOMP]) || tcomp[p].gr16 || tcomp[p].g13 != 8192)
         n += CG_COST_TCOMP;                           /* (fx.c tcomp_run: on, or letting go) */
+    n += tlim[p].on ? CG_COST_TLIM : 0u;              /* (its CEIL) */
+#endif
+#if FELUCCA_FX_DUST
+    n += on && INS_ON(p, FXT_DUST) && trk[p].p[P_TDUST] ? CG_COST_PDUST : 0u;
 #endif
 #if INS_FX
     {   /* the further inserts (insfx.c): set in a slot, or fading out */
@@ -88,7 +92,7 @@ static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and
 #if FELUCCA_FX_DIST
     w += dbus_live ? CG_COST_DBDIST : 0u;             /* (fx.c dbus_dist_run: a signal on it) */
 #endif
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     w += tflt[TRK_DRUM].mode ? CG_COST_DBFILT : 0u;
 #endif
     return w;
@@ -99,6 +103,10 @@ static uint32_t cg_ins_bus(void)
 #if FELUCCA_MASTER_COMP
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_COMP) && TDRUM->p[P_TCOMP]) || !tcomp_rest(&dbus_comp))
         n += CG_COST_DBCOMP;                          /* (fx.c dbus_comp_run: on, or letting go) */
+    n += tlim[TRK_DRUM].on ? CG_COST_TLIM * 2u : 0u;  /* (its CEIL, L and R) */
+#endif
+#if FELUCCA_FX_DUST
+    n += fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_DUST) && TDRUM->p[P_TDUST] ? CG_COST_DBDUST : 0u;
 #endif
 #if INS_FX
     {   /* the further inserts (insfx.c ifx_bus: L and R at every level) */
@@ -111,6 +119,48 @@ static uint32_t cg_ins_bus(void)
     return n;
 }
 
+#if DINS
+/* a drum voice's slots that ran (fx.c dins_post: a type bit each), each its measured per-voice cost (cpu/fx/dvoice_*) */
+static uint32_t cg_dvoice(uint32_t m)
+{
+    uint32_t n = 0;
+    n += m & FXT_BIT(FXT_DIST) ? CG_COST_DVDIST : 0u;
+    n += m & FXT_BIT(FXT_DYN) ? CG_COST_DVCOMP : 0u;
+    n += m & FXT_BIT(FXT_FILT) ? CG_COST_DVINS[0] : 0u;
+    n += m & FXT_BIT(FXT_DUST) ? CG_COST_DVINS[1] : 0u;
+    n += m & FXT_BIT(FXT_FOLD) ? CG_COST_DVINS[2] : 0u;
+    n += m & FXT_BIT(FXT_FUZZ) ? CG_COST_DVINS[3] : 0u;
+    n += m & FXT_BIT(FXT_PHSR) ? CG_COST_DVINS[4] : 0u;
+    n += m & FXT_BIT(FXT_FRMT) ? CG_COST_DVINS[5] : 0u;
+    return n;
+}
+#endif
+/* the master's insert slots that run (fx.c mst_run, fx-rework): their costs on the drum bus, the same kernels on a
+ * stereo pair (DIST and FILTER: the bus's 5 channels' 2 / 5; DYN's compressor: CG_COST_DBCOMP; its limiter was in the
+ * idle mix before, CG_COST_BASE). In no slot or at 0: nothing */
+static uint32_t cg_ins_mst(void)
+{
+    uint32_t n = 0, t;
+    for (t = 0; t < FXT_N; t++) {
+        if (!MST_ON(t))
+            continue;
+        if (t == FXT_DIST && mst_amt[FXT_DIST])
+            n += CG_COST_DBDIST * 2u / 5u;
+#if TFLT_ON
+        if (t == FXT_FILT && tflt[NTRK].mode)
+            n += CG_COST_DBFILT * 2u / 5u;
+#endif
+#if FELUCCA_MASTER_COMP
+        if (t == FXT_DYN && song.g[G_CTHR])
+            n += CG_COST_DBCOMP;
+#endif
+        if (t == FXT_DUST && FELUCCA_FX_DUST && song.g[G_DUST])
+            n += CG_COST_DBDUST;
+        if (t >= FXT_NEW0 && t < FXT_NEWN && mst_amt[t])
+            n += CG_COST_DBINS[t - FXT_NEW0];
+    }
+    return n;
+}
 /* the predicted cost of what sounds now: target instructions a sample */
 static uint32_t cg_est(void)
 {
@@ -128,9 +178,10 @@ static uint32_t cg_est(void)
             break;
         }
     n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
+    n += cg_ins_mst();                                /* the master's (fx.c mst_run) */
 #if DINS
     for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
-        n += ((dins_ran[0] >> i) & 1u ? CG_COST_DVDIST : 0u) + ((dins_ran[1] >> i) & 1u ? CG_COST_DVCOMP : 0u);
+        n += cg_dvoice(dins_ran[i]);
 #endif
 #if DRUM_X0X
     {   /* the X0X channels sounding or with a hit due (drum_x0x.c: not drums.v voices), each its own cost, and

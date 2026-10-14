@@ -417,7 +417,7 @@ static void job_cpu(const job_t *j)
                                 * the drum bus S1 DIST 127, S2 FILTER low-pass (with cpu/mix/3parts_full_drums' parts) */
         uint32_t k;
         trk[0].p[P_DIST] = j->arg == 10u ? 127 : 0;
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
         trk[0].p[P_TFLT] = j->arg == 11u ? -40 : 0;
         TDRUM->p[P_TFLT] = j->arg == 12u || j->arg == 13u ? -40 : 0;
 #endif
@@ -453,6 +453,38 @@ static void job_cpu(const job_t *j)
         trk[0].p[P_L1AB] = (int16_t)(j->arg == 16u ? 0 : 80);
         trk[0].p[P_LRATE] = 90;
     }
+    if (j->arg >= 61u && j->arg <= 63u) {   /* fx-rework (cpu_costs.py): 61 part 1's S1 DUST 127 (less cpu/fx/part_off), 62 the
+                                * drum bus's S1 DUST 127 over the groove (less cpu/fx/dbus_off), 63 part 1's S2 DYN at 127 with
+                                * its CEIL at -1 dB (less cpu/fx/comp_on: its limiter) */
+        trk[0].p[P_DIST] = TDRUM->p[P_DIST] = 0;
+#if FELUCCA_FX_DUST
+        if (j->arg <= 62u) {
+            uint32_t k = j->arg == 61u ? 0u : TRK_DRUM;
+            ins_load(k, 0, FXT_DUST);
+            trk[k].p[P_TDUST] = 127;
+        }
+#endif
+#if FELUCCA_MASTER_COMP
+        if (j->arg == 63u) {
+            ins_load(0, 1, FXT_COMP);
+            trk[0].p[P_TCOMP] = 127;
+            ins_cset[0][4] = 4;
+        }
+#endif
+    }
+#if DINS
+    if (j->arg >= 64u && j->arg <= 69u) {   /* a drum sound's slot S1 (fx.c dins_post), one snare a beat (cpu/fx/dvoice_off's):
+                                * 64 FILT low-pass, 65 DUST, 66 FOLD, 67 FUZZ, 68 PHSR, 69 FRMT at 127 */
+        static const uint8_t T[6] = {FXT_FILT, FXT_DUST, FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FRMT};
+        uint32_t l;
+        for (l = 0; l < DRUM_LANES; l++) {
+            const uint8_t s[INS_N] = {T[j->arg - 64u], FXT_NONE};
+            lin_put(l, s);
+            dins_amt[0][l] = (uint8_t)(T[j->arg - 64u] == FXT_FILT ? (uint8_t)(int8_t)-40 : 127u);
+            dins_amt[1][l] = 0;
+        }
+    }
+#endif
 #if INS_FX
     if (j->arg >= 20u && j->arg < 20u + 2u * (FXT_NEWN - FXT_NEW0)) {   /* the further inserts (insfx.c; cpu_costs.py): 20 + i
                                 * part 1's S1 type FXT_NEW0 + i at 127 (less cpu/fx/part_off), 29 + i the drum bus's over
@@ -1108,7 +1140,7 @@ int main(int argc, char **argv)
 #endif
         for (i = 9; EB(1) && i <= 11u; i++) {         /* a part's insert slots: DIGITAL's first preset, 8 notes, both at
                                                        * 0 / S1 DIST 127 / S2 FILTER low-pass */
-            if (i == 10u ? !FELUCCA_FX_DIST : i == 11u ? !FELUCCA_TRK_FILT : 0)
+            if (i == 10u ? !FELUCCA_FX_DIST : i == 11u ? !TFLT_ON : 0)
                 continue;
             j = add(J_CPU, i == 9u ? "cpu/fx/part_off" : i == 10u ? "cpu/fx/part_dist" : "cpu/fx/part_filt");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
@@ -1117,13 +1149,33 @@ int main(int argc, char **argv)
             j->e = 0xFF;
             j->arg = (uint8_t)i;
         }
-        if (FELUCCA_TRK_FILT) {                       /* the drum bus's FILTER: the groove (cpu/fx/dbus_off's) */
+        if (TFLT_ON) {                                /* the drum bus's FILTER: the groove (cpu/fx/dbus_off's) */
             j = add(J_CPU, "cpu/fx/dbus_filt");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
             cpu_parts[ncpu][NPART][0] = 2;
             j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
             j->e = 0xFF;
             j->arg = 12;
+        }
+        for (i = 61; i <= 69u; i++) {                 /* fx-rework: DUST on a part / the drum bus, a part's DYN CEIL, a drum
+                                                       * sound's further slot types (the jobs' setup: above) */
+            static const char *const NM[9] = {"cpu/fx/part_dust", "cpu/fx/dbus_dust", "cpu/fx/part_lim", "cpu/fx/dvoice_filt",
+                                              "cpu/fx/dvoice_dust", "cpu/fx/dvoice_fold", "cpu/fx/dvoice_fuzz",
+                                              "cpu/fx/dvoice_phsr", "cpu/fx/dvoice_frmt"};
+            static const uint8_t TY[9] = {FXT_DUST, FXT_DUST, FXT_COMP, FXT_FILT, FXT_DUST, FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FRMT};
+            if (!(FXT_BUILT >> TY[i - 61u] & 1u) || ((i == 61u || i == 63u) && !EB(1)) || (i >= 64u && !DINS))
+                continue;
+            j = add(J_CPU, NM[i - 61u]);
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            if (i == 62u)
+                cpu_parts[ncpu][NPART][0] = 2;
+            else if (i >= 64u)
+                cpu_parts[ncpu][NPART][0] = 3, cpu_parts[ncpu][NPART][2] = 38;
+            else
+                cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)i;
         }
 #if INS_FX
         for (i = 0; i < 2u * (FXT_NEWN - FXT_NEW0); i++) {   /* the further inserts (insfx.c), each built: a part's (DIGITAL's

@@ -119,7 +119,14 @@
     {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY", "params": {
       "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send",
       "DST": {"text": "This sound's distortion", "if": "FELUCCA_FX_DIST"},
-      "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"}}},
+      "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"},
+      "DYN": {"text": "This sound's insert 2 (DYN)", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "This sound's filter insert", "if": "TFLT_ON"},
+      "DUST": {"text": "This sound's dust insert", "if": "FELUCCA_FX_DUST"},
+      "FOLD": {"text": "This sound's wavefolder", "if": "FELUCCA_INS_FOLD"},
+      "FUZZ": {"text": "This sound's fuzz", "if": "FELUCCA_INS_FUZZ"},
+      "PHSR": {"text": "This sound's phaser", "if": "FELUCCA_INS_PHASER"},
+      "FRMT": {"text": "This sound's vowel filter", "if": "FELUCCA_INS_FORMANT"}}},
     {"kind": "page", "ctx": "SOURCE", "if": "DL_ANY && (FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)", "params": {
       "SRC": "Drum sound source", "HIT": "Hit of the sample", "START": "Sample start", "LEN": "Sample length"}},
     {"kind": "page", "ctx": "KIT", "if": "DL_ANY", "params": {
@@ -350,7 +357,7 @@
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
     {"kind": "op", "ctx": "MIX", "params": {
       "MUTE": "Mute the row", "PAN": "Stereo position of the row", "VOLUME": "Level of the row (dB)", "LEVEL": "Level of the lane (dB)",
-      "CUT": "Filter cutoff of the lane"}},
+      "CUT": "Filter cutoff of the lane", "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_DRUM_EDIT"}}},
     {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON", "params": {
       "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_FX_DIST"},
       "DST": {"text": "Distortion of the sound", "if": "FELUCCA_FX_DIST"},

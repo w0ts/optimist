@@ -16,13 +16,14 @@
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 214u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX 232u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
                                                         * 2026-10-14: GATER, 2 + 4 + its PATTERN RATE SHAPE 12; 186 -> 214 2026-10-14 fx-rework: DUST's 2 + 4, the
                                                         * tracks' DYN GAIN CEIL 8, the master's slots MST_TLV 2 + 12;
-                                                        * 17 of them fit SEC_REC_MAX: ed_backup.c) */
+                                                        * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 17 of them fill
+                                                        * SEC_REC_MAX (ed_backup.c): the room is used up) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -43,6 +44,12 @@ _Static_assert(INS_TLV_N0 == 23u && INS_TLV_N == 31u, "the track slots' TLV: 8 +
  * None: mst_map, the master effects an old project used in their old order DUST FILT DYN, the same sound but PUNCH, now
  * before them (it sat between DUST and the DJ filter) */
 #define MST_TLV 0x44u
+/* TLV LIN_TLV (0x46, fx-rework 2026-10-14): the drum lanes' insert slots (fx_slots.c lin_slot), a byte a lane: S1's index in
+ * LIN_T, S2's in the high nibble; only when not every lane is the default S1 DIST, S2 DYN. A load's (`all`). The amounts:
+ * DIST's TLV (S1's) and COMP's (S2's), as before */
+#define LIN_TLV 0x46u
+#define LIN_TLV_N DRUM_LANES
+_Static_assert(LIN_NT <= 16u, "LIN_TLV: a type index a nibble");
 #define MST_TLV_N (INS_N + 1u + (FXT_NEWN - FXT_NEW0))
 AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)FXT_DIST; }   /* the i-th amount's type */
 /* TLV FXRET_TLV (0x41, 2026-10-12): the FX returns, CHO DLY REV (core.h G_CRET G_DRET G_RRET, 0..127), only when one is
@@ -50,8 +57,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(MST_TLV > SMUTE_TLV, "the master slots' TLV: an id no FX type nor other TLV takes");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
 static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */
@@ -207,6 +214,34 @@ static uint32_t mst_map(uint8_t *o)
             o[n++] = RANK[i];
     return (used & ~pick) != 0u;
 }
+static uint32_t lin_ix(uint32_t t)                    /* type t's index in LIN_T (none: 0) */
+{
+    uint32_t i;
+    for (i = 1; i < LIN_NT; i++)
+        if (LIN_T[i] == t)
+            return i;
+    return 0;
+}
+static uint32_t lin_tlv(uint8_t *o)                    /* -> o (LIN_TLV_N); 0: every lane the default */
+{
+    uint32_t l;
+    if (lin_dflt())
+        return 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        o[l] = (uint8_t)(lin_ix(lin_slot[l][0]) | lin_ix(lin_slot[l][1]) << 4);
+    return LIN_TLV_N;
+}
+static void lin_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the defaults) */
+{
+    uint32_t l;
+    lin_defaults();
+    for (l = 0; n >= LIN_TLV_N && l < DRUM_LANES; l++) {
+        uint8_t s[INS_N];
+        s[0] = (a[l] & 15u) < LIN_NT ? LIN_T[a[l] & 15u] : (uint8_t)FXT_NONE;
+        s[1] = (uint32_t)(a[l] >> 4) < LIN_NT ? LIN_T[a[l] >> 4] : (uint8_t)FXT_NONE;
+        lin_put(l, s);
+    }
+}
 static uint32_t mst_tlv(const uint8_t *m, uint8_t *o)   /* -> o (MST_TLV_N); 0: nothing to keep (the slots as m, no amount) */
 {
     uint32_t k, any = 0;
@@ -306,6 +341,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the drum lanes' slots (above) */
+        uint32_t m = lin_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)LIN_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the track slots (above): only when the read-back's ins_map would not give them (no record so far: as one
          * with none is read) */
         uint32_t m;
@@ -322,8 +364,8 @@ static uint32_t fxr_encode(uint8_t *o)
  * song section keeps them). 0 refused (the defaults) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 {
-    uint32_t at = FXR_HEAD, in = 0, mn = 0;
-    const uint8_t *ia = 0, *ma = 0;
+    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0;
+    const uint8_t *ia = 0, *ma = 0, *la = 0;
     int ok = n >= FXR_HEAD && n <= FXR_MAX && a[0] == FXR_VER;
     while (ok && at < n)                               /* (the TLVs: checked whole before any is taken) */
         if (at + 2u > n || at + 2u + a[at + 1u] > n)
@@ -347,6 +389,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             ia = a + at + 2u, in = a[at + 1u];
         else if (a[at] == MST_TLV)
             ma = a + at + 2u, mn = a[at + 1u];
+        else if (a[at] == LIN_TLV)
+            la = a + at + 2u, ln = a[at + 1u];
         else
             fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (ok && !(a[1] & FXR_F_INS)) {                   /* a record from before the track slots: a drum sound's DST /
@@ -365,6 +409,7 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         ins_drop = (uint8_t)(ia && in >= NTRK * INS_N ? 0u : drop);
         ins_untlv(ia, ia ? in : 0u, m);
         mst_untlv(ma, ma ? mn : 0u);                   /* (after ins_drop: its master bit) */
+        lin_untlv(la, la ? ln : 0u);
         fxs_set(ok ? a + 2 : FXS_OLD);                 /* (the sends; an insert's place: empty) */
         FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
                                                         * order, fxi.c: the same project plays the same way) */

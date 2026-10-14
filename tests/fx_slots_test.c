@@ -664,11 +664,11 @@ static void t_dins(void)
 #if FELUCCA_MASTER_COMP
     dsend_set(5, 4, 200);
     d = dsend_desc(5, 4, &v);
-    ok &= d && !strcmp(d->label, "CMP") && *v == 127 && dins_amt[1][5] == 127;
+    ok &= d && !strcmp(d->label, "DYN") && *v == 127 && dins_amt[1][5] == 127;
 #else
     ok &= !dsend_desc(5, 4, &v);
 #endif
-    check("... the sound's DST and CMP: its own amounts (0..127)", ok);
+    check("... the sound's S1 DST and S2 DYN (its default slots): their own amounts (0..127)", ok);
     /* the record */
     n = fxr_encode(b);
     for (k = FXR_HEAD, ok = 0; k + 2u <= n; k += 2u + b[k + 1u])
@@ -686,9 +686,9 @@ static void t_dins(void)
           "0 (rule 8)", fxr_decode(b, n, 0) && dins_amt[0][5] == 0 && dins_amt[1][5] == 0);
     fxr_decode(0, 0, 1);
     check("... none: every sound's insert 0", !dins_amt[0][5] && !dins_amt[1][5]);
-    dins_dist[2].env = 999;
+    dins_st[2][0].d.env = 999;
     dins_restart(2);
-    check("a drum voice's inserts restart with its hit (dins_restart)", dins_dist[2].env == 0);
+    check("a drum voice's inserts restart with its hit (dins_restart)", dins_st[2][0].d.env == 0);
     fxs_set(FXS_DEF);
     ins_all(INS_D);
 }
@@ -1093,6 +1093,87 @@ static void t_master(void)
     fxs_set(FXS_DEF);
 }
 
+/* ---- fx-rework stage 2: each drum sound's two insert slots (fx_slots.c lin_slot, fx.c dins_post) */
+static void lanes_all(uint32_t a, uint32_t b)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++) {
+        const uint8_t s[INS_N] = {(uint8_t)a, (uint8_t)b};
+        lin_put(l, s);
+    }
+}
+static void t_lanes(void)
+{
+    uint64_t base, h;
+    uint8_t b[FXR_MAX];
+    uint32_t n, i, ok;
+    int16_t *v;
+    const param_desc_t *d;
+    lin_defaults();
+    check("every drum sound's slots by default: S1 DIST, S2 DYN (the DST and CMP of before), no record",
+          lin_slot[3][0] == LIN_DEF0 && lin_slot[3][1] == LIN_DEF1 && lin_dflt() && lin_tlv(b) == 0u);
+    d = dsend_desc(4, 5, &v);
+    for (i = 0, ok = d != 0; d && i <= (uint32_t)d->max; i++)
+        ok &= lin_list[i] == FXT_NONE || (LIN_OK >> lin_list[i] & 1u);
+    check("S1 TYPE (value id 21): ---- and the voice types built (no CHRS ECHO GATER FLNG WIDE)", ok && lin_list[*v] == LIN_DEF0);
+    dins_amt[0][4] = 60, dins_amt[1][4] = 30;
+    for (i = 0; d && i <= (uint32_t)d->max && lin_list[i] != LIN_DEF1; i++)
+        ;
+    dsend_set(4, 5, (int32_t)i);                       /* (S1 to S2's type: they swap, amounts too) */
+    check("S1 to DYN: the two swap, their amounts with them", lin_slot[4][0] == LIN_DEF1 && lin_slot[4][1] == LIN_DEF0 &&
+          dins_amt[0][4] == 30 && dins_amt[1][4] == 60);
+#if TFLT_ON
+    for (i = 0; i <= (uint32_t)d->max && lin_list[i] != FXT_FILT; i++)
+        ;
+    dsend_set(4, 6, (int32_t)i);
+    dsend_set(4, 4, -40);
+    d = dsend_desc(4, 4, &v);
+    check("S2 to FILT: from 0, then -40 (its bipolar range), read back -40", lin_slot[4][1] == FXT_FILT && d && *v == -40 &&
+          lin_amt(4, 1) == -40);
+    n = fxr_encode(b);
+    lin_defaults();
+    memset(dins_amt, 0, sizeof dins_amt);
+    check("the record: LIN_TLV (the slots), the amounts in DIST's and COMP's TLVs; back with a load",
+          fxr_decode(b, n, 1) && lin_slot[4][0] == LIN_DEF1 && lin_slot[4][1] == FXT_FILT && lin_amt(4, 1) == -40 &&
+          lin_slot[5][0] == LIN_DEF0);
+    fxr_decode(0, 0, 1);
+    check("... no record: the defaults", lin_dflt());
+    /* the audio: a lane's FILT heard, at 0 as with nothing in the slot */
+    memset(r_db, 0, sizeof r_db);
+    memset(r_dl, 0, sizeof r_dl);
+    lanes_all(FXT_NONE, FXT_NONE);
+    base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    lanes_all(FXT_FILT, FXT_NONE);
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    check("every sound's S1 FILT at 0: the mix as with empty slots, sample for sample", h == base);
+    r_dl[0] = (uint8_t)(int8_t)-50;
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    r_dl[0] = 0;
+    check("... at -50 (a low-pass): heard (the mix changes)", h != base);
+#endif
+#if FELUCCA_FX_DUST
+    lanes_all(FXT_DUST, FXT_NONE);
+    r_dl[0] = 100;
+    song.playing = 1;
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    song.playing = 0;
+    r_dl[0] = 0;
+    lanes_all(FXT_NONE, FXT_NONE);
+    check("every sound's S1 DUST at 100: heard", h != render(FXS_DEF, 0, 90, 60, 50, 80, 1));
+#endif
+#if FELUCCA_INS_FOLD
+    lanes_all(FXT_FOLD, FXT_NONE);
+    r_dl[0] = 100;
+    h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
+    r_dl[0] = 0;
+    lanes_all(FXT_NONE, FXT_NONE);
+    check("every sound's S1 FOLD at 100: heard", h != render(FXS_DEF, 0, 90, 60, 50, 80, 1));
+#endif
+    lin_defaults();
+    memset(dins_amt, 0, sizeof dins_amt);
+    (void)base, (void)h, (void)n, (void)v;
+}
+
 int main(void)
 {
     t_layout();
@@ -1106,6 +1187,7 @@ int main(void)
     t_record();
     t_stores();
     t_master();
+    t_lanes();
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

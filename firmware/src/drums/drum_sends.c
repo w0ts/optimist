@@ -30,10 +30,15 @@ static uint8_t fxs_lm[3];                      /* (a tentative definition: fx_sl
  * drum track's SENDS page and the mixer's DR row turn them (fx_slots.c) */
 #define DKS_DEF 127
 static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
-/* each sound's DIST and COMP insert amounts (FX slots phase 5: dins_amt[0] DIST, [1] COMP, 0..127, 0 off), run per drum
- * voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the drum record (dlrec_t: unchanged) */
-#define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP)
+/* each sound's two insert slots (fx-rework 2026-10-14, "each track should have two inserts (including ... drum sub
+ * tracks)": fx_slots.c lin_slot, the types; was a fixed DIST and COMP): dins_amt[s][l] is lane l's slot s amount (0 off;
+ * the FILTER's bipolar value as int8), run per drum voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the
+ * drum record (dlrec_t: unchanged). The default slots S1 DIST, S2 DYN: [0] the DIST amount, [1] the COMP's, as before */
+#define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON || FELUCCA_FX_DUST || FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || \
+              FELUCCA_INS_PHASER || FELUCCA_INS_FORMANT)
 static uint8_t dins_amt[2][DRUM_LANES];
+static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp);   /* fx_slots.c: ids 0, 1 the amounts, 2, 3 the TYPEs */
+static void lin_set(uint32_t l, uint32_t id, int32_t v);
 
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
 typedef struct {
@@ -206,13 +211,15 @@ static uint32_t dlrec_hash(const dlrec_t *d)
 
 /* ---- SOUND 3 (ui_drums.c, params.c): the sound picked's amounts, REV DLY CHO (its sends) and DST CMP (its inserts);
  * the page shows them in the FX slots' order (fx_slots.c fxs_lane_id) */
-#define DSEND_NID 5u                           /* value ids: 0 REV, 1 DLY, 2 CHO, 3 DST, 4 CMP */
+#define DSEND_NID 7u                           /* value ids: 0 REV, 1 DLY, 2 CHO, 3 S1's amount, 4 S2's, 5 S1 TYPE, 6 S2 TYPE */
 static const param_desc_t DSEND_DESC[DSEND_NID] = {
     {"REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0, 0},
     {"DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
     {"CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
     {"DST", F_PCT, 0, 127, 0, 0, 0},
     {"CMP", F_PCT, 0, 127, 0, 0, 0},
+    {"S1", F_INT, 0, 0, 0, 0, 0},
+    {"S2", F_INT, 0, 0, 0, 0, 0},
 };
 static int16_t dsend_v[DSEND_NID];
 /* value id of lane l: its descriptor, *vp its value (0: none in this build; an X0X kit's sounds have no insert: their
@@ -220,14 +227,15 @@ static int16_t dsend_v[DSEND_NID];
 static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint32_t id, int16_t **vp)
 {
     uint32_t w = dsend[l & 15u];
-    if (id >= DSEND_NID || (id == 3u && !FELUCCA_FX_DIST) || (id == 4u && !FELUCCA_MASTER_COMP))
+    if (id >= DSEND_NID)
         return 0;
 #if DRUM_X0X
     if (id >= 3u && dl_kit_of(l & 15u, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l & 15u))
         return 0;
 #endif
-    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? dsend_dly(w) : id == 2u ? dsend_cho(w) :
-                            dins_amt[id - 3u][l & 15u]);
+    if (id >= 3u)
+        return lin_desc(l, id - 3u, vp);               /* (the slots: fx_slots.c) */
+    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? dsend_dly(w) : dsend_cho(w));
     *vp = &dsend_v[id];
     return &DSEND_DESC[id];
 }
@@ -235,8 +243,8 @@ static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t
 {
     uint32_t w = dsend[l & 15u], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
     uint32_t x = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
-    if (id == 3u || id == 4u) {
-        dins_amt[id - 3u][l & 15u] = (uint8_t)clamp(v, 0, 127);
+    if (id >= 3u) {
+        lin_set(l, id - 3u, v);                        /* (the slots: fx_slots.c) */
         return;
     }
     if (id == 0u)

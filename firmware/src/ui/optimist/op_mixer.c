@@ -156,13 +156,13 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
         n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
         n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
-#if FELUCCA_FX_DIST
-        n = mx_add(it, n, MG_INS, "DRIVE", MI_LANE, DE_DRIVE);
-        n = mx_add(it, n, MG_INS, "DST", MI_LANE, 19u);   /* (the sound's own DIST and COMP: always heard, D7) */
-#endif
-#if FELUCCA_MASTER_COMP
-        n = mx_add(it, n, MG_INS, "CMP", MI_LANE, 20u);
-#endif
+        n = mx_add(it, n, MG_MIX, "DRIVE", MI_LANE, DE_DRIVE);   /* (the sound's own drive: a SOUND value) */
+        if (LIN_OK) {                                   /* its two insert slots (fx-rework: were DST CMP), as a track's */
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 21u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 19u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 22u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 20u);
+        }
         if (FXS_ON(FXT_REV))
             n = mx_add(it, n, MG_SEND, "REV", MI_LANE, 16u);
         if (FXS_ON(FXT_DLY))
@@ -371,6 +371,9 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     } else if (m.kind == MI_INST) {                       /* a slot's TYPE: the other slot's swaps them (no reset) */
         if (s != OP_RESET)
             ins_load(mx_trk_of(r), m.id, ins_list[(uint32_t)param_step(d, *vp, s) % INS_NLIST]);
+    } else if (m.kind == MI_LANE && (m.id == 21u || m.id == 22u)) {   /* a lane slot's TYPE: no reset (as a track's) */
+        if (s != OP_RESET)
+            mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
     } else if (m.kind == MI_LANE)
         mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
     else if (m.kind == MI_ACC)
