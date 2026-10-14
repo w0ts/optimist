@@ -105,7 +105,7 @@ static void step_pick_name(char *b, uint32_t n)         /* "KICK", "C4 E4+" (b h
 {
     uint32_t i, k = pen_n ? pen_n : 1u;
     if (is_drum(TSEL)) {
-        str_cpy(b, LANE_NAME[lane_selected()], n);
+        str_cpy(b, lane_name(lane_selected()), n);
         return;
     }
     b[0] = 0;
@@ -192,12 +192,16 @@ static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
             memset(d, 0, sizeof *d);
         } else {
             dstep_clr(d, lane_selected());
+#if FELUCCA_PLOCK
+            if (lane_acc())
+                lock_drop(t, idx, P_DACC);              /* (the ACCENT hit gone: its amount's lock there too) */
+#endif
 #if DLA_ON
             (void)lane_step_drop(t, idx, lane_selected());   /* (the lane's hit gone: its locks there, D4) */
 #endif
         }
-        if (dstep_mask(d))
-            return;
+        if (dstep_lanes(d))
+            return;                                 /* (the ACCENT lane's hit is a hit of the step) */
     } else {
         if (step_on(&t->step[idx]))
             step_note_resize(t, idx, -(int32_t)NSTEP);
@@ -414,7 +418,7 @@ static uint32_t step_chance_of(const track_t *t, uint32_t idx)
 /* the chance as an event of the automation store, on drum and synth steps alike (this UI writes events only) */
 static void edit_chance(track_t *t, uint32_t idx, int32_t s)
 {
-    if (step_has(t, idx) || (is_drum(t) && dstep_mask(&t->dstep[idx % NSTEP])))
+    if (step_has(t, idx) || (is_drum(t) && dstep_lanes(&t->dstep[idx % NSTEP])))
         (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
 }
 #endif
@@ -572,6 +576,10 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
         (void)auto_step_hold_drop(t, idx, id);
         return;
     }
+    if (is_drum(t) && id == P_DACC && !dstep_has(&t->dstep[idx % NSTEP], DRUM_ACC)) {
+        *r |= 2u;                                       /* (the ACCENT amount's lock needs the accent hit on the step, as a lane's: D4) */
+        return;
+    }
     if (!lock_get(t, idx, id, &v) && hold_get(t, idx, id, &v)) {
         (void)auto_put(AL(t), idx, mot_sid(id), param_step(d, v, step));   /* (the hold event's value) */
         *r |= 4u;
@@ -620,6 +628,10 @@ static int32_t held_lane_param(uint32_t k, const param_desc_t **d)
 #if DLA_ON
     int16_t *vp;
     uint32_t v = k == 2u ? DE_TUNE : DE_DECAY;
+    if (lane_acc()) {                                   /* the ACCENT lane: no sound, no TUNE or DECAY; its amount is the third card */
+        *d = k == 2u ? &DRUM_ACC_DESC : 0;
+        return k == 2u ? (int32_t)P_DACC : -1;
+    }
     *d = dsnd_desc_lane(lane_selected(), v, &vp);
     return *d ? (int32_t)(LOCK_LANE | v) : -1;
 #else
@@ -896,7 +908,7 @@ static void step_name(uint32_t r, char *b)
         str_cpy(b, is_drum(TSEL) ? PAGES[stp_pattern()].title : PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
         return;
     }
-    str_cpy(b, LANE_SHORT[lane_selected()], 12);         /* the selected lane's: "c.hat" -> "C.HAT", as a row's name */
+    str_cpy(b, lane_short(lane_selected()), 12);         /* the selected lane's: "c.hat" -> "C.HAT", as a row's name */
     for (i = 0; b[i]; i++)
         b[i] = (char)(b[i] >= 'a' && b[i] <= 'z' ? b[i] - 32 : b[i]);
 }
@@ -912,7 +924,9 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
 #if FELUCCA_PLOCK
         const param_desc_t *d;
         int32_t id = held_lane_param(k, &d);
-        if (id >= 0)
+        if (id >= 0 && lane_acc() && !dstep_has(&t->dstep[i], DRUM_ACC))
+            str_cpy(c->val, "-", sizeof c->val);        /* (the ACCENT amount's lock needs the accent hit on the step) */
+        else if (id >= 0)
             lock_cell_id(id, d, c);
 #endif
         return;
@@ -994,6 +1008,12 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
 #if DL_UI
     {
         int16_t *vp;
+        if (lane_acc()) {                               /* the ACCENT lane's page: its amount alone (no sound) */
+            cell_clear(c);
+            if (k == 0u)
+                acc_cell(c);
+            return;
+        }
         cell_param(c, dsnd_desc_lane(lane_selected(), STEP_LANE_PG.id[k & 3u], &vp), vp);
         if (!c->label)                                  /* (a value this lane's sound has not: "-") */
             str_cpy(c->val, "-", sizeof c->val);
@@ -1034,6 +1054,8 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (!stp_is_lane(r))
         page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
 #if DL_UI
+    else if (lane_acc())
+        acc_turn(k, s, fine);                           /* (the ACCENT lane's page: its amount, card 1) */
     else
         page_turn(&STEP_LANE_PG, k, s, fine);           /* (the selected lane's) */
 #endif
@@ -1098,8 +1120,8 @@ static void step_played(uint32_t notes)
     if (ui.scr != SCR_STEP || !is_drum(TSEL))
         return;
     for (k = 0; k < 27u; k++)
-        if (((notes >> k) & 1u) && punch_key(k) >= 0)
-            lane_pick_from(lane_of_key(k), 1);         /* (the key: it sounded stopped, silent playing) */
+        if (((notes >> k) & 1u) && lane_key(k))
+            lane_pick_from(lane_of(k), 1);             /* (the key: it sounded stopped, silent playing; key 1: the ACCENT lane) */
 }
 
 /* ---- STEP's lines (no footer: the header's pick, the held step under the grid), in sentence case: the step held

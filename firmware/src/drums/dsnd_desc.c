@@ -8,8 +8,8 @@
  * section 7). The Optimist UI's pick (HOME held + a drum key) sets it; its mixer, SOUND rows (and STEP, later)
  * show and edit that lane. SLOOP's UI keeps its own: the lane played last (seq.c pen_lane) */
 static uint8_t lane_sel;
-static uint32_t lane_selected(void) { return lane_sel & 15u; }
-static void lane_select(uint32_t l) { lane_sel = (uint8_t)(l & 15u); }
+static uint32_t lane_selected(void) { return lane_sel > DRUM_ACC ? 0u : lane_sel; }
+static void lane_select(uint32_t l) { lane_sel = (uint8_t)(l > DRUM_ACC ? l & 15u : l); }   /* (16: the ACCENT lane, no sound) */
 
 #define DL_UI DL_ANY
 #if DL_UI

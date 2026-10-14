@@ -3,7 +3,7 @@
  * algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual drum
  * lanes (if it makes sense)", "really the algo knob should select the track and drum sub track every where", "i want
  * uniformity"; "the preset on a drum lane should change the drum lane preset, not the kit").
- *   the walk   one walk, the same on every page and layer, the mixer's rows: MASTER, T1 T2 T3, DR, then the 16 lanes,
+ *   the walk   one walk, the same on every page and layer, the mixer's rows: MASTER, T1 T2 T3, DR, then the 16 lanes and the ACCENT lane,
  *              stopping at both ends. MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
  *              any other page the master FX screen (SCR_FX), which turned right goes back to the page it was left
  *              from (SCOPE is the exception: MASTER is its source, ui.master, and it stays). A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
@@ -153,7 +153,7 @@ static void ls_set(uint32_t l, uint32_t i)
 /* PRESETS acts on the lane's own sound: a lane selected whose source is not KIT (KIT: the kit, as on DR) */
 static int lane_presets(void)
 {
-    return lane_picked() && dl.src[lane_selected()] != DL_KIT;
+    return lane_picked() && lane_snd() && dl.src[lane_selected()] != DL_KIT;   /* (the ACCENT lane has no sound: PRESETS the kit) */
 }
 static void lane_sound_step(int32_t s)                  /* PRESETS on a lane: the next / previous source, round */
 {

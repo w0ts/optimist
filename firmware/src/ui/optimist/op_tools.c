@@ -585,8 +585,8 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 EUCLI
         if (is_drum(t)) {
             c->label = "LANE";
             c->kind = CK_RO;
-            str_cpy(c->val, LANE_SHORT[lane_selected()], sizeof c->val);
-            cell_gauge(c, 1, 0, DRUM_LANES - 1, (int32_t)lane_selected());
+            str_cpy(c->val, lane_short(lane_selected()), sizeof c->val);
+            cell_gauge(c, 1, 0, (int32_t)DRUM_UILANES - 1, (int32_t)lane_selected());
         }
         return;
     }
@@ -618,7 +618,7 @@ static int tl_yes(uint32_t pg, uint32_t k)
     uint32_t len = trk_len(t), i, n = 0, nl;
     int32_t lane = tl_lane();
     char b[24];
-    const char *who = lane >= 0 ? LANE_NAME[lane] : trk_tag(song.sel), *what;
+    const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *what;
     if (pg)
         return 0;
     if (k == TL_LEN) {

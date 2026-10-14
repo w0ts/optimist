@@ -402,7 +402,7 @@ static void pages_keys_tests(void)
     tap(B_EDIT);
     press(B_HOME);
     frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15), "D10: the drum track's SOUND, HOME held: the 16 lanes dim, the selected one full");
+    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, HOME held: the 16 lanes (and key 1, ACCENT) dim, the selected one full");
     release(B_HOME);
     reset_ui();
     song.sel = 0;

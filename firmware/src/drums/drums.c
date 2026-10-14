@@ -146,6 +146,10 @@ static uint32_t lane_of_key(uint32_t k)
 static uint32_t key_of_lane(uint32_t l)
 {
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
+#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+    if (l == DRUM_ACC)
+        return DACC_KEY;                                    /* the ACCENT lane: black key 1 (the Optimist UI) */
+#endif
     return (l / 7u) * 12u + K[l % 7u];
 }
 

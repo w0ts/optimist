@@ -27,7 +27,7 @@
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
     const track_t *t = &trk[c % NTRK];
-    return is_drum(t) ? dstep_mask(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;
+    return is_drum(t) ? dstep_lanes(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;   /* (the ACCENT lane's steps too) */
 }
 
 /* the value of cell c as a form in x, y, w, h: on its colour; the empty part (off) a 1 px line along the foot, the
@@ -161,7 +161,7 @@ static void graph_lfo(uint16_t col)
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
     uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[P_LWAVE];
 #if LANE_LFO_UI
-    const dlfo_t *dc = is_drum(t) ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
+    const dlfo_t *dc = is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
     if (dc)
         ph = (uint32_t)dc->phase << 25, w = dc->wave;
 #endif
@@ -371,8 +371,13 @@ static void graph_lane_of(int kit)
 {
     uint32_t l = lane_selected();
     int32_t ny = GRAPH_H >= 58 ? 6 + (GRAPH_H - 58) / 2 : 6;     /* (a taller picture: the name and kit in the middle) */
-    const char *sub = kit ? drum_kit_style() : lane_sound_name(l);
-    cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : LANE_NAME[l], kit ? kit_col() : lane_col(l));
+    char acc[16] = "+";                                 /* the ACCENT lane: no sound, it raises the hits by its amount */
+    const char *sub = kit ? drum_kit_style() : lane_snd() ? lane_sound_name(l) : acc;
+    if (!kit && !lane_snd()) {
+        fmt_int(acc + 1, TDRUM->p[P_DACC]);
+        str_cpy(acc + str_len(acc), " to the hits", sizeof acc - str_len(acc));
+    }
+    cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : lane_name(l), kit ? kit_col() : op_lane_col(l));
     if (GRAPH_H >= 58)
         cv_text(4, 40 + ny - 6, &FONT_S, sub, C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
@@ -387,7 +392,7 @@ static void graph_lane(void) { graph_lane_of(0); }
 #define DENV_W 232
 static void denv_head(uint32_t l, const char *right)
 {
-    cv_text(4, GR_TOP, &FONT_S, LANE_NAME[l], lane_col(l));
+    cv_text(4, GR_TOP, &FONT_S, lane_name(l), op_lane_col(l));
     cv_text(236 - text_w(&FONT_S, right), GR_TOP, &FONT_S, right, C_GRAY);
 }
 static void denv_time(uint32_t ms)
@@ -547,10 +552,11 @@ static uint32_t graph_sig(void)
 #if FELUCCA_INS_GATER
     h = h * 31u + (t->p[P_TGATE] > 0 ? igt_step(song.sel) + 1u : 0u);   /* (GATER's playhead) */
 #endif
-    h = h * 31u + drum_kit() + smp_user_gen * 131u + dl.src[lane_selected()];   /* (the lane's envelope: graph_denv) */
-    for (i = 0; i < DE_N; i++)
+    h = h * 31u + drum_kit() + smp_user_gen * 131u + (lane_snd() ? dl.src[lane_selected()] : 0u);   /* (the lane's envelope: graph_denv) */
+    for (i = 0; lane_snd() && i < DE_N; i++)
         h = h * 31u + (uint8_t)dl.ofs[lane_selected()][i];
-    h = h * 31u + dlfo_get(lane_selected())->wave * 128u + dlfo_get(lane_selected())->phase;   /* (a lane's LFO wave) */
+    if (lane_snd())
+        h = h * 31u + dlfo_get(lane_selected())->wave * 128u + dlfo_get(lane_selected())->phase;   /* (a lane's LFO wave) */
     return h;
 }
 static void draw_sound_graph(const page_t *pg)

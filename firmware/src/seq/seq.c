@@ -191,10 +191,6 @@ static int kb_raw(const track_t *t)
 /* key k on the drum track -> its lane: a white key's sound (drums.c lane_of_key); the Optimist UI with the ACCENT
  * lane and DACC_KEY_ON (the UI's switch: it shows the lane): its lowest black key (F#, key 1) is the ACCENT lane
  * (played: recorded, erased, rolled as a lane, no sound) */
-#define DACC_KEY 1u
-#ifndef DACC_KEY_ON
-#define DACC_KEY_ON 0
-#endif
 static uint32_t kb_drum_lane(uint32_t k)
 {
 #if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON

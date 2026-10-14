@@ -23,9 +23,9 @@ static void algo_mixer_tests(void)
     ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == MXR_MASTER;
     for (r = MXR_T1; r < MXR_N; r++)
         ok &= al_walk(1) == r;
-    ok &= al_walk(1) == MXR_N - 1u && lane_picked() && lane_selected() == DRUM_LANES - 1u;
-    check(ok, "walk, the mixer: MASTER, T1 .. DR, the 16 lanes, stopping at both ends");
-    ok = al_walk(-(int32_t)DRUM_LANES) == MXR_DR && !lane_picked() && song.sel == TRK_DRUM;
+    ok &= al_walk(1) == MXR_N - 1u && lane_picked() && lane_selected() == DRUM_UILANES - 1u;
+    check(ok, "walk, the mixer: MASTER, T1 .. DR, the 16 lanes and the ACCENT lane (built), stopping at both ends");
+    ok = al_walk(-(int32_t)DRUM_UILANES) == MXR_DR && !lane_picked() && song.sel == TRK_DRUM;
     check(ok, "... back to DR: DR itself selected (no lane)");
     reset_ui();
 }

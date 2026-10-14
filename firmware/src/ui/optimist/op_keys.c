@@ -19,7 +19,7 @@
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
  *   the mixer, HOME held  the 16 drum keys and the 4 black keys dim (the sequencer mutes: lanes, T1 T2 T3 DR), the muted full
- *   the lane pick         the drum track, HOME held (on STEP: SEQ): the 16 lanes dim, the selected one full
+ *   the lane pick         the drum track, HOME held (on STEP: SEQ): the 16 lanes and key 1 (ACCENT) dim, the selected one full
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
 {
@@ -187,7 +187,7 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         return;
     }
     if (keys_picking(fm1_in.buttons)) {
-        *d = keys_white(16);
+        *d = keys_white(16) | (ACC_UI ? 1u << DACC_KEY : 0u);   /* (and key 1, the ACCENT lane) */
         *f = 1u << key_of_lane(lane_selected());
     }
 }

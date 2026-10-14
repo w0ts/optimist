@@ -82,6 +82,23 @@ static int lane_presets(void);
 static void lane_kind_step(int32_t s);
 static const char *lane_sound_name(uint32_t l);
 
+/* The drum track's ACCENT lane (core.h DRUM_ACC, lane 16) as this UI shows it: a lane as the others (a row in the grid,
+ * the mixer and the walk, a key, a name), with no sound. lane_selected() is 0..DRUM_UILANES - 1; the per-lane SOUND
+ * arrays (dl.*, dsend, the 16 names) only know the 16 sounds, so every site that indexes them asks lane_snd() first.
+ * Black key 1 is its key where the build has it (core.h DACC_KEY_ON) */
+#define ACC_UI (FELUCCA_DRUM_ACCENT && DACC_KEY_ON)
+static int lane_acc(void) { return ACC_UI && lane_selected() == DRUM_ACC; }   /* the accent lane is the selected one */
+static int lane_snd(void) { return !lane_acc(); }                              /* the selected lane has a sound */
+static int lane_key(uint32_t k)                         /* key k plays / picks a lane: the 16 white keys and the accent key */
+{
+    return punch_key(k) >= 0 || (ACC_UI && k == DACC_KEY);
+}
+static uint32_t lane_of(uint32_t k) { return ACC_UI && k == DACC_KEY ? DRUM_ACC : lane_of_key(k); }   /* (lane_key keys only) */
+static const char *lane_name(uint32_t l) { return l == DRUM_ACC ? DACC_NAME : LANE_NAME[l % DRUM_LANES]; }
+static const char *lane_short(uint32_t l) { return l == DRUM_ACC ? DACC_SHORT : LANE_SHORT[l % DRUM_LANES]; }
+static const char *lane_code(uint32_t l) { return l == DRUM_ACC ? DACC_CODE : LANE_CODE[l % DRUM_LANES]; }
+static uint16_t op_lane_col(uint32_t l) { return l == DRUM_ACC ? C_HI : lane_col(l); }   /* (the accent: the bright tone, no kit kind) */
+
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within
  * HOLD + OP_TAP_GAP still counts as a tap (a slow click). The setting is main's shared one (core/hold.h hold_sel: 0 350 ms,

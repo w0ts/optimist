@@ -408,6 +408,13 @@ typedef struct {
 #undef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 0    /* (the lane is stored as events of the automation store: without it, none) */
 #endif
+/* the Optimist UI shows the ACCENT lane (FELUCCA_UI 1 with the lane built): DRUM_UILANES lanes in its grids, its mixer, its
+ * walk; black key 1 (F#, the lowest black key) is the lane's key (seq.c kb_drum_lane, drums.c key_of_lane, op_input.c) */
+#ifndef DACC_KEY_ON
+#define DACC_KEY_ON 1
+#endif
+#define DACC_KEY 1u
+#define DRUM_UILANES (DRUM_LANES + (uint32_t)(FELUCCA_DRUM_ACCENT != 0 && DACC_KEY_ON != 0))
 typedef struct {                 /* a step of the drum track (in RAM; stored: its first 10 bytes, a stored step's size) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */

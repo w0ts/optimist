@@ -243,16 +243,24 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
     if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
         static const char *const L[2] = {"KIT", "LANE"};
         if (k == 2u) {                                  /* the lane's SRC (the user, 2026-10-13); empty where a build has none */
-            page_cell(&LANE_SRC_PG, k, c);
+            if (lane_snd())                             /* (the ACCENT lane has no sound: no SRC) */
+                page_cell(&LANE_SRC_PG, k, c);
+            return;
+        }
+        if (k == 3u) {                                  /* the ACCENT amount, next to the KIT (every lane: the track's own) */
+            if (ACC_UI)
+                acc_cell(c);
             return;
         }
         if (k > 1u)
             return;
         c->label = L[k];
         c->kind = k ? CK_RO : CK_VAL;                   /* (LANE: the selected lane, ALGORITHM's or HOME + a key's) */
-        str_cpy(c->val, k ? LANE_NAME[lane_selected()] : drum_kit_name(), sizeof c->val);
-        c->col = k ? lane_col(lane_selected()) : kit_col();
-        cell_gauge(c, 1, 0, k ? DRUM_LANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
+        str_cpy(c->val, k ? lane_name(lane_selected()) : drum_kit_name(), sizeof c->val);
+        if (k && lane_acc())
+            c->hlp = "ACCENT LANE";                  /* (its help line: op_help.c, ctx INSERTS' key) */
+        c->col = k ? op_lane_col(lane_selected()) : kit_col();
+        cell_gauge(c, 1, 0, k ? (int32_t)DRUM_UILANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
                    (int32_t)drum_kit_pos());
         return;
     }
@@ -288,7 +296,13 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (is_drum(TSEL) && k == 2u) {                     /* the lane's SRC (page_turn: no reset to a default) */
-        page_turn(&LANE_SRC_PG, k, s, fine);
+        if (lane_snd())
+            page_turn(&LANE_SRC_PG, k, s, fine);
+        return;
+    }
+    if (is_drum(TSEL) && k == 3u) {                     /* the ACCENT amount */
+        if (ACC_UI)
+            acc_turn(k, s, fine);
         return;
     }
     if (s == OP_RESET)

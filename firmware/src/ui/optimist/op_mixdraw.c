@@ -38,6 +38,7 @@
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
 #define MXS_ROWS 8u                     /* SOUNDS: eight lanes a column, two columns */
+#define MXA_H 20                        /* ... and under them, the ACCENT lane's row across both (core.h DRUM_UILANES) */
 #define MXS_W 120
 #define MXS_VX 22                       /* a lane's steps and meter, from its cell's left */
 #define MXS_SP 6                        /* a step's pitch, its cell 5 */
@@ -75,8 +76,9 @@ typedef struct {
 
 static uint32_t mx_smuted(uint32_t r)                   /* row r's sequencer muted (seq_mute.c): its steps dimmed, a badge */
 {
-    return r == MXR_MASTER ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
+    return r == MXR_MASTER || mx_is_acc(r) ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
 }
+static uint32_t mx_lmuted(uint32_t r) { return r >= MXR_LANE0 && !mx_is_acc(r) && dlm_muted(r - MXR_LANE0); }   /* (the accent: no mute) */
 static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : MV_SOUNDS; }
 static void mx_view(void)                               /* the rows in view: the cursor's group */
 {
@@ -96,17 +98,20 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
         q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
         uint32_t l = r - MXR_LANE0, row = l % MXS_ROWS;
+        const int32_t ph = OP_PH - (ACC_UI ? MXA_H : 0);   /* (the 16 sounds above the ACCENT lane's row) */
         q->x = (int32_t)(l / MXS_ROWS) * MXS_W;
-        q->y = (int32_t)row * OP_PH / (int32_t)MXS_ROWS;
-        q->h = (int32_t)(row + 1u) * OP_PH / (int32_t)MXS_ROWS - q->y;
+        q->y = (int32_t)row * ph / (int32_t)MXS_ROWS;
+        q->h = (int32_t)(row + 1u) * ph / (int32_t)MXS_ROWS - q->y;
         q->w = MXS_W;
+        if (mx_is_acc(r))
+            q->x = 0, q->y = ph, q->h = MXA_H, q->w = 240;
         q->sx = MXS_VX, q->sy = MXS_SY, q->sp = MXS_SP, q->sh = MXS_SH;
         q->vx = MXS_VX, q->vy = MXS_VY, q->vw = MXS_VW, q->vh = MXS_VH;
     }
 }
 static const char *mx_code(uint32_t r)                  /* the row's code at its left */
 {
-    return r == MXR_MASTER ? "M" : r >= MXR_LANE0 ? LANE_CODE[r - MXR_LANE0] : trk_tag(mx_trk_of(r));
+    return r == MXR_MASTER ? "M" : r >= MXR_LANE0 ? lane_code(r - MXR_LANE0) : trk_tag(mx_trk_of(r));
 }
 /* the row's sound as two words: the engine (DRUMS for the drum track, MASTER, a lane's name) and the preset (the kit
  * for the drum track, a lane's own sound, a user preset's name); each cut to the room it has */
@@ -116,8 +121,9 @@ static void mx_names(uint32_t r, char *eng, char *pre)
     if (r == MXR_MASTER) {
         str_cpy(eng, "MASTER", 9);
     } else if (r >= MXR_LANE0) {
-        str_cpy(eng, LANE_NAME[r - MXR_LANE0], 9);
-        str_cpy(pre, lane_sound_name(r - MXR_LANE0), 14);
+        str_cpy(eng, lane_name(r - MXR_LANE0), 9);
+        if (!mx_is_acc(r))
+            str_cpy(pre, lane_sound_name(r - MXR_LANE0), 14);
     } else {
         uint32_t k = mx_trk_of(r);
         str_cpy(eng, is_drum(&trk[k]) ? "DRUMS" : ENGINES[trk[k].eng_req % NENGINES]->name, 9);
@@ -184,7 +190,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
     cv_text(q.x + 6, q.y + (i >= MXR_LANE0 ? 2 : MXL_TY), &FONT_S, mx_code(i),   /* (a muted lane: its code in the */
-            i >= MXR_LANE0 && dlm_muted(i - MXR_LANE0) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY
+            mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY
                                                           : i == mx_row() ? C_WHITE : c);   /* M badge's colour) */
     if (i < MXR_LANE0) {                                /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
@@ -209,7 +215,7 @@ static void mx_paint(void)                              /* the group in view (cv
         return;
     }
     if (mxd.first == MXR_LANE0)
-        cv_rect(MXS_W - 1, 0, 1, OP_PH, C_LINE);        /* (the two columns) */
+        cv_rect(MXS_W - 1, 0, 1, OP_PH - (ACC_UI ? MXA_H : 0), C_LINE);   /* (the two columns) */
     for (i = mxd.first; i < mxd.last; i++)
         mx_paint_row(i);
 }
@@ -220,7 +226,7 @@ static uint32_t mx_static_sig(void)
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
         if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
-            sig = hu(sig, (uint32_t)dlm_muted(i - MXR_LANE0) * 2u + mx_smuted(i));
+            sig = hu(sig, mx_lmuted(i) * 2u + mx_smuted(i));
             continue;
         }
         mx_names(i, en, pr);
@@ -265,6 +271,8 @@ static uint32_t mx_level(uint32_t r, const uint32_t *trk_lv)   /* row r's level 
 {
     if (r == MXR_MASTER)
         return mx_vu_lv(mx_master_pk());
+    if (mx_is_acc(r))
+        return 0u;                                      /* (no sound: no hits to light) */
     if (r >= MXR_LANE0)
         return MX_LV * mx.lit[r - MXR_LANE0] / 12u;
     return trk_lv[mx_trk_of(r)];

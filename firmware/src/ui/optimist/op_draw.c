@@ -114,7 +114,7 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     SCREENS[scr % SCR_N].name(row, r);
     if (scr == SCR_HOME && row % MXR_N != MXR_MASTER) { /* the mixer: the row's full name and the set, "SNARE LEVELS" */
         if (row % MXR_N >= MXR_LANE0)
-            str_cpy(t, LANE_SHORT[(row % MXR_N - MXR_LANE0) % DRUM_LANES], n);
+            str_cpy(t, lane_short(row % MXR_N - MXR_LANE0), n);
         else
             str_cpy(t, trk_tag(mx_trk_of(row % MXR_N)), n);
         for (k = 0; t[k]; k++)
@@ -184,7 +184,7 @@ static const char *head_engine(void)
     static char ln[8];
     uint32_t i;
     if (lane_picked()) {
-        const char *s = LANE_SHORT[lane_selected()];
+        const char *s = lane_acc() ? DACC_NAME : LANE_SHORT[lane_selected()];   /* (the ACCENT lane: "ACCENT") */
         for (i = 0; s[i] && i < sizeof ln - 1u; i++)
             ln[i] = (char)(s[i] >= 'a' && s[i] <= 'z' ? s[i] - 32 : s[i]);
         ln[i] = 0;
@@ -301,7 +301,7 @@ static void draw_head(void)
 {
     char t[32], c[32], r[16], bpm[8], pos[12];
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
-    uint16_t tc = lane_picked() ? lane_col(lane_selected()) : trk_col(song.sel), mc = C_HI;
+    uint16_t tc = lane_picked() ? op_lane_col(lane_selected()) : trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
     if (ui.scr == SCR_FX || ui.master                   /* MASTER: its badge in C_HI, as the mixer's M row; the mixer's */
         || (lay.shown == LY_PLAY && mx_on_master())) {  /* MASTER row too (no engine) */
@@ -337,7 +337,7 @@ static void draw_head(void)
     head_finish(t, pos, room);                          /* ("Sound ENV", "Tempo 1/6") */
     if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !ui.cards_t) {   /* STEP: the window, then the pick: */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
-            str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
+            str_cpy(c, lane_short(lane_selected()), sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
         else
             step_pick_name(c, sizeof c);
         str_cpy(t + str_len(t), " ", sizeof t - str_len(t));
