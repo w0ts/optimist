@@ -698,7 +698,7 @@ An engine of its own (engine 13; a build without it plays a CZ track on PHASE an
 
 **HOME held > MENU > BRIGHT**: the screen's backlight, 1 (dim) to 8 (full, as before). **EXPERIMENTAL, off by default, untested on a real FM-1.** On X0X, the same backlight PWM froze an FM-1 at its lowest level, and because the level was saved it froze again at every start until the firmware was reinstalled (X0X issue #2; the cause is unknown). So here the screen starts at full brightness at every power-on and reset (the level is not kept), and the lowest step is 4/16 instead of 1/16. Ported from X0X by Charles Vestal (GPL-3.0).
 
-### Delay time on the beat (`FELUCCA_DLY_HALVE`, on by default)
+### Delay time on the beat (always built)
 
 A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM in builds with the short line) plays at half its length, then half again, which stays on the beat; before, it was cut to the line's length. After X0X by Charles Vestal (GPL-3.0).
 

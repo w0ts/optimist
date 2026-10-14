@@ -12,7 +12,6 @@
  *   FELUCCA_SPRING    REV/CHO > TYPE: a spring reverb                  Felucca 1.0 (727f272)
  *   FELUCCA_BASSPLUS  MASTER > BASS+: small-speaker bass               Felucca 1.0 (727f272)
  *   FELUCCA_BRIGHT    SYSTEM menu: the screen's backlight level         X0X (charlesvestal/fm1-x0x 61654ba)
- *   FELUCCA_DLY_HALVE a delay longer than the line halves (on beat)    X0X (charlesvestal/fm1-x0x 892a3b5)
  *   FELUCCA_MOTION    knob moves recorded per step                     Felucca 1.0 (727f272)
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
@@ -46,9 +45,6 @@
 #endif
 #ifndef FELUCCA_BRIGHT
 #define FELUCCA_BRIGHT 1         /* MENU > BRIGHT: the backlight, 1..8. EXPERIMENTAL: froze an FM-1 on X0X before the PA2 fix (bright.c); boots full */
-#endif
-#ifndef FELUCCA_DLY_HALVE
-#define FELUCCA_DLY_HALVE 1      /* a delay time longer than the line halves (on the beat) instead of being cut */
 #endif
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */

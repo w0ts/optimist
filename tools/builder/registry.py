@@ -39,6 +39,7 @@ RETIRED = {
     "TRS_NOISE": "TRS MIDI in past line noise (an FD at the reader) is always built (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6)",
     "BK_CHECK": "a restore always writes an object only if a load would take it (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6)",
     "LAYER_QUIET": "the knobs are always quiet as a layer button is let go (retired 2026-10-14: Felucca 1.0.2 db70550 #39, unchanged in 1.6 and SLOOP 2.6)",
+    "DLY_HALVE": "a delay time longer than the line always halves, on the beat (retired 2026-10-14: X0X 892a3b5, unchanged in X0X 1.0.6)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
@@ -46,7 +47,7 @@ RETIRED = {
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1}   # (each was its default in every profile)
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
@@ -340,7 +341,7 @@ _add("FX_DELAY", "FELUCCA_FX_DELAY", "delay send bus", F, 37,
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
-          "halved (see 'long delay times halve') or cut; shorter lines suit fast tempos only.")
+          "halved until it fits, so it stays on the beat; shorter lines suit fast tempos only.")
 _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "

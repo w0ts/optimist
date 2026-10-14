@@ -17,7 +17,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
-    "FELUCCA_DLY_HALVE": "long delay times halve to stay on the beat", "FELUCCA_MOTION": "motion recording (knobs per step)",
+    "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
@@ -63,9 +63,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
                       "of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: "
                       "always full brightness.",
-    "FELUCCA_DLY_HALVE": "A delay time longer than the delay line is halved (so it stays on the beat) instead of being "
-                         "cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as "
-                         "1/8). Costs 64 B of flash; off: the time is cut at the line's length.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
@@ -107,7 +104,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                         "beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so "
                         "SLOOP 2.4 projects load as they play there. Costs 172 B of flash.",
     "FELUCCA_DLY_DOT": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the "
-                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D (DLY_HALVE). Costs 28 B of flash.",
+                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
 }
 DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP 2.4, 2.5 or 2.6: Optimist never erases or writes over what SLOOP left that it cannot read: the"
@@ -192,13 +189,13 @@ DESC["FELUCCA_SEQTOOLS"] = (
     "ROT, live). On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
     "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash; nothing with "
     "SLOOP's UI.")
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
-    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74, "FELUCCA_DLY_HALVE": 75,
+    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74,   # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
     # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)
     # (109: FELUCCA_TRS_NOISE, retired 2026-10-14: always built; never reuse the bit)

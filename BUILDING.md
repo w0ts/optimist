@@ -405,7 +405,6 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_SPRING` | 0 | FX > REVERB > TYPE: ROOM or a spring reverb, after Felucca 1.0; +1.8 KB flash, +2.0 KB RAM (both reverb loops run from main RAM, 944 B of RAMTEXT freed) |
 | `FELUCCA_BASSPLUS` | 0 | MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker's bass as harmonics), after Felucca 1.0; +244 B flash, +288 B RAM |
 | `FELUCCA_BRIGHT` | 0 | EXPERIMENTAL, keep off: MENU > BRIGHT 1..8, the backlight by PWM, after X0X. On X0X a low level froze a real FM-1 and the saved level froze it again at every boot (X0X issue #2, c6f2bf6); here the screen always boots at full and never goes below 4/16, untested on hardware; +304 B flash |
-| `FELUCCA_DLY_HALVE` | 1 | a delay time longer than the line halves (on the beat) instead of being cut, after X0X; -60 B flash |
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |

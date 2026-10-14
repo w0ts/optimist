@@ -261,11 +261,10 @@ AINL uint32_t delay_samples(void)
 {
     uint32_t s = dly_samples((uint32_t)song.g[G_DTIME]);   /* (DLY_DOT: 1/8D, 1/16D; a too long one halves below:
                                                           * 1/8D -> 1/16D, still dotted, where 2.4 clamps) */
-#if FELUCCA_DLY_HALVE
     while (s >= DLY_LEN)
         s >>= 1;                                        /* longer than the line: half of it, still on the beat
-                                                         * (after X0X 892a3b5); cutting it short is not */
-#endif
+                                                         * (X0X 892a3b5 by Charles Vestal, GPL-3.0-only, unchanged
+                                                         * in X0X 1.0.6); cutting it short is not */
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 

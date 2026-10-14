@@ -203,34 +203,6 @@
       "warning": true
     },
     {
-      "switch": "FELUCCA_DLY_HALVE",
-      "title": "A delay time longer than the line halves (stays on the beat) instead of being cut",
-      "default": 1,
-      "group": "fx",
-      "source": {
-        "repo": "https://github.com/charlesvestal/fm1-x0x",
-        "commit": "892a3b5 (Delay: a time longer than the line halves instead of being cut short)",
-        "author": "Charles Vestal",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/dsp/fxbus.c (while (ms > max_ms) ms *= 0.5f)"
-      },
-      "files": [
-        "hook: fx.c delay_samples"
-      ],
-      "cost": {
-        "flash": -60,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": -60,
-        "cpu": "per block: a shift loop only when the time is longer than the line",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "matters with FELUCCA_DLY_LEN=32768 (0.74 s line): 1/4 below 81 BPM plays 1/8",
-      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; a few lines in the delay's time, host-tested (1/4 at 40 BPM plays 1/8).",
-      "warning": true
-    },
-    {
       "switch": "FELUCCA_MOTION",
       "title": "Motion recording: knob moves recorded per step (SEQ > MOTION)",
       "default": 0,
