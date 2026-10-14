@@ -414,12 +414,23 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 #define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
 #endif
 
-/* LFO DEST's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): E1 .. E8 the selected part's engine's own name for
+static uint32_t ins_amt(uint32_t k, uint32_t s);     /* (fx_slots.c, included below) */
+/* LFO DEST's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): INS1 INS2 the type the selected track's slot S1 / S2
+ * holds, named as INSERTS does ("FILT", "DST"; empty: "S1 --"); E1 .. E8 the selected part's engine's own name for
  * that EDIT value ("E1" when it names none); XRATE XAMT the other LFO's: "L2 RT" on LFO's DEST, "L1 AMT" on LFO 2's */
 static void lt_text(const param_desc_t *d, int32_t v, char *val)
 {
     const char *s = N_LT[v];
-    if (v > LT_E8 && v < LT_XRATE) {                  /* (the sends, the inserts' amounts: their own names) */
+    if (v == LT_INS1 || v == LT_INS2) {               /* the insert the selected track's slot holds, as INSERTS names it */
+        uint32_t id = ins_amt((uint32_t)(TSEL - trk), (uint32_t)(v - LT_INS1));
+        if (id < P_COUNT) {
+            str_cpy(val, TP[id].label, 7);
+            return;
+        }
+        str_cpy(val, v == LT_INS1 ? "S1 --" : "S2 --", 7);   /* (empty: INSERTS' ---- with the slot) */
+        return;
+    }
+    if (v > LT_E8 && v < LT_XRATE) {                  /* (the sends: their own names) */
         str_cpy(val, s, 7);
         return;
     }

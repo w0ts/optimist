@@ -77,7 +77,7 @@ static void t_params(void)
     param_format(&TP[P_L2DA], LT_REV, v, &u);         /* (phase 2: the sends, the inserts' amounts by their names) */
     ok &= !strcmp(v, "REV");
     param_format(&TP[P_L2DB], LT_INS1, v, &u);
-    ok &= !strcmp(v, "INS1");
+    ok &= !strcmp(v, ins_amt(song.sel, 0) < P_COUNT ? TP[ins_amt(song.sel, 0)].label : "S1 --");   /* (the slot's type) */
     param_format(&TP[P_L2TRIG], 1, v, &u);
     ok &= !strcmp(v, "FREE");
     param_format(&TP[P_L2POL], 1, v, &u);

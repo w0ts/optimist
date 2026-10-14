@@ -376,6 +376,8 @@ job; ( jobin
     run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), XRATE XAMT bounded, macros, old locks" "$OUT/lfo_slots_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
+    run "LFO DEST's INS1 / INS2 named by every insert type built (FILT COMP FOLD ... ECHO), empty, swapped" "$OUT/lfo_slots_test_ins"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -DFELUCCA_LFO2=1 -o "$OUT/sl26_import_test_lfo2" tests/sl26_import_test.c -lm
     run "SLOOP 2.6 import with LFO 2: its LFO's TRIG FREE / POL UNI onto LFO 2; LFO 2 exported as 2.4's LFO, else lost (bit 9)" "$OUT/sl26_import_test_lfo2"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/regress_lfo2" tests/regress.c -lm
