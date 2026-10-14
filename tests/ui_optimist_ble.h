@@ -296,7 +296,7 @@ static void ble_dev_tests(void)
     ui.force = 1;
     frames(3);
     dev_screen("opt-ble-devices-2x2");
-    check(px_in(0, (uint32_t)OP_PY, 236, 19, trk_col(song.sel)), "devices: the list under the 2x2 cards, the cursor bar drawn");
+    check(px_in(0, (uint32_t)OP_PY, 236, 19, cur_bg(trk_col(song.sel))), "devices: the list under the 2x2 cards, the cursor bar (a dark tint) drawn");
     frames(2);
     tap(B_HOME);
     check(!dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == sys_row && !ble_devs_open && blefk.want == 0u,

@@ -3,6 +3,9 @@
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
+/* the cursor row's background: 3/8 (37.5%) of the line's colour over black, each 565 field scaled on its own (a colour's
+ * red, green, blue shift apart, no borrow between them); the row's text is white (docs/UI-OPTIMIST-DESIGN.md look) */
+static uint16_t cur_bg(uint16_t c) { return col_shade(c, 3u); }
 enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
                                             "SCOPE", "GLOBAL"};

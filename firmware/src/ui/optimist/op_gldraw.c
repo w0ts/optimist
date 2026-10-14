@@ -66,27 +66,27 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ph = gl_pitch(), ty, by;
     uint32_t tog = gl_tog(c);                           /* on / off: the mark, no bar */
     uint32_t bar = c->kind != CK_ACT && c->gk != GK_NONE && !tog;
-    uint16_t ink = on ? C_BLACK : vc;
+    uint16_t bg = cur_bg(knob_col(k, gld.bar)), ink = on ? C_WHITE : vc;
     ty = gl_ty(y, GL_BH);                               /* (the text, then the bar, centred in the line) */
     by = gl_by(y);
     m[0] = (char)('1' + k);
     m[1] = 0;
     if (on)
-        cv_rect(0, y, 240, ph - 2, gld.bar);
-    cv_text(6, ty, &FONT_S, m, on ? C_BLACK : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
-    cv_text(24, ty, &FONT_S, cut(b, op_label(b, c->label ? c->label : "", sizeof b), 12), on ? C_BLACK : C_GRAY);
+        cv_rect(0, y, 240, ph - 2, bg);
+    cv_text(6, ty, &FONT_S, m, on ? C_WHITE : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
+    cv_text(24, ty, &FONT_S, cut(b, op_label(b, c->label ? c->label : "", sizeof b), 12), on ? C_WHITE : C_GRAY);
     cut(b, v, 13);
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - (uw ? 4 : 0) - text_w(&FONT_S, b);   /* (a unit: 4 px after the value) */
     cv_text(x, ty, &FONT_S, b, ink);
     if (uw)
-        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? C_BLACK : C_DIM);
+        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? C_WHITE : C_DIM);
     if (tog)
-        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, on ? gld.bar : C_BLACK);
+        gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), vc, on ? bg : C_BLACK);
     else if (bar) {
         cell_t g = *c;
         if (g.gk == GK_PILL)
             g.gk = GK_DOTS;                             /* (a two-way choice: two segments, the chosen one lit) */
-        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, on ? col_shade(gld.bar, 5u) : C_LINE);
+        draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, vc, on ? col_shade(vc, 5u) : C_LINE);
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, a bar
