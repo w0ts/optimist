@@ -167,8 +167,8 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
     fm6_name(nm, f6_ed());
     fm6_row_name(f6.row, pg);
     f6_alg_draw(0, F6_MAP_Y - 18, 1);
-    cv_text(4, F6_MAP_Y - 17, &FONT_S, op_case(c, nm, sizeof c), C_WHITE);   /* the voice, the page */
-    op_case(c, pg, sizeof c);
+    cv_text(4, F6_MAP_Y - 17, &FONT_S, nm, C_WHITE);   /* the voice (its name as stored), the page (the names table's) */
+    nm_title(pg, c, sizeof c);
     cv_text(236 - text_w(&FONT_S, c), F6_MAP_Y - 17, &FONT_S, c, C_GRAY);
     for (i = 0; i < 10u; i++) {
         uint32_t on = (KT[i] < 6u && kd == 0u && KT[i] == f6.target) || (KT[i] == FMT_PIT && kd == 1u) ||

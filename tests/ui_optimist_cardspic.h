@@ -91,7 +91,11 @@ static void cards_pic_tests(void)
             for (r = 0; r < n && ok; r++) {
                 ui.row[SCR_SOUND] = (uint8_t)r;
                 cp_draw();
-                ok &= (uint32_t)(lst.pic ? lst.shown == 0u && gr_h == OH_BODY && cp_pos(rn) : cp_list());
+                {
+                    uint32_t at, fn;                    /* (the n/N: the row's family's; a family of one: none) */
+                    snd_fam_pos(r, &at, &fn);
+                    ok &= (uint32_t)(lst.pic ? lst.shown == 0u && gr_h == OH_BODY && (fn < 2u || cp_pos(rn)) : cp_list());
+                }
                 pics += lst.pic != 0u;
                 lists += lst.pic == 0u;
                 SCR->name(r, rn);

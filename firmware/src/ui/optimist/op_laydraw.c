@@ -51,6 +51,8 @@ static void lay_cell(uint32_t k, cell_t *c)
         c->label = LAB[l][k & 3u] ? LAB[l][k & 3u] : c->label;
         if (l == LY_MIX)
             c->col = trk_col(k);
+        if (l == LY_FX && k == 3u)
+            c->unit = trk_tag(song.sel);                /* (the track's FILTER beside the master's: its track in the unit's place) */
         return;
     }
     if (l == LY_ERASE) {

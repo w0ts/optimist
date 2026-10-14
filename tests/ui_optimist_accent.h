@@ -327,7 +327,7 @@ static void acc_step_tests(void)
     {
         char nm[12];
         step_name(STP_LANE0, nm);
-        check(!strcmp(nm, "ACCNT"), "... the page is named after the lane");
+        check(!strcmp(nm, "ACCENT"), "... the page is named after the lane");
     }
     reset_ui();
     memset(t->dstep, 0, sizeof t->dstep);
@@ -371,12 +371,12 @@ static void acc_walk_tests(void)
     mix_cell(MXR_ACC, 0, &c);
     ok &= c.label && !strcmp(c.label, "MUTE");           /* (the lane's sequencer mute: smute_toggle(SMUTE_ACC)) */
     mix_cell(MXR_ACC, 1, &c);
-    ok &= c.label && !strcmp(c.label, "LEVEL") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
+    ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
     mix_cell(MXR_ACC, 2, &c);
     ok &= !c.label || !c.label[0];
     mix_cell(MXR_ACC, 3, &c);
     ok &= !c.label || !c.label[0];
-    check(ok, "the mixer's ACCENT row: a lane's layout (MUTE, LEVEL = the amount), no CUT, sends or sound");
+    check(ok, "the mixer's ACCENT row: a lane's layout (MUTE, ACCENT = the amount), no CUT, sends or sound");
     check(mx_sets(MXR_ACC) == 1u, "... one set of cards");
     TDRUM->p[P_DACC] = DACC_DEF;
     turn(EN_K2, 4);

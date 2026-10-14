@@ -119,7 +119,7 @@ static const char *const LANE_CODE[DRUM_LANES] = {     /* 2 characters: the mixe
     "BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS", "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
 /* the ACCENT lane's names (core.h DRUM_ACC: lane 16, no sound; LANE_NAME / LANE_SHORT / LANE_CODE are the 16 sounds') */
 #define DACC_NAME "ACCENT"
-#define DACC_SHORT "accnt"
+#define DACC_SHORT "accent"
 #define DACC_CODE "AC"
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {

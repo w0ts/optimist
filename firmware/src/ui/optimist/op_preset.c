@@ -91,7 +91,7 @@ static void pre_draw(void)
     for (i = 0; i < 3u && total; i++) {
         uint32_t n = (cur + total + i - 1u) % total, e;
         int32_t y = y0 + p * (int32_t)i + 1 + (p - 19) / 2;     /* (2x2: the one playing alone, in the middle) */
-        char nm[16], b[16], en[10];
+        char nm[16], en[10];
         uint16_t ec;
         if ((total < 3u || GRAPH_H < 58) && i != 1u)
             continue;
@@ -101,7 +101,7 @@ static void pre_draw(void)
         if (i == 1u)
             cv_rect(0, y0 + p, 240, 1, C_LINE), cv_rect(0, y0 + 2 * p - 1, 240, 1, C_LINE);   /* (lined, on black) */
         cv_rect(4, y + 4, 8, 8, ec);                    /* the engine's chip */
-        cv_text(18, y, &FONT_S, op_case(b, nm, sizeof b), i == 1u ? C_WHITE : C_DIM);
+        cv_text(18, y, &FONT_S, nm, i == 1u ? C_WHITE : C_DIM);   /* (a preset's name as stored, never re-cased) */
         cv_text(236 - text_w(&FONT_S, en), y, &FONT_S, en, i == 1u ? ec : col_shade(ec, 3u));
     }
 }

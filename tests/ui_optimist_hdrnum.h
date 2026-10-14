@@ -16,30 +16,16 @@ static void hn_badge_is(uint32_t trk, const char *eng, const char *what)
 /* the header as drawn, preset shown? (the track's colour right of the badge and the title: nothing else there has it) */
 static int hn_preset_drawn(void)
 {
-    char t[32], pos[12], r[16], bpm[8], bt[24];
-    int32_t bw, tx;
+    head_t h;
     ui.sig[0] = 0;
     draw_head();
-    bw = text_w(&FONT_S, head_badge(bt, sizeof bt)) + 8;
-    tx = bw + 8;
-    pos[0] = 0;
-    if (lay.shown != LY_PLAY) {
-        lay_title(t, sizeof t);
-    } else {
-        head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
-        head_pos(ui.scr, ui.row[ui.scr], pos);
-    }
-    loop_pos(TSEL, r);
-    if (ui.scr == SCR_STEP)
-        r[0] = 0;
-    fmt_int(bpm, song.g[G_BPM]);
-    head_finish(t, pos, head_room(tx, bpm, r));
-    return px_in((uint32_t)(tx + text_w(&FONT_S, t) + 8), 4, 8, 16, trk_col(song.sel));
+    head_make(&h);
+    return px_in((uint32_t)(h.tx + text_w(&FONT_S, h.t) + 8), 4, 8, 16, trk_col(song.sel));
 }
 static void header_tracknum_tests(void)
 {
     uint32_t k, ok = 1, bad = 0, shown = 0, dropped = 0;
-    char t[32], pos[12], r[16], bpm[8];
+    char t[32], pos[12];
     reset_ui();
     frames(120);                                        /* (the track-name flash over) */
     op_enter(SCR_SOUND);
@@ -86,16 +72,12 @@ static void header_tracknum_tests(void)
         op_enter(SCR_SOUND);
         n = SCREENS[SCR_SOUND].rows();
         for (row = 0; row < n; row++) {
-            int32_t tx;
-            char bt[24];
+            head_t h;
             uint32_t pl;
             ui.row[SCR_SOUND] = (uint8_t)row;
-            head_title(SCR_SOUND, row, t, sizeof t);
-            head_pos(SCR_SOUND, row, pos);
-            loop_pos(TSEL, r);
-            fmt_int(bpm, song.g[G_BPM]);
-            tx = text_w(&FONT_S, head_badge(bt, sizeof bt)) + 16;
-            head_finish(t, pos, head_room(tx, bpm, r));
+            head_make(&h);
+            str_cpy(t, h.t, sizeof t);
+            str_cpy(pos, h.pos, sizeof pos);
             pl = str_len(pos);
             if (pl && (str_len(t) < pl || strcmp(t + str_len(t) - pl, pos))) {
                 printf("  T%u row %u: '%s' lost its n/N '%s'\n", k + 1u, row, t, pos);

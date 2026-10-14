@@ -216,8 +216,6 @@ static const char *op_case(char *b, const char *s, uint32_t n)
     b[i] = 0;
     return b;
 }
-/* a card's label: 5 characters or fewer stay as a panel legend (ATK, BPM, FILT); longer ones in sentence case */
-static const char *op_label(char *b, const char *s, uint32_t n) { return str_len(s) <= 5u ? s : op_case(b, s, n); }
 
 /* "T1".."T3", "DR": a track's short name */
 static const char *trk_tag(uint32_t i)
