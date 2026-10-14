@@ -15,9 +15,6 @@
  *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
  *   FELUCCA_GLIDE         part level, pan and sends, MASTER, the drum track's level, pan and lane sends glide over
  *                         ~10 ms (no zipper)                       X0X 0.10.1-beta (charlesvestal/fm1-x0x 49b1fc8)
- *   FELUCCA_KNOB_ONEREST  knobs: one rest state per detent (a full cycle), steps rounded to whole cycles, with our
- *                         X0X decoder (no two-scan filter): a pause mid-click no longer doubles every later click
- *                                                                  SLOOP 2.3 (Felucca 1.0 #23) + X0X b637df3
  *   FELUCCA_TRS_NOISE     TRS MIDI in: a received FD at the reader no longer stalls the jack until a restart
  *                                                          SLOOP 2.3 (Felucca [Salt] by ChanceTheMaker)
  *   FELUCCA_BK_CHECK      restore: each storage object checked at its commit as a load checks it, else refused
@@ -52,9 +49,6 @@
 #endif
 #ifndef FELUCCA_GLIDE
 #define FELUCCA_GLIDE 0          /* fx.c glide_next: mix_part, mix_finish (MASTER); drums.c drums_mix (dgl) */
-#endif
-#ifndef FELUCCA_KNOB_ONEREST
-#define FELUCCA_KNOB_ONEREST 1   /* hal/fm1_input.h fm1__frame (the knobs' detents) */
 #endif
 #ifndef FELUCCA_TRS_NOISE
 #define FELUCCA_TRS_NOISE 1      /* midi_uart.c uart_midi_peek: looks one slot past an FD at the reader */

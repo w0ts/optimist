@@ -415,7 +415,6 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_USB_FLOW` | 1 | SLOOP 2.3: USB MIDI in waits (NAK) instead of dropping when the ring is full; malformed events ignored; +272 B flash |
 | `FELUCCA_SHED_FADE` | 1 | SLOOP 2.3: on overload (two halves in a row) one voice fades at a time, never the bass or the lead; +96 B flash |
 | `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +32 B flash |
-| `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +304 B flash, +32 B RAM |
 | `FELUCCA_TRS_NOISE` | 1 | SLOOP 2.3 (after Felucca [Salt]): a received FD at the TRS MIDI reader no longer stalls the jack; +16 B flash |
 | `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +432 B flash |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |

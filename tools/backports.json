@@ -600,42 +600,6 @@
       "warning": true
     },
     {
-      "switch": "FELUCCA_KNOB_ONEREST",
-      "title": "Knobs: one rest state a detent (a full cycle), whole cycles counted; with our X0X decoder",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "d691ba7 (SLOOP 2.3)",
-        "author": "isod89, after Felucca 1.0 by Leo Kuroshita (#23)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/hal/fm1_input.h fm1__frame, tests/encoder_test.c"
-      },
-      "files": [
-        "firmware/hal/fm1_input.h fm1__frame",
-        "tests/encoder_onerest_test.c (SLOOP 2.3)"
-      ],
-      "cost": {
-        "flash": 304,
-        "ram": 32,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "none (the same decoder work)",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "an encoder whose detents are half cycles would count one step every two clicks (the FM-1 detent is a full cycle: Felucca 1.0, SLOOP 2.3, the emulator); parked ~1 s mid-click relearns that state (one click then lost)",
-      "notice": "Knob reading from SLOOP 2.3 by isod89 (Felucca 1.0, GPL-3.0), merged with X0X decoder by Charles Vestal (GPL-3.0).",
-      "warning": false,
-      "also": {
-        "repo": "https://github.com/charlesvestal/fm1-x0x",
-        "commit": "b637df3",
-        "author": "Charles Vestal",
-        "licence": "GPL-3.0-only",
-        "used": "kept: no two-scan filter, a skipped state continuing the turn (here only within 9 ms of the turn, or the way the click goes)"
-      }
-    },
-    {
       "switch": "FELUCCA_TRS_NOISE",
       "title": "TRS MIDI in: a received FD (line noise) where the reader stands no longer deafens the jack until a restart",
       "default": 1,
@@ -1411,9 +1375,9 @@
     {
       "what": "Knob reading",
       "theirs": "SLOOP 2.3 = Felucca 1.0's (#23): one rest state, whole cycles, a two-scan filter",
-      "ours": "Felucca 0.9's learner + X0X b637df3's decoder + Melodee's first-click fix + acceleration",
-      "verdict": "merged: FELUCCA_KNOB_ONEREST (their rest state, our decoder without the filter)",
-      "evidence": "commit f1794d1: each fails the other's test; the merge passes both and the stress cases"
+      "ours": "Felucca 1.6's decoder (hugelton/Felucca, unchanged since 1.1.5 276f72a #126): one rest state, no two-scan filter (X0X b637df3 first), a two-state jump from the detent the way of a click of the last 20 frames; plus acceleration (KNOB_ACCEL)",
+      "verdict": "taken whole, always built (2026-10-14): FELUCCA_KNOB_ONEREST retired, the 0.9 learner and Melodee's first-click fix gone with it",
+      "evidence": "tests/encoder_felucca_test.c (Felucca 1.6 #63 / #126 cases): our 0.9 learner path failed 80 of 720 fast turns and 20 slow bouncy ones; the merged ONEREST decoder and Felucca's pass all; encoder_onerest_test.c (SLOOP 2.3), encoder_fast_test.c (X0X) pass"
     }
   ]
 }

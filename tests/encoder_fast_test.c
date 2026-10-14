@@ -4,8 +4,8 @@
  * quadrature cycle per detent. A turn must count every detent whether the matrix scan sees each
  * state for 4 scans, 2 or 1, or skips every other state (a fast flick); a one-scan glitch at rest
  * must count nothing. (The scan runs every 1.1 ms: one scan a state is ~225 detents a second.)
- * Ported from X0X; added for SLOOP-plus: the same at one scan a state on an encoder whose detents
- * are half cycles (the learned 00/11 pair of Melodee's first-click fix), and every encoder. */
+ * Ported from X0X; added for SLOOP-plus: every encoder. (Its half-cycle case went with the 0.9 learner:
+ * Felucca 1.6's decoder has one rest state, an FM-1 detent being a full cycle.) */
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/hal/fm1_input.h"
@@ -87,23 +87,6 @@ int main(void)
         rest(0, 60);
         got = take();
         CHECK(got == 0, "a one-scan glitch at rest counted %d", got);
-#if !FELUCCA_KNOB_ONEREST                   /* (one rest state: a detent is a full cycle, by design) */
-        /* half-cycle detents (00 and 11 both rest states), learned by resting on each, then a
-         * fast turn at one scan a state: one step a half cycle */
-        reset();
-        frame(1);
-        rest(3, 60);
-        take();
-        for (d = 0; d < 5; d++) {
-            frame(2);
-            frame(0);
-            frame(1);
-            frame(3);
-        }
-        rest(3, 60);
-        got = take();
-        CHECK(got == 10, "10 half-cycle detents clockwise, one scan a state: %d", got);
-#endif
     }
     printf(fails ? "encoder (fast turns): %d FAILED\n" : "encoder (fast turns): ok\n", fails);
     return fails != 0;

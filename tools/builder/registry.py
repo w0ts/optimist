@@ -32,11 +32,13 @@ RETIRED = {
     "SIMD": "SIMD: wrong on the real FM-1, 2026-10-12 (the packed 16-bit sine and swarm maths crackle on the device, "
             "clean with it off); no longer offered while it is investigated, every build is built without it",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
+    "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
+                    "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0}
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1}   # (KNOB_ONEREST was default 1 everywhere)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
