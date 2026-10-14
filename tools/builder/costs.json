@@ -1042,7 +1042,7 @@
   },
   "BRIGHT": {
    "0": {
-    "flash": -152,
+    "flash": -168,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1353,7 +1353,7 @@
    }
   }
  },
- "measured": "2026-10-14 09:17",
+ "measured": "2026-10-14 10:05",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1410,7 +1410,7 @@
    },
    "built_hash": "607dcc8a",
    "sizes": {
-    "flash": 602036,
+    "flash": 602052,
     "ram": 61196,
     "pool": 340124,
     "ramtext": 34824
@@ -1573,7 +1573,7 @@
    },
    "built_hash": "79952091",
    "sizes": {
-    "flash": 534836,
+    "flash": 536244,
     "ram": 75640,
     "pool": 318444,
     "ramtext": 27584
@@ -1637,7 +1637,7 @@
    },
    "built_hash": "49ac1879",
    "sizes": {
-    "flash": 538908,
+    "flash": 538924,
     "ram": 58900,
     "pool": 314748,
     "ramtext": 32820
@@ -1783,7 +1783,7 @@
    },
    "built_hash": "2cb7bb07",
    "sizes": {
-    "flash": 611804,
+    "flash": 611820,
     "ram": 75020,
     "pool": 355196,
     "ramtext": 26212
@@ -1929,7 +1929,7 @@
    },
    "built_hash": "70423016",
    "sizes": {
-    "flash": 514432,
+    "flash": 515808,
     "ram": 74568,
     "pool": 317652,
     "ramtext": 27208
@@ -1995,7 +1995,7 @@
    },
    "built_hash": "7cf2fc7b",
    "sizes": {
-    "flash": 539172,
+    "flash": 539188,
     "ram": 60580,
     "pool": 314940,
     "ramtext": 31664
@@ -3430,7 +3430,7 @@
    "ramtext": -56
   },
   "UI=1,BRIGHT=0": {
-   "flash": 2688,
+   "flash": 4328,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
