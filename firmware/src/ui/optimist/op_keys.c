@@ -18,8 +18,10 @@
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
- *   the mixer, HOME held  the 16 drum keys and the 4 black keys dim (the sequencer mutes: lanes, T1 T2 T3 DR), the muted full
- *   the lane pick         the drum track, HOME held (on STEP: SEQ): the 16 lanes and key 1 (ACCENT) dim, the selected one full
+ *   the mixer, HOME held  the 16 drum keys, the 4 black keys and the last upper key dim (the sequencer mutes: lanes, T1 T2 T3 DR,
+ *                         ACCENT), the muted full
+ *   the lane pick         the drum track, HOME held (STEP too): the 16 lanes and the last upper key (ACCENT) dim, the selected one full
+ *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
 {
@@ -94,7 +96,7 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     uint32_t w, m = 0, len = trk_len(t);
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
-        if (idx < len && !step_has(t, idx))
+        if (idx < len && !step_shown(t, idx))
             m |= 1u << key_of_lane(w);
     }
     return m;
@@ -107,8 +109,7 @@ static int keys_muting(uint32_t held)
 }
 static int keys_picking(uint32_t held)                  /* the lane pick's modifier held past the hold time */
 {
-    uint32_t b = ui.scr == SCR_STEP ? B_SEQ : B_HOME;
-    return pick_mod(held) && fm1_ms - op_t0[panel.btn[b] % 14u] >= op_hold_ms();
+    return pick_mod(held) && fm1_ms - op_t0[panel.btn[B_HOME] % 14u] >= op_hold_ms();
 }
 /* the keys' full (*f) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
 static void keys_lit(uint32_t *f, uint32_t *d)
@@ -165,7 +166,7 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
         return;
     }
-    if (ui.scr == SCR_STEP) {
+    if (ui.scr == SCR_STEP && !keys_picking(fm1_in.buttons)) {   /* (HOME held on the drum track: the lanes, below) */
         *f = step_leds(blink);
         *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;
         return;
@@ -183,11 +184,12 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         *d = keys_white(16);
         for (i = 0; i < 4u; i++)
             *d |= 1u << BLACK_KEY[i];
+        *d |= ACC_UI ? 1u << DACC_KEY : 0u;             /* (the last upper key: the ACCENT lane's mute) */
         *f = smute_keys_lit();
         return;
     }
     if (keys_picking(fm1_in.buttons)) {
-        *d = keys_white(16) | (ACC_UI ? 1u << DACC_KEY : 0u);   /* (and key 1, the ACCENT lane) */
+        *d = keys_white(16) | (ACC_UI ? 1u << DACC_KEY : 0u);   /* (and the last upper key, the ACCENT lane) */
         *f = 1u << key_of_lane(lane_selected());
     }
 }

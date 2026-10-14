@@ -20,9 +20,12 @@
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
  *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
  *                         family's next page, past the last the first
- *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance)
- *   SEQ held + keys       the pick: the keys play (ly_lock is let go while SEQ is down); a drum key picks the lane
- *                         (lane_sel), a synth's notes become the next steps' (the core's pen: seq.c key_down)
+ *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance);
+ *                         a step held, HOME tapped: the same (held_clear). Drum track: SEQ + a step clears it,
+ *                         HOME + a key is the pick below
+ *   HOME held + keys      the drum track's pick: the keys play (ly_lock is let go while HOME is down, the sound only
+ *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
+ *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
  * With no step held the cards are the drum lane's LEVEL TUNE DECAY REV (SELECT the lane) or the synth track's
  * PATTERN and ARP rows. Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
@@ -57,10 +60,18 @@ static void step_clear(step_t *s)
 }
 static uint32_t step_pages(const track_t *t) { return (trk_len(t) + 15u) / 16u; }
 
-/* the keys are steps now: STEP shown, not toggled to playing, SEQ not held (the pick) */
+/* the drum track's lane pick on STEP: HOME held, no step held (a step held + HOME is the clear), as on every page */
+static int step_pick(uint32_t held)
+{
+    return ui.scr == SCR_STEP && is_drum(TSEL) && (held & (1u << panel.btn[B_HOME])) && !st.held;
+}
+/* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
+ * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
 static int step_keys(uint32_t held)
 {
-    return ui.scr == SCR_STEP && !st.play && !(held & (1u << panel.btn[B_SEQ]));
+    if (ui.scr != SCR_STEP || st.play)
+        return 0;
+    return is_drum(TSEL) ? !step_pick(held) : !(held & (1u << panel.btn[B_SEQ]));
 }
 
 /* ---- the window */
@@ -240,6 +251,13 @@ static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it:
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
 }
+/* the keys' view of a step: the selected lane's hit; the drum track with SEQ held (SEQ + a key clears the whole step): any lane's */
+static int step_shown(const track_t *t, uint32_t idx)
+{
+    if (is_drum(t) && (fm1_in.buttons & (1u << panel.btn[B_SEQ])))
+        return dstep_lanes(&t->dstep[idx]) != 0u;
+    return step_has(t, idx);
+}
 
 /* a step key down / up (seq.c lk_q, LY_STEP): white key w is step 16 page + w; black keys do nothing here */
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
@@ -281,7 +299,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
-    if (held & (1u << panel.btn[B_HOME])) {             /* HOME + the step: cleared, everything of it */
+    if (held & (1u << panel.btn[is_drum(t) ? B_SEQ : B_HOME])) {   /* the drum track's SEQ, a synth track's HOME + the step: cleared, everything of it */
         undo_mark(t, st.sess);
         fm1_irq_off();
         step_wipe(t, idx, 1);
@@ -1161,7 +1179,12 @@ static void step_foot(char *h, char *k, uint32_t n)
         return;
     }
     str_cpy(h, st.play ? "Seq steps  Home back" : "Seq play  Home back", n);
-    str_cpy(k, fm1_in.buttons & (1u << panel.btn[B_SEQ]) ? "Pick " : st.play ? "Keys play " : "Keys steps ", n);
+    if (is_drum(TSEL) && (fm1_in.buttons & (1u << panel.btn[B_SEQ])) && !st.play) {
+        str_cpy(k, "Keys clear steps", n);              /* (the drum track: SEQ + a key clears its step) */
+        return;
+    }
+    str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && (fm1_in.buttons & (1u << panel.btn[B_SEQ]))) ? "Pick "
+              : st.play ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_cpy(k + str_len(k), b, n - str_len(k));
 }
