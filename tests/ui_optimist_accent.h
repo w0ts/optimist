@@ -357,6 +357,7 @@ static void acc_walk_tests(void)
     smute_lane = 0;
     turn(EN_K1, 1);
     check(smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && !dlm_muted(0), "KNOB 1 (MUTE): the ACCENT lane's sequencer mute on");
+    frames(130);                                        /* (the help line, over the foot a while after a turn, gone) */
     ui.force = 1;
     frames(2);
     check(px_in(6, mx_row_y(MXR_ACC) + 2u, 30, 12, C_GRAY), "... the row drawn muted (its code grey)");
