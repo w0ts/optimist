@@ -6,8 +6,8 @@
  *                     track, the lanes' own sounds (dl: offsets, sources, samples; the sends), taken again whenever
  *                     the sound is another one (its engine, preset, user preset; the drum track's kit, user kit:
  *                     ed_tick, every frame, no hash) or the UI loads / saves it (snd_mark). Anything that replaces an
- *                     edited sound asks "Discard T2 edits?" first: PRESETS, HOME + PRESETS and the SOUND row's PRESET
- *                     and ENGINE (the same change as HOME + PRESETS), a lane's own sound, INIT, a user preset's LOAD. An unedited sound never asks, so
+ *                     edited sound asks "Discard T2 edits?" first: PRESETS, SHIFT + PRESETS and the SOUND row's PRESET
+ *                     and ENGINE (the same change as SHIFT + PRESETS), a lane's own sound, INIT, a user preset's LOAD. An unedited sound never asks, so
  *                     browsing a preset at a time goes on freely; after YES the new sound is unedited again
  *   the work          changed when the tracks, sounds, lanes and globals differ from when a scene or project was last
  *                     loaded, stored or made NEW (work_mark): a scene or project LOAD asks only then

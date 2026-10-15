@@ -18,9 +18,9 @@
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
- *   the mixer, HOME held  the 16 drum keys, the 4 black keys and the last upper key dim (the sequencer mutes: lanes, T1 T2 T3 DR,
+ *   the mixer, SHIFT held  the 16 drum keys, the 4 black keys and the last upper key dim (the sequencer mutes: lanes, T1 T2 T3 DR,
  *                         ACCENT), the muted full
- *   the lane pick         the drum track, HOME held (STEP too): the 16 lanes and the last upper key (ACCENT) dim, the selected one full
+ *   the lane pick         the drum track, SHIFT held (STEP too): the 16 lanes and the last upper key (ACCENT) dim, the selected one full
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
@@ -83,7 +83,7 @@ static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held
     for (k = 0; k < 27u; k++) {
         b = pat_black(k);
         if (b < 1u || b > 10u || (b >= 6u && b <= 8u))
-            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, HOME + n) */
+            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, SHIFT + n) */
         *d |= 1u << k;
         if (b == song.sel % NTRK + 1u || b == lay.pmod)
             *f |= 1u << k;
@@ -101,7 +101,7 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     }
     return m;
 }
-/* HOME held on the mixer, past the hold time: the sequencer mutes (seq_mute.c): the 16 drum keys and the 4 black keys
+/* SHIFT held on the mixer, past the hold time: the sequencer mutes (seq_mute.c): the 16 drum keys and the 4 black keys
  * dim, the muted full */
 static int keys_muting(uint32_t held)
 {
@@ -166,7 +166,7 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
         return;
     }
-    if (ui.scr == SCR_STEP && !keys_picking(fm1_in.buttons)) {   /* (HOME held on the drum track: the lanes, below) */
+    if (ui.scr == SCR_STEP && !keys_picking(fm1_in.buttons)) {   /* (SHIFT held on the drum track: the lanes, below) */
         *f = step_leds(blink);
         *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;
         return;

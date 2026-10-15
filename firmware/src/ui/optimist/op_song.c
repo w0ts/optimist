@@ -4,12 +4,12 @@
  *   SCENE A .. P  T1 T2 T3 DR: the pattern each track plays in it ("3", "KEEP", "-" none; a plain section "SEC");
  *                 the hot cell's KNOB edits its reference (PRESETS is the track's sound; stopped; written once it rests, pat.c pat_scene_ref_set);
  *                 YES launches it at the next bar (stopped: loads it); REC stores the loop into it (asked over a
- *                 used one); HOME + REC clears it (asked). The playing scene green, a queued one amber, "*": its
+ *                 used one); SHIFT + REC clears it (asked). The playing scene green, a queued one amber, "*": its
  *                 tracks changed since it was stored
  *   PATTERNS      T1 T2 T3 DR: each track's playing pattern, a turn cues its next / previous stored one; the panel
  *                 is the 4 x 16 session grid; while the cursor is here the keys launch the selected track's
  *                 patterns (the LFO layer's keys: seq.c ly_lock LY_PAT), SAVE held + key n stores the working copy
- *                 into slot n, HOME held + key n clears it (asked); REC: the working copy into the first free slot
+ *                 into slot n, SHIFT held + key n clears it (asked); REC: the working copy into the first free slot
  *   MODE          LOOP / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash; also when SONG is left)
  *   PART 1 .. 64  the chain: SCENE, BARS, INSERT (a copy after it), DELETE; edited stopped; the part playing white
  * MODE comes before the parts so that it is not 64 rows down. Without PATTERNS a scene row says STORED / EMPTY. */

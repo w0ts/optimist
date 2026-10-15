@@ -11,13 +11,13 @@
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE; OCT- / OCT+ undo / redo
  *   LFO   the patterns (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's pattern n at
  *         its end (OCT- held: the next bar, OCT+ held: now), the black keys 1-4 the track, 5 stop, 9 duplicate, 10 + n a
- *         scene; LFO held, then SAVE + n stores the working pattern into slot n (asked over a used one), HOME + n clears
+ *         scene; LFO held, then SAVE + n stores the working pattern into slot n (asked over a used one), SHIFT + n clears
  *         it (asked); COPY = launch the source, then SAVE + the target; its cards show each track's pattern. KNOB: none,
  *         LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen under it, fine (LEN by one)
  *   SAVE  1-16 scene A-P at the next bar (stopped: loaded; an 8-section build 1-8), REC tapped SONG REC, REC held +
- *         n store the loop into n, HOME held + n clear n, PLAY the song from the start, two taps or more held a
+ *         n store the loop into n, SHIFT held + n clear n, PLAY the song from the start, two taps or more held a
  *         quick chain (QCHAIN)
- * Lock a layer: HOME + its button in either order (the layer held then HOME, or HOME held then the button): it
+ * Lock a layer: SHIFT + its button in either order (the layer held then SHIFT, or SHIFT held then the button): it
  * stays with the button let go; any button but PLAY, REC and OCT lets it go (and does only that). The logic of the
  * keys and knobs is SLOOP's (ui/sloop/ui_layers.c, ui_pat.c), copied: nothing in ui/sloop is called. */
 #define LAY_SHOW_MS op_hold_ms()        /* a layer shows after this (a click does not flash it: SYSTEM HOLD, op_state.c) */
@@ -67,7 +67,7 @@ static struct {
     uint32_t tap_ms[4];
 #if FELUCCA_PATTERNS
     uint8_t pmod;                       /* LFO: the black key held (10 scene), 0 none */
-    uint8_t hlock, pclr;                /* HOME + LFO pressed: the lock waits for the release, a cleared slot cancels it */
+    uint8_t hlock, pclr;                /* SHIFT + LFO pressed: the lock waits for the release, a cleared slot cancels it */
     uint32_t pchg_ms, pchg;             /* the patterns changed since their source ("*"), twice a second */
 #endif
 #if FELUCCA_QCHAIN
@@ -373,7 +373,7 @@ static void scene_store(uint32_t s)                     /* REC + a scene: asked 
     else
         scene_store_now(s);
 }
-static void scene_clear_ask(uint32_t s)                 /* HOME + a scene */
+static void scene_clear_ask(uint32_t s)                 /* SHIFT + a scene */
 {
     char b[8];
     scene_tag(b, s);
@@ -528,7 +528,7 @@ static void pat_layer_key(uint32_t k, int32_t w)
         return;
     }
     if (b >= 6u && b <= 8u)
-        return;                                         /* (store, copy and clear were modifiers: now SAVE + n, HOME + n, the user 2026-10-13) */
+        return;                                         /* (store, copy and clear were modifiers: now SAVE + n, SHIFT + n, the user 2026-10-13) */
     if (b == 9u) {                                      /* DUPLICATE: into the first free slot */
         s = pat_free(t);
         pat_name(nm, t, s);
@@ -619,7 +619,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     lay.used = 1;
-    lay.chord = 0;                                      /* (SAVE + HOME + a key: a clear, not an undo) */
+    lay.chord = 0;                                      /* (SAVE + SHIFT + a key: a clear, not an undo) */
     switch (layer) {
     case LY_SCALE:
         scl_key(k);
@@ -651,7 +651,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
                 pat_clear_ask(song.sel % NTRK, (uint32_t)w);
             break;
         }
-        pat_layer_key(k, w);                            /* (the layer: HOME + n clears slot n too) */
+        pat_layer_key(k, w);                            /* (the layer: SHIFT + n clears slot n too) */
         break;
 #endif
     default:

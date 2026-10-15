@@ -276,7 +276,9 @@ AINL int32_t rt_amt(uint32_t j) { return fxs_ramt[fxs_rsl[j % 3u] % FX_NSLOT]; }
  * heard: D7); 0xFF none. The default: DST CHO DLY REV, SLOOP's page as it was */
 static uint32_t fxs_lane_id(uint32_t k)
 {
-    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20};   /* (by type: NONE DIST CHO DLY REV COMP; the rest none) */
+    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
+                                                        * CHO DLY REV COMP FILT, the further inserts, EQ3 too: none) */
+    _Static_assert(sizeof LID == FXT_N, "LID: one entry per FX type (a new type needs its entry, 0xFF: none)");
     uint32_t i, n = 0;
     if (FELUCCA_FX_DIST && n++ == (k & 3u))
         return 19u;

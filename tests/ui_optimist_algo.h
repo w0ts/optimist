@@ -4,7 +4,7 @@
  *   drum lanes (if it makes sense)", then "i want uniformity": one walk, the mixer's order MASTER T1 T2 T3 DR and the
  *   16 lanes, the same on every page and layer
  *   "the preset on a drum lane should change the drum lane preset, not the kit": PRESETS on DR the kit; on a lane with
- *   SRC KIT the kit too, on a lane on an instrument that lane's sound only; HOME + PRESETS the same split
+ *   SRC KIT the kit too, on a lane on an instrument that lane's sound only; SHIFT + PRESETS the same split
  *   ARP "is the same as lfo/env. no list": its picture is never blank, the arp off or notes held
  * Included after ui_optimist_glo.h. */
 static uint32_t al_walk(int32_t d)                      /* ALGORITHM d detents, then where the walk is (a mixer row) */
@@ -147,7 +147,7 @@ static void algo_every_tests(void)
     ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_PAT && lane_selected() == 3u;
     ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == STP_PAT && !lane_picked();
     check(ok, "STEP, the drum view: the walk into the lanes and back to DR; the page stays (SELECT's), the lane is previewed");
-    /* HOME + a key: a lane straight away, on any page */
+    /* SHIFT + a key: a lane straight away, on any page */
     reset_ui();
     song.sel = 0;
     op_enter(SCR_SOUND);
@@ -160,12 +160,12 @@ static void algo_every_tests(void)
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
-    check(ok, "HOME + a drum key on SOUND: that lane selected, the walk on from it");
+    check(ok, "SHIFT + a drum key on SOUND: that lane selected, the walk on from it");
     song.sel = 0;
     reset_ui();
 }
 /* PRESETS: DR the kit; a lane by its SOURCE (the user, 2026-10-12: "if Slot=kit. preset knob changes the preset kit, if
- * Slot=something else preset changes the preset for the drum lane"); HOME + PRESETS the same split */
+ * Slot=something else preset changes the preset for the drum lane"); SHIFT + PRESETS the same split */
 static uint32_t al_first_own(uint32_t l)                /* the first SOURCE entry of lane l that is its own sound */
 {
     uint32_t i, n = ls_count(l);
@@ -206,7 +206,7 @@ static void algo_presets_tests(void)
     turn(EN_PRESET, 1);
     fm1_in.buttons &= ~BT(B_OCTDN);
     frames(2);
-    check(drum_kit_pos() != kit && !memcmp(src, dl.src, sizeof src), "HOME + PRESETS on a lane with SRC KIT: the kits, as on DR");
+    check(drum_kit_pos() != kit && !memcmp(src, dl.src, sizeof src), "SHIFT + PRESETS on a lane with SRC KIT: the kits, as on DR");
     TDRUM->p[P_E0] = (int16_t)kit;                      /* (the kit back: kit was a factory kit) */
     frame();
     turn(EN_ALGO, -1);                                  /* lane 3: the snare, on an instrument */
@@ -239,7 +239,7 @@ static void algo_presets_tests(void)
     ok = k1 != k0 && dl.src[2] != DL_KIT && drum_kit_pos() == kit;
     for (i = 0; i < ls_cur(2, n); i++)
         ok &= !ls_ok(i) || ls_kind(i) != k1;           /* (the kind's first sound) */
-    check(ok, "HOME + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
+    check(ok, "SHIFT + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
     check(ui.scr == SCR_SOUND, "... HOME let go: no NO (the screen stays)");
     /* the mixer's lane rows: the same */
     memset(&dl, 0, sizeof dl);

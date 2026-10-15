@@ -18,12 +18,12 @@
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
- *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
+ *                         the hot cell's between step-only and HOLD; SHIFT + the knob clears it; the button again: the
  *                         family's next page, past the last the first
  *   SHIFT held + a step   the step's p-locks cleared (the notes, nudge, fill, chance and motion stay; SHIFT is OCT- held,
  *                         and SHIFT + the knob its default). A step held, HOME tapped: the step cleared (held_clear).
- *                         Drum track: SEQ + a step clears it, HOME + a key is the pick below
- *   HOME held + keys      the drum track's pick: the keys play (ly_lock is let go while HOME is down, the sound only
+ *                         Drum track: SEQ + a step clears it, SHIFT + a key is the pick below
+ *   SHIFT held + keys     the drum track's pick: the keys play (ly_lock is let go while SHIFT is down, the sound only
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
  *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
@@ -83,7 +83,7 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
     if (st.page >= n)
         st.page = (uint8_t)(n - 1u);
 }
-static void step_scroll(int32_t d)                      /* HOME + OCT- / OCT+ */
+static void step_scroll(int32_t d)                      /* SHIFT + OCT- / OCT+ */
 {
     st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(TSEL) - 1);
     st.follow = 0;
@@ -652,7 +652,7 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
     *r |= lock_set(t, idx, id, param_step(d, v, step)) ? 4u : 1u;
 }
 /* a turn of knob k writes lockable id's step-only event on every step held (a hold event alone there: its value);
- * OP_RESET (HOME + the knob) drops the step's events of the cell, both kinds */
+ * OP_RESET (SHIFT + the knob) drops the step's events of the cell, both kinds */
 static void lock_turn_id(int32_t id, const param_desc_t *d, uint32_t k, int32_t s, int fine)
 {
     track_t *t = TSEL;
@@ -909,7 +909,7 @@ static void extra_turn(uint32_t k, int32_t s)
         held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(TSEL, (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
 #endif
 #if FELUCCA_COND
-    if (kd == 3)                                        /* (- 1:2 .. 4:4, stopping at both ends; HOME + the knob: -) */
+    if (kd == 3)                                        /* (- 1:2 .. 4:4, stopping at both ends; SHIFT + the knob: -) */
         held_each(edit_cond, s == OP_RESET ? 0 : clamp((int32_t)step_cond(TSEL, (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
 #endif
 }
@@ -919,7 +919,7 @@ static void extra_turn(uint32_t k, int32_t s)
  * every track, then TOOLS and EUCLID. No ARP rows (ARP has its own button and page) and no drum LANE page (LEVEL TUNE
  * DECAY REV: sound values, not the sequencer's; the user, 2026-10-14: "why do we have an arpeggio section in the SEQ",
  * "on the sequencer pages i have items to edit the engine sound"); the sound pages stay on a held step as p-locks. SELECT pages the four knobs only and
- * never changes the lane; the lane is ALGORITHM's (DR, then the lanes) or HOME + a key's (the user, 2026-10-12: "in step
+ * never changes the lane; the lane is ALGORITHM's (DR, then the lanes) or SHIFT + a key's (the user, 2026-10-12: "in step
  * seq: select should always select the page for the 4 knobs, and algo always the track/drum sub track"). STEP opens on
  * PATTERN the first time, then on the page it was left on (2026-10-13) */
 static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM_SEQ, the track's: LEN first) */
