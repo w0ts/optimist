@@ -490,7 +490,7 @@ static int voice_room(track_t *t, int soft)
 {
     track_t *vp = 0;
     uint32_t k;
-    if (voices_busy() < NVOICE)
+    if (voices_busy() < CG_VBUDGET)                     /* (the CPU guard's cap while it reacts: cpuguard.h) */
         return 1;
     k = voice_victim(t, soft, &vp);
     if (k == NVOICE)
@@ -522,7 +522,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
             return &t->v[i];
         nfree += !t->v[i].active;
     }
-    if (nfree && voices_busy() >= NVOICE) {
+    if (nfree && voices_busy() >= CG_VBUDGET) {
         track_t *vp = 0;
         uint32_t k = voice_victim(t, 0, &vp);
         if (k < np && vp == t)

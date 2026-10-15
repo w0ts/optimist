@@ -106,6 +106,23 @@ static uint32_t sync_anchor(uint32_t t0)
     return a;
 }
 
+/* how long after the DMA switched halves the interrupt began, us (PEAK counts it: a half is late when this wait and its render
+ * pass the half's time, and the render's own time misses an interrupt held off): t0 against the lower envelope of the entries
+ * one half apart, as sync_anchor but up to two halves off (further: a stall, taken as the new start, 0) */
+static uint32_t entry_wait(uint32_t t0)
+{
+    static uint32_t ent;
+    int32_t e;
+    ent += (HALF_FRAMES * SY_TPS_Q8) >> 8;
+    e = (int32_t)(t0 - ent);
+    if (e < 0 || e > (int32_t)(2u * OVL_HALF_US * FM1_TICKS_PER_US)) {
+        ent = t0;
+        return 0;
+    }
+    ent += (uint32_t)e >> 4;
+    return (uint32_t)e / FM1_TICKS_PER_US;
+}
+
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
     uint8_t p = fm1_audio_pending();
@@ -116,7 +133,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
      * measured on the FM-1; the emulator's model clears it, and its USB audio host test then misses packets) */
     felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
-        uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
+        uint32_t half = fm1_audio_free_half(), b, us, late, a = sync_anchor(t0), w = entry_wait(t0);
         int32_t *o = &abuf[half * HALF_WORDS];
 #if FELUCCA_CPU_GUARD
         FAR(cg_pre)();                                     /* the predicted load; a shed it asked for (cpuguard.c) */
@@ -135,7 +152,10 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
         if (us > audio_max_us)
             audio_max_us = us;
+        late = fm1_audio_free_half() != half;              /* the DMA moved on while we rendered: a drop-out */
+        ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
 #if FELUCCA_CPU_GUARD
+        cg.late = (uint8_t)late;                           /* (a late half the guard reacts to: cpuguard.c cg_spike) */
         FAR(cg_post)(us);                                  /* the load: ease back, shed, or let go (cpuguard.c) */
 #else
         {   /* two halves over 85 % in a row: a single late half (a USB burst, a flash write) sheds nothing */
@@ -150,7 +170,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         dual_load_half();                                  /* CPU1's, the same way (dual.c, dual_load.h) */
         felucca_dbg.c1 = fm1_dual_mb.stage;                /* (kept by a reset; TIMER5 keeps it too, from IRQS on) */
 #endif
-        if (fm1_audio_free_half() != half)
+        if (late)
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */
         felucca_dbg.halves++;
         felucca_dbg.last_us = us;

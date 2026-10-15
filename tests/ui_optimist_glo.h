@@ -60,7 +60,11 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 static void glo_list_tests(void)
 {
     static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
-    static const char *const SS[] = {"INFO", "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "USB AUDIO", "CALIBRATE", "ABOUT"};
+    static const char *const SS[] = {"INFO", "INTERNALS",      /* (INFO split in two, 2026-10-15) */
+#if FELUCCA_USB_AUDIO
+                                     "USB STATS",         /* (the USB audio counters) */
+#endif
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "USB AUDIO", "CALIBRATE", "ABOUT"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;

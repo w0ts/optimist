@@ -1349,7 +1349,9 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 -o "$OUT/cpuguard_test" tests/cpuguard_test.c -lm
-    run "CPU guard: cost model, prediction, hysteresis, what each level eases, never the bass or lead" "$OUT/cpuguard_test"
+    run "CPU guard: cost model, prediction, hysteresis, what each level eases, never the bass or lead; the reactive path (late halves among light ones)" "$OUT/cpuguard_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $(python3 tools/config_flags.py tests/profiles/mots-like.config) -o "$OUT/overload_stress" tests/overload_stress.c -lm
+    run "overload stress (a measurement, docs/CPU-GUARD.md Spikes): per-half costs while chords are played, the guard with and without its reactive path" "$OUT/overload_stress" 10
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -o "$OUT/cpuguard_ifx_test" tests/cpuguard_test.c -lm

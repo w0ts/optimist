@@ -331,9 +331,13 @@
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},
     {"kind": "op", "ctx": "INFO", "params": {
-      "INFO": "Clock, load and memory in use",
+      "INFO": "K2: load now, max 5 s, max",
+      "DROPS": "Late audio halves (gaps)", "UNDERRUNS": "USB audio, MIDI in lost",
+      "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
+    {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
+    {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "SCREEN", "params": {
       "COLOR": "Screen colours", "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours"}},

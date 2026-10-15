@@ -598,6 +598,85 @@ static void test_usb(void)
     ut_defaults();
 }
 #endif
+/* 10. the reactive path (docs/CPU-GUARD.md "Spikes"): late halves among light ones, the interrupt held off (the half's own time
+ * normal, the DMA moved on: cg.late) as the user's log shows them (1,567 late halves at a 66 % mean). Before, the guard never
+ * moved for them; now three within ~30 halves step it, at the top a voice is cut and the voices capped, the cap comes back a
+ * voice every 2 s with none late, and a reaction's level comes off only under the load the drop-outs came at */
+static void late_half(uint32_t pct)                     /* a half of pct % that the DMA passed (held off) */
+{
+    cg_pre();
+    cg.late = 1;
+    cg_post(US(pct));
+}
+static void test_react(void)
+{
+    uint32_t i, k, lv;
+    busy_setup();
+    for (i = 0; i < 40u; i++)
+        half(US(66));
+    late_half(66);
+    for (i = 0; i < 10u; i++)
+        half(US(66));
+    late_half(66);
+    CHECK(cg.level == CG_L_OFF && cg.reacts == 0u, "two late halves: nothing (a flash write, a burst; level %u)", cg.level);
+    for (i = 0; i < 200u; i++)
+        half(US(66));
+    for (k = 0; k < 3u; k++) {
+        for (i = 0; i < 10u; i++)
+            half(US(66));
+        late_half(66);
+    }
+    CHECK(cg.level == CG_L_QUALITY && cg.reacts == 1u, "three late halves 11 apart at 66 %%: a reaction, quality (level %u, "
+          "reacts %u)", cg.level, cg.reacts);
+    CHECK(cg.rcap[CG_L_QUALITY] > 0u && cg.rcap[CG_L_QUALITY] < 169u, "... it comes off only under the load the drops came "
+          "at (%u)", cg.rcap[CG_L_QUALITY]);
+    cg_react = 0;
+    reset();
+    busy_setup();
+    for (i = 0; i < 40u; i++)
+        half(US(66));
+    for (k = 0; k < 40u; k++) {
+        for (i = 0; i < 10u; i++)
+            half(US(66));
+        late_half(66);
+    }
+    CHECK(cg.level == CG_L_OFF, "without the reactive path (as before): 40 late halves, no step (level %u)", cg.level);
+    cg_react = 1;
+    reset();                                            /* a light load: late halves are not the music's (USB, flash) */
+    busy_setup();
+    for (k = 0; k < 40u; k++) {
+        for (i = 0; i < 10u; i++)
+            half(US(30));
+        late_half(30);
+    }
+    CHECK(cg.level == CG_L_OFF && cg.reacts == 0u, "late halves at a 30 %% load: no reaction (level %u)", cg.level);
+    /* at the top: a voice cut, the voices capped, a new note steals; the cap comes back with no late half */
+    reset();
+    host_preset(&trk[0], ENG_IX_FM6, 0);              /* (FM6: no level below the top eases anything: straight to it) */
+    trk[0].p[P_VOICE] = V_POLY;
+    hold(&trk[0], 6);
+    for (i = 0; i < 40u; i++)
+        half(US(70));
+    for (k = 0; k < 30u && !cg.vcap; k++) {   /* (3 late halves a reaction, a level each) */
+        for (i = 0; i < 10u; i++)
+            half(US(70));
+        late_half(70);
+    }
+    CHECK(cg.level == CG_TOP && cg.vcap == 5u && sounding(&trk[0], 0) == 5u, "at the top a reaction cuts a voice and caps "
+          "the voices one under (level %u, cap %u, sounding %u)", cg.level, cg.vcap, sounding(&trk[0], 0));
+    trk_note_on(&trk[0], 80, 100);
+    CHECK(sounding(&trk[0], 0) == 5u, "a new note under the cap steals one: still 5 (%u)", sounding(&trk[0], 0));
+    for (i = 0; i < CG_VSTEP; i++)
+        half(US(70));
+    CHECK(cg.vcap == 6u, "2 s with no late half: the cap a voice higher (%u)", cg.vcap);
+    lv = cg.level;
+    for (i = 0; i < 3u * CG_VSTEP; i++)
+        half(US(40));
+    CHECK(cg.vcap == 0u, "the cap back to all the voices (%u)", cg.vcap);
+    for (i = 0; i < CG_RELEASE + 1u; i++)
+        half(US(40));
+    CHECK(cg.level < lv, "then, at 40 %%, the level comes off (%u)", cg.level);
+}
 
 int main(void)
 {
@@ -613,6 +692,7 @@ int main(void)
     test_drums();
     test_reverb();
     test_reverb_recover();
+    test_react();
     printf("cpuguard_test: %s (%d failures)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

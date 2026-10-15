@@ -64,6 +64,7 @@ static void pages_nav_tests(void)
     tap(B_HOME);
     /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
+    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW, INFO's KNOB 2) */
     sys_info_cell(0, &c);
     sys_info_cell(1, &c2);
     check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&

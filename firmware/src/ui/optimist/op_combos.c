@@ -99,6 +99,7 @@ static void op_eat(uint32_t mask) { op_clean &= ~mask; }
 #if FELUCCA_BLE
 static int dev_home_combo(void);                        /* op_project.c: SHIFT + a button on the BLE devices: FORGET LAST */
 #endif
+static int info_clear(void);                            /* op_global.c: SHIFT + YES on SYSTEM's INFO page clears DROPS */
 static int shift_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
@@ -120,6 +121,8 @@ static int shift_combo(uint32_t b)
     }
     switch (b) {
     case B_SAVE:
+        if (info_clear())                               /* (SYSTEM's INFO page: DROPS cleared, op_global.c) */
+            return 1;
         lay.chord = 2;                                  /* SHIFT then SAVE: redo, when one of them is let go */
         return 1;
     case B_ENV:

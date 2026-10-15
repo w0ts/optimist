@@ -87,6 +87,9 @@ static uint8_t midi_in_unread;
 #endif
 #define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
 enum { MSRC_USB = 1, MSRC_TRS = 2 };                    /* = G_SYNC USB / TRS */
+#ifndef OVL_LOST
+#define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
+#endif
 static uint32_t midi_in_t[MQ];
 static uint8_t midi_in_src[MQ];
 static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
@@ -122,8 +125,10 @@ static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
 #endif
     }
     if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
-        (cin == 3u && st == 0xF2u))
-        midi_in_enqueue(pkt, MSRC_USB, t);
+        (cin == 3u && st == 0xF2u)) {
+        if (!midi_in_enqueue(pkt, MSRC_USB, t) && !midi_in_unread)
+            OVL_LOST(OVL_MIDI_USB);              /* (the ring full: lost; INFO's UNDERRUNS, system/overload.h) */
+    }
 }
 
 /* MIDI clock out (io/midi/clock_out.c, FELUCCA_MIDI_CLKOUT): USB-MIDI packets (F8, FA, FB, FC: CIN F; F2: CIN 3),

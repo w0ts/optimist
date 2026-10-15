@@ -627,6 +627,8 @@ static void op_knobs(uint32_t shift)
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         turned = 1;
+        if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
+            continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
         step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)
