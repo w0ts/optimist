@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -372,7 +373,9 @@ for r in ("5.0", "0.10", "1", "x.y"):
     except SystemExit:
         _bad.append(r)
 check("release identity: 5.0 and later (past the block), two digits, not X.Y: refused", _bad == ["5.0", "0.10", "1", "x.y"])
-NOTICES =("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")
+NOTICES = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + q.name for q in (ROOT / "LICENSES").glob("*.txt")))
+check("notices: every LICENSES/ file LICENSING.md names exists, and every LICENSES/ file is named there",
+      set(re.findall(r"LICENSES/[A-Za-z0-9.-]+\.txt", (ROOT / "LICENSING.md").read_text())) == set(NOTICES[2:]))
 check("notices: LICENSES/Apache-2.0.txt is the Apache License 2.0",
       "Apache License\n                           Version 2.0, January 2004" in (ROOT / "LICENSES/Apache-2.0.txt").read_text())
 check("notices: LICENSING.md lists the three JieLi SDK files with their Apache-2.0 licence",
@@ -380,7 +383,7 @@ check("notices: LICENSING.md lists the three JieLi SDK files with their Apache-2
 with tempfile.TemporaryDirectory() as d:
     ui = BUILD.ui_sidecar(Path(d) / "x.fwsc")
     names = zipfile.ZipFile(ui).namelist()
-    check("notices: the -ui.zip carries LICENSE, LICENSING.md and LICENSES/Apache-2.0.txt", all(n in names for n in NOTICES))
+    check("notices: the -ui.zip carries LICENSE, LICENSING.md and every LICENSES/ text", all(n in names for n in NOTICES))
     import importlib
     ms = importlib.import_module("make_site")
     fwsc = next((c for c in (ROOT / "build" / "felucca.fwsc", *sorted((ROOT / "build").glob("optimist-*.fwsc"))) if c.exists()), None)
@@ -391,7 +394,7 @@ with tempfile.TemporaryDirectory() as d:
         ms.main(fwsc, "9.9-test", Path(d) / "site")
         site = Path(d) / "site"
         page = (site / "webapp/installer/index.html").read_text(encoding="utf-8")
-        check("notices: the site root carries LICENSE, LICENSING.md and LICENSES/Apache-2.0.txt", all((site / n).is_file() for n in NOTICES))
+        check("notices: the site root carries LICENSE, LICENSING.md and every LICENSES/ text", all((site / n).is_file() for n in NOTICES))
         check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
               'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
         man = Path(d) / "flavours.json"
@@ -764,7 +767,6 @@ with tempfile.TemporaryDirectory() as td:
         FL.midi_python, FL.FI.load_package = save_mp, save_lp
     check("flash: no mido / python-rtmidi: says how to get them (make setup), exit 1",
           rc == 1 and "make setup" in out)
-import re
 _req = {re.split("[<>=]", ln)[0] for ln in (ROOT / "tools" / "requirements-flash.txt").read_text().splitlines()
         if ln and ln[0] != "#"}
 check("flash: requirements-flash.txt names mido and python-rtmidi (deps.install_flash puts them in the venv)",
