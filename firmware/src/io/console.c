@@ -426,6 +426,21 @@ static void con_status(void)
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
     con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
+#if FELUCCA_DUALCFG
+    {   /* RAM read errors (hal/fm1_dual.h fm1_flip): per core, the count, the words read, the first one's address and XOR */
+        uint32_t c;
+        static const char *const K[2][4] = {{"flip0_n", "flip0_checks", "flip0_addr", "flip0_xor"},
+                                            {"flip1_n", "flip1_checks", "flip1_addr", "flip1_xor"}};
+        for (c = 0; c < 2u; c++) {
+            con_kv(K[c][0], (int32_t)fm1_flip[c].n);
+            con_kv(K[c][1], (int32_t)fm1_flip[c].checks);
+            con_kx(K[c][2], fm1_flip[c].addr);
+            con_kx(K[c][3], fm1_flip[c].got ^ fm1_flip[c].want);
+        }
+        con_kv("vec_flips", (int32_t)fm1_vec_flips);    /* TIMER5's vector read back wrong (main loop) */
+        con_kx("vec_got", fm1_vec_got);
+    }
+#endif
     {
         uint32_t i, m = 0;
         for (i = 0; i < 8u; i++)                        /* the last 8 masks, oldest first, a hex digit each (bit 0..2 a */

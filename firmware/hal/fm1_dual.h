@@ -77,6 +77,48 @@ static inline __attribute__((always_inline)) void fm1_dual_note_bad(uint32_t r, 
     fm1_dual_mb.bad++;
 }
 
+/* RAM read-error counters (the second-core test image, FELUCCA_DUALCFG; 2026-10-15: a bit-22 flip in TIMER5's vector as
+ * dispatched, Jangada's / X0X's bit-21 misreads on CPU1): each core reads back a pattern only it owns, a few words at a
+ * time (CPU0 each main-loop pass, CPU1 every FM1_DUAL_BEAT_EVERY spin passes), and counts what differs (the first
+ * address, the value read, the one written: their XOR is the flipped bits); a word read wrong is written again */
+#if FELUCCA_DUALCFG
+#define FM1_FLIP_N 512u
+static volatile uint32_t fm1_flip_pat[2][FM1_FLIP_N];
+typedef struct { volatile uint32_t n, checks, addr, got, want; } fm1_flip_t;
+static fm1_flip_t fm1_flip[2];                            /* [core]: written by that core only */
+static uint32_t fm1_vec_flips, fm1_vec_got;               /* TIMER5's vector read back wrong by CPU0's main loop (main.c) */
+static inline uint32_t fm1_vec_word(uint32_t n) { return FM1_VEC[n & 127u]; }   /* (main.c: a vector word read back) */
+static inline __attribute__((always_inline)) uint32_t fm1_flip_want(uint32_t c, uint32_t i)
+{
+    return (i * 0x9E3779B1u) ^ (c ? 0xA5A5A5A5u : 0x5A5A5A5Au);
+}
+static void fm1_flip_fill(void)
+{
+    uint32_t c, i;
+    for (c = 0; c < 2u; c++)
+        for (i = 0; i < FM1_FLIP_N; i++)
+            fm1_flip_pat[c][i] = fm1_flip_want(c, i);
+}
+static inline __attribute__((always_inline)) uint32_t fm1_flip_check(uint32_t c, uint32_t i, uint32_t k)
+{
+    fm1_flip_t *f = &fm1_flip[c];
+    for (; k; k--, i = (i + 1u) & (FM1_FLIP_N - 1u)) {
+        uint32_t v = fm1_flip_pat[c][i], w = fm1_flip_want(c, i);
+        if (v != w) {
+            if (!f->n) {
+                f->addr = (uint32_t)(uintptr_t)&fm1_flip_pat[c][i];
+                f->got = v;
+                f->want = w;
+            }
+            f->n++;
+            fm1_flip_pat[c][i] = w;
+        }
+        f->checks++;
+    }
+    return i;
+}
+#endif
+
 /* CPU1 between jobs, from RAM: publish `done`, then wait for a request it may run (fm1_dual_take; a bad one is noted
  * and waited past, in RAM). Gentle on the shared RAM (2026-10-15: the first spinning build on the FM-1 was followed by
  * a boot AFTER CRASH, cause not known): one read of req a pass, then FM1_DUAL_SPIN_NOPS no-ops (no bus access, about
@@ -108,6 +150,12 @@ RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t 
             __asm__ volatile("nop");
         if (++n == FM1_DUAL_BEAT_EVERY) {
             n = 0;
+#if FELUCCA_DUALCFG
+            {
+                static uint32_t fi;                       /* (CPU1's place in its pattern) */
+                fi = fm1_flip_check(1u, fi, 16u);
+            }
+#endif
             if (mb->ping != mb->pong)
                 mb->pong = mb->ping;
             if (count)

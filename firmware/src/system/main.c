@@ -86,6 +86,7 @@ void fm1_timer5_irq(void)
 }
 extern void isr_timer5(void);
 
+
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
     /* above ALNK0 (3): the tick may nest into the audio render (a few us; plain registers, the
@@ -321,6 +322,18 @@ static BOOT_ORDER void fm1_main(void)
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
         felucca_dbg.loop_ms = m ? m : 1u;
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+        {   /* RAM read errors on CPU0 (hal/fm1_dual.h), and TIMER5's vector word read back */
+            static uint32_t fi;
+            fi = fm1_flip_check(0u, fi, 64u);
+            uint32_t vw = fm1_vec_word(FM1_IRQ_TIMER5);
+            if (vw != (uint32_t)(uintptr_t)isr_timer5) {
+                if (!fm1_vec_flips)
+                    fm1_vec_got = vw;
+                fm1_vec_flips++;
+            }
+        }
+#endif
         usb_retry(fm1_ms);
         if ((uint32_t)(m - healthy_since) >= 30000u && bootguard.pending) {
             bootguard_clear(&bootguard);     /* 30 s of this boot, even if TIMER4 survived reset */

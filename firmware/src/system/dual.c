@@ -422,6 +422,10 @@ static void dual_down(uint32_t why, uint32_t wait_us)
 /* boot (audio set up, its interrupt not yet on; the vectors still writable) */
 static __attribute__((noinline)) void dual_boot(void)
 {
+#if FELUCCA_DUALCFG
+    if (dual.late != 2u)
+        fm1_flip_fill();                           /* (the read-error patterns: hal/fm1_dual.h) */
+#endif
     dual.boot_mode = dual_mode;
     dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
     if (dual.why == DUAL_UP && DUAL_BLE_BLOCKS())
