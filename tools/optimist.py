@@ -8,6 +8,8 @@
   python tools/optimist.py package [--profile P | --config F] [--out DIR] [--summary FILE]
   python tools/optimist.py config ...                    the builder without the menu (--list, --budget, --fit,
                                                          --write; tools/builder/configure.py --help)
+  python tools/optimist.py cloud-key [PROFILE | FILE] [--commit SHA] [--strict] [--json]
+                                                         a cloud build's cache key and the canonical configuration
   python tools/optimist.py flash [PACKAGE.fwsc | --no-build] [--profile P | --config F] [--port NAME] [--yes]
                                                          install a build on an FM-1 over USB-MIDI: builds the
                                                          profile first unless a PACKAGE is given (--no-build: the
@@ -30,6 +32,7 @@ keys), then `package --config my.config --out DIR --summary result.json`.
 import argparse
 import contextlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -46,8 +49,9 @@ import deps
 import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
-PY_TESTS = ("tests/builder_test.py", "tests/builder_flash_guard_test.py", "tests/builder_progress_test.py",
-            "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py", "tests/rescue_any_test.py",
+PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
+            "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/install_test.py",
+            "tests/rescue_test.py", "tests/rescue_any_test.py",
             "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py",
             "tests/emu_driver_once_test.py")
 
@@ -148,6 +152,30 @@ def cmd_package(a):
 
 def cmd_config(a):
     return C.main(a.rest)
+
+
+def cmd_cloud_key(a):
+    """the cache key of a cloud build (core.cloud_key: the commit and the canonical form) and the canonical form"""
+    path = Path(a.what or DEFAULT_PROFILE).expanduser()
+    if not path.is_file():
+        path = C.profile_path(a.what or DEFAULT_PROFILE)
+        if path is None:
+            raise C.ConfigError(f"{a.what}: neither a .config file nor a profile ({', '.join(C.profile_names())})")
+    commit = a.commit or subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
+                                        text=True).stdout.strip()
+    ev = C.evaluate({"text": path.read_text(), "commit": commit, "strict": a.strict,
+                     "costs": C.load_costs() if a.json else None})
+    for w in ev.get("parse_warnings", []):
+        print(f"warning: {w}", file=sys.stderr)
+    if ev["error"]:
+        raise C.ConfigError(ev["error"])
+    if a.json:
+        print(json.dumps(ev, indent=1))
+    else:
+        print(f"# key {ev['key']}\n# commit {commit}\n# config {path}\n{ev['canonical']}", end="")
+    for e in ev["errors"]:
+        print(f"ERROR   {e['text']}", file=sys.stderr)
+    return 1 if ev["errors"] else 0
 
 
 def build_for_flash(a):
@@ -468,6 +496,12 @@ def parser():
     p = sub.add_parser("config", help="the builder without the menu (configure.py arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_config)
+    p = sub.add_parser("cloud-key", help="the cache key of a cloud build and the canonical configuration it hashes")
+    p.add_argument("what", nargs="?", help=f"a .config file or a profile (default {DEFAULT_PROFILE})")
+    p.add_argument("--commit", help="the full commit SHA the build is made from (default: HEAD)")
+    p.add_argument("--strict", action="store_true", help="an unknown key is an error (a cloud build request)")
+    p.add_argument("--json", action="store_true", help="the whole evaluation (core.evaluate) as JSON")
+    p.set_defaults(fn=cmd_cloud_key)
     p = sub.add_parser("costs", help="measure the items tools/builder/costs.json lacks (measure_costs.py --missing; "
                                      "or its own arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
