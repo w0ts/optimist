@@ -117,12 +117,17 @@ static void auto_capture_store(const project_t *p)
 static void auto_apply_store(const project_t *p)
 {
     const auto_store_t *m = auto_of(p);
-#if FELUCCA_MOTION
+#if FELUCCA_MOTION || FELUCCA_PLOCK
     uint32_t k, w;
-    for (k = 0; k < NTRK; k++)
+    for (k = 0; k < NTRK; k++) {
         for (w = 0; w < MOTION_WORDS; w++)
             motion_active[k][w] = 0;                  /* (the project's values replace the tracks' now) */
-    motion_base_valid = 0;
+#if FELUCCA_PLOCK
+        lk_n[k] = 0;                                  /* (no lock in force: it would put an old value back) */
+#endif
+    }
+#endif
+#if FELUCCA_MOTION
     motion_full = 0;
 #endif
     if (m)

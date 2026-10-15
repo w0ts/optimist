@@ -274,7 +274,8 @@ static void t_locks(void)
     check(v2 == 40 && p2 == -30 && v3 == b && p3 == 20 && v4 == b && p4 == 0,
           "PLOCK: on its step the value, back at the next step without one (PAN: -30, 20, then 0)");
     val_at_step(t, P_ED_PIT, 2);
-    t->p[P_ED_PIT] = 7;                              /* a knob turned while the lock holds: the new base */
+    t->p[P_ED_PIT] = 7;                              /* a knob turned while the lock holds: the new base (the UIs' */
+    auto_knob_base(t, P_ED_PIT, 7);                  /* path: auto_base.c; a write alone goes back at STOP) */
     check(val_at_step(t, P_ED_PIT, 3) == 7, "PLOCK: a knob turned during a lock: kept as the base after it");
     val_at_step(t, P_ED_PIT, 2);
     transport_req = 2;
@@ -291,8 +292,8 @@ static void t_locks(void)
         steps_clear(t);
     }
 #if FELUCCA_MACROS
-    check(!lock_set(TDRUM, 1, P_ED_PIT, 10) && lock_set(TDRUM, 1, P_E0, 3),
-          "PLOCK: the drum track: the macros' places not lockable, the kit is");
+    check(lock_set(TDRUM, 1, P_ED_PIT, 10) && lock_set(TDRUM, 1, P_E0, 3),
+          "PLOCK: the drum track: the macros' places and the kit lockable (one list with the motion, 2026-10-15)");
 #endif
 }
 #if FELUCCA_MOTION

@@ -714,7 +714,7 @@ static void t_toggle(void)
           hold_get(t, 4, P_PAN, &v) && v == -9 && !lock_get(t, 4, P_PAN, &v) && (auto_w.on & 1u));
     check("... again: step-only", auto_kind_toggle(t, 4, P_PAN) == 2u && lock_get(t, 4, P_PAN, &v) && v == -9);
     (void)lock_set(t, 5, P_SGATE, 40);
-    check("a lock of GATE (lockable, not recordable): no HOLD", auto_kind_toggle(t, 5, P_SGATE) == 0u && lock_get(t, 5, P_SGATE, &v));
+    check("a lock of GATE: HOLD too (one list with the motion, 2026-10-15)", auto_kind_toggle(t, 5, P_SGATE) == 1u && hold_get(t, 5, P_SGATE, &v) && v == 40);
 }
 
 /* SL24_GET (78) lost words: the motion alone on bit 13 of the first word, the chance on bit 0 of the second (protocol v12,
@@ -787,8 +787,21 @@ static void t_lockcap(void)
     (void)auto_step(t, 0);
     proj_patch(v, 1);
     check("a capture while a lock holds PAN 50: the patch under it (0) is stored", t->p[P_PAN] == 50 && v[P_PAN] == 0);
+    t->p[P_PAN] = 33;                                  /* (a MIDI CC, a preset, the editor while the lock holds) */
     seq_stop();
-    check("... STOP: the patch back", t->p[P_PAN] == 0);
+    check("... STOP: the patch back (a change made meanwhile too: the rule for locks and motion)", t->p[P_PAN] == 0);
+    t->p[P_REV] = 5;
+    (void)motion_set_event(t, 1, P_REV, 90);
+    (void)lock_set(t, 2, P_REV, 20);
+    song.playing = 1;
+    motion_begin();
+    (void)auto_step(t, 1);
+    (void)auto_step(t, 2);
+    check("one base: a lock over a hold event (REV 90, then the lock's 20)", t->p[P_REV] == 20);
+    (void)auto_step(t, 3);
+    check("... lets go to the hold's 90, the capture still the patch (5)", t->p[P_REV] == 90 && (proj_patch(v, 1), v[P_REV] == 5));
+    seq_stop();
+    check("... STOP: 5", t->p[P_REV] == 5);
 }
 int main(void)
 {

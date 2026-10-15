@@ -895,7 +895,7 @@
         "project_bytes": 0
       },
       "storage": "the step-extras record (lock[24] {step, param, int16} per track, SLOOP 2.4's FUN5 tail; our ids)",
-      "limits": "beside motion recording: motion first, the lock wins on its step; the drum track's macro positions are not lockable",
+      "limits": "beside motion recording: motion first, the lock wins on its step. One list with motion (2026-10-15, seq/auto_base.c auto_param): every value that can be locked can be recorded and the other way round (the FX insert amounts, ARP, scale, CHORD, GATE, the drum kit and macro positions too); never the voice allocation (VOICE GLMODE PRIO ALLOC VOICES), MUTE, the FX bypass, LEN DIV SWING, the LFO DEST slots, nor a value without a stored id (LFO 2, GATER PATTERN RATE SHAPE, JUNO MODE). One base with motion: a value changed while playing under a lock or a hold (a preset, MIDI, the editor) goes back to the patch at STOP; a knob turned while not recording is the new patch",
       "notice": "Parameter locks from SLOOP 2.4 by isod89 (GPL-3.0).",
       "warning": false
     },

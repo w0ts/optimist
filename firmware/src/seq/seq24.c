@@ -41,70 +41,26 @@ static uint8_t seq_den[NTRK];                /* the DIV each track last played o
 
 #if FELUCCA_PLOCK
 /* ---- parameter locks (SLOOP 2.4 seq.c p_lockable / lock_step / lock_set, isod89, GPL-3.0-only). A lock: on its step
- * the track's p[param] takes its value; the parameter goes back to what it was at the next step without a lock on
- * it (Elektron style: notes still ringing follow, the engines read p[] every block). The locks in force are listed
- * in lk_* (param, the base to go back to, the value set). A knob turned while a lock is on wins: the value found is
- * kept as the new base. Beside motion recording (motion.c): a step's hold events apply first (auto_step), so a lock
- * wins on its step and lets go to the motion value (its base). Ids: ours (P_*) here, the stored ids in the list
- * (auto.c mot_sid), 2.4's converted at import / export.
- * Lockable: the sound values (2.4's list in our ids; ANALOG 2's pages; the track FILTER when built), the ARP page's
- * values (MODE .. ORDER), the scale's (ROOT SCALE QNT TRN) and CHORD: the sequencer reads them each tick or note
- * (seq.c), so a step's lock is heard (2026-10-14: the ARP, SCL pages recorded nothing). Not VOICE, ALLOC, PRIO, GLMODE (the
- * voice allocation), MUTE (the mixer's), the LFO DEST slots (their ids are the stored LFO depths of before, auto.c
- * lfo_leg_ev: a lock on them would be one of those). Not on the drum
- * track: its MAC_ID values, where the macros keep their positions (params.c): a lock there would move a macro. */
-static uint8_t lk_n[NTRK], lk_param[NTRK][NLOCK];
-static int16_t lk_base[NTRK][NLOCK], lk_set[NTRK][NLOCK];
+ * the track's p[param] takes its value; the parameter goes back at the next step without a lock on it (Elektron
+ * style: notes still ringing follow, the engines read p[] every block). The locks in force, their values to go back
+ * to and the base under them are auto_base.c's (one base with the motion): a lock lets go to the base, or to what a
+ * hold event set under it (motion.c motion_put); a knob turned while not recording lets it go at once (auto_knob_base)
+ * and is the new patch. Beside motion recording a step's hold events apply first (auto_step), so a lock wins on its
+ * step. Ids: ours (P_*) here, the stored ids in the list (auto.c mot_sid), 2.4's converted at import / export. What
+ * may be locked: auto_base.c auto_param, the motion's list too. */
 
-static int p_lockable(uint32_t id)
-{
-    if (LEG_ID(id))
-        return 0;                                      /* (ENV DEST FLT SHP, ENV2's amounts, LFO's depths of before: their
-                                                        * old locks play onto the slots, auto.c lfo_leg_ev) */
-    return id <= P_LFADE || (id >= P_AMODE && id <= P_TRANS) || id == P_CHORD || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
-           id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7)
-#if FELUCCA_ANALOG2
-           || (id >= P_A2WAVE && id <= P_A2ESDT)
-#endif
-#if defined(SL24_TP) && FELUCCA_TRK_FILT
-           || id == P_TFLT
-#endif
-           ;
-}
-static int lock_ok(const track_t *t, uint32_t id)      /* lockable on this track */
-{
-#if FELUCCA_MACROS
-    uint32_t m;
-    if (is_drum(t))
-        for (m = 0; m < 4u; m++)
-            if (MAC_ID[m] == id)
-                return 0;
-#endif
-    (void)t;
-    return id < P_COUNT && p_lockable(id);
-}
-/* the range of p[id] on track t (the engine that renders: t->engine; the drum track's P_E0: the kit) */
-static const param_desc_t *lock_desc(const track_t *t, uint32_t id)
-{
-    if (is_drum(t) && id == P_E0)
-        return &DRUM_KIT_DESC;
-    if (is_drum(t) && id == P_DACC)
-        return &DRUM_ACC_DESC;                                      /* (the ACCENT amount: a lock, a motion of it) */
-    if (id >= P_E0 && id <= P_E7)
-        return &ENGINES[t->engine % NENGINES]->edit[id - P_E0];
-    return &TP[id % P_COUNT];
-}
+/* the range of p[id] on track t (params.c track_desc: the engine asked for, the drum track's kit and ACCENT) */
+#define lock_desc track_desc
 static void lock_write(track_t *t, uint32_t id, int32_t v)
 {
     const param_desc_t *d = lock_desc(t, id);
     t->p[id % P_COUNT] = (int16_t)clamp(v, d->min, d->max);
 }
-static void locks_restore(track_t *t)        /* every lock in force let go (STOP, a load, a cleared pattern) */
+static void locks_restore(track_t *t)        /* every lock in force let go (a cleared pattern) */
 {
     uint32_t i, k = trk_index(t) % NTRK;
     for (i = 0; i < lk_n[k] && i < NLOCK; i++)
-        if (t->p[lk_param[k][i] % P_COUNT] == lk_set[k][i])
-            lock_write(t, lk_param[k][i], lk_base[k][i]);
+        lock_write(t, lk_param[k][i], lk_ret[k][i]);
     lk_n[k] = 0;
 #if DLA_ON
     if (is_drum(t))
@@ -116,19 +72,14 @@ static void locks_restore(track_t *t)        /* every lock in force let go (STOP
 static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t m)
 {
     uint32_t i, j, n = 0, k = trk_index(t) % NTRK;
-    for (i = 0; i < lk_n[k] && i < NLOCK; i++) {     /* in force, no lock here: back to the base (or the knob) */
+    for (i = 0; i < lk_n[k] && i < NLOCK; i++) {     /* in force, no lock here: back */
         uint32_t p = lk_param[k][i] % P_COUNT, has = 0;
         for (j = 0; j < m; j++)
-            if (lp[j] == p)
-                has = 1;
-        if (has) {
-            lk_param[k][n] = (uint8_t)p;
-            lk_base[k][n] = lk_base[k][i];
-            lk_set[k][n] = lk_set[k][i];
-            n++;
-        } else if (t->p[p] == lk_set[k][i]) {
-            lock_write(t, p, lk_base[k][i]);
-        }
+            has |= lp[j] == p;
+        if (has)
+            lk_param[k][n] = (uint8_t)p, lk_ret[k][n++] = lk_ret[k][i];
+        else
+            lock_write(t, p, lk_ret[k][i]);
     }
     lk_n[k] = (uint8_t)n;
     for (j = 0; j < m; j++) {                        /* this step's locks */
@@ -138,24 +89,13 @@ static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t
         if (i == lk_n[k]) {
             if (i >= NLOCK)
                 continue;
+            auto_take(t, k, p);                      /* (the base, the first time the automation changes it) */
             lk_param[k][i] = (uint8_t)p;
-            lk_base[k][i] = t->p[p];
+            lk_ret[k][i] = t->p[p];
             lk_n[k]++;
-        } else if (t->p[p] != lk_set[k][i]) {
-            lk_base[k][i] = t->p[p];                 /* turned meanwhile: that is the new base */
         }
         lock_write(t, p, lv[j]);
-        lk_set[k][i] = t->p[p];
     }
-}
-/* the value under a lock in force on our id (motion.c: a hold event's base is the patch, not the lock); v: none */
-static int16_t lock_base_of(const track_t *t, uint32_t id, int16_t v)
-{
-    uint32_t i, k = trk_index(t) % NTRK;
-    for (i = 0; i < lk_n[k] && i < NLOCK; i++)
-        if (lk_param[k][i] == id && t->p[id] == lk_set[k][i])
-            return lk_base[k][i];
-    return v;
 }
 /* set (or make) the step-only event of (step, our id param) at v, clamped to its range; 0 = the list is full or it is
  * not lockable. Callers hold the IRQ off */
