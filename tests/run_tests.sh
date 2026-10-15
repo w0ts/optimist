@@ -722,6 +722,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $INSFX_ON $SEC4 -o "$OUT/ui_optimist_fxpool_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with every further insert and EQ3: the returns' other types (RET AMT, the cards named), EQ3's rows, the help lines" "$OUT/ui_optimist_fxpool_test" "$OUT/optimist-fxpool"
 ) >"$U.out" 2>&1 & jobbg
+# the USB input with every insert type (tests/ui_optimist_usbfx.h): its TYPE list, USB EQ3 / EQ3 F / GATER / JUNO sets, FULL
+job; ( jobin
+    mkdir -p "$OUT/optimist-usbfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 $SEC4 -o "$OUT/ui_optimist_usbfx_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with USB audio and every insert type: the USB input's slots list them all, its USB EQ3 / EQ3 F / GATER / JUNO sets, a pooled type FULL, the help lines" "$OUT/ui_optimist_usbfx_test" "$OUT/optimist-usbfx"
+) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden at
 # 0 instances, the help lines; CHRS ECHO built with 0 / 4, 1 / 0 and 4 / 1 instances (the last two with the help line)
 for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=4" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=0 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_CHORUS=4 -DFELUCCA_INS_DELAY=1 -DFELUCCA_PARAM_HELP=1"; do
