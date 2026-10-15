@@ -127,7 +127,7 @@ class Item:
 # The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
-FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DJF", "FX_DUST", "FX_DUCK", "BASSPLUS",
+FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
                 "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER"}
 
 
