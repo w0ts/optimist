@@ -234,16 +234,25 @@ void HOT fm1_cpu1_wake(void)
 }
 #endif
 
-void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry (hal/fm1_dual.h) */
+/* CPU1, from fm1_cpu1_entry (hal/fm1_dual.h). A spinning build keeps it in RAM (core.h HOT), as X0X and Jangada keep
+ * their whole CPU1 loop (.c1_text): between two jobs CPU1 then fetches nothing from the flash (2026-10-15, B5 on the
+ * FM-1: CPU1 held at job 47 by an axi_rd_inv + axi_wr_inv right after it took the job, before its first part began,
+ * in this loop's XIP code) */
+#if DUAL_SLEEPS
+#define C1_MAIN
+#else
+#define C1_MAIN HOT
+#endif
+void C1_MAIN fm1_cpu1_main(void)
 {
     uint32_t seq = 0, arg = 0;
     fm1_dual_mb.stage = C1S_MAIN;
-    fm1_dual_c1_emu();                             /* its own stack limit and traps (X0X, Melodee) */
+    FAR(fm1_dual_c1_emu)();                        /* its own stack limit and traps (X0X, Melodee) */
 #if DUAL_FAILTEST == 1
     for (;;)
         ;
 #endif
-    fm1_dual_mb.canary = 1u + fm1_dual_canary_scan(fm1_dual_canary, FM1_DUAL_CANARY_PASSES);   /* (CPU0 checks it) */
+    fm1_dual_mb.canary = 1u + FAR(fm1_dual_canary_scan)(fm1_dual_canary, FM1_DUAL_CANARY_PASSES);   /* (CPU0 checks it) */
 #if DUAL_FAILTEST == 5
     fm1_dual_mb.canary++;                          /* (as if one word had been read wrong) */
 #endif
@@ -262,7 +271,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 #else
     fm1_dual_mb.stage = C1S_LOOP;
     for (;;) {
-        seq = FL_FAR(fm1_dual_idle_ram)(seq, 1u, DUAL_ALLOWED, &arg);   /* (a request it may run; its beat counted) */
+        seq = fm1_dual_idle_ram(seq, 1u, DUAL_ALLOWED, &arg);   /* (RAM to RAM: a request it may run, its beat counted) */
 #if FELUCCA_DUAL >= 2
         fm1_dual_mb.took = seq;                    /* (as the wake handler: CPU1 STOP's W / J) */
         C1_STAGE(C1S_TOOK);
@@ -273,7 +282,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
                 ;
 #elif DUAL_FAILTEST == 3
         if (seq == 3000u)
-            FL_FAR(fm1_dual_dead_ram)(1);          /* (what fm1_fault_c does on CPU1: an exception itself
+            fm1_dual_dead_ram(1);                  /* (what fm1_fault_c does on CPU1: an exception itself
                                                     * cannot be raised in the emulator) */
 #endif
 #if FELUCCA_DUAL >= 2
