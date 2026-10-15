@@ -909,7 +909,7 @@ int main(int argc, char **argv)
     }
 #endif
     {   /* the FX slots' record (fx_rec.c): the work's and each section's in the stream, back with a load and a restart,
-         * through the editor's backup (FXSL) */
+         * through the editor's backup (FXR1 FXR2) */
         static const uint8_t L[3][4] = {{FXT_REV, FXT_NONE, FXT_NONE, FXT_CHO}, {FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE},
                                         {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV}}, W[4] = {FXT_CHO, FXT_REV, FXT_NONE, FXT_NONE};
         sn_info_t in;
@@ -949,20 +949,22 @@ int main(int argc, char **argv)
         }
         check("... each section loads its own layout (the default: none stored)", nn);
 #if !FELUCCA_MOTION
-        {   /* the backup: the sections, the autosave, the drum records and FXSL, into a wiped device */
-            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "FXSL"};
-            static uint8_t d[6][SEC_REC_MAX + 64];
-            int ix[6];
-            uint32_t ln[6], rc = 0;
+        {   /* the backup: the sections, the autosave, the drum records and FXR1 FXR2 (the FX records in two packs, u16
+             * lengths: fx-rework 2026-10-14), into a wiped device; an older backup's FXSL (u8 lengths, one pack) restored */
+            static const char *const TAG[7] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "FXR1", "FXR2"};
+            static uint8_t d[7][SEC_REC_MAX + 64], old[SEC_REC_MAX + 64];
+            int ix[7], ixo = bk_find("FXSL");
+            uint32_t ln[7], rc = 0, at2, no = 0;
             uint8_t z[1] = {0};
-            for (k = 0, nn = 1; k < 6u; k++) {
+            for (k = 0, nn = 1; k < 7u; k++) {
                 ix[k] = bk_find(TAG[k]);
                 ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
                 nn &= ix[k] >= 0 && ln[k] > 0u;
             }
-            check("backup: FXSL (a raw log object) is listed with data beside the sections, AUTO and DLNS", nn);
+            check("backup: FXR1 and FXR2 (raw log objects) are listed with data beside the sections, AUTO and DLNS; FXSL "
+                  "listed, empty (restore only)", nn && ixo >= 0 && bk_get(ixo, old) == 0u);
             fresh_flash();
-            for (k = 0; k < 6u; k++)
+            for (k = 0; k < 7u; k++)
                 rc |= bk_put(ix[k], d[k], ln[k]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
@@ -971,12 +973,29 @@ int main(int argc, char **argv)
             project_load(0);
             check("... written back into a wiped device, a restart: the work's and section A's layouts",
                   rc == 0 && nn && !memcmp(fxs_slot, L[0], 4));
+            for (k = 5; k < 7u; k++)                   /* (an older backup's FXSL: the same records, u8 lengths) */
+                for (at2 = 0; at2 < ln[k]; at2 += 3u + (d[k][at2 + 1u] | d[k][at2 + 2u] << 8)) {
+                    uint32_t rl = d[k][at2 + 1u] | d[k][at2 + 2u] << 8;
+                    old[no] = d[k][at2], old[no + 1u] = (uint8_t)rl;
+                    memcpy(old + no + 2u, d[k] + at2 + 3u, rl);
+                    no += 2u + rl;
+                }
+            fresh_flash();
+            for (k = 0; k < 5u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);
+            rc |= bk_put(ixo, old, no);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            power_cycle();
+            nn = !memcmp(fxs_slot, W, 4);
+            project_load(0);
+            check("... an older backup's FXSL (one pack, u8 lengths) restored the same", rc == 0 && nn && !memcmp(fxs_slot, L[0], 4));
             fresh_flash();
             d[5][0] = 17u;                             /* (an id past the autosave's) */
             rc = bk_put(ix[5], d[5], ln[5]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
-            check("... an FXSL object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(FXR_ID0));
+            check("... an FXR1 object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(FXR_ID0));
         }
 #endif
 #endif
@@ -1211,7 +1230,7 @@ int main(int argc, char **argv)
 #if BK_ALL_ON
         /* (run_tests.sh: every switch that adds a BK_OBJS entry on at once, a new one goes into that line too; BK_ALL_ON =
          * the bytes of the builder's item bits, as the target has them, FELUCCA_CFG_BITS sized to it) */
-        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "DLFO", "UPF6", "FM6B", "CZBK", "SNAP"};
+        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "FXR1", "FXR2", "DLFO", "UPF6", "FM6B", "CZBK", "SNAP"};
         for (k = 0, ok = 1; k < sizeof all / sizeof all[0]; k++)
             ok &= bk_list_find(all[k], NULL, NULL, NULL, NULL) >= 0;
         for (k = 0; k < BK_N; k++)

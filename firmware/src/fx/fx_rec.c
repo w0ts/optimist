@@ -16,14 +16,16 @@
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 232u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX 288u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
                                                         * 2026-10-14: GATER, 2 + 4 + its PATTERN RATE SHAPE 12; 186 -> 214 2026-10-14 fx-rework: DUST's 2 + 4, the
                                                         * tracks' DYN GAIN CEIL 8, the master's slots MST_TLV 2 + 12;
-                                                        * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 17 of them fill
-                                                        * SEC_REC_MAX (ed_backup.c): the room is used up) */
+                                                        * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 232 -> 288: room
+                                                        * for the TLVs coming (voice counts, the Juno chorus) and ~40 B
+                                                        * spare: the editor's backup packs them in two objects since,
+                                                        * ed_backup.c FXR1 FXR2) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
