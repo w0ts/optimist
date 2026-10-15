@@ -195,26 +195,47 @@ static const param_desc_t TP[P_COUNT] = {
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
 #include "env_store.h"                                /* ENV DEST's, ENV2 DEST's slots <-> the depths of before */
-/* an automation event (a motion, a lock: stored before LFO DEST had slots, or SLOOP 2.4's) on a depth of before
- * (P_LEG_PIT .. P_LEG_AMP) of part t at *v -> the AMT of t's LFO slot on that destination, *v in AMT units (2 x; AMP as it
- * is). No slot on it: a slot that does nothing (OFF or at 0; not one in *taken, the slots this step's events took) is
- * put on that destination for the event (*did: its DEST id, P_COUNT none), as the depth of before acted there; none:
- * P_COUNT (not played). LFO DEST's slots record no event of their own yet */
-static uint32_t lfo_leg_ev(const track_t *t, uint32_t id, int32_t *v, uint32_t *taken, uint32_t *did)
+/* An automation event (a motion, a lock) on a depth of before: LFO DEST's PIT FLT SHP AMP (P_LEG_PIT .. P_LEG_AMP, stored
+ * before LFO DEST had slots, or SLOOP 2.4's), ENV DEST's FLT SHP (P_ED_FLT P_ED_SHP), ENV2's FLT PIT SHP OSC2 SDTN
+ * (P_A2FENV, P_A2EPIT ..; before 2026-10-14). leg_first: the slots it went to (P_L1DA, P_N1DA, P_N2DA; P_COUNT: not such
+ * an id), *d its DEST */
+static uint32_t leg_first(uint32_t id, uint32_t *d)
 {
-    uint32_t d = LT_PIT + (id - P_LEG_PIT), k;
-    *v = d == LT_AMP ? clamp(*v, 0, 127) : 2 * clamp(*v, -64, 63);
+    if (id >= P_LEG_PIT && id <= P_LEG_AMP)
+        return *d = LT_PIT + (id - P_LEG_PIT), P_L1DA;
+    if (id == P_ED_FLT || id == P_ED_SHP)
+        return *d = id == P_ED_FLT ? LT_FLT : LT_SHP, P_N1DA;
+#if FELUCCA_ANALOG2
+    if (id == P_A2FENV)
+        return *d = LT_FLT, P_N2DA;
+    if (id >= P_A2EPIT && id <= P_A2ESDT)
+        return *d = ENV2_LEG_DEST[1u + id - P_A2EPIT], P_N2DA;
+#endif
+    return P_COUNT;
+}
+#define LEG_ID(id) ({ uint32_t d_; leg_first((id), &d_) < P_COUNT; })
+/* such an event of part t at *v -> the AMT of t's slot on that destination (of the modulator it went to), *v in AMT units
+ * (2 x; LFO's AMP as it is). No slot on it: a slot that does nothing (OFF or at 0; not one in *taken, the slots this
+ * step's events took: bits 0 1 LFO's, 2 3 ENV's, 4 5 ENV2's) is put on that destination for the event (*did: its DEST id,
+ * P_COUNT none), as the depth of before acted there; none: P_COUNT (not played). *dest: the destination */
+static uint32_t lfo_leg_ev(const track_t *t, uint32_t id, int32_t *v, uint32_t *taken, uint32_t *did, uint32_t *dest)
+{
+    uint32_t d, k, f = leg_first(id, &d), sh = f == P_L1DA ? 0u : f == P_N1DA ? 2u : 4u;
     *did = P_COUNT;
+    *dest = d;
+    if (f >= P_COUNT)
+        return P_COUNT;
+    *v = f == P_L1DA && d == LT_AMP ? clamp(*v, 0, 127) : 2 * clamp(*v, -64, 63);
     for (k = 0; k < 2u; k++)
-        if ((uint32_t)t->p[P_L1DA + 2u * k] == d) {
-            *taken |= 1u << k;
-            return P_L1AA + 2u * k;
+        if ((uint32_t)t->p[f + 2u * k] == d) {
+            *taken |= 1u << (sh + k);
+            return f + 2u * k + 1u;
         }
     for (k = 0; k < 2u; k++)
-        if (!((*taken >> k) & 1u) && (t->p[P_L1DA + 2u * k] == LT_OFF || !t->p[P_L1AA + 2u * k])) {
-            *taken |= 1u << k;
-            *did = P_L1DA + 2u * k;
-            return P_L1AA + 2u * k;
+        if (!((*taken >> (sh + k)) & 1u) && (t->p[f + 2u * k] == LT_OFF || !t->p[f + 2u * k + 1u])) {
+            *taken |= 1u << (sh + k);
+            *did = f + 2u * k;
+            return f + 2u * k + 1u;
         }
     return P_COUNT;
 }
@@ -701,7 +722,7 @@ static const page_t PAGES[] = {
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
 #if FELUCCA_UI == 1
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_ED_PIT, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP: the pitch drop, ENV DEST PIT before 2026-10-14) */
+    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, 0xFF, P_ED_PIT}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP on card 4: the pitch drop, ENV DEST PIT before 2026-10-14; card 3: feat/voice-count's VOICES) */
 #else
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
     {"VOICE 3", FAM_EDIT, SC_TRACK, GR_NONE, {P_ED_PIT, 0xFF, 0xFF, 0xFF}},   /* DROP: the pitch drop (ENV DEST PIT before) */

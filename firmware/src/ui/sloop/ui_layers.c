@@ -43,7 +43,7 @@ static uint32_t sec_armed_ms;
 #if FELUCCA_PLOCK
 /* the parameter a held step's PRESETS locks (SLOOP 2.4): the last sound value a knob changed on a page of the
  * selected track (ui_input.c edit_param), ENV DEST FLT at boot */
-static uint8_t lock_par = P_ED_FLT;
+static uint8_t lock_par = P_ED_PIT;   /* (DROP; ENV DEST FLT until its slots, 2026-10-14) */
 #endif
 #if FELUCCA_QCHAIN
 static uint8_t chain_tap[CHAIN_MAX], chain_taps;        /* the section keys tapped in this SAVE hold (the first is

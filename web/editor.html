@@ -3077,12 +3077,15 @@ function readDX7File(bytes, ctx = {}) {
 }
 
 /* parameter keys by id from the instrument DESCs. LFO DEST's slots (firmware 2026-10: DST A AMT A DST B AMT B where the
-   depths PIT#2 FLT#2 SHP#2 AMP were) count as those depths did for the labels after them: ENV2 DEST stays FLT#3 PIT#3 SHP#3 */
+   depths PIT#2 FLT#2 SHP#2 AMP were) count as those depths did for the labels after them: ENV2 DEST stays FLT#3 PIT#3 SHP#3.
+   DROP (2026-10-14: ENV DEST PIT, the pitch drop, renamed) keeps the key PIT. ENV DEST's and ENV2 DEST's slots (after
+   P_E7) take DST A#n ..: a file of before has none, its ENV DEST FLT SHP and ENV2 amounts go to their words, which the
+   firmware reads as the depths of before (upreset.c up_vals_put) */
 function paramKeys(pdesc, pe0, pcount) {
   const seen = {}, out = [];
   for (let i = 0; i < pcount; i++) {
     if (i >= pe0 && i < pe0 + 8) { out.push("E" + (i - pe0)); continue; }   /* (after them: SLOOP 2.4's FILT STRUM VLEAD) */
-    const l = (pdesc[i] && pdesc[i].label) || "P" + i;
+    const l0 = (pdesc[i] && pdesc[i].label) || "P" + i, l = l0 === "DROP" ? "PIT" : l0;   /* (DROP: ENV DEST PIT before 2026-10-14) */
     if (l === "DST A" && !seen[l])
       for (const x of ["PIT", "FLT", "SHP"]) seen[x] = (seen[x] || 0) + 1;
     seen[l] = (seen[l] || 0) + 1;

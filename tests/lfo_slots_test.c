@@ -334,17 +334,27 @@ static void t_macros(void)
 static void t_events(void)
 {
     track_t *t = &trk[0];
-    uint32_t taken = 0, did, id;
+    uint32_t taken = 0, did, id, dst;
     int32_t v;
     init();
     t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 10, t->p[P_L1DB] = LT_FLT, t->p[P_L1AB] = 30;
-    v = 25, id = lfo_leg_ev(t, P_LEG_FLT, &v, &taken, &did);
+    v = 25, id = lfo_leg_ev(t, P_LEG_FLT, &v, &taken, &did, &dst);
     check(id == P_L1AB && v == 50 && did == P_COUNT, "events: a lock of FLT 25 of before -> slot B (on FLT) at 50");
-    taken = 0, v = 9, id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did);
+    taken = 0, v = 9, id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did, &dst);
     check(id == P_COUNT, "events: AMP with both slots in use: not played");
     t->p[P_L1AB] = 0, taken = 0, v = 9;
-    id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did);
+    id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did, &dst);
     check(id == P_L1AB && did == P_L1DB && v == 9, "events: a slot that does nothing (B at 0) takes AMP 9 for the step");
+    t->p[P_N1DA] = LT_AMP, t->p[P_N1AA] = 127, t->p[P_N1DB] = LT_FLT, t->p[P_N1AB] = 40;   /* ENV DEST (2026-10-14) */
+    taken = 0, v = 30, id = lfo_leg_ev(t, P_ED_FLT, &v, &taken, &did, &dst);
+    check(id == P_N1AB && v == 60 && did == P_COUNT && dst == LT_FLT, "events: an ENV DEST FLT 30 of before -> ENV's slot B (FLT) at 60");
+    taken = 0, v = 20, id = lfo_leg_ev(t, P_ED_SHP, &v, &taken, &did, &dst);
+    check(id == P_COUNT, "events: ENV DEST SHP with both of ENV's slots in use: not played");
+#if FELUCCA_ANALOG2
+    t->p[P_N2DA] = LT_OFF, t->p[P_N2AA] = 0, t->p[P_N2DB] = LT_OFF, t->p[P_N2AB] = 0;
+    taken = 0, v = -12, id = lfo_leg_ev(t, P_A2EOS2, &v, &taken, &did, &dst);
+    check(id == P_N2AA && did == P_N2DA && dst == LT_OSC2 && v == -24, "events: ENV2's OSC2 -12 of before -> a free ENV2 slot on OSC2 at -24");
+#endif
 }
 
 /* the DEST card's text (params.c lt_text): E1 .. E8 the engine's own name of that EDIT value, XRATE XAMT the other LFO's */

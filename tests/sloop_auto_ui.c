@@ -39,13 +39,13 @@ static void sloop_auto_synth_step(uint32_t idx)
     track_t *t = &trk[0];
     char what[96];
     int32_t v = 0;
-    lock_par = P_ED_FLT;
+    lock_par = P_ED_PIT;
     sa_hold(idx);
     snprintf(what, sizeof what, "synth step %u: SEQ + its page key + the step tapped, then held: the page", idx + 1u);
     check(ui.step_page == idx / 16u && step_on(&t->step[idx]), what);
     encs[panel.enc[EN_PRESET]] = 3; frame();
     snprintf(what, sizeof what, "synth step %u held + PRESETS +3: a lock event at the track's value + 3", idx + 1u);
-    check(lock_get(t, idx, P_ED_FLT, &v) && v == t->p[P_ED_FLT] + 3 && auto_find(AL(t), idx | AUTO_ONLY, P_ED_FLT) >= 0,
+    check(lock_get(t, idx, P_ED_PIT, &v) && v == t->p[P_ED_PIT] + 3 && auto_find(AL(t), idx | AUTO_ONLY, P_ED_PIT) >= 0,
           what);
     encs[panel.enc[EN_K4]] = 4; frame();
     snprintf(what, sizeof what, "synth step %u held + KNOB 4 +4: its nudge +4 (an AUTO_NUDGE event)", idx + 1u);
@@ -83,13 +83,13 @@ static void sloop_auto_ui_tests(void)
     encs[panel.enc[EN_PRESET]] = 2; frame();
     encs[panel.enc[EN_K4]] = -3; frame();
     sa_let_go();
-    check(lock_get(t, 40, P_ED_FLT, &v) && step_micro(t, 40) == -3, "undo: a hold wrote a lock and a nudge on step 41");
+    check(lock_get(t, 40, P_ED_PIT, &v) && step_micro(t, 40) == -3, "undo: a hold wrote a lock and a nudge on step 41");
     press(B_EDIT); frames(10);
     sa_oct(B_OCTDN);
-    check(!lock_get(t, 40, P_ED_FLT, &v) && step_micro(t, 40) == 0 && !step_on(&t->step[40]),
+    check(!lock_get(t, 40, P_ED_PIT, &v) && step_micro(t, 40) == 0 && !step_on(&t->step[40]),
           "undo: EDIT + OCT-: the step, its lock and its nudge gone (one level)");
     sa_oct(B_OCTUP);
-    check(lock_get(t, 40, P_ED_FLT, &v) && step_micro(t, 40) == -3 && step_on(&t->step[40]),
+    check(lock_get(t, 40, P_ED_PIT, &v) && step_micro(t, 40) == -3 && step_on(&t->step[40]),
           "undo: EDIT + OCT+: redo, the lock and the nudge back");
     release(B_EDIT); frames(2);
 
@@ -102,7 +102,7 @@ static void sloop_auto_ui_tests(void)
     sa_hold(63);
     ui.msg[0] = 0;
     encs[panel.enc[EN_PRESET]] = 1; frame();
-    check(sa_full_msg() && !lock_get(t, 63, P_ED_FLT, &v), "full: step 64 held + PRESETS: no lock, \"Pattern full: 128 events\"");
+    check(sa_full_msg() && !lock_get(t, 63, P_ED_PIT, &v), "full: step 64 held + PRESETS: no lock, \"Pattern full: 128 events\"");
     ui.msg[0] = 0;
     encs[panel.enc[EN_K4]] = 2; frame();
     check(sa_full_msg() && step_micro(t, 63) == 0, "full: KNOB 4: no nudge, the message");

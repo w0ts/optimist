@@ -261,12 +261,12 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
 #if FELUCCA_PLOCK
         else if (!AUTO_PSEUDO(e->param) && m < NLOCK) {
-            uint32_t id = mot_id(e->param), did = P_COUNT;
+            uint32_t id = mot_id(e->param), did = P_COUNT, dest = 0;
             int32_t val = e->value;
-            if (!is_drum(t) && id >= P_LEG_PIT && id <= P_LEG_AMP) {
-                id = m + 1u < NLOCK ? lfo_leg_ev(t, id, &val, &ltaken, &did) : P_COUNT;   /* (a depth of before: the LFO */
-                if (did < P_COUNT)                     /* slot on it, AMT units; a free slot put on it for the step) */
-                    lp[m] = (uint8_t)did, lv[m++] = (int8_t)(LT_PIT + (mot_id(e->param) - P_LEG_PIT));
+            if (!is_drum(t) && LEG_ID(id)) {
+                id = m + 1u < NLOCK ? lfo_leg_ev(t, id, &val, &ltaken, &did, &dest) : P_COUNT;   /* (a depth of before: */
+                if (did < P_COUNT)                     /* the slot on it, AMT units; a free slot put on it for the step) */
+                    lp[m] = (uint8_t)did, lv[m++] = (int8_t)dest;
             } else if (!lock_ok(t, id)) {
                 id = P_COUNT;
             }

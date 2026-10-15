@@ -263,23 +263,23 @@ static void t_locks(void)
     track_t *t = &trk[0];
     int16_t b, v2, v3, v4, p2, p3, p4;
     reset(120);
-    b = t->p[P_ED_FLT];
-    check(lock_set(t, 2, P_ED_FLT, 40) && lock_set(t, 2, P_PAN, -30) && lock_set(t, 3, P_PAN, 20),
+    b = t->p[P_ED_PIT];
+    check(lock_set(t, 2, P_ED_PIT, 40) && lock_set(t, 2, P_PAN, -30) && lock_set(t, 3, P_PAN, 20),
           "PLOCK: three locks set (two on one step)");
     check(!lock_set(t, 2, P_SDIV, 1) && !lock_set(t, 2, P_VOICE, 1), "PLOCK: DIV and the voice allocation are not lockable (the arp's RATE is, since seq-tools)");
     transport_req = 1;
-    v2 = val_at_step(t, P_ED_FLT, 2), p2 = t->p[P_PAN];
-    v3 = val_at_step(t, P_ED_FLT, 3), p3 = t->p[P_PAN];
-    v4 = val_at_step(t, P_ED_FLT, 4), p4 = t->p[P_PAN];
+    v2 = val_at_step(t, P_ED_PIT, 2), p2 = t->p[P_PAN];
+    v3 = val_at_step(t, P_ED_PIT, 3), p3 = t->p[P_PAN];
+    v4 = val_at_step(t, P_ED_PIT, 4), p4 = t->p[P_PAN];
     check(v2 == 40 && p2 == -30 && v3 == b && p3 == 20 && v4 == b && p4 == 0,
           "PLOCK: on its step the value, back at the next step without one (PAN: -30, 20, then 0)");
-    val_at_step(t, P_ED_FLT, 2);
-    t->p[P_ED_FLT] = 7;                              /* a knob turned while the lock holds: the new base */
-    check(val_at_step(t, P_ED_FLT, 3) == 7, "PLOCK: a knob turned during a lock: kept as the base after it");
-    val_at_step(t, P_ED_FLT, 2);
+    val_at_step(t, P_ED_PIT, 2);
+    t->p[P_ED_PIT] = 7;                              /* a knob turned while the lock holds: the new base */
+    check(val_at_step(t, P_ED_PIT, 3) == 7, "PLOCK: a knob turned during a lock: kept as the base after it");
+    val_at_step(t, P_ED_PIT, 2);
     transport_req = 2;
     run_block();
-    check(t->p[P_ED_FLT] == 7 && t->p[P_PAN] == 0, "PLOCK: STOP: every parameter back to its base");
+    check(t->p[P_ED_PIT] == 7 && t->p[P_PAN] == 0, "PLOCK: STOP: every parameter back to its base");
     {
         uint32_t i, n = 0;
         for (i = 0; i < 64u; i++)
@@ -291,7 +291,7 @@ static void t_locks(void)
         steps_clear(t);
     }
 #if FELUCCA_MACROS
-    check(!lock_set(TDRUM, 1, P_ED_FLT, 10) && lock_set(TDRUM, 1, P_E0, 3),
+    check(!lock_set(TDRUM, 1, P_ED_PIT, 10) && lock_set(TDRUM, 1, P_E0, 3),
           "PLOCK: the drum track: the macros' places not lockable, the kit is");
 #endif
 }
@@ -302,11 +302,11 @@ static void t_lock_motion(void)
     track_t *t = &trk[0];
     reset(120);
     motion_clear(t);
-    check(!motion_set_event(t, 2, P_ED_FLT, 25), "MOTION: a hold event, track 1, step 2: ENV DEST FLT = 25");
+    check(!motion_set_event(t, 2, P_ED_PIT, 25), "MOTION: a hold event, track 1, step 2: DROP = 25");
     motion_set_enabled(t, 1);
-    lock_set(t, 2, P_ED_FLT, 50);
+    lock_set(t, 2, P_ED_PIT, 50);
     transport_req = 1;
-    { int16_t a = val_at_step(t, P_ED_FLT, 2), c = val_at_step(t, P_ED_FLT, 3);
+    { int16_t a = val_at_step(t, P_ED_PIT, 2), c = val_at_step(t, P_ED_PIT, 3);
     check(a == 50 && c == 25,
           "PLOCK + MOTION on one step: the lock wins there, then the motion value"); }
     transport_req = 2;
