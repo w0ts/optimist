@@ -11,7 +11,9 @@
  *     the 16 (the slew's 16-sample step is exact: (1 - 1393 / 32768)^16 = 0.499); the OTA's gains folded into them;
  *   - the cutoff table (fm-106's 4096 measured points) at every 4th point, linear between: 2 KB, not 8 (at most
  *     17 cents off the table above its lowest 200 values, where it is 1 step of its own rounding);
- *   - the OTA saturation's two divides by 384 a multiply;
+ *   - the OTA saturation's two divides by 384 a multiply, its table (fm-106's 257 points) at every 2nd point, linear
+ *     between (2 LSB off the curve; the resonance tables, the cutoff table and the VCA's packed without loss:
+ *     juno_dtab, the resonance's decoded when RES changes, eng_juno.c);
  *   - the thermal noise's peak follower once every 16 samples (it only matters to a silent voice);
  *   - the DCO's coupling capacitor in 32 bits (alpha 1 / 4096: 1.71 Hz for fm-106's 1.59 Hz); the ladder's on the part
  *     (one, not six: linear, it differs only by the VCA's movement below 2 Hz).
@@ -39,6 +41,32 @@ typedef struct {                 /* a voice's state */
     int32_t dc_osc;              /* the DCO's coupling capacitor, Q12 */
 } juno_vs_t;
 
+/* a packed table's value i (gen_juno_tables.py): its 16th value at or below i and the steps after it (a call:
+ * once a block, or once a set of ladder coefficients) */
+static __attribute__((noinline)) int32_t juno_dtab(const uint16_t *a, const uint8_t *d, int32_t bias, uint32_t i)
+{
+    uint32_t k = (i & ~15u) + 1u;
+    int32_t s = (int32_t)a[i >> 4] + bias * (int32_t)(i & 15u);
+    for (; k <= i; k++)
+        s += d[k];
+    return s;
+}
+#define JUNO_DTAB(T, i) juno_dtab(JUNO_##T##_A, JUNO_##T##_D, JUNO_##T##_B, (i))
+#define JUNO_DNEXT(T, v, i) ((v) + (int32_t)JUNO_##T##_D[(i) + 1u] + JUNO_##T##_B)   /* (the value after i) */
+
+typedef struct {                 /* what the resonance sets (juno_res_at) */
+    int32_t k, pull, fb, inv_fb; /* RES_K, PEAK_PULL, FB_SCALE, INV_FB_SCALE */
+} juno_rset_t;
+
+JUNO_INL void juno_res_at(juno_rset_t *r, uint32_t res)   /* (res 0..127) */
+{
+    uint32_t i = res > JUNO_FB_SCALE_LO ? res - JUNO_FB_SCALE_LO : 0u, nt = sizeof JUNO_FB_SCALE_T / 2u;
+    r->k = JUNO_DTAB(RES_K, res);
+    r->pull = JUNO_DTAB(PEAK_PULL, res);
+    r->fb = JUNO_FB_SCALE_T[i < nt ? i : nt - 1u];      /* (its flat ends: the first and the last value) */
+    r->inv_fb = (int32_t)((16777216u + ((uint32_t)r->fb >> 1)) / (uint32_t)r->fb) - (res == JUNO_INV_FB_FIX);
+}
+
 typedef struct {                 /* a block's controls */
     uint32_t inc;                /* the DCO's phase increment */
     uint8_t saw, pulse;          /* 0 / 1 */
@@ -46,13 +74,15 @@ typedef struct {                 /* a block's controls */
     uint8_t pw;                  /* the pulse width, 0..105 (50..95 %) */
     uint8_t res;                 /* 0..127 */
     uint16_t dac;                /* the cutoff, 14 bits */
+    juno_rset_t r;                /* what res sets: juno_res_at(&c.r, res), the caller's (eng_juno.c: once a change) */
 } juno_ctl_t;
 
 typedef struct {                 /* the HPF of a part (after its voices), the coupling before it */
     int64_t bb1, bb2, hp, dc, cpl;
 } juno_hpf_t;
 
-JUNO_INL int32_t juno_blep(uint32_t ph, uint32_t inc)
+/* the polyBLEP residual at a wave's edge (a call: only on the samples next to an edge) */
+static __attribute__((noinline)) int32_t juno_blep(uint32_t ph, uint32_t inc)
 {
     uint32_t d;
     if (inc < 2u)
@@ -139,25 +169,27 @@ JUNO_INL int32_t juno_ota_sat(int32_t x)
     if (a >= 98304) {
         y = 32767;
     } else {
-        uint32_t q = ((uint32_t)a * 43691u) >> 16, i = q >> 8;   /* a / 384 in Q8 */
-        y = (int32_t)JUNO_OTA_SAT[i] + (((int32_t)(JUNO_OTA_SAT[i + 1] - JUNO_OTA_SAT[i]) * (int32_t)(q & 255u)) >> 8);
+        uint32_t q = ((uint32_t)a * 43691u) >> 16, i = q >> 9;   /* a / 384 in Q8; the table at every 2nd point */
+        y = (int32_t)JUNO_OTA_SAT2[i] + (((int32_t)(JUNO_OTA_SAT2[i + 1] - JUNO_OTA_SAT2[i]) * (int32_t)(q & 511u)) >> 9);
     }
     return x < 0 ? -y : y;
 }
 
 /* the ladder's coefficients at a cutoff CV (14 bits): g = the cutoff table's g1 pulled to the resonance's peak, g^2, g^3;
  * A = the input's gain into u, B = the OTA's (both >> 27: 0.142 / (1 + kG), k inv_fb / (1 + kG)) */
-JUNO_INL void juno_coef(int32_t cv, uint32_t res, int32_t *cf)
+JUNO_INL void juno_coef(int32_t cv, const juno_rset_t *r, int32_t *cf)
 {
     uint32_t code = (uint32_t)cv >> 2, q;
-    int32_t k = JUNO_RES_K[res], g1, g2, inv;
+    int32_t k = r->k, g1, g1n, g2, inv;
     if (code > 4095u)
         code = 4095u;
     if (code > 3500u)                                   /* no resonance at Nyquist */
         k = (k * (4095 - (int32_t)code)) / 595;
     q = code >> 2;                                      /* the cutoff table at every 4th code, linear between */
-    g1 = JUNO_VCF_G1Q[q] + (((JUNO_VCF_G1Q[q + 1] - JUNO_VCF_G1Q[q]) * (int32_t)(code & 3u)) >> 2);
-    g1 = (g1 * (int32_t)JUNO_PEAK_PULL[res]) >> 12;
+    g1 = JUNO_DTAB(VCF_G1Q, q);
+    g1n = JUNO_DNEXT(VCF_G1Q, g1, q);
+    g1 += ((g1n - g1) * (int32_t)(code & 3u)) >> 2;
+    g1 = (g1 * r->pull) >> 12;
     if (g1 > 32767)
         g1 = 32767;
     g2 = (g1 * g1) >> 15;
@@ -166,7 +198,7 @@ JUNO_INL void juno_coef(int32_t cv, uint32_t res, int32_t *cf)
     cf[1] = g2;
     cf[2] = (g2 * g1) >> 15;
     cf[3] = 4653 * inv;
-    cf[4] = (((k * (int32_t)JUNO_INV_FB_SCALE[res]) >> 12) * inv) << 3;
+    cf[4] = (((k * r->inv_fb) >> 12) * inv) << 3;
 }
 
 /* one voice's block before the VCA into y[]: the ladder's coefficients once every 16 samples, at the cutoff CV's RC
@@ -174,15 +206,15 @@ JUNO_INL void juno_coef(int32_t cv, uint32_t res, int32_t *cf)
 JUNO_INL void juno_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *y, uint32_t n)
 {
     int32_t x[JUNO_SUB], cf[5];
-    uint32_t o, res = c->res > 127u ? 127u : c->res;
-    int32_t fbs = JUNO_FB_SCALE[res], pin = (2130 * fbs) >> 12, dac = c->dac;
+    uint32_t o;
+    int32_t fbs = c->r.fb, pin = (2130 * fbs) >> 12, dac = c->dac;
     int32_t z0 = s->z[0], z1 = s->z[1], z2 = s->z[2], z3 = s->z[3];
     if (s->slew == 0)
         s->slew = dac;
     for (o = 0; o < n; o += JUNO_SUB) {
         uint32_t i, m = n - o < JUNO_SUB ? n - o : JUNO_SUB;   /* (shorter: a voice starting inside the block) */
         int32_t peak = juno_dco_run(s, c, x, m), sl = s->slew - dac, g, g2, g3, om, A, B, zs, energy, noisy;
-        juno_coef(dac + ((sl * 23150) >> 15), res, cf);   /* (1 - 1393 / 32768)^8 = 0.7065 */
+        juno_coef(dac + ((sl * 23150) >> 15), &c->r, cf);   /* (1 - 1393 / 32768)^8 = 0.7065 */
         s->slew = dac + ((sl * 16353) >> 15);
         g = cf[0], g2 = cf[1], g3 = cf[2], om = 32768 - g, A = cf[3], B = cf[4];
         /* the thermal noise: only into a voice gone silent (input and ladder), checked once per 16 */

@@ -273,5 +273,6 @@ src/ui/optimist/op_graph.c:graph_fx:span | the loop skips a cell with span <= 0 
 src/engines/juno/juno_dsp.h:juno_blep:d | d = inc >> 15, set to 1 when 0: >= 1
 src/engines/juno/juno_dsp.h:juno_coef:(4096+((k*((g2*g2)>>15))>>15)) | k (RES_K, faded: 0..18050) and g2 (0..32767) >= 0: >= 4096
 src/engines/juno/juno_dsp.h:juno_run:(1+(energy>>2)) | energy is a max of a peak follower and absolute values: >= 0, so >= 1
+src/engines/juno/juno_dsp.h:juno_res_at:(uint32_t)r->fb | FB_SCALE_T, a table of fm-106's FB_SCALE (5161..17203; gen_juno_tables.py): >= 5161
 
 src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total

@@ -1,10 +1,10 @@
 # JUNO engine golden renders (tests/juno_test.c): preset, FNV-1a 64 of the output (4-note chord,
 # 2 s held, 4 s release, dry). Rewritten by GOLDEN_UPDATE=1 -- only for an intended change.
 00_JUNO_INIT 3771dc25b998d449
-01_JUNO_STRNG 8615a09a2581e1f1
-02_JUNO_PWM_PD 3a1fe1cbaeef5a33
-03_JUNO_BRASS 0f60669dd9dd7bc7
-04_JUNO_BASS cbab8fa660838c2d
-05_JUNO_SYNCL e8f17c7aaa8c0c01
-06_JUNO_HOLLOW cc7d975948a01acf
+01_JUNO_STRNG a84973df6533a855
+02_JUNO_PWM_PD 3f6bf71ce26df149
+03_JUNO_BRASS 3900aa193aa6d46f
+04_JUNO_BASS dc015d09a530cad9
+05_JUNO_SYNCL 2b01d49a5069fff7
+06_JUNO_HOLLOW 3801f79878dabfbf
 07_JUNO_ORGAN 225d1d6eee2f0787
