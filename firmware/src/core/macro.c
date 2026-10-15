@@ -188,7 +188,7 @@ static void mac_pre(void)
             continue;                                  /* (no macro off home moves this one) */
         if (r->kind == MK_LFO) {                       /* LFO's depth of PIT FLT SHP AMP on every part (voice.c lfo_mac) */
             for (k = 0; k < NPART; k++) {
-                int32_t dep[4] = {0, 0, 0, 0};
+                int32_t dep[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
                 lfo_dep(&trk[k].p[P_L1DA], dep);
                 lfo_mac[k][r->id & 3u] = (int16_t)mac_lfo(dep[r->id & 3u], r->id & 3u, sc, add);
                 lfo_mac_m |= (uint16_t)(1u << (4u * k + (r->id & 3u)));

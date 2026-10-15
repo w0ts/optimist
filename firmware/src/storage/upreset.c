@@ -22,15 +22,18 @@
  * With -DUP_HOST (host test) only the part above #ifndef UP_HOST is built;
  * it needs nothing but core.h. */
 #define UP_PER_BANK 16u
-#define UP_PMAX 72u                              /* room for P_COUNT to grow */
+#define UP_PMAX 84u                              /* room for P_COUNT to grow (UP_VER 3: P_ENG_END values, the slots) */
+#define UP_PMAX2 72u                             /* the records of UPB1 / UPB2 banks (UP_VER 1, 2) */
 #define UP_USED 0xA5u
+#define UP_VER 3u                                /* (2026-10-14) every value in its own word, in P_* order, then the
+                                                  * envelopes' slots UP_NSLOT (P_N1DA ..): nothing packed */
+#define UP_NSLOT 8u
 #if FELUCCA_ANALOG2
-#define UP_VER 2u                                /* ENV2's extras packed (up_vals_put) */
+#define UP_VER2 2u                               /* ENV2's extras packed (UPB2, read only) */
 #define UP_NP_V1A2 72u                           /* UP_VER 1's P_COUNT with SUS2 REL2 DST2 (P_E0 64) */
 #define UP_NS(np) ((np) - A2X_N + A2X_W)         /* p[] used by a record of UP_VER 2 */
 #define UP_XN A2X_N
 #else
-#define UP_VER 1u
 #define UP_NS(np) (np)
 #define UP_XN 0u
 #endif
@@ -43,11 +46,12 @@
 #define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
 #define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
 #endif
+#define UP_BANK_MAGIC 0x33425055u                /* "UPB3" (2026-10-14): records of UP_VER 3, UP_PMAX words */
 #if FELUCCA_ANALOG2
-#define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
+#define UP_BANK_MAGIC_V2 0x32425055u             /* "UPB2": today's engine numbers (FM6 9, SLICE 10); read, written UPB3 */
 #define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
 #else
-#define UP_BANK_MAGIC 0x31425055u                /* "UPB1" */
+#define UP_BANK_MAGIC_V2 0x31425055u             /* "UPB1" */
 #endif
 typedef struct {
     uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
@@ -60,7 +64,37 @@ typedef struct {
     uint16_t rsize, nslot;
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
-_Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
+typedef struct {                                 /* a record of UPB1 / UPB2 (UP_VER 1, 2), in flash */
+    uint8_t used, ver, engine, np;
+    char name[12];
+    int16_t p[UP_PMAX2];
+    uint8_t note[16], flags[16];
+} up_rec2_t;
+typedef struct {
+    uint32_t magic;
+    uint16_t rsize, nslot;
+    up_rec2_t r[UP_PER_BANK];
+} up_bank2_t;
+_Static_assert(sizeof(up_rec_t) == 216 && sizeof(up_rec2_t) == 192 && sizeof(up_bank_t) <= 3840u,
+               "user preset record layouts (UPB3, UPB1 / UPB2)");
+/* a record of before -> today's struct (the same fields, p[] longer: the rest 0) and back (UP_VER 1, 2 only) */
+static void up_rec_from2(up_rec_t *r, const up_rec2_t *o)
+{
+    memset(r, 0, sizeof *r);
+    r->used = o->used, r->ver = o->ver, r->engine = o->engine, r->np = o->np;
+    memcpy(r->name, o->name, sizeof r->name);
+    memcpy(r->p, o->p, sizeof o->p);
+    memcpy(r->note, o->note, sizeof r->note);
+    memcpy(r->flags, o->flags, sizeof r->flags);
+}
+static void up_rec_to2(up_rec2_t *o, const up_rec_t *r)
+{
+    o->used = r->used, o->ver = r->ver, o->engine = r->engine, o->np = r->np;
+    memcpy(o->name, r->name, sizeof o->name);
+    memcpy(o->p, r->p, sizeof o->p);
+    memcpy(o->note, r->note, sizeof o->note);
+    memcpy(o->flags, r->flags, sizeof o->flags);
+}
 _Static_assert(UP_NS(P_ENG_END) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");   /* (SLOOP 2.4's track
                                                  * values after P_E7, core.h P_TFLT ..: not a sound's, not kept here) */
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
@@ -69,8 +103,15 @@ static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && (r->ver == 1u || r->ver == UP_VER) && r->engine < ENG_UID_N && r->np >= 8u + (r->ver != 1u ? UP_XN : 0u) &&
-           (r->ver == 1u ? r->np : UP_NS(r->np)) <= UP_PMAX && r->name[0];
+    if (r->used != UP_USED || r->engine >= ENG_UID_N || !r->name[0] || r->np < 8u)
+        return 0;
+    if (r->ver == UP_VER)
+        return r->np + UP_NSLOT <= UP_PMAX;
+#if FELUCCA_ANALOG2
+    if (r->ver == UP_VER2)
+        return r->np >= 8u + UP_XN && UP_NS(r->np) <= UP_PMAX2;
+#endif
+    return r->ver == 1u && r->np <= UP_PMAX2;
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
@@ -83,24 +124,29 @@ static uint32_t up_engine_slot(uint32_t k)
 #endif
 
 #include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
-/* values v (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
-static void up_vals_put(up_rec_t *r, const int16_t *v)
+#include "../core/env_store.h"                     /* (ENV DEST, ENV2 DEST: env_store, env_load) */
+/* values v (today's P_* order, P_COUNT) -> record r's p[] and np (UP_VER 3): P_LEVEL .. P_E7 each in its word, the
+ * envelopes' slots after them. Values in the words of the depths of before (LFO DEST's slots are in their own ids:
+ * kept; ENV DEST FLT SHP, ENV2's amounts, which today's values hold at 0) that are not 0 come from outside (the editor,
+ * a file of before): read as those depths (env_load), then 0 */
+static void up_vals_put(up_rec_t *r, const int16_t *v0)
 {
+    int16_t v[P_COUNT];
     uint32_t i;
+    memcpy(v, v0, sizeof v);
+    if (v[P_ED_FLT] || v[P_ED_SHP]
+#if FELUCCA_ANALOG2
+        || v[P_A2FENV] || v[P_A2EPIT] || v[P_A2ESHP] || v[P_A2EOS2] || v[P_A2ESDT]
+#endif
+    )
+        (void)env_load(v);
     r->ver = UP_VER;
     r->np = P_ENG_END;
     memset(r->p, 0, sizeof r->p);
-#if FELUCCA_ANALOG2
-    for (i = 0; i < P_A2ESUS; i++)
-        r->p[i] = v[i];
-    a2x_pack(&r->p[P_A2ESUS], &v[P_A2ESUS]);
-    for (i = 0; i < 8u; i++)
-        r->p[P_A2ESUS + A2X_W + i] = v[P_E0 + i];
-#else
     for (i = 0; i < P_ENG_END; i++)
         r->p[i] = v[i];
-#endif
-    lfo1_store(&r->p[P_LEG_PIT], &v[P_L1DA], 0);       /* LFO DEST: its stored form (params.c lfo1_store) */
+    for (i = 0; i <= P_NLAST - P_N1DA; i++)
+        r->p[P_ENG_END + i] = v[P_N1DA + i];
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
@@ -151,19 +197,37 @@ static void up_bank_from_v1(up_bank_t *bk)
 #define UP_FROM_V1 0
 #endif
 
-static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len bytes, -1 = none): wrong shape -> empty */
+/* bank b from len bytes at src (st_buf; -1 = none): UPB3 as it is; UPB2 / UPB1 (records of 192 bytes) into today's
+ * struct, a record each (UPB1: SLOOP plus's engine numbers then, up_bank_from_v1); any other shape: empty */
+static void up_bank_check(uint32_t b, const void *src, int len)
 {
     up_bank_t *bk = &up_bank[b];
-#if UP_FROM_V1
-    if (len == (int)sizeof *bk && bk->magic == UP_BANK_MAGIC_V1 && bk->rsize == sizeof(up_rec_t) &&
-        bk->nslot == UP_PER_BANK) {
-        up_bank_from_v1(bk);
+    const up_bank2_t *o = (const up_bank2_t *)src;
+    uint32_t i;
+    if (len == (int)sizeof *bk && ((const up_bank_t *)src)->magic == UP_BANK_MAGIC &&
+        ((const up_bank_t *)src)->rsize == sizeof(up_rec_t) && ((const up_bank_t *)src)->nslot == UP_PER_BANK) {
+        if ((const void *)bk != src)
+            memcpy(bk, src, sizeof *bk);
         return;
     }
+    if (len == (int)sizeof *o && o->rsize == sizeof(up_rec2_t) && o->nslot == UP_PER_BANK &&
+        (o->magic == UP_BANK_MAGIC_V2
+#if UP_FROM_V1
+         || o->magic == UP_BANK_MAGIC_V1
 #endif
-    if (len != (int)sizeof *bk || bk->magic != UP_BANK_MAGIC || bk->rsize != sizeof(up_rec_t) ||
-        bk->nslot != UP_PER_BANK)
-        memset(bk, 0, sizeof *bk);
+         )) {
+        uint32_t m = o->magic;                          /* (src: st_buf, never the bank itself) */
+        for (i = 0; i < UP_PER_BANK; i++)
+            up_rec_from2(&bk->r[i], &o->r[i]);
+        bk->magic = UP_BANK_MAGIC, bk->rsize = sizeof(up_rec_t), bk->nslot = UP_PER_BANK;
+#if UP_FROM_V1
+        if (m == UP_BANK_MAGIC_V1)
+            up_bank_from_v1(bk);
+#endif
+        (void)m;
+        return;
+    }
+    memset(bk, 0, sizeof *bk);
 }
 
 /* the record's values in today's P_* order (mapped by count, see above); def = the defaults. LFO DEST's four words
@@ -190,6 +254,16 @@ static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
         return;
     }
 #endif
+    if (r->ver == UP_VER) {                      /* UP_VER 3: the values by count (the last 8 P_E0 ..), the slots */
+        nc = r->np - 8u;
+        for (i = 0; i < P_E0; i++)
+            out[i] = i < nc ? r->p[i] : def[i];
+        for (i = 0; i < 8u; i++)
+            out[P_E0 + i] = r->p[nc + i];
+        for (i = 0; i <= P_NLAST - P_N1DA; i++)
+            out[P_N1DA + i] = r->p[r->np + i];
+        return;
+    }
 #if FELUCCA_ANALOG2
     if (r->ver != 1u) {                          /* UP_VER 2: the values, ENV2's extras packed, P_E0 .. */
         nc = r->np - 8u - A2X_N;
@@ -223,9 +297,20 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     int16_t w[4];
     int32_t spill;
+    uint32_t k;
     up_params_st(r, out, def);
-    memcpy(w, &out[P_LEG_PIT], sizeof w);
+    if (r->ver == UP_VER) {                            /* (UP_VER 3: the slots as they are, inside their ranges) */
+        for (k = 0; k < 2u; k++)
+            if ((uint32_t)out[P_L1DA + 2u * k] >= LT_NB)
+                out[P_L1DA + 2u * k] = LT_OFF, out[P_L1DA + 2u * k + 1u] = 0;
+        for (k = 0; k <= P_NLAST - P_N1DA; k += 2u)
+            if ((uint32_t)out[P_N1DA + k] >= LT_NB)
+                out[P_N1DA + k] = LT_OFF, out[P_N1DA + k + 1u] = 0;
+        return;
+    }
+    memcpy(w, &out[P_LEG_PIT], sizeof w);              /* (a record of before: the depths, SLOOP's too) */
     (void)lfo1_load(w, &out[P_L1DA], &spill);
+    (void)env_load(out);                               /* ENV DEST, ENV2 DEST's slots (env_store.h) */
 }
 
 static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */
@@ -406,7 +491,7 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #if FELUCCA_FLASH
     uint32_t b;
     for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
-        up_bank_check(b, flash_ok ? st_load(OBJ_UPRESET0 + b, &up_bank[b], sizeof up_bank[b]) : -1);
+        up_bank_check(b, st_buf, flash_ok ? st_load(OBJ_UPRESET0 + b, st_buf, sizeof up_bank[b]) : -1);
     UPF_BOOT();
 #endif
 #if FELUCCA_FAVORITES
@@ -425,19 +510,48 @@ static void up_boot(void)                      /* persist_boot: the banks from f
  * is an UP_VER 2 record (up_vals_put): SLOOP skips it (its up_valid: UP_VER 1 only; to it an empty slot, which it may
  * save over), up_bank_from_v1 leaves it as it is. Before, the bank went out as UPB2 (RAM's, converted) and SLOOP
  * then read every slot of it as empty. -> 1 done (*rc: 0 ok, 2 flash error), 0 not such a bank (written as ours) */
+static void up_vals_put2(up_rec2_t *o, const int16_t *v);
 static int up_put_v1(uint32_t k, const up_rec_t *r, int *rc)
 {
-    up_bank_t *f = (up_bank_t *)(void *)st_buf;
+    up_bank2_t *f = (up_bank2_t *)(void *)st_buf;
     uint32_t obj = OBJ_UPRESET0 + k / UP_PER_BANK;
-    if (st_load(obj, st_buf, sizeof *f) != (int)sizeof *f || f->magic != UP_BANK_MAGIC_V1 || f->rsize != sizeof(up_rec_t) ||
+    if (st_load(obj, st_buf, sizeof *f) != (int)sizeof *f || f->magic != UP_BANK_MAGIC_V1 || f->rsize != sizeof(up_rec2_t) ||
         f->nslot != UP_PER_BANK)
         return 0;
-    if (r)
-        f->r[k % UP_PER_BANK] = *r;
-    else
-        memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec_t));
+    if (!r) {
+        memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec2_t));
+    } else if (r->ver != UP_VER) {
+        up_rec_to2(&f->r[k % UP_PER_BANK], r);          /* (a record of before: as it was) */
+    } else {                                            /* ours in that bank's layout, UP_VER 2: its values, the slots as */
+        int16_t v[P_COUNT], def[P_COUNT];               /* the depths they are (as far as they go) */
+        uint32_t i;
+        for (i = 0; i < P_COUNT; i++)
+            def[i] = TP[i].def;
+        up_params(r, v, def);
+        up_rec_to2(&f->r[k % UP_PER_BANK], r);
+        up_vals_put2(&f->r[k % UP_PER_BANK], v);
+    }
     *rc = st_save(obj, st_buf, sizeof *f) ? 2 : 0;     /* (storage.c: a source in st_buf, ST_SRC_BUF) */
     return 1;
+}
+/* values v -> o's p[] and np as UP_VER 2 lays them out (ENV2's extras packed; LFO DEST's, ENV DEST's slots as the depths
+ * of before they are: lfo_depths, env_store) */
+static void up_vals_put2(up_rec2_t *o, const int16_t *v0)
+{
+    int16_t v[P_COUNT], d[4];
+    uint32_t i;
+    memcpy(v, v0, sizeof v);
+    (void)env_store(v);
+    (void)lfo_depths(&v[P_L1DA], d);
+    memcpy(&v[P_LEG_PIT], d, sizeof d);
+    o->ver = UP_VER2;
+    o->np = P_ENG_END;
+    memset(o->p, 0, sizeof o->p);
+    for (i = 0; i < P_A2ESUS; i++)
+        o->p[i] = v[i];
+    a2x_pack(&o->p[P_A2ESUS], &v[P_A2ESUS]);
+    for (i = 0; i < 8u; i++)
+        o->p[P_A2ESUS + A2X_W + i] = v[P_E0 + i];
 }
 #define UP_KEEP_V1 1
 #else

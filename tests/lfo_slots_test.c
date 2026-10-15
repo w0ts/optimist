@@ -165,9 +165,8 @@ static void t_stored(void)
     init();
     t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = -20, t->p[P_L1DB] = LT_AMP, t->p[P_L1AB] = 77;
     proj_capture(&q, &tdl);
-    ok = q.t[0].p[P_LEG_PIT] == -10 && q.t[0].p[P_LEG_FLT] == 0 && q.t[0].p[P_LEG_SHP] == 0 && q.t[0].p[P_LEG_AMP] == 77;
-    check(ok, "stored: slots that are depths: stored as the depths (an older build plays it, a project of before stays byte "
-              "for byte)");
+    ok = !q.t[0].p[P_LEG_PIT] && !q.t[0].p[P_LEG_FLT] && !q.t[0].p[P_LEG_SHP] && !q.t[0].p[P_LEG_AMP];
+    check(ok, "stored: the slots in the modulation record (2026-10-14), the words of the depths of before 0");
     init();
     proj_apply(&q, &tdl, 1);
     check(t->p[P_L1DA] == LT_PIT && t->p[P_L1AA] == -20 && t->p[P_L1DB] == LT_AMP && t->p[P_L1AB] == 77, "... and read back");
@@ -178,15 +177,14 @@ static void t_stored(void)
             init();
             memcpy(&t->p[P_L1DA], S[k], sizeof S[k]);
             proj_capture(&q, &tdl);
-            ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Au;
+            ok &= !q.t[0].p[P_LEG_PIT] && !q.t[0].p[P_LEG_SHP];
             init();
             proj_apply(&q, &tdl, 1);
             ok &= !memcmp(&t->p[P_L1DA], S[k], sizeof S[k]);
             proj_capture(&q2, &tdl);
             ok &= !memcmp(&q, &q2, sizeof q);
         }
-        check(ok, "stored: slots that are no depths (PAN, AMP < 0, B alone, AMT 0, odd, E3 DEC, B before A): tagged, read back, "
-                  "byte for byte again");
+        check(ok, "stored: any slots (PAN, AMP < 0, B alone, AMT 0, odd, E3 DEC, B before A): read back, byte for byte again");
     }
     w[0] = 10, w[1] = -30, w[2] = 20, w[3] = 50;       /* a project of before with four depths */
     ok = lfo1_load(w, s, &sp) == 2u && s[0] == LT_FLT && s[2] == LT_AMP && !sp;
@@ -200,18 +198,18 @@ static void t_stored(void)
         memset(&r, 0, sizeof r);
         r.engine = 0;
         up_vals_put(&r, v);
-        ok = r.p[P_LEG_FLT] == 20 && r.p[P_LEG_PIT] == 0;
+        ok = r.ver == UP_VER && r.p[P_L1DA] == LT_FLT && r.p[P_L1AA] == 40;   /* (UP_VER 3: in their own words) */
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && !out[P_L1DB];
         v[P_L1DB] = LT_RES, v[P_L1AB] = -90;
         up_vals_put(&r, v);
         up_params(&r, out, def);
-        ok &= ((uint16_t)r.p[P_LEG_PIT] >> 8) == 0x5Au && out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES &&
-              out[P_L1AB] == -90;
-        r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;   /* (a record of before) */
+        ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES && out[P_L1AB] == -90;
+        r.ver = FELUCCA_ANALOG2 ? 2 : 1, r.np = P_ENG_END;          /* (a record of before: the depths) */
+        r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_PIT && out[P_L1AA] == 6 && out[P_L1DB] == LT_AMP && out[P_L1AB] == 100;
-        check(ok, "user presets: depths stored as depths, other slots tagged, records of before read as their slots");
+        check(ok, "user presets: the slots in their own words (UP_VER 3), records of before read as their slots");
     }
 }
 
@@ -293,12 +291,12 @@ static void t_cross(void)
     host_preset(t, 0, 0);
     t->engine = t->eng_req, t->pold = 0;
     t->p[P_LRATE] = 50, t->p[P_L2RATE] = 50;
-    t->p[P_L1DA] = LT_XRATE, t->p[P_L1AA] = 127, t->p[P_L1DB] = LT_XAMT, t->p[P_L1AB] = 127;
-    t->p[P_L2DA] = LT_XRATE, t->p[P_L2AA] = -128, t->p[P_L2DB] = LT_XAMT, t->p[P_L2AB] = 100;
+    t->p[P_L1DA] = LT_L2RT, t->p[P_L1AA] = 127, t->p[P_L1DB] = LT_L2AMT, t->p[P_L1AB] = 127;
+    t->p[P_L2DA] = LT_L1RT, t->p[P_L2AA] = -128, t->p[P_L2DB] = LT_L1AMT, t->p[P_L2AB] = 100;
     memcpy(keep, t->p, sizeof keep);
     bracket(32767, 32767);
     ok = in_v[P_L2RATE] == 50 + 63 && in_v[P_LRATE] < 50 && in_v[P_L2AB] == 127 && in_v[P_L1AB] == 127;
-    check(ok, "cross: XRATE moves the other LFO's RATE, XAMT its AMTs (x up to 2, clamped)");
+    check(ok, "cross: L2RT / L1RT move the other LFO's RATE, L2AMT / L1AMT its AMTs (x up to 2, clamped)");
     t->p[P_L2RATE] = -3;
     bracket(32767, 0);
     check(in_v[P_L2RATE] == -3, "cross: a synced RATE stays its note value");
@@ -334,17 +332,27 @@ static void t_macros(void)
 static void t_events(void)
 {
     track_t *t = &trk[0];
-    uint32_t taken = 0, did, id;
+    uint32_t taken = 0, did, id, dst;
     int32_t v;
     init();
     t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 10, t->p[P_L1DB] = LT_FLT, t->p[P_L1AB] = 30;
-    v = 25, id = lfo_leg_ev(t, P_LEG_FLT, &v, &taken, &did);
+    v = 25, id = lfo_leg_ev(t, P_LEG_FLT, &v, &taken, &did, &dst);
     check(id == P_L1AB && v == 50 && did == P_COUNT, "events: a lock of FLT 25 of before -> slot B (on FLT) at 50");
-    taken = 0, v = 9, id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did);
+    taken = 0, v = 9, id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did, &dst);
     check(id == P_COUNT, "events: AMP with both slots in use: not played");
     t->p[P_L1AB] = 0, taken = 0, v = 9;
-    id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did);
+    id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did, &dst);
     check(id == P_L1AB && did == P_L1DB && v == 9, "events: a slot that does nothing (B at 0) takes AMP 9 for the step");
+    t->p[P_N1DA] = LT_AMP, t->p[P_N1AA] = 127, t->p[P_N1DB] = LT_FLT, t->p[P_N1AB] = 40;   /* ENV DEST (2026-10-14) */
+    taken = 0, v = 30, id = lfo_leg_ev(t, P_ED_FLT, &v, &taken, &did, &dst);
+    check(id == P_N1AB && v == 60 && did == P_COUNT && dst == LT_FLT, "events: an ENV DEST FLT 30 of before -> ENV's slot B (FLT) at 60");
+    taken = 0, v = 20, id = lfo_leg_ev(t, P_ED_SHP, &v, &taken, &did, &dst);
+    check(id == P_COUNT, "events: ENV DEST SHP with both of ENV's slots in use: not played");
+#if FELUCCA_ANALOG2
+    t->p[P_N2DA] = LT_OFF, t->p[P_N2AA] = 0, t->p[P_N2DB] = LT_OFF, t->p[P_N2AB] = 0;
+    taken = 0, v = -12, id = lfo_leg_ev(t, P_A2EOS2, &v, &taken, &did, &dst);
+    check(id == P_N2AA && did == P_N2DA && dst == LT_OSC2 && v == -24, "events: ENV2's OSC2 -12 of before -> a free ENV2 slot on OSC2 at -24");
+#endif
 }
 
 /* the DEST card's text (params.c lt_text): E1 .. E8 the engine's own name of that EDIT value, XRATE XAMT the other LFO's */
@@ -384,15 +392,15 @@ static void t_names(void)
     dest_text(&TP[P_L1DA], LT_OFF, b);
     check(ok && !strcmp(b, "OFF"), "names: the other destinations keep their plain names");
 #if FELUCCA_LFO2
-    dest_text(&TP[P_L1DA], LT_XRATE, b);
+    dest_text(&TP[P_L1DA], LT_L2RT, b);
     ok = !strcmp(b, "L2 RT");
-    dest_text(&TP[P_L1DB], LT_XAMT, b);
+    dest_text(&TP[P_L1DB], LT_L2AMT, b);
     ok &= !strcmp(b, "L2 AMT");
-    dest_text(&TP[P_L2DA], LT_XRATE, b);
+    dest_text(&TP[P_L2DA], LT_L1RT, b);
     ok &= !strcmp(b, "L1 RT");
-    dest_text(&TP[P_L2DB], LT_XAMT, b);
+    dest_text(&TP[P_L2DB], LT_L1AMT, b);
     ok &= !strcmp(b, "L1 AMT");
-    check(ok, "names: XRATE XAMT are L2 RT / L2 AMT on LFO's DEST, L1 RT / L1 AMT on LFO 2's");
+    check(ok, "names: L1 RT / L1 AMT, L2 RT / L2 AMT the same on every DEST (one list)");
 #endif
 }
 

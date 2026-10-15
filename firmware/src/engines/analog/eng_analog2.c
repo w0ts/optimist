@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* ANALOG 2 (FELUCCA_ANALOG2; eng_analog.c includes it in place of the original note-on and render).
  * The same engine: its eight EDIT values mean what they did, and thirteen more sit on four pages of its own
- * (core.h P_A2WAVE..P_A2ESDT; params.c EDIT > OSC 2, SWARM, FLT 2; ENV > ENV2, ENV2 DEST). At their defaults the
+ * (core.h P_A2WAVE..P_A2ESDT; params.c EDIT > OSC 2, SWARM, FLT 2). At their defaults the
  * sound is ANALOG's.
  *   OSC 2  WAVE2 osc 2's own wave (=1: osc 1's). SEMI its interval, -24..+24 st (DTN: the fine detune on
  *          top). SYNC: osc 2 restarts with osc 1 (hard sync, band-limited: a polyBLEP of osc 2's jump on
@@ -12,17 +12,10 @@
  *          osc 1; DRFT > 0 also leaves the phases free (no restart at a note: pads, strings), DRFT 0
  *          restarts them (an 808 starts the same every time).
  *   FLT 2  FTYP LP12 (ANALOG's), LP24 (a second stage, unresonant), BP, HP.
- *   ENV2 DEST  ENV2's amount (bipolar) on each destination, any together, as ENV DEST's: FLT (the cutoff, as
- *          the filter envelope it was: P_A2FENV), PIT (both oscillators and the swarm, +-31.5 st; as before
- *          from pitch16, without the unison detune), SHP (PW, the sync sweep: as ENV DEST SHP), OSC2 (osc 2's
- *          pitch alone, +-31.5 st); the SWARM page's ENV2: the swarm's spread, +-63. An amount at 0 costs
- *          nothing. One amount alone gives what DST2 with AMT2 gave (until project format 11: one
- *          destination, core.h a2x_from_dst).
- *   ENV2   ATK2 DEC2 SUS2 REL2: an ADSR of its own (ENV1 is the track's ENV, its ENV DEST as before),
- *          restarted by each note, worked out once a block (the cutoff then moves in 16-sample steps,
- *          a2_filter). The attack always runs to the top; then the decay to SUS2 while the key is held,
- *          the release once it is let go (REL2 0: DEC2's time). SUS2 0 and REL2 0, the defaults, are
- *          the AD envelope of the cutoff it was (FATK FDEC FENV: P_A2FATK..), bit for bit.
+ *   ENV2   (since 2026-10-14 every engine's: voice.c env2_tick, its two slots ENV2 DEST) reaches this engine through
+ *          m: the cutoff, the pitch (both oscillators and the swarm), the shape (PW, the sync sweep), and its own two
+ *          destinations OSC2 (m->os2: osc 2's pitch alone, 1/16 semitones) and SDTN (m->sdt: the swarm's spread).
+ *          ENV2 DEST's five amounts of before (FLT PIT SHP OSC2 SDTN) are its slots (env_store.h), the same sound.
  * The filter is ANALOG's trapezoidal SVF, but its two states saturate softly in the loop (the band-pass
  * state linear up to 32768, the low-pass one up to 65536, a tanh knee above, bounded so the products fit
  * 32 bits) instead of the hard clamp at +-150000,
@@ -68,14 +61,10 @@
  *        amp0 -> amp1 (Q15) x VOICE_FS.
  * Voice state: ph[0] / ph[1] the oscillators, ph[2] the swarm's spread phase; s[0..1] the filter, s[4..5]
  * its second stage, s[2] the noise generator (and the drift's), s[3] the drift, s[6] the last block's
- * cutoff (A2_NOCUT: a fresh note), s[7] the filter envelope (Q24, | A2_ATK while it rises). voice.c
+ * cutoff (A2_NOCUT: a fresh note). voice.c
  * voice_start keeps s[0..1], s[4..6] on a retrigger. */
 #include "../../../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: kernels in pi32v2 asm */
 #define A2_NOCUT INT32_MIN
-#ifndef A2_ENV2_ALWAYS
-#define A2_ENV2_ALWAYS 0                              /* (tests/analog2_test.c env2switch: 1 = ENV2 DEST never skipped) */
-#endif
-#define A2_ATK (1 << 30)
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
 
 static void analog_note_on(track_t *t, voice_t *v)
@@ -87,7 +76,6 @@ static void analog_note_on(track_t *t, voice_t *v)
     }
     v->s[0] = v->s[1] = v->s[4] = v->s[5] = 0;        /* filter */
     v->s[6] = A2_NOCUT;
-    v->s[7] = A2_ATK;                                 /* the filter envelope from 0 */
     if (!v->s[2])
         v->s[2] = 0x1234567 + (int32_t)v->age;        /* noise state */
 }
@@ -554,41 +542,15 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     uint32_t w1 = (uint32_t)p[P_E0] % 5u, w2 = p[P_A2WAVE] ? (uint32_t)(p[P_A2WAVE] - 1) % 5u : w1;
     uint32_t ftyp = (uint32_t)p[P_A2FTYP] & 3u, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
     int32_t det = p[P_E1], m2 = p[P_E2] * 258, nz = p[P_E3] * 100, drv = p[P_E6], kd = a2_k(p[P_E5]);
-    int32_t fe = v->s[7], fl = fe & ((1 << 25) - 1), f9, a, ecut = 0, shape = m->shape, sdtn = p[P_A2SDTN], cut, c0;
+    int32_t shape = m->shape, sdtn = p[P_A2SDTN], cut, c0;
     int32_t b[CTL];
     uint32_t inc1 = m->inc, inc2, ph0 = v->ph[0], spr = v->ph[2], dinc = 0, pw, pw1;
     int32_t off = p[P_A2SEMI] * 16;                  /* osc 2, 1/16 st */
     int32_t g1 = m2 ? (32767 - m2) >> 1 : 16384;     /* osc 1's gain: MIX, half scale */
-    if (fe & A2_ATK) {                                /* ENV2: ADSR, once a block. The attack runs to the */
-        fl += (int32_t)ENV_LIN[p[P_A2FATK] & 127];    /* top, then the decay to SUS2 while the key is held, */
-        if (fl >= (1 << 24))                          /* once let go the release (REL2, 0: DEC2's time). */
-            fl = fe = 1 << 24;                        /* SUS2 0, REL2 0: the AD envelope it was, exactly */
-        else                                          /* (the top: decaying from the next block) */
-            fe = fl | A2_ATK;
-    } else {
-        int32_t rel = v->stage >= 3u, k = rel && p[P_A2EREL] ? p[P_A2EREL] : p[P_A2FDEC];
-        fl -= mulq16(fl - (rel ? 0 : (int32_t)p[P_A2ESUS] << 17), ENV_EXP[k & 127]);
-        fe = fl;
-    }
-    v->s[7] = fe;
-    /* ENV2 DEST, all at 0: none of it (the level above still runs: an amount turned up mid-note starts where the
-     * envelope is, as if it had been running) */
-    if (A2_ENV2_ALWAYS || (p[P_A2FENV] | p[P_A2EPIT] | p[P_A2ESHP] | p[P_A2EOS2] | p[P_A2ESDT])) {
-        f9 = fl >> 9;                                     /* ENV2 DEST: each amount +-63 x 256 at the top (the */
-        if ((a = p[P_A2FENV]) != 0)                       /* cutoff's units); an amount at 0: skipped */
-            ecut = (f9 * a) >> 7;                         /* FLT: the cutoff (below) */
-        if ((a = p[P_A2EPIT]) != 0) {                     /* PIT: both oscillators (and the swarm), +-31.5 st */
-            a = ((f9 * a) >> 7) >> 5;
-            inc1 = fine_inc(PITCH_INC[clamp(m->pitch16 + a, 0, 2047)], m->fine_all);
-            off += a;
-        }
-        if ((a = p[P_A2ESHP]) != 0)                       /* SHP: PW, the sync sweep: as ENV DEST SHP */
-            shape = clamp(shape + ((f9 * a) >> 7), 0, 127 << 8);
-        if ((a = p[P_A2EOS2]) != 0)                       /* OSC2: osc 2 alone, +-31.5 st (with SYNC: the sweep) */
-            off += ((f9 * a) >> 7) >> 5;
-        if ((a = p[P_A2ESDT]) != 0)                       /* the swarm's spread: +-63 */
-            sdtn = clamp(sdtn + (((f9 * a) >> 7) >> 8), 0, 127);
-    }
+    /* ENV2 (voice.c env2_tick, its slots: ENV2 DEST): FLT PIT SHP in m's cutoff, pitch, shape; OSC2 and SDTN here */
+    off += m->os2;                                    /* OSC2: osc 2 alone (with SYNC: the sweep) */
+    if (m->sdt)
+        sdtn = clamp(sdtn + m->sdt, 0, 127);          /* SDTN: the swarm's spread */
     off += p[P_A2SYNC] ? (shape - (64 << 8)) >> 5 : 0;
     inc2 = inc1;
     pw = 0x80000000u + (uint32_t)((shape - (64 << 8)) << 15);
@@ -643,7 +605,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
         a2_noise(b, &v->s[2], nz, n);
     if (drv)                                          /* DRV: dry -> driven (1x .. 4x; a clean range low) */
         a2_drive(b, 32768 + drv * 768, drv * 258, n);
-    cut = (p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4) + ecut;
+    cut = (p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4);
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
     v->s[6] = cut;

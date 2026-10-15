@@ -6,11 +6,13 @@
       "CLICK": {"text": "Drum click (attack)", "if": "DL_ANY"}, "DECAY": {"text": "Drum decay", "if": "DL_ANY"},
       "BEND": {"text": "Pitch drop after the hit", "if": "DL_ANY"}, "LEVEL": {"text": "Drum level (dB)", "if": "DL_ANY"}}},
     {"kind": "page", "ctx": "ENV DEST", "params": {
-      "FLT": "Envelope to filter", "PIT": "Envelope to pitch", "SHP": "Envelope to shape"}},
-    {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "DST A": "What ENV moves (slot A)", "AMT A": "How much ENV moves A", "DST B": "What ENV moves (slot B)",
+      "AMT B": "How much ENV moves B"}},
+    {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2", "params": {
       "ATK2": "Env 2 attack", "DEC2": "Env 2 decay", "SUS2": "Env 2 sustain", "REL2": "Env 2 release (0: as decay)"}},
-    {"kind": "page", "ctx": "ENV2 DEST", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
-      "FLT": "Env 2 to filter", "PIT": "Env 2 to pitch", "SHP": "Env 2 to shape", "OSC2": "Env 2 to osc 2 pitch"}},
+    {"kind": "page", "ctx": "ENV2 DEST", "if": "FELUCCA_ANALOG2", "params": {
+      "DST A": "What ENV 2 moves (slot A)", "AMT A": "How much ENV 2 moves A", "DST B": "What ENV 2 moves (slot B)",
+      "AMT B": "How much ENV 2 moves B"}},
     {"kind": "page", "ctx": "LFO", "params": {
       "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
     {"kind": "page", "ctx": "LFO DEST", "params": {
@@ -105,13 +107,16 @@
     {"kind": "page", "ctx": "OSC 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "WAVE2": "Osc 2 wave (=1: as osc 1)", "SEMI": "Osc 2 interval", "SYNC": "Osc 2 hard sync"}},
     {"kind": "page", "ctx": "SWARM", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
-      "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift", "ENV2": "Swarm spread (ENV2)"}},
+      "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift"}},
     {"kind": "page", "ctx": "FLT 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "FTYP": "Filter type"}},
     {"kind": "page", "ctx": "VOICE", "params": {
       "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
     {"kind": "page", "ctx": "VOICE 2", "params": {
-      "ALLOC": "Voice allocation", "VOICES": "Voices, 1 to the engine's max", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute"}},
+      "ALLOC": "Voice allocation", "VOICES": "Voices, 1 to the engine's max", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute",
+      "DROP": {"text": "Pitch drop at each note", "if": "FELUCCA_UI == 1"}}},
+    {"kind": "page", "ctx": "VOICE 3", "if": "FELUCCA_UI != 1", "params": {
+      "DROP": "Pitch drop at each note"}},
     {"kind": "page", "ctx": "LEVEL", "if": "0", "params": {"LVL": "Track level"}},
     {"kind": "page", "ctx": "BYPASS", "if": "0", "params": {"FX": "Effects on or off (dry)"}},
     {"kind": "page", "ctx": "SOUND", "if": "DL_ANY", "params": {

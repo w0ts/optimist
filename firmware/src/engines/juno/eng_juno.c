@@ -51,7 +51,8 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     const int16_t *p = t->p;
     juno_vs_t *s = juno_vs(t, v);
     juno_ctl_t c;
-    int32_t y[CTL], ed = p[P_ED_FLT], envp = (m->envq15 * ed) >> 7, pw;
+    int32_t y[CTL], ea = ENV1_FLT_AMT(p), envp = (m->envq15 * ea) >> 8, pw;   /* (ENV on FLT: its slots, AMT 2 = 1 of ENV
+                                                                             * DEST FLT of before: voice.c's term taken out) */
     uint32_t wave = (uint32_t)p[P_E0] & 3u, i;
     if (n > CTL)
         n = CTL;                                      /* (never: voice.c renders CTL-sample blocks) */
@@ -65,7 +66,7 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     c.res = (uint8_t)clamp(p[P_E5], 0, 127);
     /* the cutoff DAC: the slider, the LFO (and the mod slots) at half the 14-bit range per full swing, the
      * envelope at the Juno's VCF ENV depth (ENV > FLT 63 = 252 of 254), the key tracking */
-    c.dac = (uint16_t)juno_dac(clamp(p[P_E4], 0, 127) << 7, (m->cutoff - envp) >> 1, (uint32_t)m->envq15 >> 1, ed * 4,
+    c.dac = (uint16_t)juno_dac(clamp(p[P_E4], 0, 127) << 7, (m->cutoff - envp) >> 1, (uint32_t)m->envq15 >> 1, ea * 2,
                                (uint32_t)clamp(p[P_E6], 0, 127) * 2u, (uint32_t)v->pitch16 << 4);
     juno_run(s, &c, y, n);
     {   /* the VCA: the core's amplitude ramp (amp_at, a step a sample), 32-bit products (y < 2^18) */

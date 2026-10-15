@@ -58,6 +58,9 @@ static int16_t lk_base[NTRK][NLOCK], lk_set[NTRK][NLOCK];
 
 static int p_lockable(uint32_t id)
 {
+    if (LEG_ID(id))
+        return 0;                                      /* (ENV DEST FLT SHP, ENV2's amounts, LFO's depths of before: their
+                                                        * old locks play onto the slots, auto.c lfo_leg_ev) */
     return id <= P_LFADE || (id >= P_AMODE && id <= P_TRANS) || id == P_CHORD || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
            id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7)
 #if FELUCCA_ANALOG2

@@ -102,6 +102,8 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_E0; i++)
             trk[k].p[i] = TP[i].def;
+        for (i = P_ENG_END; i < P_COUNT; i++)    /* (the tail: the envelopes' slots, ENV on AMP; LFO 2 ...) */
+            trk[k].p[i] = TP[i].def;
         steps_clear(&trk[k]);
     }
     song.master_q12 = 4096;
@@ -138,6 +140,7 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
     }
     preset_extras(t->p, p);
     analog2_extras(t->p, ENGINES[e], pi % ENGINES[e]->npresets);
+    (void)env_load(t->p);                        /* (the depths of the tables -> the envelopes' slots, as apply_preset_to) */
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {
@@ -1262,6 +1265,7 @@ int main(int argc, char **argv)
         nk = atoi(getenv("CHORD")) > 4 ? (uint32_t)atoi(getenv("CHORD")) : 4u;
     for (i = 0; i < G_COUNT; i++) song.g[i] = GP[i].def;
     for (i = 0; i < P_E0; i++) inst.p[i] = TP[i].def;
+    for (i = P_ENG_END; i < P_COUNT; i++) inst.p[i] = TP[i].def;
     inst.eng_req = inst.engine = (uint8_t)eng;
     for (i = 0; i < 8; i++) inst.p[P_E0 + i] = ENGINES[eng]->edit[i].def;
     if (ENGINES[eng]->npresets) {
@@ -1270,6 +1274,7 @@ int main(int argc, char **argv)
         inst.p[P_ATK] = p->env[0]; inst.p[P_DEC] = p->env[1];
         inst.p[P_SUS] = p->env[2]; inst.p[P_REL] = p->env[3]; inst.p[P_ED_FLT] = p->fenv;
         preset_extras(inst.p, p);
+        (void)env_load(inst.p);
     }
     inst.p[P_VOICE] = (int16_t)mono;
     inst.p[P_CHOR] = argc > 5 ? atoi(argv[5]) : 24;      /* as felucca_init */

@@ -133,6 +133,11 @@ async function editorLibrarian() {
   for (let i = 0; i < info.pcount; i++) pdesc.push(E.parse[C.DESC](await rq(E.req.desc(0, i))));
   const keys = E.paramKeys(pdesc, info.pe0, info.pcount);
   ok(keys[6] === "PIT" && keys[13] === "DST A" && keys[14] === "AMT A" && keys[info.pe0] === "E0" && new Set(keys).size === keys.length, "librarian: parameter keys unique (label#n, E0..E7)");
+  {   /* firmware 2026-10-14: ENV DEST PIT is DROP: the same key */
+    const pd2 = pdesc.map((d, i) => (i === 6 && d ? { ...d, label: "DROP" } : d));
+    const k2 = E.paramKeys(pd2, info.pe0, info.pcount);
+    ok(k2.every((k, i) => k === keys[i]), "librarian: DROP (ENV DEST PIT renamed) keeps the key PIT, every key the same");
+  }
   {   /* LFO DEST's depths of before (a file from before 2026-10: PIT#2 FLT#2 SHP#2 AMP) -> its two slots */
     const old = keys.slice();
     old[13] = "PIT#2", old[14] = "FLT#2", old[15] = "SHP#2", old[16] = "AMP";
