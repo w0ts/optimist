@@ -118,6 +118,25 @@ static void btnled_tests(void)
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SOUND on DR: OCT- dim (SHIFT), OCT+ dark (no octave on drums)");
         bk_set(BK_SYN, SCR_PROJECT);
         check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, PROJECT: both dark");
+        {   /* OCT- / OCT+ on a store of more than 16 slots: the bank back / on (the user, 2026-10-15), lit only that way */
+            uint32_t r = pf_row(PR_USER);
+            ui.user_slot = 3;
+            ui.force = 1;
+            frames(2);
+            check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 1, "OCT LEDs, USER in bank 1 of 2: OCT+ dim, OCT- dark");
+            tap(B_OCTUP);
+            frames(2);
+            check(r < NPRJ && ui.user_slot == 19u && ui.toast_t && !strcmp(ui.msg, "BANK 2/2"), "OCT+ on USER: bank 2, the same place, toast");
+            check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 0, "OCT LEDs, USER in the last bank: OCT- dim, OCT+ dark");
+            tap(B_OCTUP);
+            check(ui.user_slot == 19u, "OCT+ in the last bank: nothing");
+            tap(B_OCTDN);
+            check(ui.user_slot == 3u && !strcmp(ui.msg, "BANK 1/2") && !op_armed(), "OCT- on USER: bank 1 again");
+            pf_row(PR_PROJECT);
+            check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, a store of one bank: both dark");
+            tap(B_OCTUP);
+            check(ui.scr == SCR_PROJECT && !op_armed(), "OCT+ with one bank: nothing");
+        }
         bk_set(BK_SYN, SCR_SYSTEM);
         check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SYSTEM: both dark");
         bk_set(BK_SYN, SCR_GLOBAL);

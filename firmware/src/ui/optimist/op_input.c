@@ -392,6 +392,8 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
                                                          * the drum track: ghost / hard while held, seq.c */
 {
     int32_t o = song.octave + (b == B_OCTDN ? -1 : 1);
+    if (prj_bank_tap(b == B_OCTUP))
+        return;                                         /* (PROJECT: the bank) */
     if (is_drum(TSEL))
         return;
     oct_set(o < -3 ? -3 : o > 3 ? 3 : o);
@@ -817,6 +819,7 @@ static uint32_t op_oct_avail(void)
 #endif
     if (mixer)
         m |= 1u << B_OCTUP;
+    m |= prj_bank_avail();                              /* (PROJECT with more than one bank: the bank that way) */
     return m;
 }
 static int step_yes_any(void)                           /* STEP: would YES do something on this line (as step_yes / page_yes) */
