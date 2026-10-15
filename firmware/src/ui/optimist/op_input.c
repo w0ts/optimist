@@ -42,8 +42,20 @@ static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL
  * record. Kept: PROJECT's slot rows pick the slot (op_project.c prj_key); SONG's PATTERNS row launches patterns; TEMPO's
  * keys (PLAY held) are the MIX layer's, they tap the tempo and play nothing. The layers (a held button) are not these
  * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
+/* MASTER entered by both OCT: the keys stay the track's that was left (the user, 2026-10-15: "when we go to master using OCT+ and
+ * OCT- at the same time, the keyboard should still work"). mk_trk (op_walk.c) = that track + 1, 0 none; op_walk.c oct_master_toggle sets it.
+ * Any other way to MASTER (ALGORITHM, the mixer's row) keeps the keys silent. Lives only on the mixer / master FX screen
+ * with MASTER selected and the same track selected: leaving MASTER, or another track picked, clears it */
+static int mk_live(void)
+{
+    if (mk_trk && (!(ui.scr == SCR_HOME || ui.scr == SCR_FX) || !master_sel() || song.sel != mk_trk - 1u))
+        mk_trk = 0;
+    return mk_trk != 0;
+}
 static int keys_none(void)
 {
+    if (mk_live())
+        return 0;
     return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master() || mx_on_usb()
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
