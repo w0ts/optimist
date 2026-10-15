@@ -548,6 +548,13 @@ static void con_snap(void)
     con_kx("c1_emu", fm1_c1_snap.emu);
     for (i = 0; i < 16u; i++)
         con_kx(R[i], fm1_c1_snap.r[i]);
+    con_kx("snap_ble_step", fm1_c1_snap.ble[0]);         /* 0xB1 SS GG RR: BLUETOOTH ON step, rf ops / 256, rf_init group */
+    con_kv("snap_ble_irqs", (int32_t)fm1_c1_snap.ble[1]);   /* BLE interrupts taken since ON */
+    con_kv("snap_ble_op", (int32_t)fm1_c1_snap.ble[2]);  /* rf_init's op, its index in the group, the last register */
+    con_kv("snap_ble_gop", (int32_t)fm1_c1_snap.ble[3]); /* access begun (hal/fm1_ble_rf.h) */
+    con_kx("snap_ble_addr", fm1_c1_snap.ble[4]);
+    con_kv("snap_ms", (int32_t)(fm1_c1_snap.ticks / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 then, ms */
+    con_kv("now_ms", (int32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)));
 }
 #endif
 
@@ -600,6 +607,18 @@ static void con_boot(void)
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
+    con_kv("cpu1_start_ms", (int32_t)(dual.t_start / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 ms: CPU1 started */
+#endif
+#if FELUCCA_BLE && BLE_HW_WL82
+    {
+        static const char *const K[14] = {"ble_ms_none", "ble_ms_set_on", "ble_ms_stack_init", "ble_ms_rf_init",
+                                          "ble_ms_bb_init", "ble_ms_started", "ble_ms_enable", "ble_ms_link_stop",
+                                          "ble_ms_link_open", "ble_ms_adv_prog", "ble_ms_adv_started", "ble_ms_irqs_on",
+                                          "ble_ms_running", "ble_ms_set_off"};
+        uint32_t i;
+        for (i = 1; i < 14u; i++)
+            con_kv(K[i], (int32_t)fm1_ble_step_at[i] - 1);   /* TIMER4 ms the step was first reached (-1: never) */
+    }
 #endif
 }
 

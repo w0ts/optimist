@@ -7,6 +7,10 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], 
 extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _pi_load[], _pz_start[];
 
 
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL && !defined(FM1_DUAL_SNAP_BLE)
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s) { (void)s; }   /* (no BLE in this build: hal/fm1_dual.h) */
+#endif
+
 void fm1_timer5_irq(void)
 {
     static uint32_t sub;

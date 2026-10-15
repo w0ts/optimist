@@ -222,8 +222,11 @@ static struct {
 #define FM1_C1_SNAP_MAGIC 0x43315350u                     /* "C1SP" */
 typedef struct {
     uint32_t magic, dbg, axi_rd_id, axi_wr_id, pcrs, reti, rets, psr, icfg, usp, ssp, sp, emu, r[16];
+    uint32_t ble[5];              /* the BLE breadcrumb then (hal/fm1_ble_rf.h fm1_ble_bc: now, irqs, op, gop, addr) */
+    uint32_t ticks;               /* TIMER4 then */
 } fm1_c1_snap_t;
 fm1_c1_snap_t fm1_c1_snap __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s);          /* (hal/fm1_ble_rf.h in a BLE build, else system/main.c) */
 static void fm1_dual_snap(uint32_t dbg)
 {
     volatile uint32_t *q = (volatile uint32_t *)0x1EEF200u;   /* q32DSP(1) */
@@ -246,6 +249,8 @@ static void fm1_dual_snap(uint32_t dbg)
     fm1_c1_snap.emu = q[0x35];
     for (i = 0; i < 16u; i++)
         fm1_c1_snap.r[i] = q[i];
+    fm1_c1_snap.ticks = fm1_ticks();
+    fm1_dual_snap_ble(&fm1_c1_snap);
     fm1_c1_snap.magic = FM1_C1_SNAP_MAGIC;
 }
 static int fm1_dual_exc_c(const uint32_t *f)
