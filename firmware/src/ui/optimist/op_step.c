@@ -839,7 +839,10 @@ static void hp_reopen(void)
 static void hp_title(char *t, uint32_t n)               /* the held step's card page: "STEP", "EXTRA", "LFO" */
 {
     uint8_t ix[OP_MAXROWS];
-    const page_t *pg = st.hp >= HP_BASE ? &PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0] : 0;
+    uint32_t nl = st.hp >= HP_BASE ? hp_locks(ix) : 0u, k = st.hp >= HP_BASE ? st.hp - HP_BASE : 0u;
+    /* (st.hp past the pages the step has now, its locks gone meanwhile: ix[k] was never written, a wild PAGES index:
+     * tests/audio_hang_stress.c under ASan) */
+    const page_t *pg = st.hp >= HP_BASE ? &PAGES[k < nl ? ix[k] : 0] : 0;
     str_cpy(t, st.hp == 0u ? "STEP" : !pg ? "EXTRA" : dr_alias(pg) ? dr_alias(pg) : pg->title, n);   /* (the drum's: "BODY") */
 }
 static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's extras */

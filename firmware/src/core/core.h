@@ -100,6 +100,26 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #define IN_POOL_AUDIO
 #endif
 #define AINL static inline __attribute__((always_inline))
+/* the interrupts off and back as they were, for code that runs in the main loop and in the audio interrupt alike
+ * (fx_slots.c's slot puts: a song mode STOP applies the loop put aside from the ISR, arranger_scene.c song_restore ->
+ * proj_apply -> fx_rec.c fxr_decode). A bare fm1_irq_on() there is an sti inside the interrupt, which outlives its
+ * return on the FM-1 (core/audio.c ua_block: the USB audio builds that hung, 2026-10-12): IRQ_RESTORE switches them on
+ * only if they were on at IRQ_SAVE (icfg bit 9, the global enable). The host: its own hook (tests/audio_hang_stress.c),
+ * else on. */
+#ifdef __PI32V2__
+#define IRQ_IE_NOW() (fm1_icfg() & 0x200u)
+#elif defined(HOST_IRQ_HOOKS)
+#define IRQ_IE_NOW() host_irq_ie()
+#else
+#define IRQ_IE_NOW() 1u
+#endif
+#define IRQ_SAVE(ie) uint32_t ie = IRQ_IE_NOW(); fm1_irq_off()
+#define IRQ_RESTORE(ie) do { if (ie) fm1_irq_on(); } while (0)
+#ifndef HOST_DUAL
+#define HOST_DUAL 0
+#endif
+/* two cores render parts at once (system/dual.c mix_block_dual; HOST_DUAL: the host's thread, tests/audio_hang_dual.h) */
+#define DUAL_RENDER (FELUCCA_DUAL >= 2 || HOST_DUAL)
 AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
 #define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))
 

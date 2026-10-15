@@ -37,13 +37,13 @@ static void super_note_on(track_t *t, voice_t *v)
 
 static uint32_t voices_busy(void);                    /* voice.c */
 static uint8_t super_nv;                              /* voices sounding, all parts (super_block) */
-#if FELUCCA_DUAL >= 2
+#if DUAL_RENDER
 static uint32_t dual_vbusy;                           /* voices_busy() at the block's start (dual.c): the */
 #endif                                                /* parts render on two cores, in no fixed order */
 static HOT void super_block(track_t *t)
 {
     (void)t;
-#if FELUCCA_DUAL >= 2
+#if DUAL_RENDER
     super_nv = (uint8_t)dual_vbusy;                   /* (both cores store the same value) */
 #else
     super_nv = (uint8_t)voices_busy();

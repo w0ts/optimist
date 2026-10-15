@@ -2540,6 +2540,7 @@ static void led_tests(void)
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
 
+#ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -2689,3 +2690,4 @@ int main(int argc, char **argv)
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 }
+#endif

@@ -65,7 +65,7 @@ static HOT void vowel_at(int32_t pos, int32_t *f, int32_t *b)
 }
 
 typedef struct { int32_t a, b, c; } fres_t;
-#if FELUCCA_DUAL >= 2   /* dual core: one per part (two cores render parts at once; dual.c) */
+#if DUAL_RENDER   /* dual core: one per part (two cores render parts at once; dual.c) */
 static int32_t formant_nzp[NPART] = {0x2545F491, 0x2545F491, 0x2545F491};
 #define FORMANT_NZ(t) formant_nzp[(uint32_t)((t) - trk) % NPART]
 #else

@@ -639,6 +639,16 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_pages_menu_ble_test" tests/ui_pages_test.c -lm
     run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of their own, OFF by default, ON / OFF by the knob and OCT+, the radio told once; DEVICES: NONE / LAST / nearby, the scan while open, picks, FORGET; the status area (CONNECTING, PAIRING, the passkey, CONNECTED, FAILED kept until the user acts, no new attempt meanwhile), the passkey reconnection, the level kept with LAST" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
 ) >"$U.out" 2>&1 & jobbg
+# the audio ISR against the main loop while recording live notes (2026-10-15 freeze): fixed seeds, one core and the
+# second core as a thread (tests/audio_hang_batch.sh: the long mode, ASan / UBSan / TSan, signal preemption)
+job; ( jobin
+    CC="$CC" bash tests/audio_hang_build.sh "$OUT/audio_hang_stress"
+    CC="$CC" bash tests/audio_hang_build.sh "$OUT/audio_hang_dual" -DHOST_DUAL=1
+    run "live recording under random keys and edits, the audio half at random points: no hang, the ISR's state consistent (seed 20261015)" env HANG_FRAMES=6000 "$OUT/audio_hang_stress"
+    run "... the second core as a thread, the jobs split at random (seed 7)" env HANG_FRAMES=4000 HANG_SEED=7 "$OUT/audio_hang_dual"
+    run "... song mode STOP / live sections applied inside the ISR: no sti there (fx_slots.c IRQ_SAVE), the state as found" env HANG_FRAMES=1500 HANG_SEED=3 "$OUT/audio_hang_stress"
+    run "... preempted at any instruction, TIMER5 nesting into the render (HANG_NEST, as the FM-1 showed)" env HANG_MODE=sig HANG_NEST=1 HANG_SECS=4 "$OUT/audio_hang_stress"
+) >"$U.out" 2>&1 & jobbg
 # the Optimist UI (FELUCCA_UI=1, ui/optimist): rows, keys, the confirm, undo / redo, the layers, TEMPO, SONG, messages,
 # fuzz; five switch sets (the last on the real section log with PATTERNS)
 mkdir -p "$OUT/optimist"

@@ -30,8 +30,14 @@
 #undef memcmp
 #undef memmove
 static struct { volatile uint32_t notes, buttons; } fm1_in;
+#ifdef HOST_IRQ_HOOKS                            /* (tests/audio_hang_stress.c: the audio ISR from a signal, cli / sti block it) */
+static void fm1_irq_off(void);
+static void fm1_irq_on(void);
+static uint32_t host_irq_ie(void);               /* (core.h IRQ_SAVE: the global enable now) */
+#else
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
+#endif
 #include "../firmware/src/core/core.h"
 #ifndef SMP_USER_XIP                    /* the user sample slots (USR1..3, flash at 0xA0000): a RAM image, empty */
 static uint32_t host_slots[3u * 0x14000u / 4u];

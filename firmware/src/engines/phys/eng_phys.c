@@ -120,7 +120,7 @@ static void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
     }
 }
 
-#if FELUCCA_DUAL >= 2
+#if DUAL_RENDER
 /* dual core (dual.c): the render draws no rng() (two cores render at once, voice.c dual_lfo_rnd); a reset in the
  * render takes the part's own generator (a different, equally random seed than the single-core build's) */
 static uint32_t phys_rseed[NPART] = {0x2545F491u, 0x9E3779B9u, 0x6A09E667u};
