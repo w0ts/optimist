@@ -69,6 +69,8 @@ The sections "Inherited from SLOOP 2.x" below are history: they list what SLOOP'
 23. [Specifications](#specifications)
 24. [Rescue, going back, credits](#rescue-going-back-credits)
 
+Guides for the Optimist UI and the newer parts: [the interface and SYSTEM > INFO](docs/guide/interface.md), [engines, voices and modulation](docs/guide/sound.md), [inserts, the master and the USB IN track](docs/guide/effects.md), [p-locks, motion, EUCLID and the sequencer](docs/guide/sequencer.md). What is documented where: [docs/DOC-COVERAGE.md](docs/DOC-COVERAGE.md).
+
 ---
 
 ## Install
@@ -133,7 +135,7 @@ Other controls:
 | **ALGORITHM** | select the track (on every page) |
 | **PRESETS** | the selected track's sound, or the drum kit |
 | **SELECT** | tempo (always, even inside a layer) |
-| **OCT− / OCT+** | synth tracks: octave (both: back to 0) · drum track, held: ghost / hard hits |
+| **OCT− / OCT+** | synth tracks: octave (both: back to 0 on SLOOP's UI; on the Optimist UI both go to MASTER and back) · drum track, held: ghost / hard hits |
 | **HOME** | the TRACKS screen · hold: menu (colour, low cut, zoom, calibration, about) · tapped while a layer is held: lock it open |
 | **ENV / LFO** | their pages (ENV on an FM6 track: the FM6 operator editor) |
 
