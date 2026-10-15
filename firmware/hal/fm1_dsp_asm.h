@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 SLOOP */
+ * Copyright (C) 2026 the Optimist contributors (written for SLOOP-plus, Optimist's earlier name) */
 /* Hand-written pi32v2 inner loops for the hottest DSP kernels (measured with the emulator's FM1_HOT
  * profile). From perf/asm-hotspots (written for the DX7 engine's msfa operator); in this branch they run
  * FM6's operators (eng_fm6.c): MODERN is the same msfa operator (asm_fm_*), MARK I has its own (asm_mki_*);

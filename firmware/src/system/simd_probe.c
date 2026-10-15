@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 SLOOP */
+ * Copyright (C) 2026 the Optimist contributors (written for SLOOP-plus, Optimist's earlier name) */
 /* EXPERIMENTAL (FELUCCA_SIMD_PROBE): does the FM-1's core run the packed 16-bit forms of
  * hal/fm1_simd.h, with the meaning the emulator gives them? At boot, before audio: each form on inputs
  * that tell the plausible meanings apart (wrap or saturate, round or floor, which half goes where),

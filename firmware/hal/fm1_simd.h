@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 SLOOP */
+ * Copyright (C) 2026 the Optimist contributors (written for SLOOP-plus, Optimist's earlier name) */
 /* EXPERIMENTAL: the packed 16-bit ("SIMD") instructions of pi32v2, for one DSP kernel.
  *
  * JieLi's clang assembles these forms for the AC79 core (-mcpu=r3, no feature flag) but never emits
