@@ -1311,7 +1311,7 @@
    }
   }
  },
- "measured": "2026-10-15 07:36",
+ "measured": "2026-10-15 08:06",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1531,7 +1531,7 @@
    },
    "built_hash": "2de27e88",
    "sizes": {
-    "flash": 552076,
+    "flash": 551260,
     "ram": 81464,
     "pool": 319112,
     "ramtext": 27288
@@ -1639,7 +1639,7 @@
    }
   },
   "user-default+ble-full": {
-   "hash": "4a819e8f",
+   "hash": "1404b040",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1650,6 +1650,7 @@
     "ENG_GRAIN": 0,
     "FM6_MODERN": 0,
     "FM6_OPL": 0,
+    "FM6_SYSEX": 0,
     "NATIVE_BANKS": 1,
     "SET_VIBES": 0,
     "SET_HORNS": 0,
@@ -1669,9 +1670,9 @@
     "SL24_IMPORT": 0,
     "SEQTOOLS": 1
    },
-   "built_hash": "4a819e8f",
+   "built_hash": "1404b040",
    "sizes": {
-    "flash": 581604,
+    "flash": 580308,
     "ram": 70604,
     "pool": 298696,
     "ramtext": 24376
@@ -1887,7 +1888,7 @@
    },
    "built_hash": "2fcb7cb1",
    "sizes": {
-    "flash": 531772,
+    "flash": 530924,
     "ram": 80856,
     "pool": 318312,
     "ramtext": 27288
@@ -2001,7 +2002,7 @@
    }
   },
   "user-default+ble-full~": {
-   "hash": "3d78bde9",
+   "hash": "0bed7dc2",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2012,6 +2013,7 @@
     "ENG_GRAIN": 0,
     "FM6_MODERN": 0,
     "FM6_OPL": 0,
+    "FM6_SYSEX": 0,
     "NATIVE_BANKS": 1,
     "KIT_BRIGHT": 0,
     "SET_VIBES": 0,
@@ -2033,12 +2035,12 @@
     "SL24_IMPORT": 0,
     "SEQTOOLS": 1
    },
-   "built_hash": "3d78bde9",
+   "built_hash": "0bed7dc2",
    "sizes": {
-    "flash": 580148,
+    "flash": 579024,
     "ram": 70604,
     "pool": 298696,
-    "ramtext": 24120
+    "ramtext": 24116
    }
   }
  },
