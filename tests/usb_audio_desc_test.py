@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def descriptors(audio, cdc):
-    source = subprocess.check_output([
+    source = text = subprocess.check_output([
         *shlex.split(os.environ.get("CC", "cc")), "-E", "-P",
         f"-DFELUCCA_USB_AUDIO={audio}", f"-DFELUCCA_CDC={cdc}",
         str(ROOT / "firmware/src/io/usb/usb.c"),
@@ -96,6 +96,13 @@ def descriptors(audio, cdc):
                     assert d[7] == source
                 else:
                     assert d[7:10] == bytes([4, 0, 0] if ac_if == 4 else [2, 3, 0])
+                    # the recording's four channels named by strings 5..8 (usb.c STR_CH: "CH1".."CH4")
+                    assert d[10] == (5 if ac_if == 4 else 0)
+        names = re.search(r"STR_CH\[4\]\[8\]\s*=\s*\{(.*?)\};", text, re.S)[1]
+        vals = [int(x.strip(), 0) if not x.strip().startswith("'") else ord(x.strip()[1]) for x in names.replace("{", "").replace("}", "").split(",") if x.strip()]
+        for k in range(4):
+            sd = bytes(vals[k * 8:k * 8 + 8])
+            assert sd[:2] == bytes([8, 3]) and sd[2:].decode("utf-16-le") == f"CH{k + 1}"
     print(f"USB descriptors: audio={audio}, CDC={cdc}, {len(data)} bytes: OK")
 
 

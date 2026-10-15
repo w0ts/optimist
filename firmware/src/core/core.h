@@ -438,6 +438,9 @@ typedef struct {
 } step_t;
 #define STEP_SN ((uint32_t)sizeof(pstep_t))   /* a stored step's bytes */
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
+#if FELUCCA_USB_AUDIO
+#include "../io/usb/ua_tap.h"     /* the capture channels' sources and their taps (SYSTEM > USB AUDIO) */
+#endif
 /* the drum track's 17th step lane, the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
  * (steps, level, ratchet, length, the edits, the tools, patterns, sections, snapshots), no sound of its own; its
  * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC), its ratchet hits too, scaled by the accent

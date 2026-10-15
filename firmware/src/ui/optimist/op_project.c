@@ -258,7 +258,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
@@ -274,6 +274,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if FELUCCA_BLE
     {"BLUETOOTH", {SI_BLE, SI_NONE, SI_NONE, SI_NONE}},   /* (the radio: ON / OFF, and what it is doing) */
+#endif
+#if FELUCCA_USB_AUDIO
+    {"USB AUDIO", {SI_UA1, SI_UA2, SI_UA3, SI_UA4}},   /* what each capture channel carries (the user, 2026-10-15: "four lines that
+                                                         * allow to select the source for each of the 4 channels"; ua_tap.h; after BLUETOOTH: USB + BLUETOOTH stay one page) */
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
@@ -498,6 +502,18 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->col = clko_blocked() ? C_WARN : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
         cell_gauge(c, 1, 0, 1, clko_on != 0u);
         break;
+#endif
+#if FELUCCA_USB_AUDIO
+    case SI_UA1:
+    case SI_UA2:
+    case SI_UA3:
+    case SI_UA4: {                                      /* a channel's source: text only, no bar (the list walks it) */
+        static const char *const CH[UA_ROUTE_N] = {"CH1", "CH2", "CH3", "CH4"};
+        char b[6];
+        c->label = CH[it - SI_UA1];
+        str_cpy(c->val, ua_src_name(ua_src[it - SI_UA1], b), sizeof c->val);
+        break;
+    }
 #endif
     case SI_CALIB:
         cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
@@ -782,6 +798,14 @@ static void sys_set(uint32_t it, int32_t s)
         ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
         break;
 #endif
+#if FELUCCA_USB_AUDIO
+    case SI_UA1:
+    case SI_UA2:
+    case SI_UA3:
+    case SI_UA4:                                        /* (kept in the settings record: persist_rec.c ua_src) */
+        ua_src_step(it - SI_UA1, s);
+        break;
+#endif
     default:
         return;
     }
@@ -831,6 +855,15 @@ static int sys_factory(uint32_t it)
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:
         clko_on = 0;
+        break;
+#endif
+#if FELUCCA_USB_AUDIO
+    case SI_UA1:
+    case SI_UA2:
+    case SI_UA3:
+    case SI_UA4:                                        /* (as before the setting: T1 T2 T3 DRUMS) */
+        ua_src[it - SI_UA1] = (uint8_t)(it == SI_UA4 ? UAS_DRUMS : UAS_T1 + (it - SI_UA1));
+        ua_route_apply();
         break;
 #endif
     default:

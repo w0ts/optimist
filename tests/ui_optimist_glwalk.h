@@ -46,6 +46,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if DUAL_LOAD
     h = glw_mix(h, &dual_mode, 1);
 #endif
+#if FELUCCA_USB_AUDIO
+    h = glw_mix(h, ua_src, sizeof ua_src);
+#endif
     return h;
 }
 static void glw_line(uint32_t scr, uint32_t i, cell_t *c, char *v)   /* line i as the list draws it: cell, value text */
@@ -122,7 +125,8 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
-    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"}};
+    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"CH1", "T1"}, {"CH2", "T2"}, {"CH3", "T3"}, {"CH4", "DRUMS"}};   /* (SYSTEM > USB AUDIO: the routing before the setting) */
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;

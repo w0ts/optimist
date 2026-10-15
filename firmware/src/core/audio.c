@@ -35,12 +35,15 @@ static volatile uint32_t audio_halves, audio_max_us;
 static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    const int32_t *cap = track_capture_on ? ua_route(out, n) : track_capture;   /* the channels' sources (SYSTEM > USB
+                                                         * AUDIO, usb_audio_route.c; the default: the stems as they are),
+                                                         * before the hold: no work added to the USB service */
     fm1_irq_hold(FM1_IRQ_TIMER5, 1);
     if (usb.up && usb.config && !usb.suspended && (ua.play_alt | ua.cap_alt)) {
         if (ua.cap_alt && !track_capture_on)    /* (the host started taking them during this block: not */
             for (i = 0; i < n * NTRK; i++)      /*  cleared for it, its stems are silence) */
                 track_capture[i] = 0;
-        ua_audio(out, track_capture, n, song.master_q12);
+        ua_audio(out, cap, n, song.master_q12);
     }
     fm1_irq_hold(FM1_IRQ_TIMER5, 0);
 }

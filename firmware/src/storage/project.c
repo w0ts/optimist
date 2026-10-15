@@ -1533,6 +1533,9 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_FAVORITES
             persist_fav_load(&p);
 #endif
+#if FELUCCA_USB_AUDIO
+            persist_ua_load(&p);                   /* SYSTEM > USB AUDIO: the capture channels' sources */
+#endif
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
@@ -1630,6 +1633,9 @@ static void settings_save(void)
 #endif
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
+#endif
+#if FELUCCA_USB_AUDIO
+    persist_ua_save(&p);
 #endif
 #if FELUCCA_BLE
     memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
