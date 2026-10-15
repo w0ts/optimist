@@ -1,7 +1,7 @@
 # Shared DSP building blocks
 
-Optimist is assembled from ports of SLOOP / Felucca, Melodee (FM6, PHASE, CZ) and X0X (the 303 voice, the 909 and
-808 kits), and each port brought its own copies of the basics. This page is the inventory of those copies, what was
+Optimist is assembled from ports of SLOOP / Felucca, Melodee (FM6, PHASE, CZ), X0X (the 303 voice, the 909 and
+808 kits), fm-106 (the JUNO engine and its chorus) and Felucca-Engines (NOISE), and each port brought its own copies of the basics. This page is the inventory of those copies, what was
 merged into one shared block, the proof that no caller's output changed, and what stays separate and why.
 
 Shared modules, by kind:
@@ -215,6 +215,8 @@ README in `~/GitHub/fm1-firmware/screens/dsp-dedupe-2026-10-07/`.
 | SUPER vs ANALOG 2 swarm (`COPY_PH`, `super_copies`, ...) | never in the same build (FELUCCA_ANALOG2) |
 | FM6 RAM copies of flash tables (MARK I log / exp, OPL log) | the RAM copy is the speed path; FELUCCA_FM6_MKI_FLASH already offers the flash one |
 | asm twins (`asm_a2_out`, `asm_a2_drive`, ...) | they mirror their C kernels instruction for instruction; ASM_CHECK compares them (untouched) |
+| the JUNO engine (`engines/juno/juno_dsp.h`, `juno_tables.h`) and the JUNO CHORUS unit (`fx/junocho/juno_cho.h`) | ports of fm-106 (GPL-3.0-only) kept self-contained (stdint only) so the comparison harness builds them beside fm-106's own headers; the first port was bit-exact with fm-106's functions, the optimised kernel is measured against it, not merged with the shared blocks (JUNO notes: level and brightness within 0.02 dB) |
+| the NOISE engine (`engines/noise/eng_noise.c`) | MIT, from Felucca-Engines; only its glue to `engine_t` and `dsp.c` was changed, the DSP is the original's |
 
 ## Licences
 

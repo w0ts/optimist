@@ -30,6 +30,11 @@ Sources read:
 
 ## 0. Summary
 
+> **2026-10-15, what the build-time route has carried since this was written:** engines added as builder items, not
+> plug-ins: CZ (UID 13), JUNO (UID 14, from fm-106) and NOISE (UID 15, from Felucca-Engines), with the generic
+> insert types on the FX side (DYN, JUNO CHORUS, GATER and the others; docs/BUILDER.md has each item's measured
+> cost). An engine left out still costs 0 B. No plug-in code exists; the status below is unchanged.
+
 - **What Felucca proposes [F-D]:** engines installed later into the spare 72 KiB SDK "USR" flash region
   (0xEA000–0xFBFFF). They execute **in place from XIP** and are not copied to RAM. Each engine package (`.feng`) is
   **linked at a fixed address per slot**: there is no relocation and no PIC, and CI builds one image per slot. The host

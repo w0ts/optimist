@@ -1,6 +1,6 @@
 # Second core (CPU1) for audio rendering: design and prototype
 
-Status: **EXPERIMENTAL. Validated in the emulator only. Nothing here has run on an FM-1.**
+Status: **EXPERIMENTAL. Validated in the emulator. The first report from an FM-1 (2026-10-14, section 6 "2ND CORE OFF TIMEOUT") is a fallback to CPU0 whose cause is not measured; no gain has been measured on a device.**
 Build flag `FELUCCA_DUAL` (default 0 = off, the normal single-core firmware).
 Branch `feat/dual-core` (from `feat/sloop-plus`). Emulator changes: `fm1-emulator`, branch `feat/dual-core-emu`.
 
@@ -291,7 +291,7 @@ What the emulator cannot tell: cycles (it counts instructions), cache misses and
 cores fetching from one flash cache will slow each other), SRAM bus contention, memory ordering.
 **The real gain on hardware is unknown**; it will be lower than the 40-44 % above.
 
-## 6. Hardware test plan (nothing has run on a device)
+## 6. Hardware test plan (one device report so far, below)
 
 Packages (only emulator-tested, **EXPERIMENTAL**), in `~/GitHub/fm1-firmware/`:
 - `sloop-dual-EXPERIMENTAL-stage1-2026-10-05.fwsc` — `FELUCCA_DUAL=1`
