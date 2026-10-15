@@ -123,7 +123,7 @@ Builds: which switches put the copy in (engine switches only drop the engine fro
 | # | Tables | Bytes | Identical | Status |
 |---|---|---|---|---|
 | T1 | `felucca_tables.h` (gen_tables.py): SINE, PITCH_INC, ENV_*, LFO_INC, SVF_G, LEVEL_Q12, DECAY_K, TANH_Q15, FM6_* | | one copy each already; no table is copied elsewhere | nothing to merge |
-| T2 | `x0x_drum_tables.h` (gen_x0x_drums.py): `x0x_tanh_tab[1026]` float, `x0x_pot_exp[18][128]` | 4,104; 9,216 | 909 only; the 808 computes the same pot curves at run time with another pow (last bits differ) | see Ears |
+| T2 | `x0x_drum_tables.h` (gen_x0x_drums.py): `x0x_tanh_tab[1026]` float; the 909's EXP pot ranges `x0x_exp_lo[18]`, `x0x_exp_l2[18]` | 4,104; 144 | the 909 computes its pot curves when a pot is set (lo * fm_exp2f(pot / 127 * log2(hi / lo)), within 4 float steps of the 18 x 128 table it replaced, perf/flash-wins); the 808 with its own correctly rounded exp2 | done |
 | T3 | FM6 RAM tables built from flash ones: `FM6_MKI_LOG` (2 KB RAM) from `FM6_MKI_LOGQ` (2 KB flash), `FM6_OPL_LOG` (1 KB) from `FM6_OPL_LOGQ` | | the RAM copy is the speed path (FELUCCA_FM6_MKI_FLASH reads flash instead) | left (a deliberate RAM/flash trade) |
 | T4 | 2^(k/N): `SEMI_Q16[13]`, `CZ_POW16[16]`, `QDB[24]` vs PITCH_INC ratios | 52, 64, 48 | no (rounding) | see Left |
 | T5 | `GR_HANN[257]` (RAM, sin^2 window) ~ `(32767 - SINE[...]) / 2` | 514 | no | see Ears |

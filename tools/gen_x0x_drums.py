@@ -18,9 +18,9 @@ Writes two headers (both flash-resident `static const` data):
                       11-13 dB; a Rice code of these mantissas (lossless) 6 % less. The 6-bit form is the
                       builder's choice X909_CYM 2 (x0x_smp_*_p: four mantissas in three bytes, x0x_smp_*_e6);
                       8-bit stays the default.
-  x0x_drum_tables.h   the tanh lookup used by every saturator, and 9W9's EXP pot curves (er99_pots.h:
-                      min * (max/min)^(pot/127)) evaluated here, so the device needs no powf and gets the
-                      values 9W9 computes with libm.
+  x0x_drum_tables.h   the tanh lookup used by every saturator, and 9W9's EXP pot ranges (er99_pots.h:
+                      min * (max/min)^(pot/127)) as min and log2(max/min); drum909.c evaluates the curve
+                      when a pot is set (was an 18 x 128 float table, 9 KB).
 
   tools/gen_x0x_drums.py [build/gen/x0x_drum_samples.h]
 The tables header is written next to the samples header.
@@ -133,13 +133,6 @@ def arr(ctype, name, vals, fmt=str, per=12):
     return "\n".join(lines)
 
 
-def pot_exp(lo, hi, pot):
-    """er99_pot_to_value for an EXP pot, in float as 9W9 evaluates it"""
-    ratio = f32(f32(hi) / f32(lo))
-    t = f32(pot / 127.0)
-    return f32(f32(lo) * f32(ratio ** t))
-
-
 def write_if_changed(path, text):
     if not path.exists() or path.read_text() != text:
         path.write_text(text)
@@ -181,18 +174,17 @@ def main():
          f"#define X0X_TANH_N {TANH_N}",
          f"#define X0X_TANH_SCALE {cfloat(TANH_N / TANH_MAX)}",
          arr("float", "x0x_tanh_tab", tab, cfloat, per=6), "",
-         "/* 9W9 EXP pots (er99_pots.h): value = min * (max/min)^(pot/127), pot 0..127 */"]
+         "/* 9W9 EXP pots (er99_pots.h): value = min * (max/min)^(pot/127), pot 0..127 (drum909.c d9_pot_value) */"]
     for i, (n, lo, hi) in enumerate(EXP_RANGES):
         t.append(f"#define X0X_EXP_{n} {i}   /* {lo:g} .. {hi:g} */")
     t.append(f"#define X0X_EXP_COUNT {len(EXP_RANGES)}")
-    t.append(f"static const float x0x_pot_exp[{len(EXP_RANGES)}][128] = {{")
-    for n, lo, hi in EXP_RANGES:
-        vals = [pot_exp(lo, hi, p) for p in range(128)]
-        t.append("    { /* " + n + " */")
-        for i in range(0, 128, 6):
-            t.append("        " + ", ".join(cfloat(v) for v in vals[i:i + 6]) + ",")
-        t.append("    },")
-    t.append("};")
+    # the curve is computed when a pot is set (drum909.c d9_pot_value): lo * 2^(pot / 127 * log2(hi / lo)), with the
+    # ratio rounded to float as 9W9 does; within 4 float steps (1,600 of the 2,304 values equal) of the
+    # 18 x 128 table it replaced, 9 KB less flash
+    t.append(f"static const float x0x_exp_lo[{len(EXP_RANGES)}] = {{ "
+             + ", ".join(cfloat(lo) for _, lo, _ in EXP_RANGES) + " };")
+    t.append(f"static const float x0x_exp_l2[{len(EXP_RANGES)}] = {{ "
+             + ", ".join(cfloat(math.log2(f32(f32(hi) / f32(lo)))) for _, lo, hi in EXP_RANGES) + " };")
     t.append("")
     write_if_changed(out_t, "\n".join(t))
     print(f"x0x drums: {total} frames in {nbytes} B (8-bit block float; {', '.join(notes)}) -> {out_s.name}; "
