@@ -28,13 +28,13 @@ AINL uint32_t fine_inc(uint32_t inc, int32_t fine)
     return inc + (uint32_t)((int32_t)(inc >> 12) * fine);
 }
 
-/* the increment of a pitch detuned by det cents (DTN): whole 1/16 semitones from PITCH_INC, the rest (1/1600
+/* the increment of a pitch detuned by det cents (DTN): whole 1/16 semitones from pitch_inc, the rest (1/1600
  * semitone) as a fine factor, after the voice's fine (vmod_t.fine_all: what osc 1 has). Was the same three lines in ANALOG 2,
  * PHASE and the original ANALOG */
 AINL uint32_t det_inc(int32_t pitch16, int32_t det, int32_t fine)
 {
     int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;
-    uint32_t inc = fine_inc(PITCH_INC[clamp(pitch16 + d16, 0, 2047)], fine);
+    uint32_t inc = fine_inc(pitch_inc(clamp(pitch16 + d16, 0, 2047)), fine);
     return fine_inc(inc, rem * 2367 / 16000);
 }
 

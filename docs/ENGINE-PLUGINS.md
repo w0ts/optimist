@@ -236,7 +236,7 @@ Conclusions:
 - The simple engines touch almost nothing global: one or a few `t->p[...]` reads (PHASE 1, DIGITAL 1, TRIO 1,
   LOFI 6 `t->` uses), no `song.`, no `trk[` [V, grep].
 - Their dependencies are a short list: `mulq15`, `mulq16`, `clamp`, `osc_sine`, `osc_tri`, `sine_i`, `fine_inc`,
-  `amp_at`, `fm_ratio_inc`, tables `SINE` and `PITCH_INC`, constants `VOICE_FS`, `P_E0..7` [V].
+  `amp_at`, `fm_ratio_inc`, table `SINE` and `pitch_inc()`, constants `VOICE_FS`, `P_E0..7` [V].
 - The free flash regions exist and are outside every Optimist writer's allow-list today [V `fm1_flash.h:37-56`].
 - The missing-engine path (fallback + `MISSING`) already exists.
 

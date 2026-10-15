@@ -3,7 +3,7 @@
 /* From hugelton/Felucca-Engines src/eng_noise.c (commit c46e008, MIT; LICENSES/MIT-Felucca-Engines.txt). This file keeps
  * that licence and copyright: it is MIT, the rest of Optimist GPL-3.0-only. In Optimist: engine number 15, built with
  * FELUCCA_ENG_NOISE (backports.h), off by default. Changes from the original, all in the glue to our engine_t and dsp.c:
- * pitch_inc() is PITCH_INC[], NELEM() is sizeof, voice_amp() is written out (mulq15, amp_at, VOICE_FS), .knob is .macro, .keep is the NOISE
+ * pitch_inc() is the firmware's (felucca_tables.h), NELEM() is sizeof, voice_amp() is written out (mulq15, amp_at, VOICE_FS), .knob is .macro, .keep is the NOISE
  * branch of voice.c voice_start (a retrigger puts back the same state), the engine has a colour and .fil_page, the
  * presets do not suggest a pattern (PAT: ours are other patterns). The DSP and the presets are unchanged. */
 /* NOISE: from analog-style noise to shift-register noise, through a resonant filter.
@@ -66,7 +66,7 @@ static uint32_t noise_inc(int32_t p)
         p -= 192;
         sh++;
     }
-    inc = PITCH_INC[clamp(p, 0, 2047)];
+    inc = pitch_inc(clamp(p, 0, 2047));
     return sh && inc >= 0x80000000u >> (sh - 1u) ? 0xFFFFFFFFu : inc << sh;
 }
 

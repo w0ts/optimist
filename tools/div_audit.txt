@@ -36,7 +36,7 @@ src/dsp/dsp_float.h:fm_tanhf:(e+1.0f) | float (the X0X units only): the divide r
 src/dsp/dsp_float.h:fm_tanf:fm_sin_pi(c) | float (the X0X units only): x in (-pi/2, pi/2) (PI_SR * hz below Nyquist, the 303 allpass constant), so c = pi/2 - |x| in (0, pi/2] and sin(c) > 0
 src/engines/analog/eng_analog2.c:a2_coef:(uint32_t)den | den = 65536 + g(g + k) >> 8; k >= -119 (a2_k at RESO 127), so g(g + k) >= -3541 and den >= 65522
 src/engines/analog/eng_analog2.c:a2_sync:d1 | guarded: "if (d1 && ...)"
-src/engines/analog/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = PITCH_INC[...] >= 796,253 (the table's smallest entry)
+src/engines/analog/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = pitch_inc(...) >= 796,253 (the smallest increment, pitch 0)
 src/engines/analog/eng_analog2.c:analog_render:(1024+(((int32_t)ncopy*A2_SWARM_GC)>>5)) | 1024 + a non-negative term (ncopy >= 0, A2_SWARM_GC = 80 * 258)
 src/engines/digital/eng_digital.c:fm_ratio_inc:r | r = RATIO_Q8[x % 15], TABLE (128 .. 3840)
 src/engines/drawbar/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 >= 256 (PARAM E6 0..127)
@@ -52,7 +52,7 @@ src/engines/grain/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 jus
 src/engines/grain/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
 src/engines/grain/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
 src/engines/phase/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
-src/engines/sample/eng_sample.c:pow2_q16:(PITCH_INC[1600]>>16) | constant table entry (PITCH_INC[1600] >> 16 = 102)
+src/engines/sample/eng_sample.c:pow2_q16:(pitch_inc(1600)>>16) | constant table entry (pitch_inc(1600) >> 16 = 102)
 src/engines/slice/eng_slice.c:slc_fill:len | guarded (added in this audit): a slot rescan zeroes s->len from the main loop; with FELUCCA_DUAL, CPU1 can render meanwhile
 src/engines/slice/eng_slice.c:slice_note_on:(int32_t)n | n = slc_count: 4 << div, or s->nauto >= 1 (set to 1 before AUTO slices are added); the source s is non-null here
 src/engines/super/eng_super.c:super_render:(1024+(((int32_t)ncopy*gc)>>5)) | 1024 + a non-negative term (gc = MIX * 258, PARAM MIX 0..127)
@@ -163,13 +163,13 @@ src/ui/sloop/ui_drums.c:graph_dsnd:h | returns before the graph when h < 8
 src/ui/sloop/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
 src/ui/sloop/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
 src/ui/sloop/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
-src/ui/sloop/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253)
+src/ui/sloop/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (pitch_inc() >= 796,253)
 src/ui/optimist/op_graph.c:denv_x0x:(1024+x*1024/(w>1?w:1)) | the X0X sketch (graph_dsnd's, copied): x >= 0 and the inner divisor >= 1, so >= 1024
 src/ui/optimist/op_graph.c:denv_x0x:(w>1?w:1) | "w > 1 ? w : 1"
 src/ui/optimist/op_graph.c:denv_x0x:h | graph_denv returns before the graph when h < 8
 src/ui/optimist/op_graph.c:denv_sample:(rate?rate:1u) | "rate ? rate : 1"
 src/ui/optimist/op_graph.c:denv_sample:mx | only for pk[x] != 0, and mx >= every pk[x] (mx starts at 1)
-src/ui/optimist/op_graph.c:denv_sample:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253), as graph_dsnd
+src/ui/optimist/op_graph.c:denv_sample:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (pitch_inc() >= 796,253), as graph_dsnd
 src/ui/optimist/op_graph.c:denv_synth:pk | "pk = pk ? pk : 1"
 src/ui/sloop/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
 src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"

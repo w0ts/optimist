@@ -281,7 +281,7 @@ static void nt_voice(uint32_t pi, uint32_t note, int32_t fine, int32_t *buf, uin
     e->note_on(&trk[0], &v);
     memset(&m, 0, sizeof m);
     m.pitch16 = v.pitch16;
-    m.inc = PITCH_INC[m.pitch16];
+    m.inc = pitch_inc(m.pitch16);
     m.amp0 = m.amp1 = 32767;
     m.shape = 64 << 8;
     for (b = 0; b < blocks; b++) {

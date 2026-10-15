@@ -359,7 +359,7 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
                                   * engines that make increments from pitch16; 0 unless a MIDI bend or the
                                   * mod wheel moves the part (then glide and LFO fractions too) */
     int32_t os2, sdt;            /* ANALOG: osc 2's pitch (1/16 semitone) and the swarm's spread moved (OSC2 SDTN) */
-    int32_t fine_all;            /* all inc adds to PITCH_INC[pitch16], 1/4096 (fine_inc): the unison detune, the
+    int32_t fine_all;            /* all inc adds to pitch_inc(pitch16), 1/4096 (fine_inc): the unison detune, the
                                   * fine TUNE, the glide / LFO / bend fraction. For a second oscillator made from
                                   * pitch16 (det_inc: ANALOG, PHASE), so it moves with the first (after isod89/
                                   * sloop-fm1 PR #45, Erick Buendia Barrientos) */

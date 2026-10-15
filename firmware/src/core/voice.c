@@ -1402,7 +1402,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.plog = (int32_t)(((int64_t)(q - midi - (v->pitch16 << 8)) * 1398101) >> 12) + v->fine * 5909;   /* -> Q24 */
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
-            m.inc = PITCH_INC[m.pitch16];
+            m.inc = pitch_inc(m.pitch16);
             q = (q & 255) * 3792 >> 16;                 /* the fraction, as fine (1/16 st = 14.8) */
             m.fine = midi && pitch == m.pitch16 ? q : 0;   /* (engines from pitch16: the bend's fraction) */
             m.fine_all = v->fine + tune_fine + q;       /* unison detune, fine tune and the fraction */
