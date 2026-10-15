@@ -101,7 +101,7 @@ static void mixer_walk_tests(void)
         press(B_OCTDN);
         tap(B_ENV);
         release(B_OCTDN);
-        check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
+        check(!op_armed(), "... SHIFT + ENV: no INIT of T1 asked");
         if (op_armed())
             op_no();
         {
@@ -235,6 +235,17 @@ static void mixer_sets_tests(void)
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, "DUCK", 0, 0, 0),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
           "REV DLY CHO RET, the one order), DUCK (fx-rework)");
+    if (FELUCCA_FX_REVERB && FELUCCA_FX_DELAY && FELUCCA_FX_CHORUS && FELUCCA_FX_DIST) {   /* the user, 2026-10-15: "match the
+                                                        * order between master return and the send": card k is R(k+1) */
+        uint32_t ps = 2u, ok;                           /* (T1: MIX, INSERT, SENDS) */
+        fxs_load(1, FXT_CHO);                           /* (R1 CHO, R3 REV: a swap) */
+        ok = mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "CHO RET", "DLY RET", "REV RET", 0) &&
+             mx_labels(MXR_T1, ps, "CHO", "DLY", "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", "DLY", "REV", 0);
+        fxs_load(2, FXT_NONE);                          /* (R2 empty: its card blank, the others in place) */
+        ok &= mx_labels(MXR_T1, ps, "CHO", 0, "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", 0, "REV", 0);
+        fxs_set(FXS_DEF);
+        check(ok, "R1 CHO, R3 REV (swapped): the returns, a track's and a lane's sends follow, CHO DLY REV; R2 empty: a blank card");
+    }
     {   /* the master's TYPE card: DYN out of its slots, its set gone; DUST / FILT never a card of their own */
         mitem_t it[MX_MAXI];
         uint32_t n, i, own = 0;
@@ -265,7 +276,7 @@ static void mixer_sets_tests(void)
         check(song.g[G_CRET] == c0 && song.g[G_DRET] == d0, "... KNOB 4 on the empty card: nothing");
         turn(EN_K3, -3);
         check(song.g[G_CRET] < c0, "... KNOB 3 (CHO RET): CHO RET down");
-        fxs_load(3, FXT_NONE);                          /* REV in no slot: no card for its return, DLY and CHO move up */
+        fxs_load(1, FXT_NONE);                          /* REV in no slot: no card for its return, DLY and CHO move up */
         for (k = 0; k < 4u; k++) {
             mix_cell(MXR_MASTER, k, &c);
             any |= c.d == &GP[G_RRET];
@@ -331,7 +342,7 @@ static void mixer_sets_tests(void)
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         release(B_OCTDN);
-        check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
+        check(ui.scr == SCR_HOME, "SHIFT held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
         tap(B_HOME);
@@ -344,14 +355,14 @@ static void mixer_sets_tests(void)
         key(4);
         release(B_OCTDN);
         check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
-              "HOME held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
+              "SHIFT held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         press(B_GLO);
         release(B_GLO);
         release(B_OCTDN);
-        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "HOME held long + a layer button: the layer locks, no SYSTEM");
+        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "SHIFT held long + a layer button: the layer locks, no SYSTEM");
         tap(B_SEQ);
         song.sel = 0;
         reset_ui();

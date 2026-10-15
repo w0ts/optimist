@@ -100,6 +100,26 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #define IN_POOL_AUDIO
 #endif
 #define AINL static inline __attribute__((always_inline))
+/* the interrupts off and back as they were, for code that runs in the main loop and in the audio interrupt alike
+ * (fx_slots.c's slot puts: a song mode STOP applies the loop put aside from the ISR, arranger_scene.c song_restore ->
+ * proj_apply -> fx_rec.c fxr_decode). A bare fm1_irq_on() there is an sti inside the interrupt, which outlives its
+ * return on the FM-1 (core/audio.c ua_block: the USB audio builds that hung, 2026-10-12): IRQ_RESTORE switches them on
+ * only if they were on at IRQ_SAVE (icfg bit 9, the global enable). The host: its own hook (tests/audio_hang_stress.c),
+ * else on. */
+#ifdef __PI32V2__
+#define IRQ_IE_NOW() (fm1_icfg() & 0x200u)
+#elif defined(HOST_IRQ_HOOKS)
+#define IRQ_IE_NOW() host_irq_ie()
+#else
+#define IRQ_IE_NOW() 1u
+#endif
+#define IRQ_SAVE(ie) uint32_t ie = IRQ_IE_NOW(); fm1_irq_off()
+#define IRQ_RESTORE(ie) do { if (ie) fm1_irq_on(); } while (0)
+#ifndef HOST_DUAL
+#define HOST_DUAL 0
+#endif
+/* two cores render parts at once (system/dual.c mix_block_dual; HOST_DUAL: the host's thread, tests/audio_hang_dual.h) */
+#define DUAL_RENDER (FELUCCA_DUAL >= 2 || HOST_DUAL)
 AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
 #define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))
 
@@ -125,9 +145,9 @@ typedef struct {
 #define TFLT_ON (FELUCCA_TRK_FILT || FELUCCA_FX_DJF)
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
-#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS)
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS)
+#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS || FELUCCA_INS_EQ3)
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -198,6 +218,12 @@ enum {                          /* per-track parameters */
     /* JUNO CHORUS (2026-10-14, fx/junocho/juno_cho.h, fx_slots.c FXT_JUNO): a track's MIX (its amount) and MODE (I II
      * I+II). Not part of a sound nor of a user preset; the FX record keeps them (fx_slots.c fxs_tlv, JUNO's TLV) */
     P_TJCHO, P_TJMODE,
+#endif
+#if FELUCCA_INS_EQ3
+    /* EQ3 (2026-10-15, fx/insfx/eq3.c, fx_slots.c FXT_EQ3): a track's ON (its amount: 1 by default, so the type is heard
+     * as soon as a band moves); the bands and frequencies are the owner's (eq3_v). Not part of a sound nor of a user
+     * preset; the FX record keeps them (fx_slots.c fxs_tlv, EQ3's TLV) */
+    P_TEQ,
 #endif
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
@@ -438,6 +464,9 @@ typedef struct {
 } step_t;
 #define STEP_SN ((uint32_t)sizeof(pstep_t))   /* a stored step's bytes */
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
+#if FELUCCA_USB_AUDIO
+#include "../io/usb/ua_tap.h"     /* the capture channels' sources and their taps (SYSTEM > USB AUDIO) */
+#endif
 /* the drum track's 17th step lane, the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
  * (steps, level, ratchet, length, the edits, the tools, patterns, sections, snapshots), no sound of its own; its
  * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC), its ratchet hits too, scaled by the accent
@@ -597,6 +626,7 @@ static song_t song;
 #define FS 44100                 /* (as build/gen/felucca_tables.h: tools/gen_tables.py) */
 #endif
 #define BEAT_U ((uint32_t)FS * 60u)
+#include "../system/overload.h"   /* the overload monitor: the CPU lines' maxima, DROPS, UNDERRUNS, the header's mark */
 #include "../system/dual_load.h"  /* CPU1's load beside song.cpu_q8 (FELUCCA_DUAL 2 only) */
 static volatile uint32_t clk_beat, clk_pos;
 /* the units the clock moves in the block being rendered (events_block: n x BPM, nudged, or what an external clock

@@ -7,6 +7,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <title>Optimist Editor</title>
 <style>
   /* The FM-1's screen font: Terminus 8x16 (Dimitar Toshkov Zhekov, SIL OFL 1.1, TERMINUS-LICENSE.txt) as a TrueType font whose outlines are the
@@ -17,10 +18,6 @@
   @font-face { font-family: "Fukiai"; src: url("fukiai.ttf") format("truetype"); font-display: block; unicode-range: U+EA00-EB09; }
   :root { --bg: #fff; --fg: #000; --dim: #666; --line: #ccc; --panel: var(--bg); --accent: var(--fg);
           --ok: #2e9e5b; --warn: #c98a12; --err: #d23c3c; }   /* status: green OK / live, amber notice, red error or distortion */
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --line: #444; }
-  }
-  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #888; --line: #444; }
   html { color-scheme: light dark; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -277,8 +274,6 @@
   .strip.master .fxg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
   .strip.master .fxg button.ib { width: 32px; height: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
   .strip.master .fxg button.ib:hover { background: var(--panel); }
-  .appearance { margin-bottom: 12px; }
-  .connectcard .appearance { margin: 24px auto 0; display: inline-block; text-align: left; }
   dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
   dialog#pop::backdrop { background: rgba(0, 0, 0, .45); }
   .pophead { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 6px 10px; background: var(--panel);
@@ -344,8 +339,8 @@
   #mixer .pslot { min-height: 0; height: 16px; padding: 0 4px; font-size: 10px; line-height: 14px; text-align: right; border: 1px solid var(--line);
     background: var(--bg); color: var(--dim); }
   #mixer .pslot.used { background: var(--s2); color: var(--fg); box-shadow: inset 3px 0 var(--eng, var(--tc)); }
-  #mixer .pslot.on { background: var(--ok, #3c3); color: #000; }
-  #mixer .pslot.q { background: var(--warn, #d93); color: #000; }
+  #mixer .pslot.on { background: var(--ok, #3c3); color: var(--on); }
+  #mixer .pslot.q { background: var(--warn, #d93); color: var(--on); }
   #mixer .pslot.ref { outline: 2px solid var(--fg); outline-offset: -2px; }
   #mixer .strip.master .pslots { grid-column: 1 / -1; grid-row: 1; }
   #mixer .pslot.scn { text-align: center; font-weight: 700; }
@@ -404,11 +399,11 @@
      SLOOP 2.4 look: the FM-1's screen on a big display. Black, the four track colours, the device's Terminus pixel font
      (16 px and 32 px only, so every pixel stays sharp), the pages in a side bar, the tracks on top, the parameters as rows
      of four coloured knobs, the steps as the device's tiles. This block overrides the rules above; the layout of the
-     strips, the popups and every command are the editor's own (protocol v9). The colour editions (Settings > Theme) still
-     set --bg --panel --fg --dim --line --accent; the surfaces below are mixed from them.
+     strips, the popups and every command are the editor's own (protocol v9). The colours follow the system: this dark set, and
+     a light set under prefers-color-scheme: light (no switch; the page restyles live). The surfaces below are mixed from --bg and --fg.
      Look and ideas from the SLOOP 2.4 web editor, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0.
      ==================================================================================================================== */
-  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+  :root {
     --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
     --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
     --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
@@ -416,12 +411,25 @@
     --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
     --font: "SLOOP Terminus", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
     --knob-size: 44px; --knob-track: var(--s3); --knob-value: var(--trk); --knob-pointer: var(--fg); --knob-stroke: 4;
+    --on: #000;   /* text on a track-coloured or status-coloured fill (a kind / engine colour is mid-tone: black reads on it in both modes) */
+    --mute: var(--s3);   /* the quietest text: headings of the side bar, idle REC, disabled buttons, the footer */
     color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
+      --ok: #11682b; --warn: #825000; --err: #a82229;
+      --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+      --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
+      --mute: var(--dim);
+      --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
+      color-scheme: light;
+    }
   }
   html:root[data-sel="1"] { --trk: var(--t2); } html:root[data-sel="2"] { --trk: var(--t3); } html:root[data-sel="3"] { --trk: var(--t4); }
   html { background: var(--bg); }
   body { font: 16px/20px var(--font); -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed; color: var(--fg2); }
-  ::selection { background: var(--trk); color: #000; }
+  ::selection { background: var(--trk); color: var(--on); }
   h1, h2, h3 { font-weight: 400; font-size: 16px; line-height: 20px; }
   h2 { border: 0; padding: 0; margin: 0 0 10px; color: var(--fg); text-transform: uppercase; }
   h3 { color: var(--dim); text-transform: uppercase; margin: 10px 0 4px; }
@@ -431,9 +439,9 @@
   /* ---- controls ---- */
   button { background: var(--s2); color: var(--fg); padding: 6px 12px; text-transform: lowercase; }
   button:hover:not(:disabled) { background: var(--s3); }
-  button:disabled { opacity: 1; color: var(--s3); background: var(--s1); }
+  button:disabled { opacity: 1; color: var(--mute); background: var(--s1); }
   button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--trk); outline-offset: 1px; }
-  button.big { font-size: 16px; padding: 8px 16px; background: var(--trk); color: #000; }
+  button.big { font-size: 16px; padding: 8px 16px; background: var(--trk); color: var(--on); }
   select, input[type=text], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
   select { appearance: none; padding-right: 22px; cursor: pointer;
            background: var(--bg) linear-gradient(45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 9px) 55% / 5px 5px,
@@ -441,12 +449,12 @@
   select[size], select[multiple] { background: var(--bg); padding: 0; }
   select option { background: var(--bg); color: var(--fg); }
   select[size] option { padding: 2px 8px; }
-  select[size] option:checked { background: var(--trk) linear-gradient(0deg, var(--trk), var(--trk)); color: #000; }
-  input::placeholder { color: var(--s3); }
+  select[size] option:checked { background: var(--trk) linear-gradient(0deg, var(--trk), var(--trk)); color: var(--on); }
+  input::placeholder { color: var(--mute); }
   input[type=checkbox] { appearance: none; width: 16px; height: 16px; border: 1px solid var(--dim); background: var(--bg); vertical-align: -3px; cursor: pointer;
                          display: inline-grid; place-content: center; }
   input[type=checkbox]:checked { background: var(--trk); border-color: var(--trk); }
-  input[type=checkbox]:checked::after { content: ""; width: 8px; height: 8px; background: #000; }
+  input[type=checkbox]:checked::after { content: ""; width: 8px; height: 8px; background: var(--on); }
   input[type=range] { appearance: none; -webkit-appearance: none; height: 16px; background: transparent; accent-color: var(--trk); }
   input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--s3); }
   input[type=range]::-moz-range-track { height: 4px; background: var(--s3); }
@@ -460,10 +468,10 @@
   .seg button, button.tog { background: var(--s2); color: var(--dim); border: 0; padding: 4px 12px; }
   .seg { gap: 2px; }
   .seg button + button { border-left: 0; }
-  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--trk); color: #000; border: 0; }
+  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
   button.ib { background: var(--s2); color: var(--fg); border: 0; }
   button.ib:hover { background: var(--s3); border: 0; }
-  button.ib[aria-pressed="true"] { background: var(--trk); color: #000; border: 0; }
+  button.ib[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
   button.ib span { font-size: 16px; }
   .pill { font-size: 16px; border-radius: 0; border: 0; padding: 0 6px; background: var(--s2); color: var(--dim); }
   button.pill { background: var(--s2); color: var(--fg); }
@@ -471,7 +479,7 @@
   .pill[data-st=warn] { background: none; color: var(--warn); }
   .pill[data-st=err] { background: none; color: var(--err); }
   button.pill[data-st=ok], button.pill[data-st=warn] { background: var(--s2); }
-  .tp #play[aria-pressed=true] { background: var(--ok); color: #000; border: 0; }
+  .tp #play[aria-pressed=true] { background: var(--ok); color: var(--on); border: 0; }
   table.snaps td.nm { font-weight: 400; }
   th { color: var(--dim); text-transform: lowercase; }
   .row.pushed .v { font-weight: 400; color: var(--trk); }
@@ -485,7 +493,7 @@
   .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 16px; padding: 20px 12px; border-right: 1px solid var(--line); overflow-y: auto; }
   .side .brand { font-size: 32px; line-height: 32px; font-weight: 400; color: var(--fg); text-transform: uppercase; padding: 0 4px; }
   .side .tabs { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 2px; border: 0; margin: 0; }
-  .side .tabs .navh { color: var(--s3); margin: 14px 0 4px 12px; text-transform: lowercase; }
+  .side .tabs .navh { color: var(--mute); margin: 14px 0 4px 12px; text-transform: lowercase; }
   .side .tabs .navh:first-child { margin-top: 0; }
   .side .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 12px; border: 0; border-left: 4px solid transparent; border-bottom: 0;
                        width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; }
@@ -512,12 +520,12 @@
   .toptracks .no { width: 32px; height: 32px; display: grid; place-content: center; background: var(--s2); color: var(--c); font-size: 16px; flex: none; }
   .toptracks .nm { overflow: hidden; text-overflow: ellipsis; }
   .toptracks button[aria-pressed="true"] { background: var(--s2); color: var(--fg); box-shadow: inset 0 -2px var(--c); }
-  .toptracks button[aria-pressed="true"] .no { background: var(--c); color: #000; }
+  .toptracks button[aria-pressed="true"] .no { background: var(--c); color: var(--on); }
   #trackbtns button { min-width: 0; padding: 4px 12px; }
-  #trackbtns button[aria-pressed="true"] { background: var(--c); color: #000; }
+  #trackbtns button[aria-pressed="true"] { background: var(--c); color: var(--on); }
   .panel { margin: 0; padding-top: 20px; }
   .hint { margin: 32px 0; }
-  footer { font-size: 16px; line-height: 20px; margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--s3); }
+  footer { font-size: 16px; line-height: 20px; margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--mute); }
   footer a { color: var(--dim); }
   html[data-conn=off] .app { grid-template-columns: minmax(0, 1fr); }
   html[data-conn=off] .side, html[data-conn=off] .toptracks, html[data-conn=off] .titlebar { display: none !important; }
@@ -558,15 +566,15 @@
   .strip.master { --tc: var(--fg); }
   .strip.sel { border-color: var(--tc); box-shadow: none; outline: 0; }
   .strip .shead { background: var(--s2); color: var(--fg); box-shadow: inset 0 -3px var(--eng, var(--tc)); padding: 3px 6px; }
-  .strip .shead .num { background: var(--tc); color: #000; padding: 0 6px; font-size: 16px; font-weight: 400; }
+  .strip .shead .num { background: var(--tc); color: var(--on); padding: 0 6px; font-size: 16px; font-weight: 400; }
   .strip .shead .eng { font-size: 16px; font-weight: 400; letter-spacing: 0; }
   .strip .shead .selm { font-size: 16px; font-weight: 400; letter-spacing: 0; color: var(--tc); }
   .strip.master .shead .num { background: var(--fg); }
   .strip .snd { font-size: 16px; line-height: 20px; color: var(--fg); }
-  .strip .rec { font-size: 16px; color: var(--s3); text-transform: lowercase; }
-  .strip .rec.on { font-weight: 400; color: #000; background: var(--err); padding: 0 6px; }
+  .strip .rec { font-size: 16px; color: var(--mute); text-transform: lowercase; }
+  .strip .rec.on { font-weight: 400; color: var(--on); background: var(--err); padding: 0 6px; }
   .strip .solo { font-size: 16px; font-weight: 400; }
-  .strip .solo.on { color: #000; background: var(--fg); padding: 0 6px; }
+  .strip .solo.on { color: var(--bg); background: var(--fg); padding: 0 6px; }
   .strip .v, .strip .lv { font-size: 16px; color: var(--fg); }
   .strip .pops { border: 0; border-radius: 0; gap: 2px; background: none; }
   .strip .pops button.ib + button.ib { border-left: 0; }
@@ -583,7 +591,7 @@
   .strip .fx .note { font-size: 16px; }
   #mixer .strip .fx .note.lsel { font-size: 16px; line-height: 16px; font-weight: 400; }
   .strip.dry .fx .knob { opacity: .4; }
-  .strip button.tog[aria-pressed="true"] { background: var(--tc); color: #000; }
+  .strip button.tog[aria-pressed="true"] { background: var(--tc); color: var(--on); }
   .strip button { text-transform: lowercase; }
   .strip input.fader { accent-color: var(--tc); }
   .strip input.fader::-webkit-slider-runnable-track { width: 6px; background: linear-gradient(0deg, var(--tc) var(--p, 0%), var(--s3) var(--p, 0%)); }
@@ -609,15 +617,15 @@
   #popbody { padding: 12px 16px 16px; }
   .pgroup .ehead { padding: 2px 8px; }
   .plist .pr { background: var(--s2); color: var(--fg); border: 0; border-left: 4px solid var(--kc, var(--eng, var(--s3))); }
-  .plist .pr.cur { background: var(--trk); color: #000; }
+  .plist .pr.cur { background: var(--trk); color: var(--on); }
   .stitle { font-size: 16px; }
   .browser select[size] { min-width: 200px; }
   .list { border: 1px solid var(--line); background: var(--bg); }
   .list th { background: var(--s1); padding: 4px 8px; }
   .list td { padding: 2px 8px; color: var(--fg2); }
   .list tr[data-id]:hover td, .list tr[data-slot]:hover td, .list tr[data-fm6]:hover td { background: var(--s2); }
-  .list tr.sel td, .list tr.sel:hover td { background: var(--trk); color: #000; }
-  .list tr.empty td { color: var(--s3); }
+  .list tr.sel td, .list tr.sel:hover td { background: var(--trk); color: var(--on); }
+  .list tr.empty td { color: var(--mute); }
   .list tr.over td { outline: 1px dashed var(--trk); }
   .list.over { outline: 1px solid var(--trk); }
   .libcols { gap: 16px; }
@@ -626,13 +634,13 @@
   .smp .head b { font-weight: 400; color: var(--fg); }
   .chop canvas.wave { background: var(--bg); }
   .chop .chip { background: var(--s2); color: var(--fg2); border: 0; padding: 3px 8px; }
-  .chop .chip.on { background: var(--trk); color: #000; }
-  .chop .chip.off { color: var(--s3); }
+  .chop .chip.on { background: var(--trk); color: var(--on); }
+  .chop .chip.off { color: var(--mute); }
   .klanes button { background: var(--s1); color: var(--fg2); border: 0; border-left: 4px solid var(--kc, var(--s3)); font-size: 16px; line-height: 20px; }
   .klanes button .k { font-size: 16px; }
   .klanes button .n { font-weight: 400; color: var(--fg); }
-  .klanes button[aria-pressed="true"] { background: var(--trk); color: #000; border-color: var(--trk); }
-  .klanes button[aria-pressed="true"] .n { color: #000; }
+  .klanes button[aria-pressed="true"] { background: var(--trk); color: var(--on); border-color: var(--trk); }
+  .klanes button[aria-pressed="true"] .n { color: var(--on); }
   .klane { border: 1px solid var(--line); background: var(--s1); padding: 12px; }
   .klane .hd b { font-size: 16px; font-weight: 400; color: var(--trk); text-transform: uppercase; }
   .roll .rnote { border: 1px solid var(--line); background: var(--s1); }
@@ -642,11 +650,11 @@
   .tiles button { background: var(--s2); color: var(--dim); padding: 4px 5px; min-width: 0; height: 58px; display: flex; flex-direction: column; justify-content: space-between;
                   text-align: left; overflow: hidden; text-transform: none; }
   .tiles button:hover:not(:disabled) { background: var(--s3); }
-  .tiles button .n { color: var(--s3); }
+  .tiles button .n { color: var(--mute); }
   .tiles button.beat .n { color: var(--dim); }
   .tiles button .x { overflow: hidden; color: var(--fg2); line-height: 16px; max-height: 16px; white-space: nowrap; }
   .tiles button.on { background: var(--trk); }
-  .tiles button.on .n, .tiles button.on .x { color: #000; }
+  .tiles button.on .n, .tiles button.on .x { color: var(--on); }
   .tiles button.acc { box-shadow: inset 0 3px var(--fg); }
   .tiles button.tie { background: repeating-linear-gradient(-45deg, var(--s2) 0 6px, var(--s3) 6px 8px); }
   .tiles button.now { outline: 2px solid var(--fg); outline-offset: 1px; }
@@ -654,7 +662,7 @@
   .dgrid { gap: 2px; }
   .dgrid .ln { font-size: 16px; color: var(--fg2); }
   .dgrid .hd { font-size: 16px; }
-  .dgrid button { background: var(--s2); border: 0; color: #000; min-width: 18px; height: 22px; font-size: 16px; line-height: 22px; font-weight: 400; }
+  .dgrid button { background: var(--s2); border: 0; color: var(--on); min-width: 18px; height: 22px; font-size: 16px; line-height: 22px; font-weight: 400; }
   .dgrid button.beat, .dgrid button.bar { background: var(--s3); border: 0; }
   .dgrid button:hover { outline: 1px solid var(--dim); }
   .dgrid button.on { background: var(--kc, var(--t4)); opacity: 1; }
@@ -788,7 +796,7 @@
 <main class="main">
   <!-- the top: the page, the status line, the transport and the four tracks (one click selects the track the editors act on) -->
   <header class="top" id="transport">
-    <div class="titlebar"><h1 id="pagetitle"></h1><div id="status"></div></div>
+    <div class="titlebar"><a class="brand" href="../installer/" title="Optimist firmware installer" aria-label="Optimist firmware installer" style="color:inherit;margin-right:10px;flex:none"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/><rect x="40" y="124" width="10" height="25"/><path d="M96 111L95 131L103 138L106 120Z"/><rect x="12.5" y="49" width="5" height="65"/></svg></a><h1 id="pagetitle"></h1><div id="status"></div></div>
     <div class="tbar">
       <span id="mock" class="dim" hidden data-t="mock"></span>
       <span class="tp" id="tp" hidden>
@@ -804,15 +812,11 @@
   <p class="hint" id="hint" hidden></p>
   <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
   <section id="connectcard" class="connectcard" aria-live="polite">
-    <h1 class="clogo">Optimist</h1>
+    <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="../installer/" data-t="installerLink"></a></p>
-    <div class="group appearance" id="appearance">
-    <h2 data-t="appearance" data-ic="symbol_cog"></h2>
-    <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
-    </div>
   </section>
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
@@ -981,7 +985,6 @@
   </section>
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
-    <div class="groups" id="appearbox"></div>
     <div class="groups" id="setgroups"></div>
     <div class="group" style="margin-top:12px">
       <h2 data-t="system" data-ic="symbol_cog"></h2>
@@ -3427,8 +3430,8 @@ const FAM = { ENV: 1, LFO: 2, FX: 3, SCL: 4, EDIT: 5, GLO: 6, SAVE: 7, ARP: 8, S
 const FAM_NAMES = ["HOME", "ENV", "LFO", "FX", "SCL", "EDIT", "GLO", "SAVE", "ARP", "SEQ", "TRK"];
 /* the FX slots (v10, INFO tag 0x56, firmware fx_slots.c / ed_fxs.c): four slots, each empty (0) or one effect type; a type sits
    in one slot at most. Type ids (stored by the firmware: they never change) */
-const FXT = { NONE: 0, DIST: 1, CHO: 2, DLY: 3, REV: 4, COMP: 5, FILT: 6, FOLD: 7, FUZZ: 8, PHSR: 9, FLNG: 10, FRMT: 11, WIDE: 12, CHRS: 13, ECHO: 14, GATE: 15, DUST: 16, JUNO: 17 };
-const FXT_NAMES = ["----", "DST", "CHO", "DLY", "REV", "DYN", "FILT", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO", "GATER", "DUST", "JUNO"];   /* (the device names a type after its amount: DESC) */
+const FXT = { NONE: 0, DIST: 1, CHO: 2, DLY: 3, REV: 4, COMP: 5, FILT: 6, FOLD: 7, FUZZ: 8, PHSR: 9, FLNG: 10, FRMT: 11, WIDE: 12, CHRS: 13, ECHO: 14, GATE: 15, DUST: 16, JUNO: 17, EQ3: 18 };
+const FXT_NAMES = ["----", "DST", "CHO", "DLY", "REV", "DYN", "FILT", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO", "GATER", "DUST", "JUNO", "EQ3"];   /* (the device names a type after its amount: DESC) */
 /* type t into slot k as the device's FX > SLOTS does it (fxs_load): a type another slot holds swaps places with this slot's
    (empty never swaps). -> a new layout */
 function fxsLoad(slots, k, t) {
@@ -3719,7 +3722,7 @@ function stepxBuilt(b) {
   const f = { micro: bit(STEPX_BITS[0]), fills: bit(STEPX_BITS[1]), plock: bit(STEPX_BITS[2]) };
   return f.micro || f.fills || f.plock ? f : null;
 }
-/* ------------------------------------------------------- colours, themes, navigation --- */
+/* ------------------------------------------------------- colours, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
    the device later; web/test_web.mjs checks they are equal). Colour carries meaning only: a track shows its engine's
    colour (the drum track: its kit's kind), red / amber / green their status. An engine not in the table: COLORS.other */
@@ -3740,23 +3743,6 @@ function luminance(hex) {
 }
 const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#000000" : "#ffffff");
-/* the FM-1 colour editions (the emulator's themes): page, panels, text, secondary text, lines, accent; "auto" is the
-   plain black and white that follows the system's light / dark */
-const THEMES = {
-  auto: null,
-  classic: { dark: true, bg: "#2a2b2b", panel: "#333434", fg: "#e4e7e6", dim: "#a9aeac", line: "#4a4c4c", accent: "#e7c15b" },
-  black: { dark: true, bg: "#161616", panel: "#232323", fg: "#f2f2f2", dim: "#ababab", line: "#3e3e3e", accent: "#e7c15b" },
-  lilac: { dark: false, bg: "#ecdcf3", panel: "#f6eefa", fg: "#2d2240", dim: "#55456a", line: "#c8a9d8", accent: "#6e62a8" },
-  orange: { dark: false, bg: "#f7e3d8", panel: "#fcf0ea", fg: "#3a1d12", dim: "#6e4030", line: "#e0a88e", accent: "#a85a38" },
-  mint: { dark: true, bg: "#2f3032", panel: "#3a3b3d", fg: "#eaeaec", dim: "#b0b1b4", line: "#555658", accent: "#6fcabd" },
-  cream: { dark: false, bg: "#efe8e0", panel: "#f8f3ee", fg: "#2f2c2b", dim: "#5a5452", line: "#d7ccc1", accent: "#36393b" },
-  blue: { dark: false, bg: "#f3f0eb", panel: "#fbf9f6", fg: "#1d2a3d", dim: "#465670", line: "#d6dbe3", accent: "#4a6888" },
-};
-/* the CSS variables of a theme ({} for auto: the stylesheet's own) */
-const themeVars = (name) => {
-  const t = THEMES[name];
-  return t ? { "--bg": t.bg, "--panel": t.panel, "--fg": t.fg, "--dim": t.dim, "--line": t.line, "--accent": t.accent } : {};
-};
 
 /* The editor's navigation is flat: the MIXER is home; a few full screens (library, samples, projects, settings) open from
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
@@ -5243,7 +5229,7 @@ const GLYPH = {
   waveform_pulse_quarter: 0xEA7F, waveform_pulse_eighth: 0xEA7B, waveform_noise_step: 0xEA79,
   waveform_noise_white: 0xEA7A, waveform_harmonic: 0xEAC5,
 };
-/* the strips' and the transport's icons: inline SVG, 24 x 24, one stroke width, currentColor (the themes apply). Kept close
+/* the strips' and the transport's icons: inline SVG, 24 x 24, one stroke width, currentColor (the colours of the page apply). Kept close
    to the device's own icons where the idea is the same (save: a disk, load: a folder opening, settings: a cog) */
 const ICONS = {
   sound: "M12 12 9 7.5M5.6 17.5a8 8 0 1 1 12.8 0",
@@ -5329,7 +5315,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
+  tabMixer: "Mixer", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", pattern: "Pattern", patterns: "Patterns", scene: "Scene", scenes: "Scenes",
@@ -5622,9 +5608,6 @@ function renderPanels() {
     b.tabIndex = on ? 0 : -1;
   }
   const ready = !!dev && !!dev.dump;
-  /* the theme is a browser preference: Settings' first group once connected, on the connect card before */
-  const ap = $("appearance"), want2 = ready ? $("appearbox") : $("connectcard");
-  if (ap.parentNode !== want2) want2.append(ap);
   document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only */
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
@@ -5654,22 +5637,14 @@ $("tabs").addEventListener("keydown", (e) => {          /* arrow keys move betwe
 });
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if ((TABS.includes(h) || h in OLD_TABS) && h !== tab) showTab(h); });
 
-/* the theme: an FM-1 colour edition (THEMES), remembered per browser; auto = black and white, light / dark */
-const THEME_KEY = "optimist-editor-theme";
-function applyTheme(name) {
-  if (!(name in THEMES)) name = "auto";
-  const root = document.documentElement, th = THEMES[name];
-  for (const k of ["--bg", "--panel", "--fg", "--dim", "--line", "--accent"]) root.style.removeProperty(k);
-  for (const [k, v] of Object.entries(themeVars(name))) root.style.setProperty(k, v);
-  root.dataset.skin = name;
-  root.style.colorScheme = th ? (th.dark ? "dark" : "light") : "";
-  try { localStorage.setItem(THEME_KEY, name); } catch (e) { /* no storage */ }
-  const sel = $("theme");
-  if (sel.value !== name) sel.value = name;
-}
-$("theme").replaceChildren(...Object.keys(THEMES).map((n) => el("option", { value: n, text: n[0].toUpperCase() + n.slice(1) })));
-$("theme").addEventListener("change", () => applyTheme($("theme").value));
-applyTheme((() => { try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; } })());
+/* the colours follow the system (prefers-color-scheme, in the stylesheet: no switch, no stored preference); the canvases read
+   the CSS colours when they draw, so they are drawn again when the system changes while the page is open */
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+  try { if (roll.el && dev) drawRoll(); } catch (e) { console.error(e); }
+  try { chopDraw(); } catch (e) { console.error(e); }
+  try { if (keymapLast && keymapLast.cv.isConnected) drawKeymap(keymapLast.cv, keymapLast.files, keymapLast.keys); } catch (e) { console.error(e); }
+});
+try { localStorage.removeItem("optimist-editor-theme"); } catch (e) { /* no storage */ }   /* the old theme picker's preference */
 
 const QS = new URLSearchParams(location.search);
 const MOCK = QS.get("mock") === "1";
@@ -5745,6 +5720,13 @@ const pFx = () => FX_LABELS.map((n, j) => pById(n, 33 + j)), pFxoff = () => pByI
 /* v10 (INFO tag 0x56, dev.fx: FX op 0): the FX page's four knobs are the slots' amounts, named after them (DESC labels; an
    empty slot: null, "--"); older firmware: DST CHO DLY REV */
 const fxOn = () => typeof dev !== "undefined" && !!dev && !!dev.fx && !!dev.info && !!dev.info.fxs;
+/* [REV, DLY, CHO] (a drum sound's sends, the firmware's REV DLY CHO) in the device's return order: the sends its slots hold,
+   in slot order (fx_slots.c fxs_card: the one order of the sends and returns), then the others; older firmware: as given */
+const sendOrder = (rdc) => {
+  if (!fxOn()) return rdc;
+  const at = [FXT.REV, FXT.DLY, FXT.CHO].map((t) => { const k = dev.fx.slots.indexOf(t); return k < 0 ? 9 : k; });
+  return [0, 1, 2].sort((a, b) => at[a] - at[b] || a - b).map((i) => rdc[i]);
+};
 const slotIds = () => (fxOn() ? [0, 1, 2, 3].map((k) => fxSlotAmt(dev.info, dev.fx.slots, k)) : pFx());
 const slotLabels = () => (fxOn() ? slotIds().map((id, k) => (id == null ? "--" : (dev.pdesc[id] && dev.pdesc[id].label) || FXT_NAMES[dev.fx.slots[k]] || "--")) : FX_LABELS);
 const gDrLvl = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && (d.label === "LVL" || d.label === "LEVEL")); return i >= 0 ? i : 25; };
@@ -7010,7 +6992,9 @@ function playInt16(s, onend) {                       /* a preview in the compute
 }
 const smpTrackCol = (i) => `var(--t${(i % 4) + 1}, ${SMP_COLS[i % 4]})`;
 /* the keyboard C1..C7 and which file each key plays (its root: a bright mark) */
+let keymapLast = null;   /* (what the key map drew last, to redraw when the system switches light / dark) */
 function drawKeymap(cv, files, keys) {
+  keymapLast = { cv, files, keys };
   const lo = 24, hi = 108, n = hi - lo + 1, w = cv.width = Math.max(300, cv.clientWidth || 600), h = cv.height = 44, g = cv.getContext("2d");
   const cs = getComputedStyle(document.documentElement), col = SMP_COLS.map((c, i) => (cs.getPropertyValue(`--t${i + 1}`) || c).trim());
   const key = (cs.getPropertyValue("--line") || "#444").trim(), blk = (cs.getPropertyValue("--dim") || "#666").trim(), fg = (cs.getPropertyValue("--fg") || "#888").trim();
@@ -7196,7 +7180,7 @@ function smpUseOn(i, k) {
 /* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
    tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
 /* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
-const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"JUNO":{"CUT":"Filter cutoff","HPF":"High-pass filter","KEY":"Cutoff key tracking","NOIS":"Noise level","PW":"Pulse width","RES":"Filter resonance","SUB":"Sub oscillator level","WAVE":"Saw, pulse or both"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"NOISE":{"CLK":"Clock pitch above the key","COLR":"White, pink or brown","CRSH":"Bit crush","DENS":"Crackle density","DRFT":"Slow random drift","FREQ":"Filter frequency","LEN":"Register or sequence length","MODE":"Noise source","RES":"Filter resonance","TRK":"Frequency key tracking"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BUS SENDS":{"CHO":"Drum bus chorus send","DLY":"Drum bus delay send","REV":"Drum bus reverb send"},"BYPASS":{"FX":"Effects on or off (dry)"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"DYN":{"CEIL":"Limiter ceiling (OFF: none)","DYN":"Comp threshold (0: DYN off)","GAIN":"Make-up gain (AUTO: half)","RATIO":"This track's compressor ratio"},"DYN 2":{"ATK":"This track's comp. attack","REL":"This track's comp. release"},"ENV":{"ATK":"Attack time","BEND":"Pitch drop after the hit","CLICK":"Drum click (attack)","DEC":"Decay time","DECAY":"Drum decay","LEVEL":"Drum level (dB)","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"AMT A":"How much ENV moves A","AMT B":"How much ENV moves B","DST A":"What ENV moves (slot A)","DST B":"What ENV moves (slot B)"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"AMT A":"How much ENV 2 moves A","AMT B":"How much ENV 2 moves B","DST A":"What ENV 2 moves (slot A)","DST B":"What ENV 2 moves (slot B)"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CHRS":"Chorus: mix, then depth","DLY":"Delay send","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","REV":"Reverb send","WIDE":"Stereo width insert"},"GATER":{"DEPTH":"How far the gate shuts steps","PAT":"Gate pattern: 16 steps","RATE":"Gate step length (in tempo)","SHAPE":"Gate edges: hard to smooth"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"INSERTS":{"CHRS":"Chorus: mix, then depth","CMP":"Compressor insert (amount)","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Insert 1 type (swaps with 2)","S2":"Insert 2 type (swaps with 1)","WIDE":"Stereo width insert"},"JUNO CHO":{"JUNO":"Juno-106 chorus: its mix","MODE":"Juno chorus I, II or I+II"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate, left end: in tempo","WAVE":"LFO waveform"},"LFO 2":{"POL":"LFO 2: both ways or up only","RATE":"LFO 2 rate (left: synced)","TRIG":"LFO 2 restarts: note or free","WAVE":"LFO 2 wave"},"LFO DEST":{"AMT A":"How much LFO moves A","AMT B":"How much LFO moves B","DST A":"What LFO moves (slot A)","DST B":"What LFO moves (slot B)"},"LFO2 DEST":{"AMT A":"How much LFO 2 moves A","AMT B":"How much LFO 2 moves B","DST A":"What LFO 2 moves (slot A)","DST B":"What LFO 2 moves (slot B)"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"MST INS":{"DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","PHSR":"Phaser: mix, then feedback","S1":"Master insert 1 (swaps w. 2)","S2":"Master insert 2 (swaps w. 1)","THRS":"Comp threshold (OFF: no comp)","WIDE":"Stereo width insert"},"MST JUNO":{"JUNO":"Master Juno chorus: its mix","MODE":"Juno chorus I, II or I+II"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SENDS":{"CHO":"Chorus send","DLY":"Delay send","PAN":"Stereo position of the track","REV":"Reverb send"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"R1":"Send on return 1 (swaps)","R2":"Send on return 2 (swaps)","R3":"Send on return 3 (swaps)","S1":"Send in master slot 1 (swaps)","S2":"Send in master slot 2 (swaps)","S3":"Send in master slot 3 (swaps)","S4":"Send in master slot 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","DUST":"This sound's dust insert","DYN":"This sound's insert 2 (DYN)","FILT":"This sound's filter insert","FOLD":"This sound's wavefolder","FRMT":"This sound's vowel filter","FUZZ":"This sound's fuzz","PHSR":"This sound's phaser","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"INSERT":"Its first insert effect","PAN":"Pan of the row","SEND":"Its reverb or first send","VOL":"Level of the row"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DROP":"Pitch drop at each note","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan","VOICES":"Voices, 1 to the engine's max"},"VOICE 3":{"DROP":"Pitch drop at each note"}}};
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"JUNO":{"CUT":"Filter cutoff","HPF":"High-pass filter","KEY":"Cutoff key tracking","NOIS":"Noise level","PW":"Pulse width","RES":"Filter resonance","SUB":"Sub oscillator level","WAVE":"Saw, pulse or both"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"NOISE":{"CLK":"Clock pitch above the key","COLR":"White, pink or brown","CRSH":"Bit crush","DENS":"Crackle density","DRFT":"Slow random drift","FREQ":"Filter frequency","LEN":"Register or sequence length","MODE":"Noise source","RES":"Filter resonance","TRK":"Frequency key tracking"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BUS SENDS":{"CHO":"Drum bus chorus send","DLY":"Drum bus delay send","REV":"Drum bus reverb send"},"BYPASS":{"FX":"Effects on or off (dry)"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"DYN":{"CEIL":"Limiter ceiling (OFF: none)","DYN":"Comp threshold (0: DYN off)","GAIN":"Make-up gain (AUTO: half)","RATIO":"This track's compressor ratio"},"DYN 2":{"ATK":"This track's comp. attack","REL":"This track's comp. release"},"ENV":{"ATK":"Attack time","BEND":"Pitch drop after the hit","CLICK":"Drum click (attack)","DEC":"Decay time","DECAY":"Drum decay","LEVEL":"Drum level (dB)","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"AMT A":"How much ENV moves A","AMT B":"How much ENV moves B","DST A":"What ENV moves (slot A)","DST B":"What ENV moves (slot B)"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"AMT A":"How much ENV 2 moves A","AMT B":"How much ENV 2 moves B","DST A":"What ENV 2 moves (slot A)","DST B":"What ENV 2 moves (slot B)"},"EQ3":{"EQ3":"3-band EQ on or off","HI":"High band: KILL .. +6 dB","LO":"Low band: KILL .. +6 dB","MID":"Mid band: KILL .. +6 dB"},"EQ3 FREQ":{"FREQ H":"Mid / high crossover","FREQ L":"Low / mid crossover"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CHRS":"Chorus: mix, then depth","DLY":"Delay send","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","REV":"Reverb send","WIDE":"Stereo width insert"},"GATER":{"DEPTH":"How far the gate shuts steps","PAT":"Gate pattern: 16 steps","RATE":"Gate step length (in tempo)","SHAPE":"Gate edges: hard to smooth"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"INSERTS":{"CHRS":"Chorus: mix, then depth","CMP":"Compressor insert (amount)","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Insert 1 type (swaps with 2)","S2":"Insert 2 type (swaps with 1)","WIDE":"Stereo width insert"},"JUNO CHO":{"JUNO":"Juno-106 chorus: its mix","MODE":"Juno chorus I, II or I+II"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate, left end: in tempo","WAVE":"LFO waveform"},"LFO 2":{"POL":"LFO 2: both ways or up only","RATE":"LFO 2 rate (left: synced)","TRIG":"LFO 2 restarts: note or free","WAVE":"LFO 2 wave"},"LFO DEST":{"AMT A":"How much LFO moves A","AMT B":"How much LFO moves B","DST A":"What LFO moves (slot A)","DST B":"What LFO moves (slot B)"},"LFO2 DEST":{"AMT A":"How much LFO 2 moves A","AMT B":"How much LFO 2 moves B","DST A":"What LFO 2 moves (slot A)","DST B":"What LFO 2 moves (slot B)"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"MST EQ3":{"EQ3":"Master EQ on or off","HI":"Master high band: KILL .. +6","LO":"Master low band: KILL .. +6","MID":"Master mid band: KILL .. +6"},"MST EQ3 F":{"FREQ H":"Master mid / high crossover","FREQ L":"Master low / mid crossover"},"MST INS":{"CHRS":"Chorus: mix, then depth","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"DJ filter: low or high pass","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Master insert 1 (swaps w. 2)","S2":"Master insert 2 (swaps w. 1)","THRS":"Comp threshold (OFF: no comp)","WIDE":"Stereo width insert"},"MST JUNO":{"JUNO":"Master Juno chorus: its mix","MODE":"Juno chorus I, II or I+II"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"RET AMT":{"CHRS":"Return chorus: mix, depth","DST":"Return distortion (drive)","DUST":"Return vinyl dust / lo-fi","DYN":"Return comp threshold","ECHO":"Return slapback: level, rep.","EQ3":"Return EQ on or off","FILT":"Return filter: low/high cut","FLNG":"Return flanger: mix, feedback","FOLD":"Return wavefolder (drive)","FRMT":"Return vowel filter A..U","FUZZ":"Return fuzz (drive)","JUNO":"Return Juno chorus mix","PHSR":"Return phaser: mix, feedback","WIDE":"Return stereo width"},"RET EQ3":{"EQ3":"Return EQ on or off","HI":"Return high band: KILL .. +6","LO":"Return low band: KILL .. +6","MID":"Return mid band: KILL .. +6"},"RET EQ3 F":{"FREQ H":"Return mid / high crossover","FREQ L":"Return low / mid crossover"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SENDS":{"CHO":"Chorus send","DLY":"Delay send","PAN":"Stereo position of the track","REV":"Reverb send"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"R1":"Effect on return 1 (swaps)","R2":"Effect on return 2 (swaps)","R3":"Effect on return 3 (swaps)","S1":"Send in master slot 1 (swaps)","S2":"Send in master slot 2 (swaps)","S3":"Send in master slot 3 (swaps)","S4":"Send in master slot 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","DUST":"This sound's dust insert","DYN":"This sound's insert 2 (DYN)","EQ3":"This sound's 3-band EQ on","FILT":"This sound's filter insert","FOLD":"This sound's wavefolder","FRMT":"This sound's vowel filter","FUZZ":"This sound's fuzz","PHSR":"This sound's phaser","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"INSERT":"Its first insert effect","PAN":"Pan of the row","SEND":"Its reverb or first send","VOL":"Level of the row"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DROP":"Pitch drop at each note","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan","VOICES":"Voices, 1 to the engine's max"},"VOICE 3":{"DROP":"Pitch drop at each note"}}};
 /* PARAM_HELP END */
 /* a line of the table, "" none (kind: page, eng, fm6) */
 function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
@@ -7432,12 +7416,12 @@ function kitLane(pane) {
     value: ln.ofs[i], fmt: fmtDE(i), hot: i === 7 ? (v) => (v > 3 ? "err" : v > 0 ? "warn" : "") : i === 6 ? (v) => (v > 40 ? "warn" : "") : null,
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
-  const sends = dev.dlV2 ? [
+  const sends = dev.dlV2 ? sendOrder([
     kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"), eff: () => macDrev(snd(dev.dl.lanes[l]).rev),
       get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
-  ] : [];
+  ]) : [];
   /* v10: the sound's own DIST / COMP (FX op 3, as the drum strip's SOUND mode); not where the device says it has none (an X0X sound) */
   if (dev.fx && !sh.noIns) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
     const x = fxType(dev.info, ty);
@@ -9779,7 +9763,7 @@ $("syncbtn").addEventListener("click", () => {
    parameter's help line, keeps it), on every change of the page (a MutationObserver) */
 const TIPS = {
   connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play / stop (as the FM-1's PLAY) · Space",
-  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn · H", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
+  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn · H", popx: "Close (Esc)", bpm: "Tempo (BPM)",
   init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
   savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
   reloadsteps: "Read the steps from the FM-1 again", clearseq: "Clear every step of this track",
@@ -9800,7 +9784,7 @@ const TIPS = {
   libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
   "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
   "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
-  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: appearance, global, drums, MIDI clock",
+  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: global, drums, MIDI clock",
 };
 const TIP_SEL = "button, [role=tab], select, input:not([type=hidden]):not([type=file]), a[href]";
 function tipFor(e) {

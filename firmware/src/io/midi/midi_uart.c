@@ -47,12 +47,15 @@ static uint32_t um_len(uint32_t s)                 /* data bytes of a channel st
     return (s & 0xE0u) == 0xC0u ? 1u : 2u;         /* Cx Dx: 1, else 2 (F2: 2) */
 }
 
+#ifndef OVL_LOST
+#define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
+#endif
 static void um_put(uint32_t pkt, uint32_t t)
 {
     if (midi_in_enqueue(pkt, MSRC_TRS, t))
         um.msgs++;
     else
-        um.drops++;
+        um.drops++, OVL_LOST(OVL_MIDI_TRS);     /* (INFO's UNDERRUNS, system/overload.h) */
 }
 
 static void um_byte(uint32_t b, uint32_t t)

@@ -7,9 +7,10 @@
  *   ALGORITHM  walks the rows, MASTER, T1 .. DR .. the 16th lane and back (it stops at the ends; op_walk.c, the same
  *              walk as every page's): the track selected follows (song.sel), a lane row selects the lane (lane_sel, ui.lane)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
- *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO) (no FX on, no
- *              SOUND card: 2026-10-14); a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO; DR MUTE VOLUME | FILTER; MASTER FILT
- *              DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns, REV DLY CHO RET, those a FX slot holds (batch D;
+ *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (R1 R2 R3's: REV DLY CHO by
+ *              default, fx_slots.c fxs_card) (no FX on, no SOUND card: 2026-10-14); a lane MUTE LEVEL CUT | DRIVE | its
+ *              sends; DR MUTE VOLUME | FILTER; MASTER FILT DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns,
+ *              R1 R2 R3 (REV DLY CHO RET by default), those holding something (batch D;
  *              2026-10-12 had a card a slot, "-" for an insert or an empty one). Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
@@ -35,9 +36,9 @@ static int mx_is_usb(uint32_t r) { return r == MXR_USB; }
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
 enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA,
-       MI_UT, MI_UTST, MI_UTSA };
-/* MI_UT: the USB input's value id (fx_slots.c ut_desc: VOLUME PAN MUTE FX ON REV DLY CHO), MI_UTST / MI_UTSA its slot id's
- * TYPE / amount */
+       MI_UT, MI_UTST, MI_UTSA, MI_UEQ };
+/* MI_UT: the USB input's value id (fx_slots.c ut_desc: VOLUME PAN MUTE FX ON REV DLY CHO, GATER's PAT RATE SHAPE, JUNO's
+ * MODE), MI_UTST / MI_UTSA its slot id's TYPE / amount, MI_UEQ its EQ3's value id (fx_slots.c FXS_ID_UEQ + id) */
 /* MI_MINST / MI_MINSA: MASTER's insert slot id's TYPE / amount (fx_slots.c mst_slot, fx-rework 2026-10-14) */
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
@@ -45,13 +46,14 @@ enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI
 /* the knob sets' groups, in this order on every row (the user, 2026-10-11): the mix (VOLUME PAN; a lane LEVEL CUT;
  * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
-enum { MG_MIX, MG_INS, MG_SEND, MG_LAST };
+enum { MG_MIX, MG_INS, MG_SEND, MG_LAST,
+       MG_UEQ, MG_UEQF, MG_UGT, MG_UJC };              /* (the USB input's insert settings: a set each, named by mix_name) */
 typedef struct {
     const char *label;                                  /* 0: the descriptor's */
     uint8_t kind, id;                                   /* MI_*; a P_* / G_* / lane value id / screen */
     uint8_t grp;                                        /* MG_* */
 } mitem_t;
-#define MX_MAXI 20u
+#define MX_MAXI 24u                                     /* (the USB row at most: 4 + 4, two types' settings, 4) */
 static struct {
     uint8_t set;                                        /* the knob set shown (SELECT) */
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
@@ -126,17 +128,20 @@ static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
     n = mx_add(it, n, MG_INS, 0, MI_INST, 1);
     return mx_add(it, n, MG_INS, 0, MI_INSA, 1);
 }
-/* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends in a slot, REV DLY
- * CHO */
-/* the sends set, as the SENDS page has it (the user, 2026-10-14: "we have 3 sends, card 4 should be pan"): REV DLY CHO in
- * cards 1..3 (a blank card for a send no slot holds), PAN card 4. ids: the three sends' ids in kind's own numbering */
+/* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends, in the returns'
+ * order */
+/* the sends set, as the SENDS page has it (the user, 2026-10-14: "we have 3 sends, card 4 should be pan"): cards 1..3
+ * returns R1 R2 R3's sends (fx_slots.c fxs_card, a blank card for an empty return), PAN card 4. ids, lbl: the sends' ids
+ * in kind's own numbering, REV DLY CHO (FXS_DSI) */
 static uint32_t mx_items_sends(mitem_t *it, uint32_t n, const char *const *lbl, uint32_t kind, const uint8_t *ids,
                                uint32_t pan_kind, uint32_t pan_id)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    uint32_t k;
-    for (k = 0; k < 3u; k++)
-        n = FXS_ON(T[k]) ? mx_add(it, n, MG_SEND, lbl ? lbl[k] : 0, kind, ids[k]) : mx_add(it, n, MG_SEND, 0, MI_NONE, 0);
+    uint32_t k, t;
+    for (k = 0; k < 3u; k++) {
+        t = fxs_card(k);
+        n = t != FXT_NONE ? mx_add(it, n, MG_SEND, lbl ? lbl[FXS_DSI(t)] : 0, kind, ids[FXS_DSI(t)]) :
+                            mx_add(it, n, MG_SEND, 0, MI_NONE, 0);
+    }
     return mx_add(it, n, MG_SEND, "PAN", pan_kind, pan_id);
 }
 static uint32_t mx_items_synth(mitem_t *it)
@@ -150,20 +155,45 @@ static uint32_t mx_items_synth(mitem_t *it)
     return n;                                           /* (no FX ON and no SOUND card: the user, 2026-10-14; PRESETS is a button) */
 }
 /* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
- * tracks"): a card a send a master slot holds, REV DLY CHO (the one order, as the master FX's RETURNS page, op_screens.c
- * FX_RET), "REV RT" "DLY RT" "CHO RT"; each turns its return (core.h G_CRET G_DRET G_RRET, fx.c). An insert or an empty
- * slot has no return, so no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). One instance per type
- * (fx_slots.c fxs_set): one return per send. No send in any slot: no set */
+ * tracks"): a card a return, R1 R2 R3 (fx_slots.c fxs_card: the one order, as the master FX's RETURNS page, op_screens.c
+ * FX_RET), "REV RET" ..; each turns its line's return level (core.h G_CRET G_DRET G_RRET, fx.c). An empty return has
+ * no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). No return holding anything: no set */
 static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    static const char *const L[3] = {"REV RET", "DLY RET", "CHO RET"};
-    uint32_t k;
+    uint32_t k, t;
     for (k = 0; k < 3u; k++)
-        if (FXS_ON(T[k]))
-            n = mx_add(it, n, MG_SEND, L[k], MI_RET, G_CRET + (T[k] - FXT_CHO));
+        if ((t = fxs_card(k)) != FXT_NONE)
+            n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(t)), MI_RET, G_CRET + FXS_LN(t));
     return n;
 }
+#if FELUCCA_USB_AUDIO
+/* the USB input's insert settings, while one of its slots holds the type (the input has no SOUND pages: they are its row's
+ * sets, after its slots, as MASTER's DYN): EQ3's LO MID HI, then FREQ L FREQ H (USB EQ3, USB EQ3 F); GATER's PAT RATE
+ * SHAPE (USB GATER); JUNO CHORUS's MODE (USB JUNO). Its amount, the slot's card (EQ3's ON, GATER's DEPTH, JUNO's MIX) */
+static uint32_t mx_items_ut_x(mitem_t *it, uint32_t n)
+{
+    uint32_t i;
+#if FELUCCA_INS_EQ3
+    if (ut_has(FXT_EQ3)) {
+        for (i = 0; i < 3u; i++)
+            n = mx_add(it, n, MG_UEQ, 0, MI_UEQ, i);
+        for (i = 4; i < 6u; i++)
+            n = mx_add(it, n, MG_UEQF, 0, MI_UEQ, i);
+    }
+#endif
+#if FELUCCA_INS_GATER
+    if (ut_has(FXT_GATE))
+        for (i = UTV_GPAT; i <= UTV_GSHP; i++)
+            n = mx_add(it, n, MG_UGT, 0, MI_UT, i);
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (ut_has(FXT_JUNO))
+        n = mx_add(it, n, MG_UJC, 0, MI_UT, UTV_JMODE);
+#endif
+    (void)i;
+    return n;
+}
+#endif
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
@@ -195,6 +225,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #if FELUCCA_USB_AUDIO
     if (mx_is_usb(r)) {                                 /* the USB input: VOLUME PAN FX ON | its insert slots | its sends
                                                          * (MUTE: SHIFT2 on VOLUME, as every row) */
+        uint32_t k, t;
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_LVL);
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_PAN);
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_FXON);
@@ -204,12 +235,10 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_add(it, n, MG_INS, 0, MI_UTST, 1);
             n = mx_add(it, n, MG_INS, 0, MI_UTSA, 1);
         }
-        if (FXS_ON(FXT_REV))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_REV);
-        if (FXS_ON(FXT_DLY))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_DLY);
-        if (FXS_ON(FXT_CHO))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_CHO);
+        n = mx_items_ut_x(it, n);
+        for (k = 0; k < 3u; k++)                        /* (its sends in the returns' order: fx_slots.c fxs_card) */
+            if ((t = fxs_card(k)) != FXT_NONE)
+                n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_REV + FXS_DSI(t));
         return n;
     }
 #endif
@@ -292,7 +321,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     switch (m->kind) {
     case MI_TRK:
         *vp = &trk[mx_trk_of(r)].p[m->id];
-        return &TP[m->id];
+        return m->id == P_CHOR || m->id == P_DLY || m->id == P_REV ? fxs_send_d(m->id) : &TP[m->id];   /* (a send: by its
+                                                        * line's return, fx-pool) */
     case MI_GLOB:
         *vp = &song.g[m->id];
         return &GP[m->id];
@@ -313,9 +343,13 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_UT:
         return ut_desc(m->id, vp);
     case MI_UTST:
-        return ut_desc(8u + m->id, vp);
+        return ut_desc(UT_ID_TY + m->id, vp);
     case MI_UTSA:
-        return ut_desc(10u + m->id, vp);
+        return ut_desc(UT_ID_AMT + m->id, vp);
+#if FELUCCA_INS_EQ3
+    case MI_UEQ:
+        return fxs_desc(FXS_ID_UEQ + m->id, vp);
+#endif
 #endif
     case MI_MINST:                                      /* (an index into fx_slots.c mst_list) */
         return fxs_desc(FXS_ID_MST + m->id, vp);
@@ -372,12 +406,12 @@ static uint32_t mix_rows(void) { return MXR_N; }
  * "RETURNS" "DUCK": the header's "T2 insert"; on MASTER the badge MASTER and "Insert", "Returns" */
 static void mix_name(uint32_t r, char *b)
 {
-    static const char *const G[4] = {"MIX", "INSERT", "SENDS", "SOUND"};
+    static const char *const G[8] = {"MIX", "INSERT", "SENDS", "SOUND", "USB EQ3", "USB EQ3 F", "USB GATER", "USB JUNO"};
     mitem_t it[MX_MAXI];
     uint32_t g;
     r %= MXR_N;
     mx_items(r, it);
-    g = it[mx_set(r) * 4u].grp & 3u;
+    g = it[mx_set(r) * 4u].grp & 7u;
     if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
         str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_LAST ? "DUCK" : it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
     else
@@ -398,11 +432,17 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
             return;
         if (m.kind == MI_INST)
             cell_ins_note(c, mx_trk_of(r), m.id);
+#if FELUCCA_USB_AUDIO
+        if (m.kind == MI_UTST)
+            cell_own_note(c, FXI_UT_OWN, ut.slot[m.id & 1u], m.id);   /* (a pooled type: free / FULL, as a track's) */
+#endif
+        if (m.kind == MI_MINST)
+            cell_own_note(c, FXI_MST_OWN, mst_slot[m.id & 1u], m.id);
         break;
     }
     if (m.label)
         c->label = m.label;
-    c->strike = (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
+    c->strike |= (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
                            (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
                           mx_muted(r));   /* (the volume cards of a muted row) */
     if (m.kind == MI_ACC)

@@ -127,8 +127,8 @@ class Item:
 # The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
-FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DJF", "FX_DUST", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS"}
+FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
+                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER"}
 
 
 def fx_group(key, parent=None):
@@ -454,10 +454,7 @@ _add("INS_PHASER", "FELUCCA_INS_PHASER", "PHSR insert (phaser)", F, 258, default
      desc="A phaser type for the tracks' insert slots (INSERTS > S1 / S2: PHSR): four all-pass stages swept slowly "
           "(~0.5 Hz); PHSR up to the middle mixes it in, past the middle adds feedback. 0 is off.",
      symbols=("ifx_phsr",), notice="From Felucca 1.5.6's track INSERT PHASR by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
-     desc="A flanger type for the tracks' insert slots (INSERTS > S1 / S2: FLNG): a short delay swept 0.25 .. 5 ms "
-          "(~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 2.5 KB of pool.",
-     symbols=("ifx_flng",), notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+
 _add("INS_FORMANT", "FELUCCA_INS_FORMANT", "FRMT insert (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
      desc="A vowel filter type for the tracks' insert slots (INSERTS > S1 / S2: FRMT): three formant peaks over the "
           "sound; FRMT moves the vowel from A (low) through E, I, O to U (high). 0 is off.", symbols=("ifx_frmt",),
@@ -495,6 +492,20 @@ _add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 cho
           "comes out stereo. About 130 host instructions a sample an instance. 0 is off." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
+# EQ3 (2026-10-15, fx-pool: fx/insfx/eq3.c): a further insert type, any number (its state a few words an owner)
+_add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, default=0,
+     desc="A three-band equaliser type, like Ableton's EQ Three, for any insert slot (a track's, a drum sound's, the "
+          "master's) and the returns (EQ3): LO MID HI from KILL (the left end) to +6 dB, the crossovers FREQ LO (250 Hz) "
+          "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
+          "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
+     symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
+# FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
+_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
+     choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),
+     desc="A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short "
+          "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 0 is "
+          "off." + _INS_LIM, symbols=("ifx_flng",),
+     notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "

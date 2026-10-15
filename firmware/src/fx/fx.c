@@ -1094,15 +1094,21 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
  * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
  * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
 static volatile int32_t fx_ret_pk[3];
-static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int32_t w)
+static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
+/* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
+static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t cpk, int32_t dpk, const int32_t *wr, uint32_t n)
 {
     int32_t v[3], k, a;
-    v[0] = c, v[1] = d, v[2] = w - c - d;
-    for (k = 0; k < 3; k++) {
-        a = v[k] < 0 ? -v[k] : v[k];
-        if (a > fx_ret_pk[k])
-            fx_ret_pk[k] = a;
+    uint32_t i;
+    v[0] = cpk, v[1] = dpk, v[2] = 0;
+    for (i = 0; i < n; i++) {                           /* (the reverb: what it added to the right wet) */
+        a = wr[i] - ret_cd[i];
+        a = a < 0 ? -a : a;
+        v[2] = a > v[2] ? a : v[2];
     }
+    for (k = 0; k < 3; k++)
+        if (v[k] > fx_ret_pk[k])
+            fx_ret_pk[k] = v[k];
 }
 #endif
 /* The reverb one block late on the second core (FELUCCA_DUAL 2, perf/mots-asm 2026-10-13; DUAL_REV=0: never). While
@@ -1118,7 +1124,7 @@ static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int3
 #ifndef DUAL_REV
 #define DUAL_REV 1
 #endif
-#define REV_LATE (FELUCCA_DUAL >= 2 && DUAL_REV && FELUCCA_FX_REVERB)
+#define REV_LATE (DUAL_RENDER && DUAL_REV && FELUCCA_FX_REVERB)
 #if REV_LATE
 static struct {
     int32_t in[CTL];             /* the block's send */
@@ -1175,6 +1181,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
     uint32_t plan;
+#if FELUCCA_UI == 1
+    int32_t cpk = 0, dpk = 0;                           /* the chorus', the delay's largest |sample| of the block (the mixer's returns) */
+#endif
 #if REV_LATE
     int had = rvj.pend;                                 /* a kept block to hear now */
 #else
@@ -1225,6 +1234,12 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         }
         if (plan & FXB_CG)                              /* (CHO RET below unity: the chorus' wet alone so far) */
             yr = cho_gain(wet_l, wet_r, n);
+#if FELUCCA_UI == 1
+        for (i = 0; i < n; i++) {
+            int32_t a = wet_r[i] < 0 ? -wet_r[i] : wet_r[i];
+            cpk = a > cpk ? a : cpk;
+        }
+#endif
     } else {                                            /* idle: every cell holds 0, the output is 0 */
         if (!FX_ALL_IDLE)                               /* (all idle: the wet is not added, below) */
             for (i = 0; i < n; i++)
@@ -1237,10 +1252,18 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
             wet_l[i] += x;
             wet_r[i] += x;
+#if FELUCCA_UI == 1
+            dpk = (x < 0 ? -x : x) > dpk ? (x < 0 ? -x : x) : dpk;
+#endif
         }
     } else {
         fx.dly_w += n;
     }
+#if FELUCCA_UI == 1
+    if (!FX_ALL_IDLE)
+        for (i = 0; i < n; i++)
+            ret_cd[i] = wet_r[i];
+#endif
 #if REV_LATE
     if (rev_late) {                                     /* kept for the next block (rev_job); the last one heard */
         for (i = 0; i < n; i++)
@@ -1275,7 +1298,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #endif
 #if FELUCCA_UI == 1
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
-        fx_ret_tap(yr, x, wet_r[n - 1u]);
+        fx_ret_tap(cpk, dpk, wet_r, n);
 #endif
 #undef CHO_R0
 #undef CHO_R1
@@ -1299,7 +1322,7 @@ static void bench_sig(uint32_t k, const int32_t *b, uint32_t n);   /* bench.c */
 #else
 #define BENCH_SIG(k, b, n) ((void)0)
 #endif
-#if FELUCCA_DUAL >= 2
+#if DUAL_RENDER
 /* dual core (dual.c): each core mixes its parts into its own accumulators; MX(x) names them */
 typedef struct { int32_t send_c[CTL], send_d[CTL], send_r[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL]; } mixacc_t;
 #define MX(x) (A->x)
@@ -1598,6 +1621,9 @@ typedef union {                                         /* a voice's slot: the s
 #if FELUCCA_INS_FORMANT
     ifx_fm_t m;
 #endif
+#if FELUCCA_INS_EQ3
+    eq_st_t e;
+#endif
     int32_t w;
 } dins_st_t;
 static dins_st_t dins_st[NDRUM][INS_N];
@@ -1631,6 +1657,10 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
     if (t == FXT_FRMT && a)
         st->m.w = 32768, st->m.a = (uint8_t)a;
 #endif
+#if FELUCCA_INS_EQ3
+    if (t == FXT_EQ3 && a && !eq3_flat(eq3_v[TRK_DRUM]))
+        eq3_engage(&st->e, eq3_v[TRK_DRUM]);         /* (a hit from silence: engaged at once, the drum track's bands) */
+#endif
     (void)a;
 }
 static void dins_restart(uint32_t k)                    /* voice k triggered: its lane's slots from rest */
@@ -1658,6 +1688,9 @@ AINL int dins_busy(uint32_t k, uint32_t s)
 #endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: return st->m.w != 0;
+#endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: return st->e.w != 0;
 #endif
     default: return 0;
     }
@@ -1718,6 +1751,9 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: ifx_formant(&st->m, a, b, n, 3); break;
 #endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: (void)eq3_run(&st->e, eq3_v[TRK_DRUM], a, b, 0, n); break;   /* (the drum track's bands) */
+#endif
     default: break;
     }
     (void)st, (void)b, (void)n;
@@ -1733,6 +1769,9 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
         b[i] = 0;
     for (s = 0; s < INS_N; s++)                         /* S1, then S2 */
         dins_one(k, s, dins_ty[k][s], x->on && l < DRUM_LANES && (LIN_OK >> lin_slot[l][s] & 1u) ? lin_amt(l, s) : 0, b, n);
+#if FELUCCA_USB_AUDIO
+    dlt_add(l, b, 0, n);                                /* its lane's USB tap after the inserts (ua_tap.h) */
+#endif
     for (i = 0; i < n; i++) {
         int32_t y = b[i], ys = clamp(y, -65535, 65535);   /* (the sends: mulq15 fits) */
         if (x->mono) {
@@ -1873,7 +1912,7 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
         dbus_dyn(live ? p[P_TCOMP] : 0, n, nc);
 #endif
 #if INS_FX
-    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades
                                                         * out, then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_bus(t, live ? p[FXT_AMT[t]] : 0, mix_l, mix_r, n);
 #endif
@@ -1925,6 +1964,9 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
     to[2] = on && FXS_ON(FXT_REV) ? p[P_REV] * 258 : 0;
     if (to[0] | to[1] | to[2] | dbus_snd[0] | dbus_snd[1] | dbus_snd[2])
         dbus_sends(to, n);
+#if FELUCCA_USB_AUDIO
+    ua_dbus_tap(mix_l, mix_r, n);                       /* the drum bus for a USB channel that takes it (ua_tap.h) */
+#endif
 }
 
 /* ---- a part's two insert slots (2026-10-12: "two slot, configurable per track (filter, disto, comp etc)"): after
@@ -1946,7 +1988,7 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
         tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
 #endif
 #if INS_FX
-    if (((ty >= FXT_NEW0 && ty < FXT_NEWN) || (FELUCCA_INS_JCHORUS && ty == FXT_JUNO)) && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out,
+    if (IFX_TYPE(ty) && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out,
                                                         * then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_part(ty, k, live ? t->p[FXT_AMT[ty]] : 0, b, n);
 #endif
@@ -2133,7 +2175,7 @@ static HOT2 __attribute__((noinline)) void mst_ins(uint32_t t, int32_t live, int
     if (t == FXT_DUST)
         dust_run(&mst_dust, live && FELUCCA_FX_DUST ? song.g[G_DUST] : 0, l, r, n);
 #if INS_FX
-    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu)
         ifx_mst(t, live ? mst_amt[t] : 0, l, r, n);
 #endif
     (void)live, (void)l, (void)r, (void)n;
@@ -2155,60 +2197,132 @@ static HOT2 __attribute__((noinline)) void mst_run(int32_t *l, int32_t *r, uint3
             mst_ins(t, 0, l, r, n);
 }
 
+/* ---- a stereo owner's insert of any type (fx-pool 2026-10-15; was the USB input's ut_ins): the USB input track and the
+ * returns R1 R2 R3 (rt_run). Its own DIST (a side each), FILTER, DYN (a compressor with the default RATIO ATK REL and AUTO
+ * make-up, no CEIL), DUST; the further types on L and R (insfx.c ifx_st: i0 the owner's index, the pool's instances for the
+ * limited ones). a: the amount (0: it lets go) */
+typedef struct {
+#if FELUCCA_FX_DIST
+    dist_t d[2];
+#endif
+#if TFLT_ON
+    tflt_t f;
+#endif
+#if FELUCCA_MASTER_COMP
+    mc_t c;
+#endif
+    dust_t u;
+} sto_t;
+#if FELUCCA_MASTER_COMP
+#define STO_C .c = {0, 0, 8192, 0},
+#else
+#define STO_C
+#endif
+#define STO_INIT(seed) {STO_C .u = {0, 0, 0, 0, 0, (int32_t)(seed), 0, 0}}
+static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32_t t, int32_t a, int32_t *l, int32_t *r,
+                                                   uint32_t n)
+{
+#if FELUCCA_FX_DIST
+    if (t == FXT_DIST) {
+        dist_run(&o->d[0], a, l, n);
+        dist_run(&o->d[1], a, r, n);
+    }
+#endif
+#if TFLT_ON
+    if (t == FXT_FILT) {
+        tsvf_t c;
+        if (tflt_block(&o->f, a, &c)) {
+            tflt_run(&o->f, &c, l, n, 0, 0);
+            tflt_run(&o->f, &c, r, n, 1, 0);
+        }
+    }
+#endif
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_DYN && (a || !tcomp_rest(&o->c))) {
+        mc_set_t c;
+        int32_t thr = a > 0 ? -1 - (a - 1) * 29 / 126 : 0;
+        mc_settings(&c, thr, GP[G_CRAT].def, GP[G_CATK].def, GP[G_CREL].def, (-thr * MC_SLOPE[GP[G_CRAT].def & 7]) >> 15);
+        mc_run(&o->c, &c, l, r, l, r, n);
+    }
+#endif
+    if (t == FXT_DUST)
+        dust_run(&o->u, FELUCCA_FX_DUST ? a : 0, l, r, n);
+#if INS_FX
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu && (FXT_BUILT >> t & 1u))   /* (what the owner may hold: its slots' lists; GATER:
+                                                        * the USB input's only, insfx.c ifx_st_run) */
+        ifx_st(t, i0, a, l, r, n);
+#endif
+    (void)o, (void)i0, (void)a, (void)l, (void)r, (void)n;
+}
+/* the types an owner still runs at 0 out of its slots (they let go), i0's ifx_awake entry with them */
+#if INS_FX
+#define STO_AWAKE(i0) ifx_awake[ifx_aw(i0)]
+#else
+#define STO_AWAKE(i0) 0u
+#endif
+#define STO_IDLE(i0) ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_DUST) | STO_AWAKE(i0)) & RT_OK)
+
+/* ---- the returns R1 R2 R3 holding a type that is not a send (fx_slots.c fxs_rty, fx-pool): each on its line's send (mono,
+ * into L and R), its slot's amount, out times the line's return level into the mix, 100 % wet. The line's own send bus then
+ * hears silence (its send zeroed here). A type gone from a return: its states let go on silence for RT_TAIL blocks */
+#define RT_TAIL 64u                                     /* blocks (46 ms): every insert here is at rest by then */
+static sto_t rt_sto[3] = {STO_INIT(0x2B9F11C5), STO_INIT(0x6A09E667), STO_INIT(0x3C6EF372)};
+static uint8_t rt_tail[3];                              /* blocks of tail left */
+static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
+{
+    int32_t *const snd[3] = {send_c, send_d, send_r};
+    uint32_t j, i, t, m;
+    for (j = 0; j < 3u; j++) {
+        int32_t l[CTL], r[CTL], g = FX_RETQ(song.g[G_CRET + j]);
+        t = fxs_rty[j];
+        if (t == FXT_NONE && !rt_tail[j])
+            continue;
+        if (t != FXT_NONE)
+            for (i = 0; i < n; i++)
+                l[i] = r[i] = snd[j][i], snd[j][i] = 0;   /* (its bus: silence) */
+        else
+            for (i = 0; i < n; i++)
+                l[i] = r[i] = 0;
+        if (t != FXT_NONE)
+            sto_ins(&rt_sto[j], IFX_RT(j), t, rt_amt(j), l, r, n);
+        for (i = 0, m = STO_IDLE(IFX_RT(j)) & ~FXT_BIT(t); m; i++, m >>= 1)   /* (in no return: at 0, they let go) */
+            if (m & 1u)
+                sto_ins(&rt_sto[j], IFX_RT(j), i, 0, l, r, n);
+        rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
+        if (!g)
+            continue;
+#if FELUCCA_UI == 1
+        int32_t pk = 0;
+#endif
+        for (i = 0; i < n; i++) {
+            int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
+            mix_l[i] += a, mix_r[i] += b;
+#if FELUCCA_UI == 1
+            pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
+#endif
+        }
+#if FELUCCA_UI == 1
+        if (pk > fx_ret_pk[j])
+            fx_ret_pk[j] = pk;                          /* (the mixer's return meter: this line's block peak, after its return level) */
+#endif
+    }
+}
+
 #if FELUCCA_USB_AUDIO
 /* ---- the USB input as a track (fx-rework stage 3; fx_slots.c ut): the computer's audio from the playback ring
  * (usb_audio_stream.c ua_take, a block, with the USB service held off for the copy only), its two insert slots on L and R
- * (the master's kernels, instances of its own; DYN: a compressor with the default RATIO ATK REL and AUTO make-up, no
- * CEIL; a mono insert type runs on each side), its LEVEL, MUTE (a block's fade), PAN (the balance: the pan law on each
+ * (sto_ins: any insert type, states of its own, the pool's instances for CHRS ECHO JUNO FLNG; DYN: a compressor with the
+ * default RATIO ATK REL and AUTO make-up, no CEIL; a mono insert type runs on each side; GATER one gain on both), its LEVEL, MUTE (a block's fade), PAN (the balance: the pan law on each
  * side), FX on, its sends from its mid; then into the mix bus with the tracks, before the returns and the master. At its
  * defaults (unity, centre, no slot) the samples go in as they are: the mix as before but that the master's inserts now
  * take them too (they were added after the master's limiter) */
 static uint32_t ua_take(int32_t *l, int32_t *r, uint32_t n);   /* usb_audio_stream.c (XIP: FAR) */
 static int32_t ut_l[CTL], ut_r[CTL];
-#if FELUCCA_FX_DIST
-static dist_t ut_dist[2];
-#endif
-#if FELUCCA_MASTER_COMP
-static mc_t ut_comp = {0, 0, 8192, 0};
-#endif
-static dust_t ut_dust = {0, 0, 0, 0, 0, 0x4F1BBCDD, 0, 0};
+static sto_t ut_sto = STO_INIT(0x4F1BBCDD);
 static int32_t ut_g = 32767, ut_lv = 4096, ut_snd[3];   /* the mute gain, the level and the sends at the end of the last block */
 static volatile int32_t ut_pk;                          /* its peak since the mixer took it (op_mixdraw.c), after its level */
 static volatile uint8_t ut_live;                        /* frames came in the last block (the mixer: "no stream") */
-static HOT2 __attribute__((noinline)) void ut_ins(uint32_t t, int32_t a, int32_t *l, int32_t *r, uint32_t n)
-{
-#if FELUCCA_FX_DIST
-    if (t == FXT_DIST) {
-        dist_run(&ut_dist[0], a, l, n);
-        dist_run(&ut_dist[1], a, r, n);
-    }
-#endif
-#if TFLT_ON
-    if (t == FXT_FILT) {
-        tflt_t *f = &tflt[NTRK + 1];
-        tsvf_t c;
-        if (tflt_block(f, a, &c)) {
-            tflt_run(f, &c, l, n, 0, 0);
-            tflt_run(f, &c, r, n, 1, 0);
-        }
-    }
-#endif
-#if FELUCCA_MASTER_COMP
-    if (t == FXT_DYN && (a || !tcomp_rest(&ut_comp))) {
-        mc_set_t c;
-        int32_t thr = a > 0 ? -1 - (a - 1) * 29 / 126 : 0;
-        mc_settings(&c, thr, GP[G_CRAT].def, GP[G_CATK].def, GP[G_CREL].def, (-thr * MC_SLOPE[GP[G_CRAT].def & 7]) >> 15);
-        mc_run(&ut_comp, &c, l, r, l, r, n);
-    }
-#endif
-    if (t == FXT_DUST)
-        dust_run(&ut_dust, FELUCCA_FX_DUST ? a : 0, l, r, n);
-#if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu && (UT_OK >> t & 1u))
-        ifx_ut(t, a, l, r, n);
-#endif
-    (void)a, (void)l, (void)r, (void)n;
-}
+#define ut_ins(t, a, l, r, n) sto_ins(&ut_sto, IFX_UT, t, a, l, r, n)
 /* the USB input into the mix (mix_block, dual.c mix_block_dual: after the parts, before mix_finish) */
 static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
 {
@@ -2313,6 +2427,8 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
+    if (fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE || rt_tail[0] | rt_tail[1] | rt_tail[2])
+        rt_run(n);                                      /* the returns holding another type (above): first, their sends */
     if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n)) {  /* (0: every bus idle, nothing to add) */
         BENCH_SIG(6, wet_l, n);
         for (i = 0; i < n; i++) {
@@ -2369,9 +2485,10 @@ AINL void capture_clear(uint32_t n)
     if (!FELUCCA_SKIP || track_capture_on || !(++tick & 63u))
         for (i = 0; i < n * NTRK; i++)
             track_capture[i] = 0;
+    dlt_block(track_capture_on, n);                     /* the lane / drum bus taps a channel takes (ua_tap.h) */
 }
 #endif
-#if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */
+#if !DUAL_RENDER                                       /* (dual.c: mix_block_dual) */
 static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;

@@ -1,0 +1,11 @@
+{
+  "flavours": [
+    {
+      "id": "default",
+      "title": "Optimist",
+      "description": "The default build: four tracks, the synth engines, the drum kits and the effects.",
+      "profile": "user-default",
+      "file": "dist/optimist-*-user-default.fwsc"
+    }
+  ]
+}

@@ -68,7 +68,7 @@ static void reset(void)
     uint32_t k;
     for (k = 0; k < NTRK; k++)
         slots(k, FXT_NONE, FXT_NONE), trk[k].p[P_FXOFF] = 0;
-    fxs_set(FXS_DEF);                                   /* (the master slots: ---- CHO DLY REV) */
+    fxs_set(FXS_DEF);                                   /* (the master slots: ---- REV DLY CHO) */
     fxi_init();
     fxi_poll();
 }
@@ -230,7 +230,7 @@ static void t_lend(void)
     check("CHO in a master slot: nothing lent, the track past the builder's count FULL",
           !fxl_lent && fxi_state(k, 0) == FXI_FULL && fxi_cap(FXT_CHRS) == own);
     /* the send out of the slots: lent only once its bus is idle (a full line of zeros) */
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     fx.cho_q = 100;                                     /* (as if its tail still rang) */
     fxi_poll();
     check("CHO out of the slots, its tail ringing: not lent yet (WAIT), cap counts the send's lines",
@@ -255,7 +255,7 @@ static void t_lend(void)
     }
     /* the send back into a slot: the insert fades out first, then the line goes back, zeroed */
     w0 = ifx_chrs[i].w;
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     fxi_poll();
     check("CHO back in a slot: taking it back (the insert still on it, evicted, the gate still set)",
           fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHRS, k) == i && ifx_chrs[i].evict && (fxl_lent & 1u));
@@ -267,15 +267,15 @@ static void t_lend(void)
           fxl_st[0] == FXL_SEND && !(fxl_lent & 1u) && zeros16(cho_buf, CHO_LEN) && fx.cho_q >= CHO_LEN &&
           fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_CHRS, k) == FXI_NONE);
     /* out, lent again; then in and out before the fade ends: it stays lent, the insert fades back in */
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     blocks(64);
     i = ifx_lim_at(FXT_CHRS, k);
     ok = (fxl_lent & 1u) && i != FXI_NONE && ifx_chrs[i].w == 32768;
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     fxi_poll();                                         /* (the main loop's pass right after the change) */
     blocks(1);
     w0 = ifx_chrs[i].w;
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     fxi_poll();
     blocks(1);
     w1 = ifx_chrs[i].w;
@@ -292,7 +292,7 @@ static void t_lend(void)
     i = ifx_lim_at(FXT_CHRS, k);
     trk[k].p[P_MUTE] = 1;
     blocks(16);
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     blocks(4);
     check("a muted track's lent insert: given back all the same (no stuck line)", i != FXI_NONE &&
           fxl_st[0] == FXL_SEND && !fxl_lent);
@@ -323,7 +323,7 @@ static void t_lend_load(void)
     reset();
     for (k = 0; k < NTRK; k++)
         slots(k, FXT_CHRS, FXT_NONE);
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     trk[0].p[P_TCHRS] = 30;
     n = fxr_encode(rec);
     for (k = 0; k < 2u; k++) {
@@ -403,6 +403,58 @@ static void t_juno(void)
 }
 #endif
 
+#if FELUCCA_INS_FLANGER
+/* fx-pool (2026-10-15): FLNG is pooled (1 instance here), any owner takes one (the master, in owner order after the tracks),
+ * CHRS on the master takes a CHRS instance */
+static int32_t fr[NB * CTL];
+static void play_mst2(uint32_t t, int32_t a)
+{
+    uint32_t i;
+    mst_amt[t] = (int16_t)a;
+    memcpy(y, x, sizeof y), memcpy(fr, x, sizeof fr);
+    for (i = 0; i < NB; i++)
+        mst_run(y + i * CTL, fr + i * CTL, CTL);
+}
+static void t_flng(void)
+{
+    uint32_t i, k, lr = 0;
+    uint8_t m[2] = {FXT_FLNG, FXT_NONE};
+    reset();
+    sine();
+    slots(0, FXT_FLNG, FXT_NONE);
+    mst_put(m);
+    fxi_poll();
+    check("FLNG pooled: 1 instance; T1 and the master hold it: T1 has it (owner order), the master FULL",
+          fxi_cap(FXT_FLNG) == 1u && fxi_state(0, 0) == FXI_OK && fxi_ostate(FXI_MST, FXT_FLNG) == FXI_FULL);
+    play_mst2(FXT_FLNG, 100);
+    check("... the master without one: L and R bit for bit", same() && !memcmp(x, fr, sizeof fr));
+    slots(0, FXT_NONE, FXT_NONE);
+    trk[0].p[P_TFLNG] = 100;
+    memcpy(y, x, sizeof y);
+    for (i = 0; i < NB; i++)
+        ins_part(&trk[0], y + i * CTL, CTL);            /* (T1's fade-out: in no slot, at 0) */
+    for (k = 0; k < 4u; k++)
+        fxi_poll();
+    check("T1 drops it: after its fade the master has it", fxi_ostate(FXI_MST, FXT_FLNG) == FXI_OK &&
+          ifx_lim_at(FXT_FLNG, 0) == FXI_NONE);
+    play_mst2(FXT_FLNG, 100);
+    for (i = 0; i < NB * CTL; i++)
+        lr |= y[i] != fr[i];
+    check("... heard on the master; L and R the same sweep (the same input: the same output)", !same() && !lr);
+    m[0] = FXT_CHRS;
+    mst_put(m);
+    fxi_poll();
+    check("CHRS on the master: a CHRS instance (fx-pool: the master is an owner of every pooled type)",
+          fxi_ostate(FXI_MST, FXT_CHRS) == FXI_OK && ifx_lim_at(FXT_CHRS, IFX_MST) != FXI_NONE);
+    play_mst2(FXT_CHRS, 90);
+    check("... heard", !same());
+    m[0] = FXT_NONE;
+    mst_put(m);
+    play_mst2(FXT_CHRS, 0);
+    fxi_poll();
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -414,6 +466,9 @@ int main(void)
     t_lend_load();
 #if FELUCCA_INS_JCHORUS
     t_juno();
+#endif
+#if FELUCCA_INS_FLANGER
+    t_flng();
 #endif
     printf("fxi: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;

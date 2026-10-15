@@ -164,6 +164,20 @@ static uint32_t gl_pg(uint32_t s, uint32_t i) { return gll.pg[s & 1u][i % GL_MAX
 static uint32_t gl_first(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i)]; }   /* the first line of line i's page */
 static uint32_t gl_end(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i) + 1u]; }   /* one past its last */
 static int gl_scr(uint32_t scr) { return (scr == SCR_GLOBAL || scr == SCR_SYSTEM) && !(scr == SCR_SYSTEM && GL_DEV); }
+/* SHIFT (OCT- held) + YES on SYSTEM's INFO page: DROPS, UNDERRUNS, the CPU lines' MAX and the guard's voices shed from 0 again
+ * (the display's baselines; the counters go on). On that page it takes the place of the redo chord (op_combos.c shift_combo). 1: taken */
+static int info_clear(void)
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM || !gl_scr(SCR_SYSTEM) || op_armed() || ui.row[SCR_SYSTEM] >= gl_n(1))
+        return 0;
+    e = gl_ent(1, ui.row[SCR_SYSTEM]);
+    if (sys_item(e >> 2, e & 3u) != SI_INFO)
+        return 0;
+    info_clear_counts();
+    ui_message("COUNTERS CLEARED");
+    return 1;
+}
 static void gl_cell(uint32_t s, uint32_t i, cell_t *c)
 {
     uint32_t e = gl_ent(s, i);
@@ -247,6 +261,19 @@ static void sls_cell(uint32_t r, uint32_t k, cell_t *c)
         sys_cell(r, k, c);
     else
         gl_cell(1, gl_line(1, r, k), c);
+}
+/* INFO's KNOB 2 (the user, 2026-10-15: "the second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR
+ * EVER"): the CPU lines' measure, NOW -> MAX 5S -> MAX, a detent a step, round. 1: INFO shown and KNOB 2 */
+static int info_knob(uint32_t r, uint32_t k, int32_t s)
+{
+    uint32_t e;
+    if (GL_DEV || k != 1u || r >= gl_n(1))
+        return 0;
+    e = gl_ent(1, gl_first(1, r));
+    if (sys_item(e >> 2, e & 3u) != SI_INFO)
+        return 0;
+    info_mode = (uint8_t)((info_mode + (s < 0 ? OVL_NMODE - 1u : 1u)) % OVL_NMODE);
+    return 1;
 }
 static void sls_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {

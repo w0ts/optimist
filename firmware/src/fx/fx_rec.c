@@ -16,7 +16,7 @@
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 288u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX 352u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -25,7 +25,8 @@
                                                         * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 232 -> 288: room
                                                         * for the TLVs coming (the voice counts' VCNT_TLV 2 + NPART, the Juno chorus) and ~40 B
                                                         * spare: the editor's backup packs them in two objects since,
-                                                        * ed_backup.c FXR1 FXR2) */
+                                                        * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
+                                                        * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -37,10 +38,15 @@
 #define FXR_F_INS 1u
 #define VCNT_TLV 0x47u                                 /* (below) */
 /* TLV UT_TLV (0x48, fx-rework stage 3, 2026-10-15): the USB input track (fx_slots.c ut): LEVEL PAN MUTE FX-ON REV DLY CHO
- * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's); only when not every one is the default
- * (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
+ * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's), then (2026-10-15, every insert type on
+ * the input) GATER's PATTERN RATE SHAPE and JUNO CHORUS's MODE (an UT_TLV of 11, before: their defaults); only when not
+ * every one is the default (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
 #define UT_TLV 0x48u
-#define UT_TLV_N 11u
+/* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns R1 R2 R3 (fx_slots.c rt_tlv: each slot's type, line and amount), only
+ * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
+#define RET_TLV 0x4Au
+#define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */
+#define UT_TLV_N (UT_TLV_N0 + 4u)
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
 #define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c ins_cset[k][3, 4]) */
@@ -65,8 +71,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(UT_TLV > VCNT_TLV, "the USB input's TLV: an id no other takes");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
@@ -162,7 +168,8 @@ static void fxr_head(uint8_t *h)
 {
     static const uint8_t T[3] = {FXT_DIST, FXT_FILT, FXT_COMP};
     uint32_t k, i, j;
-    memcpy(h, fxs_slot, FX_NSLOT);
+    for (k = 0; k < FX_NSLOT; k++)                     /* (a return's other type: RET_TLV, not the header) */
+        h[k] = FXT_SEND_OK(fxs_slot[k]) ? fxs_slot[k] : (uint8_t)FXT_NONE;
     for (i = 0, k = 0; i < 3u; i++) {
         uint32_t held = 0;
         for (j = 0; j < NTRK; j++)
@@ -268,30 +275,35 @@ static void lin_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the defaul
     }
 }
 #if FELUCCA_USB_AUDIO
+_Static_assert(UT_TLV_N == UT_TLV_N0 + UTV_N - UTV_N0 && UT_TLV_N0 == UTV_N0 + 2u * INS_N, "UT_TLV: its layout");
 static uint32_t ut_tlv(uint8_t *o)                     /* -> o (UT_TLV_N); 0: the defaults */
 {
     uint32_t k;
     if (ut_dflt() && !ut.amt[0] && !ut.amt[1])
         return 0;
-    for (k = 0; k < UTV_N; k++)
+    for (k = 0; k < UTV_N0; k++)
         o[k] = (uint8_t)(int8_t)ut.v[k];
-    o[UTV_N] = ut.slot[0], o[UTV_N + 1u] = ut.slot[1];
-    o[UTV_N + 2u] = (uint8_t)(int8_t)ut.amt[0], o[UTV_N + 3u] = (uint8_t)(int8_t)ut.amt[1];
+    o[UTV_N0] = ut.slot[0], o[UTV_N0 + 1u] = ut.slot[1];
+    o[UTV_N0 + 2u] = (uint8_t)(int8_t)ut.amt[0], o[UTV_N0 + 3u] = (uint8_t)(int8_t)ut.amt[1];
+    for (k = UTV_N0; k < UTV_N; k++)
+        o[UT_TLV_N0 + k - UTV_N0] = (uint8_t)(int8_t)ut.v[k];
     return UT_TLV_N;
 }
 static void ut_untlv(const uint8_t *a, uint32_t n)     /* (n short: the defaults) */
 {
     uint32_t k;
     ut_defaults();
-    if (n < UT_TLV_N)
+    if (n < UT_TLV_N0)
         return;
-    for (k = 0; k < UTV_N; k++)
+    for (k = 0; k < UTV_N0; k++)
         ut.v[k] = (int16_t)clamp((int8_t)a[k], UT_DESC[k].min, UT_DESC[k].max);
+    for (k = UTV_N0; n >= UT_TLV_N && k < UTV_N; k++)    /* (an UT_TLV of before: their defaults) */
+        ut.v[k] = (int16_t)clamp((int8_t)a[UT_TLV_N0 + k - UTV_N0], ut_vd(k)->min, ut_vd(k)->max);
     for (k = 0; k < INS_N; k++) {
-        uint32_t t = a[UTV_N + k];
+        uint32_t t = a[UTV_N0 + k];
         ut.slot[k] = (uint8_t)(t < FXT_N && (UT_OK >> t & 1u) && (!k || t != ut.slot[0] || t == FXT_NONE) ? t : FXT_NONE);
         ut.amt[k] = ut.slot[k] != FXT_NONE && FXT_AMT[ut.slot[k]] != 0xFFu ?
-                    (int16_t)clamp((int8_t)a[UTV_N + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
+                    (int16_t)clamp((int8_t)a[UTV_N0 + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
     }
 }
 #endif
@@ -309,9 +321,8 @@ static void mst_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the slots 
     uint8_t m[INS_N];
     uint32_t k, drop = mst_map(m);
     mst_put(n >= INS_N ? a : m);
-    for (k = 0; k < FXT_N; k++)
-        mst_amt[k] = 0;
-    for (k = 0; k < MST_TLV_N - INS_N; k++)
+    for (k = 0; k < MST_TLV_N - INS_N; k++)           /* (only MST_TLV's own: JUNO CHORUS's and EQ3's are their TLVs',
+                                                        * read before) */
         mst_amt[mst_tlv_t(k)] = (int16_t)(n >= INS_N + k + 1u ? (a[INS_N + k] > 127u ? 127u : a[INS_N + k]) : 0u);
     ins_drop = (uint8_t)((ins_drop & ~(1u << NTRK)) | (n >= INS_N ? 0u : drop << NTRK));
 }
@@ -400,6 +411,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the returns holding another type (fx_slots.c rt_tlv) */
+        uint32_t m = rt_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)RET_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the master's slots (above), as the tracks' */
         uint8_t mm[INS_N];
         uint32_t m;
@@ -433,8 +451,8 @@ static uint32_t fxr_encode(uint8_t *o)
  * song section keeps them). 0 refused (the defaults) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 {
-    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0;
-    const uint8_t *ia = 0, *ma = 0, *la = 0;
+    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0, rn = 0;
+    const uint8_t *ia = 0, *ma = 0, *la = 0, *ra = 0;
     int ok = n >= FXR_HEAD && n <= FXR_MAX && a[0] == FXR_VER;
     while (ok && at < n)                               /* (the TLVs: checked whole before any is taken) */
         if (at + 2u > n || at + 2u + a[at + 1u] > n)
@@ -475,6 +493,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             ma = a + at + 2u, mn = a[at + 1u];
         else if (a[at] == LIN_TLV)
             la = a + at + 2u, ln = a[at + 1u];
+        else if (a[at] == RET_TLV)
+            ra = a + at + 2u, rn = a[at + 1u];
         else
             fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (ok && !(a[1] & FXR_F_INS)) {                   /* a record from before the track slots: a drum sound's DST /
@@ -495,6 +515,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         mst_untlv(ma, ma ? mn : 0u);                   /* (after ins_drop: its master bit) */
         lin_untlv(la, la ? ln : 0u);
         fxs_set(ok ? a + 2 : FXS_OLD);                 /* (the sends; an insert's place: empty) */
+        if (ra)
+            rt_untlv(ra, rn);                          /* (the returns holding another type) */
         FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
                                                         * order, fxi.c: the same project plays the same way) */
     }

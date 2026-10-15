@@ -13,7 +13,7 @@
  *   SAVE then HOME: undo                                                      SHIFT then SAVE: redo
  *                                                                             both OCT: track <-> MASTER (op_walk.c)
  * The layer lock wins where the two meet (SHIFT + a layer's button). SAVE then HOME stays undo, so the SAVE layer
- * (scenes) is not locked open. The undo and redo act when one of the two is let go, so that SAVE + HOME + a scene
+ * (scenes) is not locked open. The undo and redo act when one of the two is let go, so that SAVE + SHIFT + a scene
  * key clears the scene and undoes nothing. */
 #if DL_UI && FELUCCA_DRUM_KITS
 #define OP_UKITS 16u                    /* drum_kits.c UK_N */
@@ -52,7 +52,7 @@ static void save_pattern(void)                          /* SAVE + SEQ: the worki
     ui_message("NO PATTERN SLOTS");
 #endif
 }
-static void op_panic(void)                              /* HOME + PLAY: stop, every voice off (CC 120's effect) */
+static void op_panic(void)                              /* SHIFT + PLAY: stop, every voice off (CC 120's effect) */
 {
     uint32_t i;
     transport_req = 2;
@@ -99,6 +99,7 @@ static void op_eat(uint32_t mask) { op_clean &= ~mask; }
 #if FELUCCA_BLE
 static int dev_home_combo(void);                        /* op_project.c: SHIFT + a button on the BLE devices: FORGET LAST */
 #endif
+static int info_clear(void);                            /* op_global.c: SHIFT + YES on SYSTEM's INFO page clears DROPS */
 static int shift_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
@@ -120,6 +121,8 @@ static int shift_combo(uint32_t b)
     }
     switch (b) {
     case B_SAVE:
+        if (info_clear())                               /* (SYSTEM's INFO page: DROPS cleared, op_global.c) */
+            return 1;
         lay.chord = 2;                                  /* SHIFT then SAVE: redo, when one of them is let go */
         return 1;
     case B_ENV:
@@ -196,7 +199,7 @@ static int op_combo(uint32_t b, uint32_t held)
         && lay.held != LY_OPS) {                        /* a layer held, SHIFT: locked open (FX, EDIT, ENV: their OCT- / OCT+ keep their own jobs) */
         l = lay.held;
 #if FELUCCA_PATTERNS
-        if (l == LY_PAT) {                              /* (the patterns: HOME + n clears a slot; locked when let go unused) */
+        if (l == LY_PAT) {                              /* (the patterns: SHIFT + n clears a slot; locked when let go unused) */
             lay.hlock = 1;
             lay.pclr = 0;
             op_eat(op_combo_bit(B_OCTDN) | op_combo_bit(LAYER_BTN[l]));

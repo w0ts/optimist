@@ -48,7 +48,7 @@ static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: 
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
-#if INS_FX
+#if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
 static const char *const N_TJMODE[] = {"I", "II", "I+II"};   /* JUNO CHORUS's MODE (juno_cho.h) */
 static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF16", "DOT8", "DOT4",   /* GATER's */
                                       "TRNC1", "TRNC2", "TRNC3", "TRNC4", "GALOP", "RVGAL", "CLAVE", "TRESL"};   /* IGT_PAT */
@@ -179,6 +179,9 @@ static const param_desc_t TP[P_COUNT] = {
 #if FELUCCA_INS_JCHORUS
     [P_TJCHO] = PD("JUNO", F_PCT, 0, 127, 0),      /* JUNO CHORUS (fxi_kern.c): its MIX, 127 the Juno's dry / wet */
     [P_TJMODE] = PE("MODE", N_TJMODE, 0),          /*   its MODE: I, II, I+II */
+#endif
+#if FELUCCA_INS_EQ3
+    [P_TEQ] = PE("EQ3", N_ONOFF, 1),               /* EQ3 (insfx/eq3.c): on (its bands: the EQ3 pages) */
 #endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
@@ -494,9 +497,16 @@ static void lt_text(const param_desc_t *d, int32_t v, char *val)
     str_cpy(val, s, 7);
 }
 /* value string (<= 5 chars) and unit for a parameter value */
+#if FELUCCA_INS_EQ3
+static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **unit);   /* (fx_slots.c: EQ3's values) */
+#endif
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
+#if FELUCCA_INS_EQ3
+    if (fxs_fmt(d, v, val, unit))
+        return;
+#endif
     if (d == &GP[G_CTHR] && v == 0) {                 /* COMP > THRS at 0: the compressor is off */
         str_cpy(val, "OFF", 6);
         return;
@@ -711,9 +721,15 @@ static const page_t PAGES[] = {
 #if FELUCCA_INS_JCHORUS
     {"JUNO CHO", FAM_FX, SC_TRACK, GR_NONE, {P_TJCHO, P_TJMODE, 0xFF, 0xFF}},   /* while a slot of the track holds it */
 #endif
+#if FELUCCA_INS_EQ3
+    /* EQ3 (fx/insfx/eq3.c): the track's LO MID HI and ON, then its crossovers (fx_slots.c eq3_desc; page_shown: while one of
+     * its slots, or a lane's of the drum track, holds it) */
+    {"EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ, FXS_ID_TEQ + 1, FXS_ID_TEQ + 2, FXS_ID_TEQ + 3}},
+    {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
+#endif
 #if FELUCCA_UI == 1
-    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
-    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
+    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: R1 R2 R3's); DR: its levels */
+    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* DR only: the drum bus's own sends */
 #endif
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
@@ -724,7 +740,9 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
-    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the send on each master return R1 R2 R3 (fx_slots.c; last of FX) */
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the type on each master return R1 R2 R3 (fx_slots.c; last of FX) */
+    {"RET AMT", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_RAMT, FXS_ID_RAMT + 1, FXS_ID_RAMT + 2, 0xFF}},   /* (fx-pool) a return's
+                                                     * other type's amount; page_shown: while one holds one */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
@@ -762,6 +780,12 @@ static const page_t PAGES[] = {
     {"MST INS", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MST, FXS_ID_MST + 2, FXS_ID_MST + 1, FXS_ID_MST + 3}},
 #if FELUCCA_INS_JCHORUS
     {"MST JUNO", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_JMST, FXS_ID_JMST + 1, 0xFF, 0xFF}},   /* the master's JUNO CHORUS */
+#endif
+#if FELUCCA_INS_EQ3
+    {"MST EQ3", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ, FXS_ID_MEQ + 1, FXS_ID_MEQ + 2, FXS_ID_MEQ + 3}},   /* the master's EQ3 */
+    {"MST EQ3 F", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ + 4, FXS_ID_MEQ + 5, 0xFF, 0xFF}},
+    {"RET EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ, FXS_ID_REQ + 1, FXS_ID_REQ + 2, FXS_ID_REQ + 3}},   /* a return's */
+    {"RET EQ3 F", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ + 4, FXS_ID_REQ + 5, 0xFF, 0xFF}},
 #endif
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CTHR, G_CRAT, G_CATK, G_CREL}},   /* the master compressor (master_comp.c) */
@@ -807,8 +831,8 @@ static const page_t PAGES[] = {
 /* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
 /*   INSERTS    S1 TYPE, S1's amount (its type's P_*), S2 TYPE, S2's amount
  *   FX / SENDS SLOOP's FX: S1's amount first, then the master sends in their slots' order (fx_slots.c fxs_send; the
- *              default slots DST CHO DLY REV, as SLOOP's page); the Optimist UI's SENDS: REV DLY CHO, those a slot
- *              holds (one order on every screen); its drum track: its send levels
+ *              default slots REV DLY CHO); the Optimist UI's SENDS: card k return R(k+1)'s send (fxs_card, blank for an
+ *              empty return: one order on every screen); its drum track: its send levels
  *   BUS SENDS  (the Optimist UI's drum track) the drum bus's own sends, in the same order */
 static uint32_t page_id(const page_t *pg, uint32_t k)
 {
@@ -816,18 +840,16 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
     if (pg->graph == GR_INS)
         return k & 1u ? ins_amt(song.sel, k >> 1) : PID_INST + (k >> 1);
 #if FELUCCA_UI == 1
-    if (pg->graph == GR_FX || pg->graph == GR_BUS) {   /* REV DLY CHO, the Optimist UI's one order (those a slot holds) */
-        static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-        uint32_t i;
+    if (pg->graph == GR_FX || pg->graph == GR_BUS) {   /* the returns' order (fx_slots.c fxs_card: card k is R(k+1)) */
+        uint32_t t;
         if (k == 3u)                                    /* card 4: the track's PAN (the drum track's too; its bus has none) */
             return pg->graph == GR_FX ? P_PAN : 0xFFu;
-        for (i = 0; k < 3u && i < 3u && fxs_send(i) != T[k]; i++)
-            ;
-        if (k >= 3u || i >= 3u)
+        t = fxs_card(k);
+        if (t == FXT_NONE)
             return 0xFFu;
         if (pg->graph == GR_FX && is_drum(TSEL))
-            return PID_DKS + k;                         /* (PID_DKS: REV DLY CHO) */
-        return FXT_AMT[T[k]];
+            return PID_DKS + FXS_DSI(t);                /* (PID_DKS: REV DLY CHO) */
+        return FXT_AMT[t];
     }
 #else
     if (pg->graph == GR_FX)
@@ -902,19 +924,29 @@ static int engine_page_used(const page_t *pg)
  * it is not shown either */
 static int page_shown(const page_t *pg)
 {
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_ON(FXT_DLY)) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_ON(FXT_REV) && !FXS_ON(FXT_CHO)))
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
 #if REV_MULTI
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
-        return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
+        return FXS_HAS(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
 #if FELUCCA_INS_JCHORUS
     if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_JMST)
         return MST_ON(FXT_JUNO);                      /* MST JUNO: while a master slot holds it */
+#endif
+    if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_RAMT)
+        return rt_any();                              /* RET AMT: while a return holds a type that is not a send */
+#if FELUCCA_INS_EQ3
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_TEQ && pg->id[0] < FXS_ID_TEQ + 6u)
+        return INS_ON(song.sel, FXT_EQ3) || (song.sel % NTRK == TRK_DRUM && lin_has(FXT_EQ3));   /* EQ3: the track's (a lane's: DR's) */
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MEQ && pg->id[0] < FXS_ID_MEQ + 6u)
+        return MST_ON(FXT_EQ3);
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_REQ && pg->id[0] < FXS_ID_REQ + 6u)
+        return rt_eq3() < 3;
 #endif
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
         return MST_OK != 0u;                          /* MST INS: the master's insert slots */
@@ -979,8 +1011,8 @@ static int cell_built(const page_t *pg, uint32_t id)
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
-               id == G_RSIZE || id == G_RDAMP ? FXS_ON(FXT_REV) :   /* (in a slot: fx_slots.c) */
-               id == G_CRATE || id == G_CDEPTH ? FXS_ON(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
+               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) :   /* (in a slot: fx_slots.c) */
+               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
@@ -1071,5 +1103,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         if (TSEL->p[id] <= 0 || (uint32_t)TSEL->p[id] > m)
             TSEL->p[id] = (int16_t)m;
     }
+    if (id == P_CHOR || id == P_DLY || id == P_REV)    /* a send: named by its line's return (fx-pool: PHSR ...) */
+        return fxs_send_d(id);
     return track_desc(TSEL, id);
 }

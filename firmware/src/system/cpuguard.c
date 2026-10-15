@@ -45,6 +45,20 @@
 #define CG_HALF_US (HALF_FRAMES * 1000000u / FS)   /* a half's time, us */
 #define CG_FAR __attribute__((noinline))   /* (once a half, from the audio ISR: in XIP, called FAR) */
 #define CG_SHED_MAX 4u                   /* voices a half predicted late fades out at most */
+/* the reactive path ("Spikes"): late halves scattered among lighter ones. Each late half adds CG_SPK_HIT to a leaky count
+ * that loses 1 a half; at CG_SPK_ON (3 late halves within ~30 halves, or a steady 3 a second and more) it reacts: one
+ * level up, at the top a voice cut and the voices capped one under what sounded (a new note then steals the oldest).
+ * One late half (a flash write, a USB burst) never reacts, nor do late halves at a light load (under CG_RFLOOR: the
+ * music is not what makes them late). A level a reaction set comes off only under the load the drop-outs came at less
+ * CG_RMARGIN (rcap); the cap rises a voice after CG_VSTEP halves with no late one */
+#define CG_SPK_HIT 64u
+#define CG_SPK_ON 160u
+#define CG_RFLOOR 128u                   /* 50 % of a half: the measured mean (avg) the reactive path needs */
+#define CG_RMARGIN 16u                   /* 1/16 of a half */
+#ifndef CG_VSTEP
+#define CG_VSTEP 345u                    /* halves (2 s) with no late one before the cap rises a voice */
+#endif
+#define CG_VMIN 2u                       /* the cap's floor */
 
 /* a part the guard never sheds: MONO / LEGATO / UNISON (the bass and the lead), and a monophonic engine */
 static int cg_keep(const track_t *t)
@@ -92,6 +106,10 @@ static uint32_t cg_ins_part(uint32_t p)
     if ((on && INS_ON(p, FXT_JUNO) && trk[p].p[P_TJCHO] && ifx_has(FXT_JUNO, p)) || ifx_w(FXT_JUNO, p))
         n += CG_COST_JUNO;
 #endif
+#if FELUCCA_INS_EQ3
+    if (ifx_w(FXT_EQ3, p) || (on && INS_ON(p, FXT_EQ3) && trk[p].p[P_TEQ] && !eq3_flat(eq3_v[p])))
+        n += CG_COST_EQ3M;                            /* (engaged only: flat is bypassed, eq3.c) */
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -128,6 +146,10 @@ static uint32_t cg_ins_bus(void)
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_JUNO) && TDRUM->p[P_TJCHO] && ifx_has(FXT_JUNO, TRK_DRUM)) || ifx_w(FXT_JUNO, IFX_BUS))
         n += CG_COST_JUNO;                            /* (its one stereo instance) */
 #endif
+#if FELUCCA_INS_EQ3
+    if (ifx_w(FXT_EQ3, IFX_BUS) || (fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_EQ3) && TDRUM->p[P_TEQ] && !eq3_flat(eq3_v[TRK_DRUM])))
+        n += CG_COST_EQ3S;
+#endif
     return n;
 }
 
@@ -144,6 +166,9 @@ static uint32_t cg_dvoice(uint32_t m)
     n += m & FXT_BIT(FXT_FUZZ) ? CG_COST_DVINS[3] : 0u;
     n += m & FXT_BIT(FXT_PHSR) ? CG_COST_DVINS[4] : 0u;
     n += m & FXT_BIT(FXT_FRMT) ? CG_COST_DVINS[5] : 0u;
+#if FELUCCA_INS_EQ3
+    n += m & FXT_BIT(FXT_EQ3) ? CG_COST_EQ3M : 0u;   /* (dins_one: it ran, engaged or fading) */
+#endif
     return n;
 }
 #endif
@@ -174,9 +199,94 @@ static uint32_t cg_ins_mst(void)
         if (t == FXT_JUNO && (mst_amt[FXT_JUNO] || ifx_w(FXT_JUNO, IFX_MST)))
             n += CG_COST_JUNO;
 #endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_MST) || (mst_amt[FXT_EQ3] && !eq3_flat(eq3_v[NTRK]))))
+            n += CG_COST_EQ3S;
+#endif
     }
     return n;
 }
+/* the returns holding another type (fx.c rt_run, fx-pool 2026-10-15): the master's costs of the same kernels on a stereo pair,
+ * while set or letting go (its tail) */
+static uint32_t cg_ins_rt(void)
+{
+    uint32_t n = 0, j, t;
+    for (j = 0; j < 3u; j++) {
+        int32_t a;
+        t = fxs_rty[j];
+        if (t == FXT_NONE)
+            continue;
+        a = rt_amt(j);
+        if (t == FXT_DIST && a)
+            n += CG_COST_DBDIST * 2u / 5u;
+#if TFLT_ON
+        if (t == FXT_FILT && rt_sto[j].f.mode)
+            n += CG_COST_DBFILT * 2u / 5u;
+#endif
+#if FELUCCA_MASTER_COMP
+        if (t == FXT_DYN && a)
+            n += CG_COST_DBCOMP;
+#endif
+        if (t == FXT_DUST && FELUCCA_FX_DUST && a)
+            n += CG_COST_DBDUST;
+#if INS_FX
+        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_RT(j))))
+            n += CG_COST_DBINS[t - FXT_NEW0];
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_RT(j))))
+            n += CG_COST_JUNO;
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_RT(j)) || (a && !eq3_flat(eq3_v[NTRK + 2u + j]))))
+            n += CG_COST_EQ3S;
+#endif
+    }
+    return n;
+}
+#if FELUCCA_USB_AUDIO
+/* the USB input's insert slots (fx.c ut_mix, any insert type since 2026-10-15): the master's costs of the same kernels on a
+ * stereo pair, while set (FX on) or letting go (its wet share; DIST FILT DYN DUST: their own states) */
+static uint32_t cg_ins_ut(void)
+{
+    uint32_t n = 0, s, t;
+    for (s = 0; s < INS_N; s++) {
+        int32_t a;
+        t = ut.slot[s];
+        if (t >= FXT_N || !(UT_OK >> t & 1u))
+            continue;
+        a = ut.v[UTV_FXON] ? ut.amt[s] : 0;
+        if (t == FXT_DIST && a)
+            n += CG_COST_DBDIST * 2u / 5u;
+#if TFLT_ON
+        if (t == FXT_FILT && ut_sto.f.mode)
+            n += CG_COST_DBFILT * 2u / 5u;
+#endif
+#if FELUCCA_MASTER_COMP
+        if (t == FXT_DYN && a)
+            n += CG_COST_DBCOMP;
+#endif
+        if (t == FXT_DUST && FELUCCA_FX_DUST && a)
+            n += CG_COST_DBDUST;
+#if INS_FX
+        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_UT)))   /* (CHRS ECHO FLNG: only with an instance, ifx_w 0
+                                                        * without; GATER: one gain, the bus's cost) */
+            n += CG_COST_DBINS[t - FXT_NEW0];
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_UT)))
+            n += CG_COST_JUNO;
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_UT) || (a && !eq3_flat(eq3_v[NTRK + 1u]))))
+            n += CG_COST_EQ3S;
+#endif
+    }
+    return n;
+}
+#else
+#define cg_ins_ut() 0u
+#endif
 /* the predicted cost of what sounds now: target instructions a sample */
 static uint32_t cg_est(void)
 {
@@ -195,6 +305,8 @@ static uint32_t cg_est(void)
         }
     n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
     n += cg_ins_mst();                                /* the master's (fx.c mst_run) */
+    n += cg_ins_rt();                                 /* the returns' other types (fx.c rt_run) */
+    n += cg_ins_ut();                                 /* the USB input's (fx.c ut_mix) */
 #if DINS
     for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
         n += cg_dvoice(dins_ran[i]);
@@ -387,10 +499,45 @@ static volatile uint32_t cg_trace[1024] __attribute__((section(".pool")));   /* 
 #define CG_BENCH(m) ((void)0)
 #endif
 
-/* audio ISR, a half's end: it took us microseconds */
+/* the reactive path, once a half (late: this half ran late): the leaky count, a reaction at CG_SPK_ON; the cap's rise */
+static void cg_spike(uint32_t late)
+{
+    uint32_t r;
+    if (late)
+        cg.spk = (uint16_t)(cg.spk + CG_SPK_HIT < 0xFFFFu ? cg.spk + CG_SPK_HIT : 0xFFFFu);
+    else if (cg.spk)
+        cg.spk--;
+    if (cg.vcap) {                       /* (the cap: a voice back after CG_VSTEP halves with none late; NVOICE: off) */
+        if (late)
+            cg.vcn = 0;
+        else if (++cg.vcn >= CG_VSTEP) {
+            cg.vcn = 0;
+            cg.vcap = (uint8_t)(cg.vcap + 1u < NVOICE ? cg.vcap + 1u : 0u);
+        }
+    }
+    if (cg.spk < CG_SPK_ON || !cg_react || cg.avg < CG_RFLOOR)
+        return;
+    cg.spk = 0;
+    cg.reacts++;
+    r = cg.avg > CG_RMARGIN + 1u ? cg.avg - CG_RMARGIN : 1u;   /* (the load the drop-outs came at, less the margin) */
+    if (cg.level < CG_TOP) {
+        cg_step();
+        cg.rcap[cg.level] = (uint8_t)(r < 255u ? r : 255u);
+    } else {
+        uint32_t busy = voices_busy();
+        if (cg_shed(1)) {                /* a voice cut now, the rest capped one under what sounded */
+            busy = busy > CG_VMIN + 1u ? busy - 1u : CG_VMIN;
+            cg.vcap = (uint8_t)(!cg.vcap || busy < cg.vcap ? busy : cg.vcap - (cg.vcap > CG_VMIN));
+            cg.vcn = 0;
+        }
+        cg.rcap[CG_TOP] = (uint8_t)(r < 255u ? r : 255u);
+    }
+}
+
+/* audio ISR, a half's end: it took us microseconds (cg.late: the DMA moved on while it rendered, audio.c) */
 static CG_FAR void cg_post(uint32_t us)
 {
-    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est, prev = cg.meas, c;
+    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est, prev = cg.meas, c, late = m >= CG_FULL || cg.late;
     m = m < 0xFFFFu ? m : 0xFFFFu;
     load = load < 0xFFFFu ? load : 0xFFFFu;
     c = m < CG_FULL ? m : CG_FULL;
@@ -417,13 +564,15 @@ static CG_FAR void cg_post(uint32_t us)
             cg_step();
         }
     } else {
+        uint32_t back = load + cg.gain[cg.level];   /* (the load with the level's saving back) */
         cg.over = 0;
-        if (cg.level && load + cg.gain[cg.level] < CG_REL) {
+        if (cg.level && !late && !cg.vcap && back < CG_REL && (!cg.rcap[cg.level] || back < cg.rcap[cg.level])) {
             if (++cg.under >= CG_RELEASE) {   /* one level off, and the ones under it with nothing to ease now; the
                                           * reverb's level only if the reverb is off already (on the way down it
-                                          * would turn it off, though it was not what had to go) */
+                                          * would turn it off, though it was not what had to go). A level a reaction
+                                          * set: only under the load the drop-outs came at (rcap), with no voice cap */
                 do
-                    cg.level--;
+                    cg.rcap[cg.level--] = 0;
                 while (cg.level && (!cg_useful(cg.level) || (cg.level == CG_L_REVERB && REV_ON())));
                 cg.under = 0;
             }
@@ -432,4 +581,6 @@ static CG_FAR void cg_post(uint32_t us)
         }
     }
     cg.avg = (uint16_t)((cg.avg * 7u + c + 4u) >> 3);   /* (after the step: its load before is the one before) */
+    cg.late = 0;
+    cg_spike(late);
 }

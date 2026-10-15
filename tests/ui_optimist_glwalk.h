@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, every line of GLOBAL and SYSTEM walked (fix/settings-lines, 2026-10-13; the user: "many lines
  * in GLOBAL and SYSTEM display YES and nothing can be done with them"). ALGORITHM puts the cursor on each line in turn:
  *   a value     its knob changes a setting and the text drawn (one way, else the other at an end), and back; PRESETS
- *               changes nothing (the user, 2026-10-13); a value with a descriptor: HOME held + its knob its default
+ *               changes nothing (the user, 2026-10-13); a value with a descriptor: SHIFT held + its knob its default
  *   a read-out  its knob and PRESETS change no setting
  *   an action   drawn as a word that is not YES (op_gldraw.c gl_val); its knob and PRESETS change nothing; YES runs it
  *               (PANEL: the question, cancelled by HOME)
@@ -45,6 +45,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #endif
 #if DUAL_LOAD
     h = glw_mix(h, &dual_mode, 1);
+#endif
+#if FELUCCA_USB_AUDIO
+    h = glw_mix(h, ua_src, sizeof ua_src);
 #endif
     return h;
 }
@@ -89,11 +92,12 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     int ok;
     line_at(scr, i);
     glw_line(scr, i, &c, v);
-    ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO"));   /* (INFO, REPO: text in the unit, or the page itself) */
+    ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO") ||
+                                                                                                      !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS"));   /* (the read-out pages, REPO: text in the unit, or the page itself) */
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
         ok &= glw_still(EN_PRESET);
-        if (c.d && c.vp) {                              /* a descriptor's value: HOME held + its knob, its default */
+        if (c.d && c.vp) {                              /* a descriptor's value: SHIFT held + its knob, its default */
             int16_t was = *c.vp;
             press(B_OCTDN);
             turn(LINE_KNOB(i), 1);
@@ -118,11 +122,12 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
         printf("  glwalk: screen %u line %u %s kind %u value %s\n", scr, i, c.label ? c.label : "-", c.kind, v);
     return ok;
 }
-/* HOME held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
+/* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
-    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"}};
+    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"CH1", "T1"}, {"CH2", "T2"}, {"CH3", "T3"}, {"CH4", "DRUMS"}};   /* (SYSTEM > USB AUDIO: the routing before the setting) */
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;
@@ -174,13 +179,13 @@ static void glw_factory_tests(void)
             release(B_OCTDN);
             glw_line(scr, i, &c, v);
             if (strcmp(v, f)) {
-                printf("  glwalk: %s after HOME + knob %s, factory %s\n", c.label, v, f);
+                printf("  glwalk: %s after SHIFT + knob %s, factory %s\n", c.label, v, f);
                 ok = 0;
             }
             seen++;
         }
     }
-    check(ok && seen >= 3u && ble_ok, "HOME + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
+    check(ok && seen >= 3u && ble_ok, "SHIFT + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
     settings.palette = 4;
     palette_set(4);
 }

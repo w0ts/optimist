@@ -793,7 +793,7 @@ static uint32_t fm6_mode(int32_t v)
     return FELUCCA_FM6_MARK1 ? 1u : FELUCCA_FM6_MODERN ? 0u : 2u;
 }
 #define FM6_ENGINE(t) fm6_mode((t)->p[P_E4])
-#if FELUCCA_DUAL >= 2                                    /* dual core (dual.c): two parts render at once, */
+#if DUAL_RENDER                                    /* dual core (dual.c): two parts render at once, */
 static int32_t fm6_bus_c[2][2][CTL] IN_POOL_AUDIO, fm6_sum_c[2][CTL] IN_POOL_AUDIO;   /* each core its own operator buses */
 #define fm6_bus (fm6_bus_c[fm1_cnum() & 1u])
 #define fm6_sum (fm6_sum_c[fm1_cnum() & 1u])

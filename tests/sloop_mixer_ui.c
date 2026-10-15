@@ -27,12 +27,12 @@ static void mixer_page_tests(void)
     mx_turn(2, 5);
     check(trk[0].p[P_PAN] > 0, "mixer page 2: KNOB 3 the pan");
     ui.force = 1; frame(); ppm("mixer-page2");
-    /* the master slots: ---- CHO DLY REV (the default): three sends; SEND is REV, SEND 2 the first other (CHO). The inserts:
+    /* the master slots: ---- REV DLY CHO (the default): three sends; SEND is REV, SEND 2 the first other (DLY). The inserts:
      * the row's two slots (fx_slots.c ins_slot: S1 DIST, S2 FILTER when built) */
     fxs_set(FXS_DEF);
     ins_defaults();
     if (FXS_ON(FXT_REV) && FXS_ON(FXT_CHO))
-        check(mix_fx_slot(0, 1, 0) == 3 && mix_fx_slot(0, 1, 1) == 1, "mixer: SEND is REV, SEND 2 the first other send (CHO)");
+        check(mix_fx_slot(0, 1, 0) == 1 && mix_fx_slot(0, 1, 1) == 2, "mixer: SEND is REV, SEND 2 the first other send (DLY)");
     {
         int16_t x;
         check(mix_kind_id(0, MD_INS1) == (FELUCCA_FX_DIST ? P_DIST : 0xFFu), "mixer: INSERT is the row's S1 (DIST)");

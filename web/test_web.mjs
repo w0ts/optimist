@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
@@ -1074,10 +1074,10 @@ async function editorFxSlots() {
   const C = E.CMD, T = E.FXT;
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
   ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
-    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_N \}/.test(fs)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_N \}/.test(fs)
     && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6
     && T.FOLD === 7 && T.FUZZ === 8 && T.PHSR === 9 && T.FLNG === 10 && T.FRMT === 11 && T.WIDE === 12
-    && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && E.FXT_NAMES.length === 18,
+    && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && T.EQ3 === 18 && E.FXT_NAMES.length === 19,
     "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
   ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
     && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])
@@ -1285,11 +1285,24 @@ async function editorDaw() {
     && E.engineColor("NEWENG") === E.COLORS.other && E.kindColor("x0x") === E.COLORS.kinds.x0x && src.length > 0,
     "daw: a colour for every engine and drum kind, all different; an unknown engine: the neutral one");
   ok(all.concat(Object.values(E.COLORS.status)).every((c) => E.contrast(c, E.textOn(c)) >= 4.5), "daw: text on every engine / kind / status colour reads (contrast >= 4.5)");
-  const th = Object.entries(E.THEMES).filter(([, v]) => v);
-  const bad = th.filter(([, v]) => E.contrast(v.fg, v.bg) < 7 || E.contrast(v.dim, v.bg) < 4.5 || E.contrast(v.fg, v.panel) < 7 || E.contrast(v.dim, v.panel) < 4.5).map(([n]) => n);
-  ok(js(Object.keys(E.THEMES)) === js(["auto", "classic", "black", "lilac", "orange", "mint", "cream", "blue"]) && !bad.length
-    && js(E.themeVars("auto")) === "{}" && E.themeVars("mint")["--accent"] === E.THEMES.mint.accent,
-    "daw: the FM-1 editions as themes, text contrast AA (secondary text >= 4.5, text >= 7)" + (bad.length ? " bad: " + bad : ""));
+  /* the colours follow the system (no switch): a dark set and a light set in the stylesheet, both readable (WCAG AA) */
+  const darkCss = html.slice(html.indexOf("  :root {\n    --bg: #000;"), html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"));
+  const lightCss = html.slice(html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"), html.indexOf("  html:root[data-sel=\"1\"]"));
+  const tok = (css, n) => { const m = (css.match(new RegExp("--" + n + ": #([0-9a-fA-F]{3,6});")) || [])[1]; return m && "#" + (m.length === 3 ? [...m].map((d) => d + d).join("") : m); };
+  const bad = [];
+  for (const [mode, css] of [["dark", darkCss], ["light", lightCss]]) {
+    const bg = tok(css, "bg"), fg = tok(css, "fg"), dim = tok(css, "dim"), panel = tok(css, "panel"), on = tok(css, "on");
+    if (!bg || !fg || !dim || !panel || !on) { bad.push(mode + ": a token is missing"); continue; }
+    if (E.contrast(fg, bg) < 7 || E.contrast(fg, panel) < 7) bad.push(mode + " text");
+    if (E.contrast(dim, bg) < 4.5 || E.contrast(dim, panel) < 4.5) bad.push(mode + " secondary text");
+    for (const n of ["t1", "t2", "t3", "t4", "ok", "warn", "err"]) {
+      const c = tok(css, n);
+      if (!c) { if (mode === "light") bad.push("light " + n + " missing"); continue; }
+      if (E.contrast(c, on) < 4.5) bad.push(`${mode} ${n}: text on it ${E.contrast(c, on).toFixed(2)}`);
+      if (E.contrast(c, bg) < 3) bad.push(`${mode} ${n}: against the page ${E.contrast(c, bg).toFixed(2)}`);
+    }
+  }
+  ok(!bad.length && !/data-theme|optimist-editor-theme"\)\s*\|\|/.test(html), "daw: the colours follow prefers-color-scheme; dark and light sets: text >= 7, secondary >= 4.5, track / status colours >= 3 on the page and >= 4.5 under their text" + (bad.length ? " bad: " + bad : ""));
   /* flat navigation: every popup one click from the mixer, Escape back */
   const ids = Object.keys(E.NAV);
   let st = { screen: "mixer", pop: null }, flat = true;
@@ -2450,11 +2463,10 @@ async function masterStrip() {
     "settings: no FX / mixer parameter (" + gone.join(" ") + " moved to the mixer); nothing is unreachable (the mixer shows every one)");
   ok(!/setDrumRev|gDrRev|drrev/.test(html) && /gDrLvl\(\)/.test(html) && /\["LVL", "REV"\]\.includes\(l\)/.test(html),
     "settings: the drums' LVL on the drum strip; the retired REV (G_DRREV) nowhere: the sounds' sends are on the strip");
-  /* the theme: a browser preference, in Settings (Appearance) and on the connect card, not in the transport bar */
-  const tb = html.slice(html.indexOf('<header'), html.indexOf("</header>"));
-  const card = html.slice(html.indexOf('id="connectcard"'), html.indexOf("</section>", html.indexOf('id="connectcard"')));
-  ok(!/id="theme"/.test(tb) && /id="theme"/.test(card) && /id="appearbox"/.test(html) && /want2 = ready \? \$\("appearbox"\) : \$\("connectcard"\)/.test(html),
-    "theme: not in the transport bar; the Appearance group is in Settings (connected) and on the connect card (not connected)");
+  /* no theme picker anywhere: the page follows the system */
+  ok(!/id="theme"|id="appearance"|id="appearbox"|data-t="theme"|applyTheme|THEMES/.test(html) && /matchMedia\("\(prefers-color-scheme: light\)"\)\.addEventListener\("change"/.test(html)
+    && !/data-theme/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")) && /prefers-color-scheme: light/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")),
+    "theme: no selector or toggle anywhere (the editor follows prefers-color-scheme, live)");
   /* the SLOOP 2.4 look: Terminus inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
   const lic = existsSync(join(HERE, "TERMINUS-LICENSE.txt")) ? readFileSync(join(HERE, "TERMINUS-LICENSE.txt"), "utf8") : "";
   ok(/@font-face \{ font-family: "SLOOP Terminus"; src: \/\*SLOOP-FONT\*\/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(html) && /SIL OPEN FONT LICENSE Version 1\.1/.test(lic) && /Zhekov/.test(lic)

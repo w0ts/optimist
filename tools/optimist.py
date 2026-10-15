@@ -13,6 +13,8 @@
                                                          profile first unless a PACKAGE is given (--no-build: the
                                                          newest build/optimist-*.fwsc as it is); asks first
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
+  python tools/optimist.py web [--port N] [--no-open] [--package F]   the local installer and web editor: builds the site
+                                                         from build/felucca.fwsc, serves it on 127.0.0.1:8766, opens the editor
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
   python tools/optimist.py gate [--config F] [--set K=V] [--emu]   the integrator's gate (tools/gate.py --help)
@@ -204,6 +206,70 @@ def cmd_costs(a):
 def cmd_emu(a):
     import emu
     return emu.main(a.rest)
+
+
+WEB_PORT = 8766
+WEB_PKG = ROOT / "build" / "felucca.fwsc"
+WEB_SITE = ROOT / "build" / "optimist-site"
+
+
+def web_urls(port):
+    base = f"http://localhost:{port}/webapp"
+    return f"{base}/installer/", f"{base}/editor/"
+
+
+def web_open(url):
+    """Open url in the default browser: macOS `open`, Linux `xdg-open`, Windows startfile. True if it was tried."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", url])
+        elif sys.platform.startswith("win"):
+            os.startfile(url)
+        elif shutil.which("xdg-open"):
+            subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            return False
+    except OSError:
+        return False
+    return True
+
+
+def cmd_web(a):
+    """Build the local site (web/make_site.py) from a package and serve it on 127.0.0.1 until Ctrl-C."""
+    import functools
+    import http.server
+    pkg = Path(a.package) if a.package else WEB_PKG
+    if not pkg.is_file():
+        print(f"optimist: no package at {pkg}. Build one first: `make build` (or `python tools/optimist.py build`), "
+              "or pass --package FILE.fwsc", file=sys.stderr)
+        return 1
+    sys.path.insert(0, str(ROOT / "web"))
+    import make_site
+    site = Path(a.site) if a.site else WEB_SITE
+    try:
+        make_site.main(pkg, "dev", site)
+    except SystemExit as e:
+        print(f"optimist: the site was not built: {e}", file=sys.stderr)
+        return 1
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(site))
+    try:
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), handler)
+    except OSError as e:
+        print(f"optimist: cannot listen on 127.0.0.1:{a.port}: {e} (another port: --port N or make web PORT=N)",
+              file=sys.stderr)
+        return 1
+    installer, editor = web_urls(a.port)
+    print(f"installer: {installer}\neditor:    {editor}\n"
+          "Web MIDI needs Chrome or Edge (Safari and Firefox do not have it). Ctrl-C stops the server.", flush=True)
+    if not a.no_open and not web_open(editor):
+        print("(could not open a browser: open the editor URL yourself)")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped")
+    finally:
+        srv.server_close()
+    return 0
 
 
 def cmd_gate(a):
@@ -409,6 +475,13 @@ def parser():
     p = sub.add_parser("emu", help="run a firmware in the emulator (emu --help)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_emu)
+    p = sub.add_parser("web", help="build the local site from build/felucca.fwsc and serve the installer and the "
+                                   "web editor on 127.0.0.1")
+    p.add_argument("--port", type=int, default=WEB_PORT, help=f"the port (default {WEB_PORT})")
+    p.add_argument("--package", help="the .fwsc to build the site from (default build/felucca.fwsc)")
+    p.add_argument("--site", help="where to write the site (default build/optimist-site)")
+    p.add_argument("--no-open", action="store_true", help="do not open the editor in a browser")
+    p.set_defaults(fn=cmd_web)
     p = sub.add_parser("cpu", help="the audio load of a running FM-1 from its serial console (cpu --help)",
                        add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)

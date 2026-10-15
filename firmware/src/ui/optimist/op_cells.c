@@ -11,7 +11,7 @@ enum { CK_NONE, CK_VAL, CK_RO, CK_ACT, CK_ENTER };
  *   GK_DOTS  a list of up to 12 entries: one lit     GK_POS   a longer list: a tick at its place
  *   GK_PILL  on / off (two entries): filled or empty GK_NONE  text only (names, actions) */
 enum { GK_NONE, GK_BAR, GK_BIP, GK_DOTS, GK_POS, GK_PILL };
-#define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (HOME held + the knob) */
+#define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (SHIFT held + the knob) */
 #define OP_MAXROWS 40u
 static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' GO buttons */
 
@@ -256,7 +256,7 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
 #define LFO_PGN 0u
 #endif
 /* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's two
- * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
+ * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its sends in the returns' order: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
 #define LPAN_ID (LSEND0 + 3u)                          /* SENDS' card 4: the lane's PAN (drum_mix.c dlm_pan; the mixer's MI_LANE id 23: 19..22 are the lane inserts) */
@@ -348,15 +348,12 @@ static uint32_t op_pg_at(uint32_t j)
     return j;
 }
 _Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
-/* a lane's value id of SENDS' card k (REV, DLY, CHO), 0xFF none (no master slot holds it): REV 16, DLY 17, CHO 18 */
-static uint32_t lane_send_vid(uint32_t k)             /* (REV DLY CHO, the one order: a type no slot holds, none) */
+/* a lane's value id of SENDS' card k (return R(k+1)'s send: fx_slots.c fxs_card, the one order), 0xFF none (an empty
+ * return): REV 16, DLY 17, CHO 18 */
+static uint32_t lane_send_vid(uint32_t k)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    uint32_t i;
-    for (i = 0; k < 3u && i < 3u; i++)
-        if (fxs_send(i) == T[k])
-            return 16u + k;
-    return 0xFFu;
+    uint32_t t = fxs_card(k);
+    return t == FXT_NONE ? 0xFFu : 16u + FXS_DSI(t);
 }
 /* a lane's PAN (the one value dsnd_desc_lane has not: SLOOP's mixer keeps it in drum_mix.c, so does this one) */
 static const param_desc_t *lane_pan_desc(uint32_t l, int16_t **vp)
@@ -517,28 +514,37 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 }
 
 /* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count beside
- * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
+ * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 AMT" over the name CHRS struck through (bypassed; the same look while
  * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
  * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
-static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
+#if INS_LIM
+#define FXI_UT_OWN FXI_UT                               /* (the owners of fxi.c: the USB input, the master) */
+#define FXI_MST_OWN FXI_MST
+#else
+#define FXI_UT_OWN 0u
+#define FXI_MST_OWN 0u
+#endif
+/* owner o's (fxi.c: a track, FXI_MST, FXI_UT) slot s holding type t, its state st */
+static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_t st)
 {
     static char lab[2][8], un[2][4];
-    uint32_t t = ins_slot[k % NTRK][s & 1u], cap = fxi_cap(t), st = fxi_state(k, s), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
+    uint32_t cap = fxi_cap(t), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
     const char *v = 0;
     if (a == 0xFFu || cap == 0u || cap == FXI_ANY || st == FXI_NA)
         return;
-    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : "ECHO";
+    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : "ECHO";
     if (st == FXI_OK) {
         un[s & 1u][0] = (char)('0' + fxi_free(t)), un[s & 1u][1] = '/', un[s & 1u][2] = (char)('0' + cap), un[s & 1u][3] = 0;
         c->unit = un[s & 1u];
         return;
     }
-    if (st == FXI_WAIT && fxi_can(k, t))
+    if (st == FXI_WAIT && fxi_can(o, t))
         v = "WAIT";
     else {
-        v = st == FXI_FULL ? "FULL" : "IN USE";
+        v = c->hlp;                                     /* (the effect's name, struck through like a muted track's text) */
         c->dim = 1;
-        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : "FULL ECHO";
+        c->strike = 1;
+        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" : "FULL ECHO";
     }
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
     str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);
@@ -546,6 +552,12 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
     str_cpy(c->val, v, sizeof c->val);
     c->gk = GK_NONE;
 }
+static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)   /* track k's slot s */
+{
+    cell_lim_note(c, k % NTRK, ins_slot[k % NTRK][s & 1u], s, fxi_state(k, s));
+}
+/* a stereo owner's (the master, the USB input: fxi.c FXI_MST FXI_UT) slot s holding type t (its pooled instance) */
+static void cell_own_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s) { cell_lim_note(c, o, t, s, fxi_ostate(o, t)); }
 
 /* with a drum lane picked, a value of the drum track itself (the user, 2026-10-14: "remember on a lane i want to see the
  * lane"): the track's pages (its bus inserts and sends, FILTER, SLICER, GATER, COMP, PATTERN) and the KIT page's slot

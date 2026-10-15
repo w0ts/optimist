@@ -8,14 +8,14 @@
  *              any other page the master FX screen (SCR_FX), which turned right goes back to the page it was left
  *              from (SCOPE is the exception: MASTER is its source, ui.master, and it stays). A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
  *              of: every row, op_screens.c snd_family). A held step (op_step.c), NAME (op_name.c) and a free take eat it
- *   selected   the drum track's selection is DR itself or one of its lanes (ui.lane; lane_picked: op_mixer.c); HOME + a key
+ *   selected   the drum track's selection is DR itself or one of its lanes (ui.lane; lane_picked: op_mixer.c); SHIFT + a key
  *              still picks a lane straight away
  *   PRESETS    on DR the kit (op_screens.c op_preset_step). On a lane by its SOURCE (the user, 2026-10-12: "SLOT: kit,
  *              or specific instrument. if Slot=kit. preset knob changes the preset kit, if Slot=something else preset
- *              changes the preset for the drum lane"): SRC KIT, the kit as on DR (HOME + PRESETS the kits too); any
+ *              changes the preset for the drum lane"): SRC KIT, the kit as on DR (SHIFT + PRESETS the kits too); any
  *              other source, that lane's sound only: the next / previous source of the list the drum page's SOURCE row
  *              steps (dsnd_desc.c DSD SRC: USR1..3, each kit's sound for this lane, the X0X voices; KIT left out, so
- *              it stays the lane's own), one a detent, round, the sources this build has; HOME held + PRESETS: the
+ *              it stays the lane's own), one a detent, round, the sources this build has; SHIFT held + PRESETS: the
  *              first sound of the next / previous kind, round (the colour language's: your samples, a sampled kit's,
  *              a synthesised kit's, the X0X machines'; sloop/ui_colors.c lane_col) */
 
@@ -102,6 +102,7 @@ static void walk_to(uint32_t p, int lay)
 }
 /* both OCT tapped: a track page to MASTER (the selection and the page remembered), again back to that track and page. MASTER entered
  * any other way (the mixer's row, the FX button) has no memory: it goes back to the selected track */
+static uint8_t mk_trk;                                  /* both OCT to MASTER: the keys stay this track's + 1, 0 none (op_input.c mk_live) */
 static struct {
     uint8_t valid;
     uint8_t row;                                        /* the mixer row of the selection that was left */
@@ -118,6 +119,8 @@ static void oct_master_toggle(void)
         om.row = (uint8_t)walk_pos(0);
         om.valid = 1;
         walk_to(MXR_MASTER, 0);
+        mk_trk = (uint8_t)(song.sel + 1u);               /* (the keys stay that track's: op_input.c mk_live) */
+        ui_say("KEYS ", trk_tag(song.sel));
     }
 }
 /* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */
@@ -191,7 +194,7 @@ static void lane_sound_step(int32_t s)                  /* PRESETS on a lane: th
     ls_set(l, i);
     ed_done();
 }
-static void lane_kind_step(int32_t s)                   /* HOME + PRESETS on a lane: the next / previous kind's first */
+static void lane_kind_step(int32_t s)                   /* SHIFT + PRESETS on a lane: the next / previous kind's first */
 {
     uint32_t l = lane_selected(), n = ls_count(l), k0, t, i;
     if (n < 2u || ed_ask(EK_LKIND, s))

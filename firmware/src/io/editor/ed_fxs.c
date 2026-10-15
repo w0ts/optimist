@@ -9,8 +9,9 @@
  *               track insert slots, 2026-10-12: an older editor reads the first 39 bytes) T1 T2 T3 DR's S1 S2 (type ids),
  *               T1 T2 T3 DR's RATIO ATK REL (127 x 12 without COMP), the drum track's send levels REV DLY CHO (0..127)
  *       op 0  get
- *       op 1  the master slots: 4 type ids (sends only: an insert id, a type twice (its later slot), an id past the
- *             table: empty; fxs_set). The editor swaps as the device does (fxs_load) and sends the result
+ *       op 1  the master slots: 4 type ids (sends, and since fx-pool any type a return may hold in R1..R3: fx_slots.c
+ *             RT_OK; an insert id in a layout of sends only, a type twice (its later slot), an id past the table: empty;
+ *             fxs_set). The editor swaps as the device does (fxs_load) and sends the result
  *       op 2  the COMP settings of every track: RATIO ATK REL (each clamped to the master COMP's list)
  *       op 3  a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged)
  *       op 4  a track's insert slots: track 0..3, S1, S2 (type ids: an insert, or 0; the same type twice: S2 empty;
@@ -66,13 +67,17 @@ static uint32_t ed_fx_sig(void)
     return h;
 }
 
+static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
+                                                        * fxs_lane_id's table) */
+/* one entry per FX type: a new type (the fx-pool branch adds 18, EQ3) trips this until its entry is added here and in
+ * fx_slots.c fxs_lane_id (127: no SOUND 3 value) */
+_Static_assert(sizeof ED_FX_LID == FXT_N, "LID: one entry per FX type");
+
 /* INFO tag 0x56: version 1, the types built (n), then per type: id, kind (0 a send bus, 1 an insert), the amount's P_* id
  * (a synth track's and the drum bus's; 127 none), SOUND 3's value id of a drum sound's amount (16 REV, 17 DLY, 18 CHO,
  * 19 DST, 20 CMP; 127 none: FILT) */
 static void ed_fx_info(void)
 {
-    static const uint8_t LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
-                                                        * fxs_lane_id's table) */
     uint32_t t, n = 0;
     for (t = 1; t < FXT_N; t++)
         n += FXT_BUILT >> t & 1u;
@@ -85,7 +90,7 @@ static void ed_fx_info(void)
             ed_b(t);
             ed_b(FXT_INSERT >> t & 1u);
             ed_b(FXT_AMT[t] == 0xFFu ? 127u : FXT_AMT[t]);
-            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : LID[t]);
+            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : ED_FX_LID[t]);
         }
 }
 
@@ -107,9 +112,15 @@ static int ed_fxs(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint8_t s[FX_NSLOT];
         if (na < 1u + FX_NSLOT)
             return 0;
+        uint32_t gen = 0;
         for (k = 0; k < FX_NSLOT; k++)
-            s[k] = a[1u + k] < FXT_N ? a[1u + k] : (uint8_t)FXT_NONE;
-        fxs_set(s);
+            s[k] = a[1u + k] < FXT_N ? a[1u + k] : (uint8_t)FXT_NONE, gen |= FXS_GEN(s[k]) && k;
+        if (!gen)
+            fxs_set(s);
+        else                                           /* (fx-pool: a return holding another type: R1 R2 R3 loaded in
+                                                        * turn, as the device's SLOTS page does; slot 0 holds none) */
+            for (k = 1; k < FX_NSLOT; k++)
+                fxs_load(k, s[k]);
     } else if (op == 2u) {
         if (na < 4u)
             return 0;

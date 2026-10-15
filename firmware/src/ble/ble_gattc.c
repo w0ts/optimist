@@ -191,9 +191,9 @@ static void gc_groups_rsp(const uint8_t *p, uint16_t n)
 
 static void gc_error(const uint8_t *p)
 {
-    uint8_t op = p[1], code = p[4];
+    uint8_t code = p[4];
     BLE_DG(ble_dgc.gc_errs++);
-    BLE_DG(ble_dgc.gc_last_err_op = op);
+    BLE_DG(ble_dgc.gc_last_err_op = p[1]);
     BLE_DG(ble_dgc.gc_last_err_h = ble_rd16(p + 2));
     BLE_DG(ble_dgc.gc_last_err = code);
     if (code == GE_AUTHEN || code == GE_ENC || code == GE_KEY_SIZE) {

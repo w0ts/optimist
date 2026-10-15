@@ -67,6 +67,9 @@ static struct {
 } ble_mdg;
 #endif
 
+#ifndef OVL_LOST
+#define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
+#endif
 BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
 {
     uint32_t cin = pkt & 15u;
@@ -80,6 +83,7 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
     }
     if (bmi_w - bmi_r >= BMQ) {
         BLE_DG(ble_mdg.overflow++);
+        OVL_LOST(OVL_MIDI_BLE);                  /* (INFO's UNDERRUNS, system/overload.h) */
         return;
     }
     BLE_DG(ble_mdg.pushed++);

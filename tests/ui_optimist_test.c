@@ -5,9 +5,9 @@
  *   rows     every screen's rows resolve, on every engine and on the drum track: names fit the panel, labels the
  *            cards, a value cell has its descriptor and its value
  *   keys     SELECT the row, ALGORITHM the track, PRESETS the hot cell one unit (the preset only on the SOUND row),
- *            KNOB 1..4 the cells, HOME held + a knob the default, YES enters / toggles / does, NO goes back, the
- *            page buttons jump to their rows, HOME held + a drum key picks the lane, PLAY / REC transport
- *   confirm  HOME + REC asks "CLEAR T1? YES"; YES does it, NO and 3 s let it go; PROJECT's NEW asks; a SAVE over
+ *            KNOB 1..4 the cells, SHIFT held + a knob the default, YES enters / toggles / does, NO goes back, the
+ *            page buttons jump to their rows, SHIFT held + a drum key picks the lane, PLAY / REC transport
+ *   confirm  SHIFT + REC asks "CLEAR T1? YES"; YES does it, NO and 3 s let it go; PROJECT's NEW asks; a SAVE over
  *            an empty slot does not
  *   undo     SAVE then HOME undoes, HOME then SAVE redoes, neither is a YES or a NO; EDIT + OCT- / OCT+ too
  *   messages every message and every question fits the header (232 px)
@@ -304,9 +304,11 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") ||
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "CHIP") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
+                   (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
+                    c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
@@ -339,6 +341,62 @@ static int forms_draw(void)
         }
     return 1;
 }
+#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+/* fx-pool (2026-10-15): a return holding another type (PHSR on R1: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
+ * EQ3 (a return's RET EQ3 rows, a track's EQ3 and EQ3 FREQ rows): the rows exist, their cards are drawn (opt-fxpool-*.ppm) */
+static int fx_row_of(const char *t)                   /* the master FX screen's row titled t, -1 none */
+{
+    uint32_t r, n = fxs_rows();
+    for (r = 0; r < n; r++)
+        if (!strcmp(fx_pg(r)->title, t))
+            return (int)r;
+    return -1;
+}
+static int snd_row_of(const char *t)
+{
+    uint32_t r, n = snd_rows();
+    for (r = 0; r < n; r++)
+        if (snd_page(r) && !strcmp(snd_page(r)->title, t))
+            return (int)r;
+    return -1;
+}
+static void fxpool_tests(void)
+{
+    int r;
+    const uint8_t s[2] = {FXT_EQ3, FXT_NONE};
+    cell_t c;
+    reset_ui();
+    fxs_load(3, FXT_PHSR);                              /* (R3: CHO's line 0) */
+    fxs_load(1, FXT_EQ3);
+    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R1: REV's line 2) */
+    go_home();
+    ui.row[SCR_HOME] = MXR_MASTER;
+    tap(B_FX);
+    check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
+          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on R1, PHSR on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
+    r = fx_row_of("RETURNS");
+    ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
+    fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
+    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (R3, line 0) named PHSR RT (the return's type)");
+    ins_put(0, s);
+    song.sel = 0;
+    go_home();
+    tap(B_FX);
+    check(ui.scr == SCR_SOUND && snd_row_of("EQ3") >= 0 && snd_row_of("EQ3 FREQ") >= 0, "... T1 holding EQ3: its EQ3 and EQ3 FREQ rows");
+    eq3_v[0][EQV_LO] = EQ_KILL, eq3_v[0][EQV_HI] = 4;
+    ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-eq3");
+    ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3 FREQ"), ui.force = 1, frame(), ppm("opt-fxpool-eq3freq");
+    ins_defaults();                                     /* (every slot the default again, the screens' rows the first) */
+    eq3_defaults();
+    fxs_set(FXS_DEF);
+    ui.row[SCR_FX] = 0, ui.row[SCR_SOUND] = 0;
+    reset_ui();
+    go_home();
+}
+#endif
 static void rows_tests(void)
 {
     char why[64] = "";
@@ -519,7 +577,7 @@ static void key_tests(void)
         turn(EN_K1, 1);
         fm1_in.buttons &= ~BT(B_OCTDN);
         frame();
-        check(TSEL->p[P_ATK] == TP[P_ATK].def && ui.scr == SCR_SOUND, "HOME held + KNOB 1: ATK to its default, still on SOUND");
+        check(TSEL->p[P_ATK] == TP[P_ATK].def && ui.scr == SCR_SOUND, "SHIFT held + KNOB 1: ATK to its default, still on SOUND");
     }
     tap(B_SEQ);
     check(ui.scr == SCR_STEP && ly_lock == LY_STEP, "SEQ tapped: STEP, the keys are steps (ly_lock LY_STEP)");
@@ -576,7 +634,7 @@ static void key_tests(void)
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     check(lane_selected() != lane_of_key(4) && ui.scr == SCR_HOME && smute_lane_on(lane_of_key(4)),
-          "HOME held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
+          "SHIFT held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
     smute_lane = 0;
     tap(B_EDIT);
     check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && snd_page(1)->scope == SC_DSND,
@@ -630,12 +688,12 @@ static void confirm_tests(void)
     trk[0].step[0].n = 1;
     trk[0].step[0].note[0] = 60;
     trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] > 60 ? 1 : trk[0].p[P_ATK] + 1);   /* (an edited sound: INIT asks) */
-    press(B_OCTDN);                                      /* (HOME + REC no longer clears the track: HOME + ENV is the modal's trigger) */
+    press(B_OCTDN);                                      /* (SHIFT + REC no longer clears the track: SHIFT + ENV is the modal's trigger) */
     press(B_ENV);
     release(B_ENV);
     release(B_OCTDN);
     check(ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "INIT T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
-          "HOME + ENV: asks INIT T1? (no ENV, no NO)");
+          "SHIFT + ENV: asks INIT T1? (no ENV, no NO)");
     check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "INIT?") && !strcmp(ui.arm_arg, "T1") &&
           ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: INIT? T1 (its colour), red");
     ui.force = 1;
@@ -869,6 +927,7 @@ static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
 #include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
+#include "ui_optimist_usbfx.h"                     /* the USB input's insert slots: every type, its sets, FULL */
 static void seq_long(void)                              /* SEQ held alone past HOLD, let go */
 {
     press(B_SEQ);
@@ -971,7 +1030,7 @@ static void step_keys_tests(void)
     key(WK(4));
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
-    check(dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "drums: HOME held + a key: the step stays (the key picks), no clear");
+    check(dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "drums: SHIFT held + a key: the step stays (the key picks), no clear");
     lane_select(5);
     press(B_SEQ);
     key(WK(4));
@@ -1227,7 +1286,7 @@ static void step_synth_tests(void)
     frame();
     {
         int32_t v;
-        check(!lock_get(t, 3, PAGES[st.lock_pg].id[0], &v) && ui.scr == SCR_STEP, "HOME + the knob: the lock cleared");
+        check(!lock_get(t, 3, PAGES[st.lock_pg].id[0], &v) && ui.scr == SCR_STEP, "SHIFT + the knob: the lock cleared");
     }
     release(B_ENV);
     kup(WK(3));
@@ -1265,7 +1324,7 @@ static void step_synth_tests(void)
     reset_ui();
 }
 
-/* ---- phase 4: the held performance layers, the lock, the TEMPO page, SAVE / HOME + a button, SONG */
+/* ---- phase 4: the held performance layers, the lock, the TEMPO page, SAVE / SHIFT + a button, SONG */
 static void hold2(uint32_t a, uint32_t b) { press(a); press(b); release(b); release(a); }   /* a held, b tapped */
 static void layer_tests(void)
 {
@@ -1395,7 +1454,7 @@ static void layer_tests(void)
     hold2(B_EDIT, B_OCTDN);
     check(t->p[P_SLEN] == 16 && t->step[0].note[0] == 60 && !step_on(&t->step[1]), "EDIT + OCT-: the hold's edits undone (one level)");
     track_defaults_steps(t);
-    /* lock a layer: the layer held then HOME, or HOME held then the layer's button */
+    /* lock a layer: the layer held then SHIFT, or SHIFT held then the layer's button */
     hold2(B_OCTDN, B_FX);
     frames(2);
     check(lay.lock == LY_FX && lay.shown == LY_FX && ui.scr == SCR_HOME && ly_lock == LY_FX,
@@ -1412,7 +1471,7 @@ static void layer_tests(void)
     check(lay.lock == LY_PLAY && ui.scr == SCR_HOME && ly_lock == LY_PLAY, "any other button lets it go, and does only that");
     hold2(B_OCTDN, B_GLO);
     frames(2);
-    check(lay.lock == LY_MIX && lay.shown == LY_MIX && ui.scr == SCR_HOME, "HOME held, GLO pressed: the mix layer locked");
+    check(lay.lock == LY_MIX && lay.shown == LY_MIX && ui.scr == SCR_HOME, "SHIFT held, GLO pressed: the mix layer locked");
     key(WK(1));
     check(trk[1].p[P_MUTE] == 1, "locked GLO: key 2 mutes T2");
     key(WK(1));
@@ -1438,9 +1497,9 @@ static void layer_tests(void)
     check(lay.shown == LY_PAT, "LFO held + SAVE: the patterns' map stays");
     release(B_SAVE);
     check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
-    press(B_OCTDN);                                      /* LFO held, then HOME + n: clear slot n (asked) */
+    press(B_OCTDN);                                      /* LFO held, then SHIFT + n: clear slot n (asked) */
     key(WK(1));
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + HOME + key 2: clear slot 2, asked");
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + SHIFT + key 2: clear slot 2, asked");
     release(B_OCTDN);
     frames(2);
     check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
@@ -1539,7 +1598,7 @@ static void save_layer_tests(void)
     release(B_OCTDN);
     release(B_SAVE);
     check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE A?") && strncmp(ui.msg, "UNDO", 4) && strncmp(ui.msg, "NOTHING", 7),
-          "SAVE + HOME held + key 1: clear A, asked; no undo");
+          "SAVE + SHIFT held + key 1: clear A, asked; no undo");
     tap(B_HOME);
     arrangement.count = 2;                              /* (a song of A and B: both stored) */
     arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1, arrangement.entry[0].bars = arrangement.entry[1].bars = 4;
@@ -1683,7 +1742,7 @@ static void combo_tests(void)
     }
 #endif
     hold2(B_OCTDN, B_SEQ);
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 LOCKS?"), "HOME + SEQ: the pattern's locks, nudges, fills, motion (asked)");
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 LOCKS?"), "SHIFT + SEQ: the pattern's locks, nudges, fills, motion (asked)");
 #if FELUCCA_MICRO
     step_micro_set(&trk[0], 5, 7);
 #endif
@@ -1694,7 +1753,7 @@ static void combo_tests(void)
 #endif
     trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] + 1);   /* (an edit: INIT asks over edits only, op_edits.c) */
     hold2(B_OCTDN, B_ENV);
-    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV over an edited sound: INIT, asked");
+    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "SHIFT + ENV over an edited sound: INIT, asked");
     tap(B_HOME);
     song.octave = 2;
     hold2(B_OCTDN, B_OCTUP);
@@ -1706,7 +1765,7 @@ static void combo_tests(void)
     frames(2);
     hold2(B_OCTDN, B_PLAY);
     frames(3);
-    check(!song.playing && !strcmp(ui.msg, "ALL SOUND OFF") && ui.scr == SCR_HOME, "HOME + PLAY: stop, every voice off");
+    check(!song.playing && !strcmp(ui.msg, "ALL SOUND OFF") && ui.scr == SCR_HOME, "SHIFT + PLAY: stop, every voice off");
     transport_req = 0;
     reset_ui();
 }
@@ -1782,7 +1841,7 @@ static void song_tests(void)
         ppm("opt-song-scenes");
         tap(B_SAVE);
         check(live_sec == 2, "YES on scene C, stopped: loaded");
-        /* the PATTERNS row: the session grid, the keys launch, SAVE + key stores, HOME + key clears */
+        /* the PATTERNS row: the session grid, the keys launch, SAVE + key stores, SHIFT + key clears */
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PAT, 0);
         frames(2);
         check(ly_lock == LY_PAT && song_on_pat_row(), "PATTERNS row: the keys launch the selected track's patterns");
@@ -1799,7 +1858,7 @@ static void song_tests(void)
         press(B_OCTDN);
         key(WK(5));
         release(B_OCTDN);
-        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "HOME held + key 6: clear slot 6, asked");
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "SHIFT held + key 6: clear slot 6, asked");
         tap(B_SAVE);
         check(!pat_has(0, 5), "... YES: cleared");
         tap(B_REC);
@@ -1810,7 +1869,7 @@ static void song_tests(void)
         press(B_REC);
         release(B_REC);
         release(B_OCTDN);
-        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "HOME + REC on scene C: clear it, asked");
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "SHIFT + REC on scene C: clear it, asked");
         tap(B_SAVE);
         check(!project_used(2) && ui.scr == SCR_SONG, "... YES: cleared");
     }
@@ -1977,12 +2036,12 @@ static void undo_extras_tests(void)
         release(B_OCTDN);
         check(!memcmp(AL(t), &after, sizeof after), "redo: the nudge, fill and lock again, byte for byte");
     }
-    press(B_OCTDN);                                      /* HOME + SEQ: the extras cleared, asked; undone too */
+    press(B_OCTDN);                                      /* SHIFT + SEQ: the extras cleared, asked; undone too */
     press(B_SEQ);
     release(B_SEQ);
     release(B_OCTDN);
     tap(B_SAVE);
-    check(!AL(t)->n, "HOME + SEQ, YES: the extras cleared");
+    check(!AL(t)->n, "SHIFT + SEQ, YES: the extras cleared");
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
@@ -1995,7 +2054,7 @@ static void undo_extras_tests(void)
 #endif
 }
 /* the automation store on STEP (phase 3): YES toggles HOLD of the hot cell's event, the card's mark, the marks under the
- * steps (a dot, a hold's tail), HOME + a step clears its motion too, chance on a drum step (an event) */
+ * steps (a dot, a hold's tail), SHIFT + a step clears its motion too, chance on a drum step (an event) */
 static void auto_step_tests(void)
 {
 #if FELUCCA_AUTO
@@ -2106,7 +2165,7 @@ static void name_tests(void)
     turn(EN_K1, 1);
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
-    check(name_on() && nm.len == 0u, "HOME + a knob: the whole name cleared (NAME stays)");
+    check(name_on() && nm.len == 0u, "SHIFT + a knob: the whole name cleared (NAME stays)");
     name_type(3, 2);                                    /* GH twice: H */
     name_type(4, 1);                                    /* IJK: I */
     check(!strcmp(nm.s, "HI"), "the white keys type phone style: GH twice H, IJK once I");
@@ -2323,7 +2382,7 @@ static void preset_engine_tests(void)
           "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
     turn(EN_PRESET, -1);
     reset_ui();
-    {   /* the list by instrument; HOME held + PRESETS: the next / previous instrument (the user, 2026-10-12) */
+    {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12) */
         uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
         for (i = 1; i < NBANK; i++)
             if (preset_at(i, &k) < preset_at(i - 1u, &k))
@@ -2340,7 +2399,7 @@ static void preset_engine_tests(void)
         e1 = TSEL->eng_req;
         cur = preset_pos(&total);
         check(e1 != e0 && (cur == 0u || preset_at(cur - 1u, &k) != e1),
-              "HOME held + PRESETS: the next instrument, its first sound");
+              "SHIFT held + PRESETS: the next instrument, its first sound");
         turn(EN_PRESET, -1);
         back = TSEL->eng_req;
         release(B_OCTDN);
@@ -2383,6 +2442,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
+#include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
@@ -2406,7 +2466,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_strike.h"                     /* 2026-10-15: a muted track struck through (mixer, header, volume card) */
-#include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, HOME held + a key on the mixer */
+#include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, SHIFT held + a key on the mixer */
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
 #include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs section 2.1) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
@@ -2467,7 +2527,7 @@ static void led_tests(void)
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
-#include "ui_optimist_lfo2.h"                      /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, HOME + a knob, the AMT bar */
+#include "ui_optimist_lfo2.h"                      /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -2480,6 +2540,7 @@ static void led_tests(void)
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
 
+#ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -2504,6 +2565,12 @@ int main(int argc, char **argv)
     go_home();
     frames(3);
     rows_tests();
+#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+    fxpool_tests();
+#endif
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+    usbfx_tests();
+#endif
     key_tests();
     confirm_tests();
     message_tests();
@@ -2545,7 +2612,9 @@ int main(int argc, char **argv)
     algo_inplace_tests();
     knobcol_tests();
     clkout_tests();
+    uasel_tests();
     core_row_tests();
+    overload_tests();
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
@@ -2621,3 +2690,4 @@ int main(int argc, char **argv)
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 }
+#endif

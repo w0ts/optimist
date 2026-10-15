@@ -185,10 +185,10 @@ int main(void)
     /* v10 FX_PUSH (ed_fxs.c): the slots, the COMP settings or a drum sound's insert changed on the device: one frame, the
      * FX (86) reply's bytes with op 0; the editor's own FX writes are known (no push) */
     n0 = nf;
-    fxs_load(1, FXT_REV);                              /* (FX > SLOTS: REV into S2 swaps with CHO) */
+    fxs_load(1, FXT_CHO);                              /* (FX > SLOTS: CHO into R1 swaps with REV) */
     run_ms(ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_NONE &&
-          fr[nf - 1][7] == FXT_REV && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_CHO,
+          fr[nf - 1][7] == FXT_CHO && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_REV,
           "v10 FX_PUSH: a slot loaded on the device (a swap): one frame, op 0, the four slots");
     n0 = nf;
     dins_amt[1][2] = 90;
@@ -201,6 +201,24 @@ int main(void)
           && fr[nf - 1][10] == 5u
 #endif
           , "v10 FX_PUSH: a drum sound's COMP and the COMP's RATIO: pushed (sounds' DIST x 16, then COMP x 16)");
+    {   /* INFO tag 0x56 (ed_fx_info): every type built is listed once, its SOUND 3 value id the fx_slots.c lane id (127 none: the inserts) */
+        uint32_t t, i, n, ok = 1, seen = 0;
+        ed_begin(ED_FX);
+        ed_fx_info();
+        n = ed_out[8];
+        ok = ed_out[5] == 0x56u && ed_out[7] == 1u && n == (uint32_t)__builtin_popcount((unsigned)(FXT_BUILT & ~1u));
+        for (i = 0; ok && i < n; i++) {
+            const uint8_t *e = &ed_out[9u + 4u * i];
+            uint32_t want = e[0] == FXT_CHO ? 18u : e[0] == FXT_DLY ? 17u : e[0] == FXT_REV ? 16u : e[0] == FXT_COMP ? 20u :
+                            e[0] == FXT_DIST ? (FELUCCA_FX_DIST ? 19u : 127u) : 127u;
+            ok = e[0] < FXT_N && (FXT_BUILT >> e[0] & 1u) && e[3] == want && e[3] == ED_FX_LID[e[0]] && !(seen >> e[0] & 1u);
+            seen |= 1u << e[0];
+        }
+        for (t = 1; t < FXT_N; t++)   /* (every type, built or not: JUNO CHORUS, type 17, is 127 like the other inserts) */
+            ok = ok && ED_FX_LID[t] == (t == FXT_CHO ? 18u : t == FXT_DLY ? 17u : t == FXT_REV ? 16u : t == FXT_COMP ? 20u : t == FXT_DIST ? 19u : 127u)
+                     && ((seen >> t & 1u) == (FXT_BUILT >> t & 1u));
+        check(ok, "v10 INFO tag 0x56: the types built, each with its SOUND 3 value id (JUNO and the other inserts 127, not 0)");
+    }
     n0 = nf;
     {
         static const uint8_t SL[] = {1, FXT_REV, FXT_REV, FXT_DLY, 99}, IN[] = {3, 4, 0, 77}, BAD[] = {3, 16, 0, 1}, OP[] = {9};

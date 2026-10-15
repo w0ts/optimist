@@ -87,6 +87,9 @@ static uint8_t midi_in_unread;
 #endif
 #define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
 enum { MSRC_USB = 1, MSRC_TRS = 2 };                    /* = G_SYNC USB / TRS */
+#ifndef OVL_LOST
+#define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
+#endif
 static uint32_t midi_in_t[MQ];
 static uint8_t midi_in_src[MQ];
 static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
@@ -122,8 +125,10 @@ static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
 #endif
     }
     if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
-        (cin == 3u && st == 0xF2u))
-        midi_in_enqueue(pkt, MSRC_USB, t);
+        (cin == 3u && st == 0xF2u)) {
+        if (!midi_in_enqueue(pkt, MSRC_USB, t) && !midi_in_unread)
+            OVL_LOST(OVL_MIDI_USB);              /* (the ring full: lost; INFO's UNDERRUNS, system/overload.h) */
+    }
 }
 
 /* MIDI clock out (io/midi/clock_out.c, FELUCCA_MIDI_CLKOUT): USB-MIDI packets (F8, FA, FB, FC: CIN F; F2: CIN 3),
@@ -182,8 +187,9 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 /* ------------------------------------------------------- descriptors --- */
 #if FELUCCA_USB_AUDIO
 #include "usb_audio_stream.c"
-static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x10, 0x03,
-                                     1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.10: SLOOP audio */
+#include "usb_audio_route.c"                            /* the capture channels' sources (SYSTEM > USB AUDIO) */
+static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x11, 0x03,
+                                     1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.11: audio, capture channels named (hosts re-read it) */
 static const uint8_t CFG_DESC[411] = {
     9, 2, 0x9B, 0x01, 6, 1, 0, 0x80, 50,               /* 411 bytes, six interfaces */
     8, 0x0B, 0, 2, 1, 1, 0, 0,                          /* IAD: MIDI (IF 0-1) */
@@ -268,6 +274,10 @@ static const uint8_t STR2[] = {38, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i
 #if FELUCCA_USB_AUDIO                                   /* the audio functions: host device names */
 static const uint8_t STR3[] = {26, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'O', 0, 'u', 0, 't', 0};
 static const uint8_t STR4[] = {24, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'I', 0, 'n', 0};
+/* the capture channels' names (the recording input terminal's iChannelNames: 5..8), "CH1".."CH4": what each carries is
+ * the SYSTEM > USB AUDIO setting, which a host never re-reads */
+static const uint8_t STR_CH[4][8] = {{8, 3, 'C', 0, 'H', 0, '1', 0}, {8, 3, 'C', 0, 'H', 0, '2', 0},
+                                     {8, 3, 'C', 0, 'H', 0, '3', 0}, {8, 3, 'C', 0, 'H', 0, '4', 0}};
 #endif
 
 static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
@@ -313,6 +323,10 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
         case 4:
             *d = STR4;
             *l = sizeof STR4;
+            return 1;
+        case 5: case 6: case 7: case 8:
+            *d = STR_CH[(wvalue & 0xFFu) - 5u];
+            *l = sizeof STR_CH[0];
             return 1;
 #endif
         default:

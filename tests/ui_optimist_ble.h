@@ -67,7 +67,7 @@ static void ble_word_tests(void)
     bp23_from_word(0);
 }
 /* ---- the BLE devices list (SYSTEM > BLUETOOTH, YES on the BLE row): NONE and LAST pinned at the top, the nearby
- * BLE-MIDI devices with signal bars, no wrap; SAVE picks / connects, HOME goes back, SELECT moves, HOME + a button asks
+ * BLE-MIDI devices with signal bars, no wrap; SAVE picks / connects, HOME goes back, SELECT moves, SHIFT + a button asks
  * FORGET LAST (the modal); the states of the SLOOP screen (Connecting, Pairing with the code, Connected, Failed). The
  * rows, the tags and the status line are io/midi/ble_devices.c's (shared; tests/menu_ui.c tests them in SLOOP's menu). */
 static void dev_screen(const char *name) { ui.force = 1; frames(3); ppm(name); }
@@ -244,14 +244,14 @@ static void ble_dev_tests(void)
     check(bdp.tone == BDL_BAD && px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_ERR) &&
               !px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_AMB),
           "devices: a failure is red (C_ERR), not the palette's grey");
-    /* HOME + a button: FORGET LAST, the modal */
+    /* SHIFT + a button: FORGET LAST, the modal */
     press(B_OCTDN);
     press(B_EDIT);
     release(B_EDIT);
     release(B_OCTDN);
     frames(2);
     check(dev_listing() && ui.arm_scr == SCR_SYSTEM && !strcmp(ui.arm_verb, "FORGET?") && !strcmp(ui.arm_arg, "KeyStep 37") &&
-          ble_store_has_last(&ble_store), "devices: HOME + a button asks FORGET LAST? (the modal names it), nothing forgotten yet");
+          ble_store_has_last(&ble_store), "devices: SHIFT + a button asks FORGET LAST? (the modal names it), nothing forgotten yet");
     dev_screen("opt-ble-devices-forget");
     {
         char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
@@ -266,7 +266,7 @@ static void ble_dev_tests(void)
         press(B_ENV);
         release(B_ENV);
         release(B_OCTDN);
-        check(ui.arm_scr == SCR_SYSTEM && ui.arm_ms == t0, "devices: HOME + a button while asked does not ask again (the 3 s run on)");
+        check(ui.arm_scr == SCR_SYSTEM && ui.arm_ms == t0, "devices: SHIFT + a button while asked does not ask again (the 3 s run on)");
     }
     tap(B_HOME);
     check(dev_listing() && ui.arm_scr == ARM_NONE && ble_store_has_last(&ble_store), "devices: HOME says no: still the list, LAST kept");
@@ -283,7 +283,7 @@ static void ble_dev_tests(void)
     press(B_EDIT);
     release(B_EDIT);
     release(B_OCTDN);
-    check(ui.arm_scr == ARM_NONE, "devices: HOME + a button with no LAST asks nothing");
+    check(ui.arm_scr == ARM_NONE, "devices: SHIFT + a button with no LAST asks nothing");
     ble_store_set_last(&ble_store, ble_found.e[0].addr, ble_found.e[0].addr_rand, "KeyStep 37", BLE_KIND_MIDI);
     ble_store_select(&ble_store, BLE_SEL_NONE);
     frames(2);

@@ -509,9 +509,14 @@ display the info about the item"; "NEW is just clearing what is in memory and cr
 
 ### 4.7 SYSTEM
 
-**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31: CLOCK, the loads, the memory, read-outs; first)**, SCREEN (COLOR BRIGHT -
-KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
-the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31; section 38: CLOCK, the CPU, DROPS, UNDERRUNS, GUARD, the battery; first), INTERNALS, USB STATS (section 38)**, SCREEN (COLOR BRIGHT -
+KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, USB AUDIO (CH1 CH2 CH3 CH4), CALIBRATE (PANEL, HOLD), ABOUT:
+the setup. **USB AUDIO** (USB audio builds, 2026-10-15, the user: "four lines that allow to select the source for each of
+the 4 channels"): one line a capture channel, its source as text (no bar): OFF, MAIN L, MAIN R, MAIN L+R,
+T1, T2, T3, DRUMS, DRUM BUS L, DRUM BUS R, DRUM BUS L+R, DR1..DR16 (L+R: (L + R) / 2, each side x 0.5, -6.02 dB:
+never clips, a mono signal keeps its level; no -3 dB choice, the user 2026-10-15); the knob walks the list (stops at the
+ends), YES steps it round, OCT- held + the knob its default (T1 T2 T3 DRUMS, the stems as before). Where each is taken:
+io/usb/ua_tap.h; kept in the settings record. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
@@ -2526,7 +2531,7 @@ drum sounds' own DST and CMP are always heard (D7).
 | SOUND > FX: **INSERTS** | S1 TYPE · S1's amount · S2 TYPE · S2's amount | the amount's card is labelled by its type (DST FILT CMP), the knob's frame alone for an empty slot; a TYPE card lists EMPTY (dim) and the inserts built; the needles show the amounts; no reset (YES) and no lock on a TYPE card |
 | SOUND > FX: **CMP** | RATIO · ATK · REL, the selected track's | a row only while one of the track's slots holds the COMP; the master COMP's value lists |
 | SOUND > FX: **GATER** (INS_GATER, 2026-10-14) | DEPTH (the amount INSERTS calls GATER) · PAT (16 names: 16TH 8TH 4TH HALF OFF8 OFF16 DOT8 DOT4 TRNC1-4 GALOP RVGAL CLAVE TRESL) · RATE (a division, 1/8 .. 32T) · SHAPE | after CMP, before SENDS; a row only while one of the track's slots holds the GATER (the drum track's too: it gates the drum bus); remembered with its FX family like any row; the picture alone under the cards: the pattern's 16 steps as a strip, the gate's gain under it (DEPTH, SHAPE's ramps), the step the gate is at in white (none at DEPTH 0, drawn dim); the SLOOP UI shows the same page and picture (shared PAGES) |
-| SOUND > FX: **SENDS** (was FX) | the master sends in their slots' order (CHO DLY REV) | on the drum track: its send **levels** REV DLY CHO, 0..100 %, 100 % by default, each lane's send of that bus scaled by it (the user: "the main drum track as fx: on/off, not the normal send levels ... it should be like any other track") |
+| SOUND > FX: **SENDS** (was FX) | card k is return R(k+1)'s send, REV DLY CHO by default (2026-10-15, the user: "match the order between master return and the send": every sends set, the mixer's returns and RETURNS follow R1 R2 R3; an empty return: a blank card) | on the drum track: its send **levels**, in the same order, 0..100 %, 100 % by default, each lane's send of that bus scaled by it (the user: "the main drum track as fx: on/off, not the normal send levels ... it should be like any other track") |
 | SOUND > FX: **BUS SENDS** | the drum bus's own sends (its mid, after its inserts) | the drum track only |
 | the mixer | a track's INS set: S1 TYPE · amount · S2 TYPE · amount; DR the same, then its send levels; a lane DRIVE DST CMP | the COMP meter follows the row's slots |
 | FX + KNOB 4 (TRK FLT) | the track's FILTER amount | "FILT: NO SLOT" when none of the track's slots holds the FILTER |
@@ -2534,7 +2539,7 @@ drum sounds' own DST and CMP are always heard (D7).
 
 Old projects and SLOOP 2.4 imports map onto the slots with the same sound (fx_rec.c ins_map); the one difference is the
 SLICER moving before DIST (2.9 ms ramps, golden slicer/song_gate_stut). The SLOOP UI keeps its FX page (K1 S1's amount,
-K2..K4 the master sends: DST CHO DLY REV by default) and gets INSERTS; its own redesign (design phase 4) is left.
+K2..K4 the master sends in their slots' order: DST REV DLY CHO by default) and gets INSERTS; its own redesign (design phase 4) is left.
 Tests: tests/ui_optimist_inslots.h, ui_optimist_mixer.h; tests/fx_slots_test.c (the model, the audio, the record).
 
 ### Limited insert types: CHRS and ECHO (feat/fx-instances-ui, 2026-10-13)
@@ -3210,3 +3215,31 @@ clears it (left), toast "FAV + NAME" / "FAV - NAME"; **SHIFT2 + SELECT** browses
 (left); a PRESETS toast puts a star after a favorite's name; **PROJECT > USER: SHIFT2 + the ITEM knob** marks the slot (a star after its
 name in the info). SHIFT + PRESETS is still the engine step. INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE. The store and the
 list filter are unchanged; the drum track has no mark.
+
+## 38. Overload monitor; INFO split in three (feat/overload-monitor, 2026-10-15)
+
+The user: "we should have actually a MAX of the last few seconds and a DROP-OUT DETECTOR"; "the second encoder should switch
+between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"; "the 1st system screen would gain
+to be split in two pages with easier-to-read text" (three pages are fine).
+
+- **INFO** (SYSTEM 1/n), what a musician reads, text only: CLOCK; the CPU line (`LOAD`, `CPU0` in DUAL builds): KNOB 2 turns its
+  measure NOW (the smoothed load) -> MAX 5S (the longest audio half of the last ~5 s, its wait for the interrupt included) -> MAX
+  (since boot or the last clear), round; the label says which (`CPU0 MAX 5S`); % of a half, over 100 when a half ran late, in the
+  load colours. The 2ND CORE line follows the same measure while the core is up (`CPU1 MAX 5S`). DROPS: late audio halves (gaps in
+  the sound), green 0, red when one came in the last 5 s, else amber. UNDERRUNS: everything else lost (USB audio's playback / capture
+  under- and overruns and missed frames, MIDI in that found its ring full: USB, TRS, BLE), the total and, dim, where ("USB3
+  MIDI1"). GUARD (CPU_GUARD builds): the guard's level (OFF, QUALITY, UNISON, REVERB, NOTES), `MAX n` while it caps the voices,
+  `-n` the voices shed. BATTERY.
+- **SHIFT + YES on INFO** clears what the page shows: DROPS, UNDERRUNS, the MAX, the voices shed (display baselines; the
+  counters go on, the console reads them since boot). On INFO it takes the place of the redo chord.
+- **The header's rule** (its bottom line, 2 px) turns red for ~1 s after a drop-out and amber after another underrun, on every page.
+- **INTERNALS** (2/n): LAST RESET, FLASH IRQS OFF (the longest interrupts-off window of a flash operation; amber past an audio half),
+  and in DUAL builds CPU1 JOBS DONE, CPU1 RE-WAKES, CPU1 LAST STOP (NEVER | `<t> IDLE` | `<t> NOT TAKEN` | `<t> IN JOB n`, unit the
+  job's index), CPU1 GOT TO (how far it got), CPU1 HEARTBEAT (unit: its wakes), CPU1 FAULT (NONE, or the code and the pc).
+- **USB STATS** (3/n, USB audio builds): USB UNDERRUNS, USB OVERRUNS, MISSED FRAMES, BAD PACKETS, PACKETS IN, RATE ASKED (Hz, the
+  feedback to the computer), LOWEST BUFFER (frames), LONGEST GAP (us between USB polls), GAPS > 0.9 MS. One value a line, words
+  and units, no `a/b/c` values (before: `UA U/O/M/B`, `k/n`).
+- Row names keep to 9 characters (rows_ok), so the pages are INTERNALS and USB STATS (not "Second core" / "Diagnostics").
+- Code: system/overload.h (the ISR's two stores a half, the per-second maxima rings for CPU0 and CPU1, the MIDI loss counters),
+  op_project.c (the cells, info_cell's pages), op_gldraw.c (the pages drawn whole), op_global.c (KNOB 2, SHIFT + YES), op_draw.c
+  (the rule). Tests: ui_optimist_core.h overload_tests, glo / glwalk / glstyle updated. The guard's side: docs/CPU-GUARD.md "Spikes".

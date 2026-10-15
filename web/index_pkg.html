@@ -6,17 +6,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Optimist installer</title>
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
 <style>
   :root { --bg: #000; --fg: #f2f2f2; --dim: #8a8a92; --tile: #16161a; --line: #2a2a30;
-          --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; }
-  :root[data-theme="light"] { --bg: #f4f4f2; --fg: #111; --dim: #666; --tile: #e6e6e2; --line: #d0d0cc; }
+          --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; --on: #000; color-scheme: dark; }
+  @media (prefers-color-scheme: light) {   /* follows the system, live; no switch */
+    :root { --bg: #f4f4f2; --fg: #14141a; --dim: #5e5e66; --tile: #e6e6e2; --line: #d0d0cc;
+            --blue: #1f62d6; --green: #17803f; --yellow: #a56a00; --orange: #c8400a; --red: #c42a30; --on: #fff; color-scheme: light; }
+  }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 15px/1.6 "Helvetica Neue", -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
   main { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .logo svg { display: block; width: 220px; height: auto; }
-  .logo rect:first-child { fill: transparent; }
+  .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--fg); text-decoration: none; }
+  .brand svg { display: block; width: 44px; height: 44px; }
+  .brand b { font-size: 26px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+  .dim { color: var(--dim); }
   .strip { display: flex; height: 4px; margin: 20px 0 24px; }
   .strip i { flex: 1; } .strip i:nth-child(1) { background: var(--blue); } .strip i:nth-child(2) { background: var(--green); }
   .strip i:nth-child(3) { background: var(--yellow); } .strip i:nth-child(4) { background: var(--orange); }
@@ -27,7 +36,7 @@
   .tile b { display: block; font-size: 22px; font-weight: 600; color: var(--c); line-height: 1.1; }
   .tile span { display: block; font-size: 12px; color: var(--dim); text-transform: lowercase; margin-top: 4px; }
   p { margin: 0 0 14px; }
-  button#go { font: 600 15px/1 inherit; font-family: inherit; background: var(--orange); color: #000; border: 0;
+  button#go { font: 600 15px/1 inherit; font-family: inherit; background: var(--orange); color: var(--on); border: 0;
               padding: 16px 0; width: 100%; cursor: pointer; letter-spacing: .08em; text-transform: uppercase; }
   button#go:disabled { background: var(--tile); color: var(--dim); cursor: default; }
   #status { margin-top: 14px; min-height: 1.6em; font-variant-numeric: tabular-nums; }
@@ -40,12 +49,12 @@
   pre { color: var(--dim); font-size: 11px; white-space: pre-wrap; margin-top: 12px; max-height: 160px; overflow: auto; }
   hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 18px; }
   .ed { display: inline-block; margin: 8px 0 0; padding: 10px 14px; background: var(--tile); text-decoration: none; }
-  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } .logo svg { width: 170px; } }
+  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
 <main>
-  <div class="top"><div class="logo"><!--LOGO--></div></div>
+  <div class="top"><a class="brand" href="../../" title="Optimist"><!--LOGO--><b>Optimist</b></a></div>
   <div class="strip"><i></i><i></i><i></i><i></i></div>
   <!--STUDIO_GUIDE-->
   <h1>Firmware for the M-VAVE FM-1</h1>
@@ -58,6 +67,8 @@
   </div>
   <p data-t="intro"></p>
   <p data-t="warn"></p>
+  <p><select id="pkgsel" hidden aria-label="Firmware"></select></p>
+  <p id="pkgdesc" class="dim"></p>
   <p><button id="go" disabled data-t="install"></button></p>
   <progress id="bar" max="100" value="0"></progress>
   <p id="status"></p>
@@ -131,13 +142,16 @@ const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textCont
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
-const meta = /*META*/;
+const site = /*META*/;                              /* { version, packages: [{ id, title, description, pkg, product, sha256 }] } */
+let meta = site.packages[0];
 
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
 
-(async () => {
-  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+async function loadPkg() {
+  image = null;
+  $("go").disabled = true;
+  $("pkgdesc").textContent = meta.description || "";
   try {
     const r = await fetch(meta.pkg);
     if (!r.ok) throw new Error(`${meta.pkg}: HTTP ${r.status}`);
@@ -148,9 +162,18 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
       if (h !== meta.sha256) { sayK("badpkg"); log(`sha256 ${h}, expected ${meta.sha256}`); return; }
     }
     image = logicalImage(pkg);
-    say(`Optimist ${meta.version}`);
+    say(`${meta.title} ${site.version}`);
     $("go").disabled = false;
   } catch (e) { sayK("loadfail", e.message); }
+}
+
+(() => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  const sel = $("pkgsel");
+  site.packages.forEach((p, i) => sel.add(new Option(p.title, String(i))));
+  sel.hidden = site.packages.length < 2;               /* one package: nothing to choose */
+  sel.onchange = () => { meta = site.packages[Number(sel.value)]; loadPkg(); };
+  loadPkg();
 })();
 
 function progress(total) {                          /* the reads of step 1 (74), then of step 2 */

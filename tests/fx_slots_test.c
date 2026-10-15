@@ -87,9 +87,12 @@ static int ins_dflt(void) { return !memcmp(ins_slot, INS_D, sizeof INS_D); }
 /* ---- the master slots: the sends */
 static void t_layout(void)
 {
-    check("the default: ---- CHO DLY REV, the three sends heard, SENDS' ids P_CHOR P_DLY P_REV in slot order",
-          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == 0xFFu &&
-          fxs_send_amt(0) == P_CHOR && fxs_send_amt(1) == P_DLY && fxs_send_amt(2) == P_REV && fxs_send_amt(3) == 0xFFu);
+    check("the default: ---- REV DLY CHO (the one order), the three sends heard, SENDS' ids P_REV P_DLY P_CHOR in slot "
+          "order, the cards R1 R2 R3 REV DLY CHO",
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == 0xFFu &&
+          fxs_send_amt(0) == P_REV && fxs_send_amt(1) == P_DLY && fxs_send_amt(2) == P_CHOR && fxs_send_amt(3) == 0xFFu &&
+          fxs_card(0) == FXT_REV && fxs_card(1) == FXT_DLY && fxs_card(2) == FXT_CHO && fxs_card(3) == FXT_NONE &&
+          fxs_line[1] == 2u && fxs_line[2] == 1u && fxs_line[3] == 0u && fxs_rsl[0] == 3u && fxs_rsl[1] == 2u && fxs_rsl[2] == 1u);
     layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_REV);
     check("a type a second time: its slot empty (one instance per type)",
           is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_NONE) && fxs_live == (FXT_BIT(FXT_REV) | FXT_BIT(FXT_DLY)) &&
@@ -100,15 +103,25 @@ static void t_layout(void)
           fxs_live == FXT_BIT(FXT_CHO) && fxs_lm[0] == 0u);
     fxs_set(FXS_DEF);
     fxs_load(0, FXT_DIST);
-    check("FX > SLOTS: an insert refused", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    check("FX > SLOTS: an insert refused", is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
     fxs_load(0, FXT_REV);
-    check("the master's 3 returns (fx-rework): slot 0 takes no send", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
-    fxs_load(1, FXT_REV);
-    check("... REV into R1 swaps with R3 (nothing lost), SENDS follow the order (REV DLY CHO)",
-          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && fxs_send_amt(0) == P_REV && fxs_send_amt(2) == P_CHOR);
+    check("the master's 3 returns (fx-rework): slot 0 takes no send", is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
+    fxs_load(1, FXT_CHO);
+    check("... CHO into R1 swaps with R3 (nothing lost), the SENDS cards follow the returns (CHO DLY REV)",
+          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && fxs_send_amt(0) == P_CHOR && fxs_send_amt(2) == P_REV &&
+          fxs_card(0) == FXT_CHO && fxs_card(2) == FXT_REV);
+    fxs_load(3, FXT_NONE);
+    check("... R3 emptied: its card blank, the others in place", fxs_card(0) == FXT_CHO && fxs_card(1) == FXT_DLY &&
+          fxs_card(2) == FXT_NONE && !FXS_ON(FXT_REV));
     layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_CHO);
-    check("... an old layout's send in slot 0: into the first empty return (REV on R1)",
+    check("... a layout's send in slot 0: into the first empty return (REV on R1)",
           is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && FXS_ON(FXT_REV));
+    {   /* FX > SLOTS lists ---- and the sends in the one order first */
+        int16_t *v;
+        const param_desc_t *d = fxs_desc(1, &v);
+        check("FX > SLOTS: ---- REV DLY CHO first, R1's value REV", d && fxs_list[0] == FXT_NONE && fxs_list[1] == FXT_REV &&
+              fxs_list[2] == FXT_DLY && fxs_list[3] == FXT_CHO && *v == 1);
+    }
     fxs_set(FXS_DEF);
 }
 
@@ -150,9 +163,10 @@ static void t_ins(void)
     check("INSERTS' TYPE: a list of ---- and the inserts built, named by their amounts (DST FILT CMP), at the slot's", ok);
     d = fxs_desc(0, &v);
     ok = d == &FXS_DESC[0];
-    for (k = 1; k < FXS_NLIST; k++)
-        ok &= FXT_SEND_OK(fxs_list[k]);
-    check("FX > SLOTS' list: ---- and the sends only", ok && FXS_NLIST == 1 + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB);
+    for (k = 1; k <= (uint32_t)d->max; k++)
+        ok &= FXT_SEND_OK(fxs_list[k]) || (RT_OK >> fxs_list[k] & 1u);
+    check("FX > SLOTS' list (fx-pool): ----, the sends and every type a return may hold (no GATER)",
+          ok && d->max == FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB + __builtin_popcount(RT_OK));
     song.sel = 0;
 }
 
@@ -656,9 +670,9 @@ static void t_dins(void)
 #endif
     /* SOUND 3: DST, then the sends in the master slots' order, then CMP while there is room */
     fxs_set(FXS_DEF);
-    check("SOUND 3 in the default layout: DST CHO DLY REV (value ids 19 18 17 16: SLOOP's page as it was)",
-          fxs_lane_id(0) == (FELUCCA_FX_DIST ? 19u : 18u) && (!FELUCCA_FX_DIST || (fxs_lane_id(1) == 18u &&
-          fxs_lane_id(2) == 17u && fxs_lane_id(3) == 16u)));
+    check("SOUND 3 in the default layout: DST REV DLY CHO (value ids 19 16 17 18: the returns' order)",
+          fxs_lane_id(0) == (FELUCCA_FX_DIST ? 19u : 16u) && (!FELUCCA_FX_DIST || (fxs_lane_id(1) == 16u &&
+          fxs_lane_id(2) == 17u && fxs_lane_id(3) == 18u)));
     layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
     check("... REV the only send: DST REV CMP (the cells follow)", !FELUCCA_FX_DIST || (fxs_lane_id(0) == 19u &&
           fxs_lane_id(1) == 16u && fxs_lane_id(2) == (FELUCCA_MASTER_COMP ? 20u : 0xFFu)));
@@ -804,9 +818,9 @@ static void t_record(void)
     c[n] = 77, c[n + 1u] = 3, c[n + 2u] = c[n + 3u] = c[n + 4u] = 9;   /* (a later firmware's type) */
     check("an unknown TLV: skipped, the layout read", fxr_decode(c, n + 5u, 1) && is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_DLY));
     check("a TLV cut short: refused, the defaults (a record-less project's)", !fxr_decode(c, n + 3u, 1) &&
-          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && ins_dflt());
     c[0] = 2;
-    check("a newer version: ignored as a whole, the defaults", !fxr_decode(c, n, 1) && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    check("a newer version: ignored as a whole, the defaults", !fxr_decode(c, n, 1) && is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
     fxs_set(FXS_DEF);
 }
 
@@ -845,7 +859,7 @@ static void t_stores(void)
     ins_all(X);
     project_load(4);
     check("a section in the default layout: no FX record; loading it gives the defaults", ok &&
-          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && ins_dflt());
     tracks(1);
     layout(FXT_CHO, FXT_NONE, FXT_NONE, FXT_NONE);
     project_save(3);
@@ -854,7 +868,7 @@ static void t_stores(void)
     ok = !slg_has(FXR_ID0 + 3);
     layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
     project_load(3);
-    check("D saved again in the default layout: its record cleared, D loads the default", ok && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    check("D saved again in the default layout: its record cleared, D loads the default", ok && is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
     tracks(7);
     layout(FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE);
     project_save(5);
@@ -866,7 +880,7 @@ static void t_stores(void)
         layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
         project_load(5);
         check("F's section record replaced without its FX record: the default, never another version's",
-              is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+              is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
     }
     tracks(10);
     layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE);
@@ -894,7 +908,7 @@ static void t_stores(void)
     ok = section_cue(12);
     arrangement_apply(12);
     check("a live jump to M (a song section): the layout and the slots playing stay (the project's)", ok &&
-          is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && ins_dflt());
     {   /* the autosave's: id FXR_ID_AUTO, keyed by its project's sum */
         static project_t as;
         static dlrec_t ad;
@@ -912,12 +926,12 @@ static void t_stores(void)
         fxr_log_get(FXR_ID_AUTO, as.sum ^ 1u, &as);     /* another project's key: none */
         proj_apply(&as, &ad, 1);
         check("the autosave's FX record: written beside it, read back with it; another key: the defaults",
-              ok && is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
+              ok && is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && ins_dflt());
         layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
         ins_all(X);
         fxr_for(&as, 1)->psum = 0;                      /* (an old project: nothing bound to it) */
         proj_apply(&as, &ad, 1);
-        check("an old project (no FX record): the default layout, the default slots", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) &&
+        check("an old project (no FX record): the default layout, the default slots", is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) &&
               ins_dflt());
     }
     slg_boot();
@@ -958,8 +972,8 @@ static void t_master(void)
     mst_defaults();
     d = fxs_desc(FXS_ID_MST, &v);
     for (i = 0, ok = d != 0; d && i <= (uint32_t)d->max; i++)
-        ok &= mst_list[i] != FXT_CHRS && mst_list[i] != FXT_ECHO && mst_list[i] != FXT_GATE;
-    check("the master's TYPE list: ---- and the inserts built but CHRS ECHO GATER; S1's entry FILT", ok &&
+        ok &= mst_list[i] != FXT_GATE;                  /* (fx-pool: CHRS ECHO on the master too, an instance of the pool) */
+    check("the master's TYPE list: ---- and the inserts built but GATER; S1's entry FILT", ok &&
           (!TFLT_ON || mst_list[*v] == FXT_FILT));
 #if FELUCCA_MASTER_COMP
     d = fxs_desc(FXS_ID_MST + 2u + (mst_slot[0] != FXT_DYN), &v);
@@ -1234,7 +1248,7 @@ static void t_usb(void)
     check("... FX off: no send, dry", ok);
     ut.v[UTV_FXON] = 1, ut.v[UTV_REV] = 0;
     ut_block(9), ut_block(9);
-    d = ut_desc(8, &v);
+    d = ut_desc(UT_ID_TY, &v);
     for (i = 0; d && i <= (uint32_t)d->max && ut_list[i] != (FELUCCA_FX_DIST ? FXT_DIST : FXT_DYN); i++)
         ;
     ut_load(0, ut_list[i]);
@@ -1242,7 +1256,7 @@ static void t_usb(void)
     ut_block(9), ut_block(9);
     for (i = 0, ok = 0; i < CTL; i++)
         ok |= mix_l[i] != host_ua_l[i];
-    check("... S1 DIST (or DYN) at 100: heard on the input (both sides through the kernel)", ok && ut_desc(10, &v) && v == &ut.amt[0]);
+    check("... S1 DIST (or DYN) at 100: heard on the input (both sides through the kernel)", ok && ut_desc(UT_ID_AMT, &v) && v == &ut.amt[0]);
     n = fxr_encode(b);
     ut_defaults();
     check("the record: UT_TLV, the input's values and slots back with a load", fxr_decode(b, n, 1) && ut.amt[0] == 100 &&
@@ -1254,6 +1268,150 @@ static void t_usb(void)
     for (i = 0, ok = 1; i < CTL; i++)
         ok &= !mix_l[i] && !mix_r[i];
     check("no stream: nothing mixed", ok);
+}
+/* 2026-10-15 ("any FX insert on the USB IN track, like any other track"): every insert type a track's slot takes, on the
+ * input's S1 and S2: it loads, it changes both sides (WIDE: its side into L only, as on the master), at its neutral amount
+ * (EQ3: flat) it lets go to the dry input bit for bit, and the record brings it back; a pooled type with no instance free:
+ * FULL, dry */
+static int32_t ut_dl[CTL], ut_dr[CTL];                  /* (the dry input of the last ut_xblock) */
+static void ut_xblock(uint32_t seed)                    /* a louder input (-6 dBFS: DYN acts), the buses cleared, ut_mix */
+{
+    uint32_t i;
+    for (i = 0; i < CTL; i++) {
+        host_ua_l[i] = ut_dl[i] = (int32_t)(((seed * 2654435761u + i * 40503u) >> 18) & 0x3FFFu) * 2 - 16384;
+        host_ua_r[i] = ut_dr[i] = (int32_t)((i * 997u + seed * 131u) % 12000u) * 2 - 12000;
+        mix_l[i] = mix_r[i] = send_c[i] = send_d[i] = send_r[i] = 0;
+    }
+    ut_mix(CTL);
+}
+static void ut_poll(void)
+{
+#if INS_LIM
+    uint32_t k;
+    for (k = 0; k < 4u; k++)
+        fxi_poll();
+#endif
+}
+static int16_t ut_on_amt(uint32_t t)                    /* a type's amount that is heard */
+{
+    return t == FXT_EQ3 ? 1 : t == FXT_FILT ? 50 : t == FXT_GATE || t == FXT_JUNO ? 127 : 100;
+}
+static void t_usb_types(void)
+{
+    uint8_t b[FXR_MAX];
+    uint32_t t, s, k, i, n, nt = 0, okl = 1, okr = 1, okb = 1, okt = 1, oke = 1;
+    char why[96] = "";
+    host_ua_on = 1;
+    fxs_set(FXS_DEF);
+    ins_defaults();
+    clk_blk = CTL * 240u;                               /* (stopped at 240 BPM: GATER runs on at the tempo) */
+    check("the USB input's slots take every insert type a track's do", UT_OK == (FXT_BUILT & FXT_INSERT));
+    for (t = 1; t < FXT_N; t++) {
+        if (!(UT_OK >> t & 1u))
+            continue;
+        nt++;
+        for (s = 0; s < INS_N; s++) {
+            uint32_t dl = 0, dr = 0, same = 1;
+            ut_defaults();
+#if FELUCCA_INS_EQ3
+            eq3_defaults();
+#endif
+            ut_load(s, t);
+            ut_poll();
+            okt &= ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE && ut_has(t) == s + 1u;
+            ut.amt[s] = ut_on_amt(t);
+#if FELUCCA_INS_EQ3
+            eq3_v[NTRK + 1u][EQV_LO] = -20, eq3_v[NTRK + 1u][EQV_HI] = 6;   /* (the input's own bands) */
+#endif
+            ut.v[UTV_GPAT] = 1, ut.v[UTV_GRATE] = 2;     /* (GATER: 8TH at 1/32, closes within a few blocks) */
+            for (k = 0; k < 400u; k++) {
+                ut_xblock(k);
+                for (i = 0; i < CTL; i++)
+                    dl |= mix_l[i] != ut_dl[i], dr |= mix_r[i] != ut_dr[i];
+            }
+            okl &= dl;
+            okr &= dr || t == FXT_WIDE;
+            if (!dl || (!dr && t != FXT_WIDE))
+                snprintf(why, sizeof why, "type %u slot %u: L %u R %u", t, s, dl, dr), printf("  (%s)\n", why);
+            ut.amt[s] = t == FXT_EQ3 ? 1 : 0;             /* (neutral: EQ3 ON but flat below) */
+#if FELUCCA_INS_EQ3
+            eq3_v[NTRK + 1u][EQV_LO] = eq3_v[NTRK + 1u][EQV_HI] = 0;
+#endif
+            for (k = 0; k < (t == FXT_DYN ? 4000u : 200u); k++)   /* (DYN: its AUTO release's slow envelope, seconds) */
+                ut_xblock(1000u + k);
+            for (k = 0; k < 8u; k++) {
+                ut_xblock(2000u + k);
+                for (i = 0; i < CTL; i++)
+                    same &= mix_l[i] == ut_dl[i] && mix_r[i] == ut_dr[i];
+            }
+            okb &= same;
+            if (!same)
+                snprintf(why, sizeof why, "type %u slot %u: not dry at its neutral amount", t, s), printf("  (%s)\n", why);
+            /* the record: the type, its amount, the input's own GATER / JUNO values, its EQ3 bands */
+            ut.amt[s] = ut_on_amt(t) - 3;
+            ut.v[UTV_GPAT] = 12, ut.v[UTV_GRATE] = 4, ut.v[UTV_GSHP] = 77, ut.v[UTV_JMODE] = 2;
+            if (t == FXT_EQ3)
+                ut.amt[s] = 1;
+#if FELUCCA_INS_EQ3
+            eq3_v[NTRK + 1u][EQV_MID] = -31, eq3_v[NTRK + 1u][EQV_FH] = 40;
+#endif
+            n = fxr_encode(b);
+            ut_defaults();
+#if FELUCCA_INS_EQ3
+            eq3_defaults();
+#endif
+            k = fxr_decode(b, n, 1) && ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE &&
+                ut.amt[s] == (t == FXT_EQ3 ? 1 : ut_on_amt(t) - 3) && ut.v[UTV_GPAT] == 12 && ut.v[UTV_GRATE] == 4 &&
+                ut.v[UTV_GSHP] == 77 && ut.v[UTV_JMODE] == 2;
+#if FELUCCA_INS_EQ3
+            k = k && eq3_v[NTRK + 1u][EQV_MID] == -31 && eq3_v[NTRK + 1u][EQV_FH] == 40;
+#endif
+            oke &= k != 0u;
+            if (!k)
+                snprintf(why, sizeof why, "type %u slot %u: the record", t, s), printf("  (%s)\n", why);
+        }
+    }
+    if (why[0])
+        printf("  (%s)\n", why);
+    check("... each loads on S1 and on S2 (alone there)", okt && nt > 0u);
+    check("... each heard on L, and on R (WIDE: its side into L only)", okl && okr);
+    check("... each at its neutral amount (EQ3: flat) lets go: the dry input, bit for bit", okb);
+    check("... each back from the record (UT_TLV: the type, its amount, GATER's PAT RATE SHAPE, JUNO's MODE; EQ3's bands)", oke);
+    {   /* an UT_TLV of before (11 bytes): GATER's and JUNO's values their defaults */
+        static const uint8_t old[UT_TLV_N0] = {100, 0, 0, 1, 0, 0, 0, FXT_DIST, FXT_NONE, 90, 0};
+        ut.v[UTV_GPAT] = 3, ut.v[UTV_JMODE] = 1;
+        ut_untlv(old, sizeof old);
+        check("an UT_TLV of 11 bytes (before): read, GATER's and JUNO's values the defaults", ut.v[UTV_LVL] == 100 &&
+              ut.slot[0] == (FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE) && ut.v[UTV_GPAT] == TP[P_TGPAT].def && ut.v[UTV_JMODE] == 0);
+    }
+#if FELUCCA_INS_CHORUS
+    {   /* the pool: CHRS on every instance's track, then on the input: FULL (dry) until a track gives its own back */
+        uint32_t same = 1;
+        static const uint8_t C2[2] = {FXT_CHRS, FXT_NONE};
+        ut_defaults();
+        for (k = 0; k < FELUCCA_INS_CHORUS; k++)
+            ins_put(k, C2);
+        ut_poll();
+        ut_load(0, FXT_CHRS);
+        ut.amt[0] = 100;
+        ut_poll();
+        for (k = 0; k < 40u; k++) {
+            ut_xblock(k);
+            for (i = 0; i < CTL; i++)
+                same &= mix_l[i] == ut_dl[i] && mix_r[i] == ut_dr[i];
+        }
+        check("the pool: CHRS on the input with every instance taken: FULL, the input dry", fxi_ostate(FXI_UT, FXT_CHRS) == FXI_FULL && same);
+        ins_defaults();
+        for (k = 0; k < 40u; k++)
+            ut_xblock(k), ut_poll();
+        check("... a track gives its own back: the input's (OK)", fxi_ostate(FXI_UT, FXT_CHRS) == FXI_OK);
+        ut_defaults();
+        for (k = 0; k < 40u; k++)
+            ut_xblock(k), ut_poll();
+    }
+#endif
+    ut_defaults();
+    host_ua_on = 0, clk_blk = 0;
 }
 #endif
 
@@ -1273,6 +1431,7 @@ int main(void)
     t_lanes();
 #if FELUCCA_USB_AUDIO
     t_usb();
+    t_usb_types();
 #endif
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;

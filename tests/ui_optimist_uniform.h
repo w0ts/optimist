@@ -119,12 +119,12 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     }
     release(B_OCTDN);
     lane_select(0);
-    check(ok2, "HOME held + an upper key off the mixer: no lane picked either (the last upper key: the ACCENT lane)");
+    check(ok2, "SHIFT held + an upper key off the mixer: no lane picked either (the last upper key: the ACCENT lane)");
     press(B_OCTDN);
     kdown(WK(5));
     kup(WK(5));
     release(B_OCTDN);
-    check(lane_selected() == 5u, "... HOME + a white key still picks its lane");
+    check(lane_selected() == 5u, "... SHIFT + a white key still picks its lane");
     go_home();
     frame();
     lane_select(0);
@@ -133,7 +133,7 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     kdown(BLACK[0]);
     kup(BLACK[0]);
     release(B_OCTDN);
-    check(smute_trk_on(0), "the mixer: HOME held + upper key 1 is still T1's sequencer mute");
+    check(smute_trk_on(0), "the mixer: SHIFT held + upper key 1 is still T1's sequencer mute");
     smute_trk = 0;
     press(B_GLO);
     frames(HOLD_FRAMES);
@@ -146,7 +146,7 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     song.sel = 0;
 }
 #if FELUCCA_PATTERNS
-static void un_pat_tests(void)                          /* #15: the patterns layer, SAVE + n stores, HOME + n clears; copy = launch, then SAVE + target */
+static void un_pat_tests(void)                          /* #15: the patterns layer, SAVE + n stores, SHIFT + n clears; copy = launch, then SAVE + target */
 {
     track_t *t = &trk[0];
     uint32_t k;
@@ -192,7 +192,7 @@ static void un_pat_tests(void)                          /* #15: the patterns lay
     reset_ui();
 }
 #endif
-static void un_step_presets_tests(void)                 /* #1 (kept) and the accident: PRESETS on STEP scrolls the window; HOME + PRESETS does nothing */
+static void un_step_presets_tests(void)                 /* #1 (kept) and the accident: PRESETS on STEP scrolls the window; SHIFT + PRESETS does nothing */
 {
     uint32_t e0, p0, pg0;
     reset_ui();
@@ -213,7 +213,7 @@ static void un_step_presets_tests(void)                 /* #1 (kept) and the acc
     release(B_OCTDN);
     frames(2);
     check(TSEL->eng_req == e0 && TSEL->preset == p0 && st.page == pg0 && ui.scr == SCR_STEP && !op_armed(),
-          "STEP: HOME + PRESETS does nothing (no engine change, no scroll, no NO)");
+          "STEP: SHIFT + PRESETS does nothing (no engine change, no scroll, no NO)");
     TSEL->p[P_SLEN] = 16;
     reset_ui();
 }

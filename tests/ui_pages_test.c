@@ -251,10 +251,10 @@ static void drum_sound_tests(void)
     check(dl.ofs[2][DE_LEVEL] == -3, "SOUND 2: KNOB 4 LEVEL -3 dB");
     ui.force = 1; frame(); ppm("page-sound2");
     tap(B_EDIT); frames(2);
-    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (the sound's amounts in the FX slots' order: DST CHO DLY REV)");
-    encs[panel.enc[EN_K4]] = 10; encs[panel.enc[EN_K3]] = 5; frames(2);
+    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (the sound's amounts in the FX slots' order: DST REV DLY CHO)");
+    encs[panel.enc[EN_K2]] = 10; encs[panel.enc[EN_K3]] = 5; frames(2);
     check(dsend_rev(dsend[2]) >= 12 && dsend_dly(dsend[2]) >= 4 && dsend_cho(dsend[2]) == 0,
-          "SOUND 3: KNOB 4 REV up from 4, KNOB 3 DLY, on the snare");
+          "SOUND 3: KNOB 2 REV up from 4, KNOB 3 DLY, on the snare");
     encs[panel.enc[EN_K1]] = 7; frames(2);
     check(dins_amt[0][2] == (FELUCCA_FX_DIST ? 7 : 0) && !dins_amt[0][1],
           "SOUND 3: KNOB 1 DST, the snare's own DIST (FX slots phase 5)");
@@ -1310,9 +1310,9 @@ int main(int argc, char **argv)
         int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV];
         check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_INS,
               "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, INSERTS next");
-        encs[panel.enc[EN_K4]] = 5; frames(2);
+        encs[panel.enc[EN_K2]] = 5; frames(2);
         check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
-              "... KNOB 4 (S4: REV) edits the drum track's own REV send");
+              "... KNOB 2 (R1: REV) edits the drum track's own REV send");
         TDRUM->p[P_REV] = r0;
     }
     tap(B_FX); frames(2);

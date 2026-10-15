@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the page organisation (the user's decisions, 2026-10-12; docs/UI-OPTIMIST-DESIGN.md
- * section 17): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, HOME held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
+ * section 17): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, SHIFT held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
  * LOAD; D6 SAVE on the mixer is PROJECT; D7 EDIT's first row is SOUND; D8 the SCENES layer says "Select: song"; P25 a
  * dark family button does nothing; P28 CALIBRATE > PANEL asks first. Included after ui_optimist_glo.h (glo_find). */
 static void pages_nav_tests(void)
@@ -58,12 +58,13 @@ static void pages_nav_tests(void)
     frames(HOLD_FRAMES);
     release(B_OCTDN);
     frames(2);
-    check(ui.scr == SCR_HOME, "D1: HOME held alone on the mixer: nothing (no SYSTEM, no SCOPE)");
+    check(ui.scr == SCR_HOME, "D1: SHIFT held alone on the mixer: nothing (no SYSTEM, no SCOPE)");
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE, "D9: HOME tapped on the mixer: SCOPE, as before");
     tap(B_HOME);
     /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
+    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW, INFO's KNOB 2) */
     sys_info_cell(0, &c);
     sys_info_cell(1, &c2);
     check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
@@ -185,7 +186,7 @@ static void pages_master_order_tests(void)
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
         {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
         {"DUCK", "MASTER", SC_GLOBAL},
-        {"RETURNS", 0, 0}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET REV", "REV/CHO", SC_GLOBAL},
+        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL},
         {"SLOTS", "SLOTS", SC_FXSLOT},
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
@@ -195,7 +196,7 @@ static void pages_master_order_tests(void)
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
+    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -236,13 +237,13 @@ static void pages_master_order_tests(void)
         i++;
     }
     ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY), SLOTS, MACRO");
     check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET DELAY", "RET REV", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "SLOTS",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -252,7 +253,7 @@ static void pages_master_tests(void)
     cell_t c;
     int16_t tune = song.g[G_TUNE];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
+    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -265,7 +266,7 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
@@ -344,8 +345,8 @@ static void keys_global_tests(void)
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         kdown(WK(5));
-        check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: HOME + a key: no lane pick, no sound");
-        keys_are(0, 0, "GLOBAL: HOME held: the keys stay dark");
+        check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: SHIFT + a key: no lane pick, no sound");
+        keys_are(0, 0, "GLOBAL: SHIFT held: the keys stay dark");
         kup(WK(5));
         release(B_OCTDN);
         tap(B_GLO);
@@ -377,7 +378,7 @@ static void keys_global_tests(void)
         frames(HOLD_FRAMES);
         sel0 = lane_selected();
         kdown(WK(1));
-        check(lane_selected() == sel0 && song.g[G_SLOT] == 3, "PROJECT, HOME held + a key: no lane pick, no slot");
+        check(lane_selected() == sel0 && song.g[G_SLOT] == 3, "PROJECT, SHIFT held + a key: no lane pick, no slot");
         kup(WK(1));
         release(B_OCTDN);
         reset_ui();
@@ -403,7 +404,7 @@ static void keys_global_tests(void)
                 press(B_OCTDN);
                 frames(HOLD_FRAMES);
                 kdown(WK(5));
-                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: HOME + a key: no lane pick");
+                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: SHIFT + a key: no lane pick");
                 kup(WK(5));
                 release(B_OCTDN);
             }
@@ -459,12 +460,12 @@ static void pages_keys_tests(void)
     press(B_OCTDN);
     frames(HOLD_FRAMES);
     keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | (ACC_UI ? 1u << DACC_KEY : 0u),
-             "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes, the 4 black keys and the last upper key (ACCENT) dim, none muted");
+             "D10: the mixer, SHIFT held: the sequencer mutes, the 16 lanes, the 4 black keys and the last upper key (ACCENT) dim, none muted");
     release(B_OCTDN);
     tap(B_EDIT);
     press(B_OCTDN);
     frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, HOME held: the 16 lanes (and the last upper key, ACCENT) dim, the selected one full");
+    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, SHIFT held: the 16 lanes (and the last upper key, ACCENT) dim, the selected one full");
     release(B_OCTDN);
     reset_ui();
     song.sel = TRK_DRUM;
@@ -476,7 +477,7 @@ static void pages_keys_tests(void)
     frames(2);
     press(B_OCTDN);
     frames(HOLD_FRAMES);
-    keys_are(kw(4), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "STEP, the drum track, HOME held: the 16 lanes (and the last upper key) dim, the selected one full, as elsewhere");
+    keys_are(kw(4), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "STEP, the drum track, SHIFT held: the 16 lanes (and the last upper key) dim, the selected one full, as elsewhere");
     release(B_OCTDN);                                    /* (a tap: NO, off STEP) */
     op_enter(SCR_STEP);
     frames(2);

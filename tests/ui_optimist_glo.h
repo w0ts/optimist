@@ -60,7 +60,11 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 static void glo_list_tests(void)
 {
     static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
-    static const char *const SS[] = {"INFO", "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
+    static const char *const SS[] = {"INFO", "INTERNALS",      /* (INFO split in two, 2026-10-15) */
+#if FELUCCA_USB_AUDIO
+                                     "USB STATS",         /* (the USB audio counters) */
+#endif
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "USB AUDIO", "CALIBRATE", "ABOUT"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -87,8 +91,8 @@ static void glo_list_tests(void)
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
-    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth Calibrate About");
+    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth USB-audio Calibrate About");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
@@ -217,11 +221,11 @@ static void glo_tests(void)
         press(B_OCTDN);
         turn(EN_PRESET, 1);
         release(B_OCTDN);
-        check(song.g[G_SWING] == GP[G_SWING].def + 3 && ui.scr == SCR_GLOBAL, "HOME held + PRESETS: nothing either (HOME no NO)");
+        check(song.g[G_SWING] == GP[G_SWING].def + 3 && ui.scr == SCR_GLOBAL, "SHIFT held + PRESETS: nothing either (HOME no NO)");
         press(B_OCTDN);
         turn(LINE_KNOB(w), 1);
         release(B_OCTDN);
-        check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "HOME held + the line's knob: its default");
+        check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "SHIFT held + the line's knob: its default");
         song.g[G_SWING] = v;
         turn(EN_PRESET, -1);
         line_named(SCR_SYSTEM, "INFO");

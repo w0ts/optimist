@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete emu emu-list emu-update test costs gate emu-check
+.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs gate emu-check
 
 PY ?= python3
 PROFILE ?= user-default
@@ -21,6 +21,7 @@ help:
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
 	@echo "make share     PROFILE=name    move one of my profiles (config/my-profiles) to config/profiles"
 	@echo "make delete    PROFILE=name    delete a profile (mine first, else the shipped one; never user-default)"
+	@echo "make web      [PORT=8766]       build the local site from build/felucca.fwsc (run make build first), serve the installer and the web editor on 127.0.0.1, open the editor (Chrome or Edge for Web MIDI)"
 	@echo "make emu     [FW=name] [CPU=96|own] [FRESH=1] run a firmware in the emulator (asks when FW is empty);"
 	@echo "                              its saved flash is kept between runs (emulator/state/), FRESH=1 starts without it"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
@@ -63,6 +64,9 @@ profiles:
 publish unpublish share delete:
 	$(if $(filter file,$(origin PROFILE)),$(error make $@ PROFILE=name (make profiles lists them)))
 	$(PY) tools/optimist.py config --$@ "$(PROFILE)"
+
+web:
+	$(PY) tools/optimist.py web $(if $(PORT),--port $(PORT))
 
 emu:
 	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU)) $(if $(FRESH),--fresh)

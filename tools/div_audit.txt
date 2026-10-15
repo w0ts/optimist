@@ -122,6 +122,7 @@ src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, 
 src/ui/optimist/op_graph.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with dec page_frac(.., 127): 0..127, so >= 6
 src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_frac(.., 127): 0..127, so >= 6
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
+src/ui/optimist/op_gldraw.c:gl_info_draw:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 6, INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint)
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:np | guarded "if (np > 1u)"

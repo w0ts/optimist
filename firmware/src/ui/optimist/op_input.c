@@ -3,13 +3,13 @@
  *   SELECT       the cursor: the row               ALGORITHM   the walk MASTER T1..DR the lanes, the page's part (op_walk.c)
  *   PRESETS      the sound (DR: the kit; a lane: its own sound)   KNOB 1..4   the cursor row's cells; a turn makes its cell hot
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
- *   HOME held + a knob: the cell to its default; + a drum key: pick the lane (on the mixer: mute the sequencer, seq_mute.c); + a button: op_combos.c
+ *   SHIFT held + a knob: the cell to its default; + a drum key: pick the lane (on the mixer: mute the sequencer, seq_mute.c); + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); the global FX screen: FX on the mixer's MASTER row, or ALGORITHM left past T1 on a page (SCOPE: its master source)
  *   GLO tapped: GLOBAL; on GLOBAL SYSTEM, on SYSTEM GLOBAL (op_global.c: their settings lists, where SELECT pages, a knob picks and
  *   sets its line, PRESETS does nothing; ALGORITHM is the track walk there too); the mixer's knob sets are SELECT's
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
- *   On the mixer: SAVE tapped PROJECT (always, D6), HOME held alone nothing (D1); a family button with no rows nothing
+ *   On the mixer: SAVE tapped PROJECT (always, D6), SHIFT held alone nothing (D1); a family button with no rows nothing
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
  * SAVE, HOME and the page buttons act when let go, and only when nothing else was pressed, turned or played while
  * they were down (a page button: and held less than LAY_TAP_MS): that is how a tap, a layer and a combination are
@@ -42,8 +42,20 @@ static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL
  * record. Kept: PROJECT's slot rows pick the slot (op_project.c prj_key); SONG's PATTERNS row launches patterns; TEMPO's
  * keys (PLAY held) are the MIX layer's, they tap the tempo and play nothing. The layers (a held button) are not these
  * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
+/* MASTER entered by both OCT: the keys stay the track's that was left (the user, 2026-10-15: "when we go to master using OCT+ and
+ * OCT- at the same time, the keyboard should still work"). mk_trk (op_walk.c) = that track + 1, 0 none; op_walk.c oct_master_toggle sets it.
+ * Any other way to MASTER (ALGORITHM, the mixer's row) keeps the keys silent. Lives only on the mixer / master FX screen
+ * with MASTER selected and the same track selected: leaving MASTER, or another track picked, clears it */
+static int mk_live(void)
+{
+    if (mk_trk && (!(ui.scr == SCR_HOME || ui.scr == SCR_FX) || !master_sel() || song.sel != mk_trk - 1u))
+        mk_trk = 0;
+    return mk_trk != 0;
+}
 static int keys_none(void)
 {
+    if (mk_live())
+        return 0;
     return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master() || mx_on_usb()
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
@@ -330,9 +342,9 @@ static int pick_mod(uint32_t held)
 }
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
-/* HOME held on the mixer: its keys MUTE the sequencer (seq_mute.c: the 16 drum keys the lanes, the 4 black keys T1 T2 T3 DR)
+/* SHIFT held on the mixer: its keys MUTE the sequencer (seq_mute.c: the 16 drum keys the lanes, the 4 black keys T1 T2 T3 DR)
  * instead of picking the lane (the user, 2026-10-13); the key plays nothing, playing or stopped */
-static int mute_mod(uint32_t held)                      /* (SHIFT alone: SAVE + HOME + a key is the scene clear, a layer's keys) */
+static int mute_mod(uint32_t held)                      /* (SHIFT alone: SAVE + SHIFT + a key is the scene clear, a layer's keys) */
 {
     return ui.scr == SCR_HOME && (held & 0x3FFFu) == (1u << panel.btn[B_OCTDN]);
 }
@@ -350,7 +362,7 @@ static void smute_notes(uint32_t notes)
         }
 }
 /* a drum key played while the keys play selects its lane, DR itself included (the user, 2026-10-12: "when i play a note
- * for the drums on the keyboard it should switch to that instrument in all the relevant pages"), as HOME + a key and
+ * for the drums on the keyboard it should switch to that instrument in all the relevant pages"), as SHIFT + a key and
  * ALGORITHM do: the mixer's lane row, the drum SOUND / ENV / FX pages, STEP's LANE page, PRESETS by the lane's SOURCE.
  * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
  * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
@@ -420,11 +432,11 @@ static void op_press(uint32_t b, uint32_t held)
 {
     if (b != B_OCTDN && b != B_OCTUP)
         oct_both = 0;                                   /* (another button: the OCT pair is a SHIFT combo, not the toggle) */
-    if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no HOME + it either) */
+    if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no SHIFT + it either) */
         op_clean &= ~BIT(b);
         return;
     }
-    if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / HOME + it */
+    if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / SHIFT + it */
         return;
     if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
         if ((b != B_EDIT || is_drum(TSEL)) && b != B_GLO)   /* (EDIT: the drum lane's SOUND pages, its locks) */
@@ -482,7 +494,7 @@ static void op_press(uint32_t b, uint32_t held)
     }
 }
 /* the mixer with nothing asked: SAVE tapped there opens PROJECT, always (the user, 2026-10-12, D6: the mixer has no YES;
- * FX on and MUTE are knobs, the SOUND row is EDIT's first). HOME held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
+ * FX on and MUTE are knobs, the SOUND row is EDIT's first). SHIFT held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
 static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
 static void op_tap(uint32_t b, uint32_t id)
 {
@@ -528,7 +540,7 @@ static int op_presets_turn(void)
     if (s == 0)
         return 0;
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
-                                                         * line k, CALIBRATE runs from YES; HOME held: no NO either */
+                                                         * line k, CALIBRATE runs from YES; SHIFT held: no NO either */
         if (op_shift(fm1_in.buttons))
             op_clean &= ~BIT(B_OCTDN);
     } else if (ui.scr == SCR_STEP && op_shift(fm1_in.buttons)) {   /* STEP: SHIFT + PRESETS: the window follows the playhead again
@@ -615,6 +627,8 @@ static void op_knobs(uint32_t shift)
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         turned = 1;
+        if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
+            continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
         step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)
@@ -703,7 +717,7 @@ static void ui_input(void)
     } else if (notes && ui.scr == SCR_STEP && !op_shift(held)) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
         op_clean &= ~held;
-    } else if (notes && mute_mod(held)) {               /* HOME held + a key on the mixer: the sequencer mute */
+    } else if (notes && mute_mod(held)) {               /* SHIFT held + a key on the mixer: the sequencer mute */
         smute_notes(notes);
         op_clean &= ~BIT(B_OCTDN);
     } else if (notes && op_shift(held)) {               /* SHIFT held + a key: the pick (the key still plays) */

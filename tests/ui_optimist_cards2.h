@@ -19,7 +19,7 @@ static void c2_master_tests(void)
     frame();
     n = mx_rets(ret);
     check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 2u && ret[1] == 1u && ret[2] == 0u,
-          "MASTER page: three return lines, REV DLY CHO (every FX built here)");
+          "MASTER page: three return lines, R1 R2 R3 = REV DLY CHO (the default; every FX built here)");
     for (i = 0; i < n; i++) {                           /* the names in C_HI where T1 .. DR were */
         y = (uint32_t)(OP_PY + MXM_CY + (int32_t)i * MXM_CP);
         ok &= (uint32_t)px_in(MXM_X, y, 24, 14, C_HI);
@@ -35,9 +35,9 @@ static void c2_master_tests(void)
     mt.ret[1] = mt.ret[0] = 0;
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
     ui_draw();
-    y = (uint32_t)(OP_PY + MXM_CY + 6);
-    check(px_in(MXM_GX, y, 40, MXM_CH, C_HI) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_HI) &&
-          !px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH - 1u, C_HI),
+    y = (uint32_t)(OP_PY + MXM_CY + MXM_CV);
+    check(px_in(MXM_GX, y, 40, MXM_CH, C_OK) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_OK) &&
+          !px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH - 1u, C_OK),
           "MASTER page: the REV return's meter fills, DLY's and CHO's stay empty");
     ppm("opt-cards2-master-rev");
     /* the tap: each bus's return seen apart (fx_buses, one block at a time, the sends set by hand) */

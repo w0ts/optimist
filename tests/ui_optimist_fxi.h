@@ -3,8 +3,8 @@
  * instances each): on SOUND's INSERTS row and the mixer's insert set, a slot's TYPE cell shows
  *   the free count   "CHRS" with 2/4 beside it (free of available), a type on every track nothing
  *   WAIT             the type picked, the main loop has not handed an instance out yet (fxi_poll)
- *   IN USE           the same pass with none free (fxi_can 0): dim
- *   FULL             none free after the pass: bypassed, dim, "S1 CHRS" as the label
+ *   IN USE           the same pass with none free (fxi_can 0): the name struck through, dim
+ *   FULL             none free after the pass: bypassed, the name struck through, dim, "S1 CHRS" as the label
  *   hidden           a type with no instance built (count 0) is not in the list
  * and, with the help line, a line of its own (kind op, INSERTS). Built with the counts 0, 1 and 4 (run_tests.sh).
  * Included by ui_optimist_test.c. */
@@ -63,13 +63,19 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
         ins_load(n, 1, t);                              /* (one more track than instances) */
         check(!fxi_can(n, t), "none free: fxi_can 0");
         fxu_cell(n, 1, &c);
-        check(fxi_state(n, 1) == FXI_WAIT && !strcmp(c.val, "IN USE") && c.dim,
-              "picked with none free, before the pass: IN USE, dim");
+        check(fxi_state(n, 1) == FXI_WAIT && !strcmp(c.val, nm) && c.strike && c.dim,
+              "picked with none free, before the pass: the name struck, dim");
         fxi_poll();
         fxu_cell(n, 1, &c);
-        snprintf(why, sizeof why, "%s: none free after the pass: FULL, dim, 'S2 %s' (was '%s' '%s' dim %u)", nm, nm, c.label, c.val, c.dim);
+        snprintf(why, sizeof why, "%s: none free after the pass: name struck, dim, 'S2 %s' (was '%s' '%s' dim %u)", nm, nm, c.label, c.val, c.dim);
         snprintf(want, sizeof want, "S2 %s", nm);
-        check(fxi_state(n, 1) == FXI_FULL && !strcmp(c.val, "FULL") && c.dim && !strcmp(c.label, want), why);
+        check(fxi_state(n, 1) == FXI_FULL && !strcmp(c.val, nm) && c.strike && c.dim && !strcmp(c.label, want), why);
+        if (t == FXT_CHRS || t == FXT_ECHO) {                   /* (the struck name, on the screen: opt-fxi-full-<name>.ppm) */
+            char shot[32];
+            fxu_cell(n, 1, &c);
+            ui.force = 1, frame();
+            snprintf(shot, sizeof shot, "opt-fxi-full-%s", nm), ppm(shot);
+        }
         fxu_cell(0, 0, &c);
         check(fxi_state(0, 0) == FXI_OK && !c.dim && !strcmp(c.val, nm), "... the track holding one is untouched");
         {   /* the mixer's insert set shows it too */
@@ -81,11 +87,11 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
                     mx.set = (uint8_t)sset;
                     if (mx_item(r, kk, &m) && m.kind == MI_INST && m.id == 1u) {
                         mix_cell(r, kk, &c);
-                        seen = !strcmp(c.val, "FULL") && c.dim;
+                        seen = c.strike && c.dim;
                     }
                 }
             mx.set = 0;
-            check(seen, "the mixer's insert set: the slot shows FULL, dim");
+            check(seen, "the mixer's insert set: the slot shows its name struck, dim");
         }
     }
 }

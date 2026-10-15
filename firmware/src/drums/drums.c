@@ -506,6 +506,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         dlm_peak(ln, vpk);
         if (vpk > pk)
             pk = vpk;
+#if FELUCCA_USB_AUDIO
+#if DINS
+        if (!ins)                                   /* (with inserts: dins_post taps their output) */
+#endif
+            dlt_add(ln, dsend_buf, o, m);           /* its lane's USB tap, when a channel takes it (ua_tap.h) */
+#endif
 #if DINS
         if (ins) {
             dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
@@ -619,6 +625,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         dlm_peak(ln, vpk);
         if (vpk > pk)
             pk = vpk;
+#if FELUCCA_USB_AUDIO
+#if DINS
+        if (!ins)
+#endif
+            dlt_add(ln, dsend_buf, i0, i);          /* (i: where it ended) */
+#endif
 #if DINS
         if (ins) {
             dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;

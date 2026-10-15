@@ -107,9 +107,51 @@ static void oct_master_tests(void)
     check(ui.scr == SCR_GLOBAL, "both OCT on GLOBAL (no track): nothing");
     reset_ui();
 }
+/* the keys after the both-OCT toggle stay the track's that was left; MASTER reached any other way keeps them silent */
+static void oct_master_keys_tests(void)
+{
+    reset_ui();
+    song.sel = 1;
+    tap(B_ENV);
+    frames(2);
+    both_oct();
+    check(master_sel() && ly_lock == LY_PLAY, "MASTER by both OCT: the keys still play");
+    kdown(WK(0));
+    check(kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == 1, "... a key plays T2 (the track that was left)");
+    kup(WK(0));
+    kdown(WK(2));
+    both_oct();
+    kup(WK(2));
+    check(!master_sel() && kb_kind[WK(2)] == KS_NONE && ui.scr == SCR_SOUND, "a note held across the toggle: released as it was, T2");
+    kdown(WK(1));
+    both_oct();
+    check(master_sel() && kb_kind[WK(1)] == KS_NOTE && kb_trk[WK(1)] == 1, "a note held while MASTER is entered: stays T2's");
+    kup(WK(1));
+    check(kb_kind[WK(1)] == KS_NONE, "... and its release reaches the same voice");
+    turn(EN_ALGO, 1);
+    frames(2);
+    kdown(WK(0));
+    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER: the keys follow the new track");
+    kup(WK(0));
+    reset_ui();
+    song.sel = 1;
+    op_enter(SCR_HOME);
+    ui.row[SCR_HOME] = MXR_T1 + 1u;
+    frames(2);
+    turn(EN_ALGO, -5);
+    frames(2);
+    check(mx_on_master() && ly_lock == LY_STEP, "MASTER by the mixer's walk: the keys stay silent");
+    kdown(WK(0));
+    check(kb_kind[WK(0)] == KS_UI, "... a key plays nothing");
+    kup(WK(0));
+    both_oct();
+    check(!master_sel(), "... both OCT there goes back to the track as before");
+    reset_ui();
+}
 static void master_tests(void)
 {
     oct_master_tests();
+    oct_master_keys_tests();
     layout_tests();
     held_page_tests();
     cell_t c;

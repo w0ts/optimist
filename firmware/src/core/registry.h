@@ -331,6 +331,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_JCHORUS
 #define FELUCCA_INS_JCHORUS 0              /* JUNO CHORUS: the Juno-106's chorus (fx/junocho), 2 KB of pool an instance */
 #endif
+#ifndef FELUCCA_INS_EQ3
+#define FELUCCA_INS_EQ3 0                  /* EQ3: a three-band DJ EQ (fx/insfx/eq3.c, Ableton's EQ Three), any number */
+#endif
 #ifndef FELUCCA_INS_GATER
 #define FELUCCA_INS_GATER 0                /* GATER: a tempo-synced 16-step volume gate (fx/insfx/gater.c), any number */
 #endif
