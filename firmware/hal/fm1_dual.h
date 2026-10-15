@@ -87,6 +87,8 @@ static volatile uint32_t fm1_flip_pat[2][FM1_FLIP_N];
 typedef struct { volatile uint32_t n, checks, addr, got, want; } fm1_flip_t;
 static fm1_flip_t fm1_flip[2];                            /* [core]: written by that core only */
 static uint32_t fm1_vec_flips, fm1_vec_got;               /* TIMER5's vector read back wrong by CPU0's main loop (main.c) */
+static volatile uint8_t fm1_ins_bypass;                   /* dualcfg ins off: the parts', the drum lanes' and the drum bus's
+                                                           * inserts not run (fx.c, drums.c; a test of the hang) */
 static inline uint32_t fm1_vec_word(uint32_t n) { return FM1_VEC[n & 127u]; }   /* (main.c: a vector word read back) */
 static inline __attribute__((always_inline)) uint32_t fm1_flip_want(uint32_t c, uint32_t i)
 {

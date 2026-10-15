@@ -52,6 +52,8 @@ typedef struct {
     uint8_t policy;                                /* 1: the BLUETOOTH rule (dual_mode.h dual_ble_rule), 0: none */
     uint8_t flat;                                  /* 1: no nested interrupts (TIMER5 and BLE at the audio's priority 3) */
     uint8_t c1guard;                               /* 1: CPU1 may not write CPU0's RAM code, stacks, .noinit, vectors */
+    uint8_t insoff;                                /* 1: no part / drum lane / drum bus insert runs (fx.c FX_INS_BYPASS) */
+    uint8_t pad[3];
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -427,6 +429,7 @@ static __attribute__((noinline)) void dual_boot(void)
 #if FELUCCA_DUALCFG
     if (dual.late != 2u)
         fm1_flip_fill();                           /* (the read-error patterns: hal/fm1_dual.h) */
+    fm1_ins_bypass = dualcfg.insoff;
 #endif
     dual.boot_mode = dual_mode;
     dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */

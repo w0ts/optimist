@@ -674,6 +674,7 @@ static void con_dualcfg_show(void)
     con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
     con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
     con_kv("dualcfg c1guard", dualcfg.c1guard);
+    con_puts(dualcfg.insoff ? "dualcfg ins off\r\n" : "dualcfg ins on\r\n");
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -712,6 +713,12 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.ble);
     else if (con_word(&p, "c1guard"))
         ok = con_onoff(&p, &c.c1guard);
+    else if (con_word(&p, "ins")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.insoff = (uint8_t)!on;
+    }
     else if (con_word(&p, "nest")) {
         uint8_t on;
         ok = con_onoff(&p, &on);
@@ -738,7 +745,7 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;
