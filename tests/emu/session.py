@@ -145,6 +145,7 @@ class Emu:
     state is workdir/state/). Every method waits for the driver's reply; a guest fault raises EmuError"""
 
     def __init__(self, fw, workdir, fresh=True, mhz=96, log=None):
+        self.fw = Path(fw)
         env = dict(os.environ)
         if mhz:
             env["FM1_CPU_MHZ"] = str(mhz)
@@ -237,6 +238,22 @@ class Emu:
 
     def peekb(self, at, n=1):
         return [int(x) for x in self.cmd(f"peekb {at} {n}")[0].split()]
+
+    def rodata(self, at, n):
+        """n bytes of constant data (a const table, a string) at the address `at`, read from the ELF next to the package: the
+        emulator's debug bus faults on reads high in the application window (about 0x77400 into it, 2026-10-15: a table the
+        linker moved there read back as 0xDEADBEEF), and a const table cannot differ between the ELF and the running image"""
+        import struct
+        if not hasattr(self, "_elf"):
+            self._elf = self.fw.with_suffix(".elf").read_bytes()
+        d = self._elf
+        off, = struct.unpack_from("<I", d, 0x1C)
+        esz, num = struct.unpack_from("<HH", d, 0x2A)
+        for i in range(num):
+            t, o, va, _pa, fsz, _msz, _fl, _al = struct.unpack_from("<8I", d, off + i * esz)
+            if t == 1 and va <= at and at + n <= va + fsz:
+                return d[o + at - va:o + at - va + n]
+        raise EmuError(f"{at:#x}: no ELF segment holds it")
 
     def mem(self, at, n):
         """n bytes at a symbol / address as bytes, read a byte at a time: a byte array (uint8_t) has no word alignment,

@@ -99,8 +99,8 @@ class Panel:
         """the title of the page shown (PAGES[ui.page].title)"""
         k = self.e.peekb("ui")[0]
         a, _ = self.e.sym("PAGES")
-        title = self.e.peek(f"{a + 12 * k:#x}")[0]
-        return bytes(self.e.peekb(f"{title:#x}", 16)).split(b"\0")[0].decode("latin1")
+        title = int.from_bytes(self.e.rodata(a + 12 * k, 4), "little")   # (the table is const: read from the ELF, session.rodata)
+        return self.e.rodata(title, 16).split(b"\0")[0].decode("latin1")
 
     def logsyms(self, tracks=(0, 1)):
         s = ["clk_beat:2", "pat_cur:1", "pat_req:1", f"song+{self.song_play_off() & ~3}:1"]   # (the log reads words)
