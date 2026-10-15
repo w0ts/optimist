@@ -1,6 +1,6 @@
 # Firmware builder: design and inventory
 
-Read-only design study, 2026-10-05. This note is uncommitted, and no firmware branch or worktree was changed.
+Read-only design study, 2026-10-05. (Status 2026-10-15: this is the original study; the current list of items is docs/BUILDER.md and `tools/builder/registry.py`. Where it speaks of the splash as a switch: the SPLASH item was retired and the boot logo is always built.) This note is uncommitted, and no firmware branch or worktree was changed.
 All sizes come from scratch builds: `git archive` copies outside the repo, built with
 `JIELI_TOOLCHAIN=~/.jieli/toolchain-docker sh build.sh`. A build takes about 8 s on this Mac.
 
