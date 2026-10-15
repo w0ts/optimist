@@ -44,7 +44,7 @@ const E = vm.runInNewContext(proto + `
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1218,6 +1218,38 @@ async function editorFxp() {
   ok(cal >= 0 && y0.op === 3 && y0.rc === 1 && y0.ask === 1, "scrn: op 3: YES on CALIBRATE > PANEL (ok 0) asks");
   ok(SC(await rq(E.req.scrnSave())).op === 4 && await rq(E.req.scrnLine(2, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true), "scrn: op 4 saves; a screen past the table: no reply");
   ok(/function renderDevScreens\(/.test(html) && /phText\("op", ln\.sect, ln\.label\)/.test(html) && /scrnSaveSoon\(\)/.test(html), "scrn: Settings shows the lines (sliders, steppers, switches, actions that ask), help from the device's own texts, saves a moment after the last edit");
+  /* v13 SCRS (cmd 99, ed_scrs.c): the other screens as rows of cards (the mock serves tests/scrs_table.json, the firmware host test's rows) */
+  const SR = E.parse[C.SCRS], esr = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scrs.c"), "utf8");
+  const scrsGold = JSON.parse(readFileSync(join(HERE, "../tests/scrs_table.json"), "utf8"));
+  ok(C.SCRS === 99 && /ED_SCRS = 99/.test(esr) && /ed_b\(0x5C\)/.test(esr) && info.scrs && (info.scrs.mask >> 1 & 1) && (info.scrs.mask >> 6 & 1) && !(info.scrs.mask & 1),
+    "scrs: command 99, tag 0x5C == ed_scrs.c; INFO says which screens are built (SOUND, MASTER, PROJECT, STEPS, SONG, TEMPO; not the mixer)");
+  ok(js(sortDeep(JSON.parse(JSON.stringify(E.SCRS_TABLE)))) === js(sortDeep(scrsGold)), "scrs: the mock's table (SCRS_TABLE) == tests/scrs_table.json, the UI host test's golden");
+  const gsound = scrsGold.ctx.find((c) => c.s === 1 && c.t === 0), gdrum = scrsGold.ctx.find((c) => c.s === 1 && c.t === 3 && c.l === 0);
+  const r0 = SR(await rq(E.req.scrsInfo(1, 0, 127)));
+  ok(r0.op === 0 && r0.s === 1 && r0.n === gsound.rows.length && r0.name === "SOUND", "scrs: op 0: SOUND of track 1: the device's row count and screen name");
+  const row0 = SR(await rq(E.req.scrsRow(1, 0, 127, 127, 0)));
+  ok(row0.op === 1 && row0.row === 0 && row0.name === gsound.rows[0].name && row0.fam === gsound.rows[0].fam && row0.cells.length === 4 && row0.cells[0].label === gsound.rows[0].c[0][1]
+    && row0.cells[0].val === gsound.rows[0].c[0][2] && row0.cells[0].byd === 1 && row0.cells[0].value === gsound.rows[0].c[0][15], "scrs: op 1: a row: its name, family and four cards as the device draws them");
+  const lane0 = SR(await rq(E.req.scrsRow(1, 3, 0, 127, 1)));
+  ok(lane0.name === "ENV" && lane0.cells.map((c) => c.label).join() === "CLICK,DECAY,BEND,LEVEL", "scrs: a drum lane's ENV row: CLICK DECAY BEND LEVEL (the device's lane pages)");
+  const tn = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, 0, 0, 1, 3)));
+  ok(tn.op === 2 && tn.cells[0].value === row0.cells[0].value + 3 && tn.cells[0].gv === row0.cells[0].gv + 3, "scrs: op 2: a fine turn moves the value; the reply is the row");
+  const tn2 = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, 0, 0, 2, 0)));
+  ok(tn2.cells[0].value === row0.cells[0].ddef, "scrs: op 2 mode 2: the default");
+  const projIx = scrsGold.ctx.find((c) => c.s === 3).rows.findIndex((r) => r.name === "TOOLS");
+  const y1 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, false)));
+  ok(y1.op === 3 && y1.rc === 1 && y1.cells[0].ask && /CLRSQ|\?/.test(y1.ask), "scrs: op 3: YES on PROJECT > TOOLS > CLRSQ (ok 0) asks: the card says so and the row carries the question");
+  const y2 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, true)));
+  ok(!y2.cells[0].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
+  const stores = scrsGold.ctx.find((c) => c.s === 3).rows.map((r, i) => (r.rf & 1 ? r.name : null)).filter(Boolean);
+  ok(js(stores) === js(["PROJECT", "SNAPSHOT", "USER"]), "scrs: a store's row (PROJECT, SNAPSHOT, USER) carries the YES flag");
+  const f6 = SR(await rq(E.req.scrsInfo(1, 0, 127, 126))), f6r = SR(await rq(E.req.scrsRow(1, 0, 127, 126, 1)));
+  ok(f6.n === 14 && f6r.name === "OP1 FREQ" && f6r.cells.map((c) => c.label).join() === "MODE,COARS,FINE,DTUNE", "scrs: an FM6 track, family 126: the operator editor's rows (14) as the device has them");
+  ok(/scsOpen\(1, drumIndex\(\), l\)/.test(html) && /scsPages/.test(html), "scrs: the lane popup opens the device's pages of the lane; an FM6 track has the operator rows");
+  ok(await rq(E.req.scrsInfo(0, 0, 127), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.scrsRow(1, 0, 127, 127, 99), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
+    "scrs: the mixer is not offered, a row past the table: no reply");
+  ok(/async function renderDevice\(/.test(html) && /function scsCard\(/.test(html) && /req\.scrsYes\(\.\.\.scsCtx\(\), r, k, true\)/.test(html) && /data-tab="device"/.test(html) && /b\.hidden = !scrsOn\(\)/.test(html),
+    "scrs: the Device screens page: cards (sliders, steppers, switches, actions that ask), a store's YES, hidden without the tag");
   /* v13 SONGC (cmd 97, ed_song.c): the song chain */
   const SG = E.parse[C.SONGC], eg = readFileSync(join(HERE, "../firmware/src/io/editor/ed_song.c"), "utf8");
   ok(C.SONGC === 97 && /ED_SONGC = 97/.test(eg) && /ed_b\(0x5A\)/.test(eg) && info.songc && info.songc.v === 1, "songc: command 97, tag 0x5A == ed_song.c");
@@ -1438,7 +1470,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
   ok(flat && openers && ids.length === 18 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -2493,7 +2525,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 7 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 8 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),

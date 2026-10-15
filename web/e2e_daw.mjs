@@ -792,6 +792,41 @@ const scrRes = await run(`${U} try {
 ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide,
   `e2e v13 SCRN (mock ?fxp=1): Settings lists GLOBAL and SYSTEM as the device's lines; a slider turns BPM, steppers and switches, help from the device's texts (${JSON.stringify(scrRes)})`);
 await shot("settings-device-lines");
+/* v13 SCRS (the mock with ?fxp=1): the Device screens page lists the device's screens; SOUND shows the pages in the device's order grouped by family, a card turns, a drum lane
+   shows its own pages (ENV: CLICK DECAY BEND LEVEL), PROJECT's stores have a YES that asks, SONG and TEMPO read as the device draws them */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#device` });
+await sleep(1500);
+const scsRes = await run(`${U} window.confirm = () => true; try {
+  if (!await until(() => document.querySelectorAll("#scrows .scrow").length > 5, 60000)) return { err: "no rows" };
+  const r = {}, seg = (i) => [...document.querySelectorAll("#scbar .seg")[i].querySelectorAll("button")];
+  const names = () => [...document.querySelectorAll("#scrows .scn")].map((h) => h.textContent);
+  r.screens = seg(0).map((b) => b.textContent).join("|");
+  r.fams = [...document.querySelectorAll("#scrows .scf")].map((h) => h.textContent).join(",");
+  r.first = names().slice(0, 3).join(",");
+  seg(1).at(-1).click();                             /* the drum track */
+  r.drumLanes = await until(() => document.querySelectorAll("#scbar .seg").length === 3 && names()[0] === "LANE", 8000);
+  seg(2)[2].click();                                 /* a lane */
+  r.lane = await until(() => names().includes("ENV") && names().includes("TONE"), 8000);
+  r.laneEnv = [...document.querySelectorAll("#scrows .scrow")].find((x) => x.querySelector(".scn").textContent === "ENV").querySelector(".sccards").textContent.replace(/\\s+/g, " ").slice(0, 60);
+  seg(0).find((b) => b.textContent === "PROJECT").click();
+  r.project = await until(() => names().join() === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP", 8000) && names().join();
+  r.yes = document.querySelectorAll("#scrows .scyes").length;
+  document.querySelector("#scrows .scyes").click();
+  r.asked = await until(() => !!window.fm1Test.mock.state && true, 100);
+  seg(0).find((b) => b.textContent === "SONG").click();
+  r.song = await until(() => names().includes("MODE") && names().includes("PART 1"), 8000);
+  seg(0).find((b) => b.textContent === "TEMPO").click();
+  r.tempo = await until(() => names()[0] === "TEMPO", 8000) && document.querySelector("#scrows .scrow").textContent.replace(/\\s+/g, " ").slice(0, 60);
+  const row0 = document.querySelector("#scrows .scrow"), v0 = row0.querySelector(".scv").textContent;
+  const sl = row0.querySelector("input[type=range]"); sl.value = String(+sl.value + 5); sl.dispatchEvent(new Event("input", { bubbles: true }));
+  r.turned = await until(() => row0.querySelector(".scv").textContent !== v0, 8000);
+  r.bpm = row0.querySelector(".scv").textContent;
+  r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(scsRes && scsRes.screens === "SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
+  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.wide,
+  `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
+await shot("device-sound");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

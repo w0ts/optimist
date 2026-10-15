@@ -10,7 +10,7 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
-Commands 94..98 and `INFO` tags `57`..`5B` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
+Commands 94..99 and `INFO` tags `57`..`5C` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -1006,6 +1006,36 @@ the exact note lengths) move as on the device, one undo level each, and the edit
 | 3 | lane (127: as it is): EUCLID ON, the generator writes the pattern |
 | 4 | EUCLID OFF, the generated steps kept |
 | 5 | EUCLID OFF, the pattern as it was given back |
+
+## v13: the device's screens (command 99 SCRS; INFO tag 5C)
+
+`firmware/src/io/editor/ed_scrs.c`; builds with the Optimist UI only (FELUCCA_UI 1; no tag, no reply otherwise). SCRN hands GLOBAL and SYSTEM out as lines; this does it for the
+other screens the Optimist UI draws as **rows of four cards**: SOUND (the selected track's pages, a drum lane's), MASTER, PROJECT (the project slots, snapshots, user presets,
+TOOLS, SLOOP's import, MEMORY), STEPS, SONG (the scenes, SONG REC, the parts) and TEMPO (`ui/optimist/op_screens.c` `screen_t`: rows, name, cell, turn, yes). The device builds each card in its own
+screen's functions, and SCRS reads, turns and asks through the same ones, so an editor shows the same pages in the same order with the same names, units, ranges and questions. A page the build
+adds, an engine's own rows, a lane's pages (BODY, TONE, ENV, SENDS, KIT, SOURCE for a user sample, the lane's LFO), SONG REC, the scene rows and the MEMORY gauge arrive without an editor change.
+
+`INFO` tag `5C len 03 version mask(2 x 7 bits)`: bit n of the mask = the screen with the device's number n (1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO; 0 the mixer and 4 / 9 SYSTEM /
+GLOBAL are not offered here: the mixer is the editor's own, SYSTEM and GLOBAL are SCRN's). Every request has the same first five bytes: `op scr trk lane fam`.
+
+| op | Request args (after `scr trk lane fam`) | Reply args |
+|---|---|---|
+| 0 INFO | - | 0, scr, trk, lane, fam, rows n, the screen's name |
+| 1 ROW | row | 1, scr, row, ROW |
+| 2 TURN | row, k, mode, v14 steps | 2, scr, row, ROW (after the turn) |
+| 3 YES | row, k, ok | 3, scr, row, rc (1 handled), ROW |
+
+`trk` 0..3 is the track the screen is about (SOUND, STEPS), `lane` 0..16 a drum lane picked on the drum track (SOUND then has the lane's pages; 127: none, DR itself), `fam` the page family of
+SOUND (127 every row, as the device opens it; 126 an FM6 track's operator rows (a data byte is 7 bits: the device's 0xFF and 0xFE are 127 and 126)). The context is set for the one call and put back: the device's own cursor, track, lane and page do not move.
+`mode`: 0 steps (a knob, with its acceleration), 1 fine steps (a unit each), 2 the default (`v14` ignored). YES with `ok` 0 may only ask: the card's `ask` flag is 1 and the row carries the
+device's question ("NEW PROJECT?", "CLEAR T1?"); `ok` 1 does it (the device's question times out after 3 s, as on the panel). A bad screen, track or row: no reply.
+
+ROW: the row's family (`FAM_*`, 127 none; SOUND's rows group by it), its flags (bit 0: YES on any card runs the row's operation on its item: a store's row, PROJECT / SNAPSHOT / USER), its name
+(as the device titles it), four CELLs, the armed question ("" none). CELL: kind (0 none, 1 value, 2 read-out, 3 action, 4 enter), label, value text, unit, state (0 plain, 1 warn, 2 error, 3 ok,
+4 other colour), danger, gauge form (1 bar, 2 bipolar bar, 3 few entries, 4 many entries, 5 two entries), gmin v14, gmax v14, gv v14, by-descriptor 0/1 (then fmt, min v14, max v14, def v14, the
+value v14), flags (bit 0 dim, bit 1 the drum track's own value shown on a lane, bit 2 struck through, bits 3..4 the step event mark, bit 5 the card asks), the action's object text.
+`tests/scrs_table.json` is the golden of the rows of the host UI test's build (`tests/ui_optimist_edscrs.h`, EDSCRN_WRITE=1 rewrites it); `tools/gen_fxp_table.py` copies it into the editor's
+mock (`SCRS_TABLE`).
 
 ## Notes for the editor
 

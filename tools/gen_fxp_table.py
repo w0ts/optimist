@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware's tables the editor's mock device serves (editor protocol v13) in web/editor.html: tests/fxp_table.json (FXP, DLAN) and
-tests/scrn_table.json (SCRN) -> the blocks between the FXP_TABLE / SCRN_TABLE markers.
+tests/scrn_table.json (SCRN), tests/scrs_table.json (SCRS) -> the blocks between the FXP_TABLE / SCRN_TABLE / SCRS_TABLE markers.
 
   gen_fxp_table.py            bring web/editor.html's block up to date
   gen_fxp_table.py --check    exit 1 when it differs (tests)
@@ -17,8 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EDITOR = ROOT / "web" / "editor.html"
 # (const, golden): FXP_TABLE from tests/fxp_table.json (the FX owners', the drum lanes' parameters), SCRN_TABLE from tests/scrn_table.json
-# (GLOBAL's and SYSTEM's lines: the Optimist UI's, tests/ui_optimist_edscrn.h)
-BLOCKS = [("FXP_TABLE", ROOT / "tests" / "fxp_table.json"), ("SCRN_TABLE", ROOT / "tests" / "scrn_table.json")]
+# (GLOBAL's and SYSTEM's lines: the Optimist UI's, tests/ui_optimist_edscrn.h), SCRS_TABLE from tests/scrs_table.json (the other screens' rows of cards, tests/ui_optimist_edscrs.h)
+BLOCKS = [("FXP_TABLE", ROOT / "tests" / "fxp_table.json"), ("SCRN_TABLE", ROOT / "tests" / "scrn_table.json"), ("SCRS_TABLE", ROOT / "tests" / "scrs_table.json")]
 
 
 def markers(name, golden):
