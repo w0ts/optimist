@@ -330,6 +330,43 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
+/* ---- OCT- / OCT+ on a row with more than one bank: a tap (on release) = the previous / next bank, the same place in it
+ * (the user, 2026-10-15: "oct+/- on the save screen should bank up/down"); lit only where there is a bank that way */
+static uint32_t prj_bank_avail(void)                    /* the OCT LED bits (B_OCTDN, B_OCTUP) that have a bank to go to */
+{
+    uint32_t kind, b;
+    if (ui.scr != SCR_PROJECT)
+        return 0u;
+    kind = prj_kind(ui.row[SCR_PROJECT]);
+    if (!prj_slots_row(kind) || prj_banks(kind) < 2u)
+        return 0u;
+    b = prj_slot_cur(kind) >> 4;
+    return (b > 0u ? 1u << B_OCTDN : 0u) | (b + 1u < prj_banks(kind) ? 1u << B_OCTUP : 0u);
+}
+static uint32_t prj_bank_tap(uint32_t up)               /* 1: the tap was a bank step (or the page's, nothing to do) */
+{
+    uint32_t kind, cur, n, nb;
+    char b[8];
+    if (ui.scr != SCR_PROJECT || !prj_slots_row(prj_kind(ui.row[SCR_PROJECT])))
+        return 0u;
+    kind = prj_kind(ui.row[SCR_PROJECT]);
+    if (!((prj_bank_avail() >> (up ? B_OCTUP : B_OCTDN)) & 1u))
+        return 1u;
+    cur = prj_slot_cur(kind);
+    n = prj_slot_n(kind);
+    nb = (cur >> 4) + (up ? 1u : (uint32_t)-1);
+    cur = (nb << 4) + (cur & 15u);
+    prj_slot_set(kind, cur < n ? cur : n - 1u);
+    fmt_int(b, (int32_t)nb + 1);
+    str_cpy(b + str_len(b), "/", sizeof b - str_len(b));
+    fmt_int(b + str_len(b), (int32_t)prj_banks(kind));
+    ui.force = 1;
+    ui.toast_next = 1;
+    ui_say("BANK ", b);
+    ui.toast_next = 0;
+    return 1u;
+}
+
 /* ---- the keys (the user, 2026-10-13: "while in save/load screen, the note keyboard should not play notes, but select the
  * slot"; 2026-10-14: and run the operation): on a row with slots the 16 white keys are the slots of the bank the ITEM is
  * in (USER: U01..U16 or U17..U32): key n selects item n and asks for the operation on it. Lit: a used slot full, a free
