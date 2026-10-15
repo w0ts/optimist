@@ -13,9 +13,8 @@ static void nb_name(uint32_t kind, uint32_t k, char *nm);
 
 /* list entry n of the selected track's preset list (model.c preset_at): its name -> nm (14), its engine slot
  * (NENGINES: not known) */
-static uint32_t pre_entry(uint32_t n, char *nm)
+static uint32_t pre_entry_of(uint32_t e, uint32_t k, char *nm)
 {
-    uint32_t k, e = preset_at(n, &k);
     if (e == NENGINES) {
         up_name(k, nm);
         return up_engine_slot(k);
@@ -28,6 +27,11 @@ static uint32_t pre_entry(uint32_t n, char *nm)
 #endif
     str_cpy(nm, preset_name(e, k), 14);
     return e;
+}
+static uint32_t pre_entry(uint32_t n, char *nm)
+{
+    uint32_t k, e = preset_at(n, &k);
+    return pre_entry_of(e, k, nm);
 }
 static void pre_engine(uint32_t e, char *b)             /* "ANALOG", "USER" when not known */
 {
@@ -56,7 +60,7 @@ static void pre_toast(void)
         return;
     }
     cur = preset_pos(&total);
-    if (!total)
+    if (cur >= total)                                   /* (none, or LIST FAV with the sound not in the list) */
         return;
     e = pre_entry(cur, nm);
     pre_engine(e, en);
@@ -74,10 +78,14 @@ static uint32_t pre_sig(void)
     uint32_t total, cur = preset_pos(&total);
     return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
             (TSEL->eng_req * 64u + (uint32_t)user_of(TSEL) + settings.palette * 4096u)) * 31u +
+#if FELUCCA_FAVORITES
+           (fav_count() * 131u + fav.user * 2654435761u + (uint32_t)fav_list * 40503u + (uint32_t)op_fav_here() * 7u) +
+#endif
            (is_drum(TSEL) ? drum_kit_pos() * 977u + (uint32_t)lane_picked() * 7u + lane_sel * 131u + (lane_snd() ? dl.src[lane_selected()] : 0u) : 0u);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
- * one after; a drum track: its kit (graph_lane) */
+ * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,
+ * the last favorite before it and the first after; a drum track: its kit (graph_lane) */
 static void pre_draw(void)
 {
     uint32_t total, cur = preset_pos(&total), i;
@@ -88,20 +96,30 @@ static void pre_draw(void)
     }
     p = p < 19 ? 19 : p > 44 ? 44 : p;
     y0 = (GRAPH_H - 3 * p) / 2;
-    for (i = 0; i < 3u && total; i++) {
-        uint32_t n = (cur + total + i - 1u) % total, e;
+    for (i = 0; i < 3u; i++) {
+        uint32_t e, k, eng, all;
         int32_t y = y0 + p * (int32_t)i + 1 + (p - 19) / 2;     /* (2x2: the one playing alone, in the middle) */
         char nm[16], en[10];
         uint16_t ec;
-        if ((total < 3u || GRAPH_H < 58) && i != 1u)
+        if (((total < 3u || GRAPH_H < 58) && i != 1u) || (!total && i != 1u))
             continue;
-        e = pre_entry(n, nm);
-        pre_engine(e, en);
-        ec = e < NENGINES ? ENG_COL[e] : C_GRAY;
+        if (cur < total)
+            e = preset_at((cur + total + i - 1u) % total, &k);
+        else if (i == 1u)                               /* (LIST FAV: the sound playing is not in the list) */
+            e = preset_all_at(preset_all_pos(&all), &k);
+        else
+            e = preset_at(i ? 0u : total - 1u, &k);
+        eng = pre_entry_of(e, k, nm);
+        pre_engine(eng, en);
+        ec = eng < NENGINES ? ENG_COL[eng] : C_GRAY;
         if (i == 1u)
             cv_rect(0, y0 + p, 240, 1, C_LINE), cv_rect(0, y0 + 2 * p - 1, 240, 1, C_LINE);   /* (lined, on black) */
         cv_rect(4, y + 4, 8, 8, ec);                    /* the engine's chip */
         cv_text(18, y, &FONT_S, nm, i == 1u ? C_WHITE : C_DIM);   /* (a preset's name as stored, never re-cased) */
+#if FELUCCA_FAVORITES
+        if (fav_entry(e, k))
+            cv_text(18 + text_w(&FONT_S, nm) + 4, y, &FONT_S, "*", i == 1u ? C_WHITE : C_DIM);
+#endif
         cv_text(236 - text_w(&FONT_S, en), y, &FONT_S, en, i == 1u ? ec : col_shade(ec, 3u));
     }
 }
