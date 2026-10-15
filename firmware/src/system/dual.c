@@ -50,7 +50,8 @@ typedef struct {
     uint32_t poll;                                 /* no-ops between two mailbox reads of the spin loop */
     uint8_t ble;                                   /* 0: no BLE radio start-up at boot, whatever BLUETOOTH says */
     uint8_t policy;                                /* 1: the BLUETOOTH rule (dual_mode.h dual_ble_rule), 0: none */
-    uint8_t pad[2];
+    uint8_t flat;                                  /* 1: no nested interrupts (TIMER5 and BLE at the audio's priority 3) */
+    uint8_t pad[1];
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -198,6 +199,8 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
         if ((mask >> p) & 1u) {
             if (A == &dual_acc[1])
                 dual_c1_at = (uint8_t)(p + 1u);    /* (CPU1: where it is, if it never comes back) */
+            else
+                ASTAGE(0x60 + p);                  /* (CPU0: the job it renders) */
             t0 = fm1_ticks();
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
@@ -660,15 +663,19 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     dual_clear(A, n);
+    ASTAGE(0x12);
     FAR(events_block)(n);                          /* (the sequencer stays in XIP) */
+    ASTAGE(0x50);
     BENCH_BLOCK();
 #if FELUCCA_MACROS
     FAR(mac_pre)();                                /* the macros' values in (macro.c), for both cores */
 #endif
     if (FELUCCA_FX_DUCK)
         duck_block(n * (uint32_t)song.g[G_BPM]);
+    ASTAGE(0x52);
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
     dual_lfo_draw();                               /* the LFOs' random values (the render draws none) */
+    ASTAGE(0x54);
     sw = pold_any() ? FAR(pold_in)() : 0u;         /* (SLOOP 2.6) the parts fading after a sound load: their old
                                                     * sound for this block, on both cores (voice.c sound_change) */
     drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade (before the fork: either */
@@ -705,7 +712,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         }
 #endif
     }
+    ASTAGE(0x56);
     dual_run(jobs & ~mask, n, A);                  /* CPU0's jobs: those CPU1 was not given */
+    ASTAGE(0x57);
     if (post) {
         got = dual_join(req);
         if (!got) {                                /* CPU1 is down: its jobs here (a click, once) */
@@ -730,12 +739,15 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
             mix_l[i] += B->mix_l[i];
             mix_r[i] += B->mix_r[i];
         }
+    ASTAGE(0x59);
     if (sw)
         FAR(pold_out)(sw);                         /* (and the new one back) */
 #if FELUCCA_USB_AUDIO
     ut_mix(n);                                     /* the USB input, a track (fx.c) */
 #endif
+    ASTAGE(0x5A);
     mix_finish(out, n);
+    ASTAGE(0x5B);
 #if FELUCCA_MACROS
     FAR(mac_post)();
 #endif

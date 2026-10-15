@@ -1033,6 +1033,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PLOCK=1 -o "$OUT/hostsim_plock" tests/hostsim.c -lm
     run "recorded lengths as GATE locks (PLOCK): 0.9 / 1.4 / 1.8 steps, the GATE, pattern end, overdub, ratchet, legato, free take, undo" env RECLEN=1 "$OUT/hostsim_plock" 0 0 1 "$OUT/reclen.wav"
     mkdir -p "$OUT/tracks_pl"; run "TRACKS with PLOCK (the recording lengths as before)" env TRACKS="$OUT/tracks_pl" "$OUT/hostsim_plock" 0 0 1 "$OUT/tracks_pl.wav"
+    run "live recording under random keys (REC armed, chords, REC QUANTIZE, lengths, tempo, undo): no hang, no loop guard hit" env RECSTRESS=7 BLOCKS=100000 "$OUT/hostsim_plock" 0 0 1 "$OUT/recstress.wav"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -DFELUCCA_CHANCE=1 -o "$OUT/hostsim_sl24" tests/hostsim.c -lm

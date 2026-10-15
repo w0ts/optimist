@@ -1264,6 +1264,88 @@ static int tracks_test(const char *dir)
     return fail;
 }
 
+/* RECSTRESS=seed [BLOCKS=n]: live recording under random keys (2026-10-15: the FM-1 froze inside the audio render while
+ * the user recorded live notes, REC armed, the sequencer playing). Random note on / off on every track (chords up to 6
+ * held, drum lanes), REC QUANTIZE toggled, pattern lengths, tempo and the selected track changed, undo / redo now and
+ * then, for BLOCKS blocks. A SIGALRM watchdog (2 s without a block) reports where the render was (core.h ASTAGE) and fails;
+ * a LOOP_GUARD that hit its bound (fm1_aloop) fails too */
+#include <signal.h>
+#include <sys/time.h>
+static volatile uint32_t rs_blocks, rs_seen;
+static void rs_alarm(int sig)
+{
+    (void)sig;
+    if (rs_blocks == rs_seen) {
+        printf("recstress: HANG at block %u: audio stage 0x%02x, loop guard 0x%02x\n", (unsigned)rs_blocks,
+               (unsigned)fm1_astage, (unsigned)fm1_aloop);
+        fflush(stdout);
+        _exit(2);
+    }
+    rs_seen = rs_blocks;
+}
+static uint32_t rs_x;
+static uint32_t rs_rnd(uint32_t n)
+{
+    rs_x ^= rs_x << 13;
+    rs_x ^= rs_x >> 17;
+    rs_x ^= rs_x << 5;
+    return n ? rs_x % n : 0u;
+}
+static int rec_stress(uint32_t seed, uint32_t blocks)
+{
+    int32_t o[2 * CTL];
+    uint8_t held[NTRK][6], nh[NTRK] = {0};
+    uint32_t b, i, k, ops = 0;
+    struct itimerval it = {{2, 0}, {2, 0}};
+    rs_x = seed ? seed : 1u;
+    host_tracks_init();
+    for (i = 0; i < NPART; i++) {
+        host_preset(&trk[i], 0, i);
+        trk[i].p[P_VOICE] = (int16_t)(i == 2 ? V_MONO : V_POLY);
+    }
+    song.rec = (uint8_t)((1u << NTRK) - 1u);
+    transport_req = 1;
+    signal(SIGALRM, rs_alarm);
+    setitimer(ITIMER_REAL, &it, 0);
+    for (b = 0; b < blocks; b++) {
+        uint32_t r = rs_rnd(1000);
+        track_t *t = &trk[rs_rnd(NTRK)];
+        uint32_t ti = (uint32_t)(t - trk);
+        if (r < 60 && nh[ti] < 6u) {                    /* a key down */
+            uint32_t note = ti == NPART ? 36u + rs_rnd(16) : 36u + rs_rnd(60);
+            input_on(t, note, 1u + rs_rnd(127));
+            held[ti][nh[ti]++] = (uint8_t)note;
+            ops++;
+        } else if (r < 120 && nh[ti]) {                 /* a key up */
+            k = rs_rnd(nh[ti]);
+            input_off(t, held[ti][k]);
+            held[ti][k] = held[ti][--nh[ti]];
+            ops++;
+        } else if (r == 120) {
+            song.g[G_RECQ] = (int16_t)!song.g[G_RECQ];
+        } else if (r == 121) {
+            t->p[P_SLEN] = (int16_t)(1 + rs_rnd(64));
+        } else if (r == 122) {
+            song.g[G_BPM] = (int16_t)(40 + rs_rnd(260));
+        } else if (r == 123) {
+            song.sel = (uint8_t)ti;
+        } else if (r == 124) {
+            (void)undo_apply((int)rs_rnd(2));
+        } else if (r == 125) {
+            song.rec = (uint8_t)rs_rnd(1u << NTRK);
+        }
+        mix_block(o, CTL);
+        rs_blocks = b + 1u;
+        if (fm1_aloop) {
+            printf("recstress: loop guard 0x%02x hit at block %u (audio stage 0x%02x)\n", (unsigned)fm1_aloop,
+                   (unsigned)b, (unsigned)fm1_astage);
+            return 1;
+        }
+    }
+    printf("recstress: seed %u, %u blocks, %u key events: ok\n", (unsigned)seed, (unsigned)blocks, (unsigned)ops);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int eng = argc > 1 ? atoi(argv[1]) : 0, preset = argc > 2 ? atoi(argv[2]) : 4;
@@ -1324,6 +1406,13 @@ int main(int argc, char **argv)
         transport_req = 1;
     }
     song.master_q12 = 4096;
+    if (getenv("RECSTRESS")) {                          /* RECSTRESS=seed [BLOCKS=n]: live recording, random keys */
+        int fail = rec_stress((uint32_t)atoi(getenv("RECSTRESS")),
+                              getenv("BLOCKS") ? (uint32_t)atoi(getenv("BLOCKS")) : 200000u);
+        fclose(w);
+        remove(out);
+        return fail;
+    }
 #if FELUCCA_PLOCK
     if (getenv("RECLEN")) {                             /* RECLEN=1: the recorded lengths as GATE locks */
         int fail = rec_len_test() + rec_len_free_test(V_POLY) + rec_len_free_test(V_MONO) + rec_overlap_test();

@@ -76,6 +76,7 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #else
     FAR(mix_block)(out, n);                             /* (RAM code: core.h HOT) */
 #endif
+    ASTAGE(0x70);
 #if FELUCCA_USB_AUDIO
     ua_block(out, n);                                   /* the stems out, the computer's audio in */
 #endif
@@ -118,6 +119,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
      * measured on the FM-1; the emulator's model clears it, and its USB audio host test then misses packets) */
     felucca_dbg.in_audio = 1;
     felucca_dbg.where |= 2u;
+    ASTAGE(0x10);
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
         int32_t *o = &abuf[half * HALF_WORDS];
@@ -129,10 +131,12 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             shed_voice();
         }
 #endif
+        ASTAGE(0x11);
         for (b = 0; b < HALF_FRAMES; b += CTL) {
             sync_out_t = a + (((HALF_FRAMES + b) * SY_TPS_Q8) >> 8);
             audio_block(o + 2u * b, CTL);
         }
+        ASTAGE(0x71);
         fm1_audio_ack_half();
         audio_halves++;
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
@@ -163,6 +167,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     }
     felucca_dbg.in_audio = 0;
     felucca_dbg.where &= ~2u;
+    ASTAGE(0x7F);
 }
 extern void isr_alnk0(void);
 

@@ -92,7 +92,11 @@ static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 
      * MIDI rings are single-producer / single-consumer). Below it, a tick waited for the render
      * and the column it had lit stayed on longer: the LEDs shimmered, beating against the audio
      * blocks (1378 / s against the 909 / s scan) */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    fm1_timer5_start(isr_timer5, dualcfg.flat ? 3 : 4);   /* (dualcfg nest off: no interrupt nests in another) */
+#else
     fm1_timer5_start(isr_timer5, 4);
+#endif
 }
 
 static void hexs(char *b, uint32_t v)
@@ -216,6 +220,9 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.prev_alive_ms = felucca_dbg.alive_ms;
     felucca_dbg.prev_c1 = felucca_dbg.c1;
     felucca_dbg.prev_loop_gap_max = felucca_dbg.loop_gap_max;
+    fm1_astage_prev = fm1_astage;
+    fm1_aloop_prev = fm1_aloop;
+    fm1_astage = fm1_aloop = 0;
     felucca_dbg.prev_starve_ms = felucca_dbg.starve_ms;
     felucca_dbg.prev_where = felucca_dbg.where;
     felucca_dbg.prev_in_audio = felucca_dbg.in_audio;

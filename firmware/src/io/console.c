@@ -613,6 +613,9 @@ static void con_boot(void)
     con_kv("prev_cpu_pct", (int32_t)(felucca_dbg.prev_cpu_q8 * 100u / 256u));
     con_kv("prev_late", (int32_t)felucca_dbg.prev_late);
     con_kv("loop_gap_max_ms", (int32_t)felucca_dbg.loop_gap_max);   /* this boot so far */
+    con_kx("prev_audio_stage", fm1_astage_prev);        /* core.h ASTAGE: where the audio interrupt was (0x7F: out of it) */
+    con_kx("prev_loop_id", fm1_aloop_prev);             /* core.h LOOP_GUARD: a loop that hit its bound (0: none) */
+    con_kx("loop_id", fm1_aloop);                       /* (this boot so far) */
     con_kv("ms", (int32_t)fm1_ms);
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
@@ -653,6 +656,7 @@ static void con_dualcfg_show(void)
     con_kv("dualcfg boost", dualcfg.boost);
     con_kv("dualcfg ble", dualcfg.ble);
     con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
+    con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -689,7 +693,12 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.boost);
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
-    else if (con_word(&p, "policy"))
+    else if (con_word(&p, "nest")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.flat = (uint8_t)!on;
+    } else if (con_word(&p, "policy"))
         ok = con_word(&p, "ble-exclusive") ? (c.policy = 1, 1) : con_word(&p, "none") ? (c.policy = 0, 1) : 0;
     else if (con_word(&p, "late")) {
         v = con_num(&p, &n);
@@ -710,7 +719,7 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;
