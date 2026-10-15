@@ -48,21 +48,24 @@
 enum { FXI_NA, FXI_OK, FXI_WAIT, FXI_FULL };
 #if INS_LIM
 enum { FXL_SEND, FXL_LENT, FXL_BACK };
-_Static_assert(NTRK == 4, "fxi_own: an instance a track at most");
-static uint8_t fxi_own[3][NTRK] = {{FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
-                                        {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
-                                                        /* each instance's owner (FXI_NONE: free); the main loop's only */
-static uint8_t fxi_full[3];                           /* the owners (a bit each) holding the type with none left */
+static uint8_t fxi_own[FXI_NL][FXI_IMAX];               /* each instance's owner (FXI_NONE: free); the main loop's only */
+static uint16_t fxi_full[FXI_NL];                       /* the owners (a bit each) holding the type with none left */
 static uint8_t fxi_pend;                                /* a pass is due: a fade-out, a tail, a starved track */
-static uint8_t fxl_st[3];                              /* each send line's owner (FXL_*: above); the main loop's only */
-_Static_assert(FXL_N0 + FELUCCA_INS_CHORUS <= NTRK && FXL_N1 + FELUCCA_INS_DELAY <= NTRK && FELUCCA_INS_JCHORUS <= NTRK,
-               "fxi_own: NTRK instances");
+static uint8_t fxl_st[FXI_NL];                          /* each send line's owner (FXL_*: above); the main loop's only */
+_Static_assert(FXL_N0 + FELUCCA_INS_CHORUS <= FXI_IMAX && FXL_N1 + FELUCCA_INS_DELAY <= FXI_IMAX && FXI_NK <= 16u,
+               "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
 AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
-    if (FELUCCA_INS_JCHORUS && k == FXI_MST)
+    if (k == FXI_MST)
         return (mst_slot[0] == ty || mst_slot[1] == ty) && (MST_OK >> ty & 1u);
-    return (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
+#if FELUCCA_USB_AUDIO
+    if (k == FXI_UT)
+        return (ut.slot[0] == ty || ut.slot[1] == ty) && (UT_OK >> ty & 1u);
+#endif
+    if (k >= FXI_RT0)
+        return FXI_RT_HOLDS(k - FXI_RT0, ty);
+    return k < NTRK && (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
 }
 /* the send in a master slot (JUNO CHORUS: no send line to lend, as if always in one) */
 AINL uint32_t fxl_send_on(uint32_t j) { return j >= 2u ? 1u : FXS_ON(j ? FXT_DLY : FXT_CHO); }
@@ -112,6 +115,10 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed: it
     if (j == 2u)
         memset(&ifx_jcho[i], 0, sizeof ifx_jcho[i]);
 #endif
+#if FELUCCA_INS_FLANGER
+    if (j == 3u)
+        memset(&ifx_flng[i], 0, sizeof ifx_flng[i]);
+#endif
     (void)i;
 }
 /* a free instance of type FXI_TY(j): the builder's own first, then the send's line while lent; FXI_NONE: none */
@@ -135,7 +142,7 @@ static void fxi_sync(uint32_t j, int load)
         k = fxi_own[j][i];
         if (k == FXI_NONE || (want >> k & 1u))
             continue;
-        if (load || !ifx_lim_w(ty, k == FXI_MST ? IFX_MST : k))
+        if (load || !ifx_lim_w(ty, fxi_aix(k)))
             fxi_give(j, i);
         else
             fxi_pend = 1;                               /* (fading out: the next pass) */
@@ -146,7 +153,7 @@ static void fxi_sync(uint32_t j, int load)
             continue;
         i = fxi_find(j);
         if (i == FXI_NONE) {
-            fxi_full[j] |= (uint8_t)(1u << k);          /* (none left: bypassed) */
+            fxi_full[j] |= (uint16_t)(1u << k);         /* (none left: bypassed) */
             continue;
         }
         fxi_clear(j, i);                                /* (not in use: the audio does not see it) */
@@ -156,7 +163,7 @@ static void fxi_sync(uint32_t j, int load)
     if (load)                                           /* (a track past the count: asks again when one is given back) */
         for (k = 0; k < FXI_NK; k++)
             if (fxi_holds(k, ty) && fxi_at[k][j] == FXI_NONE)
-                fxi_full[j] |= (uint8_t)(1u << k);
+                fxi_full[j] |= (uint16_t)(1u << k);
 }
 
 /* ---- Lending (above): the send line j (0 CHO -> CHRS, 1 DLY -> ECHO) */
@@ -212,7 +219,7 @@ static uint32_t fxl_step(uint32_t j)
         if (k == FXI_NONE)
             continue;
         fxi_evict(j, i, fxl_st[j] == FXL_BACK);
-        if (fxl_st[j] == FXL_BACK && !ifx_lim_w(ty, k == FXI_MST ? IFX_MST : k))
+        if (fxl_st[j] == FXL_BACK && !ifx_lim_w(ty, fxi_aix(k)))
             fxi_give(j, i);                             /* (faded out: its slice back) */
         else
             held = 1;
@@ -254,7 +261,7 @@ static void fxi_init(void)
 {
     uint32_t j, k;
     for (j = 0; j < FXI_NL; j++) {
-        for (k = 0; k < NTRK; k++)
+        for (k = 0; k < FXI_IMAX; k++)
             fxi_own[j][k] = FXI_NONE;
         for (k = 0; k < FXI_NK; k++)
             fxi_at[k][j] = FXI_NONE;
@@ -288,22 +295,25 @@ static uint32_t fxi_free(uint32_t t)
     uint32_t c = fxi_cap(t), u = fxi_used(t);
     return !FXI_LIM(t) ? (c ? FXI_ANY : 0u) : c > u ? c - u : 0u;
 }
-static uint32_t fxi_state(uint32_t k, uint32_t s)
+/* owner o's (FXI_MST, FXI_UT, FXI_RT0 + j, a track) type t: FXI_NA .. FXI_FULL (as fxi_state) */
+static uint32_t fxi_ostate(uint32_t o, uint32_t t)
 {
-    uint32_t t = ins_slot[k % NTRK][s & 1u], j = FXI_J(t);
+    uint32_t j = FXI_J(t);
+    o %= FXI_NK;
     if (!FXI_LIM(t) || !FXI_CAP[j])
         return FXI_NA;
-    if (fxi_at[k % NTRK][j] != FXI_NONE)
+    if (fxi_at[o][j] != FXI_NONE)
         return FXI_OK;
     if (fxi_dirty || (fxl_st[j] == FXL_SEND && fxl_can(j) && fxi_lent(t) < FXI_LND[j]))
         return FXI_WAIT;                                /* (the next pass, or the send's tail ending) */
-    return fxi_full[j] >> (k % NTRK) & 1u ? FXI_FULL : FXI_WAIT;
+    return fxi_full[j] >> o & 1u ? FXI_FULL : FXI_WAIT;
 }
+static uint32_t fxi_state(uint32_t k, uint32_t s) { return fxi_ostate(k % NTRK, ins_slot[k % NTRK][s & 1u]); }
 static int fxi_can(uint32_t k, uint32_t t)
 {
     if (!FXI_LIM(t))
         return t < FXT_N && (FXT_BUILT >> t & 1u);
-    return FXI_CAP[FXI_J(t)] && (fxi_at[k % NTRK][FXI_J(t)] != FXI_NONE || fxi_free(t) > 0u);
+    return FXI_CAP[FXI_J(t)] && (fxi_at[k % FXI_NK][FXI_J(t)] != FXI_NONE || fxi_free(t) > 0u);
 }
 #else
 #define fxi_poll() ((void)0)
@@ -313,5 +323,6 @@ static uint32_t fxi_cap(uint32_t t) { return t < FXT_N && (FXT_BUILT >> t & 1u) 
 #define fxi_free(t) fxi_cap(t)
 #define fxi_lent(t) ((void)(t), 0u)
 #define fxi_state(k, s) ((void)(k), (void)(s), (uint32_t)FXI_NA)
+#define fxi_ostate(o, t) ((void)(o), (void)(t), (uint32_t)FXI_NA)
 #define fxi_can(k, t) ((void)(k), fxi_cap(t) != 0u)
 #endif

@@ -27,7 +27,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 #define FXT_NEWN (FXT_GATE + 1)
 #define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_LIMN - 1 (fxi.c: an instance each) */
 #define FXT_LIMN (FXT_ECHO + 1)                        /* (GATER after them: on every track, not limited) */
-#define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO))
+#define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || \
+                       (FELUCCA_INS_FLANGER && (t) == FXT_FLNG))   /* (FLNG since fx-pool 2026-10-15) */
 #define FX_NSLOT 4u
 #define FXT_BIT(x) (1u << (x))
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \
@@ -88,6 +89,7 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};   /* 
 static uint8_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lm[3] = {31, 31, 31};
 #define FXS_ON(x) (fxs_live >> (x) & 1u)
+#define FXI_RT_HOLDS(j, t) ((void)(j), (void)(t), 0u)   /* (the returns' slots: below) */
 #if INS_LIM
 /* the limited types' instances (fx/insfx/fxi.c) follow the slots in the main loop: a change of slots asks for it (1), a
  * project load for every instance handed out again in track order (2: deterministic). Written anywhere (a load may run
@@ -256,7 +258,8 @@ static void ins_defaults(void)
  * DJ filter), DUST's G_DUST, DYN's G_CTHR (its THRS; RATIO ATK REL GAIN CEIL its G_C*: GLO > COMP / LIMIT as before), each
  * other type's in mst_amt (the FX record's MST_TLV). A new project: S1 FILT (0: bypassed), S2 DYN (CEIL -3 dB); an old one
  * (no MST_TLV): the master effects it used, in their old order (fx_rec.c mst_map) */
-#define MST_OK (FXT_BUILT & FXT_INSERT & ~(FXT_BIT(FXT_CHRS) | FXT_BIT(FXT_ECHO) | FXT_BIT(FXT_GATE)))
+#define MST_OK (FXT_BUILT & FXT_INSERT & ~FXT_BIT(FXT_GATE))   /* (fx-pool 2026-10-15: CHRS ECHO too, an instance of the pool;
+                                                        * GATER reads a track's tempo values: the tracks' only) */
 #define MST_DEF0 (TFLT_ON ? FXT_FILT : FELUCCA_MASTER_COMP ? FXT_DYN : FXT_NONE)   /* (fx_rec.c mst_map's order) */
 #define MST_DEF1 (TFLT_ON && FELUCCA_MASTER_COMP ? FXT_DYN : FXT_NONE)
 static uint8_t mst_slot[INS_N] = {MST_DEF0, MST_DEF1};
@@ -307,7 +310,7 @@ static void mst_defaults(void)
  * and R, its sends REV DLY CHO from its mid. Unity, centre, no insert, no send by default: the computer's audio as it was
  * mixed before (into the output, now into the mix bus before the master's inserts). Kept in the FX record (fx_rec.c
  * UT_TLV), a load's. The mixer's USB row (op_mixer.c) edits it */
-#define UT_OK (MST_OK & ~FXT_BIT(FXT_JUNO))
+#define UT_OK MST_OK                                    /* (fx-pool: the limited types too, an instance of the pool) */
 #define UT_LVL_DEF 112                                  /* (LEVEL_Q12[112] = 4096: unity) */
 enum { UTV_LVL, UTV_PAN, UTV_MUTE, UTV_FXON, UTV_REV, UTV_DLY, UTV_CHO, UTV_N };
 static struct {

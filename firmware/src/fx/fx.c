@@ -2203,7 +2203,7 @@ static HOT2 __attribute__((noinline)) void ut_ins(uint32_t t, int32_t a, int32_t
     if (t == FXT_DUST)
         dust_run(&ut_dust, FELUCCA_FX_DUST ? a : 0, l, r, n);
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu && (UT_OK >> t & 1u))
+    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu && (UT_OK >> t & 1u))
         ifx_ut(t, a, l, r, n);
 #endif
     (void)a, (void)l, (void)r, (void)n;

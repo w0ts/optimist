@@ -403,6 +403,58 @@ static void t_juno(void)
 }
 #endif
 
+#if FELUCCA_INS_FLANGER
+/* fx-pool (2026-10-15): FLNG is pooled (1 instance here), any owner takes one (the master, in owner order after the tracks),
+ * CHRS on the master takes a CHRS instance */
+static int32_t fr[NB * CTL];
+static void play_mst2(uint32_t t, int32_t a)
+{
+    uint32_t i;
+    mst_amt[t] = (int16_t)a;
+    memcpy(y, x, sizeof y), memcpy(fr, x, sizeof fr);
+    for (i = 0; i < NB; i++)
+        mst_run(y + i * CTL, fr + i * CTL, CTL);
+}
+static void t_flng(void)
+{
+    uint32_t i, k, lr = 0;
+    uint8_t m[2] = {FXT_FLNG, FXT_NONE};
+    reset();
+    sine();
+    slots(0, FXT_FLNG, FXT_NONE);
+    mst_put(m);
+    fxi_poll();
+    check("FLNG pooled: 1 instance; T1 and the master hold it: T1 has it (owner order), the master FULL",
+          fxi_cap(FXT_FLNG) == 1u && fxi_state(0, 0) == FXI_OK && fxi_ostate(FXI_MST, FXT_FLNG) == FXI_FULL);
+    play_mst2(FXT_FLNG, 100);
+    check("... the master without one: L and R bit for bit", same() && !memcmp(x, fr, sizeof fr));
+    slots(0, FXT_NONE, FXT_NONE);
+    trk[0].p[P_TFLNG] = 100;
+    memcpy(y, x, sizeof y);
+    for (i = 0; i < NB; i++)
+        ins_part(&trk[0], y + i * CTL, CTL);            /* (T1's fade-out: in no slot, at 0) */
+    for (k = 0; k < 4u; k++)
+        fxi_poll();
+    check("T1 drops it: after its fade the master has it", fxi_ostate(FXI_MST, FXT_FLNG) == FXI_OK &&
+          ifx_lim_at(FXT_FLNG, 0) == FXI_NONE);
+    play_mst2(FXT_FLNG, 100);
+    for (i = 0; i < NB * CTL; i++)
+        lr |= y[i] != fr[i];
+    check("... heard on the master; L and R the same sweep (the same input: the same output)", !same() && !lr);
+    m[0] = FXT_CHRS;
+    mst_put(m);
+    fxi_poll();
+    check("CHRS on the master: a CHRS instance (fx-pool: the master is an owner of every pooled type)",
+          fxi_ostate(FXI_MST, FXT_CHRS) == FXI_OK && ifx_lim_at(FXT_CHRS, IFX_MST) != FXI_NONE);
+    play_mst2(FXT_CHRS, 90);
+    check("... heard", !same());
+    m[0] = FXT_NONE;
+    mst_put(m);
+    play_mst2(FXT_CHRS, 0);
+    fxi_poll();
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -414,6 +466,9 @@ int main(void)
     t_lend_load();
 #if FELUCCA_INS_JCHORUS
     t_juno();
+#endif
+#if FELUCCA_INS_FLANGER
+    t_flng();
 #endif
     printf("fxi: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;
