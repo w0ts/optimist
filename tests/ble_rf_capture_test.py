@@ -15,6 +15,7 @@ from pathlib import Path
 from tools_path import TOOLS           # (tools/ on sys.path: tests/tools_path.py)
 import ble_vm
 import ble_rf_capture as C
+import ble_rf_pack as P
 
 fails = 0
 
@@ -219,6 +220,7 @@ def capture_tests():
     got = dict((a, v) for a, v in C.expand(prog, addrs, t2, fl) if isinstance(a, int) and a != C.BBP_PORT)
     check("other trims land in their fields: 0x11930 [16:13] / [22:19], 0x11908 [8:7] and 15",
           got[0x11930] == 5 << 13 | 9 << 19 | 1 and got[0x11908] == 0x9C010010 | 3 << 7 | 1 << 15, hex(got[0x11930]))
+    check("pack: the program packs and unpacks to the same bytes", P.unpack(P.pack(prog)) == prog)
     bad = list(part_p)
     k = next(i for i, w in enumerate(bad) if w[2] == 0x30F00)
     bad[k] = bad[k][:3] + (8,)
@@ -227,6 +229,26 @@ def capture_tests():
         check("a trim-dependent write no field explains stops the tool", False)
     except C.CaptureError as e:
         check("a trim-dependent write no field explains stops the tool", "no field" in str(e), e)
+
+
+def pack_tests():
+    """tools/ble_rf_pack.py on a hand-made program: window writes repeating 3 entries, a replay of them, a trim mark
+    before a LUT run (it stays the trim's write), then LUT pairs"""
+    ww = b"".join(bytes((P.OP_WIN_W | 1, e, (r * 7 + e) & 0xFF)) for r in range(6) for e in (0x2F, 0x2B, 0x4E))
+    lut = b"".join(bytes((P.OP_LUT, c, e, 1)) + (0x6400000 * (c == 14) + e * (0xAAAB if c == 14 else 0x200000)).to_bytes(4, "little")
+                   for e in range(40) for c in (14, 13))
+    head = bytes((P.OP_SECT, 4)) + ww
+    prog = head + bytes((P.OP_REPLAY,)) + (2).to_bytes(2, "little") + len(ww).to_bytes(2, "little") + \
+        bytes((P.OP_TRIM, 3, 0)) + lut + bytes((P.OP_END,))
+    q = P.pack(prog)
+    ops = [o[0] for _, o in P.ops_of(q)]
+    check("pack: OP_WWG for the window writes; the trim's LUT write and its pair's stay OP_LUT, the rest one OP_LUT2",
+          ops == [P.OP_SECT, P.OP_WWG, P.OP_REPLAY, P.OP_TRIM, P.OP_LUT, P.OP_LUT, P.OP_LUT2, P.OP_END] and len(q) < len(prog) // 2,
+          [hex(x) for x in ops])
+    r = next(o for _, o in P.ops_of(q) if o[0] == P.OP_REPLAY)
+    check("pack: the replay's offset and length point at the packed window writes",
+          (r[1] | r[2] << 8, r[3] | r[4] << 8) == (2, P.op_len(q, 2)))
+    check("pack: unpack gives the program back byte for byte", P.unpack(q) == prog)
 
 
 def input_tests():
@@ -303,6 +325,11 @@ def committed_tests():
     check("the committed tables are this tool's format and the pinned ones", C.committed_reason() is None,
           C.committed_reason())
     text = C.COMMITTED.read_text()
+    check("... its program, unpacked (tools/ble_rf_pack.py), is byte for byte the capture: the pinned SHA-256",
+          C.header_digest(text) == C.PINNED)
+    n2 = len(P.unpack(bytes(P.header_array(text, "ble_rf_prog"))))
+    check(f"... packed: {len(P.header_array(text, 'ble_rf_prog'))} B of flash for the {n2} B program",
+          len(P.header_array(text, "ble_rf_prog")) < n2 * 6 // 10)
     check("... with the one-line provenance comment and no GENERATED / do-not-commit wording",
           text.startswith("/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md). */\n")
           and "GENERATED" not in text and "do not commit" not in text)
@@ -323,6 +350,7 @@ check("the modules under test are this repository's tools/", Path(C.__file__).pa
       Path(ble_vm.__file__).parent == TOOLS)
 vm_tests()
 capture_tests()
+pack_tests()
 input_tests()
 cache_tests()
 committed_tests()

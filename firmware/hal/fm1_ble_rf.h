@@ -44,7 +44,7 @@
 #include "fm1_time.h"
 #include "ble_rf_tables.h"   /* build/gen: tools/build.py copies firmware/hal/ble_rf_tables_v15.h or a fresh capture there */
 
-#if !defined(BLE_RF_TABLES_FORMAT) || BLE_RF_TABLES_FORMAT != 2
+#if !defined(BLE_RF_TABLES_FORMAT) || BLE_RF_TABLES_FORMAT != 3
 #error "build/gen/ble_rf_tables.h is from another tools/ble_rf_capture.py: capture it again or update ble_rf_tables_v15.h"
 #endif
 
@@ -295,6 +295,48 @@ static uint32_t fm1_ble_rf_burst(uint32_t pc, uint32_t end, const uint8_t *const
     return q;
 }
 
+/* one op more for the console and the breadcrumb (each write of a packed op counts as the op it replaced) */
+static void fm1_ble_rf_tick(void)
+{
+    fm1_ble_rf_stat.ops++;
+    fm1_ble_bc.op = fm1_ble_rf_stat.ops;
+    fm1_ble_bc.gop = fm1_ble_rf_stat.ops - fm1_ble_rf_stat.group_op;
+}
+
+/* the packed ops (capture format 3, tools/ble_rf_pack.py), write for write the format-2 ops they replace:
+ * OP_LUT2 0x91: cmd A, cmd B, first entry, count - 1, nA, nB, the deltas (4 bytes each), then count pairs of delta
+ * indices (A's word, then B's, for each entry; a word is its command's last + the delta, from 0) -> the bytes used */
+static uint32_t fm1_ble_rf_lut2(const uint8_t *p)
+{
+    uint32_t n = p[4] + 1u, na = p[5], wa = 0, wb = 0, i;
+    const uint8_t *da = p + 7, *db = da + 4u * na, *ix = db + 4u * p[6];
+    for (i = 0; i < n; i++) {
+        if (i)
+            fm1_ble_rf_tick();
+        wa += fm1_rf_u32(da + 4u * ix[2u * i]);
+        fm1_rfspi(p[3] + i, p[1], wa);
+        fm1_ble_rf_tick();
+        wb += fm1_rf_u32(db + 4u * ix[2u * i + 1u]);
+        fm1_rfspi(p[3] + i, p[2], wb);
+    }
+    fm1_ble_rf_stat.lut_words += 2u * n;
+    return (uint32_t)(ix + 2u * n - p);
+}
+
+/* OP_WWG 0x92: window, n, n entries, records r, then r x n values: the window writes of the n entries, r times */
+static uint32_t fm1_ble_rf_wwg(const uint8_t *p)
+{
+    uint32_t n = p[2], r = p[3u + n], k, j;
+    const uint8_t *v = p + 4u + n;
+    for (k = 0; k < r; k++)
+        for (j = 0; j < n; j++) {
+            if (k | j)
+                fm1_ble_rf_tick();
+            fm1_bbp_win_wr(p[1] & 3u, p[3u + j], *v++);
+        }
+    return (uint32_t)(v - p);
+}
+
 /* run ble_rf_prog[pc, end) (one level of replay); rec = the data of VM 106, 107, 108, 187 */
 static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[4], int depth)
 {
@@ -303,9 +345,7 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
     uint32_t last = 0, v, a, i, n;
     while (pc < end) {
         uint32_t op = p[pc];
-        fm1_ble_rf_stat.ops++;
-        fm1_ble_bc.op = fm1_ble_rf_stat.ops;
-        fm1_ble_bc.gop = fm1_ble_rf_stat.ops - fm1_ble_rf_stat.group_op;
+        fm1_ble_rf_tick();
         if (op < 0x80u) {                                   /* a register write */
             a = ble_rf_addr[op];
             v = fm1_rf_u32(p + pc + 1);
@@ -366,6 +406,11 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
         } else if (op == 0x8Fu) {
             fm1_ble_rf_stat.skipped += p[pc + 1] | p[pc + 2] << 8;   /* TODO(hardware): the read-back loop */
             pc += 3;
+        } else if (op == 0x91u) {                           /* the LUT words of two commands (packed) */
+            pc += fm1_ble_rf_lut2(p + pc);
+        } else if (op == 0x92u) {                           /* window writes repeating n entries (packed) */
+            pc += fm1_ble_rf_wwg(p + pc);
+            nt = rmw = 0;
         } else if (op == 0x90u) {                           /* a section marker (§16.1 group) */
             fm1_ble_rf_section(p[pc + 1]);
             pc += 2;
