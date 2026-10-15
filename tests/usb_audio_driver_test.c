@@ -78,6 +78,13 @@ static void mock_write(uint32_t r, uint32_t v)
 #define FELUCCA_CDC 0
 #define FELUCCA_OTA 0
 static uint32_t fm1_ticks(void) { return 0; }   /* (usb.c SYNC_NOW: MIDI timestamps, not tested here) */
+/* usb.c includes usb_audio_route.c (SYSTEM > USB AUDIO, 2026-10-15), which needs core.h's mix constants and ua_tap.h: stand-ins */
+#define CTL 32
+#define NTRK 4
+#define DRUM_LANES 16
+#define AINL static inline
+static int32_t track_capture[CTL * NTRK];
+#include "../firmware/src/io/usb/ua_tap.h"
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
 #include "../firmware/src/io/usb/usb.c"
 
@@ -151,7 +158,11 @@ static void controls(void)
     assert(ep_cnt[0] == 26 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0O\0u\0t\0", 24));
     setup(0x80, 6, 0x0304, 0x0409, 255);
     assert(ep_cnt[0] == 24 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0I\0n\0", 22));
-    setup(0x80, 6, 0x0305, 0x0409, 255);
+    for (int ch = 0; ch < 4; ch++) {   /* the capture channels' names, strings 5..8 (SYSTEM > USB AUDIO: what each carries) */
+        setup(0x80, 6, (uint16_t)(0x0305 + ch), 0x0409, 255);
+        assert(ep_cnt[0] == 8 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "C\0H\0", 4) && ep0buf[6] == '1' + ch);
+    }
+    setup(0x80, 6, 0x0309, 0x0409, 255);
     assert(ep0_command == 0x60);
     ua.pw = 600;
     ua.cw = 600;

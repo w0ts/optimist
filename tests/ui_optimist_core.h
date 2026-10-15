@@ -52,7 +52,7 @@ static void core_row_tests(void)
 #else
     sys_info_cell(2, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == INFO_BASE, "the INFO page has the same lines in every single-core build (clock, CPU0, 2ND CORE, PEAK, DROPS, [GUARD,] battery)");
+    check(INFO_N == 6u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, DROPS, UNDERRUNS, [GUARD,] battery in every build (the internals: DIAGNOSTICS)");
 #endif
     reset_ui();
 }
@@ -152,17 +152,35 @@ static void overload_tests(void)
     sys_info_cell(1, &c);
     check(!strcmp(c.val, "0"), "... the CPU line's MAX from 0");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");
+    {   /* INFO split in two (the user, 2026-10-15): DIAGNOSTICS next, a page of its own, then USB DIAGNOSTICS (USB audio builds) */
+        uint32_t e = gl_ent(1, 1), k, ok = 1;
+        char t[32];
+        ui.row[SCR_SYSTEM] = 1;
+        ui.msg_t = 0;                                   /* (the header: the page's title, not "Counters cleared") */
+        frame();
+        ppm("opt-internals");
+        gl_ptitle(1, 1, t, sizeof t);
+        check(sys_item(e >> 2, e & 3u) == SI_DIAG && gl_end(1, 1) == 2u && !strcmp(t, "Internals"), "INTERNALS: the second page, its own");
+        for (k = 0; k < INFO_DIAG; k++) {
+            info_cell(INFO_PG_DIAG, k, &c);
+            ok &= c.kind == CK_RO && c.label && c.label[0] && !strchr(c.label, '/') && !strchr(c.val, '/');
+        }
+        check(ok, "INTERNALS: read-outs in words (no a/b/c values)");
 #if FELUCCA_USB_AUDIO
-    ui.row[SCR_SYSTEM] = 1;                             /* (INFO's second page: the USB audio counters) */
-    frame();
-    ppm("opt-info-usbaudio");
-    {
-        uint32_t e = gl_ent(1, 1);
-        check(sys_item(e >> 2, e & 3u) == SI_UAINFO && gl_end(1, 1) == 2u, "USB AUDIO: INFO's second page, its own");
-    }
-    ui.row[SCR_SYSTEM] = 0;
-    frame();
+        ui.row[SCR_SYSTEM] = 2;
+        frame();
+        ppm("opt-usb-stats");
+        e = gl_ent(1, 2);
+        ok = sys_item(e >> 2, e & 3u) == SI_UAINFO && gl_end(1, 2) == 3u;
+        for (k = 0; k < INFO_UA; k++) {
+            info_cell(INFO_PG_USB, k, &c);
+            ok &= c.kind == CK_RO && !strchr(c.label, '/') && !strchr(c.val, '/') && !strchr(c.unit, '/');
+        }
+        check(ok, "USB INTERNALS: the third page, the USB audio counters in words");
 #endif
+        ui.row[SCR_SYSTEM] = 0;
+        frame();
+    }
 #if FELUCCA_CPU_GUARD
     {
         uint32_t g = info_line("GUARD");

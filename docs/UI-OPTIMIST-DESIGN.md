@@ -509,9 +509,14 @@ display the info about the item"; "NEW is just clearing what is in memory and cr
 
 ### 4.7 SYSTEM
 
-**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31: CLOCK, the loads, the memory, read-outs; first)**, SCREEN (COLOR BRIGHT -
-KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, CALIBRATE (PANEL, HOLD), ABOUT:
-the setup. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
+**A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31; section 38: CLOCK, the CPU, DROPS, UNDERRUNS, GUARD, the battery; first), INTERNALS, USB STATS (section 38)**, SCREEN (COLOR BRIGHT -
+KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, USB AUDIO (CH1 CH2 CH3 CH4), CALIBRATE (PANEL, HOLD), ABOUT:
+the setup. **USB AUDIO** (USB audio builds, 2026-10-15, the user: "four lines that allow to select the source for each of
+the 4 channels"): one line a capture channel, its source as text (no bar): OFF, MAIN L, MAIN R, MAIN L+R,
+T1, T2, T3, DRUMS, DRUM BUS L, DRUM BUS R, DRUM BUS L+R, DR1..DR16 (L+R: (L + R) / 2, each side x 0.5, -6.02 dB:
+never clips, a mono signal keeps its level; no -3 dB choice, the user 2026-10-15); the knob walks the list (stops at the
+ends), YES steps it round, OCT- held + the knob its default (T1 T2 T3 DRUMS, the stems as before). Where each is taken:
+io/usb/ua_tap.h; kept in the settings record. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and
 shown there only. **Reached by GLO tapped on GLOBAL** (section 20; GLO tapped on SYSTEM goes back to GLOBAL). HOME
 held alone on the mixer no longer opens it.
@@ -3210,3 +3215,31 @@ clears it (left), toast "FAV + NAME" / "FAV - NAME"; **SHIFT2 + SELECT** browses
 (left); a PRESETS toast puts a star after a favorite's name; **PROJECT > USER: SHIFT2 + the ITEM knob** marks the slot (a star after its
 name in the info). SHIFT + PRESETS is still the engine step. INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE. The store and the
 list filter are unchanged; the drum track has no mark.
+
+## 38. Overload monitor; INFO split in three (feat/overload-monitor, 2026-10-15)
+
+The user: "we should have actually a MAX of the last few seconds and a DROP-OUT DETECTOR"; "the second encoder should switch
+between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"; "the 1st system screen would gain
+to be split in two pages with easier-to-read text" (three pages are fine).
+
+- **INFO** (SYSTEM 1/n), what a musician reads, text only: CLOCK; the CPU line (`LOAD`, `CPU0` in DUAL builds): KNOB 2 turns its
+  measure NOW (the smoothed load) -> MAX 5S (the longest audio half of the last ~5 s, its wait for the interrupt included) -> MAX
+  (since boot or the last clear), round; the label says which (`CPU0 MAX 5S`); % of a half, over 100 when a half ran late, in the
+  load colours. The 2ND CORE line follows the same measure while the core is up (`CPU1 MAX 5S`). DROPS: late audio halves (gaps in
+  the sound), green 0, red when one came in the last 5 s, else amber. UNDERRUNS: everything else lost (USB audio's playback / capture
+  under- and overruns and missed frames, MIDI in that found its ring full: USB, TRS, BLE), the total and, dim, where ("USB3
+  MIDI1"). GUARD (CPU_GUARD builds): the guard's level (OFF, QUALITY, UNISON, REVERB, NOTES), `MAX n` while it caps the voices,
+  `-n` the voices shed. BATTERY.
+- **SHIFT + YES on INFO** clears what the page shows: DROPS, UNDERRUNS, the MAX, the voices shed (display baselines; the
+  counters go on, the console reads them since boot). On INFO it takes the place of the redo chord.
+- **The header's rule** (its bottom line, 2 px) turns red for ~1 s after a drop-out and amber after another underrun, on every page.
+- **INTERNALS** (2/n): LAST RESET, FLASH IRQS OFF (the longest interrupts-off window of a flash operation; amber past an audio half),
+  and in DUAL builds CPU1 JOBS DONE, CPU1 RE-WAKES, CPU1 LAST STOP (NEVER | `<t> IDLE` | `<t> NOT TAKEN` | `<t> IN JOB n`, unit the
+  job's index), CPU1 GOT TO (how far it got), CPU1 HEARTBEAT (unit: its wakes), CPU1 FAULT (NONE, or the code and the pc).
+- **USB STATS** (3/n, USB audio builds): USB UNDERRUNS, USB OVERRUNS, MISSED FRAMES, BAD PACKETS, PACKETS IN, RATE ASKED (Hz, the
+  feedback to the computer), LOWEST BUFFER (frames), LONGEST GAP (us between USB polls), GAPS > 0.9 MS. One value a line, words
+  and units, no `a/b/c` values (before: `UA U/O/M/B`, `k/n`).
+- Row names keep to 9 characters (rows_ok), so the pages are INTERNALS and USB STATS (not "Second core" / "Diagnostics").
+- Code: system/overload.h (the ISR's two stores a half, the per-second maxima rings for CPU0 and CPU1, the MIDI loss counters),
+  op_project.c (the cells, info_cell's pages), op_gldraw.c (the pages drawn whole), op_global.c (KNOB 2, SHIFT + YES), op_draw.c
+  (the rule). Tests: ui_optimist_core.h overload_tests, glo / glwalk / glstyle updated. The guard's side: docs/CPU-GUARD.md "Spikes".

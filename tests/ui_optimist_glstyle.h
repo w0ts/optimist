@@ -259,7 +259,7 @@ static int gls_info_page(void)
 {
     uint32_t i, ok = 1;
     cell_t c;
-    int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N;
+    int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N < GL_INFO_PH ? (GL_END - gl_y0()) / (int32_t)INFO_N : GL_INFO_PH;
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out fits the page) */
     song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading n/3 and the raw count (no invented percentage) */

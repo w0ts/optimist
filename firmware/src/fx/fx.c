@@ -1769,6 +1769,9 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
         b[i] = 0;
     for (s = 0; s < INS_N; s++)                         /* S1, then S2 */
         dins_one(k, s, dins_ty[k][s], x->on && l < DRUM_LANES && (LIN_OK >> lin_slot[l][s] & 1u) ? lin_amt(l, s) : 0, b, n);
+#if FELUCCA_USB_AUDIO
+    dlt_add(l, b, 0, n);                                /* its lane's USB tap after the inserts (ua_tap.h) */
+#endif
     for (i = 0; i < n; i++) {
         int32_t y = b[i], ys = clamp(y, -65535, 65535);   /* (the sends: mulq15 fits) */
         if (x->mono) {
@@ -1960,6 +1963,9 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
     to[2] = on && FXS_ON(FXT_REV) ? p[P_REV] * 258 : 0;
     if (to[0] | to[1] | to[2] | dbus_snd[0] | dbus_snd[1] | dbus_snd[2])
         dbus_sends(to, n);
+#if FELUCCA_USB_AUDIO
+    ua_dbus_tap(mix_l, mix_r, n);                       /* the drum bus for a USB channel that takes it (ua_tap.h) */
+#endif
 }
 
 /* ---- a part's two insert slots (2026-10-12: "two slot, configurable per track (filter, disto, comp etc)"): after
@@ -2477,6 +2483,7 @@ AINL void capture_clear(uint32_t n)
     if (!FELUCCA_SKIP || track_capture_on || !(++tick & 63u))
         for (i = 0; i < n * NTRK; i++)
             track_capture[i] = 0;
+    dlt_block(track_capture_on, n);                     /* the lane / drum bus taps a channel takes (ua_tap.h) */
 }
 #endif
 #if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */

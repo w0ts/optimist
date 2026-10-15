@@ -102,6 +102,7 @@ static void walk_to(uint32_t p, int lay)
 }
 /* both OCT tapped: a track page to MASTER (the selection and the page remembered), again back to that track and page. MASTER entered
  * any other way (the mixer's row, the FX button) has no memory: it goes back to the selected track */
+static uint8_t mk_trk;                                  /* both OCT to MASTER: the keys stay this track's + 1, 0 none (op_input.c mk_live) */
 static struct {
     uint8_t valid;
     uint8_t row;                                        /* the mixer row of the selection that was left */
@@ -118,6 +119,8 @@ static void oct_master_toggle(void)
         om.row = (uint8_t)walk_pos(0);
         om.valid = 1;
         walk_to(MXR_MASTER, 0);
+        mk_trk = (uint8_t)(song.sel + 1u);               /* (the keys stay that track's: op_input.c mk_live) */
+        ui_say("KEYS ", trk_tag(song.sel));
     }
 }
 /* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */

@@ -79,11 +79,11 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
  * only, no bars (the clock, the load of each core, the battery). No knob
  * does anything here and no line is the cursor */
-#define GL_INFO_PH 24                                   /* the USB AUDIO page's line pitch at most */
-static uint32_t gl_info(void)                           /* 1: INFO, 2: USB AUDIO (op_project.c info_cell's page + 1), 0: neither */
+#define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
+static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS), 0: none */
 {
     uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u, it = gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
-    return it == SI_INFO ? 1u : it == SI_UAINFO ? 2u : 0u;
+    return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB : 0u;
 }
 static void gl_info_draw(int32_t y0)
 {
@@ -91,8 +91,8 @@ static void gl_info_draw(int32_t y0)
     int32_t ph = (GL_END - y0) / (int32_t)n, ty, uw, x;
     char b[16], lv[14];
     cell_t c;
-    if (pg && ph > GL_INFO_PH)
-        ph = GL_INFO_PH;                                /* (USB AUDIO's 4 lines: a list's pitch, from the top) */
+    if (ph > GL_INFO_PH)
+        ph = GL_INFO_PH;                                /* (a short page: a list's pitch, from the top) */
     for (i = 0; i < n; i++) {
         int32_t y = y0 + (int32_t)i * ph;
         uint16_t vc;

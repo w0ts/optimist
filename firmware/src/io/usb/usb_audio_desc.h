@@ -31,7 +31,7 @@
     8, 0x0B, 4, 2, 1, 1, 0, 4,                      /* IAD: recording (IF 4-5) */
     9, 4, 4, 0, 0, 1, 1, 0, 4,
     9, 0x24, 1, 0x00, 0x01, 30, 0, 1, 5,
-    12, 0x24, 2, 3, 0x13, 0x07, 0, 4, 0, 0, 0, 0,  /* four non-spatial synth/drum channels */
+    12, 0x24, 2, 3, 0x13, 0x07, 0, 4, 0, 0, 5, 0,  /* four non-spatial channels, named CH1..CH4 (strings 5..8) */
     9, 0x24, 3, 4, 0x01, 0x01, 0, 3, 0,             /* USB streaming output */
 
     9, 4, 5, 0, 0, 1, 2, 0, 0,

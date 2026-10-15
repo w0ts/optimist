@@ -272,6 +272,22 @@ static int32_t x0x_out(const int32_t *b, uint32_t n, int32_t *ml, int32_t *mr, i
  * no CUT and the sum's sends (the lanes' if all alike, else a lane's as it is) is rendered into one sum with its gain (the drum level x its LEVEL): one pass of the
  * mix for all of them; the others each on their own */
 static int32_t x0x_buf[CTL], x0x_sum[CTL];
+#if FELUCCA_USB_AUDIO
+/* a lane of the shared sum on a USB channel (ua_tap.h): its block (x0x_buf) with the drum track's mute / solo fade, as
+ * x0x_out applies it to the sum */
+static void x0x_tap(uint32_t ln, uint32_t n)
+{
+    uint32_t i;
+    int32_t a0 = drums.a0, da = drums.a1 - drums.a0;
+    if (!(a0 | da)) {
+        dlt_add(ln, x0x_buf, 0u, n);
+        return;
+    }
+    for (i = 0; i < n; i++)                         /* (dsend_buf as scratch: x0x_out fills it again) */
+        dsend_buf[i] = mulq15(x0x_buf[i], 32767 - a0 - ((da * (int32_t)i) >> CTL_LOG2));
+    dlt_add(ln, dsend_buf, 0u, n);
+}
+#endif
 static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n,
                                                    int32_t on, int32_t lvl, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
@@ -292,6 +308,18 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         dsend_of(xc.note[ch], &r, &d, &c);
         ln = dlm_lane(xc.note[ch]);                 /* (its lane: its pan, its meter; drum_mix.c) */
         if (!xc.cut[ch] && r == r0 && !d && !c && !dlm_pan[ln]) {
+#if FELUCCA_USB_AUDIO
+            if ((dlt_live >> ln) & 1u) {            /* a lane a USB channel takes: rendered alone, added (the same sum) */
+                x0x_render(ch, x0x_buf, n, g, 0);
+                for (i = 0; i < n; i++)
+                    x0x_sum[i] = summed ? x0x_sum[i] + x0x_buf[i] : x0x_buf[i];
+                summed++;
+                x0x_tap(ln, n);
+                xc.last[ch] = 0;
+                sl |= 1u << ln;
+                continue;
+            }
+#endif
             x0x_render(ch, x0x_sum, n, g, summed++ != 0);
             xc.last[ch] = 0;
             sl |= 1u << ln;
@@ -306,6 +334,9 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         cl = gl, cr = gr, z0 = 0, z1 = 0;
         dlm_gains(ln, &cl, &z0, &cr, &z1);
         cp = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, cl, cr, 0, &xc.last[ch]);
+#if FELUCCA_USB_AUDIO
+        dlt_add(ln, dsend_buf, 0u, n);              /* its lane's USB tap (x0x_out kept its samples there) */
+#endif
         dlm_peak(ln, cp);
         pk = cp > pk ? cp : pk;
     }

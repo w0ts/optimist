@@ -336,7 +336,8 @@
       "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
-    {"kind": "op", "ctx": "USB AUDIO", "if": "FELUCCA_USB_AUDIO", "params": {"USB AUDIO": "USB audio glitch counters"}},
+    {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
+    {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "SCREEN", "params": {
       "COLOR": "Screen colours", "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours"}},
@@ -345,6 +346,9 @@
     {"kind": "op", "ctx": "AUDIO", "params": {"LOWCUT": "Output low cut or bass boost"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
     {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {"BLE": "BLE MIDI. SAVE: the devices"}},
+    {"kind": "op", "ctx": "USB AUDIO", "if": "FELUCCA_USB_AUDIO", "params": {
+      "CH1": "What USB input 1 records", "CH2": "What USB input 2 records", "CH3": "What USB input 3 records",
+      "CH4": "What USB input 4 records"}},
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
