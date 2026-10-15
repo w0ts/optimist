@@ -25,6 +25,12 @@ MIGRATE = {
     "REVERB": lambda v: {"REV_ROOM": int(v == 0), "REV_PLATE": int(v == 1), "REV_FDN8": int(v == 2)},   # the one-tank choice
 }
 
+# Items merged into another: a .config (or --set) naming one is read as the survivor, turned ON if either was on
+# (configure.py parse); the old key is warned about once
+MERGED = {
+    "MIDI_CLKOUT": ("MIDI_CLOCK", "MIDI clock in and out are one item, MIDI_CLOCK (merged 2026-10-15; on if either was on)"),
+}
+
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
     "SPLASH": "the dinghy boot logo is always built (retired 2026-10-15: no ring-only logo, no off; any old SPLASH value is ignored)",
@@ -41,6 +47,8 @@ RETIRED = {
     "BK_CHECK": "a restore always writes an object only if a load would take it (retired 2026-10-14: SLOOP 2.3 d691ba7, unchanged in 2.6)",
     "LAYER_QUIET": "the knobs are always quiet as a layer button is let go (retired 2026-10-14: Felucca 1.0.2 db70550 #39, unchanged in 1.6 and SLOOP 2.6)",
     "DLY_HALVE": "a delay time longer than the line always halves, on the beat (retired 2026-10-14: X0X 892a3b5, unchanged in X0X 1.0.6)",
+    "UA_RESAMPLE": "the USB audio choice of USB_MODE always resamples the capture to the host's clock (retired 2026-10-15; "
+                   "USB_MODE=2 now means USB audio + MIDI, resampled)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
@@ -543,33 +551,33 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
 # ---- MIDI & USB
 M = "MIDI & USB"
 _add("USB_MODE", "", "USB port", M, 47, default=0,
-     choices=((0, "MIDI only"), (1, "CDC serial console"), (2, "USB audio (EXPERIMENTAL)")),
-     desc="What the USB port offers besides MIDI. MIDI only (default): neither (smallest). CDC console: a read-only "
-          "serial console for diagnostics. USB audio (EXPERIMENTAL): 4 stems in + stereo out (UAC1); it replaces the "
-          "console and needs +12 KB pool. It streams on the FM-1 since 2026-10-12 (before, a USB audio build hung and "
+     choices=((0, "MIDI only"), (1, "CDC serial console"), (2, "USB audio + MIDI, resampled (EXPERIMENTAL)")),
+     desc="What the USB port offers. USB MIDI (notes, clock, the editor and updates) is in every choice. MIDI only "
+          "(default): nothing more (smallest). CDC console: a read-only serial console for diagnostics. USB audio + "
+          "MIDI (EXPERIMENTAL): 4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the "
+          "computer's clock (cubic, after X0X 80b7d40), so a host passing the input live to an output does not drop "
+          "out. It replaces the console and needs +12 KB pool (a resampler in the audio path is CPU-heavy). It streams on the FM-1 since 2026-10-12 (before, a USB audio build hung and "
           "went to the USB rescue); its audio quality is not checked yet.",
-     provenance=MELODEE_USB)
+     provenance=MELODEE_USB,
+     notice="USB audio capture resampler ported from X0X by Charles Vestal (GPL-3.0), 80b7d40: part of the USB audio "
+            "choice of this item.")
 _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,
      desc="MIDI input on the TRS jack (notes and clock from a keyboard or sequencer). About 0.6 KB of flash; off: "
           "the jack hears nothing, and SYNC TRS has no clock.")
-_add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in (SYNC AUTO TRS > USB > INT)", M, 49,
-     desc="Follow an external MIDI clock and start / stop (GLO > SYSTEM SYNC: AUTO takes the TRS jack, else USB, "
-          "else the internal tempo). About 4.2 KB of flash; off: the FM-1 always runs on its own tempo.")
-_add("MIDI_CLKOUT", "FELUCCA_MIDI_CLKOUT", "MIDI clock out (HOME menu CLOCK OUT)", M, 198,
-     desc="Sends MIDI clock on USB so a computer, drum machine or sequencer can follow the FM-1: 24 ticks a beat (also "
-          "while stopped, so the other side has the tempo first), Start, Stop, and Song Position + Continue when the FM-1 "
-          "itself continues an external song. Each tick leaves with the sound of its beat (latency-compensated, no "
-          "jitter of its own), follows tempo changes and the nudge, and never swings. Switched on in the HOME menu "
-          "(CLOCK OUT, off by default). While the FM-1 follows a USB clock nothing is sent back to USB; following the "
-          "TRS jack, the clock is passed on to USB. The TRS jack is input only (no MIDI out on the FM-1's board). "
-          "About 2.5 KB of flash and 0.2 KB of RAM; off: no clock is sent.",
+_add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in + out", M, 49,
+     desc="MIDI clock both ways. In: follow an external MIDI clock and start / stop (GLO > SYSTEM SYNC: AUTO takes the "
+          "TRS jack, else USB, else the internal tempo). Out: send MIDI clock on USB so a computer, drum machine or "
+          "sequencer can follow the FM-1: 24 ticks a beat (also while stopped, so the other side has the tempo first), "
+          "Start, Stop, and Song Position + Continue when the FM-1 itself continues an external song. Each tick leaves "
+          "with the sound of its beat (latency-compensated, no jitter of its own), follows tempo changes and the nudge, "
+          "and never swings. Switched on in the HOME menu (CLOCK OUT, off by default). While the FM-1 follows a USB "
+          "clock nothing is sent back to USB; following the TRS jack, the clock is passed on to USB. The TRS jack is "
+          "input only (no MIDI out on the FM-1's board). Off: the FM-1 always runs on its own tempo and sends no clock.",
      symbols=("clko_block",))
-_add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host clock", M, 71, default=0,
-     experimental=True, desc="Experimental, only with USB audio: the audio sent to the computer is resampled to follow "
-     "the computer's clock instead of using packet-size feedback. CPU-heavy (a resampler in the audio path); "
-     "about 0.4 KB of flash.", provenance=x0x("80b7d40"),
-     notice="Ported from X0X by Charles Vestal (GPL-3.0): USB audio resampler. Experimental in Optimist; "
-            "CPU-heavy (a resampler in the audio path), only with USB audio.")
+# (bit 198, MIDI_CLKOUT, merged into MIDI_CLOCK 2026-10-15: one item, MIDI clock in + out; MERGED below maps old configs;
+#  never reuse the bit)
+# (bit 71, UA_RESAMPLE, retired 2026-10-15: the USB audio choice of USB_MODE always resamples the capture; never reuse
+#  the bit)
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI,
      desc="Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and "
           "pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work.")

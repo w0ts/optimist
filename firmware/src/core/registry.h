@@ -341,11 +341,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 
 /* -------------------------------------------------------------- features --- */
 #ifndef FELUCCA_MIDI_CLOCK
-#define FELUCCA_MIDI_CLOCK 1               /* follow a MIDI clock (GLO > SYSTEM SYNC: AUTO TRS > USB > INT) */
+#define FELUCCA_MIDI_CLOCK 1               /* MIDI clock in + out (the builder's one item): follow a MIDI clock (GLO > SYSTEM SYNC: AUTO TRS > USB > INT) */
 #endif
 #ifndef FELUCCA_MIDI_CLKOUT
-#define FELUCCA_MIDI_CLKOUT 1              /* send MIDI clock (HOME menu CLOCK OUT: F8 24 PPQN, FA / FB + F2 / FC, on USB,
-                                            * timed as the audio leaves; io/midi/clock_out.c) */
+#define FELUCCA_MIDI_CLKOUT FELUCCA_MIDI_CLOCK  /* send MIDI clock (HOME menu CLOCK OUT: F8 24 PPQN, FA / FB + F2 / FC, on USB,
+                                            * timed as the audio leaves; io/midi/clock_out.c). Not a builder item of its own:
+                                            * the one item MIDI_CLOCK is clock in + out; tests may still set it alone */
 #endif
 #ifndef FELUCCA_MIDI_EXPR
 #define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0

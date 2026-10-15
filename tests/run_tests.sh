@@ -813,12 +813,10 @@ job; ( jobin
     $CC -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
     run "USB audio: routing, clock drift and stream recovery" "$OUT/usb_audio_test"
 ) >"$U.out" 2>&1 & jobbg
-for rs in 0 1; do
-    job; ( jobin
-        $CC -O2 -w -DFELUCCA_UA_RESAMPLE=$rs -o "$OUT/usb_audio_clock_test$rs" tests/usb_audio_clock_test.c -lm
-        run "USB audio capture against a drifting I2S clock (FELUCCA_UA_RESAMPLE=$rs)" "$OUT/usb_audio_clock_test$rs"
-    ) >"$U.out" 2>&1 & jobbg
-done
+job; ( jobin
+    $CC -O2 -w -o "$OUT/usb_audio_clock_test" tests/usb_audio_clock_test.c -lm
+    run "USB audio capture against a drifting I2S clock (the resampler)" "$OUT/usb_audio_clock_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
     run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"

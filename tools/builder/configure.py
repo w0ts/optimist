@@ -65,6 +65,7 @@ def parse(text, base=None, strict=True):
     """.config text -> (values, name); values start from base (default: the registry defaults)"""
     cfg = dict(base if base is not None else defaults())
     name = ""
+    merged_on = {}                                      # (a merged item on in the text: its survivor is on, whatever order)
     for n, ln in enumerate(text.splitlines(), 1):
         s = ln.strip()
         m = re.match(r"#\s*name:\s*(.+)", s)
@@ -79,6 +80,11 @@ def parse(text, base=None, strict=True):
         k, v = m.group(1), int(m.group(2))
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
+        if k in R.MERGED:                               # (merged into another: the survivor is on if either was)
+            into, why = R.MERGED[k]
+            print(f"warning: line {n}: {k} was merged into {into} ({why})", file=sys.stderr)
+            merged_on[into] = merged_on.get(into, 0) | int(v != 0)
+            continue
         if k in R.RETIRED:                              # (dropped: still loads, ignored, said so)
             print(f"warning: line {n}: {k} was dropped and the setting is ignored ({R.RETIRED[k]})", file=sys.stderr)
             continue
@@ -91,6 +97,8 @@ def parse(text, base=None, strict=True):
                       file=sys.stderr)
             continue
         cfg[k] = v
+    for into, on in merged_on.items():
+        cfg[into] = cfg[into] | on
     return cfg, name
 
 
@@ -1023,6 +1031,11 @@ def resolve_cli(a):
         cfg, name = defaults(), "default"
     for s in a.set or []:
         m = re.fullmatch(r"([A-Z0-9_]+)=(-?\d+)", s)
+        if m and m.group(1) in R.MERGED:
+            into, why = R.MERGED[m.group(1)]
+            print(f"warning: --set {s}: {m.group(1)} was merged into {into} ({why})", file=sys.stderr)
+            cfg[into] = cfg[into] | int(int(m.group(2)) != 0)
+            continue
         if m and m.group(1) in R.RETIRED:
             print(f"warning: --set {s}: {m.group(1)} was dropped and the setting is ignored ({R.RETIRED[m.group(1)]})",
                   file=sys.stderr)

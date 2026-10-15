@@ -1148,7 +1148,7 @@
     {
       "what": "USB audio",
       "theirs": "SLOOP 2.3 (after Felucca 1.0): one stereo input, the master output (what the headphones play), MENU USB AUDIO = MASTER (follows the knob) or FULL (a second output stage at full level); MIDI and the editor on the same cable; the service runs nested in the render",
-      "ours": "Melodee's (FELUCCA_USB_AUDIO): 4 dry track stems in + stereo playback out, 16 / 24 bit, packet-size servo or the X0X cubic resampler (FELUCCA_UA_RESAMPLE), MIDI and the editor on the same cable",
+      "ours": "Melodee's (FELUCCA_USB_AUDIO): 4 dry track stems in + stereo playback out, 16 / 24 bit, the X0X cubic resampler to the host's clock (always built since 2026-10-15), MIDI and the editor on the same cable",
       "verdict": "kept ours",
       "evidence": "fm1-emulator tests/usb_audio_firmware.rs on the real user-default build (2026-10-06): 16 and 24 bit, 2,450 capture / playback packets, missed 0, lost 0, feedback 44.10 frames/ms, the four stems bit-exact against the mixer taps, host playback against the DAC, USB-MIDI notes and the editor's INFO reply over USB-MIDI while streaming, no late half. Theirs has no stems and no playback; its one gain, recording the master mix with the effects, is not ported (a 6-channel capture: new descriptors, +4 KiB pool, 810 B a frame at 24 bit; not tried on hardware)"
     },
