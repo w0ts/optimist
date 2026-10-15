@@ -50,7 +50,14 @@ Briefly; the manual [OPTIMIST.md](OPTIMIST.md) is the reference and the user gui
 - **SLOOP 2.4 compatibility:** the editor can export the working project for SLOOP 2.4, and a 2.4 autosave can be offered for import (PROJECT > A24). See [Your data](#your-data-and-sloop-24).
 - **Web editor** (Chrome or Edge): every parameter, the drum grid, mixer, preset library, sample upload and backup.
 
-<p align="center"><img src="assets/screens/editor-drums.png" alt="Optimist web editor: the drum track" width="760"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screens/editor-mixer-dark.webp">
+    <source media="(prefers-color-scheme: light)" srcset="assets/screens/editor-mixer-light.webp">
+    <img src="assets/screens/editor-mixer-light.webp" alt="Optimist web editor: the mixer with four tracks (three synths and the drum track), their send knobs and faders, and the master with its effects" width="760">
+  </picture>
+  <br><em>The web editor's mixer, shown here with its built-in demo device. Its colours follow your system's light or dark setting.</em>
+</p>
 
 ## Requirements
 

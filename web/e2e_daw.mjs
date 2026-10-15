@@ -163,6 +163,23 @@ if (EMU) {
   console.log(failed ? `E2E FAILED (${failed})` : "e2e passed");
   process.exit(failed ? 1 : 0);
 }
+/* --readme-shots DIR: the README's pictures of the editor (mixer, mock device, light and dark) as webp, then stop (no checks) */
+if (process.argv.includes("--readme-shots")) {
+  const out = process.argv[process.argv.indexOf("--readme-shots") + 1];
+  await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000,deviceScaleFactor: 2, mobile: false });
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxs=1&e2e=1#mixer` });
+  await sleep(1500);
+  await run(`${U} return await until(() => document.querySelectorAll("#mixer .strip").length === 5 && !/Reading|reading/.test($("#status").textContent), 120000);`);
+  for (const mode of ["light", "dark"]) {
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode }] });
+    await sleep(800);
+    const s = await send("Page.captureScreenshot", { format: "webp", quality: 80 });
+    writeFileSync(join(out, `editor-mixer-${mode}.webp`), Buffer.from(s.result.data, "base64"));
+    console.log(`readme shot: ${join(out, `editor-mixer-${mode}.webp`)}`);
+  }
+  ws.close(); proc.kill(); server.close();
+  process.exit(0);
+}
 /* not connected (?connect=0: no auto-connect): the connect card only, no mixer, no strip, no value */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&connect=0#mixer` });
 await sleep(1200);

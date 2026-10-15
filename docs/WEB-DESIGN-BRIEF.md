@@ -66,3 +66,7 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
 - Still one file, no framework, no external network fetches; keep it fast.
 - Every engine's colour and every kind comes from one table, so new engines get a colour in one place.
 - Web tests (`web/test_web.mjs`) keep passing; add tests for the light / dark colour sets and the colour table.
+
+## README screenshots
+
+The pictures in the README (`assets/screens/editor-mixer-light.webp` and `editor-mixer-dark.webp`, the mixer of the editor against its mock device at 1440x1000, scale 2) are generated, not edited. After a look change in `web/editor.html`, regenerate them (needs Chrome, see `CHROME=path`): `node web/e2e_daw.mjs --readme-shots assets/screens`. The README picks the light or the dark one with `<picture>` and `prefers-color-scheme`.
