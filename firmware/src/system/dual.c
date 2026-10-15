@@ -73,9 +73,10 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->policy = 1;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
 }
-#define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2)
+#define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)   /* (the asleep mode built only with OPTIMIST_DUAL_IDLE=1:
+                                                    * the RAM text has no room for both, 2026-10-15) */
 #define DUAL_SPIN_CODE 1
-#define DUAL_SLEEPS_NOW (FELUCCA_DUAL >= 2 && dualcfg.sleep)
+#define DUAL_SLEEPS_NOW (DUAL_SLEEP_CODE && dualcfg.sleep)
 #define DUAL_HOLD_NOW dualcfg.hold_ms
 #define DUAL_LATE_NOW dualcfg.late_ms
 #define DUAL_BOOST_NOW dualcfg.boost
