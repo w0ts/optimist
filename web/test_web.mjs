@@ -1137,6 +1137,42 @@ async function editorFxSlots() {
 
 /* ------------------------------------- the Sound tab from the device's pages (52 PAGES) --- */
 /* v13 FXP (cmd 94, firmware ed_fxp.c): every owner's slots and parameters; the mock's table is the firmware's (tests/fxp_table.json) */
+/* the v13 commands a firmware may leave out (the builder's ED_* items, firmware/src/io/editor/ed_*.c): the INFO has no tag, the command no reply, the others unharmed */
+async function editorV13Optional() {
+  const C = E.CMD;
+  const ITEMS = [   /* [mock key, INFO key, builder item, a request the device answers when the item is built] */
+    ["fxp", "fxp", "ED_FXP", () => E.req.fxpGet(0)], ["dlan", "dlan", "ED_DLAN", () => E.req.dlanVals(0, 0)], ["scrn", "scrn", "ED_SCRN", () => E.req.scrnLine(0, 0)],
+    ["songc", "songc", "ED_SONG", () => E.req.songcGet()], ["tools", "tools", "ED_TOOLS", () => E.req.toolsGet()], ["scrs", "scrs", "ED_SCRS", () => E.req.scrsInfo(0, 0, 127, 127)],
+    ["fav", "fav", "ED_FAVS", () => E.req.favGet(0)], ["scope", "scope", "ED_SCOPE", () => E.req.scope(0)]];
+  const quiet = { timeout: 100, retries: 0, quiet: true };
+  const all = (o) => attachMock({ fxs: true, ...Object.fromEntries(ITEMS.map(([mk]) => [mk, true])), ...o });   /* (every key given: none follows its group) */
+  {   /* everything built: every tag, every command answers */
+    const { rq, done } = all({});
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    ok(ITEMS.every(([, k]) => info[k]), "v13 optional: every builder item built: INFO carries the eight tags 0x57..0x5E");
+    let answered = 0;
+    for (const [, , , r] of ITEMS) answered += await rq(r(), quiet).then(() => 1, () => 0);
+    ok(answered === 8, "v13 optional: every command answers");
+    done();
+  }
+  for (const [mk, ik, item, r] of ITEMS) {   /* each one left out alone */
+    const { rq, done } = all({ [mk]: false });
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    const others = ITEMS.filter((x) => x[1] !== ik);
+    ok(!info[ik] && others.every(([, k]) => info[k]), `v13 optional: ${item} left out: INFO has no ${ik} tag, the other seven stay`);
+    ok(await rq(r(), quiet).then(() => false, () => true), `v13 optional: ${item} left out: its command gets no reply`);
+    let answered = 0;
+    for (const [, , , r2] of others) answered += await rq(r2(), quiet).then(() => 1, () => 0);
+    ok(answered === 7, `v13 optional: ${item} left out: the other seven commands still answer`);
+    done();
+  }
+  {   /* all eight left out: a v10 FX device still (the older FX command), nothing of v13 */
+    const { rq, done } = attachMock({ fxs: true, fxp: false, scrn: false });
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    ok(ITEMS.every(([, k]) => !info[k]) && info.fxs, "v13 optional: all eight left out: no v13 tag, the v10 FX slots (tag 0x56) stay");
+    done();
+  }
+}
 async function editorFxp() {
   const C = E.CMD, T = E.FXT, P = E.parse[C.FXP];
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxp.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
@@ -3127,6 +3163,7 @@ await editorMixSends();
 await editorPages();
 await editorFxSlots();
 await editorFxp();
+await editorV13Optional();
 await editorMacro();
 await editorAuto();
 await editorStepx();

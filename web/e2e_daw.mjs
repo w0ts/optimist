@@ -858,6 +858,52 @@ const favRes = await run(`${U} try {
 ok(favRes && favRes.before === 0 && favRes.marked && favRes.only && favRes.visible === 1 && favRes.all && favRes.count === "1/64",
   `e2e v13 FAVS (mock ?fxp=1): Load preset: a star marks a sound on the device, favorites only shows just it, then all again (${JSON.stringify(favRes)})`);
 await shot("favorites");
+/* v13 optional commands (the builder's ED_* items): the editor with a firmware that left some out hides what needs them and keeps the rest. The same probe on the full mock is the control. */
+const v13Probe = async (off) => {
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1${off ? "&off=" + off : ""}#mixer` });
+  await sleep(1500);
+  return run(`${U} try {
+    if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().dump, 120000)) return { err: "no mixer" };
+    const r = {}, vis = (sel) => [...document.querySelectorAll(sel)].some((e) => !e.hidden && e.getClientRects().length > 0);
+    const have = (id) => !!document.querySelector('[data-pop="' + id + '"]');
+    r.ins = have("fxins"); r.mst = have("fxmst"); r.song = have("song"); r.tools = have("tools");
+    r.dlan = !!document.querySelector("[data-dlan]") || !!document.querySelector("#mixer .sq");
+    r.deviceTab = vis('#tabs [data-tab="device"]');
+    document.querySelector('#tabs [data-tab="settings"]').click(); await sleep(1200);
+    r.lines = document.querySelectorAll("#devscr .sl").length > 0;
+    document.querySelector('#tabs [data-tab="mixer"]').click(); await sleep(300);
+    document.querySelector('#tabs [data-go="loadpreset"]').click();
+    await until(() => document.querySelectorAll("#pop .pw").length > 10, 20000);
+    r.stars = document.querySelectorAll("#pop .pw .fv").length > 0;
+    document.querySelector("#popclose, #pop .x, #pop [data-close]") && document.querySelector("#popclose, #pop .x, #pop [data-close]").click();
+    if (r.deviceTab) {
+      document.querySelector('#tabs [data-tab="device"]').click();
+      await until(() => document.querySelectorAll("#scrows .scrow").length > 0 || document.querySelector("#scbar .seg"), 20000);
+      r.screens = [...document.querySelectorAll("#scbar .seg")[0].querySelectorAll("button")].map((b) => b.textContent).join("|");
+    } else r.screens = "";
+    r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+    return r; } catch (e) { return { err: String(e.stack) }; }`);
+};
+{
+  const full = await v13Probe("");
+  ok(full && full.ins && full.mst && full.song && full.tools && full.dlan && full.deviceTab && full.lines && full.stars && /SOUND/.test(full.screens) && /SCOPE/.test(full.screens),
+    `e2e v13 optional: every command built (control): inserts, master inserts, song, tools, lane mix, Device screens with SCOPE, the device lines, stars (${JSON.stringify(full)})`);
+  const none = await v13Probe("fxp,dlan,scrn,songc,tools,scrs,fav,scope");
+  ok(none && !none.err && !none.ins && !none.mst && !none.song && !none.tools && !none.dlan && !none.deviceTab && !none.lines && !none.stars && none.wide,
+    `e2e v13 optional: all eight left out: the mixer, Load preset and Settings work, no inserts / master inserts / song / tools / lane mix pop-ups, no Device screens tab, no device lines, no stars (${JSON.stringify(none)})`);
+  const noScrn = await v13Probe("scrn");
+  ok(noScrn && !noScrn.err && !noScrn.lines && noScrn.deviceTab && noScrn.ins && noScrn.stars,
+    `e2e v13 optional: no ED_SCRN (INFO without tag 0x59): Settings has no device lines, the Device screens tab and the rest stay (${JSON.stringify(noScrn)})`);
+  const noSong = await v13Probe("songc,tools");
+  ok(noSong && !noSong.err && !noSong.song && !noSong.tools && noSong.ins && noSong.mst && noSong.lines,
+    `e2e v13 optional: no ED_SONG, no ED_TOOLS: no song and tools pop-ups, the FX owners and the device lines stay (${JSON.stringify(noSong)})`);
+  const noFxp = await v13Probe("fxp");
+  ok(noFxp && !noFxp.err && !noFxp.ins && !noFxp.mst && noFxp.song && noFxp.tools && noFxp.dlan && noFxp.stars,
+    `e2e v13 optional: no ED_FXP: no owner inserts, the song chain (its own command) and the tools stay (${JSON.stringify(noFxp)})`);
+  const noScope = await v13Probe("scope,fav,dlan");
+  ok(noScope && !noScope.err && noScope.deviceTab && /SOUND/.test(noScope.screens) && !/SCOPE/.test(noScope.screens) && !noScope.stars && !noScope.dlan,
+    `e2e v13 optional: no ED_SCOPE, ED_FAVS, ED_DLAN: Device screens without the SCOPE screen, no stars, no lane mix (${JSON.stringify(noScope)})`);
+}
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

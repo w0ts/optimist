@@ -4159,6 +4159,10 @@ function syncState(syncName, clkName) {
 /* params.c N_LT: an LFO slot's DEST (core.h LT_*; XRATE XAMT with LFO 2) */
 const LT_NAMES = ["OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1", "INS2"];
 function makeMockDevice(opt = {}) {
+  /* the v13 commands a firmware may leave out (the builder's ED_* items): opt.fxp / opt.scrn switch their groups on (the old way: FXP + DLAN, the other six), and
+     opt.dlan, opt.scrn, opt.songc, opt.tools, opt.scrs, opt.fav, opt.scope = false switch one off, so the editor is tested with any subset */
+  const has = (k, grp) => (opt[k] === undefined ? !!opt[grp] : !!opt[k]);
+  const m13 = { fxp: has("fxp", "fxp"), dlan: has("dlan", "fxp"), scrn: has("scrn", "scrn"), songc: has("songc", "scrn"), tools: has("tools", "scrn"), scrs: has("scrs", "scrn"), fav: has("fav", "scrn"), scope: has("scope", "scrn") };
   const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NSDIV = [...NDIV, "1/2", "1BAR", "2BAR"], NDLY = [...NDIV, "1/8D", "1/16D"], NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
   const E = (label, names, def) => D(label, F.ENUM, 0, names.length - 1, def, names);
@@ -4378,7 +4382,7 @@ function makeMockDevice(opt = {}) {
       imp: null, loads: 0 },                           /* snapshots (ed_snap.c): each slot's stream, an import */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
     notes: [],                                         /* note messages received (the kit editor's audition) */
-    fx: { slots: opt.fxp ? [FXT.NONE, FXT.CHO, FXT.DLY, FXT.REV] : [FXT.DIST, FXT.CHO, FXT.DLY, FXT.REV], cset: [1, 4, 6], dist: new Array(16).fill(0), comp: new Array(16).fill(0) },   /* (opt.fxs) */
+    fx: { slots: m13.fxp ? [FXT.NONE, FXT.CHO, FXT.DLY, FXT.REV] : [FXT.DIST, FXT.CHO, FXT.DLY, FXT.REV], cset: [1, 4, 6], dist: new Array(16).fill(0), comp: new Array(16).fill(0) },   /* (opt.fxs) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
     Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
@@ -4434,7 +4438,7 @@ function makeMockDevice(opt = {}) {
   const fxOut = (b, op) => { b(op); st.fx.slots.forEach(b); st.fx.cset.forEach(b); st.fx.dist.forEach(b); st.fx.comp.forEach(b); };
   /* v13 FXP (ed_fxp.c; opt.fxp): every owner's slots and their parameters, from the firmware's tables (FXP_TABLE). A type's values belong
      to the type on a track, the master and a return; to the slot on the USB input and a drum sound (reset when the type changes) */
-  const fxm = !opt.fxp ? null : (() => {
+  const fxm = !m13.fxp ? null : (() => {
     const DEF = { track: [FXT.DIST, FXT.FILT], master: [FXT.FILT, FXT.COMP], usb: [0, 0], lane: [FXT.DIST, FXT.COMP] };
     const slots = Array.from({ length: FXP.N }, (_, ow) => (ow >= FXP.RET0 && ow < FXP.LANE0 ? [[FXT.CHO, FXT.DLY, FXT.REV][ow - FXP.RET0]] : DEF[fxpClass(ow)].slice()));
     const vals = new Map();
@@ -4486,8 +4490,8 @@ function makeMockDevice(opt = {}) {
     };
     return { slots, vals, params, get, put, setType, layout, line, nslots: (ow) => (ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 ? 1 : 2) };
   })();
-  /* v13 DLAN (ed_dlan.c; with opt.fxp): the lanes' PAN MUTE SOLO SEQ MUTE, their LFOs, the tracks' sequencer mutes */
-  const dln = !opt.fxp ? null : (() => {
+  /* v13 DLAN (ed_dlan.c; opt.dlan, with opt.fxp): the lanes' PAN MUTE SOLO SEQ MUTE, their LFOs, the tracks' sequencer mutes */
+  const dln = !m13.dlan ? null : (() => {
     const T = FXP_TABLE.dlane, vals = new Map();
     const params = (g, l) => (g === 0 ? (l < 16 ? T.mix : []) : g === 1 ? (l < 16 ? T.lfo : []) : g === 2 && l < 4 ? T.track : []);
     const key = (g, l, i) => `${g}/${l}/${i}`;
@@ -4497,7 +4501,7 @@ function makeMockDevice(opt = {}) {
   })();
   /* v13 SCRN (ed_scrn.c; opt.scrn): GLOBAL and SYSTEM as lines, the Optimist UI's own (SCRN_TABLE: the firmware host test's); a turn moves the gauge's
      value (a number's text follows it, a list's text is the device's to name: kept) */
-  const scr = !opt.scrn ? null : (() => {
+  const scr = !m13.scrn ? null : (() => {
     const lines = [[], []];
     SCRN_TABLE.lines.forEach((l) => lines[l.s].push({ ...l, ask: 0 }));
     const out = (b, v, o, l) => {
@@ -4511,9 +4515,9 @@ function makeMockDevice(opt = {}) {
   /* v13 SCRS (ed_scrs.c; opt.scrn): the device's other screens as rows of cards (SCRS_TABLE: the firmware host test's rows, a context of the table for the
      track and lane asked: a synth track's own table T1 / T2, the drum track's with its lane 0 or 1); a turn moves a number (a list's text is the device's to name: kept),
      a destructive action asks first, a store's row runs its operation on YES */
-  const scs = !opt.scrn ? null : (() => {
+  const scs = !m13.scrs ? null : (() => {
     const mem = new Map();
-    const SCS_MASK = 1 | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8);
+    const SCS_MASK = 1 | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8);   /* (the scope's screen too: the firmware lists it whether or not SCOPE is built) */
     const pick = (sc, t, l, f) => {                  /* (the table's context for a request: a synth track's T1 / T2, the drum track with its lane 0 / 1, a held step 3 of T1 / the drum lane) */
       const held = sc === 5 && f < 64, want = sc === 1 && f === 126 ? 126 : held ? 2 : 127;
       return SCRS_TABLE.ctx.find((c) => c.s === sc && c.f === want && (sc === 1 && f === 126 ? c.t === 0 : sc === 1 || sc === 5
@@ -4538,12 +4542,12 @@ function makeMockDevice(opt = {}) {
   /* v13 SCOPE (ed_scope.c; opt.scrn): a trace of a sine on the source (a held note is a wave: the mock plays none: a slow sine of each source's own pitch) */
   const scopeN = 236;
   /* v13 FAVS (ed_fav.c; opt.scrn): the favorites store, 64 factory marks, the user presets' bits, the PRESETS list */
-  const fav = !opt.scrn ? null : { marks: new Set(), user: new Set(), list: 0, max: 64 };
+  const fav = !m13.fav ? null : { marks: new Set(), user: new Set(), list: 0, max: 64 };
   /* v13 SONGC (ed_song.c; opt.scrn): the chain, edited stopped */
-  const sgc = !opt.scrn ? null : { mode: 0, entries: [0, 1, 2, 3].map((s) => ({ scene: s, bars: 4 })), saves: 0 };
+  const sgc = !m13.songc ? null : { mode: 0, entries: [0, 1, 2, 3].map((s) => ({ scene: s, bars: 4 })), saves: 0 };
   const sgcOut = (b, rc) => { b(0); b(rc); b(sgc.mode); b(st.playing ? 1 : 0); b(16); b(64); b(sgc.entries.length); sgc.entries.forEach((e) => { b(e.scene); b(e.bars); }); };
   /* v13 TOOLS (ed_tools.c; opt.scrn): the tools answer as the device says them; EUCLID's values and its generator, the pattern itself is not changed here */
-  const tls = !opt.scrn ? null : { hits: 4, steps: 16, rot: 0, on: false, runs: [] };
+  const tls = !m13.tools ? null : { hits: 4, steps: 16, rot: 0, on: false, runs: [] };
   const tlsOut = (b, s, op, rc, a1 = "", b1 = "") => {
     const len = Math.min(st.p[29] | 0, 64);
     tls.steps = Math.max(1, Math.min(tls.steps, len)); tls.hits = Math.min(tls.hits, tls.steps); tls.rot %= tls.steps;
@@ -4707,8 +4711,14 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
-        if (v5 && opt.scrn) { b(0x59); b(2); b(1); b(2); b(0x5A); b(1); b(1); b(0x5B); b(1); b(1); b(0x5C); b(3); b(1); b(scs.mask & 127); b(scs.mask >> 7); b(0x5D); b(2); b(1); b(fav.max); b(0x5E); b(3); b(1); b(scopeN & 127); b(scopeN >> 7); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
-        if (v5 && opt.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); b(0x58); b(2); b(1); b(3); }   /* tags: every FX slot by owner, the lanes' mix (ed_fxp.c, ed_dlan.c) */
+        if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
+        if (v5 && m13.dlan) { b(0x58); b(2); b(1); b(3); }   /* tag: the lanes' mix, LFOs and mutes (ed_dlan.c) */
+        if (v5 && m13.scrn) { b(0x59); b(2); b(1); b(2); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
+        if (v5 && m13.songc) { b(0x5A); b(1); b(1); }   /* tag: the song chain (ed_song.c) */
+        if (v5 && m13.tools) { b(0x5B); b(1); b(1); }   /* tag: the pattern tools and EUCLID (ed_tools.c) */
+        if (v5 && m13.scrs) { b(0x5C); b(3); b(1); b(scs.mask & 127); b(scs.mask >> 7); }   /* tag: the screens as rows of cards (ed_scrs.c) */
+        if (v5 && m13.fav) { b(0x5D); b(2); b(1); b(fav.max); }   /* tag: the favorites (ed_fav.c) */
+        if (v5 && m13.scope) { b(0x5E); b(3); b(1); b(scopeN & 127); b(scopeN >> 7); }   /* tag: the scope (ed_scope.c) */
         if (false) b(0);   /* tag: every FX slot by owner (ed_fxp.c) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
@@ -5037,7 +5047,7 @@ function makeMockDevice(opt = {}) {
       }
       /* the oscilloscope (ed_scope.c; opt.scrn) */
       case CMD.SCOPE: {
-        if (!scs || a.length < 1 || a[0] > 4) return null;
+        if (!m13.scope || a.length < 1 || a[0] > 4) return null;
         const src = a[0], t = Date.now() / 1000;
         b(src); b(0); v(2000 + 200 * src); b(scopeN & 127); b(scopeN >> 7);
         for (let i = 0; i < scopeN; i++) b(Math.round(64 + 50 * Math.sin(i / (8 + 3 * src) + t * 4)));
@@ -6236,6 +6246,13 @@ try { localStorage.removeItem("optimist-editor-theme"); } catch (e) { /* no stor
 
 const QS = new URLSearchParams(location.search);
 const MOCK = QS.get("mock") === "1";
+/* the v13 commands the mock serves: ?fxp=1 the FX owners' slots and the lanes' mix, ?scrn=1 (or ?fxp=1) the other six; ?off=dlan,scope,... leaves any out, as a firmware built without
+   those builder items (ED_FXP ED_DLAN ED_SCRN ED_SONG ED_TOOLS ED_SCRS ED_FAVS ED_SCOPE): fxp dlan scrn songc tools scrs fav scope */
+function mockV13(qs) {
+  const fx = qs.get("fxp") === "1", ui = fx || qs.get("scrn") === "1", off = new Set((qs.get("off") || "").split(",").filter(Boolean));
+  const on = { fxp: fx, dlan: fx, scrn: ui, songc: ui, tools: ui, scrs: ui, fav: ui, scope: ui };
+  return Object.fromEntries(Object.entries(on).map(([k, v]) => [k, v && !off.has(k)]));
+}
 $("mock").hidden = !MOCK;
 let mock = null;
 
@@ -6336,7 +6353,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", fxp: QS.get("fxp") === "1", scrn: QS.get("fxp") === "1" || QS.get("scrn") === "1" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", ...mockV13(QS) }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
@@ -9682,7 +9699,7 @@ async function scsScreens() {
   const d = dev;
   if (!d.scsList) {
     const list = [];
-    for (let sc = 0; sc < 15; sc++) if ((d.info.scrs.mask >> sc) & 1) list.push({ sc, name: (await scsInfo(sc)).name || String(sc) });
+    for (let sc = 0; sc < 15; sc++) if (((d.info.scrs.mask >> sc) & 1) && (sc !== 8 || d.info.scope)) list.push({ sc, name: (await scsInfo(sc)).name || String(sc) });
     if (d !== dev) return [];
     d.scsList = list;
   }
@@ -10557,10 +10574,11 @@ function updateMaster() {
 /* v10: the four slot pickers (each lists the types built, named after their amounts, and ----) and, with COMP built, the CMP card:
    the inserts' RATIO ATK REL (the master COMP's lists: their names from its DESC) */
 function fxSlotGroups() {
+  const g = (id, key, short) => el("div", { class: "fxg", role: "group", "aria-label": t(key), "data-fx": id },
+    iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
+  const song = dev.info.songc ? [g("song", "popSong", "SONG")] : [];   /* (v13 SONGC: its own command, built with or without the FX owners' slots) */
   if (fxpOn()) {                                     /* v13: the owners' slots (FXP): the master's inserts and the returns, in popups */
-    const g = (id, key, short) => el("div", { class: "fxg", role: "group", "aria-label": t(key), "data-fx": id },
-      iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
-    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET"), ...(dev.info.fxp.usb ? [g("fxusb", "popUsb", "USB")] : []), ...(dev.info.songc ? [g("song", "popSong", "SONG")] : [])];
+    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET"), ...(dev.info.fxp.usb ? [g("fxusb", "popUsb", "USB")] : []), ...song];
   }
   const types = [{ id: FXT.NONE }, ...dev.info.fxs.types];
   const name = (x) => (x.id === FXT.NONE ? FXT_NAMES[0] : (x.amt != null && dev.pdesc[x.amt] && dev.pdesc[x.amt].label) || FXT_NAMES[x.id] || String(x.id));
@@ -10588,6 +10606,7 @@ function fxSlotGroups() {
     out.push(el("div", { class: "fxg fxcmp", role: "group", "aria-label": "CMP", "data-fx": "cmp", title: t("fxCmpHelp") },
       el("span", { class: "kl", text: "CMP" }), el("div", { class: "fxk" }, ...masterCtl.cset.map((s, n) => el("label", { class: "pk" }, el("span", { class: "kl", text: ["RATIO", "ATK", "REL"][n] }), s)))));
   }
+  out.push(...song);
   return out;
 }
 /* a send of a synth part: the selected one as any Sound parameter (SET); another with TRACK_PARAM (v4: live; v3 firmware:

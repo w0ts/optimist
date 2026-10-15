@@ -11,6 +11,7 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 Commands 94..101 and `INFO` tags `57`..`5E` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
+Each of the eight is a builder item (`ED_FXP` 94 / tag 57, `ED_DLAN` 95 / 58, `ED_SCRN` 96 / 59, `ED_SONG` 97 / 5A, `ED_TOOLS` 98 / 5B, `ED_SCRS` 99 / 5C, `ED_FAVS` 100 / 5D, `ED_SCOPE` 101 / 5E; docs/BUILDER.md): a build that leaves one out sends no INFO tag for it and does not answer its command, so an editor offers a command only when its tag is in INFO (web/editor.html hides the pop-up, tab, button or settings that need it and keeps the rest; its mock serves any subset, `?off=dlan,scope`). The commands that read the Optimist UI (96, 98, 99, 101) are built only with it (UI=1), and 100 only with the favorites.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
