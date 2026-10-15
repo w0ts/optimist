@@ -26,7 +26,7 @@ publishes whatever the manifest lists. `python3 web/make_site.py --profiles` pri
 
 ## How the firmware gets there
 
-`.github/workflows/pages.yml` runs on a push to `main`, on a push of a `v*` tag, and by hand (Actions > pages > Run
+`.github/workflows/pages.yml` runs on a push to `main` or `optimist`, on a push of a `v*` tag, and by hand (Actions > pages > Run
 workflow). It downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`, the same as
 `build.yml`; nothing of them is stored in the repository or published), builds each listed profile, makes the site and
 deploys it with `actions/upload-pages-artifact` and `actions/deploy-pages` (actions pinned to commit SHAs;
@@ -36,9 +36,9 @@ fallback would be a site with the editor only and a link to the release's packag
 ## Enable it (once)
 
 1. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
-2. Settings > Environments > github-pages > Deployment branches and tags: allow `main` and the tag pattern `v*`
+2. Settings > Environments > github-pages > Deployment branches and tags: allow `main`, `optimist` and the tag pattern `v*`
    (the default only allows the default branch; a tag run is refused otherwise).
-3. Push `main` (or run the workflow by hand). The URL is printed by the `deploy` job.
+3. Push `optimist` (or `main`; or run the workflow by hand). The URL is printed by the `deploy` job.
 
 ## Cut a release
 
