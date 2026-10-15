@@ -1437,6 +1437,9 @@ job; ( jobin
     run "fm1_cpu.py: the console's status parsed, its keys printed by console.c, the 85 % shed level" python3 tests/fm1_cpu_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    run "doc coverage: every builder item, page, insert type and feature has its words in a user document" python3 tools/doc_coverage.py
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
