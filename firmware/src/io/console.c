@@ -5,6 +5,7 @@
  * The baud rate is ignored. Nothing here writes memory or flash; `uboot`
  * does what the SysEx soft key does. */
 #define CON_LINE 64u
+#include "console_parse.h"                   /* con_word, con_num, con_run_parse (host-tested: tests/console_parse_test.c) */
 
 static struct {
     char line[CON_LINE];
@@ -66,44 +67,6 @@ static void con_kx(const char *k, uint32_t v)
     con_puts(" 0x");
     con_hex(v, 8);
     con_puts("\r\n");
-}
-
-static uint32_t con_num(const char **p, int *ok)        /* decimal or 0x hex */
-{
-    const char *s = *p;
-    uint32_t v = 0, base = 10, d, n = 0;
-    while (*s == ' ')
-        s++;
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
-        s += 2, base = 16;
-    for (;; s++, n++) {
-        char c = *s;
-        if (c >= '0' && c <= '9')
-            d = (uint32_t)(c - '0');
-        else if (base == 16 && c >= 'a' && c <= 'f')
-            d = (uint32_t)(c - 'a' + 10);
-        else if (base == 16 && c >= 'A' && c <= 'F')
-            d = (uint32_t)(c - 'A' + 10);
-        else
-            break;
-        v = v * base + d;
-    }
-    *ok = n > 0;
-    *p = s;
-    return v;
-}
-
-static int con_word(const char **p, const char *w)       /* match a whole word */
-{
-    const char *s = *p;
-    while (*s == ' ')
-        s++;
-    while (*w && *s == *w)
-        s++, w++;
-    if (*w || (*s && *s != ' '))
-        return 0;
-    *p = s;
-    return 1;
 }
 
 static void con_memr(const char *p)
@@ -821,10 +784,15 @@ static void con_tabbench(void)
     con_puts(")\r\n");
 }
 
+#include "console_run.c"                              /* play pause rec proj heavy wdtreset (scripted tests) */
+
 static void con_exec(const char *p)
 {
+    if (con_run(p))
+        return;
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  boot  "
+        con_puts("play  pause  stop  rec on|off  proj load N  heavy [NOTES]  wdtreset  "
+                 "status  dbg  crash  boot  "
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
                  "dualcfg  reboot  "
 #endif

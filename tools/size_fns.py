@@ -33,7 +33,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/sloop/ui_input.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_store.c", "io/editor/editor.c",
               "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_cz.c", "storage/nbank.c",
-              "io/console.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
+              "io/console.c", "io/console_run.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
