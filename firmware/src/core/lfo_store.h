@@ -62,7 +62,9 @@ static inline uint32_t lfo_depths(const int16_t *s, int16_t *d)
             r |= LFO_NOFORM;
     return r;
 }
-#define LFO_TAG 0x5A00u                                /* (out of every depth's range: -64..127) */
+#define LFO_TAG 0x5B00u                                /* (out of every depth's range: -64..127) */
+#define LFO_TAG_V1 0x5A00u                             /* (until 2026-10-14: DEST 23 24 were XRATE XAMT, LFO 2's: read as
+                                                        * L2RT L2AMT, core.h LT_*) */
 /* a part's LFO slots s[4] -> its four stored words w (P_LEG_PIT ..): the depths of before when they are these slots
  * exactly and LFO 2 keeps nothing there (spill 0): a project or a preset of before stays byte for byte, an older build
  * reads it as it sounds; else DEST A | LFO_TAG, AMT A, DEST B | LFO_TAG, AMT B's byte | spill << 8 (LFO 2's AMT B:
@@ -80,15 +82,17 @@ static inline void lfo1_store(int16_t *w, const int16_t *s, int32_t spill)
  * -> the depths of before left out (only two kept) */
 static inline uint32_t lfo1_load(const int16_t *w, int16_t *s, int32_t *spill)
 {
-    uint32_t k;
+    uint32_t k, tag = (uint16_t)w[0] & 0xFF00u;
     *spill = 0;
-    if (((uint16_t)w[0] & 0xFF00u) != LFO_TAG || ((uint16_t)w[2] & 0xFF00u) != LFO_TAG)
+    if ((tag != LFO_TAG && tag != LFO_TAG_V1) || ((uint16_t)w[2] & 0xFF00u) != tag)
         return lfo_from_depths(w, s);
     s[1] = (int16_t)lfo_cl(w[1], LFO_AMT_LO, LFO_AMT_HI);
     s[3] = (int16_t)(int8_t)(uint8_t)w[3];
     *spill = (int8_t)(uint8_t)((uint16_t)w[3] >> 8);
     for (k = 0; k < 2u; k++) {
         s[2u * k] = (int16_t)((uint16_t)w[2u * k] & 0xFFu);
+        if (tag == LFO_TAG_V1 && (s[2u * k] == LT_XRATE_V1 || s[2u * k] == LT_XAMT_V1))
+            s[2u * k] = (int16_t)(s[2u * k] == LT_XRATE_V1 ? LT_L2RT : LT_L2AMT);   /* (the other LFO's: LFO 2's) */
         if (s[2u * k] >= LT_NB)
             s[2u * k] = LT_OFF, s[2u * k + 1u] = 0;
     }

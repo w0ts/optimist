@@ -74,6 +74,8 @@ static void make(void)
             if (span > 0)
                 t->p[P_E0 + i] = (int16_t)(d->min + (int32_t)((i * 5u + k + 2u) % (uint32_t)(span + 1)));
         }
+        if (k < NPART)
+            (void)env_load(t->p);                    /* (ENV DEST's, ENV2's words as depths -> the slots, as a load) */
         for (i = 0; i < 8u; i++)
             if (k == TRK_DRUM)
                 dstep_set(&t->dstep[i], (i * 3u) % 16u, LV_NORM, 0);

@@ -110,6 +110,18 @@ static int track_ok_v2(const proj_trk_t *n, const proj_trk_v2_t *o, uint32_t t)
     return ok;
 }
 
+#if FELUCCA_ANALOG2
+/* a track's values p as a project stores them (ENV DEST's, ENV2 DEST's slots back in the words of the depths they
+ * replaced: env_store.h) */
+static const int16_t *env_rt(const int16_t *p)
+{
+    static int16_t x[P_COUNT];
+    memcpy(x, p, sizeof x);
+    env_store(x);
+    return x;
+}
+#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || (i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT))
+#endif
 int main(void)
 {
     static project_v3_t v3;
@@ -512,11 +524,10 @@ int main(void)
         for (t = 0; t < NPART; t++) {
             trk[t].p[P_A2ESUS] = (int16_t)(10 + t);
             trk[t].p[P_A2EREL] = (int16_t)(120 + t);
-            trk[t].p[P_A2EPIT] = (int16_t)(-64 + (int)t);
+            trk[t].p[P_A2EPIT] = (int16_t)(-64 + (int)t);   /* (ENV2's slots: two of the depths of before, exactly) */
             trk[t].p[P_A2ESHP] = (int16_t)(63 - (int)t);
-            trk[t].p[P_A2EOS2] = (int16_t)(-1 - (int)t);
-            trk[t].p[P_A2ESDT] = (int16_t)(5 * t);
-            trk[t].p[P_A2FENV] = (int16_t)(-20 - (int)t);
+            trk[t].p[P_A2EOS2] = trk[t].p[P_A2ESDT] = trk[t].p[P_A2FENV] = 0;
+            (void)env_load(trk[t].p);
             trk[t].p[P_A2FATK] = (int16_t)(30 + t);
             trk[t].p[P_E7] = (int16_t)(40 + t);
         }
@@ -524,8 +535,8 @@ int main(void)
         ok = sizeof q == 3640u && q.magic == PROJ_MAGIC && PROJ_MAGIC == 0x46554E42u && PROJ_MAGIC_VA == 0x46554E41u &&
              (uint16_t)q.t[TRK_DRUM].p[P_A2WAVE + 3u] == (11u | 121u << 8) &&
              (uint16_t)q.t[TRK_DRUM].p[P_A2WAVE + 4u] == (0xC1u | 62u << 8) &&
-             (uint16_t)q.t[TRK_DRUM].p[P_A2WAVE + 5u] == (0xFEu | 5u << 8) &&
-             q.t[1].p[P_A2FENV] == -21 && q.t[1].p[P_A2FATK] == 31 && q.t[1].p[PJ_E0 + 7] == 41;
+             (uint16_t)q.t[TRK_DRUM].p[P_A2WAVE + 5u] == 0u &&
+             q.t[1].p[P_A2FENV] == 0 && q.t[1].p[P_A2FATK] == 31 && q.t[1].p[PJ_E0 + 7] == 41;
         bad += check("ENV2 (FUNB, 3,640 bytes): part 1's SUS2|REL2, PIT|SHP, OSC2|SDTN a byte each in the drum track", ok);
         for (t = 0; t < NTRK; t++)
             for (i = P_A2ESUS; i < P_E0; i++)
@@ -536,9 +547,8 @@ int main(void)
         ok = 1;
         for (t = 0; t < NPART; t++)
             ok &= trk[t].p[P_A2ESUS] == (int16_t)(10 + t) && trk[t].p[P_A2EREL] == (int16_t)(120 + t) &&
-                  trk[t].p[P_A2EPIT] == (int16_t)(-64 + (int)t) && trk[t].p[P_A2ESHP] == (int16_t)(63 - (int)t) &&
-                  trk[t].p[P_A2EOS2] == (int16_t)(-1 - (int)t) && trk[t].p[P_A2ESDT] == (int16_t)(5 * t) &&
-                  trk[t].p[P_A2FENV] == (int16_t)(-20 - (int)t) && trk[t].p[P_A2FATK] == (int16_t)(30 + t);
+                  env_rt(trk[t].p)[P_A2EPIT] == (int16_t)(-64 + (int)t) && env_rt(trk[t].p)[P_A2ESHP] == (int16_t)(63 - (int)t) &&
+                  trk[t].p[P_N2DA] == LT_PIT && trk[t].p[P_N2DB] == LT_SHP && trk[t].p[P_A2FATK] == (int16_t)(30 + t);
         ok &= trk[1].p[P_E7] == 41 && TDRUM->p[P_A2WAVE] == TP[P_A2WAVE].def && TDRUM->p[P_A2FDEC] == TP[P_A2FDEC].def;
         for (i = P_A2ESUS; i < P_E0; i++)
             ok &= TDRUM->p[i] == TP[i].def;
@@ -566,7 +576,7 @@ int main(void)
                     static const uint8_t ID[5] = {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT};
                     ok &= trk[t].p[P_A2ESUS] == (int16_t)(7 + t) && trk[t].p[P_A2EREL] == (int16_t)(90 + t);
                     for (k = 0; k < 5; k++)
-                        ok &= trk[t].p[ID[k]] == (k == d ? a : 0);
+                        ok &= env_rt(trk[t].p)[ID[k]] == (k == d ? a : 0);
                     ok &= proj_va.dst[t] == (d && a ? d : 0);
                     ok &= trk[t].p[P_A2FATK] == (int16_t)(30 + t) && (t != 1u || trk[t].p[P_E7] == 41);
                 }
@@ -593,8 +603,9 @@ int main(void)
             memcpy(v8 + PROJ_V8_N - 4u, &h, 4);
             ok = proj_import(&q2, v8, (int)sizeof v8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && q2.dl_hash == 0;
             proj_apply(&q2, &rt_dl, 1);
-            ok &= trk[0].p[P_A2EPIT] == 0 && trk[0].p[P_A2FENV] == 44 && trk[1].p[P_A2ESDT] == 0 && trk[1].p[P_A2FENV] == 0 &&
-                  trk[1].p[P_A2ESHP] == 0 && trk[2].p[P_A2EPIT] == -63 && trk[2].p[P_A2FENV] == 0 && trk[2].p[P_A2ESUS] == 9;
+            ok &= env_rt(trk[0].p)[P_A2EPIT] == 0 && env_rt(trk[0].p)[P_A2FENV] == 44 && env_rt(trk[1].p)[P_A2ESDT] == 0 &&
+                  env_rt(trk[1].p)[P_A2FENV] == 0 && env_rt(trk[1].p)[P_A2ESHP] == 0 && env_rt(trk[2].p)[P_A2EPIT] == -63 &&
+                  env_rt(trk[2].p)[P_A2FENV] == 0 && trk[2].p[P_A2ESUS] == 9;
             bad += check("FUN9 -> FUNB: ENV2 converted as FUNA's, its (empty) lanes no record", ok);
             m = PROJ_MAGIC_V8;
             memcpy(v8, &m, 4);
@@ -607,8 +618,8 @@ int main(void)
             ok &= !memcmp(q2.t[1].p, va.t[1].p, sizeof va.t[1].p);
             proj_apply(&q2, &rt_dl, 1);
             for (i = P_A2ESUS; i < P_E0; i++)
-                ok &= trk[1].p[i] == 0;
-            ok &= trk[1].p[P_A2FATK] == 31 && trk[0].p[P_A2FENV] == 44;
+                ok &= env_rt(trk[1].p)[i] == 0;
+            ok &= trk[1].p[P_A2FATK] == 31 && env_rt(trk[0].p)[P_A2FENV] == 44;
             bad += check("FUN8 -> FUNB: as stored, ENV2's SUS2 REL2 and amounts 0 (the AD envelope it had; FENV kept)", ok);
             v8[PROJ_V8_N - 4u] ^= 1u;
             bad += check("FUN8 with a bad checksum: refused", !proj_import(&q2, v8, (int)sizeof v8));
@@ -770,7 +781,7 @@ int main(void)
             up_params(&r, v, def);
             ok &= v[P_A2ESUS] == 70 && v[P_A2EREL] == 5 && v[P_LEVEL] == oldv(1, 0) % 50 && v[P_A2SDTN] == oldv(1, P_A2SDTN) % 50;
             for (k = 0; k < 5; k++)
-                ok &= v[ID[k]] == (k == d ? -33 : 0);
+                ok &= env_rt(v)[ID[k]] == (k == d ? -33 : 0);
             for (i = 0; i < 8u; i++)
                 ok &= v[P_E0 + i] == oldv(1, 64u + i) % 50;
             bad += check("UP_VER 1, np 72: DST2 d with AMT2 -> amount on d alone, E0..E7 from 64", ok);
@@ -779,14 +790,17 @@ int main(void)
             v[i] = (int16_t)((int)(i * 7u % 120u) - 60);
         v[P_A2ESUS] = 127, v[P_A2EREL] = 0, v[P_A2EPIT] = -64, v[P_A2ESHP] = 63, v[P_A2EOS2] = -1, v[P_A2ESDT] = 1;
         v[P_L1DA] = LT_PAN, v[P_L1AA] = 50, v[P_L1DB] = LT_FLT, v[P_L1AB] = -30;   /* (LFO DEST: two slots, in range) */
+        v[P_N1DA] = LT_E2, v[P_N1AA] = -100, v[P_N1DB] = LT_AMP, v[P_N1AB] = 90;   /* (ENV's, ENV2's: in range) */
+        v[P_N2DA] = LT_SDTN, v[P_N2AA] = 3, v[P_N2DB] = LT_L1RT, v[P_N2AB] = -128;
         memset(&r, 0, sizeof r);
         r.used = UP_USED, r.name[0] = 'Y';
         up_vals_put(&r, v);
         up_params(&r, w, def);
-        ok = r.ver == 2u && r.np == P_ENG_END && up_valid(&r) && !memcmp(v, w, P_ENG_END * sizeof v[0]) &&
-             UP_NS(P_ENG_END) == 72u && sizeof(up_rec_t) == 192u;
-        for (i = P_ENG_END; i < P_COUNT; i++)            /* (the values after P_E7: none in a record, the defaults) */
-            ok &= w[i] == def[i];
+        ok = r.ver == 2u && r.np == P_ENG_END && up_valid(&r) && UP_NS(P_ENG_END) == 72u && sizeof(up_rec_t) == 192u;
+        for (i = 0; i < P_ENG_END; i++)                  /* (ENV DEST's words: the slots' stored form, 0 here) */
+            ok &= ENV_ID(i) ? !w[i] : w[i] == v[i];
+        for (i = P_ENG_END; i < P_COUNT; i++)            /* (the values after P_E7: none in a record, the defaults; the */
+            ok &= i >= P_N1DA && i <= P_NLAST ? w[i] == v[i] : w[i] == def[i];   /* envelopes' slots back) */
         bad += check("UP_VER 2: 75 values in the record's 72 (ENV2's six in three words), read back as written", ok);
         r.np = 80;
         ok = !up_valid(&r);

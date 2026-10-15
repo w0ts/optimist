@@ -128,9 +128,15 @@ static void reads(const char *who, uint32_t e0)
     up_values(up_rec(0), v);
     ok = up_used(0) && up_rec(0)->engine == 0u && v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2SWRM] == TP[P_A2SWRM].def;
     for (i = 0; i <= P_CHORD; i++)
-        ok &= i >= P_L1DA && i <= P_L1AB ? v[i] == slot_of(0, i - P_L1DA) : v[i] == gold_at(0, i, 0);
+        ok &= i >= P_L1DA && i <= P_L1AB ? v[i] == slot_of(0, i - P_L1DA) :
+              i == P_ED_FLT || i == P_ED_SHP ? !v[i] : v[i] == gold_at(0, i, 0);   /* (ENV DEST FLT SHP: its slots) */
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == gold_at(0, P_E0 + i, 0);
+    {   /* ENV DEST (2026-10-14): the golden's FLT SHP -> ENV's slots (env_store.h) */
+        int16_t e[4];
+        (void)env1_from_depths(gold_v(0, P_ED_FLT), gold_v(0, P_ED_SHP), e);
+        ok &= !memcmp(&v[P_N1DA], e, sizeof e);
+    }
     snprintf(what, sizeof what, "%s: ANALOG preset: values 0..49 theirs, FX OFF and ANALOG 2 at defaults, E0..E7 from %u", who,
              (unsigned)e0);
     check(what, ok);

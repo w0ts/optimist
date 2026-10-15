@@ -24,7 +24,15 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "../firmware/src/storage/storage.c"
 #include "../firmware/src/storage/upreset.c"
 /* LFO DEST's four ids: their stored form is the depths of before or the slots' tagged layout (lfo_store.h; tests/lfo_slots_test.c) */
-#define LFO_ID(i) ((i) >= P_L1DA && (i) <= P_L1AB)
+#if FELUCCA_ANALOG2
+#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || (i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT) || \
+                   ((i) >= P_N1DA && (i) <= P_NLAST))
+#else
+#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || ((i) >= P_N1DA && (i) <= P_NLAST))
+#endif
+/* the values a record keeps in another form: LFO DEST's slots (lfo_store.h), ENV DEST's / ENV2 DEST's (env_store.h: their
+ * depths, the slots) */
+#define LFO_ID(i) (((i) >= P_L1DA && (i) <= P_L1AB) || ENV_ID(i))
 
 static int check(const char *what, int ok)
 {
@@ -184,12 +192,37 @@ int main(void)
             w[i] = (int16_t)(i * 5u % 128u) - 64;
         up_vals_put(&r, w);
         up_params(&r, v, def);
-        ok = r.np == P_ENG_END && r.ver == UP_VER && up_valid(&r) && !memcmp(v, w, P_ENG_END * sizeof w[0]) &&
-             UP_NS(P_ENG_END) <= UP_PMAX;
+        ok = r.np == P_ENG_END && r.ver == UP_VER && up_valid(&r) && UP_NS(P_ENG_END) <= UP_PMAX;
+        for (i = 0; i < P_ENG_END; i++)
+            ok &= LFO_ID(i) || v[i] == w[i];
         for (i = P_ENG_END; i < P_COUNT; i++)               /* (the values after P_E7: the defaults) */
             ok &= LFO_ID(i) || v[i] == def[i];
     }
     bad += check("np == P_ENG_END: as stored (the values after P_E7 are not)", ok);
+    {   /* ENV DEST's and ENV2 DEST's slots (env_store.h): any pair back as given; the depths of before as slots */
+        static const int16_t S[3][8] = {{LT_AMP, 127, LT_OFF, 0, LT_OFF, 0, LT_OFF, 0},
+                                        {LT_E3, -128, LT_N2AMT, 127, LT_PIT, 33, LT_SDTN, -7},
+                                        {LT_SHP, 40, LT_AMP, 90, LT_FLT, 88, LT_OSC2, -64}};
+        int16_t w[P_COUNT];
+        uint32_t k, n = FELUCCA_ANALOG2 ? 8u : 4u;
+        ok = 1;
+        for (k = 0; k < 3u; k++) {
+            for (i = 0; i < P_COUNT; i++)
+                w[i] = def[i];
+            memcpy(&w[P_N1DA], S[k], n * sizeof w[0]);
+            up_vals_put(&r, w);
+            up_params(&r, v, def);
+            ok &= !memcmp(&v[P_N1DA], S[k], n * sizeof v[0]) && !v[P_ED_FLT] && !v[P_ED_SHP];
+            ok &= k || (r.p[P_ED_FLT] == 0 && r.p[P_ED_SHP] == 0);   /* (ENV on AMP alone: stored as the depths 0 0) */
+        }
+        r.ver = 1, r.np = P_ENG_END;                        /* a record of before: FLT 20 SHP -40 -> AMP 127, SHP -80 */
+        for (i = 0; i < P_ENG_END; i++)
+            r.p[i] = def[i];
+        r.p[P_ED_FLT] = 20, r.p[P_ED_SHP] = -40;
+        up_params(&r, v, def);
+        ok &= v[P_N1DA] == LT_AMP && v[P_N1AA] == 127 && v[P_N1DB] == LT_SHP && v[P_N1AB] == -80;
+    }
+    bad += check("ENV DEST / ENV2 DEST slots: round trip (tagged), ENV on AMP alone as before, depths of before", ok);
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];

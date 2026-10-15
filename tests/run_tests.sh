@@ -370,7 +370,11 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=0 -o "$OUT/lfo2_test0" tests/lfo2_test.c -lm
     run "LFO 2 left out: a project with it loads (the drum track's slots back to their defaults), MISS names it" "$OUT/lfo2_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
-    run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), XRATE XAMT bounded, macros, old locks" "$OUT/lfo_slots_test"
+    run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), L1RT L1AMT L2RT L2AMT bounded, macros, old locks" "$OUT/lfo_slots_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/env_dest_test" tests/env_dest_test.c -lm
+    run "ENV DEST / ENV2 DEST's two slots: ENV on AMP by default, nothing wired (no AMP: full while ENV runs; ENV2 alone on AMP keeps the voice), the plain path and env_post the same, values per voice (E5, DEC) and the part's (PAN), mod of mod bounded" "$OUT/env_dest_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/env_dest_test0" tests/env_dest_test.c -lm
+    run "ENV DEST / ENV2 DEST's slots without LFO 2" "$OUT/env_dest_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
@@ -1307,10 +1311,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
-    run "ANALOG 2: aliasing, filter response and self-oscillation, zipper (analog2_test alias / filter / zipper)" "$OUT/analog2_test" check
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DA2_ENV2_ALWAYS=1 -o "$OUT/analog2_always" tests/analog2_test.c -lm
-    a2sw() { a=$("$OUT/analog2_test" env2switch) && b=$("$OUT/analog2_always" env2switch) && echo "$a, never skipped: $b" && [ "$a" = "$b" ]; }
-    run "ANALOG 2: ENV2 DEST skipped at all 0, amounts switched mid-note (held, released): the samples of never skipping" a2sw
+    run "ANALOG 2: aliasing, filter response and self-oscillation, zipper, ENV2 (voice.c env2_tick, its slots: the 160 renders of DST2 + AMT2 bit for bit) (analog2_test alias / filter / zipper / env2)" "$OUT/analog2_test" check
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/osc2_fine_test" tests/osc2_fine_test.c -lm

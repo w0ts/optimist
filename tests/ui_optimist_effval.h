@@ -213,12 +213,12 @@ static void effv_over_tests(void)
     t->p[P_L1AA] = 0;
     SCR->cell(r, 1, &c);
     check(effv_cell(&c) == 0u && c.ak == GK_NONE, "AMT 0: no live bar");
-    t->p[P_L1DA] = LT_E1, t->p[P_L1DB] = LT_XRATE;
+    t->p[P_L1DA] = LT_E1, t->p[P_L1DB] = LT_L2RT;
     SCR->cell(r, 0, &c);
     check(!strcmp(c.val, ENGINES[t->eng_req]->edit[0].label), "the DEST A card on E1: the engine's own name of its first EDIT value");
 #if FELUCCA_LFO2
     SCR->cell(r, 2, &c);
-    check(!strcmp(c.val, "L2 RT"), "the DEST B card on XRATE: \"L2 RT\"");
+    check(!strcmp(c.val, "L2 RT"), "the DEST B card on L2RT: \"L2 RT\"");
 #endif
     *t = keep;
     reset_ui();

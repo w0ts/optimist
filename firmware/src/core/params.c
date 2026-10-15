@@ -8,10 +8,11 @@ static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4
 static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
 static const char *const N_L2POL[] = {"BI", "UNI"};
 #endif
-/* an LFO slot's DEST (core.h LT_*; XRATE XAMT: the other LFO's, with LFO 2) */
+/* a modulation slot's DEST (core.h LT_*: LFO's, LFO 2's, ENV's, ENV2's) */
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
                                        "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
-                                       "INS2", "XRATE", "XAMT"};
+                                       "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT",
+                                       "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
@@ -83,8 +84,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_DEC] = PD("DEC", F_TIME, 0, 127, 70),
     [P_SUS] = PD("SUS", F_PCT, 0, 127, 90),
     [P_REL] = PD("REL", F_TIME, 0, 127, 60),
-    [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),
-    [P_ED_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
+    [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),    /* (ENV DEST FLT SHP: the stored form of ENV's slots, env_store.h) */
+    [P_ED_PIT] = PD("DROP", F_BIPCT, -64, 63, 0),   /* the pitch drop: a fast fall from each note's start (voice.c penv) */
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
     [P_LRATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* (< 0: synced, N_LSYNC) */
@@ -181,8 +182,19 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
+    [P_N1DA] = {"DST A", F_ENUM, 0, LT_NB - 1, LT_AMP, N_LT, 0},   /* ENV DEST: two slots (core.h LT_*), A on AMP */
+    [P_N1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 127),
+    [P_N1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_N1AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+#if FELUCCA_ANALOG2
+    [P_N2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* ENV2 DEST: two slots */
+    [P_N2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+    [P_N2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_N2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+#endif
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
+#include "env_store.h"                                /* ENV DEST's, ENV2 DEST's slots <-> the depths of before */
 /* an automation event (a motion, a lock: stored before LFO DEST had slots, or SLOOP 2.4's) on a depth of before
  * (P_LEG_PIT .. P_LEG_AMP) of part t at *v -> the AMT of t's LFO slot on that destination, *v in AMT units (2 x; AMP as it
  * is). No slot on it: a slot that does nothing (OFF or at 0; not one in *taken, the slots this step's events took) is
@@ -362,11 +374,6 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 #endif
 
 #if FELUCCA_LFO2
-#define LT_L2(d) ((d) == &TP[P_L2DA] || (d) == &TP[P_L2DB])   /* an LFO 2 DEST card */
-#else
-#define LT_L2(d) 0
-#endif
-#if FELUCCA_LFO2
 #define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
 #else
 #define is_lrate(d) ((d) == &TP[P_LRATE])
@@ -427,12 +434,13 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 #endif
 
 static uint32_t ins_amt(uint32_t k, uint32_t s);     /* (fx_slots.c, included below) */
-/* LFO DEST's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): INS1 INS2 the type the selected track's slot S1 / S2
+/* a slot's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): INS1 INS2 the type the selected track's slot S1 / S2
  * holds, named as INSERTS does ("FILT", "DST"; empty: "S1 --"); E1 .. E8 the selected part's engine's own name for
- * that EDIT value ("E1" when it names none); XRATE XAMT the other LFO's: "L2 RT" on LFO's DEST, "L1 AMT" on LFO 2's */
+ * that EDIT value ("E1" when it names none); the others their names (N_LT) */
 static void lt_text(const param_desc_t *d, int32_t v, char *val)
 {
     const char *s = N_LT[v];
+    (void)d;
     if (v == LT_INS1 || v == LT_INS2) {               /* the insert the selected track's slot holds, as INSERTS names it */
         uint32_t id = ins_amt((uint32_t)(TSEL - trk), (uint32_t)(v - LT_INS1));
         if (id < P_COUNT) {
@@ -442,21 +450,12 @@ static void lt_text(const param_desc_t *d, int32_t v, char *val)
         str_cpy(val, v == LT_INS1 ? "S1 --" : "S2 --", 7);   /* (empty: INSERTS' ---- with the slot) */
         return;
     }
-    if (v > LT_E8 && v < LT_XRATE) {                  /* (the sends: their own names) */
-        str_cpy(val, s, 7);
-        return;
-    }
-    if (v < LT_XRATE) {
+    if (v >= LT_E1 && v <= LT_E8) {
         const param_desc_t *e = track_desc(TSEL, P_E0 + (uint32_t)(v - LT_E1));
         if (e->label && e->label[0] && e->label[0] != '-')
             s = e->label;
-        str_cpy(val, s, 7);
-        return;
     }
-    val[0] = 'L';
-    val[1] = (char)('2' - LT_L2(d));
-    val[2] = ' ';
-    str_cpy(val + 3, v == LT_XRATE ? "RT" : "AMT", 4);
+    str_cpy(val, s, 7);
 }
 /* value string (<= 5 chars) and unit for a parameter value */
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
@@ -639,10 +638,10 @@ typedef struct {
 
 static const page_t PAGES[] = {
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
-    {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, 0xFF}},   /* (P_ED_FX: the level trim, no page) */
+    {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_N1DA, P_N1AA, P_N1DB, P_N1AB}},   /* DEST A, AMT A, DEST B, AMT B (as LFO DEST) */
 #if FELUCCA_ANALOG2
-    {"ENV2", FAM_ENV, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},   /* ANALOG only: page_shown */
-    {"ENV2 DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2}},   /* (SDTN: SWARM) */
+    {"ENV2", FAM_ENV, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},   /* every engine since 2026-10-14 */
+    {"ENV2 DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_N2DA, P_N2AA, P_N2DB, P_N2AB}},
 #endif
 #if DL_ANY
     /* the drum track's ENV: the picked lane's envelope values, the SOUND pages' own (drum_edit.c DE_*, the same storage):
@@ -697,14 +696,15 @@ static const page_t PAGES[] = {
 #endif
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
-    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, P_A2ESDT}},   /* ENV2: on the spread */
+    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},   /* (ENV2 on the spread: its DEST SDTN) */
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
 #if FELUCCA_UI == 1
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, 0xFF, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
+    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_ED_PIT, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP: the pitch drop, ENV DEST PIT before 2026-10-14) */
 #else
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
+    {"VOICE 3", FAM_EDIT, SC_TRACK, GR_NONE, {P_ED_PIT, 0xFF, 0xFF, 0xFF}},   /* DROP: the pitch drop (ENV DEST PIT before) */
 #endif
 #if DL_ANY
     /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
@@ -844,7 +844,7 @@ static int engine_page_used(const page_t *pg)
 }
 #endif
 
-/* ANALOG 2's own pages (OSC 2, SWARM, FLT 2; ENV2, ENV2 DEST) are there on an ANALOG track only: the family buttons step
+/* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only (ENV2 and ENV2 DEST: every engine): the family buttons step
  * past them, the overview and the page count leave them out, and they show no values elsewhere. The drum
  * track's EDIT family is its SOUND pages (those of this build), only there. An engine's page with nothing on
  * it is not shown either */
@@ -892,7 +892,7 @@ static int page_shown(const page_t *pg)
         return 0;                                     /* (FM6 with one ENGINE mode: EDIT 2, PATCH stays) */
 #endif
 #if FELUCCA_ANALOG2
-    return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
+    return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 || pg->graph == GR_ENV2 ||   /* (ENV2: every engine) */
            (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));
 #else
     return 1;

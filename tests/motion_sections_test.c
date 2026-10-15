@@ -46,6 +46,15 @@ static union {
 #include "../firmware/src/storage/motion_flash.c"
 #define AUTO_VIEW_PROJ 1
 #include "auto_view.h"              /* (the automation store as motion's old store) */
+/* a track's values p as a project stores them (ENV DEST's, ENV2 DEST's slots in the words of the depths they replaced:
+ * env_store.h) */
+static const int16_t *env_rt(const int16_t *p)
+{
+    static int16_t x[P_COUNT];
+    memcpy(x, p, sizeof x);
+    env_store(x);
+    return x;
+}
 
 static int bad;
 /* track k's working steps as stored (10 bytes a step: core.h pstep_t) are these */
@@ -558,7 +567,8 @@ int main(void)
         make(1);
         trk[0].p[P_E2] = 10, trk[0].p[P_E7] = 5, trk[2].p[P_E0 + 1] = 3;
 #if FELUCCA_ANALOG2
-        trk[0].p[P_A2ESUS] = 70, trk[0].p[P_A2EPIT] = -9, trk[2].p[P_A2ESDT] = 12;
+        trk[0].p[P_A2ESUS] = 70, trk[0].p[P_N2DA] = LT_PIT, trk[0].p[P_N2AA] = -18;   /* (ENV2's slots: PIT -9, SDTN 12 */
+        trk[2].p[P_N2DA] = LT_SDTN, trk[2].p[P_N2AA] = 24;                         /* as the depths of before) */
 #endif
         motion_reset();
         motion_end();
@@ -582,12 +592,12 @@ int main(void)
             for (i = 0; i < 8u && k < NPART; i++)
                 ok &= q1.t[k].p[PJ_E0 + i] == trk[k].p[P_E0 + i];
             for (i = 0; i < PJ_E0 && k < NPART; i++)
-                ok &= q1.t[k].p[i] == trk[k].p[i];
+                ok &= q1.t[k].p[i] == env_rt(trk[k].p)[i];
 #if FELUCCA_ANALOG2
             if (k < NPART) {
                 int16_t x[A2X_N];
                 a2x_unpack(x, &q1.t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k]);
-                ok &= !memcmp(x, &trk[k].p[P_A2ESUS], sizeof x);
+                ok &= !memcmp(x, &env_rt(trk[k].p)[P_A2ESUS], sizeof x);
             }
 #endif
         }
@@ -613,7 +623,7 @@ int main(void)
         motion_reset();
         make(0);
         proj_apply(&proj_slot[2], &proj_dl[2], 1);
-        ok &= trk[0].p[P_A2EPIT] == 30 && trk[0].p[P_A2FENV] == 0 && trk[0].p[P_A2ESUS] == 40;
+        ok &= env_rt(trk[0].p)[P_A2EPIT] == 30 && env_rt(trk[0].p)[P_A2FENV] == 0 && trk[0].p[P_A2ESUS] == 40;
         check("FUNA slot with its motion: converted (DST2 PITCH -> PIT), the motion renumbered, it plays",
               ok && motion_is(mview(), &mw) && plays(&mw));
     }

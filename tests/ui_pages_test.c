@@ -1148,10 +1148,10 @@ int main(int argc, char **argv)
         check(cur_page()->id[0] == P_A2WAVE && ov_on(), "ANALOG 2: EDIT twice more: OSC 2 lit");
         ui.force = 1; frame(); ppm("overview-edit-osc2");
         tap(B_EDIT); frames(2);
-        check(cur_page()->id[0] == P_A2SWRM && cur_page()->id[3] == P_A2ESDT, "ANALOG 2: SWARM: SWARM SDTN DRFT, ENV2's amount on the spread");
-        trk[0].p[P_A2SWRM] = 3; trk[0].p[P_A2ESDT] = -20; ui.force = 1; frame(); ppm("overview-edit-swarm");
+        check(cur_page()->id[0] == P_A2SWRM && cur_page()->id[3] == 0xFFu, "ANALOG 2: SWARM: SWARM SDTN DRFT (ENV2 on the spread: its DEST SDTN)");
+        trk[0].p[P_A2SWRM] = 3; ui.force = 1; frame(); ppm("overview-edit-swarm");
         view_set(0); ui.force = 1; frame(); ppm("page-swarm"); view_set(1);
-        trk[0].p[P_A2SWRM] = 0; trk[0].p[P_A2ESDT] = 0;
+        trk[0].p[P_A2SWRM] = 0;
         tap(B_EDIT); frames(2);
         check(cur_page()->id[0] == P_A2FTYP && cur_page()->id[1] == 0xFFu, "ANALOG 2: EDIT once more: FLT 2 (FTYP) lit");
         ui.force = 1; frame(); ppm("overview-edit-flt2");
@@ -1159,7 +1159,7 @@ int main(int argc, char **argv)
             uint32_t pg, npg;
             char fl[24];
             n = ov_rows(idx, &act, &pg, &npg);
-            check(n == 3u && act == 0u && pg == 1u && npg == 2u && PAGES[idx[0]].id[0] == P_A2FTYP &&
+            check(n == 4u && act == 0u && pg == 1u && npg == 2u && PAGES[idx[0]].id[0] == P_A2FTYP &&
                   PAGES[idx[1]].id[0] == P_VOICE, "VIEW ALL: FLT 2 (row 5): PAGE 2/2 at once, FLT 2 its first row, lit");
             ov_foot_label(fl);
             check(str_eq(fl, "PAGE 2/2"), "VIEW ALL: the footer says PAGE 2/2");
@@ -1173,8 +1173,8 @@ int main(int argc, char **argv)
                     tap(B_ENV);
                 frames(2);
                 n = ov_rows(idx, &act, &pg, &npg);
-                check(n == 4u && npg == 1u && PAGES[idx[0]].id[0] == P_ATK && PAGES[idx[1]].id[0] == P_ED_FLT &&
-                      PAGES[idx[2]].graph == GR_ENV2 && PAGES[idx[3]].id[0] == P_A2FENV,
+                check(n == 4u && npg == 1u && PAGES[idx[0]].id[0] == P_ATK && PAGES[idx[1]].id[0] == P_N1DA &&
+                      PAGES[idx[2]].graph == GR_ENV2 && PAGES[idx[3]].id[0] == P_N2DA,
                       "ANALOG track, ENV: ENV1, ENV1 DEST, ENV2, ENV2 DEST (one PAGE)");
                 ov_foot_label(fl);
                 check(str_eq(fl, "PAGE 1/1"), "ENV, VIEW ALL: PAGE 1/1");
@@ -1184,8 +1184,8 @@ int main(int argc, char **argv)
                 check(trk[0].p[P_A2ESUS] > s0, "ENV2 lit: KNOB 3 SUS2");
                 trk[0].p[P_A2FATK] = 20; trk[0].p[P_A2FDEC] = 70; trk[0].p[P_A2EREL] = 90;
                 tap(B_ENV); frames(2);
-                check(cur_page()->id[0] == P_A2FENV && cur_page()->id[1] == P_A2EPIT && cur_page()->id[2] == P_A2ESHP &&
-                      cur_page()->id[3] == P_A2EOS2, "ENV once more: ENV2 DEST (FLT PIT SHP OSC2)");
+                check(cur_page()->id[0] == P_N2DA && cur_page()->id[1] == P_N2AA && cur_page()->id[2] == P_N2DB &&
+                      cur_page()->id[3] == P_N2AB, "ENV once more: ENV2 DEST (DST A AMT A DST B AMT B)");
                 for (k = 0; k < 4u; k++) {            /* each knob its own amount, the others still */
                     int16_t was[4];
                     uint32_t j;
@@ -1196,10 +1196,10 @@ int main(int argc, char **argv)
                         check(trk[0].p[cur_page()->id[j]] == (j == k ? was[j] + (k & 1u ? -3 : 5) : was[j]),
                               "ENV2 DEST lit: a knob moves its own amount only");
                 }
-                trk[0].p[P_A2FENV] = 40; trk[0].p[P_A2EPIT] = -12; trk[0].p[P_A2ESHP] = 25; trk[0].p[P_A2EOS2] = 63;
+                trk[0].p[P_N2DA] = LT_FLT; trk[0].p[P_N2AA] = 80; trk[0].p[P_N2DB] = LT_OSC2; trk[0].p[P_N2AB] = 126;
                 ui.force = 1; frame(); ppm("overview-env-a2");
                 view_set(0); ui.force = 1; frame(); ppm("page-env2dest");
-                check(!ov_on() && cur_page()->id[0] == P_A2FENV, "VIEW PAGE: ENV2 DEST on one page");
+                check(!ov_on() && cur_page()->id[0] == P_N2DA, "VIEW PAGE: ENV2 DEST on one page");
                 tap(B_ENV); tap(B_ENV); tap(B_ENV); frames(2);
                 check(cur_page()->graph == GR_ENV2, "VIEW PAGE: round to ENV2");
                 ui.force = 1; frame(); ppm("page-env2");
@@ -1208,13 +1208,13 @@ int main(int argc, char **argv)
                 check(cur_page()->id[0] == P_ATK, "ANALOG track, ENV: round to ENV1");
                 ui.force = 1; frame(); ppm("page-env1");
                 tap(B_ENV); tap(B_ENV); frames(2);
-                song.sel = 1; frames(3);                /* on ENV2 and the track is no ANALOG: its ENV */
-                check(cur_page()->fam == FAM_ENV && cur_page()->id[0] == P_ATK, "ENV2 and a DIGITAL track: ENV (its family stays)");
+                song.sel = 1; frames(3);                /* on ENV2 and the track is no ANALOG: ENV2 too (every engine's) */
+                check(cur_page()->fam == FAM_ENV && cur_page()->graph == GR_ENV2, "ENV2 and a DIGITAL track: ENV2 stays");
                 n = ov_rows(idx, &act, &pg, &npg);
-                check(n == 2u, "DIGITAL track: ENV, ENV DEST only");
+                check(n == 4u, "DIGITAL track: ENV, ENV DEST, ENV2, ENV2 DEST");
                 song.sel = 0; frames(2);
                 view_set(1); ui.force = 1; frame(); ppm("overview-env1");
-                trk[0].p[P_A2FENV] = trk[0].p[P_A2EPIT] = trk[0].p[P_A2ESHP] = trk[0].p[P_A2EOS2] = 0;
+                trk[0].p[P_N2DA] = trk[0].p[P_N2AA] = trk[0].p[P_N2DB] = trk[0].p[P_N2AB] = 0;
                 trk[0].p[P_A2ESUS] = s0; trk[0].p[P_A2EREL] = r0; trk[0].p[P_A2FATK] = 0; trk[0].p[P_A2FDEC] = 64;
                 open_family(FAM_EDIT); frames(2);
                 while (cur_page()->id[0] != P_VOICE)
@@ -1222,9 +1222,9 @@ int main(int argc, char **argv)
                 frames(2);
             }
             n = ov_rows(idx, &act, &pg, &npg);
-            check(n == 3u && act == 1u && pg == 1u && PAGES[idx[act]].id[0] == P_VOICE,
-                  "ANALOG 2: VOICE the second row of PAGE 2 (FLT 2, VOICE, VOICE 2)");
-            tap(B_EDIT); tap(B_EDIT); frames(2);
+            check(n == 4u && act == 1u && pg == 1u && PAGES[idx[act]].id[0] == P_VOICE,
+                  "ANALOG 2: VOICE the second row of PAGE 2 (FLT 2, VOICE, VOICE 2, VOICE 3)");
+            tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); frames(2);
             n = ov_rows(idx, &act, &pg, &npg);
             check(n == 4u && act == 0u && pg == 0u && PAGES[idx[0]].id[0] == P_E0,
                   "past the last row: PAGE 1/2 again, EDIT 1 lit");
@@ -1233,12 +1233,12 @@ int main(int argc, char **argv)
                 tap(B_EDIT);
             frames(2);
         }
-        song.sel = 1; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);   /* DIGITAL: EDIT 1, 2, VOICE, VOICE 2 */
+        song.sel = 1; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);   /* DIGITAL: EDIT 1, 2, VOICE, VOICE 2, VOICE 3 */
         tap(B_EDIT); tap(B_EDIT); frames(2);
         check(cur_page()->id[0] == P_VOICE, "another engine: EDIT 2 -> VOICE (no ANALOG 2 pages)");
-        tap(B_EDIT); tap(B_EDIT); frames(2);
+        tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); frames(2);
         n = ov_pages(idx, &act);
-        check(cur_page()->id[0] == P_E0 && n == 4u, "another engine: four EDIT pages, round to EDIT 1");
+        check(cur_page()->id[0] == P_E0 && n == 4u, "another engine: five EDIT pages (four on the first PAGE), round to EDIT 1");
         song.sel = 0; frames(2);
         while (cur_page()->id[0] != P_VOICE)
             tap(B_EDIT);

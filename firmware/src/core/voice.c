@@ -74,16 +74,26 @@ AINL uint32_t lfo_inc(const track_t *t) { return lfo_inc_of(t->p[P_LRATE]); }
  *                    parts, both cores; LT_TAB below), from the LFOs' values of the block before
  * The macros (FELUCCA_MACROS: MOTION) move LFO's depths of PIT FLT SHP AMP as they did (macro.c MK_LFO: lfo_mac) */
 typedef struct {
-    int32_t m[3];                                       /* added to PIT (1/4096 semitone), FLT, SHP (Q8) */
+    int32_t m[5];                                       /* added to PIT (1/4096 semitone), FLT, SHP (Q8), OSC2 (1/16
+                                                         * semitone), SDTN */
     int32_t g1, g2;                                     /* the amplitude's gain from LFO, from LFO 2 (Q15; -1: none) */
 } lfo_mod_t;
-/* slots s[4] (DEST, AMT, DEST, AMT) -> dep[4] (PIT FLT SHP AMP: their AMTs summed) */
+#define LFO_NDEP 6u                                     /* PIT FLT SHP AMP OSC2 SDTN */
+/* slots s[4] (DEST, AMT, DEST, AMT) -> dep[LFO_NDEP] (PIT FLT SHP AMP OSC2 SDTN: their AMTs summed) */
 AINL void lfo_dep(const int16_t *s, int32_t *dep)
 {
     uint32_t k;
     for (k = 0; k < 2u; k++)
         if (LT_CLASSIC(s[2u * k]))
             dep[s[2u * k] - LT_PIT] += s[2u * k + 1u];
+        else if (s[2u * k] == LT_OSC2 || s[2u * k] == LT_SDTN)
+            dep[4u + (uint32_t)(s[2u * k] == LT_SDTN)] += s[2u * k + 1u];
+}
+/* (lfo_apply) OSC2 SDTN: rare, in XIP flash */
+static __attribute__((noinline)) void lfo_apply_a2(const int32_t *dep, int32_t v, lfo_mod_t *o)
+{
+    o->m[3] += ((v * dep[4] * 3) >> 8) >> 8;
+    o->m[4] += ((v * dep[5]) >> 8) >> 8;
 }
 /* an LFO at v (Q15: its POL, LFO's fade in) and u ((its wave + 1) / 2, 0..32767) on dep -> o's offsets, *g the gain
  * (AMP not 0: down from unity by u x AMT x 258, P_LD_AMP's of before; < 0 from the bottom) */
@@ -93,13 +103,17 @@ AINL void lfo_apply(const int32_t *dep, int32_t v, int32_t u, lfo_mod_t *o, int3
     o->m[0] += (v * dep[0] * 3) >> 8;
     o->m[1] += (v * dep[1]) >> 8;
     o->m[2] += (v * dep[2]) >> 8;
+    if (dep[4] | dep[5])                                /* (ANALOG's osc 2 pitch, as PIT; the swarm's spread +-63) */
+        FAR(lfo_apply_a2)(dep, v, o);
     if (a) {
         a = clamp(a, LFO_AMT_LO, LFO_AMT_HI);
         *g = 32767 - mulq15(a > 0 ? u : 32767 - u, a > 0 ? a * 258 : a > LFO_AMT_LO ? -a * 258 : 32767);
     }
 }
+/* DEST d acts on the voices (PIT FLT SHP AMP OSC2 SDTN), not on a value */
+#define LT_VOICE(d) (LT_CLASSIC(d) || (d) == LT_OSC2 || (d) == LT_SDTN)
 /* slot k (0 A, 1 B) of part values p from first (P_L1DA, P_L2DA) acts on a value (lfo_over, not the voices') */
-#define LT_OVER_AT(p, first, k) ((p)[(first) + 2 * (k)] >= LT_RES && (p)[(first) + 2 * (k) + 1])
+#define LT_OVER_AT(p, first, k) ((p)[(first) + 2 * (k)] != LT_OFF && !LT_VOICE((p)[(first) + 2 * (k)]) && (p)[(first) + 2 * (k) + 1])
 #if FELUCCA_MACROS
 static int16_t lfo_mac[NPART][4];                      /* LFO's depth of PIT FLT SHP AMP under a macro (AMT units) */
 static uint16_t lfo_mac_m;                             /* bit 4 k + d: lfo_mac[k][d] stands for the slots' (macro.c) */
@@ -128,7 +142,7 @@ static __attribute__((noinline)) void lfo2_tick(const track_t *t, lfo_mod_t *o) 
 {
     const int16_t *p = t->p;
     lfo2_t *s = &lfo2[(uint32_t)(t - trk) % NPART];
-    int32_t v, u, dep[4] = {0, 0, 0, 0};
+    int32_t v, u, dep[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
     uint32_t old = s->ph;
     if (!LFO2_ON(t))
         return;
@@ -157,7 +171,7 @@ AINL void lfo2_tick(const track_t *t, lfo_mod_t *o) { (void)t, (void)o; }
 /* part t's LFO at lfo (Q15, its fade in) on the voices: its slots of PIT FLT SHP AMP (or a macro's depths) -> o */
 AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
 {
-    int32_t dep[4] = {0, 0, 0, 0};
+    int32_t dep[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
     lfo_dep(&t->p[P_L1DA], dep);
 #if FELUCCA_MACROS
     if (lfo_mac_m) {
@@ -170,27 +184,54 @@ AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
     lfo_apply(dep, lfo, (lfo + 32768) >> 1, o, &o->g1);
 }
 
-/* the other destinations (LT_RES ..): one entry each, how it acts (lfo_over). LK_P a part value (id; its TP range), LK_E
- * the engine's EDIT value id (its own range), LK_RES the engine's EDIT value named RES / RESO / Q, LK_XR the other LFO's
- * RATE (its free rates only: a synced one stays), LK_XA the other LFO's two AMTs (x 0..2). Phase 2 adds the FX sends and
- * the insert amounts here */
-enum { LK_NONE, LK_P, LK_E, LK_RES, LK_XR, LK_XA, LK_INS };
-static const uint8_t LT_TAB[LT_N][2] = {
-    {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0}, {LK_NONE, 0},   /* OFF PIT FLT SHP AMP: the voices' */
-    {LK_RES, 0}, {LK_P, P_PAN}, {LK_P, P_LEVEL}, {LK_P, P_ATK}, {LK_P, P_DEC},
-    {LK_E, 0}, {LK_E, 1}, {LK_E, 2}, {LK_E, 3}, {LK_E, 4}, {LK_E, 5}, {LK_E, 6}, {LK_E, 7},
-    {LK_P, P_CHOR}, {LK_P, P_DLY}, {LK_P, P_REV}, {LK_INS, 0}, {LK_INS, 1},   /* (the sends, S1 S2's amounts) */
-    {LK_XR, 0}, {LK_XA, 0}};
-_Static_assert(LT_N <= 32, "a DEST in 5 bits (project.c l2_pack)");
-#define LO_MAX 16u                                     /* the values moved in a block (12 slots, XAMT two each: more is
+/* How each destination acts (core.h LT_*): {kind, its argument, class}. Kinds: LK_V the voices' (the argument: its
+ * place in env_plan_t.am, AMP FLT SHP PIT OSC2 SDTN), LK_P a part value (id; its TP range), LK_E the engine's EDIT
+ * value (index; its own range), LK_RES the engine's EDIT value named RES / RESO / Q, LK_INS the amount of the insert in
+ * slot S1 / S2, LK_XR an LFO's RATE (id; its free rates only: a synced one stays), LK_XA a modulator's two AMTs (its
+ * DEST A id; x 0..2). Classes, for an envelope (one value a voice): LC_VOICE each voice's (env_plan), LC_VAL a value its
+ * engine or envelopes read as the voice renders, moved for that voice (env_vmove), LC_PART the part's (the mix, an LFO),
+ * moved for the block from the part's newest voice (lfo_over). An LFO moves every value for the block (lfo_over) */
+enum { LK_NONE, LK_V, LK_P, LK_E, LK_RES, LK_XR, LK_XA, LK_INS };
+enum { LC_VOICE, LC_VAL, LC_PART };
+#if FELUCCA_ANALOG2
+#define LT_A2(id) {LK_P, id, LC_VAL}
+#define LT_N2XA {LK_XA, P_N2DA, LC_VAL}
+#else
+#define LT_A2(id) {LK_NONE, 0, LC_VOICE}
+#define LT_N2XA {LK_NONE, 0, LC_VOICE}
+#endif
+static const uint8_t LT_TAB[LT_N][3] = {
+    {LK_NONE, 0, LC_VOICE}, {LK_V, 3, LC_VOICE}, {LK_V, 1, LC_VOICE}, {LK_V, 2, LC_VOICE}, {LK_V, 0, LC_VOICE},   /* OFF PIT FLT SHP AMP */
+    {LK_RES, 0, LC_VAL}, {LK_P, P_PAN, LC_PART}, {LK_P, P_LEVEL, LC_PART}, {LK_P, P_ATK, LC_VAL}, {LK_P, P_DEC, LC_VAL},
+    {LK_E, 0, LC_VAL}, {LK_E, 1, LC_VAL}, {LK_E, 2, LC_VAL}, {LK_E, 3, LC_VAL}, {LK_E, 4, LC_VAL}, {LK_E, 5, LC_VAL},
+    {LK_E, 6, LC_VAL}, {LK_E, 7, LC_VAL},
+    {LK_P, P_CHOR, LC_PART}, {LK_P, P_DLY, LC_PART}, {LK_P, P_REV, LC_PART}, {LK_INS, 0, LC_PART}, {LK_INS, 1, LC_PART},
+    {LK_XR, P_LRATE, LC_PART}, {LK_XA, P_L1DA, LC_PART},                       /* L1RT L1AMT */
+    {LK_P, P_SUS, LC_VAL}, {LK_P, P_REL, LC_VAL},
+    LT_A2(P_A2FATK), LT_A2(P_A2FDEC), LT_A2(P_A2ESUS), LT_A2(P_A2EREL),       /* ATK2 DEC2 SUS2 REL2 */
+    {LK_XA, P_N1DA, LC_VAL}, LT_N2XA,                                          /* E1 AMT E2 AMT */
+    {LK_V, 4, LC_VOICE}, {LK_V, 5, LC_VOICE},                                  /* OSC2 SDTN */
+#if FELUCCA_LFO2
+    {LK_XR, P_L2RATE, LC_PART}, {LK_XA, P_L2DA, LC_PART}};                     /* L2RT L2AMT */
+#else
+    {LK_NONE, 0, LC_VOICE}, {LK_NONE, 0, LC_VOICE}};
+#endif
+_Static_assert(LT_N <= 64 && P_COUNT <= 256, "a DEST in 6 bits (project.c l2_pack, env_store.h); an id in a byte");
+#define LO_MAX 32u                                     /* the values moved in a block (24 slots, an XAMT two each: more is
                                                         * left as authored) */
 static struct {
     uint8_t n;
     uint8_t k[LO_MAX], id[LO_MAX];                     /* the part, the value */
     int16_t old[LO_MAX], put[LO_MAX];
 } lfo_ov;
-/* any part's slot acts on a value (lfo_over: pold_any) */
-AINL uint32_t lfo_over_any(void)
+/* the envelopes' values of each part's newest voice in the last block (Q15: ENV, ENV2), for their slots of class
+ * LC_PART (track_render keeps them) */
+static int16_t env_pv[NPART][2];
+/* slot k (0 A, 1 B) of an envelope's (from first: P_N1DA, P_N2DA) acts on a value of the part's (lfo_over) */
+#define ENV_PART_AT(p, first, k) ((uint32_t)(p)[(first) + 2 * (k)] < LT_N && LT_TAB[(p)[(first) + 2 * (k)]][2] == LC_PART && \
+                                  (p)[(first) + 2 * (k) + 1])
+/* any part's slot acts on a value (lfo_over: pold_any; in XIP flash, through a pointer: once a block) */
+static __attribute__((noinline)) uint32_t lfo_over_any(void)
 {
     uint32_t k, a = 0;
     for (k = 0; k < NPART; k++) {
@@ -198,6 +239,10 @@ AINL uint32_t lfo_over_any(void)
         a |= (uint32_t)(LT_OVER_AT(p, P_L1DA, 0) || LT_OVER_AT(p, P_L1DA, 1));
 #if FELUCCA_LFO2
         a |= (uint32_t)(LT_OVER_AT(p, P_L2DA, 0) || LT_OVER_AT(p, P_L2DA, 1));
+#endif
+        a |= (uint32_t)(ENV_PART_AT(p, P_N1DA, 0) || ENV_PART_AT(p, P_N1DA, 1));
+#if FELUCCA_ANALOG2
+        a |= (uint32_t)(ENV_PART_AT(p, P_N2DA, 0) || ENV_PART_AT(p, P_N2DA, 1));
 #endif
     }
     return a;
@@ -224,12 +269,12 @@ static uint32_t lo_res(const engine_t *e)
     }
     return 8u;
 }
-/* the value LT_RES .. LT_INS2 (DEST d) of part t moves: its id into *q and its range (an engine's EDIT value its own), 0
- * for another destination (or no RES value on this engine) */
+/* the value DEST d (LK_P LK_E LK_RES LK_INS) of part t moves: its id into *q and its range (an engine's EDIT value its
+ * own), 0 for another destination (or no RES value on this engine) */
 static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
 {
     int32_t i;
-    switch (LT_TAB[d % LT_N][0]) {
+    switch (LT_TAB[(uint32_t)d % LT_N][0]) {
     case LK_P:
         *q = LT_TAB[d][1];
         return &TP[*q];
@@ -247,40 +292,41 @@ static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
         return 0;
     }
 }
-/* a value at base (range ds) moved by an LFO at v (Q15) x AMT a: v x a over half the range at full (no divide),
- * clamped (op_effval.c: the same, for the bar) */
+/* a value at base (range ds) moved by a modulator at v (Q15) x AMT a: v x a over half the range at full (no divide),
+ * clamped (op_effval.c: the same, for the bar). An envelope passes 2 x its value: 0 .. the whole range */
 static int32_t lo_move(int32_t base, const param_desc_t *ds, int32_t a, int32_t v)
 {
     return clamp(base + ((((v * a) >> 7) * (ds->max - ds->min)) >> 16), ds->min, ds->max);   /* ((v a) >> 7: +-1) */
 }
-/* part t's slot (DEST d, AMT a) of an LFO at v (Q15) on its value. xr / xa: the other LFO's RATE id, its first slot
- * (P_COUNT: none) */
-static void lo_slot(track_t *t, int32_t d, int32_t a, int32_t v, uint32_t xr, uint32_t xa)
+/* part t's slot (DEST d, AMT a) of a modulator at v (Q15) on its value; env: an envelope's (v 0..32767: up to the whole
+ * range, a RATE up to 127 more) */
+static void lo_slot(track_t *t, int32_t d, int32_t a, int32_t v, uint32_t env)
 {
     const param_desc_t *ds;
-    uint32_t q;
+    uint32_t q, id = LT_TAB[(uint32_t)d % LT_N][1];
     int32_t m = (v * a) >> 7, i;                        /* -32768..32767: +-1 */
     ds = lo_dest(t, d, &q);
     if (ds) {
         if (ds->max > ds->min)
-            lo_put(t, q, lo_move(t->p[q], ds, a, v));
+            lo_put(t, q, lo_move(t->p[q], ds, a, env ? 2 * v : v));
         return;
     }
-    switch (LT_TAB[d % LT_N][0]) {
+    switch (LT_TAB[(uint32_t)d % LT_N][0]) {
     case LK_XR:
-        if (xr >= P_COUNT || t->p[xr] < 0)
+        if (t->p[id] < 0)
             return;                                     /* (a synced RATE stays its note value) */
-        lo_put(t, xr, clamp(t->p[xr] + ((m * 127) >> 16), 0, 127));
+        lo_put(t, id, clamp(t->p[id] + ((m * 127) >> (16u - env)), 0, 127));
         return;
     case LK_XA:
-        for (i = 0; xa < P_COUNT && i < 2; i++)
-            lo_put(t, xa + 2u * (uint32_t)i + 1u, clamp((t->p[xa + 2u * (uint32_t)i + 1u] * (32768 + m)) >> 15, LFO_AMT_LO, LFO_AMT_HI));
+        for (i = 0; i < 2; i++)
+            lo_put(t, id + 2u * (uint32_t)i + 1u, clamp((t->p[id + 2u * (uint32_t)i + 1u] * (32768 + m)) >> 15, LFO_AMT_LO, LFO_AMT_HI));
         return;
     default:
         return;
     }
 }
-/* the mix's start (pold_in): every part's slots on a value, from the LFOs' values of the block before */
+/* the mix's start (pold_in): every part's slots on a value, from the modulators' values of the block before: LFO's, LFO
+ * 2's (on any value), then ENV's, ENV2's (on the part's: the newest voice's values) */
 static void lfo_over_in(void)
 {
     uint32_t k, s;
@@ -290,15 +336,19 @@ static void lfo_over_in(void)
         int32_t v1 = mulq15(t->lfo_val, t->lfo_fade);
         for (s = 0; s < 2u; s++)
             if (LT_OVER_AT(t->p, P_L1DA, s))
-#if FELUCCA_LFO2
-                lo_slot(t, t->p[P_L1DA + 2u * s], t->p[P_L1AA + 2u * s], v1, P_L2RATE, P_L2DA);
-#else
-                lo_slot(t, t->p[P_L1DA + 2u * s], t->p[P_L1AA + 2u * s], v1, P_COUNT, P_COUNT);
-#endif
+                lo_slot(t, t->p[P_L1DA + 2u * s], t->p[P_L1AA + 2u * s], v1, 0);
 #if FELUCCA_LFO2
         for (s = 0; s < 2u; s++)
             if (LT_OVER_AT(t->p, P_L2DA, s))
-                lo_slot(t, t->p[P_L2DA + 2u * s], t->p[P_L2AA + 2u * s], lfo2[k].v, P_LRATE, P_L1DA);
+                lo_slot(t, t->p[P_L2DA + 2u * s], t->p[P_L2AA + 2u * s], lfo2[k].v, 0);
+#endif
+        for (s = 0; s < 2u; s++)
+            if (ENV_PART_AT(t->p, P_N1DA, s))
+                lo_slot(t, t->p[P_N1DA + 2u * s], t->p[P_N1AA + 2u * s], env_pv[k][0], 1);
+#if FELUCCA_ANALOG2
+        for (s = 0; s < 2u; s++)
+            if (ENV_PART_AT(t->p, P_N2DA, s))
+                lo_slot(t, t->p[P_N2DA + 2u * s], t->p[P_N2AA + 2u * s], env_pv[k][1], 1);
 #endif
     }
 }
@@ -559,6 +609,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
     v->pitch16 = (int32_t)note * 16;
     glide_set(t, v, glide);
     v->penv = 32767;                                    /* the pitch envelope starts over (not on legato) */
+    v->env2 = E2_ATK;                                   /* ENV2 from 0 (eng_analog2.c's filter envelope did so) */
     v->ofs = 0;
     if (!sounding) {
         v->env = 0;
@@ -910,7 +961,7 @@ AINL uint32_t pold_any(void)
     uint32_t k, a = 0;
     for (k = 0; k < NPART; k++)
         a |= trk[k].pold;
-    return a | lfo_over_any();
+    return a | FAR(lfo_over_any)();
 }
 static __attribute__((noinline)) uint32_t pold_in(void)
 {
@@ -1015,6 +1066,217 @@ static HOT int32_t env_tick(track_t *t, voice_t *v)
     return v->env >> 9;
 }
 
+/* ---- ENV DEST, ENV2 DEST (2026-10-14; core.h P_N1DA .., P_N2DA .., the shared list LT_*). Nothing is wired: an
+ * envelope acts through its two slots only. ENV's default (A on AMP at 127) is the amplitude envelope of before, sample
+ * for sample; ENV DEST FLT SHP of before at AMT 2 x their depth, ENV2's (ANALOG's) as eng_analog2.c had them: the same
+ * arithmetic (env_store.h converts them). Per block (env_plan, from the part's values as the LFOs left them): each
+ * envelope's AMTs on the voices' destinations summed, the slots on a value listed. Per voice, in this order:
+ *   1. its slots on a value (LC_VAL: the engine's values, the envelopes' times and levels, their amounts) from the
+ *      envelopes' values of the block before, for this voice only (env_vmove: written over, put back after its render)
+ *   2. ENV (env_tick, the engine's own curve: e->amp), ENV2 (env2_tick, only while a slot of it acts)
+ *   3. the voices' destinations from this block's values: AMP (each envelope on it a gain, multiplied; none: the
+ *      voice at full while ENV runs, its release too), FLT SHP PIT OSC2 SDTN added
+ * The part's values (LC_PART: PAN, LVL, the sends, the inserts, the LFOs' rates and amounts) follow its newest voice,
+ * for the block, with the LFOs' (lfo_over_in). Every move starts from the authored value: no feedback can run away (an
+ * envelope on its own time, ENV2 on ENV's amounts and back: one block late, bounded by the values' ranges). The voice
+ * lives while ENV runs (its release too) or, when ENV2 alone is on AMP, until ENV2 has died away after ENV's end */
+enum { EA_AMP, EA_FLT, EA_SHP, EA_PIT, EA_OSC2, EA_SDTN, EA_N };
+#define ENV_NMV 4u                                      /* slots on a value: two envelopes, two slots */
+typedef struct {
+    int16_t am[2][EA_N];                                /* ENV's, ENV2's AMTs on each voice destination, summed */
+    uint8_t amp;                                        /* bit k: envelope k on AMP */
+    uint8_t e2;                                         /* ENV2 runs (a slot of it acts) */
+    uint8_t xv;                                         /* more than ENV on AMP FLT SHP (ENV2's, PIT, OSC2, SDTN) */
+    uint8_t pv;                                         /* a slot on the part's values (env_pv kept) */
+    uint8_t slow;                                       /* more than ENV on AMP at 127 with FLT or SHP: env_pre, env_post */
+    uint8_t nmv;                                        /* slots on a value (LC_VAL) */
+    uint8_t mv_src[ENV_NMV], mv_d[ENV_NMV];
+    int16_t mv_a[ENV_NMV];
+} env_plan_t;
+typedef struct {
+    uint8_t id;
+    int16_t old;
+} env_sw_t;
+/* part t's envelopes this block -> pl (in XIP flash, called through a pointer: once a part a block) */
+static __attribute__((noinline)) void env_plan(const track_t *t, env_plan_t *pl)
+{
+    const int16_t *p = t->p;
+    uint32_t k, s;
+    memset(pl, 0, sizeof *pl);
+    for (k = 0; k < 2u; k++) {
+#if FELUCCA_ANALOG2
+        const int16_t *q = &p[k ? P_N2DA : P_N1DA];
+#else
+        const int16_t *q = &p[P_N1DA];
+        if (k)
+            break;
+#endif
+        for (s = 0; s < 2u; s++) {
+            uint32_t d = (uint32_t)q[2u * s];
+            int32_t a = q[2u * s + 1u];
+            if (d == LT_OFF || d >= LT_N || !a)
+                continue;
+            pl->e2 |= (uint8_t)k;
+            if (LT_TAB[d][0] == LK_V) {
+                int16_t *x = &pl->am[k][LT_TAB[d][1]];
+                *x = (int16_t)clamp(*x + a, LFO_AMT_LO, LFO_AMT_HI);
+                if (LT_TAB[d][1] == EA_AMP)
+                    pl->amp |= (uint8_t)(1u << k);
+                if (k || (LT_TAB[d][1] != EA_FLT && LT_TAB[d][1] != EA_SHP && LT_TAB[d][1] != EA_AMP))
+                    pl->xv = 1;
+            } else if (LT_TAB[d][2] == LC_VAL && pl->nmv < ENV_NMV) {
+                pl->mv_src[pl->nmv] = (uint8_t)k, pl->mv_d[pl->nmv] = (uint8_t)d, pl->mv_a[pl->nmv++] = (int16_t)a;
+            } else if (LT_TAB[d][2] == LC_PART) {
+                pl->pv = 1;
+            }
+        }
+    }
+    pl->xv |= pl->nmv != 0;                             /* (E1 AMT / E2 AMT may scale any of them) */
+    pl->slow = pl->xv || pl->pv || pl->e2 || pl->amp != 1u || pl->am[0][EA_AMP] != ENV_AMP_FULL;
+}
+/* the default (ENV on AMP at 127, nothing else): no plan needed */
+AINL int env_plain(const int16_t *p)
+{
+    return p[P_N1DA] == LT_AMP && p[P_N1AA] == ENV_AMP_FULL && (p[P_N1DB] == LT_OFF || !p[P_N1AB])
+#if FELUCCA_ANALOG2
+           && (p[P_N2DA] == LT_OFF || !p[P_N2AA]) && (p[P_N2DB] == LT_OFF || !p[P_N2AB])
+#endif
+        ;
+}
+/* voice v's slots on a value (pl LC_VAL) from the envelopes' values of the block before: written over the part's values
+ * (sw: what to put back, -> how many | 0x100 when the voice's AMTs am were scaled by an E1 AMT / E2 AMT slot; am is
+ * pl's otherwise untouched). In XIP flash: only while such a slot acts */
+static __attribute__((noinline)) uint32_t env_vmove(track_t *t, const voice_t *v, const env_plan_t *pl,
+                                                     int16_t (*am)[EA_N], env_sw_t *sw)
+{
+    int32_t ep[2], sc[2] = {32768, 32768};
+    uint32_t i, j, n = 0, r = 0;
+    ep[0] = v->env >> 9, ep[1] = (v->env2 & ((1 << 25) - 1)) >> 9;
+    for (i = 0; i < pl->nmv; i++) {
+        uint32_t d = pl->mv_d[i], q;
+        int32_t a = pl->mv_a[i], e = ep[pl->mv_src[i] & 1u], x;
+        const param_desc_t *ds;
+        if (LT_TAB[d][0] == LK_XA) {                   /* E1 AMT / E2 AMT: that envelope's AMTs on this voice */
+            uint32_t k = LT_TAB[d][1] != P_N1DA;
+            sc[k] = (sc[k] * (32768 + ((e * a) >> 7))) >> 15;
+            continue;
+        }
+        ds = lo_dest(t, (int32_t)d, &q);
+        if (!ds || ds->max <= ds->min || n >= ENV_NMV)
+            continue;
+        x = lo_move(t->p[q], ds, a, 2 * e);
+        if (x != t->p[q]) {
+            sw[n].id = (uint8_t)q, sw[n].old = t->p[q];
+            t->p[q] = (int16_t)x;
+            n++;
+        }
+    }
+    for (i = 0; i < 2u; i++) {
+        for (j = 0; j < EA_N; j++)
+            am[i][j] = sc[i] == 32768 ? pl->am[i][j] : (int16_t)clamp((pl->am[i][j] * sc[i]) >> 15, LFO_AMT_LO, LFO_AMT_HI);
+        r |= (uint32_t)(sc[i] != 32768);
+    }
+    return n | r << 8;
+}
+/* one control tick of ENV2: ATK2 DEC2 SUS2 REL2 (P_A2FATK ..), ANALOG 2's (eng_analog2.c until 2026-10-14) bit for
+ * bit: the attack runs to the top, then the decay to SUS2 while the key is held, the release once it is let go (REL2
+ * 0: DEC2's time); restarted from 0 by each note (voice_start). -> Q15 */
+#if FELUCCA_ANALOG2
+static int32_t env2_tick(voice_t *v, const int16_t *p)   /* (XIP: env_post's) */
+{
+    int32_t fe = v->env2, fl = fe & ((1 << 25) - 1);
+    if (fe & E2_ATK) {
+        fl += (int32_t)ENV_LIN[p[P_A2FATK] & 127];
+        if (fl >= (1 << 24))
+            fl = fe = 1 << 24;
+        else
+            fe = fl | E2_ATK;
+    } else {
+        int32_t rel = v->stage >= 3u, k = rel && p[P_A2EREL] ? p[P_A2EREL] : p[P_A2FDEC];
+        fl -= mulq16(fl - (rel ? 0 : (int32_t)p[P_A2ESUS] << 17), ENV_EXP[k & 127]);
+        fe = fl;
+    }
+    v->env2 = fe;
+    return fl >> 9;
+}
+#else
+#define env2_tick(v, p) ((void)(v), 0)
+#endif
+/* an envelope at e (Q15) on AMP at AMT a: a gain (Q15). 127: e itself; 1..126 that share of it (the rest at full); < 0
+ * upside down (full at 0, dipping by e) */
+AINL int32_t env_gain(int32_t e, int32_t a)
+{
+    if (a >= ENV_AMP_FULL)
+        return e;
+    if (a > 0)
+        return 32767 - mulq15(32767 - e, a * 258);
+    return 32767 - mulq15(e, a > LFO_AMT_LO ? -a * 258 : 32767);
+}
+
+typedef struct {
+    int32_t amp;                                        /* the voice's gain (Q15, before its velocity) */
+    int32_t pit;                                        /* added to the pitch (1/16 semitone) */
+    uint32_t sc;                                        /* amv holds this voice's AMTs (an E1 AMT / E2 AMT slot) */
+    int16_t amv[2][EA_N];
+    uint32_t nsw;                                       /* values written over for this voice (put back after it) */
+    env_sw_t sw[ENV_NMV];
+} env_vo_t;
+/* voice v's envelopes this block off the plain path (pl.slow), in XIP flash, called through a pointer (only on a part
+ * whose envelopes do more), around ENV's tick in the render (RAM): env_pre before it (its slots on a value: env_vmove),
+ * env_post after it (ENV2, the gain, the voices' destinations -> o; the newest voice's values for the part's slots,
+ * *newest: its age so far; was4: the voice was being given up) */
+static __attribute__((noinline)) void env_pre(track_t *t, voice_t *v, const env_plan_t *pl, env_vo_t *o)
+{
+    o->nsw = 0, o->sc = 0;
+    if (pl->nmv) {
+        uint32_t r = env_vmove(t, v, pl, o->amv, o->sw);
+        o->sc = r >> 8;
+        o->nsw = r & 0xFFu;
+    }
+}
+static __attribute__((noinline)) void env_post(track_t *t, voice_t *v, const env_plan_t *pl, env_vo_t *o, int32_t env,
+                                                uint32_t was4, uint32_t *newest, vmod_t *m, const lfo_mod_t *lm)
+{
+    int16_t (*am)[EA_N] = o->sc ? o->amv : (int16_t (*)[EA_N])pl->am;
+    int32_t env2 = 0, amp, old2 = v->env2 & ((1 << 25) - 1);
+    uint32_t keep = !(pl->amp & 1u) && (pl->amp & 2u) && !v->active && !was4;
+    if (keep)                                           /* (ENV2 alone on AMP, ENV over: ENV2 releases on) */
+        v->active = 1, v->stage = 3;
+    if (pl->e2)
+        env2 = env2_tick(v, t->p);
+    amp = pl->amp & 1u ? env_gain(env, am[0][EA_AMP]) : 32767;
+    if (pl->amp & 2u)
+        amp = pl->amp & 1u ? mulq15(amp, env_gain(env2, am[1][EA_AMP])) : env_gain(env2, am[1][EA_AMP]);
+    if (!(pl->amp & 1u)) {                              /* ENV not on AMP: the voice ends as ENV does, or ENV2 */
+        if (was4)
+            amp = amp * (int32_t)v->kill / (int32_t)KILL_BLOCKS;   /* (given up: faded out over the blocks) */
+        else if (keep && ((v->env2 & ((1 << 25) - 1)) < (1 << 12) || (v->env2 & ((1 << 25) - 1)) >= old2))
+            v->active = 0, v->stage = 0, amp = 0;       /* (until it has died away, or stands still) */
+        else if (!v->active)
+            amp = 0;
+    }
+    if (pl->pv && v->age >= *newest) {                  /* (the newest voice: the slots on the part's values) */
+        *newest = v->age;
+        env_pv[(uint32_t)(t - trk) % NPART][0] = (int16_t)env;
+        env_pv[(uint32_t)(t - trk) % NPART][1] = (int16_t)env2;
+    }
+    o->amp = amp;
+    o->pit = (((env * am[0][EA_PIT]) >> 8) >> 5) + (((env2 * am[1][EA_PIT]) >> 8) >> 5);   /* (+-31.5 at full: ENV2's of before) */
+    m->cutoff = lm->m[1] + ((env * am[0][EA_FLT]) >> 8) + ((env2 * am[1][EA_FLT]) >> 8);
+    m->shape = (64 << 8) + lm->m[2] + ((env * am[0][EA_SHP]) >> 8);
+    if (am[1][EA_SHP])                                  /* (ENV2's SHP: clamped, as eng_analog2.c had it) */
+        m->shape = clamp(m->shape + ((env2 * am[1][EA_SHP]) >> 8), 0, 127 << 8);
+    m->os2 = lm->m[3] + ((((env * am[0][EA_OSC2]) >> 8) + ((env2 * am[1][EA_OSC2]) >> 8)) >> 5);
+    m->sdt = lm->m[4] + ((((env * am[0][EA_SDTN]) >> 8) + ((env2 * am[1][EA_SDTN]) >> 8)) >> 8);
+}
+/* voice v's values written over by env_pre back (after its render) */
+static __attribute__((noinline)) void env_back(track_t *t, env_vo_t *o)
+{
+    while (o->nsw--)
+        t->p[o->sw[o->nsw].id] = o->sw[o->nsw].old;
+    o->nsw = 0;
+}
+
 /* MIDI bend and mod wheel (from Melodee 670193c): ~3 ms smoothing with an exact end point */
 AINL int32_t midi_slew(int32_t cur, int32_t target)
 {
@@ -1051,16 +1313,23 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     /* TUNE in cents: whole 1/16 semitones in the pitch, the rest as a fine factor (no dead zone) */
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
     int32_t tune_fine = (song.g[G_TUNE] * 16 - tune * 100) * 2367 / 16000;   /* rest, in 1/4096 (1 ct = 2.367) */
-    uint32_t nr = 0, fade = t->xf_on && t->xf;
+    uint32_t nr = 0, fade = t->xf_on && t->xf, newest = 0;
     int16_t pe_new[8];
+    env_plan_t pl;                                      /* the envelopes' slots this block (env_plan) */
     for (i = 0; i < n; i++)
         out[i] = 0;
+    if (env_plain(p)) {                                 /* (ENV on AMP alone: the sound of before, no plan) */
+        pl.slow = 0;
+        pl.am[0][EA_FLT] = pl.am[0][EA_SHP] = 0;
+    } else {
+        FAR(env_plan)(t, &pl);
+    }
     if (fade)                                           /* engine switch: the old engine, its own values */
         for (i = 0; i < 8u; i++) {
             pe_new[i] = t->p[P_E0 + i];
             t->p[P_E0 + i] = t->pe_old[i];
         }
-    lm.m[0] = lm.m[1] = lm.m[2] = 0, lm.g1 = lm.g2 = -1;   /* (field by field: no memcpy from XIP, RAM code) */
+    lm.m[0] = lm.m[1] = lm.m[2] = lm.m[3] = lm.m[4] = 0, lm.g1 = lm.g2 = -1;   /* (field by field: no memcpy from XIP, RAM code) */
     lfo1_voices(t, lfo, &lm);
     track_lfo_tick(t);
     if (LFO2_ON(t))
@@ -1070,15 +1339,26 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
-        int32_t env, pitch;
+        int32_t env, amp, pitch;
+        env_vo_t vo;                                    /* (the envelopes' slots off the plain path: env_pre, env_post) */
         if (!v->active)
             continue;
+        vo.nsw = 0;
         {
+            uint32_t was4 = v->stage == 4u;
+            if (pl.slow)
+                FAR(env_pre)(t, v, &pl, &vo);
             env = env_tick(t, v);
             if (e->amp)                                 /* the engine's own amplitude curve */
                 env = e->amp(t, v, env);
-            m.envq15 = env;
-            m.amp1 = e->vel_own ? env : mulq15(env, v->vel * 258);
+            m.envq15 = amp = env;                       /* (ENV on AMP at 127, its other slot FLT or SHP: as before) */
+            if (pl.slow) {
+                FAR(env_post)(t, v, &pl, &vo, env, was4, &newest, &m, &lm);
+                amp = vo.amp;
+            }
+        }
+        {
+            m.amp1 = e->vel_own ? amp : mulq15(amp, v->vel * 258);
             if (lm.g1 >= 0)
                 m.amp1 = mulq15(m.amp1, lm.g1);
             if (lm.g2 >= 0)
@@ -1099,10 +1379,15 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         }
         if (v->penv)                                    /* the pitch envelope: ~40 ms */
             v->penv = (int16_t)(v->penv - ((v->penv * 590 + 32767) >> 15));
-        if (!env && !m.amp0 && v->stage == 2 && !eng_sampled(e))
+        if (!amp && !m.amp0 && v->stage == 2 && !eng_sampled(e)) {
+            if (vo.nsw)
+                FAR(env_back)(t, &vo);                  /* (its values back) */
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
-        {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
+        }
+        {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch drop, the envelopes; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((v->penv * p[P_ED_PIT] * 3) >> 7) + lm.m[0] + midi;
+            if (pl.slow)                                /* (the envelopes' PIT: whole 1/16 semitones, env_post) */
+                q += vo.pit << 8;
             /* FM6's own pitch offset, without the MIDI bend / wheel: FM6 takes the controllers through
              * fm6_midi_expr (its DX7 bend range and wheel routing, as Melodee and Dexed) */
             m.plog = (int32_t)(((int64_t)(q - midi - (v->pitch16 << 8)) * 1398101) >> 12) + v->fine * 5909;   /* -> Q24 */
@@ -1115,10 +1400,13 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (m.fine_all)
                 m.inc = fine_inc(m.inc, m.fine_all);
         }
-        m.cutoff = lm.m[1] + ((m.envq15 * p[P_ED_FLT]) >> 7);
+        if (!pl.slow) {                                 /* (else env_post set them) */
+            m.cutoff = lm.m[1] + ((env * pl.am[0][EA_FLT]) >> 8);
+            m.shape = (64 << 8) + lm.m[2] + ((env * pl.am[0][EA_SHP]) >> 8);
+            m.os2 = lm.m[3], m.sdt = lm.m[4];
+        }
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
-        m.shape = (64 << 8) + lm.m[2] + ((m.envq15 * p[P_ED_SHP]) >> 7);
         if (v->ofs) {                                   /* starts inside the block: the rest of it, the */
             uint32_t o = v->ofs < n ? v->ofs : n - 1u;  /* amplitude ramp reaching amp1 at its end */
             v->ofs = 0;
@@ -1127,6 +1415,8 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         } else {
             e->render(t, v, out, n, &m);
         }
+        if (vo.nsw)
+            FAR(env_back)(t, &vo);                      /* (its values back: env_pre) */
         nr++;
     }
     if (e->post)                                        /* the part after its voices (FM6: Dexed's DC filter) */

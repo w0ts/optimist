@@ -68,11 +68,11 @@ static void t_params(void)
         param_format(&TP[P_L2DA], (int32_t)i, v, &u);
         ok &= !strcmp(v, D[i]);
     }
-    param_format(&TP[P_L2DB], LT_XRATE, v, &u);       /* (the other LFO's, named so: params.c lt_text) */
+    param_format(&TP[P_L2DB], LT_L1RT, v, &u);        /* (the LFOs' own, named so: params.c lt_text) */
     ok &= !strcmp(v, "L1 RT");
-    param_format(&TP[P_L2DA], LT_XAMT, v, &u);
+    param_format(&TP[P_L2DA], LT_L1AMT, v, &u);
     ok &= !strcmp(v, "L1 AMT");
-    param_format(&TP[P_L1DB], LT_XRATE, v, &u);
+    param_format(&TP[P_L1DB], LT_L2RT, v, &u);
     ok &= !strcmp(v, "L2 RT");
     param_format(&TP[P_L2DA], LT_REV, v, &u);         /* (phase 2: the sends, the inserts' amounts by their names) */
     ok &= !strcmp(v, "REV");
@@ -91,7 +91,7 @@ static void t_params(void)
     check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -5 = 1/4, AMT -128 = -100 %, 64 = +50 %");
     ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -10, -3) == -10;
     check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent)");
-    check(P_L2RATE > P_E7 && P_COUNT == P_L2AB + 1 && P_COUNT < 128, "ids: after P_E7, the last ones (no id before moves)");
+    check(P_L2RATE > P_E7 && P_N1DA == P_L2AB + 1 && P_COUNT < 128, "ids: after P_E7, before the envelopes' slots (no id before moves)");
 }
 
 /* one tick of part k's LFO 2 at phase ph (the step: LFO_INC[0] at RATE 0) -> its block's offsets */
@@ -322,7 +322,7 @@ static void t_project(void)
 #if FELUCCA_LFO2
     {
         static const int16_t V[NPART][L2_NV] = {{-10, 4, 1, 1, LT_AMP, -128, LT_PAN, 127}, {127, 0, 0, 1, LT_PIT, 126, 0, 0},
-                                                 {0, 3, 1, 0, LT_SHP, -1, LT_XAMT, -77}};
+                                                 {0, 3, 1, 0, LT_SHP, -1, LT_L2AMT, -77}};   /* (a DEST past 31: its bit 5 in the tag) */
         uint32_t j;
         init();
         TDRUM->p[P_LEG_FLT] = -20;
@@ -331,7 +331,7 @@ static void t_project(void)
         trk[1].p[P_L1DA] = LT_FLT, trk[1].p[P_L1AA] = 40;   /* (LFO's slots: the depths of before, part 2) */
         proj_capture(&q, &tdl);
         ok = l2_tagged(&q) && l2_tag(&q) == L2_TAG && q.t[TRK_DRUM].p[P_LEG_FLT] == -20 && proj_ok(&q);
-        ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Au && q.t[1].p[P_LEG_FLT] == 20 && q.t[1].p[P_LEG_PIT] == 0;
+        ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Bu && q.t[1].p[P_LEG_FLT] == 20 && q.t[1].p[P_LEG_PIT] == 0;
         check(ok, "project: LFO 2 on: tagged in the drum track's LFO slots (macros' untouched); AMT B: part 1's LFO DEST tagged, "
                   "part 2's the depths of before (FLT 20)");
         init();
@@ -354,7 +354,8 @@ static void t_project(void)
               "project: a song section (apply, not all) brings its LFO 2");
         q2 = q;
         q2.t[TRK_DRUM].p[L2_W0[0]] = (int16_t)(0x7Fu | 0x80u << 8);   /* (RATE 127, AMT A -128) */
-        q2.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)0x7FFF;  /* (WAVE 7, TRIG, POL, DEST A 31, DEST B 31: past the ranges) */
+        q2.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)0x7FFF;  /* (WAVE 7, TRIG, POL, DEST A 63, DEST B 63 with their bit 5 in the */
+        q2.t[TRK_DRUM].p[P_LRATE] = (int16_t)(L2_TAG | 3u);   /* tag: past the ranges) */
         q2.sum = proj_sum(&q2);
         proj_apply(&q2, &tdl, 1);
         check(trk[0].p[P_L2WAVE] == 4 && trk[0].p[P_L2DA] == LT_OFF && trk[0].p[P_L2DB] == LT_OFF && trk[0].p[P_L2RATE] == 127,

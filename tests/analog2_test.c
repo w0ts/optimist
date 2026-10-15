@@ -70,6 +70,7 @@ static void part_setup(track_t *t, const int16_t *e8)
         t->p[P_E0 + i] = e8[i];
     t->p[P_ATK] = 0, t->p[P_DEC] = 60, t->p[P_SUS] = 127, t->p[P_REL] = 20;
     t->p[P_ED_FLT] = t->p[P_ED_PIT] = t->p[P_ED_SHP] = 0;
+    (void)env_load(t->p);                             /* (ENV on AMP alone, ENV2 off) */
     t->p[P_VOICE] = V_POLY, t->p[P_GLIDE] = 0, t->p[P_TRANS] = 0;
     t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
     t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = 0;
@@ -280,6 +281,7 @@ static double zipper_one(int fenv, int quiet, const char *what)
     } else {
         trk[0].p[P_DEC] = 30, trk[0].p[P_SUS] = 0, trk[0].p[P_ED_FLT] = 63;
     }
+    (void)env_load(trk[0].p);                         /* (the depths of before -> the slots: env_store.h) */
     trk_note_on(&trk[0], 48, 100);
     part_capture(&trk[0], 0, xbuf, NFFT);
     spectrum(xbuf);
@@ -479,7 +481,8 @@ static int zipcmp(const char *dir)
 #endif
 
 #if FELUCCA_ANALOG2
-/* ENV2 (ATK2 DEC2 SUS2 REL2, ENV2 DEST's amounts): the envelope's level (v->s[7], Q24) after held / let go, the
+/* ENV2 (ATK2 DEC2 SUS2 REL2, ENV2 DEST's amounts, as its slots: env_store.h): the envelope's level (v->env2, Q24, voice.c
+ * env2_tick since 2026-10-14) after held / let go, the
  * attack running to the top on a short note, and the destinations' effect on a sine */
 static const uint8_t ENV2_ID[5] = {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT};   /* A2E_* -> its amount */
 static int32_t env2_level(const track_t *t)          /* (the sounding voice: POLY rotates them) */
@@ -487,7 +490,7 @@ static int32_t env2_level(const track_t *t)          /* (the sounding voice: POL
     uint32_t i;
     for (i = 0; i < sizeof t->v / sizeof t->v[0]; i++)
         if (t->v[i].active)
-            return t->v[i].s[7] & ((1 << 25) - 1);
+            return t->v[i].env2 & ((1 << 25) - 1);
     return -1;
 }
 static void env2_setup(int32_t atk, int32_t dec, int32_t sus, int32_t rel, int32_t amt, int32_t dst)
@@ -496,6 +499,7 @@ static void env2_setup(int32_t atk, int32_t dec, int32_t sus, int32_t rel, int32
     part_setup(&trk[0], e8);
     trk[0].p[P_A2FATK] = (int16_t)atk, trk[0].p[P_A2FDEC] = (int16_t)dec, trk[0].p[P_A2ESUS] = (int16_t)sus;
     trk[0].p[P_A2EREL] = (int16_t)rel, trk[0].p[ENV2_ID[dst]] = (int16_t)amt;   /* (the other amounts: 0) */
+    (void)env_load(trk[0].p);
     trk[0].p[P_REL] = 127;                            /* (the voice sounds on after a note-off) */
 }
 static uint32_t env2_crossings(uint32_t n)            /* rising zero crossings in n samples */
@@ -549,9 +553,11 @@ static uint32_t env2_case(int c, int d, int amt)
     t->p[P_A2DRFT] = (int16_t)(c == 7 ? 20 : 0);
     if (c == 6) {
         t->p[P_VOICE] = V_MONO, t->p[P_GLIDE] = 30;   /* (UNISON: random start phases, a static seed) */
-        t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 40, t->p[P_L1DB] = LT_SHP, t->p[P_L1AB] = 60, t->p[P_ED_SHP] = 40, t->p[P_ED_FLT] = 20;
-    }
+        t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = 40, t->p[P_L1DB] = LT_SHP, t->p[P_L1AB] = 60, t->p[P_ED_FLT] = 20;
+    }                                                 /* (ENV DEST SHP 40 went with the slots, 2026-10-14: ENV keeps AMP
+                                                       * and one more; on this saw it moved nothing, the hashes the same) */
     t->p[ENV2_ID[d]] = (int16_t)amt;
+    (void)env_load(t->p);                             /* (the depths of before -> the slots: env_store.h) */
     trk_note_on(t, 48, 100);
     if (c == 3)
         trk_note_on(t, 55, 70);
@@ -564,42 +570,6 @@ static uint32_t env2_case(int c, int d, int amt)
         track_render(t, o, CTL);
         for (i = 0; i < CTL; i++)
             h = (h ^ (uint32_t)o[i]) * 16777619u;
-    }
-    return h;
-}
-/* ENV2 DEST's amounts switched from 0 to others and back mid-note (held, then in the release), on eight set-ups:
- * one FNV hash of it all. tests/run_tests.sh compares it with a build of -DA2_ENV2_ALWAYS=1 (ENV2 DEST never
- * skipped at all 0): the skip must not change a sample */
-static uint32_t env2_switch(void)
-{
-    static const int8_t SW[6][5] = {{0, 0, 0, 0, 0}, {40, 0, 0, 0, 0}, {40, -20, 0, 0, 9}, {0, 0, 0, 0, 0},
-                                    {0, 0, 30, -12, 0}, {0, 0, 0, 0, 0}};
-    uint32_t h = 2166136261u;
-    int c;
-    for (c = 0; c < 8; c++) {
-        track_t *t = &trk[0];
-        int32_t o[CTL];
-        uint32_t f, i, k;
-        env2_case(c, 0, 0);                           /* (the set-up, then played again from here) */
-        part_setup(t, (const int16_t[8]){c & 1 ? 4 : 0, 10, 64, c == 2 ? 20 : 0, 60, 70, 0, 64});
-        vage = 0, t->lfo_ph = 0, t->lfo_val = 0;
-        t->p[P_A2FATK] = 20, t->p[P_A2FDEC] = 80, t->p[P_A2ESUS] = 50, t->p[P_A2EREL] = (int16_t)(c & 2 ? 70 : 0);
-        t->p[P_A2SWRM] = (int16_t)(c >= 4 ? 2 : 0), t->p[P_A2SYNC] = (int16_t)(c == 5), t->p[P_REL] = 60;
-        trk_note_on(t, 48, 100);
-        if (c == 3)
-            trk_note_on(t, 52, 90);
-        for (f = 0, k = 0; f < FS * 3u / 2u; f += CTL) {
-            if (f % (FS / 4u) < CTL) {                /* every 250 ms the next row of amounts */
-                for (i = 0; i < 5u; i++)
-                    t->p[ENV2_ID[i]] = SW[k % 6u][i];
-                k++;
-            }
-            if (f == FS * 7u / 10u / CTL * CTL)       /* let go: the release, amounts still switching */
-                trk_note_off(t, 48), trk_note_off(t, 52);
-            track_render(t, o, CTL);
-            for (i = 0; i < CTL; i++)
-                h = (h ^ (uint32_t)o[i]) * 16777619u;
-        }
     }
     return h;
 }
@@ -689,6 +659,7 @@ static int env2_test(int quiet)
                 trk[0].p[P_A2FENV] = 50;
             if (j == 2u || j == 3u)
                 trk[0].p[P_A2EPIT] = -30;
+            (void)env_load(trk[0].p);
             trk_note_on(&trk[0], 48, 100);
             part_capture(&trk[0], 0, xbuf, FS / 4u);
             s2[j] = 0;
@@ -719,10 +690,6 @@ int main(int argc, char **argv)
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "env2"))
         return !env2_test(0);
-    if (!strcmp(cmd, "env2switch")) {
-        printf("env2switch %08x\n", env2_switch());
-        return 0;
-    }
 #endif
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "zipcmp") && argc > 2)

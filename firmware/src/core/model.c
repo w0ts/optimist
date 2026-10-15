@@ -74,10 +74,9 @@ static int param_kept(uint32_t i)
 {
     return i == P_LEVEL || i == P_PAN || i == P_MUTE || i == P_FXOFF || (i >= P_SLEN && i <= P_SGATE) ||
            (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD
-#if P_TAIL
-           || i >= P_ENG_END                         /* (SLOOP 2.4's FILT, STRUM, VLEAD: the track's, as 2.4 keeps them;
-                                                      * the COMP insert's amount: the mix, D8) */
-#endif
+           || (i >= P_ENG_END && (i < P_N1DA || i > P_NLAST))   /* (SLOOP 2.4's FILT, STRUM, VLEAD: the track's, as
+                                                      * 2.4 keeps them; the COMP insert's amount: the mix, D8; not the
+                                                      * envelopes' slots: the sound's) */
         ;
 }
 
@@ -114,6 +113,8 @@ static void apply_preset_to(track_t *t, uint32_t pi)
                 t->p[i] = TP[i].def;
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = e->edit[i].def;
+        for (i = P_N1DA; i <= P_NLAST; i++)           /* the envelopes' slots: ENV on AMP */
+            t->p[i] = TP[i].def;
         return;
     }
     pi %= e->npresets;
@@ -141,6 +142,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         }
         preset_extras(t->p, pr);                     /* glide, pitch / LFO modulation, voice mode */
         analog2_extras(t->p, e, pi);                 /* ANALOG 2's own values */
+        (void)env_load(t->p);                        /* ENV's FLT SHP and ENV2's depths of the tables -> their slots */
     }
 }
 
@@ -172,10 +174,8 @@ static void track_defaults(track_t *t)
     uint32_t i;
     for (i = 0; i < P_E0; i++)
         t->p[i] = TP[i].def;
-#if P_TAIL
     for (i = P_ENG_END; i < P_COUNT; i++)            /* (SLOOP 2.4's FILT, STRUM, VLEAD; the COMP insert's amount) */
         t->p[i] = TP[i].def;
-#endif
     if (is_drum(t))
         t->p[P_DACC] = DACC_DEF;                     /* (the ACCENT amount: core.h; the kit is the caller's) */
     track_defaults_steps(t);

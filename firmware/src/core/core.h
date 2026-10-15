@@ -193,25 +193,46 @@ enum {                          /* per-track parameters */
      * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
     P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
 #endif
+    /* ENV DEST and ENV2 DEST (2026-10-14): each envelope's two slots, as LFO DEST's (DEST A + AMT A, DEST B + AMT B, the
+     * shared list LT_*; voice.c env_plan). Nothing is wired: ENV's slot A is AMP 127 by default (a new sound, INIT, a
+     * project or a preset of before), so every sound plays as it did. Part of a sound (model.c param_kept); stored in
+     * the words of the depths they replaced, ENV DEST FLT SHP and ENV2's amounts (env_store.h) */
+    P_N1DA, P_N1AA, P_N1DB, P_N1AB,
+#if FELUCCA_ANALOG2
+    P_N2DA, P_N2AA, P_N2DB, P_N2AB,              /* ENV2 (its ADSR: P_A2FATK P_A2FDEC P_A2ESUS P_A2EREL), every engine */
+#endif
     P_COUNT
 };
-/* An LFO's destinations (LFO DEST's slots, both LFOs; params.c LT_TAB says how each acts, voice.c lfo_slots):
- *   PIT FLT SHP AMP  every voice of the part, each block, as the four depths did (AMT 2 = depth 1; AMP: AMT = depth;
- *                    AMT < 0 on AMP: the dip from the bottom)
+#if FELUCCA_ANALOG2
+#define P_NLAST P_N2AB          /* the envelopes' slots: P_N1DA .. P_NLAST */
+#else
+#define P_NLAST P_N1AB
+#endif
+/* The modulation destinations, one list for the four modulators (LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; params.c
+ * N_LT, voice.c LT_TAB says how each acts):
+ *   PIT FLT SHP AMP  every voice of the part (an LFO: each block, as its four depths did, AMT 2 = depth 1; AMP: AMT =
+ *                    depth, AMT < 0 the dip from the bottom. An envelope: each voice's own, ENV DEST's depths of before
+ *                    at AMT 2 = depth 1; AMP 127 is the envelope itself, below 127 less of it, < 0 upside down)
+ *   OSC2 SDTN        the voice's ANALOG osc 2 pitch and its swarm's spread (ENV2 DEST's of before; nothing elsewhere)
  *   RES              the engine's resonance (its EDIT value named RES / RESO / Q), PAN, LVL (the part's level), ATK
- *                    DEC (the envelope's times, as their index into the time tables: every voice as it runs), E1..E8
- *                    (the engine's own EDIT values): the value moved for the block (voice.c lfo_over), +- half its
- *                    range at full
- *   CHO DLY REV      the part's sends (phase 2), INS1 INS2 the amount of the insert in its slot S1 / S2 (whatever type it
- *                    holds: fx_slots.c ins_amt), moved for the block as the values above: fx.c reads them where it
- *                    always did (mix_part's sends, the inserts' amounts)
- *   XRATE XAMT       (with LFO2) the other LFO's RATE (its free rates only) and its two amounts (x 0..2): one block
- *                    late, from the authored values each block, so the two never feed back into a runaway
- * New destinations: one line in LT_TAB and a name */
+ *                    DEC SUS REL (ENV's), ATK2 DEC2 SUS2 REL2 (ENV2's), E1..E8 (the engine's own EDIT values): the
+ *                    value moved (voice.c lfo_over: an LFO's for the block, the part's; an envelope's for each voice
+ *                    as it renders, env_vmove), +- half its range at full (an envelope: 0 .. its range)
+ *   CHO DLY REV      the part's sends, INS1 INS2 the amount of the insert in its slot S1 / S2 (fx_slots.c ins_amt), as
+ *                    the values above (an envelope: the part's newest voice's)
+ *   L1RT L1AMT       LFO's RATE (its free rates only) and its two amounts (x 0..2); L2RT L2AMT LFO 2's (with LFO2);
+ *   EN1AMT EN2AMT    ENV's, ENV2's two amounts (x 0..2)
+ * Mod of mod: every move starts from the authored value each block (or voice), from the modulators' values of the block
+ * before, so nothing feeds back into a runaway, whatever the order (voice.c: the order). New destinations: one line in
+ * LT_TAB and a name. The numbers are stored (projects, presets): append, never move. L1RT L1AMT were XRATE XAMT (the
+ * other LFO's) until 2026-10-14: LFO's slots of before on them are L2RT L2AMT now (lfo1_load) */
 enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, LT_DEC,
        LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_CHO, LT_DLY, LT_REV, LT_INS1, LT_INS2,
-       LT_XRATE, LT_XAMT, LT_N };
-#define LT_NB (FELUCCA_LFO2 ? LT_N : LT_XRATE)  /* the destinations of this build (XRATE XAMT: with LFO 2) */
+       LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
+       LT_L2RT, LT_L2AMT, LT_N };
+#define LT_NB (FELUCCA_LFO2 ? LT_N : LT_L2RT)  /* the destinations of this build (L2RT L2AMT: with LFO 2) */
+#define LT_XRATE_V1 LT_L1RT             /* (the stored numbers of XRATE XAMT, LFO's slots until 2026-10-14) */
+#define LT_XAMT_V1 LT_L1AMT
 #define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
 #define LFO_AMT_LO (-128)               /* a slot's AMT */
 #define LFO_AMT_HI 127
@@ -227,8 +248,8 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
 #define LSYNC_N 10
 #define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
 #define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
-#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2 || INS_FX)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
-                                                  * stored with it, none part of a sound (param_kept) */
+#define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
+                                 * of a sound but the envelopes' slots (param_kept) */
 
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,
@@ -291,6 +312,7 @@ typedef struct {
     uint8_t ofs;                 /* a new voice: the sample of its first block it starts at (core.h ev_at) */
     int16_t penv;                /* the pitch envelope (ENV > PIT): Q15, a fast fall from the note's start */
     int32_t env;                 /* Q24 */
+    int32_t env2;                /* ENV2 (voice.c env2_tick): Q24, | E2_ATK while it rises */
     int32_t env_out;             /* last control-rate amplitude, Q15 */
     int32_t pitch16, pitch_cur;  /* 1/16 semitone, with glide */
     int32_t gstep;               /* glide: 1/4096 semitone per control tick, 0 = RATE (GLIDE: the time an octave takes) */
@@ -299,6 +321,7 @@ typedef struct {
     int32_t s[8];                /* engine state (filters, envs) */
     uint32_t age;
 } voice_t;
+#define E2_ATK (1 << 30)         /* voice_t.env2: still rising (voice.c env2_tick) */
 
 typedef struct {                 /* per-voice control-rate modulation, computed in voice.c */
     uint32_t inc;                /* phase increment of the base pitch */
@@ -313,6 +336,7 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t fine;                /* the pitch below pitch16, 1/4096 of the increment (fine_inc), for the
                                   * engines that make increments from pitch16; 0 unless a MIDI bend or the
                                   * mod wheel moves the part (then glide and LFO fractions too) */
+    int32_t os2, sdt;            /* ANALOG: osc 2's pitch (1/16 semitone) and the swarm's spread moved (OSC2 SDTN) */
     int32_t fine_all;            /* all inc adds to PITCH_INC[pitch16], 1/4096 (fine_inc): the unison detune, the
                                   * fine TUNE, the glide / LFO / bend fraction. For a second oscillator made from
                                   * pitch16 (det_inc: ANALOG, PHASE), so it moves with the first (after isod89/

@@ -83,10 +83,14 @@ static uint32_t up_engine_slot(uint32_t k)
 #endif
 
 #include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
-/* values v (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
-static void up_vals_put(up_rec_t *r, const int16_t *v)
+#include "../core/env_store.h"                     /* (ENV DEST, ENV2 DEST: env_store, env_load) */
+/* values v0 (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
+static void up_vals_put(up_rec_t *r, const int16_t *v0)
 {
+    int16_t v[P_COUNT];
     uint32_t i;
+    memcpy(v, v0, sizeof v);
+    env_store(v);                                       /* ENV DEST, ENV2 DEST: their stored form (env_store.h) */
     r->ver = UP_VER;
     r->np = P_ENG_END;
     memset(r->p, 0, sizeof r->p);
@@ -226,6 +230,7 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
     up_params_st(r, out, def);
     memcpy(w, &out[P_LEG_PIT], sizeof w);
     (void)lfo1_load(w, &out[P_L1DA], &spill);
+    (void)env_load(out);                               /* ENV DEST, ENV2 DEST's slots (env_store.h) */
 }
 
 static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */

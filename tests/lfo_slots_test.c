@@ -178,7 +178,7 @@ static void t_stored(void)
             init();
             memcpy(&t->p[P_L1DA], S[k], sizeof S[k]);
             proj_capture(&q, &tdl);
-            ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Au;
+            ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Bu;
             init();
             proj_apply(&q, &tdl, 1);
             ok &= !memcmp(&t->p[P_L1DA], S[k], sizeof S[k]);
@@ -206,7 +206,7 @@ static void t_stored(void)
         v[P_L1DB] = LT_RES, v[P_L1AB] = -90;
         up_vals_put(&r, v);
         up_params(&r, out, def);
-        ok &= ((uint16_t)r.p[P_LEG_PIT] >> 8) == 0x5Au && out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES &&
+        ok &= ((uint16_t)r.p[P_LEG_PIT] >> 8) == 0x5Bu && out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES &&
               out[P_L1AB] == -90;
         r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;   /* (a record of before) */
         up_params(&r, out, def);
@@ -293,12 +293,12 @@ static void t_cross(void)
     host_preset(t, 0, 0);
     t->engine = t->eng_req, t->pold = 0;
     t->p[P_LRATE] = 50, t->p[P_L2RATE] = 50;
-    t->p[P_L1DA] = LT_XRATE, t->p[P_L1AA] = 127, t->p[P_L1DB] = LT_XAMT, t->p[P_L1AB] = 127;
-    t->p[P_L2DA] = LT_XRATE, t->p[P_L2AA] = -128, t->p[P_L2DB] = LT_XAMT, t->p[P_L2AB] = 100;
+    t->p[P_L1DA] = LT_L2RT, t->p[P_L1AA] = 127, t->p[P_L1DB] = LT_L2AMT, t->p[P_L1AB] = 127;
+    t->p[P_L2DA] = LT_L1RT, t->p[P_L2AA] = -128, t->p[P_L2DB] = LT_L1AMT, t->p[P_L2AB] = 100;
     memcpy(keep, t->p, sizeof keep);
     bracket(32767, 32767);
     ok = in_v[P_L2RATE] == 50 + 63 && in_v[P_LRATE] < 50 && in_v[P_L2AB] == 127 && in_v[P_L1AB] == 127;
-    check(ok, "cross: XRATE moves the other LFO's RATE, XAMT its AMTs (x up to 2, clamped)");
+    check(ok, "cross: L2RT / L1RT move the other LFO's RATE, L2AMT / L1AMT its AMTs (x up to 2, clamped)");
     t->p[P_L2RATE] = -3;
     bracket(32767, 0);
     check(in_v[P_L2RATE] == -3, "cross: a synced RATE stays its note value");
@@ -384,15 +384,15 @@ static void t_names(void)
     dest_text(&TP[P_L1DA], LT_OFF, b);
     check(ok && !strcmp(b, "OFF"), "names: the other destinations keep their plain names");
 #if FELUCCA_LFO2
-    dest_text(&TP[P_L1DA], LT_XRATE, b);
+    dest_text(&TP[P_L1DA], LT_L2RT, b);
     ok = !strcmp(b, "L2 RT");
-    dest_text(&TP[P_L1DB], LT_XAMT, b);
+    dest_text(&TP[P_L1DB], LT_L2AMT, b);
     ok &= !strcmp(b, "L2 AMT");
-    dest_text(&TP[P_L2DA], LT_XRATE, b);
+    dest_text(&TP[P_L2DA], LT_L1RT, b);
     ok &= !strcmp(b, "L1 RT");
-    dest_text(&TP[P_L2DB], LT_XAMT, b);
+    dest_text(&TP[P_L2DB], LT_L1AMT, b);
     ok &= !strcmp(b, "L1 AMT");
-    check(ok, "names: XRATE XAMT are L2 RT / L2 AMT on LFO's DEST, L1 RT / L1 AMT on LFO 2's");
+    check(ok, "names: L1 RT / L1 AMT, L2 RT / L2 AMT the same on every DEST (one list)");
 #endif
 }
 
