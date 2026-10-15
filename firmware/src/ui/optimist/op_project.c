@@ -259,7 +259,12 @@ static void dev_draw(uint32_t y, uint32_t h)
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO };
-#define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
+/* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
+ * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
+#define LOAD_AMBER 60
+#define LOAD_RED 85
+static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
+#define SI_IF(c, i)((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
@@ -403,6 +408,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->label = DUAL_LOAD ? "CPU0" : "LOAD";         /* (DUAL: its wait for CPU1 counts in it) */
         c->kind = CK_RO;
         fmt_int(c->val, (int32_t)(song.cpu_q8 * 100u / 256u));
+        c->col = load_col((int32_t)(song.cpu_q8 * 100u / 256u));
         c->unit = "%";
         cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
         break;
@@ -420,7 +426,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->label = "2ND CORE ON";
             fmt_int(c->val, pct);
             c->unit = "%";
-            c->col = 0;
+            c->col = load_col(pct);
             cell_gauge(c, 0, 0, 100, pct);
         }
 #else

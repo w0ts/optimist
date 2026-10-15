@@ -35,9 +35,9 @@ static void c2_master_tests(void)
     mt.ret[1] = mt.ret[0] = 0;
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
     ui_draw();
-    y = (uint32_t)(OP_PY + MXM_CY + 6);
-    check(px_in(MXM_GX, y, 40, MXM_CH, C_HI) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_HI) &&
-          !px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH - 1u, C_HI),
+    y = (uint32_t)(OP_PY + MXM_CY + MXM_CV);
+    check(px_in(MXM_GX, y, 40, MXM_CH, C_OK) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_OK) &&
+          !px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH - 1u, C_OK),
           "MASTER page: the REV return's meter fills, DLY's and CHO's stay empty");
     ppm("opt-cards2-master-rev");
     /* the tap: each bus's return seen apart (fx_buses, one block at a time, the sends set by hand) */
