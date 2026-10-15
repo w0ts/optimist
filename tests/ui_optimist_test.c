@@ -1014,10 +1014,9 @@ static void step_keys_tests(void)
         turn(EN_PRESET, 1);
         check(st.page == 2, "the window stops at LEN");
         press(B_OCTDN);
-        press(B_OCTUP);
-        release(B_OCTUP);
+        turn(EN_PRESET, 1);
         release(B_OCTDN);
-        check(st.follow && ui.scr == SCR_STEP, "both OCT: FOLLOW again");
+        check(st.follow && ui.scr == SCR_STEP && st.page == 2, "OCT- (SHIFT) + PRESETS: FOLLOW again (the window not scrolled)");
         tap(B_PLAY);
         frames(2);
         {
@@ -1699,7 +1698,10 @@ static void combo_tests(void)
     tap(B_HOME);
     song.octave = 2;
     hold2(B_OCTDN, B_OCTUP);
-    check(song.octave == 0 && ui.scr == SCR_HOME, "HOME + OCT off STEP: the octave back to 0, no NO");
+    check(song.octave == 2 && master_sel(), "both OCT off STEP: MASTER, the octave kept");
+    hold2(B_OCTDN, B_OCTUP);
+    check(song.octave == 2 && !master_sel() && ui.scr == SCR_HOME, "both OCT again: back on the track, no NO");
+    song.octave = 0;
     tap(B_PLAY);
     frames(2);
     hold2(B_OCTDN, B_PLAY);

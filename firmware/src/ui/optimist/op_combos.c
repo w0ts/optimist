@@ -11,8 +11,7 @@
  *                                                                             track: the REC ring)
  *   SAVE + PLAY   the song from its start                                     SHIFT + PLAY  stop, every voice off
  *   SAVE then HOME: undo                                                      SHIFT then SAVE: redo
- *                                                                             both OCT: STEP follows, else the
- *                                                                             octave back to 0
+ *                                                                             both OCT: track <-> MASTER (op_walk.c)
  * The layer lock wins where the two meet (SHIFT + a layer's button). SAVE then HOME stays undo, so the SAVE layer
  * (scenes) is not locked open. The undo and redo act when one of the two is let go, so that SAVE + HOME + a scene
  * key clears the scene and undoes nothing. */

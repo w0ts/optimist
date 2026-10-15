@@ -65,6 +65,14 @@ static int algo_has_track(void)
         return fx_by_walk;                              /* (MASTER reached by the walk: ALGORITHM right leaves it; opened by FX: no track) */
     return ui.scr == SCR_HOME || ui.scr == SCR_SCOPE || HEAD_TRK_SCR[ui.scr % SCR_N];
 }
+/* both OCT together (tapped, let go): the track <-> MASTER toggle (op_walk.c oct_master_toggle). Where a track or MASTER is: not on
+ * NAME, under a question, in a layer, or on a page with neither (GLOBAL, SYSTEM, PROJECT, SONG) */
+static int oct_master_ok(void)
+{
+    return !name_on() && !op_armed() && lay_now() == LY_PLAY && !ft_on && (algo_has_track() || master_sel());
+}
+static void oct_master_toggle(void);                    /* op_walk.c */
+static uint8_t oct_both;                                /* both OCT are down and nothing else was used: the toggle when they are let go */
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
@@ -410,6 +418,8 @@ static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV]
 
 static void op_press(uint32_t b, uint32_t held)
 {
+    if (b != B_OCTDN && b != B_OCTUP)
+        oct_both = 0;                                   /* (another button: the OCT pair is a SHIFT combo, not the toggle) */
     if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no HOME + it either) */
         op_clean &= ~BIT(b);
         return;
@@ -445,11 +455,8 @@ static void op_press(uint32_t b, uint32_t held)
             if (!is_drum(TSEL))
                 held_octave(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(b);
-        } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: STEP FOLLOW again, else the octave back to 0 */
-            if (!is_drum(TSEL))
-                oct_set(0);
-            if (ui.scr == SCR_STEP)
-                st.follow = 1;                          /* (STEP: the fit again, the window follows the playhead) */
+        } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: the track <-> MASTER toggle when let go */
+            oct_both = (uint8_t)oct_master_ok();
             op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
@@ -524,8 +531,9 @@ static int op_presets_turn(void)
                                                          * line k, CALIBRATE runs from YES; HOME held: no NO either */
         if (op_shift(fm1_in.buttons))
             op_clean &= ~BIT(B_OCTDN);
-    } else if (ui.scr == SCR_STEP && op_shift(fm1_in.buttons)) {   /* STEP: SHIFT + PRESETS does nothing (it changed the engine only
-                                                         * because this branch came first; PRESETS alone scrolls the window) */
+    } else if (ui.scr == SCR_STEP && op_shift(fm1_in.buttons)) {   /* STEP: SHIFT + PRESETS: the window follows the playhead again
+                                                         * (both OCT is the track <-> MASTER toggle now; PRESETS alone scrolls the window) */
+        st.follow = 1;
         op_clean &= ~BIT(B_OCTDN);                      /* (SHIFT let go: no octave) */
 #if FELUCCA_FAVORITES
     } else if (op_shift2(fm1_in.buttons) && fav_gesture_ok()) {   /* SHIFT2 + PRESETS: the sound playing a favorite (right) or not (left) */
@@ -624,6 +632,7 @@ static void op_knobs(uint32_t shift)
             lay.quiet = 1;                              /* (LFO held + a knob: SHIFT, the screen under, no map) */
 #endif
         op_clean &= ~op_held;                           /* (a button held while a knob turned: no tap) */
+        oct_both = 0;
         st.pend &= (uint16_t)~st.held;                  /* (STEP: a step key held while a knob turned: no tap either) */
         lay.chord = 0;
         tp.pend = 0;
@@ -682,6 +691,7 @@ static void ui_input(void)
     if (notes) {
         lay.chord = 0;
         tp.pend = 0;
+        oct_both = 0;
     }
     if (notes && keys) {
         lay.used = 1;
@@ -713,6 +723,11 @@ static void ui_input(void)
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */
     op_clean &= held;
     op_released((op_held | pressed) & ~held);           /* the chords, SAVE + REC, PLAY (op_combos.c) */
+    if (oct_both && !(held & (BIT(B_OCTDN) | BIT(B_OCTUP)))) {   /* both OCT let go, nothing else used: track <-> MASTER */
+        oct_both = 0;
+        if (oct_master_ok())
+            oct_master_toggle();
+    }
     op_held = held;
     for (id = 0; id < 14u; id++)
         if ((taps >> id) & 1u && panel_btn_of(id) != B_PLAY)
@@ -809,8 +824,8 @@ static uint32_t op_oct_avail(void)
 {
     uint32_t both = 1u << B_OCTDN | 1u << B_OCTUP, m = 0;
     int mixer = ui.scr == SCR_HOME && !mx_on_master();
-    if ((!keys_none() && !is_drum(TSEL)) || (ui.scr == SCR_STEP && is_drum(TSEL)) || tempo_nudging())
-        m = both;
+    if (oct_master_ok() || tempo_nudging())
+        m = both;                                       /* (the track <-> MASTER toggle; the TEMPO nudge) */
     if (mixer || ui.scr == SCR_SOUND || ui.scr == SCR_STEP)
         m |= 1u << B_OCTDN;
 #if FELUCCA_BLE
