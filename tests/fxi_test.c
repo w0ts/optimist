@@ -391,7 +391,6 @@ static void t_juno(void)
     for (k = 0; k < 8u && fxi_state(1, 0) != FXI_OK; k++)
         fxi_poll();
     check("... faded: T2 has it now", fxi_state(1, 0) == FXI_OK && ifx_lim_at(FXT_JUNO, IFX_MST) == FXI_NONE);
-#if JUNO_TLV
     trk[2].p[P_TJCHO] = 77, trk[2].p[P_TJMODE] = 1, mst_amt[FXT_JUNO] = 33, mst_jmode = 2;
     n = fxs_tlv(FXT_JUNO, b);
     fxs_untlv_none(1);
@@ -401,7 +400,6 @@ static void t_juno(void)
           mst_amt[FXT_JUNO] == 33 && mst_jmode == 2);
     fxs_untlv(FXT_JUNO, b, 4u, 1);
     check("... a shorter one: the rest 0", trk[2].p[P_TJCHO] == 77 && trk[2].p[P_TJMODE] == 0 && mst_amt[FXT_JUNO] == 0);
-#endif
 }
 #endif
 

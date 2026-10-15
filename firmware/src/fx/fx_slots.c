@@ -435,10 +435,7 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
                                                         * own TLV, every track's amount: fxs_tlv) */
 /* JUNO CHORUS's TLV (2026-10-14): T1 T2 T3 DR's MIX, their MODE, the master's MIX and MODE (mst_amt, mst_jmode), when any
  * is set; a shorter one: the rest 0 */
-#define JUNO_TLV 0                                     /* (0: not kept yet: the FX record is at its ceiling, FXR_MAX 232 =
-                                                        * ed_backup.c's room; 1 once the FX rework raises it) */
-#define FXT_TLV_JUNO (JUNO_TLV ? 2u * NTRK + 2u : 0u)
-#define FXT_NTLV (FXT_N - 1u - (JUNO_TLV ? 0u : 1u))   /* the types that may write a TLV (fx_rec.c: its headers) */
+#define FXT_TLV_JUNO (2u * NTRK + 2u)                  /* (in FXT_TLV_SUM: fx_rec.c's FXR_MAX check) */
 #if FELUCCA_INS_JCHORUS
 static int16_t mst_jmode;                              /* the master's JUNO CHORUS MODE (its MIX: mst_amt[FXT_JUNO]) */
 #endif
@@ -477,7 +474,7 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
         return any ? NTRK : 0u;
     }
 #endif
-#if FELUCCA_INS_JCHORUS && JUNO_TLV
+#if FELUCCA_INS_JCHORUS
     if (t == FXT_JUNO) {                               /* JUNO CHORUS (above) */
         for (k = 0; k < NTRK; k++) {
             any |= (o[k] = (uint8_t)trk[k].p[P_TJCHO]);
@@ -573,7 +570,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
             trk[k % NTRK].p[id] = (int16_t)(n >= NTRK + FXT_TLV_GX ? clamp(a[NTRK + k], TP[id].min, TP[id].max) : TP[id].def);
         }
 #endif
-#if FELUCCA_INS_JCHORUS && JUNO_TLV
+#if FELUCCA_INS_JCHORUS
     if (t == FXT_JUNO) {
         for (k = 0; k < NTRK; k++) {
             trk[k].p[P_TJCHO] = (int16_t)(k < n ? (a[k] > 127u ? 127u : a[k]) : 0u);
