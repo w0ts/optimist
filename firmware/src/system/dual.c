@@ -40,6 +40,11 @@
 #endif
 #include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
 #define DUAL_JOBS_MAX 8u                           /* (dual.first_post: NPART + 2 at most) */
+#ifndef DUAL_LATE_MS
+#define DUAL_LATE_MS 0                             /* a test build (OPTIMIST_DUAL_LATE_MS): CPU1 started from the main loop
+                                                    * once fm1_ms reaches it (after the boot's USB / BLE start-up), as X0X
+                                                    * starts it from a setting (plat_fm1.c plat_cpu2_set) */
+#endif
 #ifndef DUAL_HOLD_MS
 #define DUAL_HOLD_MS 0                             /* a test build (OPTIMIST_DUAL_HOLD_MS): no job for CPU1 before fm1_ms
                                                     * reaches it (the boot's work done; fm1_ms counts from IRQS on) */
@@ -73,6 +78,7 @@ static struct {
      * stop: the INFO line's record (dual_mode.h) */
     uint32_t down_ms, down_mask, down_beat;
     uint8_t down_pend;
+    uint8_t late;                                  /* DUAL_LATE_MS: CPU1 to be started from the main loop */
     uint32_t t_start;                              /* TIMER4 when CPU1 was started (dual_boot) */
     uint32_t posts;                                /* jobs posted (mix_block_dual) */
     uint8_t mring[8];                              /* the masks of the last 8 posts (posts & 7: the next) */
@@ -341,6 +347,10 @@ static __attribute__((noinline)) void dual_boot(void)
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
 #endif
+    if (DUAL_LATE_MS && dual.late != 2u) {
+        dual.late = 1;                             /* (dual_frame starts it: dual_start_late) */
+        return;
+    }
     dual.t_start = fm1_ticks();
     dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US);
     if (!dual.up)
@@ -348,6 +358,23 @@ static __attribute__((noinline)) void dual_boot(void)
     else if (fm1_dual_mb.canary != 1u)             /* it read the canary wrong (or never read it) */
         dual_down(DUAL_CANARY, 0);
 }
+
+#if DUAL_LATE_MS
+/* main loop, once: CPU1 started now (X0X plat_cpu2_set): its entry word is in the locked top of RAM and it goes
+ * through the chip's ROM, which the PC limits refuse; both set back after */
+static __attribute__((noinline)) void dual_start_late(void)
+{
+    fm1_irq_off();
+    fm1_guard_unlock_top();
+    fm1_guard_pc_open();
+    dual.late = 2;
+    dual_boot();                                   /* (the start itself) */
+    dual.late = 0;
+    fm1_guard_enable(FM1_GUARD_PC);
+    fm1_guard_lock_top();
+    fm1_irq_on();
+}
+#endif
 
 /* every flash operation, IRQs off (hal/fm1_flash.h irq_save): CPU1 must be in its RAM loop.
  * The audio interrupt always ends its job (or halts it), so this only catches the impossible. */
@@ -378,6 +405,13 @@ static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at
 static void dual_frame(void)
 {
     static uint8_t told;
+#if DUAL_LATE_MS
+    if (dual.late) {
+        if (fm1_ms < DUAL_LATE_MS)
+            return;
+        dual_start_late();
+    }
+#endif
     fm1_dual_mb.ping++;
     if (dual.up && fm1_dual_mb.fault)              /* (an exception about CPU1 outside a join: hal/fm1_dual.h) */
         dual_down(DUAL_FAULT, 0);

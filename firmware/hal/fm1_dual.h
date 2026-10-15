@@ -80,7 +80,9 @@ static inline __attribute__((always_inline)) void fm1_dual_note_bad(uint32_t r, 
  * a boot AFTER CRASH, cause not known): one read of req a pass, then FM1_DUAL_SPIN_NOPS no-ops (no bus access, about
  * 0.1 us at 314 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
  * COUNT != 0: count the beat. Returns the new request; *ARG its argument, read once */
-#define FM1_DUAL_SPIN_NOPS 32u
+#ifndef FM1_DUAL_SPIN_NOPS
+#define FM1_DUAL_SPIN_NOPS 32u                            /* (a test build sets more: OPTIMIST_DUAL_SPIN_NOPS) */
+#endif
 #define FM1_DUAL_BEAT_EVERY 256u
 #ifndef FM1_DUAL_NO_SPIN                                  /* (CPU1 asleep between jobs: no spin loop in RAM) */
 RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)

@@ -234,6 +234,12 @@ def build_app():
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
+    v = os.environ.get("OPTIMIST_DUAL_LATE_MS")   # (a test build: CPU1 started from the main loop after this many ms)
+    if v and v.isdigit() and 0 < int(v) <= 60000:
+        flags.append(f"-DDUAL_LATE_MS={v}u")
+    v = os.environ.get("OPTIMIST_DUAL_SPIN_NOPS")  # (a test build: no-ops between two mailbox reads of the spin loop)
+    if v and v.isdigit() and 0 < int(v) <= 1000000:
+        flags.append(f"-DFM1_DUAL_SPIN_NOPS={v}u")
     v = os.environ.get("OPTIMIST_DUAL_HOLD_MS")   # (a test build: CPU1 given no job before this many ms of uptime)
     if v and v.isdigit() and int(v) <= 60000:
         flags.append(f"-DDUAL_HOLD_MS={v}u")
@@ -513,7 +519,7 @@ def cpu1_stack(dis):
 def boot_order(dis):
     """-> [message]: the second core starts before the boot safety checks (FELUCCA_DUAL builds; docs/DUAL-CORE.md).
     The start (fm1_dual_start, the only user of fm1_cpu1_entry) is reached only through dual_boot, that only from
-    fm1_main, that only from fm1_cstart; fm1_cstart runs boot_hold (the UBOOT hold) and bootguard_begin (the boot
+    fm1_main (or, in an OPTIMIST_DUAL_LATE_MS test build, dual_start_late in its main loop), that only from fm1_cstart; fm1_cstart runs boot_hold (the UBOOT hold) and bootguard_begin (the boot
     guard) before its first reference to fm1_main or recovery_main; recovery_main cannot reach dual_boot. The
     functions are noinline in a DUAL build (BOOT_ORDER): inlined, there is no call to read, and that is refused."""
     refs = boot_refs(dis)
@@ -526,7 +532,7 @@ def boot_order(dis):
         for _, s in rl:
             callers.setdefault(s, set()).add(f)
     for target, only in (("fm1_cpu1_entry", {"fm1_dual_start"}), ("fm1_dual_start", {"dual_boot"}),
-                         ("dual_boot", {"fm1_main"}), ("fm1_main", {"fm1_cstart"}), ("recovery_main", {"fm1_cstart"})):
+                         ("dual_boot", {"fm1_main", "dual_start_late"}), ("fm1_main", {"fm1_cstart"}), ("recovery_main", {"fm1_cstart"})):
         extra = callers.get(target, set()) - only
         if extra:
             errors.append(f"boot order: {target} is reached from {sorted(extra)}, only {sorted(only)} may")
