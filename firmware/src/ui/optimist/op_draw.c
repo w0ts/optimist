@@ -427,14 +427,19 @@ static void draw_head(void)
 {
     head_t h;
     char c[32];
-    uint32_t sig, rec = song.rec || rec_wait || ft_on, drop = (uint32_t)ovl_recent(fm1_ms, OVL_MARK_MS);
+    uint32_t sig, rec = song.rec || rec_wait || ft_on, drop, xr = info_xruns();
     int32_t tw, bx;
+    uint16_t mk;
+    if (xr != ovl.xrun_seen)                            /* (another underrun: USB audio, MIDI in; system/overload.h) */
+        ovl.xrun_seen = xr, ovl.xrun_ms = fm1_ms;
+    drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
+    mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
     bx = 236 - text_w(&FONT_S, h.bpm);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
     sig = hs(sig, h.pr);
     sig = hu(sig, h.muted);
-    sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u + drop * 2u);
+    sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
     if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
         snd_name(song.sel, c);
@@ -464,9 +469,9 @@ static void draw_head(void)
         if (rec)
             cv_rect(bx - 16 - text_w(&FONT_S, h.r), 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }
-    cv_line(0, OH_HEAD - 1, 239, OH_HEAD - 1, drop ? C_ERR : C_LINE);
-    if (drop)                                           /* a drop-out in the last second (system/overload.h): the header's rule red */
-        cv_line(0, OH_HEAD - 2, 239, OH_HEAD - 2, C_ERR);
+    cv_line(0, OH_HEAD - 1, 239, OH_HEAD - 1, drop ? mk : C_LINE);
+    if (drop)                                           /* a drop-out (red) or an underrun (amber) in the last second: the header's rule */
+        cv_line(0, OH_HEAD - 2, 239, OH_HEAD - 2, mk);
     cv_blit(0, OY_HEAD);
 }
 

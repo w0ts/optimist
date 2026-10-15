@@ -434,6 +434,8 @@ static void dual_load_half(void)
     static uint32_t last;
     uint32_t b = dual_c1_ticks;
     dual_load_take((b - last) / FM1_TICKS_PER_US, dual.up);
+    if (dual.up)
+        ovl_ring_put(&ovl.r[OVL_CPU1], (b - last) / FM1_TICKS_PER_US, fm1_ms);   /* (its maxima: INFO's KNOB 2, system/overload.h) */
     last = b;
 }
 

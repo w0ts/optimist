@@ -57,10 +57,12 @@ static void core_row_tests(void)
     reset_ui();
 }
 
-/* the overload monitor (system/overload.h; the user, 2026-10-15: "a MAX of the last few seconds and a DROP-OUT DETECTOR"): INFO's
- * PEAK (the longest half of the last ~5 s, % of a half, the load's colours), DROPS (late halves, amber / red), GUARD (the CPU
- * guard's level, the voices shed), SHIFT + YES on INFO clearing DROPS' display, and the header's red rule for ~1 s after a drop,
- * on every page. The ISR's part is fed here as audio.c would (ovl_half) */
+/* the overload monitor (system/overload.h; the user, 2026-10-15: "a MAX of the last few seconds and a DROP-OUT DETECTOR", "the
+ * second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"):
+ * INFO's CPU line in the measure KNOB 2 picks (NOW, MAX 5S, MAX: % of a half, the load's colours, over 100 late), DROPS (late
+ * halves, amber / red), UNDERRUNS (MIDI in lost, USB audio's), GUARD (the CPU guard's level, the voices shed), SHIFT + YES on
+ * INFO clearing the displays, and the header's rule for ~1 s after a drop (red) or an underrun (amber), on every page. The ISR's
+ * part is fed here as audio.c would (ovl_half) */
 static uint32_t info_line(const char *label)            /* INFO's line with this label, INFO_N none */
 {
     uint32_t i;
@@ -75,41 +77,68 @@ static uint32_t info_line(const char *label)            /* INFO's line with this
 static void overload_tests(void)
 {
     cell_t c;
-    uint32_t pk, dr, t, i, half = OVL_HALF_US;
+    uint32_t dr, xr, t, i, half = OVL_HALF_US;
+    const char *cpu = DUAL_LOAD ? "CPU0" : "LOAD";
+    char lb[24];
     reset_ui();
     memset((void *)&ovl, 0, sizeof ovl);
-    pk = info_line("PEAK 5S");
+    info_mode = OVL_NOW;
     dr = info_line("DROPS");
-    check(pk < INFO_N && dr < INFO_N, "INFO: a PEAK 5S line and a DROPS line");
+    xr = info_line("UNDERRUNS");
+    check(dr < INFO_N && xr < INFO_N && info_line("PEAK 5S") == INFO_N, "INFO: DROPS and UNDERRUNS lines (the maxima: the CPU line's KNOB 2)");
     t = fm1_ms;
     ovl_half(half * 40u / 100u, 0, t);
     ovl_half(half * 70u / 100u, 0, t + 6u);
-    sys_info_cell(pk, &c);
-    check(!strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN && c.kind == CK_RO, "PEAK: the longest half, 70 %, amber (the load's colours)");
+    song.cpu_q8 = 50u * 256u / 100u + 1u;
+    op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = 0;
+    frame();
+    sys_info_cell(1, &c);
+    check(!strcmp(c.label, cpu) && !strcmp(c.val, "50") && c.col == C_OK, "the CPU line: NOW, the load (50 %, green)");
+    turn(EN_K2, 1);
+    sys_info_cell(1, &c);
+    snprintf(lb, sizeof lb, "%s MAX 5S", cpu);
+    check(info_mode == OVL_MAX5 && !strcmp(c.label, lb) && !strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN &&
+          ui.scr == SCR_SYSTEM, "KNOB 2 on INFO: MAX 5S, the longest half (70 %, amber)");
     ovl_half(half * 133u / 100u, 1, t + 1500u);         /* (the user's log: 7,693 us, 133 % of a half) */
     fm1_ms = t + 1600u;
-    sys_info_cell(pk, &c);
-    check(!strcmp(c.val, "133") && c.col == C_ERR, "PEAK over 100 %: 133, red (a late half)");
+    sys_info_cell(1, &c);
+    check(!strcmp(c.val, "133") && c.col == C_ERR, "MAX 5S over 100 %: 133, red (a late half)");
     for (i = 1; i <= 6u; i++)
         ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (6 s of light halves: the 133 % ages out of the window) */
     fm1_ms = t + 1500u + 6u * 1024u;
-    sys_info_cell(pk, &c);
-    check(!strcmp(c.val, "50") && c.col == C_OK, "PEAK: ~5 s later the window forgets it (50 %, green)");
+    sys_info_cell(1, &c);
+    check(!strcmp(c.val, "50") && c.col == C_OK, "MAX 5S: ~5 s later the window forgets it (50 %, green)");
+    turn(EN_K2, 1);
+    sys_info_cell(1, &c);
+    snprintf(lb, sizeof lb, "%s MAX", cpu);
+    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 2 again: MAX since boot, 133 % kept");
+    turn(EN_K2, 1);
+    check(info_mode == OVL_NOW, "KNOB 2 again: NOW (round)");
+    turn(EN_K2, -1);
+    check(info_mode == OVL_MAXALL, "KNOB 2 back: MAX");
     sys_info_cell(dr, &c);
     check(!strcmp(c.val, "1") && c.col == C_WARN, "DROPS: 1 since boot, amber (none in the last 5 s)");
     ovl_half(half * 101u / 100u, 1, fm1_ms);
     sys_info_cell(dr, &c);
     check(!strcmp(c.val, "2") && c.col == C_ERR, "DROPS: 2, red (one just now)");
     fm1_ms += 20u;
-    op_enter(SCR_SYSTEM);
-    ui.row[SCR_SYSTEM] = 0;
     frame();
+    ppm("opt-info-overload");                           /* (INFO: CPU MAX, DROPS red, the header's rule red) */
     check(px_in(0, OH_HEAD - 2u, 240, 2, C_ERR), "a drop in the last second: the header's rule red");
     op_enter(SCR_HOME);
     frame();
+    ppm("opt-mixer-drop");
     check(px_in(0, OH_HEAD - 2u, 240, 2, C_ERR), "... on every page (the mixer)");
     frames(OVL_MARK_MS / 16u + 2u);
-    check(!px_in(0, OH_HEAD - 2u, 240, 2, C_ERR), "~1 s later: the rule as before");
+    check(!px_in(0, OH_HEAD - 2u, 240, 2, C_ERR) && !px_in(0, OH_HEAD - 2u, 240, 2, C_WARN), "~1 s later: the rule as before");
+    sys_info_cell(xr, &c);
+    check(!strcmp(c.val, "0") && c.col == C_OK, "UNDERRUNS: 0, green");
+    ovl.midi_lost[OVL_MIDI_TRS] += 2u;                  /* (TRS MIDI in: its ring full twice) */
+    frame();
+    check(px_in(0, OH_HEAD - 2u, 240, 2, C_WARN) && !px_in(0, OH_HEAD - 2u, 240, 2, C_ERR), "an underrun (MIDI in lost): the header's rule amber");
+    sys_info_cell(xr, &c);
+    check(!strcmp(c.val, "2") && strstr(c.unit, "MIDI2") && c.col == C_ERR, "UNDERRUNS: 2, MIDI2, red (just now)");
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
     frame();
@@ -118,7 +147,22 @@ static void overload_tests(void)
     release(B_OCTDN);
     sys_info_cell(dr, &c);
     check(!strcmp(c.val, "0") && c.col == C_OK && ovl.drops == 2u, "SHIFT + YES on INFO: DROPS from 0 (the counter itself goes on)");
+    sys_info_cell(xr, &c);
+    check(!strcmp(c.val, "0") && ovl_midi_lost() == 2u, "... UNDERRUNS from 0");
+    sys_info_cell(1, &c);
+    check(!strcmp(c.val, "0"), "... the CPU line's MAX from 0");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");
+#if FELUCCA_USB_AUDIO
+    ui.row[SCR_SYSTEM] = 1;                             /* (INFO's second page: the USB audio counters) */
+    frame();
+    ppm("opt-info-usbaudio");
+    {
+        uint32_t e = gl_ent(1, 1);
+        check(sys_item(e >> 2, e & 3u) == SI_UAINFO && gl_end(1, 1) == 2u, "USB AUDIO: INFO's second page, its own");
+    }
+    ui.row[SCR_SYSTEM] = 0;
+    frame();
+#endif
 #if FELUCCA_CPU_GUARD
     {
         uint32_t g = info_line("GUARD");
@@ -137,6 +181,8 @@ static void overload_tests(void)
         cg.level = 0, cg.vcap = 0;
     }
 #endif
+    info_mode = OVL_NOW;
+    song.cpu_q8 = 0;
     memset((void *)&ovl, 0, sizeof ovl);
     reset_ui();
 }

@@ -271,6 +271,7 @@ static int gls_info_page(void)
     song.batt_raw = 540;
     sys_info_cell(INFO_BASE - 1u, &c);
     ok &= !strcmp(c.val, "1/3 540") ;
+    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW; a fuzz run's KNOB 2 may have left another) */
     {   /* the CPU0 load number's colour: green under 60 %, amber 60..85, red over 85 (the guard's ceiling), text only */
         static const int32_t pc[7] = {0, 59, 60, 85, 86, 100, 150};
         static const uint16_t want[7] = {C_OK, C_OK, C_WARN, C_WARN, C_ERR, C_ERR, C_ERR};

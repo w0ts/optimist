@@ -261,3 +261,40 @@ groove with the 909's hats on HAT / OPEN HAT (both machines) under scenario 3's 
 
 The model's cost (mots, guard on): flash +644 B, RAM +16 B, RAMTEXT +80 B (`ds_alive` in `drums_mix` reads the
 level). With `CPU_GUARD` off (every profile) the code is the one before.
+
+## Spikes: the reactive path (2026-10-15, feat/overload-monitor)
+
+The user's single-core log while recording as many notes as possible (cpu1-20261015-184640.log, ~4 min): the smoothed load
+averaged 63 % (544 samples: 60..69 % for half of them, 91 % the highest), the longest audio interrupt reached 7,693 us (133 % of a
+half), and `audio_late` climbed by a steady 12..17 late halves a second (1,567 in all). The guard's level was not logged (the logger
+kept only cpu_pct, audio_late, audio_max_us).
+
+What the host shows (`tests/overload_stress.c`, the mots-like flags, instructions a sample counted per half): the render is flat,
+the longest half 1.23 x the mean, and a half starting 5 notes or more costs 1.06 x the mean. Chords do not make the spikes; the
+FM-1 adds them (other interrupts, flash cache misses, the interrupt held off: not measured here).
+
+Why the guard missed them: it measured the interrupt's own time and stepped after 8 halves in a row over 85 %, or after a late half
+that followed one over 85 % (a lone late half was taken for a flash write). Late halves scattered among halves at 60..70 % meet
+neither, and a half late because its interrupt began late shows nothing in the interrupt's own time.
+
+The reactive path (`cg_spike`): audio.c tells the guard when the DMA moved on while a half rendered (`cg.late`); each late half adds
+64 to a count that loses 1 a half, and at 160 (3 late halves within ~30, or a steady rate of 3 a second and more) the guard reacts,
+when the mean load is 50 % or more: one level up; at the top one voice cut and the voices capped one under what sounded (a new
+note steals, `CG_VBUDGET` in voice.c), the cap a voice higher after 2 s with no late half. A level a reaction set comes off only
+under the load the drop-outs came at less 1/16 of a half (`rcap`), and not while the voices are capped. Without a late half nothing
+changes: the goldens are the same (regress with the guard built: 0 changed).
+
+The stress (60 s, the clock set for a 66 % mean; the FM-1's spikes stood in for by a model):
+
+| spikes | no guard | the guard before | with the reactive path |
+|---|---|---|---|
+| none (the host's costs) | 0 late | 0 | 0 |
+| 12 % of the halves + 50 % of the mean | 4.45 % | 0.08 % | 0.08 % |
+| every 11th half + 55 % (isolated) | 6.39 % | 0.82 % | 0.60 % |
+| every 11th interrupt held off 40 % of a half | 8.24 % | 8.22 % (never moves) | 0.97 % (mean 54 %) |
+
+The last row is the log's signature (a steady rate of late halves at a 66 % mean, the guard idle).
+
+SYSTEM > INFO shows it: the CPU lines (KNOB 2: NOW, MAX 5S, MAX since boot: the longest half, its wait for the interrupt in, % of
+a half), DROPS, UNDERRUNS (USB audio, MIDI in lost), GUARD (the level, MAX n while the voices are capped, the voices shed); SHIFT +
+YES there clears the displays (system/overload.h). The header's rule turns red ~1 s after a drop-out, amber after another underrun.

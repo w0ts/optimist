@@ -259,22 +259,53 @@ static void dev_draw(uint32_t y, uint32_t h)
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO,
-       SI_PEAK, SI_DROPS, SI_GUARD, SI_UAINFO };
+       SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
 #define LOAD_AMBER 60
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
-/* INFO's PEAK, DROPS and GUARD lines (system/overload.h, cpuguard.c): DROPS and the voices shed counted from a baseline OCT- + YES
- * on INFO sets (op_global.c info_clear; the counters themselves go on: the console still reads them since boot) */
+/* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines' measure (KNOB 2: NOW, MAX 5S, MAX), DROPS, UNDERRUNS,
+ * GUARD; DROPS, UNDERRUNS, MAX and the voices shed counted from a baseline SHIFT + YES on INFO sets (op_global.c info_clear;
+ * the counters themselves go on: the console still reads them since boot) */
 #define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
 static uint32_t info_shed0;
-static void info_clear_counts(void)
+static uint8_t info_mode;                               /* the CPU lines' measure: OVL_NOW, OVL_MAX5, OVL_MAXALL (INFO's KNOB 2) */
+/* UNDERRUNS: everything else lost since boot: USB audio's playback / capture under- and overruns and missed frames (USB audio
+ * builds), MIDI in that found its ring full (USB, TRS, BLE) */
+static uint32_t info_ua_xruns(void)
 {
-    ovl_clear();
+#if FELUCCA_USB_AUDIO
+    return ua.play_underruns + ua.play_overruns + ua.cap_underruns + ua.cap_overruns + ua.missed_frames;
+#else
+    return 0;
+#endif
+}
+static uint32_t info_xruns(void) { return info_ua_xruns() + ovl_midi_lost(); }
+static void info_clear_counts(void)                     /* SHIFT + YES on INFO: DROPS, UNDERRUNS, the maxima, the voices shed from 0 */
+{
+    uint32_t r;
+    ovl.drops0 = ovl.drops;
+    ovl.xrun0 = info_xruns();
+    for (r = 0; r < OVL_NRING; r++)
+        ovl.r[r].amax = 0;
 #if FELUCCA_CPU_GUARD
     info_shed0 = cg.sheds;
 #endif
+}
+/* a CPU line's value in the measure chosen: NOW (now: the smoothed load given), MAX 5S, MAX (ring's maxima); its label's suffix */
+static int32_t info_load(uint32_t ring, int32_t now)
+{
+    return info_mode == OVL_MAX5 ? (int32_t)ovl_max5_pct(ring, fm1_ms) : info_mode == OVL_MAXALL ? (int32_t)ovl_maxall_pct(ring) : now;
+}
+static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 5S", " MAX"};
+static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 5S"), in a buffer of its own */
+{
+    static char b[2][16];
+    char *t = b[base[3] == '1'];
+    str_cpy(t, base, sizeof b[0]);
+    str_cpy(t + str_len(t), INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0] - str_len(t));
+    c->label = t;
 }
 #if FELUCCA_CPU_GUARD
 static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REVERB", "NOTES"};
@@ -286,7 +317,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
 #if FELUCCA_USB_AUDIO
     {"USB AUDIO", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* INFO's second page: the USB audio glitch counters (INFO keeps the load,
-                                                         * PEAK, DROPS and GUARD readable at the line pitch the style keeps, 2026-10-15) */
+                                                         * CPU, DROPS, UNDERRUNS and GUARD readable at the line pitch the style keeps, 2026-10-15) */
 #endif
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
@@ -423,22 +454,17 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 1, 0, 1, ble_on != 0u);
         break;
 #endif
-    case SI_CPU:
-        c->label = DUAL_LOAD ? "CPU0" : "LOAD";         /* (DUAL: its wait for CPU1 counts in it) */
+    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 2: NOW, MAX 5S, MAX (over 100: late) */
+        int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
+        if (info_mode == OVL_NOW)
+            c->label = DUAL_LOAD ? "CPU0" : "LOAD";
+        else
+            info_label(c, DUAL_LOAD ? "CPU0" : "LOAD");
         c->kind = CK_RO;
-        fmt_int(c->val, (int32_t)(song.cpu_q8 * 100u / 256u));
-        c->col = load_col((int32_t)(song.cpu_q8 * 100u / 256u));
+        fmt_int(c->val, pct);
+        c->col = load_col(pct);
         c->unit = "%";
-        cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
-        break;
-    case SI_PEAK: {                                     /* the longest audio half of the last ~5 s, its wait for the interrupt too: over 100 % late */
-        uint32_t pk = ovl_peak_pct(fm1_ms);
-        c->label = "PEAK 5S";
-        c->kind = CK_RO;
-        fmt_int(c->val, (int32_t)pk);
-        c->col = load_col((int32_t)pk);
-        c->unit = "%";
-        cell_gauge(c, 0, 0, 100, (int32_t)(pk < 100u ? pk : 100u));
+        cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
         break;
     }
     case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
@@ -448,6 +474,28 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         fmt_int(c->val, (int32_t)n);
         c->col = !n ? C_OK : ovl_recent(fm1_ms, DROPS_RED_MS) ? C_ERR : C_WARN;
         c->unit = "";
+        cell_gauge(c, 0, 0, 1, n != 0u);
+        break;
+    }
+    case SI_XRUN: {                                     /* UNDERRUNS: USB audio's and MIDI in's losses, the total and where */
+        static char u[16];
+        uint32_t nu = info_ua_xruns(), mi = ovl_midi_lost(), n = nu + mi - ovl.xrun0;
+        c->label = "UNDERRUNS";
+        c->kind = CK_RO;
+        fmt_int(c->val, (int32_t)n);
+        u[0] = 0;
+        if (n) {                                        /* (where, since boot: "USB3 MIDI1") */
+            if (nu) {
+                str_cpy(u, " USB", sizeof u);
+                fmt_int(u + str_len(u), (int32_t)(nu < 9999u ? nu : 9999u));
+            }
+            if (mi) {
+                str_cpy(u + str_len(u), " MIDI", sizeof u - str_len(u));
+                fmt_int(u + str_len(u), (int32_t)(mi < 9999u ? mi : 9999u));
+            }
+        }
+        c->unit = u;
+        c->col = !n ? C_OK : fm1_ms - ovl.xrun_ms < DROPS_RED_MS ? C_ERR : C_WARN;
         cell_gauge(c, 0, 0, 1, n != 0u);
         break;
     }
@@ -481,12 +529,16 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
-        } else {
-            c->label = "2ND CORE ON";
+        } else {                                        /* (KNOB 2: NOW, MAX 5S, MAX: its jobs' longest half) */
+            pct = info_load(OVL_CPU1, pct);
+            if (info_mode == OVL_NOW)
+                c->label = "2ND CORE ON";
+            else
+                info_label(c, "CPU1");
             fmt_int(c->val, pct);
             c->unit = "%";
             c->col = load_col(pct);
-            cell_gauge(c, 0, 0, 100, pct);
+            cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
         }
 #else
         c->label = "2ND CORE";
@@ -768,18 +820,18 @@ static void sys_rst_cell(cell_t *c)
 #else
 #define INFO_RST 0u
 #endif
-/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), PEAK,
- * DROPS, GUARD (CPU_GUARD builds), the battery, LAST RESET, the second core's lines (DUAL builds). The USB AUDIO diagnostics: a
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), DROPS,
+ * UNDERRUNS, GUARD (CPU_GUARD builds), the battery, LAST RESET, the second core's lines (DUAL builds). The USB AUDIO diagnostics: a
  * page of their own after it (USB audio builds: info_cell, page 1) */
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
 #define INFO_N (INFO_BASE + INFO_RST + INFO_C1)
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_PEAK, SI_DROPS,
+    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_DROPS, SI_XRUN,
 #if FELUCCA_CPU_GUARD
                                             SI_GUARD,
 #endif
-                                            SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; PEAK, DROPS: the overload monitor) */
+                                            SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; DROPS, UNDERRUNS: the overload monitor) */
     i %= INFO_N;
 #if INFO_RST
     if (i == INFO_BASE) {
