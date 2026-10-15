@@ -472,12 +472,10 @@ static const char *ng_who(void)                         /* the slot's name: "T1"
     return is_drum(TSEL) ? lane_name(lane_selected()) : trk_tag(song.sel);
 }
 static int32_t ng_max(const gen_par_t *d, uint32_t len) { return d->max ? d->max : (int32_t)len; }
-static void ng_set(const gen_t *g)                      /* the slot's settings now (the ISR reads them) */
+static void ng_put(const gen_t *g)                      /* the slot's settings now (the IRQ off: the ISR reads them) */
 {
-    fm1_irq_off();
     gen[ng_slot() % GEN_NSLOT] = *g;
     gen_sync();
-    fm1_irq_on();
 }
 static void ng_fmt(char *b, uint32_t disp, uint32_t v)
 {
@@ -525,11 +523,17 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
         c->kind = CK_NONE;
     }
 }
+/* a knob on GEN / GEN OUT: read, changed and written back with the IRQ off (a song section the ISR applies meanwhile,
+ * fx_rec.c gen_untlv, is not undone by a stale copy) */
 static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
 {
-    gen_t g = *ng_cur();
+    gen_t g;
     const gen_type_t *ty;
     uint32_t len = trk_len(TSEL);
+    if (pg == 2u && k >= 2u)
+        return;                                         /* (WRITE: a turn picks the card; the read-out) */
+    fm1_irq_off();
+    g = *ng_cur();
     if (pg == 1u && !k) {
         uint32_t ty0 = s == OP_RESET ? GT_EUCLID : (uint32_t)clamp((int32_t)g.type + s, 0, GT_N - 1);
         if (ty0 != g.type)
@@ -541,14 +545,13 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
         g.p[j] = (uint8_t)(s == OP_RESET ? d->def : clamp((int32_t)g.p[j] + s, d->min, ng_max(d, len)));
     } else if (k == 0u) {
         g.on = (uint8_t)(s == OP_RESET ? 0 : s > 0);
-    } else if (k == 1u) {
-        g.mode = (uint8_t)(s == OP_RESET ? GM_REPLACE : clamp((int32_t)g.mode + s, 0, GM_N - 1));
     } else {
-        return;                                         /* (WRITE: a turn picks the card; the read-out) */
+        g.mode = (uint8_t)(s == OP_RESET ? GM_REPLACE : clamp((int32_t)g.mode + s, 0, GM_N - 1));
     }
     ty = &GEN_TYPES[g.type % GT_N];
     ty->fit(&g, len);
-    ng_set(&g);
+    ng_put(&g);
+    fm1_irq_on();
 }
 static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRITE */
 {
@@ -556,8 +559,11 @@ static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRIT
     track_t *t = TSEL;
     char a[12];
     if (k == 0u) {
+        fm1_irq_off();                                  /* (read, toggled, written: one section, as ng_turn) */
+        g = *ng_cur();
         g.on = (uint8_t)!g.on;
-        ng_set(&g);
+        ng_put(&g);
+        fm1_irq_on();
         tl_say(g.on ? "GEN ON: " : "GEN OFF: ", ng_who());
         return 1;
     }
@@ -572,9 +578,13 @@ static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRIT
         op_arm(SCR_STEP, ui.row[SCR_STEP], 2, "WRITE", a, 0);
         return 1;
     }
+    if (!gen_write_prep(t, ng_slot())) {                /* (the render with the IRQ on: seq/gen.c) */
+        tl_say("GEN IS OFF", "");
+        return 1;
+    }
     tl_mark(t);                                         /* (one undo level: the pattern and the slot's ON, seq/undo.c) */
     fm1_irq_off();
-    (void)gen_write(t, ng_slot());
+    (void)gen_write_commit(t);
     gen[ng_slot() % GEN_NSLOT].on = 0;                  /* (baked: it plays as the pattern now, the generator OFF) */
     gen_sync();
     t->seq_active = 1;

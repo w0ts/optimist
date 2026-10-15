@@ -440,6 +440,34 @@ static void tlv_tests(void)
     check("... a project without one: every slot off at its defaults", !gen_trk && gen_is_default(&gen[7]));
 }
 
+/* WRITE in two halves (gen_write_prep with the interrupts on, gen_write_commit with them off): the same pattern as
+ * gen_write; a render for the drum track never lands on a synth track; the slot off: nothing prepared */
+static void write_split_tests(void)
+{
+    static step_t keep[NSTEP], one[NSTEP];
+    int ok;
+    heard_setup();
+    gen_defaults(&gen[0], GT_EUCLID);
+    gen[0].on = 1, gen[0].p[0] = 5;
+    gen_sync();
+    memcpy(keep, trk[0].step, sizeof keep);
+    (void)gen_write(&trk[0], 0);
+    memcpy(one, trk[0].step, sizeof one);
+    memcpy(trk[0].step, keep, sizeof keep);
+    ok = gen_write_prep(&trk[0], 0) && gen_write_commit(&trk[0]) && !memcmp(one, trk[0].step, sizeof one);
+    memcpy(trk[0].step, keep, sizeof keep);
+    gen_defaults(&gen[NPART + 4], GT_EUCLID);
+    gen[NPART + 4].on = 1;
+    gen_sync();
+    ok &= gen_write_prep(TDRUM, NPART + 4) && !gen_write_commit(&trk[0]) && !memcmp(keep, trk[0].step, sizeof keep);
+    gen[0].on = 0;
+    gen_sync();
+    ok &= !gen_write_prep(&trk[0], 0);
+    gen[NPART + 4].on = 0;
+    gen_sync();
+    check("WRITE in two halves (render with the IRQ on, copy with it off) = gen_write; a drum render never on T1; OFF: none", ok);
+}
+
 int main(void)
 {
     euclid_ref_tests();
@@ -447,6 +475,7 @@ int main(void)
     heard_tests();
     det_tests();
     tlv_tests();
+    write_split_tests();
     printf(bad ? "gen test FAILED (%d)\n" : "gen test passed\n", bad);
     return bad;
 }

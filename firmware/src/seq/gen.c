@@ -11,7 +11,7 @@
  *                 It goes down the pattern's own path: the step's events (locks, motion, chance, condition, fill,
  *                 nudge, a lane's values) are its place's, whatever plays there; chance then ENERGY then the
  *                 notes then the ratchets, as a stored step
- *   gen_write     WRITE: the effective steps 1..LEN into the pattern (the UI, the IRQ off; one undo level, which keeps
+ *   gen_write     WRITE (gen_write_prep with the IRQ on, gen_write_commit with it off): the effective steps 1..LEN into the pattern (the UI, the IRQ off; one undo level, which keeps
  *                 the slots' ON states too: the UI turns the slot OFF after it, an undo brings back both)
  *
  * MODE: REPLACE (the generator's hits are the steps; = the old EUCLID writer bit for bit), ADD (the pattern's steps and
@@ -334,29 +334,43 @@ static void gen_render(const track_t *t, step_t *o, uint32_t lanes)
         o[i] = *gen_eff(t, i, &x);
     }
 }
-/* WRITE: what slot plays, into the pattern (the IRQ off; the caller marks the undo level). Only that slot's generator
- * merged (a drum lane: that lane), the others' stay layers. -> 1 something changed */
-static int gen_write(track_t *t, uint32_t slot)
+/* WRITE, in two halves so that the interrupts are off only for the copy (the render is O(LEN x a walk back) of
+ * gen_hit: well over an audio block with long TIE runs): gen_write_prep renders what slot plays into gen_wbuf with the
+ * interrupts on (the main loop), gen_write_commit copies it into the pattern with them off (the caller marks the undo
+ * level). Only that slot's generator merged (a drum lane: that lane), the others' stay layers. A step the ISR records
+ * between the two halves is overwritten, as WRITE overwrites the pattern anyway */
+static step_t gen_wbuf[NSTEP];
+static uint8_t gen_wdrum;                                  /* (gen_wbuf holds dsteps) */
+static int gen_write_prep(const track_t *t, uint32_t slot) /* -> 0: the slot is off, nothing to write */
 {
-    static step_t w[NSTEP];
-    uint32_t i, len = trk_len(t), ch = 0;
     if (!gen[slot % GEN_NSLOT].on)
         return 0;
-    if (is_drum(t)) {
-        gen_render(t, w, 1u << (slot - NPART));
+    gen_wdrum = (uint8_t)is_drum(t);
+    gen_render(t, gen_wbuf, gen_wdrum ? 1u << (slot - NPART) : 0u);
+    return 1;
+}
+static int gen_write_commit(track_t *t)                    /* (the IRQ off) -> 1 something changed */
+{
+    uint32_t i, len = trk_len(t), ch = 0;
+    if (gen_wdrum != (uint8_t)is_drum(t))
+        return 0;                                          /* (prepared for another kind of track) */
+    if (gen_wdrum) {
+        const dstep_t *d = (const dstep_t *)(const void *)gen_wbuf;
         for (i = 0; i < len; i++) {
-            const dstep_t *d = (const dstep_t *)(const void *)w;
             ch |= (uint32_t)(memcmp(&t->dstep[i], &d[i], sizeof d[i]) != 0);
             t->dstep[i] = d[i];
         }
     } else {
-        gen_render(t, w, 0);
         for (i = 0; i < len; i++) {
-            ch |= (uint32_t)(memcmp(&t->step[i], &w[i], sizeof w[i]) != 0);
-            t->step[i] = w[i];
+            ch |= (uint32_t)(memcmp(&t->step[i], &gen_wbuf[i], sizeof gen_wbuf[i]) != 0);
+            t->step[i] = gen_wbuf[i];
         }
     }
     return ch != 0;
+}
+static int gen_write(track_t *t, uint32_t slot)            /* both halves at once (the tests; the IRQ off) */
+{
+    return gen_write_prep(t, slot) ? gen_write_commit(t) : 0;
 }
 
 /* ---- the stored form (the FX record's GEN_TLV, fx/fx_rec.c): a slot not at its defaults, 4 bytes (little-endian):

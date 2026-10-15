@@ -474,7 +474,9 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     dlm_none();                                        /* (none: every drum lane at the centre, heard) */
     smute_untlv(0, 0);                                 /* (none: no sequencer muted) */
 #if GEN_ON
-    gen_untlv(0, 0);                                   /* (none: every note generator off, at its defaults) */
+    gen_untlv(0, 0);                                   /* (none: every note generator off, at its defaults; a song
+                                                        * section without GEN_TLV too, ruled 2026-10-15: a section
+                                                        * plays as it was stored, its generators neutral) */
 #endif
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
