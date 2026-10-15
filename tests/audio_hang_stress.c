@@ -17,6 +17,7 @@
  * hang: the main thread's stack is printed (SIGUSR1, backtrace) and the test exits 3. After every half (det) the
  * state the ISR walks is checked (counts, ring offsets: an inconsistency is a hang to come) and an sti inside the ISR
  * is counted (the device's cli / sti do not nest).
+ * HANG_NEST=1 (sig): TIMER5 (SIGVTALRM) nests into the render, as the FM-1 showed.
  * HOST_DUAL=1 (with FELUCCA_DUAL=2): the second core as a thread (tests/audio_hang_dual.h); with -fsanitize=thread.
  *   env: HANG_MODE=det|sig, HANG_SEED=n, HANG_FRAMES=n (det; default 6000), HANG_SECS=n (sig; default 10), HANG_MS=n */
 #define HOST_IRQ_HOOKS 1
@@ -39,37 +40,69 @@ static void mix_block(int32_t *out, uint32_t n);        /* (audio_hang_dual.h: t
 #include "audio_hang_dual.h"
 #endif
 
-/* ---- the interrupt model */
-static volatile sig_atomic_t in_isr, irq_masked;
-static volatile uint32_t sti_in_isr, cli_in_isr;
+/* ---- the interrupt model. The main loop's cli / sti block / unblock both "interrupts": ALNK0 (SIGALRM, the audio
+ * half) and TIMER5 (SIGVTALRM, sig mode: the 10 kHz tick, the key scan and USB-MIDI in, main.c isr_timer5). HANG_NEST=1:
+ * the global enable stays on inside ALNK0 (the FM-1's crash record, 2026-10-15: icfg bit 9 set in the audio render), so
+ * TIMER5 nests into the render; a cli there holds it off, an sti lets it in again. Inside ALNK0 an sti whose entry state
+ * was off, or an exit with another state than the entry's, is counted (sti_in_isr): it would outlive the interrupt */
+static volatile sig_atomic_t in_isr, irq_masked, isr_ie, nest_on;
+static volatile uint32_t sti_in_isr, cli_in_isr, t5_ticks, t5_nested;
 static int sig_mode;
-static void fm1_irq_off(void)
+static void host_mask(int how)
 {
-    if (in_isr) {
-        cli_in_isr++;
-        return;
-    }
     if (sig_mode) {
         sigset_t s;
         sigemptyset(&s);
         sigaddset(&s, SIGALRM);
-        pthread_sigmask(SIG_BLOCK, &s, 0);
+        sigaddset(&s, SIGVTALRM);
+        pthread_sigmask(how, &s, 0);
     }
+}
+static void t5_mask(int how)                            /* (inside ALNK0: TIMER5 alone) */
+{
+    if (sig_mode) {
+        sigset_t s;
+        sigemptyset(&s);
+        sigaddset(&s, SIGVTALRM);
+        pthread_sigmask(how, &s, 0);
+    }
+}
+static uint32_t host_irq_ie(void) { return in_isr ? (uint32_t)isr_ie : !irq_masked; }
+static void *sti_where[16];                             /* the callers of an sti inside the ISR (one each) */
+static uint32_t sti_nwhere;
+static void sti_seen(void *ra)
+{
+    uint32_t i;
+    sti_in_isr++;
+    for (i = 0; i < sti_nwhere && sti_where[i] != ra; i++)
+        ;
+    if (i == sti_nwhere && i < 16u)
+        sti_where[sti_nwhere++] = ra;
+}
+static void fm1_irq_off(void)
+{
+    if (in_isr) {
+        cli_in_isr++;
+        isr_ie = 0;
+        if (nest_on)
+            t5_mask(SIG_BLOCK);
+        return;
+    }
+    host_mask(SIG_BLOCK);
     irq_masked = 1;
 }
 static void fm1_irq_on(void)
 {
     if (in_isr) {
-        sti_in_isr++;                                   /* (on the FM-1 this would let a higher interrupt in) */
+        if (!nest_on)
+            sti_seen(__builtin_return_address(0));      /* (the entry state was off: this one outlives the interrupt) */
+        isr_ie = 1;
+        if (nest_on)
+            t5_mask(SIG_UNBLOCK);
         return;
     }
     irq_masked = 0;
-    if (sig_mode) {
-        sigset_t s;
-        sigemptyset(&s);
-        sigaddset(&s, SIGALRM);
-        pthread_sigmask(SIG_UNBLOCK, &s, 0);
-    }
+    host_mask(SIG_UNBLOCK);
 }
 
 static uint64_t mono_ns(void)
@@ -93,6 +126,9 @@ static uint32_t seed0, rs;
 static const char *where_now = "setup";                /* the main loop's action (printed on a hang) */
 static volatile const char *isr_where = "-";
 
+static uint32_t sec_applied(void);
+static uint32_t hk_restores_n(void);
+static uint32_t sec_taken;                              /* live section requests the ISR took (applied or missed) */
 static uint32_t R(uint32_t n) { rs = rs * 1664525u + 1013904223u; return n ? (rs >> 8) % n : 0u; }
 
 /* ---- the state the ISR walks: consistent after every half (det mode) */
@@ -124,24 +160,77 @@ static int bad_state(char *why, size_t n)
     return 0;
 }
 
+#if FELUCCA_PATTERNS
+/* song mode's STOP / PLAY in the ISR (seq/arranger_scene.c song_backup / song_restore, from seq_start / seq_stop: the
+ * host tests stub them): the loop put aside, then applied whole (proj_apply all: fxr_decode's slot puts) */
+static project_t hk_keep;
+static dlrec_t hk_keep_dl;
+static uint8_t hk_have;
+static uint32_t hk_restores;
+static void host_song_keep(void)
+{
+    if (!hk_have) {
+        proj_capture(&hk_keep, &hk_keep_dl);
+        hk_have = 1;
+    } else {
+        uint32_t i;
+        hk_have = 0;
+        for (i = 0; i < NTRK; i++) {
+            trk_all_off(&trk[i]);
+            trk[i].nheld = trk[i].arp_phys = trk[i].arp_note = 0;
+        }
+        proj_apply(&hk_keep, &hk_keep_dl, 1);
+        hk_restores++;
+    }
+}
+#endif
+
 /* ---- one audio half, as audio.c fm1_alnk0_irq */
 static void isr_half(void)
 {
     static int32_t o[2u * HALF_FRAMES];
     uint32_t b;
     uint64_t t0 = cpu_ns(), d;
+    int8_t lr = live_req;
+    isr_ie = nest_on;                                   /* (the global enable at the entry: HANG_NEST) */
     in_isr = 1;
     isr_t0 = t0;
     for (b = 0; b < HALF_FRAMES; b += CTL) {
         isr_where = "mix_block";
         mix_block(o + 2u * b, CTL);
     }
+#if FELUCCA_PATTERNS
+    if (R(64) == 0) {                                   /* (R in the ISR: det mode only draws it here in order) */
+        undo_isr = 1;                                   /* (as in events_block: seq_start / seq_stop) */
+        host_song_keep();
+        undo_isr = 0;
+    }
+#endif
     d = cpu_ns() - t0;
     if (d > isr_max_ns)
         isr_max_ns = d;
     halves++;
+    sec_taken += lr >= 0 && live_req < 0;
     isr_t0 = 0;
+    if (isr_ie != nest_on)
+        sti_seen(__builtin_return_address(0));          /* (the ISR left another state than it found) */
     in_isr = 0;
+}
+/* TIMER5's tick (sig mode, SIGVTALRM, ~10 kHz of CPU time): the key scan's new state, USB-MIDI in now and then */
+static volatile uint32_t kb_next;
+static uint32_t t5_rs = 7;
+static void on_t5(int sig)
+{
+    (void)sig;
+    t5_ticks++;
+    t5_nested += in_isr != 0;
+    fm1_in.notes = kb_next;                             /* (fm1_input_tick: the matrix scanned) */
+    t5_rs = t5_rs * 1664525u + 1013904223u;
+    if (!(t5_rs >> 26)) {                               /* (usb_poll / usb_rx_peek: a note from the computer) */
+        uint32_t n = 36u + (t5_rs >> 8) % 48u, on = (t5_rs >> 16) & 1u;
+        (void)midi_in_enqueue((on ? 0x09u | 0x90u << 8 | 100u << 24 : 0x08u | 0x80u << 8) | n << 16, MSRC_USB, 0);
+    }
+    fm1_ms += (t5_ticks % 10u) == 0u;                   /* (a millisecond every 10 ticks) */
 }
 static void on_alarm(int sig)
 {
@@ -204,28 +293,33 @@ static void act_notes(void)
     uint32_t r = R(16), k = R(27);
     where_now = "notes";
     if (r < 5)
-        fm1_in.notes |= 1u << k;                        /* a key down */
+        kb_next |= 1u << k;                        /* a key down */
     else if (r < 9)
-        fm1_in.notes &= ~(1u << k);                     /* a key up (or none) */
+        kb_next &= ~(1u << k);                     /* a key up (or none) */
     else if (r < 11) {                                  /* a chord at once */
         uint32_t i, m = 0;
         for (i = 0; i < 2u + R(4); i++)
             m |= 1u << R(27);
-        fm1_in.notes = R(2) ? m : (fm1_in.notes | m);
+        kb_next = R(2) ? m : (kb_next | m);
     } else if (r < 12)
-        fm1_in.notes = 0;                               /* every key up */
+        kb_next = 0;                               /* every key up */
     else if (r < 14) {                                  /* the same note again, an audio block apart or not */
-        uint32_t m = fm1_in.notes;
-        fm1_in.notes &= ~(1u << k);
+        uint32_t m = kb_next;
+        kb_next &= ~(1u << k);
+        if (!sig_mode)
+            fm1_in.notes = kb_next;
         maybe_isr();
-        fm1_in.notes = m | 1u << k;
-    } else if (fm1_in.notes) {                          /* one held key up, another down */
+        kb_next = m | 1u << k;
+    } else if (kb_next) {                          /* one held key up, another down */
         uint32_t i;
-        for (i = 0; i < 27u && !((fm1_in.notes >> i) & 1u); i++)
+        for (i = 0; i < 27u && !((kb_next >> i) & 1u); i++)
             ;
-        fm1_in.notes = (fm1_in.notes & ~(1u << i)) | 1u << k;
+        kb_next = (kb_next & ~(1u << i)) | 1u << k;
     }
+    if (!sig_mode)
+        fm1_in.notes = kb_next;                         /* (sig mode: TIMER5's scan takes it) */
 }
+
 static void act_buttons(void)
 {
     uint32_t bt = R(NB);
@@ -333,6 +427,13 @@ static void act_misc(void)
         where_now = "rec";
         if (R(4) == 0 || (!song.rec && !rec_wait))
             (void)op_rec();
+    } else if (r < 10 + 1 && R(2)) {
+        where_now = "section";                          /* a live section stored, or one asked for (the ISR applies it on
+                                                         * the next bar: proj_apply, fxr_decode) */
+        if (R(3) == 0)
+            section_store(R(4));
+        else if (song.playing)
+            (void)section_cue(R(4));
     } else if (r < 11) {
         where_now = "play";
         if (!song.playing || R(8) == 0)
@@ -348,6 +449,22 @@ static void act_misc(void)
     }
 }
 
+static uint32_t sec_applied(void)
+{
+#if FELUCCA_PATTERNS
+    return sec_taken - sec_misses;
+#else
+    return 0;
+#endif
+}
+static uint32_t hk_restores_n(void)
+{
+#if FELUCCA_PATTERNS
+    return hk_restores;
+#else
+    return 0;
+#endif
+}
 static void stress_frame(void)
 {
     uint32_t n = 1u + R(4), i;
@@ -398,8 +515,8 @@ static void stress_frame(void)
     fxi_poll();
 #endif
 #if FELUCCA_PATTERNS
-    where_now = "pat_service";
-    pat_service();
+    where_now = "sec_service";
+    sec_service();                                      /* (main.c: the next section staged, the launches: pat_service) */
 #endif
     maybe_isr();
     where_now = "ui_leds";
@@ -437,6 +554,7 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
     sig_mode = m && !strcmp(m, "sig");
+    nest_on = (e = getenv("HANG_NEST")) && atoi(e);
     seed0 = (e = getenv("HANG_SEED")) ? (uint32_t)strtoul(e, 0, 0) : 20261015u;
     if ((e = getenv("HANG_FRAMES")))
         nf = strtoull(e, 0, 0);
@@ -473,6 +591,25 @@ int main(int argc, char **argv)
     op_play();
     frames(2);
     (void)op_rec();
+#if FELUCCA_PATTERNS
+    {   /* song mode's PLAY / STOP and a live section, applied as the ISR does: the interrupt state stays as it was */
+        uint32_t s0 = sti_in_isr;
+        isr_ie = 0;
+        in_isr = 1;
+        undo_isr = 1;
+        host_song_keep();                               /* (the loop put aside: proj_capture) */
+        host_song_keep();                               /* (and applied whole: proj_apply all, fxr_decode's slot puts) */
+        proj_apply(&hk_keep, &hk_keep_dl, 0);           /* (a section's way: the slots kept) */
+        undo_isr = 0;
+        in_isr = 0;
+        if (sti_in_isr != s0) {
+            fprintf(stderr, "song restore / section apply in the ISR: %u sti\n", sti_in_isr - s0);
+            backtrace_symbols_fd(sti_where, (int)sti_nwhere, 2);
+            return 5;
+        }
+        printf("song restore and section apply inside the ISR: interrupt state unchanged\n");
+    }
+#endif
     main_th = pthread_self();
     {
         struct sigaction sa;
@@ -483,15 +620,24 @@ int main(int argc, char **argv)
         sigaction(SIGUSR1, &sa, 0);
         sigemptyset(&s);
         sigaddset(&s, SIGALRM);
-        pthread_sigmask(SIG_BLOCK, &s, 0);              /* (the watchdog thread never takes the "interrupt") */
+        sigaddset(&s, SIGVTALRM);
+        pthread_sigmask(SIG_BLOCK, &s, 0);              /* (the watchdog thread never takes the "interrupts") */
         pthread_create(&w, 0, watchdog, 0);
         pthread_sigmask(SIG_UNBLOCK, &s, 0);
         if (sig_mode) {
-            struct itimerval it = {{0, 0}, {0, 200}};
+            struct itimerval it = {{0, 0}, {0, 200}}, t5 = {{0, 100}, {0, 100}};
             memset(&sa, 0, sizeof sa);
             sa.sa_handler = on_alarm;
             sigaddset(&sa.sa_mask, SIGALRM);
+            if (!nest_on)
+                sigaddset(&sa.sa_mask, SIGVTALRM);      /* (no nesting: TIMER5 waits for the render's end) */
             sigaction(SIGALRM, &sa, 0);
+            memset(&sa, 0, sizeof sa);
+            sa.sa_handler = on_t5;
+            sigaddset(&sa.sa_mask, SIGALRM);            /* (TIMER5 outranks ALNK0) */
+            sigaddset(&sa.sa_mask, SIGVTALRM);
+            sigaction(SIGVTALRM, &sa, 0);
+            setitimer(ITIMER_VIRTUAL, &t5, 0);
             setitimer(ITIMER_REAL, &it, 0);
         }
     }
@@ -502,6 +648,7 @@ int main(int argc, char **argv)
         {
             struct itimerval it = {{0, 0}, {0, 0}};
             setitimer(ITIMER_REAL, &it, 0);
+            setitimer(ITIMER_VIRTUAL, &it, 0);
         }
     } else {
         for (f = 0; f < nf; f++)
@@ -523,11 +670,16 @@ int main(int argc, char **argv)
         for (i = 0; i < NTRK; i++)
             ev += AUTO_L(i)->n;
 #endif
+        if (sti_in_isr) {                               /* the interrupt state must be as the ISR found it */
+            fprintf(stderr, "STI INSIDE THE ISR: %u (cli %u), from:\n", sti_in_isr, cli_in_isr);
+            backtrace_symbols_fd(sti_where, (int)sti_nwhere, 2);
+            return 5;
+        }
         printf("audio_hang_stress %s seed %u: %llu frames, %llu halves, longest half %.2f ms CPU, notes in the patterns %u, "
-               "automation events %u, cli / sti inside the ISR %u / %u, frames playing %llu recording %llu with keys %llu, in a free take %llu: no hang\n",
+               "automation events %u, cli / sti inside the ISR %u / %u, sections applied %u, song restores %u, frames playing %llu recording %llu with keys %llu, in a free take %llu, TIMER5 ticks %u (inside the render %u): no hang\n",
                sig_mode ? "sig" : "det", seed0, (unsigned long long)frames_done, (unsigned long long)halves,
-               (double)isr_max_ns / 1e6, notes, ev, cli_in_isr, sti_in_isr, (unsigned long long)play_frames,
-               (unsigned long long)rec_frames, (unsigned long long)key_frames, (unsigned long long)ft_frames);
+               (double)isr_max_ns / 1e6, notes, ev, cli_in_isr, sti_in_isr, sec_applied(), hk_restores_n(), (unsigned long long)play_frames,
+               (unsigned long long)rec_frames, (unsigned long long)key_frames, (unsigned long long)ft_frames, t5_ticks, t5_nested);
     }
     return 0;
 }

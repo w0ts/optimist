@@ -646,6 +646,8 @@ job; ( jobin
     CC="$CC" bash tests/audio_hang_build.sh "$OUT/audio_hang_dual" -DHOST_DUAL=1
     run "live recording under random keys and edits, the audio half at random points: no hang, the ISR's state consistent (seed 20261015)" env HANG_FRAMES=6000 "$OUT/audio_hang_stress"
     run "... the second core as a thread, the jobs split at random (seed 7)" env HANG_FRAMES=4000 HANG_SEED=7 "$OUT/audio_hang_dual"
+    run "... song mode STOP / live sections applied inside the ISR: no sti there (fx_slots.c IRQ_SAVE), the state as found" env HANG_FRAMES=1500 HANG_SEED=3 "$OUT/audio_hang_stress"
+    run "... preempted at any instruction, TIMER5 nesting into the render (HANG_NEST, as the FM-1 showed)" env HANG_MODE=sig HANG_NEST=1 HANG_SECS=4 "$OUT/audio_hang_stress"
 ) >"$U.out" 2>&1 & jobbg
 # the Optimist UI (FELUCCA_UI=1, ui/optimist): rows, keys, the confirm, undo / redo, the layers, TEMPO, SONG, messages,
 # fuzz; five switch sets (the last on the real section log with PATTERNS)

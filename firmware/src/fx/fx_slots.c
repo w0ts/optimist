@@ -186,14 +186,14 @@ static void fxs_fix(void)
             rsl[fxs_line[k]] = (uint8_t)k;
         }
     }
-    fm1_irq_off();
+    IRQ_SAVE(ie);
     fxs_live = live, fxs_lnl = (uint8_t)lnl;
     for (k = 0; k < 3u; k++)
         fxs_rty[k] = rty[k], fxs_rsl[k] = rsl[k];
     fxs_lm[0] = lnl >> 2 & 1u ? 31u : 0u;              /* (REV DLY CHO: lines 2 1 0) */
     fxs_lm[1] = lnl >> 1 & 1u ? 31u : 0u;
     fxs_lm[2] = lnl & 1u ? 31u : 0u;
-    fm1_irq_on();
+    IRQ_RESTORE(ie);
     FXI_ASK(1u);                                       /* (a send back in a slot: its line, if lent, back; a return's
                                                         * limited type: its instance, fxi.c) */
 }
@@ -485,11 +485,11 @@ static void ins_put(uint32_t k, const uint8_t *s)
     uint32_t a = s[0] < FXT_N && (FXT_INSERT >> s[0] & 1u) ? s[0] : (uint32_t)FXT_NONE;
     uint32_t b = s[1] < FXT_N && (FXT_INSERT >> s[1] & 1u) && s[1] != a ? s[1] : (uint32_t)FXT_NONE;
     k %= NTRK;
-    fm1_irq_off();
+    IRQ_SAVE(ie);
     ins_slot[k][0] = (uint8_t)a, ins_slot[k][1] = (uint8_t)b;
     ins_live[k] = (FXT_BIT(a) | FXT_BIT(b)) & FXT_BUILT & FXT_INSERT;
     FXI_ASK(1u);                                       /* (a limited type's instance: fxi.c, the main loop) */
-    fm1_irq_on();
+    IRQ_RESTORE(ie);
 }
 /* track k's slot holding type t: 1 S1, 2 S2, 0 none (or not built) */
 static uint32_t ins_has(uint32_t k, uint32_t t)
@@ -557,10 +557,10 @@ static void mst_put(const uint8_t *s)                  /* the master's slots fro
 {
     uint32_t a = s[0] < FXT_N && (FXT_INSERT >> s[0] & 1u) ? s[0] : (uint32_t)FXT_NONE;
     uint32_t b = s[1] < FXT_N && (FXT_INSERT >> s[1] & 1u) && s[1] != a ? s[1] : (uint32_t)FXT_NONE;
-    fm1_irq_off();
+    IRQ_SAVE(ie);
     mst_slot[0] = (uint8_t)a, mst_slot[1] = (uint8_t)b;
     mst_live = (FXT_BIT(a) | FXT_BIT(b)) & MST_OK;
-    fm1_irq_on();
+    IRQ_RESTORE(ie);
     FXI_ASK(1u);                                       /* (JUNO CHORUS: the master's instance, fxi.c) */
 }
 static void mst_load(uint32_t s, uint32_t t)           /* type t into the master's slot s (the other's type swaps them) */
@@ -654,7 +654,7 @@ static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (th
     w[0] = ut.slot[0], w[1] = ut.slot[1];
     if (t == w[s])
         return;
-    fm1_irq_off();
+    IRQ_SAVE(ie);
     if (t != FXT_NONE && w[s ^ 1u] == t) {
         int16_t a = ut.amt[0];
         ut.amt[0] = ut.amt[1], ut.amt[1] = a;
@@ -662,7 +662,7 @@ static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (th
     } else
         ut.amt[s] = t == FXT_EQ3 ? 1 : 0;                /* (EQ3: ON; another type from 0) */
     ut.slot[s] = (uint8_t)t;
-    fm1_irq_on();
+    IRQ_RESTORE(ie);
 }
 #endif
 
@@ -689,9 +689,9 @@ static void lin_put(uint32_t l, const uint8_t *s)      /* lane l's slots (a type
 {
     uint32_t a = s[0] < FXT_N && (LIN_OK >> s[0] & 1u) ? s[0] : (uint32_t)FXT_NONE;
     uint32_t b = s[1] < FXT_N && (LIN_OK >> s[1] & 1u) && s[1] != a ? s[1] : (uint32_t)FXT_NONE;
-    fm1_irq_off();
+    IRQ_SAVE(ie);
     lin_slot[l % DRUM_LANES][0] = (uint8_t)a, lin_slot[l % DRUM_LANES][1] = (uint8_t)b;
-    fm1_irq_on();
+    IRQ_RESTORE(ie);
 }
 static void lin_defaults(void)
 {
