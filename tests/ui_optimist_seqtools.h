@@ -268,19 +268,42 @@ static void seqtools_tests(void)
         tap(B_SAVE);
         for (i = 0, ok = 1; i < 16u; i++)
             ok &= !memcmp(&t->step[i], &w[i], sizeof w[i]);
-        check(!op_armed() && ok && gen[0].on, "... YES: what played is the pattern now (step for step), the generator still on");
+        check(!op_armed() && ok && !gen[0].on && !(gen_trk & 1u) && strstr(ui.msg, "GEN OFF"),
+              "... YES: what played is the pattern now (step for step), the generator OFF");
         {
             step_t w2[NSTEP];
             gen_render(t, w2, ~0u);
             for (i = 0, ok = 1; i < 16u; i++)
                 ok &= !memcmp(&w2[i], &w[i], sizeof w[i]);
-            check(ok, "... and plays the same over its own output");
+            check(ok, "... and plays what the generator played");
         }
         stt_undo();
         for (i = 0, n = 0; i < 16u; i++)
             n += tl_gate(&t->step[i]);
-        check(n == 1u && tl_gate(&t->step[3]), "... SAVE then HOME: the WRITE undone (the pattern as it was)");
-        turn(EN_K1, -1);
+        check(n == 1u && tl_gate(&t->step[3]) && gen[0].on && (gen_trk & 1u),
+              "... SAVE then HOME: one undo brings back both, the pattern as it was and the generator ON");
+        press(B_OCTDN);                                 /* redo (OCT- held, SAVE: op_combos.c) */
+        press(B_SAVE);
+        release(B_SAVE);
+        release(B_OCTDN);
+        for (i = 0, ok = 1; i < 16u; i++)
+            ok &= !memcmp(&t->step[i], &w[i], sizeof w[i]);
+        check(ok && !gen[0].on, "... redo: written again, the generator OFF again");
+        stt_undo();
+        {   /* the cards keep their places, ON or OFF: WRITE's place an empty cell while OFF */
+            cell_t on[4], off[4];
+            uint32_t j;
+            for (j = 0; j < 4u; j++)
+                tl_cell(2, j, &on[j]);
+            turn(EN_K1, -1);
+            for (j = 0, ok = !gen[0].on; j < 4u; j++) {
+                tl_cell(2, j, &off[j]);
+                ok &= j == 2u ? on[j].kind == CK_ACT && off[j].kind == CK_NONE && !off[j].label
+                              : on[j].kind == off[j].kind && (on[j].label == off[j].label || !strcmp(on[j].label, off[j].label));
+            }
+            check(ok && !strcmp(on[0].label, "GEN") && !strcmp(on[1].label, "MODE") && on[3].kind == CK_NONE,
+                  "GEN OUT's cards in the same places ON and OFF (GEN, MODE, WRITE or an empty cell, none)");
+        }
         {
             cell_t c;
             tl_cell(2, 2, &c);
@@ -347,6 +370,16 @@ static void seqtools_tests(void)
               "GEN on a lane: 4 of 16 played in LOW TOM, stored nothing, the other lanes as they were");
         frame();
         ppm("opt-gen-out-lane");
+        turn(EN_K3, 1);
+        stt_yes();                                      /* WRITE, YES */
+        for (i = 0, n = 0; i < 16u; i++)
+            n += (uint32_t)dstep_has(&t->dstep[i], 9);
+        check(n == 4u && !gen[NPART + 9].on && !(gen_lanes >> 9 & 1u), "WRITE on a lane: its 4 hits stored, the lane's generator OFF");
+        stt_undo();
+        for (i = 0, n = 0; i < 16u; i++)
+            n += (uint32_t)dstep_has(&t->dstep[i], 9);
+        check(n == 0u && gen[NPART + 9].on && (gen_lanes >> 9 & 1u) && (gen_trk >> TRK_DRUM & 1u),
+              "... one undo: the lane as it was, its generator ON");
     }
     gen_reset_all();
     memset(t->dstep, 0, sizeof t->dstep);

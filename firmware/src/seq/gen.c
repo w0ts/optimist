@@ -11,7 +11,8 @@
  *                 It goes down the pattern's own path: the step's events (locks, motion, chance, condition, fill,
  *                 nudge, a lane's values) are its place's, whatever plays there; chance then ENERGY then the
  *                 notes then the ratchets, as a stored step
- *   gen_write     WRITE: the effective steps 1..LEN into the pattern (the UI, the IRQ off; one undo level)
+ *   gen_write     WRITE: the effective steps 1..LEN into the pattern (the UI, the IRQ off; one undo level, which keeps
+ *                 the slots' ON states too: the UI turns the slot OFF after it, an undo brings back both)
  *
  * MODE: REPLACE (the generator's hits are the steps; = the old EUCLID writer bit for bit), ADD (the pattern's steps and
  * the hits), MASK (the pattern's steps only where it hits). A generated hit on a synth track plays the pattern's NOTE
@@ -25,10 +26,7 @@
  * and the slot, so a pass plays as the one before, PLAY, a loop start or a launched pattern start it in step, and WRITE
  * writes what was heard). RANDOM draws its own hash, never rng(): the chance rolls stay as they were. Off: one byte
  * tested a step (gen_trk), nothing else. */
-#ifndef GEN_BUILT
-#define GEN_BUILT (FELUCCA_SEQTOOLS && FELUCCA_UI == 1)   /* (the Optimist UI's pages set them; tests/gen_test.c: 1 alone) */
-#endif
-#if GEN_BUILT
+#if GEN_BUILT                                            /* (seq.c, before undo.c) */
 #define GEN_ON 1
 #define GEN_NP 3u                                        /* values a generator */
 #define GEN_NSLOT (NPART + DRUM_SLANES)
@@ -143,6 +141,26 @@ static void gen_sync(void)                               /* gen_trk, gen_lanes f
         lm |= (uint32_t)(gen[NPART + l].on != 0) << l;
     gen_lanes = lm;
     gen_trk = (uint8_t)(m | (lm ? 1u << TRK_DRUM : 0u));
+}
+/* track k's slots ON, a bit each (a synth track: bit 0; the drum track: a bit a lane); undo.c keeps it with the pattern */
+static uint32_t gen_on_mask(uint32_t k)
+{
+    uint32_t l, m = 0;
+    if (k < NPART)
+        return gen[k].on != 0;
+    for (l = 0; l < DRUM_SLANES; l++)
+        m |= (uint32_t)(gen[NPART + l].on != 0) << l;
+    return m;
+}
+static void gen_on_put(uint32_t k, uint32_t m)          /* (undo, redo: the IRQ off or the ISR) */
+{
+    uint32_t l;
+    if (k < NPART)
+        gen[k].on = (uint8_t)(m & 1u);
+    else
+        for (l = 0; l < DRUM_SLANES; l++)
+            gen[NPART + l].on = (uint8_t)((m >> l) & 1u);
+    gen_sync();
 }
 static void gen_reset_all(void)                          /* every slot off, EUCLID at its defaults (power-on, a load without any) */
 {

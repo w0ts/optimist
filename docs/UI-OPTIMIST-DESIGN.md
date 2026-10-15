@@ -2689,7 +2689,7 @@ event and plays the step always.
 |---|---|---|---|---|---|
 | TOOLS | REVERSE | RANDOM | COOK | LENGTH: x2 (turned right) / 1/2 (left) | does the hot card; a toast (*T1 REVERSED*, *SNARE RANDOM*, *DOUBLED: 32 STEPS*, *PATTERN FULL*); one undo each |
 | GEN | TYPE (EUCLID RANDOM PULSE) | value 1 | value 2 | value 3 | - (every turn heard at the next step; nothing written) |
-| GEN OUT | GEN (ON / OFF) | MODE (REPLACE ADD MASK) | WRITE (over T1 or the lane's code; no card while OFF) | - | ON toggles; WRITE asks *WRITE T1?*, YES writes (one undo) |
+| GEN OUT | GEN (ON / OFF) | MODE (REPLACE ADD MASK) | WRITE (over T1 or the lane's code; OFF: an empty cell, the cards never move) | - | ON toggles; WRITE asks *WRITE T1?*, YES writes and turns it OFF (one undo: both back) |
 
 A turn of a TOOLS card arms it (its YES), so a knob bumped does nothing. The scope is ALGORITHM's: a synth track; DR
 itself the whole kit; a drum lane walked to that lane only (REVERSE RANDOM COOK; GEN on DR itself the last picked
@@ -2720,8 +2720,9 @@ lane, named on WRITE). LENGTH is always the whole pattern. What they do (Felucca
   ROOT near C4; a TIE goes on only while its note does; a lane's hit keeps the pattern's level and ratchet (RANDOM's
   accent, PULSE's ratchet laid over). Each generator is a pure function of its values and the step: a pass plays as
   the one before, PLAY and a launched pattern start it from step 1, and **WRITE** (asks) writes exactly what plays into
-  steps 1..LEN as ordinary steps (one undo level; the events stay where they are; the generator as it was: every mode
-  plays the same over its own output). OFF never touches the pattern (the *KEEP?* question is gone). The grid draws
+  steps 1..LEN as ordinary steps and turns the slot OFF (the user, 2026-10-15: its output is baked into the pattern);
+  one undo level brings back the pattern and the slot's ON (`seq/undo.c` keeps the ON states with the steps, header bit
+  UREC_GEN); the events stay where they are. OFF never touches the pattern (the *KEEP?* question is gone). The grid draws
   what plays: a generated hit or note outlined, a pattern's hit silenced a dim stub. Saved with the project and each
   scene (the FX record's TLV 0x4B GEN_TLV, 5 bytes a slot not at its defaults; none: every slot off). A new generator
   is an entry of `GEN_TYPES` (its name, three values, a fit, its step function, its state).

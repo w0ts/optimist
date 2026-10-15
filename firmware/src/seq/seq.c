@@ -454,7 +454,15 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #include "../drums/lane_play.c"   /* the drum lanes at the hit: their automation and LFOs (drum_edit.c dl_ofs_play) */
 
 /* ------------------------------------------------------------- undo --- */
-/* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c */
+/* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c. The note generators'
+ * ON states (gen.c, below) go with a track's pattern: WRITE turns its slot OFF, one undo brings both back */
+#ifndef GEN_BUILT
+#define GEN_BUILT (FELUCCA_SEQTOOLS && FELUCCA_UI == 1)   /* (the Optimist UI's pages set them; tests/gen_test.c: 1 alone) */
+#endif
+#if GEN_BUILT
+static uint32_t gen_on_mask(uint32_t k);
+static void gen_on_put(uint32_t k, uint32_t m);
+#endif
 #include "undo.c"
 
 /* ------------------------------------------------------- recording --- */

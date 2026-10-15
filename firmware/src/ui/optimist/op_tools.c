@@ -9,8 +9,9 @@
  *   GEN     TYPE · its three values (EUCLID: HITS STEPS ROT; RANDOM: DENSITY SEED ACCENT; PULSE: EVERY OFFSET
  *           RATCHET): the note generator of the track (a drum track: of its selected lane), seq/gen.c, a layer played
  *           over the pattern, never written into it; a turn is heard at the next step. HOME + a knob: its default.
- *   GEN OUT GEN (ON / OFF: the pattern untouched either way) · MODE (REPLACE ADD MASK) · WRITE (asks: what plays,
- *           into the pattern as ordinary steps, one undo level; the generator stays as it was) · the slot (a read-out).
+ *   GEN OUT GEN (ON / OFF: the pattern untouched either way) · MODE (REPLACE ADD MASK) · WRITE (over T1 or the lane's
+ *           code; asks: what plays, into the pattern as ordinary steps, and the slot OFF; one undo level brings back
+ *           both, the pattern and ON) · KNOB 4 none. Every card keeps its place: OFF, WRITE's place is an empty cell.
  *
  * The scope is ALGORITHM's: a synth track; DR itself the whole kit; a drum lane (lane_picked) that lane only
  * (REVERSE RANDOM COOK; GEN on DR itself the last picked lane, shown on GEN OUT). LENGTH is the whole pattern.
@@ -571,13 +572,15 @@ static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRIT
         op_arm(SCR_STEP, ui.row[SCR_STEP], 2, "WRITE", a, 0);
         return 1;
     }
-    tl_mark(t);                                         /* (one undo level: the pattern as it was) */
+    tl_mark(t);                                         /* (one undo level: the pattern and the slot's ON, seq/undo.c) */
     fm1_irq_off();
     (void)gen_write(t, ng_slot());
+    gen[ng_slot() % GEN_NSLOT].on = 0;                  /* (baked: it plays as the pattern now, the generator OFF) */
+    gen_sync();
     t->seq_active = 1;
     fm1_irq_on();
     sync_reload = 1;
-    tl_say(ng_who(), " WRITTEN");
+    tl_say(ng_who(), " WRITTEN, GEN OFF");
     return 1;
 }
 
