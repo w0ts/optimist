@@ -91,6 +91,8 @@ static void btnled_tests(void)
         bk_set(BK_SYN, SCR_SYSTEM);
         check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SYSTEM: both dark");
         bk_set(BK_SYN, SCR_GLOBAL);
+        ui.row[SCR_GLOBAL] = (uint8_t)(gl_n(0) - 1u);   /* (the last line: page 0 holds Tempo's lines, and its first section includes TUNE since fx-rework) */
+        frames(2);
         check(led_lvl(B_OCTUP) == 0, "OCT LEDs, GLOBAL (off the tempo line): OCT+ dark");
         bk_set(BK_SYN, SCR_FX);
         check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, the master FX: both dark");

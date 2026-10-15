@@ -204,9 +204,9 @@ static void mixer_sets_tests(void)
         dsend_kit[0] = v0;
         mx.set = 0;
     }
-    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", "DRIVE", "S1") &&
-              (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "DST", "S2", FELUCCA_MASTER_COMP ? "DYN" : 0, 0)),
-          "a lane: LEVEL CUT DRIVE S1 (no MUTE card), then its insert slots DST, S2 DYN (fx-rework: always heard)");
+    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", "DRIVE", 0) &&
+              (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "S1", "DST", "S2", FELUCCA_MASTER_COMP ? "DYN" : 0)),
+          "a lane: LEVEL CUT DRIVE (no MUTE card), then its two insert slots S1 DST, S2 DYN (fx-rework: always heard)");
     check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0),
           "... then REV DLY CHO (no SOUND card)");
     mst_defaults();
