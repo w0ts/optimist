@@ -1,5 +1,15 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
+> **Landed state, 2026-10-15 (what is built on `optimist` at 5756d5ac; where the sections below say otherwise, this list and the banners above win).**
+> - **Gestures:** SHIFT = OCT- held, SHIFT2 = OCT+ held (the banner above). HOME is only HOME / NO. OCT- / OCT+ glow only where they do something, like any button; ARP and SCL are dark on the drum track and its lanes, and SAVE is dark on STEP lines with no YES action. SAVE works on GLOBAL, SYSTEM and PROJECT's read-outs (YES, else PROJECT).
+> - **No preset rows:** no SOUND and no FAVS row on EDIT (the SOUND row, the mixer's PRESET and FX ON cards, PAN / MUTE on EDIT, the drum LANE card and the ARP / LANE rows on STEP are gone). Presets are picked with PRESETS; SHIFT + PRESETS steps the engine. Favorites: SHIFT2 + PRESETS marks, SHIFT2 + SELECT browses only them (section 37 words the old FAVS row). INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE.
+> - **PROJECT:** the storage rows are BANK, ACTION, ITEM (+ NEW on PROJECT); the actions are LOAD / SAVE / DELETE (a project slot is cleared through the section log's tombstones, asked first); a key selects the slot of the bank and runs the action; OCT- / OCT+ tapped on the page pick the previous or next bank (toast and LEDs); a user preset's LOAD over an edited sound is asked in red.
+> - **Mixer:** the sends set is REV DLY CHO (blank where no slot holds one) and a fourth card PAN on the synth tracks, the drum track and the drum lanes; a muted track is struck through (the banner above); the ACCENT row's MUTE is the lane's sequencer mute.
+> - **Effects pages:** the master FX screen reads INSERTS (S1 / S2 TYPE and amount), INS DYN 1 (THRS RATIO ATK REL) and INS DYN 2 (GAIN CEIL GR) while a master slot holds DYN, DUCK, then the returns (R1 R2 R3); the mixer's MASTER row has INSERT, INS DYN (THRS RATIO GAIN CEIL), RETURNS, DUCK; a track's FX family has DYN (THRS RATIO GAIN CEIL) and DYN 2 (ATK REL). TUNE is on GLOBAL's Tempo list. Every drum sound has two insert slots.
+> - **Modulation:** ENV DEST, ENV2 DEST and LFO DEST each have DST A / AMT A / DST B / AMT B from one shared list (LFO and ENV rates and amounts included); VOICE 2 is ALLOC, DETUNE, VOICES, DROP (VOICES: 1 to the engine's maximum, never AUTO). The p-locks reach the ARP and SCL pages; EUCLID is a note generator with ON / OFF; a drum step tapped cycles normal, hard, ghost, off.
+> - **GLOBAL / SYSTEM:** the title is in the top bar (long ones in their short form), the cursor line is drawn inverted, ALGORITHM scrolls the lines; GLOBAL's MIDI page reads CLK IN, CLK OUT, MIDI IN, MIDI OUT (SYNC is PLAY's TEMPO page 4th card; fixed SYNC reads Int / USB / TRS); the MIDI IN setting is removed from the Optimist UI (it ignores settings bit 15; the router never drops notes). SYSTEM > INFO shows the battery as n/3 raw (no volts), each core's load, CPU1 JOB / REWAKE and CPU1 STOP (when and where it stopped), and, in a USB audio build, the USB AUDIO lines (underruns, overruns, missed, feedback, ring low, poll gaps, flash IRQ-off), which have no bar.
+> - **Boot logo:** the dinghy splash is always built (the SPLASH builder item is retired; sections below that mention a ring logo or a logo choice are history).
+
 > **2026-10-15: a muted track is struck through** (a 1 px line, 2 in the large face, in the text's own colour through the glyphs' middle): its mixer row's name, the header badge ("2 DIGITAL") on its pages, and its volume card's label and value (a lane's LEVEL, the ACCENT lane's amount). Unmuted: no line.
 >
 > **2026-10-14, SHIFT moves to OCT- (the user: "shift on home is not working well, two buttons on the same hand").** **SHIFT = OCT- held, SHIFT2 = OCT+ held.**
@@ -404,12 +414,12 @@ FX (the sends), FILTER, SLICER, SCL, SCL 2, ARP, ARP 2, PATTERN. The panel draws
 LFO, the FX bars, the scale), as Felucca. **A page button tapped shows only its family's rows** [D, 2026-10-08: the LFO screen should not show ENV2 and SLICER rows]: LFO the LFO and LFO DEST rows (*Sound LFO*, its graph),
 ENV the envelopes and their DEST rows, FX the track's effects (FX, FILTER, SLICER ...), EDIT the engine's EDIT rows,
 SCL and ARP theirs (the families are PAGES' `fam`); SELECT moves within the family, the button again goes to the
-family's next row and from its last to its first. **EDIT starts with the SOUND row** (PRESET · ENGINE · INIT · SAVE AS;
+family's next row and from its last to its first. *(Superseded 2026-10-15: no SOUND row on EDIT; see the landed-state list at the top.)* **EDIT starts with the SOUND row** (PRESET · ENGINE · INIT · SAVE AS;
 the drum track KIT · LANE: section 17, D7), then the engine's rows. The whole list (every row, the SOUND row first) is
 what ALGORITHM back from MASTER shows when MASTER was opened from the mixer. On the drum track the page buttons narrow the lane's rows the same way where a
 family has rows there (EDIT: the lane's SOUND rows, ENV the lane's ENV row); a family with none there leaves the rows as
 they are.
-On a synth track a **FAVS** row follows the SOUND row (FAV, LIST: favorites, section 37).
+On a synth track a **FAVS** row follows the SOUND row (FAV, LIST: favorites, section 37). *(Superseded 2026-10-15: EDIT has no SOUND or FAVS row; see the landed-state list at the top.)*
 
 **The drum track's ENV** [D, 2026-10-11: "most of the drum sounds have env parameters decay, attack. put them on the
 env page"]: ENV opens the selected lane's ENV row (params.c PAGES, `SC_DSND` in the ENV family; the lane picked as
@@ -424,7 +434,7 @@ cells and *No envelope: level only* as its graph. A build without the drum edito
 row: ENV leaves the rows as they are, as before. The synth's ENV pages are not shown on the drum track
 (`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`). **The row needs a picked lane** (2026-10-13): on DR itself ENV does nothing and is dark.
 
-The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
+*(Superseded 2026-10-15: this row is gone; presets are picked with PRESETS, the engine with SHIFT + PRESETS, INIT and SAVE AS live on PROJECT > USER.)* The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
 
 On the drum track the rows are the **selected lane's**: ENV (its envelope values, section 4.3's drum ENV), SOUND,
@@ -3183,6 +3193,8 @@ Tests: tests/ui_optimist_screens.h (each item, the old gone and the new there); 
 SOUND row's title against the list's; the tests that held the old titles, STEP's window header and the layer hint follow.
 
 ## 37. Favorites (feat/op-favorites, 2026-10-15)
+
+> **Superseded the same day by the end of this section**: the FAVS row described first was removed; the gestures are SHIFT2 + PRESETS (mark) and SHIFT2 + SELECT (browse only favorites). Read the last paragraph first. "HOME held" in this section is SHIFT (OCT- held) since 2026-10-14.
 
 The favorites store, its saving in the settings record and its older-record upgrade are shared with SLOOP's UI (builder item
 FAVORITES, core/favorites.c, storage/persist_rec.c: a factory sound by engine and name, 64 marks, a user preset by slot, 32).
