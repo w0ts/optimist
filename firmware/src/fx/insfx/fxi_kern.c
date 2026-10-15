@@ -50,10 +50,7 @@ static volatile uint8_t fxi_at[FXI_NK][FXI_NL] = {
     {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
 _Static_assert(NTRK == 4u && FXI_NK == 9u, "fxi_at: T1 T2 T3 DR, the master, the USB input, R1 R2 R3");
 /* the audio's index k of an owner (insfx.c: a part, the drum bus IFX_BUS, IFX_MST, IFX_UT, IFX_RT(j)) -> the owner */
-AINL uint32_t fxi_own_of(uint32_t k)
-{
-    return k < NTRK ? k : k == IFX_MST ? FXI_MST : k == IFX_UT ? FXI_UT : k >= IFX_RT0 ? FXI_RT0 + ((k - IFX_RT0) >> 1) % 3u : 0u;
-}
+#define fxi_own_of(k) ifx_owner(k)                      /* (fx_slots.c: the same numbering) */
 AINL uint32_t fxi_aix(uint32_t o)                       /* an owner -> the audio's index (its L for a stereo one) */
 {
     return o < NTRK ? o : o == FXI_MST ? IFX_MST : o == FXI_UT ? IFX_UT : IFX_RT(o - FXI_RT0);

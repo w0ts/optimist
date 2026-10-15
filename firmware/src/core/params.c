@@ -180,6 +180,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TJCHO] = PD("JUNO", F_PCT, 0, 127, 0),      /* JUNO CHORUS (fxi_kern.c): its MIX, 127 the Juno's dry / wet */
     [P_TJMODE] = PE("MODE", N_TJMODE, 0),          /*   its MODE: I, II, I+II */
 #endif
+#if FELUCCA_INS_EQ3
+    [P_TEQ] = PE("EQ3", N_ONOFF, 1),               /* EQ3 (insfx/eq3.c): on (its bands: the EQ3 pages) */
+#endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
@@ -494,9 +497,16 @@ static void lt_text(const param_desc_t *d, int32_t v, char *val)
     str_cpy(val, s, 7);
 }
 /* value string (<= 5 chars) and unit for a parameter value */
+#if FELUCCA_INS_EQ3
+static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **unit);   /* (fx_slots.c: EQ3's values) */
+#endif
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
+#if FELUCCA_INS_EQ3
+    if (fxs_fmt(d, v, val, unit))
+        return;
+#endif
     if (d == &GP[G_CTHR] && v == 0) {                 /* COMP > THRS at 0: the compressor is off */
         str_cpy(val, "OFF", 6);
         return;
@@ -711,6 +721,12 @@ static const page_t PAGES[] = {
 #if FELUCCA_INS_JCHORUS
     {"JUNO CHO", FAM_FX, SC_TRACK, GR_NONE, {P_TJCHO, P_TJMODE, 0xFF, 0xFF}},   /* while a slot of the track holds it */
 #endif
+#if FELUCCA_INS_EQ3
+    /* EQ3 (fx/insfx/eq3.c): the track's LO MID HI and ON, then its crossovers (fx_slots.c eq3_desc; page_shown: while one of
+     * its slots, or a lane's of the drum track, holds it) */
+    {"EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ, FXS_ID_TEQ + 1, FXS_ID_TEQ + 2, FXS_ID_TEQ + 3}},
+    {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
+#endif
 #if FELUCCA_UI == 1
     {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
     {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
@@ -764,6 +780,12 @@ static const page_t PAGES[] = {
     {"MST INS", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MST, FXS_ID_MST + 2, FXS_ID_MST + 1, FXS_ID_MST + 3}},
 #if FELUCCA_INS_JCHORUS
     {"MST JUNO", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_JMST, FXS_ID_JMST + 1, 0xFF, 0xFF}},   /* the master's JUNO CHORUS */
+#endif
+#if FELUCCA_INS_EQ3
+    {"MST EQ3", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ, FXS_ID_MEQ + 1, FXS_ID_MEQ + 2, FXS_ID_MEQ + 3}},   /* the master's EQ3 */
+    {"MST EQ3 F", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ + 4, FXS_ID_MEQ + 5, 0xFF, 0xFF}},
+    {"RET EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ, FXS_ID_REQ + 1, FXS_ID_REQ + 2, FXS_ID_REQ + 3}},   /* a return's */
+    {"RET EQ3 F", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ + 4, FXS_ID_REQ + 5, 0xFF, 0xFF}},
 #endif
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CTHR, G_CRAT, G_CATK, G_CREL}},   /* the master compressor (master_comp.c) */
@@ -920,6 +942,14 @@ static int page_shown(const page_t *pg)
 #endif
     if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_RAMT)
         return rt_any();                              /* RET AMT: while a return holds a type that is not a send */
+#if FELUCCA_INS_EQ3
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_TEQ && pg->id[0] < FXS_ID_TEQ + 6u)
+        return INS_ON(song.sel, FXT_EQ3) || (song.sel % NTRK == TRK_DRUM && lin_has(FXT_EQ3));   /* EQ3: the track's (a lane's: DR's) */
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MEQ && pg->id[0] < FXS_ID_MEQ + 6u)
+        return MST_ON(FXT_EQ3);
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_REQ && pg->id[0] < FXS_ID_REQ + 6u)
+        return rt_eq3() < 3;
+#endif
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
         return MST_OK != 0u;                          /* MST INS: the master's insert slots */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)

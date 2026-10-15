@@ -1074,10 +1074,10 @@ async function editorFxSlots() {
   const C = E.CMD, T = E.FXT;
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
   ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
-    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_N \}/.test(fs)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_N \}/.test(fs)
     && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6
     && T.FOLD === 7 && T.FUZZ === 8 && T.PHSR === 9 && T.FLNG === 10 && T.FRMT === 11 && T.WIDE === 12
-    && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && E.FXT_NAMES.length === 18,
+    && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && T.EQ3 === 18 && E.FXT_NAMES.length === 19,
     "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
   ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
     && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])

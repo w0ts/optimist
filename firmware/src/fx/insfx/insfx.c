@@ -390,6 +390,7 @@ static uint8_t ifx_jsd[NPART];                          /* set this block */
 
 #include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
 #include "gater.c"                                      /* GATER: the tempo-synced gate (one instance a track) */
+#include "eq3.c"                                        /* EQ3: the three-band DJ EQ (a state an owner) */
 #if INS_LIM
 #define IFX_EV(ty, k) ifx_lim_ev(ty, k)                 /* (fading out to give a lent line back: as off) */
 #else
@@ -422,6 +423,9 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
+#endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: return eq3_st[ifx_owner(i)].w;       /* (its share: 0 bypassed) */
 #endif
     default: return 0;
     }
@@ -477,6 +481,9 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: ifx_gater(&ifx_gate[i % NTRK], &trk[i % NTRK], a, b, 0, n); break;
+#endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], eq3_v[ifx_owner(i)], a, b, 0, n); break;   /* (a part: mono) */
 #endif
     default: break;
     }
@@ -546,6 +553,9 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #if FELUCCA_INS_GATER
         case FXT_GATE: ifx_zero(&ifx_gate[k], sizeof ifx_gate[k]); break;   /* (open: its phase from the clock) */
 #endif
+#if FELUCCA_INS_EQ3
+        case FXT_EQ3: eq3_st[k].w = 0; break;           /* (bypassed: re-engaging seeds it, eq3.c) */
+#endif
         default: break;
         }
     }
@@ -557,6 +567,12 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
 #if INS_LIM
     if (FXT_IS_LIM(ty)) {                               /* (the owner's instance, fxi.c; none: bypassed) */
         ifx_lim_run(ty, i0, a, l, r, n, 2);
+        return;
+    }
+#endif
+#if FELUCCA_INS_EQ3
+    if (ty == FXT_EQ3) {                                /* (a stereo owner: its state's two sides) */
+        (void)eq3_run(&eq3_st[ifx_owner(i0)], eq3_v[ifx_owner(i0)], a, l, r, n);
         return;
     }
 #endif

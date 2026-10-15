@@ -1598,6 +1598,9 @@ typedef union {                                         /* a voice's slot: the s
 #if FELUCCA_INS_FORMANT
     ifx_fm_t m;
 #endif
+#if FELUCCA_INS_EQ3
+    eq_st_t e;
+#endif
     int32_t w;
 } dins_st_t;
 static dins_st_t dins_st[NDRUM][INS_N];
@@ -1631,6 +1634,10 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
     if (t == FXT_FRMT && a)
         st->m.w = 32768, st->m.a = (uint8_t)a;
 #endif
+#if FELUCCA_INS_EQ3
+    if (t == FXT_EQ3 && a && !eq3_flat(eq3_v[TRK_DRUM]))
+        eq3_engage(&st->e, eq3_v[TRK_DRUM]);         /* (a hit from silence: engaged at once, the drum track's bands) */
+#endif
     (void)a;
 }
 static void dins_restart(uint32_t k)                    /* voice k triggered: its lane's slots from rest */
@@ -1658,6 +1665,9 @@ AINL int dins_busy(uint32_t k, uint32_t s)
 #endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: return st->m.w != 0;
+#endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: return st->e.w != 0;
 #endif
     default: return 0;
     }
@@ -1717,6 +1727,9 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
 #endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: ifx_formant(&st->m, a, b, n, 3); break;
+#endif
+#if FELUCCA_INS_EQ3
+    case FXT_EQ3: (void)eq3_run(&st->e, eq3_v[TRK_DRUM], a, b, 0, n); break;   /* (the drum track's bands) */
 #endif
     default: break;
     }
@@ -1873,7 +1886,7 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
         dbus_dyn(live ? p[P_TCOMP] : 0, n, nc);
 #endif
 #if INS_FX
-    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades
                                                         * out, then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_bus(t, live ? p[FXT_AMT[t]] : 0, mix_l, mix_r, n);
 #endif
@@ -1945,7 +1958,7 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
         tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
 #endif
 #if INS_FX
-    if (((ty >= FXT_NEW0 && ty < FXT_NEWN) || (FELUCCA_INS_JCHORUS && ty == FXT_JUNO)) && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out,
+    if (IFX_TYPE(ty) && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out,
                                                         * then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_part(ty, k, live ? t->p[FXT_AMT[ty]] : 0, b, n);
 #endif
@@ -2132,7 +2145,7 @@ static HOT2 __attribute__((noinline)) void mst_ins(uint32_t t, int32_t live, int
     if (t == FXT_DUST)
         dust_run(&mst_dust, live && FELUCCA_FX_DUST ? song.g[G_DUST] : 0, l, r, n);
 #if INS_FX
-    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu)
         ifx_mst(t, live ? mst_amt[t] : 0, l, r, n);
 #endif
     (void)live, (void)l, (void)r, (void)n;
@@ -2205,7 +2218,7 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
     if (t == FXT_DUST)
         dust_run(&o->u, FELUCCA_FX_DUST ? a : 0, l, r, n);
 #if INS_FX
-    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu && (RT_OK >> t & 1u))
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu && (RT_OK >> t & 1u))
         ifx_st(t, i0, a, l, r, n);
 #endif
     (void)o, (void)i0, (void)a, (void)l, (void)r, (void)n;

@@ -492,6 +492,13 @@ _add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 cho
           "comes out stereo. About 130 host instructions a sample an instance. 0 is off." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
+# EQ3 (2026-10-15, fx-pool: fx/insfx/eq3.c): a further insert type, any number (its state a few words an owner)
+_add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, default=0,
+     desc="A three-band equaliser type, like Ableton's EQ Three, for any insert slot (a track's, a drum sound's, the "
+          "master's) and the returns (EQ3): LO MID HI from KILL (the left end) to +6 dB, the crossovers FREQ LO (250 Hz) "
+          "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
+          "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
+     symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
 _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),

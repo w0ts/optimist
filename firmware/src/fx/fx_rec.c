@@ -16,7 +16,7 @@
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 288u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX 352u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -25,7 +25,8 @@
                                                         * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 232 -> 288: room
                                                         * for the TLVs coming (the voice counts' VCNT_TLV 2 + NPART, the Juno chorus) and ~40 B
                                                         * spare: the editor's backup packs them in two objects since,
-                                                        * ed_backup.c FXR1 FXR2) */
+                                                        * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
+                                                        * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -313,9 +314,8 @@ static void mst_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the slots 
     uint8_t m[INS_N];
     uint32_t k, drop = mst_map(m);
     mst_put(n >= INS_N ? a : m);
-    for (k = 0; k < FXT_N; k++)
-        mst_amt[k] = 0;
-    for (k = 0; k < MST_TLV_N - INS_N; k++)
+    for (k = 0; k < MST_TLV_N - INS_N; k++)           /* (only MST_TLV's own: JUNO CHORUS's and EQ3's are their TLVs',
+                                                        * read before) */
         mst_amt[mst_tlv_t(k)] = (int16_t)(n >= INS_N + k + 1u ? (a[INS_N + k] > 127u ? 127u : a[INS_N + k]) : 0u);
     ins_drop = (uint8_t)((ins_drop & ~(1u << NTRK)) | (n >= INS_N ? 0u : drop << NTRK));
 }

@@ -37,7 +37,7 @@ fail=0
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
 # the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO with 2 and 1
 # instances (fxi.c)
-INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1"
+INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_EQ3=1"
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
@@ -553,6 +553,10 @@ job; ( jobin
     run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record)" "$OUT/fx_slots_usb_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_EQ3=1 -o "$OUT/eq3_test" tests/eq3_test.c -lm
+    run "EQ3 (insfx/eq3.c): flat = bypass bit for bit, the crossfade in and out, flat sum within 0.01 dB, band isolation, KILL, no click through 0 dB, master L = R, its TLV, its CPU" "$OUT/eq3_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -o "$OUT/fx_rt_test" tests/fx_rt_test.c -lm
     run "FX returns holding any type (fx-pool): lines, a send pinned to its own, swaps, the send through the type 100 % wet times RET, the pool on a return, RET_TLV" "$OUT/fx_rt_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -790,7 +794,7 @@ job; ( jobin
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1" "-DFELUCCA_INS_GATER=1"; do
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
         mkdir -p "$OUT/help"

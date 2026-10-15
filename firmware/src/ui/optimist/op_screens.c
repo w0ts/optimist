@@ -370,9 +370,10 @@ static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)
  * GLOBAL's Tempo list's fourth line (op_global.c; it sat on LIMIT's free card until fx-rework) */
 static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET REV"}, {"REVERB", "RET TYPE"},
                                           {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
-                                          {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"}};
-static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MASTER", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS",
-                                       "RET AMT", "MACRO"};
+                                          {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"},
+                                          {"MST EQ3", "INS EQ3"}, {"MST EQ3 F", "INS EQ3 F"}};
+static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MASTER", "RETURNS", "DLY",
+                                       "REV/CHO", "REVERB", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
 static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */
 #define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */

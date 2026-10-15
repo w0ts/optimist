@@ -92,6 +92,10 @@ static uint32_t cg_ins_part(uint32_t p)
     if ((on && INS_ON(p, FXT_JUNO) && trk[p].p[P_TJCHO] && ifx_has(FXT_JUNO, p)) || ifx_w(FXT_JUNO, p))
         n += CG_COST_JUNO;
 #endif
+#if FELUCCA_INS_EQ3
+    if (ifx_w(FXT_EQ3, p) || (on && INS_ON(p, FXT_EQ3) && trk[p].p[P_TEQ] && !eq3_flat(eq3_v[p])))
+        n += CG_COST_EQ3M;                            /* (engaged only: flat is bypassed, eq3.c) */
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -128,6 +132,10 @@ static uint32_t cg_ins_bus(void)
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_JUNO) && TDRUM->p[P_TJCHO] && ifx_has(FXT_JUNO, TRK_DRUM)) || ifx_w(FXT_JUNO, IFX_BUS))
         n += CG_COST_JUNO;                            /* (its one stereo instance) */
 #endif
+#if FELUCCA_INS_EQ3
+    if (ifx_w(FXT_EQ3, IFX_BUS) || (fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_EQ3) && TDRUM->p[P_TEQ] && !eq3_flat(eq3_v[TRK_DRUM])))
+        n += CG_COST_EQ3S;
+#endif
     return n;
 }
 
@@ -144,6 +152,9 @@ static uint32_t cg_dvoice(uint32_t m)
     n += m & FXT_BIT(FXT_FUZZ) ? CG_COST_DVINS[3] : 0u;
     n += m & FXT_BIT(FXT_PHSR) ? CG_COST_DVINS[4] : 0u;
     n += m & FXT_BIT(FXT_FRMT) ? CG_COST_DVINS[5] : 0u;
+#if FELUCCA_INS_EQ3
+    n += m & FXT_BIT(FXT_EQ3) ? CG_COST_EQ3M : 0u;   /* (dins_one: it ran, engaged or fading) */
+#endif
     return n;
 }
 #endif
@@ -173,6 +184,10 @@ static uint32_t cg_ins_mst(void)
 #if FELUCCA_INS_JCHORUS
         if (t == FXT_JUNO && (mst_amt[FXT_JUNO] || ifx_w(FXT_JUNO, IFX_MST)))
             n += CG_COST_JUNO;
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_MST) || (mst_amt[FXT_EQ3] && !eq3_flat(eq3_v[NTRK]))))
+            n += CG_COST_EQ3S;
 #endif
     }
     return n;
@@ -207,6 +222,10 @@ static uint32_t cg_ins_rt(void)
 #if FELUCCA_INS_JCHORUS
         if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_RT(j))))
             n += CG_COST_JUNO;
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_RT(j)) || (a && !eq3_flat(eq3_v[NTRK + 2u + j]))))
+            n += CG_COST_EQ3S;
 #endif
     }
     return n;

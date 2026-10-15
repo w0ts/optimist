@@ -72,8 +72,8 @@ static uint32_t ed_fx_sig(void)
  * 19 DST, 20 CMP; 127 none: FILT) */
 static void ed_fx_info(void)
 {
-    static const uint8_t LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
-                                                        * fxs_lane_id's table) */
+    static const uint8_t LID[6] = {127, 19, 18, 17, 16, 20};   /* (NONE DIST CHO DLY REV COMP, fx_slots.c fxs_lane_id's
+                                                        * table; past them: 127, none) */
     uint32_t t, n = 0;
     for (t = 1; t < FXT_N; t++)
         n += FXT_BUILT >> t & 1u;
@@ -86,7 +86,7 @@ static void ed_fx_info(void)
             ed_b(t);
             ed_b(FXT_INSERT >> t & 1u);
             ed_b(FXT_AMT[t] == 0xFFu ? 127u : FXT_AMT[t]);
-            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : LID[t]);
+            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : t < 6u ? LID[t] : 127u);
         }
 }
 
