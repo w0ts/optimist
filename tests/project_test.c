@@ -434,6 +434,20 @@ int main(void)
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
     bad += check("the working project: capture -> apply round trip (levels, lanes, DUST, FX off)", ok);
+    {   /* VOICES: the parts', in the FX record (VCNT_TLV); a project without the record reads as 0 = the engine's max */
+        project_t o;
+        trk[0].p[P_VOICES] = 4, trk[1].p[P_VOICES] = 0, trk[2].p[P_VOICES] = 7;
+        proj_capture(&o, &tdl);
+        host_tracks_init();
+        proj_apply(&o, &tdl, 1);
+        ok = trk[0].p[P_VOICES] == 4 && trk[1].p[P_VOICES] == 0 && trk[2].p[P_VOICES] == 7;
+        trk[0].p[P_VOICES] = trk[1].p[P_VOICES] = trk[2].p[P_VOICES] = 0;
+        proj_capture(&o, &tdl);
+        trk[0].p[P_VOICES] = 3;
+        proj_apply(&o, &tdl, 1);
+        ok &= trk[0].p[P_VOICES] == 0 && trk[1].p[P_VOICES] == 0 && trk[2].p[P_VOICES] == 0;
+        bad += check("VOICES: capture -> apply round trip; none set (a project of before): 0, the engine's max", ok);
+    }
     {   /* SYNC is the HOME menu's, device-wide: a project neither loads nor (meaningfully) carries it; the clock followed
          * (G_MIDI) is a status, never saved; a new one is AUTO */
         project_t o = q;

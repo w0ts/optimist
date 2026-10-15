@@ -111,7 +111,7 @@
     {"kind": "page", "ctx": "VOICE", "params": {
       "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
     {"kind": "page", "ctx": "VOICE 2", "params": {
-      "ALLOC": "Voice allocation", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute"}},
+      "ALLOC": "Voice allocation", "VOICES": "Voices, 1 to the engine's max", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute"}},
     {"kind": "page", "ctx": "LEVEL", "if": "0", "params": {"LVL": "Track level"}},
     {"kind": "page", "ctx": "BYPASS", "if": "0", "params": {"FX": "Effects on or off (dry)"}},
     {"kind": "page", "ctx": "SOUND", "if": "DL_ANY", "params": {

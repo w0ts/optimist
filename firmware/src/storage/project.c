@@ -659,8 +659,8 @@ static void l2_slots_def(int16_t *v)
 }
 #if FELUCCA_LFO2
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
-               P_L2AB == P_L2RATE + 7 && P_COUNT == P_L2RATE + L2_NV && LT_N <= 32,
-               "LFO 2's values: in a row, the last of a track; a DEST in 5 bits");
+               P_L2AB == P_L2RATE + 7 && P_VOICES == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1 && LT_N <= 32,
+               "LFO 2's values: in a row, the last of a track but VOICES; a DEST in 5 bits");
 /* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default (AMT B: lfo1_store's
  * spill, written with the part's LFO DEST) */
 static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])

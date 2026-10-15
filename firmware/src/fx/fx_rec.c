@@ -23,7 +23,7 @@
                                                         * 2026-10-14: GATER, 2 + 4 + its PATTERN RATE SHAPE 12; 186 -> 214 2026-10-14 fx-rework: DUST's 2 + 4, the
                                                         * tracks' DYN GAIN CEIL 8, the master's slots MST_TLV 2 + 12;
                                                         * 214 -> 232: the lanes' slots LIN_TLV 2 + 16; 232 -> 288: room
-                                                        * for the TLVs coming (voice counts, the Juno chorus) and ~40 B
+                                                        * for the TLVs coming (the voice counts' VCNT_TLV 2 + NPART, the Juno chorus) and ~40 B
                                                         * spare: the editor's backup packs them in two objects since,
                                                         * ed_backup.c FXR1 FXR2) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
@@ -35,6 +35,7 @@
  * (T1's: the COMP TLV's) or a send level is not 100 %. A load's (`all`): a song section keeps the slots playing.
  * No TLV: ins_map, the old project's layout on the tracks, the same sound (fx_slots.c, the design §4.2) */
 #define FXR_F_INS 1u
+#define VCNT_TLV 0x47u                                 /* (below) */
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
 #define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c ins_cset[k][3, 4]) */
@@ -59,8 +60,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
 static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */
@@ -75,6 +76,22 @@ static void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every retu
     uint32_t k;
     for (k = 0; k < FXRET_N; k++)
         song.g[G_CRET + k] = (int16_t)(n >= FXRET_N && a[k] < 127u ? a[k] : 127u);
+}
+/* TLV VCNT_TLV (0x47, 2026-10-14): the parts' VOICES (core.h P_VOICES, 0..8, 0 = the engine's max), a byte a part, only when
+ * one is not 0; none: every part at the engine's max, as every project from before. A load's (`all`): a song section
+ * keeps the voices playing */
+static uint32_t vcnt_tlv(uint8_t *o)                   /* -> o, its length; 0: every part at the engine's max */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < NPART; k++)
+        any |= (uint32_t)((o[k] = (uint8_t)clamp(trk[k].p[P_VOICES], 0, NPOLY)) != 0u);
+    return any ? NPART : 0u;
+}
+static void vcnt_untlv(const uint8_t *a, uint32_t n)   /* (n 0: none, every part at the max; a shorter one: the rest at the max) */
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        trk[k].p[P_VOICES] = (int16_t)(k < n && a[k] <= NPOLY ? a[k] : 0u);
 }
 /* ---- an old project's layout on the tracks (the design §4.2: the same sound). hdr: the master layout it played (an
  * old record's header; no record: FXS_OLD, its FILTER as fxs_auto gave it a slot, now always: norec). Per track:
@@ -326,6 +343,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the parts' VOICES (above) */
+        uint32_t m = vcnt_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)VCNT_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the FX returns (above), as the drum lanes' */
         uint32_t m = fxret_tlv(o + n + 2u);
         if (m) {
@@ -377,13 +401,19 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     fxs_untlv_none(all);
     dlm_none();                                        /* (none: every drum lane at the centre, heard) */
     smute_untlv(0, 0);                                 /* (none: no sequencer muted) */
-    if (all)
+    if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
+        vcnt_untlv(0, 0);                              /* (none: every part's VOICES at the engine's max) */
+    }
     for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
         if (a[at] == DLM_TLV)
             dlm_untlv(a + at + 2u, a[at + 1u]);
         else if (a[at] == SMUTE_TLV)
             smute_untlv(a + at + 2u, a[at + 1u]);
+        else if (a[at] == VCNT_TLV) {
+            if (all)
+                vcnt_untlv(a + at + 2u, a[at + 1u]);
+        }
         else if (a[at] == FXRET_TLV) {
             if (all)
                 fxret_untlv(a + at + 2u, a[at + 1u]);

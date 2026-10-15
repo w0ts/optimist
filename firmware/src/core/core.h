@@ -203,6 +203,10 @@ enum {                          /* per-track parameters */
      * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
     P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
 #endif
+    /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
+     * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
+     * preset (param_kept), not lockable; stored in a project in the FX record (fx_rec.c VCNT_TLV) */
+    P_VOICES,
     P_COUNT
 };
 /* An LFO's destinations (LFO DEST's slots, both LFOs; params.c LT_TAB says how each acts, voice.c lfo_slots):
@@ -237,7 +241,7 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
 #define LSYNC_N 10
 #define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
 #define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
-#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2 || INS_FX || FELUCCA_FX_DUST)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
+#define P_TAIL 1   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
                                                   * stored with it, none part of a sound (param_kept) */
 
 enum {                          /* global parameters */
@@ -629,6 +633,8 @@ AINL int trk_silent(const track_t *t)
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
+AINL uint32_t eng_vmax(const engine_t *e) { return e->poly && e->poly < NPOLY ? e->poly : NPOLY; }   /* the engine's voices */
+uint32_t trk_nvoice(const track_t *t);   /* voice.c: the voices POLY and UNISON may use: min(VOICES, the engine's cap) */
 #if FELUCCA_ANALOG2
 /* ENV2's values outside a track's stored ones (P_A2ESUS .. P_A2ESDT, every one fits a signed byte): six values
  * <-> three 16-bit words, two bytes each (low byte first); all 0, the defaults, is 0 0 0 */

@@ -45,7 +45,7 @@
 /* a part the guard never sheds: MONO / LEGATO / UNISON (the bass and the lead), and a monophonic engine */
 static int cg_keep(const track_t *t)
 {
-    return t->p[P_VOICE] != V_POLY || ENGINES[t->engine]->poly == 1u;
+    return t->p[P_VOICE] != V_POLY || trk_nvoice(t) == 1u;
 }
 
 static uint32_t cg_vcost(const track_t *t)   /* a voice of this part: target instructions a sample */
@@ -282,7 +282,7 @@ static int cg_useful(uint32_t level)
             continue;
         if (level == CG_L_QUALITY && (CG_ACID(e) || CG_SWARMED(e, t)))
             return 1;
-        if (level == CG_L_UNISON && t->p[P_VOICE] == V_UNISON && (e->poly == 0u || e->poly > 2u))
+        if (level == CG_L_UNISON && t->p[P_VOICE] == V_UNISON && trk_nvoice(t) > 2u)
             return 1;
     }
     return 0;

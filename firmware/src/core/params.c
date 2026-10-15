@@ -184,6 +184,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
+    [P_VOICES] = PD("VOICES", F_INT, 0, NPOLY, 0),         /* POLY / UNISON voice count (voice.c trk_nvoice); 0 = the engine's max (track_desc: 1..max shown) */
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
 /* an automation event (a motion, a lock: stored before LFO DEST had slots, or SLOOP 2.4's) on a depth of before
@@ -325,6 +326,12 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
     if (is_drum(t) && id == P_DACC)
         return &DRUM_ACC_DESC;
+    if (id == P_VOICES) {                             /* 1 .. the engine's voices (the engine asked for), never 0 shown */
+        static const param_desc_t VC[NPOLY] = {
+            PD("VOICES", F_INT, 1, 1, 1), PD("VOICES", F_INT, 1, 2, 2), PD("VOICES", F_INT, 1, 3, 3), PD("VOICES", F_INT, 1, 4, 4),
+            PD("VOICES", F_INT, 1, 5, 5), PD("VOICES", F_INT, 1, 6, 6), PD("VOICES", F_INT, 1, 7, 7), PD("VOICES", F_INT, 1, 8, 8)};
+        return &VC[eng_vmax(ENGINES[t->eng_req % NENGINES]) - 1u];
+    }
     if (id >= P_E0 && id <= P_E7) {                   /* the engine asked for (t->engine follows after a fade) */
         const engine_t *e = ENGINES[t->eng_req % NENGINES];
         const param_desc_t *d = e->desc ? e->desc(t, id - P_E0) : 0;   /* a mode-dependent label / names */
@@ -708,7 +715,7 @@ static const page_t PAGES[] = {
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
 #if FELUCCA_UI == 1
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, 0xFF, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
+    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_VOICES, 0xFF}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14) */
 #else
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
 #endif
@@ -1016,5 +1023,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     }
 #endif
     *valp = &TSEL->p[id];
+    if (id == P_VOICES) {                             /* the stored 0 (default, old projects) is the engine's max; a larger one is cut to it */
+        uint32_t m = eng_vmax(ENGINES[TSEL->eng_req % NENGINES]);
+        if (TSEL->p[id] <= 0 || (uint32_t)TSEL->p[id] > m)
+            TSEL->p[id] = (int16_t)m;
+    }
     return track_desc(TSEL, id);
 }

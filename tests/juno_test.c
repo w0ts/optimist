@@ -183,6 +183,51 @@ static void t_poly(void)
     check(nact == 6u, "six voices at most");
 }
 
+/* VOICES (P_VOICES): AUTO = the engine's six, 8 asked = still six, 3 = three; a mono mode is still one */
+static uint32_t held_voices(uint32_t vcs, uint32_t mode)
+{
+    int32_t out[CTL * 2];
+    uint32_t b, i, n = 0;
+    reset();
+    host_preset(&trk[0], ENG_IX_JUNO, 1);
+    trk[0].p[P_VOICES] = (int16_t)vcs;
+    trk[0].p[P_VOICE] = (int16_t)mode;
+    for (i = 0; i < 8u; i++)
+        trk_note_on(&trk[0], 48 + 3 * i, 100);
+    for (b = 0; b < 20u; b++)
+        mix_block(out, CTL);
+    for (i = 0; i < NVOICE; i++)
+        n += trk[0].v[i].active && trk[0].v[i].stage != 4u;
+    return n;
+}
+#if FELUCCA_UI == 1
+static int page_val_voices(track_t *t)           /* what the card of the selected track shows */
+{
+    int16_t *vp;
+    uint32_t pg;
+    for (pg = 0; pg < NPAGES && !(PAGES[pg].id[2] == P_VOICES); pg++)
+        ;
+    song.sel = (int16_t)(t - trk);
+    return page_desc(&PAGES[pg], 2, &vp) ? *vp : -1;
+}
+#endif
+static void t_voices(void)
+{
+    check(held_voices(0, V_POLY) == 6u, "VOICES 0 (default): JUNO's own six");
+    check(held_voices(8, V_POLY) == 6u, "VOICES 8: capped at the engine's six");
+    check(held_voices(3, V_POLY) == 3u, "VOICES 3: three voices");
+    check(held_voices(1, V_POLY) == 1u, "VOICES 1: one voice");
+    check(held_voices(5, V_MONO) == 1u, "VOICES 5 in MONO: still one");
+#if FELUCCA_UI == 1                                   /* (the card is on the Optimist UI's VOICE 2 page) */
+    trk[0].p[P_VOICES] = 0;
+    check(page_val_voices(&trk[0]) == 6, "VOICES card: stored 0 shows the engine's max (JUNO 6), never 0");
+    trk[0].p[P_VOICES] = 8;
+    check(page_val_voices(&trk[0]) == 6, "VOICES card: a value past the engine's max is shown cut to it");
+#endif
+    trk[0].p[P_VOICES] = 5;
+    check(trk_nvoice(&trk[0]) == 5u, "trk_nvoice: min(VOICES, the engine's cap)");
+}
+
 /* a sounding voice retriggered: the same voice, its phase kept, the step between blocks small */
 static void t_retrigger(void)
 {
@@ -223,6 +268,7 @@ int main(int argc, char **argv)
     t_presets(argc > 1 ? argv[1] : "tests/golden_juno.txt");
     t_edits();
     t_poly();
+    t_voices();
     t_retrigger();
     printf("juno: %d failed\n", fails);
     return fails;
