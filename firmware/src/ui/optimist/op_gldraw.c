@@ -2,8 +2,7 @@
 /* GLOBAL and SYSTEM drawn as a list (op_global.c; docs/UI-OPTIMIST-DESIGN.md section 20): no cards, the page's 4 lines
  * from under the header to the screen's foot (the page's title is the header's, next to the GLOBAL / SYSTEM badge:
  * "Channels 5/5", op_draw.c head_other; no title line here, the user, 2026-10-14). The 4 lines share the room down to the
- * help line evenly (gl_pitch). A line: its knob's number (1..4, in the knob's colour with KNOB COLORS; dim on a read-out, which
- * no knob turns), the setting's name, its value on the right as the cards write it (amber: a read-out, or an action's
+ * help line evenly (gl_pitch). A line: the setting's name (no knob numbers, the user, 2026-10-15), its value on the right as the cards write it (amber: a read-out, or an action's
  * word: gl_val), the value's form under it: a bar over the screen's width, a segmented one for a short list, an on / off
  * value a square mark at the right instead (filled on, outlined off). The cursor line: no fill, its text (the number, the name,
  * the value) in the line's colour (the knob's with KNOB COLORS, else the track's; the user, 2026-10-14, "invert the highlight"). Lazy, as every band: drawn again when its signature changes. */
@@ -53,7 +52,7 @@ static uint32_t gl_tog(const cell_t *c)
 }
 static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 {
-    char b[16], m[2], lv[14];
+    char b[16], lv[14];
     const char *v = gl_text(c, lv);
     uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : c->kind == CK_RO ? C_GRAY : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
     int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ty, by;
@@ -62,10 +61,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     uint16_t lc = knob_col(k, gld.bar), ink = on ? lc : vc;     /* (the cursor line: its text in the line's colour, no fill) */
     ty = gl_ty(y, GL_BH);                               /* (the text, then the bar, centred in the line) */
     by = gl_by(y);
-    m[0] = (char)('1' + k);
-    m[1] = 0;
-    cv_text(6, ty, &FONT_S, m, on ? lc : c->kind == CK_RO ? C_LINE : knob_col(k, C_HI));
-    cv_text(24, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
+    cv_text(6, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
     cut(b, v, 13);
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(&FONT_S, b);   /* (a unit right after the number: "90BPM", style guide 5) */
     cv_text(x, ty, &FONT_S, b, ink);
