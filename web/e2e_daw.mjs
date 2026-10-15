@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The editor in a real (headless) Chrome against its mock device: the mixer is home, every popup opens with ONE click
-// from a strip (NAV) and closes with Escape, its x or a click outside, back to the mixer as it was; the theme switch.
+// from a strip (NAV) and closes with Escape, its x or a click outside, back to the mixer as it was; light / dark follow the system.
 // Not part of `make test` (it needs Chrome). Run from the repo root:
 //   node web/e2e_daw.mjs [--shots DIR]
 //   node web/e2e_daw.mjs --emu http://127.0.0.1:8765 [--shots DIR]   the same editor against the emulator's web-MIDI bridge
@@ -170,10 +170,16 @@ ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && do
   && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
   && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, no tabs, no transport)");
 await shot("editor-disconnected");
-/* the theme is a browser preference: on the connect card before a device is connected */
-ok(await run(`${U} const sel = $("#theme"); const bg0 = getComputedStyle(document.body).backgroundColor; sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
-  const r = shown(sel) && !!sel.closest("#connectcard") && getComputedStyle(document.body).backgroundColor !== bg0 && document.documentElement.dataset.skin === "mint";
-  sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100); return r;`), "e2e: not connected: the theme picker is on the connect card and works");
+/* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
+const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
+await scheme("dark"); await sleep(150);
+const darkBg = await run(`return getComputedStyle(document.body).backgroundColor;`);
+await scheme("light"); await sleep(150);
+const lightBg = await run(`return getComputedStyle(document.body).backgroundColor;`);
+await shot("editor-disconnected-light");
+ok(darkBg === "rgb(0, 0, 0)" && lightBg === "rgb(244, 244, 242)" && await run(`${U} return !document.querySelector("select#theme, #appearance, #appearbox, .theme");`),
+  "e2e: not connected: dark / light follow the system live (no reload), no theme picker");
+await scheme("dark"); await sleep(150);
 /* auto-connect: the page connects to the (mock) device on load, no click */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
 await sleep(1500);
@@ -513,14 +519,23 @@ const narrowOk = await run(`const m = document.querySelector("#mixer .strip.mast
 await shot("master-strip-narrow");
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
 ok(narrowOk === true, "e2e: master strip at 420 px wide: no page horizontal scroll");
-/* the theme (Settings > Appearance, or the connect card): an FM-1 edition sets the page colours, auto puts them back */
+/* no theme picker in Settings; the page follows the system (light and dark screens of the connected editor) */
 ok(await run(`${U} document.querySelector("[data-tab=settings]").click(); await sleep(300);
-  const inSet = shown($("#theme")) && !!$("#theme").closest("#p-settings") && !document.querySelector(".tbar #theme") && $("#appearance") === $("#p-settings").firstElementChild.firstElementChild;
-  const sel = $("#theme"); sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
-  const bg = getComputedStyle(document.body).backgroundColor; sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100);
-  document.querySelector("[data-tab=mixer]").click(); await sleep(200);
-  return inSet && bg === "rgb(47, 48, 50)" && getComputedStyle(document.body).backgroundColor !== bg && document.documentElement.dataset.skin === "auto";`),
-  "e2e: the theme switch (Mint, back to auto)");
+  const r = !document.querySelector("select#theme, #appearance, #appearbox, .theme") && shown($("#p-settings"));
+  document.querySelector("[data-tab=mixer]").click(); await sleep(200); return r;`), "e2e: Settings has no theme picker");
+for (const mode of ["dark", "light"]) {
+  await scheme(mode); await sleep(200);
+  for (const [name, js] of [["mixer", `document.querySelector("[data-tab=mixer]").click();`], ["settings", `document.querySelector("[data-tab=settings]").click();`],
+    ["library", `document.querySelector("[data-tab=library]").click();`], ["sound", `document.querySelector("[data-tab=mixer]").click(); await sleep(200); document.querySelector("#mixer .strip [data-pop=sound]").click();`],
+    ["sequence", `document.querySelector("[data-tab=mixer]").click(); await sleep(200); document.querySelector("#mixer .strip [data-pop=sequence]").click();`]]) {
+    await run(`${U} document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); ${js} await sleep(400); return true;`);
+    await shot(`${mode}-${name}`);
+  }
+  await run(`${U} document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); document.querySelector("[data-tab=mixer]").click(); await sleep(200); return true;`);
+}
+const live = [];
+for (const mode of ["light", "dark"]) { await scheme(mode); await sleep(200); live.push(await run(`return getComputedStyle(document.body).backgroundColor;`)); }
+ok(live[0] === "rgb(244, 244, 242)" && live[1] === "rgb(0, 0, 0)", "e2e: the connected editor restyles live when the system switches light / dark");
 /* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
 ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";
   const tabb = document.querySelector('[data-tab=snapshots]');

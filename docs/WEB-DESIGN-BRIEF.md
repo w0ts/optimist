@@ -10,8 +10,9 @@ work (`feat/web-kits`) merges.
 - **Less boring than plain black and white.**
 
 ## Colour system
-- **General theme:** match the FM-1 colour editions, the same palettes as the emulator's themes
-  (Classic, Black, Lilac, Orange, Mint, Cream, Blue), chosen in the editor and remembered per browser.
+- **General theme:** automatic. The editor (and the installer page) follow the system's light / dark setting
+  (prefers-color-scheme), live, with no selector, icon or stored preference. (The FM-1 colour editions the editor once
+  offered as a picker are gone; they remain the emulator's own themes.)
 - **A colour per engine, used everywhere** the engine appears: preset lists, the track header, the Sound tab,
   the Mix tab, the sequencer, the kit editor's source tags. Drum source kinds get their own colours too
   (drum synth / sampled / X0X engine / your sample / your kit).
@@ -19,7 +20,7 @@ work (`feat/web-kits`) merges.
   amber = notice / warning (EXPERIMENTAL, X0X notice, MISSING), green = OK / saved / in sync.
   A value control turns red when its value distorts, where the firmware or editor can tell.
 - No decorative per-track colours: a track shows its engine colour.
-- Light and dark variants of each theme; keep contrast readable (WCAG AA for text).
+- A designed light set and a dark set (not one inverted into the other); keep contrast readable (WCAG AA for text, checked by web/test_web.mjs).
 
 ## Same colours on the device (user, 2026-10-06)
 - The engine colours (and the drum-kind colours) are used in the **device UI too**: the PRESETS browser, the
@@ -48,7 +49,7 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
   The editor uses the same three for its status line, the connect card, the Live pill and the SYNC pill (green: an
   external clock followed, amber: USB / TRS chosen and no clock there, neutral: the internal tempo).
 - **Neutral for everything else:** the device's palette steps (HOME-hold COLOR: GREEN, AMBER, CYAN, RED, MONO) and
-  the studio screens' greys; the editor's theme (FM-1 editions). Icons, labels, values and the knobs' own dials are
+  the studio screens' greys; the editor's light / dark. Icons, labels, values and the knobs' own dials are
   neutral; **white** is what you touch (the knob being turned, the cursor, the selected item).
 - **No colour per track number and none per knob:** SLOOP's blue / green / yellow / orange for tracks 1..4 and
   KNOB 1..4 are gone. Song sections A..D are neutral too (green while one plays).
@@ -64,4 +65,4 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
 ## Constraints
 - Still one file, no framework, no external network fetches; keep it fast.
 - Every engine's colour and every kind comes from one table, so new engines get a colour in one place.
-- Web tests (`web/test_web.mjs`) keep passing; add tests for the theme switch and the colour table.
+- Web tests (`web/test_web.mjs`) keep passing; add tests for the light / dark colour sets and the colour table.
