@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include "fm1_flash.h"            /* RAMFN, FL_FAR, fl_csync */
 #include "fm1_time.h"
+#include "fm1_irq.h"               /* FM1_DBG_*, fm1_fatal_stubs */
 #include "fm1_dual_guard.h"       /* the request check and the boot canary (misread RAM on some FM-1s) */
 
 #define FM1_C1_CON   (*(volatile uint32_t *)0x1EEE004u)   /* corex2 C1_CON: b1 reset/halt, b3 run */
@@ -37,24 +38,31 @@ static inline __attribute__((always_inline)) uint32_t fm1_cnum(void)            
 }
 static inline __attribute__((always_inline)) void fm1_dual_sync(void) { __asm__ volatile("csync" ::: "memory"); }
 
-/* shared state; every field is written by one core only (noted), read by the other */
+/* shared state; every field is written by one core only (noted), read by the other. Each core's fields on cache
+ * lines of their own (64 B, Jangada's and X0X's layout, zednaked/jangada, fm1-x0x hal/fm1_cpu1.h, GPL-3.0) */
 typedef struct {
     volatile uint32_t req;        /* CPU0: job sequence number (a new value = a new job) */
-    volatile uint32_t done;       /* CPU1: the last job finished (= req: idle) */
     volatile uint32_t arg;        /* CPU0: the job's argument (which parts) */
-    volatile uint32_t hello;      /* CPU1: FM1_DUAL_HELLO once it runs C code */
-    volatile uint32_t count;      /* CPU1: stage 1, incremented while idle */
-    volatile uint32_t ping, pong; /* CPU0 / CPU1: pong follows ping while idle (liveness) */
-    volatile uint32_t fault;      /* CPU1: its exception vector + 1 after a fault */
+    volatile uint32_t ping;       /* CPU0: pong follows it while CPU1 waits (liveness) */
     volatile uint32_t check;      /* CPU0: FM1_DUAL_CHECK(req, arg), written before req (fm1_dual_guard.h) */
+    uint32_t pad0[12];
+    volatile uint32_t done;       /* CPU1: the last job finished (= req: idle) */
+    volatile uint32_t hello;      /* CPU1: FM1_DUAL_HELLO once it runs C code */
+    volatile uint32_t count;      /* CPU1: its beat: spin loops (every FM1_DUAL_BEAT_EVERY), or returns from `idle` */
+    volatile uint32_t pong;       /* CPU1 */
+    volatile uint32_t fault;      /* CPU1: its exception vector + 1 after a fault (CPU0 writes it once CPU1 is held) */
     volatile uint32_t bad;        /* CPU1: requests it would not run (a misread): CPU0 holds it at the first */
     volatile uint32_t bad_req, bad_done;   /* CPU1: the last one, as read, and its own done then */
     volatile uint32_t canary;     /* CPU1: 1 + the canary words it read wrong at boot (0: not run) */
     volatile uint32_t took;       /* CPU1 asleep between jobs: the last request its wake picked up (CPU0 wakes it again
-                                   * while a posted one is not taken: dual.c dual_join) */
+                                   * while a posted one is not taken: dual.c dual_join); the spin loop sets it too */
+    volatile uint32_t stage;      /* CPU1: how far it got, the furthest (dual_mode.h C1S_*: SYSTEM > INFO CPU1 HELLO) */
+    volatile uint32_t wakes;      /* CPU1 asleep: its wake handler's entries */
+    volatile uint32_t icfg;       /* CPU1: its icfg as it went to sleep (read back after sti), 0: never */
+    uint32_t pad1[3];
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
-static fm1_dual_mb_t fm1_dual_mb;
+static fm1_dual_mb_t fm1_dual_mb __attribute__((aligned(64)));
 static volatile uint32_t fm1_dual_canary[FM1_DUAL_CANARY_N];   /* CPU0 fills it before the start, CPU1 reads it */
 
 /* CPU1: a request it will not run (fm1_dual_take FM1_DG_BAD): noted, never run (the spin loop counts each read of
@@ -68,13 +76,17 @@ static inline __attribute__((always_inline)) void fm1_dual_note_bad(uint32_t r, 
 }
 
 /* CPU1 between jobs, from RAM: publish `done`, then wait for a request it may run (fm1_dual_take; a bad one is noted
- * and waited past, in RAM). COUNT != 0: stage 1, count the idle loops. Returns the new request; *ARG its argument,
- * read once */
+ * and waited past, in RAM). Gentle on the shared RAM (2026-10-15: the first spinning build on the FM-1 was followed by
+ * a boot AFTER CRASH, cause not known): one read of req a pass, then FM1_DUAL_SPIN_NOPS no-ops (no bus access, about
+ * 0.1 us at 314 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
+ * COUNT != 0: count the beat. Returns the new request; *ARG its argument, read once */
+#define FM1_DUAL_SPIN_NOPS 32u
+#define FM1_DUAL_BEAT_EVERY 256u
 #ifndef FM1_DUAL_NO_SPIN                                  /* (CPU1 asleep between jobs: no spin loop in RAM) */
 RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
 {
     fm1_dual_mb_t *mb = &fm1_dual_mb;
-    uint32_t r, a = 0;
+    uint32_t r, a = 0, n = 0, k;
     fl_csync();                                           /* the job's stores before `done` */
     mb->done = done;
     fl_csync();
@@ -87,10 +99,15 @@ RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t 
                 break;
             fm1_dual_note_bad(r, done);
         }
-        if (mb->ping != mb->pong)
-            mb->pong = mb->ping;
-        if (count)
-            mb->count++;
+        for (k = 0; k < FM1_DUAL_SPIN_NOPS; k++)
+            __asm__ volatile("nop");
+        if (++n == FM1_DUAL_BEAT_EVERY) {
+            n = 0;
+            if (mb->ping != mb->pong)
+                mb->pong = mb->ping;
+            if (count)
+                mb->count++;
+        }
     }
     *arg = a;
     return r;
@@ -106,31 +123,129 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
         ;
 }
 
-/* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into
- * reti, rti. Which of usp / ssp / sp CPU1's C code and its wake interrupt run on after the rti is not known on the
- * FM-1: each starts at the top of its own 2 KiB (usp: the first, ssp: the second, sp: the third). The emulator's
- * reading (the ROM hands CPU1 over in interrupt context: the rti takes usp, the interrupt then the sp value the rti
- * left in ssp): the main loop on usp's +2048 (12 B), the job on +6144. Under any reading the job, the deep one, has
- * at least 4 KiB below its top before another stack: an ACID part takes ~2 KiB (emulator 1,936 B, static 2,452),
- * past its own 2 KiB into the one nothing uses. tools/build.py cpu1_stack checks every DUAL build against that room
- * (CPU1_STACK_ROOM). */
-#define FM1_C1_STACK_WORDS 1536u                         /* 6 KiB */
+/* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into reti, rti.
+ * After the rti CPU1's C code runs on usp (the emulator's reading, and X0X's on the FM-1: "after rti the core runs on
+ * this one: the render's"); an interrupt (the wake, asleep builds) on the sp value the rti left in ssp. So a spinning
+ * build renders its jobs on usp, an asleep one in the wake interrupt on ssp / sp: each gets 5 KiB of its own
+ * (FM1_C1_REGION), sp = ssp at the top of the first, usp at the top of the second, the deepest job (ACID, 2,948 B
+ * static) with 2 KiB to spare.
+ * 2026-10-15 (B .. B4 on the FM-1): usp had only the lowest 2 KiB (+2048, sp +6144): the spinning builds rendered
+ * their jobs there, an ACID part 2.9 KB deep, through the bottom of the stack into the top of part_mem (the parts'
+ * engine state, just below in .pool), and CPU0, rendering from that state, crashed in its first blocks (B3: a bus
+ * error on garbage read from its stack; B4: a return to address 2). The emulator's projects stayed above it (1.3 KB).
+ * tools/build.py cpu1_stack checks every DUAL build against CPU1_STACK_ROOM; fm1_dual_start fills both with
+ * FM1_C1_MARK (the console's cpu1_stack_*: their depth) */
+#define FM1_C1_REGION 1280u                              /* words: 5 KiB */
+#define FM1_C1_STACK_WORDS (2u * FM1_C1_REGION)           /* 10 KiB */
+#define FM1_C1_MARK 0x43314D4Bu                          /* "C1MK" (X0X's) */
 uint32_t fm1_c1_stack[FM1_C1_STACK_WORDS] __attribute__((section(".pool"), aligned(8), used));
 void fm1_cpu1_main(void);                                 /* the C entry (src/dual.c), never returns */
+/* (cli, icfg = 0 first: CPU1's interrupts off whatever the ROM's hand-over left, as X0X's and Melodee's entries on
+ * the FM-1, fm1-x0x hal/fm1_cpu1.S, keremimo/melodee crt0.S, GPL-3.0) */
 __asm__(".section .text.fm1_cpu1,\"ax\",@progbits\n"
         "\t.globl fm1_cpu1_entry\n"
         "fm1_cpu1_entry:\n"
-        "\tusp = fm1_c1_stack + 2048\n"
-        "\tssp = fm1_c1_stack + 4096\n"
-        "\tsp = fm1_c1_stack + 6144\n"
+        "\tcli\n"
+        "\tr0 = 0\n"
+        "\ticfg = r0\n"
+        "\tusp = fm1_c1_stack + 10240\n"
+        "\tssp = fm1_c1_stack + 5120\n"
+        "\tsp = fm1_c1_stack + 5120\n"
         "\treti = fm1_cpu1_main\n"
         "\trti\n"
         "\t.previous\n");
 extern void fm1_cpu1_entry(void);
 
-static void fm1_dual_cpu1_fault(uint32_t vec)            /* fm1_irq.h fm1_fault_c, on CPU1 */
+/* CPU1, first thing in its C entry: its own EMU bank (CPU0's is at 0x1EEF0D0) as X0X and Melodee set it on the FM-1
+ * (fm1-x0x hal/fm1_cpu1.h fm1_c1_main, keremimo/melodee hal/fm1_multicore.h, GPL-3.0): a stack limit over its 6 KiB
+ * less the lowest 256 bytes, the divide-by-zero trap (bit 2) and the float exception traps (16..20) off, the stack
+ * limit (bit 3) on. Never set before 2026-10-15: CPU1 ran with whatever the chip left there (CPU0's own div0 trap had
+ * to be turned off, fm1_irq.h) */
+static void fm1_dual_c1_emu(void)
 {
-    FL_FAR(fm1_dual_dead_ram)(vec);
+    uint32_t lo = (uint32_t)(uintptr_t)fm1_c1_stack + 256u, hi = (uint32_t)(uintptr_t)(fm1_c1_stack + FM1_C1_STACK_WORDS) - 1u;
+    *(volatile uint32_t *)0x1EEF2D8u = hi;
+    *(volatile uint32_t *)0x1EEF2DCu = lo;
+    *(volatile uint32_t *)0x1EEF2E0u = hi;
+    *(volatile uint32_t *)0x1EEF2E4u = lo;
+    *(volatile uint32_t *)0x1EEF2D0u = (*(volatile uint32_t *)0x1EEF2D0u & ~((1u << 2) | (0x1Fu << 16))) | (1u << 3);
+}
+
+/* CPU1's interrupt bank (CPU0's at 0x1EEF100), all 32 words off: before every start, in every build (X0X, Melodee) */
+static void fm1_dual_bank_clear(void)
+{
+    uint32_t i;
+    for (i = 0; i < 32u; i++)
+        *(volatile uint32_t *)(0x1EEF300u + 4u * i) = 0;
+}
+
+static void fm1_dual_halt(void);
+static volatile uint8_t fm1_dual_on;                      /* CPU1 started and answered, not held since (fm1_dual_start,
+                                                           * fm1_dual_halt): C1_CON's bits do not read back as written
+                                                           * on the FM-1 (2026-10-15, B3: the test on them missed) */
+
+/* An exception about CPU1 (keremimo/melodee hal/fm1_irq.h fm1_core1_fault_c, GPL-3.0, measured on the FM-1): CPU1
+ * enables no interrupt of its own, so the debug unit's errors about it (a fetch outside the PC limits, a bus error,
+ * DBG_MSG's CPU1 bits) raise the exception on CPU0, whose state is intact: the crash report used to reset the unit
+ * for them (the boot after it: 2ND CORE OFF AFTER CRASH). Now CPU1 is held, the fault recorded (fm1_dual_exc; SYSTEM >
+ * INFO CPU1 FAULT), fm1_dual_mb.fault set (dual.c: CPU1 goes down as FAULT) and CPU0 resumes (fm1_vec.S). CPU1 taking
+ * an exception itself records it and parks in RAM; the echo CPU0 may then get with DBG_MSG already cleared resumes
+ * once per CPU1 fault. 1: handled, CPU0 resumes; 0: CPU0's own, the crash report */
+#define FM1_DBG_C1 ((1u << 6) | (1u << 8) | (1u << 10) | (1u << 11) | (7u << 16))
+#define FM1_DBG_C0 ((1u << 7) | (1u << 9) | (1u << 12) | (1u << 13) | (7u << 19))
+static struct {
+    volatile uint32_t count;
+    uint32_t echoes, cpu, dbg, emu, pc, rets, vec;
+    uint32_t c1con;                                       /* C1_CON as read then (what it reads back: not known) */
+    uint32_t c1etm[4];                                    /* CPU1's branch trace then (q32DSP(1)->ETM_PC0..3) */
+} fm1_dual_exc;
+static int fm1_dual_exc_c(const uint32_t *f)
+{
+    uint32_t cpu = fm1_cnum(), dbg = FM1_DBG_MSG, was, vec = (f[19] - (uint32_t)(uintptr_t)fm1_fatal_stubs) / 6u - 1u;
+    if (!cpu && (dbg & FM1_DBG_C0))
+        return 0;                                         /* CPU0's own */
+    if (!cpu && !(dbg & FM1_DBG_C1)) {
+        /* 2026-10-15 (B, B2 on the FM-1): every power-on boot took vector 1 on CPU0 in its first audio blocks, the
+         * first ones CPU1 rendered, at plain stack loads and stores (not a fault of CPU0's own instruction), EMU_MSG 0,
+         * and this function did not take it: DBG_MSG had neither core's bits (the bus-invalid bits 4, 5 belong to
+         * neither mask) or was already cleared. While CPU1 runs, such an exception (no CPU0 bits, EMU_MSG 0) holds
+         * CPU1 first; the same again with CPU1 held is CPU0's and gets the crash report */
+        uint32_t c1_runs = fm1_dual_on;
+        if (fm1_dual_exc.echoes < fm1_dual_exc.count) {
+            fm1_dual_exc.echoes++;
+            return 1;                                     /* CPU1's, echoed */
+        }
+        if (!c1_runs || vec != 1u || FM1_EMU_MSG != 0u)
+            return 0;                                     /* CPU0's own */
+    }
+    if (!cpu && fm1_dual_exc.count >= 16u)
+        return 0;                                         /* a hold that did not take */
+    {
+        uint32_t i;
+        fm1_dual_exc.c1con = FM1_C1_CON;
+        for (i = 0; i < 4u; i++)
+            fm1_dual_exc.c1etm[i] = *(volatile uint32_t *)(0x1EEF3C4u + 4u * i);   /* (before the hold) */
+    }
+    if (!cpu)
+        fm1_dual_halt();
+    fm1_dual_exc.cpu = cpu;
+    fm1_dual_exc.dbg = dbg;
+    fm1_dual_exc.emu = *(volatile uint32_t *)(cpu ? 0x1EEF2D4u : 0x1EEF0D4u);   /* the faulting core's EMU_MSG */
+    fm1_dual_exc.pc = f[16];
+    fm1_dual_exc.rets = f[25];
+    fm1_dual_exc.vec = vec;
+    fm1_dual_exc.count++;                                 /* (before DBG_MSG clears: the echo above) */
+    was = FM1_DBG_WR_EN & 1u;                             /* (writing 0xE7 toggles the unlock) */
+    if (!was)
+        FM1_DBG_WR_EN = 0xE7u;
+    FM1_DBG_MSG_CLR = dbg;
+    if (!was)
+        FM1_DBG_WR_EN = 0xE7u;
+    fl_csync();
+    if (cpu)
+        FL_FAR(fm1_dual_dead_ram)(vec);                   /* CPU1: parks in RAM, never returns */
+    fm1_dual_mb.fault = vec + 1u;                         /* (CPU1 held: CPU0 writes it) */
+    return 1;
 }
 
 /* start CPU1 and wait up to TIMEOUT_US for its hello; 1 = running. On a timeout CPU1 is put back
@@ -143,8 +258,17 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     fm1_dual_mb.fault = 0;
     fm1_dual_mb.bad = 0;
     fm1_dual_mb.canary = 0;
+    fm1_dual_mb.stage = 0;
+    fm1_dual_mb.count = 0;
+    fm1_dual_mb.wakes = 0;
+    {
+        uint32_t i;
+        for (i = 0; i < FM1_C1_STACK_WORDS; i++)
+            fm1_c1_stack[i] = FM1_C1_MARK;                /* (how deep each of CPU1's stacks went: the console) */
+    }
     fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
+    *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* CPU1's branch trace on (its ETM_CON, as CPU0's: fm1_irq.h) */
     FM1_C1_VEC = (uint32_t)(uintptr_t)fm1_cpu1_entry;
     FM1_SYSCLK1 = sys | 8u;
     FM1_C1_CON |= 8u;
@@ -158,26 +282,43 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
         FM1_C1_CON &= ~8u;
         FM1_C1_CON |= 2u;
     }
+    fm1_dual_on = (uint8_t)ok;
     return ok;
 }
 
-/* ---- CPU1 asleep between jobs (FELUCCA_DUAL_IDLE). Soft interrupts 120..127 share one latch (ILAT,
- * fm1_irq.h); each core has its own interrupt configuration bank, CPU1's at +0x200 (as the emulator
- * models the stock firmware; not verified on a device). CPU0 never enables 124 in its bank. */
+/* ---- CPU1 asleep between jobs (FELUCCA_DUAL_IDLE). Each core has its interrupt registers at 0x1EEF100 + 0x200 x
+ * its number (the AC79 SDK's q32DSP(n), asm/csfr.h: ICFG00..31, IPND0..7, ILAT_SET, ILAT_CLR, IPMASK); the soft
+ * interrupts' latch is set through core 0's ILAT_SET (the SDK's CPU_TASK_SW, asm/cpu.h) and the SDK registers SOFT4
+ * (124) on CPU1 at priority 6 or 7 (apps/demo .. app_main.c irq_info_table). Not verified on a device: none of the
+ * firmwares that run CPU1 on the FM-1 (stock, X0X, Melodee, Jangada) wakes it by interrupt, they all poll in RAM.
+ * 2026-10-15 (A, the FM-1): CPU1 reached `idle` and never left it, at the old priority 1 with IPMASK untouched.
+ * CPU0 never enables 124 in its bank. */
 #define FM1_IRQ_C1_WAKE 124u                                 /* SOFT4 */
+#define FM1_DUAL_WAKE_PRIO 6u                                /* (the SDK's, with IPMASK; 7 without) */
 #define FM1_ICFG_C1(n) (*(volatile uint32_t *)(0x1EEF300u + 4u * ((n) >> 3)))
+#define FM1_IPMASK_C1 (*(volatile uint32_t *)0x1EEF3A8u)     /* CPU1's priority mask (q32DSP(1)->IPMASK) */
 #define FM1_ILAT_SET_ (*(volatile uint32_t *)0x1EEF1A0u)     /* (= fm1_irq.h FM1_ILAT_SET / _CLR) */
 #define FM1_ILAT_CLR_ (*(volatile uint32_t *)0x1EEF1A4u)
+#define FM1_ILAT_SET_C1 (*(volatile uint32_t *)0x1EEF3A0u)   /* (q32DSP(1)'s: a rewake sets it too, in case CPU1's
+                                                              * latch is its own on the chip) */
+#define FM1_ILAT_CLR_C1 (*(volatile uint32_t *)0x1EEF3A4u)
 #define FM1_VEC_ ((volatile uint32_t *)0x01C7FE00u)
-/* CPU0, before CPU1 starts (vectors writable): CPU1's bank all off but the wake, at priority 1 */
+/* CPU0, before CPU1 starts (vectors writable): CPU1's bank all off but the wake, at the SDK's priority, its priority
+ * mask 0 (whatever the ROM left) */
 static void fm1_dual_wake_setup(void (*isr)(void))
 {
-    uint32_t i;
-    for (i = 0; i < 16u; i++)
-        *(volatile uint32_t *)(0x1EEF300u + 4u * i) = 0;
+    fm1_dual_bank_clear();
+    FM1_IPMASK_C1 = 0;
     FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    FM1_ILAT_CLR_C1 = 1u << (FM1_IRQ_C1_WAKE - 120u);
     FM1_VEC_[FM1_IRQ_C1_WAKE] = (uint32_t)(uintptr_t)isr;
-    FM1_ICFG_C1(FM1_IRQ_C1_WAKE) = ((1u << 1) | 1u) << ((FM1_IRQ_C1_WAKE & 7u) * 4u);
+    FM1_ICFG_C1(FM1_IRQ_C1_WAKE) = ((FM1_DUAL_WAKE_PRIO << 1) | 1u) << ((FM1_IRQ_C1_WAKE & 7u) * 4u);
+}
+/* CPU1's pending word 3 (q32DSP(1)->IPND3, bit 28: 124, the wake; on CPU0's bank the FM-1 shows soft interrupt k at
+ * bit 24 + k when it is enabled there, fm1-emulator SMP.md): read by CPU0 when CPU1 goes down (INFO P1 / P0) */
+static inline __attribute__((always_inline)) uint32_t fm1_dual_wake_pending(void)
+{
+    return (*(volatile uint32_t *)(0x1EEF380u + 4u * (FM1_IRQ_C1_WAKE >> 5)) >> (FM1_IRQ_C1_WAKE & 31u)) & 1u;
 }
 /* CPU0: a job is posted (after req) */
 static inline __attribute__((always_inline)) void fm1_dual_wake(void)
@@ -193,15 +334,18 @@ static inline __attribute__((always_inline)) void fm1_dual_rewake(void)
     FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
     __asm__ volatile("csync" ::: "memory");
     FM1_ILAT_SET_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    FM1_ILAT_SET_C1 = 1u << (FM1_IRQ_C1_WAKE - 120u);
 }
 /* CPU1, in the handler, before it looks at req: a later wake stays latched (no lost wake) */
 static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
 {
     FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    FM1_ILAT_CLR_C1 = 1u << (FM1_IRQ_C1_WAKE - 120u);
     __asm__ volatile("csync" ::: "memory");
 }
 /* CPU1: its interrupts on (icfg bit 8, sti), then asleep in RAM for good: every job runs in the
- * handler, which returns to the idle.
+ * handler, which returns to the idle. Each return from `idle` counts its beat (fm1_dual_mb.count: an `idle` that
+ * returns without the handler having run shows as beats with no wakes).
  * A core woken from `idle` runs 4 more issue slots before the interrupt enters (FM-1_996, measured
  * on CPU0 with TIMER3; the emulator models it). A bare `idle; goto idle` reaches the next `idle`
  * inside that window and goes back to sleep without ever taking the interrupt: CPU1 never ran its
@@ -211,12 +355,27 @@ static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
 RAMFN static void fm1_dual_sleep_ram(void)
 {
     uint32_t v;
+    fm1_dual_mb.stage = 3u;                               /* (dual_mode.h C1S_LOOP: in its wait loop) */
+    fl_csync();
     __asm__ volatile("%0 = icfg" : "=r"(v));
-    __asm__ volatile("icfg = %0" ::"r"(v | 0x100u) : "memory");
+    __asm__ volatile("icfg = %0" ::"r"(v | 0x100u) : "memory");   /* (icfg 0 from the entry: 0x100) */
     __asm__ volatile("csync\n\tsti" ::: "memory");
-    for (;;)
+    __asm__ volatile("%0 = icfg" : "=r"(v));
+    fm1_dual_mb.icfg = v | 0x80000000u;                   /* (INFO CPU1 REGS: what it slept with; bit 31: read) */
+    for (;;) {
         __asm__ volatile("idle\n\tcsync\n\tcsync\n\tcsync\n\tcsync" ::: "memory");
+        fm1_dual_mb.count++;
+    }
 }
+#if defined(DUAL_FAILTEST) && DUAL_FAILTEST == 7
+/* (the emulator's test of a wake that never reaches CPU1: in its loop, in RAM, its interrupt never on) */
+RAMFN static void fm1_dual_deaf_ram(void)
+{
+    fm1_dual_mb.stage = 3u;
+    for (;;)
+        fl_csync();
+}
+#endif
 /* the handler's entry, in RAM with the code it calls (core.h HOT: .ram_hot): as fm1_isr.S */
 void fm1_cpu1_wake(void);                                 /* the C body (src/dual.c) */
 __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
@@ -233,8 +392,20 @@ __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
 extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
+static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
+/* bytes of CPU1's stack REGION (0: sp / ssp, the interrupt's; 1: usp, the C code's) ever used (the marks overwritten);
+ * 0: never started */
+static uint32_t fm1_dual_stack_used(uint32_t region)
+{
+    const uint32_t *b = fm1_c1_stack + region * FM1_C1_REGION;
+    uint32_t i = 0;
+    while (i < FM1_C1_REGION && b[i] == FM1_C1_MARK)
+        i++;
+    return (FM1_C1_REGION - i) * 4u;
+}
 static void fm1_dual_halt(void)
 {
+    fm1_dual_on = 0;
     FM1_C1_CON &= ~8u;
     FM1_C1_CON |= 2u;
     fm1_dual_sync();

@@ -10,12 +10,16 @@
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 
 /* diagnostics, kept across resets and UBOOT entry: read with `fm1t memr` */
-#define DBG_MAGIC 0x44424731u                       /* "DBG1" */
+#define DBG_MAGIC 0x44424732u                       /* "DBG2" (2026-10-15: alive_ms, c1, crash_seen) */
 struct felucca_dbg {
     uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames;
     uint32_t last_us, cpu_q8, boots;
     uint32_t stage, page, home;           /* where the main loop is (breadcrumbs) */
     uint32_t prev_stage, prev_page, prev_home, prev_rst, prev_frames;   /* as found at boot */
+    uint32_t alive_ms, c1;                /* fm1_ms at the last TIMER5 millisecond; CPU1's stage then (DUAL builds) */
+    uint32_t prev_alive_ms, prev_c1;      /* (as found at boot: how long the boot before ran) */
+    uint32_t crash_seen, crash_new;       /* fm1_crash.count at boot; 1: it changed since (that boot ended in a crash) */
+    uint32_t boot_failed, boot_pending;   /* bootguard as this boot found it (after bootguard_begin) */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 
@@ -141,6 +145,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         song.cpu_q8 = (song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS)) / 16u;
 #if FELUCCA_DUAL >= 2
         dual_load_half();                                  /* CPU1's, the same way (dual.c, dual_load.h) */
+        felucca_dbg.c1 = fm1_dual_mb.stage;                /* (kept by a reset; TIMER5 keeps it too, from IRQS on) */
 #endif
         if (fm1_audio_free_half() != half)
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */

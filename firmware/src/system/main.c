@@ -60,6 +60,10 @@ void fm1_timer5_irq(void)
             acc -= 1000u * FM1_TICKS_PER_US;
             fm1_ms++;
         }
+        felucca_dbg.alive_ms = fm1_ms;          /* (kept by a reset: SYSTEM > INFO LAST RESET's time) */
+#if FELUCCA_DUAL
+        felucca_dbg.c1 = fm1_dual_mb.stage;
+#endif
     }
 }
 extern void isr_timer5(void);
@@ -179,6 +183,7 @@ static BOOT_ORDER void fm1_main(void)
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
+        felucca_dbg.crash_seen = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;   /* (an older crash) */
     }
     felucca_dbg.boots++;
     felucca_dbg.max_us = 0;
@@ -188,6 +193,16 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.prev_home = felucca_dbg.home;
     felucca_dbg.prev_frames = felucca_dbg.ui_frames;
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
+    felucca_dbg.boot_failed = bootguard.failed;
+    felucca_dbg.boot_pending = bootguard.pending;
+    felucca_dbg.prev_alive_ms = felucca_dbg.alive_ms;
+    felucca_dbg.prev_c1 = felucca_dbg.c1;
+    felucca_dbg.alive_ms = felucca_dbg.c1 = 0;
+    {
+        uint32_t n = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;
+        felucca_dbg.crash_new = n != felucca_dbg.crash_seen;
+        felucca_dbg.crash_seen = n;
+    }
     felucca_dbg.ui_frames = 0;                      /* (this boot's frames: 0 in a crumb = the UI never ran) */
 #if FELUCCA_BLE && BLE_HW_WL82
     fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */

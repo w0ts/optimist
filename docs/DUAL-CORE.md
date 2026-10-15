@@ -336,6 +336,28 @@ Stage 2 (parts 2 and 3 on CPU1), only after stage 1 passed:
   TIMEOUT; INFO shows CPU1 JOB/REWAKE (jobs in thousands / wakes sent again) and CPU1 STOP (`<s>s W`: the job never
   picked up, `<s>s J<n>`: in job n, 1-4 a part, 5 the drums, 6 the reverb; unit: CPU0's wait). Emulator:
   `DUAL_FAILTEST=6` (one lost wake at job 3000) recovers with 1 rewake, no late half.
+- 2026-10-15, the second report (mots, batch 141 a3ce53c4, with the rewake): "2ND CORE OFF TIMEOUT", CPU1 JOB/REWAKE
+  0/58, CPU1 STOP "--". 58 rewakes are one whole join (a rewake at 100, 200 .. 5800 us, the TIMEOUT past 5805 us) with
+  the job never picked up: the rewake did not help. STOP "--" was dual.down_ms == 0: the stop was recorded, at fm1_ms 0,
+  before TIMER5's first millisecond, i.e. the first audio interrupt's first job (the emulator's `DUAL_FAILTEST=7`, a
+  wake that never reaches CPU1, gives the same 0/58 and fm1_ms 0). Since fix/dual-idle: the stop is recorded on every
+  path (`dual_stop_t`, dual_mode.h) and INFO shows CPU1 STOP `<t>[*] W|J<n>|IDLE #<job>` (t since CPU1 started, `*`:
+  before the ms clock's first tick, #0: the first job), CPU1 HELLO (how far CPU1 got: MAIN, HELLO, SLEEP / SPIN,
+  WOKEN, TOOK JOB, JOB DONE; P1 / P0: its wake still pending at the stop, read from FM1_IPND(3) bit 28, a layout only
+  the emulator's [HW?]) and CPU1 BEAT IDLE / SPIN (CPU1's beat: returns from `idle` or spin loops, then its wake
+  handler's entries). `OPTIMIST_DUAL_IDLE=0` builds the spin variant through `tools/optimist.py build`.
+- 2026-10-15, the third and fourth reports: A (36bf9ee8, asleep): STOP "17ms* W #0", HELLO SLEEP, BEAT 0/0: CPU1
+  reached `idle` and never left it. B (36bf9ee8, a tight spin with a store every pass): every power-on followed by a
+  boot "2ND CORE OFF AFTER CRASH" (the power-on boot reset within 30 s, slow to boot). Every firmware that runs CPU1 on
+  the FM-1 (stock V15, X0X, Melodee, Jangada) polls in RAM; none wakes it by interrupt. What they do and we did not
+  (fix/dual-idle f2a97992): `cli; icfg = 0` at CPU1's entry; all 32 words of CPU1's interrupt bank cleared; CPU1's own
+  EMU bank (0x1EEF2D0: a stack limit, the div0 and float traps off); the mailbox split into one cache line per core;
+  a CPU1 debug-unit error (DBG_MSG's CPU1 bits) raises the exception on CPU0 (Melodee, measured): it now holds CPU1
+  (FAULT) and CPU0 resumes, instead of the crash report's reset. The asleep build also follows the SDK's IPI
+  (q32DSP(n) at 0x1EEF100 + 0x200 n; SOFT4 on CPU1 at priority 6, CPU1's IPMASK 0x1EEF3A8 = 0, the pending read from
+  CPU1's IPND3 0x1EEF38C); the spin polls once a pass with 32 nops, its beat and ping every 256 passes. INFO adds
+  LAST RESET (how the boot before ended: POWER ON / CRASH / WDT / SOFT, its run time, its stage) and CPU1 FAULT;
+  the console `boot`, and `OPTIMIST_CDC_FORCE=1` (the console presented without USB SERIAL ON).
 
 What to watch overall: resets (and when), the screen message, audio glitches on parts 2-3 only, the
 console counters, battery drain (CPU1 sleeps between jobs with `FELUCCA_DUAL_IDLE`, the default:
@@ -350,7 +372,11 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
   guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
   CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
-- **CPU1's stack (measured 2026-10-12):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
+- **CPU1's stack, since 2026-10-15:** 10 KiB, sp = ssp at +5120 (the wake interrupt's), usp at +10240 (CPU1's C code,
+  and a spinning build's jobs): 5 KiB each. The layout below gave usp only the lowest 2 KiB; the spinning builds (B..B4)
+  rendered their jobs there and an ACID part (2,948 B static) ran through the bottom into `part_mem`, just below in
+  `.pool`, and CPU0 crashed rendering from it in the first blocks of every power-on (hal/fm1_dual.h).
+- **CPU1's stack (measured 2026-10-12, superseded):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
   `cpu1_start` sets `usp` and then `sp` to the *system* stack (`_cpu1_sstack`): CPU1 is handed over in interrupt
   context, where sp is the system stack, and its rti saves sp into ssp and takes usp. The emulator models it so: the
   main loop runs on usp's top (+2048, 12 B used), and the wake interrupt with the job runs on +6144, the value the rti

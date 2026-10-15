@@ -425,11 +425,36 @@ static void con_status(void)
     con_kv("cpu1_bad", (int32_t)fm1_dual_mb.bad);       /* requests it refused (misreads): 0 on a healthy unit */
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
-    con_kv("cpu1_down_ms", (int32_t)dual.down_ms);      /* went down in a job: when, its mask, CPU0's wait, picked up?, in which */
+    con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
+    con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);   /* how far CPU1 got (dual_mode.h C1S_*) */
+    con_kv("cpu1_beat", (int32_t)fm1_dual_mb.count);    /* its spin loops / returns from idle */
+    con_kv("cpu1_wakes", (int32_t)fm1_dual_mb.wakes);   /* its wake handler's entries (asleep) */
+    con_kv("cpu1_stopped", dual.stop.stopped);          /* put down (any path, dual.c dual_down): */
+    con_kv("cpu1_down_ms", (int32_t)dual.down_ms);      /* fm1_ms then (0: before the clock's first tick) */
+    con_kv("cpu1_down_c1_ms", (int32_t)dual.stop.c1_ms);   /* ms since CPU1 was started */
+    con_kv("cpu1_down_job", (int32_t)dual.stop.job);    /* jobs joined before (0: the first) */
     con_kv("cpu1_down_mask", (int32_t)dual.down_mask);
-    con_kv("cpu1_down_wait_us", (int32_t)dual.down_wait_us);
-    con_kv("cpu1_down_took", dual.down_took);
-    con_kv("cpu1_down_at", dual.down_at);
+    con_kv("cpu1_down_wait_us", (int32_t)dual.stop.wait_us);
+    con_kv("cpu1_down_in_job", dual.stop.in_job);
+    con_kv("cpu1_down_took", dual.stop.took);
+    con_kv("cpu1_down_at", dual.stop.at);
+    con_kv("cpu1_down_beat", (int32_t)dual.down_beat);
+    con_kv("cpu1_down_pend", dual.down_pend);           /* its wake (soft interrupt 124) still pending then */
+    con_kx("cpu1_icfg", fm1_dual_mb.icfg);              /* CPU1's icfg as it slept (bit 31: read) */
+    con_kv("cpu1_exc", (int32_t)fm1_dual_exc.count);    /* exceptions about CPU1 (hal/fm1_dual.h fm1_dual_exc_c) */
+    con_kv("cpu1_exc_cpu", (int32_t)fm1_dual_exc.cpu);
+    con_kx("cpu1_exc_dbg", fm1_dual_exc.dbg);
+    con_kx("cpu1_exc_emu", fm1_dual_exc.emu);
+    con_kx("cpu1_exc_pc", fm1_dual_exc.pc);
+    con_kx("cpu1_exc_rets", fm1_dual_exc.rets);
+    con_kx("cpu1_exc_c1con", fm1_dual_exc.c1con);
+    con_kx("cpu1_exc_c1etm0", fm1_dual_exc.c1etm[0]);   /* CPU1's last branches then */
+    con_kx("cpu1_exc_c1etm1", fm1_dual_exc.c1etm[1]);
+    con_kx("cpu1_exc_c1etm2", fm1_dual_exc.c1etm[2]);
+    con_kx("cpu1_exc_c1etm3", fm1_dual_exc.c1etm[3]);
+    con_kx("cpu1_c1con", fm1_dual_c1con());
+    con_kv("cpu1_stack_irq_used", (int32_t)fm1_dual_stack_used(0));   /* bytes of 5120 (sp / ssp: the wake's) */
+    con_kv("cpu1_stack_main_used", (int32_t)fm1_dual_stack_used(1));  /* bytes of 5120 (usp: its C code, spin jobs) */                   /* (what it reads back now) */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif
@@ -465,7 +490,9 @@ static void con_dbg(void)
     static const char *const NAMES[] = {"magic", "halves", "max_us", "nested", "in_audio", "late",
                                         "timer_irqs", "ui_frames", "last_us", "cpu_q8", "boots",
                                         "stage", "page", "home", "prev_stage", "prev_page",
-                                        "prev_home", "prev_rst", "prev_frames"};
+                                        "prev_home", "prev_rst", "prev_frames", "alive_ms", "c1",
+                                        "prev_alive_ms", "prev_c1", "crash_seen", "crash_new", "boot_failed",
+                                        "boot_pending"};
     uint32_t i;
     for (i = 0; i < sizeof NAMES / sizeof NAMES[0] && i < sizeof felucca_dbg / 4u; i++)
         con_kx(NAMES[i], w[i]);
@@ -496,10 +523,39 @@ static void con_crash(void)
     con_kx("pc", fm1_crash.pc);
     con_kx("rets", fm1_crash.rets);
     con_kx("emu", fm1_crash.emu);
+    con_kx("dbg", fm1_crash.dbg);                       /* DBG_MSG: which guard / bus error (hal/fm1_guard.h) */
+    con_kx("icfg", fm1_crash.icfg);
+    con_kx("etm0", fm1_crash.etm[0]);                   /* the last branches before it */
+    con_kx("etm1", fm1_crash.etm[1]);
+    con_kx("etm2", fm1_crash.etm[2]);
+    con_kx("etm3", fm1_crash.etm[3]);
     con_kx("sp", fm1_crash.sp);
     con_kx("psr", fm1_crash.psr);
     con_kv("uptime_ms", (int32_t)fm1_crash.uptime_ms);
     con_kv("early", (int32_t)fm1_crash.early);
+}
+
+/* how this boot started and how the one before ended (2026-10-15, the CPU1 investigation: tools fm1_console.py boot,
+ * todo1014/dualidle/cpu1_log.py): the reset source, the boot guard as found, the breadcrumbs the reset kept */
+static void con_boot(void)
+{
+    con_kx("p3_rst", fm1_boot.p3_rst);                  /* bit0 power-on, 1 VDDIO low, 2 WDT, 3 VCM, 4 long press, 5 1.2 V, 6 soft */
+    con_kx("rst_src", fm1_boot.rst_src);
+    con_kx("wdt_con", fm1_boot.wdt_con);
+    con_kv("boot_failed", (int32_t)felucca_dbg.boot_failed);   /* warm resets within 30 s counted (bootguard.h) */
+    con_kv("boot_pending", (int32_t)felucca_dbg.boot_pending);
+    con_kv("bootguard_failed_now", (int32_t)bootguard.failed);   /* (0 once this boot ran 30 s) */
+    con_kv("boots", (int32_t)felucca_dbg.boots);
+    con_kv("prev_alive_ms", (int32_t)felucca_dbg.prev_alive_ms);   /* how long the boot before ran (TIMER5's ms) */
+    con_kx("prev_stage", felucca_dbg.prev_stage);       /* where it was: 0x41.. a start-up step, 1..9 the main loop */
+    con_kv("prev_frames", (int32_t)felucca_dbg.prev_frames);
+    con_kv("prev_c1_stage", (int32_t)felucca_dbg.prev_c1);   /* CPU1's stage then (dual_mode.h C1S_*) */
+    con_kv("prev_crash", (int32_t)felucca_dbg.crash_new);   /* 1: it ended in the crash report (crash) */
+    con_kv("ms", (int32_t)fm1_ms);
+#if FELUCCA_DUAL
+    con_kv("cpu1_why", dual.why);
+    con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
+#endif
 }
 
 static void con_params(void)
@@ -557,7 +613,7 @@ static void con_tabbench(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
+        con_puts("status  dbg  crash  boot  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -571,6 +627,8 @@ static void con_exec(const char *p)
         con_dbg();
     else if (con_word(&p, "crash"))
         con_crash();
+    else if (con_word(&p, "boot"))
+        con_boot();
     else if (con_word(&p, "params"))
         con_params();
     else if (con_word(&p, "tabbench"))

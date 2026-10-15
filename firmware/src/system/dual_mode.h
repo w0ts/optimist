@@ -67,4 +67,99 @@ static inline uint32_t dual_mode_after(uint32_t mode, uint32_t boot_mode, uint32
         return DUALM_OFF;
     return mode;
 }
+
+/* ---- SYSTEM > INFO's diagnostics of CPU1 (2026-10-15: TIMEOUT on the FM-1 with no stop record, dual.c)
+ * How far CPU1 got (fm1_dual_mb.stage, CPU1 writes the furthest): the C entry, its hello, its wait loop (asleep in
+ * `idle`, or spinning in RAM), its wake handler entered (asleep only), its first job picked up, its first job done */
+enum { C1S_NONE, C1S_MAIN, C1S_HELLO, C1S_LOOP, C1S_WOKEN, C1S_TOOK, C1S_DONE, C1S_N };
+static inline const char *dual_stage_name(uint32_t stage, int sleeps)
+{
+    static const char *const C1S_TXT[C1S_N] = {"NONE", "MAIN", "HELLO", "", "WOKEN", "TOOK JOB", "JOB DONE"};
+    if (stage == C1S_LOOP)
+        return sleeps ? "SLEEP" : "SPIN";
+    return stage < C1S_N ? C1S_TXT[stage] : "?";
+}
+
+/* v appended to b, short: 0..9999 as is, then k, then M (b has room for 6 more characters) */
+static inline void dual_cnum(char *b, uint32_t v)
+{
+    char t[8], sfx = 0;
+    uint32_t k = 0;
+    while (*b)
+        b++;
+    if (v >= 10000000u) {
+        v /= 1000000u;
+        sfx = 'M';
+    } else if (v >= 10000u) {
+        v /= 1000u;
+        sfx = 'k';
+    }
+    do
+        t[k++] = (char)('0' + v % 10u);
+    while ((v /= 10u) && k < 4u);
+    while (k)
+        *b++ = t[--k];
+    if (sfx)
+        *b++ = sfx;
+    *b = 0;
+}
+static inline void dual_chex(char *b, uint32_t v, uint32_t digits)   /* the low DIGITS hex digits of v appended */
+{
+    while (*b)
+        b++;
+    while (digits--)
+        *b++ = "0123456789ABCDEF"[(v >> (4u * digits)) & 15u];
+    *b = 0;
+}
+static inline void dual_cat(char *b, const char *s)   /* s appended to b */
+{
+    while (*b)
+        b++;
+    while ((*b++ = *s++))
+        ;
+}
+
+/* the stop record (dual.c dual_down): every path that puts CPU1 down, whether it was in a job or not */
+typedef struct {
+    uint8_t stopped;           /* 1 once CPU1 was put down (any reason; NO START too) */
+    uint8_t in_job;            /* a job was posted and not done */
+    uint8_t took;              /* CPU1 had picked that job up (fm1_dual_mb.took == req) */
+    uint8_t at;                /* 1 + the job it was in (1..4 a part, 5 the drums, 6 the reverb); 0: none begun */
+    uint8_t no_clock;          /* fm1_ms was still 0 (TIMER5's first tick not taken yet: the first audio interrupt) */
+    uint32_t c1_ms;            /* ms since CPU1 was started (TIMER4) */
+    uint32_t job;              /* jobs joined before: the index of the job it stopped in (0: the first one) */
+    uint32_t wait_us;          /* how long CPU0 had waited for that job */
+} dual_stop_t;
+
+/* the CPU1 STOP line: V (14 bytes) "--" | "<t>[*] W" (never picked up; t: ms under 10 s, else s) | "J<n>" (in job n) | "IDLE" (no job
+ * posted: a boot check, a flash operation); U (16 bytes) " #<job>" (in a job; and " <wait>us" when CPU0 had waited
+ * less than a half) or "" */
+static inline void dual_stop_text(const dual_stop_t *s, char *v, char *u)
+{
+    v[0] = u[0] = 0;
+    if (!s->stopped) {
+        dual_cat(v, "--");
+        return;
+    }
+    dual_cnum(v, s->c1_ms < 10000u ? s->c1_ms : s->c1_ms / 1000u);
+    dual_cat(v, s->c1_ms < 10000u ? "ms" : "s");
+    dual_cat(v, s->no_clock ? "* " : " ");
+    if (!s->in_job) {
+        dual_cat(v, "IDLE");
+        return;
+    }
+    if (s->took) {
+        dual_cat(v, "J");
+        dual_cnum(v, s->at);
+    } else {
+        dual_cat(v, "W");
+    }
+    dual_cat(u, " #");
+    dual_cnum(u, s->job);
+    if (s->wait_us < 5000u) {                  /* (not a whole half: a fault or a misread came first) */
+        dual_cat(u, " ");
+        dual_cnum(u, s->wait_us);
+        dual_cat(u, "us");
+    }
+}
 #endif

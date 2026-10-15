@@ -230,6 +230,11 @@ def build_app():
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
+    if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
+        flags.append("-DFELUCCA_CDC_FORCE=1")
+    v = os.environ.get("OPTIMIST_DUAL_IDLE")   # (not FELUCCA_*: the builder strips those) a DUAL build's CPU1 between jobs:
+    if v in ("0", "1") and os.environ.get("FELUCCA_DUAL_IDLE") is None:   # 1 asleep in `idle` (default), 0 spinning in RAM
+        flags.append(f"-DFELUCCA_DUAL_IDLE={v}")
     v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
     if v is not None and len(v) == 1 and v in "01234":
         flags.append(f"-DLCD_BAUD={v}u")
@@ -248,7 +253,7 @@ def build_app():
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"), ("FELUCCA_BENCH_REVONLY", "01"),
                      ("DUAL_REV", "01"),
-                     ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123456")):
+                     ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "01234567")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
@@ -444,7 +449,8 @@ def boot_refs(dis):
 # 2,452), PHYS 1,556 (1,556), ANALOG 680 (668), FM6 648 (856), PHASE 456 (456)
 CPU1_ROOTS = ("isr_c1_wake", "fm1_cpu1_main")
 CPU1_MIX = ("mix_part", "dual_run")  # (where the engines' render hooks are called from, inlined or not)
-CPU1_STACK_ROOM = 4096 - 256        # (256 B: the main loop's own frames and the interrupt's entry, above the job)
+CPU1_STACK_ROOM = 4096 - 256        # (of each 5 KiB region, hal/fm1_dual.h FM1_C1_REGION: a spinning build's jobs run on
+                                    #  usp, an asleep one's in the wake on sp; 2026-10-15: usp had 2 KiB, ACID overflowed it)
 
 
 def cpu1_stack(dis):
