@@ -5,6 +5,7 @@ backends and their command lines, the SDK lookup, the emulator launcher's firmwa
 tests/run_tests.sh and `python tools/optimist.py test --python`."""
 import contextlib
 import io
+import json
 import os
 import subprocess
 import sys
@@ -393,6 +394,21 @@ with tempfile.TemporaryDirectory() as d:
         check("notices: the site root carries LICENSE, LICENSING.md and LICENSES/Apache-2.0.txt", all((site / n).is_file() for n in NOTICES))
         check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
               'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
+        man = Path(d) / "flavours.json"
+        shutil.copy(fwsc, Path(d) / "a.fwsc")
+        shutil.copy(fwsc, Path(d) / "b.fwsc")
+        man.write_text(json.dumps({"flavours": [
+            {"id": "one", "title": "One", "description": "d1", "profile": "p1", "file": str(Path(d) / "a.fwsc")},
+            {"id": "two", "title": "Two", "description": "d2", "profile": "p2", "file": str(Path(d) / "b.fw*")}]}))
+        ms.main(None, "9.9-test", Path(d) / "site2", ms.flavours_of(man))
+        page2 = (Path(d) / "site2" / "webapp/installer/index.html").read_text(encoding="utf-8")
+        check("flavours: every manifest entry is published under firmware/ and listed in the installer page",
+              all((Path(d) / "site2/firmware" / f"optimist-9.9-test-{i}.fwsc").is_file() for i in ("one", "two"))
+              and '"title": "One"' in page2 and '"title": "Two"' in page2 and 'id="pkgsel"' in page2)
+        check("icon: the site ships the icon files and every page links one relatively",
+              all((site / n).is_file() for n in ms.ICONS) and 'href="../../icon.svg"' in page and
+              'href="../../icon.svg"' in (site / "webapp/editor/index.html").read_text(encoding="utf-8") and
+              'href="icon.svg"' in (site / "index.html").read_text(encoding="utf-8"))
         check("notices: the flasher's footer no longer says the sample pack is not CC0", "not CC0" not in page)
         import re as _re
         def _dead(html_file):   # relative href/src targets (no scheme, no fragment-only) that are not files in the site

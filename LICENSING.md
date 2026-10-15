@@ -30,6 +30,11 @@ from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.
   `tools/draw_icons.py` from the drawings in `tools/icon_drawings.py` (Copyright (C) 2026 the Optimist
   contributors), which are their source; the PNG is their output. History: on 2026-10-06 they replaced the
   atlas taken from Felucca 0.9-beta.
+- **The dinghy icon** `assets/logo/` (`icon.svg`, `optimist-logo.svg`, `icon-tile.svg`; the PNGs and `favicon.ico` are
+  rendered from them by `tools/gen_web_icon.py`): **GPL-3.0-only, Optimist's own.** A simplified redrawing, as filled
+  shapes, of the boot logo's dinghy line art (`LG_SEGS` in `firmware/src/ui/splash.c`, drawn for Optimist, with the
+  class emblem on the sail as that file describes it); no third-party image was used. The sailing class's name and
+  emblem belong to their owners; the icon only says what the firmware is named after (`docs/NAMING.md`).
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments\
 USB audio (from Melodee): Copyright (C) 2026 Kerem Kilic (Ellic Studio)
@@ -43,6 +48,7 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 - the web pages (installer, editor) and their tests: `web/` (not the Fukiai font, below)
 - the host tests: `tests/`
 - the parameter icons: `assets/icons.png`, drawn by `tools/draw_icons.py` (`tools/icon_drawings.py`)
+- the dinghy icon: `assets/logo/`, `tools/gen_web_icon.py`
 
 You may use, study, change and share it under the GPL. If you distribute Optimist, or
 firmware derived from it, you must also give your recipients its complete corresponding
