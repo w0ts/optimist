@@ -254,32 +254,47 @@ static uint32_t ua_transmit(uint8_t *p)
     return n * width * UA_CAP_CHANNELS;
 }
 
-/* Stereo Q15 monitor plus four pre-master mono stems; playback follows MASTER.
- * Call in blocks of CTL (32), with USB service excluded during this copy.
- * Not inlined: the emulator's USB audio test taps the stems at its entry. */
-static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *tracks, uint32_t n, uint32_t master_q12)
+/* the computer's audio, n frames of the playback ring -> l, r (Q15, the mix bus's scale: unity there is the level the
+ * output had it at before), 1; 0 none (not streaming, not filled to UA_TARGET yet, or an underrun: counted, the ring
+ * restarted). From the audio interrupt (fx.c ut_mix, the USB input track, fx-rework stage 3) through audio.c ua_take,
+ * which holds the USB service off for this copy only, as ua_block does (no work added to the USB poll or its interrupt) */
+static __attribute__((noinline)) uint32_t ua_play_take(int32_t *l, int32_t *r, uint32_t n)
 {
-    uint32_t i, capture = ua.cap_alt, playback = 0;
-    if (capture && ua.cw - ua.cr + n + 2u * FELUCCA_UA_RESAMPLE > UA_RING) {   /* (the resampler: +1 or 2) */
-        ua.cap_overruns++;
-        ua_cap_reset();
-    }
+    uint32_t i, got = 0;
     if (ua.play_alt) {
         if (!ua.play_ready && ua.pw - ua.pr >= UA_TARGET)
             ua.play_ready = 1;
         if (ua.play_ready) {
             if (ua.pw - ua.pr >= n)
-                playback = 1;
+                got = 1;
             else {
                 ua.play_underruns++;
                 ua_play_reset();
             }
         }
+        for (i = 0; got && i < n; i++) {
+            uint32_t pi = ((ua.pr + i) & (UA_RING - 1u)) * 2u;
+            l[i] = ua_play[pi];
+            r[i] = ua_play[pi + 1u];
+        }
+        if (got)
+            ua.pr += n;
+    }
+    return got;
+}
+
+/* Stereo Q15 monitor plus four pre-master mono stems (the playback: ua_take, the USB input track since fx-rework).
+ * Call in blocks of CTL (32), with USB service excluded during this copy.
+ * Not inlined: the emulator's USB audio test taps the stems at its entry. */
+static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *tracks, uint32_t n, uint32_t master_q12)
+{
+    uint32_t i, capture = ua.cap_alt;
+    if (capture && ua.cw - ua.cr + n + 2u * FELUCCA_UA_RESAMPLE > UA_RING) {   /* (the resampler: +1 or 2) */
+        ua.cap_overruns++;
+        ua_cap_reset();
     }
     for (i = 0; i < n; i++) {
         uint32_t ci = ((ua.cw + i) & (UA_RING - 1u)) * UA_CAP_CHANNELS;
-        uint32_t pi = ((ua.pr + i) & (UA_RING - 1u)) * 2u;
-        int32_t l = out[2u * i], r = out[2u * i + 1u];
         if (capture) {
             uint32_t ch;
 #if FELUCCA_UA_RESAMPLE
@@ -303,15 +318,8 @@ static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *trac
                 ua_cap[ci + ch] = (int16_t)ua_clip(tracks[i * UA_CAP_CHANNELS + ch]);
 #endif
         }
-        if (playback) {
-            l += (ua_play[pi] * (int32_t)master_q12) >> 12;
-            r += (ua_play[pi + 1u] * (int32_t)master_q12) >> 12;
-            out[2u * i] = ua_clip(l);
-            out[2u * i + 1u] = ua_clip(r);
-        }
     }
     if (capture && !FELUCCA_UA_RESAMPLE)
         ua.cw += n;                             /* (the resampler advanced it per frame out) */
-    if (playback)
-        ua.pr += n;
+    (void)out, (void)master_q12;
 }

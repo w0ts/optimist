@@ -36,6 +36,11 @@
  * No TLV: ins_map, the old project's layout on the tracks, the same sound (fx_slots.c, the design §4.2) */
 #define FXR_F_INS 1u
 #define VCNT_TLV 0x47u                                 /* (below) */
+/* TLV UT_TLV (0x48, fx-rework stage 3, 2026-10-15): the USB input track (fx_slots.c ut): LEVEL PAN MUTE FX-ON REV DLY CHO
+ * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's); only when not every one is the default
+ * (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
+#define UT_TLV 0x48u
+#define UT_TLV_N 11u
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
 #define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c ins_cset[k][3, 4]) */
@@ -60,7 +65,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(UT_TLV > VCNT_TLV, "the USB input's TLV: an id no other takes");
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
@@ -261,6 +267,34 @@ static void lin_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the defaul
         lin_put(l, s);
     }
 }
+#if FELUCCA_USB_AUDIO
+static uint32_t ut_tlv(uint8_t *o)                     /* -> o (UT_TLV_N); 0: the defaults */
+{
+    uint32_t k;
+    if (ut_dflt() && !ut.amt[0] && !ut.amt[1])
+        return 0;
+    for (k = 0; k < UTV_N; k++)
+        o[k] = (uint8_t)(int8_t)ut.v[k];
+    o[UTV_N] = ut.slot[0], o[UTV_N + 1u] = ut.slot[1];
+    o[UTV_N + 2u] = (uint8_t)(int8_t)ut.amt[0], o[UTV_N + 3u] = (uint8_t)(int8_t)ut.amt[1];
+    return UT_TLV_N;
+}
+static void ut_untlv(const uint8_t *a, uint32_t n)     /* (n short: the defaults) */
+{
+    uint32_t k;
+    ut_defaults();
+    if (n < UT_TLV_N)
+        return;
+    for (k = 0; k < UTV_N; k++)
+        ut.v[k] = (int16_t)clamp((int8_t)a[k], UT_DESC[k].min, UT_DESC[k].max);
+    for (k = 0; k < INS_N; k++) {
+        uint32_t t = a[UTV_N + k];
+        ut.slot[k] = (uint8_t)(t < FXT_N && (UT_OK >> t & 1u) && (!k || t != ut.slot[0] || t == FXT_NONE) ? t : FXT_NONE);
+        ut.amt[k] = ut.slot[k] != FXT_NONE && FXT_AMT[ut.slot[k]] != 0xFFu ?
+                    (int16_t)clamp((int8_t)a[UTV_N + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
+    }
+}
+#endif
 static uint32_t mst_tlv(const uint8_t *m, uint8_t *o)   /* -> o (MST_TLV_N); 0: nothing to keep (the slots as m, no amount) */
 {
     uint32_t k, any = 0;
@@ -350,6 +384,15 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+#if FELUCCA_USB_AUDIO
+    {   /* the USB input track (above) */
+        uint32_t m = ut_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)UT_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
+#endif
     {   /* the FX returns (above), as the drum lanes' */
         uint32_t m = fxret_tlv(o + n + 2u);
         if (m) {
@@ -404,6 +447,9 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
         vcnt_untlv(0, 0);                              /* (none: every part's VOICES at the engine's max) */
+#if FELUCCA_USB_AUDIO
+        ut_untlv(0, 0);                                /* (none: the USB input at its defaults) */
+#endif
     }
     for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
         if (a[at] == DLM_TLV)
@@ -414,6 +460,12 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             if (all)
                 vcnt_untlv(a + at + 2u, a[at + 1u]);
         }
+#if FELUCCA_USB_AUDIO
+        else if (a[at] == UT_TLV) {
+            if (all)
+                ut_untlv(a + at + 2u, a[at + 1u]);
+        }
+#endif
         else if (a[at] == FXRET_TLV) {
             if (all)
                 fxret_untlv(a + at + 2u, a[at + 1u]);

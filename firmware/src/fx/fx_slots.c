@@ -300,6 +300,92 @@ static void mst_defaults(void)
     mst_put(D);
 }
 
+#if FELUCCA_USB_AUDIO
+/* ---- the USB input as a track (fx-rework stage 3, 2026-10-15: "audio usb in ... would appear as a track after the drum
+ * tracks"): the computer's audio (the playback ring, usb_audio_stream.c ua_take) mixed as a stereo track, its LEVEL PAN
+ * MUTE, FX on, its two insert slots (the master's types but those with an instance count: CHRS ECHO GATER JUNO) on its L
+ * and R, its sends REV DLY CHO from its mid. Unity, centre, no insert, no send by default: the computer's audio as it was
+ * mixed before (into the output, now into the mix bus before the master's inserts). Kept in the FX record (fx_rec.c
+ * UT_TLV), a load's. The mixer's USB row (op_mixer.c) edits it */
+#define UT_OK (MST_OK & ~FXT_BIT(FXT_JUNO))
+#define UT_LVL_DEF 112                                  /* (LEVEL_Q12[112] = 4096: unity) */
+enum { UTV_LVL, UTV_PAN, UTV_MUTE, UTV_FXON, UTV_REV, UTV_DLY, UTV_CHO, UTV_N };
+static struct {
+    int16_t v[UTV_N];                                   /* LEVEL PAN MUTE FX ON, the sends REV DLY CHO */
+    uint8_t slot[INS_N];                                /* its insert slots' types */
+    int16_t amt[INS_N];                                 /* their amounts (the slot's: a type change resets it) */
+} ut = {{UT_LVL_DEF, 0, 0, 1, 0, 0, 0}, {FXT_NONE, FXT_NONE}, {0, 0}};
+static const param_desc_t UT_DESC[UTV_N] = {
+    PD("VOLUME", F_DB, 0, 127, UT_LVL_DEF), PD("PAN", F_BIPCT, -64, 63, 0), PE("MUTE", N_ONOFF, 0), PE("FX ON", N_ONOFF, 1),
+    PD("REV", F_PCT, 0, 127, 0), PD("DLY", F_PCT, 0, 127, 0), PD("CHO", F_PCT, 0, 127, 0)};
+static void ut_defaults(void)
+{
+    uint32_t i;
+    for (i = 0; i < UTV_N; i++)
+        ut.v[i] = UT_DESC[i].def;
+    ut.slot[0] = ut.slot[1] = FXT_NONE;
+    ut.amt[0] = ut.amt[1] = 0;
+}
+static int ut_dflt(void)
+{
+    uint32_t i;
+    for (i = 0; i < UTV_N; i++)
+        if (ut.v[i] != UT_DESC[i].def)
+            return 0;
+    return ut.slot[0] == FXT_NONE && ut.slot[1] == FXT_NONE;
+}
+/* slot s's TYPE (an index into ut_list, as the tracks') and its amount (the type's track amount descriptor) */
+static const char *ut_names[FXT_N];
+static uint8_t ut_list[FXT_N];
+static int16_t ut_tv[INS_N];
+static param_desc_t ut_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, ut_names, 0}, {"S2", F_ENUM, 0, 0, 0, ut_names, 0}};
+static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* 0..6 the values, 8 9 the TYPEs, 10 11 the amounts */
+{
+    uint32_t t, n = 0, s = id & 1u;
+    if (id < UTV_N) {
+        *vp = &ut.v[id];
+        return &UT_DESC[id];
+    }
+    if (id >= 10u) {
+        t = ut.slot[s];
+        if (!(t < FXT_N && (UT_OK >> t & 1u)) || FXT_AMT[t] == 0xFFu)
+            return 0;                                  /* (an empty slot: none) */
+        *vp = &ut.amt[s];
+        return &TP[FXT_AMT[t]];
+    }
+    ut_tv[s] = 0;
+    for (t = 0; t < FXT_N; t++)
+        if (t == FXT_NONE || UT_OK >> t & 1u) {
+            ut_names[n] = t == FXT_NONE ? "----" : TP[FXT_AMT[t]].label;
+            if (ut.slot[s] == t)
+                ut_tv[s] = (int16_t)n;
+            ut_list[n++] = (uint8_t)t;
+        }
+    ut_td[s].max = (int16_t)(n - 1u);
+    *vp = &ut_tv[s];
+    return &ut_td[s];
+}
+static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (the other's type swaps them, amounts too) */
+{
+    uint8_t w[INS_N];
+    s &= 1u;
+    if (t != FXT_NONE && !(UT_OK >> t & 1u))
+        return;
+    w[0] = ut.slot[0], w[1] = ut.slot[1];
+    if (t == w[s])
+        return;
+    fm1_irq_off();
+    if (t != FXT_NONE && w[s ^ 1u] == t) {
+        int16_t a = ut.amt[0];
+        ut.amt[0] = ut.amt[1], ut.amt[1] = a;
+        ut.slot[s ^ 1u] = w[s];
+    } else
+        ut.amt[s] = 0;
+    ut.slot[s] = (uint8_t)t;
+    fm1_irq_on();
+}
+#endif
+
 /* ---- each drum sound's two insert slots (fx-rework 2026-10-14: "each track should have two inserts (including ...
  * drum sub tracks)"; were a fixed DST and CMP, D7). Run per drum voice (fx.c dins_post), S1 then S2, on the voice's
  * block. The types a voice can hold: those whose state is a few words (LIN_T; a lane has no stereo, no line, no

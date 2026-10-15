@@ -25,7 +25,10 @@
  * nothing runs (the track sample for sample as without). A part's: one state a type a part; the drum bus's: L and R
  * only (its sends' accumulators, the drum sounds' own sends, pass them by, as every bus insert at QUALITY). */
 #if INS_FX
-#define IFX_NI (NPART + 4u)                             /* the instances: the parts, the drum bus's L, R, the master's L, R */
+#define IFX_NI (NPART + 6u)                             /* the instances: the parts, the drum bus's L, R, the master's L, R,
+                                                         * the USB input's L, R (fx-rework stage 3) */
+#define IFX_UT (NPART + 4u)
+#define IFX_AW_UT (NTRK + 1u)                           /* ifx_awake's entry for the USB input */
 #define IFX_BUS NPART
 #define IFX_MST (NPART + 2u)                            /* (fx-rework 2026-10-14: the master's two insert slots) */
 #define IFX_AW_MST NTRK                                 /* ifx_awake's entry for the master */
@@ -313,7 +316,9 @@ typedef struct {
     int32_t px[IFX_AP], py[IFX_AP];
     uint8_t q;
 } ifx_wd_t;
-static ifx_wd_t ifx_wide[IFX_NI - 1u];                  /* (the parts, the drum bus's L, the master's L at IFX_BUS + 1) */
+static ifx_wd_t ifx_wide[IFX_BUS + 3u];                 /* (the parts, the drum bus's L, the master's L at IFX_BUS + 1, the
+                                                         * USB input's at IFX_BUS + 2: ifx_wix) */
+AINL uint32_t ifx_wix(uint32_t i) { return i == IFX_MST ? IFX_BUS + 1u : i == IFX_UT ? IFX_BUS + 2u : i; }
 static int32_t ifx_side[NPART][CTL];                    /* a part's side this block (before its level): ifx_side_mix */
 static uint8_t ifx_sd[NPART];                           /* its side is set this block */
 #define IFX_WD_RATE 13                                  /* ~0.1 Hz */
@@ -398,7 +403,7 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
     case FXT_FRMT: return ifx_frmt[i].w;
 #endif
 #if FELUCCA_INS_WIDTH
-    case FXT_WIDE: return i < IFX_NI - 1u ? ifx_wide[i == IFX_MST ? IFX_BUS + 1u : i].w : 0;
+    case FXT_WIDE: return ifx_wix(i) < IFX_BUS + 3u ? ifx_wide[ifx_wix(i)].w : 0;
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
@@ -421,12 +426,12 @@ AINL int ifx_has(uint32_t ty, uint32_t k)
  * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
  * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
  * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
-static uint32_t ifx_awake[NTRK + 1];                    /* (the tracks', then the master's: IFX_AW_MST) */
+static uint32_t ifx_awake[NTRK + 2];                    /* (the tracks', the master's: IFX_AW_MST, the USB input's) */
 static __attribute__((noinline)) int32_t ifx_wn(uint32_t ty, uint32_t k) { return ifx_w(ty, k); }   /* (flash: the
                                                         * wrappers and the quiet loop call it through FAR, a block) */
 static __attribute__((noinline)) void ifx_mark(uint32_t ty, uint32_t k, int32_t a, int32_t w0)   /* (flash, FAR) */
 {
-    uint32_t j = k == IFX_MST ? IFX_AW_MST : k % NTRK;
+    uint32_t j = k == IFX_MST ? IFX_AW_MST : k == IFX_UT ? IFX_AW_UT : k % NTRK;
     if (a || w0 || ifx_w(ty, k))
         ifx_awake[j] |= FXT_BIT(ty);
     else
@@ -545,7 +550,7 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
     if (ty == FXT_WIDE) {
         int32_t d[CTL];
         uint32_t i;
-        if (ifx_width(&ifx_wide[i0 == IFX_MST ? IFX_BUS + 1u : i0], a, l, d, n, 3))
+        if (ifx_width(&ifx_wide[ifx_wix(i0)], a, l, d, n, 3))
             for (i = 0; i < n; i++)
                 l[i] += d[i];
         return;
@@ -576,6 +581,13 @@ static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32
     int32_t w0 = FAR(ifx_wn)(ty, IFX_BUS);
     ifx_bus_run(ty, a, l, r, n);
     FAR(ifx_mark)(ty, IFX_BUS, a, w0);
+}
+/* the USB input's further insert ty at amount a (fx.c ut_ins), its L and R (no limited type: fx_slots.c UT_OK) */
+static HOT2 __attribute__((noinline)) void ifx_ut(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, IFX_UT);
+    ifx_st_run(ty, IFX_UT, a, l, r, n);
+    FAR(ifx_mark)(ty, IFX_UT, a, w0);
 }
 /* the master's further insert ty at amount a (fx.c mst_ins), its L and R */
 static HOT2 __attribute__((noinline)) void ifx_mst(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)

@@ -549,6 +549,10 @@ job; ( jobin
     run "FX slots with the further inserts built (INS_*): the same layout, renders and records" "$OUT/fx_slots_ifx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
+    run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record)" "$OUT/fx_slots_usb_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_returns_test" tests/fx_returns_test.c -lm
     run "FX returns: CHO / DLY / REV RET at one half halve the wet, at 0 silent with the bus not run (its line cleared, no old tail back), the FX record, PROJECT SAVE / LOAD" "$OUT/fx_returns_test"
 ) >"$U.out" 2>&1 & jobbg

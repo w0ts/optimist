@@ -46,6 +46,19 @@ static uint32_t host_slots[3u * 0x14000u / 4u];
 #include "../firmware/src/core/macro.c"            /* GLO > MACRO (tests/macro_test.c) */
 #endif
 #include "../firmware/src/fx/fx.c"
+#if FELUCCA_USB_AUDIO
+/* the USB input track's source on the host (fx.c ut_mix; the firmware's: core/audio.c ua_take, the playback ring): a test
+ * sets host_ua_on and fills host_ua_l / host_ua_r with a block, else none */
+static int host_ua_on;
+static int32_t host_ua_l[CTL], host_ua_r[CTL];
+static uint32_t ua_take(int32_t *l, int32_t *r, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; host_ua_on && i < n; i++)
+        l[i] = host_ua_l[i], r[i] = host_ua_r[i];
+    return (uint32_t)host_ua_on;
+}
+#endif
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;               /* TIMER4 ticks (24 MHz) for the MIDI clock: the tests set it */
 #define SYNC_NOW() host_now
