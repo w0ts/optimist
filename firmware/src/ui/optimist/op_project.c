@@ -6,7 +6,7 @@
 /* ---- BLE devices: SYSTEM > BLUETOOTH, YES on the BLE row opens the list (the same one SLOOP's menu has: NONE, LAST, the
  * BLE-MIDI devices nearby, io/midi/ble_devices.c; the rows, their tags, the status line and the connecting logic are
  * its, shared). While it is open SYSTEM's rows ARE the list: SELECT moves the cursor (it stops at the ends), SAVE picks
- * the row (NONE, LAST) or connects to it, HOME goes back (the scan stops, the BLUETOOTH row is where it was), HOME + a
+ * the row (NONE, LAST) or connects to it, HOME goes back (the scan stops, the BLUETOOTH row is where it was), SHIFT + a
  * button asks FORGET LAST (the modal; SAVE yes). The panel is drawn by dev_draw (op_draw.c calls it), the cards show the
  * row's action and its signal. The words are in sentence case, as the rest of the UI; a device's name is shown as it
  * advertises itself ("KeyStep 37", "MPC Live"), never recased. */
@@ -109,7 +109,7 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect;
         ui.arm_raw = nm[0] != 0;
         return 1;
     }
-    if (str_eq(ui.arm_verb, "FORGET?")) {                                   /* (HOME + a button: FORGET LAST) */
+    if (str_eq(ui.arm_verb, "FORGET?")) {                                   /* (SHIFT + a button: FORGET LAST) */
         ble_dev_forget();
         ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
         return 1;
@@ -789,7 +789,7 @@ static void sys_set(uint32_t it, int32_t s)
     }
     sys_dirty = 1;
 }
-/* HOME held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
+/* SHIFT held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
  * settings record gives (the user, 2026-10-13): panel.c settings_init (COLOR 4 MONO, LOWCUT OFF), bright.c bright_boot
  * (BRIGHT 8, full), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
  * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
@@ -850,7 +850,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (bdv.open)
         return;                                         /* (the list: a knob does nothing) */
 #endif
-    if (s == OP_RESET && !d) {                          /* HOME held: no descriptor, the factory value */
+    if (s == OP_RESET && !d) {                          /* SHIFT held: no descriptor, the factory value */
         sys_factory(it);
         return;
     }

@@ -66,13 +66,17 @@ static uint32_t ed_fx_sig(void)
     return h;
 }
 
+static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
+                                                        * fxs_lane_id's table) */
+/* one entry per FX type: a new type (the fx-pool branch adds 18, EQ3) trips this until its entry is added here and in
+ * fx_slots.c fxs_lane_id (127: no SOUND 3 value) */
+_Static_assert(sizeof ED_FX_LID == FXT_N, "LID: one entry per FX type");
+
 /* INFO tag 0x56: version 1, the types built (n), then per type: id, kind (0 a send bus, 1 an insert), the amount's P_* id
  * (a synth track's and the drum bus's; 127 none), SOUND 3's value id of a drum sound's amount (16 REV, 17 DLY, 18 CHO,
  * 19 DST, 20 CMP; 127 none: FILT) */
 static void ed_fx_info(void)
 {
-    static const uint8_t LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
-                                                        * fxs_lane_id's table) */
     uint32_t t, n = 0;
     for (t = 1; t < FXT_N; t++)
         n += FXT_BUILT >> t & 1u;
@@ -85,7 +89,7 @@ static void ed_fx_info(void)
             ed_b(t);
             ed_b(FXT_INSERT >> t & 1u);
             ed_b(FXT_AMT[t] == 0xFFu ? 127u : FXT_AMT[t]);
-            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : LID[t]);
+            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : ED_FX_LID[t]);
         }
 }
 

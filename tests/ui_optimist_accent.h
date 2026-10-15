@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, the drum track's ACCENT lane on the Optimist UI (core.h DRUM_ACC, lane 16: the core of
  * feat/drum-accent; the user's ruling: "it should work like any other drum track, it is a drum track. just no audio
  * output, no synth engine. but everything else is the same"):
- *   the last upper key  (key 25) picks the lane (HOME + the key, on STEP too; the key played) and plays it silently;
+ *   the last upper key  (key 25) picks the lane (SHIFT + the key, on STEP too; the key played) and plays it silently;
  *                     SEQ + it on STEP: nothing (the keys there are steps); upper key 1 is silent, as the other upper keys
  *   STEP              a 17th row of the grid, the steps edited as any lane's; the held step: LEVEL RATCHET ACCENT
  *   the ACCENT amount the SOUND row's fourth card on every lane, the lane's STEP page, the mixer's ACCENT row; a lock
@@ -33,7 +33,7 @@ static void acc_key_tests(void)
     kup(DACC_KEY);
     release(B_OCTDN);
     check(lane_selected() == DRUM_ACC && ui.lane == 1u && lane_picked() && drums.hits == 0u && aud_lanes == 0u,
-          "SOUND, HOME held + the last upper key: the ACCENT lane picked, silent");
+          "SOUND, SHIFT held + the last upper key: the ACCENT lane picked, silent");
     check(!strcmp(head_engine(), "ACCENT"), "... the header's badge: ACCENT");
     lane_select(3);
     for (i = 0; i < 4u; i++)
@@ -52,7 +52,7 @@ static void acc_key_tests(void)
     kup(DACC_KEY);
     release(B_OCTDN);
     check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
-          "STEP, HOME held + the last upper key: the ACCENT lane picked, silent");
+          "STEP, SHIFT held + the last upper key: the ACCENT lane picked, silent");
     for (i = 0; i < 16u; i++) {                         /* a white key still picks its lane, the last upper key only the accent */
         lane_select(DRUM_ACC);
         press(B_OCTDN);
@@ -61,7 +61,7 @@ static void acc_key_tests(void)
         release(B_OCTDN);
         ok &= lane_selected() == i;
     }
-    check(ok, "... HOME + a white key picks its sound");
+    check(ok, "... SHIFT + a white key picks its sound");
     lane_select(3);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     dstep_set(&TDRUM->dstep[0], DRUM_ACC, LV_NORM, 0);
@@ -120,7 +120,7 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     kdown(1);
     kup(1);
     release(B_OCTDN);
-    check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, HOME held + upper key 1: T1's sequencer mute, as ever");
+    check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, SHIFT held + upper key 1: T1's sequencer mute, as ever");
     smute_trk = 0;
     smute_lane = 0;
     press(B_OCTDN);
@@ -128,7 +128,7 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     kdown(DACC_KEY);
     kup(DACC_KEY);
     check(smute_lane_on(DRUM_ACC) && smute_trk == 0u && !smute_lane_on(2) && lane_selected() == 2u && drums.hits == 0u,
-          "the mixer, HOME held + the last upper key: the ACCENT lane's sequencer mute on (nothing else, no lane picked)");
+          "the mixer, SHIFT held + the last upper key: the ACCENT lane's sequencer mute on (nothing else, no lane picked)");
     {
         uint32_t f = 0, d = 0;
         keys_lit(&f, &d);
@@ -274,7 +274,7 @@ static void acc_step_tests(void)
         press(B_OCTDN);
         turn(EN_K3, 1);
         release(B_OCTDN);
-        check(!lock_get(t, 6, P_DACC, &x), "HOME + KNOB 3: the lock dropped");
+        check(!lock_get(t, 6, P_DACC, &x), "SHIFT + KNOB 3: the lock dropped");
         turn(EN_K3, 6);
         ui.hot = 2;
         tap(B_SAVE);

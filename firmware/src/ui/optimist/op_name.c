@@ -5,7 +5,7 @@
  * gesture, its key map and its multi-tap typing; the grammar is this UI's:
  *   SAVE          done: the name is written with what it names (stopped: STOP BEFORE SAVE keeps the screen)
  *   HOME tapped   the character before the cursor deleted; with the cursor at the start: cancel, nothing written
- *   HOME + a knob the whole name cleared
+ *   SHIFT + a knob the whole name cleared
  *   white keys    ABC: AB CD EF GH IJK LM NO PQ RS TU VW XYZ 123 456 789 0-. (phone style: the same key within
  *                 0.8 s the group's next character); 123: 1 2 3 4 5 6 7 8 9 0 - . _ / # + one tap each
  *   black keys    by name, in both octaves: F# left, G# space, A# right, C# delete (held: they repeat), D# ABC / 123
