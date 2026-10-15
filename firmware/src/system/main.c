@@ -207,11 +207,7 @@ static BOOT_ORDER void fm1_main(void)
     settings_init();
     BOOT_STAGE(LCD);
     lcd_init();
-#if FELUCCA_SPLASH
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
-#else
-    lcd_fill(0, 0, 240, 240, C_BLACK);                  /* (no logo: a dark screen until the UI's first frame) */
-#endif
 #if FELUCCA_SIMD
     sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
 #endif
@@ -260,7 +256,6 @@ static BOOT_ORDER void fm1_main(void)
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
-#if FELUCCA_SPLASH
     {
         uint32_t ms;
         for (ms = 0; ms < 900u; ms += 10u) {            /* (the logo stays a moment; the pot followed: MIDI plays) */
@@ -268,7 +263,6 @@ static BOOT_ORDER void fm1_main(void)
             master_pot(&knob, 1);
         }
     }
-#endif
     kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, C_BLACK);
 

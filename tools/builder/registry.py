@@ -27,6 +27,7 @@ MIGRATE = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "SPLASH": "the dinghy boot logo is always built (retired 2026-10-15: no ring-only logo, no off; any old SPLASH value is ignored)",
     "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
     "SIZE": "the UI, stores and editor are always built for size (minsize; retired 2026-10, no -Os-everywhere choice)",
     "SIMD": "SIMD: wrong on the real FM-1, 2026-10-12 (the packed 16-bit sine and swarm maths crackle on the device, "
@@ -593,11 +594,6 @@ _add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U
           "SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. "
           "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
           "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
-_add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
-     choices=((1, "dinghy"), (2, "ring"), (0, "off")),
-     desc="the Optimist logo, the name and the version for 0.9 s at power-on, drawn (no bitmap). Dinghy: an "
-     "Optimist with the class emblem on its sail (1.0 KB of flash); ring: the emblem alone, large, the logo before "
-     "the dinghy (0.5 KB); off: a dark screen until the UI")
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52,
      desc="A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the "
           "labels get their full width back.")
@@ -699,6 +695,7 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)
+# (bit 51, SPLASH, retired 2026-10-15: the dinghy boot logo is always built; never reuse the bit)
 
 # ---- experimental
 X = "Experimental"
@@ -819,7 +816,7 @@ _SYMS = {
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "OTA": ("ota_session",),
-    "SPLASH": ("lg_rect", "lg_span"), "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
+    "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
     "X909_CYM": ("x0x_smp_ride_m", "x0x_smp_crash_m"), "DRUM_X0X808": ("drum808_trigger",),
     "CPU_GUARD": ("cg", "cg_post", "CG_VCOST"),
 }

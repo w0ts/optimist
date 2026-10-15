@@ -837,7 +837,7 @@ def savings_of(cfg, costs):
 
 # ---- fitting: drop items in a fixed order of least loss until the estimate fits
 FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3); samples last, PERC never
-    ("ENG_SLICE", 0), ("SPLASH", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
+    ("ENG_SLICE", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
     ("FM6_OPL", 0), ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
     ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)

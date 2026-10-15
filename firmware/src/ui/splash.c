@@ -9,16 +9,7 @@
  * the bar on each side and 0.028 R tall. Each pixel gets its coverage (Q8), kept in the canvas until the colour
  * pass: a stroke from the pixel's distance to its line and its overlap with the stroke's length, the ring from the
  * distance to the centre, the bar and serifs from their overlap with the pixel.
- *
- * FELUCCA_SPLASH 2 (builder: boot logo = ring) draws the emblem alone, large, as the boot screen did before the
- * dinghy. */
-#if FELUCCA_SPLASH == 2
-#define LOGO_R 50                                        /* the ring's outer radius, px */
-#define LOGO_W (2u * LOGO_R)
-#define LOGO_H ((uint32_t)(LOGO_R + LOGO_R * 1360 / 1000 + 1))
-#define LOGO_Y 20u                                       /* screen row of the ring's top */
-#define LOGO_TEXT_Y (LOGO_Y + LOGO_H + 14u)
-#else
+ */
 #define LOGO_R 6                                         /* the emblem's outer radius, px */
 #define LG_QX 52                                         /* the emblem's centre in the box, px */
 #define LG_QY 34
@@ -27,7 +18,6 @@
 #define LOGO_H 151u
 #define LOGO_Y 10u                                       /* screen row of the box's top */
 #define LOGO_TEXT_Y (LOGO_Y + LOGO_H + 12u)              /* "OPTIMIST" (FONT_L), the version under it */
-#endif
 #define LG(m) ((int32_t)(LOGO_R * 256 * (m) / 1000))     /* per mille of R -> Q8 px */
 #define LG_RO LG(1000)                                   /* the ring's outer and inner radius */
 #define LG_RI LG(686)
@@ -65,22 +55,6 @@ static int32_t lg_cover(int32_t px, int32_t py)
     return b > a ? b : a;                                                            /* (the serifs) */
 }
 
-#if FELUCCA_SPLASH == 2
-/* the logo into the canvas (LOGO_W x LOGO_H, the ring's centre at (R, R)), then onto the screen */
-static void optimist_logo(uint32_t x0, uint32_t y0)
-{
-    uint32_t x, y;
-    cv_begin(LOGO_W, LOGO_H, C_BLACK);
-    for (y = 0; y < LOGO_H; y++)
-        for (x = 0; x < LOGO_W; x++) {
-            uint32_t k = (uint32_t)lg_cover((int32_t)x * 256 - LG_RO, (int32_t)y * 256 - LG_RO), c = LOGO_C;
-            if (k)
-                cv_px[y * LOGO_W + x] = swap16((((c >> 11) * k >> 8) << 11) | ((((c >> 5) & 63u) * k >> 8) << 5) |
-                                               ((c & 31u) * k >> 8));
-        }
-    cv_blit(x0, y0);
-}
-#else
 /* the dinghy's strokes, x0 y0 x1 y1 in px of the box (an Optimist side on, bow to the left) */
 static const uint8_t LG_SEGS[][4] = {
     {15, 49, 15, 113},  {16, 49, 53, 4},    {15, 80, 52, 6},    {53, 4, 89, 102},  /* mast, head, sprit, leech */
@@ -151,7 +125,6 @@ static void optimist_logo(uint32_t x0, uint32_t y0)
     }
     cv_blit(x0, y0);
 }
-#endif
 
 /* the boot screen: the logo, the name in the theme's colour, the version from the build (VERSION) */
 static void boot_splash(void)
