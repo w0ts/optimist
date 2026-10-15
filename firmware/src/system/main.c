@@ -65,6 +65,20 @@ void fm1_timer5_irq(void)
             fm1_ms++;
         }
         felucca_dbg.alive_ms = fm1_ms;          /* (kept by a reset: SYSTEM > INFO LAST RESET's time) */
+#if FELUCCA_DUAL >= 2
+        felucca_dbg.where = (felucca_dbg.where & ~1u) | dual_in_join;
+#endif
+        if (felucca_dbg.loop_ms) {               /* (the main loop's gap: a starved one is a watchdog reset to come) */
+            uint32_t g = fm1_ms - felucca_dbg.loop_ms;
+            if (g > felucca_dbg.loop_gap_max)
+                felucca_dbg.loop_gap_max = g;
+#if FELUCCA_DUAL >= 2
+            if (g >= DUAL_STARVE_MS && !felucca_dbg.starve_ms) {
+                felucca_dbg.starve_ms = fm1_ms;
+                dual_starve_req = 1;            /* (the audio render takes CPU1 down at its next block: dual.c) */
+            }
+#endif
+        }
 #if FELUCCA_DUAL
         felucca_dbg.c1 = fm1_dual_mb.stage;
 #endif
@@ -201,6 +215,13 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.boot_pending = bootguard.pending;
     felucca_dbg.prev_alive_ms = felucca_dbg.alive_ms;
     felucca_dbg.prev_c1 = felucca_dbg.c1;
+    felucca_dbg.prev_loop_gap_max = felucca_dbg.loop_gap_max;
+    felucca_dbg.prev_starve_ms = felucca_dbg.starve_ms;
+    felucca_dbg.prev_where = felucca_dbg.where;
+    felucca_dbg.prev_in_audio = felucca_dbg.in_audio;
+    felucca_dbg.prev_cpu_q8 = felucca_dbg.cpu_q8;
+    felucca_dbg.prev_late = felucca_dbg.late;
+    felucca_dbg.loop_ms = felucca_dbg.loop_gap_max = felucca_dbg.starve_ms = felucca_dbg.where = 0;
     felucca_dbg.alive_ms = felucca_dbg.c1 = 0;
     {
         uint32_t n = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;
@@ -292,6 +313,7 @@ static BOOT_ORDER void fm1_main(void)
     for (;;) {
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
+        felucca_dbg.loop_ms = m ? m : 1u;
         usb_retry(fm1_ms);
         if ((uint32_t)(m - healthy_since) >= 30000u && bootguard.pending) {
             bootguard_clear(&bootguard);     /* 30 s of this boot, even if TIMER4 survived reset */

@@ -132,7 +132,12 @@ static void test_mode(void)
     CHECK(dual_boot_why(DUALM_OFF, 2) == DUAL_SETOFF, "OFF wins over the crash (no message)");
     CHECK(dual_park(DUAL_UP, 1) == DUAL_PARKED && dual_park(DUAL_UP, 0) == DUAL_UP, "parked: CPU1 is never started unless built with OPTIMIST_DUAL_PARK=0");
     CHECK(dual_park(DUAL_SETOFF, 1) == DUAL_SETOFF && dual_park(DUAL_EARLY, 1) == DUAL_EARLY, "parking does not hide the setting or an early crash");
-    CHECK(!dual_why_parks(DUAL_PARKED) && !strcmp(dual_why_name(DUAL_PARKED), "PARKED") && FELUCCA_DUAL_PARK == 1, "PARKED is its own reason (not a failure), parked by default");
+    CHECK(!dual_why_parks(DUAL_PARKED) && !strcmp(dual_why_name(DUAL_PARKED), "PARKED") && FELUCCA_DUAL_PARK == 0,
+          "PARKED is its own reason (not a failure), no longer the default (the BLUETOOTH rule)");
+    CHECK(dual_ble_rule(DUAL_UP, 1, 1) == DUAL_BLE && dual_ble_rule(DUAL_UP, 1, 0) == DUAL_UP &&
+              dual_ble_rule(DUAL_UP, 0, 1) == DUAL_UP && dual_ble_rule(DUAL_SETOFF, 1, 1) == DUAL_SETOFF,
+          "BLUETOOTH ON keeps CPU1 off in a BLE build only, and does not hide the setting");
+    CHECK(!dual_why_parks(DUAL_BLE) && !strcmp(dual_why_name(DUAL_BLE), "BLUETOOTH"), "BLUETOOTH is its own reason");
     /* the settings word: 0 (a record without the bits) is AUTO; the other bits are kept */
     CHECK(dual_mode_in(0u) == DUALM_AUTO, "no bits: AUTO");
     CHECK(dual_mode_in(3u << 27) == DUALM_AUTO, "an unknown value: AUTO");

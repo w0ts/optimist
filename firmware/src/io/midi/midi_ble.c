@@ -289,6 +289,10 @@ static int ble_radio_start(void)
     return 1;
 }
 
+#if FELUCCA_DUAL >= 2
+static int dual_ble_busy(void) { return ble_on || ble_up; }   /* (system/dual.c: the BLUETOOTH rule) */
+#endif
+
 static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
 {
     struct ble_rf_trims vm, use;

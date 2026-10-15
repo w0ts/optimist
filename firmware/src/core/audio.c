@@ -10,7 +10,7 @@
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 
 /* diagnostics, kept across resets and UBOOT entry: read with `fm1t memr` */
-#define DBG_MAGIC 0x44424732u                       /* "DBG2" (2026-10-15: alive_ms, c1, crash_seen) */
+#define DBG_MAGIC 0x44424733u                       /* "DBG3" (2026-10-15: alive_ms, c1, crash_seen; loop / where / starve) */
 struct felucca_dbg {
     uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames;
     uint32_t last_us, cpu_q8, boots;
@@ -20,6 +20,11 @@ struct felucca_dbg {
     uint32_t prev_alive_ms, prev_c1;      /* (as found at boot: how long the boot before ran) */
     uint32_t crash_seen, crash_new;       /* fm1_crash.count at boot; 1: it changed since (that boot ended in a crash) */
     uint32_t boot_failed, boot_pending;   /* bootguard as this boot found it (after bootguard_begin) */
+    /* 2026-10-15 (a watchdog reset at main-loop stage 2 with CPU1 running): where CPU0 was. loop_ms: fm1_ms at the main
+     * loop's last pass (TIMER5 compares: loop_gap_max, the longest the main loop went without a pass, and starve_ms, when
+     * it first went DUAL_STARVE_MS without one); where: bit 0 in dual_join, bit 1 in the audio render */
+    uint32_t loop_ms, loop_gap_max, starve_ms, where;
+    uint32_t prev_loop_gap_max, prev_starve_ms, prev_where, prev_in_audio, prev_cpu_q8, prev_late;
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 
@@ -112,6 +117,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
      * preempts the render now rests on the core keeping the global enable through the interrupt's entry: not
      * measured on the FM-1; the emulator's model clears it, and its USB audio host test then misses packets) */
     felucca_dbg.in_audio = 1;
+    felucca_dbg.where |= 2u;
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
         int32_t *o = &abuf[half * HALF_WORDS];
@@ -156,6 +162,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         felucca_dbg.cpu_q8 = song.cpu_q8;
     }
     felucca_dbg.in_audio = 0;
+    felucca_dbg.where &= ~2u;
 }
 extern void isr_alnk0(void);
 

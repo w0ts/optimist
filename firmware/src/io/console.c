@@ -606,6 +606,13 @@ static void con_boot(void)
     con_kv("prev_frames", (int32_t)felucca_dbg.prev_frames);
     con_kv("prev_c1_stage", (int32_t)felucca_dbg.prev_c1);   /* CPU1's stage then (dual_mode.h C1S_*) */
     con_kv("prev_crash", (int32_t)felucca_dbg.crash_new);   /* 1: it ended in the crash report (crash) */
+    con_kv("prev_loop_gap_max_ms", (int32_t)felucca_dbg.prev_loop_gap_max);   /* the main loop's longest gap then */
+    con_kv("prev_starve_ms", (int32_t)felucca_dbg.prev_starve_ms);   /* when it starved (no pass for 1.5 s), 0: never */
+    con_kx("prev_where", felucca_dbg.prev_where);       /* bit 0 in dual_join, bit 1 in the audio render (then) */
+    con_kv("prev_in_audio", (int32_t)felucca_dbg.prev_in_audio);
+    con_kv("prev_cpu_pct", (int32_t)(felucca_dbg.prev_cpu_q8 * 100u / 256u));
+    con_kv("prev_late", (int32_t)felucca_dbg.prev_late);
+    con_kv("loop_gap_max_ms", (int32_t)felucca_dbg.loop_gap_max);   /* this boot so far */
     con_kv("ms", (int32_t)fm1_ms);
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
@@ -631,7 +638,7 @@ static void con_boot(void)
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
 static uint8_t con_reboot_req;                          /* `reboot`: main.c resets, as an intentional reset */
 /* the second-core test image (system/dual.c dualcfg): `dualcfg show | reset | start boot|after|never | late MS |
- * park on|off | idle sleep|spin | hold MS | poll N | boost on|off | ble on|off`. Saved with the settings record at once,
+ * park on|off | idle sleep|spin | hold MS | poll N | boost on|off | ble on|off | policy ble-exclusive|none`. Saved with the settings record at once,
  * applied at the next boot (`reboot`, or a power-on) */
 static void con_dualcfg_show(void)
 {
@@ -645,6 +652,7 @@ static void con_dualcfg_show(void)
     con_kv("dualcfg poll", (int32_t)dualcfg.poll);
     con_kv("dualcfg boost", dualcfg.boost);
     con_kv("dualcfg ble", dualcfg.ble);
+    con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -681,6 +689,8 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.boost);
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
+    else if (con_word(&p, "policy"))
+        ok = con_word(&p, "ble-exclusive") ? (c.policy = 1, 1) : con_word(&p, "none") ? (c.policy = 0, 1) : 0;
     else if (con_word(&p, "late")) {
         v = con_num(&p, &n);
         ok = n && v <= 60000u;
@@ -700,7 +710,7 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;
