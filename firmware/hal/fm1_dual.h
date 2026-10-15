@@ -281,6 +281,7 @@ static struct {
 typedef struct {
     uint32_t magic, dbg, axi_rd_id, axi_wr_id, pcrs, reti, rets, psr, icfg, usp, ssp, sp, emu, r[16];
     uint32_t ble[5];              /* the BLE breadcrumb then (hal/fm1_ble_rf.h fm1_ble_bc: now, irqs, op, gop, addr) */
+    uint32_t c1_wr_num;           /* C1_WR_LIMIT_ERR_NUM then: the write-limit window a CPU1 write hit (bit n: window n) */
     uint32_t ticks;               /* TIMER4 then */
 } fm1_c1_snap_t;
 fm1_c1_snap_t fm1_c1_snap __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
@@ -292,6 +293,7 @@ static void fm1_dual_snap(uint32_t dbg)
     fm1_c1_snap.dbg = dbg;
     fm1_c1_snap.axi_rd_id = *(volatile uint32_t *)0x1EEE370u;
     fm1_c1_snap.axi_wr_id = *(volatile uint32_t *)0x1EEE374u;
+    fm1_c1_snap.c1_wr_num = *(volatile uint32_t *)0x1EEE364u;
     if (fm1_dual_on) {
         q[0x26] = 0xFFFFFFFFu;                            /* CMD_PAUSE (debug.c putpchex) */
         __asm__ volatile("csync" ::: "memory");

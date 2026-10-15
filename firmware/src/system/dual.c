@@ -51,7 +51,7 @@ typedef struct {
     uint8_t ble;                                   /* 0: no BLE radio start-up at boot, whatever BLUETOOTH says */
     uint8_t policy;                                /* 1: the BLUETOOTH rule (dual_mode.h dual_ble_rule), 0: none */
     uint8_t flat;                                  /* 1: no nested interrupts (TIMER5 and BLE at the audio's priority 3) */
-    uint8_t pad[1];
+    uint8_t c1guard;                               /* 1: CPU1 may not write CPU0's RAM code, stacks, .noinit, vectors */
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -71,6 +71,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->poll = FM1_DUAL_SPIN_NOPS;
     c->ble = 1;
     c->policy = 1;
+    c->c1guard = 1;
 }
 #define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2)
 #define DUAL_SPIN_CODE 1
@@ -452,6 +453,10 @@ static __attribute__((noinline)) void dual_boot(void)
 #endif
     }
     fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
+#if FELUCCA_DUALCFG
+    if (dualcfg.c1guard)
+        fm1_guard_c1_writes();                     /* (hal/fm1_guard.h: a stray CPU1 write is caught, CPU1 held) */
+#endif
 #if DUAL_SLEEP_CODE
     if (DUAL_SLEEPS_NOW)
         fm1_dual_wake_setup(isr_c1_wake);

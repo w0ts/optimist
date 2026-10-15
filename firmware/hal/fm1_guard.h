@@ -26,6 +26,8 @@
 #define FM1_WR_LIMIT_H(n) FM1_X2(0x280u + 4u * (n))
 #define FM1_WR_LIMIT_L(n) FM1_X2(0x2C0u + 4u * (n))
 #define FM1_C0_WR_LIMIT_EN FM1_X2(0x348u)
+#define FM1_C1_WR_LIMIT_EN FM1_X2(0x34Cu)                  /* (corex2 C1_WR_LIMIT_EN, the AC79 SDK's asm/csfr.h) */
+#define FM1_C1_WR_LIMIT_ERR_NUM FM1_X2(0x364u)             /* (which window a CPU1 write hit) */
 #define FM1_PC_LIMIT0_H FM1_X2(0x380u)
 #define FM1_PC_LIMIT0_L FM1_X2(0x384u)
 #define FM1_PC_LIMIT1_H FM1_X2(0x388u)
@@ -98,6 +100,26 @@ static void fm1_guard_pc_open(void)
     FM1_PC_LIMIT0_H = 0xFFFFFFFFu;
     FM1_PC_LIMIT1_L = 0u;
     FM1_PC_LIMIT1_H = 0xFFFFFFFFu;
+    fm1__dbg_lock();
+}
+
+/* CPU1's write limits (the second-core test image, 2026-10-15: CPU1 computed wrong addresses on the FM-1 and CPU0 then
+ * crashed through a corrupted vector / stack): CPU1 may not write CPU0's RAM code (window 3, .ram_text .. .ram_hot2) nor
+ * CPU0's stacks, guard bands, .noinit and the top of RAM with the vectors (window 4, _guard0 .. 0x01C7FFFF). A write
+ * there raises DBG_MSG bit 11 (c1_wr_limit_err_r, the SDK's name): the exception holds CPU1 (hal/fm1_dual.h
+ * fm1_dual_exc_c) and CPU0 goes on; C1_WR_LIMIT_ERR_NUM says which window */
+static void fm1_guard_c1_writes(void)
+{
+    volatile uint32_t lo = (uint32_t)(uintptr_t)_rt_start, hi = (uint32_t)(uintptr_t)_rh2_end;
+    if ((uint32_t)(uintptr_t)_rh_end > hi)
+        hi = (uint32_t)(uintptr_t)_rh_end;
+    fm1__dbg_unlock();
+    FM1_DBG_MSG_CLR = 0xFFFFFFFFu;
+    FM1_WR_LIMIT_L(3) = lo;
+    FM1_WR_LIMIT_H(3) = hi - 1u;
+    FM1_WR_LIMIT_L(4) = (uint32_t)(uintptr_t)_guard0;
+    FM1_WR_LIMIT_H(4) = 0x01C7FFFFu;
+    FM1_C1_WR_LIMIT_EN |= (1u << 3) | (1u << 4);
     fm1__dbg_lock();
 }
 

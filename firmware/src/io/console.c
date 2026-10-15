@@ -552,6 +552,7 @@ static void con_snap(void)
     con_kx("snap_dbg", fm1_c1_snap.dbg);                 /* DBG_MSG: 4 axi_rd_inv 5 axi_wr_inv 16..18 c1_if/rd/wr_bus_inv 19..21 c0_ */
     con_kx("snap_axi_rd_id", fm1_c1_snap.axi_rd_id);     /* the bus master of an axi_rd_inv */
     con_kx("snap_axi_wr_id", fm1_c1_snap.axi_wr_id);
+    con_kx("snap_c1_wr_window", fm1_c1_snap.c1_wr_num);   /* bit 3: CPU0's RAM code, bit 4: its stacks / .noinit / vectors */
     con_kx("c1_pc", fm1_c1_snap.pcrs);                   /* where CPU1 was (PCRS) */
     con_kx("c1_reti", fm1_c1_snap.reti);
     con_kx("c1_rets", fm1_c1_snap.rets);
@@ -672,6 +673,7 @@ static void con_dualcfg_show(void)
     con_kv("dualcfg ble", dualcfg.ble);
     con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
     con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
+    con_kv("dualcfg c1guard", dualcfg.c1guard);
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -708,6 +710,8 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.boost);
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
+    else if (con_word(&p, "c1guard"))
+        ok = con_onoff(&p, &c.c1guard);
     else if (con_word(&p, "nest")) {
         uint8_t on;
         ok = con_onoff(&p, &on);
@@ -734,7 +738,7 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;
