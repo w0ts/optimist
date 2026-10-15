@@ -534,6 +534,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
  * feedback sent to the computer (Hz). LOW/GAP: the ring's lowest fill (frames of 1024, target 512) / the longest gap
  * between two USB polls (us) / the gaps over 900 us. FLASH OFF: the longest interrupts-off window of a flash op (us) */
 #define INFO_UA 4u
+static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object) */
 static void ua_put(char *b, uint32_t v, char sep)        /* v capped at 999999, then sep, appended */
 {
     uint32_t n = str_len(b);
