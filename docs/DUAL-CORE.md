@@ -372,6 +372,15 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
   guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
   CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
+- **2026-10-15 evening, the rule shipped:** with the BLE radio started, CPU1 running faulted on every boot of this FM-1
+  (random exception types, during and after the radio's start-up program); with BLUETOOTH OFF it ran clean (B9a: 42,952
+  jobs in 33 s). The user's ruling: the second core runs only while BLUETOOTH is OFF (`dual_ble_rule`, dual_mode.h):
+  started from the main loop after boot only if BLUETOOTH is OFF; switching it ON stops CPU1 first (`dual_radio_hold`:
+  between two audio blocks, `DUAL_BLE`), never restarted until the next boot; INFO "2ND CORE OFF BLUETOOTH". Builds without
+  BLE start CPU1 at boot as before. `FELUCCA_DUAL_IDLE` defaults to 0 (the spin: the wake never reached CPU1 on the FM-1).
+  A join is bounded to two blocks (1.45 ms; it was a half for each of 8 blocks), and a main loop with no pass for 1.5 s
+  takes CPU1 down (`DUAL_OVERLOAD`): a watchdog reset at main-loop stage 2 (B9a, CPU1 running, a heavy edit) is the case.
+  Test image: `OPTIMIST_DUALCFG=1` (the console's `dualcfg`, `reboot`); emulator: tests/dual_ble_rule_emu_test.py.
 - **CPU1's stack, since 2026-10-15:** 10 KiB, sp = ssp at +5120 (the wake interrupt's), usp at +10240 (CPU1's C code,
   and a spinning build's jobs): 5 KiB each. The layout below gave usp only the lowest 2 KiB; the spinning builds (B..B4)
   rendered their jobs there and an ACID part (2,948 B static) ran through the bottom into `part_mem`, just below in

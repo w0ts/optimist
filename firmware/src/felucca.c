@@ -27,7 +27,8 @@ static void dual_flash_enter(void);
 #include "felucca_tables.h"
 #if FELUCCA_DUAL
 #ifndef FELUCCA_DUAL_IDLE
-#define FELUCCA_DUAL_IDLE 1      /* CPU1 asleep between jobs (2 only; system/dual.c) */
+#define FELUCCA_DUAL_IDLE 0      /* 1: CPU1 asleep between jobs (2 only; system/dual.c). 0 since 2026-10-15: the wake never
+                                  * reached CPU1 on the FM-1 (A); the spin in RAM is the one that ran there (B9a, BLUETOOTH OFF) */
 #endif
 #ifndef FELUCCA_DUALCFG
 #define FELUCCA_DUALCFG 0        /* 1: the switchable test image (OPTIMIST_DUALCFG; the console's dualcfg, system/dual.c) */
