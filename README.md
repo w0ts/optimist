@@ -42,6 +42,7 @@ Optimist turns the FM-1 into a four-track groovebox that you play live: three sy
 - It is **unofficial**. It is not made, endorsed or supported by M-VAVE, and it is not affiliated with SLOOP, Felucca, Melodee or X0X. M-VAVE and FM-1 are trademarks of their owners.
 - It is **not** a finished product: version 0.1 (file `VERSION`), tested in the emulator and on the host, and running on one real FM-1 since 2026-10-09 (see the caution above for what that covers). Treat the first install as an experiment (see [Installing](#installing-on-an-fm-1)).
 - It is a **build-it-yourself** project: there is no hosted installer yet, and the repository does not hold the toolchain or the SDK files (`make setup` fetches them).
+- It has **no Bluetooth audio out**, on purpose. Most wireless headphones (Sony WH-1000XM4, AirPods and most others) play audio over Classic Bluetooth (A2DP), not BLE, and Optimist's own Bluetooth stack is BLE only, for MIDI. A2DP in the firmware would mean either the vendor's closed stack (about 165 KB of flash and 40 KB of RAM, which do not fit, and closed code cannot ship under the GPL) or our own Classic driver (many months of work). The LE Audio and Auracast route reaches only recent headphones. Either way the delay would be 100–300 ms with A2DP, too much to play live. For wireless listening, plug a cheap Bluetooth transmitter into the headphone out; it needs no firmware. Before buying, check that the product page names your exact headphones: several cheap transmitters do not pair with AirPods Pro 2 or AirPods 4. For lower latency, use a transmitter and headphones that both support aptX Low Latency (about 40 ms). Details: [docs/BT-AUDIO-FEASIBILITY.md](docs/BT-AUDIO-FEASIBILITY.md).
 
 ## Features
 
@@ -138,15 +139,22 @@ Code: **GPL-3.0-only** ([LICENSE](LICENSE)). Assets have their own terms (sample
 
 ## Credits
 
-Optimist stands on other people's work, each ported part marked in the source and listed in [LICENSING.md](LICENSING.md) and the builder's registry (`tools/builder/registry.py`, `tools/backports.json`):
+Optimist stands on other people's work. Each ported part is marked in its source files, keeps its authors' notice,
+and is listed with its licence and commit in [LICENSING.md](LICENSING.md) (the builder's registry,
+`tools/builder/registry.py` and `tools/backports.json`, names the source of each optional part; the audit behind the
+list: [docs/CREDITS-AUDIT.md](docs/CREDITS-AUDIT.md)).
 
-- **[SLOOP](https://github.com/isod89/sloop-fm1)** by isod89 and contributors: the base of this firmware, including the 2.3 and 2.4 features.
-- **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hugelton Instruments: engines, sequencer, editor and installer; motion recording, PHYS and others from Felucca 1.0.
-- **[Melodee](https://github.com/keremimo/melodee)** by Kerem Kilic (Ellic Studio) and contributors: FM6, USB audio, TRS MIDI input, clock follow.
-- **[X0X](https://github.com/charlesvestal/fm1-x0x)** by Charles Vestal: the rescue tool, knob and display work.
-- Others: renebohne's SLOOP fork, Erick Buendia Barrientos (PR #45 of sloop-fm1), CrispyZebra (PHASE), klattsch (VOICE), Open303, DaisySP and Rings, Versilian Studios VSCO-2 CE, VCSL and Sonic Pi samples.
-- **[fm1-emulator](https://github.com/simonjohansson/fm1-emulator)** by Simon Johansson.
-- Interface ideas after teenage engineering, Elektron and Akai; none of them is affiliated with this project. The full list is in OPTIMIST.md, "Rescue, going back, credits".
+- **[SLOOP](https://github.com/isod89/sloop-fm1)** by isod89 and contributors: the base of this firmware, including the 2.3 and 2.4 features; Erick Buendia Barrientos (Erbubar23, sloop-fm1 PR #45); [renebohne's SLOOP fork](https://github.com/renebohne/sloop-fm1) (played notes on the keys).
+- **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hügelton Instruments: the platform, engines, sequencer, editor and installer that SLOOP is built on; from Felucca 1.0 to 1.6: motion recording, PHYS, the spring reverb, BASS+, step conditions, the sequence tools, FOLD / FUZZ / PHSR / FLNG, favorites and more; [Felucca-Engines](https://github.com/hugelton/Felucca-Engines) (NOISE, MIT); [CrispyZebra](https://github.com/hugelton/CrispyZebra) (PHASE).
+- **[Melodee](https://github.com/keremimo/melodee)** by Kerem Kilic (Ellic Studio) and contributors (ChanceTheMaker): FM6, CZ, USB audio, TRS MIDI input, clock follow, MIDI expression, the FRMT and WIDE inserts, the rescue tool's package checks, the second core's fault handling.
+- **[X0X](https://github.com/charlesvestal/fm1-x0x)** by Charles Vestal: the rescue tool, knob, encoder and display work, the ACID engine (Open303 by Robin Schmidt, MIT; TB-3PO by Logarhythm, MIT), the X0X 909 / 808 kits (9W9 and 8W8 by athousanddetails, ER-99 by Matthew Cieplak), the mixer glides, the second core's start and guards.
+- **[Flowstate](https://github.com/zakariachowdhury/flowstate-fm1)** by Zakaria Chowdhury: the performance macros, the CPU guard, the scaled large font.
+- **[Jangada](https://github.com/zednaked/jangada)** by zednaked: the SUPER engine, the second core's supply levels and AUTO / OFF setting.
+- **[fm-106](https://github.com/PatttF/fm-106)** by PatttF, a port of **[Ultramaster KR-106](https://github.com/kayrockscreenprinting/ultramaster_kr106)** by Kayrock Screenprinting: the JUNO engine and JUNO CHORUS.
+- DSP and data from others, each with its licence in `LICENSES/`: DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet), MAME's uPD933 (Devin Acker, BSD-3-Clause), Airwindows (Chris Johnson), MSFA (Google) and Dexed (Pascal Gauthier), sc808 (Yoshinosuke Horiuchi, Sam Aaron); klattsch (Tony Gies) as a design reference.
+- Samples: Versilian Studios VSCO-2 CE and VCSL, and the Sonic Pi sample set (all CC0). Fonts: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1), Fukiai (Hügelton Instruments, MIT, web editor).
+- **[fm1-emulator](https://github.com/simonjohansson/fm1-emulator)** by Simon Johansson; [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter) by kurogedelic and [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq (the rescue path).
+- Interface ideas after teenage engineering, Elektron and Akai. Roland, Yamaha and Casio product names (Juno-106, TB-303, TR-808, TR-909, DX7, CZ) only say what an engine or kit models. None of these companies is affiliated with this project. The full list is in OPTIMIST.md, "Rescue, going back, credits".
 
 ## Contributing and reporting issues
 
