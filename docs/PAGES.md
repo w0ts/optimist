@@ -36,9 +36,12 @@ fallback would be a site with the editor only and a link to the release's packag
 ## Enable it (once)
 
 1. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
-2. Settings > Environments > github-pages > Deployment branches and tags: allow `main`, `optimist` and the tag pattern `v*`
-   (the default only allows the default branch; a tag run is refused otherwise).
-3. Push `optimist` (or `main`; or run the workflow by hand). The URL is printed by the `deploy` job.
+2. Settings > Environments > github-pages > Deployment branches and tags: the default branch is allowed already; add the
+   tag pattern `v*` (a tag run is refused otherwise) and, if you push from a branch that is not the repository default
+   (the workflow runs on `main` and on `optimist`), add that branch too. Which branch is the default is shown in
+   Settings > Branches; today the only branch on GitHub is `main`, and it is the default.
+3. Push (or run the workflow by hand: Actions > pages > Run workflow). The URL is printed by the `deploy` job. If the
+   `site` job fails in `configure-pages` with "Get Pages site failed", step 1 is missing.
 
 ## Cut a release
 
