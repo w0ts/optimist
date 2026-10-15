@@ -192,9 +192,15 @@ static void op_yes(void)
         held_yes();
         return;
     }
-    if (!SCR->yes(ui.row[ui.scr], ui.hot, 0) && ui.scr != SCR_STEP && ui.scr != SCR_PROJECT && !sys_scr(ui.scr))
-        op_enter(SCR_PROJECT);                          /* SAVE works on every page but SEQ (where it is "reverse", the user, 2026-10-14): where YES has
-                                                         * nothing to do it opens PROJECT, as on the mixer */
+    if (!SCR->yes(ui.row[ui.scr], ui.hot, 0)) {         /* SAVE works on every page but SEQ (where it is "reverse", the user, 2026-10-14): where YES has
+                                                         * nothing to do it opens PROJECT, as on the mixer (GLOBAL and SYSTEM too, 2026-10-15) */
+        if (ui.scr == SCR_STEP)
+            return;                                     /* (STEP: SAVE is the TOOLS cards' verb and the undo chord's first half) */
+        if (ui.scr != SCR_PROJECT)
+            op_enter(SCR_PROJECT);
+        else if (ui.row[SCR_PROJECT] != 0u)
+            op_row_pick(0);                             /* (PROJECT's read-out lines: SAVE goes back to the first line, the project's own) */
+    }
 }
 static void op_no(void)
 {

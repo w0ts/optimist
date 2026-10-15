@@ -239,7 +239,8 @@ static void glo_tests(void)
         turn(LINE_KNOB(w), 3);
         SCR->cell(w, gl_kn(ui.scr, w), &a);
         tap(B_SAVE);
-        check(a.kind == CK_RO && ui.scr == SCR_SYSTEM && !op_armed(), "SYSTEM INFO: a read-out page: its knobs and YES do nothing");
+        check(a.kind == CK_RO && ui.scr == SCR_PROJECT && !op_armed(), "SYSTEM INFO: a read-out page: its knobs do nothing, SAVE (YES with nothing to do) opens PROJECT (2026-10-15)");
+        op_enter(SCR_SYSTEM);
     }
     {   /* the actions: About's VERSION says it; Calibrate's PANEL asks first (ui_optimist_pages.h P28) */
         line_named(SCR_SYSTEM, "VERSION");
