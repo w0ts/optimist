@@ -728,8 +728,8 @@ static const page_t PAGES[] = {
     {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
 #endif
 #if FELUCCA_UI == 1
-    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* the master sends; DR: its send levels */
-    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_CHOR, P_DLY, P_REV, 0xFF}},   /* DR only: the drum bus's own sends */
+    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: R1 R2 R3's); DR: its levels */
+    {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* DR only: the drum bus's own sends */
 #endif
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
@@ -831,8 +831,8 @@ static const page_t PAGES[] = {
 /* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
 /*   INSERTS    S1 TYPE, S1's amount (its type's P_*), S2 TYPE, S2's amount
  *   FX / SENDS SLOOP's FX: S1's amount first, then the master sends in their slots' order (fx_slots.c fxs_send; the
- *              default slots DST CHO DLY REV, as SLOOP's page); the Optimist UI's SENDS: REV DLY CHO, those a slot
- *              holds (one order on every screen); its drum track: its send levels
+ *              default slots REV DLY CHO); the Optimist UI's SENDS: card k return R(k+1)'s send (fxs_card, blank for an
+ *              empty return: one order on every screen); its drum track: its send levels
  *   BUS SENDS  (the Optimist UI's drum track) the drum bus's own sends, in the same order */
 static uint32_t page_id(const page_t *pg, uint32_t k)
 {
@@ -840,18 +840,16 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
     if (pg->graph == GR_INS)
         return k & 1u ? ins_amt(song.sel, k >> 1) : PID_INST + (k >> 1);
 #if FELUCCA_UI == 1
-    if (pg->graph == GR_FX || pg->graph == GR_BUS) {   /* REV DLY CHO, the Optimist UI's one order (those a slot holds) */
-        static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-        uint32_t i;
+    if (pg->graph == GR_FX || pg->graph == GR_BUS) {   /* the returns' order (fx_slots.c fxs_card: card k is R(k+1)) */
+        uint32_t t;
         if (k == 3u)                                    /* card 4: the track's PAN (the drum track's too; its bus has none) */
             return pg->graph == GR_FX ? P_PAN : 0xFFu;
-        for (i = 0; k < 3u && i < 3u && fxs_send(i) != T[k]; i++)
-            ;
-        if (k >= 3u || i >= 3u)
+        t = fxs_card(k);
+        if (t == FXT_NONE)
             return 0xFFu;
         if (pg->graph == GR_FX && is_drum(TSEL))
-            return PID_DKS + k;                         /* (PID_DKS: REV DLY CHO) */
-        return FXT_AMT[T[k]];
+            return PID_DKS + FXS_DSI(t);                /* (PID_DKS: REV DLY CHO) */
+        return FXT_AMT[t];
     }
 #else
     if (pg->graph == GR_FX)

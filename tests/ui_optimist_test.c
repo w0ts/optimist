@@ -366,21 +366,21 @@ static void fxpool_tests(void)
     const uint8_t s[2] = {FXT_EQ3, FXT_NONE};
     cell_t c;
     reset_ui();
-    fxs_load(1, FXT_PHSR);
-    fxs_load(3, FXT_EQ3);
-    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R3: REV's line 2) */
+    fxs_load(3, FXT_PHSR);                              /* (R3: CHO's line 0) */
+    fxs_load(1, FXT_EQ3);
+    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R1: REV's line 2) */
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
     check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: PHSR on R1, EQ3 on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
+          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on R1, PHSR on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
     r = fx_row_of("RETURNS");
     ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
     fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' line-0 card named PHSR RT (the return's type)");
+    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (R3, line 0) named PHSR RT (the return's type)");
     ins_put(0, s);
     song.sel = 0;
     go_home();

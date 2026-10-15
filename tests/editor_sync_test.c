@@ -185,10 +185,10 @@ int main(void)
     /* v10 FX_PUSH (ed_fxs.c): the slots, the COMP settings or a drum sound's insert changed on the device: one frame, the
      * FX (86) reply's bytes with op 0; the editor's own FX writes are known (no push) */
     n0 = nf;
-    fxs_load(1, FXT_REV);                              /* (FX > SLOTS: REV into S2 swaps with CHO) */
+    fxs_load(1, FXT_CHO);                              /* (FX > SLOTS: CHO into R1 swaps with REV) */
     run_ms(ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_NONE &&
-          fr[nf - 1][7] == FXT_REV && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_CHO,
+          fr[nf - 1][7] == FXT_CHO && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_REV,
           "v10 FX_PUSH: a slot loaded on the device (a swap): one frame, op 0, the four slots");
     n0 = nf;
     dins_amt[1][2] = 90;

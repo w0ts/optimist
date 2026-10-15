@@ -5745,6 +5745,13 @@ const pFx = () => FX_LABELS.map((n, j) => pById(n, 33 + j)), pFxoff = () => pByI
 /* v10 (INFO tag 0x56, dev.fx: FX op 0): the FX page's four knobs are the slots' amounts, named after them (DESC labels; an
    empty slot: null, "--"); older firmware: DST CHO DLY REV */
 const fxOn = () => typeof dev !== "undefined" && !!dev && !!dev.fx && !!dev.info && !!dev.info.fxs;
+/* [REV, DLY, CHO] (a drum sound's sends, the firmware's REV DLY CHO) in the device's return order: the sends its slots hold,
+   in slot order (fx_slots.c fxs_card: the one order of the sends and returns), then the others; older firmware: as given */
+const sendOrder = (rdc) => {
+  if (!fxOn()) return rdc;
+  const at = [FXT.REV, FXT.DLY, FXT.CHO].map((t) => { const k = dev.fx.slots.indexOf(t); return k < 0 ? 9 : k; });
+  return [0, 1, 2].sort((a, b) => at[a] - at[b] || a - b).map((i) => rdc[i]);
+};
 const slotIds = () => (fxOn() ? [0, 1, 2, 3].map((k) => fxSlotAmt(dev.info, dev.fx.slots, k)) : pFx());
 const slotLabels = () => (fxOn() ? slotIds().map((id, k) => (id == null ? "--" : (dev.pdesc[id] && dev.pdesc[id].label) || FXT_NAMES[dev.fx.slots[k]] || "--")) : FX_LABELS);
 const gDrLvl = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && (d.label === "LVL" || d.label === "LEVEL")); return i >= 0 ? i : 25; };
@@ -7432,12 +7439,12 @@ function kitLane(pane) {
     value: ln.ofs[i], fmt: fmtDE(i), hot: i === 7 ? (v) => (v > 3 ? "err" : v > 0 ? "warn" : "") : i === 6 ? (v) => (v > 40 ? "warn" : "") : null,
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
-  const sends = dev.dlV2 ? [
+  const sends = dev.dlV2 ? sendOrder([
     kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"), eff: () => macDrev(snd(dev.dl.lanes[l]).rev),
       get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
-  ] : [];
+  ]) : [];
   /* v10: the sound's own DIST / COMP (FX op 3, as the drum strip's SOUND mode); not where the device says it has none (an X0X sound) */
   if (dev.fx && !sh.noIns) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
     const x = fxType(dev.info, ty);

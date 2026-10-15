@@ -2531,7 +2531,7 @@ drum sounds' own DST and CMP are always heard (D7).
 | SOUND > FX: **INSERTS** | S1 TYPE · S1's amount · S2 TYPE · S2's amount | the amount's card is labelled by its type (DST FILT CMP), the knob's frame alone for an empty slot; a TYPE card lists EMPTY (dim) and the inserts built; the needles show the amounts; no reset (YES) and no lock on a TYPE card |
 | SOUND > FX: **CMP** | RATIO · ATK · REL, the selected track's | a row only while one of the track's slots holds the COMP; the master COMP's value lists |
 | SOUND > FX: **GATER** (INS_GATER, 2026-10-14) | DEPTH (the amount INSERTS calls GATER) · PAT (16 names: 16TH 8TH 4TH HALF OFF8 OFF16 DOT8 DOT4 TRNC1-4 GALOP RVGAL CLAVE TRESL) · RATE (a division, 1/8 .. 32T) · SHAPE | after CMP, before SENDS; a row only while one of the track's slots holds the GATER (the drum track's too: it gates the drum bus); remembered with its FX family like any row; the picture alone under the cards: the pattern's 16 steps as a strip, the gate's gain under it (DEPTH, SHAPE's ramps), the step the gate is at in white (none at DEPTH 0, drawn dim); the SLOOP UI shows the same page and picture (shared PAGES) |
-| SOUND > FX: **SENDS** (was FX) | the master sends in their slots' order (CHO DLY REV) | on the drum track: its send **levels** REV DLY CHO, 0..100 %, 100 % by default, each lane's send of that bus scaled by it (the user: "the main drum track as fx: on/off, not the normal send levels ... it should be like any other track") |
+| SOUND > FX: **SENDS** (was FX) | card k is return R(k+1)'s send, REV DLY CHO by default (2026-10-15, the user: "match the order between master return and the send": every sends set, the mixer's returns and RETURNS follow R1 R2 R3; an empty return: a blank card) | on the drum track: its send **levels**, in the same order, 0..100 %, 100 % by default, each lane's send of that bus scaled by it (the user: "the main drum track as fx: on/off, not the normal send levels ... it should be like any other track") |
 | SOUND > FX: **BUS SENDS** | the drum bus's own sends (its mid, after its inserts) | the drum track only |
 | the mixer | a track's INS set: S1 TYPE · amount · S2 TYPE · amount; DR the same, then its send levels; a lane DRIVE DST CMP | the COMP meter follows the row's slots |
 | FX + KNOB 4 (TRK FLT) | the track's FILTER amount | "FILT: NO SLOT" when none of the track's slots holds the FILTER |
@@ -2539,7 +2539,7 @@ drum sounds' own DST and CMP are always heard (D7).
 
 Old projects and SLOOP 2.4 imports map onto the slots with the same sound (fx_rec.c ins_map); the one difference is the
 SLICER moving before DIST (2.9 ms ramps, golden slicer/song_gate_stut). The SLOOP UI keeps its FX page (K1 S1's amount,
-K2..K4 the master sends: DST CHO DLY REV by default) and gets INSERTS; its own redesign (design phase 4) is left.
+K2..K4 the master sends in their slots' order: DST REV DLY CHO by default) and gets INSERTS; its own redesign (design phase 4) is left.
 Tests: tests/ui_optimist_inslots.h, ui_optimist_mixer.h; tests/fx_slots_test.c (the model, the audio, the record).
 
 ### Limited insert types: CHRS and ECHO (feat/fx-instances-ui, 2026-10-13)

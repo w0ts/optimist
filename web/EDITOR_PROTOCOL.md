@@ -854,7 +854,7 @@ the scenes.
 ## v10: FX slots (commands 86, 87; INFO tag 56)
 
 Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
-docs/FX-SLOTS-INSERTS-DESIGN.md) hold the **send** types (CHO DLY REV), default ---- CHO DLY REV; each track (T1 T2 T3
+docs/FX-SLOTS-INSERTS-DESIGN.md) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
 DR) has two **insert slots**, S1 then S2, holding DIST, FILT or COMP, default S1 DIST, S2 FILT (2026-10-12). A slot is
 empty or holds one effect **type**, and a type sits in one slot at most (a track's: in one of its two): loading a type
 another slot holds swaps the two slots. The amounts belong to the type, not the slot: a type not heard on a track (no

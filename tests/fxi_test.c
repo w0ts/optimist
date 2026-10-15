@@ -68,7 +68,7 @@ static void reset(void)
     uint32_t k;
     for (k = 0; k < NTRK; k++)
         slots(k, FXT_NONE, FXT_NONE), trk[k].p[P_FXOFF] = 0;
-    fxs_set(FXS_DEF);                                   /* (the master slots: ---- CHO DLY REV) */
+    fxs_set(FXS_DEF);                                   /* (the master slots: ---- REV DLY CHO) */
     fxi_init();
     fxi_poll();
 }
@@ -230,7 +230,7 @@ static void t_lend(void)
     check("CHO in a master slot: nothing lent, the track past the builder's count FULL",
           !fxl_lent && fxi_state(k, 0) == FXI_FULL && fxi_cap(FXT_CHRS) == own);
     /* the send out of the slots: lent only once its bus is idle (a full line of zeros) */
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     fx.cho_q = 100;                                     /* (as if its tail still rang) */
     fxi_poll();
     check("CHO out of the slots, its tail ringing: not lent yet (WAIT), cap counts the send's lines",
@@ -255,7 +255,7 @@ static void t_lend(void)
     }
     /* the send back into a slot: the insert fades out first, then the line goes back, zeroed */
     w0 = ifx_chrs[i].w;
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     fxi_poll();
     check("CHO back in a slot: taking it back (the insert still on it, evicted, the gate still set)",
           fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHRS, k) == i && ifx_chrs[i].evict && (fxl_lent & 1u));
@@ -267,15 +267,15 @@ static void t_lend(void)
           fxl_st[0] == FXL_SEND && !(fxl_lent & 1u) && zeros16(cho_buf, CHO_LEN) && fx.cho_q >= CHO_LEN &&
           fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_CHRS, k) == FXI_NONE);
     /* out, lent again; then in and out before the fade ends: it stays lent, the insert fades back in */
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     blocks(64);
     i = ifx_lim_at(FXT_CHRS, k);
     ok = (fxl_lent & 1u) && i != FXI_NONE && ifx_chrs[i].w == 32768;
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     fxi_poll();                                         /* (the main loop's pass right after the change) */
     blocks(1);
     w0 = ifx_chrs[i].w;
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     fxi_poll();
     blocks(1);
     w1 = ifx_chrs[i].w;
@@ -292,7 +292,7 @@ static void t_lend(void)
     i = ifx_lim_at(FXT_CHRS, k);
     trk[k].p[P_MUTE] = 1;
     blocks(16);
-    fxs_load(1, FXT_CHO);
+    fxs_load(3, FXT_CHO);
     blocks(4);
     check("a muted track's lent insert: given back all the same (no stuck line)", i != FXI_NONE &&
           fxl_st[0] == FXL_SEND && !fxl_lent);
@@ -323,7 +323,7 @@ static void t_lend_load(void)
     reset();
     for (k = 0; k < NTRK; k++)
         slots(k, FXT_CHRS, FXT_NONE);
-    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_NONE);
     trk[0].p[P_TCHRS] = 30;
     n = fxr_encode(rec);
     for (k = 0; k < 2u; k++) {

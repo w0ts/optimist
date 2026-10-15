@@ -115,8 +115,8 @@ static void macro_show_tests(void)
             }
         ui.force = 1; frames(2);
         ms_shot("drum-rev");
-        /* (SOUND 3 follows the FX slots, FX slots phase 5: REV is the 4th card, x 184..238, in the default layout) */
-        check(ok && fxs_lane_id(3) == 16u && ms_warn(MS_X0 + 180, MS_X1 + 180, 26, 70) > 8,
+        /* (SOUND 3 follows the FX slots, FX slots phase 5: REV is the 2nd card, x 64..118, in the default layout: R1) */
+        check(ok && fxs_lane_id(1) == 16u && ms_warn(MS_X0 + 60, MS_X1 + 60, 26, 70) > 8,
               "macro show: a drum sound's REV (SOUND 3, the REV slot's card) marked under SPACE");
         ms_pos(0, 0, 0, 0);
         ui.force = 1; frames(2);
