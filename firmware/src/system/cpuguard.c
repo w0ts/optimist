@@ -25,6 +25,10 @@
  *                only when the music it held back would fit again, so it does not come and go every 2 s.
  * Nothing else changes: below the ceiling the guard does nothing, and the host (no timer) never steps. */
 #include "cpuguard_costs.h"
+#if FELUCCA_INS_JCHORUS
+#define CG_COST_JUNO 140u   /* JUNO CHORUS while it runs, an instance: ~130 host instructions a sample (tests/juno_cho_test.c)
+                             * x 1.04, not yet a cpu_costs.py entry */
+#endif
 #if CG_REV
 #define REV_LIVE() ((int)rev_live)
 #define REV_ON() (rgd.st == RG_ON)
@@ -84,6 +88,10 @@ static uint32_t cg_ins_part(uint32_t p)
                 n += CG_COST_PINS[t - FXT_NEW0];
     }
 #endif
+#if FELUCCA_INS_JCHORUS
+    if ((on && INS_ON(p, FXT_JUNO) && trk[p].p[P_TJCHO] && ifx_has(FXT_JUNO, p)) || ifx_w(FXT_JUNO, p))
+        n += CG_COST_JUNO;
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -115,6 +123,10 @@ static uint32_t cg_ins_bus(void)
             if (FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_w(t, IFX_BUS)))
                 n += CG_COST_DBINS[t - FXT_NEW0];
     }
+#endif
+#if FELUCCA_INS_JCHORUS
+    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_JUNO) && TDRUM->p[P_TJCHO] && ifx_has(FXT_JUNO, TRK_DRUM)) || ifx_w(FXT_JUNO, IFX_BUS))
+        n += CG_COST_JUNO;                            /* (its one stereo instance) */
 #endif
     return n;
 }
@@ -158,6 +170,10 @@ static uint32_t cg_ins_mst(void)
             n += CG_COST_DBDUST;
         if (t >= FXT_NEW0 && t < FXT_NEWN && mst_amt[t])
             n += CG_COST_DBINS[t - FXT_NEW0];
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (mst_amt[FXT_JUNO] || ifx_w(FXT_JUNO, IFX_MST)))
+            n += CG_COST_JUNO;
+#endif
     }
     return n;
 }

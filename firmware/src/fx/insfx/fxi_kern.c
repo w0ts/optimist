@@ -17,12 +17,18 @@
  * its send's line lent while the send is in no master slot (fxi.c "Lending"; FXI_LND below). Its evict flag (fxi.c,
  * the line going back to the send) fades it out as at amount 0. */
 #if INS_LIM
-#define FXI_NL ((uint32_t)(FXT_LIMN - FXT_LIM0))        /* the limited types: CHRS ECHO */
+/* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14). The owners of an instance (fxi.c): the
+ * tracks 0 .. NTRK - 1, then the master (FXI_MST: its insert slots, fx_slots.c mst_slot; JUNO only, MST_OK) */
+#define FXI_NL (2u + (FELUCCA_INS_JCHORUS > 0))        /* (the types this build has; the tables below hold 3) */
+#define FXI_J(t) (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO ? 2u : (uint32_t)(t) - FXT_LIM0)   /* (a limited type t's index) */
+#define FXI_TY(j) ((j) == 2u ? (uint32_t)FXT_JUNO : FXT_LIM0 + (j))   /* (index j's type) */
+#define FXI_MST NTRK
+#define FXI_NK (NTRK + (FELUCCA_INS_JCHORUS > 0))       /* the owners this build has (the master only with JUNO CHORUS) */
 #define FXI_NONE 0xFFu
-_Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_INS_DELAY >= 0 && FELUCCA_INS_DELAY <= NTRK,
-               "an instance count: 0 .. a track each");
-_Static_assert(FXT_LIM0 == FXT_LIMN - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO the two limited types");
-static const uint8_t FXI_CAP[2] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY};   /* (by type, from FXT_LIM0) */
+_Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_INS_DELAY >= 0 && FELUCCA_INS_DELAY <= NTRK &&
+               FELUCCA_INS_JCHORUS >= 0 && FELUCCA_INS_JCHORUS <= NTRK, "an instance count: 0 .. NTRK");
+_Static_assert(FXT_LIM0 == FXT_LIMN - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO in a row (FXI_J)");
+static const uint8_t FXI_CAP[3] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY, FELUCCA_INS_JCHORUS};   /* (by j) */
 /* the instances a send's line can lend (fxi.c, "Lending"): CHRS in the chorus send's 2048 samples (2 lines of 1024),
  * ECHO in the delay send's (its lines of 4096: 4 at any DLY_LEN, 16384 the shortest), never more than the tracks left
  * after the builder's own (a type is once a track). Instance i of a type: its own pool line below FXI_CAP, then the
@@ -30,12 +36,14 @@ static const uint8_t FXI_CAP[2] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY};   /* 
 #define FXL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define FXL_N0 (FELUCCA_INS_CHORUS && FELUCCA_FX_CHORUS ? FXL_MIN(CHO_LEN / 1024u, NTRK - FELUCCA_INS_CHORUS) : 0u)
 #define FXL_N1 (FELUCCA_INS_DELAY && FELUCCA_FX_DELAY ? FXL_MIN(DLY_LEN / 4096u, NTRK - FELUCCA_INS_DELAY) : 0u)
-static const uint8_t FXI_LND[2] = {FXL_N0, FXL_N1};
+static const uint8_t FXI_LND[3] = {FXL_N0, FXL_N1, 0};   /* (JUNO CHORUS: its own lines only) */
 #define FXI_TOT(j) ((uint32_t)FXI_CAP[j] + FXI_LND[j])
-/* the instance each track's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
- * FXI_NONE: none (the type bypassed on that track) */
-static volatile uint8_t fxi_at[NTRK][2] = {{FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE},
-                                           {FXI_NONE, FXI_NONE}};
+/* the instance each owner's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
+ * FXI_NONE: none (the type bypassed there); fxi_init sets every entry FXI_NONE before the audio starts */
+static volatile uint8_t fxi_at[NTRK + 1u][3] = {{FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE},
+                                                  {FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE},
+                                                  {FXI_NONE, FXI_NONE, FXI_NONE}};
+_Static_assert(NTRK == 4u, "fxi_at: T1 T2 T3 DR and the master");
 
 /* ---- CHRS */
 #if FELUCCA_INS_CHORUS
@@ -162,8 +170,47 @@ static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, 
 }
 #endif
 
-/* track k's instance of limited type ty (FXI_NONE: none) */
-AINL uint32_t ifx_lim_at(uint32_t ty, uint32_t k) { return fxi_at[k % NTRK][(ty - FXT_LIM0) & 1u]; }
+/* ---- JUNO CHORUS (fx/junocho/juno_cho.h): a 1024-sample line (2 KB of pool an instance) and its state; MIX fades in and out
+ * over ~11 ms (its step a block: 2048 of 127 << 8), MODE the owner's (a track's P_TJMODE, the master's mst_jmode). A part
+ * (mono) gets the mid, its side into ifx_jside (mixed after its level as WIDE's: fx.c mix_part); the drum bus and the
+ * master their L and R, the line fed the mid. From rest the line is zeroed (a word loop, once). Runs from flash (XIP) */
+#if FELUCCA_INS_JCHORUS
+#include "../junocho/juno_cho.h"
+typedef struct {
+    juno_cho_t c;
+    int32_t w;                                          /* the MIX now, << 8 */
+    uint8_t on, evict;                                  /* running (0: at rest); evict: unused (no lent line), kept 0 */
+} ifx_jc_t;
+static ifx_jc_t ifx_jcho[FELUCCA_INS_JCHORUS] __attribute__((section(".pool"), aligned(4)));
+#define IFX_JC_STEP 2048                                /* the MIX's step a block (Q8) */
+static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32_t a, int32_t *l, int32_t *r, uint32_t n,
+                                                       uint32_t sh)
+{
+    int32_t to = a << 8, w = s->w;
+    uint32_t mode = (uint32_t)(k == IFX_MST ? mst_jmode : trk[k % NTRK].p[P_TJMODE]) % 3u;
+    if (!a && !w) {
+        s->on = 0;
+        if (!r)
+            ifx_jsd[k % NPART] = 0;                     /* (a part: no side) */
+        return;
+    }
+    if (!s->on) {
+        ifx_zero(&s->c, sizeof s->c);                   /* (starting: a clean line) */
+        s->on = 1;
+    }
+    w += clamp(to - w, -IFX_JC_STEP, IFX_JC_STEP);
+    s->w = w;
+    if (r)
+        juno_cho_st(&s->c, mode, (uint32_t)w >> 8, l, r, n, sh);
+    else {
+        juno_cho_ms(&s->c, mode, (uint32_t)w >> 8, l, ifx_jside[k % NPART], n, sh);
+        ifx_jsd[k % NPART] = 1;
+    }
+}
+#endif
+
+/* owner k's instance of limited type ty (FXI_NONE: none); k: a track, or the master (IFX_MST) */
+AINL uint32_t ifx_lim_at(uint32_t ty, uint32_t k) { return fxi_at[FELUCCA_INS_JCHORUS && k == IFX_MST ? FXI_MST : k % NTRK][FXI_J(ty) % FXI_NL]; }
 /* its wet share now (0: none, or at rest) */
 AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
 {
@@ -177,6 +224,10 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO)
         return ifx_echo[i].w;
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (ty == FXT_JUNO)
+        return ifx_jcho[i].w;
 #endif
     return 0;
 }
@@ -194,7 +245,7 @@ AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
     if (ty == FXT_ECHO)
         return ifx_echo[i].evict;
 #endif
-    return 0;
+    return 0;                                           /* (JUNO CHORUS: never on a lent line) */
 }
 /* to rest at once (a part not heard: insfx.c ifx_quiet_part); it starts again from a clean line */
 AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
@@ -209,6 +260,13 @@ AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO)
         ifx_echo[i].w = 0, ifx_echo[i].on = 0;
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (ty == FXT_JUNO) {
+        ifx_jcho[i].w = 0, ifx_jcho[i].on = 0;
+        if (k != IFX_MST)
+            ifx_jsd[k % NPART] = 0;
+    }
 #endif
 }
 /* type ty on track k at amount a: a part's b (r 0), the drum bus's l and r; no instance: nothing (bypassed) */
@@ -225,6 +283,10 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO && i < FELUCCA_INS_DELAY + FXL_N1)
         ifx_echo_run(&ifx_echo[i], a, l, r, n, sh);
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (ty == FXT_JUNO && i < FELUCCA_INS_JCHORUS)
+        FAR(ifx_jchorus)(&ifx_jcho[i], k, a, l, r, n, sh);   /* (flash code, XIP: the RAM text has no room) */
 #endif
     (void)a, (void)l, (void)r, (void)n, (void)sh;
 }

@@ -34,7 +34,8 @@
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
-      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"}}},
+      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
+      "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
     {"kind": "page", "ctx": "INSERTS", "params": {
       "S1": "Insert 1 type (swaps with 2)", "S2": "Insert 2 type (swaps with 1)",
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
@@ -50,7 +51,8 @@
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
-      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"}}},
+      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
+      "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
     {"kind": "page", "ctx": "SENDS", "if": "FELUCCA_UI == 1", "params": {
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
@@ -65,6 +67,10 @@
       "SLCR": "Slicer: off, gate or stutter", "PAT": "Slicer pattern", "RATE": "Slicer step length", "DEPTH": "Slicer depth"}},
     {"kind": "page", "ctx": "DLY", "if": "FELUCCA_FX_DELAY", "params": {
       "TIME": "Delay time (note length)", "FDBK": "Delay feedback", "COLR": "Delay tone", "MIX": "Delay level"}},
+    {"kind": "page", "ctx": "JUNO CHO", "if": "FELUCCA_INS_JCHORUS", "params": {
+      "JUNO": "Juno-106 chorus: its mix", "MODE": "Juno chorus I, II or I+II"}},
+    {"kind": "page", "ctx": "MST JUNO", "if": "FELUCCA_INS_JCHORUS", "params": {
+      "JUNO": "Master Juno chorus: its mix", "MODE": "Juno chorus I, II or I+II"}},
     {"kind": "page", "ctx": "REV/CHO", "if": "FELUCCA_FX_REVERB || FELUCCA_FX_CHORUS", "params": {
       "SIZE": {"text": "Reverb size", "if": "FELUCCA_FX_REVERB"},
       "DAMP": {"text": "Reverb damping (darker)", "if": "FELUCCA_FX_REVERB"},
@@ -262,7 +268,9 @@
       "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}},
 
 
-    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY", "params": {
+    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS", "params": {
+      "JUNO": {"text": "Juno chorus: free/avail", "if": "FELUCCA_INS_JCHORUS"},
+      "FULL JUNO": {"text": "No free Juno chorus: off", "if": "FELUCCA_INS_JCHORUS"},
       "CHRS": {"text": "Chorus, shared: free/avail", "if": "FELUCCA_INS_CHORUS"},
       "FULL CHRS": {"text": "No free chorus: bypassed", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Echo, shared: free/avail", "if": "FELUCCA_INS_DELAY"},
@@ -382,7 +390,8 @@
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
-      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"}}},
+      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
+      "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
     {"kind": "op", "ctx": "RETURNS", "params": {
       "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level",
       "REV RET": "Reverb return level", "DLY RET": "Delay return level", "CHO RET": "Chorus return level"}},

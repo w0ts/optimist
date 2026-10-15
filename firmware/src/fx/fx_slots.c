@@ -17,6 +17,7 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
        FXT_CHRS, FXT_ECHO,   /* (2026-10-13: insfx.c, the chorus's and a short delay's insert copies: a builder count, fxi.c) */
        FXT_GATE,             /* (2026-10-14: insfx/gater.c, a tempo-synced gate, any number) */
        FXT_DUST,             /* (2026-10-14, fx-rework: the master's DUST, now an insert on any slot: fx.c dust_run) */
+       FXT_JUNO,             /* (2026-10-14: JUNO CHORUS, fx/junocho/juno_cho.h; a builder count, fxi.c, as CHRS ECHO) */
        FXT_N };
 /* fx-rework (2026-10-14): COMP is DYN, the compressor, its make-up and the brickwall limiter as one effect (the
  * master's COMP + LIMIT: master_comp.c), on any insert slot; FILT is the track FILTER and the master DJ filter in one
@@ -26,12 +27,12 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 #define FXT_NEWN (FXT_GATE + 1)
 #define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_LIMN - 1 (fxi.c: an instance each) */
 #define FXT_LIMN (FXT_ECHO + 1)                        /* (GATER after them: on every track, not limited) */
-#define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0))
+#define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO))
 #define FX_NSLOT 4u
 #define FXT_BIT(x) (1u << (x))
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \
                     FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FLNG) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_WIDE) | FXT_BIT(FXT_CHRS) | \
-                    FXT_BIT(FXT_ECHO) | FXT_BIT(FXT_GATE) | FXT_BIT(FXT_DUST))   /* the others: sends */
+                    FXT_BIT(FXT_ECHO) | FXT_BIT(FXT_GATE) | FXT_BIT(FXT_DUST) | FXT_BIT(FXT_JUNO))   /* the others: sends */
 #define FXT_BUILT ((FELUCCA_FX_DIST ? FXT_BIT(FXT_DIST) : 0u) | (FELUCCA_FX_CHORUS ? FXT_BIT(FXT_CHO) : 0u) | \
                    (FELUCCA_FX_DELAY ? FXT_BIT(FXT_DLY) : 0u) | (FELUCCA_FX_REVERB ? FXT_BIT(FXT_REV) : 0u) |  \
                    (TFLT_ON ? FXT_BIT(FXT_FILT) : 0u) | (FELUCCA_MASTER_COMP ? FXT_BIT(FXT_COMP) : 0u) |   \
@@ -39,7 +40,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                    (FELUCCA_INS_PHASER ? FXT_BIT(FXT_PHSR) : 0u) | (FELUCCA_INS_FLANGER ? FXT_BIT(FXT_FLNG) : 0u) | \
                    (FELUCCA_INS_FORMANT ? FXT_BIT(FXT_FRMT) : 0u) | (FELUCCA_INS_WIDTH ? FXT_BIT(FXT_WIDE) : 0u) |  \
                    (FELUCCA_INS_CHORUS > 0 ? FXT_BIT(FXT_CHRS) : 0u) | (FELUCCA_INS_DELAY > 0 ? FXT_BIT(FXT_ECHO) : 0u) | \
-                   (FELUCCA_INS_GATER ? FXT_BIT(FXT_GATE) : 0u) | (FELUCCA_FX_DUST ? FXT_BIT(FXT_DUST) : 0u))
+                   (FELUCCA_INS_GATER ? FXT_BIT(FXT_GATE) : 0u) | (FELUCCA_FX_DUST ? FXT_BIT(FXT_DUST) : 0u) | \
+                   (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u))
 _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
@@ -66,6 +68,11 @@ static const uint8_t FXT_AMT[FXT_N] = {
 #endif
 #if FELUCCA_FX_DUST
     P_TDUST,
+#else
+    0xFF,
+#endif
+#if FELUCCA_INS_JCHORUS
+    P_TJCHO,
 #else
     0xFF,
 #endif
@@ -275,6 +282,7 @@ static void mst_put(const uint8_t *s)                  /* the master's slots fro
     mst_slot[0] = (uint8_t)a, mst_slot[1] = (uint8_t)b;
     mst_live = (FXT_BIT(a) | FXT_BIT(b)) & MST_OK;
     fm1_irq_on();
+    FXI_ASK(1u);                                       /* (JUNO CHORUS: the master's instance, fxi.c) */
 }
 static void mst_load(uint32_t s, uint32_t t)           /* type t into the master's slot s (the other's type swaps them) */
 {
@@ -423,8 +431,14 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
 #else
                                        0xFF,
 #endif
-                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST: their
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST, JUNO: their
                                                         * own TLV, every track's amount: fxs_tlv) */
+/* JUNO CHORUS's TLV (2026-10-14): T1 T2 T3 DR's MIX, their MODE, the master's MIX and MODE (mst_amt, mst_jmode), when any
+ * is set; a shorter one: the rest 0 */
+#define FXT_TLV_JUNO (2u * NTRK + 2u)                  /* (in FXT_TLV_SUM: fx_rec.c's FXR_MAX check) */
+#if FELUCCA_INS_JCHORUS
+static int16_t mst_jmode;                              /* the master's JUNO CHORUS MODE (its MIX: mst_amt[FXT_JUNO]) */
+#endif
 /* GATER's TLV (2026-10-14): its four amounts, then each track's PATTERN, RATE, SHAPE (P_TGPAT .. P_TGSHP: 4 bytes each,
  * T1 T2 T3 DR) when any is off its default; a TLV of 4 (or a reader of before, which stops at the amounts): the defaults */
 #define FXT_TLV_GX (3u * NTRK)
@@ -440,7 +454,7 @@ static void fxs_gx_def(uint32_t k)                     /* track k's GATER values
 /* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
  * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus). The drum sounds'
  * amounts (phase 5: drum_sends.c dins_amt) come last and only when one is set: a reader of before takes the rest */
-#define FXT_TLV_SUM (23u + 17u + 3u + (FXT_NEWN - FXT_NEW0 + 1u) * NTRK + FXT_TLV_GX)   /* (+ the further inserts' and
+#define FXT_TLV_SUM (23u + 17u + 3u + (FXT_NEWN - FXT_NEW0 + 1u) * NTRK + FXT_TLV_GX + FXT_TLV_JUNO)   /* (+ the further inserts' and
                                                         * DUST's: 4 each) */
 #define FXT_TLV_COMP (NTRK + 3u)                       /* (COMP's TLV before the drum sounds' amounts) */
 static uint32_t fxs_lanes(const uint8_t *a, uint8_t *o)   /* the 16 drum sounds' amounts -> o; any set */
@@ -458,6 +472,17 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
         for (k = 0; k < NTRK; k++)
             any |= (o[k] = (uint8_t)trk[k].p[P_TDUST]);
         return any ? NTRK : 0u;
+    }
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (t == FXT_JUNO) {                               /* JUNO CHORUS (above) */
+        for (k = 0; k < NTRK; k++) {
+            any |= (o[k] = (uint8_t)trk[k].p[P_TJCHO]);
+            any |= (o[NTRK + k] = (uint8_t)trk[k].p[P_TJMODE]);
+        }
+        any |= (o[2u * NTRK] = (uint8_t)mst_amt[FXT_JUNO]);
+        any |= (o[2u * NTRK + 1u] = (uint8_t)mst_jmode);
+        return any ? FXT_TLV_JUNO : 0u;
     }
 #endif
 #if INS_FX
@@ -513,6 +538,11 @@ static void fxs_untlv_none(int all)
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TDUST] = 0;
 #endif
+#if FELUCCA_INS_JCHORUS
+    for (k = 0; k < NTRK; k++)
+        trk[k].p[P_TJCHO] = trk[k].p[P_TJMODE] = 0;
+    mst_amt[FXT_JUNO] = mst_jmode = 0;
+#endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
@@ -539,6 +569,16 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
             uint32_t id = P_TGPAT + k / NTRK;
             trk[k % NTRK].p[id] = (int16_t)(n >= NTRK + FXT_TLV_GX ? clamp(a[NTRK + k], TP[id].min, TP[id].max) : TP[id].def);
         }
+#endif
+#if FELUCCA_INS_JCHORUS
+    if (t == FXT_JUNO) {
+        for (k = 0; k < NTRK; k++) {
+            trk[k].p[P_TJCHO] = (int16_t)(k < n ? (a[k] > 127u ? 127u : a[k]) : 0u);
+            trk[k].p[P_TJMODE] = (int16_t)(NTRK + k < n && a[NTRK + k] <= 2u ? a[NTRK + k] : 0u);
+        }
+        mst_amt[FXT_JUNO] = (int16_t)(2u * NTRK < n ? (a[2u * NTRK] > 127u ? 127u : a[2u * NTRK]) : 0u);
+        mst_jmode = (int16_t)(2u * NTRK + 1u < n && a[2u * NTRK + 1u] <= 2u ? a[2u * NTRK + 1u] : 0u);
+    }
 #endif
     if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
         TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
@@ -569,7 +609,7 @@ static const param_desc_t FXS_DESC[FX_NSLOT] = {   /* (slot 0: no return since f
 /* INSERTS' S1 and S2 TYPE (the selected track's): an enum of the inserts built and ---- (empty) */
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
                    FELUCCA_INS_PHASER + FELUCCA_INS_FLANGER + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
-                   (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER)
+                   (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0))
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
 static int16_t ins_v[INS_N];
@@ -579,6 +619,7 @@ static const param_desc_t INS_DESC[INS_N] = {{"S1", F_ENUM, 0, INS_NLIST - 1, 0,
 #define FXS_ID_TAMT 9u                                 /* 9: the selected track's DYN amount (P_TCOMP), on DYN's page */
 #define FXS_ID_INS 16u                                 /* 16, 17: the selected track's S1, S2 TYPE (INSERTS, the mixer) */
 #define FXS_ID_MST 18u                                 /* 18, 19: the master's S1, S2 TYPE; 20, 21: their amounts */
+#define FXS_ID_JMST 22u                                /* 22, 23: the master's JUNO CHORUS MIX and MODE (MST JUNO) */
 /* the master's slot s's TYPE as a list entry (the types MST_OK allows) */
 #define MST_NLIST INS_NLIST
 static const char *mst_names[MST_NLIST];
@@ -618,6 +659,12 @@ static const param_desc_t *ins_desc(uint32_t k, uint32_t s, int16_t **vp)
 static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
 {
     uint32_t t, n = 0;
+#if FELUCCA_INS_JCHORUS
+    if (k == FXS_ID_JMST || k == FXS_ID_JMST + 1u) {   /* MST JUNO: the master's JUNO CHORUS MIX, MODE */
+        *vp = k == FXS_ID_JMST ? &mst_amt[FXT_JUNO] : &mst_jmode;
+        return &TP[k == FXS_ID_JMST ? P_TJCHO : P_TJMODE];
+    }
+#endif
     if (k >= FXS_ID_MST + INS_N) {                     /* the master's S1 / S2 amount (none: an empty slot) */
         t = mst_slot[(k - FXS_ID_MST) & 1u];
         if (!(t < FXT_N && MST_ON(t) && mst_amt_d(t))) {

@@ -526,7 +526,7 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
     const char *v = 0;
     if (a == 0xFFu || cap == 0u || cap == FXI_ANY || st == FXI_NA)
         return;
-    c->hlp = t == FXT_CHRS ? "CHRS" : "ECHO";
+    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : "ECHO";
     if (st == FXI_OK) {
         un[s & 1u][0] = (char)('0' + fxi_free(t)), un[s & 1u][1] = '/', un[s & 1u][2] = (char)('0' + cap), un[s & 1u][3] = 0;
         c->unit = un[s & 1u];
@@ -537,7 +537,7 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
     else {
         v = st == FXI_FULL ? "FULL" : "IN USE";
         c->dim = 1;
-        c->hlp = t == FXT_CHRS ? "FULL CHRS" : "FULL ECHO";
+        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : "FULL ECHO";
     }
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
     str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The instances of the limited insert types (2026-10-13; fxi_kern.c: CHRS ECHO, a builder count each, registry.h
- * FELUCCA_INS_CHORUS FELUCCA_INS_DELAY). Included by fx.c after insfx.c. The main loop's side: no instance is handed
+/* The instances of the limited insert types (2026-10-13; fxi_kern.c: CHRS ECHO, and JUNO CHORUS since 2026-10-14, a
+ * builder count each, registry.h FELUCCA_INS_CHORUS FELUCCA_INS_DELAY FELUCCA_INS_JCHORUS). An owner is a track, or the
+ * master (FXI_MST: its insert slots; JUNO CHORUS only, fx_slots.c MST_OK). Included by fx.c after insfx.c. The main loop's side: no instance is handed
  * out or cleared in the audio ISR.
  *   - An instance belongs to a track and a type (a type is once a track at most, D3): a swap of S1 and S2 keeps it.
  *   - A change of slots (fx_slots.c ins_put, which may run anywhere: FXI_ASK(1)) is followed in fxi_poll (main.c, every
@@ -48,25 +49,30 @@ enum { FXI_NA, FXI_OK, FXI_WAIT, FXI_FULL };
 #if INS_LIM
 enum { FXL_SEND, FXL_LENT, FXL_BACK };
 _Static_assert(NTRK == 4, "fxi_own: an instance a track at most");
-static uint8_t fxi_own[2][NTRK] = {{FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
-                                                        /* each instance's track (FXI_NONE: free); the main loop's only */
-static uint8_t fxi_full[2];                             /* the tracks (a bit each) holding the type with none left */
+static uint8_t fxi_own[3][NTRK] = {{FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
+                                        {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
+                                                        /* each instance's owner (FXI_NONE: free); the main loop's only */
+static uint8_t fxi_full[3];                           /* the owners (a bit each) holding the type with none left */
 static uint8_t fxi_pend;                                /* a pass is due: a fade-out, a tail, a starved track */
-static uint8_t fxl_st[2];                               /* each send line's owner (FXL_*: above); the main loop's only */
-_Static_assert(FXL_N0 + FELUCCA_INS_CHORUS <= NTRK && FXL_N1 + FELUCCA_INS_DELAY <= NTRK, "fxi_own: NTRK instances");
+static uint8_t fxl_st[3];                              /* each send line's owner (FXL_*: above); the main loop's only */
+_Static_assert(FXL_N0 + FELUCCA_INS_CHORUS <= NTRK && FXL_N1 + FELUCCA_INS_DELAY <= NTRK && FELUCCA_INS_JCHORUS <= NTRK,
+               "fxi_own: NTRK instances");
 
-AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* track k holds type ty in a slot (and it is built) */
+AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
+    if (FELUCCA_INS_JCHORUS && k == FXI_MST)
+        return (mst_slot[0] == ty || mst_slot[1] == ty) && (MST_OK >> ty & 1u);
     return (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
 }
-AINL uint32_t fxl_send_on(uint32_t j) { return FXS_ON(j ? FXT_DLY : FXT_CHO); }   /* the send in a master slot */
-static void fxi_publish(uint32_t k, uint32_t j, uint32_t i)   /* track k's instance of type FXT_LIM0 + j: i */
+/* the send in a master slot (JUNO CHORUS: no send line to lend, as if always in one) */
+AINL uint32_t fxl_send_on(uint32_t j) { return j >= 2u ? 1u : FXS_ON(j ? FXT_DLY : FXT_CHO); }
+static void fxi_publish(uint32_t k, uint32_t j, uint32_t i)   /* owner k's instance of type FXI_TY(j): i */
 {
     fm1_irq_off();
     fxi_at[k][j] = (uint8_t)i;
     fm1_irq_on();
 }
-static void fxi_give(uint32_t j, uint32_t i)            /* instance i of type FXT_LIM0 + j back (its track's link gone) */
+static void fxi_give(uint32_t j, uint32_t i)            /* instance i of type FXI_TY(j) back (its owner's link gone) */
 {
     fxi_publish(fxi_own[j][i], j, FXI_NONE);
     fxi_own[j][i] = FXI_NONE;
@@ -82,7 +88,7 @@ static void fxi_evict(uint32_t j, uint32_t i, uint32_t v)
     if (j == 1u)
         ifx_echo[i].evict = (uint8_t)v;
 #endif
-    (void)i, (void)v;
+    (void)i, (void)v;                                   /* (JUNO CHORUS: no lent line, never evicted) */
 }
 static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed: its line (own or lent), at rest */
 {
@@ -102,9 +108,13 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed: it
         ifx_echo[i].line = ln;
     }
 #endif
+#if FELUCCA_INS_JCHORUS
+    if (j == 2u)
+        memset(&ifx_jcho[i], 0, sizeof ifx_jcho[i]);
+#endif
     (void)i;
 }
-/* a free instance of type FXT_LIM0 + j: the builder's own first, then the send's line while lent; FXI_NONE: none */
+/* a free instance of type FXI_TY(j): the builder's own first, then the send's line while lent; FXI_NONE: none */
 static uint32_t fxi_find(uint32_t j)
 {
     uint32_t i, n = fxl_st[j] == FXL_LENT ? FXI_TOT(j) : FXI_CAP[j];
@@ -116,22 +126,22 @@ static uint32_t fxi_find(uint32_t j)
 /* one type's instances after a change (load: a project load) */
 static void fxi_sync(uint32_t j, int load)
 {
-    uint32_t ty = FXT_LIM0 + j, k, i, want = 0, n = 0;
+    uint32_t ty = FXI_TY(j), k, i, want = 0, n = 0;
     uint32_t avail = FXI_CAP[j] + (fxl_send_on(j) ? 0u : FXI_LND[j]);   /* (a load: the first avail tracks holding it) */
-    for (k = 0; k < NTRK; k++)
+    for (k = 0; k < FXI_NK; k++)                        /* (the tracks, then the master) */
         if (fxi_holds(k, ty) && (!load || n++ < avail))
             want |= 1u << k;
     for (i = 0; i < FXI_TOT(j); i++) {                  /* instances whose track no longer wants them: back */
         k = fxi_own[j][i];
         if (k == FXI_NONE || (want >> k & 1u))
             continue;
-        if (load || !ifx_lim_w(ty, k))
+        if (load || !ifx_lim_w(ty, k == FXI_MST ? IFX_MST : k))
             fxi_give(j, i);
         else
             fxi_pend = 1;                               /* (fading out: the next pass) */
     }
     fxi_full[j] = 0;
-    for (k = 0; k < NTRK; k++) {                        /* tracks wanting one and without: a free one, in track order */
+    for (k = 0; k < FXI_NK; k++) {                      /* owners wanting one and without: a free one, in track order */
         if (!(want >> k & 1u) || fxi_at[k][j] != FXI_NONE)
             continue;
         i = fxi_find(j);
@@ -144,7 +154,7 @@ static void fxi_sync(uint32_t j, int load)
         fxi_publish(k, j, i);
     }
     if (load)                                           /* (a track past the count: asks again when one is given back) */
-        for (k = 0; k < NTRK; k++)
+        for (k = 0; k < FXI_NK; k++)
             if (fxi_holds(k, ty) && fxi_at[k][j] == FXI_NONE)
                 fxi_full[j] |= (uint8_t)(1u << k);
 }
@@ -180,7 +190,7 @@ static void fxl_return(uint32_t j)
 /* the line's owner after the pass's sync; 1: just lent (a sync again hands its slices out) */
 static uint32_t fxl_step(uint32_t j)
 {
-    uint32_t i, ty = FXT_LIM0 + j, held = 0, on = fxl_send_on(j);
+    uint32_t i, ty = FXI_TY(j), held = 0, on = fxl_send_on(j);
     if (!FXI_LND[j])
         return 0;
     if (fxl_st[j] == FXL_SEND) {
@@ -202,7 +212,7 @@ static uint32_t fxl_step(uint32_t j)
         if (k == FXI_NONE)
             continue;
         fxi_evict(j, i, fxl_st[j] == FXL_BACK);
-        if (fxl_st[j] == FXL_BACK && !ifx_lim_w(ty, k))
+        if (fxl_st[j] == FXL_BACK && !ifx_lim_w(ty, k == FXI_MST ? IFX_MST : k))
             fxi_give(j, i);                             /* (faded out: its slice back) */
         else
             held = 1;
@@ -243,13 +253,15 @@ static void fxi_poll(void)
 static void fxi_init(void)
 {
     uint32_t j, k;
-    for (j = 0; j < 2u; j++) {
+    for (j = 0; j < FXI_NL; j++) {
         for (k = 0; k < NTRK; k++)
-            fxi_own[j][k] = FXI_NONE, fxi_at[k][j] = FXI_NONE;
+            fxi_own[j][k] = FXI_NONE;
+        for (k = 0; k < FXI_NK; k++)
+            fxi_at[k][j] = FXI_NONE;
         if (fxl_st[j] != FXL_SEND)
             fxl_return(j);
+        fxi_full[j] = 0;
     }
-    fxi_full[0] = fxi_full[1] = 0;
     fxi_pend = 0;
     fxi_dirty = 2;
 }
@@ -260,17 +272,17 @@ static uint32_t fxi_cap(uint32_t t)
 {
     if (!FXI_LIM(t))
         return t < FXT_N && (FXT_BUILT >> t & 1u) ? FXI_ANY : 0u;
-    return FXI_CAP[t - FXT_LIM0] ? FXI_CAP[t - FXT_LIM0] + fxl_can(t - FXT_LIM0) : 0u;
+    return FXI_CAP[FXI_J(t)] ? FXI_CAP[FXI_J(t)] + fxl_can(FXI_J(t)) : 0u;
 }
 static uint32_t fxi_count(uint32_t t, uint32_t from)    /* instances from `from` on handed out */
 {
     uint32_t i, n = 0;
-    for (i = from; i < FXI_TOT(t - FXT_LIM0); i++)
-        n += fxi_own[t - FXT_LIM0][i] != FXI_NONE;
+    for (i = from; i < FXI_TOT(FXI_J(t)); i++)
+        n += fxi_own[FXI_J(t)][i] != FXI_NONE;
     return n;
 }
 static uint32_t fxi_used(uint32_t t) { return FXI_LIM(t) ? fxi_count(t, 0) : fxi_cap(t) ? FXI_ANY : 0u; }
-static uint32_t fxi_lent(uint32_t t) { return FXI_LIM(t) ? fxi_count(t, FXI_CAP[t - FXT_LIM0]) : 0u; }
+static uint32_t fxi_lent(uint32_t t) { return FXI_LIM(t) ? fxi_count(t, FXI_CAP[FXI_J(t)]) : 0u; }
 static uint32_t fxi_free(uint32_t t)
 {
     uint32_t c = fxi_cap(t), u = fxi_used(t);
@@ -278,7 +290,7 @@ static uint32_t fxi_free(uint32_t t)
 }
 static uint32_t fxi_state(uint32_t k, uint32_t s)
 {
-    uint32_t t = ins_slot[k % NTRK][s & 1u], j = t - FXT_LIM0;
+    uint32_t t = ins_slot[k % NTRK][s & 1u], j = FXI_J(t);
     if (!FXI_LIM(t) || !FXI_CAP[j])
         return FXI_NA;
     if (fxi_at[k % NTRK][j] != FXI_NONE)
@@ -291,7 +303,7 @@ static int fxi_can(uint32_t k, uint32_t t)
 {
     if (!FXI_LIM(t))
         return t < FXT_N && (FXT_BUILT >> t & 1u);
-    return FXI_CAP[t - FXT_LIM0] && (fxi_at[k % NTRK][t - FXT_LIM0] != FXI_NONE || fxi_free(t) > 0u);
+    return FXI_CAP[FXI_J(t)] && (fxi_at[k % NTRK][FXI_J(t)] != FXI_NONE || fxi_free(t) > 0u);
 }
 #else
 #define fxi_poll() ((void)0)

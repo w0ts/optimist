@@ -1872,7 +1872,8 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
         dbus_dyn(live ? p[P_TCOMP] : 0, n, nc);
 #endif
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades out, then rests) */
+    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)   /* (insfx.c: L and R; at 0 it fades
+                                                        * out, then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_bus(t, live ? p[FXT_AMT[t]] : 0, mix_l, mix_r, n);
 #endif
 #if FELUCCA_FX_DUST
@@ -1943,7 +1944,8 @@ AINL void ins_one(track_t *t, uint32_t k, uint32_t ty, int32_t live, int32_t *b,
         tcomp_run(&tcomp[k], live ? t->p[P_TCOMP] : 0, b, b, n, k);
 #endif
 #if INS_FX
-    if (ty >= FXT_NEW0 && ty < FXT_NEWN && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out, then rests) */
+    if (((ty >= FXT_NEW0 && ty < FXT_NEWN) || (FELUCCA_INS_JCHORUS && ty == FXT_JUNO)) && FXT_AMT[ty] != 0xFFu)   /* (insfx.c; at 0 it fades out,
+                                                        * then rests; JUNO CHORUS: fxi_kern.c) */
         ifx_part(ty, k, live ? t->p[FXT_AMT[ty]] : 0, b, n);
 #endif
 #if FELUCCA_FX_DUST
@@ -2086,7 +2088,11 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #endif
 #if FELUCCA_INS_WIDTH
         if (ifx_sd[(uint32_t)(t - trk) % NPART])        /* WIDE's side (insfx.c): after the level, L+ R- */
-            ifx_side_mix((uint32_t)(t - trk), lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            ifx_side_mix(ifx_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
+            ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
     }
 }
@@ -2125,7 +2131,7 @@ static HOT2 __attribute__((noinline)) void mst_ins(uint32_t t, int32_t live, int
     if (t == FXT_DUST)
         dust_run(&mst_dust, live && FELUCCA_FX_DUST ? song.g[G_DUST] : 0, l, r, n);
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu)
+    if (((t >= FXT_NEW0 && t < FXT_NEWN) || (FELUCCA_INS_JCHORUS && t == FXT_JUNO)) && FXT_AMT[t] != 0xFFu)
         ifx_mst(t, live ? mst_amt[t] : 0, l, r, n);
 #endif
     (void)live, (void)l, (void)r, (void)n;

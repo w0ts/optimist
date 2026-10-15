@@ -8,7 +8,11 @@
  *      takes it, cleared (no old line read)
  *   5. reload: a project load hands the instances out in track order T1 T2 T3 DR whatever came before, the same on
  *      every load; the FX record keeps the type, not the instance
- *   6. the UI's queries for types that are not limited (FXI_ANY) and not built (0) */
+ *   6. the UI's queries for types that are not limited (FXI_ANY) and not built (0)
+ *   7. JUNO CHORUS (FELUCCA_INS_JCHORUS, the second unit: 2 instances): a track and the master each take one, a third
+ *      owner gets none (FULL, bypassed), the master giving its back hands it to the waiting track after its fade; a part
+ *      comes out with a side (stereo), the master's L and R differ; MIX / MODE (tracks and master) round trip in the
+ *      FX record (TLV 17) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -337,6 +341,68 @@ static void t_lend_load(void)
     reset();
 }
 
+#if FELUCCA_INS_JCHORUS
+/* the master's inserts over x -> y (L), r (R) */
+static int32_t mr[NB * CTL];
+static void play_mst(int32_t a, uint32_t mode)
+{
+    uint32_t i;
+    mst_amt[FXT_JUNO] = (int16_t)a, mst_jmode = (int16_t)mode;
+    memcpy(y, x, sizeof y), memcpy(mr, x, sizeof mr);
+    for (i = 0; i < NB; i++)
+        mst_run(y + i * CTL, mr + i * CTL, CTL);
+}
+static void t_juno(void)
+{
+    uint32_t i, k, side = 0, lr = 0;
+    uint8_t b[FXR_MAX], m[2] = {FXT_JUNO, FXT_NONE};
+    uint32_t n;
+    reset();
+    mst_put(m);
+    fxi_poll();
+    check("JUNO: 2 instances built; the master holding it takes one", fxi_cap(FXT_JUNO) == 2u && fxi_used(FXT_JUNO) == 1u &&
+          ifx_lim_at(FXT_JUNO, IFX_MST) != FXI_NONE);
+    sine();
+    play_mst(127, 1);
+    for (i = 0; i < NB * CTL; i++)
+        lr |= y[i] != mr[i];
+    check("JUNO on the master at MIX 127: L and R differ (the antiphase taps)", lr);
+    slots(0, FXT_JUNO, FXT_NONE), slots(1, FXT_JUNO, FXT_NONE);
+    fxi_poll();
+    check("T1 takes the second, T2 none: FULL, bypassed", ifx_lim_at(FXT_JUNO, 0) != FXI_NONE &&
+          fxi_state(1, 0) == FXI_FULL && !fxi_can(1, FXT_JUNO));
+    trk[1].p[P_TJCHO] = 127;
+    memcpy(y, x, sizeof y);
+    for (i = 0; i < NB; i++)
+        ins_part(&trk[1], y + i * CTL, CTL);
+    check("... T2 without one: its block the input, bit for bit", same());
+    trk[0].p[P_TJCHO] = 100, trk[0].p[P_TJMODE] = 2;
+    memcpy(y, x, sizeof y);
+    for (i = 0; i < NB; i++) {
+        ins_part(&trk[0], y + i * CTL, CTL);
+        side |= ifx_jsd[0] && ifx_jside[0][5] != 0;
+    }
+    check("T1 at MIX 100, I+II: a side each block (stereo), the mid changed", side && !same());
+    m[0] = FXT_NONE;
+    mst_put(m);
+    fxi_poll();
+    check("the master drops it: given back only after its fade (T2 still FULL)", fxi_state(1, 0) == FXI_FULL);
+    play_mst(0, 1);                                     /* (its fade-out runs: at 0) */
+    for (k = 0; k < 8u && fxi_state(1, 0) != FXI_OK; k++)
+        fxi_poll();
+    check("... faded: T2 has it now", fxi_state(1, 0) == FXI_OK && ifx_lim_at(FXT_JUNO, IFX_MST) == FXI_NONE);
+    trk[2].p[P_TJCHO] = 77, trk[2].p[P_TJMODE] = 1, mst_amt[FXT_JUNO] = 33, mst_jmode = 2;
+    n = fxs_tlv(FXT_JUNO, b);
+    fxs_untlv_none(1);
+    fxs_untlv(FXT_JUNO, b, n, 1);
+    check("the FX record's JUNO TLV: MIX and MODE of the tracks and the master back", n == 2u * NTRK + 2u &&
+          trk[2].p[P_TJCHO] == 77 && trk[2].p[P_TJMODE] == 1 && trk[0].p[P_TJCHO] == 100 && trk[0].p[P_TJMODE] == 2 &&
+          mst_amt[FXT_JUNO] == 33 && mst_jmode == 2);
+    fxs_untlv(FXT_JUNO, b, 4u, 1);
+    check("... a shorter one: the rest 0", trk[2].p[P_TJCHO] == 77 && trk[2].p[P_TJMODE] == 0 && mst_amt[FXT_JUNO] == 0);
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -346,6 +412,9 @@ int main(void)
     t_query();
     t_lend();
     t_lend_load();
+#if FELUCCA_INS_JCHORUS
+    t_juno();
+#endif
     printf("fxi: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;
 }

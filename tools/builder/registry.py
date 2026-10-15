@@ -119,7 +119,7 @@ class Item:
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
 FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DJF", "FX_DUST", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY"}
+                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS"}
 
 
 def fx_group(key, parent=None):
@@ -477,6 +477,15 @@ _add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the 
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
           "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off."
           + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
+FM106 = Provenance("fm-106 (PatttF/fm-106)", "PatttF", "GPL-3.0-only", "be74757", "https://github.com/PatttF/fm-106")
+_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
+     choices=((0, "off"), (1, "1 slot (2 KB pool)"), (2, "2 slots (4 KB)"), (3, "3 slots (6 KB)"),
+              (4, "4 slots (8 KB)")),
+     desc="The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the "
+          "MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track "
+          "comes out stereo. About 130 host instructions a sample an instance. 0 is off." + _INS_LIM,
+     symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
+                                   "host tests only, not on a device.")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
