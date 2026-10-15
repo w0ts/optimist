@@ -906,7 +906,7 @@ static const param_desc_t *ins_desc(uint32_t k, uint32_t s, int16_t **vp)
 }
 static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
 {
-    uint32_t t, n = 0;
+    uint32_t t, n = 0, i;
     if (k >= FXS_ID_RAMT && k < FXS_ID_RAMT + 3u) {    /* a return's amount: its other type's (a send's: none) */
         uint32_t s = k - FXS_ID_RAMT + 1u;
         t = fxs_slot[s];
@@ -947,13 +947,16 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
     }
 #endif
     fxs_v[k & 3u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
-    for (t = 0; t < FXT_N; t++)                        /* (the list from the table: each type's amount names it) */
-        if (t == FXT_NONE || ((FXT_BUILT >> t & 1u) && FXT_SEND_OK(t)) || FXS_GEN(t)) {
+    for (i = 0; i < 2u * FXT_N; i++) {                /* (the list from the table: each type's amount names it): ----
+                                                        * and the sends first (the list of before), then the others */
+        t = i % FXT_N;
+        if (i < FXT_N ? t == FXT_NONE || ((FXT_BUILT >> t & 1u) && FXT_SEND_OK(t)) : FXS_GEN(t)) {
             fxs_names[n] = t == FXT_NONE ? "----" : t == FXT_DYN ? "DYN" : TP[FXT_AMT[t]].label;
             if (fxs_slot[k & 3u] == t)
                 fxs_v[k & 3u] = (int16_t)n;
             fxs_list[n++] = (uint8_t)t;
         }
+    }
     FXS_DESC[k & 3u].max = (int16_t)(n - 1u);
     *vp = &fxs_v[k & 3u];
     return &FXS_DESC[k & 3u];
