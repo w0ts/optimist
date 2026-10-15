@@ -855,8 +855,7 @@ the scenes.
 
 ## v10: FX slots (commands 86, 87; INFO tag 56)
 
-Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
-docs/FX-SLOTS-INSERTS-DESIGN.md) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
+Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
 DR) has two **insert slots**, S1 then S2, holding an insert type (DIST, FILT or COMP at first; since 2026-10-13 and 14 also FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER DUST JUNO, each a builder item), default S1 DIST, S2 FILT (2026-10-12). A slot is
 empty or holds one effect **type**, and a type sits in one slot at most (a track's: in one of its two): loading a type
 another slot holds swaps the two slots. The amounts belong to the type, not the slot: a type not heard on a track (no
@@ -876,7 +875,17 @@ amount ids in slot order, SOUND 3 the slots' sound ids.
 | 86 FX | op [args]: 0 get; 1 the four master slots (type ids, the sends only: an insert id, a type twice (its later slot), an id past the table: an empty slot; send the layout after the swap); 2 every track's COMP RATIO ATK REL (the master COMP's value lists: GLO > COMP's DESC names them; clamped); 3 a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged); 4 a track's insert slots: track 0..3 (T1 T2 T3 DR), S1, S2 (insert type ids or 0; the same type twice: S2 empty; send the pair after the swap); 5 a track's COMP settings: track, RATIO ATK REL; 6 the drum track's send levels REV DLY CHO (0..127) | op, then the state: 4 master slots (type ids), RATIO ATK REL (T1's; 127 127 127: no COMP built), 16 × the drum sounds' DIST, 16 × their COMP; then (the track insert slots, 2026-10-12; an older editor reads the first 39 bytes) 8 type ids (T1 S1 S2, T2 .., DR), 12 × RATIO ATK REL (T1 .. DR), 3 × the drum send levels REV DLY CHO. A bad op, lane, kind or track: no reply |
 | 87 FX_PUSH (push, v9 `WATCH` bit 2) | — | as the FX reply with op 0, when any of it changed on the device (FX > SLOTS, FX > CMP, SOUND 3, a project or snapshot loaded); the editor's own `FX` writes are not echoed |
 
-Not in the `FX` command (2026-10-15): the master's two **insert slots** (type ids stored in the FX record's TLV 0x44), each track's DYN GAIN and CEIL, the drum sounds' two insert slots (TLV 0x46) and the master's three return buses; the editor sees the types in tag 56 and the amounts as parameters. The FX record (`fx_rec.c`, `FXR_MAX` 288) holds, beside the type TLVs (the type id is the TLV id, 1..17), TLV 0x40 drum lanes' sends, 0x41 returns, 0x42 track slots (31 bytes since DYN's GAIN and CEIL; an older reader takes the first 23), 0x43 sequencer mutes, 0x44 master slots, 0x46 drum sounds' slots and 0x47 the parts' VOICES (a byte a part, only when one is not 0).
+Not in the `FX` command (2026-10-15): the master's two **insert slots** (type ids stored in the FX record's TLV 0x44), each track's DYN GAIN and CEIL, the drum sounds' two insert slots (TLV 0x46) and the master's three return buses; the editor sees the types in tag 56 and the amounts as parameters. The FX record (`fx_rec.c`, `FXR_VER` 1, at most `FXR_MAX` 288 bytes) is `u8 version, u8 flags (bit 0: the record is of the insert-slot model), u8 slot[4]` (the master sends' type ids), then TLVs `u8 id, u8 length, bytes`. A reader skips a TLV it does not know; a newer version is ignored as a whole. The ids:
+- 1..17: one TLV per effect type, the type id as the TLV id (amounts of T1 T2 T3 DR, and a type's own extras, e.g. GATER's PATTERN RATE SHAPE, JUNO's MIX and MODE for the tracks and the master);
+- 0x40 (`DLM_TLV`): the drum lanes' PAN, MUTE, SOLO (16 + 4 bytes);
+- 0x41 (`FXRET_TLV`): the returns CHO DLY REV, 3 bytes (0..127), only when one is not 127;
+- 0x42 (`INS_TLV`): the tracks' S1 S2 type ids (8), each track's COMP RATIO ATK REL (12), the drum track's send levels (3), then each track's DYN GAIN and CEIL (8): 31 bytes, an older reader takes the first 23;
+- 0x43 (`SMUTE_TLV`): the sequencer mutes (3 bytes, 4 with the ACCENT lane's);
+- 0x44 (`MST_TLV`): the master's S1 S2 type ids, then its amounts for DIST and each further type with no global of its own;
+- 0x46 (`LIN_TLV`): the drum sounds' two insert slots, a byte a lane (S1's index, S2's in the high nibble), only when a lane is not S1 DIST, S2 DYN;
+- 0x47 (`VCNT_TLV`): the parts' VOICES (0..8, 0 = the engine's maximum), a byte a part, only when one is not 0;
+- 0x48 (`UT_TLV`): the USB input track in a USB audio build: LEVEL PAN MUTE FX-ON REV DLY CHO (a byte each, PAN signed), its two slots' types and amounts, 11 bytes, only when not every one is the default.
+0x45 is not used by the firmware.
 
 The web editor (web/editor.html): the strips' four FX knobs are the slots' amounts, named after them; the drum strip has
 a SOUND | BUS switch (the selected sound's sends and inserts, or the drum bus's amounts after its inserts); the MASTER
