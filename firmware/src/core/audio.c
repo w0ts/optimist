@@ -19,6 +19,7 @@ struct felucca_dbg {
     uint32_t alive_ms, c1;                /* fm1_ms at the last TIMER5 millisecond; CPU1's stage then (DUAL builds) */
     uint32_t prev_alive_ms, prev_c1;      /* (as found at boot: how long the boot before ran) */
     uint32_t crash_seen, crash_new;       /* fm1_crash.count at boot; 1: it changed since (that boot ended in a crash) */
+    uint32_t boot_failed, boot_pending;   /* bootguard as this boot found it (after bootguard_begin) */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 

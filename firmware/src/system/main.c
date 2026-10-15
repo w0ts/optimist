@@ -193,6 +193,8 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.prev_home = felucca_dbg.home;
     felucca_dbg.prev_frames = felucca_dbg.ui_frames;
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
+    felucca_dbg.boot_failed = bootguard.failed;
+    felucca_dbg.boot_pending = bootguard.pending;
     felucca_dbg.prev_alive_ms = felucca_dbg.alive_ms;
     felucca_dbg.prev_c1 = felucca_dbg.c1;
     felucca_dbg.alive_ms = felucca_dbg.c1 = 0;

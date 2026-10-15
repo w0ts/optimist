@@ -12,7 +12,7 @@ import argparse
 import sys
 import time
 
-READ_ONLY = ("status", "dbg", "help", "bletrim", "blevm", "blell", "blell clear")
+READ_ONLY = ("status", "dbg", "boot", "crash", "help", "bletrim", "blevm", "blell", "blell clear")
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 

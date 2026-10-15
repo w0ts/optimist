@@ -976,7 +976,10 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz (4 
 static void usb_start(void)                             /* boot, or main-loop retry while usb.up == 0 */
 {
 #if FELUCCA_CDC
-    usb_cdc_on = usb_serial;                            /* USB SERIAL: what this start presents (above) */
+#ifndef FELUCCA_CDC_FORCE
+#define FELUCCA_CDC_FORCE 0     /* 1: the console presented whatever USB SERIAL says (debug builds: OPTIMIST_CDC_FORCE) */
+#endif
+    usb_cdc_on = (uint8_t)(usb_serial || FELUCCA_CDC_FORCE);   /* USB SERIAL: what this start presents (above) */
 #endif
 #if FELUCCA_USB_AUDIO
     ua_reset();

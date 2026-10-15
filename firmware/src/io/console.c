@@ -482,7 +482,9 @@ static void con_dbg(void)
     static const char *const NAMES[] = {"magic", "halves", "max_us", "nested", "in_audio", "late",
                                         "timer_irqs", "ui_frames", "last_us", "cpu_q8", "boots",
                                         "stage", "page", "home", "prev_stage", "prev_page",
-                                        "prev_home", "prev_rst", "prev_frames"};
+                                        "prev_home", "prev_rst", "prev_frames", "alive_ms", "c1",
+                                        "prev_alive_ms", "prev_c1", "crash_seen", "crash_new", "boot_failed",
+                                        "boot_pending"};
     uint32_t i;
     for (i = 0; i < sizeof NAMES / sizeof NAMES[0] && i < sizeof felucca_dbg / 4u; i++)
         con_kx(NAMES[i], w[i]);
@@ -517,6 +519,29 @@ static void con_crash(void)
     con_kx("psr", fm1_crash.psr);
     con_kv("uptime_ms", (int32_t)fm1_crash.uptime_ms);
     con_kv("early", (int32_t)fm1_crash.early);
+}
+
+/* how this boot started and how the one before ended (2026-10-15, the CPU1 investigation: tools fm1_console.py boot,
+ * todo1014/dualidle/cpu1_log.py): the reset source, the boot guard as found, the breadcrumbs the reset kept */
+static void con_boot(void)
+{
+    con_kx("p3_rst", fm1_boot.p3_rst);                  /* bit0 power-on, 1 VDDIO low, 2 WDT, 3 VCM, 4 long press, 5 1.2 V, 6 soft */
+    con_kx("rst_src", fm1_boot.rst_src);
+    con_kx("wdt_con", fm1_boot.wdt_con);
+    con_kv("boot_failed", (int32_t)felucca_dbg.boot_failed);   /* warm resets within 30 s counted (bootguard.h) */
+    con_kv("boot_pending", (int32_t)felucca_dbg.boot_pending);
+    con_kv("bootguard_failed_now", (int32_t)bootguard.failed);   /* (0 once this boot ran 30 s) */
+    con_kv("boots", (int32_t)felucca_dbg.boots);
+    con_kv("prev_alive_ms", (int32_t)felucca_dbg.prev_alive_ms);   /* how long the boot before ran (TIMER5's ms) */
+    con_kx("prev_stage", felucca_dbg.prev_stage);       /* where it was: 0x41.. a start-up step, 1..9 the main loop */
+    con_kv("prev_frames", (int32_t)felucca_dbg.prev_frames);
+    con_kv("prev_c1_stage", (int32_t)felucca_dbg.prev_c1);   /* CPU1's stage then (dual_mode.h C1S_*) */
+    con_kv("prev_crash", (int32_t)felucca_dbg.crash_new);   /* 1: it ended in the crash report (crash) */
+    con_kv("ms", (int32_t)fm1_ms);
+#if FELUCCA_DUAL
+    con_kv("cpu1_why", dual.why);
+    con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
+#endif
 }
 
 static void con_params(void)
@@ -574,7 +599,7 @@ static void con_tabbench(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
+        con_puts("status  dbg  crash  boot  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -588,6 +613,8 @@ static void con_exec(const char *p)
         con_dbg();
     else if (con_word(&p, "crash"))
         con_crash();
+    else if (con_word(&p, "boot"))
+        con_boot();
     else if (con_word(&p, "params"))
         con_params();
     else if (con_word(&p, "tabbench"))
