@@ -33,6 +33,45 @@
                                                     * starts (hal/fm1_supply.h; the builder's DUAL_BOOST) */
 #endif
 #define DUAL_SLEEPS (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)
+/* FELUCCA_DUALCFG (OPTIMIST_DUALCFG=1, a test image): what follows is chosen at boot from dualcfg, set by the console's
+ * `dualcfg` and kept in the settings record (project.c), not by build switches. DUAL_SLEEP_CODE / DUAL_SPIN_CODE: the
+ * code built; DUAL_SLEEPS_NOW: the mode this boot runs */
+#if FELUCCA_DUALCFG
+enum { DCS_BOOT, DCS_AFTER, DCS_NEVER };           /* dualcfg.start: at dual_boot, from the main loop after boot, never */
+typedef struct {
+    uint32_t magic;
+    uint8_t start, park, sleep, boost;             /* park: CPU1 held while BLUETOOTH's radio start-up program runs */
+    uint16_t late_ms, hold_ms;                     /* DCS_AFTER: not before fm1_ms late_ms; no job before fm1_ms hold_ms */
+    uint32_t poll;                                 /* no-ops between two mailbox reads of the spin loop */
+    uint8_t ble, pad[3];                           /* 0: no BLE radio start-up at boot, whatever BLUETOOTH says */
+} dualcfg_t;
+#define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
+static dualcfg_t dualcfg;
+static void dualcfg_defaults(dualcfg_t *c)
+{
+    memset(c, 0, sizeof *c);
+    c->magic = DUALCFG_MAGIC;
+    c->start = DCS_AFTER;
+    c->park = 1;
+    c->poll = FM1_DUAL_SPIN_NOPS;
+    c->ble = 1;
+}
+#define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2)
+#define DUAL_SPIN_CODE 1
+#define DUAL_SLEEPS_NOW (FELUCCA_DUAL >= 2 && dualcfg.sleep)
+#define DUAL_HOLD_NOW dualcfg.hold_ms
+#define DUAL_LATE_NOW dualcfg.late_ms
+#define DUAL_BOOST_NOW dualcfg.boost
+#define DUAL_PARK_NOW dualcfg.park
+#else
+#define DUAL_SLEEP_CODE DUAL_SLEEPS
+#define DUAL_SPIN_CODE (!DUAL_SLEEPS)
+#define DUAL_SLEEPS_NOW DUAL_SLEEPS
+#define DUAL_HOLD_NOW DUAL_HOLD_MS
+#define DUAL_LATE_NOW DUAL_LATE_MS
+#define DUAL_BOOST_NOW FELUCCA_DUAL_BOOST
+#define DUAL_PARK_NOW 1
+#endif
 #ifdef DUAL_PARTS
 #define DUAL_BALANCE 0                             /* a fixed set of parts on CPU1, the drums on CPU0 */
 #else
@@ -50,8 +89,8 @@
  * at random places (invalid AXI reads / writes, a PC-limit error); without BLE, CPU1 ran clean (B9c). None of the
  * firmwares that run CPU1 (stock's order unknown; X0X, Melodee, Jangada) runs that program with it. So CPU1 is never
  * running while it does: in a BLE build it is started from the main loop, after the boot's BLE start-up (DUAL_DEFER),
- * and held while BLUETOOTH ON starts the radio later (dual_park / dual_unpark, midi_ble.c) */
-#if DUAL_LATE_MS || (defined(FELUCCA_BLE) && FELUCCA_BLE)
+ * and held while BLUETOOTH ON starts the radio later (dual_radio_hold / dual_radio_release, midi_ble.c) */
+#if DUAL_LATE_MS || (defined(FELUCCA_BLE) && FELUCCA_BLE) || FELUCCA_DUALCFG
 #define DUAL_DEFER 1
 #else
 #define DUAL_DEFER 0
@@ -61,7 +100,7 @@
                                                     * reaches it (the boot's work done; fm1_ms counts from IRQS on) */
 #endif
 _Static_assert(C1S_LOOP == 3u, "hal/fm1_dual.h fm1_dual_sleep_ram writes 3 as C1S_LOOP");
-#if FELUCCA_DUAL_BOOST
+#if FELUCCA_DUAL_BOOST || FELUCCA_DUALCFG
 #include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
 #endif
 #define DUAL_JOB_DRUMS (1u << NPART)               /* a job's bit: the drum track (slicer_drums, dbus_run) */
@@ -90,7 +129,7 @@ static struct {
     uint32_t down_ms, down_mask, down_beat;
     uint8_t down_pend;
     uint8_t late;                                  /* DUAL_DEFER: CPU1 to be started from the main loop */
-    uint8_t parked;                                /* held for a radio start-up (dual_park), to be started again */
+    uint8_t parked;                                /* held for a radio start-up (dual_radio_hold), to be started again */
     uint32_t t_start;                              /* TIMER4 when CPU1 was started (dual_boot) */
     uint32_t posts;                                /* jobs posted (mix_block_dual) */
     uint8_t mring[8];                              /* the masks of the last 8 posts (posts & 7: the next) */
@@ -205,12 +244,12 @@ static HOT uint32_t dual_split(uint32_t jobs)    /* jobs: the block's (the rever
         if (fm1_dual_mb.stage < (s))                                                                                   \
             fm1_dual_mb.stage = (s);                                                                                   \
     } while (0)
-#if !DUAL_SLEEPS
+#if !DUAL_SLEEP_CODE
 /* (stage 1, or CPU1 spinning: the wake interrupt is never set up, but hal/fm1_dual.h's entry isr_c1_wake
  * calls this body: without it FELUCCA_DUAL=1 did not link) */
 void HOT fm1_cpu1_wake(void) { fm1_dual_wake_ack(); }
 #endif
-#if DUAL_SLEEPS
+#if DUAL_SLEEP_CODE
 /* CPU1, soft interrupt 124 (isr_c1_wake): the jobs posted since it last looked, then back to its idle.
  * The latch is cleared before req is read, so a job posted after the last look wakes it again */
 void HOT fm1_cpu1_wake(void)
@@ -263,10 +302,12 @@ void HOT fm1_cpu1_wake(void)
  * their whole CPU1 loop (.c1_text): between two jobs CPU1 then fetches nothing from the flash (2026-10-15, B5 on the
  * FM-1: CPU1 held at job 47 by an axi_rd_inv + axi_wr_inv right after it took the job, before its first part began,
  * in this loop's XIP code) */
-#if DUAL_SLEEPS
-#define C1_MAIN
-#else
+#if DUAL_SPIN_CODE
 #define C1_MAIN HOT
+#define C1_RAM_CALL(f) f                           /* (RAM to RAM) */
+#else
+#define C1_MAIN
+#define C1_RAM_CALL(f) FL_FAR(f)
 #endif
 void C1_MAIN fm1_cpu1_main(void)
 {
@@ -284,16 +325,19 @@ void C1_MAIN fm1_cpu1_main(void)
     fm1_dual_sync();                               /* the canary before the hello */
     fm1_dual_mb.hello = FM1_DUAL_HELLO;
     fm1_dual_mb.stage = C1S_HELLO;
-#if DUAL_SLEEPS
-    (void)seq;
-    (void)arg;
+#if DUAL_SLEEP_CODE
+    if (DUAL_SLEEPS_NOW) {
+        (void)seq;
+        (void)arg;
 #if DUAL_FAILTEST == 7
-    FL_FAR(fm1_dual_deaf_ram)();
+        C1_RAM_CALL(fm1_dual_deaf_ram)();
 #endif
-    FL_FAR(fm1_dual_sleep_ram)();                  /* never returns: the jobs come by interrupt */
-    for (;;)
-        ;
-#else
+        C1_RAM_CALL(fm1_dual_sleep_ram)();         /* never returns: the jobs come by interrupt */
+        for (;;)
+            ;
+    }
+#endif
+#if DUAL_SPIN_CODE
     fm1_dual_mb.stage = C1S_LOOP;
     for (;;) {
         seq = fm1_dual_idle_ram(seq, 1u, DUAL_ALLOWED, &arg);   /* (RAM to RAM: a request it may run, its beat counted) */
@@ -352,19 +396,33 @@ static __attribute__((noinline)) void dual_boot(void)
     dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
     if (dual.why != DUAL_UP)
         return;                                    /* (CPU1 stays in reset, as at power-on) */
-#if FELUCCA_DUAL_BOOST
-    dual.supply = (uint8_t)fm1_supply_boost();     /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
-#endif
-    fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
-#if DUAL_SLEEPS
-    fm1_dual_wake_setup(isr_c1_wake);
-#endif
+#if FELUCCA_DUALCFG
+    if (dualcfg.start == DCS_NEVER) {
+        dual.why = DUAL_SETOFF;                    /* (dualcfg start never: one core, nothing said) */
+        return;
+    }
+    if (dualcfg.start == DCS_AFTER && dual.late != 2u) {
+#else
     if (DUAL_DEFER && dual.late != 2u) {
+#endif
         dual.late = 1;                             /* (dual_frame starts it: dual_start_late) */
         return;
     }
+    if (DUAL_BOOST_NOW && !dual.supply) {
+#if FELUCCA_DUAL_BOOST || FELUCCA_DUALCFG
+        dual.supply = (uint8_t)fm1_supply_boost(); /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
+#endif
+    }
+    fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
+#if DUAL_SLEEP_CODE
+    if (DUAL_SLEEPS_NOW)
+        fm1_dual_wake_setup(isr_c1_wake);
+#endif
+#if FELUCCA_DUALCFG
+    fm1_dual_poll = dualcfg.poll ? dualcfg.poll : 1u;
+#endif
     dual.t_start = fm1_ticks();
-    dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US);
+    dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US, DUAL_SLEEPS_NOW);
     if (!dual.up)
         dual_down(DUAL_NO_HELLO, 0);               /* (already in reset: the record only) */
     else if (fm1_dual_mb.canary != 1u)             /* it read the canary wrong (or never read it) */
@@ -376,6 +434,7 @@ static __attribute__((noinline)) void dual_boot(void)
  * through the chip's ROM, which the PC limits refuse; both set back after */
 static __attribute__((noinline)) void dual_start_late(void)
 {
+    uint32_t ie = fm1_icfg() & 0x200u;             /* (at boot, from a park, the interrupts may not be on yet) */
     fm1_irq_off();
     fm1_guard_unlock_top();
     fm1_guard_pc_open();
@@ -384,21 +443,22 @@ static __attribute__((noinline)) void dual_start_late(void)
     dual.late = 0;
     fm1_guard_enable(FM1_GUARD_PC);
     fm1_guard_lock_top();
-    fm1_irq_on();
+    if (ie)
+        fm1_irq_on();
 }
 
 #if defined(FELUCCA_BLE) && FELUCCA_BLE
 /* main loop, before the BLE radio's start-up program (midi_ble.c ble_radio_start): CPU1 into reset (it is in its RAM
- * loop: no job outside the audio interrupt), the mailbox back to its start; dual_unpark starts it again after */
-static void dual_park(void)
+ * loop: no job outside the audio interrupt), the mailbox back to its start; dual_radio_release starts it again after */
+static void dual_radio_hold(void)
 {
-    if (!dual.up)
+    if (!dual.up || !DUAL_PARK_NOW)
         return;
     fm1_dual_halt();
     dual.up = 0;
     dual.parked = 1;
 }
-static void dual_unpark(void)
+static void dual_radio_release(void)
 {
     if (!dual.parked)
         return;
@@ -440,7 +500,7 @@ static void dual_frame(void)
     static uint8_t told;
 #if DUAL_DEFER
     if (dual.late) {
-        if (fm1_ms < DUAL_LATE_MS)
+        if (fm1_ms < DUAL_LATE_NOW)
             return;
         dual_start_late();
     }
@@ -479,7 +539,7 @@ static void dual_frame(void)
 static HOT int dual_join(uint32_t req)
 {
     uint32_t t0 = fm1_ticks(), dt, why;
-#if DUAL_SLEEPS
+#if DUAL_SLEEP_CODE
     uint32_t kick = DUAL_KICK_US * FM1_TICKS_PER_US;
 #endif
     while (fm1_dual_mb.done != req || fm1_dual_mb.bad) {   /* (bad: a request nobody posted, now or while it waited;
@@ -493,8 +553,8 @@ static HOT int dual_join(uint32_t req)
             FAR(dual_down)(why, dt / FM1_TICKS_PER_US);
             return 0;
         }
-#if DUAL_SLEEPS
-        if (dt > kick && fm1_dual_mb.took != req) {   /* not picked up: its wake again (fm1_dual_rewake) */
+#if DUAL_SLEEP_CODE
+        if (DUAL_SLEEPS_NOW && dt > kick && fm1_dual_mb.took != req) {   /* not picked up: its wake again (fm1_dual_rewake) */
             fm1_dual_rewake();
             dual.rewakes++;
             kick += DUAL_KICK_US * FM1_TICKS_PER_US;
@@ -561,7 +621,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     rev_late = (uint8_t)(dual.up && n == CTL);     /* CPU1 up: the reverb one block late (fx.c fx_buses) */
     jobs |= rvj.pend ? DUAL_JOB_REV : 0u;          /* (its kept block, on either core) */
 #endif
-    if (dual.up && n == CTL && (!DUAL_HOLD_MS || fm1_ms >= DUAL_HOLD_MS)) {
+    if (dual.up && n == CTL && (!DUAL_HOLD_NOW || fm1_ms >= DUAL_HOLD_NOW)) {
         mask = dual_split(jobs);
         post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
     }
@@ -577,9 +637,11 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         dual_c1_at = 0;                            /* (CPU1 sets it as it starts each of these jobs) */
         fm1_dual_sync();                           /* the block's state, arg and check before req */
         fm1_dual_mb.req = req;
-#if DUAL_SLEEPS
-        fm1_dual_sync();
-        fm1_dual_wake();                           /* CPU1 out of its idle (soft interrupt 124) */
+#if DUAL_SLEEP_CODE
+        if (DUAL_SLEEPS_NOW) {
+            fm1_dual_sync();
+            fm1_dual_wake();                       /* CPU1 out of its idle (soft interrupt 124) */
+        }
 #endif
     }
     dual_run(jobs & ~mask, n, A);                  /* CPU0's jobs: those CPU1 was not given */

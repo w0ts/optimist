@@ -29,7 +29,10 @@ static void dual_flash_enter(void);
 #ifndef FELUCCA_DUAL_IDLE
 #define FELUCCA_DUAL_IDLE 1      /* CPU1 asleep between jobs (2 only; system/dual.c) */
 #endif
-#if FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE
+#ifndef FELUCCA_DUALCFG
+#define FELUCCA_DUALCFG 0        /* 1: the switchable test image (OPTIMIST_DUALCFG; the console's dualcfg, system/dual.c) */
+#endif
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE && !FELUCCA_DUALCFG
 #define FM1_DUAL_NO_SPIN 1       /* (hal/fm1_dual.h: no RAM spin loop, CPU1 sleeps) */
 #endif
 #include "fm1_dual.h"

@@ -212,6 +212,9 @@ static BOOT_ORDER void fm1_main(void)
     fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
 #endif
     BOOT_STAGE(PERSIST);
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dualcfg_defaults(&dualcfg);                         /* (the settings record's dualcfg replaces them: project.c) */
+#endif
     persist_boot();
     BOOT_STAGE(STORES);
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
@@ -373,6 +376,20 @@ static BOOT_ORDER void fm1_main(void)
         }
 #if FELUCCA_CDC
         cdc_task();
+#endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG && FELUCCA_CDC
+        if (con_reboot_req) {                           /* the console's `reboot` (the second-core test image) */
+            fm1_dual_halt();
+            fm1_audio_stop();
+#if FELUCCA_ARRANGER
+            persist_flush_now();
+#endif
+            fm1_delay_ms(20);
+            usb_detach();
+            fm1_delay_ms(30);
+            bootguard.pending = 0;                      /* intentional reset: not a failed boot */
+            fm1_reboot();
+        }
 #endif
         felucca_dbg.ui_frames++;
         felucca_dbg.page = ui.page;

@@ -36,6 +36,10 @@ typedef struct {
     fav_t fav;                                     /* appended last (core/favorites.c): the marked sounds, 136 B. A record from
                                                     * before it reads whole, with none (persist_upgrade) */
 #endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dualcfg_t dualcfg;                             /* the second-core test image only (system/dual.c, the console's dualcfg):
+                                                    * after everything; a normal build reads it as a longer record's tail */
+#endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_BRIGHT || BP23_SET

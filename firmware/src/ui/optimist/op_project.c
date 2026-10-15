@@ -626,8 +626,8 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
         c->col = dual.stop.stopped ? C_WARN : 0;
         break;
     case 2:
-        c->label = DUAL_SLEEPS ? "CPU1 SLEEP" : "CPU1 SPIN";
-        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS), sizeof c->val);
+        c->label = DUAL_SLEEPS_NOW ? "CPU1 SLEEP" : "CPU1 SPIN";
+        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS_NOW), sizeof c->val);
         u[0] = ' ';
         u[1] = 0;
         dual_cnum(u, fm1_dual_mb.count);

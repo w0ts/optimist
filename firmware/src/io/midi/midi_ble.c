@@ -301,8 +301,24 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
 #if BLE_HW_WL82
     ble_hw_wl82_attach();                       /* the two vectors, masked: no BLE / RF register written */
 #endif
-    if (!ble_boot_radio(ble_on, bootguard.failed, ble_radio_ok()) || !ble_radio_start())
-        return;                                 /* OFF (the default); or the boot guard counts a failed start-up (a
+#if FELUCCA_DUALCFG
+    if (!dualcfg.ble)
+        return;                                 /* (dualcfg ble off: no radio start-up this boot, BLUETOOTH kept) */
+#endif
+    if (!ble_boot_radio(ble_on, bootguard.failed, ble_radio_ok()))
+        return;
+    {
+        int ok;
+#if FELUCCA_DUAL >= 2
+        dual_radio_hold();                            /* (CPU1 already started at boot: held while the program runs, dual.c) */
+#endif
+        ok = ble_radio_start();
+#if FELUCCA_DUAL >= 2
+        dual_radio_release();
+#endif
+        if (!ok)
+            return;
+    }                                 /* OFF (the default); or the boot guard counts a failed start-up (a
                                                  * warm reset in a boot's first 30 s: the watchdog's, after a radio
                                                  * start-up that hung; system/bootguard.h), so this boot leaves the
                                                  * radio off, ON stays saved and the menu can switch it OFF; or no
@@ -328,11 +344,11 @@ static void ble_midi_set(uint8_t on)
     if (!ble_up && on) {
         int ok;
 #if FELUCCA_DUAL >= 2
-        dual_park();                            /* (CPU1 not running while the radio's start-up program runs: dual.c) */
+        dual_radio_hold();                            /* (CPU1 not running while the radio's start-up program runs: dual.c) */
 #endif
         ok = ble_radio_start();
 #if FELUCCA_DUAL >= 2
-        dual_unpark();
+        dual_radio_release();
 #endif
         if (!ok)
             return;                             /* no stored trims: only the setting */

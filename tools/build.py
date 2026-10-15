@@ -234,6 +234,8 @@ def build_app():
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
+    if os.environ.get("OPTIMIST_DUALCFG") == "1":   # (the switchable second-core test image: the console's dualcfg)
+        flags.append("-DFELUCCA_DUALCFG=1")
     v = os.environ.get("OPTIMIST_DUAL_LATE_MS")   # (a test build: CPU1 started from the main loop after this many ms)
     if v and v.isdigit() and 0 < int(v) <= 60000:
         flags.append(f"-DDUAL_LATE_MS={v}u")

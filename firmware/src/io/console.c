@@ -464,8 +464,8 @@ static void con_status(void)
     con_kx("cpu1_exc_c1etm2", fm1_dual_exc.c1etm[2]);
     con_kx("cpu1_exc_c1etm3", fm1_dual_exc.c1etm[3]);
     con_kx("cpu1_c1con", fm1_dual_c1con());
-    con_kv("cpu1_stack_irq_used", (int32_t)fm1_dual_stack_used(0));   /* bytes of 5120 (sp / ssp: the wake's) */
-    con_kv("cpu1_stack_main_used", (int32_t)fm1_dual_stack_used(1));  /* bytes of 5120 (usp: its C code, spin jobs) */                   /* (what it reads back now) */
+    con_kv("cpu1_stack_small_used", (int32_t)fm1_dual_stack_used(0));  /* bytes of 1024 (the idle one: sp spinning, usp asleep) */
+    con_kv("cpu1_stack_big_used", (int32_t)fm1_dual_stack_used(1));    /* bytes of 5120 (the jobs' one) */                   /* (what it reads back now) */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif
@@ -589,6 +589,9 @@ static void con_crash(void)
 
 /* how this boot started and how the one before ended (2026-10-15, the CPU1 investigation: tools fm1_console.py boot,
  * todo1014/dualidle/cpu1_log.py): the reset source, the boot guard as found, the breadcrumbs the reset kept */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+static void con_dualcfg_show(void);
+#endif
 static void con_boot(void)
 {
     con_kx("p3_rst", fm1_boot.p3_rst);                  /* bit0 power-on, 1 VDDIO low, 2 WDT, 3 VCM, 4 long press, 5 1.2 V, 6 soft */
@@ -608,6 +611,9 @@ static void con_boot(void)
     con_kv("cpu1_why", dual.why);
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
     con_kv("cpu1_start_ms", (int32_t)(dual.t_start / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 ms: CPU1 started */
+#if FELUCCA_DUALCFG
+    con_dualcfg_show();
+#endif
 #endif
 #if FELUCCA_BLE && BLE_HW_WL82
     {
@@ -621,6 +627,88 @@ static void con_boot(void)
     }
 #endif
 }
+
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+static uint8_t con_reboot_req;                          /* `reboot`: main.c resets, as an intentional reset */
+/* the second-core test image (system/dual.c dualcfg): `dualcfg show | reset | start boot|after|never | late MS |
+ * park on|off | idle sleep|spin | hold MS | poll N | boost on|off | ble on|off`. Saved with the settings record at once,
+ * applied at the next boot (`reboot`, or a power-on) */
+static void con_dualcfg_show(void)
+{
+    static const char *const ST[3] = {"boot", "after", "never"};
+    con_puts("dualcfg start ");
+    con_puts(ST[dualcfg.start % 3u]);
+    con_kv("\r\ndualcfg late", dualcfg.late_ms);
+    con_kv("dualcfg park", dualcfg.park);
+    con_puts(dualcfg.sleep ? "dualcfg idle sleep\r\n" : "dualcfg idle spin\r\n");
+    con_kv("dualcfg hold", dualcfg.hold_ms);
+    con_kv("dualcfg poll", (int32_t)dualcfg.poll);
+    con_kv("dualcfg boost", dualcfg.boost);
+    con_kv("dualcfg ble", dualcfg.ble);
+    con_puts("(the next boot; this boot: ");
+    con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
+    con_puts(")\r\n");
+}
+static int con_onoff(const char **p, uint8_t *v)
+{
+    if (con_word(p, "on"))
+        *v = 1;
+    else if (con_word(p, "off"))
+        *v = 0;
+    else
+        return 0;
+    return 1;
+}
+static void con_dualcfg(const char *p)
+{
+    dualcfg_t c = dualcfg;
+    int ok = 1, n;
+    uint32_t v;
+    if (!*p || con_word(&p, "show")) {
+        con_dualcfg_show();
+        return;
+    }
+    if (con_word(&p, "reset"))
+        dualcfg_defaults(&c);
+    else if (con_word(&p, "start"))
+        ok = con_word(&p, "boot") ? (c.start = DCS_BOOT, 1) : con_word(&p, "after") ? (c.start = DCS_AFTER, 1)
+           : con_word(&p, "never") ? (c.start = DCS_NEVER, 1) : 0;
+    else if (con_word(&p, "idle"))
+        ok = con_word(&p, "sleep") ? (c.sleep = 1, 1) : con_word(&p, "spin") ? (c.sleep = 0, 1) : 0;
+    else if (con_word(&p, "park"))
+        ok = con_onoff(&p, &c.park);
+    else if (con_word(&p, "boost"))
+        ok = con_onoff(&p, &c.boost);
+    else if (con_word(&p, "ble"))
+        ok = con_onoff(&p, &c.ble);
+    else if (con_word(&p, "late")) {
+        v = con_num(&p, &n);
+        ok = n && v <= 60000u;
+        if (ok)
+            c.late_ms = (uint16_t)v;
+    } else if (con_word(&p, "hold")) {
+        v = con_num(&p, &n);
+        ok = n && v <= 60000u;
+        if (ok)
+            c.hold_ms = (uint16_t)v;
+    } else if (con_word(&p, "poll")) {
+        v = con_num(&p, &n);
+        ok = n && v >= 1u && v <= 1000000u;
+        if (ok)
+            c.poll = v;
+    } else
+        ok = 0;
+    if (!ok) {
+        con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
+                 " | poll N | boost on|off | ble on|off\r\n");
+        return;
+    }
+    c.magic = DUALCFG_MAGIC;
+    dualcfg = c;
+    settings_save();                                    /* (kept with the settings, applied at the next boot) */
+    con_dualcfg_show();
+}
+#endif
 
 static void con_params(void)
 {
@@ -677,7 +765,11 @@ static void con_tabbench(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  boot  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
+        con_puts("status  dbg  crash  boot  "
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+                 "dualcfg  reboot  "
+#endif
+                 "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -693,6 +785,14 @@ static void con_exec(const char *p)
         con_crash();
     else if (con_word(&p, "boot"))
         con_boot();
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    else if (con_word(&p, "dualcfg"))
+        con_dualcfg(p);
+    else if (con_word(&p, "reboot")) {
+        con_puts("rebooting\r\n");
+        con_reboot_req = 1;                            /* (main loop: an intentional reset, not a failed boot) */
+    }
+#endif
     else if (con_word(&p, "params"))
         con_params();
     else if (con_word(&p, "tabbench"))
