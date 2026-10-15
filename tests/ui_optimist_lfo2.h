@@ -3,7 +3,7 @@
  *   the pages   "LFO 2" (RATE WAVE TRIG POL) and "LFO2 DEST" (DEST AMT, two empty cards) are SOUND rows right after
  *               LFO DEST, on the synth tracks only, and only with LFO2 built in (a build without: no such row)
  *   the cards   each maps to its P_L2* value; RATE shows as LFO's does (the free bar from 0, a synced division as ten
- *               cells), HOME held + a knob puts the value back to its default
+ *               cells), SHIFT held + a knob puts the value back to its default
  *   the bars    AMT's second bar is the destination's actual value, equal to what the render used (ANALOG 2's cutoff)
  * Included after ui_optimist_inslots.h (ins_row). */
 static void lfo2ui_off_tests(void)
@@ -121,7 +121,7 @@ static void lfo2ui_tests(void)
     check(TSEL->p[P_L2RATE] == 0, "KNOB 1 turned down fast: LFO 2's RATE stops at 0 (as LFO's)");
     turn(EN_K1, -1);
     check(TSEL->p[P_L2RATE] == -1, "... one more detent: the first division");
-    /* HOME held + a knob: the default */
+    /* SHIFT held + a knob: the default */
     TSEL->p[P_L2RATE] = -4, TSEL->p[P_L2WAVE] = 3, TSEL->p[P_L2TRIG] = 1, TSEL->p[P_L2POL] = 1;
     ui.row[SCR_SOUND] = (uint8_t)r;
     frame();
@@ -132,7 +132,7 @@ static void lfo2ui_tests(void)
     }
     check(TSEL->p[P_L2RATE] == TP[P_L2RATE].def && TSEL->p[P_L2WAVE] == TP[P_L2WAVE].def && TSEL->p[P_L2TRIG] == TP[P_L2TRIG].def &&
               TSEL->p[P_L2POL] == TP[P_L2POL].def && ui.scr == SCR_SOUND,
-          "HOME held + each knob on LFO 2: RATE WAVE TRIG POL back to their defaults");
+          "SHIFT held + each knob on LFO 2: RATE WAVE TRIG POL back to their defaults");
     TSEL->p[P_L2DA] = LT_SHP, TSEL->p[P_L2AA] = 30;
     ui.row[SCR_SOUND] = (uint8_t)rd;
     frame();
@@ -141,11 +141,11 @@ static void lfo2ui_tests(void)
     press(B_OCTDN);
     turn(EN_K2, 1);
     release(B_OCTDN);
-    check(TSEL->p[P_L2AA] == TP[P_L2AA].def, "HOME held + KNOB 2 on LFO2 DEST: AMT back to 0");
+    check(TSEL->p[P_L2AA] == TP[P_L2AA].def, "SHIFT held + KNOB 2 on LFO2 DEST: AMT back to 0");
     press(B_OCTDN);
     turn(EN_K1, 1);
     release(B_OCTDN);
-    check(TSEL->p[P_L2DA] == TP[P_L2DA].def, "HOME held + KNOB 1: DEST back to OFF");
+    check(TSEL->p[P_L2DA] == TP[P_L2DA].def, "SHIFT held + KNOB 1: DEST back to OFF");
     /* the LFO 2 wave drawn, LFO2 DEST under it */
     TSEL->p[P_L2WAVE] = 1, TSEL->p[P_L2POL] = 1;
     ui.row[SCR_SOUND] = (uint8_t)r;

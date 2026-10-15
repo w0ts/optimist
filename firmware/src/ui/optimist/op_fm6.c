@@ -7,7 +7,7 @@
  *                white keys keep playing (audition). The cards are the page's four values, the panel the algorithm
  *                (the operator picked white, carriers in the engine's colour, an operator switched off dim) over the
  *                black keys' map; OCT- / OCT+ the page back / on. Let go after using it: SOUND's FM6 rows on that
- *                page. HOME + ENV locks it (section 2.1)
+ *                page. SHIFT + ENV locks it (section 2.1)
  *   ENV tapped   SOUND's FM6 family: OPERATOR (OP, ALG, FDBK, VOICE), the six pages of the operator picked (FREQ,
  *                LEVEL, RATES, LEVELS, KEY SCALE, CURVES), PIT's two, then ALGO, LFO, LFO 2, PORTA, STORE (SLOT, and
  *                STORE SEND INIT as actions); the algorithm drawn over the rows on every one of them. ENV again: the

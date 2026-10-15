@@ -11,7 +11,7 @@ enum { CK_NONE, CK_VAL, CK_RO, CK_ACT, CK_ENTER };
  *   GK_DOTS  a list of up to 12 entries: one lit     GK_POS   a longer list: a tick at its place
  *   GK_PILL  on / off (two entries): filled or empty GK_NONE  text only (names, actions) */
 enum { GK_NONE, GK_BAR, GK_BIP, GK_DOTS, GK_POS, GK_PILL };
-#define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (HOME held + the knob) */
+#define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (SHIFT held + the knob) */
 #define OP_MAXROWS 40u
 static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' GO buttons */
 

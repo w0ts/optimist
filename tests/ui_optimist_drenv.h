@@ -17,7 +17,7 @@ static void drum_env_tests(void)
     memset(&dl, 0, sizeof dl);
     song.sel = TRK_DRUM;
     TDRUM->p[P_E0] = DRUM_SAMPLED;                      /* the 808: synthesised */
-    lane_select(2);                                     /* the snare (HOME held + its key picks it) */
+    lane_select(2);                                     /* the snare (SHIFT held + its key picks it) */
     ui.lane = 1;                                        /* (picked: the lane's ENV needs one, 2026-10-13) */
     frame();
     tap(B_ENV);

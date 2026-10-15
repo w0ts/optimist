@@ -67,7 +67,7 @@ static void lane_src_tests(void)
     check(dl.src[l] == before, "... and back");
     src0 = dl.src[l];
     turn(EN_K1, OP_RESET);
-    check(dl.src[l] == src0, "HOME + KNOB 1 (reset): SRC has no default to go back to, unchanged");
+    check(dl.src[l] == src0, "SHIFT + KNOB 1 (reset): SRC has no default to go back to, unchanged");
     lsrc_check_lane(l, DL_KIT0, "a sampled kit lane");
     check(lsrc_rows_titled("SOURCE") == 0u && SCR->rows() == rows_kit, "a sampled kit lane: no SOURCE page, as many pages");
 #if FELUCCA_DRUM_USR

@@ -103,7 +103,7 @@ static void rk_prj(const char *row, uint32_t op)
     tap(B_SAVE);
     rk_after(PO_NAME[op], h0);
 }
-static void rk_combo(uint32_t b, const char *what)      /* HOME held + b */
+static void rk_combo(uint32_t b, const char *what)      /* SHIFT held + b */
 {
     uint32_t h0;
     op_enter(SCR_SOUND);
@@ -173,7 +173,7 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
     turn(EN_PRESET, 1);
     check(!op_armed() && (TSEL->preset != pre || TSEL->eng_req != eng), "an unedited sound: PRESETS browses, nothing asked");
     rk_discard(EN_PRESET, 0, "PRESETS over edits");
-    rk_discard(EN_PRESET, 1, "HOME + PRESETS (the engine) over edits");
+    rk_discard(EN_PRESET, 1, "SHIFT + PRESETS (the engine) over edits");
     op_enter(SCR_PROJECT);                              /* (INIT's home: PROJECT > USER, the SOUND row is gone) */
     rk_at(SCR_PROJECT, "USER", "INIT");
     ui.msg[0] = 0;
@@ -201,7 +201,7 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
         check((uint16_t)TDRUM->p[P_E0] != k0, "... YES: the next kit");
     }
 #if DL_UI
-    {                                                   /* a lane on its own sound: PRESETS its sound, HOME + PRESETS its kind */
+    {                                                   /* a lane on its own sound: PRESETS its sound, SHIFT + PRESETS its kind */
         uint32_t l;
         for (l = 0; l < DRUM_LANES && ls_count(l) < 2u; l++)
             ;
@@ -260,8 +260,8 @@ static void risk_tests(void)
     rk_cell(SCR_SONG, "PART 1", "DELETE");              /* DELETE a part: no undo for the song's order */
 #endif
     rk_edit();
-    rk_combo(B_ENV, "HOME + ENV: INIT");
-    rk_combo(B_SEQ, "HOME + SEQ: the locks");
+    rk_combo(B_ENV, "SHIFT + ENV: INIT");
+    rk_combo(B_SEQ, "SHIFT + SEQ: the locks");
 #if FELUCCA_ARRANGER
     {                                                   /* SONG REC over a stored song of parts */
         uint32_t h0;

@@ -348,7 +348,7 @@ static void cond_card_tests(void)
     fm1_in.buttons |= BT(B_OCTDN);
     turn(EN_K1 + EX_N - 1u, 1);
     fm1_in.buttons &= ~BT(B_OCTDN);
-    check(!step_cond(t, 2), "... HOME + KNOB 4: cleared");
+    check(!step_cond(t, 2), "... SHIFT + KNOB 4: cleared");
     kup(WK(2));
     track_defaults_steps(t);
     AL(t)->n = 0;

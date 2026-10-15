@@ -101,7 +101,7 @@ static void mixer_walk_tests(void)
         press(B_OCTDN);
         tap(B_ENV);
         release(B_OCTDN);
-        check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
+        check(!op_armed(), "... SHIFT + ENV: no INIT of T1 asked");
         if (op_armed())
             op_no();
         {
@@ -331,7 +331,7 @@ static void mixer_sets_tests(void)
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         release(B_OCTDN);
-        check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
+        check(ui.scr == SCR_HOME, "SHIFT held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
         tap(B_HOME);
@@ -344,14 +344,14 @@ static void mixer_sets_tests(void)
         key(4);
         release(B_OCTDN);
         check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
-              "HOME held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
+              "SHIFT held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         press(B_GLO);
         release(B_GLO);
         release(B_OCTDN);
-        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "HOME held long + a layer button: the layer locks, no SYSTEM");
+        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "SHIFT held long + a layer button: the layer locks, no SYSTEM");
         tap(B_SEQ);
         song.sel = 0;
         reset_ui();
