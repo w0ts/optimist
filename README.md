@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/optimist-logo-on-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo/optimist-logo-on-light.svg">
+    <img src="assets/logo/optimist-logo-on-light.svg" alt="Optimist: a dinghy" width="220">
+  </picture>
+</p>
+
 <h1 align="center">Optimist</h1>
 
 <p align="center"><b>An open, modular firmware platform for the M-VAVE FM-1 groovebox: build your own firmware, with the features and the interface you choose, on any computer.</b><br>
