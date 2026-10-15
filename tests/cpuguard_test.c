@@ -137,7 +137,7 @@ static void test_model(void)
 #if INS_FX
         {   /* the further inserts (insfx.c): each while set in a slot (FX on), or fading out; the drum bus's at every level */
             uint32_t t, ok = 1;
-            for (t = FXT_NEW0; t < FXT_N; t++) {
+            for (t = FXT_NEW0; t < FXT_NEWN; t++) {
                 uint8_t s[2] = {(uint8_t)t, FXT_NONE};
                 if (FXT_AMT[t] == 0xFFu)
                     continue;

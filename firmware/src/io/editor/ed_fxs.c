@@ -71,7 +71,7 @@ static uint32_t ed_fx_sig(void)
  * 19 DST, 20 CMP; 127 none: FILT) */
 static void ed_fx_info(void)
 {
-    static const uint8_t LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
+    static const uint8_t LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
                                                         * fxs_lane_id's table) */
     uint32_t t, n = 0;
     for (t = 1; t < FXT_N; t++)

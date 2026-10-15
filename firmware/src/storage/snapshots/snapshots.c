@@ -356,7 +356,8 @@ static int sn_write(uint32_t k, const char *name, int keep)
     sn_wr_t w;
     uint16_t len[SN_SECS], tl[SN_SECS];
     uint32_t i, n, total, nwork, nsong, nrec = 2, tw, fw, dw;
-    uint8_t fl[SN_SECS], dl[SN_SECS];
+    uint16_t fl[SN_SECS];                               /* (an FX record: up to 4 + FXR_MAX, past a byte since fx-rework) */
+    uint8_t dl[SN_SECS];
 #if FELUCCA_AUTO
     uint16_t xl[SN_SECS];
     uint32_t xw;
@@ -395,7 +396,7 @@ static int sn_write(uint32_t k, const char *name, int keep)
                 total += 4u + xl[i], nrec++;
 #endif
 #if SEC_LOGGED
-            if ((fl[i] = (uint8_t)sn_fx_sec(i)) != 0)
+            if ((fl[i] = (uint16_t)sn_fx_sec(i)) != 0)
                 total += 4u + fl[i], nrec++;
             if ((dl[i] = (uint8_t)sn_dl_sec(i)) != 0)
                 total += 4u + dl[i], nrec++;

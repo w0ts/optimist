@@ -39,6 +39,10 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   run, a part's: cpu/fx/part_<t> (S1 at 127) less cpu/fx/part_off; the drum bus's (on its L and R):
                   cpu/fx/dbus_<t> less cpu/fx/dbus_off; 0 when not measured
 
+  CG_COST_PDUST, CG_COST_DBDUST, CG_COST_TLIM, CG_COST_DVINS[i]  (fx-rework, 2026-10-14) DUST on a part (cpu/fx/part_dust less
+                  part_off) and on the drum bus (dbus_dust less dbus_off); a part's DYN CEIL (part_lim, CEIL -1 dB, less
+                  comp_on); a drum voice's slot of FILT DUST FOLD FUZZ PHSR FRMT (cpu/fx/dvoice_<t> less dvoice_off)
+
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
 import json
@@ -54,6 +58,7 @@ REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
 NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6}   # (JUNO: six voices, eng_juno.c JUNO_POLY)
 INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE
+DV_NEW = ("filt", "dust", "fold", "fuzz", "phsr", "frmt")   # a drum sound's slot types past DIST and DYN (fx.c dins_post)
 
 
 def engines():
@@ -111,6 +116,10 @@ def model(base=None, sc=None):
     dbfilt = fx["dbus_filt"] - dbase if dbase and "dbus_filt" in fx else 0
     pins = [fx[f"part_{t}"] - pbase if pbase and f"part_{t}" in fx else 0 for t in INS_NEW]
     dbins = [fx[f"dbus_{t}"] - dbase if dbase and f"dbus_{t}" in fx else 0 for t in INS_NEW]
+    pdust = fx["part_dust"] - pbase if pbase and "part_dust" in fx else 0
+    dbdust = fx["dbus_dust"] - dbase if dbase and "dbus_dust" in fx else 0
+    tlim = fx["part_lim"] - fx["comp_on"] if "part_lim" in fx and "comp_on" in fx else 0
+    dvins = [fx[f"dvoice_{t}"] - vbase if vbase and f"dvoice_{t}" in fx else 0 for t in DV_NEW]
     return {"pdist": tgt(pdist) if pdist > 0 else 0, "pfilt": tgt(pfilt) if pfilt > 0 else 0,
             "dbfilt": tgt(dbfilt) if dbfilt > 0 else 0,"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
@@ -118,7 +127,9 @@ def model(base=None, sc=None):
             "tcomp": tgt(tcomp) if tcomp > 0 else 0, "dbdist": tgt(dbdist) if dbdist > 0 else 0,
             "dbcomp": tgt(dbcomp) if dbcomp > 0 else 0, "dvdist": tgt(dvdist) if dvdist > 0 else 0,
             "dvcomp": tgt(dvcomp) if dvcomp > 0 else 0,
-            "pins": [tgt(c) if c > 0 else 0 for c in pins], "dbins": [tgt(c) if c > 0 else 0 for c in dbins]}
+            "pins": [tgt(c) if c > 0 else 0 for c in pins], "dbins": [tgt(c) if c > 0 else 0 for c in dbins],
+            "pdust": tgt(pdust) if pdust > 0 else 0, "dbdust": tgt(dbdust) if dbdust > 0 else 0,
+            "tlim": tgt(tlim) if tlim > 0 else 0, "dvins": [tgt(c) if c > 0 else 0 for c in dvins]}
 
 
 X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
@@ -173,6 +184,11 @@ def header(m):
         f"static const uint16_t CG_COST_DBINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the "
         "drum bus's "
         "(insfx.c ifx_bus: L and R) */",
+        f"#define CG_COST_PDUST {m['pdust']}u     /* a part's DUST insert while it runs (fx.c dust_run) */",
+        f"#define CG_COST_DBDUST {m['dbdust']}u    /* the drum bus's DUST while it runs (L and R) */",
+        f"#define CG_COST_TLIM {m['tlim']}u      /* a track's DYN CEIL (its limiter) while it runs (master_comp.c tlim_block) */",
+        f"static const uint16_t CG_COST_DVINS[{len(DV_NEW)}] = {{" + ", ".join(str(c) for c in m["dvins"]) + "};   /* a "
+        "drum voice's slot while it runs: FILT DUST FOLD FUZZ PHSR FRMT (fx.c dins_post) */",
         ""])
 
 

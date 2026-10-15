@@ -21,7 +21,8 @@
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_UILANES };
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA };
+/* MI_MINST / MI_MINSA: MASTER's insert slot id's TYPE / amount (fx_slots.c mst_slot, fx-rework 2026-10-14) */
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
  * 1 DLY, 2 CHO); MI_ACC: the ACCENT amount (core.h P_DACC), the ACCENT lane's one card */
@@ -124,20 +125,25 @@ static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
 {
     uint32_t n = 0;
-    if (r == MXR_MASTER) {                              /* filter, dust, duck; the compressor; then the returns (the master FX screen's order) */
-        static const uint8_t G[3] = {G_FILT, G_DUST, G_DUCK};
-        static const char *const L[3] = {"FILT", "DUST", "DUCK"};
-        uint32_t i;
-        for (i = 0; i < 3u; i++)
-            if (g_built(G[i]))                  /* (what the build has: #22) */
-                n = mx_add(it, n, MG_MIX, L[i], MI_GLOB, G[i]);
+    if (r == MXR_MASTER) {                              /* its insert slots; DYN's; the returns; DUCK (the master FX screen's order) */
+        if (MST_OK) {                                   /* (fx-rework 2026-10-14: FILT DUST DYN are insert types) */
+            n = mx_add(it, n, MG_INS, 0, MI_MINST, 0);
+            n = mx_add(it, n, MG_INS, 0, MI_MINSA, 0);
+            n = mx_add(it, n, MG_INS, 0, MI_MINST, 1);
+            n = mx_add(it, n, MG_INS, 0, MI_MINSA, 1);
+        }
 #if FELUCCA_MASTER_COMP
-        n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
-        n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
-        n = mx_add(it, n, MG_INS, "GAIN", MI_GLOB, G_CGAIN);
-        n = mx_add(it, n, MG_INS, "CEIL", MI_GLOB, G_CCEIL);
+        if (MST_ON(FXT_DYN)) {                          /* (DYN in a master slot: its compressor and limiter) */
+            n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
+            n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
+            n = mx_add(it, n, MG_INS, "GAIN", MI_GLOB, G_CGAIN);
+            n = mx_add(it, n, MG_INS, "CEIL", MI_GLOB, G_CCEIL);
+        }
 #endif
-        return mx_items_ret(it, n);
+        n = mx_items_ret(it, n);
+        if (g_built(G_DUCK))
+            n = mx_add(it, n, MG_LAST, "DUCK", MI_GLOB, G_DUCK);
+        return n;
     }
     if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE its sequencer
                                                          * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,
@@ -147,13 +153,13 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
         n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
-#if FELUCCA_FX_DIST
-        n = mx_add(it, n, MG_INS, "DRIVE", MI_LANE, DE_DRIVE);
-        n = mx_add(it, n, MG_INS, "DST", MI_LANE, 19u);   /* (the sound's own DIST and COMP: always heard, D7) */
-#endif
-#if FELUCCA_MASTER_COMP
-        n = mx_add(it, n, MG_INS, "CMP", MI_LANE, 20u);
-#endif
+        n = mx_add(it, n, MG_MIX, "DRIVE", MI_LANE, DE_DRIVE);   /* (the sound's own drive: a SOUND value) */
+        if (LIN_OK) {                                   /* its two insert slots (fx-rework: were DST CMP), as a track's */
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 21u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 19u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 22u);
+            n = mx_add(it, n, MG_INS, 0, MI_LANE, 20u);
+        }
         if (FXS_ON(FXT_REV))
             n = mx_add(it, n, MG_SEND, "REV", MI_LANE, 16u);
         if (FXS_ON(FXT_DLY))
@@ -243,6 +249,10 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         if (d)
             dsv_rec(r - MXR_LANE0, m->id);              /* (recording: the hold the knob goes on from) */
         return d && !PARAM_HIDDEN(d) ? d : 0;
+    case MI_MINST:                                      /* (an index into fx_slots.c mst_list) */
+        return fxs_desc(FXS_ID_MST + m->id, vp);
+    case MI_MINSA:                                      /* (an empty slot: "-") */
+        return fxs_desc(FXS_ID_MST + INS_N + m->id, vp);
     case MI_INST:                                       /* (an index into fx_slots.c ins_list: mix_turn loads it) */
         return ins_desc(mx_trk_of(r), m->id, vp);
     case MI_INSA: {                                     /* (an empty slot: "-") */
@@ -290,8 +300,8 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 
 /* ---- the screen's rows */
 static uint32_t mix_rows(void) { return MXR_N; }
-/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "INS TONE" "COMP"
- * "RETURNS": the header's "T2 insert"; on MASTER the badge MASTER and "Ins tone", "Returns" */
+/* the set's name, its first item's group: "MIX" "INSERT" "SENDS" "SOUND" (DR: "KIT"); MASTER "INSERT" "INS DYN"
+ * "RETURNS" "DUCK": the header's "T2 insert"; on MASTER the badge MASTER and "Insert", "Returns" */
 static void mix_name(uint32_t r, char *b)
 {
     static const char *const G[4] = {"MIX", "INSERT", "SENDS", "SOUND"};
@@ -300,8 +310,8 @@ static void mix_name(uint32_t r, char *b)
     r %= MXR_N;
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp & 3u;
-    if (r == MXR_MASTER)
-        str_cpy(b, g == MG_SEND ? "RETURNS" : g ? "COMP" : "INS TONE", 12);   /* (as the master FX's pages; the badge says MASTER) */
+    if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
+        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_LAST ? "DUCK" : it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
     else
         str_cpy(b, G[g], 12);
 }
@@ -380,9 +390,15 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             (void)smute_toggle(SMUTE_ACC);
     } else if (m.kind == MI_LMUTE)
         dlm_set_mute(r - MXR_LANE0, s == OP_RESET ? 0 : param_step(d, *vp, s) != 0);
-    else if (m.kind == MI_INST) {                       /* a slot's TYPE: the other slot's swaps them (no reset) */
+    else if (m.kind == MI_MINST) {                      /* MASTER's slot TYPE: as a track's */
+        if (s != OP_RESET)
+            mst_load(m.id, mst_list[(uint32_t)param_step(d, *vp, s) % MST_NLIST]);
+    } else if (m.kind == MI_INST) {                       /* a slot's TYPE: the other slot's swaps them (no reset) */
         if (s != OP_RESET)
             ins_load(mx_trk_of(r), m.id, ins_list[(uint32_t)param_step(d, *vp, s) % INS_NLIST]);
+    } else if (m.kind == MI_LANE && (m.id == 21u || m.id == 22u)) {   /* a lane slot's TYPE: no reset (as a track's) */
+        if (s != OP_RESET)
+            mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
     } else if (m.kind == MI_LANE)
         mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
     else if (m.kind == MI_ACC)

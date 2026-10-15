@@ -86,9 +86,9 @@ static void meter_tap(void)
             g = mt_gr_q4(c < NPART ? tcomp[c].gr16 : dbus_comp.gr16);
             mt.gr[c] = (uint8_t)(g > mt.gr[c] ? g : mt.gr[c]);
         }
-#if DINS
-        for (c = 0; c < NDRUM; c++)     /* a sound's COMP runs per voice: its lane's */
-            if (drums.v[c].active && (g = mt_gr_q4(dins_comp[c].gr16)) != 0u) {
+#if DINS && FELUCCA_MASTER_COMP
+        for (c = 0; c < NDRUM; c++)     /* a sound's DYN runs per voice: its lane's */
+            if (drums.v[c].active && (g = mt_gr_q4(dins_gr16(c))) != 0u) {
                 uint32_t l = dlm_lane(drums.v[c].note);
                 if (l < DRUM_LANES)
                     mt.gr[NTRK + l] = (uint8_t)(g > mt.gr[NTRK + l] ? g : mt.gr[NTRK + l]);

@@ -179,7 +179,7 @@ static const page_t *pm_old_page(const char *title, uint32_t scope)
 {
     uint32_t i;
     for (i = 0; i < NPAGES; i++)
-        if (!strcmp(PAGES[i].title, title) && PAGES[i].scope == scope && !(scope == SC_FXSLOT && PAGES[i].id[0] >= FX_NSLOT))
+        if (!strcmp(PAGES[i].title, title) && PAGES[i].scope == scope && !(scope == SC_FXSLOT && PAGES[i].id[0] >= FX_NSLOT && PAGES[i].id[0] < FXS_ID_INS))
             return &PAGES[i];
     return 0;
 }
@@ -188,16 +188,19 @@ static const page_t *pm_old_page(const char *title, uint32_t scope)
 static void pages_master_order_tests(void)
 {
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
-        {"INS TONE", "MASTER", SC_GLOBAL}, {"INS COMP", "COMP", SC_GLOBAL}, {"INS LIMIT", "LIMIT", SC_GLOBAL},
+        {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
+        {"DUCK", "MASTER", SC_GLOBAL},
         {"RETURNS", 0, 0}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET REV", "REV/CHO", SC_GLOBAL},
         {"SLOTS", "SLOTS", SC_FXSLOT},
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
 #endif
     };
-    static const uint8_t RET[3] = {G_RRET, G_DRET, G_CRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_TUNE, G_CGR};
+    static const uint8_t RET[3] = {G_RRET, G_DRET, G_CRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_CGR, 0};
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
+    mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -211,7 +214,7 @@ static void pages_master_order_tests(void)
             order = 0;
             break;
         }
-        grp = !strncmp(nm, "INS ", 4) ? 1u : !strcmp(nm, "RETURNS") || !strncmp(nm, "RET ", 4) ? 2u : !strcmp(nm, "SLOTS") ? 3u : 4u;
+        grp = !strncmp(nm, "INS", 3) || !strcmp(nm, "DUCK") ? 1u : !strcmp(nm, "RETURNS") || !strncmp(nm, "RET ", 4) ? 2u : !strcmp(nm, "SLOTS") ? 3u : 4u;
         order &= grp >= last_grp;
         last_grp = grp;
         for (k = 0; k < 4u; k++) {
@@ -223,8 +226,8 @@ static void pages_master_order_tests(void)
                 cards &= ok4;
                 if (!ok4)
                     printf("  %s card %u: not the return\n", nm, k);
-            } else if (!strcmp(W[i].old, "LIMIT")) {    /* LIMIT keeps GAIN CEIL TUNE GR */
-                if (k < 3u && c.vp != &song.g[LIM[k]])
+            } else if (!strcmp(W[i].old, "LIMIT")) {    /* LIMIT: GAIN CEIL GR (TUNE: GLOBAL's Tempo since fx-rework) */
+                if (k < 2u && c.vp != &song.g[LIM[k]])
                     printf("  %s card %u: not LIMIT's\n", nm, k), cards = 0;
             } else {                                    /* (a value the build lacks: its frame last, fxs_at; batch D) */
                 uint32_t j;
@@ -238,13 +241,13 @@ static void pages_master_order_tests(void)
         i++;
     }
     ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INS TONE COMP LIMIT), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
-    check(cards, "... each moved page's four cards are the ones PAGES gives it; LIMIT keeps GAIN CEIL TUNE (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INS TONE", "INS COMP", "INS LIMIT", "RETURNS", "RET DELAY", "RET REV", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET DELAY", "RET REV", "SLOTS",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -253,6 +256,8 @@ static void pages_master_tests(void)
     char nm[12], h[40];
     cell_t c;
     int16_t tune = song.g[G_TUNE];
+    mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -265,25 +270,19 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 8 pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INS TONE COMP LIMIT, RETURNS RET DELAY RET REV, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
-    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Ins tone"), "D3: the screen is MASTER (its badge), the title \"Ins tone\"");
+    check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
     check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
           "D3: BPM, SWING and CLICK are on GLOBAL (TEMPO, REC)");
-    ui.scr = SCR_FX;
-    row = glo_find(SCR_FX, "INS LIMIT");
-    SCR->cell(row, 2, &c);
-    check(row < n && c.vp == &song.g[G_TUNE] && !strcmp(c.label, "TUNE"), "D3: TUNE is on LIMIT (GAIN CEIL TUNE GR)");
-    reset_ui();
-    turn(EN_ALGO, -1);
-    tap(B_FX);
-    while (ui.row[SCR_FX] != row)
-        tap(B_FX);
-    turn(EN_K3, 3);
-    check(song.g[G_TUNE] == tune + 3, "D3: MASTER LIMIT, KNOB 3 turns TUNE");
+    check(!pg_has_g(SCR_FX, G_TUNE) && pg_has_g(SCR_GLOBAL, G_TUNE), "D3: TUNE is on GLOBAL (Tempo's fourth line; fx-rework: not on the master)");
+    ui.scr = SCR_GLOBAL;
+    row = line_named(SCR_GLOBAL, "TUNE");
+    turn(EN_K1 + gl_kn(SCR_GLOBAL, row), 3);
+    check(song.g[G_TUNE] == tune + 3, "D3: GLOBAL, TUNE's knob turns it");
     song.g[G_TUNE] = tune;
     reset_ui();
     song.sel = TRK_DRUM;
@@ -735,13 +734,13 @@ static void pages_head_tests(void)
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Ins tone 1/", 11) && hd_badge_is("MASTER"), "D11: MASTER's first page: the badge MASTER, \"Ins tone 1/N\" (never the screen's word again)");
+        check(!strncmp(t, "Insert 1/", 9) && hd_badge_is("MASTER"), "D11: MASTER's first page: the badge MASTER, \"Insert 1/N\" (never the screen's word again)");
     }
-    ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "INS TONE");
+    ui.row[SCR_FX] = (uint8_t)glo_find(SCR_FX, "INS DYN 1");
     {
         char t[32];
         head_now(t);
-        check(!strncmp(t, "Ins tone ", 9), "D11: MASTER INS TONE: \"Ins tone n/N\" (was \"FX master 5/9\", then \"Master ins tone\")");
+        check(!strncmp(t, "Ins dyn 1 ", 10), "D11: MASTER INS DYN 1: \"Ins dyn 1 n/N\"");
     }
     reset_ui();
     tap(B_EDIT);

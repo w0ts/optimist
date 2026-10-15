@@ -261,7 +261,7 @@ static uint32_t mx_gr_q4(uint32_t r)
 {
 #if FELUCCA_MASTER_COMP
     if (r == MXR_MASTER)
-        return song.g[G_CTHR] || song.g[G_CCEIL] ? (uint32_t)clamp(-(int32_t)mc_gr_view * 4, 0, 127) : 0u;
+        return MST_ON(FXT_DYN) && (song.g[G_CTHR] || song.g[G_CCEIL]) ? (uint32_t)clamp(-(int32_t)mc_gr_view * 4, 0, 127) : 0u;
     if (r >= MXR_T1 && r < MXR_DR) {
         const track_t *t = &trk[r - MXR_T1];
         return fx_on(t) && INS_ON(r - MXR_T1, FXT_COMP) && t->p[P_TCOMP] > 0 ? tcomp_gr_q4(r - MXR_T1) : 0u;

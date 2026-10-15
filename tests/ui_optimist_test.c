@@ -559,7 +559,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
-        check(!strcmp(h, "Ins tone"), "its header names it (Ins tone under the MASTER badge, the first page: the inserts)");
+        check(!strcmp(h, "Insert"), "its header names it (Insert under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
         for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);

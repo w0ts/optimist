@@ -119,7 +119,11 @@ typedef struct {
     const char *unit;           /* F_INT / F_ENUM optional unit */
 } param_desc_t;
 
-#define SL24_TP (FELUCCA_TRK_FILT || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
+/* the FILTER insert type (fx_slots.c FXT_FILT; fx.c tflt_*): SLOOP 2.4's track FILTER (TRK_FILT) and the master DJ
+ * filter (FX_DJF) are one effect since 2026-10-14 (fx-rework: "convert the special insert (like dj filter etc) as normal
+ * ones we can plug everywhere"), built with either item, on any insert slot */
+#define TFLT_ON (FELUCCA_TRK_FILT || FELUCCA_FX_DJF)
+#define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
 #define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER)
 /* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO, a builder count each) */
@@ -184,6 +188,12 @@ enum {                          /* per-track parameters */
      * track's own, kept in GATER's TLV after the amounts) */
     P_TGATE, P_TGPAT, P_TGRATE, P_TGSHP,
 #endif
+#if FELUCCA_FX_DUST
+    /* the DUST insert's amount (2026-10-14, fx-rework: the master's DUST is an insert type, fx_slots.c FXT_DUST, on any
+     * slot; the master's own amount stays G_DUST). Before LFO 2's (the last values of a track: project.c l2_pack); not part of a sound nor of a user preset;
+     * the FX record keeps it (fx_slots.c fxs_tlv, DUST's TLV) */
+    P_TDUST,
+#endif
 #if FELUCCA_LFO2
     /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
@@ -227,7 +237,7 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
 #define LSYNC_N 10
 #define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
 #define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
-#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2 || INS_FX)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
+#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP || FELUCCA_LFO2 || INS_FX || FELUCCA_FX_DUST)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
                                                   * stored with it, none part of a sound (param_kept) */
 
 enum {                          /* global parameters */

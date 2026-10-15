@@ -21,8 +21,9 @@
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
       "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
-      "CMP": {"text": "Compressor insert (amount)", "if": "FELUCCA_MASTER_COMP"},
-      "FILT": {"text": "Track filter: low or high cut", "if": "FELUCCA_TRK_FILT"},
+      "DYN": {"text": "Comp + limiter insert", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "Filter insert: low/high cut", "if": "TFLT_ON"},
+      "DUST": {"text": "Vinyl dust / lo-fi insert", "if": "FELUCCA_FX_DUST"},
       "FOLD": {"text": "Wavefolder insert (drive)", "if": "FELUCCA_INS_FOLD"},
       "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
@@ -36,7 +37,9 @@
       "S1": "Insert 1 type (swaps with 2)", "S2": "Insert 2 type (swaps with 1)",
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
       "CMP": {"text": "Compressor insert (amount)", "if": "FELUCCA_MASTER_COMP"},
-      "FILT": {"text": "Track filter: low or high cut", "if": "FELUCCA_TRK_FILT"},
+      "DYN": {"text": "Comp + limiter insert", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "Filter insert: low/high cut", "if": "TFLT_ON"},
+      "DUST": {"text": "Vinyl dust / lo-fi insert", "if": "FELUCCA_FX_DUST"},
       "FOLD": {"text": "Wavefolder insert (drive)", "if": "FELUCCA_INS_FOLD"},
       "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
@@ -66,14 +69,30 @@
       "CDP": {"text": "Chorus depth", "if": "FELUCCA_FX_CHORUS"}}},
     {"kind": "page", "ctx": "REVERB", "if": "REV_MULTI", "params": {
       "TYPE": "Reverb algorithm"}},
-    {"kind": "page", "ctx": "CMP", "if": "FELUCCA_MASTER_COMP", "params": {
-      "RATIO": "This track's compressor ratio", "ATK": "This track's comp. attack", "REL": "This track's comp. release"}},
+    {"kind": "page", "ctx": "DYN", "if": "FELUCCA_MASTER_COMP", "params": {
+      "DYN": "Comp threshold (0: DYN off)", "RATIO": "This track's compressor ratio",
+      "GAIN": "Make-up gain (AUTO: half)", "CEIL": "Limiter ceiling (OFF: none)"}},
+    {"kind": "page", "ctx": "DYN 2", "if": "FELUCCA_MASTER_COMP", "params": {
+      "ATK": "This track's comp. attack", "REL": "This track's comp. release"}},
+    {"kind": "page", "ctx": "MST INS", "params": {
+      "S1": "Master insert 1 (swaps w. 2)", "S2": "Master insert 2 (swaps w. 1)",
+      "THRS": {"text": "Comp threshold (OFF: no comp)", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "DJ filter: low or high pass", "if": "TFLT_ON"},
+      "DUST": {"text": "Vinyl dust / lo-fi", "if": "FELUCCA_FX_DUST"},
+      "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
+      "FOLD": {"text": "Wavefolder insert (drive)", "if": "FELUCCA_INS_FOLD"},
+      "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
+      "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
+      "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
+      "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
+      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"}}},
     {"kind": "page", "ctx": "GATER", "if": "FELUCCA_INS_GATER", "params": {
       "DEPTH": "How far the gate shuts steps", "PAT": "Gate pattern: 16 steps", "RATE": "Gate step length (in tempo)",
       "SHAPE": "Gate edges: hard to smooth"}},
     {"kind": "page", "ctx": "SLOTS", "params": {
       "S1": "Send in master slot 1 (swaps)", "S2": "Send in master slot 2 (swaps)", "S3": "Send in master slot 3 (swaps)",
-      "S4": "Send in master slot 4 (swaps)"}},
+      "S4": "Send in master slot 4 (swaps)", "R1": "Send on return 1 (swaps)", "R2": "Send on return 2 (swaps)",
+      "R3": "Send on return 3 (swaps)"}},
     {"kind": "page", "ctx": "SCL", "params": {
       "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
     {"kind": "page", "ctx": "SCL 2", "params": {
@@ -101,7 +120,14 @@
     {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY", "params": {
       "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send",
       "DST": {"text": "This sound's distortion", "if": "FELUCCA_FX_DIST"},
-      "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"}}},
+      "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"},
+      "DYN": {"text": "This sound's insert 2 (DYN)", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "This sound's filter insert", "if": "TFLT_ON"},
+      "DUST": {"text": "This sound's dust insert", "if": "FELUCCA_FX_DUST"},
+      "FOLD": {"text": "This sound's wavefolder", "if": "FELUCCA_INS_FOLD"},
+      "FUZZ": {"text": "This sound's fuzz", "if": "FELUCCA_INS_FUZZ"},
+      "PHSR": {"text": "This sound's phaser", "if": "FELUCCA_INS_PHASER"},
+      "FRMT": {"text": "This sound's vowel filter", "if": "FELUCCA_INS_FORMANT"}}},
     {"kind": "page", "ctx": "SOURCE", "if": "DL_ANY && (FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)", "params": {
       "SRC": "Drum sound source", "HIT": "Hit of the sample", "START": "Sample start", "LEN": "Sample length"}},
     {"kind": "page", "ctx": "KIT", "if": "DL_ANY", "params": {
@@ -335,11 +361,23 @@
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row"}},
     {"kind": "op", "ctx": "MIX", "params": {
       "MUTE": "Mute the row", "PAN": "Stereo position of the row", "VOLUME": "Level of the row (dB)", "LEVEL": "Level of the lane (dB)",
-      "CUT": "Filter cutoff of the lane"}},
-    {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP", "params": {
+      "CUT": "Filter cutoff of the lane", "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_DRUM_EDIT"}}},
+    {"kind": "op", "ctx": "INSERT", "if": "FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON", "params": {
       "DRIVE": {"text": "Drive of the sound", "if": "FELUCCA_FX_DIST"},
       "DST": {"text": "Distortion of the sound", "if": "FELUCCA_FX_DIST"},
-      "CMP": {"text": "Compressor of the sound", "if": "FELUCCA_MASTER_COMP"}}},
+      "CMP": {"text": "Compressor of the sound", "if": "FELUCCA_MASTER_COMP"},
+      "DYN": {"text": "Comp + limiter insert", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "Filter insert: low/high cut", "if": "TFLT_ON"},
+      "DUST": {"text": "Vinyl dust / lo-fi insert", "if": "FELUCCA_FX_DUST"},
+      "FOLD": {"text": "Wavefolder insert (drive)", "if": "FELUCCA_INS_FOLD"},
+      "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
+      "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
+      "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
+      "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
+      "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
+      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
+      "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"}}},
     {"kind": "op", "ctx": "RETURNS", "params": {
       "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level",
       "REV RET": "Reverb return level", "DLY RET": "Delay return level", "CHO RET": "Chorus return level"}},

@@ -154,7 +154,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),           /* each chord voiced nearest the last one (seq.c) */
 #endif
 #if FELUCCA_MASTER_COMP
-    [P_TCOMP] = PD("CMP", F_PCT, 0, 127, 0),       /* the COMP insert (fx_slots.c): 0 off, up to -30 dB */
+    [P_TCOMP] = PD("DYN", F_PCT, 0, 127, 0),       /* the DYN insert (fx_slots.c): 0 off, threshold up to -30 dB */
 #endif
 #if INS_FX
     /* the further insert types' amounts (fx/insfx/insfx.c): each 0 off .. 127; the label names the type's slot */
@@ -170,6 +170,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TGPAT] = PE("PAT", N_TGPAT, 8),             /*   its pattern (gater.c IGT_PAT), TRNC1 */
     [P_TGRATE] = PE("RATE", N_SLDIV, 1),           /*   a step: 1/16 */
     [P_TGSHP] = PD("SHAPE", F_PCT, 0, 127, 0),     /*   hard .. smooth */
+#endif
+#if FELUCCA_FX_DUST
+    [P_TDUST] = PD("DUST", F_PCT, 0, 127, 0),      /* the DUST insert (fx.c dust_run): a track's lo-fi / vinyl */
 #endif
 #if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
@@ -663,7 +666,10 @@ static const page_t PAGES[] = {
     /* the track's two insert slots: S1 TYPE, its amount, S2 TYPE, its amount (fx_slots.c; the ids: page_id) */
     {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
 #if FELUCCA_MASTER_COMP
-    {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the track COMP's RATIO ATK REL (its own: fx_slots.c ins_cset) */
+    /* the track DYN's (fx-rework 2026-10-14: the COMP insert with its make-up and a limiter): its amount (THRS), RATIO, GAIN,
+     * CEIL, then ATK REL (its own: fx_slots.c ins_cset; the ids: fxs_desc) */
+    {"DYN", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TAMT, 4, 7, 8}},
+    {"DYN 2", FAM_FX, SC_FXSLOT, GR_NONE, {5, 6, 0xFF, 0xFF}},
 #endif
 #if FELUCCA_INS_GATER
     /* GATER (insfx/gater.c): DEPTH (page_desc names P_TGATE so; INSERTS' card keeps GATER), PAT, RATE, SHAPE; page_shown:
@@ -683,7 +689,7 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
-    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {0, 1, 2, 3}},   /* the type in each FX slot (fx_slots.c; last of FX) */
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the send on each master return R1 R2 R3 (fx_slots.c; last of FX) */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
@@ -716,6 +722,8 @@ static const page_t PAGES[] = {
     {"KIT", FAM_EDIT, SC_DSND, GR_DSND, {12, 13, 14, 15}},
 #endif
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
+    /* the master's two insert slots (fx_slots.c mst_slot, fx-rework): S1 TYPE, its amount, S2 TYPE, its amount */
+    {"MST INS", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MST, FXS_ID_MST + 2, FXS_ID_MST + 1, FXS_ID_MST + 3}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CTHR, G_CRAT, G_CATK, G_CREL}},   /* the master compressor (master_comp.c) */
     {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, 0xFF, G_CGR}},   /* make-up, the limiter; GR: a readout */
@@ -851,7 +859,8 @@ static int engine_page_used(const page_t *pg)
 static int page_shown(const page_t *pg)
 {
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_ON(FXT_DLY)) ||
-        ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !FELUCCA_MASTER_COMP) ||
+        ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
+                                                       * the master's DYN, while one of its slots holds it) */
         (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_ON(FXT_REV) && !FXS_ON(FXT_CHO)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
@@ -859,8 +868,10 @@ static int page_shown(const page_t *pg)
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
         return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
+        return MST_OK != 0u;                          /* MST INS: the master's insert slots */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
-        return INS_ON(song.sel, FXT_COMP);            /* CMP: while one of the track's slots holds the COMP (its own) */
+        return INS_ON(song.sel, FXT_COMP);            /* DYN, DYN 2: while one of the track's slots holds the DYN (its own) */
 #if FELUCCA_TRK_FILT
     if (pg->scope == SC_TRACK && pg->id[0] == P_TFLT)
         return INS_ON(song.sel, FXT_FILT);            /* FILTER: while one of the track's slots holds it */

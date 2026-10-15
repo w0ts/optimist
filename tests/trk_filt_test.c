@@ -163,7 +163,7 @@ static void t_drums(void)
  * its first block from the sine, over the sine's peak. From 0 the output lacks the sine's level for its first samples
  * (a step of up to the whole level: the click); started from its input it differs by what the open filter takes off.
  * which: 0 a part's FILTER (tflt, the part's 3-bit range), 1 the drum track's (its 5 states, the 2-bit range), 2 the
- * master's DJ filter (djf_process, both sides) */
+ * master's DJ filter (its FILTER insert, fx.c mst_ins, both sides) */
 static double start_jump(uint32_t which)
 {
     int32_t x[CTL], y[CTL], z[CTL];
@@ -173,10 +173,10 @@ static double start_jump(uint32_t which)
         x[i] = (int32_t)(60000.0 * sin(2.0 * M_PI * 110.0 * (i + 40) / FS)) << (which == 2 ? 0 : sh);   /* (mid-swing) */
     if (which == 2) {
 #if FELUCCA_FX_DJF
-        memset(&djf, 0, sizeof djf);
+        memset(&tflt[NTRK], 0, sizeof tflt[NTRK]);   /* (the master's FILTER insert: the DJ filter since fx-rework) */
         song.g[G_FILT] = -1;
         memcpy(y, x, sizeof y), memcpy(z, x, sizeof z);
-        djf_process(y, z, CTL);
+        mst_ins(FXT_FILT, 1, y, z, CTL);
         song.g[G_FILT] = 0;
         for (i = 0; i < CTL; i++) {
             double e = fabs((double)y[i] - x[i]), f = fabs((double)z[i] - x[i]);

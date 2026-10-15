@@ -75,4 +75,13 @@ typedef struct {                        /* the limiter */
     int32_t dl[MLIM_N], dr[MLIM_N];     /* the delay */
 } mlim_t;
 
+typedef struct {                        /* a track's limiter (DYN's CEIL: master_comp.c tlim_block), half the lookahead */
+    int32_t on, c8, clin, hold, m2, cnt, env16, sum;
+    uint32_t pos;
+    int32_t s8, g13;
+#define TLIM_N 32u
+    uint16_t ring[TLIM_N];
+    int32_t dl[TLIM_N];                 /* the delay (a part's mono block; the drum bus's L, its R in a line of its own) */
+} tlim_t;
+
 #endif

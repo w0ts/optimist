@@ -6,7 +6,7 @@
  * 2.4's track: p[61] (P_COUNT 61), engine, preset, 64 10-byte steps (ours, byte for byte), then its step extras
  * (stepx.h, 176 B). Translated:
  *   - values 0..49 (P_LEVEL .. P_CHORD): ours, as they are; 50 P_TFLT, 51 P_STRUM, 52 P_VLEAD -> our P_TFLT, P_STRUM,
- *     P_VLEAD (FELUCCA_TRK_FILT: FILT; FELUCCA_CHORDPLUS: STRUM and VLEAD, the parts'; packed by px_pack, locks too),
+ *     P_VLEAD (TFLT_ON: FILT; FELUCCA_CHORDPLUS: STRUM and VLEAD, the parts'; packed by px_pack, locks too),
  *     without those switches LOST (their defaults); 53..60 P_E0..P_E7 -> our P_E0..P_E7; ours past 49 (P_FXOFF, ANALOG 2, ENV2's extras): defaults;
  *   - engines: 2.4's 0..9 are our UIDs (ANALOG .. GRAIN, FM6 9): as they are. 2.5 (v2.5 fa9ce57, core.h ENGI_*) added
  *     PHYS 10 and NOISE 11 (FUN5 unchanged: a 2.5 project reads as 2.4's), and moved SLICE (never in a shipped SLOOP)
@@ -101,7 +101,7 @@ static int32_t sl24_param(uint32_t id, uint32_t trk, uint32_t eng)
 {
     if (id < SL24_COMMON)
         return (int32_t)id;
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
     if (id == SL24_TFLT)
         return (int32_t)P_TFLT;
 #endif
@@ -289,7 +289,7 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const 
         for (k = 0; k < P_COUNT; k++)
             v[k] = k < SL24_COMMON ? e[k] : k >= P_E0 && k < P_ENG_END ? e[SL24_E0 + k - P_E0] : TP[k].def;
 #if SL24_TP
-#if FELUCCA_TRK_FILT
+#if TFLT_ON
         px[i][0] = (int16_t)clamp(e[SL24_TFLT], TP[P_TFLT].min, TP[P_TFLT].max);
 #endif
 #if FELUCCA_CHORDPLUS

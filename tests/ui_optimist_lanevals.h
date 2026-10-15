@@ -119,8 +119,11 @@ static void lv_dr_tag_tests(void)
     lane_select(4);
     lv_fx_family();
     r = lv_row_named("INSERTS");
-    check(r < SCR->rows() && lv_row_plain(r) && lv_card(r, "DST"), "a lane picked: INSERTS is the lane's (DST CMP DRIVE), no tag");
-    check(lv_card(r, "S1") == 0, "... not the drum bus's S1 / S2");
+    check(r < SCR->rows() && lv_row_plain(r) && lv_card(r, "DST"), "a lane picked: INSERTS is the lane's (its S1 TYPE, DST, S2 TYPE, DYN), no tag");
+    check(lv_card(r, "S1") && lv_card(r, "S1")->vp != &ins_v[0], "... its own slots, not the drum bus's S1 / S2");
+    ui.row[SCR_SOUND] = (uint8_t)r;
+    frames(2);
+    ppm("opt-lane-inserts");                            /* (fx-rework: the lane's S1 TYPE, its amount, S2 TYPE, its amount) */
     r = lv_row_named("DR INSERT");                      /* (uniform with the other tracks, 2026-10-14: a lane shows its INSERTS and SENDS only) */
     check(r >= SCR->rows(), "a lane picked: no \"DR INSERT\" row");
     r = lv_row_named("DR SENDS");

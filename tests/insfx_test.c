@@ -319,10 +319,10 @@ static void t_store(void)
     int16_t *vp;
     const param_desc_t *d;
     reset();
-    for (t = FXT_NEW0; t < FXT_N; t++)
+    for (t = FXT_NEW0; t < FXT_NEWN; t++)
         ok &= fxs_tlv(t, o) == 0u;
     check("the further inserts' TLVs: none while every amount is 0", ok);
-    for (t = FXT_NEW0, ok = 1; t < FXT_N; t++) {
+    for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++) {
         uint8_t a[NTRK] = {(uint8_t)(t * 3u), 0, 127, (uint8_t)t};
         for (k = 0; k < NTRK; k++)
             trk[k].p[FXT_AMT[t]] = a[k];
@@ -338,18 +338,18 @@ static void t_store(void)
     }
     check("each type's TLV: T1 T2 T3 DR's amounts round trip; a cut one: the rest 0", ok);
     fxs_untlv_none(1);
-    for (t = FXT_NEW0, ok = 1; t < FXT_N; t++)
+    for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++)
         for (k = 0; k < NTRK; k++)
             ok &= trk[k].p[FXT_AMT[t]] == 0;
     check("a record without them: every amount 0", ok);
 #if FELUCCA_AUTO
-    for (t = FXT_NEW0, ok = 1; t < FXT_N; t++)
+    for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++)
         ok &= mot_sid(FXT_AMT[t]) == P_ENG_END + 4u + (t - FXT_NEW0) && mot_id(P_ENG_END + 4u + (t - FXT_NEW0)) == FXT_AMT[t] &&
               motion_param(&trk[0], FXT_AMT[t]) && motion_param(TDRUM, FXT_AMT[t]);
     check("motion: FOLD .. WIDE stored as P_ENG_END + 4 .. 9 in every build, both ways; recordable on every track", ok);
 #endif
     d = ins_desc(0, 0, &vp);
-    for (t = FXT_NEW0, ok = d->max + 1 == INS_NLIST; t < FXT_N; t++) {
+    for (t = FXT_NEW0, ok = d->max + 1 == INS_NLIST; t < FXT_NEWN; t++) {
         uint32_t i, f = 0;
         for (i = 0; i < INS_NLIST; i++)
             f |= ins_list[i] == t && !strcmp(ins_names[i], NAME[t]);
@@ -375,7 +375,7 @@ static uint64_t instr_now(void) { return 0; }
 static void t_cost(void)
 {
     uint32_t t, r;
-    for (t = FXT_NEW0; t < FXT_N; t++) {
+    for (t = FXT_NEW0; t < FXT_NEWN; t++) {
         uint64_t i0;
         reset();
         sine(60000, 220);
@@ -392,7 +392,7 @@ int main(void)
 {
     uint32_t t;
     host_tracks_init();
-    for (t = FXT_NEW0; t < FXT_N; t++)
+    for (t = FXT_NEW0; t < FXT_NEWN; t++)
         if (FXT_AMT[t] != 0xFFu)
             t_type(t);
     t_specific();

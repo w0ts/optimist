@@ -25,8 +25,10 @@
  * nothing runs (the track sample for sample as without). A part's: one state a type a part; the drum bus's: L and R
  * only (its sends' accumulators, the drum sounds' own sends, pass them by, as every bus insert at QUALITY). */
 #if INS_FX
-#define IFX_NI (NPART + 2u)                             /* the instances: the parts, the drum bus's L, R */
+#define IFX_NI (NPART + 4u)                             /* the instances: the parts, the drum bus's L, R, the master's L, R */
 #define IFX_BUS NPART
+#define IFX_MST (NPART + 2u)                            /* (fx-rework 2026-10-14: the master's two insert slots) */
+#define IFX_AW_MST NTRK                                 /* ifx_awake's entry for the master */
 #define IFX_SLOPE 256                                   /* the wet share's step a sample, Q15: 0 .. all in 128 (2.9 ms) */
 AINL int32_t ifx_mix(int32_t x, int32_t y, int32_t w) { return w >= 32768 ? y : x + mulq16(y - x, (uint32_t)w << 1); }
 AINL uint32_t ifx_tri(uint32_t q)                       /* a triangle of phase q: 0 .. 65534 .. 0 (Felucca's pf_tri) */
@@ -311,7 +313,7 @@ typedef struct {
     int32_t px[IFX_AP], py[IFX_AP];
     uint8_t q;
 } ifx_wd_t;
-static ifx_wd_t ifx_wide[IFX_NI - 1u];                  /* (the parts, the drum bus's L) */
+static ifx_wd_t ifx_wide[IFX_NI - 1u];                  /* (the parts, the drum bus's L, the master's L at IFX_BUS + 1) */
 static int32_t ifx_side[NPART][CTL];                    /* a part's side this block (before its level): ifx_side_mix */
 static uint8_t ifx_sd[NPART];                           /* its side is set this block */
 #define IFX_WD_RATE 13                                  /* ~0.1 Hz */
@@ -391,7 +393,7 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
     case FXT_FRMT: return ifx_frmt[i].w;
 #endif
 #if FELUCCA_INS_WIDTH
-    case FXT_WIDE: return i < IFX_NI - 1u ? ifx_wide[i].w : 0;
+    case FXT_WIDE: return i < IFX_NI - 1u ? ifx_wide[i == IFX_MST ? IFX_BUS + 1u : i].w : 0;
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
@@ -414,15 +416,16 @@ AINL int ifx_has(uint32_t ty, uint32_t k)
  * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
  * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
  * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
-static uint16_t ifx_awake[NTRK];
+static uint32_t ifx_awake[NTRK + 1];                    /* (the tracks', then the master's: IFX_AW_MST) */
 static __attribute__((noinline)) int32_t ifx_wn(uint32_t ty, uint32_t k) { return ifx_w(ty, k); }   /* (flash: the
                                                         * wrappers and the quiet loop call it through FAR, a block) */
 static __attribute__((noinline)) void ifx_mark(uint32_t ty, uint32_t k, int32_t a, int32_t w0)   /* (flash, FAR) */
 {
+    uint32_t j = k == IFX_MST ? IFX_AW_MST : k % NTRK;
     if (a || w0 || ifx_w(ty, k))
-        ifx_awake[k % NTRK] |= (uint16_t)FXT_BIT(ty);
+        ifx_awake[j] |= FXT_BIT(ty);
     else
-        ifx_awake[k % NTRK] &= (uint16_t)~FXT_BIT(ty);
+        ifx_awake[j] &= ~FXT_BIT(ty);
 }
 
 /* type ty (a further one) at amount a on instance i's n samples of b; sh: b's headroom (a part's 3, the bus's 2:
@@ -490,7 +493,7 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
         if (!(m & 1u) || ty < FXT_NEW0 || !FAR(ifx_wn)(ty, k) ||
             (on && INS_ON(k, ty) && t->p[FXT_AMT[ty]] && !IFX_EV(ty, k)))   /* (evicted: fxi.c, as off) */
             continue;
-        ifx_awake[k] &= (uint16_t)~FXT_BIT(ty);         /* (to rest here, below) */
+        ifx_awake[k] &= ~FXT_BIT(ty);                   /* (to rest here, below) */
 #if INS_LIM
         if (FXT_IS_LIM(ty)) {
             ifx_lim_rest(ty, k);                        /* (its wet share 0: it starts from a clean line, fxi_kern.c) */
@@ -523,7 +526,23 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
         }
     }
 }
-/* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d) */
+/* the drum bus's further insert ty at amount a: on its L and R (WIDE: its L + d); the master's (i0 IFX_MST: no limited
+ * type, no GATER there: fx_slots.c MST_OK) */
+AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+#if FELUCCA_INS_WIDTH
+    if (ty == FXT_WIDE) {
+        int32_t d[CTL];
+        uint32_t i;
+        if (ifx_width(&ifx_wide[i0 == IFX_MST ? IFX_BUS + 1u : i0], a, l, d, n, 3))
+            for (i = 0; i < n; i++)
+                l[i] += d[i];
+        return;
+    }
+#endif
+    ifx_run(ty, i0, a, l, n, 2);
+    ifx_run(ty, i0 + 1u, a, r, n, 2);
+}
 AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
 #if INS_LIM
@@ -538,18 +557,7 @@ AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n
         return;
     }
 #endif
-#if FELUCCA_INS_WIDTH
-    if (ty == FXT_WIDE) {
-        int32_t d[CTL];
-        uint32_t i;
-        if (ifx_width(&ifx_wide[IFX_BUS], a, l, d, n, 3))
-            for (i = 0; i < n; i++)
-                l[i] += d[i];
-        return;
-    }
-#endif
-    ifx_run(ty, IFX_BUS, a, l, n, 2);
-    ifx_run(ty, IFX_BUS + 1u, a, r, n, 2);
+    ifx_st_run(ty, IFX_BUS, a, l, r, n);
 }
 _Static_assert(IFX_BUS == TRK_DRUM, "ifx_awake: the drum bus's bit is the drum track's");
 static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
@@ -557,5 +565,12 @@ static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32
     int32_t w0 = FAR(ifx_wn)(ty, IFX_BUS);
     ifx_bus_run(ty, a, l, r, n);
     FAR(ifx_mark)(ty, IFX_BUS, a, w0);
+}
+/* the master's further insert ty at amount a (fx.c mst_ins), its L and R */
+static HOT2 __attribute__((noinline)) void ifx_mst(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+    int32_t w0 = FAR(ifx_wn)(ty, IFX_MST);
+    ifx_st_run(ty, IFX_MST, a, l, r, n);
+    FAR(ifx_mark)(ty, IFX_MST, a, w0);
 }
 #endif

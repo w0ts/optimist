@@ -206,9 +206,10 @@ int main(void)
         static const uint8_t SL[] = {1, FXT_REV, FXT_REV, FXT_DLY, 99}, IN[] = {3, 4, 0, 77}, BAD[] = {3, 16, 0, 1}, OP[] = {9};
         int r1, r2, r3, r4;
         ed_begin(ED_FX); r1 = ed_fxs(ED_FX, SL, sizeof SL); ed9_known_fx();
-        check(r1 && fxs_slot[0] == FXT_REV && fxs_slot[1] == FXT_NONE && fxs_slot[2] == FXT_DLY && fxs_slot[3] == FXT_NONE &&
-              ed_out[5] == 1u && ed_out[6] == FXT_REV && ed_n == 6u + ED_FX_N,
-              "v10 FX op 1: the layout as fxs_set takes it (a type twice: its later slot empty; an unknown id: empty), the state replied");
+        check(r1 && fxs_slot[0] == FXT_NONE && fxs_slot[1] == FXT_REV && fxs_slot[2] == FXT_DLY && fxs_slot[3] == FXT_NONE &&
+              ed_out[5] == 1u && ed_out[6] == FXT_NONE && ed_out[7] == FXT_REV && ed_n == 6u + ED_FX_N,
+              "v10 FX op 1: the layout as fxs_set takes it (a type twice: its later slot empty; an unknown id: empty; slot 0's "
+              "send onto the first empty return, R1), the state replied");
         ed_begin(ED_FX); r2 = ed_fxs(ED_FX, IN, sizeof IN); ed9_known_fx();
         ed_begin(ED_FX); r3 = ed_fxs(ED_FX, BAD, sizeof BAD);
         ed_begin(ED_FX); r4 = ed_fxs(ED_FX, OP, sizeof OP);

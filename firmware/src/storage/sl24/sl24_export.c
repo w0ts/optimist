@@ -347,7 +347,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
         for (i = 0; i < sizeof T; i++) {
             uint8_t *a = o + SL24_HDR + k * SL24_TRK + 2u * (T[i] == FXT_FILT ? SL24_TFLT : (uint32_t)FXT_AMT[T[i]]);
             uint32_t heard = FXT_INSERT >> T[i] & 1u ? INS_ON(k, T[i]) : FXS_ON(T[i]);   /* (a track's slot, a send's) */
-            if (heard || (T[i] == FXT_FILT && !FELUCCA_TRK_FILT) || !(a[0] | a[1]))
+            if (heard || (T[i] == FXT_FILT && !TFLT_ON) || !(a[0] | a[1]))
                 continue;                               /* (heard; 2.4's FILT carried through a build without ours) */
             sl24_w16(a, 0);
             lost |= SX24_SLOTS;
@@ -366,7 +366,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX
     for (k = 0; k < NTRK; k++)                          /* (each its amount, P_TAIL: not in 2.4's file, nothing to clear) */
-        for (i = FXT_NEW0; i < FXT_N; i++)
+        for (i = FXT_NEW0; i < FXT_NEWN; i++)
             lost |= INS_ON(k, i) && trk[k].p[FXT_AMT[i]] ? SX24_INSFX : 0u;
 #endif
 #if FELUCCA_MASTER_COMP

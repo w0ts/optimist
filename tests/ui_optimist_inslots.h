@@ -30,9 +30,9 @@ static void inslots_tests(void)
     SCR->cell(r, 1, &c);
     check(!FELUCCA_FX_DIST || (c.d == &TP[P_DIST] && c.vp == &trk[0].p[P_DIST]), "... KNOB 2 S1's amount: T1's DST");
     SCR->cell(r, 2, &c);
-    check(!strcmp(c.label, "S2") && !strcmp(c.val, FELUCCA_TRK_FILT ? "FILTER" : "EMPTY"), "... KNOB 3 S2's TYPE (FILTER when built)");
+    check(!strcmp(c.label, "S2") && !strcmp(c.val, TFLT_ON ? "FILTER" : "EMPTY"), "... KNOB 3 S2's TYPE (FILTER when built)");
     SCR->cell(r, 3, &c);
-    check(FELUCCA_TRK_FILT ? c.d == &TP[FIF(FELUCCA_TRK_FILT)(P_TFLT) + 0] : !c.d, "... KNOB 4 S2's amount (empty: \"-\")");
+    check(TFLT_ON ? c.d == &TP[FXT_AMT[FXT_FILT]] : !c.d, "... KNOB 4 S2's amount (empty: \"-\")");
     check(ins_row("CMP") >= SCR->rows(), "CMP: not a row while no slot of T1 holds the COMP");
 #if FELUCCA_MASTER_COMP
     {
@@ -48,11 +48,11 @@ static void inslots_tests(void)
         SCR->cell(r, 3, &c);
         check(ins_slot[0][1] == FXT_COMP && c.d == &TP[P_TCOMP] && ins_slot[1][1] == INS_DEF1,
               "KNOB 3 turned to CMP: T1's S2 holds the COMP (T2's kept), KNOB 4 its amount");
-        r = ins_row("CMP");
-        SCR->cell(r < SCR->rows() ? r : 0u, 0, &c);
-        check(r < SCR->rows() && c.vp == &ins_cset[0][0], "CMP: a row now, T1's own RATIO ATK REL");
+        r = ins_row("DYN");
+        SCR->cell(r < SCR->rows() ? r : 0u, 1, &c);
+        check(r < SCR->rows() && c.vp == &ins_cset[0][0], "DYN: a row now, T1's own THRS RATIO GAIN CEIL (DYN 2: ATK REL)");
         song.sel = 1;
-        check(ins_row("CMP") >= SCR->rows(), "... T2 selected (no COMP in its slots): no CMP row");
+        check(ins_row("DYN") >= SCR->rows(), "... T2 selected (no DYN in its slots): no DYN row");
         song.sel = 0;
         r = ins_row("INSERTS");
         ui.row[SCR_SOUND] = (uint8_t)r;
