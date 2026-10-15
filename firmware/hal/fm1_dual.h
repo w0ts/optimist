@@ -59,10 +59,14 @@ typedef struct {
     volatile uint32_t stage;      /* CPU1: how far it got, the furthest (dual_mode.h C1S_*: SYSTEM > INFO CPU1 HELLO) */
     volatile uint32_t wakes;      /* CPU1 asleep: its wake handler's entries */
     volatile uint32_t icfg;       /* CPU1: its icfg as it went to sleep (read back after sti), 0: never */
-    uint32_t pad1[3];
+    uint32_t pad1[3 + 32];        /* (256 B in all: nothing else on its block) */
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
-static fm1_dual_mb_t fm1_dual_mb __attribute__((aligned(64)));
+/* in .pool, a 256-byte block of its own (2026-10-15: with it first in .bss, CPU1 polling the line right before the BLE
+ * baseband RAM `bb` (ble_hw_wl82.c, the BT controller's DMA memory) went with invalid AXI accesses in every BLE build,
+ * none without BLE; A builds had it elsewhere and CPU1 asleep) */
+static fm1_dual_mb_t fm1_dual_mb __attribute__((section(".pool"), aligned(256)));
+_Static_assert(sizeof(fm1_dual_mb_t) == 256u, "the mailbox: one 256-byte block");
 static volatile uint32_t fm1_dual_canary[FM1_DUAL_CANARY_N];   /* CPU0 fills it before the start, CPU1 reads it */
 
 /* CPU1: a request it will not run (fm1_dual_take FM1_DG_BAD): noted, never run (the spin loop counts each read of
