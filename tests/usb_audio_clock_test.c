@@ -4,22 +4,16 @@
  * uac_test.c: the FM-1's I2S renders 256-frame halves (eight 32-frame mix blocks back to back) at
  * RATE_IN while the host takes one capture packet a 1 ms frame by its own clock. A 1 kHz sine goes
  * into stem 1. After 20 s of settling:
- *   both modes:   no ring under- / overrun, no packet over UA_MAX_FRAMES;
- *   FELUCCA_UA_RESAMPLE=1 (the resampler): every packet is the plain 44.1 pattern (44 / 45 frames,
- *                 44,100 a second exactly), the tone arrives at 1 kHz by the host's clock (the
- *                 resampler took up the difference) and clean (residual under -70 dB);
- *   0 (the packet-size servo, Melodee's): printed only. The host receives RATE_IN frames a
- *                 second: what X0X found a live-monitoring host (Hosting AU) drops out on.
+ *   no ring under- / overrun, no packet over UA_MAX_FRAMES; every packet is the plain 44.1 pattern (44 / 45
+ *   frames, 44,100 a second exactly), the tone arrives at 1 kHz by the host's clock (the resampler took up
+ *   the difference) and clean (residual under -70 dB).
  * X0X measured its I2S at ~44,145..44,180 Hz against USB; Felucca's DAC divider gives 44,117.6.
- *   cc -O2 [-DFELUCCA_UA_RESAMPLE=1] tests/usb_audio_clock_test.c -lm */
+ *   cc -O2 tests/usb_audio_clock_test.c -lm */
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
 #include "../firmware/src/io/usb/usb_audio_stream.c"
-#ifndef FELUCCA_UA_RESAMPLE
-#define FELUCCA_UA_RESAMPLE 0
-#endif
 
 #define SECONDS 40
 static int16_t host[44200 * SECONDS];
@@ -83,8 +77,7 @@ static int run(double rate_in)
     printf("  I2S %.1f Hz: host gets %.1f frames/s, packets %u..%u, tone %.3f Hz, residual %.1f dB, %u glitches after 20 s\n",
            rate_in, frames_settled / (SECONDS - 20.0), minn, maxn, f, 10 * log10(err / sig), glitches);
     ok &= glitches == 0 && maxn <= UA_MAX_FRAMES;
-    if (FELUCCA_UA_RESAMPLE)
-        ok &= bad_size == 0 && frames_settled == 44100L * (SECONDS - 20) && fabs(f - 1000.0) < 0.05 &&
+    ok &= bad_size == 0 && frames_settled == 44100L * (SECONDS - 20) && fabs(f - 1000.0) < 0.05 &&
               10 * log10(err / sig) < -70.0;
     return ok;
 }
@@ -92,8 +85,7 @@ static int run(double rate_in)
 int main(void)
 {
     int ok;
-    printf("USB audio capture against the I2S clock (%s):\n",
-           FELUCCA_UA_RESAMPLE ? "FELUCCA_UA_RESAMPLE=1, resampler" : "packet-size servo");
+    printf("USB audio capture against the I2S clock (resampler):\n");
     ok = run(44100.0) & run(44117.6) & run(44145.0) & run(44180.0) & run(44060.0);
     printf(ok ? "usb audio clock: ok\n" : "usb audio clock: FAILED\n");
     return !ok;

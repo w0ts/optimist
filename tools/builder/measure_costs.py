@@ -48,8 +48,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
          # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
          {"BLE": 1, "USB_MODE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_MODE": 1},
-         # the USB audio resampler is only compiled with USB audio (MIDI only by default since 2026-10-12)
-         {"USB_MODE": 2, "UA_RESAMPLE": 1},
+         # USB audio + MIDI (with its resampler since 2026-10-15; MIDI only by default since 2026-10-12)
+         {"USB_MODE": 2},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
          # flash beyond its items' deltas): the CPU guard's parts in the ACID engine and the X0X drums (cpuguard.c,
          # eng_acid.c, drum_x0x.c: built only with both); GLIDE with PATTERNS and MACROS with USB_MODE 0 measured

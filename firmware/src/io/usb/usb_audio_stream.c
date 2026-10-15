@@ -33,11 +33,7 @@ static struct {
 static int16_t ua_play[UA_RING * 2u] __attribute__((section(".pool")));
 static int16_t ua_cap[UA_RING * UA_CAP_CHANNELS] __attribute__((section(".pool")));
 
-#ifndef FELUCCA_UA_RESAMPLE
-#define FELUCCA_UA_RESAMPLE 0
-#endif
-#if FELUCCA_UA_RESAMPLE
-/* Capture resampler (FELUCCA_UA_RESAMPLE), after X0X 80b7d40 (charlesvestal/fm1-x0x, Charles Vestal,
+/* Capture resampler (always built with USB audio), after X0X 80b7d40 (charlesvestal/fm1-x0x, Charles Vestal,
  * GPL-3.0-only: uac_tap / uac_window / uac_packet in usb.c), in fixed point (this firmware has no float).
  * The I2S clock is the FM-1's own (X0X measured ~44,145..44,180 Hz against USB). The servo above sends
  * what the ring holds, so the host sees a device running at the I2S rate: a recorder is happy, but a
@@ -96,7 +92,6 @@ static int32_t ua_rs_cubic(int32_t xm, int32_t x0, int32_t x1, int32_t x2, int32
     v = (v * t >> 15) + 2 * (int64_t)x0;               /* 2 y */
     return (int32_t)((v + 1) >> 1);
 }
-#endif
 
 static int32_t ua_clip(int32_t x) { return clamp(x, -32768, 32767); }   /* (dsp_common.h) */
 
@@ -130,9 +125,7 @@ static void ua_cap_reset(void)
     ua.cw = ua.cr = ua.cap_frac = 0;
     ua.cap_ready = 0;
     ua.cap_fill_q8 = UA_TARGET * 256;
-#if FELUCCA_UA_RESAMPLE
     ua_rs_reset();
-#endif
 }
 
 static void ua_reset(void)
@@ -217,7 +210,6 @@ static int ua_streaming(uint32_t now)
 static uint32_t ua_transmit(uint8_t *p)
 {
     uint32_t i, n, take = 0, width = ua_sample_bytes(ua.cap_alt);
-#if FELUCCA_UA_RESAMPLE
     n = UA_RATE / 1000u;                        /* the plain 44.1 pattern; the resampler holds the fill */
     ua_rs.acc += UA_RATE % 1000u;
     if (ua_rs.acc >= 1000u) {
@@ -225,11 +217,6 @@ static uint32_t ua_transmit(uint8_t *p)
         n++;
     }
     ua_rs_steer();
-#else
-    ua.cap_frac += ua_rate(ua.cap_fill_q8 - UA_TARGET * 256);
-    n = ua.cap_frac >> 14;
-    ua.cap_frac &= 16383u;
-#endif
     if (!ua.cap_ready && ua.cw - ua.cr >= UA_TARGET)
         ua.cap_ready = 1;
     if (ua.cap_ready) {
@@ -260,7 +247,7 @@ static uint32_t ua_transmit(uint8_t *p)
 static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *tracks, uint32_t n, uint32_t master_q12)
 {
     uint32_t i, capture = ua.cap_alt, playback = 0;
-    if (capture && ua.cw - ua.cr + n + 2u * FELUCCA_UA_RESAMPLE > UA_RING) {   /* (the resampler: +1 or 2) */
+    if (capture && ua.cw - ua.cr + n + 2u > UA_RING) {   /* (the resampler: +1 or 2) */
         ua.cap_overruns++;
         ua_cap_reset();
     }
@@ -282,7 +269,6 @@ static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *trac
         int32_t l = out[2u * i], r = out[2u * i + 1u];
         if (capture) {
             uint32_t ch;
-#if FELUCCA_UA_RESAMPLE
             for (ch = 0; ch < UA_CAP_CHANNELS; ch++) {   /* a frame in; as many out as the step gives */
                 ua_rs.h[0][ch] = ua_rs.h[1][ch];
                 ua_rs.h[1][ch] = ua_rs.h[2][ch];
@@ -298,10 +284,6 @@ static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *trac
                 ua_rs.pos += ua_rs.step;
             }
             ua_rs.pos -= UA_RS_ONE;
-#else
-            for (ch = 0; ch < UA_CAP_CHANNELS; ch++)
-                ua_cap[ci + ch] = (int16_t)ua_clip(tracks[i * UA_CAP_CHANNELS + ch]);
-#endif
         }
         if (playback) {
             l += (ua_play[pi] * (int32_t)master_q12) >> 12;
@@ -310,8 +292,6 @@ static __attribute__((noinline)) void ua_audio(int32_t *out, const int32_t *trac
             out[2u * i + 1u] = ua_clip(r);
         }
     }
-    if (capture && !FELUCCA_UA_RESAMPLE)
-        ua.cw += n;                             /* (the resampler advanced it per frame out) */
     if (playback)
         ua.pr += n;
 }

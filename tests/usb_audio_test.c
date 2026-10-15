@@ -39,20 +39,24 @@ static void routing(void)
 {
     uint8_t packet[UA_PACKET];
     int32_t out[64];
-    uint32_t i;
+    uint32_t i, last;
     memset(&ua, 0, sizeof ua);
+    memset(&ua_rs, 0, sizeof ua_rs);             /* (the learned trim survives a restart: not between scenarios) */
     ua_reset();
     ua.play_alt = ua.cap_alt = 1;
     pcm(packet, 32, 2000, -2000);
     for (i = 0; i < 16; i++)
         ua_receive(packet, 128);
-    block(1000, -1000, 4096, out);
+    for (i = 0; i < 3; i++)                          /* (the capture resampler's four-frame window fills first) */
+        block(1000, -1000, 4096, out);
     assert(out[0] == 3000 && out[1] == -3000);
-    assert(ua_cap[0] == 1000 && ua_cap[1] == -1000); /* no playback loopback */
-    assert(ua_cap[2] == 300 && ua_cap[3] == -700);
+    last = ((ua.cw - 1u) & (UA_RING - 1u)) * UA_CAP_CHANNELS;
+    assert(ua_cap[last] == 1000 && ua_cap[last + 1] == -1000); /* no playback loopback */
+    assert(ua_cap[last + 2] == 300 && ua_cap[last + 3] == -700);
     block(1000, -1000, 0, out);
     assert(out[0] == 1000 && out[1] == -1000);
-    assert(ua_cap[128] == 1000 && ua_cap[131] == -700); /* MASTER does not scale stems */
+    last = ((ua.cw - 1u) & (UA_RING - 1u)) * UA_CAP_CHANNELS;
+    assert(ua_cap[last] == 1000 && ua_cap[last + 3] == -700); /* MASTER does not scale stems */
     block(32000, -32000, 4096, out);
     assert(out[0] == 32767 && out[1] == -32768);
     ua.play_alt = 0;
@@ -74,6 +78,7 @@ static void drift(int ppm, int play, int cap)
     uint32_t pw = play == 2 ? 3u : 2u, cw = cap == 2 ? 3u : 2u;
     uint64_t step = (uint64_t)UA_RATE * (1000000 + ppm);
     memset(&ua, 0, sizeof ua);
+    memset(&ua_rs, 0, sizeof ua_rs);             /* (the learned trim survives a restart: not between scenarios) */
     ua_reset();
     ua.play_alt = play;
     ua.cap_alt = cap;
@@ -124,6 +129,7 @@ static void recovery(void)
     int32_t out[64];
     uint32_t i;
     memset(&ua, 0, sizeof ua);
+    memset(&ua_rs, 0, sizeof ua_rs);             /* (the learned trim survives a restart: not between scenarios) */
     ua_reset();
     ua.play_alt = ua.cap_alt = 1;
     ua_receive(packet, UA_PACKET + 4);
@@ -183,7 +189,8 @@ static void pcm24(void)
     assert(ua.bad_packets == bad + 2u && ua.pw == 6);
     ua_receive(packet, 0);                   /* legal empty isochronous packet */
     for (uint32_t i = 0; i < 16; i++) block(-32768, 32767, 0, out);
-    uint32_t n = ua_transmit(packet);
+    uint32_t n = ua_transmit(packet);       /* (the first packet holds the resampler's start-up frames) */
+    n = ua_transmit(packet);
     assert(n == 528);
     for (uint32_t i = 0; i < n; i += 12u) {
         assert(packet[i] == 0 && packet[i + 1u] == 0 && packet[i + 2u] == 0x80);
@@ -200,13 +207,15 @@ static void pcm24(void)
     ua_cap_reset();
     ua.cw = ua.cr = 0xFFFFFFF0u;
     for (uint32_t i = 0; i < 16; i++) block(1234, -2345, 0, out);
-    ua.cap_fill_q8 = (UA_TARGET + 512u) * 256u;
-    ua.cap_frac = 16383;
     uint8_t guarded[UA_PACKET + 2];
-    memset(guarded, 0xA5, sizeof guarded);
-    assert(ua_transmit(guarded + 1) == UA_PACKET);
-    assert(guarded[0] == 0xA5 && guarded[UA_PACKET + 1] == 0xA5);
-    assert(ua.cw - ua.cr < UA_TARGET);
+    uint32_t biggest = 0;
+    for (uint32_t i = 0; i < 10; i++) {         /* (the plain 44.1 pattern: 44 frames, 45 once in ten packets, the maximum) */
+        memset(guarded, 0xA5, sizeof guarded);
+        uint32_t sent = ua_transmit(guarded + 1);
+        assert(sent <= UA_PACKET && guarded[0] == 0xA5 && guarded[sent + 1] == 0xA5);
+        if (sent > biggest) biggest = sent;
+    }
+    assert(biggest == UA_PACKET);
 }
 
 struct measurement { double re, im, energy; uint32_t count, used; };
@@ -230,6 +239,7 @@ static void tone(int capture, double frequency, uint32_t channel, uint32_t alt)
     int32_t tracks[32 * UA_CAP_CHANNELS] = {0};
     struct measurement m = {0};
     uint32_t width = ua_sample_bytes(alt);
+    memset(&ua_rs, 0, sizeof ua_rs);
     ua_reset();
     ua.play_alt = capture ? 0 : alt;
     ua.cap_alt = capture ? alt : 0;
