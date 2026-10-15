@@ -113,6 +113,10 @@ static void pages_nav_tests(void)
     check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && !strcmp(c.label, "PRESET") &&
           !strcmp(c2.label, "INIT") && led_lvl(B_EDIT) == 2, "D7: EDIT tapped: its first row is SOUND (PRESET ENGINE INIT SAVE AS), EDIT full");
     tap(B_EDIT);
+    if (FV_ROWS) {
+        check(!snd_page(ui.row[SCR_SOUND]) && ui.row[SCR_SOUND] == 1u, "D7: EDIT again: FAVS, the row under SOUND (FELUCCA_FAVORITES)");
+        tap(B_EDIT);
+    }
     check(snd_page(ui.row[SCR_SOUND]) && snd_page(ui.row[SCR_SOUND])->fam == FAM_EDIT, "D7: EDIT again: the edit pages");
     tap(B_ENV);
     check(snd_page(0) != 0, "D7: the other families have no SOUND row");
@@ -742,10 +746,13 @@ static void pages_head_tests(void)
     reset_ui();
     tap(B_EDIT);
     tap(B_EDIT);
+    if (FV_ROWS)
+        tap(B_EDIT);
     {
-        char t[32];
+        char t[32], want[16];
         head_now(t);
-        check(!strncmp(t, "Edit 1 2/", 9), "#2: EDIT 1: \"Edit 1 2/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
+        snprintf(want, sizeof want, "Edit 1 %d/", 2 + FV_ROWS);   /* (SOUND, FAVS, then Edit 1) */
+        check(!strncmp(t, want, 9), "#2: EDIT 1: \"Edit 1 n/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
     }
     reset_ui();
 }

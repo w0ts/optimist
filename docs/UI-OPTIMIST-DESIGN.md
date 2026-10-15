@@ -407,6 +407,7 @@ the drum track KIT · LANE: section 17, D7), then the engine's rows. The whole l
 what ALGORITHM back from MASTER shows when MASTER was opened from the mixer. On the drum track the page buttons narrow the lane's rows the same way where a
 family has rows there (EDIT: the lane's SOUND rows, ENV the lane's ENV row); a family with none there leaves the rows as
 they are.
+On a synth track a **FAVS** row follows the SOUND row (FAV, LIST: favorites, section 37).
 
 **The drum track's ENV** [D, 2026-10-11: "most of the drum sounds have env parameters decay, attack. put them on the
 env page"]: ENV opens the selected lane's ENV row (params.c PAGES, `SC_DSND` in the ENV family; the lane picked as
@@ -3156,3 +3157,29 @@ The last batch of the audit (optimist-work/visaudit/FINDINGS.md), by the style g
 
 Tests: tests/ui_optimist_screens.h (each item, the old gone and the new there); ui_optimist_pages.h's header walk checks every
 SOUND row's title against the list's; the tests that held the old titles, STEP's window header and the layer hint follow.
+
+## 37. Favorites (feat/op-favorites, 2026-10-15)
+
+The favorites store, its saving in the settings record and its older-record upgrade are shared with SLOOP's UI (builder item
+FAVORITES, core/favorites.c, storage/persist_rec.c: a factory sound by engine and name, 64 marks, a user preset by slot, 32).
+This UI's gesture is a **row of its own under the SOUND row, FAVS, on a synth track**: SOUND's four cards are all taken
+(PRESET, ENGINE, INIT, SAVE AS), and a held button or a shift layer is out (section 2.1), so the two values go on a row's
+cards as every other value does. **KNOB 1 FAV**: ON / OFF for the selected track's sound, a set (right marks, left clears; a
+user preset by its slot; "--" and dim where a sound has no mark: the FM6 / CZ collections); YES on the card toggles it; **HOME
+held + the knob clears it** (section 2.1's clear). **KNOB 2 LIST**: ALL / FAV, YES toggles, HOME held + the knob is ALL; with FAV
+the PRESETS knob, the SOUND row's PRESET card and HOME held + PRESETS (the next instrument, among the marked ones) walk only the
+marked sounds, round; from a sound that is not marked the first step goes to the first (right) or last (left) marked one; none
+marked: the message *NO FAVORITES* and the sound stays. The row has the SOUND row's picture (the sound before, the one playing,
+the one after, each with its engine), so the sound is in front of you while you mark it; **a favorite has a star after its name**
+in that picture, so every browse shows it, and with LIST FAV and a sound not in the list the playing sound stays in the middle
+with the last and first favorite around it. The drum track has no FAVS row (kits are not marked). The mark is a settings change:
+written once the audio is quiet (settings_later), never on a detent; LIST starts at ALL after a power cycle. The row is the
+EDIT family's second (SOUND, FAVS, then the engine's pages), so a page button tapped again reaches it before EDIT 1 (the EDIT
+tests' tap counts follow); a family button (ENV, LFO, FX, SCL, ARP) shows its own rows only, without it. Options weighed: **(1)**
+the row (built: nothing existing changes meaning, both values are on the knobs the grammar gives a row); **(2)** FAV on the
+ENGINE card (that card is the same as HOME + PRESETS, a ruling of 2026-10-13) or on SAVE AS (SAVE + EDIT does it too) and LIST
+in SYSTEM: fewer rows but removes a visible action and splits one feature over two screens; **(3)** a gesture, SAVE held + PRESETS
+marks and HOME held + PRESETS clears: no row, but PRESETS under HOME is already the instrument step, and it hides the feature.
+Tests: tests/ui_optimist_favorites.h (the row, the cards, FAV and LIST by knob, YES and HOME, the walk and its edges, the star, the
+user preset, the drum track); the EDIT tap counts in ui_optimist_mixer.h, _cardspic.h and _pages.h follow the new row; a build
+without FAVORITES runs the whole test again (tests/run_tests.sh).

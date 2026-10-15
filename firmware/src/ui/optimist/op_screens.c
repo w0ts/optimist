@@ -114,9 +114,40 @@ static void op_preset_go(uint32_t n)
     }
     op_preset_shown(was);
 }
+#if FELUCCA_FAVORITES
+/* FAVORITES (docs section 37): the selected track's sound is a favorite. The mark is a settings change: written once the
+ * audio is quiet and the panel idle (settings_later; project.c sections_flush), never on a detent */
+static int op_fav_here(void)
+{
+    uint32_t e, k;
+    return fav_cur(&e, &k) && fav_entry(e, k);
+}
+static void op_fav_mark(int on)
+{
+    uint32_t e, k;
+    int r;
+    if (!fav_cur(&e, &k))
+        return;
+    r = e == NENGINES ? fav_user_set(k, on) : fav_set(eng_uid(e), preset_name(e, k), on);
+    if (r < 0) {
+        ui_message("FAVORITES FULL");
+    } else if (r) {
+        settings_later = 1;
+        ui.force = 1;
+    }
+}
+static void op_fav_list(uint32_t on)                    /* LIST: the marked sounds only / the whole list */
+{
+    if (fav_list != (uint8_t)on) {
+        fav_list = (uint8_t)on;
+        ui.force = 1;
+    }
+}
+#endif
 static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
 {
     uint32_t total, cur;
+    int32_t t;
     if (ed_ask(EK_PRESET, s))
         return;                                         /* (edited: "Discard T2 edits?" first, op_edits.c) */
     if (is_drum(TSEL)) {
@@ -127,13 +158,21 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
         return;
     }
     cur = preset_pos(&total);
-    if (total)
-        op_preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+    t = (int32_t)total;
+    if (!total) {
+        if (fav_list)
+            ui_message("NO FAVORITES");
+    } else if (cur >= total) {                          /* (LIST FAV, a sound not marked: the first / last marked) */
+        op_preset_go(s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t));
+    } else {
+        op_preset_go((uint32_t)(((int32_t)cur + s % t + t) % t));
+    }
     ed_done();
 }
 /* HOME held + PRESETS: the next / previous instrument, its first sound (the user, 2026-10-12: "home held (shift) +
  * preset should navigate instruments, not presets"). The factory and INIT part of the list is grouped by engine
- * (bank_resolve), so a step skips the selected engine's group, round; the drum track: its kits, as PRESETS */
+ * (bank_resolve), so a step skips the selected engine's group, round; the drum track: its kits, as PRESETS. LIST FAV:
+ * the same over the marked sounds */
 static uint32_t list_eng(uint32_t n)
 {
     uint32_t k;
@@ -141,14 +180,19 @@ static uint32_t list_eng(uint32_t n)
 }
 static void op_engine_step(int32_t s)
 {
-    uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST;
+    uint32_t total, i, j, e0 = TSEL->eng_req, et, n;
     if (ed_ask(EK_ENGINE, s))
         return;
-    if (is_drum(TSEL) || n == 0u) {
+    if (is_drum(TSEL)) {
         op_preset_step(s);
         return;
     }
     i = preset_pos(&total);
+    n = fav_list ? total : NLIST;
+    if (n == 0u) {
+        op_preset_step(s);
+        return;
+    }
     if (i >= n)                                         /* (a user sound: from its engine's group, or the top) */
         for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
             ;
@@ -185,7 +229,17 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
-static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT ? 1u : 0u; }   /* the SOUND row */
+/* FAVORITES (docs section 37): the row after the SOUND row of a synth track, KNOB 1 FAV and KNOB 2 LIST (the SOUND row's four
+ * cards are taken); the drum track has no mark */
+static int snd_fav_row(void)
+{
+#if FELUCCA_FAVORITES
+    return (snd_fam == SND_ALL || snd_fam == FAM_EDIT) && !is_drum(TSEL);
+#else
+    return 0;
+#endif
+}
+static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT ? 1u + (uint32_t)snd_fav_row() : 0u; }   /* the SOUND row (and FAVORITES) */
 /* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
@@ -202,7 +256,7 @@ static void snd_name_row(uint32_t r, char *b)
     if (snd_fam == SND_FM6)
         fm6_row_name(r, b);
     else
-        str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : "SOUND", 12);
+        str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : r == 1u && snd_fav_row() ? "FAVS" : "SOUND", 12);
 }
 /* the drum track's pages as the list and the header title them (the audit's #19, #20): the shared names stay what the
  * help line keys on ("SOUND", "SOUND 2", "SENDS"), the titles say what each page holds: the SOUND row (KIT LANE SRC
@@ -233,7 +287,7 @@ static void snd_title_row(uint32_t r, char *b)          /* row r's name as title
  * all four */
 static void snd_list_cells(uint32_t r, cell_t *c)
 {
-    if (snd_fam == SND_FM6 || snd_page(r) || is_drum(TSEL))
+    if (snd_fam == SND_FM6 || snd_page(r) || is_drum(TSEL) || (r == 1u && snd_fav_row()))
         return;
     cell_clear(&c[1]);
     if (str_len(c[0].val) > 9u)
@@ -289,6 +343,42 @@ static void snd_lane_card(cell_t *c)
     i = lane_card_pos(&n);
     cell_gauge(c, 1, 0, (int32_t)n - 1, (int32_t)i);
 }
+#if FELUCCA_FAVORITES
+/* the FAVORITES row: FAV (this sound is marked; "--" where it has no mark: the engines' own collections) and LIST */
+static void snd_fav_cell(uint32_t k, cell_t *c)
+{
+    uint32_t e, e2;
+    int can = fav_cur(&e, &e2), on = can && op_fav_here();
+    if (k == 0u) {
+        c->label = "FAV";
+        c->kind = can ? CK_VAL : CK_RO;
+        c->dim = (uint8_t)!can;
+        str_cpy(c->val, can ? (on ? "ON" : "OFF") : "--", sizeof c->val);
+        cell_gauge(c, 1, 0, 1, on);
+    } else if (k == 1u) {
+        c->label = "LIST";
+        c->kind = CK_VAL;
+        str_cpy(c->val, fav_list ? "FAV" : "ALL", sizeof c->val);
+        cell_gauge(c, 1, 0, 1, fav_list);
+    }
+}
+static void snd_fav_turn(uint32_t k, int32_t s)         /* a set, not a toggle: right ON, left OFF, HOME held + the knob: OFF / ALL */
+{
+    int on = s != OP_RESET && s > 0;
+    if (k == 0u)
+        op_fav_mark(on);
+    else if (k == 1u)
+        op_fav_list((uint32_t)on);
+}
+static int snd_fav_yes(uint32_t k)                      /* YES toggles the card */
+{
+    if (k == 0u)
+        op_fav_mark(!op_fav_here());
+    else if (k == 1u)
+        op_fav_list(!fav_list);
+    return k < 2u;
+}
+#endif
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     if (snd_fam == SND_FM6) {
@@ -300,6 +390,12 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
     cell_clear(c);
+#if FELUCCA_FAVORITES
+    if (r == 1u && snd_fav_row()) {
+        snd_fav_cell(k, c);
+        return;
+    }
+#endif
     if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
         if (k == 2u) {                                  /* the lane's SRC (the user, 2026-10-13); empty where a build has none */
             if (lane_snd())                             /* (the ACCENT lane has no sound: no SRC) */
@@ -359,6 +455,12 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(snd_page(r), k, s, fine);
         return;
     }
+#if FELUCCA_FAVORITES
+    if (r == 1u && snd_fav_row()) {
+        snd_fav_turn(k, s);
+        return;
+    }
+#endif
     if (is_drum(TSEL) && k == 2u) {                     /* the lane's SRC (page_turn: no reset to a default) */
         if (lane_snd())
             page_turn(&LANE_SRC_PG, k, s, fine);
@@ -392,6 +494,10 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         return fm6_yes(r, k, ok);
     if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
+#if FELUCCA_FAVORITES
+    if (r == 1u && snd_fav_row())
+        return snd_fav_yes(k);
+#endif
     if (is_drum(TSEL) || k < 2u)
         return 0;
     if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */

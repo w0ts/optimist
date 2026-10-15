@@ -1420,7 +1420,7 @@ go to the real registers and cannot be trapped.
 
 1. Stock V15's updater runs first (step 1, stock code): it pulls the package, stages our `ota.bin` in its own
    loader/VM flash area, writes the update record and soft-resets; the SPL then loads our loader into RAM and runs it
-   (FM-1-RE `docs/io/11-ota-protocol.md`; Optimist `BUILDING.md` "Package identity": installing a `FM-1_7XY` package
+   (FM-1-RE `docs/io/11-ota-protocol.md`; Optimist `BUILDING.md` "Package identity": installing a `FM-1_7XX` package
    from V15 is **not verified on hardware**).
 2. **The app area is intact when our loader starts.** Step 1 writes only the loader and the record: in FM-1-RE's
    2026-07-21 hardware runs (stock V13), step 1 and a loader that then wrote nothing left the stock app booting

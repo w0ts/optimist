@@ -1,6 +1,7 @@
 {
  "about": "One colour per engine and per drum source kind, and the status colours: the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs) and the device (tools/gen_colors.py: build/gen/felucca_colors.h, RGB565; firmware/src/ui/sloop/ui_colors.c). Colour carries meaning only: engine, kind, status.",
  "engines": {
+  "NOISE": "#827d77",
   "ANALOG": "#ca8325",
   "DIGITAL": "#2e9bda",
   "PHASE": "#8e6ad8",

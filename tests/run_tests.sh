@@ -38,6 +38,8 @@ BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCC
 # the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO with 2 and 1
 # instances (fxi.c)
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1"
+# NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
+BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
 
 # ---- the units (see the top): nu started, np printed; unit N's files $JD/N.out, .rc (its exit status, written last
@@ -253,6 +255,10 @@ job; ( jobin
     run "CHORD+ (SLOOP 2.4): black-key modifiers, under the finger, recorded as played, STRUM, VLEAD" "$OUT/chordplus_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/trk_filt_test_off" tests/trk_filt_test.c -lm
     run "track FILTER: every FILT at 0, the busy mix sample for sample the build without it" sh -c     "[ \"\$('$OUT/trk_filt_test' hash)\" = \"\$('$OUT/trk_filt_test_off' hash)\" ]"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_NOISE=1 -o "$OUT/noise_test" tests/noise_test.c -lm
+    run "NOISE engine (FELUCCA_ENG_NOISE=1): UID 15, every preset audible / bounded / voices free, tests/golden_noise.txt, EDIT values, colour, pitched LFSR / META, seeded, retrigger" "$OUT/noise_test" tests/golden_noise.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/cz_test" tests/cz_test.c -lm
@@ -713,6 +719,13 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FX_DUST=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nodust_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without DUST built: no DUST card on the mixer's MASTER set, the master FX (INS TONE: the built values first) or a layer; the badges, the empty rule" "$OUT/ui_optimist_nodust_test" "$OUT/optimist-nodust"
 ) >"$U.out" 2>&1 & jobbg
+# favorites (tests/ui_optimist_favorites.h): the FAVS row under the SOUND row is in the default build above; without them the SOUND
+# row is alone, EDIT's second tap is the first engine page, PRESETS walks the whole list
+job; ( jobin
+    mkdir -p "$OUT/optimist-nofav"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_FAVORITES=0 -DFELUCCA_PARAM_HELP=1 -o "$OUT/ui_optimist_nofav_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI without favorites built: no FAVS row, the SOUND row's PRESETS and HOME + PRESETS walk the whole list" "$OUT/ui_optimist_nofav_test" "$OUT/optimist-nofav"
+) >"$U.out" 2>&1 & jobbg
 # the user's own build (tests/profiles/mots-like.config, a copy of config/my-profiles/mots.config of 2026-10-14; the flags are
 # the builder's for it, tools/config_flags.py): knob acceleration, DIV_ORDER, no SLICER, the X0X kits, PARAM_HELP, patterns...
 job; ( jobin
@@ -1096,6 +1109,12 @@ job; ( jobin
     run "started on SLOOP 2.4's flash (FELUCCA_SL24_SAFE): its projects, autosave, FM6 bank, long samples never erased; shown as 2.4's" "$OUT/sl24_safety_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/favorites_test" tests/favorites_test.c -lm
+    run "favorites (FELUCCA_FAVORITES): the store (64 factory marks by engine UID + name, 32 user slots), the settings record keeps them last: a record from before reads whole with none, older lengths, flash round trip" "$OUT/favorites_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_BLE=1 -o "$OUT/favorites_ble_test" tests/favorites_test.c -lm
+    run "favorites in a BLE build: a record from before the favorites keeps the BLE address, trims, bond and device store; older BLE lengths" "$OUT/favorites_ble_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -o "$OUT/stepx_test" tests/stepx_test.c
     run "SLOOP 2.4 step extras (stepx.h): 2.4's FUN5 track tail byte for byte, fills, locks, the stored form round trip" "$OUT/stepx_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -1264,6 +1283,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
     run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_NOISE=1 -o "$OUT/regress_noise" tests/regress.c -lm
+    run "regression with the NOISE engine built (FELUCCA_ENG_NOISE): the same golden renders, NOISE's health, voices and CPU (its renders: tests/golden_noise.txt)" "$OUT/regress_noise" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/regress_cz" tests/regress.c -lm

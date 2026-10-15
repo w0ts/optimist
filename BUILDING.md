@@ -329,14 +329,15 @@ configuration) or `--config FILE`; `tools/optimist.py build` is the usual way. `
 `AC79_SDK` override the locations, as above (the SDK files default to `sdk/` in the repo).
 
 `--release 0.1` makes a release build (it must match `VERSION`): the package identity becomes
-`FM-1_701` and the version string `0.1 BETA`; the package is `build/optimist-0.1.fwsc`.
+`FM-1_721` and the version string `0.1 BETA`; the package is `build/optimist-0.1.fwsc`.
 
 ### Package identity
 
 The identity is the name a package and the running firmware give themselves in the update
 protocol (handshake cmd 0x11), and the string the `.fwsc` marker bytes carry. **Optimist is
-`FM-1_7XY`**: `FM-1_700` for development builds, `FM-1_7XY` for `--release X.Y`. Its update
-loader answers `ota-FM-1_700`.
+`FM-1_700`** for development builds and `FM-1_7(X+2)Y` for `--release X.Y`: 0.1 is `FM-1_721`, 1.0
+`FM-1_730`, up to 4.9 `FM-1_769` (`build.py release_product`). Its update loader answers `ota-FM-1_700`.
+`optimist flash` takes only these identities.
 
 Why this form, and why 7XX:
 
@@ -350,7 +351,10 @@ Why this form, and why 7XX:
   do Felucca, SLOOP and X0X at `FM-1_9XX`. 7XX sits between them, so any comparison the
   stock updater might make (different, or greater than its own) treats it as it treats those.
 - Numbers in use elsewhere: M-VAVE `0XX`, Baud Girl `020`-`09X`, Lunar Modulator's proposal `5XX`,
-  Felucca / SLOOP / X0X `9XX` (all of them `FM-1_900` for development builds). 7XX is free.
+  Felucca / SLOOP / X0X `9XX` (all of them `FM-1_900` for development builds). 7XX was free when
+  Optimist took it; since then (thefirmwarehub.com, 2026-10-14) Fart Machine One took `FM-1_701`,
+  Skiff `FM-1_711`, others `FM-1_710`, `FM-1_777` and seven digits (`FM-1_7010007` FuMi-1,
+  `FM-1_7010100` AMB-1), so the releases moved to the block 720-769, clear of all of them.
 - The update loader is Felucca's, with the same protocol: the installers resume a device left in
   update mode when its loader is `ota-FM-1_7XX` or `ota-FM-1_9XX` (SLOOP / Felucca), and refuse
   any other loader (`foreign`). The web installer, `fm1_install.py` and `make_site.py` accept both
@@ -359,7 +363,7 @@ Why this form, and why 7XX:
   accept `felucca` and `optimist` (and `FM-1`), so the device can be renamed without breaking
   them.
 
-Not verified on hardware: that the stock V15 updater installs a `FM-1_7XY` package, and that
+Not verified on hardware: that the stock V15 updater installs a `FM-1_7XX` package, and that
 M-VAVE's own updater app goes back to V15 from one. The same holds for every `9XX` package
 (Felucca, SLOOP); nothing found suggests a numeric window.
 
@@ -408,6 +412,7 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
+| `FELUCCA_ENG_NOISE` | 0 | the NOISE engine (engine 15), `eng_noise.c` of hugelton/Felucca-Engines (Leo Kuroshita, Hügelton Instruments; **MIT**, the file keeps its header): ANLG / DUST / LFSR / META sources, white to brown colour, a low-pass to band-pass filter with key tracking, drift and crush; 4 presets, 8 EDIT values; +3.0 KB flash, no RAM (measured: two builds of user-default) |
 | `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.9 KB flash, +3.1 KB RAM (everything-that-fits: +7.3 KB, +3.2 KB, +32 B RAM code); on in everything-that-fits |
 | `FELUCCA_ENG_JUNO` | 0 | the JUNO engine (engine 14), the Juno-106 voice of fm-106 (PatttF; a port of Ultramaster KR-106, GPL-3.0): DCO, 4-pole OTA ladder, VCA curve, 4-position HPF; 6 voices; 8 patches of our own (no Roland factory patches), 8 EDIT values |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |

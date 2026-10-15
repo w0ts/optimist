@@ -63,7 +63,7 @@ static void dual_flash_enter(void);
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 7XY) */
+#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 700, releases 720-769) */
 #endif
 #ifndef FELUCCA_UNDO_HISTORY
 #define FELUCCA_UNDO_HISTORY 1   /* undo / redo: a history of many levels in the memory left over (undo.c,
@@ -254,7 +254,7 @@ static int ota_prog(uint32_t off, const void *p, uint32_t n)
 static int ota_fread(uint32_t off, void *p, uint32_t n) { return st_read(off, p, n); }
 static void ota_show(uint32_t step, int32_t code)
 {
-    static const char *const STEP[] = {"", "PACKAGE", "CHECK HEAD", "LOADER", "CONFIRM", "RESTART"};
+    static const char *const STEP[] = {"", "PACKAGE", "CHECK HEAD", "LOADER", "CONFIRM", "FLASHING"};
     char b[24];
     if (recovery_active) return;             /* keep polled USB alive during OTA */
     lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -296,10 +296,10 @@ static void ota_commit(const uint8_t *parm)
 #include "system/recovery.c"        /* early, polled USB updater; no synth or settings */
 #endif
 #ifndef FELUCCA_SPLASH
-#define FELUCCA_SPLASH 1         /* the boot logo (splash.c, ~0.4-0.6 KB of flash); 0 = a dark screen, then the UI */
+#define FELUCCA_SPLASH 1         /* the boot logo, 1 the dinghy, 2 the ring (splash.c, 0.5-1.0 KB of flash); 0 = a dark screen, then the UI */
 #endif
 #if FELUCCA_SPLASH
-#include "ui/splash.c"          /* the Optimist boot screen: the logo drawn from its geometry, the version */
+#include "ui/splash.c"          /* the Optimist boot screen: the dinghy logo drawn from its geometry, the version */
 #endif
 #if FELUCCA_SIMD_PROBE
 #include "system/simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */

@@ -49,6 +49,9 @@
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */
 #endif
+#ifndef FELUCCA_ENG_NOISE
+#define FELUCCA_ENG_NOISE 0      /* the NOISE engine (engine 15), Felucca-Engines' eng_noise.c (MIT) */
+#endif
 #ifndef FELUCCA_ENG_PHYS
 #define FELUCCA_ENG_PHYS 0       /* the PHYS engine (engine 11): 51.5 KB of pool */
 #endif

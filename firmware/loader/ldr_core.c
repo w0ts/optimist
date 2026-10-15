@@ -5,7 +5,12 @@
  *
  * The host serves the package ("logical image") with cmd 0x30 reads (ota.c).
  * The loader:
- *   1. reads the UFW header and finds flash.bin;
+ *   1. reads the UFW header and finds flash.bin, which must be exactly
+ *      [0, LDR_APP_HI): the head and this board's app area, so another
+ *      device's package (its app area another size) or one that would write
+ *      past the app slot is refused before anything is erased (-15, after
+ *      Felucca 1.6.1); the package identity is not in the image, this is not
+ *      about it;
  *   2. checks that the package's app area decrypts with THIS chip's key
  *      (taken from isd_config.ini in the device's own flash head), so a
  *      package for another key is refused before anything is erased;
@@ -29,6 +34,7 @@
  *   ldr_record_clear()    forget the RAM update record
  *   ldr_flash_known()     the flash chip is the 1 MiB part SLOOP's storage expects (else nothing is
  *                         written: the update records go and the old firmware starts again)
+ *   ldr_checking(done, total)   the package check (2b), every 32 KB
  *   ldr_progress(done, total)
  * plus the ota.c hooks (frames, time, idle). */
 #define LDR_APP_LO 0x4000u
@@ -36,6 +42,7 @@
 #define LDR_REC_LO 0x93000u                     /* update records live above the app ... */
 #define LDR_REC_HI 0xFC000u                     /* ... and below Felucca's globals */
 #define LDR_NSEC ((LDR_APP_HI - LDR_APP_LO) >> 12)
+_Static_assert(LDR_APP_HI == FL_APP_HI, "the loader writes the app slot of fm1_flash_map.h (ota.c OTA_FL_LEN)");
 
 static int ldr_fread(uint32_t off, void *p, uint32_t n);
 static int ldr_erase(uint32_t off);
@@ -43,6 +50,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n);
 static void ldr_record_clear(void);
 static int ldr_flash_known(void);
 static void ldr_progress(uint32_t done, uint32_t total);
+static void ldr_checking(uint32_t done, uint32_t total);
 
 /* SFC cipher: per 32-byte block, key ^ (block offset >> 2) */
 static void ldr_sfc(uint8_t *p, uint32_t n, uint32_t base_off, uint32_t key)
@@ -91,6 +99,7 @@ static int ldr_chip_key(uint32_t *key)
 #define LDR_EBADPKG (-12)                       /* flash.bin as served does not match the package's CRC16 */
 #define LDR_ENOFIN (-13)                        /* no "success" from the host */
 #define LDR_EFLASH (-14)                        /* another flash chip: nothing written, the records dropped */
+#define LDR_EBOARD (-15)                        /* flash.bin is not this board's app area: nothing erased */
 
 #define LDR_SDK_LO 0xE7000u                     /* never erased: the retired UP_FM6 sector, the stock firmware's SDK */
 #define LDR_SDK_HI 0xEA000u                     /* VM (0xE8000: its settings, the radio calibration) and BTIF (0xE9000) */
@@ -140,6 +149,8 @@ static int ldr_check(uint32_t fl_off, uint32_t fl_size, uint32_t want, uint16_t 
         if (ota_read(fl_off + i, b, n))
             return -7;
         crc = ota_crc16(b, n, crc);
+        if (!(i & 0x7FFFu))
+            ldr_checking(i, fl_size);                /* every 32 KB */
         if (i >= LDR_APP_LO && i < LDR_APP_HI) {     /* (512-byte reads from 0: never across a sector) */
             uint32_t k = (i - LDR_APP_LO) >> 12;
             sc[k] = (uint16_t)ota_crc16(b, n, (i & 0xFFFu) ? sc[k] : 0u);
@@ -157,8 +168,10 @@ static int ldr_pass(void)
     /* 1. UFW header + entry list (ota.c) */
     if ((rc = ota_ufw(hdr, &fl_off, &fl_size, &ota_off, &ota_len, &want)) != 0)
         return rc;
-    if (!fl_off || fl_size < LDR_APP_HI)
+    if (!fl_off)
         return -3;
+    if (fl_size != LDR_APP_HI)
+        return LDR_EBOARD;                               /* another board's package: refused before any erase */
     /* 2. the package's app area must decrypt with this chip's key */
     if ((rc = ldr_chip_key(&key)) != 0)
         return -40 + rc;

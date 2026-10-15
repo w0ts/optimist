@@ -38,7 +38,7 @@ The sections "Inherited from SLOOP 2.x" below are history: they list what SLOOP'
 - **MPC swing** (50–75 %), a sample-accurate clock (no drift, any tempo), tighter glides for the 808s.
 - **Master:** **DUST** (an old sampler and a record: bits, rate, crackle), **DUCK** (the kick pumps the synths), **FILT** (DJ filter: low-pass ← OFF → high-pass).
 - **Web editor:** the drum track as a 16-lane grid with levels and ratchets, the kit, the master page.
-- **Safer updates:** the installer checks the package's SHA-256 and only resumes the update loader of an Optimist, SLOOP or Felucca firmware; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know.
+- **Safer updates:** the installer checks the package's SHA-256 and only resumes the update loader of an Optimist, SLOOP or Felucca firmware; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know. Before anything is erased, the FM-1 refuses a package made for another device or one whose firmware area is not exactly the FM-1's (the update screen shows FAILED -15; after Felucca 1.6.1), and a cut-short or damaged one (FAILED -6 or -16). A package that would write past the firmware area (Baud Girl's) is refused too: go back to V15 first.
 
 ---
 
@@ -685,6 +685,10 @@ An engine of its own (engine 11): EDIT **MODEL** picks a bank of resonant modes 
 > **EXPERIMENTAL.** Ported from X0X by Charles Vestal (GPL-3.0); in Optimist it has only run in the emulator.
 
 An engine of its own (engine 12): one TB-303-style voice per track — saw or square, the 303's filter, envelope and accent, Devilfish slide and decay ranges, a drive. EDIT 1: **CUT RESO ENV DEC**; EDIT 2: **ACC WAVE DRV SLD**. A step's ACCENT is the 303's accent, a SLIDE glides into the next step. **ACID GEN** (EDIT, on an ACID track): **DENS**, **ACC** and **SLD** in %, KNOB 4 **GEN** twice writes a new acid line into the pattern (TB-3PO; in the track's ROOT, minor; undo brings the old one back). Four presets: ACID LINE, ACID SQR, ACID RAGE, ACID DUB. Pitch bend, the LFO's pitch and TUNE do not reach it. Its voice is X0X's port of Open303 (Robin Schmidt, MIT); its generator after the Phazerville Hemisphere Suite's TB-3PO (GPL-3.0).
+
+### NOISE, colours, crackle and shift-register noise (`FELUCCA_ENG_NOISE`)
+
+An engine of its own (engine 15; a build without it plays a NOISE track on ANALOG and says MISSING), from `eng_noise.c` of hugelton/Felucca-Engines (Leo Kuroshita, Hügelton Instruments; MIT, kept in its own file under that licence). EDIT 1: **MODE COLR FREQ RES**; EDIT 2: **TRK DENS DRFT CRSH**. MODE picks the source: ANLG (white noise plus random impulses), DUST (the impulses alone: crackle, drops), LFSR (a shift register clocked CLK semitones above the key; DENS becomes LEN, the register length from 23 down to 7 bits, and CRSH becomes CLK) and META (one cycle of a short register sequence per period of the key, a metallic tone; DENS is LEN, the sequence). COLR tilts the source from white through pink to brown; FREQ and RES set a filter that morphs from low-pass to a narrow band-pass; TRK makes FREQ follow the key; DRFT is a slow random wander of FREQ and level; CRSH (ANLG, DUST) holds samples and drops bits. A track's FLT moves FREQ, SHP moves COLR, PIT the key. A note from silence sounds the same each time. Four presets: WIND, RAIN, ARCADE, METAL. Off by default: about 3 KB of flash, no RAM. The sound is checked on the host only.
 
 ### CZ, Casio-style phase distortion (`FELUCCA_ENG_CZ`)
 

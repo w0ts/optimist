@@ -62,7 +62,8 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
         memset(m + 14, 0, len);
         memcpy(m + 14, "success", 8);
     } else {
-        if (addr + len > logical_len) { printf("read past the package %#x\n", addr); exit(1); }
+        if (addr + len > logical_len)
+            return 0;                                /* past a cut-short package: the host has nothing to send */
         memcpy(m + 14, logical + addr, len);
         if (corrupt_at && addr <= corrupt_at && corrupt_at < addr + len) {
             m[14 + corrupt_at - addr] ^= 0x08;       /* (the frame's own checksum is fine: only the CRC sees it) */
@@ -108,6 +109,7 @@ static void ldr_record_clear(void) { record_cleared++; }
 static uint32_t flash_unknown;
 static int ldr_flash_known(void) { return !flash_unknown; }
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; }
+static void ldr_checking(uint32_t done, uint32_t total) { (void)done; (void)total; }
 #include "../firmware/loader/ldr_core.c"
 
 static uint8_t *load_logical(const char *path, size_t *len)
@@ -139,6 +141,32 @@ static uint32_t flash_off(const uint8_t *lg)        /* flash.bin offset in the l
         if (ota_rd16(e) == 0) return ota_rd32(e + 8);
     }
     return 0;
+}
+
+/* rewrite flash.bin's size in the logical image's UFW entry list, with its data CRC16 over the new size (the entries'
+ * and the header's CRCs too): a consistent package for the same chip whose app area is another board's size (after
+ * Felucca 1.6.1's tests; theirs keeps the old data CRC, which our CRC pass would refuse anyway). lg holds at least
+ * flash.bin's offset + size bytes. */
+static void set_fl_size(uint8_t *lg, uint32_t size)
+{
+    uint8_t h[0x40 + 11 * 0x50];
+    uint32_t i, n;
+    memcpy(h, lg, sizeof h);
+    ota_jl_enc(h, 0x40);
+    n = ota_rd16(h + 8);
+    for (i = 0; i < n; i++) {
+        uint8_t *e = h + 0x40 + i * 0x50u;
+        ota_jl_enc(e, 0x50);
+        if (ota_rd16(e) == 0) {
+            ota_wr32(e + 12, size);
+            ota_wr16(e + 4, ota_crc16(lg + ota_rd32(e + 8), size, 0));
+        }
+        ota_jl_enc(e, 0x50);
+    }
+    ota_wr16(h + 2, ota_crc16(h + 0x40, n * 0x50u, 0));   /* (over the entries as stored) */
+    ota_wr16(h, ota_crc16(h + 2, 0x3E, 0));
+    ota_jl_enc(h, 0x40);
+    memcpy(lg, h, 0x40 + n * 0x50u);
 }
 
 static int check(const char *what, int ok) { printf("%-56s %s\n", what, ok ? "ok" : "FAIL"); return ok ? 0 : 1; }
@@ -218,9 +246,45 @@ int main(int argc, char **argv)
     memcpy(nor, old + ofo, 0x93000);
     memcpy(head, nor, sizeof head);
     put_record();
+    /* refused before anything is erased (the app area, the records): another board's package (an SMK-37's app area
+     * ends at 0x9D000; a stock-loader package such as Baud Girl's writes to 0xB7000; one byte short), and a package
+     * cut short inside flash.bin. The record stays: the host can serve the right package. */
+    {
+        static const uint32_t SZ[3] = {0x9D000u, 0xB7000u, LDR_APP_HI - 1u};
+        static const char *const WHAT[3] = {"another board's size (0x9D000): -15, nothing erased",
+                                            "a flash.bin past the app area (0xB7000): -15, nothing erased",
+                                            "a flash.bin a byte short of the app area: -15, nothing erased"};
+        static uint8_t big[0x100000];                /* room for the larger flash.bin (0xFF past the package) */
+        uint8_t *const mine = logical;
+        size_t full = logical_len;
+        uint32_t k;
+        for (k = 0; k < 3u; k++) {
+            memset(big, 0xFF, sizeof big);
+            memcpy(big, mine, full);
+            logical = big;
+            logical_len = nfo + SZ[k] > full ? nfo + SZ[k] : full;
+            set_fl_size(logical, SZ[k]);
+            erases = 0; record_cleared = 0;
+            rc = ldr_session();
+            printf("  rc %d, %u sector erases\n", rc, erases);
+            bad += check(WHAT[k], rc == -15 && erases == 0 && !record_cleared && nor[0xE4F06] == 0x41 &&
+                         !memcmp(nor, old + ofo, 0x93000));
+            memcpy(nor, old + ofo, 0x93000);         /* (the old firmware back, whatever happened) */
+            put_record();
+            logical = mine;
+            logical_len = full;
+        }
+        logical_len = nfo + 0x50000u;                /* cut short in the app area */
+        erases = 0; record_cleared = 0;
+        rc = ldr_session();
+        bad += check("cut short inside flash.bin: refused, nothing erased", rc < 0 && erases == 0 && !record_cleared &&
+                     !memcmp(nor, old + ofo, 0x93000));
+        logical_len = full;
+        requests = 0;
+    }
     rc = ldr_session();
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
-    bad += check("install completes", rc == 0);
+    bad += check("install completes (flash.bin exactly the app area)", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);

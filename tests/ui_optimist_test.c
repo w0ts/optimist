@@ -250,6 +250,7 @@ static void turn(uint32_t role, int32_t s)
 }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
+#define FV_ROWS (FELUCCA_FAVORITES ? 1 : 0)       /* the FAVS row under the SOUND row (ui_optimist_favorites.h): EDIT tapped again goes there first */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static void reset_ui(void)
@@ -2505,6 +2506,7 @@ static void led_tests(void)
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
+#include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
 
 int main(int argc, char **argv)
 {
@@ -2595,6 +2597,7 @@ int main(int argc, char **argv)
     mute_tests();
     smute_tests();
     pagemem_tests();
+    favorites_tests();
     algotrack_tests();
     uniform_tests();
     lforate_tests();

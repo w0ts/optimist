@@ -328,7 +328,18 @@ check("setup: the toolchain archive is extracted inside its folder only (with an
 import shutil
 import zipfile
 import build as BUILD
-NOTICES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")
+# release identities (BUILDING.md "Package identity"): X.Y -> FM-1_7(X+2)Y, clear of the 7XX numbers others use
+check("release identity: 0.1 -> FM-1_721, 1.0 -> FM-1_730, 4.9 -> FM-1_769, with a suffix as without",
+      [BUILD.release_product(r) for r in ("0.1", "1.0", "4.9", "0.1-rc1")] ==
+      ["FM-1_721", "FM-1_730", "FM-1_769", "FM-1_721"])
+_bad = []
+for r in ("5.0", "0.10", "1", "x.y"):
+    try:
+        BUILD.release_product(r)
+    except SystemExit:
+        _bad.append(r)
+check("release identity: 5.0 and later (past the block), two digits, not X.Y: refused", _bad == ["5.0", "0.10", "1", "x.y"])
+NOTICES =("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")
 check("notices: LICENSES/Apache-2.0.txt is the Apache License 2.0",
       "Apache License\n                           Version 2.0, January 2004" in (ROOT / "LICENSES/Apache-2.0.txt").read_text())
 check("notices: LICENSING.md lists the three JieLi SDK files with their Apache-2.0 licence",
@@ -551,7 +562,7 @@ check("flash: no package given: the last build, asks first", a.package is None a
 
 class FakeTool:
     """stands for fm1_install.py: records every call, answers --info and the install"""
-    def __init__(self, info=(0, "Optimist_705  [running]  port: FM-1"), write=(0, "done")):
+    def __init__(self, info=(0, "Optimist_730  [running]  port: FM-1"), write=(0, "done")):
         self.calls, self.info, self.write = [], info, write
 
     def __call__(self, args, capture=True):
@@ -562,7 +573,7 @@ class FakeTool:
         return [c for c in self.calls if "--info" not in c]
 
 
-def flash_run(argv, tool, answer="n", packages=None, product="FM-1_705"):
+def flash_run(argv, tool, answer="n", packages=None, product="FM-1_730"):
     """optimist flash with fm1_install replaced; input() answers; -> (rc, output)"""
     import builtins
     save = (FL.run_tool, FL.FI.load_package, FL.last_package, builtins.input)
@@ -608,6 +619,15 @@ with tempfile.TemporaryDirectory() as td:
     rc, out, pr = flash_run([str(new)], t, product="FM-1_906")
     check("flash: another firmware's identity (SLOOP FM-1_906) is refused, no device touched",
           rc == 2 and "not an Optimist build" in out and not t.calls)
+    # (others in the 7XX range: Fart Machine One FM-1_701, Skiff FM-1_711, FuMi-1 FM-1_7010007; BUILDING.md)
+    for other in ("FM-1_701", "FM-1_711", "FM-1_777", "FM-1_7010007"):
+        t = FakeTool()
+        rc, out, pr = flash_run([str(new)], t, product=other)
+        check(f"flash: another firmware in the 7XX range ({other}) is refused, no device touched",
+              rc == 2 and "not an Optimist build" in out and not t.calls)
+    check("flash: Optimist's identities: the development build FM-1_700 and the releases FM-1_720 .. FM-1_769",
+          all(FL.OPTIMIST_ID.fullmatch(p) for p in ("FM-1_700", "FM-1_721", "FM-1_730", "FM-1_769")) and
+          not any(FL.OPTIMIST_ID.fullmatch(p) for p in ("FM-1_701", "FM-1_710", "FM-1_719", "FM-1_770")))
     t = FakeTool(info=(3, "error: FM-1 not found"))
     rc, out, pr = flash_run([str(new)], t, answer="y")
     check("flash: no FM-1 port found: refused (exit 3), nothing written, nothing asked",
@@ -615,7 +635,7 @@ with tempfile.TemporaryDirectory() as td:
     t = FakeTool()
     rc, out, pr = flash_run([], t, answer="n", packages=new)
     check("flash: shows the running identity, the package and the recovery, then asks",
-          "Optimist_705  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_705" in out and
+          "Optimist_730  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_730" in out and
           "Rescue, going back" in out and len(pr) == 1 and "Flash" in pr[0])
     check("flash: answer n: cancelled, exit 1, nothing written", rc == 1 and "cancelled" in out and not t.wrote())
     t = FakeTool()
@@ -633,7 +653,7 @@ with tempfile.TemporaryDirectory() as td:
     rc, out, pr = flash_run([], t, answer="y", packages=new)
     check("flash: a failed write returns fm1_install's exit code", rc == 4)
     save_mp, save_lp = FL.midi_python, FL.FI.load_package
-    FL.midi_python, FL.FI.load_package = (lambda: None), (lambda path, force: ("FM-1_705", b""))
+    FL.midi_python, FL.FI.load_package = (lambda: None), (lambda path, force: ("FM-1_730", b""))
     try:
         rc, out = quiet(optimist.main, ["flash", str(new), "--yes"])
     finally:

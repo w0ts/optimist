@@ -585,8 +585,10 @@ _add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U
           "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
           "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
-     desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); "
-     "off: a dark screen until the UI")
+     choices=((1, "dinghy"), (2, "ring"), (0, "off")),
+     desc="the Optimist logo, the name and the version for 0.9 s at power-on, drawn (no bitmap). Dinghy: an "
+     "Optimist with the class emblem on its sail (1.0 KB of flash); ring: the emblem alone, large, the logo before "
+     "the dinghy (0.5 KB); off: a dark screen until the UI")
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52,
      desc="A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the "
           "labels get their full width back.")
@@ -614,6 +616,17 @@ _add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums
           "keys play the pads on the grid page, as before.",
      notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
             "(Erbubar23). Tested in the host UI tests only, not on a device.")
+_add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
+     desc="SAVE > PRESETS (SLOOP's UI): KNOB 3 FAV marks the selected track's sound as a favorite (ON / OFF), KNOB 4 LIST "
+          "shows ALL or only the favorites (the PRESETS knob and KNOB 1 then walk just those); a marked sound shows a star "
+          "in the list. The Optimist UI: a FAVS row under SOUND, KNOB 1 FAV and KNOB 2 LIST the same (about 1.5 KB more "
+          "there). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
+          "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
+          "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
+          "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "
+          "Off: PRESETS KNOB 3 and 4 stay empty.",
+     notice="After Felucca 1.6's favorites by Leo Kuroshita (GPL-3.0). Tested in the host UI and storage tests only, not on "
+            "a device.")
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "

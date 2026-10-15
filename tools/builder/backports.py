@@ -18,6 +18,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
     "FELUCCA_MOTION": "motion recording (knobs per step)",
+    "FELUCCA_ENG_NOISE": "NOISE (colours, crackle, shift-register noise)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
@@ -69,6 +70,11 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
                       "from the web editor's protocol (AUTO_GET / AUTO_SET). About 3.4 KB of flash, 0.5 KB of RAM "
                       "and 1.4 KB of pool (measured before the automation store).",
+    "FELUCCA_ENG_NOISE": "Noise engine from Felucca-Engines (engine 15, MIT): white, pink and brown noise, crackle "
+                         "(DUST), a shift register clocked above the key (LFSR) and short-sequence metal tones (META), "
+                         "through a resonant filter that morphs from low-pass to band-pass, with key tracking, a slow "
+                         "random drift and a bit crusher; 4 presets. About 3 KB of flash, no RAM; 1.1..1.3 K host "
+                         "instructions a sample with 8 voices (the heaviest ANALOG preset: 1.7 K).",
     "FELUCCA_ENG_PHYS": "Physical-modelling engine (engine 11): modal, string, membrane and sympathetic-string models, "
                         "3 voices per part. Heavy: about 9.8 KB of flash and 38.7 KB of pool, and 3 voices of its "
                         "heaviest preset take about 17 % of the audio budget at 312 MHz (at 96 MHz that was too much "
@@ -217,6 +223,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_DIV_ORDER": 133,
     "FELUCCA_PUNCH_LATCH": 131,
     "FELUCCA_MOTION_MARK": 134,
+    "FELUCCA_ENG_NOISE": 140,                              # (the NOISE engine; 139 is JUNO's: feat/engine-juno)
     "FELUCCA_UP_FM6": 135,
     "FELUCCA_ENG_CZ": 136,
     "FELUCCA_ENG_JUNO": 139,

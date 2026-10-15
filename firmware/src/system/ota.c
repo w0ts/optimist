@@ -9,8 +9,16 @@
  *     loader at 0xE0000 (outside Felucca's store), ask 0xE0000000 ("success"),
  *     then write the UPDATA_PARM record (flash 0xE4F00 + RAM 0x01C7FD88) and
  *     reset. The SPL runs the loader, which installs the package.
- * Nothing is committed before the host's "success"; any failure erases the
- * staging area and Felucca carries on.
+ * Nothing is committed before the host's "success"; a failure once the
+ * staging began erases the staging area, and Felucca carries on.
+ * Before anything is erased (the staging area included), a package is refused
+ * when its flash.bin is not exactly this board's [0, FL_APP_HI) (another
+ * device's package, or one that would write past the app slot: -15, after
+ * Felucca 1.6.1), when its update loader is neither ours nor the official one
+ * (-7), and when that loader does not come in whole and matching its CRC (cut
+ * short: -6; damaged: -16). The package identity is not part of the image the
+ * device reads (the host strips the .fwsc marker bytes), so these checks do not
+ * depend on it.
  *
  * The firmware (felucca.c) and the host test supply these hooks:
  *   ota_wire_send(p, n)        one complete F0..F7 message to the host
@@ -27,6 +35,8 @@
 #include "../../hal/fm1_flash_map.h"
 _Static_assert(OTA_AREA == FL_OTA_LO && OTA_AREA + OTA_AREA_LEN == FL_OTA_HI && !FL_NEVER(OTA_AREA, OTA_AREA_LEN) &&
                OTA_AREA >= FL_APP_HI, "the update staging: off the app slot and the SDK's sectors");
+#define OTA_FL_LEN FL_APP_HI                     /* flash.bin = [0, the app slot's end): the head and this board's app
+                                                  * area, what the update loader writes (ldr_core.c LDR_APP_HI) */
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
@@ -281,10 +291,29 @@ static int ota_ufw(uint8_t *hdr, uint32_t *fl_off, uint32_t *fl_len, uint32_t *o
 static uint8_t ota_stage_mem[0x800];
 #define OTA_STAGE_MEM ota_stage_mem
 #endif
+
+/* the update loader's body from the host, 512 B at a time -> its CRC16; with prog, each piece also goes to the staging
+ * area. -9 read, -10 program */
+static int ota_body(uint32_t src, uint32_t len, uint8_t *b, int prog, uint32_t *crc)
+{
+    uint32_t i, n;
+    for (i = 0, *crc = 0; i < len; i += n) {
+        n = len - i > 512u ? 512u : len - i;
+        if (ota_read(src + i, b, n))
+            return -9;
+        *crc = ota_crc16(b, n, *crc);
+        if (prog && ota_prog(OTA_AREA + 32u + i, b, n))
+            return -10;
+    }
+    return 0;
+}
+
+static uint8_t ota_staging;                      /* the staging area was erased in this session (ota_session) */
+
 static int ota_stage(void)                       /* steps 1..6; 0 = host said success */
 {
     uint8_t *const hdr = OTA_STAGE_MEM, *const b = hdr + 0x400, *const mine = b + 512;
-    uint32_t i, n, ota_off, ota_len, fl_off, fl_len, fl_crc, c, len, own, official;
+    uint32_t i, n, ota_off, ota_len, fl_off, fl_len, fl_crc, c, crc, len, own, official;
     int rc;
     /* 1. UFW header + entry list */
     ota_show(1, 0);
@@ -292,6 +321,8 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         return rc;
     if (!fl_off || !ota_off)
         return -3;
+    if (fl_len != OTA_FL_LEN)
+        return -15;                                         /* another board's package: nothing erased */
     /* 2. which loader: the official one (known CRCs; it rewrites the whole flash.bin
      *    including the head) or Felucca's own (app area only, checks the chip key) */
     if (ota_read(ota_off, b, 512))
@@ -301,6 +332,7 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         ota_len != len + 0x20u || len > OTA_AREA_LEN - 0x200u || ota_crc16(b + 0x22, 30, 0) != ota_rd16(b + 0x20) ||
         ota_rd32(b + 0x20 + 8) != 0x01C0A800u)
         return -7;
+    c = ota_rd16(b + 2);                                    /* outer dcrc of the body */
     official = ota_rd16(b) == OTA_LDR_HCRC && ota_rd16(b + 2) == OTA_LDR_DCRC && len == OTA_LDR_LEN;
     for (i = 0x48, own = 0; i + 16u <= 0x48u + 64u && !own; i++)    /* first LZ4 literals: crt0_ldr.S */
         own = ota_memeq(b + i, (const uint8_t *)"FELUCCA-LOADER-1", 16) && ota_rd32(b + 0x20 + 4) <= 0x14000u;
@@ -315,35 +347,29 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
                 return -5;
         }
     }
-    /* 4. stage the package's loader: erase, body, verify, head last */
+    /* 3. the whole loader once, before anything is erased: a package cut short or damaged stops here */
     ota_show(3, 0);
-    if (ota_read(ota_off, b, 512))
+    if (ota_body(ota_off + 0x20u, len, b, 0, &crc))
         return -6;
-    c = ota_rd16(b + 2);                                    /* outer dcrc of the body */
+    if (crc != c)
+        return -16;
+    /* 4. stage the package's loader: erase, body, verify, head last */
+    ota_staging = 1;
     for (i = 0; i < OTA_AREA_LEN; i += 0x1000u)
         if (ota_erase(OTA_AREA + i))
             return -8;
-    {
-        uint32_t crc = 0;
-        for (i = 0; i < len; i += n) {
-            n = len - i > 512u ? 512u : len - i;
-            if (ota_read(ota_off + 0x20u + i, b, n))
-                return -9;
-            crc = ota_crc16(b, n, crc);
-            if (ota_prog(OTA_AREA + 32u + i, b, n))
-                return -10;
-        }
-        if (crc != c)
+    if ((rc = ota_body(ota_off + 0x20u, len, b, 1, &crc)) != 0)
+        return rc;
+    if (crc != c)
+        return -11;
+    for (i = 0, crc = 0; i < len; i += n) {                 /* read back from flash */
+        n = len - i > 512u ? 512u : len - i;
+        if (ota_fread(OTA_AREA + 32u + i, b, n))
             return -11;
-        for (i = 0, crc = 0; i < len; i += n) {             /* read back from flash */
-            n = len - i > 512u ? 512u : len - i;
-            if (ota_fread(OTA_AREA + 32u + i, b, n))
-                return -11;
-            crc = ota_crc16(b, n, crc);
-        }
-        if (crc != c)
-            return -11;
+        crc = ota_crc16(b, n, crc);
     }
+    if (crc != c)
+        return -11;
     if (ota_stage_head(len))
         return -12;
     /* 6. the host confirms: nothing is committed without it */
@@ -369,9 +395,11 @@ static int ota_session(void)
     uint32_t i;
     int rc;
     ota_deadline = ota_now_ms() + 120000u;          /* step 1 normally takes ~5 s; a stalled host gives up after 2 min */
+    ota_staging = 0;
     rc = ota_stage();
     if (rc) {
-        ota_unstage();
+        if (ota_staging)                            /* (refused before staging: nothing to erase) */
+            ota_unstage();
         ota_show(9, rc);
         return rc;
     }

@@ -73,7 +73,87 @@ static void ldr_record_clear(void)
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
 static int ldr_flash_known(void) { return fl_jedec_ram() == 0x856014u; }   /* as the app (project.c) */
+
+/* A progress bar so the panel is not dark while the app area is rewritten. No panel init or reset: the ST7789
+ * keeps its picture (the app's UPDATE screen) over the core reset, only the pins and the backlight (PA2) fall
+ * back to their defaults, so fm1_lcd_hw_init alone brings them back. It runs after a sector is verified, never
+ * inside a flash operation, and every SPI wait is bounded (fm1_lcd_wait); the watchdog is still fed here.
+ * LDR_LCD 0 = the old dark loader. */
+#ifndef LDR_LCD
+#define LDR_LCD 1
+#endif
+#if LDR_LCD
+#include "fm1_lcd_hw.h"
+#define LDR_BAR_X 4u                                /* the bar: columns 4..235, rows 160..167 */
+#define LDR_BAR_W 232u
+#define LDR_BAR_Y 160u
+#define LDR_BAR_H 8u
+static uint16_t ldr_row[LDR_BAR_W];                 /* one row of the colour, DMA source (RAM) */
+static uint8_t ldr_win[4];
+
+static void ldr_lcd_cmd(uint8_t c, uint32_t v0, uint32_t v1)   /* c, then two big-endian 16-bit values */
+{
+    fm1_lcd_send_cmd(c);
+    fm1_lcd_wait();
+    fm1_lcd_deselect();
+    if (c == 0x2Cu)
+        return;
+    ldr_win[0] = (uint8_t)(v0 >> 8);
+    ldr_win[1] = (uint8_t)v0;
+    ldr_win[2] = (uint8_t)(v1 >> 8);
+    ldr_win[3] = (uint8_t)v1;
+    fm1_lcd_send_data(ldr_win, 4);
+    fm1_lcd_wait();
+    fm1_lcd_deselect();
+}
+
+static void ldr_bar(uint32_t from, uint32_t to, uint16_t c)    /* bar columns from..to-1 (c is byte-swapped RGB565) */
+{
+    uint32_t i, y;
+    if (to > LDR_BAR_W)
+        to = LDR_BAR_W;
+    if (from >= to)
+        return;
+    for (i = 0; i < to - from; i++)
+        ldr_row[i] = c;
+    ldr_lcd_cmd(0x2Au, LDR_BAR_X + from, LDR_BAR_X + to - 1u);
+    ldr_lcd_cmd(0x2Bu, LDR_BAR_Y, LDR_BAR_Y + LDR_BAR_H - 1u);
+    ldr_lcd_cmd(0x2Cu, 0, 0);
+    for (y = 0; y < LDR_BAR_H; y++) {
+        fm1_lcd_send_data(ldr_row, (to - from) * 2u);
+        fm1_lcd_wait();
+        fm1_lcd_deselect();
+    }
+}
+
+static uint32_t ldr_bar_x;                          /* columns of the bar already drawn */
+
+static void ldr_lcd_start(void)                     /* the first thing the loader does: backlight and track */
+{
+    fm1_lcd_hw_init();
+    fm1_lcd_baud(1u);
+    ldr_bar(0, LDR_BAR_W, 0x0842u);                  /* the track */
+}
+
+/* One bar that fills once and never goes back: the loader reads the package twice (the check, then the write),
+ * so the check is the first half and the write the second. A repeated pass draws nothing until it passes the
+ * columns already filled. done < 0x100000: no overflow. */
+static void ldr_fill(uint32_t done, uint32_t total, uint32_t base)
+{
+    uint32_t x = base + (done > total ? LDR_BAR_W / 2u : done * (LDR_BAR_W / 2u) / total);
+    if (x > ldr_bar_x) {
+        ldr_bar(ldr_bar_x, x, 0xFFFFu);
+        ldr_bar_x = x;
+    }
+    ldr_poll();
+}
+static void ldr_checking(uint32_t done, uint32_t total) { ldr_fill(done, total, 0); }
+static void ldr_progress(uint32_t done, uint32_t total) { ldr_fill(done, total, LDR_BAR_W / 2u); }
+#else
+static void ldr_lcd_start(void) {}
+static void ldr_checking(uint32_t done, uint32_t total) { (void)done; (void)total; }
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; ldr_poll(); }
+#endif
 #include "ldr_core.c"
 
 extern uint32_t _bss_start[], _bss_end[];
@@ -83,6 +163,7 @@ void ldr_main(void)
     fm1_wdt_arm(0x0D);                              /* ~8 s, fed by ldr_poll */
     fm1_time_init();
     usb_start();
+    ldr_lcd_start();
     for (;;) {
         ldr_poll();
         usb_retry(ldr_ms());

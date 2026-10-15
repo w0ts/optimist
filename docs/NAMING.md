@@ -6,7 +6,7 @@ family's boat names: Felucca (now Melodee), Jangada, SLOOP.
 **Applied** on 2026-10-06 in `feat/builder` (the user chose not to wait for hardware): USB product
 "Optimist (Felucca)", the loader "Optimist Update", the audio functions "Optimist Out / In", the version string
 "OPTIMIST 0.1", the editor and installer pages, the manual (OPTIMIST.md; SLOOP.md and DEMARRAGE-RAPIDE-FR.md removed 2026-10-07), package names
-`optimist-<profile>-<date>.fwsc` + `-ui.zip`, the identity FM-1_7XY (feat/backports-fixes). The build flags keep
+`optimist-<profile>-<date>.fwsc` + `-ui.zip`, the identity FM-1_700, releases FM-1_720 .. 769 (BUILDING.md). The build flags keep
 `FELUCCA_*`. The boot screen draws the Optimist logo and the version (ui/splash.c, FELUCCA_SPLASH).
 
 ## What the rename touched (done)

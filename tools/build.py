@@ -50,9 +50,9 @@ LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 SDK_SHA256 = TC.SDK_SHA256          # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
 BACKEND = None                      # how the toolchain runs (tools/toolchain.py; main() resolves it)
 
-# package identity (BUILDING.md "Package identity"): Optimist is FM-1_7XY. FM-1_ + three digits is the
+# package identity (BUILDING.md "Package identity"): Optimist is FM-1_7XX. FM-1_ + three digits is the
 # form the stock updater and every installer accept (M-VAVE 0XX, Baud Girl 020-09X, Lunar 5XX, Felucca /
-# SLOOP / X0X 9XX); release builds are FM-1_7XY, development builds FM-1_700
+# SLOOP / X0X 9XX); development builds FM-1_700, release X.Y FM-1_7(X+2)Y (release_product)
 PRODUCT = "FM-1_700"
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui/sloop/ui.c)
 OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()   # the one version number
@@ -206,6 +206,7 @@ ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unus
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ", "FELUCCA_ENG_JUNO",
                   "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
+BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
@@ -753,7 +754,7 @@ def ui_sidecar(fwsc):
 def main():
     global PRODUCT, VERSION, MEASURE, BACKEND
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7XY, version string X.Y")
+    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7(X+2)Y, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     ap.add_argument("--config", type=Path, help="a firmware builder .config (tools/menuconfig; default: every "
                     "default, with the FELUCCA_* environment switches applied)")
@@ -773,11 +774,8 @@ def main():
     setup_config(a.config)
     VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
     name = "felucca.fwsc"                       # (the internal name tests and tools read; see release_name)
-    if a.release:                   # one digit each: the identity has room for two
-        m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
-        if not m:
-            raise SystemExit(f"--release {a.release}: use X.Y or X.Y-suffix, one digit each")
-        PRODUCT = "FM-1_7" + m[1] + m[2]
+    if a.release:
+        PRODUCT = release_product(a.release)
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
         if a.release.split("-")[0] != OPTIMIST_VERSION:
             raise SystemExit(f"--release {a.release}: VERSION says {OPTIMIST_VERSION}; update VERSION first")
@@ -828,6 +826,16 @@ def main():
     shutil.copy(ui, named.with_name(named.stem + "-ui.zip"))
     print(f"named    {named}  (+ {named.stem}-ui.zip)")
     return 0
+
+
+def release_product(release):
+    """--release X.Y[-suffix] -> its identity FM-1_7(X+2)Y: 0.1 -> FM-1_721 .. 4.9 -> FM-1_769 (BUILDING.md
+    "Package identity": 701, 710, 711, 777 are other firmwares'); SystemExit for anything else"""
+    m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", release)     # one digit each: the identity has room for two
+    if not m or int(m[1]) > 4:
+        raise SystemExit(f"--release {release}: use X.Y or X.Y-suffix, one digit each, X at most 4 "
+                         "(the identity block FM-1_720 .. FM-1_769)")
+    return f"FM-1_7{int(m[1]) + 2}{m[2]}"
 
 
 def release_name(release=None):
