@@ -15,6 +15,7 @@
 #define JUNO_POLY 6u
 static juno_vs_t juno_v[NPART][NVOICE];
 static juno_hpf_t juno_h[NPART];
+static struct { juno_rset_t r; uint8_t res1; } juno_rc[NPART];   /* each part's RES (+ 1, 0 = none yet) and what it sets */
 
 AINL juno_vs_t *juno_vs(const track_t *t, const voice_t *v)
 {
@@ -39,10 +40,12 @@ static void juno_note_on(track_t *t, voice_t *v)
 static int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
 {
     uint32_t i = (uint32_t)adsr >> 7, f = (uint32_t)adsr & 127u;
+    int32_t a;
     (void)t, (void)v;
     if (i >= 255u)
-        return JUNO_VCA_HW[255];
-    return JUNO_VCA_HW[i] + (int32_t)(((JUNO_VCA_HW[i + 1] - JUNO_VCA_HW[i]) * f) >> 7);
+        return JUNO_DTAB(VCA_HW, 255u);
+    a = JUNO_DTAB(VCA_HW, i);
+    return a + (((JUNO_DNEXT(VCA_HW, a, i) - a) * (int32_t)f) >> 7);
 }
 
 /* the level: y * amp >> 12, ANALOG's (juno_test) */
@@ -64,6 +67,14 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     pw = p[P_E1] + (m->shape >> 8) - 64;              /* SHAPE (LFO / ENV > SHP) moves the width */
     c.pw = (uint8_t)clamp(pw, 0, 105);
     c.res = (uint8_t)clamp(p[P_E5], 0, 127);
+    {   /* (the packed resonance tables: decoded when RES changes) */
+        uint32_t pi = (uint32_t)(t - trk) % NPART;
+        if (juno_rc[pi].res1 != c.res + 1u) {
+            juno_res_at(&juno_rc[pi].r, c.res);
+            juno_rc[pi].res1 = (uint8_t)(c.res + 1u);
+        }
+        c.r = juno_rc[pi].r;
+    }
     /* the cutoff DAC: the slider, the LFO (and the mod slots) at half the 14-bit range per full swing, the
      * envelope at the Juno's VCF ENV depth (ENV > FLT 63 = 252 of 254), the key tracking */
     c.dac = (uint16_t)juno_dac(clamp(p[P_E4], 0, 127) << 7, (m->cutoff - envp) >> 1, (uint32_t)m->envq15 >> 1, ea * 2,
