@@ -41,7 +41,10 @@ again): FLASH REFUSED, nothing read or written; never an older `build/optimist-*
 for 21 hours flashed a 4-hour-old build of another commit and an older profile as "the last build", and the FM-1 went to
 its USB rescue.) The builder builds the checkout it runs in, at the commit it is on (no branch choice); the top line
 and every build's result show `source: <path> <branch>@<commit>`. The same without the menu:
-`python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash` (BUILDING.md; it shows the package's commit too).
+`python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash` (BUILDING.md; it builds first when no package is named,
+and shows the package's commit too). In the menu, b and f show a progress bar under the panels: the build's five stages
+(toolchain and config, generators and loader, app, checks, package), then the flash (checking the package, switching to
+update mode, writing, restarting); f with no current build of the configuration shown builds it first, then asks.
 
 A configuration error marks the lines of the items it concerns as soon as it holds, in red after the item
 (`✗ the drum track needs a drum source: …`; an option's error marks its parent too, in case it is folded),

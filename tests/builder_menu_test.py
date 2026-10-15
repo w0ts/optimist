@@ -230,7 +230,7 @@ async def main():
     import flash as FL
     calls = []
 
-    def fake_tool(args, capture=True):
+    def fake_tool(args, capture=True, on_line=None):
         calls.append(list(args))
         return (0, "Optimist_730  [running]  port: FM-1") if "--info" in args else (0, "writing 100%\ndone: the FM-1 runs Optimist_730")
     saved = (FL.run_tool, FL.FI.load_package, FL.last_package)
@@ -244,11 +244,15 @@ async def main():
             async with app.run_test(size=(200, 60)) as pilot:
                 await pilot.pause()
                 check("f is bound: Flash to FM-1 in the footer", any(b.key == "f" and "flash" in b.description for b in app.BINDINGS))
+                builds = []
+                app.run_build = lambda cfg, name, then_emu=False: builds.append(name)    # (no toolchain here)
                 await pilot.press("f")
                 await pilot.pause()
-                check("f with no build: FLASH REFUSED (build first), nothing asked, no device touched",
-                      type(app.screen).__name__ != "Pick" and not calls and app.build_out.startswith("FLASH REFUSED")
-                      and "build first" in app.build_out)
+                check("f with no build: it builds first (the build is started), nothing asked, no device touched",
+                      type(app.screen).__name__ != "Pick" and not calls and builds == ["default"]
+                      and app.flash_after_build and "then the flash" in app.build_out)
+                app.flash_after_build = False                              # (the build never ends here)
+                app.progress_hide()
                 built = ST.Stamp(pkg, C.cfg_hash(app.cfg), "default")      # (what run_build records: stamp.py)
                 app.show_build("BUILD OK\n  f: Flash to FM-1", {}, built)
                 check("a successful build offers it: the panel says so and remembers the package (its stamp)",
@@ -283,7 +287,7 @@ async def main():
                 writes = [c for c in calls if "--info" not in c]
                 check("confirming writes the package with --yes, never --force, and reports it",
                       writes == [[str(pkg), "--yes"]] and "FLASH OK" in app.build_out and "done:" in app.build_out)
-                FL.run_tool = lambda args, capture=True: (3, "error: FM-1 not found")
+                FL.run_tool = lambda args, capture=True, on_line=None: (3, "error: FM-1 not found")
                 await pilot.press("f")
                 for _ in range(40):
                     await pilot.pause(0.05)

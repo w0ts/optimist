@@ -907,25 +907,28 @@ def in_container():
             or os.environ.get("JIELI_BACKEND") in ("docker", "image"))
 
 
-def _run(cmd, env, echo):
-    """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu)"""
-    if not echo:
+def _run(cmd, env, echo, on_line=None):
+    """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu); on_line: called
+    with each line as it comes (the menu's progress bar reads the stage lines)"""
+    if not echo and not on_line:
         p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8",
                            errors="replace")
         return p.returncode, p.stdout + p.stderr
-    lines = []
-    with subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                          encoding="utf-8", errors="replace",
-                          bufsize=1) as p:
-        for ln in p.stdout:
-            sys.stdout.write(ln)
-            lines.append(ln)
-    return p.returncode, "".join(lines)
+
+    import progress as PR                               # (tools/progress.py; here, not at the top, so a copy of this
+                                                        # file that only lists and loads profiles needs nothing else)
+
+    def each(ln):
+        if echo:
+            print(ln, flush=True)
+        if on_line:
+            on_line(ln)
+    return PR.stream(cmd, on_line=each, cwd=ROOT, env=env)
 
 
-def build(cfg, name, measure=False, log=None, extra=(), echo=False):
+def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None):
     """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
-    build.py arguments (--release X.Y)"""
+    build.py arguments (--release X.Y); on_line: called with each output line while it builds"""
     err, _, _ = validate(cfg)
     if err:
         msg = "configuration errors:\n  " + "\n  ".join(err)
@@ -942,7 +945,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
     (ROOT / "build" / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
-        rc, out = _run(cmd, env, echo)
+        rc, out = _run(cmd, env, echo, on_line)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
         if rc == 0 or not flaky or attempt == 2 or not in_container():
