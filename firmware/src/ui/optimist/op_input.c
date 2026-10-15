@@ -796,6 +796,19 @@ static uint32_t op_oct_avail(void)
         m |= 1u << B_OCTUP;
     return m;
 }
+static int step_yes_any(void)                           /* STEP: would YES do something on this line (as step_yes / page_yes) */
+{
+    int16_t *vp;
+    const param_desc_t *d;
+    if (st.held || op_armed())
+        return 1;
+#if FELUCCA_SEQTOOLS
+    if (stp_tl(ui.row[SCR_STEP]) >= 0)
+        return stp_tl(ui.row[SCR_STEP]) == 0 || ui.hot == 3u;   /* (TOOLS: always; EUCLID: its ON / OFF card) */
+#endif
+    d = page_desc(&PAGES[stp_pattern()], ui.hot, &vp);
+    return d && vp && !PARAM_HIDDEN(d) && (is_go(d) || (is_toggle(d) && d->max != d->min));
+}
 static uint32_t op_btn_avail(void)                      /* a bit per panel button (B_*) that has a function now */
 {
     static const uint8_t PAGE_BTN[] = {B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_ARP};
@@ -820,6 +833,10 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         if (on)
             m |= 1u << b;
     }
+    if (is_drum(TSEL) && !(ui.scr == SCR_STEP && st.held))
+        m &= ~(1u << B_ARP | 1u << B_SCL);             /* (the drum track and its lanes: no arp, no scale; a held layer alone is no light, 2026-10-15) */
+    if (ui.scr == SCR_STEP && !step_yes_any())
+        m &= ~(1u << B_SAVE);                           /* (STEP: SAVE lit only where YES acts: a tool card, a toggle or GO, a held step) */
     if (master_sel()) {                                 /* MASTER (any page): no track button; FX the master FX */
         for (i = 0; i < NB; i++)
             if (mx_master_dead(i))

@@ -84,9 +84,9 @@ static void btnled_tests(void)
                 press(b);
                 frames(HOLD_FRAMES);
                 l = lay_btn_layer(b);
-                if (b != B_LFO && (b != B_SAVE || BK_SCR[s] == SCR_STEP))   /* (LFO's held layer, the patterns, is not counted: section 14; SAVE's
-                                                         * chords count only on STEP, where it is a TOOLS verb and the undo chord: everywhere else a half
-                                                         * lit SAVE must work as a tap, the user, 2026-10-15) */
+                if (b != B_LFO && b != B_SAVE && !((b == B_ARP || b == B_SCL) && (k == BK_DR || k == BK_LANE)))   /* (LFO's held layer, the patterns, is not counted: section 14; SAVE's
+                                                         * chords never count: a half lit SAVE must work as a tap; nor does ARP / SCL's held layer on the
+                                                         * drum track and its lanes: dark there, the user, 2026-10-15) */
                     act |= l != LY_PLAY && ly_bit[l] != 0u && lay.shown != LY_PLAY;
                 release(b);
                 n++;
