@@ -68,6 +68,8 @@ of 1 of before on PIT FLT SHP, on AMP the same. They are part of a sound (user p
 carry the slots, the device stores them as before when they are depths). Not lockable nor recordable as motion yet; an
 old lock or motion event on a depth (id 13..16 in a project from before) plays onto the slot on that destination.
 
+**ENV DEST** (2026-10-14, feat/env-dests): ENV and ENV2 each have the same two slots (DST A, AMT A, DST B, AMT B), taken from one list shared by LFO, LFO2, ENV and ENV2 (core.h `LT_*`; `DESC` gives the names of this build). The amplitude is ENV slot A on AMP 127 by default (a new sound, INIT, the presets, an old project). The old relative XRATE / XAMT are the absolute L1 RT, L1 AMT, L2 RT, L2 AMT. The fixed pitch drop that ENV DEST PIT used to give is its own value, DROP (key `PIT` in the web editor's `paramKeys`). ENV2 runs on every engine. A project stores the slots as int8 values in its modulation record (tag 0xD2, with the drum lanes' LFO records); old depth words are written 0 (0 = defaults) and an old project converts from its words. `UP_GET` / `UP_PUT` carry the device's P_COUNT and the slots. **VOICES** (`P_VOICES`, the last parameter id; 1 to the engine's maximum, never AUTO) is a track parameter listed by `DESC`.
+
 **LFO 2** (builds with the builder item LFO2, `FELUCCA_LFO2`): eight track parameters after every other one, the last
 ids of a track (P_COUNT−8 .. P_COUNT−1 in those builds; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
 below 0 a note value of the tempo), WAVE (SIN TRI SAW SQR S&H), TRIG (NOTE FREE), POL (BI UNI), DEST A, AMT A, DEST B,
@@ -191,7 +193,7 @@ name. SELECT and the SAVE > PRESETS browser continue past the factory presets in
 presets.
 
 **Flash** (`firmware/src/storage/upreset.c`): two storage objects (`OBJ_UPRESET0/1`, A/B sector pairs at
-0xDC000..0xDFFFF), 16 records of 192 bytes each, behind a bank header (magic "UPB2" — "UPB1" before ANALOG 2 / FM6, engines renumbered on load — record size,
+0xDC000..0xDFFFF), 16 records of 216 bytes each (UP_VER 3, 2026-10-14: every value in its own 16-bit word, then the envelopes' 8 modulation-slot words), behind a bank header (magic "UPB3"; "UPB2" (192-byte records) and "UPB1" (before ANALOG 2 / FM6, engines renumbered on load) are read and converted, and the bank is written as UPB3 at the next store; record size,
 slot count; a mismatch reads as an empty bank). A record keeps its layout version (mismatch: empty)
 and the P_COUNT it was stored with; another count is mapped by count (last 8 values = P_E0..P_E7, the
 first ones = P_LEVEL.. in order, missing ones = defaults). P_COUNT was 53 (P_E0 45) until the SLICER
@@ -572,7 +574,7 @@ settings record before the song chain it names):
 | FXR1, FXR2 | 8 / 16 sections: the FX slots' records (fx_rec.c) in two raw objects, FXR1 sections A..I (ids 0..8), FXR2 J..P and the autosave (9..16): per record u8 id, u16 length (little-endian), the log record (key, stored form); each written back whole at the commit, paired by its key with S01.. and AUTO; an id outside the object's range refuses it | 5 |
 | DLFO | 8 / 16 sections: the drum lanes' LFO records (storage/dlfo_rec.c: each lane's RATE WAVE PHS FADE and two DEST + AMT slots, the lanes not at their defaults) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u8 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO. A firmware before it does not list it: the editor skips it there, and the sections load with every LFO off | 5 |
 | AUTO | the working project (autosave) | 0 |
-| UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
+| UPR1, UPR2 | user presets 1–16, 17–32 ("UPB3"; a backup of "UPB2" / "UPB1" is converted on restore) | 0 |
 | UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
 | FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
@@ -853,16 +855,15 @@ the scenes.
 
 ## v10: FX slots (commands 86, 87; INFO tag 56)
 
-Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
-docs/FX-SLOTS-INSERTS-DESIGN.md) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
-DR) has two **insert slots**, S1 then S2, holding DIST, FILT or COMP, default S1 DIST, S2 FILT (2026-10-12). A slot is
+Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
+DR) has two **insert slots**, S1 then S2, holding an insert type (DIST, FILT or COMP at first; since 2026-10-13 and 14 also FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER DUST JUNO, each a builder item), default S1 DIST, S2 FILT (2026-10-12). A slot is
 empty or holds one effect **type**, and a type sits in one slot at most (a track's: in one of its two): loading a type
 another slot holds swaps the two slots. The amounts belong to the type, not the slot: a type not heard on a track (no
 slot of the track holds the insert, no master slot the send) keeps its amounts. Each track's COMP has its own RATIO
 ATK REL; the drum track has send levels REV DLY CHO (0..127, 127 = 100 %) that scale every lane's send of that bus.
 
 `INFO` tag `56 len 01 n` then n × 4 bytes, one per type built: **type id** (stored by the firmware, never reused: 1 DIST,
-2 CHO, 3 DLY, 4 REV, 5 COMP, 6 FILT; 0 is an empty slot), **kind** (0 a send bus, 1 an insert), the **amount id** (a
+2 CHO, 3 DLY, 4 REV, 5 COMP (named DYN: a compressor and a limiter), 6 FILT, 7 FOLD, 8 FUZZ, 9 PHSR, 10 FLNG, 11 FRMT, 12 WIDE, 13 CHRS, 14 ECHO, 15 GATER, 16 DUST, 17 JUNO; 0 is an empty slot; the web editor's `FXT_NAMES` lists them), **kind** (0 a send bus, 1 an insert), the **amount id** (a
 `P_*`: a synth track's amount and the drum bus's, the drum track's own value: DESC / `TRACK_PARAM` / the v9 `PARAMS` push;
 its DESC label names the slot: DST CHO DLY REV CMP FILT), the **sound id** (SOUND 3's value id of a drum sound's amount:
 16 REV, 17 DLY, 18 CHO, 19 DST, 20 CMP; 127 none, FILT has no per-sound form). A drum sound's REV DLY CHO are its lane's
@@ -873,6 +874,18 @@ amount ids in slot order, SOUND 3 the slots' sound ids.
 |---|---|---|
 | 86 FX | op [args]: 0 get; 1 the four master slots (type ids, the sends only: an insert id, a type twice (its later slot), an id past the table: an empty slot; send the layout after the swap); 2 every track's COMP RATIO ATK REL (the master COMP's value lists: GLO > COMP's DESC names them; clamped); 3 a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged); 4 a track's insert slots: track 0..3 (T1 T2 T3 DR), S1, S2 (insert type ids or 0; the same type twice: S2 empty; send the pair after the swap); 5 a track's COMP settings: track, RATIO ATK REL; 6 the drum track's send levels REV DLY CHO (0..127) | op, then the state: 4 master slots (type ids), RATIO ATK REL (T1's; 127 127 127: no COMP built), 16 × the drum sounds' DIST, 16 × their COMP; then (the track insert slots, 2026-10-12; an older editor reads the first 39 bytes) 8 type ids (T1 S1 S2, T2 .., DR), 12 × RATIO ATK REL (T1 .. DR), 3 × the drum send levels REV DLY CHO. A bad op, lane, kind or track: no reply |
 | 87 FX_PUSH (push, v9 `WATCH` bit 2) | — | as the FX reply with op 0, when any of it changed on the device (FX > SLOTS, FX > CMP, SOUND 3, a project or snapshot loaded); the editor's own `FX` writes are not echoed |
+
+Not in the `FX` command (2026-10-15): the master's two **insert slots** (type ids stored in the FX record's TLV 0x44), each track's DYN GAIN and CEIL, the drum sounds' two insert slots (TLV 0x46) and the master's three return buses; the editor sees the types in tag 56 and the amounts as parameters. The FX record (`fx_rec.c`, `FXR_VER` 1, at most `FXR_MAX` 288 bytes) is `u8 version, u8 flags (bit 0: the record is of the insert-slot model), u8 slot[4]` (the master sends' type ids), then TLVs `u8 id, u8 length, bytes`. A reader skips a TLV it does not know; a newer version is ignored as a whole. The ids:
+- 1..17: one TLV per effect type, the type id as the TLV id (amounts of T1 T2 T3 DR, and a type's own extras, e.g. GATER's PATTERN RATE SHAPE, JUNO's MIX and MODE for the tracks and the master);
+- 0x40 (`DLM_TLV`): the drum lanes' PAN, MUTE, SOLO (16 + 4 bytes);
+- 0x41 (`FXRET_TLV`): the returns CHO DLY REV, 3 bytes (0..127), only when one is not 127;
+- 0x42 (`INS_TLV`): the tracks' S1 S2 type ids (8), each track's COMP RATIO ATK REL (12), the drum track's send levels (3), then each track's DYN GAIN and CEIL (8): 31 bytes, an older reader takes the first 23;
+- 0x43 (`SMUTE_TLV`): the sequencer mutes (3 bytes, 4 with the ACCENT lane's);
+- 0x44 (`MST_TLV`): the master's S1 S2 type ids, then its amounts for DIST and each further type with no global of its own;
+- 0x46 (`LIN_TLV`): the drum sounds' two insert slots, a byte a lane (S1's index, S2's in the high nibble), only when a lane is not S1 DIST, S2 DYN;
+- 0x47 (`VCNT_TLV`): the parts' VOICES (0..8, 0 = the engine's maximum), a byte a part, only when one is not 0;
+- 0x48 (`UT_TLV`): the USB input track in a USB audio build: LEVEL PAN MUTE FX-ON REV DLY CHO (a byte each, PAN signed), its two slots' types and amounts, then GATER's PATTERN RATE SHAPE and the JUNO chorus' MODE, 15 bytes (11 before 2026-10-15's USB input inserts), only when not every one is the default.
+0x45 is not used by the firmware.
 
 The web editor (web/editor.html): the strips' four FX knobs are the slots' amounts, named after them; the drum strip has
 a SOUND | BUS switch (the selected sound's sends and inserts, or the drum bus's amounts after its inserts); the MASTER

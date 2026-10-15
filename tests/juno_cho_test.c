@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* JUNO CHORUS, the generic FX unit (firmware/src/fx/junocho/juno_cho.h; fm-106's MN3009 model, which it matches sample
+/* JUNO CHORUS, the generic FX unit (firmware/src/fx/junocho/juno_cho.h; fm-106's MN3009 model, by PatttF after
+ * Ultramaster KR-106, both GPL-3.0, which it matches sample
  * for sample: the harness todo1014/juno/harness/cho_vs_fm106.c outside the repo):
  *   - MIX 0 gives the input itself (L = R = in);
  *   - each MODE at MIX 127: bounded, L and R differ (stereo from mono), the three modes differ, the render's FNV-1a 64 as

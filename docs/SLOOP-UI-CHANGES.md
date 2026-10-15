@@ -1,6 +1,6 @@
 # SLOOP UI changes (batch 31)
 
-What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built. The Optimist UI (UI=1) gets only the knob colours.
+What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built. The Optimist UI (UI=1) gets only the knob colours. "HOME shift" below is SLOOP's UI; the Optimist UI's shift is OCT- held (SHIFT) and OCT+ held (SHIFT2), see [UI-OPTIMIST-DESIGN.md](UI-OPTIMIST-DESIGN.md).
 
 ## Mixer (TRACKS)
 

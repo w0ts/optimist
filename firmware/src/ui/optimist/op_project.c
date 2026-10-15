@@ -259,7 +259,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO,
-       SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG };
+       SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
 #define LOAD_AMBER 60
@@ -337,6 +337,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
+    {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_OUT, SI_OUT),
@@ -565,6 +566,10 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     case SI_UAINFO:                                     /* the USB STATS page's one line */
         c->label = "USB STATS";
+        c->kind = CK_RO;
+        break;
+    case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
+        c->label = "CREDITS";
         c->kind = CK_RO;
         break;
     case SI_BATT: {                                     /* BATTERY: the bars out of 3 and the raw ADC count, no invented percentage */

@@ -725,7 +725,9 @@ def ble_rf_tables():
             shutil.copyfile(a, b)           # (build/gen: what the compiler and tests/ble_emu_test.py read)
 
 
-NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package
+# in every -ui.zip, next to every package: the JieLi SDK files (Apache-2.0) and the MIT / BSD-3-Clause parts compiled
+# into the firmware (their notices must travel with a binary too)
+NOTICE_FILES = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (SRC / "LICENSES").glob("*.txt")))
 
 
 def ui_sidecar(fwsc):

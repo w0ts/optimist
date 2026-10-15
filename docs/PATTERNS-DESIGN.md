@@ -1,5 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
+> **2026-10-15 note.** The gestures in this document that name HOME ("LFO + HOME", "HOME + a white key") are SLOOP's UI. In the Optimist UI every HOME-held gesture is SHIFT, which is OCT- held (HOME is only HOME / NO; docs/UI-OPTIMIST-DESIGN.md). The section log, the pattern records and the scenes are the same in both UIs. The automation extras these records carry are written in the forms the code writes today; one written form for them has landed (perf/automation-merge, 2026-10-15; see docs/UI-OPTIMIST-DESIGN.md).
+
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
 built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); **phase 5 built** (`feat/patterns-p5`: 11.6); **the leftovers built** (`feat/patterns-left`: 11.7). The study was
 written as "clips" (branch `docs/clips-design`, c3d5471); the user's decisions of 2026-10-07 (section 0a) renamed them

@@ -79,8 +79,8 @@ static int gls_no_title(void)
             op_enter(scr);
             ui.row[scr] = (uint8_t)gl_pfirst(s, p);
             frame();
-            if (gl_info())
-                continue;                               /* (INFO is read-outs from the top of the band, no 4-line pitch) */
+            if (gl_textpage())
+                continue;                               /* (INFO, CREDITS are read-outs from the top of the band, no 4-line pitch) */
             for (y = OH_HEAD; y < OH_HEAD + gl_ty(gl_y0(), GL_BH); y++)
                 if (gls_rowpx(y, 0, 240, &a, &b)) {
                     ok = 0;
@@ -133,7 +133,7 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
                 cell_t c;
                 int32_t ly = gl_y0() + (int32_t)(i - f) * gl_pitch(), y = OH_HEAD + ly, by = OH_HEAD + gl_by(ly);
                 uint32_t cur = i == f && e - f > 1u ? f + 1u : f, tog, bar, r, lit = 0;
-                if (i == cur || (s && sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_INFO))
+                if (i == cur || (s && (sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_INFO || sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_CREDITS)))
                     continue;
                 ui.row[scr] = (uint8_t)cur;
                 frame();
@@ -232,7 +232,7 @@ static int gls_ble_enter(void)                          /* YES on BLE, from the 
 #endif
 static int gls_about_info(void)
 {
-    uint32_t ok = 1, i, f = gl_pfirst(1, gl_npg(1) - 1u);
+    uint32_t ok = 1, i, f = gl_pfirst(1, gl_npg(1) - 2u);   /* (the page before the last, CREDITS) */
     cell_t c, v, b, ch, rp;
     char nm[24];
     gl_cell(1, f, &v);
@@ -253,6 +253,26 @@ static int gls_about_info(void)
     }
     if (!ok)
         printf("  glstyle: About '%s' '%s' '%s' '%s'\n", b.val, b.unit, ch.val, rp.unit);
+    return (int)ok;
+}
+static int gls_credits(void)                            /* the last page: CREDITS, text lines that fit, LICENSING.md the last */
+{
+    uint32_t ok = 1, i, f = gl_pfirst(1, gl_npg(1) - 1u);
+    char nm[24];
+    gl_ptitle(1, f, nm, sizeof nm);
+    ok &= !strcmp(nm, "Credits") && gl_end(1, f) - f == 1u && sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_CREDITS;
+    ok &= CRED_N >= 10u && !strcmp(CRED[CRED_N - 1u][1], "LICENSING.md") && !strcmp(CRED[0][1], FELUCCA_VERSION);
+    for (i = 0; i < CRED_N; i++) {                      /* (the name, a gap, the who: inside 6 .. 236) */
+        char b[16];
+        ok &= 6 + text_w(&FONT_S, nm_card(CRED[i][0], 0, b, sizeof b)) + 8 + text_w(&FONT_S, CRED[i][1]) <= 236;
+    }
+    ok &= (GL_END - gl_y0()) / (int32_t)CRED_N >= (int32_t)FONT_S.h;   /* (a line's pitch holds the font) */
+    op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = (uint8_t)f;
+    ui.force = 1;
+    frame();
+    ok &= gl_textpage() != 0u;
+    ppm("opt-system-credits");
     return (int)ok;
 }
 static int gls_info_page(void)
@@ -329,5 +349,6 @@ static void glstyle_tests(void)
 #endif
     check(gls_info_page(), "SYSTEM: INFO, the first page: the memory used / total as text read-outs, no bars");
     check(gls_about_info(), "SYSTEM: About: version, build date and time, the chip, the repo link, on one page and fitting");
+    check(gls_credits(), "SYSTEM: Credits, after About: the version, the upstreams by name, LICENSING.md for the rest, each line fitting");
     reset_ui();
 }

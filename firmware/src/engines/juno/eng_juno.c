@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* JUNO (engine 14, FELUCCA_ENG_JUNO, off by default): the Juno-106 voice of fm-106 by PatttF
- * (github.com/PatttF/fm-106 be74757), a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/
- * ultramaster_kr106), both GPL-3.0-only. The DSP: juno_dsp.h. Here: the SLOOP side.
- *
- *   EDIT  WAVE (OFF / SAW / PULSE / BOTH: the Juno's two buttons), PW (the manual width, 50..95 %; LFO / ENV move
+/* JUNO (engine 14, FELUCCA_ENG_JUNO, off by default): the Juno-106 voice of fm-106. The DSP: juno_dsp.h. Here: the
+ * SLOOP side.
+ * Derived from fm-106 by PatttF (https://github.com/PatttF/fm-106 at be74757, GPL-3.0-only), itself a fixed-point
+ * port of Ultramaster KR-106 by Kayrock Screenprinting (https://github.com/kayrockscreenprinting/ultramaster_kr106,
+ * GPL-3.0; its commits are Karl LaRocca's). Neither project puts a copyright line in its files: the copyright is
+ * their authors'. A model of the Roland Juno-106 (its circuits, one voice card's measured cutoff curve, the voice
+ * CPU's cutoff routine as KR-106 reimplemented it); Optimist is not affiliated with or endorsed by Roland. */
+/*   EDIT  WAVE (OFF / SAW / PULSE / BOTH: the Juno's two buttons), PW (the manual width, 50..95 %; LFO / ENV move
  *         it through SHAPE), SUB, NOISE | CUT, RES, KEY (key tracking around C4), HPF (BOOST / FLAT / 236 / 754 Hz).
  *   The track's ENV is the Juno's ENV: ENV > FLT is the VCF ENV amount (negative: the inverted polarity), the
  *   amplitude goes through the VCA's measured curve (juno_amp); GATE mode is SUS 127 / REL 0. The track's LFO is

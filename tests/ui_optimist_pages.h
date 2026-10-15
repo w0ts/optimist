@@ -817,6 +817,12 @@ static void pages_hit_tests(void)
     tap(B_FX);
     key(WK(2));
     check(lane_selected() == snare, "drum key: on the drum FX page too");
+    {   /* (the knobs' last detents are 32-bit ticks that wrap every 179 s: a knob turned some wraps ago can look 5 ms old, which
+         * made this test fail on the simulated clock's alignment alone; every knob last turned 10 s ago) */
+        uint32_t k;
+        for (k = 0; k < NE; k++)
+            ui.enc_t[k] = fm1_ticks() - 10u * 1000u * 1000u * 24u;
+    }
     ui.hot = 0;
     turn(EN_K1, 1);
     turn(EN_K1, -1);

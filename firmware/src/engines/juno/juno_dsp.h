@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The JUNO engine's voice (eng_juno.c): the Juno-106 DCO, the IR3109 / BA662 4-pole OTA ladder and the HPF of fm-106
- * by PatttF (github.com/PatttF/fm-106 be74757: fm106_osc.h, fm106_vcf.h, fm106_engine.h fm106_render_voice), a
- * fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106); both GPL-3.0-only.
- *
- * Self-contained (stdint only, no SLOOP names) so the comparison harness can build it beside fm-106's own headers.
+ * (fm106_osc.h, fm106_vcf.h, fm106_engine.h fm106_render_voice).
+ * Derived from fm-106 by PatttF (https://github.com/PatttF/fm-106 at be74757, GPL-3.0-only), itself a fixed-point
+ * port of Ultramaster KR-106 by Kayrock Screenprinting (https://github.com/kayrockscreenprinting/ultramaster_kr106,
+ * GPL-3.0; its commits are Karl LaRocca's). Neither project puts a copyright line in its files: the copyright is
+ * their authors'. A model of the Roland Juno-106 (its circuits, one voice card's measured cutoff curve, the voice
+ * CPU's cutoff routine as KR-106 reimplemented it); Optimist is not affiliated with or endorsed by Roland. */
+/* Self-contained (stdint only, no SLOOP names) so the comparison harness can build it beside fm-106's own headers.
  * juno_run renders one voice's block before the VCA: DCO -> 1.6 Hz coupling -> ladder, the ladder's x 8.59 makeup;
  * the coupling after the ladder (fm-106: one a voice, before its VCA) is the part's, after the VCAs (juno_couple). fm-106's arithmetic, made cheaper (the straight port: git history of this file):
  *   - the ladder's coefficients (the cutoff table and its peak pull, g^2 g^3 g^4, the resonance and its fade near

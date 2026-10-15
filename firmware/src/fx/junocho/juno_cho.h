@@ -1,6 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* JUNO CHORUS, a generic FX unit: the Juno-106's MN3009 BBD chorus as fm-106 models it (PatttF, github.com/PatttF/fm-106
- * be74757, fm106_chorus.h, GPL-3.0-only; after Ultramaster KR-106, GPL-3.0-only), sample for sample:
+/* JUNO CHORUS, a generic FX unit: the Juno-106's MN3009 BBD chorus as fm-106 models it (fm106_chorus.h; after KR-106's
+ * KR106Chorus.h).
+ * Derived from fm-106 by PatttF (https://github.com/PatttF/fm-106 at be74757, GPL-3.0-only), itself a fixed-point
+ * port of Ultramaster KR-106 by Kayrock Screenprinting (https://github.com/kayrockscreenprinting/ultramaster_kr106,
+ * GPL-3.0; its commits are Karl LaRocca's). Neither project puts a copyright line in its files: the copyright is
+ * their authors'. A model of the Roland Juno-106 (the chorus's MN3009 delay
+ * lines, its LFO rates and summer gains); Optimist is not affiliated with or endorsed by Roland. */
+/* Sample for sample:
  *   - one delay line of 1024 samples (fm-106 writes the same mono sample into two: one is enough), 2 KB;
  *   - a triangle LFO: MODE I 0.514 Hz, II 0.842 Hz, I+II 7.85 Hz; two taps in antiphase around 3.5 ms (154 samples),
  *     +- 47 / 37 / 5 samples, read by 4-point Hermite interpolation;

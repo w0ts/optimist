@@ -5,6 +5,8 @@ flash map comment), `firmware/src/engines/sample/eng_sample.c` (the user sample 
 `tools/build.py` (the limits and checks), and the flash table in docs/SNAPSHOTS.md section 4. For what each feature
 costs, see docs/MEMORY-BUDGET.md and docs/BUILDER.md ("Budget").
 
+The pool and main-RAM moves of 2026-10-12 and 2026-10-13 (engine memory shared per part, the main loop's buffers, the user presets' bank, FM6's cold buffers) are listed with their measured sizes in docs/MEMORY-BUDGET.md section 7; the regions below describe the result.
+
 The FM-1 has two kinds of memory:
 
 - **Flash, 1 MiB**: permanent, survives power-off. It holds the firmware *and* your data, in separate areas.

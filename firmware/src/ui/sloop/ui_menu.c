@@ -434,10 +434,10 @@ static void draw_menu(void)
             cv_text(4, 119, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
             cv_text(4, 132, &FONT_S, "SLOOP: GITHUB.COM/ISOD89", C_AMB);   /* (where it comes from) */
             cv_text(4, 146, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-            cv_text(4, 159, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
-            cv_text(4, 172, &FONT_S, "+ SONIC PI (CC0)", C_DIM);
-            cv_text(4, 185, &FONT_S, "PHASE: CRISPYZEBRA (GPL)", C_DIM);
-            cv_text(4, 198, &FONT_S, "VOICE: REF. KLATTSCH (MIT)", C_DIM);
+            cv_text(4, 159, &FONT_S, "SAMPLES: VERSILIAN, SONIC PI", C_DIM);   /* (all CC0) */
+            cv_text(4, 172, &FONT_S, "MELODEE X0X FLOWSTATE JANGADA", C_DIM);  /* (29 characters: the width) */
+            cv_text(4, 185, &FONT_S, "FM-106 KR-106 CRISPYZEBRA", C_DIM);
+            cv_text(4, 198, &FONT_S, "ALL CREDITS: LICENSING.MD", C_DIM);  /* (klattsch, DaisySP, Open303...) */
 #if FELUCCA_BLE
         } else if (ui.menu == 3) {
             draw_devices();

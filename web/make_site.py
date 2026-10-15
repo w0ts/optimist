@@ -8,7 +8,7 @@
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
-  LICENSE, LICENSING.md, LICENSES/Apache-2.0.txt   the notices the package needs
+  LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR          one package
@@ -44,7 +44,7 @@ def product_of(raw):
 
 
 ICONS = ("icon.svg", "favicon.ico", "apple-touch-icon.png", "icon-32.png", "icon-192.png", "icon-512.png")
-NOTICES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # every distribution carries these
+NOTICES = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (HERE.parent / "LICENSES").glob("*.txt")))   # every distribution carries these
 
 
 def source_ref():

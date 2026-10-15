@@ -67,7 +67,7 @@ static int cl_gl(uint32_t scr, uint32_t colors)
         frame();
         f = gld.first;
         k = i - f;
-        if (gl_info() || k >= GL_PAGE)
+        if (gl_textpage() || k >= GL_PAGE)
             continue;
         for (j = 0; j < gld.end - f; j++) {
             int32_t y = OH_HEAD + gl_y0() + (int32_t)j * gl_pitch(), h = gl_pitch() - 2;

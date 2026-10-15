@@ -1,12 +1,21 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
+> **Landed state, 2026-10-15 (what is built on `optimist` at 5756d5ac; where the sections below say otherwise, this list and the banners above win).**
+> - **Gestures:** SHIFT = OCT- held, SHIFT2 = OCT+ held (the banner above). HOME is only HOME / NO. OCT- / OCT+ glow only where they do something, like any button; ARP and SCL are dark on the drum track and its lanes, and SAVE is dark on STEP lines with no YES action. SAVE works on GLOBAL, SYSTEM and PROJECT's read-outs (YES, else PROJECT).
+> - **No preset rows:** no SOUND and no FAVS row on EDIT (the SOUND row, the mixer's PRESET and FX ON cards, PAN / MUTE on EDIT, the drum LANE card and the ARP / LANE rows on STEP are gone). Presets are picked with PRESETS; SHIFT + PRESETS steps the engine. Favorites: SHIFT2 + PRESETS marks, SHIFT2 + SELECT browses only them (section 37 words the old FAVS row). INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE.
+> - **PROJECT:** the storage rows are BANK, ACTION, ITEM (+ NEW on PROJECT); the actions are LOAD / SAVE / DELETE (a project slot is cleared through the section log's tombstones, asked first); a key selects the slot of the bank and runs the action; OCT- / OCT+ tapped on the page pick the previous or next bank (toast and LEDs); a user preset's LOAD over an edited sound is asked in red.
+> - **Mixer:** the sends set is REV DLY CHO (blank where no slot holds one) and a fourth card PAN on the synth tracks, the drum track and the drum lanes; a muted track is struck through (the banner above); the ACCENT row's MUTE is the lane's sequencer mute.
+> - **Effects pages:** the master FX screen reads INSERTS (S1 / S2 TYPE and amount), INS DYN 1 (THRS RATIO ATK REL) and INS DYN 2 (GAIN CEIL GR) while a master slot holds DYN, DUCK, then the returns (R1 R2 R3); the mixer's MASTER row has INSERT, INS DYN (THRS RATIO GAIN CEIL), RETURNS, DUCK; a track's FX family has DYN (THRS RATIO GAIN CEIL) and DYN 2 (ATK REL). TUNE is on GLOBAL's Tempo list. Every drum sound has two insert slots.
+> - **Modulation:** ENV DEST, ENV2 DEST and LFO DEST each have DST A / AMT A / DST B / AMT B from one shared list (LFO and ENV rates and amounts included); VOICE 2 is ALLOC, DETUNE, VOICES, DROP (VOICES: 1 to the engine's maximum, never AUTO). The p-locks reach the ARP and SCL pages; EUCLID is a note generator with ON / OFF; a drum step tapped cycles normal, hard, ghost, off.
+> - **GLOBAL / SYSTEM:** the title is in the top bar (long ones in their short form), the cursor line is drawn inverted, ALGORITHM scrolls the lines; GLOBAL's MIDI page reads CLK IN, CLK OUT, MIDI IN, MIDI OUT (SYNC is PLAY's TEMPO page 4th card; fixed SYNC reads Int / USB / TRS); the MIDI IN setting is removed from the Optimist UI (it ignores settings bit 15; the router never drops notes). SYSTEM > INFO shows the battery as n/3 raw (no volts), each core's load, CPU1 JOB / REWAKE and CPU1 STOP (when and where it stopped), and, in a USB audio build, the USB AUDIO lines (underruns, overruns, missed, feedback, ring low, poll gaps, flash IRQ-off), which have no bar.
+> - **Boot logo:** the dinghy splash is always built (the SPLASH builder item is retired; sections below that mention a ring logo or a logo choice are history).
+
 > **2026-10-15: a muted track is struck through** (a 1 px line, 2 in the large face, in the text's own colour through the glyphs' middle): its mixer row's name, the header badge ("2 DIGITAL") on its pages, and its volume card's label and value (a lane's LEVEL, the ACCENT lane's amount). Unmuted: no line.
 >
 > **2026-10-14, SHIFT moves to OCT- (the user: "shift on home is not working well, two buttons on the same hand").** **SHIFT = OCT- held, SHIFT2 = OCT+ held.**
 > Every gesture this document words as "HOME held" / "HOME + x" is now **SHIFT** / **SHIFT + x** (op_input.c `op_shift(held)`, op_state.c): the knob to its default,
 > the drum lane pick, a button's clear, the layer lock, PRESETS the engine, the NAME clear. **HOME is only HOME / NO** (SAVE then HOME is still undo).
-> OCT- / OCT+ **change the octave when let go, and only if no other control was used while they were held** (with the toast "Octave: -1"); both together:
-> the octave back to 0 (STEP: FOLLOW again). The STEP window scrolls with PRESETS only (HOME + OCT is gone). SHIFT2 on the mixer's volume card (SHIFT2 + its knob) toggles the track's
+> OCT- / OCT+ **change the octave when let go, and only if no other control was used while they were held** (with the toast "Octave: -1"); both together (changed 2026-10-15, e59c75e3): the track <-> MASTER toggle, back to the track and page it left (STEP's FOLLOW comes back with SHIFT + PRESETS). The STEP window scrolls with PRESETS only (HOME + OCT is gone). SHIFT2 on the mixer's volume card (SHIFT2 + its knob) toggles the track's
 > mute (the MUTE card is gone). The mixer's track rows show the track's badge (not "MIX"). SAVE tapped opens PROJECT on every page where YES has nothing to do (not SEQ). The keys are silent on the mixer's MASTER row.
 > On the drum track's STEP, OCT- is the lane pick's SHIFT, so it no longer makes a ghost hit there (OCT+ still a hard hit).
 > The layer lock by "the layer held, then SHIFT" works except for FX, EDIT and ENV (FM6), whose OCT- / OCT+ keep their own jobs: use SHIFT held, then the button.
@@ -36,7 +45,7 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | SAVE and HOME with a button | YES / NO with a button was first read as a shift, but **SAVE cannot be a shift**: it is used to save something (preset, pattern, project). So: **SAVE held + a page button saves what that button owns**, nothing else; **SHIFT + a page button clears or switches off** what it owns; section 2.1 proposes the table [P] |
 | SONG REC | there is a REC button: recording the song is **SAVE + REC** (section 2.1), not SAVE + PLAY |
 | Undo / redo | **SAVE then HOME = undo, SHIFT then SAVE = redo**; the order of the two tells them apart [P] |
-| Lock a layer | **SHIFT + the layer's button, in either order** (the layer held then HOME tapped, or SHIFT then the layer's button): the layer stays open hands-free, any button lets it go. So HOME with a layer button never means "off" |
+| Lock a layer | **SHIFT + the layer's button, in either order** (the layer held then SHIFT, or SHIFT then the layer's button): the layer stays open hands-free, any button lets it go. So HOME with a layer button never means "off" |
 | Scenes on the keys | **16 scenes on the 16 keys, no bank** |
 | The pattern layer's keys | [O] hard to say before trying it on hardware: the built black-key modifiers against the uniform launch / store / clear vocabulary, decided on the FM-1 (it arrives 2026-10-08) |
 | EDIT + OCT as a second undo / redo | **keep both**: SAVE then HOME / SHIFT then SAVE, and SLOOP's EDIT held + OCT- / OCT+ (edit left / right); a point to clarify on it is open (question 12) |
@@ -178,8 +187,8 @@ Three consequences:
 - **Messages**: what a confirmed action says (*T2 CLEARED*, *SAVED*, *STORED T2 5*) is a **small toast in the middle**
   of the panel [D]; passive status (*T2: NO FREE PATTERN*, MISSING, RECORDING) stays in the header (2.5 s).
 - **Lock a layer** is no longer needed for editing: editing never needs a held button. For the performance layers
-  (FX with both hands) the gesture is **SHIFT + the layer's button, in either order** [D]: the layer held then HOME
-  tapped (today's), or SHIFT then the layer's button. The layer stays open, any button lets it go. HOME with a
+  (FX with both hands) the gesture is **SHIFT + the layer's button, in either order** [D]: the layer held then SHIFT
+  (today's), or SHIFT then the layer's button. The layer stays open, any button lets it go. HOME with a
   layer button therefore never means "off" (section 2.1).
 
 ### 2.1 The two held buttons: SAVE saves, HOME clears [P]
@@ -404,12 +413,12 @@ FX (the sends), FILTER, SLICER, SCL, SCL 2, ARP, ARP 2, PATTERN. The panel draws
 LFO, the FX bars, the scale), as Felucca. **A page button tapped shows only its family's rows** [D, 2026-10-08: the LFO screen should not show ENV2 and SLICER rows]: LFO the LFO and LFO DEST rows (*Sound LFO*, its graph),
 ENV the envelopes and their DEST rows, FX the track's effects (FX, FILTER, SLICER ...), EDIT the engine's EDIT rows,
 SCL and ARP theirs (the families are PAGES' `fam`); SELECT moves within the family, the button again goes to the
-family's next row and from its last to its first. **EDIT starts with the SOUND row** (PRESET · ENGINE · INIT · SAVE AS;
+family's next row and from its last to its first. *(Superseded 2026-10-15: no SOUND row on EDIT; see the landed-state list at the top.)* **EDIT starts with the SOUND row** (PRESET · ENGINE · INIT · SAVE AS;
 the drum track KIT · LANE: section 17, D7), then the engine's rows. The whole list (every row, the SOUND row first) is
 what ALGORITHM back from MASTER shows when MASTER was opened from the mixer. On the drum track the page buttons narrow the lane's rows the same way where a
 family has rows there (EDIT: the lane's SOUND rows, ENV the lane's ENV row); a family with none there leaves the rows as
 they are.
-On a synth track a **FAVS** row follows the SOUND row (FAV, LIST: favorites, section 37).
+On a synth track a **FAVS** row follows the SOUND row (FAV, LIST: favorites, section 37). *(Superseded 2026-10-15: EDIT has no SOUND or FAVS row; see the landed-state list at the top.)*
 
 **The drum track's ENV** [D, 2026-10-11: "most of the drum sounds have env parameters decay, attack. put them on the
 env page"]: ENV opens the selected lane's ENV row (params.c PAGES, `SC_DSND` in the ENV family; the lane picked as
@@ -424,7 +433,7 @@ cells and *No envelope: level only* as its graph. A build without the drum edito
 row: ENV leaves the rows as they are, as before. The synth's ENV pages are not shown on the drum track
 (`page_shown`), and ENV's button LED follows its rows (`op_fam_mask`). **The row needs a picked lane** (2026-10-13): on DR itself ENV does nothing and is dark.
 
-The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
+*(Superseded 2026-10-15: this row is gone; presets are picked with PRESETS, the engine with SHIFT + PRESETS, INIT and SAVE AS live on PROJECT > USER.)* The SOUND row: cell 1 the preset (PRESETS browses by kind, as today; the list in the panel), cell 2 the engine,
 cell 3 INIT (an action: YES), cell 4 SAVE AS (an action: YES, then the NAME screen [D]).
 
 On the drum track the rows are the **selected lane's**: ENV (its envelope values, section 4.3's drum ENV), SOUND,
@@ -1189,7 +1198,7 @@ something gives (section 8's ways out).
 
 **Not built** (later phases, or not asked): the automation store and the event marks under the steps (phase 3);
 chance on drum steps (an event, phase 3); YES toggling HOLD of a lock; SELECT as "the family's next row" with a lock
-page; EDIT held as the erase layer, and the other performance layers (FX ARP SCL GLO held still do nothing); HOME +
+page; EDIT held as the erase layer, and the other performance layers (FX ARP SCL GLO held still do nothing); SHIFT +
 OCT on other screens; SHIFT + a lane's key clearing a lane on STEP ([P] in 4.2's table); the fifth master
 column; the DRUM MIXER.
 
@@ -1227,7 +1236,7 @@ SAVE / SHIFT + a button, all in SIZE_FILES):
   and scale, the chain, a modifier held). It shows after 140 ms or at once when used; a page button held longer than
   450 ms is no tap (no jump to its rows). PRESETS is the sound as everywhere (no longer the layer's hot knob), ALGORITHM is the track (past T1: MASTER),
   SELECT does nothing.
-- **The lock** [D]: SHIFT + the layer's button in either order: the layer held then HOME pressed, or SHIFT then
+- **The lock** [D]: SHIFT + the layer's button in either order: the layer held then SHIFT pressed, or SHIFT then
   the layer's button. The map says *FX locked*, the button blinks; any button but PLAY, REC and OCT lets it go and
   does only that.
 - **TEMPO** [D]: PLAY held 400 ms shows the page (a key while PLAY is down: at once), let go the screen before comes
@@ -2907,7 +2916,7 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
 - **Key**: the LAST upper key (key 25, the lone F# at the right end of the panel's 3-2-3-2-1 groups; `DACC_KEY`; it was upper key 1 until 2026-10-14) is the
   lane's key: SHIFT + the key (STEP too; not on the mixer), or the key played, picks it; played it records, erases and rolls the lane, silently
   (`DACC_KEY_ON`, seq.c `kb_drum_lane`, drums.c `key_of_lane`). SEQ + the key on STEP does nothing (the ACCENT lane has no step key). The other
-  upper keys, key 1 again included, stay silent. Held-layer meanings: key 1's are unchanged (HOME on the mixer: T1's sequencer mute; GLO: T1's FX bypass;
+  upper keys, key 1 again included, stay silent. Held-layer meanings: key 1's are unchanged (SHIFT alone on the mixer: T1's sequencer mute; GLO: T1's FX bypass;
   LFO patterns: select T1; ENV on FM6: OP1). The last upper key has none of its own anywhere else (the patterns layer's black 11 is unused, GLO's
   bypass keys are 1-4, FM6's end at key 22), so no clash; on the mixer SHIFT + it is the ACCENT lane's sequencer mute. The pick's key LEDs dim it too.
 - **STEP**: a 17th row "AC" under the 16 sounds (12 px rows), edited as any lane's (tap, level, ratchet, SHIFT + step). The held step's
@@ -2953,7 +2962,8 @@ The user, from a screenshot of "Global channels 5/5". Section 20's lists (GLOBAL
 - **ALGORITHM scrolls the lines** one a detent across the pages (section 28); knob k still edits line k of the page, SELECT pages, SHIFT + a knob resets.
 - **Joined pages** (op_global.c `GL_JOIN`, one table): SYSTEM's SCREEN and AUDIO share one page, "Screen & audio", and USB and BLUETOOTH share "Connections", when together they are 4 lines or fewer in the build; otherwise each keeps its own pages. The BLE line's YES still opens the devices. A page is one section or one joined pair (the layout test allows exactly those).
 - **Keys**: the LIGHTS section is "Keys", its lines BUTTONS (the button glow OFF / LOW / MID / HIGH) and KEYS (OFF / C / WHITE / ALL); the settings word is unchanged. SYSTEM's order: Info, Screen & audio, Keys, Connections, Calibrate, About.
-- **INFO** (SYSTEM's first page, replacing CPU): one dense read-only page that is not 4 lines: CLOCK, CPU0 (LOAD), the 2ND CORE line (always there, 7 lines in every build: `2ND CORE ON` + the CPU1 load %; `2ND CORE OFF` + why in amber, from `dual_why_name`, until power-off; `2ND CORE` + `NOT IN BUILD` in a DUAL=0 build), then FLASH, RAM, POOL and RAM CODE as used/total KB with a bar. The memory is read at run time from the linker's symbols (firmware/app.ld: `_pi_load`, `_bss_end`, `_pool_end`, `_rt_end`, `_rh_end` and the region sizes `_flash_len`, `_ram_len`, `_pool_len`, `_rtxt_len`), so it is true for the running image. No knob does anything there.
+- **INFO** (SYSTEM's first page, replacing CPU): one dense read-only page that is not 4 lines, **text only: no bars** (op_gldraw.c `gl_info_draw`: the name left, the value right, a unit after it; no line is the cursor, no knob does anything). Its lines, in order (op_project.c `sys_info_cell`): CLOCK; CPU0 (LOAD); the 2ND CORE line (always there: `2ND CORE ON` + the CPU1 load %; `2ND CORE OFF` + why in amber, from `dual_why_name`, until power-off; `2ND CORE` + `NOT IN BUILD` in a DUAL=0 build); BATTERY (the last base line: n/3 and the raw ADC count, `NO READING` before the first sample, no volts or percentage); then, where the build has them, LAST RESET (builds with DBG_MAGIC: how the boot before ended, POWER ON / CRASH / WDT / SOFT / KEY / LOW V, how long it ran, the crash pc or the stage), the second core's four lines in a DUAL build (CPU1 JOB/REWAKE: jobs in thousands / rewakes; CPU1 STOP: when and where CPU1 stopped; CPU1 SLEEP or SPIN: its stage and counts; CPU1 FAULT: the fault, or the IC word), and in a USB audio build the USB AUDIO lines (UA U/O/M/B: underruns / overruns / missed frames / bad packets; UA RX/FB: packets received in thousands / the feedback in Hz; UA LOW/GAP: the ring's lowest fill / the longest gap between USB polls in us / the gaps over 900 us; FLASH OFF: the longest interrupts-off window of a flash write, us). The old FLASH, RAM, POOL and RAM CODE lines with their bars are gone from this page (where the memory goes: docs/MEMORY-MAP.md).
+- **Line numbers**: the GLOBAL and SYSTEM lists draw no number on a line (op_gldraw.c `gl_line_draw`: the name, the value, the bar or the check box under it). A line's knob (1 to 4 on its page of four) shows only in its colour (`knob_col`, the KNOB COLORS setting).
 - **2ND CORE is gone**: the second core is always on, `dual_mode` stays AUTO. The guard in dual.c still parks the core on a misread, a canary, a late job or a fault and INFO's CPU1 line says why. With no menu to set it back (`DUAL_MODE_MENU` 0), the self-disable lasts for the session and is not saved; a stored OFF from an older build is dropped when the Optimist UI loads its settings; a boot that crashed in its first 30 s still stays on one core.
 - **About** (4 lines, one page): VERSION (and the commit it was built from, `-DFELUCCA_COMMIT` from tools/build.py), BUILD (date and time, the compiler's), CHIP (AC791N, the cores), REPO (github.com/w0ts/optimist).
 - Help lines: KEYS / BUTTONS "Buttons glow in the dark", KEYS "Which keys glow", INFO, BUILD, CHIP, REPO (tools/param_help.json; the 232 px limit shortened the user's wording).
@@ -3019,7 +3029,7 @@ SLOOP's UI and the shared tables (params.c PAGES, the descriptors' lists) are un
   page's badge is the screen's name in C_HI: MIX (the mixer's track and lane rows), MASTER (the master FX, the mixer's
   MASTER row, MASTER in a layer: the layer's name is the title), PROJECT, SONG, TEMPO, SCOPE, GLOBAL and SYSTEM (the badge
   alone: the list draws the page's title big, section 31), NAME (the slot the title: "U03", "Project 3"), a layer that is
-  not the track's (its name: FX, REPEAT, MIX, SCENES, PATTERNS; the title "Locked" while HOME holds it). The title is then
+  not the track's (its name: FX, REPEAT, MIX, SCENES, PATTERNS; the title "Locked" while the layer is locked (lay.lock)). The title is then
   the page's name alone, never the screen's word again: *Ins tone 3/8*, *Tools 4/5*, *Scene A 1/22*, *Rec 2/3*, *T1*
   (SCOPE); a page whose own name is the screen's keeps it (*Project 1/5*, *Tempo 1/3*). The mixer's track rows keep the
   row's name and the set (*T1 mix 1/4*); its MASTER row's sets are *Ins tone*, *Comp*, *Returns* (as the master FX's
@@ -3183,6 +3193,8 @@ Tests: tests/ui_optimist_screens.h (each item, the old gone and the new there); 
 SOUND row's title against the list's; the tests that held the old titles, STEP's window header and the layer hint follow.
 
 ## 37. Favorites (feat/op-favorites, 2026-10-15)
+
+> **Superseded the same day by the end of this section**: the FAVS row described first was removed; the gestures are SHIFT2 + PRESETS (mark) and SHIFT2 + SELECT (browse only favorites). Read the last paragraph first. "HOME held" in this section is SHIFT (OCT- held) since 2026-10-14.
 
 The favorites store, its saving in the settings record and its older-record upgrade are shared with SLOOP's UI (builder item
 FAVORITES, core/favorites.c, storage/persist_rec.c: a factory sound by engine and name, 64 marks, a user preset by slot, 32).

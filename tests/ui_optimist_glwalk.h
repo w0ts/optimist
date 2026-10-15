@@ -93,7 +93,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     line_at(scr, i);
     glw_line(scr, i, &c, v);
     ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO") ||
-                                                                                                      !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS"));   /* (the read-out pages, REPO: text in the unit, or the page itself) */
+                                                                                                      !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS"));   /* (the read-out pages, REPO: text in the unit, or the page itself) */
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
         ok &= glw_still(EN_PRESET);

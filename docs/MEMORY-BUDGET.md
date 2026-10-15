@@ -1,5 +1,9 @@
 # Memory budget of the integrated firmware (flash, RAM, pool)
 
+> **A snapshot of 2026-10-05.** Sections 1 to 6 were measured then and are not updated. What landed after it, with
+> the numbers the commits and the agents' notes record, is in section 7 at the end. The builder's own per-item costs
+> (`tools/builder/costs.json`, shown in docs/BUILDER.md) are the current ones.
+
 Measured 2026-10-05 on `feat/integration` at `893c607` (all merges in: ANALOG 2, FM6, melodee-ports,
 speed-top3, idle-wait, midi-clock, usb-audio, dual-core, exp/simd, analog2-asm; plus the splash switch and the
 user-preset migration). Every number is from a real build of this tree (`ld` region report, `build.py`'s summary,
@@ -93,7 +97,7 @@ Base: 562,376 B flash, RAM 91,312, pool 281,784, RAMTEXT 31,564.
 
 | Build option | flash | RAM | pool | RAMTEXT | Loses / gains |
 |---|---|---|---|---|---|
-| `FELUCCA_SPLASH=1` (the SLOOP bitmap until 2026-10-06; now the drawn Optimist logo, +384 on user-default, default on) | +5,168 | 0 | 0 | 0 | the boot logo |
+| `FELUCCA_SPLASH=1` (**retired 2026-10-15**: the dinghy boot logo is always built, no ring-only logo, no off; the figure is the 2026-10-05 one, for the SLOOP bitmap) | +5,168 | 0 | 0 | 0 | the boot logo |
 | `FELUCCA_ICONS=0` | −5,616 | 0 | 0 | 0 | the parameter icons (labels stay) |
 | `FELUCCA_FM6_KEYS=0` (the user keeps it) | −5,392 | −416 | 0 | +64 | FM6's operator editor on the black keys |
 | `FELUCCA_USB_AUDIO=0` (the CDC console comes back) | +1,548 | +848 | −12,288 | −40 | USB audio |
@@ -145,7 +149,7 @@ be uploaded there (except PERC, larger than a slot).
 | speed-top3 (with the placement below) | +1,656 | |
 | idle-wait | 0 | |
 | midi-clock | +5,360 | TRS on by default |
-| splash switch (default off) | −5,072 | |
+| splash switch (default off; **retired 2026-10-15**) | −5,072 | |
 | user-preset migration | +192 | |
 | usb-audio | −1,716 | the CDC console goes; pool +12,288 |
 | dual-core (off) | +16 | |
@@ -225,3 +229,45 @@ Natural next: engines (leave out of `ENGINES[]`, fold `== &ENG_X`: [B] shows the
 drum kits (the generator's list), sample sets (needs stable set IDs so USR and projects do not shift), `PUNCH_N`,
 `SL_LEN`, the overview pages, FX bus split (one loop today). Which code is HOT should follow the engine choice (RAMTEXT
 is shared). Not a switch: OTA (the update path), the arranger (dead flag), fonts.
+
+## 7. Since 2026-10-05: what landed, and what is on a branch
+
+Numbers are the ones in the commit messages and the notes under `optimist-work/todo1014/`; "mots" is the developer's
+build (BLE and central, DUAL=2, X0X 909 and 808, ACID, PHYS, no built-in sample sets, CPU_GUARD, PARAM_HELP, UI=1).
+Host and emulator numbers are not measurements of an FM-1.
+
+**Landed on `optimist`, RAM and pool** (mots):
+
+| Commit | Change | Saves |
+|---|---|---|
+| df8c3093 | one engine memory per part (FM6, PHYS, GRAIN, ACID share it) | pool -11,712 B, RAM -1,416 B |
+| 12720ad1 | the main loop's scratch and state buffers to the pool | main RAM -15,536 B |
+| eb6a16e4 | the user presets' bank to the pool | main RAM -6,160 B |
+| abded0a9 | FM6's cold buffers to the pool (the audio path's too with `TAB_IN_POOL`, EXPERIMENTAL, off) | main RAM -5,296 B (-5,924 B more with `TAB_IN_POOL`) |
+| e9f5b47a | the TAB_RAM tables SINE and TANH_Q15 to the pool, copied at boot | main RAM -2,562 B |
+| d38f5674 | the update session stages in `st_buf`, a sample upload unpacks into the reply buffer | RAM -2,560 B |
+| f5ed7595 | the section records' buffer and the autosave's capture share one buffer | pool -3,640 B |
+| e34f6130 | no RAM copy of the user slots' zones in a build that cannot play them | RAM -1,344 B |
+| 1599d659 / b363f44a | the 909's noise buffer holds its history and one block; one scratch for 2.4's step extras | pool -1,024 B / -704 B |
+| 719f7a5b | the update path decodes into the editor's reply buffer | RAM -640 B |
+
+**Landed, flash:** the synthesised kits keep each distinct sound once (79187d41): -3,424 B in every build with the drum
+synth; the drum state to `.bss` (4541ef6b): mots -1,820 B; the help lines packed with a byte-pair code (4cc909ea):
+-1.8 KB (UI=0), -2.8 KB (UI=1), -2.9 KB (mots); nine always-on options retired from the builder (ed78d581: no flash
+change by themselves).
+
+**Landed, costs of new items** (exact builds unless said):
+- JUNO engine (`ENG_JUNO`): 6,160 B of flash and 1,280 B of RAM on mots (+INS_FLANGER=0) at 72506c8c; user-default
+  UI=1 8,548 B; off: 0 B. The straight port cost 15,608 B of flash and 1,536 B of RAM (notes: juno).
+- JUNO CHORUS: 2,072 B of pool an instance (one 1024 x int16 line and 24 B).
+- fx-rework stage 1 (DYN, generic inserts, the master's slots) against 4cb2d62f: mots flash +2,948, RAM +2,976, pool
+  +1,196, RAM code -512; user-default UI=1 flash +4,480, RAM +3,944, pool +204, RAM code -640. The track limiters hold
+  1,088 B of RAM; the master's FLNG instances 1,056 B of pool.
+- The FX record's room (`FXR_MAX`) is 288 B (232 B before fx-rework); favorites 136 B at the end of the settings record.
+
+**Landed after the figures above** (they were measured on their branches before the merge, as written below; the merged tree was not re-measured for these lines, and `perf/flash-survey`'s later commit d702759a put the main loop and boot back at `-Os`, so its -4,272 B is no longer the whole story):
+- `perf/flash-wins2` (merged) (21e3df70, dc18522d, aa9993ac): X0X 909 pot curves computed when a pot is set: mots -8,880 B; PITCH_INC as one octave and a shift: -7,144 B (mots), -7,076 B (user-default UI=1); the BLE radio start-up program packed (10,706 B -> 5,795 B): -4,592 B (mots); all three on user-default UI=0: 551,264 -> 544,404 B. RAM and pool unchanged, RAM code +168 B (mots) for the PITCH_INC inline.
+- `perf/flash-survey` (merged) (f8308757 and later): `ld --gc-sections`, the main loop and boot at minsize, and a fix for the size-function guard: mots -4,272 B, user-default UI=1 -1,200 B. Its survey of where the flash goes (a ranked list of levers, with the rejected ones) is `optimist-work/todo1014/flashsurvey/PLAN.md`.
+- `perf/juno-size` (merged) (b4714b79): the JUNO engine 2 KB smaller (6,160 -> 4,144 B on mots, 8,548 -> 6,548 B on user-default UI=1; RAM +1,280 -> +1,328..1,344 B); regress JUNO PWM PD 1,393 -> 1,418 host instructions a sample (+1.8 %). (tools/builder/costs.json lists ENG_JUNO at 8,320 B of flash on its own base build, a different build: the figures here are per build and were not re-measured on the merged tree; quote none of them in a user document)
+- `perf/automation-merge` (merged) (dd36f4b6 on c7abccda): one list of values for motion and p-locks and one written form for the automation store: mots flash -976 B, then a further -416 B and RAM -208 B (user-default UI=1 -848 B, then -560 B and RAM -192 B).
+

@@ -41,6 +41,8 @@ All little-endian. The records are `sec_codec.c` records, the format the section
 kept, a motion chunk is skipped by a build without motion). A later version adds record kinds; a reader skips kinds
 it does not know.
 
+**FX records (2026-10-15 note).** The FX slots' record (`fx_rec.c`: the track and master insert slots, the drum sounds' slots, DYN settings, the returns, the parts' VOICES, JUNO CHORUS and the other insert types' amounts; `FXR_MAX` 288 bytes since fx-rework) travels in the stream as a record after the record it belongs to (`snapshots.c`: id `SN_TAIL_WORK` for the work, else the section's log record with its key); a record is up to 4 + `FXR_MAX` bytes, so its length no longer fits a byte. A snapshot without them loads the default layout, and an older build skips them. Optimist's own formats are the standard: a snapshot is read by the build that wrote it or a later one, with no promise towards other firmwares.
+
 ### The area
 
 The area is `SN_SECTORS` = slots + 4 sectors of 4 KiB at the end of USR3, just below the banks (0xD8000):

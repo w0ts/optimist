@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The JUNO engine (FELUCCA_ENG_JUNO, eng_juno.c; tests/run_tests.sh builds this with the switch on):
+/* The JUNO engine (FELUCCA_ENG_JUNO, eng_juno.c: derived from fm-106 by PatttF and Ultramaster KR-106 by Kayrock
+ * Screenprinting, both GPL-3.0; tests/run_tests.sh builds this with the switch on):
  *   - engine UID 14 is JUNO, its fallback ANALOG (registry.h);
  *   - every preset: a 4-note chord held 2 s, then 4 s of release: audible, bounded, no DC, every voice free at the
  *     end, its render's FNV-1a 64 the one in tests/golden_juno.txt (GOLDEN_UPDATE=1 rewrites it);
