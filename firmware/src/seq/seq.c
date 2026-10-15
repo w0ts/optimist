@@ -540,7 +540,7 @@ static int32_t rec_nudge(track_t *t, uint32_t idx, uint32_t abs)
 static void rec_gate_set(track_t *t, uint32_t L, int32_t g, uint32_t own)
 {
     const step_t *s = &t->step[L % NSTEP];
-    int32_t base = lock_base_of(t, P_SGATE, t->p[P_SGATE]), d;
+    int32_t base = auto_patch(t, P_SGATE), d;
     if (!own || s->time == ST_REST || (s->time == ST_NOTE && s->rat))
         return;
     g = clamp(g, 1, 127);

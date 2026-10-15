@@ -791,11 +791,11 @@ static void proj_import_dl(dlrec_t *d, const void *b, int n)
 }
 
 /* ---- the working project <-> a project_t and its drum record d */
-/* track k's values as a project keeps them, by parameter id (v[P_COUNT]): its patch (with motion: the values
- * under the motion, motion_proj.c) */
+/* track k's values as a project keeps them, by parameter id (v[P_COUNT]): its patch (with motion or locks: the
+ * values under them, auto.c auto_patch) */
 static void proj_patch(int16_t *v, uint32_t k)
 {
-#if FELUCCA_MOTION
+#if FELUCCA_MOTION || FELUCCA_PLOCK
     motion_base_params(v, k);
 #else
     memcpy(v, trk[k].p, sizeof trk[k].p);
@@ -1135,7 +1135,11 @@ static uint16_t sec_dirty;                     /* live sections in RAM, not yet 
 static uint8_t song_dirty;                      /* the song: in RAM, not yet in flash */
 #if FELUCCA_MOTION && FELUCCA_FLASH
 #include "motion_flash.c"      /* the motion stores beside their projects in flash */
+#if !SEC_LOGGED                /* (the four slots: the MOTN record is their store; the log: the extras record) */
 #define MOTION_SAVED(obj, p) motion_flash_write(obj, p)
+#else
+#define MOTION_SAVED(obj, p) ((void)0)
+#endif
 #define MOTION_READ(obj, p) motion_flash_read(obj, p)
 #else
 #define MOTION_SAVED(obj, p) ((void)0)

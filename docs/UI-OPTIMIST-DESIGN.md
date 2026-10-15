@@ -1993,6 +1993,14 @@ foreign 2.4 project has one) is clamped and the import says *2.4 IMPORTED, LOCK 
   - otherwise the new forms: **a pattern record V2** (`PF_V2` 0x40 in the version bits; its motion chunk is the list,
     n up to 128, no PF_SX), and **the extras record in its new form** (the whole store; for a section and the autosave,
     log ids 88..104; the MOTN record / SEC_MOT chunk still carry the first 64 hold events for older readers).
+  - **2026-10-15 (perf/automation-merge; the Formats ruling: no compatibility duty to other firmwares or older
+    builds)**: the old forms are now only READ (an older Optimist's projects load and convert), never written. With the
+    section log a store is always written in the new forms: the extras record's AUTO_ENC_TAG form, a pattern record V2
+    for a track with automation; no MOTN record, no SEC_MOT chunk, no PF_SX, no 2.4 stepx extras (the one exception: the
+    first start's move of an old slot into its section writes its motion as the chunk, `sec_encode_mig`). The four-slot
+    builds (SECTIONS 4, no log) still write the MOTN record: it is their only automation storage. A capture while a
+    p-lock is in force now stores the patch under the lock (`auto_patch`), not the lock's value.
+    The two bullets above describe what was written before.
   - read: the motion form first (`auto_fresh`: the buffer's store emptied, then its hold events), then the extras record
     (the old form adds its step-only events, the new form is the store). autosave_resume reads the MOTN record before
     the extras record now (it read them the other way).

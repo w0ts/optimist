@@ -364,7 +364,7 @@ static void t_motn(void)
     clear_lists();
     motion_flash_read(OBJ_AUTOSAVE, &gp);
     proj_apply(&gp, &gd, 1);
-    check("... stored again (the MOTN record, today's form) and read: equal", ok && lists_same(got) && auto_w.on == 0x0F);
+    check("... stored again (the MOTN record, the four-slot builds' form) and read: equal", ok && lists_same(got) && auto_w.on == 0x0F);
 }
 /* an old extras record: 2.4's stepx form of four tracks (nudges, locks, fills) */
 static stepx_t old_x[NTRK];
@@ -398,7 +398,7 @@ static void t_extras(void)
         ok &= auto_to_stepx(&x, &m.l[k]) == 0u && !memcmp(x.micro, old_x[k].micro, 64) && !memcmp(x.fill, old_x[k].fill, 16);
     check("an old extras record (2.4's form) read: its nudges, locks, fills as step-only events", ok && auto_count(&m.l[0], AUTO_ONLYS) == 6u);
     nb = ax_encode(&m, b);
-    check("... stored again: today's form, byte for byte", nb == na && !memcmp(a, b, na));
+    check("... stored again: the new form (AUTO_ENC_TAG; 2.4's form is only read now)", nb > 0u && b[0] == AUTO_ENC_TAG);
     memset(&m2, 0, sizeof m2);
     ok = ax_decode(&m2, b, nb);
     check("... read: equal", ok && auto_store_same(&m, &m2));
@@ -463,7 +463,6 @@ static void t_cond(void)
     memset(&m, 0, sizeof m);
     (void)auto_put(&m.l[2], 4u | AUTO_ONLY, AUTO_COND, 3);
     check("auto_to_stepx reports a condition (AUTO_X_COND), not a lock", auto_to_stepx(&x, &m.l[2]) == AUTO_X_COND && !stepx_lock_used(&x.lock[0]));
-    check("... a track with one is not the old pattern form (V2 then)", !auto_trk_old_ok(&m, 2) && auto_trk_old_ok(&m, 1));
     i = ax_encode(&m, b);
     memset(&m2, 0, sizeof m2);
     check("... the extras record: the new form (AUTO_ENC_TAG), read back equal", b[0] == AUTO_ENC_TAG && ax_decode(&m2, b, i) &&
@@ -517,7 +516,7 @@ static void t_pattern(void)
     m->l[0] = l;
     m->on = 1;
     nb = pat_encode(&gp, 0, b);
-    check("... stored again: V1, byte for byte", nb == na && !memcmp(a, b, na));
+    check("... stored again: V2 (V1's chunk and PF_SX are only read now)", (b[0] & PF_VER) == PF_V2 && !(b[0] & PF_SX) && (b[0] & PF_ON));
     check("... read: equal", pat_decode(b, nb, 0, &gp.t[0], &l2, &on) && auto_list_same(&l, &l2));
     {   /* what V1 cannot hold: V2 */
         static const char *const WHY[4] = {"a chance", "65 hold events", "25 locks", "a hold event of a lockable-only value (GATE)"};
@@ -774,6 +773,23 @@ static void t_get78(void)
     check("78 with 5 bytes and flag 0: rc 1 (only flag 1 is defined)", ed_out[1] == 1u);
 }
 
+/* a capture while a lock is in force (an autosave or a SAVE while playing): the patch under the lock is stored, not the
+ * lock's value (auto.c auto_patch, 2026-10-15) */
+static void t_lockcap(void)
+{
+    track_t *t = &trk[1];
+    int16_t v[P_COUNT];
+    reset();
+    t->p[P_PAN] = 0;
+    (void)lock_set(t, 0, P_PAN, 50);
+    song.playing = 1;
+    motion_begin();
+    (void)auto_step(t, 0);
+    proj_patch(v, 1);
+    check("a capture while a lock holds PAN 50: the patch under it (0) is stored", t->p[P_PAN] == 50 && v[P_PAN] == 0);
+    seq_stop();
+    check("... STOP: the patch back", t->p[P_PAN] == 0);
+}
 int main(void)
 {
     (void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1);   /* (as persist_boot binds them) */
@@ -792,6 +808,7 @@ int main(void)
     t_editor();
     t_toggle();
     t_get78();
+    t_lockcap();
     printf("auto test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;
 }

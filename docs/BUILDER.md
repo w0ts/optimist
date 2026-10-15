@@ -404,6 +404,10 @@ its head, a 4 KiB sector holds 4,080). Every build reads a chunk (one without MO
 it, and keeps it until the section is saved again) and counts it in its longest record, so no build's log ever
 finds another's record too long. The first start of an 8 / 16 build moves each old slot's motion (beside it in
 its sector) into its section. With 4 the storage is as it was: the 208 B beside each project and the autosave.
+Since 2026-10-15 an 8 / 16 build writes no chunk: the whole automation store (motion, locks, nudges, fills,
+chance, conditions) goes in the section's extras record in its new form; the chunk, the MOTN record and the
+2.4 stepx form are only read (an older Optimist's sections and autosave load and convert; the first start's move
+of an old slot still puts its motion in the chunk).
 The song chain: 64 parts with 8 or 16 sections (16 with 4). The settings record keeps its layout, with the first
 16 parts, so an older build plays those. The whole chain is a record of the log (id 16), saved before the
 settings record, which names it by a tag. A save cut between the two keeps the old chain whole. The backup

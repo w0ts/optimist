@@ -18,6 +18,10 @@ _Static_assert(sizeof(motion_rec_t) <= ST_PAYLOAD_OFF - MF_OFF, "motion: in the 
 _Static_assert(sizeof(st_hdr_t) <= MF_OFF, "motion: after the commit header");
 static motion_rec_t mf_rec __attribute__((aligned(4)));   /* (the flash driver wants a RAM source) */
 
+/* Written only by the four-slot builds (FELUCCA_SECTIONS 4: no log, the MOTN record is where their motion lives:
+ * project.c MOTION_SAVED). With the section log the whole store goes in the extras record (stepx_log.c, the new form)
+ * and the MOTN record is only read: an older Optimist's slot (sections.c's first start) or autosave (the host tests
+ * call the writer to leave one as an older build did) */
 /* after a successful st_save of project p as object obj: its store's hold events beside it (the first 64, the old
  * form; nothing to write: none) */
 static void motion_flash_write(uint32_t obj, const project_t *p)

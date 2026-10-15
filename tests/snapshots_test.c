@@ -871,6 +871,9 @@ int main(int argc, char **argv)
         for (id = 0; id < NTRK; id++)
             stepx_clear(&W1.xwork[id]);
         memset(W1.xsn, 0, sizeof W1.xsn);
+#if FELUCCA_MOTION
+        W1.mot.count = 0, W1.mot.on = 0;               /* (the motion is in the extras records too since 2026-10-15: gone with them) */
+#endif
         check("... loads with no extras (the work's and the sections' cleared)", sn_load(1) == SNE_OK && state_is(&W1, "an older snapshot"));
 #if SEC_LOGGED && !FELUCCA_MOTION                      /* (the motion has objects of its own: motion_sections_test) */
         {   /* the backup: sections, autosave, drum records and the extras object; into a wiped device */

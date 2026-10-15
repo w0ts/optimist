@@ -101,13 +101,6 @@ static int motion_drives(uint32_t k, uint32_t id)
 #endif
 static uint32_t motion_count(const track_t *t) { return auto_count(AL(t), AUTO_HOLDS); }
 
-/* the patch's value of parameter id (the base while the motion holds it) */
-static int16_t motion_base_value(const track_t *t, uint32_t id)
-{
-    uint32_t k = trk_index(t);
-    return (motion_active[k][id / 32u] >> (id % 32u)) & 1u ? motion_base[k][id] : t->p[id];
-}
-
 /* the motion's values back to the patch (interrupts off or in the ISR) */
 static void motion_restore(track_t *t)
 {

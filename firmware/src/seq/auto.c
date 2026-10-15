@@ -161,6 +161,25 @@ static int auto_from_motion(auto_list_t *l, const motion_store_t *m)
 #if SL24_STEPX
 #include "seq24.c"             /* SLOOP 2.4: micro timing, fills, parameter locks (backports24seq.h) */
 #endif
+#if FELUCCA_MOTION || FELUCCA_PLOCK
+/* the patch's value of parameter id of track t under its automation: the motion's base while a hold event holds it,
+ * the lock's base while a lock holds it (and its knob was not turned since), else the value itself. What a project
+ * stores (storage/project.c proj_patch: a capture while playing never takes a lock's or a hold's value for the
+ * patch) and what a recorded GATE compares with (seq.c rec_gate_set) */
+static int16_t auto_patch(const track_t *t, uint32_t id)
+{
+#if FELUCCA_MOTION
+    uint32_t k = trk_index(t);
+    if ((motion_active[k][id / 32u] >> (id % 32u)) & 1u)
+        return motion_base[k][id];
+#endif
+#if FELUCCA_PLOCK
+    return lock_base_of(t, id, t->p[id]);
+#else
+    return t->p[id];
+#endif
+}
+#endif
 #if FELUCCA_CHANCE
 static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100: none (chance.c, seq_tick) */
 #endif
