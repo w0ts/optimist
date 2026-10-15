@@ -100,6 +100,11 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #define IN_POOL_AUDIO
 #endif
 #define AINL static inline __attribute__((always_inline))
+#ifndef HOST_DUAL
+#define HOST_DUAL 0
+#endif
+/* two cores render parts at once (system/dual.c mix_block_dual; HOST_DUAL: the host's thread, tests/audio_hang_dual.h) */
+#define DUAL_RENDER (FELUCCA_DUAL >= 2 || HOST_DUAL)
 AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
 #define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))
 

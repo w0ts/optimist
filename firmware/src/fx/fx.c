@@ -1118,7 +1118,7 @@ static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int3
 #ifndef DUAL_REV
 #define DUAL_REV 1
 #endif
-#define REV_LATE (FELUCCA_DUAL >= 2 && DUAL_REV && FELUCCA_FX_REVERB)
+#define REV_LATE (DUAL_RENDER && DUAL_REV && FELUCCA_FX_REVERB)
 #if REV_LATE
 static struct {
     int32_t in[CTL];             /* the block's send */
@@ -1299,7 +1299,7 @@ static void bench_sig(uint32_t k, const int32_t *b, uint32_t n);   /* bench.c */
 #else
 #define BENCH_SIG(k, b, n) ((void)0)
 #endif
-#if FELUCCA_DUAL >= 2
+#if DUAL_RENDER
 /* dual core (dual.c): each core mixes its parts into its own accumulators; MX(x) names them */
 typedef struct { int32_t send_c[CTL], send_d[CTL], send_r[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL]; } mixacc_t;
 #define MX(x) (A->x)
@@ -2453,7 +2453,7 @@ AINL void capture_clear(uint32_t n)
             track_capture[i] = 0;
 }
 #endif
-#if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */
+#if !DUAL_RENDER                                       /* (dual.c: mix_block_dual) */
 static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
