@@ -83,6 +83,7 @@ static void edscrs_tests(void)
     scr_row_t w;
     reset_ui();
     song.sel = 0;
+#if FELUCCA_ED_SCRS
     for (i = 0; i < sizeof SCS_SCR; i++) {
         s = SCS_SCR[i];
         ok &= scs_call(0, s, 0, 127, 127, 0, 0, 0, 0) && ed_out[5] == 0u && ed_out[6] == s && ed_out[10] == (uint8_t)scrs_n(s);
@@ -211,11 +212,16 @@ static void edscrs_tests(void)
         reset_ui();
         check(ok, "SCRS: STEPS with a step held (fam = the step): its card pages as rows (STEP: NOTE LEVEL RATCHET LENGTH, EXTRA, the lock pages); a turn edits the step; the held state is not left behind");
     }
+#endif
+#if FELUCCA_ED_SCOPE
     {   /* SCOPE (ed_scope.c, cmd 101): the trace the panel's SCOPE would draw: n heights around the zero line 64, the source set for the next 2 s */
         uint8_t q[2];
         uint32_t i, lo = 127u, hi = 0u, n;
         reset_ui();
         song.sel = 0;
+        ui.scr = SCR_SOUND;                                    /* (a page whose keys play: the part sounds with a key held) */
+        set_engine_of(&trk[0], trk[0].eng_req);                /* (the engine loaded, as the other tests leave it) */
+        frames(2);
         trk[0].p[P_LEVEL] = 100;
         q[0] = 1;
         ed_begin(ED_SCOPE);
@@ -243,11 +249,24 @@ static void edscrs_tests(void)
         reset_ui();
         check(ok, "SCOPE: a source asked for (the ring follows it), n heights as the device would trace them around the zero line, a note sounding makes a wave; a bad source: no reply");
     }
+    ed_begin(1); ed_scope_info();
+    check(ed_n > 5u && ed_out[5] == 0x5Eu, "ED_SCOPE on: INFO carries tag 0x5E");
+#else
+    {
+        static const uint8_t q[1] = {0};
+        ed_begin(ED_SCOPE);
+        check(!ed_scope(ED_SCOPE, q, 1) && ed_n == 5u, "ED_SCOPE off: cmd 101 is not handled (no reply)");
+        ed_begin(1); ed_scope_info();
+        check(ed_n == 5u, "ED_SCOPE off: INFO has no tag 0x5E");
+    }
+#endif
+#if FELUCCA_ED_SCRS
     ok = !scs_call(0, SCR_SYSTEM, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, 40, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, SCR_SOUND, 9, 127, 127, 0, 0, 0, 0) &&
          !scs_call(1, SCR_SOUND, 0, 127, 127, 99, 0, 0, 0) && !scs_call(9, SCR_SOUND, 0, 127, 127, 0, 0, 0, 0);
     check(ok, "SCRS: a screen not offered, a track or row past the table, an unknown op: no reply");
 #ifdef EDSCRN_GOLDEN
     {   /* the rows as JSON: the golden the web editor's mock serves (tests/scrs_table.json; EDSCRN_WRITE=1 rewrites it) */
+        trk[0].p[P_LEVEL] = 100;                               /* (T1 MIX's VOLUME in the golden: -6.0 dB, whichever test ran before) */
         static const uint8_t CX[][4] = {{SCR_HOME, 0, 127, 127}, {SCR_SOUND, 0, 127, 127}, {SCR_SOUND, 1, 127, 127}, {SCR_SOUND, 3, 127, 127}, {SCR_SOUND, 3, 0, 127}, {SCR_SOUND, 3, 1, 127},
                                         {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_STEP, 0, 127, 2}, {SCR_STEP, 3, 0, 2}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}, {SCR_SCOPE, 1, 127, 127}, {SCR_SCOPE, 0, 127, 1}
 #if OP_FM6
@@ -320,5 +339,16 @@ static void edscrs_tests(void)
         dstep_set(&TDRUM->dstep[2], 1, LV_NORM, 0);
         edscrs_dump(SCR_STEP, 3, 1, 2);
     }
+    ed_begin(1); ed_scrs_info();
+    check(ed_n > 5u && ed_out[5] == 0x5Cu, "ED_SCRS on: INFO carries tag 0x5C");
+#else
+    {
+        static const uint8_t q[4] = {0, 0, 0, 0};
+        ed_begin(ED_SCRS);
+        check(!ed_scrs(ED_SCRS, q, 4) && ed_n == 5u, "ED_SCRS off: cmd 99 is not handled (no reply)");
+        ed_begin(1); ed_scrs_info();
+        check(ed_n == 5u, "ED_SCRS off: INFO has no tag 0x5C");
+    }
+#endif
     reset_ui();
 }

@@ -95,6 +95,7 @@ static int fails;
 /* v13 FXP: the device's own parameter tables as JSON, for the web editor's mock (web/editor.html FXP_TABLE, tools/gen_fxp_table.py):
  * per kind of owner (track, master, usb, return, lane) and type it may hold, the parameters (label, fmt, min, max, def, unit,
  * names). tests/fxp_table.json is the golden: this test fails when the firmware's tables moved (FXP_WRITE=1 rewrites it) */
+#if FELUCCA_ED_FXP && FELUCCA_ED_DLAN
 static void fxp_json_desc(FILE *f, const param_desc_t *d)
 {
     uint32_t i;
@@ -161,6 +162,7 @@ static void fxp_json(FILE *f)
     }
     fprintf(f, "\n}\n");
 }
+#endif
 static void check(int c, const char *what) { printf("%-100s %s\n", what, c ? "ok" : "FAIL"); if (!c) fails++; }
 static void drain(void) { so_r = so_w; }               /* the host took everything */
 static void run_ms(uint32_t ms)                         /* the main loop for ms: a scan when due, the host drains */
@@ -349,6 +351,7 @@ int main(void)
     ed9_known_fx();
 
 
+#if FELUCCA_ED_FXP
     /* v13 FXP (ed_fxp.c, cmd 94): every effect slot by owner (tracks, master, USB input, returns, drum sounds), a type's
      * parameters from the device's own descriptors; a set is clamped; the editor's writes are known, a device-side change
      * of a setting no other push covers (an EQ band, the lane slots) goes out in the FX push */
@@ -488,7 +491,17 @@ int main(void)
 #endif
     }
 
+#else
+    {   /* the item ED_FXP left out: no command, no INFO tag (ed_fxp.c's stubs), the FX push's signature unchanged by it */
+        static const uint8_t G0[] = {0, 0};
+        ed_begin(ED_FXP);
+        check(!ed_fxp(ED_FXP, G0, sizeof G0) && ed_n == 5u, "ED_FXP off: cmd 94 is not handled (no reply)");
+        ed_begin(1); ed_fxp_info();
+        check(ed_n == 5u, "ED_FXP off: INFO has no tag 0x57");
+    }
+#endif
 
+#if FELUCCA_ED_DLAN
     /* v13 DLAN (ed_dlan.c, cmd 95): a lane's PAN MUTE SOLO SEQ MUTE, its LFO, the sequencer mutes */
     {
         static const uint8_t M0[] = {0, 0, 3}, MD[] = {2, 0, 3, 0}, LD[] = {2, 1, 3, 4}, BAD[] = {0, 3, 0}, OP1[] = {1, 0, 0};
@@ -528,9 +541,18 @@ int main(void)
         ed9_known_fx();
     }
 
+#else
+    {
+        static const uint8_t M0[] = {0, 0, 3};
+        ed_begin(ED_DLAN);
+        check(!ed_dlan(ED_DLAN, M0, sizeof M0) && ed_n == 5u, "ED_DLAN off: cmd 95 is not handled (no reply)");
+        ed_begin(1); ed_dlan_info();
+        check(ed_n == 5u, "ED_DLAN off: INFO has no tag 0x58");
+    }
+#endif
 
     /* v13 FAVS (ed_fav.c, cmd 100): the device's favorites store: count, the marks of an engine's presets, mark / clear, FULL, the PRESETS list */
-#if FELUCCA_FAVORITES
+#if FELUCCA_FAVORITES && FELUCCA_ED_FAVS
     {
         uint8_t q[6];
         int r;
@@ -574,9 +596,18 @@ int main(void)
         check(!ed_fav(ED_FAV, q, 2), "v13 FAVS: a bad engine: no reply");
         memset(&fav, 0, sizeof fav);
     }
+#else
+    {
+        static const uint8_t G[] = {0, 0};
+        ed_begin(ED_FAV);
+        check(!ed_fav(ED_FAV, G, sizeof G) && ed_n == 5u, "ED_FAVS off (or no FAVORITES): cmd 100 is not handled (no reply)");
+        ed_begin(1); ed_fav_info();
+        check(ed_n == 5u, "ED_FAVS off: INFO has no tag 0x5D");
+    }
 #endif
 
 
+#if FELUCCA_ED_SONG
     /* v13 SONGC (ed_song.c, cmd 97): the song chain: parts, mode, save; edited stopped only */
     {
         static const uint8_t G[] = {0}, S1[] = {1, 1, 2, 8}, INS[] = {2, 1}, DEL[] = {3, 1}, MD[] = {4, 1}, SV[] = {5}, BADP[] = {1, 40, 0, 4}, BADS[] = {1, 0, 99, 4}, BADB[] = {1, 0, 0, 65}, OP9[] = {9};
@@ -612,6 +643,15 @@ int main(void)
         check(!r, "v13 SONGC: an unknown op: no reply");
         arr_defaults(&arrangement);
     }
+#else
+    {
+        static const uint8_t G[] = {0};
+        ed_begin(ED_SONGC);
+        check(!ed_songc(ED_SONGC, G, sizeof G) && ed_n == 5u, "ED_SONG off: cmd 97 is not handled (no reply)");
+        ed_begin(1); ed_songc_info();
+        check(ed_n == 5u, "ED_SONG off: INFO has no tag 0x5A");
+    }
+#endif
 
     /* never in the way of a reply: a request waiting, or the ring past half: nothing goes out; later it does */
     n0 = nf;
@@ -685,6 +725,19 @@ int main(void)
                nf - f0, bytes_total - b0, (bytes_total - b0) / 2u, e9.scans);
         check((bytes_total - b0) / 2u < 3000u, "v9 bandwidth: a busy song with sweeps on every track stays under 3 KB/s (USB-MIDI full speed: ~100 KB/s)");
     }
+    /* the INFO tags of the commands built (the builder's ED_* items): sent when built, nothing when not */
+#if FELUCCA_ED_FXP
+    ed_begin(1); ed_fxp_info(); check(ed_n > 5u && ed_out[5] == 0x57u, "ED_FXP on: INFO carries tag 0x57");
+#endif
+#if FELUCCA_ED_DLAN
+    ed_begin(1); ed_dlan_info(); check(ed_n > 5u && ed_out[5] == 0x58u, "ED_DLAN on: INFO carries tag 0x58");
+#endif
+#if FELUCCA_ED_SONG
+    ed_begin(1); ed_songc_info(); check(ed_n > 5u && ed_out[5] == 0x5Au, "ED_SONG on: INFO carries tag 0x5A");
+#endif
+#if FELUCCA_FAVORITES && FELUCCA_ED_FAVS
+    ed_begin(1); ed_fav_info(); check(ed_n > 5u && ed_out[5] == 0x5Du, "ED_FAVS on: INFO carries tag 0x5D");
+#endif
     printf("%s\n", fails ? "EDITOR SYNC TESTS FAILED" : "editor sync: all ok");
     return fails != 0;
 }

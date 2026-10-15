@@ -64,7 +64,7 @@ static void scl_json(FILE *f, uint32_t s, uint32_t i, const scl_t *c0, int first
     fprintf(f, "%s   {\"s\":%u,\"i\":%u,\"page\":%u,\"title\":\"%s\",\"sect\":\"%s\",\"kind\":%u,\"label\":\"%s\",\"val\":\"%s\",\"unit\":\"%s\",\"state\":%u,\"danger\":%u,\"gk\":%u,\"gmin\":%d,\"gmax\":%d,\"gv\":%d,\"byd\":%u,\"fmt\":%u,\"dmin\":%d,\"dmax\":%d,\"ddef\":%d,\"obj\":\"%s\"}",
             first ? "" : ",\n", s, i, c->page, c->title, c->sect, c->kind, c->label, c->val, c->unit, c->state, c->danger, c->gk, c->gmin, c->gmax, c->gv, c->byd, c->fmt, c->dmin, c->dmax, c->ddef, c->obj);
 }
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
 /* TOOLS (ed_tools.c): the tools and EUCLID through the device's own functions */
 static void edtools_tests(void)
 {
@@ -135,6 +135,7 @@ static void edscrn_tests(void)
     scl_t c;
     reset_ui();
     song.sel = 0;
+#if FELUCCA_ED_SCRN
     for (s = 0; s < 2u; s++) {
         q[0] = 0, q[1] = (uint8_t)s;
         ed_begin(ED_SCRN);
@@ -239,8 +240,25 @@ static void edscrn_tests(void)
         free(a), free(b);
     }
 #endif
+    ed_begin(1); ed_scrn_info();
+    check(ed_n > 5u && ed_out[5] == 0x59u, "ED_SCRN on: INFO carries tag 0x59");
+#else
+    q[0] = 0, q[1] = 0;
+    ed_begin(ED_SCRN);
+    check(!ed_scrn(ED_SCRN, q, 2) && ed_n == 5u, "ED_SCRN off: cmd 96 is not handled (no reply)");
+    ed_begin(1); ed_scrn_info();
+    check(ed_n == 5u, "ED_SCRN off: INFO has no tag 0x59");
+#endif
     reset_ui();
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
     edtools_tests();
+    ed_begin(1); ed_tools_info();
+    check(ed_n > 5u && ed_out[5] == 0x5Bu, "ED_TOOLS on: INFO carries tag 0x5B");
+#elif FELUCCA_SEQTOOLS
+    q[0] = 0, q[1] = 0, q[2] = 0, q[3] = 0;
+    ed_begin(ED_TOOLS);
+    check(!ed_tools(ED_TOOLS, q, 4) && ed_n == 5u, "ED_TOOLS off: cmd 98 is not handled (no reply)");
+    ed_begin(1); ed_tools_info();
+    check(ed_n == 5u, "ED_TOOLS off: INFO has no tag 0x5B");
 #endif
 }
