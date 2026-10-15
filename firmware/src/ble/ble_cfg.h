@@ -131,7 +131,9 @@
                                           * most controllers put in their scan response; 0: passive */
 #endif
 #ifndef BLE_SCAN_RING
-#define BLE_SCAN_RING 8u                 /* raw reports between the RX interrupt and the main loop (a power of two) */
+#define BLE_SCAN_RING 16u                /* raw reports between the RX interrupt and the main loop (a power of two): a
+                                          * burst is ADV_IND + SCAN_RSP on 3 channels; 8 lost 4 reports in
+                                          * tests/ble_emu_test.py once the boot dinghy shifted the run's timeline */
 #endif
 #if BLE_CENTRAL && (BLE_SCAN_RING & (BLE_SCAN_RING - 1u))
 #error "BLE_SCAN_RING: a power of two"
