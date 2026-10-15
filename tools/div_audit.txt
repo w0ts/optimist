@@ -145,14 +145,14 @@ src/ui/optimist/op_stepdraw.c:roll_range:rg.rh | SG_H / at most 51 rows (b - a c
 src/ui/optimist/op_stepdraw.c:roll_org:len | TLEN
 src/ui/optimist/op_stepdraw.c:step_strip:n | step_pages: (trk_len + 15) / 16 and trk_len >= 1, so >= 1
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
-src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
-src/ui/optimist/op_screens.c:op_engine_step:n | guarded "if (is_drum(TSEL) || n == 0u) return" before every % n (n is NLIST, the factory and INIT entries)
+src/ui/optimist/op_screens.c:op_preset_step:t | t = (int32_t)total, reached only when total != 0 (the "if (!total)" branch comes first)
+src/ui/optimist/op_screens.c:op_engine_step:n | guarded "if (n == 0u) return" before every % n (n is NLIST, the factory and INIT entries, or LIST FAV's count)
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
 src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
 src/ui/optimist/op_project.c:dev_paint:bdp.n | drawn only when bdp.n > bdp.shown (the scroll bar), so bdp.n >= 1; ble_dev_rows is at least 1 (NONE)
-src/ui/optimist/op_preset.c:pre_draw:total | guarded by the loop's condition "i < 3u && total"
+src/ui/optimist/op_preset.c:pre_draw:total | used only when cur < total, so total >= 1
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
 src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
@@ -176,9 +176,7 @@ src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
 src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
 src/ui/sloop/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
 src/ui/sloop/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
-src/ui/sloop/ui_input.c:edit_param:(int32_t)total | guarded: "if (total)"
 src/ui/sloop/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
-src/ui/sloop/ui_input.c:ui_input:(int32_t)total | guarded: "else if (total)"
 src/ui/sloop/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
 src/ui/sloop/ui_layers.c:step_note_len:len | TLEN
 src/ui/sloop/ui_layers.c:step_note_resize:len | TLEN
@@ -232,6 +230,7 @@ src/engines/cz/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an u
 src/engines/cz/cz_native.c:cz_native_render:(int32_t)n | a render gets n - o with o < n (voice.c track_render), else CTL: >= 1
 src/engines/cz/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
 src/engines/cz/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
+src/engines/noise/eng_noise.c:noise_render:(uint32_t)(4096+((g*(g+k))>>12)) | g is an SVF_G entry (>= 0) and k = 8192 - RES * 7800 / 127 >= 392 for RES 0..127 (the parameter's range): >= 4096
 src/storage/snapshots/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
 src/ui/sloop/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)
 src/ui/sloop/ui_vis.c:vis_fft:len | the radix-2 loop: len = 2, 4, .. VIS_FFT (starts at 2, doubles)
@@ -271,3 +270,5 @@ src/ui/optimist/op_tools.c:eu_turn:(int32_t)tl.steps | eu_fit just before: tl.st
 src/system/bench.c:bench_rnd:m | the bench 16 (FELUCCA_BENCH only, never in a release build): every caller passes a non-zero constant (31, 128, 24, 64, 4, 6, 7)
 src/ui/optimist/op_graph.c:graph_fx:(span/2>0?span/2:1) | the ternary: never 0 (UI main loop)
 src/ui/optimist/op_graph.c:graph_fx:span | the loop skips a cell with span <= 0 just above (UI main loop)
+
+src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total

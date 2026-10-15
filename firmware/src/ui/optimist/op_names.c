@@ -44,7 +44,7 @@ static const char NM_CARD[] =
     "\0";
 static const char NM_CELL[] =
     "ANALOG\0ANLG\0"             "DIGITAL\0DGTL\0"            "PHASE\0PHSE\0"              "SAMPLE\0SMPL\0"
-    "VOICE\0VOX\0"               "WHEEL\0WHL\0"               "GRAIN\0GRN\0"
+    "VOICE\0VOX\0"               "WHEEL\0WHL\0"               "GRAIN\0GRN\0"           "NOISE\0NOIS\0"
     "CLEAR\0CLR\0"               "ERASE\0ERS\0"               "RESET\0RST\0"               "INSERT\0INS\0"
     "DELETE\0DEL\0"              "SAVE AS\0SAVE\0"            "IMPORT\0IMPT\0"             "STORE\0STOR\0"
     "FILTER\0FILT\0"             "STORED\0USED\0"             "EMPTY\0-\0"                 "DST\0DIST\0"                "CMP\0COMP\0"

@@ -315,6 +315,7 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 }
 
 #ifndef UP_HOST
+#include "../core/favorites.c"                    /* (fav_user_drop: an erased slot loses its mark; once only) */
 static const param_desc_t *up_desc(uint32_t uid, uint32_t i)   /* (by the record's engine UID) */
 {
 #if P_TAIL
@@ -413,6 +414,14 @@ static void up_boot(void)                      /* persist_boot: the banks from f
         up_bank_check(b, flash_ok ? st_load(OBJ_UPRESET0 + b, &up_bank[b], sizeof up_bank[b]) : -1);
     UPF_BOOT();
 #endif
+#if FELUCCA_FAVORITES
+    {   /* a mark of a slot that is empty (erased by another firmware, or a record that does not read) goes */
+        uint32_t k;
+        for (k = 0; k < UP_SLOTS; k++)
+            if (!up_used(k))
+                fav_user_drop(k);
+    }
+#endif
 }
 
 #if UP_FROM_V1 && FELUCCA_SL24_SAFE && FELUCCA_FLASH
@@ -456,6 +465,9 @@ static int up_put(uint32_t k, const up_rec_t *r)
         for (i = 0; i < NTRK; i++)
             if (trk[i].user == k + 1u)
                 trk[i].user = 0;
+#if FELUCCA_FAVORITES
+        fav_user_drop(k);                               /* (an erased preset keeps no mark) */
+#endif
     }
     up_gen++;
     upf_set(k, 0);                                      /* (UP_FM6: a voice kept for the old record goes) */

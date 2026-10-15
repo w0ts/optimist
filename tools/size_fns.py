@@ -42,7 +42,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
               "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c",
-              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "drums/dsnd_desc.c",
+              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
               "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c",
@@ -78,7 +78,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c",
-               "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
+               "engines/noise/eng_noise.c", "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
                "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c", "drums/lane_play.c", "seq/seq_mute.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists

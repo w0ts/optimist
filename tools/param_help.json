@@ -196,6 +196,10 @@
     {"kind": "eng", "ctx": "ACID", "if": "FELUCCA_ENG_ACID", "params": {
       "CUT": "Filter cutoff", "RESO": "Filter resonance", "ENV": "Filter envelope amount", "DEC": "Filter envelope decay",
       "ACC": "Accent amount", "WAVE": "Saw or square", "DRV": "Drive", "SLD": "Slide time"}},
+    {"kind": "eng", "ctx": "NOISE", "if": "FELUCCA_ENG_NOISE", "params": {
+      "MODE": "Noise source", "COLR": "White, pink or brown", "FREQ": "Filter frequency", "RES": "Filter resonance",
+      "TRK": "Frequency key tracking", "DENS": "Crackle density", "DRFT": "Slow random drift",
+      "CRSH": "Bit crush", "LEN": "Register or sequence length", "CLK": "Clock pitch above the key"}},
     {"kind": "eng", "ctx": "CZ", "if": "FELUCCA_ENG_CZ", "params": {
       "TONE": "CZ tone", "DCW": "Wave bend depth (DCW)", "W.TIM": "DCW envelope times", "DTN": "Line 2 detune (cents)",
       "A.TIM": "Level envelope times", "LINE": "Line select", "MOD": "Ring or noise mod", "VIB": "Vibrato depth"}},
@@ -293,6 +297,8 @@
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"},
       "FX ON": "Track effects on or off"}},
+    {"kind": "op", "ctx": "FAVS", "if": "FELUCCA_FAVORITES", "params": {
+      "FAV": "Mark this sound a favorite", "LIST": "Browse all, or only favorites"}},
     {"kind": "op", "ctx": "SOUND", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {

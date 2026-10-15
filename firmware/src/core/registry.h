@@ -64,19 +64,28 @@
 #ifndef FELUCCA_ENG_CZ
 #define FELUCCA_ENG_CZ 0                   /* CZ (from Melodee 0.11: eng_cz.c, cz_native.c, backports.h) */
 #endif
+#ifndef FELUCCA_ENG_JUNO
+#define FELUCCA_ENG_JUNO 0                 /* JUNO (the Juno-106 voice of fm-106 / KR-106: eng_juno.c, backports.h) */
+#endif                                     /* (UID 14 is JUNO's; a build without its engine files leaves the slot empty) */
+#ifndef FELUCCA_ENG_NOISE
+#define FELUCCA_ENG_NOISE 0                /* NOISE (Felucca-Engines eng_noise.c, MIT: engines/noise/eng_noise.c, backports.h) */
+#endif
 
 /* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB2 user
- * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, the rest -> ANALOG;
+ * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, the rest (JUNO, NOISE too) -> ANALOG;
  * with ANALOG absent too, the first engine built. Order = ENGINES[] order (the slots). */
 #if FELUCCA_ANALOG2
 #define ENGINE_LIST(X) X(0, ANALOG, 0, "ANALOG") X(1, DIGITAL, 0, "DIGITAL") X(2, PHASE, 0, "PHASE") \
     X(3, LOFI, 0, "LOFI") X(4, SAMPLE, 0, "SAMPLE") X(5, FORMANT, 0, "VOICE") X(6, TRIO, 0, "TRIO")      \
     X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, FM6, 1, "FM6") X(10, SLICE, 4, "SLICE")    \
-    X(11, PHYS, 0, "PHYS") X(12, ACID, 0, "ACID") X(13, CZ, 2, "CZ")
-#define ENG_UID_N 14u
+    X(11, PHYS, 0, "PHYS") X(12, ACID, 0, "ACID") X(13, CZ, 2, "CZ") X(14, JUNO, 0, "JUNO") \
+    X(15, NOISE, 0, "NOISE")
+#define ENG_UID_N 16u
 #define ENG_UID_PHYS 11u
 #define ENG_UID_ACID 12u
 #define ENG_UID_CZ 13u                     /* (fallback: PHASE) */
+#define ENG_UID_JUNO 14u                   /* (fallback: ANALOG) */
+#define ENG_UID_NOISE 15u                  /* (fallback: ANALOG) */
 #define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
 #define ENG_UID_SLICE 10u
 #define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
@@ -109,8 +118,8 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 /* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID) */
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
 #define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
-/* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID and CZ: optional) */
-#define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ == (int)ENG_UID_N - 3)
+/* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID, CZ, JUNO, NOISE: optional) */
+#define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ - FELUCCA_ENG_JUNO - FELUCCA_ENG_NOISE == (int)ENG_UID_N - 5)
 
 /* UID <-> slot (the tables fold away with every engine built) */
 #define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)
@@ -419,6 +428,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_MISSING_WARN
 #define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
                                             * out; SAVE > TOOLS > MISS lists it again (miss.c) */
+#endif
+#ifndef FELUCCA_FAVORITES
+#define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4
+                                            * LIST ALL / FAV (core/favorites.c, model.c; Felucca 1.6; SLOOP's UI) */
 #endif
 #ifndef FELUCCA_CHORD_NAMES
 #define FELUCCA_CHORD_NAMES 1              /* the STEP page names a step's chord: Am, Fmaj7, Bm7b5 (ui.c chord_name, from
