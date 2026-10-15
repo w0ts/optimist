@@ -40,6 +40,9 @@
  * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's); only when not every one is the default
  * (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
 #define UT_TLV 0x48u
+/* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns R1 R2 R3 (fx_slots.c rt_tlv: each slot's type, line and amount), only
+ * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
+#define RET_TLV 0x4Au
 #define UT_TLV_N 11u
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
@@ -65,8 +68,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(UT_TLV > VCNT_TLV, "the USB input's TLV: an id no other takes");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
@@ -162,7 +165,8 @@ static void fxr_head(uint8_t *h)
 {
     static const uint8_t T[3] = {FXT_DIST, FXT_FILT, FXT_COMP};
     uint32_t k, i, j;
-    memcpy(h, fxs_slot, FX_NSLOT);
+    for (k = 0; k < FX_NSLOT; k++)                     /* (a return's other type: RET_TLV, not the header) */
+        h[k] = FXT_SEND_OK(fxs_slot[k]) ? fxs_slot[k] : (uint8_t)FXT_NONE;
     for (i = 0, k = 0; i < 3u; i++) {
         uint32_t held = 0;
         for (j = 0; j < NTRK; j++)
@@ -400,6 +404,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the returns holding another type (fx_slots.c rt_tlv) */
+        uint32_t m = rt_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)RET_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the master's slots (above), as the tracks' */
         uint8_t mm[INS_N];
         uint32_t m;
@@ -433,8 +444,8 @@ static uint32_t fxr_encode(uint8_t *o)
  * song section keeps them). 0 refused (the defaults) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 {
-    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0;
-    const uint8_t *ia = 0, *ma = 0, *la = 0;
+    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0, rn = 0;
+    const uint8_t *ia = 0, *ma = 0, *la = 0, *ra = 0;
     int ok = n >= FXR_HEAD && n <= FXR_MAX && a[0] == FXR_VER;
     while (ok && at < n)                               /* (the TLVs: checked whole before any is taken) */
         if (at + 2u > n || at + 2u + a[at + 1u] > n)
@@ -475,6 +486,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             ma = a + at + 2u, mn = a[at + 1u];
         else if (a[at] == LIN_TLV)
             la = a + at + 2u, ln = a[at + 1u];
+        else if (a[at] == RET_TLV)
+            ra = a + at + 2u, rn = a[at + 1u];
         else
             fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (ok && !(a[1] & FXR_F_INS)) {                   /* a record from before the track slots: a drum sound's DST /
@@ -495,6 +508,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         mst_untlv(ma, ma ? mn : 0u);                   /* (after ins_drop: its master bit) */
         lin_untlv(la, la ? ln : 0u);
         fxs_set(ok ? a + 2 : FXS_OLD);                 /* (the sends; an insert's place: empty) */
+        if (ra)
+            rt_untlv(ra, rn);                          /* (the returns holding another type) */
         FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
                                                         * order, fxi.c: the same project plays the same way) */
     }

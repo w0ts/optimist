@@ -68,7 +68,7 @@ AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty
     return k < NTRK && (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
 }
 /* the send in a master slot (JUNO CHORUS: no send line to lend, as if always in one) */
-AINL uint32_t fxl_send_on(uint32_t j) { return j >= 2u ? 1u : FXS_ON(j ? FXT_DLY : FXT_CHO); }
+AINL uint32_t fxl_send_on(uint32_t j) { return j >= 2u ? 1u : FXS_HAS(j ? FXT_DLY : FXT_CHO); }
 static void fxi_publish(uint32_t k, uint32_t j, uint32_t i)   /* owner k's instance of type FXI_TY(j): i */
 {
     fm1_irq_off();

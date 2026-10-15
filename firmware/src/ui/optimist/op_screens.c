@@ -372,7 +372,7 @@ static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET
                                           {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
                                           {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"}};
 static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MASTER", "RETURNS", "DLY", "REV/CHO", "REVERB", "SLOTS",
-                                       "MACRO"};
+                                       "RET AMT", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
 static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */
 #define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */
@@ -466,7 +466,6 @@ static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
 }
 static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-    static const char *const RL[3] = {"REV RET", "DLY RET", "CHO RET"};
     uint32_t j;
     const page_t *pg = fxs_at(r, k, &j);
     cell_clear(c);
@@ -474,7 +473,7 @@ static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     page_cell(pg, j, c);
     if (pg == &FX_RET && j < 3u)
-        c->label = RL[j];
+        c->label = fxs_ret_label(2u - j);               /* (REV DLY CHO: lines 2 1 0; a return's other type by its name) */
 }
 static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {

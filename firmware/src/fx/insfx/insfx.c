@@ -28,12 +28,7 @@
 #define IFX_NI (NPART + 12u)                            /* the instances: the parts, the drum bus's L, R, the master's L, R,
                                                          * the USB input's L, R (fx-rework stage 3), the returns R1 R2 R3's
                                                          * L, R (fx-pool 2026-10-15: IFX_RT) */
-#define IFX_RT0 (NPART + 6u)
-#define IFX_RT(j) (IFX_RT0 + 2u * (uint32_t)(j))
-#define IFX_UT (NPART + 4u)
 #define IFX_AW_UT (NTRK + 1u)                           /* ifx_awake's entry for the USB input */
-#define IFX_BUS NPART
-#define IFX_MST (NPART + 2u)                            /* (fx-rework 2026-10-14: the master's two insert slots) */
 #define IFX_AW_MST NTRK                                 /* ifx_awake's entry for the master */
 #define IFX_SLOPE 256                                   /* the wet share's step a sample, Q15: 0 .. all in 128 (2.9 ms) */
 AINL int32_t ifx_mix(int32_t x, int32_t y, int32_t w) { return w >= 32768 ? y : x + mulq16(y - x, (uint32_t)w << 1); }

@@ -360,7 +360,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < sizeof T; i++) {
             uint8_t *a = o + SL24_HDR + k * SL24_TRK + 2u * (T[i] == FXT_FILT ? SL24_TFLT : (uint32_t)FXT_AMT[T[i]]);
-            uint32_t heard = FXT_INSERT >> T[i] & 1u ? INS_ON(k, T[i]) : FXS_ON(T[i]);   /* (a track's slot, a send's) */
+            uint32_t heard = FXT_INSERT >> T[i] & 1u ? INS_ON(k, T[i]) : FXS_HAS(T[i]);   /* (a track's slot, a send's) */
             if (heard || (T[i] == FXT_FILT && !TFLT_ON) || !(a[0] | a[1]))
                 continue;                               /* (heard; 2.4's FILT carried through a build without ours) */
             sl24_w16(a, 0);
@@ -374,9 +374,9 @@ static uint32_t sl24_fx_out(uint8_t *o)
     lost |= INS_ON(TRK_DRUM, FXT_DIST) && TDRUM->p[P_DIST] ? SX24_DBUS : 0u;   /* (the drum bus: project_t's drum slots
                                                                                * are stored 0, P4-2) */
     for (i = 1; i < 4u; i++) {
-        lost |= FXS_ON(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
-        lost |= FXS_ON(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
-        lost |= FXS_ON(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
+        lost |= FXS_HAS(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
+        lost |= FXS_HAS(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
+        lost |= FXS_HAS(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX
     for (k = 0; k < NTRK; k++)                          /* (each its amount, P_TAIL: not in 2.4's file, nothing to clear) */
@@ -399,7 +399,7 @@ static uint8_t sl25_drdly_out(void)
 {
     uint8_t n[DSEND_MAX + 1u];
     uint32_t l, v, best = 0;
-    if (!FXS_ON(FXT_DLY))
+    if (!FXS_HAS(FXT_DLY))
         return 0;
     memset(n, 0, sizeof n);
     for (l = 0; l < DRUM_LANES; l++)

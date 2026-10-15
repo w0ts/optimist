@@ -177,6 +177,40 @@ static uint32_t cg_ins_mst(void)
     }
     return n;
 }
+/* the returns holding another type (fx.c rt_run, fx-pool 2026-10-15): the master's costs of the same kernels on a stereo pair,
+ * while set or letting go (its tail) */
+static uint32_t cg_ins_rt(void)
+{
+    uint32_t n = 0, j, t;
+    for (j = 0; j < 3u; j++) {
+        int32_t a;
+        t = fxs_rty[j];
+        if (t == FXT_NONE)
+            continue;
+        a = rt_amt(j);
+        if (t == FXT_DIST && a)
+            n += CG_COST_DBDIST * 2u / 5u;
+#if TFLT_ON
+        if (t == FXT_FILT && rt_sto[j].f.mode)
+            n += CG_COST_DBFILT * 2u / 5u;
+#endif
+#if FELUCCA_MASTER_COMP
+        if (t == FXT_DYN && a)
+            n += CG_COST_DBCOMP;
+#endif
+        if (t == FXT_DUST && FELUCCA_FX_DUST && a)
+            n += CG_COST_DBDUST;
+#if INS_FX
+        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_RT(j))))
+            n += CG_COST_DBINS[t - FXT_NEW0];
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_RT(j))))
+            n += CG_COST_JUNO;
+#endif
+    }
+    return n;
+}
 /* the predicted cost of what sounds now: target instructions a sample */
 static uint32_t cg_est(void)
 {
@@ -195,6 +229,7 @@ static uint32_t cg_est(void)
         }
     n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
     n += cg_ins_mst();                                /* the master's (fx.c mst_run) */
+    n += cg_ins_rt();                                 /* the returns' other types (fx.c rt_run) */
 #if DINS
     for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
         n += cg_dvoice(dins_ran[i]);
