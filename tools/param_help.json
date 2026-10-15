@@ -354,6 +354,7 @@
     {"kind": "op", "ctx": "ABOUT", "params": {
       "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built", "CHIP": "The processor and its cores",
       " ": "Source code on GitHub"}},
+    {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "Whose work Optimist uses"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
       "ACTION": "Load or save, then a key", "ITEM": "Slot: turn or key (dim: free)",
       "NEW": "Blank project (slots kept)"}},

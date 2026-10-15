@@ -80,10 +80,46 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
  * only, no bars (the clock, the load of each core, the battery). No knob
  * does anything here and no line is the cursor */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
+static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */
+{
+    uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u;
+    return gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
+}
 static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS), 0: none */
 {
-    uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u, it = gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
+    uint32_t it = gl_sys_item();
     return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB : 0u;
+}
+/* SYSTEM > CREDITS, after ABOUT: who made what Optimist is built from, as text lines in INFO's style (the name left in
+ * grey, the who right, no bars, no knob does anything); the rest, with licences and commits: LICENSING.md
+ * (docs/CREDITS-AUDIT.md). Names only, nominative: JUNO models the Roland Juno-106, Optimist is not affiliated */
+static const char *const CRED[][2] = {
+    {"VERSION", FELUCCA_VERSION},                       /* ("OPTIMIST 0.1"; a release: its own string) */
+    {"FELUCCA", "Leo Kuroshita"},                       /* (the platform: Hugelton Instruments) */
+    {"SLOOP", "isod89"},
+    {"MELODEE", "Kerem Kilic"},
+    {"X0X", "Charles Vestal"},
+    {"FLOWSTATE", "Z. Chowdhury"},
+    {"JANGADA", "zednaked"},
+    {"JUNO", "fm-106, KR-106"},                         /* (PatttF; Kayrock Screenprinting) */
+    {"ACID", "Open303, TB-3PO"},                        /* (Robin Schmidt, Logarhythm: MIT) */
+    {"SAMPLES", "VSCO, VCSL, Sonic Pi"},
+    {"FONT", "Terminus"},
+    {"THE REST", "LICENSING.md"},
+};
+#define CRED_N (sizeof CRED / sizeof CRED[0])
+static uint32_t gl_cred(void) { return gl_sys_item() == SI_CREDITS; }
+static uint32_t gl_textpage(void) { return gl_info() || gl_cred(); }   /* (a page drawn whole: no lines, no cursor) */
+static void gl_cred_draw(int32_t y0)
+{
+    uint32_t i;
+    int32_t ph = (GL_END - y0) / (int32_t)CRED_N, ty;
+    char b[16];
+    for (i = 0; i < CRED_N; i++) {
+        ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
+        cv_text(6, ty, &FONT_S, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
+        cv_text(236 - text_w(&FONT_S, CRED[i][1]), ty, &FONT_S, CRED[i][1], i ? C_HI : C_WHITE);
+    }
 }
 static void gl_info_draw(int32_t y0)
 {
@@ -114,6 +150,10 @@ static void gl_paint(void)
     cell_t c;
     if (gl_info()) {
         gl_info_draw(y);
+        return;
+    }
+    if (gl_cred()) {
+        gl_cred_draw(y);
         return;
     }
     for (i = gld.first; i < gld.end; i++) {
