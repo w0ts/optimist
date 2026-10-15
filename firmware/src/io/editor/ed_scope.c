@@ -8,7 +8,7 @@
  * meter on the device reads that source too. shift is the right shift that fits the peak in the heights (never amplified: a quiet source is a small trace); peak is the
  * ring's largest sample (>> 2, at most 8191). INFO tag 0x5E: version 1, n. */
 enum { ED_SCOPE = 101 };
-#if FELUCCA_UI == 1
+#if FELUCCA_UI == 1 && FELUCCA_ED_SCOPE
 static int ed_scope(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t w, i, pk = 0, sh, at;

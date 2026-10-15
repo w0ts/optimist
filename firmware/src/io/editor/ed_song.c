@@ -14,7 +14,7 @@
  *       every op answers op 0's reply; rc 0 done, 1 stop first (the transport plays), 2 full, 3 one part left, 4 bad argument
  * INFO tag 0x5A: version 1. A bad op: no reply. */
 enum { ED_SONGC = 97 };
-#if FELUCCA_ARRANGER
+#if FELUCCA_ARRANGER && FELUCCA_ED_SONG
 static void ed_songc_out(uint32_t rc)
 {
     uint32_t i;

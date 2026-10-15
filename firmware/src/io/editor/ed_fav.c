@@ -10,7 +10,7 @@
  *       op 3  list                 -> 3, list (the PRESETS list shown: ALL or FAV), the device's own browsing follows it
  * A bad op, engine or k: no reply. INFO tag 0x5D: version 1, FAV_N. */
 enum { ED_FAV = 100 };
-#if FELUCCA_FAVORITES
+#if FELUCCA_FAVORITES && FELUCCA_ED_FAVS
 static uint32_t edf_n(uint32_t e) { return e == NENGINES ? (uint32_t)UP_SLOTS : e < NENGINES ? ENGINES[e]->npresets : 0u; }
 static int edf_has(uint32_t e, uint32_t k) { return e == NENGINES ? fav_user_has(k) : fav_has(eng_uid(e), preset_name(e, k)); }
 static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na)

@@ -20,7 +20,7 @@
  *             shown on a lane, 2 struck through, 3..4 the step event mark, 5 the card asks), the action's object text
  * The context is set for the one call and put back: the device's own cursor, track and page are not moved. A bad screen, track or row: no reply. */
 enum { ED_SCRS = 99, SCRS_FAM_FM6 = 126 };
-#if FELUCCA_UI == 1
+#if FELUCCA_UI == 1 && FELUCCA_ED_SCRS
 #define SCRS_MASK ((1u << SCR_HOME) | (1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO) | (1u << SCR_SCOPE))
 static struct {                                         /* what a call changed on the device's UI, to put back */
     uint8_t scr, sel, lane, lsel, fam, hot, master, row, rs, mset, held, spage, hp, lpg, cards;

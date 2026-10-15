@@ -20,7 +20,7 @@
  *             by-descriptor 0/1 and then fmt, min v14, max v14, def v14, then the action's object text
  * A bad screen or line, or the BLE devices list open on the device: no reply. */
 enum { ED_SCRN = 96 };
-#if FELUCCA_UI == 1
+#if FELUCCA_UI == 1 && FELUCCA_ED_SCRN
 static int scrn_ok(uint32_t s) { return s < 2u && !(s == 1u && GL_DEV); }
 static void scrn_line(uint32_t s, uint32_t i)
 {

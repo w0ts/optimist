@@ -371,7 +371,9 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
 # 2026-10-14: SEQTOOLS (ui/optimist/op_tools.c) put 5.5 KB of flash into user-default's estimate, which has SLOOP's UI
-NEEDS = {"SEQTOOLS": {"UI": 1}}
+NEEDS = {"SEQTOOLS": {"UI": 1},
+         "ED_SCRN": {"UI": 1}, "ED_SCRS": {"UI": 1}, "ED_SCOPE": {"UI": 1}, "ED_TOOLS": {"UI": 1, "SEQTOOLS": 1},   # (the web editor's commands that read the Optimist UI: nothing built with SLOOP's UI)
+         "ED_FAVS": {"FAVORITES": 1}}
 
 
 def counted(cfg, key):

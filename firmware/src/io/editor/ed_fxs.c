@@ -64,7 +64,7 @@ static uint32_t ed_fx_sig(void)
         h = (h ^ (uint32_t)(uint16_t)dsend_kit[k]) * 16777619u;
     for (k = 0; k < sizeof dins_amt; k++)
         h = (h ^ p[k]) * 16777619u;
-    return ed_fxp_sig(h);                              /* (v13: the owners' slots and settings, ed_fxp.c) */
+    return ed_dlan_sig(ed_fxp_sig(h));                 /* (v13: the owners' slots and settings, ed_fxp.c; the lanes' mix, LFOs and mutes, ed_dlan.c) */
 }
 
 static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c

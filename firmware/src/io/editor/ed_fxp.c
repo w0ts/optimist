@@ -19,6 +19,7 @@
  *       op 4  owner, slot, i, v14        the value set (clamped) -> owner, slot, i, v14
  * A bad owner, slot or op: no reply. The returns' slot 0 first parameter is the line's RET level (G_CRET + line). */
 enum { ED_FXP = 94 };
+#if FELUCCA_ED_FXP                                       /* (the builder item ED_FXP; off: no command 94, INFO has no tag 0x57) */
 #define FXP_MST NTRK
 #define FXP_USB (NTRK + 1u)
 #define FXP_RET0 (NTRK + 2u)
@@ -325,7 +326,7 @@ static uint32_t ed_fxp_sig(uint32_t h)
         FXP_H(ut.slot[k] + 256 * ut.amt[k]);
 #endif
 #undef FXP_H
-    return ed_dlan_sig(h);                             /* (the lanes' mix, LFOs and mutes: ed_dlan.c) */
+    return h;
 }
 /* 94 FXP: 1 = handled (replied), 0 = not this command or bad arguments (no reply) */
 static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)
@@ -384,3 +385,8 @@ static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_v(*vp);
     return 1;
 }
+#else
+static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+static void ed_fxp_info(void) {}
+static uint32_t ed_fxp_sig(uint32_t h) { return h; }
+#endif

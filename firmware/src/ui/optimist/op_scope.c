@@ -60,13 +60,17 @@ static int scope_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- the source, once a frame from the main loop: the ISR reads it at the next block */
+#if FELUCCA_ED_SCOPE
 static uint32_t scope_ed_ms;                            /* the web editor's SCOPE (editor/ed_scope.c): the source it asked for, until it stops asking */
 static uint8_t scope_ed_src;
+#endif
 static void scope_tick(void)
 {
     uint32_t s = ui.scr == SCR_SCOPE ? scope_row() : 0u;
+#if FELUCCA_ED_SCOPE
     if (scope_ed_ms && fm1_ms - scope_ed_ms < 2000u)    /* (the editor looks: its source, as the panel's SCOPE would) */
         s = scope_ed_src;
+#endif
     if (scope_src != s)
         scope_src = (uint8_t)s;
 }

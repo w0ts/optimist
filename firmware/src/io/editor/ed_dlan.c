@@ -14,6 +14,7 @@
  *       op 4  group, lane, i, v14    the value set (clamped) -> 4, group, lane, i, v14
  * A bad group, lane or op: no reply. */
 enum { ED_DLAN = 95 };
+#if FELUCCA_ED_DLAN                                      /* (the builder item ED_DLAN; off: no command 95, INFO has no tag 0x58) */
 enum { DLG_MIX, DLG_LFO, DLG_TRK, DLG_N };
 static const param_desc_t DLN_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
 static const param_desc_t DLN_MUTE = PE("MUTE", N_ONOFF, 0);
@@ -140,3 +141,8 @@ static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_v(dln_get(g, l, i));
     return 1;
 }
+#else
+static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+static void ed_dlan_info(void) {}
+static uint32_t ed_dlan_sig(uint32_t h) { return h; }
+#endif

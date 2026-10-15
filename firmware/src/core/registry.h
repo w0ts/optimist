@@ -425,6 +425,30 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_BACKUP
 #define FELUCCA_BACKUP 1                   /* the web editor's backup / restore of everything stored (ed_backup.c) */
 #endif
+#ifndef FELUCCA_ED_FXP
+#define FELUCCA_ED_FXP 1                    /* web editor protocol v13: every effect slot by owner and its parameters (cmd 94, INFO tag 0x57) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_DLAN
+#define FELUCCA_ED_DLAN 1                    /* web editor protocol v13: the drum lanes' mix, LFOs and sequencer mutes (cmd 95, tag 0x58) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_SCRN
+#define FELUCCA_ED_SCRN 1                    /* web editor protocol v13: GLOBAL and SYSTEM as the Optimist UI's lines (cmd 96, tag 0x59; the Optimist UI) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_SONG
+#define FELUCCA_ED_SONG 1                    /* web editor protocol v13: the song chain (cmd 97, tag 0x5A; the arranger) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_TOOLS
+#define FELUCCA_ED_TOOLS 1                    /* web editor protocol v13: the STEP TOOLS and EUCLID (cmd 98, tag 0x5B; the Optimist UI and SEQTOOLS) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_SCRS
+#define FELUCCA_ED_SCRS 1                    /* web editor protocol v13: the Optimist UI's screens as rows of cards (cmd 99, tag 0x5C; the Optimist UI) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_FAVS
+#define FELUCCA_ED_FAVS 1                    /* web editor protocol v13: the favorites (cmd 100, tag 0x5D; FAVORITES) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_SCOPE
+#define FELUCCA_ED_SCOPE 1                    /* web editor protocol v13: the oscilloscope's trace (cmd 101, tag 0x5E; the Optimist UI) (io/editor/ed_*.c) */
+#endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
 #endif

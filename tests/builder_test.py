@@ -85,6 +85,27 @@ check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 
 check("no shipped profile or estimate configuration names SIMD",
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
            if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
+# the web editor's v13 commands are eight builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
+      "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE"}
+check("web editor items: the eight ED_* exist, options of OTA, on by default, one flag each",
+      all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
+check("... every shipped profile leaves them to their default (all on: the product stays complete)",
+      not [p.name for p in C.PROFILES.glob("*.config") if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())])
+_fl, _ = C.flags(dict(C.defaults()))
+check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
+_fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
+check("... ED_FXP=0 ED_SCOPE=0 switch only those two flags off", _fl["FELUCCA_ED_FXP"] == 0 and _fl["FELUCCA_ED_SCOPE"] == 0 and
+      all(_fl[f] == 1 for k, f in ED.items() if k not in ("ED_FXP", "ED_SCOPE")))
+check("... the header carries them (-D from the generated config: FELUCCA_ED_FXP 0)", "#define FELUCCA_ED_FXP 0" in C.header(dict(C.defaults(), ED_FXP=0), "t"))
+_fl, _ = C.flags(dict(C.defaults(), OTA=0, ED_FXP=0))
+check("... with the editor (OTA) left out its options are ignored (their default, no effect)", _fl["FELUCCA_OTA"] == 0 and _fl["FELUCCA_ED_FXP"] == 1)
+check("... the commands that read the Optimist UI cost nothing without it (NEEDS), ED_FAVS nothing without the favorites",
+      all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
+      C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
+      not C.counted(dict(C.defaults(), UI=0), "ED_SCRS") and C.counted(dict(C.defaults(), UI=1), "ED_SCRS"))
+check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM)",
+      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157])
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
