@@ -85,21 +85,25 @@ check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 
 check("no shipped profile or estimate configuration names SIMD",
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
            if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
-# the web editor's v13 commands are eight builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+# the web editor's v13 commands are eight builder items (ED_*): options of OTA (the editor), each its own flag and INFO tag; on by default, but the two
+# large ones (ED_FXP, ED_SCRS) OFF by default (2026-10-15: the user's own mots build must link as it is)
+BIG = ("ED_FXP", "ED_SCRS")
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
       "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE"}
-check("web editor items: the eight ED_* exist, options of OTA, on by default, one flag each",
-      all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
-check("... every shipped profile leaves them to their default (all on: the product stays complete)",
-      not [p.name for p in C.PROFILES.glob("*.config") if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())])
+check("web editor items: the eight ED_* exist, options of OTA, on by default but ED_FXP and ED_SCRS, one flag each",
+      all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == (0 if k in BIG else 1) and R.ITEMS[k].flag == f for k, f in ED.items()))
+check("... the shipped profiles set them only where the slot asks: user-default turns the two large ones on, x0x-drums leaves FAVS, SCOPE and SONG out",
+      {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
+       if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
+      {"user-default": ["ED_FXP=1", "ED_SCRS=1"], "x0x-drums": ["ED_FAVS=0", "ED_SCOPE=0", "ED_SONG=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
-check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
-_fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
-check("... ED_FXP=0 ED_SCOPE=0 switch only those two flags off", _fl["FELUCCA_ED_FXP"] == 0 and _fl["FELUCCA_ED_SCOPE"] == 0 and
-      all(_fl[f] == 1 for k, f in ED.items() if k not in ("ED_FXP", "ED_SCOPE")))
-check("... the header carries them (-D from the generated config: FELUCCA_ED_FXP 0)", "#define FELUCCA_ED_FXP 0" in C.header(dict(C.defaults(), ED_FXP=0), "t"))
-_fl, _ = C.flags(dict(C.defaults(), OTA=0, ED_FXP=0))
-check("... with the editor (OTA) left out its options are ignored (their default, no effect)", _fl["FELUCCA_OTA"] == 0 and _fl["FELUCCA_ED_FXP"] == 1)
+check("... the default build has every flag on but the two large ones", all(_fl[f] == (0 if k in BIG else 1) for k, f in ED.items()))
+_fl, _ = C.flags(dict(C.defaults(), ED_FXP=1, ED_SCOPE=0))
+check("... ED_FXP=1 ED_SCOPE=0 switch only those two flags", _fl["FELUCCA_ED_FXP"] == 1 and _fl["FELUCCA_ED_SCOPE"] == 0 and
+      all(_fl[f] == (0 if k in BIG else 1) for k, f in ED.items() if k not in ("ED_FXP", "ED_SCOPE")))
+check("... the header carries them (-D from the generated config: FELUCCA_ED_FXP 1)", "#define FELUCCA_ED_FXP 1" in C.header(dict(C.defaults(), ED_FXP=1), "t"))
+_fl, _ = C.flags(dict(C.defaults(), OTA=0, ED_FXP=1, ED_FAVS=0))
+check("... with the editor (OTA) left out its options are ignored (their default, no effect)", _fl["FELUCCA_OTA"] == 0 and _fl["FELUCCA_ED_FXP"] == 0 and _fl["FELUCCA_ED_FAVS"] == 1)
 check("... the commands that read the Optimist UI cost nothing without it (NEEDS), ED_FAVS nothing without the favorites",
       all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
       C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
