@@ -564,8 +564,46 @@ static void test_reverb_recover(void)
     CHECK(cg.level == CG_L_OFF, "the end: the guard off (level %u)", cg.level);
 }
 
+#if FELUCCA_USB_AUDIO
+/* the USB input's insert slots (cpuguard.c cg_ins_ut, 2026-10-15: any insert type there): nothing at its defaults; a type
+ * set counts its kernel's stereo cost (the master's), EQ3 only while engaged (flat: bypassed), FX off: none */
+static void test_usb(void)
+{
+    uint32_t t, n0;
+    reset();
+    ut_defaults();
+    n0 = cg_est();
+    CHECK(cg_ins_ut() == 0u, "the USB input at its defaults: no insert cost (%u)", cg_ins_ut());
+    for (t = 1; t < FXT_N; t++) {
+        if (!(UT_OK >> t & 1u) || t == FXT_FILT)
+            continue;                                   /* (FILT: by its state, which moves once it ran) */
+        ut_defaults();
+        ut_load(1, t);
+        ut.amt[1] = t == FXT_EQ3 ? 1 : 100;
+#if FELUCCA_INS_EQ3
+        eq3_v[NTRK + 1u][EQV_LO] = t == FXT_EQ3 ? -6 : 0;
+#endif
+        CHECK(cg_ins_ut() > 0u || FXT_IS_LIM(t), "the USB input's S2 %u: its cost counted (%u)", t, cg_ins_ut());
+        CHECK(cg_est() == n0 + cg_ins_ut(), "... in the estimate (%u vs %u + %u)", cg_est(), n0, cg_ins_ut());
+        ut.v[UTV_FXON] = 0;
+        CHECK(FXT_IS_LIM(t) || t == FXT_EQ3 || cg_ins_ut() == 0u, "... FX off: none (%u)", cg_ins_ut());
+    }
+#if FELUCCA_INS_EQ3
+    ut_defaults();
+    ut_load(0, FXT_EQ3);
+    ut.amt[0] = 1;
+    eq3_v[NTRK + 1u][EQV_LO] = 0;
+    CHECK(cg_ins_ut() == 0u, "... EQ3 flat: bypassed, no cost (%u)", cg_ins_ut());
+#endif
+    ut_defaults();
+}
+#endif
+
 int main(void)
 {
+#if FELUCCA_USB_AUDIO
+    test_usb();
+#endif
     test_quiet();
     test_model();
     test_prediction();

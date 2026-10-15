@@ -52,7 +52,8 @@ static void core_row_tests(void)
 #else
     sys_info_cell(2, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == 4u, "the INFO page has the same 4 lines in every build (clock, CPU0, 2ND CORE, battery: no flash / RAM lines)");
+    check(INFO_N == 4u + INFO_UA, "the INFO page has the same 4 lines in every build (clock, CPU0, 2ND CORE, battery: no flash / RAM "
+          "lines), then USB audio's diagnostics where it is built");
 #endif
     reset_ui();
 }

@@ -598,27 +598,40 @@ static void mst_defaults(void)
 #if FELUCCA_USB_AUDIO
 /* ---- the USB input as a track (fx-rework stage 3, 2026-10-15: "audio usb in ... would appear as a track after the drum
  * tracks"): the computer's audio (the playback ring, usb_audio_stream.c ua_take) mixed as a stereo track, its LEVEL PAN
- * MUTE, FX on, its two insert slots (the master's types but those with an instance count: CHRS ECHO GATER JUNO) on its L
- * and R, its sends REV DLY CHO from its mid. Unity, centre, no insert, no send by default: the computer's audio as it was
- * mixed before (into the output, now into the mix bus before the master's inserts). Kept in the FX record (fx_rec.c
- * UT_TLV), a load's. The mixer's USB row (op_mixer.c) edits it */
-#define UT_OK (MST_OK & ~FXT_BIT(FXT_EQ3))               /* (fx-pool: the limited types too, an instance of the pool; EQ3 has
-                                                        * no page for the USB input yet) */
+ * MUTE, FX on, its two insert slots on its L and R, its sends REV DLY CHO from its mid. Unity, centre, no insert, no send by
+ * default: the computer's audio as it was mixed before (into the output, now into the mix bus before the master's inserts).
+ * Kept in the FX record (fx_rec.c UT_TLV; EQ3's bands in EQ3's own TLV, owner USB), a load's. The mixer's USB row
+ * (op_mixer.c) edits it.
+ * Its slots take every insert type a track's do (2026-10-15, the user: "any FX insert on the USB IN track, like any other
+ * track"): the pooled ones (CHRS ECHO JUNO FLNG) an instance of the pool (fxi.c owner FXI_UT; none free: FULL, bypassed),
+ * EQ3 its own bands (eq3_v's USB owner), JUNO CHORUS its own MODE, GATER its own PATTERN RATE SHAPE (the input has no
+ * track values: these three are the input's, the phase the transport's clock at the song tempo, as a track's; the swing
+ * the global SWING on RATE 1/16, the song's step) */
+#define UT_OK (FXT_BUILT & FXT_INSERT)
 #define UT_LVL_DEF 112                                  /* (LEVEL_Q12[112] = 4096: unity) */
-enum { UTV_LVL, UTV_PAN, UTV_MUTE, UTV_FXON, UTV_REV, UTV_DLY, UTV_CHO, UTV_N };
+enum { UTV_LVL, UTV_PAN, UTV_MUTE, UTV_FXON, UTV_REV, UTV_DLY, UTV_CHO,
+       UTV_GPAT, UTV_GRATE, UTV_GSHP,                   /* GATER's PATTERN RATE SHAPE (its DEPTH: the slot's amount) */
+       UTV_JMODE,                                       /* JUNO CHORUS's MODE (its MIX: the slot's amount) */
+       UTV_N };
+#define UTV_N0 (UTV_CHO + 1u)                           /* (the values UT_TLV had first: its layout keeps them there) */
+#define UT_ID_TY 16u                                    /* ut_desc ids: 0 .. UTV_N - 1 the values, 16 17 the TYPEs, 18 19 the */
+#define UT_ID_AMT 18u                                   /* amounts */
 static struct {
-    int16_t v[UTV_N];                                   /* LEVEL PAN MUTE FX ON, the sends REV DLY CHO */
+    int16_t v[UTV_N];                                   /* LEVEL PAN MUTE FX ON, the sends REV DLY CHO, GATER's, JUNO's */
     uint8_t slot[INS_N];                                /* its insert slots' types */
     int16_t amt[INS_N];                                 /* their amounts (the slot's: a type change resets it) */
-} ut = {{UT_LVL_DEF, 0, 0, 1, 0, 0, 0}, {FXT_NONE, FXT_NONE}, {0, 0}};
+} ut = {{UT_LVL_DEF, 0, 0, 1, 0, 0, 0, 8, 1, 0, 0}, {FXT_NONE, FXT_NONE}, {0, 0}};
 static const param_desc_t UT_DESC[UTV_N] = {
     PD("VOLUME", F_DB, 0, 127, UT_LVL_DEF), PD("PAN", F_BIPCT, -64, 63, 0), PE("MUTE", N_ONOFF, 0), PE("FX ON", N_ONOFF, 1),
-    PD("REV", F_PCT, 0, 127, 0), PD("DLY", F_PCT, 0, 127, 0), PD("CHO", F_PCT, 0, 127, 0)};
+    PD("REV", F_PCT, 0, 127, 0), PD("DLY", F_PCT, 0, 127, 0), PD("CHO", F_PCT, 0, 127, 0),
+    PE("PAT", N_TGPAT, 8), PE("RATE", N_SLDIV, 1), PD("SHAPE", F_PCT, 0, 127, 0),   /* (as a track's GATER: params.c TP) */
+    PE("MODE", N_TJMODE, 0)};                           /* (as a track's JUNO CHORUS) */
+#define ut_vd(i) (&UT_DESC[(i) % UTV_N])                /* value i's descriptor */
 static void ut_defaults(void)
 {
     uint32_t i;
     for (i = 0; i < UTV_N; i++)
-        ut.v[i] = UT_DESC[i].def;
+        ut.v[i] = ut_vd(i)->def;
     ut.slot[0] = ut.slot[1] = FXT_NONE;
     ut.amt[0] = ut.amt[1] = 0;
 }
@@ -626,7 +639,7 @@ static int ut_dflt(void)
 {
     uint32_t i;
     for (i = 0; i < UTV_N; i++)
-        if (ut.v[i] != UT_DESC[i].def)
+        if (ut.v[i] != ut_vd(i)->def)
             return 0;
     return ut.slot[0] == FXT_NONE && ut.slot[1] == FXT_NONE;
 }
@@ -635,20 +648,22 @@ static const char *ut_names[FXT_N];
 static uint8_t ut_list[FXT_N];
 static int16_t ut_tv[INS_N];
 static param_desc_t ut_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, ut_names, 0}, {"S2", F_ENUM, 0, 0, 0, ut_names, 0}};
-static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* 0..6 the values, 8 9 the TYPEs, 10 11 the amounts */
+static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* (ids: UT_ID_TY above) */
 {
     uint32_t t, n = 0, s = id & 1u;
     if (id < UTV_N) {
         *vp = &ut.v[id];
-        return &UT_DESC[id];
+        return ut_vd(id);
     }
-    if (id >= 10u) {
+    if (id >= UT_ID_AMT) {
         t = ut.slot[s];
         if (!(t < FXT_N && (UT_OK >> t & 1u)) || FXT_AMT[t] == 0xFFu)
             return 0;                                  /* (an empty slot: none) */
         *vp = &ut.amt[s];
         return &TP[FXT_AMT[t]];
     }
+    if (id < UT_ID_TY)
+        return 0;
     ut_tv[s] = 0;
     for (t = 0; t < FXT_N; t++)
         if (t == FXT_NONE || UT_OK >> t & 1u) {
@@ -660,6 +675,10 @@ static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* 0..6 the valu
     ut_td[s].max = (int16_t)(n - 1u);
     *vp = &ut_tv[s];
     return &ut_td[s];
+}
+static uint32_t ut_has(uint32_t t)                      /* the input's slot holding type t: 1 S1, 2 S2, 0 none (or not built) */
+{
+    return !(t < FXT_N && (UT_OK >> t & 1u)) ? 0u : ut.slot[0] == t ? 1u : ut.slot[1] == t ? 2u : 0u;
 }
 static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (the other's type swaps them, amounts too) */
 {
@@ -679,6 +698,7 @@ static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (th
         ut.amt[s] = t == FXT_EQ3 ? 1 : 0;                /* (EQ3: ON; another type from 0) */
     ut.slot[s] = (uint8_t)t;
     fm1_irq_on();
+    FXI_ASK(1u);                                       /* (a pooled type: the input's instance, fxi.c) */
 }
 #endif
 
@@ -1048,6 +1068,10 @@ static const param_desc_t INS_DESC[INS_N] = {{"S1", F_ENUM, 0, INS_NLIST - 1, 0,
                                                         * (the track's FX pages: CMP_PAGE's range) */
 #define FXS_ID_MEQ 32u                                 /* 32..37: the master's EQ3: LO MID HI, ON, FREQ L, FREQ H */
 #define FXS_ID_REQ 40u                                 /* 40..45: the EQ3 of the return holding it: LO MID HI, ON, FREQ L, FREQ H */
+#define FXS_ID_UEQ 48u                                 /* 48..53: the USB input's EQ3: LO MID HI, ON, FREQ L, FREQ H (the mixer's
+                                                        * USB row: USB EQ3, USB EQ3 F) */
+#define FXS_IS_EQ3(k) (((k) >= FXS_ID_TEQ && (k) < FXS_ID_TEQ + 6u) || ((k) >= FXS_ID_MEQ && (k) < FXS_ID_MEQ + 6u) || \
+                       ((k) >= FXS_ID_REQ && (k) < FXS_ID_REQ + 6u) || ((k) >= FXS_ID_UEQ && (k) < FXS_ID_UEQ + 6u))
 #if FELUCCA_INS_EQ3
 static int rt_eq3(void)                                /* the line whose return holds EQ3, 3: none */
 {
@@ -1060,8 +1084,16 @@ static int rt_eq3(void)                                /* the line whose return 
 static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
 {
     static const param_desc_t RON = PE("EQ3", N_ONOFF, 1);
-    uint32_t base = k >= FXS_ID_REQ ? FXS_ID_REQ : k >= FXS_ID_MEQ ? FXS_ID_MEQ : FXS_ID_TEQ, f = k - base, o;
-    o = base == FXS_ID_TEQ ? song.sel % NTRK : base == FXS_ID_MEQ ? NTRK : NTRK + 2u + (uint32_t)rt_eq3();
+    uint32_t base = k >= FXS_ID_UEQ ? FXS_ID_UEQ : k >= FXS_ID_REQ ? FXS_ID_REQ : k >= FXS_ID_MEQ ? FXS_ID_MEQ : FXS_ID_TEQ;
+    uint32_t f = k - base, o;
+    o = base == FXS_ID_TEQ ? song.sel % NTRK : base == FXS_ID_MEQ ? NTRK : base == FXS_ID_UEQ ? NTRK + 1u : NTRK + 2u + (uint32_t)rt_eq3();
+#if FELUCCA_USB_AUDIO
+    if (base == FXS_ID_UEQ && !ut_has(FXT_EQ3))
+        o = EQ_NO;                                     /* (no slot of the input holds it: none) */
+#else
+    if (base == FXS_ID_UEQ)
+        o = EQ_NO;
+#endif
     if (f > 5u || o >= EQ_NO) {
         *vp = 0;
         return 0;
@@ -1071,6 +1103,12 @@ static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
             *vp = &trk[o].p[P_TEQ];
             return &TP[P_TEQ];
         }
+#if FELUCCA_USB_AUDIO
+        if (base == FXS_ID_UEQ) {
+            *vp = &ut.amt[ut_has(FXT_EQ3) - 1u];       /* (the slot holding it: its amount is its ON) */
+            return &RON;
+        }
+#endif
         *vp = base == FXS_ID_MEQ ? &mst_amt[FXT_EQ3] : &fxs_ramt[fxs_rsl[o - NTRK - 2u]];
         return &RON;
     }
@@ -1119,7 +1157,7 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
 {
     uint32_t t, n = 0, i;
 #if FELUCCA_INS_EQ3
-    if ((k >= FXS_ID_TEQ && k < FXS_ID_TEQ + 6u) || (k >= FXS_ID_MEQ && k < FXS_ID_MEQ + 6u) || (k >= FXS_ID_REQ && k < FXS_ID_REQ + 6u))
+    if (FXS_IS_EQ3(k))
         return eq3_desc(k, vp);
 #endif
     if (k >= FXS_ID_RAMT && k < FXS_ID_RAMT + 3u) {    /* a return's amount: its other type's (a send's: none) */

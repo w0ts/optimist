@@ -517,10 +517,18 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
  * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
  * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
  * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
-static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
+#if INS_LIM
+#define FXI_UT_OWN FXI_UT                               /* (the owners of fxi.c: the USB input, the master) */
+#define FXI_MST_OWN FXI_MST
+#else
+#define FXI_UT_OWN 0u
+#define FXI_MST_OWN 0u
+#endif
+/* owner o's (fxi.c: a track, FXI_MST, FXI_UT) slot s holding type t, its state st */
+static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_t st)
 {
     static char lab[2][8], un[2][4];
-    uint32_t t = ins_slot[k % NTRK][s & 1u], cap = fxi_cap(t), st = fxi_state(k, s), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
+    uint32_t cap = fxi_cap(t), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
     const char *v = 0;
     if (a == 0xFFu || cap == 0u || cap == FXI_ANY || st == FXI_NA)
         return;
@@ -530,7 +538,7 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
         c->unit = un[s & 1u];
         return;
     }
-    if (st == FXI_WAIT && fxi_can(k, t))
+    if (st == FXI_WAIT && fxi_can(o, t))
         v = "WAIT";
     else {
         v = st == FXI_FULL ? "FULL" : "IN USE";
@@ -543,6 +551,12 @@ static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)
     str_cpy(c->val, v, sizeof c->val);
     c->gk = GK_NONE;
 }
+static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)   /* track k's slot s */
+{
+    cell_lim_note(c, k % NTRK, ins_slot[k % NTRK][s & 1u], s, fxi_state(k, s));
+}
+/* a stereo owner's (the master, the USB input: fxi.c FXI_MST FXI_UT) slot s holding type t (its pooled instance) */
+static void cell_own_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s) { cell_lim_note(c, o, t, s, fxi_ostate(o, t)); }
 
 /* with a drum lane picked, a value of the drum track itself (the user, 2026-10-14: "remember on a lane i want to see the
  * lane"): the track's pages (its bus inserts and sends, FILTER, SLICER, GATER, COMP, PATTERN) and the KIT page's slot

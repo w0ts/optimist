@@ -390,6 +390,11 @@ static uint8_t ifx_jsd[NPART];                          /* set this block */
 
 #include "fxi_kern.c"                                   /* CHRS ECHO: the limited types' kernels, their instances (fxi.c) */
 #include "gater.c"                                      /* GATER: the tempo-synced gate (one instance a track) */
+#if FELUCCA_INS_GATER && FELUCCA_USB_AUDIO
+#define IFX_GATE_UT(i) ((i) == IFX_UT ? ifx_gate_ut.c : 0)   /* (the USB input's closure) */
+#else
+#define IFX_GATE_UT(i) 0
+#endif
 #include "eq3.c"                                        /* EQ3: the three-band DJ EQ (a state an owner) */
 #if INS_LIM
 #define IFX_EV(ty, k) ifx_lim_ev(ty, k)                 /* (fading out to give a lent line back: as off) */
@@ -422,7 +427,7 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
     case FXT_WIDE: return ifx_wix(i) < IFX_BUS + 6u ? ifx_wide[ifx_wix(i)].w : 0;
 #endif
 #if FELUCCA_INS_GATER
-    case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
+    case FXT_GATE: return i < NTRK ? ifx_gate[i].c : IFX_GATE_UT(i);   /* (its closure: 0 open, at rest) */
 #endif
 #if FELUCCA_INS_EQ3
     case FXT_EQ3: return eq3_st[ifx_owner(i)].w;       /* (its share: 0 bypassed) */
@@ -480,7 +485,12 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
     case FXT_FRMT: ifx_formant(&ifx_frmt[i], a, b, n, sh + 1u); break;
 #endif
 #if FELUCCA_INS_GATER
-    case FXT_GATE: ifx_gater(&ifx_gate[i % NTRK], &trk[i % NTRK], a, b, 0, n); break;
+    case FXT_GATE: {
+        igt_par_t p;
+        igt_par_trk(&trk[i % NTRK], &p);
+        ifx_gater(&ifx_gate[i % NTRK], &p, a, b, 0, n);
+        break;
+    }
 #endif
 #if FELUCCA_INS_EQ3
     case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], eq3_v[ifx_owner(i)], a, b, 0, n); break;   /* (a part: mono) */
@@ -570,6 +580,19 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
         return;
     }
 #endif
+#if FELUCCA_INS_GATER
+    if (ty == FXT_GATE) {                               /* (one gain on L and R: the USB input's instance, its own values; no
+                                                        * other stereo owner holds it: fx_slots.c MST_OK RT_OK) */
+#if FELUCCA_USB_AUDIO
+        if (i0 == IFX_UT) {
+            igt_par_t p;
+            igt_par_ut(&p);
+            ifx_gater(&ifx_gate_ut, &p, a, l, r, n);
+        }
+#endif
+        return;
+    }
+#endif
 #if FELUCCA_INS_EQ3
     if (ty == FXT_EQ3) {                                /* (a stereo owner: its state's two sides) */
         (void)eq3_run(&eq3_st[ifx_owner(i0)], eq3_v[ifx_owner(i0)], a, l, r, n);
@@ -599,7 +622,9 @@ AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n
 #endif
 #if FELUCCA_INS_GATER
     if (ty == FXT_GATE) {                               /* (one gain on L and R: the bus's one instance) */
-        ifx_gater(&ifx_gate[IFX_BUS], TDRUM, a, l, r, n);
+        igt_par_t p;
+        igt_par_trk(TDRUM, &p);
+        ifx_gater(&ifx_gate[IFX_BUS], &p, a, l, r, n);
         return;
     }
 #endif

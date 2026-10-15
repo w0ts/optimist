@@ -549,8 +549,8 @@ job; ( jobin
     run "FX slots with the further inserts built (INS_*): the same layout, renders and records" "$OUT/fx_slots_ifx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
-    run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record)" "$OUT/fx_slots_usb_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
+    run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record; every insert type on S1 / S2: heard, neutral = dry, the record, the pool FULL)" "$OUT/fx_slots_usb_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_EQ3=1 -o "$OUT/eq3_test" tests/eq3_test.c -lm
@@ -721,6 +721,12 @@ job; ( jobin
     mkdir -p "$OUT/optimist-fxpool"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $INSFX_ON $SEC4 -o "$OUT/ui_optimist_fxpool_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with every further insert and EQ3: the returns' other types (RET AMT, the cards named), EQ3's rows, the help lines" "$OUT/ui_optimist_fxpool_test" "$OUT/optimist-fxpool"
+) >"$U.out" 2>&1 & jobbg
+# the USB input with every insert type (tests/ui_optimist_usbfx.h): its TYPE list, USB EQ3 / EQ3 F / GATER / JUNO sets, FULL
+job; ( jobin
+    mkdir -p "$OUT/optimist-usbfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 $SEC4 -o "$OUT/ui_optimist_usbfx_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with USB audio and every insert type: the USB input's slots list them all, its USB EQ3 / EQ3 F / GATER / JUNO sets, a pooled type FULL, the help lines" "$OUT/ui_optimist_usbfx_test" "$OUT/optimist-usbfx"
 ) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden at
 # 0 instances, the help lines; CHRS ECHO built with 0 / 4, 1 / 0 and 4 / 1 instances (the last two with the help line)
@@ -1348,6 +1354,10 @@ job; ( jobin
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -o "$OUT/cpuguard_ifx_test" tests/cpuguard_test.c -lm
     run "CPU guard with the further inserts built (INS_*; CHRS ECHO counted only with an instance)" "$OUT/cpuguard_ifx_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/cpuguard_usb_test" tests/cpuguard_test.c -lm
+    run "CPU guard with USB audio: the USB input's insert slots counted (any insert type, EQ3 only engaged, FX off none)" "$OUT/cpuguard_usb_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $X0X_ON -o "$OUT/cpuguard_x0x_test" tests/cpuguard_test.c -lm

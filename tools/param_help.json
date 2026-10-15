@@ -434,7 +434,16 @@
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
-      "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
+      "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"},
+      "EQ3": {"text": "3-band EQ on or off", "if": "FELUCCA_INS_EQ3"}}},
+    {"kind": "op", "ctx": "USB EQ3", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3", "params": {
+      "LO": "USB in low band: KILL .. +6", "MID": "USB in mid band: KILL .. +6", "HI": "USB in high band: KILL .. +6"}},
+    {"kind": "op", "ctx": "USB EQ3 F", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3", "params": {
+      "FREQ L": "USB in low / mid crossover", "FREQ H": "USB in mid / high crossover"}},
+    {"kind": "op", "ctx": "USB GATER", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_GATER", "params": {
+      "PAT": "USB in gate pattern: 16 steps", "RATE": "USB in gate step (song tempo)", "SHAPE": "Gate edges: hard to smooth"}},
+    {"kind": "op", "ctx": "USB JUNO", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_JCHORUS", "params": {
+      "MODE": "USB Juno chorus I, II or I+II"}},
     {"kind": "op", "ctx": "RETURNS", "params": {
       "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level",
       "REV RET": "Reverb return level", "DLY RET": "Delay return level", "CHO RET": "Chorus return level"}},
