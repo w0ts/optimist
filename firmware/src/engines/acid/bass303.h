@@ -1,4 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/bass303.h, GPL-3.0-only).
+ * Notices carried from the sources (comments only):
+ *   Open303: Copyright (c) 2009 Robin Schmidt (www.rs-met.com), MIT (LICENSES/MIT-Open303.txt);
+ *   schwung-303 (charlesvestal/schwung-303, GPL-3.0): Copyright (C) 2026 Charles Vestal and contributors.
+ *   Copyright (C) midilab / jc303 contributors (Devilfish extensions to Open303).
+ *   Copyright (C) Dave Mollen (davemollen/dm-Rat — RAT drive model port).
+ */
 /* X0X TB-303 bass engine: a C99 / float / no-libm port of Open303 (Robin Schmidt, MIT) with
  * the Devilfish ranges and the Soft / RAT drive of schwung-303 (GPL-3.0; the RAT model is
  * from davemollen/dm-Rat, GPL-3.0).

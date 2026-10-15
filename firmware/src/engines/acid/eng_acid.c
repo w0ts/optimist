@@ -5,8 +5,9 @@
  *   - the voice: acid/bass303.c as X0X has it (Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303;
  *     Soft / RAT drive after schwung-303 and dm-Rat), float, in its own translation unit (acid/acid_dsp.c,
  *     built with X0X's FPU flags): this file talks to it through acid_* with integers only;
- *   - the generator: X0X's seq/tb3po.c (itself after schwung-tb3po and the Phazerville Hemisphere Suite's
- *     TB_3PO applet by djphazer and contributors, GPL-3.0) rewritten for our steps, its float draws as the same
+ *   - the generator: X0X's seq/tb3po.c (itself after schwung-tb3po, GPL-3.0, and the TB-3PO Hemisphere applet of the
+ *     Phazerville Suite: Copyright (c) 2020, Logarhythm, MIT, LICENSES/MIT-TB3PO.txt; modified by djphazer)
+ *     rewritten for our steps, its float draws as the same
  *     integer comparisons (x / 2^24 < p / 100 as 100 x < p 2^24).
  * NOT X0X's break player (dsp/breaks*: no licence of its own, used by X0X by permission): nothing of it here.
  *

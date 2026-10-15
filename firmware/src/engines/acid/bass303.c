@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/bass303.c, GPL-3.0-only); Open303
+ * Copyright (c) 2009 Robin Schmidt (www.rs-met.com), MIT (LICENSES/MIT-Open303.txt): the notices in bass303.h. */
 /* X0X TB-303 bass engine - see bass303.h for what is ported and what is not.
  *
  * Reference: schwung-303 src/dsp/open303/rosic_Open303.{h,cpp} (getSample, triggerNote,
