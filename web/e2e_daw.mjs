@@ -827,12 +827,37 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   const sl = row0.querySelector("input[type=range]"); sl.value = String(+sl.value + 5); sl.dispatchEvent(new Event("input", { bubbles: true }));
   r.turned = await until(() => row0.querySelector(".scv").textContent !== v0, 8000);
   r.bpm = row0.querySelector(".scv").textContent;
+  seg(0).find((b) => b.textContent === "SCOPE").click();
+  r.scope = await until(() => !document.querySelector("#scscope").hidden && document.querySelector("#scscope").dataset.n === "236", 8000);
+  const px = document.querySelector("#scscope").getContext("2d").getImageData(0, 0, 944, 180).data; let ink = 0; for (let i = 0; i < px.length; i += 4) if (px[i] !== px[0] || px[i + 1] !== px[1]) ink++;
+  r.ink = ink > 500;
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
-  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && /LEVEL.*RATCHET/.test(scsRes.held) && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.wide,
+ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO|SCOPE" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
+  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && /LEVEL.*RATCHET/.test(scsRes.held) && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.scope && scsRes.ink && scsRes.wide,
   `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
 await shot("device-sound");
+/* v13 FAVS (the mock with ?fxp=1): Load preset has a star beside each sound; a click marks it on the device; "favorites only" hides the rest (and is the device's PRESETS list) */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await sleep(1500);
+const favRes = await run(`${U} try {
+  if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().dump, 120000)) return { err: "no mixer" };
+  document.querySelector('#tabs [data-go="loadpreset"]').click();
+  if (!await until(() => document.querySelectorAll("#pop .pw .fv").length > 10, 20000)) return { err: "no stars" };
+  const r = {}, stars = () => [...document.querySelectorAll("#pop .pw")].filter((w) => w.dataset.fav === "1").length;
+  r.before = stars();
+  document.querySelectorAll("#pop .pw .fv")[2].click();
+  r.marked = await until(() => stars() === 1, 8000);
+  document.querySelector("#pop .favonly").click();
+  r.only = await until(() => document.querySelector("#popbody.favlist") !== null, 8000);
+  r.visible = [...document.querySelectorAll("#pop .pw")].filter((w) => w.getClientRects().length > 0).length;
+  document.querySelector("#pop .favonly").click();
+  r.all = await until(() => !document.querySelector("#popbody.favlist"), 8000);
+  r.count = document.querySelector("#favcount").textContent;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(favRes && favRes.before === 0 && favRes.marked && favRes.only && favRes.visible === 1 && favRes.all && favRes.count === "1/64",
+  `e2e v13 FAVS (mock ?fxp=1): Load preset: a star marks a sound on the device, favorites only shows just it, then all again (${JSON.stringify(favRes)})`);
+await shot("favorites");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

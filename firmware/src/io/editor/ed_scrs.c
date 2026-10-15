@@ -6,8 +6,8 @@
  * SCREENS) and the editor draws what they say, turns and asks through the same ones, so it shows the same pages in the same order with the same
  * names, units, ranges and questions, and cannot drift.
  *   99 SCRS  op scr trk lane fam [row k mode v14] -> op scr row ...
- *       scr   0 MIX (one row a knob set of each mixer row: the device pages them with SELECT), 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO (the INFO tag 0x5C mask says which are built)
- *       trk   the track the screen is about (0..3; SOUND, STEPS), lane 0..16 a drum lane picked (the drum track: its lane pages; 127 none,
+ *       scr   0 MIX (one row a knob set of each mixer row: the device pages them with SELECT), 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO, 8 SCOPE (the INFO tag 0x5C mask says which are built)
+ *       trk   the track the screen is about (0..3; SOUND, STEPS, SCOPE; SCOPE's fam 1: its MASTER source), lane 0..16 a drum lane picked (the drum track: its lane pages; 127 none,
  *             DR itself), fam the page family of SOUND (127 every row, as the device opens it; 126: an FM6 track's operator rows)
  *       op 0  -                          -> 0, scr, trk, lane, fam, rows n, the screen's name
  *       op 1  row                        -> 1, scr, row, ROW
@@ -21,7 +21,7 @@
  * The context is set for the one call and put back: the device's own cursor, track and page are not moved. A bad screen, track or row: no reply. */
 enum { ED_SCRS = 99, SCRS_FAM_FM6 = 126 };
 #if FELUCCA_UI == 1
-#define SCRS_MASK ((1u << SCR_HOME) | (1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO))
+#define SCRS_MASK ((1u << SCR_HOME) | (1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO) | (1u << SCR_SCOPE))
 static struct {                                         /* what a call changed on the device's UI, to put back */
     uint8_t scr, sel, lane, lsel, fam, hot, master, row, rs, mset, held, spage, hp, lpg, cards;
     uint16_t sheld;
@@ -49,7 +49,7 @@ static int scrs_in(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
             st.hp = 0, st.lock_pg = LOCK_NONE;
     }
     snd_fam = (uint8_t)(f >= 64u && s == SCR_STEP ? SND_ALL : f == 127u ? SND_ALL : f == SCRS_FAM_FM6 ? SND_FM6 : f);   /* (a data byte is 7 bits: the device's 0xFF and 0xFE are 127 and 126) */
-    ui.master = s == SCR_FX;
+    ui.master = s == SCR_FX || (s == SCR_SCOPE && f == 1u);   /* (SCOPE: fam 1 is its MASTER source, else the track) */
     return 1;
 }
 static void scrs_out(uint32_t s)

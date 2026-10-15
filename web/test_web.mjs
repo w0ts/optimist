@@ -1218,10 +1218,29 @@ async function editorFxp() {
   ok(cal >= 0 && y0.op === 3 && y0.rc === 1 && y0.ask === 1, "scrn: op 3: YES on CALIBRATE > PANEL (ok 0) asks");
   ok(SC(await rq(E.req.scrnSave())).op === 4 && await rq(E.req.scrnLine(2, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true), "scrn: op 4 saves; a screen past the table: no reply");
   ok(/function renderDevScreens\(/.test(html) && /phText\("op", ln\.sect, ln\.label\)/.test(html) && /scrnSaveSoon\(\)/.test(html), "scrn: Settings shows the lines (sliders, steppers, switches, actions that ask), help from the device's own texts, saves a moment after the last edit");
+  /* v13 SCOPE (cmd 101, ed_scope.c): the oscilloscope's trace */
+  const esc = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scope.c"), "utf8");
+  ok(C.SCOPE === 101 && /ED_SCOPE = 101/.test(esc) && /ed_b\(0x5E\)/.test(esc) && info.scope && info.scope.n === 236, "scope: command 101, tag 0x5E == ed_scope.c; INFO says 236 points");
+  const sc0 = E.parse[C.SCOPE](await rq(E.req.scope(1)));
+  ok(sc0.src === 1 && sc0.pts.length === 236 && sc0.pts.every((y) => y >= 1 && y <= 127) && Math.max(...sc0.pts) > 64 && Math.min(...sc0.pts) < 64, "scope: a source asked for: 236 heights around the zero line 64");
+  ok(await rq(E.req.scope(9), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && /function scopeStart\(/.test(html) && /req\.scope\(scs\.src\)/.test(html), "scope: a bad source: no reply; the Device screens page draws the trace");
+  /* v13 FAVS (cmd 100, ed_fav.c): the favorites store */
+  const FV = E.parse[C.FAVS], efv = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fav.c"), "utf8");
+  ok(C.FAVS === 100 && /ED_FAV = 100/.test(efv) && /ed_b\(0x5D\)/.test(efv) && info.fav && info.fav.max === 64, "favs: command 100, tag 0x5D == ed_fav.c; INFO says 64 places");
+  const f0 = FV(await rq(E.req.favInfo()));
+  ok(f0.op === 0 && f0.count === 0 && f0.max === 64 && f0.list === 0 && f0.user === 0, "favs: op 0: no favorites, the list ALL");
+  const fv1 = FV(await rq(E.req.favSet(0, 3, true)));
+  ok(fv1.op === 2 && fv1.rc === 1 && fv1.count === 1, "favs: op 2: preset 3 of engine 0 marked");
+  const fg = FV(await rq(E.req.favGet(0)));
+  ok(fg.op === 1 && fg.marks[3] === 1 && fg.marks[0] === 0 && fg.n === fg.marks.length, "favs: op 1: the engine's marks, 7 to a byte");
+  ok(FV(await rq(E.req.favSet(0, 3, true))).rc === 0 && FV(await rq(E.req.favSet(E.parse[C.INFO] ? info.engines.length : 10, 2, true))).rc === 1 && FV(await rq(E.req.favInfo())).user === 1, "favs: marked again: as it was; a user preset (engine = the number of engines)");
+  ok(FV(await rq(E.req.favList(true))).list === 1 && FV(await rq(E.req.favInfo())).list === 1 && FV(await rq(E.req.favList(false))).list === 0, "favs: op 3: the PRESETS list FAV / ALL");
+  FV(await rq(E.req.favSet(0, 3, false))); FV(await rq(E.req.favSet(info.engines.length, 2, false)));
+  ok(/async function favLoad\(/.test(html) && /function favToggle\(|async function favToggle\(/.test(html) && /favOn\(\)/.test(html) && /favList\(!fv\.list\)/.test(html), "favs: Load preset has a star on each sound and the favorites-only list (the device's PRESETS list)");
   /* v13 SCRS (cmd 99, ed_scrs.c): the other screens as rows of cards (the mock serves tests/scrs_table.json, the firmware host test's rows) */
   const SR = E.parse[C.SCRS], esr = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scrs.c"), "utf8");
   const scrsGold = JSON.parse(readFileSync(join(HERE, "../tests/scrs_table.json"), "utf8"));
-  ok(C.SCRS === 99 && /ED_SCRS = 99/.test(esr) && /ed_b\(0x5C\)/.test(esr) && info.scrs && (info.scrs.mask >> 1 & 1) && (info.scrs.mask >> 6 & 1) && (info.scrs.mask & 1) && !(info.scrs.mask >> 4 & 1),
+  ok(C.SCRS === 99 && /ED_SCRS = 99/.test(esr) && /ed_b\(0x5C\)/.test(esr) && info.scrs && (info.scrs.mask >> 1 & 1) && (info.scrs.mask >> 6 & 1) && (info.scrs.mask >> 8 & 1) && (info.scrs.mask & 1) && !(info.scrs.mask >> 4 & 1),
     "scrs: command 99, tag 0x5C == ed_scrs.c; INFO says which screens are built (MIX, SOUND, MASTER, PROJECT, STEPS, SONG, TEMPO; not SYSTEM)");
   ok(js(sortDeep(JSON.parse(JSON.stringify(E.SCRS_TABLE)))) === js(sortDeep(scrsGold)), "scrs: the mock's table (SCRS_TABLE) == tests/scrs_table.json, the UI host test's golden");
   const gsound = scrsGold.ctx.find((c) => c.s === 1 && c.t === 0), gdrum = scrsGold.ctx.find((c) => c.s === 1 && c.t === 3 && c.l === 0);

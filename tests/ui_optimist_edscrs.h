@@ -5,6 +5,7 @@
  * EDSCRS_DUMP=1 prints every row of every screen (a review aid). Included after ui_optimist_edscrn.h (its ed_* helpers). */
 #include "../firmware/src/io/editor/ed_out.h"
 #include "../firmware/src/io/editor/ed_scrs.c"
+#include "../firmware/src/io/editor/ed_scope.c"
 typedef struct {
     uint32_t fam, rflags, kind[4], state[4], danger[4], gk[4], byd[4], fmt[4], flags[4];
     int32_t gmin[4], gmax[4], gv[4], dmin[4], dmax[4], ddef[4], val[4];
@@ -54,7 +55,7 @@ static uint32_t scs_call(uint32_t op, uint32_t s, uint32_t t, uint32_t l, uint32
     ed_begin(ED_SCRS);
     return (uint32_t)ed_scrs(ED_SCRS, q, na);
 }
-static const uint8_t SCS_SCR[] = {SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_STEP, SCR_SONG, SCR_TEMPO};
+static const uint8_t SCS_SCR[] = {SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE};
 static void edscrs_dump(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
 {
     uint32_t r, k, n;
@@ -210,13 +211,45 @@ static void edscrs_tests(void)
         reset_ui();
         check(ok, "SCRS: STEPS with a step held (fam = the step): its card pages as rows (STEP: NOTE LEVEL RATCHET LENGTH, EXTRA, the lock pages); a turn edits the step; the held state is not left behind");
     }
+    {   /* SCOPE (ed_scope.c, cmd 101): the trace the panel's SCOPE would draw: n heights around the zero line 64, the source set for the next 2 s */
+        uint8_t q[2];
+        uint32_t i, lo = 127u, hi = 0u, n;
+        reset_ui();
+        song.sel = 0;
+        trk[0].p[P_LEVEL] = 100;
+        q[0] = 1;
+        ed_begin(ED_SCOPE);
+        ok = ed_scope(ED_SCOPE, q, 1) && ed_out[5] == 1u && scope_src == 1u && scope_ed_src == 1u;
+        fm1_in.notes |= 1u << 0;                               /* (a key held: the part sounds) */
+        frames(30);
+        ed_begin(ED_SCOPE);
+        ok &= ed_scope(ED_SCOPE, q, 1);
+        n = ed_out[9] | (uint32_t)ed_out[10] << 7;
+        ok &= n == SC_N && ed_n == 11u + SC_N;
+        for (i = 0; i < n; i++) {
+            lo = ed_out[11 + i] < lo ? ed_out[11 + i] : lo;
+            hi = ed_out[11 + i] > hi ? ed_out[11 + i] : hi;
+        }
+        ok &= lo >= 1u && hi <= 127u && hi > lo;               /* (a note sounding: a wave, not the zero line) */
+        q[0] = 0;
+        ed_begin(ED_SCOPE);
+        ok &= ed_scope(ED_SCOPE, q, 1) && scope_src == 0u;
+        q[0] = (uint8_t)NTRK + 1u;
+        ed_begin(ED_SCOPE);
+        ok &= !ed_scope(ED_SCOPE, q, 1);
+        scope_ed_ms = 0;
+        fm1_in.notes = 0;
+        frames(4);
+        reset_ui();
+        check(ok, "SCOPE: a source asked for (the ring follows it), n heights as the device would trace them around the zero line, a note sounding makes a wave; a bad source: no reply");
+    }
     ok = !scs_call(0, SCR_SYSTEM, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, 40, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, SCR_SOUND, 9, 127, 127, 0, 0, 0, 0) &&
          !scs_call(1, SCR_SOUND, 0, 127, 127, 99, 0, 0, 0) && !scs_call(9, SCR_SOUND, 0, 127, 127, 0, 0, 0, 0);
     check(ok, "SCRS: a screen not offered, a track or row past the table, an unknown op: no reply");
 #ifdef EDSCRN_GOLDEN
     {   /* the rows as JSON: the golden the web editor's mock serves (tests/scrs_table.json; EDSCRN_WRITE=1 rewrites it) */
         static const uint8_t CX[][4] = {{SCR_HOME, 0, 127, 127}, {SCR_SOUND, 0, 127, 127}, {SCR_SOUND, 1, 127, 127}, {SCR_SOUND, 3, 127, 127}, {SCR_SOUND, 3, 0, 127}, {SCR_SOUND, 3, 1, 127},
-                                        {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_STEP, 0, 127, 2}, {SCR_STEP, 3, 0, 2}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}
+                                        {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_STEP, 0, 127, 2}, {SCR_STEP, 3, 0, 2}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}, {SCR_SCOPE, 1, 127, 127}, {SCR_SCOPE, 0, 127, 1}
 #if OP_FM6
                                         , {SCR_SOUND, 0, 127, SCRS_FAM_FM6}
 #endif

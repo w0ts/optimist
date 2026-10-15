@@ -10,7 +10,7 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
-Commands 94..99 and `INFO` tags `57`..`5C` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
+Commands 94..101 and `INFO` tags `57`..`5E` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -1011,11 +1011,11 @@ the exact note lengths) move as on the device, one undo level each, and the edit
 
 `firmware/src/io/editor/ed_scrs.c`; builds with the Optimist UI only (FELUCCA_UI 1; no tag, no reply otherwise). SCRN hands GLOBAL and SYSTEM out as lines; this does it for the
 other screens the Optimist UI draws as **rows of four cards**: SOUND (the selected track's pages, a drum lane's), MASTER, PROJECT (the project slots, snapshots, user presets,
-TOOLS, SLOOP's import, MEMORY), STEPS, SONG (the scenes, SONG REC, the parts) and TEMPO (`ui/optimist/op_screens.c` `screen_t`: rows, name, cell, turn, yes). The device builds each card in its own
+TOOLS, SLOOP's import, MEMORY), STEPS, SONG (the scenes, SONG REC, the parts), TEMPO and SCOPE's cards (`ui/optimist/op_screens.c` `screen_t`: rows, name, cell, turn, yes). The device builds each card in its own
 screen's functions, and SCRS reads, turns and asks through the same ones, so an editor shows the same pages in the same order with the same names, units, ranges and questions. A page the build
 adds, an engine's own rows, a lane's pages (BODY, TONE, ENV, SENDS, KIT, SOURCE for a user sample, the lane's LFO), SONG REC, the scene rows and the MEMORY gauge arrive without an editor change.
 
-`INFO` tag `5C len 03 version mask(2 x 7 bits)`: bit n of the mask = the screen with the device's number n (0 MIX, 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO; 4 / 9 SYSTEM and GLOBAL are not offered
+`INFO` tag `5C len 03 version mask(2 x 7 bits)`: bit n of the mask = the screen with the device's number n (0 MIX, 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO, 8 SCOPE (its source: `trk`, or `fam` 1 for MASTER); 4 / 9 SYSTEM and GLOBAL are not offered
 here: they are SCRN's). MIX has a row for each knob set of each mixer row (MASTER, T1..DR, the 16 lanes, the USB input), named by its code and set ("T1 MIX", "M RETURNS", "SD SENDS"). Every request has the same first five bytes: `op scr trk lane fam`.
 
 | op | Request args (after `scr trk lane fam`) | Reply args |
@@ -1037,6 +1037,35 @@ ROW: the row's family (`FAM_*`, 127 none; SOUND's rows group by it), its flags (
 value v14), flags (bit 0 dim, bit 1 the drum track's own value shown on a lane, bit 2 struck through, bits 3..4 the step event mark, bit 5 the card asks), the action's object text.
 `tests/scrs_table.json` is the golden of the rows of the host UI test's build (`tests/ui_optimist_edscrs.h`, EDSCRN_WRITE=1 rewrites it); `tools/gen_fxp_table.py` copies it into the editor's
 mock (`SCRS_TABLE`).
+
+## v13: the favorites (command 100 FAVS; INFO tag 5D)
+
+`firmware/src/io/editor/ed_fav.c`; builds with `FELUCCA_FAVORITES` (core/favorites.c). The device marks sounds as favorites (SHIFT2 + PRESETS on its panel) and PRESETS can browse the marked
+ones only (SHIFT2 + SELECT: the list ALL / FAV). FAVS is that store: a factory sound is marked by its engine's UID and its name, a user preset by its slot, up to 64 factory marks; the marks
+are saved with the settings a moment after a change. `INFO` tag `5D len 02 version FAV_N`.
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 | - | 0, factory marks, FAV_N, the PRESETS list (0 ALL, 1 FAV), user presets marked |
+| 1 | engine | 1, engine, n, the marks of its n presets, 7 to a byte (bit k of the stream: preset k is marked); engine = the number of engines: the user presets |
+| 2 | engine, k, on | 2, engine, k, rc (0 as it was, 1 changed, 2 FULL), factory marks |
+| 3 | list | 3, list: the PRESETS list the device browses |
+
+A bad op, engine or k: no reply. The engines' own collections (FM6 F01.., CZ Z01..) are not marked.
+
+## v13: the scope (command 101 SCOPE; INFO tag 5E)
+
+`firmware/src/io/editor/ed_scope.c`; builds with the Optimist UI only. The device's oscilloscope (`ui/optimist/op_scope.c`): one ring of the audio (`fx.c` `vis_pcm`) of one source at
+a time, drawn trigger-stable (the latest rising zero crossing after a swing below) and scaled to its peak. `SCOPE src` hands out the same trace; `INFO` tag `5E len 03 version n(2 x 7 bits)`
+(236 points).
+
+| Request | Reply |
+|---|---|
+| src: 0 MASTER, 1..4 the tracks T1 T2 T3 DR (a drum lane is DR) | src, shift, peak v14, n (2 x 7 bits), n heights (0..127, 64 the zero line, up is above) |
+
+Asking sets the ring's source as the panel's SCOPE would for the next 2 s, so ask again about every 80 ms to watch; while asked, the mixer's MASTER meter on the device reads that source too.
+`shift` is the right shift that fits the peak into the heights (never amplified: a quiet source is a small trace); `peak` is the ring's largest sample (>> 2, at most 8191). A bad src: no reply.
+The SCOPE screen's cards (the source's LEVEL PAN FX DRIVE, the master's FILT THRS RATIO GR) are SCRS screen 8.
 
 ## Notes for the editor
 

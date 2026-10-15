@@ -82,6 +82,10 @@ static void sl24_auto_import(void) {}                          /* (sl24_guard.c:
 #include "../firmware/src/io/editor/ed_status.c"
 #include "../firmware/src/io/editor/ed_song.c"
 #include "../firmware/src/io/editor/ed_dlan.c"
+static uint8_t settings_later;                                 /* (model.c: the settings are saved a moment after an edit) */
+static const char *preset_name(uint32_t e, uint32_t k) { return k == 0xFFu || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name; }
+#include "../firmware/src/core/favorites.c"
+#include "../firmware/src/io/editor/ed_fav.c"
 #include "../firmware/src/io/editor/ed_fxp.c"
 #include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
@@ -523,6 +527,54 @@ int main(void)
         dlm_none(); smute_set_trk(2, 0); dlfo_set(5, &DLFO_DEF);
         ed9_known_fx();
     }
+
+
+    /* v13 FAVS (ed_fav.c, cmd 100): the device's favorites store: count, the marks of an engine's presets, mark / clear, FULL, the PRESETS list */
+#if FELUCCA_FAVORITES
+    {
+        uint8_t q[6];
+        int r;
+        uint32_t i, c0;
+        memset(&fav, 0, sizeof fav);
+        fav_list = 0;
+        q[0] = 0;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 1);
+        check(r && ed_out[5] == 0u && ed_out[6] == 0u && ed_out[7] == FAV_N && ed_out[8] == 0u && ed_out[9] == 0u, "v13 FAVS op 0: no favorites, FAV_N places, the list is ALL");
+        q[0] = 2, q[1] = 0, q[2] = 3, q[3] = 1;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 4);
+        check(r && ed_out[8] == 1u && ed_out[9] == 1u && fav_has(eng_uid(0), preset_name(0, 3)), "v13 FAVS op 2: preset 3 of engine 0 marked (the device's store: its engine UID and name)");
+        q[0] = 1, q[1] = 0;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 2);
+        check(r && ed_out[7] == ENGINES[0]->npresets && ((ed_out[8] >> 3) & 1u) && !(ed_out[8] & 1u), "v13 FAVS op 1: the engine's marks, 7 to a byte: bit 3 only");
+        q[0] = 2, q[1] = NENGINES, q[2] = 2, q[3] = 1;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 4);
+        check(r && ed_out[8] == 1u && fav_user_has(2) && ed_out[9] == 1u, "v13 FAVS op 2: a user preset slot (engine = NENGINES) marked, the factory count unchanged");
+        q[3] = 1;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 4);
+        check(r && ed_out[8] == 0u, "v13 FAVS op 2: marked again: as it was");
+        for (i = 0, c0 = 0; i < FAV_N + 5u && c0 < 100u; i++, c0++) {
+            q[0] = 2, q[1] = 0, q[2] = (uint8_t)(i % ENGINES[0]->npresets), q[3] = 1;
+            ed_begin(ED_FAV);
+            if (!(r = ed_fav(ED_FAV, q, 4)))
+                break;
+            if (ed_out[8] == 2u)
+                break;
+        }
+        check(fav_count() <= FAV_N, "v13 FAVS: the store never holds more than FAV_N marks (FULL answers 2)");
+        q[0] = 3, q[1] = 1;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 2);
+        check(r && fav_list == 1u && ed_out[6] == 1u, "v13 FAVS op 3: the PRESETS list FAV");
+        q[0] = 3, q[1] = 0;
+        ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 2);
+        q[0] = 2, q[1] = 0, q[2] = 3, q[3] = 0;
+        ed_begin(ED_FAV); r = r && ed_fav(ED_FAV, q, 4);
+        check(r && !fav_has(eng_uid(0), preset_name(0, 3)) && fav_list == 0u, "v13 FAVS op 2: cleared; the list back to ALL");
+        q[0] = 1, q[1] = NENGINES + 1u;
+        ed_begin(ED_FAV);
+        check(!ed_fav(ED_FAV, q, 2), "v13 FAVS: a bad engine: no reply");
+        memset(&fav, 0, sizeof fav);
+    }
+#endif
 
 
     /* v13 SONGC (ed_song.c, cmd 97): the song chain: parts, mode, save; edited stopped only */
