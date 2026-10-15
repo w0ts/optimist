@@ -1094,15 +1094,21 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
  * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
  * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
 static volatile int32_t fx_ret_pk[3];
-static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t c, int32_t d, int32_t w)
+static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
+/* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
+static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t cpk, int32_t dpk, const int32_t *wr, uint32_t n)
 {
     int32_t v[3], k, a;
-    v[0] = c, v[1] = d, v[2] = w - c - d;
-    for (k = 0; k < 3; k++) {
-        a = v[k] < 0 ? -v[k] : v[k];
-        if (a > fx_ret_pk[k])
-            fx_ret_pk[k] = a;
+    uint32_t i;
+    v[0] = cpk, v[1] = dpk, v[2] = 0;
+    for (i = 0; i < n; i++) {                           /* (the reverb: what it added to the right wet) */
+        a = wr[i] - ret_cd[i];
+        a = a < 0 ? -a : a;
+        v[2] = a > v[2] ? a : v[2];
     }
+    for (k = 0; k < 3; k++)
+        if (v[k] > fx_ret_pk[k])
+            fx_ret_pk[k] = v[k];
 }
 #endif
 /* The reverb one block late on the second core (FELUCCA_DUAL 2, perf/mots-asm 2026-10-13; DUAL_REV=0: never). While
@@ -1175,6 +1181,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
     uint32_t plan;
+#if FELUCCA_UI == 1
+    int32_t cpk = 0, dpk = 0;                           /* the chorus', the delay's largest |sample| of the block (the mixer's returns) */
+#endif
 #if REV_LATE
     int had = rvj.pend;                                 /* a kept block to hear now */
 #else
@@ -1225,6 +1234,12 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         }
         if (plan & FXB_CG)                              /* (CHO RET below unity: the chorus' wet alone so far) */
             yr = cho_gain(wet_l, wet_r, n);
+#if FELUCCA_UI == 1
+        for (i = 0; i < n; i++) {
+            int32_t a = wet_r[i] < 0 ? -wet_r[i] : wet_r[i];
+            cpk = a > cpk ? a : cpk;
+        }
+#endif
     } else {                                            /* idle: every cell holds 0, the output is 0 */
         if (!FX_ALL_IDLE)                               /* (all idle: the wet is not added, below) */
             for (i = 0; i < n; i++)
@@ -1237,10 +1252,18 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
             wet_l[i] += x;
             wet_r[i] += x;
+#if FELUCCA_UI == 1
+            dpk = (x < 0 ? -x : x) > dpk ? (x < 0 ? -x : x) : dpk;
+#endif
         }
     } else {
         fx.dly_w += n;
     }
+#if FELUCCA_UI == 1
+    if (!FX_ALL_IDLE)
+        for (i = 0; i < n; i++)
+            ret_cd[i] = wet_r[i];
+#endif
 #if REV_LATE
     if (rev_late) {                                     /* kept for the next block (rev_job); the last one heard */
         for (i = 0; i < n; i++)
@@ -1275,7 +1298,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #endif
 #if FELUCCA_UI == 1
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
-        fx_ret_tap(yr, x, wet_r[n - 1u]);
+        fx_ret_tap(cpk, dpk, wet_r, n);
 #endif
 #undef CHO_R0
 #undef CHO_R1
@@ -2260,16 +2283,19 @@ static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
         rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
         if (!g)
             continue;
+#if FELUCCA_UI == 1
+        int32_t pk = 0;
+#endif
         for (i = 0; i < n; i++) {
             int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
             mix_l[i] += a, mix_r[i] += b;
+#if FELUCCA_UI == 1
+            pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
+#endif
         }
 #if FELUCCA_UI == 1
-        {
-            int32_t v = r[n - 1u] < 0 ? -r[n - 1u] : r[n - 1u];
-            if (v > fx_ret_pk[j])
-                fx_ret_pk[j] = v;                       /* (the mixer's return meter: this line's) */
-        }
+        if (pk > fx_ret_pk[j])
+            fx_ret_pk[j] = pk;                          /* (the mixer's return meter: this line's block peak, after its return level) */
 #endif
     }
 }
