@@ -1025,6 +1025,7 @@ here: they are SCRN's). MIX has a row for each knob set of each mixer row (MASTE
 | 2 TURN | row, k, mode, v14 steps | 2, scr, row, ROW (after the turn) |
 | 3 YES | row, k, ok | 3, scr, row, rc (1 handled), ROW |
 
+`fam` of STEPS is the step held, 0..63 (127 none: PATTERN, TOOLS, EUCLID): the rows are then that step's card pages as the device pages them (STEP: NOTE LEVEL RATCHET LENGTH, a drum step's LEVEL RATCHET TUNE DECAY; EXTRA: CHANCE NUDGE FILL COND; then the lock pages), a step past the pattern's length gets no reply, and a turn edits the step.
 `trk` 0..3 is the track the screen is about (SOUND, STEPS), `lane` 0..16 a drum lane picked on the drum track (SOUND then has the lane's pages; 127: none, DR itself), `fam` the page family of
 SOUND (127 every row, as the device opens it; 126 an FM6 track's operator rows (a data byte is 7 bits: the device's 0xFF and 0xFE are 127 and 126)). The context is set for the one call and put back: the device's own cursor, track, lane and page do not move.
 `mode`: 0 steps (a knob, with its acceleration), 1 fine steps (a unit each), 2 the default (`v14` ignored). YES with `ok` 0 may only ask: the card's `ask` flag is 1 and the row carries the

@@ -815,6 +815,10 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   r.yes = document.querySelectorAll("#scrows .scyes").length;
   document.querySelector("#scrows .scyes").click();
   r.asked = await until(() => !!window.fm1Test.mock.state && true, 100);
+  seg(0).find((b) => b.textContent === "STEPS").click();
+  await until(() => names()[0] === "PATTERN", 8000);
+  const hold = document.querySelector("#scbar select"); hold.value = "2"; hold.dispatchEvent(new Event("change", { bubbles: true }));
+  r.held = await until(() => names()[0] === "STEP", 8000) && document.querySelector("#scrows .scrow").textContent.replace(/\\s+/g, " ").slice(0, 70);
   seg(0).find((b) => b.textContent === "SONG").click();
   r.song = await until(() => names().includes("MODE") && names().includes("PART 1"), 8000);
   seg(0).find((b) => b.textContent === "TEMPO").click();
@@ -826,7 +830,7 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
-  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.wide,
+  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && /LEVEL.*RATCHET/.test(scsRes.held) && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.wide,
   `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
 await shot("device-sound");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not

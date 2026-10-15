@@ -75,6 +75,7 @@ static void edscrs_dump(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
         printf("\n");
     }
 }
+static uint32_t hpn(void) { uint16_t h = st.held; uint32_t n; st.held = 1; n = hp_count(); st.held = h; return n; }
 static void edscrs_tests(void)
 {
     uint32_t i, s, t, ok = 1, n = 0;
@@ -184,13 +185,38 @@ static void edscrs_tests(void)
         }
     }
 #endif
+    {   /* STEPS with a step held (fam 0..63): the held step's card pages are the rows: STEP (NOTE LEVEL RATCHET LENGTH), EXTRA, the p-lock pages; a card turned edits the step */
+        track_t *t = &trk[0];
+        step_t keep = t->step[2];
+        uint32_t lvl0;
+        reset_ui();
+        song.sel = 0;
+        t->step[2].time = ST_NOTE, t->step[2].n = 1, t->step[2].note[0] = 60, t->step[2].vel = 100, t->step[2].lvl = LV_NORM, t->step[2].rat = 0;
+        ok = scs_call(0, SCR_STEP, 0, 127, 2, 0, 0, 0, 0) && ed_out[10] >= 1u && ed_out[10] == hpn();
+        ok &= scs_call(1, SCR_STEP, 0, 127, 2, 0, 0, 0, 0);
+        scs_parse(ed_out, 8, &w);
+        ok &= !strcmp(w.name, "STEP") && !strcmp(w.label[0], "NOTE") && !strcmp(w.text[0], "C4") && !strcmp(w.label[1], "LEVEL") && !strcmp(w.text[1], "NORM") && !strcmp(w.label[3], "LENGTH");
+        lvl0 = t->step[2].lvl;
+        ok &= scs_call(2, SCR_STEP, 0, 127, 2, 0, 1, 1, 1);
+        scs_parse(ed_out, 8, &w);
+        ok &= t->step[2].lvl != lvl0 && !st.held && st.hp == 0u;
+        if (hpn() > 1u) {                                       /* (a build with EXTRA or the p-locks: the next page) */
+            ok &= scs_call(1, SCR_STEP, 0, 127, 2, 1, 0, 0, 0);
+            scs_parse(ed_out, 8, &w);
+            ok &= !strcmp(w.name, EX_N ? "EXTRA" : w.name) && w.name[0];
+        }
+        ok &= !scs_call(0, SCR_STEP, 0, 127, 63, 0, 0, 0, 0);      /* (past the pattern's length: no reply) */
+        t->step[2] = keep;
+        reset_ui();
+        check(ok, "SCRS: STEPS with a step held (fam = the step): its card pages as rows (STEP: NOTE LEVEL RATCHET LENGTH, EXTRA, the lock pages); a turn edits the step; the held state is not left behind");
+    }
     ok = !scs_call(0, SCR_SYSTEM, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, 40, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, SCR_SOUND, 9, 127, 127, 0, 0, 0, 0) &&
          !scs_call(1, SCR_SOUND, 0, 127, 127, 99, 0, 0, 0) && !scs_call(9, SCR_SOUND, 0, 127, 127, 0, 0, 0, 0);
     check(ok, "SCRS: a screen not offered, a track or row past the table, an unknown op: no reply");
 #ifdef EDSCRN_GOLDEN
     {   /* the rows as JSON: the golden the web editor's mock serves (tests/scrs_table.json; EDSCRN_WRITE=1 rewrites it) */
         static const uint8_t CX[][4] = {{SCR_HOME, 0, 127, 127}, {SCR_SOUND, 0, 127, 127}, {SCR_SOUND, 1, 127, 127}, {SCR_SOUND, 3, 127, 127}, {SCR_SOUND, 3, 0, 127}, {SCR_SOUND, 3, 1, 127},
-                                        {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}
+                                        {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_STEP, 0, 127, 2}, {SCR_STEP, 3, 0, 2}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}
 #if OP_FM6
                                         , {SCR_SOUND, 0, 127, SCRS_FAM_FM6}
 #endif
@@ -203,6 +229,16 @@ static void edscrs_tests(void)
         fprintf(f, "{\"ctx\": [\n");
         for (x = 0; x < sizeof CX / sizeof CX[0]; x++) {
             uint32_t rows, keep = trk[0].eng_req;
+            step_t sv = trk[CX[x][1] % NTRK].step[2];
+            dstep_t dv = TDRUM->dstep[2];
+            if (CX[x][0] == SCR_STEP && CX[x][3] < 64u) {   /* (a held step: step 3 of the track holds a C4 / the lane's hit while its pages are read) */
+                if (CX[x][1] == 3u)
+                    dstep_set(&TDRUM->dstep[2], CX[x][2], LV_NORM, 0);
+                else {
+                    trk[CX[x][1]].step[2].time = ST_NOTE, trk[CX[x][1]].step[2].n = 1, trk[CX[x][1]].step[2].note[0] = 60;
+                    trk[CX[x][1]].step[2].vel = 100, trk[CX[x][1]].step[2].lvl = LV_NORM, trk[CX[x][1]].step[2].rat = 0;
+                }
+            }
             if (CX[x][3] == SCRS_FAM_FM6)                    /* (the FM6 rows: track 1 holds the FM6 engine while they are read) */
                 set_engine_of(&trk[0], fm6_slot()), frames(2);
             scs_call(0, CX[x][0], CX[x][1], CX[x][2], CX[x][3], 0, 0, 0, 0);
@@ -220,6 +256,7 @@ static void edscrs_tests(void)
             fprintf(f, "\n ]}");
             if (CX[x][3] == SCRS_FAM_FM6)
                 set_engine_of(&trk[0], keep), song.sel = 0, reset_ui();
+            trk[CX[x][1] % NTRK].step[2] = sv, TDRUM->dstep[2] = dv;
         }
         fprintf(f, "\n]}\n");
         fflush(f);
@@ -245,6 +282,10 @@ static void edscrs_tests(void)
                 edscrs_dump(SCS_SCR[i], t, 127, 127);
         for (t = 0; t < 17u; t++)
             edscrs_dump(SCR_SOUND, 3, t, 127);
+        trk[0].step[2].time = ST_NOTE, trk[0].step[2].n = 1, trk[0].step[2].note[0] = 60;
+        edscrs_dump(SCR_STEP, 0, 127, 2);
+        dstep_set(&TDRUM->dstep[2], 1, LV_NORM, 0);
+        edscrs_dump(SCR_STEP, 3, 1, 2);
     }
     reset_ui();
 }

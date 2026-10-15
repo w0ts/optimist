@@ -1241,6 +1241,10 @@ async function editorFxp() {
   ok(y1.op === 3 && y1.rc === 1 && y1.cells[0].ask && /CLRSQ|\?/.test(y1.ask), "scrs: op 3: YES on PROJECT > TOOLS > CLRSQ (ok 0) asks: the card says so and the row carries the question");
   const y2 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, true)));
   ok(!y2.cells[0].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
+  ok(/if \(scrnOn\(\)\) groups\.setgroups = \[\];/.test(html), "scrs: with the device's GLOBAL / SYSTEM lines (SCRN) the older Settings groups (GLOBAL, NOTE REPEAT, DRUMS, MIDI CLOCK, MIDI channels) are not shown twice");
+  const hs = SR(await rq(E.req.scrsInfo(5, 0, 127, 2))), hr = SR(await rq(E.req.scrsRow(5, 0, 127, 2, 0)));
+  ok(hs.n >= 1 && hr.name === "STEP" && hr.cells.map((c) => c.label).join() === "NOTE,LEVEL,RATCHET,LENGTH" && hr.cells[0].val === "C4", "scrs: STEPS with a step held (family = the step): the held step's cards, STEP: NOTE LEVEL RATCHET LENGTH");
+  ok(/scsFam\(sc\)/.test(html) && /t\("scsStep"\)/.test(html), "scrs: the STEPS page has the held step's picker");
   const mixr = SR(await rq(E.req.scrsInfo(0, 0, 127)));
   ok(mixr.name === "MIX" && mixr.n === scrsGold.ctx.find((c) => c.s === 0).rows.length && mixr.n > 40, "scrs: the mixer (MIX): a row for each knob set of each mixer row (MASTER, T1.., DR, the 16 lanes)");
   const stores = scrsGold.ctx.find((c) => c.s === 3).rows.map((r, i) => (r.rf & 1 ? r.name : null)).filter(Boolean);
