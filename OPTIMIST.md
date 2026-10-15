@@ -73,7 +73,7 @@ The sections "Inherited from SLOOP 2.x" below are history: they list what SLOOP'
 
 ## Install
 
-1. Build the firmware (BUILDING.md), make the local site (`python3 web/make_site.py build/felucca.fwsc dev build/optimist-site`) and serve it (`python3 -m http.server 8766 --bind 127.0.0.1 --directory build/optimist-site`), then open `http://localhost:8766/webapp/installer/`. Or use the hosted installer of the project's GitHub Pages site, if it is up.
+1. Build the firmware (BUILDING.md), run `make web` (`python3 tools/optimist.py web`): it makes the local site from `build/felucca.fwsc`, serves it on 127.0.0.1:8766 (`make web PORT=9000` for another port), prints the installer URL `http://localhost:8766/webapp/installer/` and the editor URL, and opens the editor. Use Chrome or Edge (Web MIDI); Ctrl-C stops the server. Or use the hosted installer of the project's GitHub Pages site, if it is up.
 2. In **Chrome or Edge**, connect the FM-1 to the computer by USB (a data cable, directly — no hub).
 3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the page and the server running until then.
 

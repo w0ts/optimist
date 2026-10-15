@@ -221,6 +221,38 @@ check("the Dockerfile pins the same toolchain and SDK files as tools/toolchain.p
       f"TOOLCHAIN_VERSION={TC.TOOLCHAIN_VERSION}" in dockerfile and TC.TOOLCHAIN_SHA256 in dockerfile and
       f"SDK_TAG={TC.SDK_TAG}" in dockerfile and all(h in dockerfile for h in TC.SDK_SHA256.values()))
 
+# web: the local site and its server (make_site and the server loop stubbed: nothing is built or served)
+a = ap.parse_args(["web"])
+check("web: defaults (port 8766, the browser opens, build/felucca.fwsc)", a.port == 8766 and not a.no_open and
+      a.package is None and a.fn is optimist.cmd_web)
+a = ap.parse_args(["web", "--port", "9000", "--no-open", "--package", "p.fwsc", "--site", "s"])
+check("web: --port, --no-open, --package, --site", a.port == 9000 and a.no_open and a.package == "p.fwsc" and a.site == "s")
+check("web: the installer and editor URLs", optimist.web_urls(9000) ==
+      ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
+rc, out = quiet(optimist.main, ["web", "--package", "/nonexistent/x.fwsc", "--no-open"])
+check("web: no package: exit 1, says to run make build", rc == 1 and "make build" in out)
+with tempfile.TemporaryDirectory() as wd:
+    import http.server
+    import make_site
+    pkg = Path(wd) / "x.fwsc"
+    pkg.write_bytes(b"x")
+    calls, opened = [], []
+    saved_site, saved_serve, saved_open = make_site.main, http.server.ThreadingHTTPServer.serve_forever, optimist.web_open
+    make_site.main = lambda p, v, o: calls.append((str(p), v, str(o)))
+    http.server.ThreadingHTTPServer.serve_forever = lambda self: (_ for _ in ()).throw(KeyboardInterrupt())
+    optimist.web_open = lambda url: opened.append(url) or True
+    try:
+        rc, out = quiet(optimist.main, ["web", "--package", str(pkg), "--site", str(Path(wd) / "site"), "--port", "0"])
+        rc2, out2 = quiet(optimist.main, ["web", "--package", str(pkg), "--site", str(Path(wd) / "site"), "--port", "0",
+                                          "--no-open"])
+    finally:
+        make_site.main, http.server.ThreadingHTTPServer.serve_forever, optimist.web_open = saved_site, saved_serve, saved_open
+    check("web: builds the site from the package as 'dev', serves, Ctrl-C ends with 0", rc == 0 and
+          calls[0] == (str(pkg), "dev", str(Path(wd) / "site")) and "stopped" in out)
+    check("web: prints both URLs and the Chrome / Edge note", "/webapp/installer/" in out and "/webapp/editor/" in out and
+          "Chrome or Edge" in out)
+    check("web: opens the editor, unless --no-open", len(opened) == 1 and opened[0].endswith("/webapp/editor/") and rc2 == 0)
+
 # the emulator launcher
 with tempfile.TemporaryDirectory() as d:
     imgs, bld = Path(d) / "firmwares", Path(d) / "build"
@@ -362,6 +394,19 @@ with tempfile.TemporaryDirectory() as d:
         check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
               'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
         check("notices: the flasher's footer no longer says the sample pack is not CC0", "not CC0" not in page)
+        import re as _re
+        def _dead(html_file):   # relative href/src targets (no scheme, no fragment-only) that are not files in the site
+            bad = []
+            for ref in _re.findall(r'(?:href|src)="([^"#]+)"', html_file.read_text(encoding="utf-8")):
+                if "://" in ref or ref.startswith(("mailto:", "data:")):
+                    continue
+                if not ((html_file.parent / ref.split("?")[0]).resolve()).exists():
+                    bad.append(ref)
+            return bad
+        check("web site: every relative link and asset of the root, installer and editor pages exists",
+              not any(_dead(site / f) for f in ("index.html", "webapp/installer/index.html", "webapp/editor/index.html")))
+        check("web site: the installer's package path points at the copied firmware file",
+              (site / "firmware" / "optimist-9.9-test.fwsc").is_file() and "firmware/optimist-9.9-test.fwsc" in page)
 
 # git worktrees: the SDK files, the venv, the emulator clone resolve to the main checkout (tools/shared.py)
 import hashlib
