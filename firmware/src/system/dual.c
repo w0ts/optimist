@@ -27,6 +27,7 @@
 #if FELUCCA_DUAL
 #define DUAL_HELLO_US 50000u                       /* CPU1's hello at boot */
 #define DUAL_JOIN_US ((HALF_FRAMES * 1000000u) / FS) /* one half buffer (5.8 ms): late anyway */
+#define DUAL_KICK_US 100u                          /* a job not picked up after this long: CPU1 woken again (dual_join) */
 #ifndef FELUCCA_DUAL_BOOST
 #define FELUCCA_DUAL_BOOST 0                       /* EXPERIMENTAL, at the owner's risk: VDC14 5, SYSVDD 15 before CPU1
                                                     * starts (hal/fm1_supply.h; the builder's DUAL_BOOST) */
@@ -60,8 +61,14 @@ static struct {
     uint8_t boot_mode;                             /* the 2ND CORE setting this boot started with */
     uint8_t supply;                                /* FELUCCA_DUAL_BOOST: VDC14 << 4 | SYSVDD before the boost */
     uint32_t jobs, wait_max;                       /* jobs done; longest CPU0 wait (ticks) */
+    uint32_t rewakes;                              /* wakes sent again for a job CPU1 had not picked up (dual_join) */
+    /* when it went down in a job (SYSTEM > INFO, console): the time since boot (ms), the job's mask, how long CPU0
+     * had waited (us), whether CPU1 had picked the job up and the job it was in (1 + its bit; 0: none yet) */
+    uint32_t down_ms, down_mask, down_wait_us;
+    uint8_t down_took, down_at;
 } dual;
 static uint8_t dual_mode;                          /* the 2ND CORE setting (dual_mode.h; settings_word.c bits 27..28) */
+static volatile uint8_t dual_c1_at;               /* CPU1: 1 + the job it renders now (0: none yet; dual_down's note) */
 
 #if FELUCCA_DUAL >= 2
 static mixacc_t dual_acc[2];                       /* [0] CPU0's parts, [1] CPU1's */
@@ -93,6 +100,8 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
     uint32_t p, t0, t1;
     for (p = 0; p < DUAL_JOBS; p++)
         if ((mask >> p) & 1u) {
+            if (A == &dual_acc[1])
+                dual_c1_at = (uint8_t)(p + 1u);    /* (CPU1: where it is, if it never comes back) */
             t0 = fm1_ticks();
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
@@ -155,7 +164,8 @@ static HOT uint32_t dual_split(uint32_t jobs)    /* jobs: the block's (the rever
 #ifndef DUAL_FAILTEST
 #define DUAL_FAILTEST 0      /* emulator tests of the fallbacks: 1 no hello, 2 a job that never ends, 3 CPU1's
                               * fault handler in a job, 4 a request whose check word is wrong (a misread, as CPU1
-                              * would see it), 5 a wrong boot canary (never in a release) */
+                              * would see it), 5 a wrong boot canary, 6 a lost wake (CPU1 back to sleep with a job
+                              * posted, once: dual_join wakes it again) (never in a release) */
 #endif
 #if !DUAL_SLEEPS
 /* (stage 1, or CPU1 spinning: the wake interrupt is never set up, but hal/fm1_dual.h's entry isr_c1_wake
@@ -170,6 +180,15 @@ void HOT fm1_cpu1_wake(void)
     static uint32_t jobs, done;                    /* (done: CPU1's own, never read back from the mailbox) */
     uint32_t r, a;
     fm1_dual_wake_ack();
+#if DUAL_FAILTEST == 6
+    {
+        static uint8_t lost;
+        if (jobs == 3000u && !lost) {
+            lost = 1;
+            return;                                /* (as if the wake had never been taken) */
+        }
+    }
+#endif
     while ((r = fm1_dual_mb.req) != done) {
         fm1_dual_sync();                           /* the request's data after `req` */
         a = fm1_dual_mb.arg;                       /* (read once: the job gets what was checked) */
@@ -177,6 +196,7 @@ void HOT fm1_cpu1_wake(void)
             fm1_dual_note_bad(r, done);            /* a misread: not run; CPU0 holds CPU1 (dual_join) */
             break;
         }
+        fm1_dual_mb.took = r;                      /* (CPU0 stops waking it again) */
 #if DUAL_FAILTEST == 2
         if (jobs == 3000u)
             for (;;)
@@ -240,6 +260,10 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for good */
 {
     fm1_dual_halt();
+    dual.down_ms = fm1_ms;
+    dual.down_mask = fm1_dual_mb.arg;
+    dual.down_took = (uint8_t)(fm1_dual_mb.took == fm1_dual_mb.req);
+    dual.down_at = dual_c1_at;
     dual.up = 0;
     dual.why = (uint8_t)why;
 }
@@ -325,15 +349,28 @@ static void dual_frame(void)
 static HOT int dual_join(uint32_t req)
 {
     uint32_t t0 = fm1_ticks(), dt, why;
+#if DUAL_SLEEPS
+    uint32_t kick = DUAL_KICK_US * FM1_TICKS_PER_US;
+#endif
     while (fm1_dual_mb.done != req || fm1_dual_mb.bad) {   /* (bad: a request nobody posted, now or while it waited;
                                                             * its parts here even if this block's job is done) */
         dt = fm1_ticks() - t0;
         why = fm1_dual_mb.fault ? DUAL_FAULT : fm1_dual_mb.bad ? DUAL_MISREAD
                                  : dt > DUAL_JOIN_US * FM1_TICKS_PER_US ? DUAL_TIMEOUT : DUAL_UP;
+        if (why == DUAL_TIMEOUT && fm1_dual_mb.done == req)
+            continue;                              /* (done while CPU0 was away, in a higher interrupt: not late) */
         if (why != DUAL_UP) {
+            dual.down_wait_us = dt / FM1_TICKS_PER_US;
             FAR(dual_down)(why);
             return 0;
         }
+#if DUAL_SLEEPS
+        if (dt > kick && fm1_dual_mb.took != req) {   /* not picked up: its wake again (fm1_dual_rewake) */
+            fm1_dual_rewake();
+            dual.rewakes++;
+            kick += DUAL_KICK_US * FM1_TICKS_PER_US;
+        }
+#endif
     }
     fm1_dual_sync();                               /* CPU1's sums after its done flag */
     dt = fm1_ticks() - t0;
@@ -403,6 +440,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         req = fm1_dual_mb.req + 1u;
         fm1_dual_mb.arg = mask;
         fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);
+        dual_c1_at = 0;                            /* (CPU1 sets it as it starts each of these jobs) */
         fm1_dual_sync();                           /* the block's state, arg and check before req */
         fm1_dual_mb.req = req;
 #if DUAL_SLEEPS

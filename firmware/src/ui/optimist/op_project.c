@@ -583,17 +583,70 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
 #else
 #define INFO_UA 0u
 #endif
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2
+/* the second core's lines (2026-10-14: TIMEOUT on the FM-1, cause not known; dual.c). CPU1 JOBS: jobs joined (thousands) /
+ * wakes sent again for a job CPU1 had not picked up (each one a wake that would otherwise have been lost). CPU1 STOP, once
+ * it went down in a job: when (s since boot), W (never picked the job up: a lost wake) or J and the job it was in (1..4
+ * a part, 5 the drums, 6 the reverb; J0: picked up, no job begun), unit: how long CPU0 had waited (us) */
+#define INFO_C1 2u
+static void c1_put(char *b, uint32_t v, char sep)        /* v (capped at 999999), then sep (0: none), appended */
+{
+    uint32_t n = str_len(b);
+    fmt_int(b + n, (int32_t)(v > 999999u ? 999999u : v));
+    n = str_len(b);
+    b[n] = sep;
+    b[n + (sep != 0)] = 0;
+}
+static void sys_c1_cell(uint32_t i, cell_t *c)
+{
+    static char u[12];
+    char *v = c->val;
+    cell_clear(c);
+    c->kind = CK_RO;
+    if (!i) {
+        c->label = "CPU1 JOB/REWAKE";
+        c1_put(v, dual.jobs / 1000u, '/');
+        c1_put(v, dual.rewakes, 0);
+        c->unit = "k/n";
+        c->col = dual.rewakes ? C_WARN : 0;
+        return;
+    }
+    c->label = "CPU1 STOP";
+    if (!dual.down_ms) {
+        str_cpy(v, "--", 3);
+        return;
+    }
+    c1_put(v, dual.down_ms / 1000u, 's');
+    str_cpy(v + str_len(v), dual.down_took ? " J" : " W", 3);
+    if (dual.down_took)
+        c1_put(v, dual.down_at, 0);
+    u[0] = ' ';                                         /* (the unit follows the value directly) */
+    u[1] = 0;
+    c1_put(u, dual.down_wait_us, 0);
+    str_cpy(u + str_len(u), "us", 3);
+    c->unit = u;
+    c->col = C_WARN;
+}
+#else
+#define INFO_C1 0u
+#endif
 /* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the battery,
  * then the USB AUDIO diagnostics (USB audio builds) */
 #define INFO_BASE 4u
-#define INFO_N (INFO_BASE + INFO_UA)
+#define INFO_N (INFO_BASE + INFO_C1 + INFO_UA)
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
     static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
     i %= INFO_N;
+#if INFO_C1
+    if (i >= INFO_BASE && i < INFO_BASE + INFO_C1) {
+        sys_c1_cell(i - INFO_BASE, c);
+        return;
+    }
+#endif
 #if FELUCCA_USB_AUDIO
-    if (i >= INFO_BASE) {
-        sys_ua_cell(i - INFO_BASE, c);
+    if (i >= INFO_BASE + INFO_C1) {
+        sys_ua_cell(i - INFO_BASE - INFO_C1, c);
         return;
     }
 #endif

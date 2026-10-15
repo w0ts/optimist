@@ -424,6 +424,12 @@ static void con_status(void)
     con_kv("cpu1_mode", dual_mode);                     /* 2ND CORE: 0 AUTO, 1 OFF (system/dual_mode.h) */
     con_kv("cpu1_bad", (int32_t)fm1_dual_mb.bad);       /* requests it refused (misreads): 0 on a healthy unit */
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
+    con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
+    con_kv("cpu1_down_ms", (int32_t)dual.down_ms);      /* went down in a job: when, its mask, CPU0's wait, picked up?, in which */
+    con_kv("cpu1_down_mask", (int32_t)dual.down_mask);
+    con_kv("cpu1_down_wait_us", (int32_t)dual.down_wait_us);
+    con_kv("cpu1_down_took", dual.down_took);
+    con_kv("cpu1_down_at", dual.down_at);
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif
