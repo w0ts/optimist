@@ -14,6 +14,10 @@
 static uint32_t ota_now_ms(void) { return fm1_ms; }
 static void ota_idle(void) {}
 static void arrangement_apply(uint32_t s) { (void)s; }
+static uint32_t arrangement_ready(void) { return 0; }
+static void song_backup(void) {}
+static uint32_t arr_saves;
+static void arrangement_save(void) { arr_saves++; }
 static void song_restore(void) {}
 /* the audio ISR's side the meter tap reads (audio.c) */
 #define OUT_SHIFT 7
@@ -76,6 +80,8 @@ static void sl24_auto_import(void) {}                          /* (sl24_guard.c:
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
 #include "../firmware/src/io/editor/ed_status.c"
+#include "../firmware/src/io/editor/ed_song.c"
+#include "../firmware/src/io/editor/ed_dlan.c"
 #include "../firmware/src/io/editor/ed_fxp.c"
 #include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
@@ -133,6 +139,21 @@ static void fxp_json(FILE *f)
         }
         fprintf(f, "}");
         fxp_set_type(ow, sl, FXT_NONE);
+    }
+    {   /* the drum lanes' mix, LFO and the mutes (ed_dlan.c): the parameters of group g, lane l */
+        static const struct { const char *name; uint32_t g, l; } G[] = {{"mix", DLG_MIX, 0}, {"accent", DLG_MIX, DRUM_ACC}, {"lfo", DLG_LFO, 0}, {"track", DLG_TRK, 0}};
+        uint32_t n = 0;
+        for (k = 0; k < 4u; k++) {
+            if (!dln_ok(G[k].g, G[k].l))                /* (the ACCENT lane: only with the automation store) */
+                continue;
+            fprintf(f, "%s \"%s\": [", n++ ? ",\n" : ",\n \"dlane\": {\n", G[k].name);
+            for (i = 0; i < dln_n(G[k].g, G[k].l); i++) {
+                fprintf(f, "%s", i ? ", " : "");
+                fxp_json_desc(f, dln_d(G[k].g, G[k].l, i));
+            }
+            fprintf(f, "]");
+        }
+        fprintf(f, "\n }");
     }
     fprintf(f, "\n}\n");
 }
@@ -461,6 +482,83 @@ int main(void)
         check(nb == na && !memcmp(a, b, (size_t)na), "v13 FXP: the parameter tables equal tests/fxp_table.json (FXP_WRITE=1 rewrites it; web/editor.html's mock follows: tools/gen_fxp_table.py)");
         free(a), free(b);
 #endif
+    }
+
+
+    /* v13 DLAN (ed_dlan.c, cmd 95): a lane's PAN MUTE SOLO SEQ MUTE, its LFO, the sequencer mutes */
+    {
+        static const uint8_t M0[] = {0, 0, 3}, MD[] = {2, 0, 3, 0}, LD[] = {2, 1, 3, 4}, BAD[] = {0, 3, 0}, OP1[] = {1, 0, 0};
+        uint8_t q[8];
+        int r;
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, M0, sizeof M0);
+        check(r && ed_out[5] == 0u && ed_out[8] == 4u, "v13 DLAN op 0: a lane's mix has four parameters");
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, MD, sizeof MD);
+        check(r && ed_out[9] == F_BIPCT && ed_out[8] == 0u, "v13 DLAN op 2: PAN is the device's descriptor (a bipolar percentage)");
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, LD, sizeof LD);
+        check(r && ed_out[9] == F_ENUM, "v13 DLAN op 2: the lane LFO's fifth parameter is DEST (a list)");
+        q[0] = 4, q[1] = DLG_MIX, q[2] = 3, q[3] = 0, q[4] = (uint8_t)((-100 + 8192) & 127), q[5] = (uint8_t)((-100 + 8192) >> 7);
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, q, 6);
+        check(r && dlm_pan[3] == -64, "v13 DLAN op 4: a lane's PAN, clamped");
+        q[3] = 1, q[4] = (uint8_t)((1 + 8192) & 127), q[5] = (uint8_t)((1 + 8192) >> 7);
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, q, 6);
+        q[3] = 2;
+        ed_begin(ED_DLAN); r = r && ed_dlan(ED_DLAN, q, 6);
+        check(r && dlm_muted(3) && dlm_soloed(3) && !dlm_lane_heard(3) && !dlm_lane_heard(2), "v13 DLAN op 4: MUTE and SOLO of a lane (the device's masks: a soloed and muted lane stays silent, the others go quiet)");
+        q[1] = DLG_LFO, q[2] = 5, q[3] = 4, q[4] = (uint8_t)((2 + 8192) & 127), q[5] = (uint8_t)((2 + 8192) >> 7);
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, q, 6);
+        q[3] = 5, q[4] = (uint8_t)((40 + 8192) & 127), q[5] = (uint8_t)((40 + 8192) >> 7);
+        ed_begin(ED_DLAN); r = r && ed_dlan(ED_DLAN, q, 6);
+        check(r && dlfo_field(5, DLF_DEST1) == 2 && dlfo_field(5, DLF_AMT1) == 40 && dlfo_live(5), "v13 DLAN op 4: a lane's LFO slot (DEST TUNE.., AMT): the lane's LFO acts");
+        q[1] = DLG_TRK, q[2] = 2, q[3] = 0, q[4] = (uint8_t)((1 + 8192) & 127), q[5] = (uint8_t)((1 + 8192) >> 7);
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, q, 6);
+        check(r && smute_trk_on(2), "v13 DLAN op 4: a track's sequencer mute");
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, BAD, sizeof BAD);
+        check(!r, "v13 DLAN: a bad group: no reply");
+        ed_begin(ED_DLAN); r = ed_dlan(ED_DLAN, OP1, sizeof OP1);
+        check(!r, "v13 DLAN: an unknown op: no reply");
+        n0 = nf;
+        dlm_set_pan(1, 20);
+        run_ms(ED9_WIN);
+        check(count(ED_FX_PUSH, n0) == 1, "v13 DLAN: a lane's PAN moved on the device: the FX push goes out");
+        dlm_none(); smute_set_trk(2, 0); dlfo_set(5, &DLFO_DEF);
+        ed9_known_fx();
+    }
+
+
+    /* v13 SONGC (ed_song.c, cmd 97): the song chain: parts, mode, save; edited stopped only */
+    {
+        static const uint8_t G[] = {0}, S1[] = {1, 1, 2, 8}, INS[] = {2, 1}, DEL[] = {3, 1}, MD[] = {4, 1}, SV[] = {5}, BADP[] = {1, 40, 0, 4}, BADS[] = {1, 0, 99, 4}, BADB[] = {1, 0, 0, 65}, OP9[] = {9};
+        int r;
+        uint32_t n;
+        arr_defaults(&arrangement);
+        song.playing = 0;
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, G, sizeof G);
+        check(r && ed_out[5] == 0u && ed_out[6] == 0u && ed_out[11] == arrangement.count && ed_n == 5u + 7u + 2u * arrangement.count,
+              "v13 SONGC op 0: the chain: rc, mode, playing, the scenes and steps built, the count, a (scene, bars) a part");
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, S1, sizeof S1);
+        check(r && ed_out[6] == 0u && arrangement.entry[1].scene == 2 && arrangement.entry[1].bars == 8, "v13 SONGC op 1: a part set");
+        n = arrangement.count;
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, INS, sizeof INS);
+        check(r && arrangement.count == n + 1u && arrangement.entry[2].scene == 2 && arrangement.entry[2].bars == 8 && ed_out[11] == n + 1u, "v13 SONGC op 2: INSERT copies the part after it");
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, DEL, sizeof DEL);
+        check(r && arrangement.count == n, "v13 SONGC op 3: DELETE removes it");
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, MD, sizeof MD);
+        check(r && arrangement_enabled == 1u && ed_out[7] == 1u, "v13 SONGC op 4: SONG mode");
+        arrangement_enabled = 0;
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, SV, sizeof SV);
+        check(r && arr_saves == 1u, "v13 SONGC op 5: the chain is saved");
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, BADP, sizeof BADP);
+        check(r && ed_out[6] == 4u, "v13 SONGC: a part past the count: rc 4");
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, BADS, sizeof BADS);
+        ed_begin(ED_SONGC); r = r && ed_songc(ED_SONGC, BADB, sizeof BADB);
+        check(r && ed_out[6] == 4u && arrangement.entry[0].bars != 65, "v13 SONGC: a scene or bars out of range: rc 4, nothing written");
+        song.playing = 1;
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, S1, sizeof S1);
+        check(r && ed_out[6] == 1u && ed_out[8] == 1u, "v13 SONGC: the transport plays: STOP FIRST (rc 1), the playing flag says so");
+        song.playing = 0;
+        ed_begin(ED_SONGC); r = ed_songc(ED_SONGC, OP9, sizeof OP9);
+        check(!r, "v13 SONGC: an unknown op: no reply");
+        arr_defaults(&arrangement);
     }
 
     /* never in the way of a reply: a request waiting, or the ring past half: nothing goes out; later it does */

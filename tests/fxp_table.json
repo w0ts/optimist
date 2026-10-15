@@ -44,8 +44,10 @@
    {"id": 12, "params": [{"label":"WIDE","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 13, "params": [{"label":"CHRS","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 14, "params": [{"label":"ECHO","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
+   {"id": 15, "params": [{"label":"GATER","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"PAT","fmt":8,"min":0,"max":15,"def":8,"unit":"","names":["16TH","8TH","4TH","HALF","OFF8","OFF16","DOT8","DOT4","TRNC1","TRNC2","TRNC3","TRNC4","GALOP","RVGAL","CLAVE","TRESL"]}, {"label":"RATE","fmt":8,"min":0,"max":5,"def":1,"unit":"","names":["1/8","1/16","1/32","8T","16T","32T"]}, {"label":"SHAPE","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 16, "params": [{"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
-   {"id": 17, "params": [{"label":"JUNO","fmt":1,"min":0,"max":127,"def":0,"unit":""}]}
+   {"id": 17, "params": [{"label":"JUNO","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"MODE","fmt":8,"min":0,"max":2,"def":0,"unit":"","names":["I","II","I+II"]}]},
+   {"id": 18, "params": [{"label":"LO","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"MID","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"HI","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"ON","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}, {"label":"FREQ L","fmt":0,"min":0,"max":60,"def":32,"unit":"Hz"}, {"label":"FREQ H","fmt":0,"min":0,"max":60,"def":28,"unit":"Hz"}]}
   ], "values": [{"label":"VOLUME","fmt":6,"min":0,"max":127,"def":112,"unit":""}, {"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}, {"label":"MUTE","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}, {"label":"FX ON","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}, {"label":"REV","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"DLY","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"CHO","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
  "return": {"slots": 1, "types": [
    {"id": 1, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}, {"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
@@ -76,5 +78,10 @@
    {"id": 11, "params": [{"label":"FRMT","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 16, "params": [{"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 18, "params": [{"label":"EQ3","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}]}
-  ]}
+  ]},
+ "dlane": {
+ "mix": [{"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}, {"label":"MUTE","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}, {"label":"SOLO","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}, {"label":"SEQ MUTE","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}],
+ "lfo": [{"label":"RATE","fmt":4,"min":-10,"max":127,"def":60,"unit":""}, {"label":"WAVE","fmt":8,"min":0,"max":4,"def":0,"unit":"","names":["SIN","TRI","SAW","SQR","S&H"]}, {"label":"PHS","fmt":0,"min":0,"max":127,"def":0,"unit":""}, {"label":"FADE","fmt":3,"min":0,"max":127,"def":0,"unit":""}, {"label":"DEST","fmt":8,"min":0,"max":8,"def":0,"unit":"","names":["OFF","TUNE","DECAY","SNAP","CLICK","BEND","CUT","DRIVE","LEVEL"]}, {"label":"AMT","fmt":2,"min":-64,"max":63,"def":0,"unit":""}, {"label":"DEST2","fmt":8,"min":0,"max":8,"def":0,"unit":"","names":["OFF","TUNE","DECAY","SNAP","CLICK","BEND","CUT","DRIVE","LEVEL"]}, {"label":"AMT2","fmt":2,"min":-64,"max":63,"def":0,"unit":""}],
+ "track": [{"label":"SEQ MUTE","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}]
+ }
 }

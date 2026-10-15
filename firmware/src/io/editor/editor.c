@@ -195,6 +195,10 @@ static void ed_shadow(void)                              /* the editor is in syn
     ed_w.sel = song.sel;
     sync_reload = 0;
 }
+#include "ed_tools.c"         /* v13: cmd 98 the STEP TOOLS and EUCLID, INFO tag 0x5B */
+#include "ed_song.c"          /* v13: cmd 97 the song chain, INFO tag 0x5A */
+#include "ed_scrn.c"          /* v13: cmd 96 GLOBAL and SYSTEM as the Optimist UI's lines, INFO tag 0x59 */
+#include "ed_dlan.c"          /* v13: cmd 95 the drum lanes' mix, LFOs and the sequencer mutes, INFO tag 0x58 */
 #include "ed_fxp.c"           /* v13: cmd 94 every effect slot and its parameters by owner, INFO tag 0x57 */
 #include "ed_fxs.c"           /* v10: cmd 86 the FX slots, 87 their push, INFO tag 0x56 */
 #include "ed_sync9.c"         /* v9: every track's changes, coalesced (PARAMS, STEPS, LANE, TRACKS, SONG pushes) */
@@ -403,6 +407,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
 #endif
         ed_fx_info();                   /* tag 0x56: the FX slots' types (v10, ed_fxs.c) */
         ed_fxp_info();                  /* tag 0x57: the slots by owner (v13, ed_fxp.c) */
+        ed_tools_info();                /* tag 0x5B: TOOLS and EUCLID (v13, ed_tools.c; the Optimist UI) */
+        ed_songc_info();                /* tag 0x5A: the song chain (v13, ed_song.c) */
+        ed_scrn_info();                 /* tag 0x59: GLOBAL and SYSTEM as lines (v13, ed_scrn.c; the Optimist UI) */
+        ed_dlan_info();                 /* tag 0x58: the lanes' mix, LFOs and mutes (v13, ed_dlan.c) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -693,7 +701,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
             break;
 #endif
-        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na)) {    /* 86: the FX slots (v10); 94: the owners' slots (v13) */
+        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na) || ed_dlan(cmd, a, na) || ed_scrn(cmd, a, na) || ed_songc(cmd, a, na) || ed_tools(cmd, a, na)) {   /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
             ed9_known_fx();                                /* (the editor's own writes: no FX push) */
             ui.force = 1;
             break;

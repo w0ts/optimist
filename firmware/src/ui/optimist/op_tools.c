@@ -704,65 +704,42 @@ static void tl_say(const char *a, const char *b)       /* what was done: a toast
     ui_say(a, b);
     ui.toast_next = 0;
 }
-/* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
-static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
+/* tool k (TL_REV .. TL_LEN; half: LENGTH is 1/2, else x2) on track t, drum lane `lane` (-1: the whole kit or a synth track): what it says is
+ * a toast as two strings (*sa, *sb; buf holds one of them). One undo level when it changes the pattern. The Optimist UI's YES and the
+ * web editor's TOOLS (io/editor/ed_tools.c) both call it. 1 done (or said why not: it is a toast either way) */
+static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t half, const char **sa, const char **sb, char *buf)
 {
-    track_t *t = TSEL;
     uint32_t len = trk_len(t), i, n = 0, nl;
-    int32_t lane = tl_lane();
-    char b[24];
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *what;
-    if (pg) {                                           /* EUCLID's ON / OFF card: ON at once, OFF asks, YES there keeps */
-        if (k != 3u)
-            return 0;
-        ng_stale();
-        if (!ng_here(t)) {
-            if (!ng_begin(t, eu_fn, "EUCLID"))
-                tl_say("ANOTHER GENERATOR", " IS ON");
-        } else if (ok)
-            ng_end(1);
-        else
-            ng_ask(t);
-        return 1;
-    }
-    if (!ok) {                                          /* (every tool asks: "Reverse T1?") */
-        char a[12];
-        if (!ui.hot_lit) {                              /* (a card is picked by turning its knob) */
-            tl_say("TURN A KNOB", " TO PICK");
-            return 1;
-        }
-        str_cpy(a, who, sizeof a);
-        op_arm(SCR_STEP, ui.row[SCR_STEP], k, k == TL_LEN ? (tl.half ? "HALF" : "DOUBLE") : TN_VERB[k & 3u], a, 0);
-        return 1;
-    }
+    *sa = who, *sb = "";
     if (k == TL_LEN) {
-        if (!tl.half && (len >= NSTEP || !tl_ev_double(t, len, tl_dbl_len(len), 1))) {
-            tl_say(len >= NSTEP ? "64 STEPS: NO ROOM" : "PATTERN FULL", "");
+        if (!half && (len >= NSTEP || !tl_ev_double(t, len, tl_dbl_len(len), 1))) {
+            *sa = len >= NSTEP ? "64 STEPS: NO ROOM" : "PATTERN FULL";
             return 1;
         }
-        if (tl.half && len < 2u) {
-            tl_say("1 STEP: NO HALF", "");
+        if (half && len < 2u) {
+            *sa = "1 STEP: NO HALF";
             return 1;
         }
         tl_mark(t);
         fm1_irq_off();
-        if (tl.half)
+        if (half)
             t->p[P_SLEN] = (int16_t)(len / 2u);         /* (the steps past it stay, as the LEN card leaves them) */
         else
             tl_double_do(t, len);
         fm1_irq_on();
         sync_reload = 1;
         nl = trk_len(t);
-        str_cpy(b, tl.half ? "HALVED: " : "DOUBLED: ", sizeof b);
-        fmt_int(b + str_len(b), (int32_t)nl);
-        tl_say(b, " STEPS");
+        str_cpy(buf, half ? "HALVED: " : "DOUBLED: ", 24);
+        fmt_int(buf + str_len(buf), (int32_t)nl);
+        *sa = buf, *sb = " STEPS";
         return 1;
     }
     for (i = 0; i < len; i++)                           /* (COOK: something to cook) */
         n += is_drum(t) ? (uint32_t)__builtin_popcount(dstep_lanes(&t->dstep[i]) & (lane >= 0 ? 1u << lane : TL_ALL))
                         : (uint32_t)tl_gate(&t->step[i]);
     if (k == TL_COOK && !n) {
-        tl_say("NOTHING TO COOK", "");
+        *sa = "NOTHING TO COOK";
         return 1;
     }
     tl_mark(t);
@@ -793,7 +770,41 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
     t->seq_active = 1;
     fm1_irq_on();
     sync_reload = 1;
-    tl_say(who, what);
+    *sb = what;
+    return 1;
+}
+/* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
+static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
+{
+    track_t *t = TSEL;
+    int32_t lane = tl_lane();
+    char b[24];
+    const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *sa, *sb;
+    if (pg) {                                           /* EUCLID's ON / OFF card: ON at once, OFF asks, YES there keeps */
+        if (k != 3u)
+            return 0;
+        ng_stale();
+        if (!ng_here(t)) {
+            if (!ng_begin(t, eu_fn, "EUCLID"))
+                tl_say("ANOTHER GENERATOR", " IS ON");
+        } else if (ok)
+            ng_end(1);
+        else
+            ng_ask(t);
+        return 1;
+    }
+    if (!ok) {                                          /* (every tool asks: "Reverse T1?") */
+        char a[12];
+        if (!ui.hot_lit) {                              /* (a card is picked by turning its knob) */
+            tl_say("TURN A KNOB", " TO PICK");
+            return 1;
+        }
+        str_cpy(a, who, sizeof a);
+        op_arm(SCR_STEP, ui.row[SCR_STEP], k, k == TL_LEN ? (tl.half ? "HALF" : "DOUBLE") : TN_VERB[k & 3u], a, 0);
+        return 1;
+    }
+    (void)tl_run(t, k, lane, tl.half, &sa, &sb, b);
+    tl_say(sa, sb);
     return 1;
 }
 #endif

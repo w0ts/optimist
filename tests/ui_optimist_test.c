@@ -2457,6 +2457,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glo.h"                        /* 2026-10-12: GLO tapped opens GLOBAL */
 #include "ui_optimist_glwalk.h"                     /* 2026-10-13: every GLOBAL / SYSTEM line walked: knob, PRESETS, actions RUN */
 #include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
+#include "ui_optimist_edscrn.h"                     /* the editor's SCRN (cmd 96): GLOBAL and SYSTEM as the UI's lines */
 #include "ui_optimist_glstyle.h"                    /* 2026-10-14: the look of the lists (title, full-width bars, toggles, joined pages, INFO, About) */
 #include "ui_optimist_curline.h"                    /* 2026-10-14: the cursor row: the line's colour at full strength, white text */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
@@ -2626,6 +2627,7 @@ int main(int argc, char **argv)
     glo_tests();
     glwalk_tests();
     glpages_tests();
+    edscrn_tests();
     glstyle_tests();
     curline_tests();
     help_tests();

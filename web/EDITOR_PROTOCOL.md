@@ -10,7 +10,7 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
-Command 94 and `INFO` tag `57` (every effect slot of every owner and its parameters) form protocol v13 (below, "v13: FX owners"); the protocol byte stays.
+Commands 94..98 and `INFO` tags `57`..`5B` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -929,6 +929,83 @@ v9 `PARAMS` push. The editor's own writes are not echoed.
 `tests/fxp_table.json` is the golden table of every owner kind, type and parameter (label, format, range, default, names)
 that the firmware's host test checks against its own tables; `tools/gen_fxp_table.py` copies it into web/editor.html (the
 mock device's table, `FXP_TABLE`).
+
+## v13: drum lanes' mix (command 95 DLAN; INFO tag 58)
+
+`firmware/src/io/editor/ed_dlan.c`. What the device edits per drum lane that no earlier command reached: the lane's **PAN, MUTE and
+SOLO** (drums/drum_mix.c: a muted lane is not heard, a soloed lane silences the others, muted stays muted), its own **LFO** (RATE
+WAVE PHS FADE and two DEST / AMT slots on the lane's eight values: drums/lane_play.c), and the **sequencer mutes** (seq/seq_mute.c: the
+lane's or the track's steps stop triggering; not the mixer's MUTE). `INFO` tag `58 len 01 groups` (3). Described like FXP: the device's own
+descriptors, so an editor names none of them.
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 GET | group, lane | 0, group, lane, n (the parameters of it) |
+| 2 DESC | group, lane, i | 2, group, lane, i, then `DESC`'s body; nothing after i: no such parameter |
+| 3 VALS | group, lane | 3, group, lane, n, n x v14 |
+| 4 SET | group, lane, i, v14 | 4, group, lane, i, v14 (clamped) |
+
+Groups: 0 a lane's mix (lane 0..15): PAN (-64..63) MUTE SOLO SEQ MUTE; on a build with the ACCENT lane (the automation store) lane 16:
+SEQ MUTE, ACCENT. 1 a lane's LFO (lane 0..15): RATE WAVE PHS FADE DEST AMT DEST2 AMT2 (DEST: OFF, then the lane values TUNE DECAY SNAP CLICK
+BEND CUT DRIVE LEVEL). 2 a track's sequencer mute (lane = the track 0..3): SEQ MUTE. A bad group, lane or op: no reply. Any change on the
+device goes out in the FX push (87), the editor reads the state again; its own writes are not echoed. The golden table of the
+parameters is the `dlane` object of `tests/fxp_table.json`.
+
+## v13: GLOBAL and SYSTEM (command 96 SCRN; INFO tag 59)
+
+`firmware/src/io/editor/ed_scrn.c`; builds with the Optimist UI (FELUCCA_UI 1) only (no tag, no reply otherwise). The settings of the
+FM-1 (BPM, SWING, the REC modes, MIDI, the channels, screen, lights, audio, USB, Bluetooth, USB AUDIO's four channels, calibrate, about, the
+info read-outs) are not parameters with a descriptor each: the device builds every line from a cell (`op_cells.c` `cell_t`) and turns
+it with its own rules. SCRN hands the cells out as the device draws them and turns / does them through the screen's own functions
+(`gl_cell`, `gl_turn`, `gl_yes`, op_global.c), so an editor shows the same lines in the same order with the same words and units.
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 INFO | screen (0 GLOBAL, 1 SYSTEM) | 0, screen, lines n, pages np |
+| 1 LINE | screen, line | 1, screen, line, LINE |
+| 2 TURN | screen, line, mode (0 steps as a knob, with acceleration; 1 fine steps, a unit each; 2 the default), v14 steps | 2, screen, line, LINE (after the turn) |
+| 3 YES | screen, line, ok (0 may ask a question; 1 does it) | 3, screen, line, rc (1 handled), LINE |
+| 4 SAVE | - | 4: the settings into flash (what the device does when SYSTEM is left; once stopped) |
+
+LINE: page, page title (as the device cases it), section (the row's name: TEMPO REC MIDI CHANNELS INFO SCREEN AUDIO KEYS USB USB AUDIO CALIBRATE
+ABOUT), kind (0 none, 1 value, 2 read-out, 3 action, 4 enter), label, value text, unit, state (0 plain, 1 warn, 2 error, 3 ok, 4 other colour), danger,
+ask (1: the device asks for a YES now), gauge form (1 bar, 2 bipolar bar, 3 few entries, 4 many entries, 5 two entries), gmin v14, gmax v14, gv v14, by-descriptor
+(0/1: then fmt, min v14, max v14, def v14), the action's object text. The BLE devices list open on the device, a bad screen or line: no reply.
+The help line of a line is `tools/param_help.json`'s `op` group named as its section (`kind: op`, which the editor's copy carries since v13).
+`tests/scrn_table.json` is the golden of every line of the host UI test's build; `tools/gen_fxp_table.py` copies it into the editor's mock.
+
+## v13: the song chain (command 97 SONGC; INFO tag 5A)
+
+`firmware/src/io/editor/ed_song.c`; builds with the arranger. The scenes and patterns are SCENE / PAT_* (81, 79..84); this is the order they
+play in: PART 1..64 (a scene and a number of bars) and the mode, the rules the Optimist UI's SONG screen has: edited while stopped, INSERT copies the part
+after it, DELETE leaves one. Every op answers op 0's reply: 0, rc (0 done, 1 stop first or SONG REC is on, 2 chain full, 3 one part left, 4 a bad argument),
+mode (1 SONG, 0 LOOP), playing, scenes built, steps (the chain's longest), count, then count x (scene, bars).
+
+| op | Request args |
+|---|---|
+| 0 | - (get) |
+| 1 | part, scene, bars (1..64) |
+| 2 | part (INSERT) |
+| 3 | part (DELETE) |
+| 4 | mode (0 LOOP, 1 SONG) |
+| 5 | - (SAVE: the chain into flash) |
+
+## v13: sequence tools (command 98 TOOLS; INFO tag 5B)
+
+`firmware/src/io/editor/ed_tools.c`; builds with the Optimist UI and `FELUCCA_SEQTOOLS`. The Optimist UI's STEP > TOOLS (REVERSE, RANDOM, COOK, LENGTH
+x2 or 1/2) and EUCLID, on the selected track (TRACK, 27 selects it): a drum track's the whole kit, or one lane. The tools run through the device's own
+function (`tl_run`, op_tools.c: the UI's YES calls the same), so the steps and their events (locks, motion, chance, conditions, nudges, fills, lane values,
+the exact note lengths) move as on the device, one undo level each, and the editor gets a RELOAD. Every reply is: op, rc (0 done, 1 another generator is on,
+2 the generator is on: keep or restore first), track, lane, len, hits, steps, rot, on, then two strings: what the device says (`T1 REVERSED`, `DOUBLED: 16` ` STEPS`).
+
+| op | Request args |
+|---|---|
+| 0 | - (the state) |
+| 1 | verb (0 REVERSE, 1 RANDOM, 2 COOK, 3 LENGTH), lane (0..15 or 127: the whole kit / a synth track), half (LENGTH: 1 = 1/2, 0 = x2) |
+| 2 | k (0 HITS, 1 STEPS, 2 ROT), value: EUCLID's value, written at once while it is on |
+| 3 | lane (127: as it is): EUCLID ON, the generator writes the pattern |
+| 4 | EUCLID OFF, the generated steps kept |
+| 5 | EUCLID OFF, the pattern as it was given back |
 
 ## Notes for the editor
 

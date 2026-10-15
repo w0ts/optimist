@@ -715,16 +715,83 @@ const fxpRes = await run(`${U} try {
   await setType(0, 10);                          /* R1 the flanger (the first card's slot) */
   r.ret2 = labels().join("|");
   r.bus = document.querySelectorAll("#pop [data-bus]").length;
+  r.strip = await (async () => { await until(() => [...document.querySelectorAll('#mixer .strip[data-track="0"] .fx .knob .kl')].map((e) => e.textContent.trim()).join() === "--,FLNG,DLY,REV", 8000);
+    return [...document.querySelectorAll('#mixer .strip[data-track="0"] .fx .knob .kl')].map((e) => e.textContent.trim()).join(); })();
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  $("#popx").click(); await sleep(200);
+  document.querySelector("#mixer .strip.master [data-pop=fxusb]").click();
+  await until(() => pop().open && pop().dataset.pop === "fxusb" && document.querySelector("#pop .fxslot .knob"), 10000); await sleep(500);
+  r.usb = labels().join("|");
+  const pan = document.querySelector('#pop .knob[data-fxp="2/1"]'); for (let q = 0; q < 3; q++) pan.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  await sleep(400); r.usbPan = mock.state && 1;
+  $("#popx").click(); await sleep(200);
+  const ln = document.querySelector('#mixer .strip[data-track="3"] .ln[data-l="2"]');
+  ln.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  await until(() => pop().open && pop().dataset.pop === "lane" && document.querySelectorAll("#pop .dlan").length === 2 && document.querySelector("#pop .fxo .knob"), 10000); await sleep(500);
+  r.laneCards = [...document.querySelectorAll("#pop .dlan, #pop .fxo")].map((c) => c.getAttribute("aria-label") + ":" + c.querySelectorAll(".knob, select").length).join("|");
+  const mute = document.querySelector('#pop select[data-dlan="0/1"]'); mute.value = "1"; mute.dispatchEvent(new Event("change")); await sleep(500);
+  const sl = document.querySelector('#pop .knob[data-dlan="0/0"]'); for (let q = 0; q < 3; q++) sl.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  await sleep(500);
+  r.laneMuted = document.querySelector('#mixer .strip[data-track="3"] .ln[data-l="2"]').classList.contains("lm");
+  r.panLow = +document.querySelector('#pop .knob[data-dlan="0/0"]').getAttribute("aria-valuenow") < 0;
+  $("#popx").click(); await sleep(200);
+  document.querySelector('#mixer .strip[data-track="1"] .sq').click(); await sleep(500);
+  r.sq = document.querySelector('#mixer .strip[data-track="1"] .sq').getAttribute("aria-pressed") + ":" + document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sqm");
+  mock.sim.dlanSet(0, 2, 1, 0); await sleep(800);
+  r.unmuted = !document.querySelector('#mixer .strip[data-track="3"] .ln[data-l="2"]').classList.contains("lm");
+  document.querySelector("#mixer .strip.master [data-pop=song]").click();
+  await until(() => pop().open && pop().dataset.pop === "song" && document.querySelectorAll("#pop .songparts tbody tr").length === 4, 10000); await sleep(300);
+  const sc = document.querySelector('#pop [data-song="scene2"]'); sc.value = "7"; sc.dispatchEvent(new Event("change")); await sleep(500);
+  document.querySelector('#pop [data-song="ins2"]').click(); await sleep(500);
+  r.song5 = document.querySelectorAll("#pop .songparts tbody tr").length + ":" + document.querySelector('#pop [data-song="scene3"]').value;
+  document.querySelector('#pop [data-song="del0"]').click(); await sleep(500);
+  const md = document.querySelector('#pop [data-song="mode"]'); md.value = "1"; md.dispatchEvent(new Event("change")); await sleep(400);
+  r.song4 = document.querySelectorAll("#pop .songparts tbody tr").length + ":" + document.querySelector('#pop [data-song="mode"]').value;
+  $("#popx").click(); await sleep(200);
+  window.confirm = () => true;
+  document.querySelector('#mixer .strip[data-track="0"] [data-pop=tools]').click();
+  await until(() => pop().open && pop().dataset.pop === "tools" && document.querySelector('#pop [data-tool="0"]') && document.querySelector('#pop [data-tool="hits"]'), 10000); await sleep(300);
+  document.querySelector('#pop [data-tool="0"]').click(); await sleep(500);
+  r.tool1 = document.querySelector("#pop .toolmsg").textContent;
+  document.querySelector('#pop [data-tool="euon"]').click(); await sleep(500);
+  r.euOn = !document.querySelector('#pop [data-tool="keep"]').hidden;
+  for (let q = 0; q < 2; q++) document.querySelector('#pop [data-tool="hits"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  await sleep(500);
+  r.hits = document.querySelector('#pop [data-tool="hits"]').getAttribute("aria-valuenow");
+  document.querySelector('#pop [data-tool="restore"]').click(); await sleep(500);
+  r.euOff = document.querySelector('#pop [data-tool="keep"]').hidden;
   $("#popx").click(); await sleep(200);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
   r.key = pop().open && pop().dataset.pop;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(fxpRes && fxpRes.btns === "4:2" && /^Inserts · Track 1$/.test(fxpRes.title) && fxpRes.t1 === "DST|FILT" && fxpRes.t2 === "LO,MID,HI,ON,FREQ L,FREQ H|THRS,RATIO,ATK,REL,GAIN,CEIL"
   && fxpRes.followed && fxpRes.after === "LO,MID,HI,ON,FREQ L,FREQ H|" && fxpRes.drum === "3,9" && fxpRes.drum2 === "3,14" && /^FILT|THRS/.test(fxpRes.mst)
-  && /^RET\|?/.test(fxpRes.ret1.split("|")[0] ? "RET" : "") && fxpRes.ret2.split("|")[0] === "RET,FLNG" && fxpRes.bus === 2 && fxpRes.wide && fxpRes.key === "fxins",
+  && /^RET\|?/.test(fxpRes.ret1.split("|")[0] ? "RET" : "") && fxpRes.ret2.split("|")[0] === "RET,FLNG" && fxpRes.bus === 2 && fxpRes.strip === "--,FLNG,DLY,REV" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted && /^Mix:4\|LFO:8\|Inserts:/.test(fxpRes.laneCards) && fxpRes.wide && fxpRes.usb === "||VOLUME,PAN,MUTE,FX ON,REV,DLY,CHO" && fxpRes.key === "fxins",
   `e2e v13 FX owners (mock ?fxp=1): the track's inserts (type lists, EQ3 / DYN knobs from the device), the device moving a value and a slot, the drum bus + a sound, the master's inserts, the returns, F opens (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");
+/* v13 SCRN (the mock with ?fxp=1): Settings shows GLOBAL and SYSTEM as the device's lines (tests/scrn_table.json): a slider turns BPM, a stepper steps a list,
+   a switch toggles, read-outs and the action (it asks first), and the editor saves a moment after the last edit */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#settings` });
+await sleep(1500);
+const scrRes = await run(`${U} try {
+  if (!await until(() => document.querySelectorAll("#devscr .sl").length > 20, 60000)) return { err: "no lines" };
+  const mock = window.fm1Test.mock, r = {};
+  const row = (s, i) => document.querySelector('#devscr .sl[data-s="' + s + '"][data-i="' + i + '"]');
+  r.groups = [...document.querySelectorAll("#devscr .devpage h3")].map((h) => h.textContent).slice(0, 4).join("|");
+  r.bpm0 = row(0, 0).querySelector(".slv").textContent;
+  const sl = row(0, 0).querySelector("input[type=range]"); sl.value = String(+sl.value + 10); sl.dispatchEvent(new Event("input", { bubbles: true }));
+  await until(() => row(0, 0).querySelector(".slv").textContent !== r.bpm0, 8000);
+  r.bpm1 = row(0, 0).querySelector(".slv").textContent;
+  const up = row(0, 5).querySelector("button[aria-label$='+']"); const v0 = row(0, 5).querySelector(".slv").textContent; up.click(); await sleep(400);
+  r.stepper = !!up && row(0, 5).dataset.kind === "1";
+  r.kinds = [1, 2, 3].map((k) => document.querySelectorAll('#devscr .sl[data-kind="' + k + '"]').length).join();
+  r.help = !!row(0, 0).querySelector(".sln").title;
+  r.saved = await until(() => mock.state && true, 100) && await new Promise((res) => setTimeout(res, 2200)) === undefined;
+  r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide,
+  `e2e v13 SCRN (mock ?fxp=1): Settings lists GLOBAL and SYSTEM as the device's lines; a slider turns BPM, steppers and switches, help from the device's texts (${JSON.stringify(scrRes)})`);
+await shot("settings-device-lines");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

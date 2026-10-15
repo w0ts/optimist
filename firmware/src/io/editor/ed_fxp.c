@@ -100,9 +100,9 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
 {
     uint32_t t = fxp_type(ow, sl), id;
     *vp = 0;
-    if (ow == FXP_USB && sl == 2u) {
+    if (ow == FXP_USB && sl == 2u) {                    /* the input's own values: LEVEL PAN MUTE FX ON REV DLY CHO */
 #if FELUCCA_USB_AUDIO
-        if (i < UTV_N) {
+        if (i < UTV_N0) {
             *vp = &ut.v[i];
             return &UT_DESC[i];
         }
@@ -137,6 +137,22 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
     }
     if (ow == FXP_USB) {
 #if FELUCCA_USB_AUDIO
+#if INS_FX
+        if (t == FXT_GATE && i >= 1u && i < 4u) {      /* GATER's PAT RATE SHAPE are the input's (ut.v), its DEPTH the slot's amount */
+            *vp = &ut.v[UTV_GPAT + i - 1u];
+            return &UT_DESC[UTV_GPAT + i - 1u];
+        }
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && i == 1u) {
+            *vp = &ut.v[UTV_JMODE];
+            return &UT_DESC[UTV_JMODE];
+        }
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3)
+            return fxp_eq3(NTRK + 1u, i, &ut.amt[sl & 1u], &FXP_EQON, vp);
+#endif
         if (i || FXT_AMT[t] == 0xFFu)
             return 0;
         *vp = &ut.amt[sl & 1u];
@@ -309,7 +325,7 @@ static uint32_t ed_fxp_sig(uint32_t h)
         FXP_H(ut.slot[k] + 256 * ut.amt[k]);
 #endif
 #undef FXP_H
-    return h;
+    return ed_dlan_sig(h);                             /* (the lanes' mix, LFOs and mutes: ed_dlan.c) */
 }
 /* 94 FXP: 1 = handled (replied), 0 = not this command or bad arguments (no reply) */
 static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)

@@ -44,7 +44,7 @@ const E = vm.runInNewContext(proto + `
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
+   FXP, FXP_TABLE, SCRN_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1122,8 +1122,8 @@ async function editorFxSlots() {
   const sh2 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(1)));
   ok(sh0.noIns === false && sh1.noIns === true && sh2.noIns === false && /bit 2 \(2026-10\)/.test(readFileSync(join(HERE, "../firmware/src/io/editor/ed_dsrc.c"), "utf8")),
     "fx slots: DRUM_SHOW flags bit 2 (no per-sound inserts) is set for a lane on an X0X kit only");
-  ok(/if \(dev\.fx && !sh\.noIns\) for \(const \[f, ty\] of \[\["dist", FXT\.DIST\], \["comp", FXT\.COMP\]\]\)/.test(html) && /laneNoIns\(kl\.sel\)/.test(html),
-    "fx slots: the lane popup has DST / CMP (setLaneIns), the strip's and the popup's hidden where the device says no inserts");
+  ok(/if \(dev\.fx && !sh\.noIns && !fxpOn\(\)\) for \(const \[f, ty\] of \[\["dist", FXT\.DIST\], \["comp", FXT\.COMP\]\]\)/.test(html) && /laneNoIns\(kl\.sel\)/.test(html),
+    "fx slots: the lane popup has DST / CMP (setLaneIns) on a firmware without FXP (with it: the lane's two slots), hidden where the device says no inserts");
   /* v9 push: a slot loaded on the device, a sound's insert */
   await E.startWatch(rq);
   const n0 = ev.pushes.length;
@@ -1148,7 +1148,7 @@ async function editorFxp() {
   const tab = (n) => [...fs.match(new RegExp(`static const uint16_t ${n}\\[61\\] = \\{([^}]*)\\}`))[1].matchAll(/\d+/g)].map((m) => +m[0]);
   ok(js(E.EQ_FL_HZ) === js(tab("EQ_FL_HZ")) && js(E.EQ_FH_HZ) === js(tab("EQ_FH_HZ")), "fxp: EQ3's FREQ L / FREQ H tables == fx_slots.c");
   ok(js(sortDeep(JSON.parse(JSON.stringify(E.FXP_TABLE)))) === js(sortDeep(gold)), "fxp: the mock's table (FXP_TABLE) == tests/fxp_table.json, the firmware host test's golden");
-  const { m, rq, ev, done } = attachMock({ fxs: true, fxp: true, watchMs: 1000 });
+  const { m, rq, ev, done } = attachMock({ fxs: true, fxp: true, scrn: true, watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   ok(info.fxp && info.fxp.usb && info.fxp.owners === 25 && info.fxs, "fxp: INFO tag 0x57: the USB input is built, 25 owners");
   const lay = async (ow) => P(await rq(E.req.fxpGet(ow)));
@@ -1188,6 +1188,62 @@ async function editorFxp() {
   await rq(E.req.fxpType(10, 0, T.FOLD));
   r = P(await rq(E.req.fxpSet(10, 0, 0, 300)));
   ok(r.value === 127 && js((await lay(10)).slots.map((x) => x.type)) === js([T.FOLD, T.COMP]), "fxp: a drum sound's slot takes FOLD, its amount clamps");
+  /* v13 DLAN (cmd 95, ed_dlan.c): a lane's PAN MUTE SOLO SEQ MUTE, its LFO, a track's sequencer mute */
+  const D = E.parse[C.DLAN], ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_dlan.c"), "utf8");
+  ok(C.DLAN === 95 && /ED_DLAN = 95/.test(ed) && /ed_b\(0x58\)/.test(ed) && info.dlan && info.dlan.groups === 3, "dlan: command 95, tag 0x58 == ed_dlan.c; INFO says 3 groups");
+  const dl = async (g, l) => { const n = D(await rq(E.req.dlanGet(g, l))).n, o = []; for (let i = 0; i < n; i++) o.push(D(await rq(E.req.dlanDesc(g, l, i))).desc); return { n, o, vals: D(await rq(E.req.dlanVals(g, l))).vals }; };
+  let x = await dl(0, 3);
+  ok(x.n === 4 && js(x.o.map((d) => d.label)) === js(["PAN", "MUTE", "SOLO", "SEQ MUTE"]) && x.o[0].min === -64 && x.o[0].max === 63 && js(x.vals) === js([0, 0, 0, 0]), "dlan: a lane's mix: PAN MUTE SOLO SEQ MUTE with the device's ranges");
+  x = await dl(1, 3);
+  ok(x.n === 8 && js(x.o.map((d) => d.label)) === js(["RATE", "WAVE", "PHS", "FADE", "DEST", "AMT", "DEST2", "AMT2"]) && x.o[4].names[0] === "OFF" && x.o[4].names[8] === "LEVEL" && x.vals[0] === 60, "dlan: a lane's LFO: RATE WAVE PHS FADE DEST AMT DEST2 AMT2, the lane values as destinations");
+  ok(D(await rq(E.req.dlanSet(0, 3, 0, -100))).value === -64 && D(await rq(E.req.dlanSet(0, 3, 1, 1))).value === 1 && D(await rq(E.req.dlanVals(0, 3))).vals[1] === 1
+    && D(await rq(E.req.dlanSet(2, 2, 0, 1))).value === 1 && D(await rq(E.req.dlanVals(2, 2))).vals[0] === 1, "dlan: SET clamps (PAN), MUTE, a track's sequencer mute");
+  ok(await rq(E.req.dlanGet(0, 17), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.dlanGet(3, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
+    "dlan: a lane / group past the table: no reply");
+  /* v13 SCRN (cmd 96, ed_scrn.c): GLOBAL and SYSTEM as the Optimist UI's lines (the mock serves tests/scrn_table.json, the firmware host test's) */
+  const SC = E.parse[C.SCRN], es = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scrn.c"), "utf8");
+  const scrnGold = JSON.parse(readFileSync(join(HERE, "../tests/scrn_table.json"), "utf8"));
+  ok(C.SCRN === 96 && /ED_SCRN = 96/.test(es) && /ed_b\(0x59\)/.test(es) && info.scrn && info.scrn.screens === 2, "scrn: command 96, tag 0x59 == ed_scrn.c; INFO says two screens");
+  ok(js(sortDeep(JSON.parse(JSON.stringify(E.SCRN_TABLE)))) === js(sortDeep(scrnGold)), "scrn: the mock's table (SCRN_TABLE) == tests/scrn_table.json, the UI host test's golden");
+  const n0s = SC(await rq(E.req.scrnInfo(0))), n1s = SC(await rq(E.req.scrnInfo(1)));
+  ok(n0s.n === scrnGold.lines.filter((l) => l.s === 0).length && n1s.n === scrnGold.lines.filter((l) => l.s === 1).length && n0s.np >= 4, "scrn: op 0: the line and page counts");
+  const l0 = SC(await rq(E.req.scrnLine(0, 0)));
+  ok(l0.label === "BPM" && l0.sect === "TEMPO" && l0.title === "Tempo" && l0.kind === 1 && l0.byd === 1 && l0.page === 0 && l0.val === "120" && l0.unit === "BPM", "scrn: op 1: GLOBAL's first line is TEMPO > BPM as the device draws it (page title, section, value text, unit)");
+  const t0 = SC(await rq(E.req.scrnTurn(0, 0, 1, 5)));
+  ok(t0.op === 2 && t0.gv === l0.gv + 5 && t0.val === String(l0.gv + 5), "scrn: op 2: a fine turn moves the value; the reply is the line");
+  const t1 = SC(await rq(E.req.scrnTurn(0, 0, 2, 0)));
+  ok(t1.gv === l0.ddef, "scrn: op 2 mode 2: the default");
+  const cal = scrnGold.lines.findIndex((l) => l.s === 1 && l.kind === 3);
+  const y0 = SC(await rq(E.req.scrnYes(1, scrnGold.lines.filter((l) => l.s === 1).findIndex((l) => l.kind === 3), false)));
+  ok(cal >= 0 && y0.op === 3 && y0.rc === 1 && y0.ask === 1, "scrn: op 3: YES on CALIBRATE > PANEL (ok 0) asks");
+  ok(SC(await rq(E.req.scrnSave())).op === 4 && await rq(E.req.scrnLine(2, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true), "scrn: op 4 saves; a screen past the table: no reply");
+  ok(/function renderDevScreens\(/.test(html) && /phText\("op", ln\.sect, ln\.label\)/.test(html) && /scrnSaveSoon\(\)/.test(html), "scrn: Settings shows the lines (sliders, steppers, switches, actions that ask), help from the device's own texts, saves a moment after the last edit");
+  /* v13 SONGC (cmd 97, ed_song.c): the song chain */
+  const SG = E.parse[C.SONGC], eg = readFileSync(join(HERE, "../firmware/src/io/editor/ed_song.c"), "utf8");
+  ok(C.SONGC === 97 && /ED_SONGC = 97/.test(eg) && /ed_b\(0x5A\)/.test(eg) && info.songc && info.songc.v === 1, "songc: command 97, tag 0x5A == ed_song.c");
+  let sg = SG(await rq(E.req.songcGet()));
+  ok(sg.rc === 0 && sg.mode === 0 && sg.parts.length === 4 && sg.scenes === 16 && sg.steps === 64 && sg.parts[1].scene === 1 && sg.parts[1].bars === 4, "songc: op 0: the chain (4 parts, 16 scenes, 64 steps)");
+  sg = SG(await rq(E.req.songcSet(1, 5, 8)));
+  ok(sg.rc === 0 && js(sg.parts[1]) === js({ scene: 5, bars: 8 }), "songc: a part set");
+  sg = SG(await rq(E.req.songcIns(1)));
+  ok(sg.parts.length === 5 && js(sg.parts[2]) === js({ scene: 5, bars: 8 }), "songc: INSERT copies the part after it");
+  sg = SG(await rq(E.req.songcDel(2)));
+  ok(sg.parts.length === 4 && SG(await rq(E.req.songcMode(1))).mode === 1 && SG(await rq(E.req.songcSet(9, 0, 4))).rc === 4 && SG(await rq(E.req.songcSet(0, 0, 65))).rc === 4, "songc: DELETE, SONG mode, a bad part and bars: rc 4");
+  ok(/function dynSong\(/.test(html) && /songcSave\(\)/.test(html), "songc: the Song popup (parts, mode, save)");
+  /* v13 TOOLS (cmd 98, ed_tools.c): the pattern tools and EUCLID */
+  const TL = E.parse[C.TOOLS], et = readFileSync(join(HERE, "../firmware/src/io/editor/ed_tools.c"), "utf8");
+  ok(C.TOOLS === 98 && /ED_TOOLS = 98/.test(et) && /ed_b\(0x5B\)/.test(et) && info.tools && info.tools.v === 1, "tools: command 98, tag 0x5B == ed_tools.c");
+  let tl = TL(await rq(E.req.toolsGet()));
+  ok(tl.rc === 0 && tl.hits === 4 && tl.steps <= tl.len && tl.on === 0, "tools: op 0: EUCLID's values (4 hits), the generator off");
+  tl = TL(await rq(E.req.toolsRun(0, 127, 0)));
+  ok(tl.rc === 0 && tl.a === "T1" && tl.b === " REVERSED", "tools: op 1: REVERSE answers what the device says: T1 REVERSED");
+  tl = TL(await rq(E.req.toolsRun(3, 127, 0)));
+  ok(/^DOUBLED: /.test(tl.a) && tl.b === " STEPS", "tools: op 1: LENGTH x2");
+  tl = TL(await rq(E.req.toolsEuOn(127)));
+  ok(tl.on === 1 && TL(await rq(E.req.toolsRun(0, 127, 0))).rc === 2, "tools: EUCLID ON; a tool while it is on: rc 2");
+  tl = TL(await rq(E.req.toolsEu(0, 3)));
+  ok(tl.hits === 3 && TL(await rq(E.req.toolsEuOff(true))).on === 0, "tools: HITS 3; OFF (keep)");
+  ok(/function dynTools\(/.test(html) && /toolsEuOn\(lane\(\)\)/.test(html), "tools: the Tools popup (verbs, scope on the drum track, EUCLID)");
   /* a device-side change: the editor is told (FX_PUSH, v9) */
   await E.startWatch(rq);
   const n0 = ev.pushes.length;
@@ -1195,6 +1251,7 @@ async function editorFxp() {
   await sleep(30);
   ok(ev.pushes.slice(n0).some((f) => f.cmd === C.FX_PUSH), "fxp: a change on the device: FX_PUSH");
   /* the strips and popups are in the page: openers, strings, the push re-read */
+  ok(/function dlanCard\(/.test(html) && /readDlMix\(\)/.test(html) && /dlanCard\(0, l, t\("dlMix"\)\)/.test(html), "dlan: the lane popup has the mix and LFO cards, the strips the lanes' mute / solo and the SEQ buttons");
   ok(/function dynFxIns\(/.test(html) && /function dynFxMst\(/.test(html) && /function dynFxRet\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
     "fxp: the popups (inserts, master, returns) read the owner's slots and follow the device's pushes");
   done();
@@ -1380,7 +1437,7 @@ async function editorDaw() {
     st = E.navClose(st);
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
-  ok(flat && openers && ids.length === 15 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  ok(flat && openers && ids.length === 18 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -2659,7 +2716,7 @@ function editorKeys() {
   ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "fxmst:0:0"
     && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
     "keys: D / R / C = Delay / Reverb / Chorus (from any track), M = the master's inserts, H = help, comma = Settings");
-  ok(open(st(2), "f") === "fxins:2:0" && open(st(3), "F") === "fxins:3:0" && open(st(0), "e") === "fxret:0:0" && P(st(1, { id: "fxins", track: 1, lane: 0 }), ev("f")) === '{"close":true}',
+  ok(open(st(2), "f") === "fxins:2:0" && open(st(3), "F") === "fxins:3:0" && open(st(0), "e") === "fxret:0:0" && open(st(0), "b") === "fxusb:0:0" && open(st(2), "s") === "song:0:0" && open(st(2), "t") === "tools:2:0" && open(st(3), "t") === "tools:3:0" && P(st(1, { id: "fxins", track: 1, lane: 0 }), ev("f")) === '{"close":true}',
     "keys: F opens the selected track's inserts (the drum track's too), E the returns; F again closes");
   /* the same key again closes; another key does not stack a popup; no modifiers */
   const pp = (id, lane = 0) => ({ id, track: 1, lane });

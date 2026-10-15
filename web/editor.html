@@ -281,6 +281,22 @@
   .fxslot[data-type="0"] .knobs { display: none; }
   .fxslot > button.ib { width: auto; padding: 2px 8px; margin-top: 6px; }
   .fxlp { margin-bottom: 8px; }
+  .dlan { margin: 8px 0; }
+  .devpage .sl { display: grid; grid-template-columns: 9em 1fr auto; align-items: center; gap: 6px; padding: 2px 0; }
+  .devpage .sl .sln { color: var(--dim); font-size: 12px; }
+  .devpage .sl .slv { text-align: right; min-width: 5em; }
+  .devpage .sl[data-state="1"] .slv { color: var(--warn, #e7c15b); }
+  .devpage .sl[data-state="2"] .slv { color: var(--err, #e5484d); }
+  .devpage .sl[data-kind="3"] { grid-template-columns: 1fr; }
+  .devpage .sl .slc { display: flex; gap: 4px; align-items: center; min-width: 0; }
+  .devpage .sl .slc button.ib { width: 28px; height: 24px; }
+  .devpage .sl .slc button.act { flex: 1; }
+  .devpage .sl .slc button.sw { min-width: 44px; height: 22px; }
+  .devpage .sl input[type=range] { width: 100%; }
+  .strip .row2 .sq { width: auto; min-width: 30px; font-size: 10px; padding: 0 4px; }
+  .strip.sqm .ov { opacity: .45; }
+  .lanes .ln.lm { opacity: .4; text-decoration: line-through; }
+  .lanes .ln.ls { outline: 1px solid var(--accent); }
   .fxo + .fxo, .fxlane { margin-top: 8px; }
   .fx button.fxi { width: auto; min-width: 28px; }
   .strip.master .fxg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
@@ -780,6 +796,7 @@
     <button type="button" data-go="loadpreset" data-for="synth" data-t="popLoad" data-ic="symbol_folder_open"></button>
     <button type="button" data-go="savepreset" data-for="synth" data-t="popSave" data-ic="port_disk"></button>
     <button type="button" data-go="sequence" data-for="any" data-t="popSeq" data-ic="note_eight"></button>
+    <button type="button" data-go="tools" data-for="any" data-t="popTools" data-ic="ui_knob" data-tools hidden></button>
     <button type="button" data-go="fxins" data-for="any" data-t="popIns" data-ic="symbol_effector" data-fxp hidden></button>
     <button type="button" data-go="lane" data-for="drums" data-t="drumKit" data-ic="ui_knob"></button>
     <button type="button" data-go="kit" data-for="drums" data-t="popKit" data-ic="symbol_folder_open"></button>
@@ -791,6 +808,8 @@
     <button type="button" data-go="fxcomp" data-t="popComp"></button>
     <button type="button" data-go="fxmst" data-t="popMstIns" data-fxp hidden></button>
     <button type="button" data-go="fxret" data-t="popRet" data-fxp hidden></button>
+    <button type="button" data-go="fxusb" data-t="popUsb" data-fxp="usb" hidden></button>
+    <button type="button" data-go="song" data-t="popSong" data-songc hidden></button>
     <span class="navh" data-t="navLib"></span>
     <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
     <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
@@ -1001,6 +1020,7 @@
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
     <div class="groups" id="setgroups"></div>
+    <div class="groups" id="devscr" hidden></div>
     <div class="group" style="margin-top:12px">
       <h2 data-t="system" data-ic="symbol_cog"></h2>
       <table id="sysinfo"></table>
@@ -1041,7 +1061,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   FX: 86, FX_PUSH: 87,   /* (v10: the FX slots, ed_fxs.c; INFO tag 0x56) */
   SL24_PUT: 90, SL24_BANK: 91,   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
-  FXP: 94 };   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98 };   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -1830,6 +1850,10 @@ const parse = {
     o.midiSet = null;                                /* 54: the MIDI settings, mask (1 channels, 2 OUT, 4 IN), scope, first id */
     o.pat = null;                                    /* 55: the per-track patterns built: slots a track, scenes (ed_pat.c) */
     o.fxs = null;                                    /* 56: the FX slots' types built (v10, ed_fxs.c; below, FXT) */
+    o.tools = null;                                  /* 5B: the STEP TOOLS and EUCLID (v13, ed_tools.c) */
+    o.songc = null;                                  /* 5A: the song chain (v13, ed_song.c) */
+    o.scrn = null;                                   /* 59: GLOBAL and SYSTEM as the Optimist UI's lines (v13, ed_scrn.c) */
+    o.dlan = null;                                   /* 58: the drum lanes' mix, LFOs and sequencer mutes (v13, ed_dlan.c) */
     o.fxp = null;                                    /* 57: every FX slot by owner (v13, ed_fxp.c): {usb, owners} */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
@@ -1844,6 +1868,10 @@ const parse = {
           types.push({ id: a[p], kind: a[p + 1], amt: a[p + 2] === 127 ? null : a[p + 2], lane: a[p + 3] === 127 ? null : a[p + 3] });
         o.fxs = { types };
       }
+      if (id === 0x5B && n >= 1 && a[r.i] >= 1) o.tools = { v: a[r.i] };   /* 5B: version */
+      if (id === 0x5A && n >= 1 && a[r.i] >= 1) o.songc = { v: a[r.i] };   /* 5A: version */
+      if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
+      if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x57 && n >= 3 && a[r.i] >= 1) o.fxp = { usb: !!(a[r.i + 1] & 1), owners: a[r.i + 2] };   /* 57: version, flags (bit 0 USB input), owners */
       r.i += n;
     }
@@ -2032,6 +2060,44 @@ const parse = {
   [CMD.FX_PUSH](a) { return parse[CMD.FX](a); },
   /* v13 FXP: op 0 / 1 -> {op, ow, slots: [{type, n}], mask (bit t: type id t may be held), line (a return: its send line 0..2, null none)};
      op 2 -> {op, ow, sl, i, desc (null: no such parameter)}; op 3 -> {op, ow, sl, vals}; op 4 -> {op, ow, sl, i, value} */
+  /* v13 SCRN: op 0 -> {op, s, n, np}; 1 / 2 -> {op, s, i, ...LINE}; 3 -> {op, s, i, rc, ...LINE}; 4 -> {op} */
+  /* v13 SONGC: {rc (0 done, 1 stop first, 2 full, 3 one part left, 4 bad), mode (1 SONG), playing, scenes, steps, parts: [{scene, bars}]} */
+  /* v13 TOOLS: {op, rc (0 done, 1 another generator, 2 the generator is on), track, lane, len, hits, steps, rot, on, a, b (what the device says)} */
+  [CMD.TOOLS](a) {
+    const r = new Reader(a);
+    return { op: r.b(), rc: r.b(), track: r.b(), lane: r.b(), len: r.b(), hits: r.b(), steps: r.b(), rot: r.b(), on: r.b(), a: r.s(), b: r.s() };
+  },
+  [CMD.SONGC](a) {
+    const r = new Reader(a);
+    r.b();
+    const o = { rc: r.b(), mode: r.b(), playing: r.b(), scenes: r.b(), steps: r.b(), parts: [] };
+    for (let n = r.b(), k = 0; k < n; k++) o.parts.push({ scene: r.b(), bars: r.b() });
+    return o;
+  },
+  [CMD.SCRN](a) {
+    const r = new Reader(a), op = r.b();
+    if (op === 4) return { op };
+    const s = r.b();
+    if (op === 0) return { op, s, n: r.b(), np: r.b() };
+    const i = r.b(), o = { op, s, i };
+    if (op === 3) o.rc = r.b();
+    o.page = r.b(); o.title = r.s(); o.sect = r.s(); o.kind = r.b(); o.label = r.s(); o.val = r.s(); o.unit = r.s();
+    o.state = r.b(); o.danger = r.b(); o.ask = r.b(); o.gk = r.b(); o.gmin = r.v(); o.gmax = r.v(); o.gv = r.v();
+    o.byd = r.b();
+    if (o.byd) { o.fmt = r.b(); o.dmin = r.v(); o.dmax = r.v(); o.ddef = r.v(); }
+    o.obj = r.i < a.length ? r.s() : "";
+    return o;
+  },
+  [CMD.DLAN](a) {
+    const r = new Reader(a), op = r.b(), g = r.b(), l = r.b();
+    if (op === 0) return { op, g, l, n: r.b() };
+    if (op === 3) { const n = r.b(), vals = []; for (let k = 0; k < n; k++) vals.push(r.v()); return { op, g, l, vals }; }
+    const i = r.b();
+    if (op === 4) return { op, g, l, i, value: r.v() };
+    if (r.i >= a.length) return { op, g, l, i, desc: null };
+    const d = parse[CMD.DESC]([g, i, ...a.slice(r.i)]);
+    return { op, g, l, i, desc: { fmt: d.fmt, min: d.min, max: d.max, def: d.def, label: d.label, unit: d.unit, names: d.names } };
+  },
   [CMD.FXP](a) {
     const r = new Reader(a), op = r.b(), ow = r.b();
     if (op === 0 || op === 1) {
@@ -2291,6 +2357,30 @@ const req = {
   fxpType: (ow, sl, ty) => [CMD.FXP, [1, ow & 0x7F, sl & 0x7F, ty & 0x7F]],
   fxpDesc: (ow, sl, i) => [CMD.FXP, [2, ow & 0x7F, sl & 0x7F, i & 0x7F]],
   fxpVals: (ow, sl) => [CMD.FXP, [3, ow & 0x7F, sl & 0x7F]],
+  /* v13 DLAN (ed_dlan.c): group 0 a lane's mix (PAN MUTE SOLO SEQ MUTE), 1 its LFO, 2 a track's sequencer mute */
+  dlanGet: (g, l) => [CMD.DLAN, [0, g & 0x7F, l & 0x7F]],
+  dlanDesc: (g, l, i) => [CMD.DLAN, [2, g & 0x7F, l & 0x7F, i & 0x7F]],
+  dlanVals: (g, l) => [CMD.DLAN, [3, g & 0x7F, l & 0x7F]],
+  dlanSet: (g, l, i, v) => [CMD.DLAN, [4, g & 0x7F, l & 0x7F, i & 0x7F, ...v14enc(v)]],
+  /* v13 SCRN (ed_scrn.c): GLOBAL (0) and SYSTEM (1) as the device's lines; a turn: mode 0 steps, 1 fine steps, 2 the default; YES: ok 0 may ask */
+  scrnInfo: (s) => [CMD.SCRN, [0, s & 0x7F]],
+  scrnLine: (s, i) => [CMD.SCRN, [1, s & 0x7F, i & 0x7F]],
+  scrnTurn: (s, i, mode, steps = 0) => [CMD.SCRN, [2, s & 0x7F, i & 0x7F, mode & 3, ...v14enc(steps)]],
+  scrnYes: (s, i, ok) => [CMD.SCRN, [3, s & 0x7F, i & 0x7F, ok ? 1 : 0]],
+  scrnSave: () => [CMD.SCRN, [4]],
+  /* v13 SONGC (ed_song.c): the song chain; every op answers the chain */
+  songcGet: () => [CMD.SONGC, [0]],
+  songcSet: (part, scene, bars) => [CMD.SONGC, [1, part & 0x7F, scene & 0x7F, bars & 0x7F]],
+  songcIns: (part) => [CMD.SONGC, [2, part & 0x7F]],
+  songcDel: (part) => [CMD.SONGC, [3, part & 0x7F]],
+  songcMode: (m) => [CMD.SONGC, [4, m ? 1 : 0]],
+  songcSave: () => [CMD.SONGC, [5]],
+  /* v13 TOOLS (ed_tools.c): verb 0 REVERSE 1 RANDOM 2 COOK 3 LENGTH (half 1: 1/2); EUCLID: k 0 HITS 1 STEPS 2 ROT; lane 127: the whole kit */
+  toolsGet: () => [CMD.TOOLS, [0]],
+  toolsRun: (verb, lane, half) => [CMD.TOOLS, [1, verb & 3, lane & 0x7F, half ? 1 : 0]],
+  toolsEu: (k, v) => [CMD.TOOLS, [2, k & 3, v & 0x7F]],
+  toolsEuOn: (lane) => [CMD.TOOLS, [3, lane & 0x7F]],
+  toolsEuOff: (keep) => [CMD.TOOLS, [keep ? 4 : 5]],
   fxpSet: (ow, sl, i, v) => [CMD.FXP, [4, ow & 0x7F, sl & 0x7F, i & 0x7F, ...v14enc(v)]],
   /* SLOOP 2.4 import: begin (the object's length and CRC), a chunk, commit; 2.4's FM6 bank kept in flash: a chunk */
   sl24Begin: (len, crc) => [CMD.SL24_PUT, [0, ...wr7(len, 3), ...wr7(crc, 5)]],
@@ -2335,6 +2425,9 @@ function replyMatches(cmd, args, a) {
     case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: case CMD.SCENE: return a[0] === args[0] && a[1] === args[1];
     case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.PAT_OP: case CMD.FX: return a[0] === args[0];
     case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
+    case CMD.SONGC: case CMD.TOOLS: return true;
+    case CMD.SCRN: return a[0] === args[0] && (args[0] === 4 || a[1] === args[1]) && (args[0] < 1 || args[0] === 4 || a[2] === args[2]);
+    case CMD.DLAN: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && (args[0] !== 2 && args[0] !== 4 || a[3] === args[3]);
     case CMD.FXP: return a[0] === args[0] && a[1] === args[1] && (args[0] < 2 || a[2] === args[2]) && (args[0] !== 2 && args[0] !== 4 || a[3] === args[3]);   /* (op, owner, slot, parameter) */
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
@@ -3511,8 +3604,11 @@ function fxpFmt(d, v) {
 }
 /* the firmware's parameter tables per kind of owner and type (the mock device's: tests/fxp_table.json, tools/gen_fxp_table.py) */
 /* FXP_TABLE BEGIN: tools/gen_fxp_table.py from tests/fxp_table.json (do not edit here) */
-const FXP_TABLE = {"lane":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":1,"fmt":8,"label":"EQ3","max":1,"min":0,"names":["OFF","ON"],"unit":""}]}]},"master":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":0,"label":"THRS","max":0,"min":-30,"unit":"dB"},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":0,"label":"GAIN","max":15,"min":0,"unit":"dB"},{"def":6,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"return":{"slots":1,"types":[{"id":1,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":2,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":3,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":4,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"track":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"THRS","max":127,"min":0,"unit":""},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":8,"label":"GAIN","max":16,"min":0,"names":["AUTO","0dB","1dB","2dB","3dB","4dB","5dB","6dB","7dB","8dB","9dB","10dB","11dB","12dB","13dB","14dB","15dB"],"unit":""},{"def":0,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":15,"params":[{"def":0,"fmt":1,"label":"DEPTH","max":127,"min":0,"unit":""},{"def":8,"fmt":8,"label":"PAT","max":15,"min":0,"names":["16TH","8TH","4TH","HALF","OFF8","OFF16","DOT8","DOT4","TRNC1","TRNC2","TRNC3","TRNC4","GALOP","RVGAL","CLAVE","TRESL"],"unit":""},{"def":1,"fmt":8,"label":"RATE","max":5,"min":0,"names":["1/8","1/16","1/32","8T","16T","32T"],"unit":""},{"def":0,"fmt":1,"label":"SHAPE","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"usb":{"slots":3,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""}]}],"values":[{"def":112,"fmt":6,"label":"VOLUME","max":127,"min":0,"unit":""},{"def":0,"fmt":2,"label":"PAN","max":63,"min":-64,"unit":""},{"def":0,"fmt":8,"label":"MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":1,"fmt":8,"label":"FX ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":0,"fmt":1,"label":"REV","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DLY","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHO","max":127,"min":0,"unit":""}]}};
+const FXP_TABLE = {"dlane":{"lfo":[{"def":60,"fmt":4,"label":"RATE","max":127,"min":-10,"unit":""},{"def":0,"fmt":8,"label":"WAVE","max":4,"min":0,"names":["SIN","TRI","SAW","SQR","S&H"],"unit":""},{"def":0,"fmt":0,"label":"PHS","max":127,"min":0,"unit":""},{"def":0,"fmt":3,"label":"FADE","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"DEST","max":8,"min":0,"names":["OFF","TUNE","DECAY","SNAP","CLICK","BEND","CUT","DRIVE","LEVEL"],"unit":""},{"def":0,"fmt":2,"label":"AMT","max":63,"min":-64,"unit":""},{"def":0,"fmt":8,"label":"DEST2","max":8,"min":0,"names":["OFF","TUNE","DECAY","SNAP","CLICK","BEND","CUT","DRIVE","LEVEL"],"unit":""},{"def":0,"fmt":2,"label":"AMT2","max":63,"min":-64,"unit":""}],"mix":[{"def":0,"fmt":2,"label":"PAN","max":63,"min":-64,"unit":""},{"def":0,"fmt":8,"label":"MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":0,"fmt":8,"label":"SOLO","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":0,"fmt":8,"label":"SEQ MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""}],"track":[{"def":0,"fmt":8,"label":"SEQ MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""}]},"lane":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":1,"fmt":8,"label":"EQ3","max":1,"min":0,"names":["OFF","ON"],"unit":""}]}]},"master":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":0,"label":"THRS","max":0,"min":-30,"unit":"dB"},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":0,"label":"GAIN","max":15,"min":0,"unit":"dB"},{"def":6,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"return":{"slots":1,"types":[{"id":1,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":2,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":3,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":4,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"track":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"THRS","max":127,"min":0,"unit":""},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":8,"label":"GAIN","max":16,"min":0,"names":["AUTO","0dB","1dB","2dB","3dB","4dB","5dB","6dB","7dB","8dB","9dB","10dB","11dB","12dB","13dB","14dB","15dB"],"unit":""},{"def":0,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":15,"params":[{"def":0,"fmt":1,"label":"DEPTH","max":127,"min":0,"unit":""},{"def":8,"fmt":8,"label":"PAT","max":15,"min":0,"names":["16TH","8TH","4TH","HALF","OFF8","OFF16","DOT8","DOT4","TRNC1","TRNC2","TRNC3","TRNC4","GALOP","RVGAL","CLAVE","TRESL"],"unit":""},{"def":1,"fmt":8,"label":"RATE","max":5,"min":0,"names":["1/8","1/16","1/32","8T","16T","32T"],"unit":""},{"def":0,"fmt":1,"label":"SHAPE","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"usb":{"slots":3,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":15,"params":[{"def":0,"fmt":1,"label":"GATER","max":127,"min":0,"unit":""},{"def":8,"fmt":8,"label":"PAT","max":15,"min":0,"names":["16TH","8TH","4TH","HALF","OFF8","OFF16","DOT8","DOT4","TRNC1","TRNC2","TRNC3","TRNC4","GALOP","RVGAL","CLAVE","TRESL"],"unit":""},{"def":1,"fmt":8,"label":"RATE","max":5,"min":0,"names":["1/8","1/16","1/32","8T","16T","32T"],"unit":""},{"def":0,"fmt":1,"label":"SHAPE","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}],"values":[{"def":112,"fmt":6,"label":"VOLUME","max":127,"min":0,"unit":""},{"def":0,"fmt":2,"label":"PAN","max":63,"min":-64,"unit":""},{"def":0,"fmt":8,"label":"MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":1,"fmt":8,"label":"FX ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":0,"fmt":1,"label":"REV","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DLY","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHO","max":127,"min":0,"unit":""}]}};
 /* FXP_TABLE END */
+/* SCRN_TABLE BEGIN: tools/gen_fxp_table.py from tests/scrn_table.json (do not edit here) */
+const SCRN_TABLE = {"lines":[{"byd":1,"danger":0,"ddef":90,"dmax":240,"dmin":40,"fmt":9,"gk":1,"gmax":240,"gmin":40,"gv":120,"i":0,"kind":1,"label":"BPM","obj":"","page":0,"s":0,"sect":"TEMPO","state":0,"title":"Tempo","unit":"BPM","val":"120"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":2,"gmax":1,"gmin":-1,"gv":0,"i":1,"kind":2,"label":"NUDGE","obj":"","page":0,"s":0,"sect":"TEMPO","state":0,"title":"Tempo","unit":"%","val":"0"},{"byd":1,"danger":0,"ddef":0,"dmax":100,"dmin":0,"fmt":14,"gk":1,"gmax":100,"gmin":0,"gv":6,"i":2,"kind":1,"label":"SWING","obj":"","page":0,"s":0,"sect":"TEMPO","state":0,"title":"Tempo","unit":"%","val":"52"},{"byd":1,"danger":0,"ddef":0,"dmax":50,"dmin":-50,"fmt":0,"gk":2,"gmax":50,"gmin":-50,"gv":-2,"i":3,"kind":1,"label":"TUNE","obj":"","page":0,"s":0,"sect":"TEMPO","state":0,"title":"Tempo","unit":"","val":"-2"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":4,"kind":1,"label":"MODE","obj":"","page":1,"s":0,"sect":"REC","state":0,"title":"Rec","unit":"","val":"FREE"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":3,"gmax":2,"gmin":0,"gv":0,"i":5,"kind":1,"label":"LENGTH","obj":"","page":1,"s":0,"sect":"REC","state":0,"title":"Rec","unit":"bar","val":"1"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":6,"kind":1,"label":"START","obj":"","page":1,"s":0,"sect":"REC","state":0,"title":"Rec","unit":"","val":"NOTE"},{"byd":1,"danger":0,"ddef":0,"dmax":2,"dmin":0,"fmt":8,"gk":3,"gmax":2,"gmin":0,"gv":0,"i":7,"kind":1,"label":"CLICK","obj":"","page":1,"s":0,"sect":"REC","state":0,"title":"Rec","unit":"","val":"OFF"},{"byd":1,"danger":0,"ddef":1,"dmax":1,"dmin":0,"fmt":8,"gk":5,"gmax":1,"gmin":0,"gv":1,"i":8,"kind":1,"label":"QUANT","obj":"","page":2,"s":0,"sect":"REC","state":0,"title":"Rec 2","unit":"","val":"ON"},{"byd":1,"danger":0,"ddef":3,"dmax":3,"dmin":0,"fmt":8,"gk":3,"gmax":3,"gmin":0,"gv":3,"i":9,"kind":1,"label":"CLK IN","obj":"","page":3,"s":0,"sect":"MIDI","state":0,"title":"MIDI","unit":"","val":"A:INT"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":10,"kind":1,"label":"CLK OUT","obj":"","page":3,"s":0,"sect":"MIDI","state":0,"title":"MIDI","unit":"","val":"OFF"},{"byd":1,"danger":0,"ddef":0,"dmax":1,"dmin":0,"fmt":8,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":11,"kind":1,"label":"MIDI OUT","obj":"","page":3,"s":0,"sect":"MIDI","state":0,"title":"MIDI","unit":"","val":"KEYS"},{"byd":1,"danger":0,"ddef":1,"dmax":16,"dmin":0,"fmt":8,"gk":4,"gmax":16,"gmin":0,"gv":5,"i":12,"kind":1,"label":"TRK 1","obj":"","page":4,"s":0,"sect":"CHANNELS","state":0,"title":"Channels","unit":"","val":"5"},{"byd":1,"danger":0,"ddef":2,"dmax":16,"dmin":0,"fmt":8,"gk":4,"gmax":16,"gmin":0,"gv":1,"i":13,"kind":1,"label":"TRK 2","obj":"","page":4,"s":0,"sect":"CHANNELS","state":0,"title":"Channels","unit":"","val":"1"},{"byd":1,"danger":0,"ddef":3,"dmax":16,"dmin":0,"fmt":8,"gk":4,"gmax":16,"gmin":0,"gv":3,"i":14,"kind":1,"label":"TRK 3","obj":"","page":4,"s":0,"sect":"CHANNELS","state":0,"title":"Channels","unit":"","val":"3"},{"byd":1,"danger":0,"ddef":10,"dmax":16,"dmin":0,"fmt":8,"gk":4,"gmax":16,"gmin":0,"gv":11,"i":15,"kind":1,"label":"DRUMS","obj":"","page":4,"s":0,"sect":"CHANNELS","state":0,"title":"Channels","unit":"","val":"11"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":0,"kind":2,"label":"INFO","obj":"","page":0,"s":1,"sect":"INFO","state":0,"title":"Info","unit":"","val":""},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":1,"kind":2,"label":"INTERNALS","obj":"","page":1,"s":1,"sect":"INTERNALS","state":0,"title":"Internals","unit":"","val":""},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":3,"gmax":4,"gmin":0,"gv":4,"i":2,"kind":1,"label":"COLOR","obj":"","page":2,"s":1,"sect":"SCREEN","state":0,"title":"Screen & audio","unit":"","val":"MONO"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":1,"gmax":8,"gmin":1,"gv":8,"i":3,"kind":1,"label":"BRIGHT","obj":"","page":2,"s":1,"sect":"SCREEN","state":0,"title":"Screen & audio","unit":"","val":"8"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":4,"kind":1,"label":"KNOB COLORS","obj":"","page":2,"s":1,"sect":"SCREEN","state":0,"title":"Screen & audio","unit":"","val":"OFF"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":5,"kind":1,"label":"LOWCUT","obj":"","page":2,"s":1,"sect":"AUDIO","state":0,"title":"Screen & audio","unit":"","val":"OFF"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":3,"gmax":3,"gmin":0,"gv":1,"i":6,"kind":1,"label":"BUTTONS","obj":"","page":3,"s":1,"sect":"KEYS","state":0,"title":"Keys","unit":"","val":"LOW"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":3,"gmax":3,"gmin":0,"gv":0,"i":7,"kind":1,"label":"KEYS","obj":"","page":3,"s":1,"sect":"KEYS","state":0,"title":"Keys","unit":"","val":"OFF"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":5,"gmax":1,"gmin":0,"gv":0,"i":8,"kind":1,"label":"SERIAL","obj":"","page":4,"s":1,"sect":"USB","state":0,"title":"USB","unit":"","val":"OFF"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":9,"kind":3,"label":"PANEL","obj":"","page":5,"s":1,"sect":"CALIBRATE","state":0,"title":"Calibrate","unit":"","val":"CALIBRATE"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":3,"gmax":2,"gmin":0,"gv":1,"i":10,"kind":1,"label":"HOLD","obj":"","page":5,"s":1,"sect":"CALIBRATE","state":0,"title":"Calibrate","unit":"ms","val":"350"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":11,"kind":2,"label":"VERSION","obj":"","page":6,"s":1,"sect":"ABOUT","state":0,"title":"About","unit":"","val":"0.1"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":12,"kind":2,"label":"BUILD","obj":"","page":6,"s":1,"sect":"ABOUT","state":0,"title":"About","unit":"<time>","val":"<date>"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":13,"kind":2,"label":"CHIP","obj":"","page":6,"s":1,"sect":"ABOUT","state":0,"title":"About","unit":"1 core","val":"AC791N"},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":14,"kind":2,"label":" ","obj":"","page":6,"s":1,"sect":"ABOUT","state":0,"title":"About","unit":"github.c","val":""},{"byd":0,"danger":0,"ddef":0,"dmax":0,"dmin":0,"fmt":0,"gk":0,"gmax":0,"gmin":0,"gv":0,"i":15,"kind":2,"label":"CREDITS","obj":"","page":7,"s":1,"sect":"CREDITS","state":0,"title":"Credits","unit":"","val":""}]};
+/* SCRN_TABLE END */
 /* an owner's slots: {ow, slots: [{type, n}], mask, line}; null: the device does not answer (no such owner, older firmware) */
 async function readFxpOwner(rq, ow) {
   try { return parse[CMD.FXP](await rq(req.fxpGet(ow), { timeout: 400, retries: 1, quiet: true })); }
@@ -3855,6 +3951,9 @@ const NAV = {
   fxins: { strip: "any", opener: "[data-pop=fxins]", fxp: true },      /* v13: the track's inserts (the drum track: its bus and the selected sound's) */
   fxmst: { strip: "master", opener: "[data-pop=fxmst]", fxp: true },   /* the master's two inserts */
   fxret: { strip: "master", opener: "[data-pop=fxret]", fxp: true },   /* the three returns */
+  tools: { strip: "any", opener: "[data-pop=tools]", tools: true },   /* v13: the pattern tools (REVERSE RANDOM COOK LENGTH) and EUCLID of the selected track */
+  song: { strip: "master", opener: "[data-pop=song]", songc: true },   /* v13: the song chain: the parts (scene, bars) and LOOP / SONG */
+  fxusb: { strip: "master", opener: "[data-pop=fxusb]", fxp: true, usb: true },   /* the USB input: its values and two inserts (a build with USB audio) */
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
 const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
@@ -3875,7 +3974,7 @@ const KEYS = [
   { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
   ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
   { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" }, { key: "o", id: "fxcomp", on: "page" },
-  { key: "f", id: "fxins", on: "track" }, { key: "m", id: "fxmst", on: "page" }, { key: "e", id: "fxret", on: "page" },
+  { key: "f", id: "fxins", on: "track" }, { key: "m", id: "fxmst", on: "page" }, { key: "e", id: "fxret", on: "page" }, { key: "b", id: "fxusb", on: "page" }, { key: "s", id: "song", on: "page" }, { key: "t", id: "tools", on: "track" },
   { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
 ];
 /* the master strip: the master bus knobs, then one icon + knob per send / return FX (firmware core.h G_*, fx.c). `ret` is the
@@ -4184,7 +4283,7 @@ function makeMockDevice(opt = {}) {
       imp: null, loads: 0 },                           /* snapshots (ed_snap.c): each slot's stream, an import */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
     notes: [],                                         /* note messages received (the kit editor's audition) */
-    fx: { slots: [FXT.DIST, FXT.CHO, FXT.DLY, FXT.REV], cset: [1, 4, 6], dist: new Array(16).fill(0), comp: new Array(16).fill(0) },   /* (opt.fxs) */
+    fx: { slots: opt.fxp ? [FXT.NONE, FXT.CHO, FXT.DLY, FXT.REV] : [FXT.DIST, FXT.CHO, FXT.DLY, FXT.REV], cset: [1, 4, 6], dist: new Array(16).fill(0), comp: new Array(16).fill(0) },   /* (opt.fxs) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
     Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
@@ -4271,6 +4370,7 @@ function makeMockDevice(opt = {}) {
         const o2 = ty ? slots.findIndex((x, o) => o >= FXP.RET0 && o < FXP.LANE0 && o !== ow && x[0] === ty) : -1;
         if (o2 >= 0) slots[o2][0] = old;
         s[0] = ty;
+        st.fx.slots = [FXT.NONE, slots[6][0], slots[7][0], slots[8][0]];   /* (the v10 FX state: the master's slots 1..3 are the returns) */
         return;
       }
       if (old === ty) return;
@@ -4291,6 +4391,38 @@ function makeMockDevice(opt = {}) {
     };
     return { slots, vals, params, get, put, setType, layout, line, nslots: (ow) => (ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 ? 1 : 2) };
   })();
+  /* v13 DLAN (ed_dlan.c; with opt.fxp): the lanes' PAN MUTE SOLO SEQ MUTE, their LFOs, the tracks' sequencer mutes */
+  const dln = !opt.fxp ? null : (() => {
+    const T = FXP_TABLE.dlane, vals = new Map();
+    const params = (g, l) => (g === 0 ? (l < 16 ? T.mix : []) : g === 1 ? (l < 16 ? T.lfo : []) : g === 2 && l < 4 ? T.track : []);
+    const key = (g, l, i) => `${g}/${l}/${i}`;
+    const get = (g, l, i) => (vals.has(key(g, l, i)) ? vals.get(key(g, l, i)) : params(g, l)[i].def);
+    const put = (g, l, i, v) => { const d = params(g, l)[i]; vals.set(key(g, l, i), clamp(v, d.min, d.max)); };
+    return { params, get, put, ok: (g, l) => params(g, l).length > 0 };
+  })();
+  /* v13 SCRN (ed_scrn.c; opt.scrn): GLOBAL and SYSTEM as lines, the Optimist UI's own (SCRN_TABLE: the firmware host test's); a turn moves the gauge's
+     value (a number's text follows it, a list's text is the device's to name: kept) */
+  const scr = !opt.scrn ? null : (() => {
+    const lines = [[], []];
+    SCRN_TABLE.lines.forEach((l) => lines[l.s].push({ ...l, ask: 0 }));
+    const out = (b, v, o, l) => {
+      b(l.page); o(l.title); o(l.sect); b(l.kind); o(l.label); o(l.val); o(l.unit); b(l.state); b(l.danger); b(l.ask); b(l.gk);
+      v(l.gmin); v(l.gmax); v(l.gv); b(l.byd);
+      if (l.byd) { b(l.fmt); v(l.dmin); v(l.dmax); v(l.ddef); }
+      o(l.obj || "");
+    };
+    return { lines, out, saves: 0 };
+  })();
+  /* v13 SONGC (ed_song.c; opt.scrn): the chain, edited stopped */
+  const sgc = !opt.scrn ? null : { mode: 0, entries: [0, 1, 2, 3].map((s) => ({ scene: s, bars: 4 })), saves: 0 };
+  const sgcOut = (b, rc) => { b(0); b(rc); b(sgc.mode); b(st.playing ? 1 : 0); b(16); b(64); b(sgc.entries.length); sgc.entries.forEach((e) => { b(e.scene); b(e.bars); }); };
+  /* v13 TOOLS (ed_tools.c; opt.scrn): the tools answer as the device says them; EUCLID's values and its generator, the pattern itself is not changed here */
+  const tls = !opt.scrn ? null : { hits: 4, steps: 16, rot: 0, on: false, runs: [] };
+  const tlsOut = (b, s, op, rc, a1 = "", b1 = "") => {
+    const len = Math.min(st.p[29] | 0, 64);
+    tls.steps = Math.max(1, Math.min(tls.steps, len)); tls.hits = Math.min(tls.hits, tls.steps); tls.rot %= tls.steps;
+    b(op); b(rc); b(st.sel); b(0); b(len); b(tls.hits); b(tls.steps); b(tls.rot); b(tls.on ? 1 : 0); s(a1); s(b1);
+  };
   const seqEmpty = () => st.step.every((s) => !s.n);
   function loadPat16(pat) {                       /* ui.c load_pat16 */
     const ps = stepsFromPattern(pat);
@@ -4449,7 +4581,9 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
-        if (v5 && opt.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
+        if (v5 && opt.scrn) { b(0x59); b(2); b(1); b(2); b(0x5A); b(1); b(1); b(0x5B); b(1); b(1); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
+        if (v5 && opt.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); b(0x58); b(2); b(1); b(3); }   /* tags: every FX slot by owner, the lanes' mix (ed_fxp.c, ed_dlan.c) */
+        if (false) b(0);   /* tag: every FX slot by owner (ed_fxp.c) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
@@ -4738,6 +4872,85 @@ function makeMockDevice(opt = {}) {
         else if (a[0] === 2) { if (a.length < 4) return null; X.cset = [clamp(a[1], 0, 7), clamp(a[2], 0, 5), clamp(a[3], 0, 6)]; }
         else if (a[0] === 3) { if (a.length < 4 || a[1] > 15 || a[2] > 1) return null; (a[2] ? X.comp : X.dist)[a[1]] = a[3] & 127; }
         fxOut(b, a[0]);
+        break;
+      }
+      /* the STEP TOOLS and EUCLID (ed_tools.c; opt.scrn) */
+      case CMD.TOOLS: {
+        if (!tls || a.length < 1 || a[0] > 5) return null;
+        const op = a[0], who = "T" + (st.sel + 1);
+        if (op === 1) {
+          if (a.length < 4 || a[1] > 3) return null;
+          if (tls.on) { tlsOut(b, s, op, 2); break; }
+          tls.runs.push([a[1], a[2], a[3]]);
+          if (a[1] === 3) st.p[29] = a[3] ? Math.max(1, (st.p[29] | 0) >> 1) : Math.min(64, (st.p[29] | 0) * 2);
+          tlsOut(b, s, op, 0, a[1] === 3 ? (a[3] ? "HALVED: " : "DOUBLED: ") + st.p[29] : who, a[1] === 3 ? " STEPS" : [" REVERSED", " RANDOM", " COOKED"][a[1]]);
+          break;
+        }
+        if (op === 2) { if (a.length < 3 || a[1] > 2) return null; tls[["hits", "steps", "rot"][a[1]]] = a[2]; }
+        else if (op === 3) tls.on = true;
+        else if (op >= 4) tls.on = false;
+        tlsOut(b, s, op, 0);
+        break;
+      }
+      /* the song chain (ed_song.c; opt.scrn) */
+      case CMD.SONGC: {
+        if (!sgc || a.length < 1 || a[0] > 5) return null;
+        const op = a[0], E = sgc.entries;
+        let rc = 0;
+        if (op >= 1 && op <= 3) {
+          if (a.length < (op === 1 ? 4 : 2)) return null;
+          if (st.playing) rc = 1;
+          else if (a[1] >= E.length) rc = 4;
+          else if (op === 1) { if (a[2] >= 16 || a[3] < 1 || a[3] > 64) rc = 4; else E[a[1]] = { scene: a[2], bars: a[3] }; }
+          else if (op === 2) { if (E.length >= 64) rc = 2; else E.splice(a[1] + 1, 0, { ...E[a[1]] }); }
+          else if (E.length <= 1) rc = 3; else E.splice(a[1], 1);
+        } else if (op === 4) { if (a.length < 2 || a[1] > 1) return null; sgc.mode = a[1]; }
+        else if (op === 5) sgc.saves++;
+        sgcOut(b, rc);
+        break;
+      }
+      /* GLOBAL and SYSTEM as the device's lines (ed_scrn.c; opt.scrn) */
+      case CMD.SCRN: {
+        if (!scr || a.length < 1 || a[0] > 4) return null;
+        const wr = s;                                 /* (the string writer) */
+        const op = a[0];
+        if (op === 4) { scr.saves++; b(4); break; }
+        if (a.length < 2 || a[1] > 1) return null;
+        const sc = a[1], L = scr.lines[sc];
+        if (op === 0) { b(0); b(sc); b(L.length); b(L.reduce((m, l) => Math.max(m, l.page + 1), 0)); break; }
+        if (a.length < 3 || a[2] >= L.length) return null;
+        const i = a[2], l = L[i];
+        if (op === 1) { b(1); b(sc); b(i); scr.out(b, v, wr, l); break; }
+        if (op === 2) {
+          if (a.length < 6) return null;
+          if (a[3] === 2) l.gv = l.byd ? l.ddef : l.gv;
+          else if (l.kind === 1) l.gv = clamp(l.gv + v14dec(a[4], a[5]), l.gmin, l.gmax);
+          if (l.byd && (l.gk === 1 || l.gk === 2 || l.gk === 0)) l.val = String(l.gv);
+          b(2); b(sc); b(i); scr.out(b, v, wr, l); break;
+        }
+        if (a.length < 4) return null;
+        l.ask = l.kind === 3 && !a[3] && /PANEL|ERASE|CLEAR/.test(l.label) ? 1 : 0;   /* (a destructive action asks first) */
+        b(3); b(sc); b(i); b(l.kind === 3 || l.kind === 1 ? 1 : 0); scr.out(b, v, wr, l);
+        break;
+      }
+      /* the drum lanes' mix, LFOs and the sequencer mutes (ed_dlan.c; opt.fxp) */
+      case CMD.DLAN: {
+        if (!dln || a.length < 3 || a[0] > 4 || a[0] === 1 || !dln.ok(a[1], a[2])) return null;
+        const op = a[0], g = a[1], l = a[2], ps = dln.params(g, l);
+        if (op === 0) { b(0); b(g); b(l); b(ps.length); break; }
+        if (op === 3) { b(3); b(g); b(l); b(ps.length); ps.forEach((_, i) => v(dln.get(g, l, i))); break; }
+        if (a.length < 4) return null;
+        const i = a[3], d = ps[i];
+        if (op === 2) {
+          b(2); b(g); b(l); b(i);
+          if (!d) break;
+          b(d.fmt); v(d.min); v(d.max); v(d.def); s(d.label); s(d.unit || "");
+          if (d.fmt === F.ENUM && d.names) d.names.forEach((nm) => s(nm));
+          break;
+        }
+        if (!d || a.length < 6) return null;
+        dln.put(g, l, i, v14dec(a[4], a[5]));
+        b(4); b(g); b(l); b(i); v(dln.get(g, l, i));
         break;
       }
       /* every FX slot by owner (ed_fxp.c; opt.fxp): 0 get, 1 type, 2 desc, 3 values, 4 set */
@@ -5324,6 +5537,7 @@ function makeMockDevice(opt = {}) {
     /* FX > SLOTS on the device (fxs_load: a type held elsewhere swaps), or a drum sound's insert (SOUND 3): v9 pushes FX_PUSH */
     fxSlot(k, t) { st.fx.slots = fxsLoad(st.fx.slots, k, t); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return st.fx.slots.slice(); },
     /* a device-side change of the FXP state (a knob turned on the device): v9 pushes FX_PUSH, which the editor answers by reading the slot again */
+    dlanSet(g, l, i, v) { dln.put(g, l, i, v); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return dln.get(g, l, i); },
     fxpSet(ow, sl, i, v) { fxm.put(ow, sl, i, v); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return fxm.get(ow, sl, i); },
     fxpType(ow, sl, ty) { fxm.setType(ow, sl, ty); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return fxm.slots[ow].slice(); },
     fxIns(l, kind, v) { (kind ? st.fx.comp : st.fx.dist)[l] = v; if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return v; },
@@ -5428,6 +5642,8 @@ const ICONS = {
 };
 ICONS.fxins = ICONS.fxmst = ICONS.inserts;   /* (popBtn names its icon by the popup) */
 ICONS.fxret = ICONS.returns;
+ICONS.tools = "M5 19l9-9 3 3-9 9zM14 6l4 4M17 3l4 4";
+ICONS.song = "M4 6h16M4 12h10M4 18h13M18 10l3 2-3 2z";
 function svgIcon(name) {
   const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -5583,7 +5799,7 @@ const TEXT = {
   badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
-  popIns: "Inserts", popMstIns: "Master inserts", popRet: "Returns", fxpType: "type", fxpReturn: "Return", fxpValues: "values", fxpBus: "bus settings", fxpEmpty: "empty: pick an effect",
+  dlMix: "Mix", dlLfo: "LFO", seqMute: "Sequencer mute", seqMuteHelp: "The track's steps stop triggering (no note for the sound, none for MIDI out; keys played live still sound)", devScreens: "On the device: GLOBAL and SYSTEM", devScreensHelp: "The Optimist UI's own lines, as it draws them: the same names, order and units. A change is saved to flash a moment after the last one.", popTools: "Tools", popToolsHelp: "The device's pattern tools on this track (the drum track: the whole kit or one sound): REVERSE, RANDOM, COOK, LENGTH x2 or 1/2, each one undo level on the device; EUCLID spreads HITS over STEPS, turned by ROT, and writes it over the pattern while it is on (Keep leaves the steps, Restore gives the pattern back).", toolScope: "Scope", toolKit: "the whole kit", toolKeep: "keep the steps", toolRestore: "restore the pattern", toolGenOn: "EUCLID is on: keep or restore first", toolAnother: "another generator is on", popSong: "Song", popSongHelp: "The order the scenes play in: each part a scene and a number of bars; LOOP plays the current scene round, SONG the chain. Edited while stopped; Save puts the chain into flash. The scenes and patterns themselves: Sequence.", songMode: "Mode", songSave: "Save", songPart: "Part", songScene: "Scene", songBars: "Bars", songInsert: "insert", songDelete: "delete", songPlaying: "The transport plays: stop it to edit the chain", songRc1: "Stop first (the transport plays, or SONG REC is on)", songRc2: "The song is full", songRc3: "One part is left", songRc4: "Not accepted", popUsb: "USB input", popUsbHelp: "The computer's audio (USB playback) mixed as a track after the drums: its level, pan, mute, FX on and sends, and its two insert slots.", popIns: "Inserts", popMstIns: "Master inserts", popRet: "Returns", fxpType: "type", fxpReturn: "Return", fxpValues: "values", fxpBus: "bus settings", fxpEmpty: "empty: pick an effect",
   fxpSound: "Drum sound", fxpBusDrums: "Drum bus", fxpTypeHelp: "The effect in this slot (one of each: a type the other slot holds swaps with it)",
   popInsHelp: "The track's two insert slots, S1 then S2 (in series, after the slicer). Every knob is the device's own; a type keeps its settings while it is out of a slot.",
   fxpSoundHelp: "This drum sound's own two slots, before the drum bus: the sound's amount of each effect.",
@@ -5722,9 +5938,9 @@ const drumIndex = () => (dev && dev.mix ? dev.mix.ntrk - 1 : 3);
 /* the popup: its panel moved into the dialog (and home again when it closes) */
 const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", kitstore: "p-kitstore" };
 let popPanel = null;
-const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset"]);   /* (these act on the selected track: selected first) */
+const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset", "tools"]);   /* (these act on the selected track: selected first) */
 async function openPop(id, track = 0, lane = 0) {
-  if (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn())) return;
+  if (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn()) || (NAV[id].usb && !dev.info.fxp.usb) || (NAV[id].songc && !dev.info.songc) || (NAV[id].tools && !dev.info.tools)) return;
   closePop();
   nav = navOpen(nav, id, track, lane);
   if (tab !== "mixer") { tab = "mixer"; renderPanels(); }
@@ -5773,8 +5989,9 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
+    case "tools": return `${t("popTools")} · ${tr} · ${what}`;
     case "fxins": return `${t("popIns")} · ${drumTrack(track) ? t("fxpBusDrums") : tr}`;
-    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", fxmst: "popMstIns", fxret: "popRet", help: "help" }[id] || "help");
+    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", fxmst: "popMstIns", fxret: "popRet", fxusb: "popUsb", song: "popSong", help: "help" }[id] || "help");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -5803,6 +6020,7 @@ function renderPanels() {
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
     if (show && want === "drumkit" && !hasKitPage()) { show = false; hint = "kitPageNone"; }
     if (show && want === "drumkit") renderDrumKit();
+    if (show && want === "settings") renderDevScreens().catch(report);
     if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
     p.hidden = !show;
   }
@@ -5906,15 +6124,20 @@ const pFx = () => FX_LABELS.map((n, j) => pById(n, 33 + j)), pFxoff = () => pByI
 /* v10 (INFO tag 0x56, dev.fx: FX op 0): the FX page's four knobs are the slots' amounts, named after them (DESC labels; an
    empty slot: null, "--"); older firmware: DST CHO DLY REV */
 const fxOn = () => typeof dev !== "undefined" && !!dev && !!dev.fx && !!dev.info && !!dev.info.fxs;
+/* v13: a return may hold any effect; the track's send knob of a return is its LINE's send (P_CHOR P_DLY P_REV, FXP's `line`), named after what
+   the return holds. fxSend(k): the send type (CHO DLY REV) slot k feeds, NONE for slot 0 and an empty return. Older firmware: the slot's type */
+const fxSend = (k) => (dev.fxpRet && k ? (dev.fxpRet[k - 1].line == null ? FXT.NONE : [FXT.CHO, FXT.DLY, FXT.REV][dev.fxpRet[k - 1].line]) : dev.fx.slots[k]);
 /* [REV, DLY, CHO] (a drum sound's sends, the firmware's REV DLY CHO) in the device's return order: the sends its slots hold,
    in slot order (fx_slots.c fxs_card: the one order of the sends and returns), then the others; older firmware: as given */
 const sendOrder = (rdc) => {
   if (!fxOn()) return rdc;
-  const at = [FXT.REV, FXT.DLY, FXT.CHO].map((t) => { const k = dev.fx.slots.indexOf(t); return k < 0 ? 9 : k; });
+  const eff = [0, 1, 2, 3].map(fxSend);
+  const at = [FXT.REV, FXT.DLY, FXT.CHO].map((t) => { const k = eff.indexOf(t); return k < 0 ? 9 : k; });
   return [0, 1, 2].sort((a, b) => at[a] - at[b] || a - b).map((i) => rdc[i]);
 };
-const slotIds = () => (fxOn() ? [0, 1, 2, 3].map((k) => fxSlotAmt(dev.info, dev.fx.slots, k)) : pFx());
-const slotLabels = () => (fxOn() ? slotIds().map((id, k) => (id == null ? "--" : (dev.pdesc[id] && dev.pdesc[id].label) || FXT_NAMES[dev.fx.slots[k]] || "--")) : FX_LABELS);
+const slotIds = () => (fxOn() ? [0, 1, 2, 3].map((k) => fxSlotAmt(dev.info, [0, 1, 2, 3].map(fxSend), k)) : pFx());
+const retName = (k) => (dev.fxpRet && k ? FXT_NAMES[dev.fxpRet[k - 1].type] : "");
+const slotLabels = () => (fxOn() ? slotIds().map((id, k) => (id == null ? "--" : retName(k) || (dev.pdesc[id] && dev.pdesc[id].label) || FXT_NAMES[dev.fx.slots[k]] || "--")) : FX_LABELS);
 const gDrLvl = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && (d.label === "LVL" || d.label === "LEVEL")); return i >= 0 ? i : 25; };
 const isDrum = () => !!dev && !!dev.dump && dev.dump.engine >= dev.info.nengines;
 /* v5 (SLOOP 2.0): the drum track is edited as its 16 lanes (DRUM_STEP); older firmware: as GM notes */
@@ -5929,7 +6152,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", fxp: QS.get("fxp") === "1" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", fxp: QS.get("fxp") === "1", scrn: QS.get("fxp") === "1" || QS.get("scrn") === "1" }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
@@ -6158,7 +6381,7 @@ function renderSideGo() {
   const drum = hasTracks() && dev.sel === dev.info.ntrk - 1;
   for (const b of $("tabs").querySelectorAll("button[data-go]")) {
     const f = b.dataset.for;
-    b.hidden = !!f && f !== "any" && (f === "drums") !== drum || (b.hasAttribute("data-fxp") && !fxpOn());
+    b.hidden = !!f && f !== "any" && (f === "drums") !== drum || (b.hasAttribute("data-songc") && !(dev && dev.info && dev.info.songc)) || (b.hasAttribute("data-tools") && !(dev && dev.info && dev.info.tools)) || (b.hasAttribute("data-fxp") && (!fxpOn() || (b.dataset.fxp === "usb" && !dev.info.fxp.usb)));
   }
 }
 $("tabs").addEventListener("click", (e) => {
@@ -7366,7 +7589,7 @@ function smpUseOn(i, k) {
 /* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
    tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
 /* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
-const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"JUNO":{"CUT":"Filter cutoff","HPF":"High-pass filter","KEY":"Cutoff key tracking","NOIS":"Noise level","PW":"Pulse width","RES":"Filter resonance","SUB":"Sub oscillator level","WAVE":"Saw, pulse or both"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"NOISE":{"CLK":"Clock pitch above the key","COLR":"White, pink or brown","CRSH":"Bit crush","DENS":"Crackle density","DRFT":"Slow random drift","FREQ":"Filter frequency","LEN":"Register or sequence length","MODE":"Noise source","RES":"Filter resonance","TRK":"Frequency key tracking"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BUS SENDS":{"CHO":"Drum bus chorus send","DLY":"Drum bus delay send","REV":"Drum bus reverb send"},"BYPASS":{"FX":"Effects on or off (dry)"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"DYN":{"CEIL":"Limiter ceiling (OFF: none)","DYN":"Comp threshold (0: DYN off)","GAIN":"Make-up gain (AUTO: half)","RATIO":"This track's compressor ratio"},"DYN 2":{"ATK":"This track's comp. attack","REL":"This track's comp. release"},"ENV":{"ATK":"Attack time","BEND":"Pitch drop after the hit","CLICK":"Drum click (attack)","DEC":"Decay time","DECAY":"Drum decay","LEVEL":"Drum level (dB)","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"AMT A":"How much ENV moves A","AMT B":"How much ENV moves B","DST A":"What ENV moves (slot A)","DST B":"What ENV moves (slot B)"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"AMT A":"How much ENV 2 moves A","AMT B":"How much ENV 2 moves B","DST A":"What ENV 2 moves (slot A)","DST B":"What ENV 2 moves (slot B)"},"EQ3":{"EQ3":"3-band EQ on or off","HI":"High band: KILL .. +6 dB","LO":"Low band: KILL .. +6 dB","MID":"Mid band: KILL .. +6 dB"},"EQ3 FREQ":{"FREQ H":"Mid / high crossover","FREQ L":"Low / mid crossover"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CHRS":"Chorus: mix, then depth","DLY":"Delay send","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","REV":"Reverb send","WIDE":"Stereo width insert"},"GATER":{"DEPTH":"How far the gate shuts steps","PAT":"Gate pattern: 16 steps","RATE":"Gate step length (in tempo)","SHAPE":"Gate edges: hard to smooth"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"INSERTS":{"CHRS":"Chorus: mix, then depth","CMP":"Compressor insert (amount)","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Insert 1 type (swaps with 2)","S2":"Insert 2 type (swaps with 1)","WIDE":"Stereo width insert"},"JUNO CHO":{"JUNO":"Juno-106 chorus: its mix","MODE":"Juno chorus I, II or I+II"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate, left end: in tempo","WAVE":"LFO waveform"},"LFO 2":{"POL":"LFO 2: both ways or up only","RATE":"LFO 2 rate (left: synced)","TRIG":"LFO 2 restarts: note or free","WAVE":"LFO 2 wave"},"LFO DEST":{"AMT A":"How much LFO moves A","AMT B":"How much LFO moves B","DST A":"What LFO moves (slot A)","DST B":"What LFO moves (slot B)"},"LFO2 DEST":{"AMT A":"How much LFO 2 moves A","AMT B":"How much LFO 2 moves B","DST A":"What LFO 2 moves (slot A)","DST B":"What LFO 2 moves (slot B)"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"MST EQ3":{"EQ3":"Master EQ on or off","HI":"Master high band: KILL .. +6","LO":"Master low band: KILL .. +6","MID":"Master mid band: KILL .. +6"},"MST EQ3 F":{"FREQ H":"Master mid / high crossover","FREQ L":"Master low / mid crossover"},"MST INS":{"CHRS":"Chorus: mix, then depth","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"DJ filter: low or high pass","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Master insert 1 (swaps w. 2)","S2":"Master insert 2 (swaps w. 1)","THRS":"Comp threshold (OFF: no comp)","WIDE":"Stereo width insert"},"MST JUNO":{"JUNO":"Master Juno chorus: its mix","MODE":"Juno chorus I, II or I+II"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"RET AMT":{"CHRS":"Return chorus: mix, depth","DST":"Return distortion (drive)","DUST":"Return vinyl dust / lo-fi","DYN":"Return comp threshold","ECHO":"Return slapback: level, rep.","EQ3":"Return EQ on or off","FILT":"Return filter: low/high cut","FLNG":"Return flanger: mix, feedback","FOLD":"Return wavefolder (drive)","FRMT":"Return vowel filter A..U","FUZZ":"Return fuzz (drive)","JUNO":"Return Juno chorus mix","PHSR":"Return phaser: mix, feedback","WIDE":"Return stereo width"},"RET EQ3":{"EQ3":"Return EQ on or off","HI":"Return high band: KILL .. +6","LO":"Return low band: KILL .. +6","MID":"Return mid band: KILL .. +6"},"RET EQ3 F":{"FREQ H":"Return mid / high crossover","FREQ L":"Return low / mid crossover"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SENDS":{"CHO":"Chorus send","DLY":"Delay send","PAN":"Stereo position of the track","REV":"Reverb send"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"R1":"Effect on return 1 (swaps)","R2":"Effect on return 2 (swaps)","R3":"Effect on return 3 (swaps)","S1":"Send in master slot 1 (swaps)","S2":"Send in master slot 2 (swaps)","S3":"Send in master slot 3 (swaps)","S4":"Send in master slot 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","DUST":"This sound's dust insert","DYN":"This sound's insert 2 (DYN)","EQ3":"This sound's 3-band EQ on","FILT":"This sound's filter insert","FOLD":"This sound's wavefolder","FRMT":"This sound's vowel filter","FUZZ":"This sound's fuzz","PHSR":"This sound's phaser","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"INSERT":"Its first insert effect","PAN":"Pan of the row","SEND":"Its reverb or first send","VOL":"Level of the row"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DROP":"Pitch drop at each note","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan","VOICES":"Voices, 1 to the engine's max"},"VOICE 3":{"DROP":"Pitch drop at each note"}}};
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"JUNO":{"CUT":"Filter cutoff","HPF":"High-pass filter","KEY":"Cutoff key tracking","NOIS":"Noise level","PW":"Pulse width","RES":"Filter resonance","SUB":"Sub oscillator level","WAVE":"Saw, pulse or both"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"NOISE":{"CLK":"Clock pitch above the key","COLR":"White, pink or brown","CRSH":"Bit crush","DENS":"Crackle density","DRFT":"Slow random drift","FREQ":"Filter frequency","LEN":"Register or sequence length","MODE":"Noise source","RES":"Filter resonance","TRK":"Frequency key tracking"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"op":{"ABOUT":{" ":"Source code on GitHub","BUILD":"When this firmware was built","CHIP":"The processor and its cores","VERSION":"Firmware version and commit"},"ACID GEN":{"GEN":"Write a new line (asks)"},"AUDIO":{"LOWCUT":"Output low cut or bass boost"},"BLUETOOTH":{"BLE":"BLE MIDI. SAVE: the devices"},"CALIBRATE":{"HOLD":"Time a press becomes a hold","PANEL":"Teach buttons, knobs (asks)"},"CHANNELS":{"DRUMS":"MIDI channel of the drums","TRK 1":"MIDI channel of track 1","TRK 2":"MIDI channel of track 2","TRK 3":"MIDI channel of track 3"},"CREDITS":{"CREDITS":"Whose work Optimist uses"},"EUCLID":{"EUCLID":"ON plays it over the pattern","HITS":"Euclid: hits spread evenly","ROT":"Euclid: rotate the hits","STEPS":"Euclid: over how many steps"},"INFO":{"CLOCK":"CPU clock","CPU0":"Audio load of the first core","CPU1":"2nd core's load, or why off","DROPS":"Late audio halves (gaps)","GUARD":"What the CPU guard eases now","INFO":"K2: load now, max 5 s, max","LOAD":"Audio load of the CPU","UNDERRUNS":"USB audio, MIDI in lost"},"INSERT":{"CHRS":"Chorus: mix, then depth","CMP":"Compressor of the sound","DRIVE":"Drive of the sound","DST":"Distortion of the sound","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","WIDE":"Stereo width insert"},"INSERTS":{"ACCENT LANE":"Raises every hit of its step","ACCENT LEVEL":"Accent amount added to hits","CHRS":"Chorus, shared: free/avail","ECHO":"Echo, shared: free/avail","FLNG":"Flanger, shared: free/avail","FULL CHRS":"No free chorus: bypassed","FULL ECHO":"No free echo: bypassed","FULL FLNG":"No free flanger: bypassed","FULL JUNO":"No free Juno chorus: off","JUNO":"Juno chorus: free/avail","LANE PRESET":"This lane's sound (asks)","LANE SLOT":"User sample of this lane","NO KIT":"Nothing to pick for this lane"},"INTERNALS":{"INTERNALS":"Last reset, flash, 2nd core"},"KEYS":{"BUTTONS":"Buttons glow in the dark","KEYS":"Which keys glow"},"KIT":{"ERASE":"Erase the user kit (asks)","FX ON":"Drum effects on or off","RESET":"Reset to the kit sound (asks)","SAVE":"Save the user kit (asks)","SLOT":"User kit slot"},"LFO 2":{"POL":"LFO 2: both ways or up only","RATE":"LFO 2 rate (left: synced)","TRIG":"LFO 2 restarts: note or free","WAVE":"LFO 2 wave"},"LFO2 DEST":{"AMT A":"How much LFO 2 moves A","AMT B":"How much LFO 2 moves B","DST A":"What LFO 2 moves (slot A)","DST B":"What LFO 2 moves (slot B)"},"MEMORY":{"FREE":"Sections that still fit","USED":"Project memory used"},"MIDI":{"CLK IN":"Clock in: Auto, Int, USB, TRS","CLK OUT":"Send MIDI clock out","MIDI IN":"MIDI in: notes or clock","MIDI OUT":"MIDI out: the keys or the seq"},"MIX":{"CUT":"Filter cutoff of the lane","DRIVE":"Drive of the sound","FX ON":"USB input's effects on / dry","LEVEL":"Level of the lane (dB)","MUTE":"Mute the row","PAN":"Stereo position of the row","VOLUME":"Level of the row (dB)"},"PATTERNS":{"DR":"DR's pattern playing now","T1":"T1's pattern playing now","T2":"T2's pattern playing now","T3":"T3's pattern playing now"},"PROJECT":{"ACTION":"Load or save, then a key","ITEM":"Slot: turn or key (dim: free)","NEW":"Blank project (slots kept)"},"REC":{"CLICK":"Metronome: when it clicks","LENGTH":"Loop length of a new take","MODE":"Take: free or to the tempo","QUANT":"Snap recorded notes to steps","START":"Take starts: a note or count"},"REC 2":{"QUANT":"Snap recorded notes to steps"},"RETURNS":{"CHO":"Chorus return level","CHO RET":"Chorus return level","DLY":"Delay return level","DLY RET":"Delay return level","REV":"Reverb return level","REV RET":"Reverb return level"},"SCREEN":{"BRIGHT":"Backlight (8: full)","COLOR":"Screen colours","KNOB COLORS":"Knob numbers in cap colours"},"SENDS":{"CHO":"Chorus send of the row","DLY":"Delay send of the row","PAN":"Stereo position of the row","REV":"Reverb send of the row"},"SLOOP":{"IMPORT":"Import SLOOP autosave (asks)"},"SNAPSHOT":{"ACTION":"Load, save, clear, then a key","ITEM":"Slot: turn or key (dim: free)"},"SONG":{"BARS":"Bars this part plays","DELETE":"Delete this part (asks)","DR":"DR's pattern in this scene","INSERT":"Insert a copy (asks)","MODE":"Play the loop or the song","REC":"Record song order (asks)","SAVE":"Keep the song order (asks)","SCENE":"Scene this part plays","T1":"T1's pattern in this scene","T2":"T2's pattern in this scene","T3":"T3's pattern in this scene"},"SOUND":{"ACCENT":"Velocity added on accent step","ENGINE":"Next engine, first sound","FX ON":"Track effects on or off","INIT":"Engine defaults (asks)","KIT":"The drum kit","PRESET":"The track's sound","SAVE AS":"Save as a user preset (asks)"},"STEPS":{"ACCENT":"Velocity added on accent step"},"STORE":{"INIT":"Init the voice (asks)","SEND":"Send as DX7 SysEx (asks)","SLOT":"User voice slot","STORE":"Store the voice (asks)"},"TEMPO":{"BPM":"Tempo of the song","NUDGE":"OCT- / OCT+ held nudge tempo","SWING":"Swing of every track","SYNC":"Clock: internal, USB or TRS"},"TOOLS":{"CLRSQ":"Clear the pattern (asks)","COOK":"Turn, then SAVE: vary it","INIT":"Reset the sound (asks)","LENGTH":"Turn, then SAVE: x2 or 1/2","MISS":"What this build is missing","NEW":"New project: clears (asks)","RANDOM":"Turn, then SAVE: new notes","REVERSE":"Turn, then SAVE: steps back"},"USB":{"SERIAL":"USB serial console (restart)"},"USB AUDIO":{"CH1":"What USB input 1 records","CH2":"What USB input 2 records","CH3":"What USB input 3 records","CH4":"What USB input 4 records"},"USB EQ3":{"HI":"USB in high band: KILL .. +6","LO":"USB in low band: KILL .. +6","MID":"USB in mid band: KILL .. +6"},"USB EQ3 F":{"FREQ H":"USB in mid / high crossover","FREQ L":"USB in low / mid crossover"},"USB GATER":{"PAT":"USB in gate pattern: 16 steps","RATE":"USB in gate step (song tempo)","SHAPE":"Gate edges: hard to smooth"},"USB JUNO":{"MODE":"USB Juno chorus I, II or I+II"},"USB STATS":{"USB STATS":"USB audio glitch counters"},"USER":{"ACTION":"Load, save, clear, then a key","BANK":"16 slots a bank (the keys)","INIT":"Reset the sound (asks)","ITEM":"Slot: turn or key (dim: free)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BUS SENDS":{"CHO":"Drum bus chorus send","DLY":"Drum bus delay send","REV":"Drum bus reverb send"},"BYPASS":{"FX":"Effects on or off (dry)"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"DYN":{"CEIL":"Limiter ceiling (OFF: none)","DYN":"Comp threshold (0: DYN off)","GAIN":"Make-up gain (AUTO: half)","RATIO":"This track's compressor ratio"},"DYN 2":{"ATK":"This track's comp. attack","REL":"This track's comp. release"},"ENV":{"ATK":"Attack time","BEND":"Pitch drop after the hit","CLICK":"Drum click (attack)","DEC":"Decay time","DECAY":"Drum decay","LEVEL":"Drum level (dB)","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"AMT A":"How much ENV moves A","AMT B":"How much ENV moves B","DST A":"What ENV moves (slot A)","DST B":"What ENV moves (slot B)"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"AMT A":"How much ENV 2 moves A","AMT B":"How much ENV 2 moves B","DST A":"What ENV 2 moves (slot A)","DST B":"What ENV 2 moves (slot B)"},"EQ3":{"EQ3":"3-band EQ on or off","HI":"High band: KILL .. +6 dB","LO":"Low band: KILL .. +6 dB","MID":"Mid band: KILL .. +6 dB"},"EQ3 FREQ":{"FREQ H":"Mid / high crossover","FREQ L":"Low / mid crossover"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CHRS":"Chorus: mix, then depth","DLY":"Delay send","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","REV":"Reverb send","WIDE":"Stereo width insert"},"GATER":{"DEPTH":"How far the gate shuts steps","PAT":"Gate pattern: 16 steps","RATE":"Gate step length (in tempo)","SHAPE":"Gate edges: hard to smooth"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"INSERTS":{"CHRS":"Chorus: mix, then depth","CMP":"Compressor insert (amount)","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi insert","DYN":"Comp + limiter insert","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"Filter insert: low/high cut","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","GATER":"Trance gate depth (in tempo)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Insert 1 type (swaps with 2)","S2":"Insert 2 type (swaps with 1)","WIDE":"Stereo width insert"},"JUNO CHO":{"JUNO":"Juno-106 chorus: its mix","MODE":"Juno chorus I, II or I+II"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate, left end: in tempo","WAVE":"LFO waveform"},"LFO 2":{"POL":"LFO 2: both ways or up only","RATE":"LFO 2 rate (left: synced)","TRIG":"LFO 2 restarts: note or free","WAVE":"LFO 2 wave"},"LFO DEST":{"AMT A":"How much LFO moves A","AMT B":"How much LFO moves B","DST A":"What LFO moves (slot A)","DST B":"What LFO moves (slot B)"},"LFO2 DEST":{"AMT A":"How much LFO 2 moves A","AMT B":"How much LFO 2 moves B","DST A":"What LFO 2 moves (slot A)","DST B":"What LFO 2 moves (slot B)"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"MST EQ3":{"EQ3":"Master EQ on or off","HI":"Master high band: KILL .. +6","LO":"Master low band: KILL .. +6","MID":"Master mid band: KILL .. +6"},"MST EQ3 F":{"FREQ H":"Master mid / high crossover","FREQ L":"Master low / mid crossover"},"MST INS":{"CHRS":"Chorus: mix, then depth","DST":"Distortion insert (drive)","DUST":"Vinyl dust / lo-fi","ECHO":"Slapback: level, then repeats","EQ3":"3-band EQ on or off","FILT":"DJ filter: low or high pass","FLNG":"Flanger: mix, then feedback","FOLD":"Wavefolder insert (drive)","FRMT":"Vowel filter: A E I O U","FUZZ":"Fuzz insert (drive)","JUNO":"Juno-106 chorus: its mix","PHSR":"Phaser: mix, then feedback","S1":"Master insert 1 (swaps w. 2)","S2":"Master insert 2 (swaps w. 1)","THRS":"Comp threshold (OFF: no comp)","WIDE":"Stereo width insert"},"MST JUNO":{"JUNO":"Master Juno chorus: its mix","MODE":"Juno chorus I, II or I+II"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"RET AMT":{"CHRS":"Return chorus: mix, depth","DST":"Return distortion (drive)","DUST":"Return vinyl dust / lo-fi","DYN":"Return comp threshold","ECHO":"Return slapback: level, rep.","EQ3":"Return EQ on or off","FILT":"Return filter: low/high cut","FLNG":"Return flanger: mix, feedback","FOLD":"Return wavefolder (drive)","FRMT":"Return vowel filter A..U","FUZZ":"Return fuzz (drive)","JUNO":"Return Juno chorus mix","PHSR":"Return phaser: mix, feedback","WIDE":"Return stereo width"},"RET EQ3":{"EQ3":"Return EQ on or off","HI":"Return high band: KILL .. +6","LO":"Return low band: KILL .. +6","MID":"Return mid band: KILL .. +6"},"RET EQ3 F":{"FREQ H":"Return mid / high crossover","FREQ L":"Return low / mid crossover"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SENDS":{"CHO":"Chorus send","DLY":"Delay send","PAN":"Stereo position of the track","REV":"Reverb send"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"R1":"Effect on return 1 (swaps)","R2":"Effect on return 2 (swaps)","R3":"Effect on return 3 (swaps)","S1":"Send in master slot 1 (swaps)","S2":"Send in master slot 2 (swaps)","S3":"Send in master slot 3 (swaps)","S4":"Send in master slot 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","DUST":"This sound's dust insert","DYN":"This sound's insert 2 (DYN)","EQ3":"This sound's 3-band EQ on","FILT":"This sound's filter insert","FOLD":"This sound's wavefolder","FRMT":"This sound's vowel filter","FUZZ":"This sound's fuzz","PHSR":"This sound's phaser","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"INSERT":"Its first insert effect","PAN":"Pan of the row","SEND":"Its reverb or first send","VOL":"Level of the row"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DROP":"Pitch drop at each note","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan","VOICES":"Voices, 1 to the engine's max"},"VOICE 3":{"DROP":"Pitch drop at each note"}}};
 /* PARAM_HELP END */
 /* a line of the table, "" none (kind: page, eng, fm6) */
 function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
@@ -7609,7 +7832,7 @@ function kitLane(pane) {
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
   ]) : [];
   /* v10: the sound's own DIST / COMP (FX op 3, as the drum strip's SOUND mode); not where the device says it has none (an X0X sound) */
-  if (dev.fx && !sh.noIns) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
+  if (dev.fx && !sh.noIns && !fxpOn()) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
     const x = fxType(dev.info, ty);
     if (!x || x.lane == null || !dev.fx.slots.includes(ty)) continue;   /* (only an insert that is loaded) */
     const lab = f === "dist" ? "DST" : "CMP", k = knob({ label: lab, aria: `${laneName(l)} ${lab}`, help: phText("page", "SOUND 3", lab), title: t("fxSndMode"), min: 0, max: 127, def: 0,
@@ -7625,6 +7848,17 @@ function kitLane(pane) {
   if (usr || sh.usr) kids.push(el("div", {}, el("h3", { text: t("kitSample") }), usrRows(l)));
   if (sound.length) kids.push(el("div", {}, el("h3", { text: t("kitSound") }), el("div", { class: "knobs" }, ...sound)));
   if (sends.length) kids.push(el("div", {}, el("h3", { text: t("kitSends") }), el("div", { class: "knobs" }, ...sends)));
+  const cards = [];
+  if (dlanOn()) {                                    /* v13: the sound's place in the mix (PAN MUTE SOLO SEQ MUTE) and its own LFO */
+    cards.push(dlanCard(0, l, t("dlMix")), dlanCard(1, l, t("dlLfo")));
+    kids.push(...cards.map((c) => c.el));
+  }
+  if (fxpOn() && !sh.noIns) {                        /* v13: the sound's two insert slots (type + the amount), the device's SOUND 3 */
+    const c = fxpCard(FXP.LANE0 + l, t("popIns"));
+    kids.push(c.el);
+    cards.push(c);
+  }
+  if (cards.length && nav.pop && nav.pop.id === "lane") { dev.fxpCards = cards; for (const c of cards) c.load(true).catch(report); }   /* (only while the popup is the one open: another popup's cards are not replaced) */
   pane.replaceChildren(...kids);
 }
 /* a user sample's hit (zone), start and length (1/1024 of the hit) */
@@ -9014,6 +9248,13 @@ async function readMixer() {
     if (d !== dev) return;
     if (f) { moved = !!d.fx && f.slots.join() !== d.fx.slots.join(); d.fx = f; }
   }
+  if (d.info.dlan) { await readDlMix(); if (d !== dev) return; }
+  if (d.info.fxp) {                                  /* v13: what each return holds and the line it sends on (the strips' send knobs) */
+    const rr = await readFxpRet();
+    if (d !== dev) return;
+    if (d.fxpRet && js2(rr) !== js2(d.fxpRet)) moved = true;
+    d.fxpRet = rr;
+  }
   const m = await mixer.read(rq, d.info, { pan: pPan(), fx: slotIds(), fxoff: pFxoff() });
   if (d !== dev) return;
   if (moved) { mixCtl.length = 0; d.mix = null; }   /* (rebuilt: other knobs, other labels) */
@@ -9030,6 +9271,12 @@ async function readMixer() {
   renderMixer();
   if (moved && d.built != null) await fxPagesAgain(d);
 }
+const js2 = (x) => JSON.stringify(x);
+async function readFxpRet() {
+  const r = [];
+  for (let k = 0; k < 3; k++) { const l = await readFxpOwner(rq, FXP.RET0 + k); r.push(l ? { type: l.slots[0].type, line: l.line } : { type: 0, line: null }); }
+  return r;
+}
 /* the slots moved: the Sound tab's FX page follows (PAGES: the FX page's ids are the slots' amounts) */
 async function fxPagesAgain(d) {
   if (!d.pages) return;
@@ -9041,6 +9288,11 @@ async function onFx(f) {
   const d = dev;
   if (!d || !d.fx || !f) return;
   if (f.slots.join() !== d.fx.slots.join()) { await readMixer(); if (d === dev && nav.pop && nav.pop.id === "lane") renderKit(); return; }   /* (the strips again: readMixer reads the slots) */
+  if (d.info.fxp) {                           /* (v13: a return's type or line moved: the strips' send knobs) */
+    const rr = await readFxpRet();
+    if (d !== dev) return;
+    if (d.fxpRet && js2(rr) !== js2(d.fxpRet)) { await readMixer(); if (d === dev && nav.pop && nav.pop.id === "lane") renderKit(); return; }
+  }
   const keep = d.fx;
   d.fx = { ...f, dist: f.dist.map((v, l) => (fxTouched("dist", l) ? keep.dist[l] : v)), comp: f.comp.map((v, l) => (fxTouched("comp", l) ? keep.comp[l] : v)),
     cset: fxTouched("cset", 0) ? keep.cset : f.cset };
@@ -9050,6 +9302,261 @@ async function onFx(f) {
 }
 const fxTouched = (f, l) => performance.now() - (mixEdit.get(`fxi:${f}:${l}`) || 0) < 600 || (!!dev && dev.link.hasQueued(`fxi:${f}:${l}`));
 
+
+
+/* ------------------------------------------------------------- v13: the pattern tools and EUCLID (TOOLS, cmd 98) --- */
+/* The Optimist UI's STEP > TOOLS (REVERSE RANDOM COOK LENGTH x2 / 1/2) and EUCLID (HITS STEPS ROT, ON writes it over the pattern, OFF keeps or
+   gives the pattern back), on the selected track; the drum track's: the whole kit or one sound. The device runs them (the same functions as its
+   YES), each one undo level there; what it says comes back as the message. */
+function dynTools(track) {
+  const drum = drumTrack(track), msg = el("p", { class: "dim toolmsg", "aria-live": "polite" }), eu = el("div", { class: "knobs eu" }), ctl = el("div", { class: "toolbar" });
+  const scope = drum ? el("select", { "aria-label": t("toolScope"), "data-tool": "scope" }, el("option", { value: "", text: t("toolKit") }), ...DRUM_LANES.map((_, l) => el("option", { value: l, text: laneName(l) }))) : null;
+  if (scope && kl.sel != null) scope.value = "";
+  const lane = () => (scope && scope.value !== "" ? +scope.value : 127);
+  let st = null;                                      /* (the last state the device gave) */
+  const say = (r) => { msg.textContent = r.rc === 2 ? t("toolGenOn") : r.rc === 1 ? t("toolAnother") : [r.a, r.b].join("").trim(); };
+  const call = async (q) => {
+    try { const r = parse[CMD.TOOLS](await rq(q)); say(r); show(r); } catch (e) { report(e); }
+  };
+  const verb = (v, half, label) => el("button", { type: "button", "data-tool": half ? "half" : String(v), title: phText("op", "TOOLS", ["REVERSE", "RANDOM", "COOK", "LENGTH"][v]) || label,
+    onclick: () => { if (confirm(`${label} ${drum && scope.value !== "" ? laneName(+scope.value) : "T" + (track + 1)}?`)) call(req.toolsRun(v, lane(), half)); } }, label);
+  ctl.append(verb(0, 0, "REVERSE"), verb(1, 0, "RANDOM"), verb(2, 0, "COOK"), verb(3, 0, "LENGTH x2"), verb(3, 1, "LENGTH 1/2"));
+  const show = (r) => {
+    st = r;
+    const mk = (label, k, min, max, v) => knob({ label, aria: `EUCLID ${label}`, help: phText("op", "EUCLID", label), min, max, def: k === 0 ? Math.min(4, max) : k === 1 ? Math.min(16, max) : 0, value: v,
+      fmt: (x) => String(x), set: (x) => { rq(req.toolsEu(k, x), { key: `tools:eu${k}` }).then((q) => { st = parse[CMD.TOOLS](q); }).catch(report); } });
+    const kn = [mk("HITS", 0, 0, r.steps, r.hits), mk("STEPS", 1, 1, Math.max(1, r.len), r.steps), mk("ROT", 2, 0, Math.max(0, r.steps - 1), r.rot)];
+    kn.forEach((k, i) => { k.el.dataset.tool = ["hits", "steps", "rot"][i]; });
+    const on = el("button", { type: "button", "data-tool": "euon", "aria-pressed": r.on ? "true" : "false", onclick: () => call(req.toolsEuOn(lane())) }, "EUCLID ON");
+    const keep = el("button", { type: "button", "data-tool": "keep", hidden: !r.on, onclick: () => call(req.toolsEuOff(true)) }, t("toolKeep"));
+    const back = el("button", { type: "button", "data-tool": "restore", hidden: !r.on, onclick: () => call(req.toolsEuOff(false)) }, t("toolRestore"));
+    eu.replaceChildren(...kn.map((k) => k.el), el("div", { class: "toolbtns" }, on, keep, back));
+    on.hidden = !!r.on;
+  };
+  rq(req.toolsGet()).then((x) => show(parse[CMD.TOOLS](x))).catch(report);
+  return [el("p", { class: "dim", text: t("popToolsHelp") }), ...(scope ? [el("label", { class: "pk fxlp" }, el("span", { class: "kl", text: t("toolScope") }), scope)] : []),
+    el("div", { class: "group" }, el("h3", { text: "TOOLS" }), ctl), el("div", { class: "group" }, el("h3", { text: "EUCLID" }), eu), msg];
+}
+/* ------------------------------------------------------------------------ v13: the song chain (SONGC, cmd 97) --- */
+/* The order the scenes play in, as the Optimist UI's SONG screen has it: PART 1.. (a scene, a number of bars), LOOP or SONG; edited while the
+   transport is stopped (the device says "STOP FIRST"); SAVE puts the chain into flash. The patterns and scenes themselves: the Sequence popup. */
+function dynSong() {
+  const box = el("div", { class: "song" }), msg = el("p", { class: "dim songmsg", "aria-live": "polite" });
+  const say = (s) => { msg.textContent = s.rc ? t("songRc" + s.rc) : s.playing ? t("songPlaying") : ""; };
+  const call = async (r) => {
+    try { const s = parse[CMD.SONGC](await rq(r)); say(s); render(s); } catch (e) { report(e); }
+  };
+  const render = (s) => {
+    const mode = el("select", { "aria-label": t("songMode"), "data-song": "mode" }, el("option", { value: 0, text: "LOOP" }), el("option", { value: 1, text: "SONG" }));
+    mode.value = String(s.mode);
+    mode.addEventListener("change", () => call(req.songcMode(+mode.value)));
+    const save = el("button", { type: "button", onclick: () => call(req.songcSave()) }, t("songSave"));
+    const rows = s.parts.map((p, i) => {
+      const scene = el("select", { "aria-label": `${t("songPart")} ${i + 1} ${t("songScene")}`, "data-song": `scene${i}` },
+        ...Array.from({ length: s.scenes }, (_, k) => el("option", { value: k, text: String.fromCharCode(65 + k) })));
+      scene.value = String(p.scene);
+      const bars = el("input", { type: "number", min: 1, max: 64, step: 1, value: p.bars, "aria-label": `${t("songPart")} ${i + 1} ${t("songBars")}`, "data-song": `bars${i}` });
+      scene.addEventListener("change", () => call(req.songcSet(i, +scene.value, +bars.value)));
+      bars.addEventListener("change", () => call(req.songcSet(i, +scene.value, Math.max(1, Math.min(64, +bars.value | 0)))));
+      return el("tr", {}, el("th", { text: `${t("songPart")} ${i + 1}` }), el("td", {}, scene), el("td", {}, bars),
+        el("td", {}, el("button", { type: "button", "data-song": `ins${i}`, onclick: () => call(req.songcIns(i)) }, t("songInsert")),
+          el("button", { type: "button", "data-song": `del${i}`, onclick: () => call(req.songcDel(i)) }, t("songDelete"))));
+    });
+    box.replaceChildren(el("p", { class: "bar" }, el("label", {}, t("songMode") + " ", mode), save, msg),
+      el("table", { class: "songparts" }, el("thead", {}, el("tr", {}, el("th"), el("th", { text: t("songScene") }), el("th", { text: t("songBars") }), el("th"))), el("tbody", {}, ...rows)));
+  };
+  rq(req.songcGet()).then((x) => { const s = parse[CMD.SONGC](x); say(s); render(s); }).catch(report);
+  return [el("p", { class: "dim", text: t("popSongHelp") }), box];
+}
+/* ------------------------------------------------- v13: GLOBAL and SYSTEM as the device's lines (SCRN, cmd 96) --- */
+/* The Optimist UI's GLOBAL and SYSTEM screens, line for line (ed_scrn.c): the device hands out each line as it draws it (its section and page,
+   label, value text, unit, kind) and turns / does it through its own functions, so the names, the order, the units and the grammar are the
+   device's. Settings shows them under the editor's own groups. A value is a slider (a bar), a stepper (a list: the device names the entries
+   as it steps them), a switch (two entries); a read-out is text; an action a button, asking first where the device asks. Edits save to flash
+   shortly after the last one (what the device does when SYSTEM is left). */
+const scrnOn = () => !!dev && !!dev.info && !!dev.info.scrn;
+const SCRN_NAMES = ["GLOBAL", "SYSTEM"];
+let scrnSaveTimer = 0;
+function scrnSaveSoon() {
+  clearTimeout(scrnSaveTimer);
+  scrnSaveTimer = setTimeout(() => { if (dev && scrnOn()) rq(req.scrnSave(), { key: "scrn:save" }).catch(report); }, 1500);
+}
+const scrnEdit = new Map();
+async function scrnTurn(sc, i, mode, steps) {
+  scrnEdit.set(`${sc}/${i}`, performance.now());
+  try {
+    const r = parse[CMD.SCRN](await rq(req.scrnTurn(sc, i, mode, steps), { key: `scrn:${sc}/${i}:${mode}` }));
+    scrnSaveSoon();
+    return r;
+  } catch (e) { report(e); return null; }
+}
+/* one line's control; -> {el, update(line)} */
+function scrnLineEl(sc, i, ln) {
+  const help = phText("op", ln.sect, ln.label) || phText("op", ln.sect, ln.sect);
+  const name = el("span", { class: "sln", text: ln.label || ln.sect, title: help, onclick: () => {} });
+  const row = el("div", { class: "sl", "data-s": sc, "data-i": i, "data-kind": ln.kind, role: "group", "aria-label": `${ln.sect} ${ln.label}` }, name);
+  const txt = el("span", { class: "slv" });
+  let cur = ln;
+  const show = (l) => {
+    cur = l;
+    txt.textContent = [l.val, l.unit].filter(Boolean).join(" ");
+    row.dataset.state = String(l.state);
+  };
+  const by = (d) => (cur.kind === 1 ? scrnTurn(sc, i, 1, d).then((r) => { if (r) { show(r); sync(r); } }) : null);
+  let sync = () => {};
+  if (ln.kind === 1) {
+    if (ln.gk === 5) {                               /* two entries: a switch */
+      const b = setHelp(el("button", { type: "button", class: "tog sw", "aria-pressed": ln.gv > ln.gmin ? "true" : "false", onclick: () => by(cur.gv >= cur.gmax ? cur.gmin - cur.gv : 1) }), help);
+      sync = (l) => b.setAttribute("aria-pressed", l.gv > l.gmin ? "true" : "false");
+      row.append(el("span", { class: "slc" }, b), txt);
+    } else if ((ln.gk === 1 || ln.gk === 2) && ln.gmax > ln.gmin) {   /* a bar: a slider over the descriptor's range */
+      const r = setHelp(el("input", { type: "range", min: ln.gmin, max: ln.gmax, step: 1, value: ln.gv, "aria-label": `${ln.sect} ${ln.label}` }), help);
+      r.addEventListener("input", () => { const d = +r.value - cur.gv; if (d) by(d); });
+      r.addEventListener("dblclick", () => scrnTurn(sc, i, 2, 0).then((x) => { if (x) { show(x); sync(x); } }));
+      sync = (l) => { if (document.activeElement !== r) r.value = String(l.gv); };
+      row.append(el("span", { class: "slc" }, r), txt);
+    } else {                                          /* a list the device names as it steps: a stepper */
+      const dn = el("button", { type: "button", class: "ib", "aria-label": `${ln.label} -`, onclick: () => by(-1) }, "◀");
+      const up = el("button", { type: "button", class: "ib", "aria-label": `${ln.label} +`, onclick: () => by(1) }, "▶");
+      row.append(el("span", { class: "slc" }, dn, up), txt);
+      setHelp(row, help);
+    }
+  } else if (ln.kind === 3) {                         /* an action */
+    const b = setHelp(el("button", { type: "button", class: "tog act" + (ln.danger ? " danger" : ""), onclick: async () => {
+      try {
+        let r = parse[CMD.SCRN](await rq(req.scrnYes(sc, i, false)));
+        if (r.ask) {                                 /* the device asks (CALIBRATE > PANEL ...): the question, then YES */
+          if (!confirm(`${ln.obj ? ln.obj + " " : ""}${ln.label}?`)) return;
+          r = parse[CMD.SCRN](await rq(req.scrnYes(sc, i, true)));
+        }
+        show(r);
+        scrnSaveSoon();
+      } catch (e) { report(e); }
+    } }, ln.val || ln.label), help);
+    row.append(el("span", { class: "slc" }, b));
+  } else {
+    row.append(el("span", { class: "slc" }), txt);
+  }
+  show(ln);
+  return { el: row, update: (l) => { if (!scrnEdit.has(`${sc}/${i}`) || performance.now() - scrnEdit.get(`${sc}/${i}`) > 600) { show(l); sync(l); } } };
+}
+/* both screens: a group a page (its title), a row a line */
+async function renderDevScreens() {
+  const box = $("devscr");
+  if (!scrnOn()) { box.hidden = true; return; }
+  const d = dev;
+  const screens = [];
+  for (let sc = 0; sc < 2; sc++) {
+    const n = parse[CMD.SCRN](await rq(req.scrnInfo(sc), { timeout: 400, retries: 1, quiet: true }).catch(() => null) || [0, sc, 0, 0]).n;
+    const lines = [];
+    for (let i = 0; i < n; i++) lines.push(parse[CMD.SCRN](await rq(req.scrnLine(sc, i))));
+    if (d !== dev) return;
+    screens.push(lines);
+  }
+  const ctl = [];
+  const groups = screens.flatMap((lines, sc) => {
+    const pages = [];
+    lines.forEach((ln) => { (pages[ln.page] || (pages[ln.page] = { title: ln.title, lines: [] })).lines.push(ln); });
+    return pages.filter(Boolean).map((p, k) => el("div", { class: "group devpage", "data-s": sc }, el("h3", { text: `${SCRN_NAMES[sc]} · ${p.title}` }),
+      ...p.lines.map((ln) => { const c = scrnLineEl(sc, ln.i, ln); ctl.push([sc, ln.i, c]); return c.el; })));
+  });
+  box.replaceChildren(el("h2", { class: "devh", text: t("devScreens") }), el("p", { class: "dim", text: t("devScreensHelp") }), ...groups);
+  box.hidden = false;
+  dev.scrnCtl = ctl;
+}
+/* the read-outs and what the device moved: read the lines again (Settings shown, the link idle) */
+async function scrnPoll() {
+  const d = dev;
+  if (!d || !scrnOn() || !d.scrnCtl || tab !== "settings" || document.hidden || !d.link.idle) return;
+  for (const [sc, i, c] of d.scrnCtl) {
+    if (d !== dev || !d.link.idle) return;
+    try { c.update(parse[CMD.SCRN](await rq(req.scrnLine(sc, i), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { return; }
+  }
+}
+setInterval(scrnPoll, 2500);
+/* ------------------------------------------------- v13: the drum lanes' mix, LFOs and the sequencer mutes (DLAN, cmd 95) --- */
+/* A lane's PAN MUTE SOLO SEQ MUTE, its LFO (RATE WAVE PHS FADE, two DEST / AMT slots), a track's sequencer mute: the device's own descriptors
+   (ed_dlan.c). dev.dlMix = {lanes: 16 x [pan, mute, solo, seq mute], trk: 4 x seq mute}, what the strips' lane buttons and SEQ buttons show */
+const dlanOn = () => !!dev && !!dev.info && !!dev.info.dlan;
+const dlanKey = (g, l, i) => `dlan:${g}/${l}/${i}`;
+async function readDlMix() {
+  const d = dev;
+  if (!d || !d.info.dlan) return;
+  const lanes = [], trk = [];
+  for (let l = 0; l < 16; l++) lanes.push(parse[CMD.DLAN](await rq(req.dlanVals(0, l))).vals);
+  for (let k = 0; k < 4; k++) trk.push(parse[CMD.DLAN](await rq(req.dlanVals(2, k))).vals[0]);
+  if (d !== dev) return;
+  d.dlMix = { lanes, trk };
+}
+/* what the strips show of it: the lane buttons (muted, soloed), the SEQ buttons */
+function dlMixShow() {
+  if (!dev || !dev.mix || !dev.dlMix) return;
+  const m = dev.dlMix, soloAny = m.lanes.some((x) => x[2]);
+  for (let i = 0; i < dev.mix.ntrk; i++) {
+    const c = mixCtl[i];
+    if (!c) continue;
+    if (c.sq) { c.sq.setAttribute("aria-pressed", m.trk[i] ? "true" : "false"); c.strip.classList.toggle("sqm", !!m.trk[i]); }
+    if (c.lanes) for (const b of c.lanes.children) {
+      const x = m.lanes[+b.dataset.l];
+      b.classList.toggle("lm", !!x[1] || (soloAny && !x[2])); b.classList.toggle("ls", !!x[2]);
+    }
+  }
+}
+async function dlanPut(g, l, i, v) {
+  fxpEdit.set(`dlan:${g}/${l}/${i}`, performance.now());
+  try {
+    const r = parse[CMD.DLAN](await rq(req.dlanSet(g, l, i, v), { key: dlanKey(g, l, i) }));
+    if (dev && dev.dlMix) {
+      if (g === 0 && l < 16) dev.dlMix.lanes[l][i] = r.value; else if (g === 2) dev.dlMix.trk[l] = r.value;
+      dlMixShow();
+    }
+  } catch (e) { report(e); }
+}
+function dlanHelp(g, d) {
+  for (const pg of g === 1 ? ["LFO", "LFO DEST", "LFO 2"] : ["TRACKS", "SOUND 3", "SENDS", "VOICE 2"]) { const x = phText("page", pg, d.label); if (x) return x; }
+  return "";
+}
+function dlanControl(g, l, i, d, v) {
+  const aria = `${g === 1 ? "LFO" : "MIX"} ${d.label}`, help = dlanHelp(g, d);
+  const touched = () => performance.now() - (fxpEdit.get(`dlan:${g}/${l}/${i}`) || 0) < 600;
+  if (d.fmt === F.ENUM || d.fmt === F.ONOFF) {
+    const sel = setHelp(el("select", { "aria-label": aria, "data-dlan": `${g}/${i}` }), help || aria);
+    for (let x = d.min; x <= d.max; x++) sel.append(el("option", { value: x, text: fmtValue(d, x)[0] }));
+    sel.value = String(v);
+    sel.addEventListener("change", () => { dlanPut(g, l, i, +sel.value); });
+    return { el: el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel), value: (x) => { if (document.activeElement !== sel && !touched()) sel.value = String(x); } };
+  }
+  const k = knob({ label: d.label, aria, help: help, min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "), set: (x) => { dlanPut(g, l, i, x); } });
+  k.el.dataset.dlan = `${g}/${i}`;
+  return { el: k.el, value: (x) => { if (!touched()) k.value(x, false); } };
+}
+/* a card of group g for lane l: its parameters as knobs / lists; load(rebuild) reads it again (values only when the shape is the same) */
+function dlanCard(g, l, title) {
+  const body = el("div", { class: "knobs" });
+  const card = el("div", { class: "dlan", "data-g": g, "data-l": l, role: "group", "aria-label": title }, el("h3", { text: title }), body);
+  const c = { g, l, el: card, n: -1, ctl: [] };
+  c.load = async (rebuild) => {
+    const d = dev;
+    const n = (d && parse[CMD.DLAN](await rq(req.dlanGet(g, l), { timeout: 400, retries: 1, quiet: true }))).n;
+    if (d !== dev || n == null) return;
+    const vals = parse[CMD.DLAN](await rq(req.dlanVals(g, l))).vals;
+    if (d !== dev) return;
+    if (rebuild || n !== c.n || !c.ctl.length) {
+      c.n = n; c.ctl = [];
+      for (let i = 0; i < n; i++) {
+        const key = `${g}/${i}`;
+        let desc = (d.dlanDesc || (d.dlanDesc = new Map())).get(key);
+        if (!desc) { desc = parse[CMD.DLAN](await rq(req.dlanDesc(g, l, i))).desc; if (desc) d.dlanDesc.set(key, desc); }
+        c.ctl.push(dlanControl(g, l, i, desc, vals[i]));
+      }
+      if (d !== dev) return;
+      body.replaceChildren(...c.ctl.map((x) => x.el));
+      return;
+    }
+    c.ctl.forEach((x, i) => x.value(vals[i]));
+  };
+  return c;
+}
 /* ------------------------------------------------------------- v13: every FX slot (FXP, cmd 94) --- */
 /* The effect slots of every owner, drawn from what the device says (ed_fxp.c): per owner its slots with a type each (the types it
    may hold) and the type's own parameters (descriptor, value). Nothing here names a type's parameters: a new effect in the firmware
@@ -9147,7 +9654,8 @@ function fxpPing() {
   fxpTimer = setTimeout(async () => {
     fxpTimer = 0;
     const d = dev;
-    if (!d || !d.fxpCards || !d.link.idle) return;
+    if (!d || !d.fxpCards) return;
+    if (!d.link.idle) { fxpPing(); return; }           /* (the link is busy: again in a moment) */
     for (const c of d.fxpCards) if (c.el.isConnected) await c.load(false).catch(report);
   }, 400);
 }
@@ -9185,10 +9693,16 @@ function dynFxMst() {
   fxpOpen([c]);
   return [el("p", { class: "dim", text: t("popMstInsHelp") }), c.el];
 }
+/* the USB input as a track (the computer's audio into the mix): its VOLUME PAN MUTE FX ON and sends REV DLY CHO, and its two inserts */
+function dynFxUsb() {
+  const c = fxpCard(FXP.USB, t("popUsb"));
+  fxpOpen([c]);
+  return [el("p", { class: "dim", text: t("popUsbHelp") }), c.el];
+}
 /* the three returns: each an effect (a send bus CHO DLY REV, or any other, all wet) with its RET level; a type another return holds swaps */
 function dynFxRet() {
   const cards = [];
-  const after = async () => { for (const c of cards) await c.load(true); };
+  const after = async () => { for (const c of cards) await c.load(true); if (dev) { mixCtl.length = 0; dev.mix = null; await readMixer(); } };
   for (let r = 0; r < 3; r++) cards.push(fxpCard(FXP.RET0 + r, `${t("fxpReturn")} ${r + 1}`, { after }));
   fxpOpen(cards);
   return [el("p", { class: "dim", text: t("popRetHelp") }), ...cards.map((c) => c.el)];
@@ -9350,6 +9864,7 @@ function buildStrip(i) {
   const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i)]
     : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i),
       popBtn("savepreset", "port_disk", t("popSave"), i)];
+  if (dev.info.tools) pops.push(popBtn("tools", "ui_knob", t("popTools"), i));   /* v13: the pattern tools (ICONS.tools) */
   const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
   seqBtn.append(el("span", { text: t("popSeq") }));
   /* the drum track: its 16 sounds (coloured by what plays); a click selects one (the send row shows its sends), a double click
@@ -9363,7 +9878,8 @@ function buildStrip(i) {
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     ...patColumn(i), c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
     el("div", { class: "content" }, ...(c.lanes ? [c.lanes] : [])), c.fx, pan.el, el("div", { class: "fm" }, fader, c.meter), c.lvOut,
-    el("div", { class: "row2" }, c.rec, c.solo, c.mute));
+    el("div", { class: "row2" }, c.rec, c.solo, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
+      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ")] : []), c.mute));
   mixCtl[i] = c;
   return c.strip;
 }
@@ -9418,8 +9934,8 @@ function drumFxBlock(i, c, box) {
   const x = dev.mix.tracks[i], ids = slotIds(), labels = slotLabels(), bus = drumFxMode === "bus";
   const hard = (k) => { k.el.dataset.hard = "1"; return k; };
   c.fxmode = drumFxMode;
-  c.fxk = dev.fx.slots.map((ty, j) => {
-    const l = labels[j], f = LANE_FX[ty];
+  c.fxk = dev.fx.slots.map((ty0, j) => {
+    const ty = fxSend(j), l = labels[j], f = LANE_FX[ty];
     if (bus) {
       const id = ids[j];
       if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
@@ -9445,8 +9961,8 @@ const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW
 function drumFxShow(c) {
   const x = dev.mix.tracks[dev.mix.ntrk - 1];
   c.fxsnd.textContent = laneName(kl.sel);
-  dev.fx.slots.forEach((ty, j) => {
-    const k = c.fxk[j], f = LANE_FX[ty], ins = f === "dist" || f === "comp", hard = k.el.dataset.hard === "1";
+  dev.fx.slots.forEach((ty0, j) => {
+    const ty = fxSend(j), k = c.fxk[j], f = LANE_FX[ty], ins = f === "dist" || f === "comp", hard = k.el.dataset.hard === "1";
     if (ins && !hard) {                      /* (an X0X sound: no insert, the knob stands greyed) */
       const off = c.fxmode !== "bus" && laneNoIns(kl.sel);
       k.el.classList.toggle("na", off);
@@ -9549,6 +10065,7 @@ function updateStrip(i) {
     c.strip.classList.toggle("dry", !!x.fxoff);
   }
   drawOverview(i);
+  if (dev.dlMix) dlMixShow();
 }
 /* the step overview: a cell per step of the pattern (a hit: filled), the playing step lit */
 function drawOverview(i) {
@@ -9629,7 +10146,7 @@ function fxSlotGroups() {
   if (fxpOn()) {                                     /* v13: the owners' slots (FXP): the master's inserts and the returns, in popups */
     const g = (id, key, short) => el("div", { class: "fxg", role: "group", "aria-label": t(key), "data-fx": id },
       iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
-    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET")];
+    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET"), ...(dev.info.fxp.usb ? [g("fxusb", "popUsb", "USB")] : []), ...(dev.info.songc ? [g("song", "popSong", "SONG")] : [])];
   }
   const types = [{ id: FXT.NONE }, ...dev.info.fxs.types];
   const name = (x) => (x.id === FXT.NONE ? FXT_NAMES[0] : (x.amt != null && dev.pdesc[x.amt] && dev.pdesc[x.amt].label) || FXT_NAMES[x.id] || String(x.id));
@@ -9823,7 +10340,7 @@ function liveValue(k, v) {
 /* the popups that are not a panel of their own: Load preset, Save preset, Kit, the FX buses (Delay, Reverb, Chorus), Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), fxins: dynFxIns, fxmst: dynFxMst, fxret: dynFxRet, help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), fxins: dynFxIns, fxmst: dynFxMst, fxret: dynFxRet, fxusb: dynFxUsb, song: dynSong, tools: dynTools, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -10208,6 +10725,7 @@ function onPush(f) {
     } else if (f.cmd === CMD.FX_PUSH) {             /* v10: the FX slots, the COMP settings, a drum sound's insert */
       onFx(parse[CMD.FX_PUSH](f.a)).catch(report);
       fxpPing();                                    /* (v13: an open FX popup reads its slots again) */
+      if (d.info.dlan) readDlMix().then(dlMixShow).catch(report);   /* (the lanes' mutes / solos, the sequencer mutes) */
     } else if (f.cmd === CMD.SONG) {                /* v9: the sections stored, the song, the snapshot list */
       onSong(parse[CMD.SONG](f.a));
     } else if (f.cmd === CMD.TRACK_CHANGED) {       /* v4: level / pan / mute of a track that is not selected */

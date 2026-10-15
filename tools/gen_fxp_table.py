@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The FXP table (editor protocol v13, command 94) in web/editor.html: tests/fxp_table.json -> the block between the
-FXP_TABLE markers (the mock device's copy of the firmware's tables).
+"""The firmware's tables the editor's mock device serves (editor protocol v13) in web/editor.html: tests/fxp_table.json (FXP, DLAN) and
+tests/scrn_table.json (SCRN) -> the blocks between the FXP_TABLE / SCRN_TABLE markers.
 
   gen_fxp_table.py            bring web/editor.html's block up to date
   gen_fxp_table.py --check    exit 1 when it differs (tests)
@@ -15,24 +15,32 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TABLE = ROOT / "tests" / "fxp_table.json"
 EDITOR = ROOT / "web" / "editor.html"
-BEGIN = "/* FXP_TABLE BEGIN: tools/gen_fxp_table.py from tests/fxp_table.json (do not edit here) */"
-END = "/* FXP_TABLE END */"
+# (const, golden): FXP_TABLE from tests/fxp_table.json (the FX owners', the drum lanes' parameters), SCRN_TABLE from tests/scrn_table.json
+# (GLOBAL's and SYSTEM's lines: the Optimist UI's, tests/ui_optimist_edscrn.h)
+BLOCKS = [("FXP_TABLE", ROOT / "tests" / "fxp_table.json"), ("SCRN_TABLE", ROOT / "tests" / "scrn_table.json")]
 
 
-def block():
-    table = json.loads(TABLE.read_text(encoding="utf-8"))
-    return f"{BEGIN}\nconst FXP_TABLE = {json.dumps(table, separators=(',', ':'), sort_keys=True)};\n{END}"
+def markers(name, golden):
+    return (f"/* {name} BEGIN: tools/gen_fxp_table.py from tests/{golden.name} (do not edit here) */", f"/* {name} END */")
+
+
+def block(name, golden):
+    begin, end = markers(name, golden)
+    table = json.loads(golden.read_text(encoding="utf-8"))
+    return f"{begin}\nconst {name} = {json.dumps(table, separators=(',', ':'), sort_keys=True)};\n{end}"
 
 
 def sync(write=True, path=EDITOR):
-    """-> True when the editor holds the table's block (written when write and it did not)"""
+    """-> True when the editor holds every table's block (written when write and it did not)"""
     html = path.read_text(encoding="utf-8")
-    pat = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.S)
-    if not pat.search(html):
-        raise SystemExit(f"gen_fxp_table: no FXP_TABLE markers in {path}")
-    new = pat.sub(lambda m: block(), html, count=1)
+    new = html
+    for name, golden in BLOCKS:
+        begin, end = markers(name, golden)
+        pat = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
+        if not pat.search(new):
+            raise SystemExit(f"gen_fxp_table: no {name} markers in {path}")
+        new = pat.sub(lambda m, n=name, g=golden: block(n, g), new, count=1)
     if new == html:
         return True
     if write:
