@@ -43,7 +43,7 @@
 #include "op_fm6.c"
 #include "op_screens.c"
 #include "op_mixer.c"
-#include "op_tools.c"            /* STEP's TOOLS and EUCLID pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
+#include "op_tools.c"            /* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
 #include "op_step.c"
 #include "op_effval.c"
 #include "op_layers.c"

@@ -27,7 +27,7 @@
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
  *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
- * With no step held the cards are the track's PATTERN row (and TOOLS, EUCLID). Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
+ * With no step held the cards are the track's PATTERN row (and TOOLS, GEN, GEN OUT). Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
  * of the edits is SLOOP's (ui/sloop/ui_layers.c step_down / steps_held_*), copied: nothing in ui/sloop is called. */
 #define STEP_LY_BIT (1u << 31)          /* seq.c ly_bit[LY_STEP]: no button holds it; STEP locks the layer (ly_lock) */
 
@@ -916,7 +916,7 @@ static void extra_turn(uint32_t k, int32_t s)
 
 /* ---- the screen: rows, cells, turns, YES */
 /* STEP's pages (the user: "the first SEQ menu should have the length of the pattern"): PATTERN (LEN DIV SWING GATE) on
- * every track, then TOOLS and EUCLID. No ARP rows (ARP has its own button and page) and no drum LANE page (LEVEL TUNE
+ * every track, then TOOLS, GEN and GEN OUT. No ARP rows (ARP has its own button and page) and no drum LANE page (LEVEL TUNE
  * DECAY REV: sound values, not the sequencer's; the user, 2026-10-14: "why do we have an arpeggio section in the SEQ",
  * "on the sequencer pages i have items to edit the engine sound"); the sound pages stay on a held step as p-locks. SELECT pages the four knobs only and
  * never changes the lane; the lane is ALGORITHM's (DR, then the lanes) or SHIFT + a key's (the user, 2026-10-12: "in step
@@ -930,18 +930,18 @@ static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM
             return i;
     return 0;
 }
-static uint32_t step_rows0(void) { return 1u; }   /* the pages before TOOLS, EUCLID: PATTERN */
+static uint32_t step_rows0(void) { return 1u; }   /* the pages before TOOLS, GEN, GEN OUT: PATTERN */
 #if FELUCCA_SEQTOOLS
-#define STP_TL 2u                                       /* the last two pages: TOOLS, EUCLID (op_tools.c) */
+#define STP_TL 3u                                       /* the last three pages: TOOLS, GEN, GEN OUT (op_tools.c) */
 #else
 #define STP_TL 0u
 #endif
 static uint32_t step_rows(void) { return step_rows0() + STP_TL; }
-static int stp_tl(uint32_t r) { return STP_TL && r >= step_rows0() ? (int)(r - step_rows0()) : -1; }   /* 0 TOOLS, 1 EUCLID */
+static int stp_tl(uint32_t r) { return STP_TL && r >= step_rows0() ? (int)(r - step_rows0()) : -1; }   /* 0 TOOLS, 1 GEN, 2 GEN OUT */
 static void step_name(uint32_t r, char *b)
 {
     if (stp_tl(r) >= 0)
-        str_cpy(b, stp_tl(r) ? "EUCLID" : "TOOLS", 12);
+        str_cpy(b, stp_tl(r) == 2 ? "GEN OUT" : stp_tl(r) ? "GEN" : "TOOLS", 12);
     else
         str_cpy(b, PAGES[stp_pattern()].title, 12);
 }

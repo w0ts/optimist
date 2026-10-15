@@ -205,56 +205,96 @@ static void seqtools_tests(void)
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
 #endif
-    /* EUCLID on a synth track: ON writes it live over the pattern, from the pattern as it was; OFF asks keep / restore */
+    /* GEN on a synth track (seq/gen.c): a layer over the pattern, never written but by WRITE */
+    {
+    uint32_t m;
     stt_open(0, 1);
     for (i = 0; i < NSTEP; i++)
         memset(&t->step[i], 0, sizeof t->step[i]), t->step[i].time = ST_REST;
     t->p[P_SLEN] = 16;
     stt_note(&t->step[3], 62, 0, 0);
-    ng.on = 0;
-    tl.hits = 4, tl.steps = 16, tl.rot = 0;
-    turn(EN_K1, 1);                                     /* (OFF: a value only) */
+    gen_reset_all();
+    turn(EN_K2, 1);                                     /* (OFF: a value only) */
     for (i = 0, n = 0; i < 16u; i++)
         n += tl_gate(&t->step[i]);
-    check(n == 1u && !ng.on && tl.hits == 5u, "EUCLID OFF: HITS is a value, the pattern is as it was");
-    turn(EN_K4, 1);                                     /* ON */
-    for (i = 0, n = 0; i < 16u; i++)
-        n += tl_gate(&t->step[i]);
-    check(n == 5u && tl_gate(&t->step[0]) && ng.on && ng_here(t), "EUCLID ON: HITS 5 of 16 written at once (the root's note)");
-    turn(EN_K1, -2);
-    turn(EN_K3, 2);
-    for (i = 0, n = 0, ok = 1; i < 16u; i++) {
-        n += tl_gate(&t->step[i]);
-        ok &= tl_gate(&t->step[i]) == eu_hit(i);
+    check(n == 1u && !gen[0].on && gen[0].p[0] == 5u && !gen_trk, "GEN OFF: HITS is a value, nothing plays but the pattern");
+    stt_open(0, 2);
+    turn(EN_K1, 1);                                     /* ON */
+    {
+        step_t w[NSTEP];
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0, m = 0; i < 16u; i++)
+            n += tl_gate(&t->step[i]), m += tl_gate(&w[i]);
+        check(n == 1u && m == 5u && tl_gate(&w[0]) && w[0].note[0] == 60u && gen[0].on && (gen_trk & 1u),
+              "GEN ON: HITS 5 of 16 played (the root's note), the pattern untouched");
+        stt_open(0, 1);
+        turn(EN_K2, -2);
+        turn(EN_K4, 2);
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0, ok = 1; i < 16u; i++) {
+            gen_ev_t e;
+            n += tl_gate(&w[i]);
+            ok &= tl_gate(&w[i]) == eu_gstep(&gen[0], i, 16, 0, &e);
+        }
+        check(n == 3u && ok && tl_gate(&t->step[3]) && !tl_gate(&t->step[2]), "... HITS 3, ROT 2: heard at once, turned; the pattern as it was");
+        frame();
+        ppm("opt-gen-euclid-t1");                       /* (the generated notes outlined, the pattern's silenced one a stub) */
+        stt_open(0, 2);
+        turn(EN_K1, -1);                                /* OFF: no question, nothing written */
+        for (i = 0, n = 0; i < 16u; i++)
+            n += tl_gate(&t->step[i]);
+        check(!op_armed() && !gen[0].on && n == 1u, "... OFF: no question, the pattern as it was");
+        turn(EN_K1, 1);
+        turn(EN_K2, 1);                                 /* MODE: ADD */
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0; i < 16u; i++)
+            n += tl_gate(&w[i]);
+        check(gen[0].mode == GM_ADD && n == 4u && tl_gate(&w[3]) && w[3].note[0] == 62u, "MODE ADD: the 3 hits and the pattern's note");
+        frame();
+        ppm("opt-gen-out-add");
+        turn(EN_K2, 1);                                 /* MODE: MASK (step 4 is no hit: nothing) */
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0; i < 16u; i++)
+            n += tl_gate(&w[i]);
+        check(gen[0].mode == GM_MASK && n == 0u, "MODE MASK: the pattern only where it hits (none here)");
+        turn(EN_K2, -2);                                /* REPLACE */
+        gen_render(t, w, ~0u);
+        turn(EN_K3, 1);                                 /* (picks WRITE) */
+        tap(B_SAVE);
+        check(op_armed() && !strcmp(ui.arm_verb, "WRITE?") && !tl_gate(&t->step[2]), "WRITE: asks \"Write T1?\", nothing written yet");
+        tap(B_HOME);
+        check(!op_armed() && tl_gate(&t->step[3]) && gen[0].on, "... NO: nothing written");
+        tap(B_SAVE);
+        tap(B_SAVE);
+        for (i = 0, ok = 1; i < 16u; i++)
+            ok &= !memcmp(&t->step[i], &w[i], sizeof w[i]);
+        check(!op_armed() && ok && gen[0].on, "... YES: what played is the pattern now (step for step), the generator still on");
+        {
+            step_t w2[NSTEP];
+            gen_render(t, w2, ~0u);
+            for (i = 0, ok = 1; i < 16u; i++)
+                ok &= !memcmp(&w2[i], &w[i], sizeof w[i]);
+            check(ok, "... and plays the same over its own output");
+        }
+        stt_undo();
+        for (i = 0, n = 0; i < 16u; i++)
+            n += tl_gate(&t->step[i]);
+        check(n == 1u && tl_gate(&t->step[3]), "... SAVE then HOME: the WRITE undone (the pattern as it was)");
+        turn(EN_K1, -1);
+        {
+            cell_t c;
+            tl_cell(2, 2, &c);
+            check(!op_armed() && !gen[0].on && c.kind == CK_NONE && ng_yes(2, 0) && strstr(ui.msg, "OFF") && !op_armed(),
+                  "WRITE with the generator off: no card (YES there says so, asks nothing)");
+        }
+        stt_open(1, 2);
+        turn(EN_K1, 1);
+        stt_open(0, 2);
+        turn(EN_K1, 1);
+        check(gen[0].on && gen[1].on && (gen_trk & 3u) == 3u, "a generator on T1 and on T2 at once");
+        gen_reset_all();
     }
-    check(n == 3u && ok, "... HITS 3, ROT 2: from the pattern as it was, turned");
-    turn(EN_K4, -1);                                    /* OFF asks */
-    check(op_armed() && ng.on && !strcmp(ui.arm_verb, "KEEP?"), "... OFF: asks KEEP? (still ON until answered)");
-    tap(B_HOME);                                        /* NO: restore */
-    for (i = 0, n = 0; i < 16u; i++)
-        n += tl_gate(&t->step[i]);
-    check(!op_armed() && !ng.on && n == 1u && tl_gate(&t->step[3]) && t->step[3].note[0] == 62u,
-          "... NO: the pattern as it was (one note on step 4)");
-    turn(EN_K4, 1);
-    tap(B_SAVE);                                        /* (the card picked: SAVE asks OFF) */
-    check(op_armed() && ng.on, "ON, SAVE on the card: asks to turn it off");
-    tap(B_SAVE);                                        /* YES: keep */
-    for (i = 0, n = 0; i < 16u; i++)
-        n += tl_gate(&t->step[i]);
-    check(!op_armed() && !ng.on && n == 3u, "... YES: the generated steps stay (3 of 16), the generator is off");
-    stt_undo();
-    for (i = 0, n = 0; i < 16u; i++)
-        n += tl_gate(&t->step[i]);
-    check(n == 1u, "... SAVE then HOME: the generated steps undone (the pattern as it was)");
-    turn(EN_K4, 1);
-    t->step[5].time = ST_NOTE, t->step[5].n = 1, t->step[5].note[0] = 70;   /* (the pattern changed under it) */
-    turn(EN_K1, 1);
-    check(!ng.on && t->step[5].note[0] == 70u, "a pattern edited under a generator ends it: nothing rewritten");
-    turn(EN_K4, 1);
-    stt_open(1, 1);
-    turn(EN_K4, 1);
-    check(ng.on && ng.trk == 0u && !ng_here(&trk[1]) && !strncmp(ui.msg, "ANOTHER", 7), "ON on another track while one is ON: refused");
-    ng.on = 0;
+    }
     /* TOOLS ask first: a turn picks the card, SAVE asks, SAVE again does it */
     stt_open(0, 0);
     t = &trk[0];
@@ -289,16 +329,26 @@ static void seqtools_tests(void)
             ok &= ((hat >> i) & 1u) == ((hat2 >> (15u - i)) & 1u);
         check(ok && n == kick && strstr(ui.msg, "CLOSED HAT"), "a lane picked (CLOSED HAT): REVERSE that lane only, the kick as it was");
     }
-    stt_open(TRK_DRUM, 1);
+    stt_open(TRK_DRUM, 2);
     ui.lane = 1;
     lane_select(9);
-    ng.on = 0;
-    tl.hits = 2, tl.steps = 8, tl.rot = 0;
-    turn(EN_K4, 1);
+    gen_reset_all();
     turn(EN_K1, 1);
-    for (i = 0, n = 0; i < 16u; i++)
-        n += (uint32_t)dstep_has(&t->dstep[i], 9);
-    check(n == 6u && dstep_has(&t->dstep[0], 0), "EUCLID on a lane: 3 of 8 twice in LOW TOM, the other lanes as they were");
+    {
+        step_t w[NSTEP];
+        uint32_t m;
+        const dstep_t *d = (const dstep_t *)(const void *)w;
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0, m = 0, ok = 1; i < 16u; i++) {
+            n += (uint32_t)dstep_has(&d[i], 9), m += (uint32_t)dstep_has(&t->dstep[i], 9);
+            ok &= (dstep_mask(&d[i]) & ~(1u << 9)) == dstep_mask(&t->dstep[i]);
+        }
+        check(gen[NPART + 9].on && n == 4u && m == 0u && ok && dstep_has(&t->dstep[0], 0),
+              "GEN on a lane: 4 of 16 played in LOW TOM, stored nothing, the other lanes as they were");
+        frame();
+        ppm("opt-gen-out-lane");
+    }
+    gen_reset_all();
     memset(t->dstep, 0, sizeof t->dstep);
     /* the EDIT layer's SHIFT: the steps' events with them */
     reset_ui();

@@ -1,17 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments (Felucca 1.2 .. 1.5.6 SEQ TOOLS,
  * hugelton/Felucca 9f6a885, firmware/src/ui_tools.c: REVERSE, RANDOM, COOK, EUCLID, DOUBLE, HALF) */
-/* STEP's TOOLS and EUCLID pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md section 22). Included by
- * optimist.c before op_step.c, which shows them as STEP's last two pages (SELECT, SEQ tapped again).
+/* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md section 22). Included by
+ * optimist.c before op_step.c, which shows them as STEP's last three pages (SELECT, SEQ tapped again).
  *
  *   TOOLS   REVERSE · RANDOM · COOK · LENGTH. A turn arms the card (the hot one; LENGTH's turn says x2 or 1/2), YES
  *           (SAVE tapped) does it, a toast says what was done. Each is one undo level (SAVE then HOME).
- *   EUCLID  HITS · STEPS · ROT · LANE: each turn writes the pattern at once (heard), from the pattern as it was when the
- *           run began (the undo session's start, seq/undo.c: undo.st, undo.al; no copy of our own): a run of turns
- *           is one undo level. HOME + a knob: its default (4, 16 or LEN, 0). LANE is a read-out.
+ *   GEN     TYPE · its three values (EUCLID: HITS STEPS ROT; RANDOM: DENSITY SEED ACCENT; PULSE: EVERY OFFSET
+ *           RATCHET): the note generator of the track (a drum track: of its selected lane), seq/gen.c, a layer played
+ *           over the pattern, never written into it; a turn is heard at the next step. HOME + a knob: its default.
+ *   GEN OUT GEN (ON / OFF: the pattern untouched either way) · MODE (REPLACE ADD MASK) · WRITE (asks: what plays,
+ *           into the pattern as ordinary steps, one undo level; the generator stays as it was) · the slot (a read-out).
  *
  * The scope is ALGORITHM's: a synth track; DR itself the whole kit; a drum lane (lane_picked) that lane only
- * (REVERSE RANDOM COOK EUCLID; EUCLID on DR itself the last picked lane, shown on LANE). LENGTH is the whole pattern.
+ * (REVERSE RANDOM COOK; GEN on DR itself the last picked lane, shown on GEN OUT). LENGTH is the whole pattern.
  * Every tool works on steps 1..LEN (the steps past LEN stay). The steps' events (seq/auto.h: locks, motion, chance,
  * conditions, nudges, fills, a drum lane's values) move with their steps; a step a tool empties loses its step-only
  * events (Felucca's tl_unlock). The exact length of a note survives: a note is its NOTE step, its TIEs and the carry
@@ -31,10 +33,8 @@ enum { TL_REV, TL_RND, TL_COOK, TL_LEN };
 #define TL_ALL ((1u << DRUM_SLANES) - 1u)      /* every step lane: the 16 sounds and the ACCENT lane (core.h DRUM_ACC) */
 static struct {
     uint8_t half;                       /* LENGTH armed: 0 x2 (DOUBLE), 1 1/2 (HALF) */
-    uint8_t hits, steps, rot;           /* EUCLID's values (kept until the power goes, as Felucca's) */
     uint32_t sess;                      /* the undo session of the last tool */
-    uint32_t eu_sess;                   /* .. of the EUCLID run (its start: what each turn writes from) */
-} tl = {0, 4, 16, 0, 0, 0};
+} tl = {0, 0};
 
 static uint32_t tl_rnd(uint32_t n) { return n ? rng() % n : 0u; }
 static int32_t tl_lane(void) { return is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1; }
@@ -460,186 +460,125 @@ static void tl_cook_drum(track_t *t, uint32_t len, uint32_t hits, uint32_t lm)
     }
 }
 
-/* ---- the note generator: a generator that is ON plays its notes in the pattern and keeps the pattern it replaced, to give
- * it back (OFF, then NO) or to let it go (OFF, then YES: the generated steps stay). One generator at a time (a track, its
- * lane), nothing saved in a project (a project saved while one is ON holds the generated steps). The backup is the pattern
- * as it was; every change of the generator's values writes it again from there. A pattern that is not what the generator
- * last wrote (edited, a scene loaded) ends it: the backup is no longer its pattern. A generator is its writer fn (EUCLID's
- * eu_fn; another is another fn) and its name for the question. */
+/* ---- the note generators (seq/gen.c): GEN (TYPE and its three values) and GEN OUT (ON, MODE, WRITE, the slot's read-out)
+ * set the slot of the selected track (a drum track: its selected lane). A turn is heard at the next step; nothing is
+ * written into the pattern but by WRITE (it asks; one undo level). ON / OFF never touch the pattern */
 static void tl_say(const char *a, const char *b);       /* (below) */
-typedef void (*ng_fn_t)(track_t *t, uint32_t len, const step_t *src);   /* the generated notes over src, the pattern as it was */
-static struct {
-    uint8_t on, trk, lane;              /* the generator ON, on this track (and drum lane) */
-    ng_fn_t fn;
-    const char *name;                   /* for the question: "KEEP? EUCLID" */
-    uint32_t sum;                       /* of the track's steps as the generator last wrote them */
-    step_t st[NSTEP];                   /* the pattern as it was (a drum step is the same bytes) */
-#if FELUCCA_AUTO
-    auto_list_t al;                     /* .. and its events */
-#endif
-} ng;
-static uint32_t ng_sum(const track_t *t)
+static uint32_t ng_slot(void) { return gen_slot(song.sel % NTRK, lane_selected()); }
+static gen_t *ng_cur(void) { return &gen[ng_slot() % GEN_NSLOT]; }
+static const char *ng_who(void)                         /* the slot's name: "T1", a lane's */
 {
-    const uint8_t *p = (const uint8_t *)(const void *)t->step;
-    uint32_t i, h = 2166136261u;
-    for (i = 0; i < sizeof t->step; i++)
-        h = (h ^ p[i]) * 16777619u;
-    return h;
+    return is_drum(TSEL) ? lane_name(lane_selected()) : trk_tag(song.sel);
 }
-static int ng_here(const track_t *t)                    /* ON on this track and lane, its pattern as the generator wrote it */
+static int32_t ng_max(const gen_par_t *d, uint32_t len) { return d->max ? d->max : (int32_t)len; }
+static void ng_set(const gen_t *g)                      /* the slot's settings now (the ISR reads them) */
 {
-    return ng.on && ng.trk == trk_index(t) && (!is_drum(t) || ng.lane == lane_selected()) && ng.sum == ng_sum(t);
-}
-static void ng_stale(void)                              /* a generator whose pattern was changed under it: ended */
-{
-    if (ng.on && ng.sum != ng_sum(&trk[ng.trk % NTRK]))
-        ng.on = 0;
-}
-static void ng_render(track_t *t)                       /* the pattern as it was, written over with the generator's notes */
-{
-    uint32_t len = trk_len(t);
     fm1_irq_off();
-    memcpy(t->step, ng.st, sizeof t->step);
-#if FELUCCA_AUTO
-    *AL(t) = ng.al;
-#endif
-    ng.fn(t, len, ng.st);
-    tl_unlock_from(t, len, ng.st);
+    gen[ng_slot() % GEN_NSLOT] = *g;
+    gen_sync();
+    fm1_irq_on();
+}
+static void ng_fmt(char *b, uint32_t disp, uint32_t v)
+{
+    if (disp == GD_X)
+        b[0] = 'x', fmt_int(b + 1, (int32_t)v);
+    else
+        fmt_int(b, (int32_t)v);
+    if (disp == GD_PCT)
+        str_cpy(b + str_len(b), "%", 2);
+}
+static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT */
+{
+    gen_t g = *ng_cur();
+    const gen_type_t *ty = &GEN_TYPES[g.type % GT_N];
+    uint32_t len = trk_len(TSEL);
+    ty->fit(&g, len);
+    c->kind = CK_VAL;
+    if (pg == 1u) {
+        if (!k) {
+            c->label = "TYPE";
+            str_cpy(c->val, ty->name, sizeof c->val);
+            cell_gauge(c, 1, 0, GT_N - 1, g.type);
+            return;
+        }
+        {
+            const gen_par_t *d = &ty->par[(k - 1u) % GEN_NP];
+            c->label = d->label;
+            ng_fmt(c->val, d->disp, g.p[k - 1u]);
+            cell_gauge(c, 0, d->min, ng_max(d, len) > d->min ? ng_max(d, len) : d->min + 1, g.p[k - 1u]);
+        }
+        return;
+    }
+    if (k == 0u) {                                      /* ON / OFF: heard at once, the pattern untouched */
+        c->label = "GEN";
+        str_cpy(c->val, g.on ? "ON" : "OFF", sizeof c->val);
+        cell_gauge(c, 1, 0, 1, g.on);
+    } else if (k == 1u) {
+        c->label = "MODE";
+        str_cpy(c->val, GEN_MODE[g.mode % GM_N], sizeof c->val);
+        cell_gauge(c, 1, 0, GM_N - 1, g.mode);
+    } else if (k == 2u && g.on) {                       /* (the verb over its object: what plays, into the pattern; asks.
+                                                         * OFF: nothing to write, no card) */
+        cell_act(c, is_drum(TSEL) ? lane_code(lane_selected()) : trk_tag(song.sel), "WRITE", 0, 0);
+    } else {
+        c->kind = CK_NONE;
+    }
+}
+static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
+{
+    gen_t g = *ng_cur();
+    const gen_type_t *ty;
+    uint32_t len = trk_len(TSEL);
+    if (pg == 1u && !k) {
+        uint32_t ty0 = s == OP_RESET ? GT_EUCLID : (uint32_t)clamp((int32_t)g.type + s, 0, GT_N - 1);
+        if (ty0 != g.type)
+            gen_defaults(&g, ty0);                      /* (another generator: its values at their defaults) */
+    } else if (pg == 1u) {
+        const gen_par_t *d = &GEN_TYPES[g.type % GT_N].par[(k - 1u) % GEN_NP];
+        uint32_t j = k - 1u;
+        GEN_TYPES[g.type % GT_N].fit(&g, len);
+        g.p[j] = (uint8_t)(s == OP_RESET ? d->def : clamp((int32_t)g.p[j] + s, d->min, ng_max(d, len)));
+    } else if (k == 0u) {
+        g.on = (uint8_t)(s == OP_RESET ? 0 : s > 0);
+    } else if (k == 1u) {
+        g.mode = (uint8_t)(s == OP_RESET ? GM_REPLACE : clamp((int32_t)g.mode + s, 0, GM_N - 1));
+    } else {
+        return;                                         /* (WRITE: a turn picks the card; the read-out) */
+    }
+    ty = &GEN_TYPES[g.type % GT_N];
+    ty->fit(&g, len);
+    ng_set(&g);
+}
+static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRITE */
+{
+    gen_t g = *ng_cur();
+    track_t *t = TSEL;
+    char a[12];
+    if (k == 0u) {
+        g.on = (uint8_t)!g.on;
+        ng_set(&g);
+        tl_say(g.on ? "GEN ON: " : "GEN OFF: ", ng_who());
+        return 1;
+    }
+    if (k != 2u)
+        return 0;
+    if (!g.on) {
+        tl_say("GEN IS OFF", "");
+        return 1;
+    }
+    if (!ok) {
+        str_cpy(a, ng_who(), sizeof a);
+        op_arm(SCR_STEP, ui.row[SCR_STEP], 2, "WRITE", a, 0);
+        return 1;
+    }
+    tl_mark(t);                                         /* (one undo level: the pattern as it was) */
+    fm1_irq_off();
+    (void)gen_write(t, ng_slot());
     t->seq_active = 1;
     fm1_irq_on();
     sync_reload = 1;
-    ng.sum = ng_sum(t);
-}
-/* ON: 1 done (or already ON here), 0 another generator is ON */
-static int ng_begin(track_t *t, ng_fn_t fn, const char *name)
-{
-    ng_stale();
-    if (ng_here(t))
-        return 1;
-    if (ng.on)
-        return 0;
-    tl_mark(t);                                         /* (one undo level takes the pattern back, as before the generator) */
-    memcpy(ng.st, t->step, sizeof ng.st);
-#if FELUCCA_AUTO
-    ng.al = *AL(t);
-#endif
-    ng.on = 1, ng.trk = (uint8_t)trk_index(t), ng.lane = (uint8_t)lane_selected();
-    ng.fn = fn, ng.name = name;
-    ng_render(t);
+    tl_say(ng_who(), " WRITTEN");
     return 1;
-}
-static void ng_end(int keep)                            /* OFF: keep what was generated, or the pattern as it was */
-{
-    track_t *t = &trk[ng.trk % NTRK];
-    if (!keep) {
-        fm1_irq_off();
-        memcpy(t->step, ng.st, sizeof t->step);
-#if FELUCCA_AUTO
-        *AL(t) = ng.al;
-        auto_touch(ng.trk % NTRK);
-#endif
-        t->seq_active = 1;
-        fm1_irq_on();
-        sync_reload = 1;
-    }
-    ng.on = 0;
-    tl_say(keep ? "KEPT " : "RESTORED ", ng.name);
-}
-static void ng_ask(const track_t *t)                    /* OFF asked: keep the generated steps? YES keeps, NO gives the pattern back */
-{
-    if (ng_here(t))
-        op_arm(SCR_STEP, ui.row[SCR_STEP], 3, "KEEP", ng.name, 0);
-}
-static int ng_no(void)                                  /* NO on that question: the pattern back (op_input.c op_no, then disarms) */
-{
-    if (!ng.on || ui.arm_scr != SCR_STEP || !str_eq(ui.arm_verb, "KEEP?"))
-        return 0;
-    ng_end(0);
-    return 1;
-}
-
-/* ---- EUCLID: HITS spread as evenly as they go over a cycle of STEPS, turned by ROT, repeated through LEN; ON writes it
- * over the pattern (the note generator above), on the selected track, a drum track's selected lane */
-static void eu_fit(const track_t *t)
-{
-    uint32_t len = trk_len(t);
-    if (!tl.steps || tl.steps > len)
-        tl.steps = (uint8_t)(len < 16u ? len : 16u);
-    if (tl.hits > tl.steps)
-        tl.hits = tl.steps;
-    tl.rot = (uint8_t)(tl.rot % tl.steps);
-}
-static int eu_hit(uint32_t i)                           /* step i (0..) of the cycle repeated, turned by ROT */
-{
-    uint32_t n = tl.steps ? tl.steps : 1u, p = (i + n - tl.rot % n) % n;
-    return (p * tl.hits) % n < tl.hits;
-}
-/* the note a hit on step i plays: the NOTE step there, or the note a TIE there holds (its NOTE before it), else none */
-static const step_t *eu_src(const step_t *src, uint32_t i)
-{
-    uint32_t j = i;
-    while (j && src[j].time == ST_TIE)
-        j--;
-    return tl_gate(&src[j]) && (j == i || src[i].time == ST_TIE) ? &src[j] : 0;
-}
-/* the pattern src (already in t) with the hits now (the IRQ off) */
-static void eu_fn(track_t *t, uint32_t len, const step_t *src)
-{
-    uint32_t i, l = lane_selected();
-    if (is_drum(t)) {
-        for (i = 0; i < len; i++)
-            if (!eu_hit(i))
-                dstep_clr(&t->dstep[i], l);
-            else if (!dstep_has(&t->dstep[i], l))
-                dstep_set(&t->dstep[i], l, LV_NORM, 0);
-        return;
-    }
-    for (i = 0; i < len; i++) {
-        step_t *s = &t->step[i];
-        const step_t *o = eu_src(src, i);
-        if (eu_hit(i)) {
-            if (o != &src[i]) {                         /* (a REST, an empty step, a TIE: a NOTE of its own) */
-                int32_t r = 60 + t->p[P_ROOT] % 12;
-                tl_clr(s);
-                s->time = ST_NOTE;
-                s->vel = 100;
-                if (o)
-                    memcpy(s->note, o->note, sizeof s->note), s->n = o->n;
-                else
-                    s->note[0] = (uint8_t)(r > 66 ? r - 12 : r), s->n = 1;
-            } else if (i && !tl_gate(&t->step[i - 1u]) && t->step[i - 1u].time != ST_TIE) {
-                s->flags &= (uint8_t)~SF_CARRY;         /* (nothing to go on from: struck) */
-            }
-        } else if (!(s->time == ST_TIE && i && (t->step[i - 1u].time == ST_TIE || tl_gate(&t->step[i - 1u])))) {
-            tl_clr(s);
-        }
-    }
-}
-static void eu_turn(uint32_t k, int32_t s)
-{
-    track_t *t = TSEL;
-    uint32_t len = trk_len(t);
-    ng_stale();
-    eu_fit(t);
-    if (k == 0u)
-        tl.hits = (uint8_t)(s == OP_RESET ? 4 : clamp((int32_t)tl.hits + s, 0, tl.steps));
-    else if (k == 1u)
-        tl.steps = (uint8_t)(s == OP_RESET ? (len < 16u ? len : 16u) : (uint32_t)clamp((int32_t)tl.steps + s, 1, (int32_t)len));
-    else if (k == 2u)
-        tl.rot = (uint8_t)(s == OP_RESET ? 0 : ((int32_t)tl.rot + s % (int32_t)tl.steps + (int32_t)tl.steps) % (int32_t)tl.steps);
-    else if (s == OP_RESET)
-        return;
-    else if (s > 0) {                                   /* ON */
-        if (!ng_begin(t, eu_fn, "EUCLID"))
-            tl_say("ANOTHER GENERATOR", " IS ON");
-        return;
-    } else {                                            /* OFF: asks */
-        ng_ask(t);
-        return;
-    }
-    eu_fit(t);
-    if (ng_here(t))
-        ng_render(t);                                   /* (ON: written again from the pattern as it was) */
 }
 
 /* ---- DOUBLE, HALF (and the EDIT layer's LENGTH, op_layers.c) */
@@ -658,11 +597,9 @@ static void tl_double_do(track_t *t, uint32_t len)
 }
 
 /* ---- the pages */
-static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 EUCLID */
+static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT */
 {
     static const char *const TN[4] = {"REVERSE", "RANDOM", "COOK", "LENGTH"};
-    static const char *const EN[3] = {"HITS", "STEPS", "ROT"};
-    const track_t *t = TSEL;
     cell_clear(c);
     if (!pg) {
         cell_act(c, 0, TN[k & 3u], 0, 0);           /* (the verb alone, large: the title says Tools, the object is the
@@ -674,24 +611,12 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 EUCLI
         }
         return;
     }
-    eu_fit(t);
-    if (k == 3u) {                                      /* ON / OFF: the generator writes the pattern (OFF: it is as it was) */
-        c->label = "EUCLID";
-        c->kind = CK_VAL;
-        str_cpy(c->val, ng_here(t) ? "ON" : "OFF", sizeof c->val);
-        cell_gauge(c, 1, 0, 1, ng_here(t));
-        return;
-    }
-    c->label = EN[k % 3u];
-    c->kind = CK_VAL;
-    fmt_int(c->val, k == 0u ? tl.hits : k == 1u ? tl.steps : tl.rot);
-    cell_gauge(c, 0, k == 1u ? 1 : 0, k == 1u ? (int32_t)trk_len(t) + 1 : k == 2u ? tl.steps : tl.steps,
-               k == 0u ? tl.hits : k == 1u ? tl.steps : tl.rot);   /* (a bar never of no width: +1 on STEPS, ROT) */
+    ng_cell(pg, k, c);
 }
 static void tl_turn(uint32_t pg, uint32_t k, int32_t s)
 {
     if (pg) {
-        eu_turn(k, s);
+        ng_turn(pg, k, s);
         return;
     }
     if (k == TL_LEN)
@@ -712,19 +637,8 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
     int32_t lane = tl_lane();
     char b[24];
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *what;
-    if (pg) {                                           /* EUCLID's ON / OFF card: ON at once, OFF asks, YES there keeps */
-        if (k != 3u)
-            return 0;
-        ng_stale();
-        if (!ng_here(t)) {
-            if (!ng_begin(t, eu_fn, "EUCLID"))
-                tl_say("ANOTHER GENERATOR", " IS ON");
-        } else if (ok)
-            ng_end(1);
-        else
-            ng_ask(t);
-        return 1;
-    }
+    if (pg)                                             /* GEN OUT's ON (at once) and WRITE (asks) */
+        return pg == 2u ? ng_yes(k, ok) : 0;
     if (!ok) {                                          /* (every tool asks: "Reverse T1?") */
         char a[12];
         if (!ui.hot_lit) {                              /* (a card is picked by turning its knob) */

@@ -428,6 +428,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/cond_test" tests/cond_test.c -lm
     run "step conditions alone: 1:2 2:4 3:3 4:4 over 24 passes, PLAY again from pass 1, a synth step's ratchet silent with it" "$OUT/cond_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/gen_test" tests/gen_test.c -lm
+    run "note generators (seq/gen.c): EUCLID = the old writer, REPLACE ADD MASK, WRITE = heard (MIDI out), determinism, chance and conditions on generated notes, GEN_TLV" "$OUT/gen_test"
 ) >"$U.out" 2>&1 & jobbg
 # the drum lanes' motion and locks (seq/auto.h AUTO_LANE, drums/lane_play.c, seq/auto_lane.c), and a build that does not play them
 job; ( jobin
@@ -688,7 +690,7 @@ job; ( jobin
 # STEP's TOOLS and EUCLID pages and the COND card (Felucca 1.5.6: ui/optimist/op_tools.c), with the store whole and alone
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_tools_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with the sequence tools (TOOLS: REVERSE RANDOM COOK LENGTH, exact note lengths kept, events moved; EUCLID live, one undo; the drum kit and a lane; EDIT SHIFT's events; the COND card)" "$OUT/ui_optimist_tools_test" "$OUT/optimist"
+    run "Optimist UI with the sequence tools (TOOLS: REVERSE RANDOM COOK LENGTH, exact note lengths kept, events moved; GEN / GEN OUT: the generators live, MODE, WRITE asks, one undo; the drum kit and a lane; EDIT SHIFT's events; the COND card)" "$OUT/ui_optimist_tools_test" "$OUT/optimist"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_tools1_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the sequence tools and the conditions, no other step extra (COND the one EXTRA card)" "$OUT/ui_optimist_tools1_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg

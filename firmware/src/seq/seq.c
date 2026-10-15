@@ -2497,6 +2497,7 @@ static void seq_stop(void)
 #if !FELUCCA_CHANCE
 #define chance_drum_drop(t, s) 0
 #endif
+#include "gen.c"               /* the note generators: a layer played over the pattern (STEP > GEN) */
 
 /* the velocity of note i of synth step s */
 static uint32_t step_vel(const step_t *s, uint32_t i)
@@ -2554,7 +2555,9 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 #endif
     uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0;
     uint32_t slide_in = t->seq_hold && t->seq_n;
-    const step_t *nx = &t->step[(t->seq_idx + 1u) % trk_len(t)];   /* (the next step: a TIE or a carry keeps them) */
+    step_t nxs;
+    const step_t *nx = GEN_NEXT(t, (t->seq_idx + 1u) % trk_len(t), &nxs);   /* (the next step as it plays: a TIE or a
+                                                                             * carry keeps them) */
     if (s->time == ST_TIE) {
         if (t->seq_n) {
             t->seq_off = gate + slen / 2u;
@@ -2659,7 +2662,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
         if (chance_out[trk_index(t) % NTRK])
             return;                                 /* (its chance said no: no hit at all) */
 #endif
-        const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
+        const dstep_t *s = EN_CUR(GEN_DPLAYING(t));     /* (a generator's step: as it fired, gen.c) */
         uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane;
         for (i = 0; m; i++, m >>= 1) {
             uint32_t hits = 1u + dstep_rat(s, i), h, done;
@@ -2677,7 +2680,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
         return;
     }
     {
-        const step_t *s = &t->step[t->seq_idx % NSTEP];
+        const step_t *s = GEN_PLAYING(t);           /* (a generator's step: as it fired, gen.c) */
         uint32_t dup = 0;
 #if FELUCCA_QNT_SEQ
         step_t qs;                                  /* QNT SEQ: the notes as seq_step played them */
@@ -2830,10 +2833,11 @@ static void seq_tick(track_t *t, uint32_t adv)
         } else if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
-            if (!chance_drum_drop(t, &t->dstep[idx]))
-                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            const dstep_t *ds = GEN_DFIRE(t, idx);   /* (the step as it plays: a generator over it, gen.c) */
+            if (!chance_drum_drop(t, ds))
+                drum_step(t, EN_STEP(t, ds, idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
-            const step_t *s = &t->step[idx];
+            const step_t *s = GEN_FIRE(t, idx);     /* (the step as it plays: a generator over it, gen.c) */
             uint32_t skip = 0, i, k;
             rec_hold(t, idx, len, nabs);
             if (t->rskip_n && t->rskip_abs == nabs)
@@ -2898,10 +2902,11 @@ static void seq_tick(track_t *t, uint32_t adv)
         } else if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
-            if (!chance_drum_drop(t, &t->dstep[idx]))
-                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            const dstep_t *ds = GEN_DFIRE(t, idx);   /* (the step as it plays: a generator over it, gen.c) */
+            if (!chance_drum_drop(t, ds))
+                drum_step(t, EN_STEP(t, ds, idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
-            const step_t *s = &t->step[idx];
+            const step_t *s = GEN_FIRE(t, idx);     /* (the step as it plays: a generator over it, gen.c) */
             uint32_t skip = 0, i, k;
             rec_hold(t, idx, len, abs);
             if (t->rskip_n && t->rskip_abs == abs)

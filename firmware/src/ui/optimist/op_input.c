@@ -213,9 +213,6 @@ static void op_yes(void)
 static void op_no(void)
 {
     if (op_armed()) {
-#if FELUCCA_SEQTOOLS
-        (void)ng_no();                                  /* (a note generator's "Keep?": NO gives the pattern back, op_tools.c) */
-#endif
         op_disarm();                                    /* cancel */
         return;
     }
@@ -845,7 +842,8 @@ static int step_yes_any(void)                           /* STEP: would YES do so
         return 1;
 #if FELUCCA_SEQTOOLS
     if (stp_tl(ui.row[SCR_STEP]) >= 0)
-        return stp_tl(ui.row[SCR_STEP]) == 0 || ui.hot == 3u;   /* (TOOLS: always; EUCLID: its ON / OFF card) */
+        return stp_tl(ui.row[SCR_STEP]) == 0 || (stp_tl(ui.row[SCR_STEP]) == 2 && (ui.hot == 0u || (ui.hot == 2u && ng_cur()->on)));
+                                                        /* (TOOLS: always; GEN OUT: ON, and WRITE while ON) */
 #endif
     d = page_desc(&PAGES[stp_pattern()], ui.hot, &vp);
     return d && vp && !PARAM_HIDDEN(d) && (is_go(d) || (is_toggle(d) && d->max != d->min));

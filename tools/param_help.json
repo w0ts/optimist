@@ -405,9 +405,16 @@
     {"kind": "op", "ctx": "TOOLS", "if": "FELUCCA_SEQTOOLS", "params": {
       "REVERSE": "Turn, then SAVE: steps back", "RANDOM": "Turn, then SAVE: new notes",
       "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2"}},
-    {"kind": "op", "ctx": "EUCLID", "if": "FELUCCA_SEQTOOLS", "params": {
+    {"kind": "op", "ctx": "GEN", "if": "FELUCCA_SEQTOOLS", "params": {
+      "TYPE": "Euclid, Random or Pulse",
       "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",
-      "ROT": "Euclid: rotate the hits", "EUCLID": "ON plays it over the pattern"}},
+      "ROT": "Euclid: rotate the hits", "DENSITY": "Random: how many hits",
+      "SEED": "Random: another draw", "ACCENT": "Random: how many hard hits",
+      "EVERY": "Pulse: a hit every n steps", "OFFSET": "Pulse: from which step",
+      "RATCHET": "Pulse: hits in each step"}},
+    {"kind": "op", "ctx": "GEN OUT", "if": "FELUCCA_SEQTOOLS", "params": {
+      "GEN": "ON plays it over the pattern", "MODE": "Replace, add to or mask it",
+      "WRITE": "SAVE: what plays, into it"}},
     {"kind": "op", "ctx": "SENDS", "params": {
       "REV": "Reverb send of the row", "DLY": "Delay send of the row", "CHO": "Chorus send of the row",
       "PAN": "Stereo position of the row"}},
