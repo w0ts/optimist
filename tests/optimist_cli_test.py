@@ -573,11 +573,25 @@ class FakeTool:
         return [c for c in self.calls if "--info" not in c]
 
 
-def flash_run(argv, tool, answer="n", packages=None, product="FM-1_730"):
-    """optimist flash with fm1_install replaced; input() answers; -> (rc, output)"""
+BUILT = []                       # what flash asked configure.build to build: (configuration name, its keywords)
+
+
+def flash_run(argv, tool, answer="n", packages=None, product="FM-1_730", build=None):
+    """optimist flash with fm1_install replaced; input() answers; -> (rc, output, prompts).
+    build: None = a build here is a test failure; (ok, package) = configure.build answers that and
+    named_package returns the package"""
     import builtins
     save = (FL.run_tool, FL.FI.load_package, FL.last_package, builtins.input)
+    save_build = (optimist.C.build, optimist.named_package)
     prompts = []
+    BUILT.clear()
+    if build is None:
+        def no_build(*a, **k):
+            raise AssertionError("flash must not build here")
+        optimist.C.build = no_build
+    else:
+        optimist.C.build = lambda cfg, name, **k: BUILT.append((name, k)) or (build[0], None, "")
+        optimist.named_package = lambda since=0.0: build[1]
     FL.run_tool = tool
     FL.last_package = lambda build=None: packages
 
@@ -592,6 +606,7 @@ def flash_run(argv, tool, answer="n", packages=None, product="FM-1_730"):
         rc, out = quiet(optimist.main, ["flash", *argv])
     finally:
         FL.run_tool, FL.FI.load_package, FL.last_package, builtins.input = save
+        optimist.C.build, optimist.named_package = save_build
     return rc, out, prompts
 
 
@@ -605,8 +620,8 @@ with tempfile.TemporaryDirectory() as td:
           FL.last_package(bd) == new)
     check("flash: no optimist-*.fwsc in build/: none", FL.last_package(bd / "nope") is None)
     t = FakeTool()
-    rc, out, pr = flash_run([], t, packages=None)
-    check("flash: no build: refused, nothing asked, no device touched", rc == 1 and "no build to flash" in out and
+    rc, out, pr = flash_run(["--no-build"], t, packages=None)
+    check("flash: --no-build and no build: refused, nothing asked, no device touched", rc == 1 and "no build to flash" in out and
           not t.calls and not pr)
     t = FakeTool()
     rc, out, pr = flash_run([str(bd / "missing.fwsc")], t)
@@ -633,16 +648,16 @@ with tempfile.TemporaryDirectory() as td:
     check("flash: no FM-1 port found: refused (exit 3), nothing written, nothing asked",
           rc == 3 and "no FM-1 found" in out and not t.wrote() and not pr)
     t = FakeTool()
-    rc, out, pr = flash_run([], t, answer="n", packages=new)
+    rc, out, pr = flash_run(["--no-build"], t, answer="n", packages=new)
     check("flash: shows the running identity, the package and the recovery, then asks",
           "Optimist_730  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_730" in out and
           "Rescue, going back" in out and len(pr) == 1 and "Flash" in pr[0])
     check("flash: answer n: cancelled, exit 1, nothing written", rc == 1 and "cancelled" in out and not t.wrote())
     t = FakeTool()
-    rc, out, pr = flash_run([], t, answer="", packages=new)
+    rc, out, pr = flash_run(["--no-build"], t, answer="", packages=new)
     check("flash: an empty answer is a no", rc == 1 and not t.wrote())
     t = FakeTool()
-    rc, out, pr = flash_run([], t, answer="y", packages=new)
+    rc, out, pr = flash_run(["--no-build"], t, answer="y", packages=new)
     check("flash: answer y: the last build is written with --yes (we asked), never --force",
           rc == 0 and t.wrote() == [[str(new), "--yes"]] and not any("--force" in c for c in t.calls))
     t = FakeTool()
@@ -650,8 +665,36 @@ with tempfile.TemporaryDirectory() as td:
     check("flash: an explicit package and --yes: no question, --port passed to the info and the write",
           rc == 0 and not pr and t.calls == [["--info", "--port", "FM-1"], [str(old), "--yes", "--port", "FM-1"]])
     t = FakeTool(write=(4, "error: connection lost"))
-    rc, out, pr = flash_run([], t, answer="y", packages=new)
+    rc, out, pr = flash_run(["--no-build"], t, answer="y", packages=new)
     check("flash: a failed write returns fm1_install's exit code", rc == 4)
+    # ---- no package: it builds first (the tree as it is now), then flashes what that build made
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, answer="y", packages=old, build=(True, new))
+    check("flash: no package: the configuration is built first, with the stage lines echoed (the progress)",
+          len(BUILT) == 1 and BUILT[0][1].get("echo") is True and "building" in out)
+    check("flash: ... and the package that build made is the one written (not the older newest file), after asking",
+          rc == 0 and t.wrote() == [[str(new), "--yes"]] and len(pr) == 1)
+    t = FakeTool()
+    rc, out, pr = flash_run(["--profile", "user-default"], t, answer="y", packages=old, build=(True, new))
+    check("flash: --profile names what is built (the configuration build would build for it)",
+          len(BUILT) == 1 and rc == 0 and
+          BUILT[0][0] == optimist.load_config(ap.parse_args(["flash", "--profile", "user-default"]))[1])
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, answer="y", packages=old, build=(False, None))
+    check("flash: the build fails: exit 1, 'nothing was flashed', the device not read, nothing asked",
+          rc == 1 and "the build failed" in out and not t.calls and not pr)
+    t = FakeTool()
+    rc, out, pr = flash_run(["--profile", "no-such-profile"], t, answer="y", packages=old, build=(True, new))
+    check("flash: a profile that does not exist: said, exit 1, no build, the device not read",
+          rc == 1 and not BUILT and not t.calls and not pr)
+    t = FakeTool()
+    rc, out, pr = flash_run([str(old), "--yes"], t, packages=new)
+    check("flash: an explicit package is flashed as it is: no build",
+          rc == 0 and not BUILT and t.wrote() == [[str(old), "--yes"]])
+    t = FakeTool()
+    rc, out, pr = flash_run(["--no-build", "--yes"], t, packages=new)
+    check("flash: --no-build flashes the newest file: no build", rc == 0 and not BUILT and
+          t.wrote() == [[str(new), "--yes"]])
     save_mp, save_lp = FL.midi_python, FL.FI.load_package
     FL.midi_python, FL.FI.load_package = (lambda: None), (lambda path, force: ("FM-1_730", b""))
     try:

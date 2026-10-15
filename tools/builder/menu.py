@@ -5,8 +5,9 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never user-default)
       | w write a .config file | l load | b build | e build and run it in the emulator
-      | f flash this menu's last build to an FM-1 over USB-MIDI (only a build of the configuration shown, by this
-        builder's code: else refused; shows both identities and the commit, asks first)
+      | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
+        current one (a progress bar for the build and for the flash); refused only when the builder's own code
+        changed since it started; shows both identities and the commit, asks first
       | q or ctrl+c quit
       x expand all | c collapse all | left / right (also page up / down) page the list
 Everything it does goes through configure.py (the plain module the tests use)."""
@@ -21,13 +22,14 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, Input, Label, OptionList, Static, Tree
+from textual.widgets import Footer, Header, Input, Label, OptionList, ProgressBar, Static, Tree
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import configure as C  # noqa: E402
 import flash as F  # noqa: E402
+import progress as PG  # noqa: E402
 import registry as R  # noqa: E402
 import room as RM  # noqa: E402
 import stamp as ST  # noqa: E402
@@ -121,6 +123,10 @@ class Builder(App):
     #info { border: round $primary; height: 1fr; padding: 0 1; }
     #msgs { border: round $warning; height: 1fr; padding: 0 1; }
     #search { display: none; }
+    #prog { display: none; height: 3; padding: 0 1; border: round $success; }
+    #prog.on { display: block; }
+    #prog_label { width: 48; }
+    #prog_bar { width: 1fr; }
     #modal { width: 70; height: auto; max-height: 24; border: thick $accent; background: $surface; padding: 1; }
     Pick, Ask { align: center middle; }
     """
@@ -147,6 +153,8 @@ class Builder(App):
         self.filter = ""
         self.build_out = ""
         self.built = None                                # ST.Stamp of the last successful build (f flashes only it)
+        self.flash_after_build = False                   # f found no current build: build, then go on to the flash
+        self.flash_track = PG.FlashTracker()
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
         self.over, self.savings = {}, {}
@@ -164,6 +172,9 @@ class Builder(App):
             with Vertical(id="side"):
                 yield VerticalScroll(Static(id="info_t"), id="info")
                 yield VerticalScroll(Static(id="msgs_t"), id="msgs")
+        with Horizontal(id="prog"):                      # the build's and the flash's progress (progress_show)
+            yield Label("", id="prog_label")
+            yield ProgressBar(total=100, show_eta=False, id="prog_bar")
         yield Footer()
 
     def on_mount(self):
@@ -542,18 +553,49 @@ class Builder(App):
             self.refresh_all()
         self.push_screen(Ask("load .config", str(self.path or C.CONFIG / "user.config"), go))
 
+    # ---- progress: one bar under the panels, for a build and for a flash
+    def progress_show(self, label, value=None):
+        """value: 0..100, or None while the length is not known"""
+        self.query_one("#prog").add_class("on")
+        self.query_one("#prog_label", Label).update(label)
+        self.query_one("#prog_bar", ProgressBar).update(total=None if value is None else 100,
+                                                        progress=0 if value is None else value)
+
+    def progress_hide(self):
+        self.query_one("#prog").remove_class("on")
+
+    def build_line(self, ln):
+        """each line of a running build (from its worker thread): a stage line moves the bar"""
+        st = PG.parse_stage(ln)
+        if st:
+            n, total, label = st
+            self.call_from_thread(self.progress_show, f"build {n}/{total}: {label}", PG.build_percent(n, total))
+
+    def flash_line(self, ln):
+        """each line of the running install (from its worker thread): the tool's progress moves the bar"""
+        ev = PG.parse_flash(ln)
+        if ev:
+            pct = self.flash_track.feed(ev)
+            what = {"check": "checking the package", "switch": "switching to update mode",
+                    "write": "writing, do not unplug", "restart": "restarting"}[ev[0]]
+            self.call_from_thread(self.progress_show, f"flash: {what} {pct}%", pct)
+
     def action_build(self, then_emu=False):
+        """b: build. -> True when a build started (False: the configuration cannot be built, said in the panel)"""
         err, _, _ = C.validate(self.cfg)
         if err:                                          # kept in the panel until the next b
             self.build_out = "CANNOT BUILD\n" + "\n".join(f"  {e}" for e in err)
             self.refresh_msgs()
             self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
-            return
+            return False
         self.source = ST.source_line(C.ROOT)
         self.build_out = ("building... (about 10 s)" + (", then the emulator" if then_emu else "") +
+                          (", then the flash (it asks before it writes)" if self.flash_after_build else "") +
                           f"\n  {self.source}")
         self.refresh_msgs()
+        self.progress_show("build: starting", None)
         self.run_build(dict(self.cfg), self.cfg_name, then_emu)
+        return True
 
     def action_build_emu(self):
         """E: build, and when the firmware fits, run it in the emulator (tools/optimist.py emu, in the background)"""
@@ -564,9 +606,9 @@ class Builder(App):
         b = C.budget(cfg, self.costs) if self.costs else None
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
         started = time.time()
-        ok, sizes, out = C.build(cfg, name, measure=not fit)
+        ok, sizes, out = C.build(cfg, name, measure=not fit, on_line=self.build_line)
         if not ok and fit:                               # (the estimate fitted, the exact build did not)
-            ok, sizes, out = C.build(cfg, name, measure=True)
+            ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
         lines = []
         if sizes:
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
@@ -609,18 +651,34 @@ class Builder(App):
         return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
     def show_build(self, text, sizes, built=None):
+        self.progress_hide()
         self.built = built if text.startswith("BUILD OK") else None
+        go, self.flash_after_build = self.flash_after_build, False
+        if go and not self.built:
+            text += "\n  flash: not started (this build left no package to flash)"
         self.build_out = text                            # stays in the panel until the next b
         self.refresh_msgs()
         failed = not text.startswith("BUILD OK")
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
+        if go and self.built:
+            self.action_flash()                          # the build is current now: the usual preflight and question
 
     def action_flash(self):
         """F: Flash to FM-1. Only the package this menu's last successful build made, of the configuration shown now,
         by the builder code running now (stamp.refusal; never an older build/optimist-*.fwsc); the FM-1's running
         identity is read first (fm1_install.py --info), then a confirmation screen with the package's commit;
-        nothing is written before the answer"""
+        nothing is written before the answer. With no current build of the configuration shown (none yet, replaced,
+        another configuration), f builds it first and then goes on; only a builder whose own code changed since it
+        started still refuses (building cannot fix that)"""
+        if self.flash_after_build:
+            self.notify("already building; the flash follows", title="flash", timeout=4)
+            return
         why = ST.refusal(self.built, C.cfg_hash(self.cfg), self.code0)
+        if why and not ST.changed_code(self.code0):
+            self.flash_after_build = True
+            if not self.action_build():
+                self.flash_after_build = False
+            return
         if why:
             self.build_out = f"FLASH REFUSED\n  {why}"
             self.refresh_msgs()
@@ -629,6 +687,7 @@ class Builder(App):
         pkg = self.built.package
         self.build_out = f"flash: reading the FM-1's identity... ({pkg.name})"
         self.refresh_msgs()
+        self.progress_show("flash: reading the FM-1's identity", None)
         self.run_flash_preflight(pkg)
 
     @work(thread=True, exclusive=True, group="flash")
@@ -641,6 +700,7 @@ class Builder(App):
         self.call_from_thread(self.flash_confirm, plan)
 
     def flash_confirm(self, plan):
+        self.progress_hide()
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
@@ -653,12 +713,14 @@ class Builder(App):
             return
         self.build_out = "flashing... do not unplug the FM-1 (about a minute)"
         self.refresh_msgs()
+        self.flash_track = PG.FlashTracker()
+        self.progress_show("flash: starting", None)
         self.run_flash(plan)
 
     @work(thread=True, exclusive=True, group="flash")
     def run_flash(self, plan):
         try:
-            rc, out = F.install(plan)
+            rc, out = F.install(plan, on_line=self.flash_line)
         except F.FlashError as e:
             self.call_from_thread(self.flash_done, f"FLASH FAILED\n  {e}", True)
             return
@@ -670,6 +732,7 @@ class Builder(App):
         self.call_from_thread(self.flash_done, text, rc != 0)
 
     def flash_done(self, text, failed):
+        self.progress_hide()
         self.build_out = text
         self.refresh_msgs()
         self.notify(text.splitlines()[0], title="flash", severity="error" if failed else "information",
