@@ -54,7 +54,7 @@ static uint32_t scs_call(uint32_t op, uint32_t s, uint32_t t, uint32_t l, uint32
     ed_begin(ED_SCRS);
     return (uint32_t)ed_scrs(ED_SCRS, q, na);
 }
-static const uint8_t SCS_SCR[] = {SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_STEP, SCR_SONG, SCR_TEMPO};
+static const uint8_t SCS_SCR[] = {SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_STEP, SCR_SONG, SCR_TEMPO};
 static void edscrs_dump(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
 {
     uint32_t r, k, n;
@@ -83,7 +83,7 @@ static void edscrs_tests(void)
     song.sel = 0;
     for (i = 0; i < sizeof SCS_SCR; i++) {
         s = SCS_SCR[i];
-        ok &= scs_call(0, s, 0, 127, 127, 0, 0, 0, 0) && ed_out[5] == 0u && ed_out[6] == s && ed_out[10] == (uint8_t)(SCREENS[s].rows() < 127u ? SCREENS[s].rows() : 127u);
+        ok &= scs_call(0, s, 0, 127, 127, 0, 0, 0, 0) && ed_out[5] == 0u && ed_out[6] == s && ed_out[10] == (uint8_t)scrs_n(s);
     }
     check(ok, "SCRS op 0: every screen's row count is the screen's own");
     ok = 1;
@@ -92,23 +92,26 @@ static void edscrs_tests(void)
             uint32_t r, rows;
             s = SCS_SCR[i];
             ui.scr = (uint8_t)s, song.sel = (uint8_t)t, ui.lane = 0, snd_fam = SND_ALL;
-            rows = SCREENS[s].rows();
+            rows = scrs_n(s);
             for (r = 0; r < rows; r++) {
                 cell_t c;
                 char nm[16];
-                ui.row[s] = (uint8_t)r;
+                uint32_t rr = scrs_map(s, r);
+                ui.row[s] = (uint8_t)rr;
                 ok &= scs_call(1, s, t, 127, 127, r, 0, 0, 0) && ed_out[5] == 1u;
                 scs_parse(ed_out, 8, &w);
                 memset(&c, 0, sizeof c);
                 ui.scr = (uint8_t)s, song.sel = (uint8_t)t, ui.lane = 0, snd_fam = SND_ALL;
-                SCREENS[s].cell(r, 0, &c);
+                SCREENS[s].cell(rr, 0, &c);
                 nm[0] = 0;
                 if (s == SCR_SOUND)
-                    snd_title_row(r, nm);
+                    snd_title_row(rr, nm);
+                else if (s == SCR_HOME)
+                    snprintf(nm, sizeof nm, "%s", mx_code(rr));   /* (the row's code, then its set: "T1 MIX") */
                 else
-                    SCREENS[s].name(r, nm);
+                    SCREENS[s].name(rr, nm);
                 ok &= ed_n - 5u <= ED_PAYLOAD_N;             /* (a row fits the device's reply buffer) */
-                ok &= !strncmp(w.name, nm, 12) && w.kind[0] == c.kind && !strcmp(w.label[0], c.label ? c.label : "") && !strncmp(w.text[0], c.val, 14);
+                ok &= !strncmp(w.name, nm, s == SCR_HOME ? strlen(nm) : 12) && w.kind[0] == c.kind && !strcmp(w.label[0], c.label ? c.label : "") && !strncmp(w.text[0], c.val, 14);
                 n++;
             }
         }
@@ -181,12 +184,12 @@ static void edscrs_tests(void)
         }
     }
 #endif
-    ok = !scs_call(0, SCR_HOME, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, 40, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, SCR_SOUND, 9, 127, 127, 0, 0, 0, 0) &&
+    ok = !scs_call(0, SCR_SYSTEM, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, 40, 0, 127, 127, 0, 0, 0, 0) && !scs_call(0, SCR_SOUND, 9, 127, 127, 0, 0, 0, 0) &&
          !scs_call(1, SCR_SOUND, 0, 127, 127, 99, 0, 0, 0) && !scs_call(9, SCR_SOUND, 0, 127, 127, 0, 0, 0, 0);
     check(ok, "SCRS: a screen not offered, a track or row past the table, an unknown op: no reply");
 #ifdef EDSCRN_GOLDEN
     {   /* the rows as JSON: the golden the web editor's mock serves (tests/scrs_table.json; EDSCRN_WRITE=1 rewrites it) */
-        static const uint8_t CX[][4] = {{SCR_SOUND, 0, 127, 127}, {SCR_SOUND, 1, 127, 127}, {SCR_SOUND, 3, 127, 127}, {SCR_SOUND, 3, 0, 127}, {SCR_SOUND, 3, 1, 127},
+        static const uint8_t CX[][4] = {{SCR_HOME, 0, 127, 127}, {SCR_SOUND, 0, 127, 127}, {SCR_SOUND, 1, 127, 127}, {SCR_SOUND, 3, 127, 127}, {SCR_SOUND, 3, 0, 127}, {SCR_SOUND, 3, 1, 127},
                                         {SCR_FX, 0, 127, 127}, {SCR_PROJECT, 0, 127, 127}, {SCR_STEP, 0, 127, 127}, {SCR_STEP, 3, 127, 127}, {SCR_SONG, 0, 127, 127}, {SCR_TEMPO, 0, 127, 127}
 #if OP_FM6
                                         , {SCR_SOUND, 0, 127, SCRS_FAM_FM6}

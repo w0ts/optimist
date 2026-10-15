@@ -1221,8 +1221,8 @@ async function editorFxp() {
   /* v13 SCRS (cmd 99, ed_scrs.c): the other screens as rows of cards (the mock serves tests/scrs_table.json, the firmware host test's rows) */
   const SR = E.parse[C.SCRS], esr = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scrs.c"), "utf8");
   const scrsGold = JSON.parse(readFileSync(join(HERE, "../tests/scrs_table.json"), "utf8"));
-  ok(C.SCRS === 99 && /ED_SCRS = 99/.test(esr) && /ed_b\(0x5C\)/.test(esr) && info.scrs && (info.scrs.mask >> 1 & 1) && (info.scrs.mask >> 6 & 1) && !(info.scrs.mask & 1),
-    "scrs: command 99, tag 0x5C == ed_scrs.c; INFO says which screens are built (SOUND, MASTER, PROJECT, STEPS, SONG, TEMPO; not the mixer)");
+  ok(C.SCRS === 99 && /ED_SCRS = 99/.test(esr) && /ed_b\(0x5C\)/.test(esr) && info.scrs && (info.scrs.mask >> 1 & 1) && (info.scrs.mask >> 6 & 1) && (info.scrs.mask & 1) && !(info.scrs.mask >> 4 & 1),
+    "scrs: command 99, tag 0x5C == ed_scrs.c; INFO says which screens are built (MIX, SOUND, MASTER, PROJECT, STEPS, SONG, TEMPO; not SYSTEM)");
   ok(js(sortDeep(JSON.parse(JSON.stringify(E.SCRS_TABLE)))) === js(sortDeep(scrsGold)), "scrs: the mock's table (SCRS_TABLE) == tests/scrs_table.json, the UI host test's golden");
   const gsound = scrsGold.ctx.find((c) => c.s === 1 && c.t === 0), gdrum = scrsGold.ctx.find((c) => c.s === 1 && c.t === 3 && c.l === 0);
   const r0 = SR(await rq(E.req.scrsInfo(1, 0, 127)));
@@ -1241,13 +1241,15 @@ async function editorFxp() {
   ok(y1.op === 3 && y1.rc === 1 && y1.cells[0].ask && /CLRSQ|\?/.test(y1.ask), "scrs: op 3: YES on PROJECT > TOOLS > CLRSQ (ok 0) asks: the card says so and the row carries the question");
   const y2 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, true)));
   ok(!y2.cells[0].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
+  const mixr = SR(await rq(E.req.scrsInfo(0, 0, 127)));
+  ok(mixr.name === "MIX" && mixr.n === scrsGold.ctx.find((c) => c.s === 0).rows.length && mixr.n > 40, "scrs: the mixer (MIX): a row for each knob set of each mixer row (MASTER, T1.., DR, the 16 lanes)");
   const stores = scrsGold.ctx.find((c) => c.s === 3).rows.map((r, i) => (r.rf & 1 ? r.name : null)).filter(Boolean);
   ok(js(stores) === js(["PROJECT", "SNAPSHOT", "USER"]), "scrs: a store's row (PROJECT, SNAPSHOT, USER) carries the YES flag");
   const f6 = SR(await rq(E.req.scrsInfo(1, 0, 127, 126))), f6r = SR(await rq(E.req.scrsRow(1, 0, 127, 126, 1)));
   ok(f6.n === 14 && f6r.name === "OP1 FREQ" && f6r.cells.map((c) => c.label).join() === "MODE,COARS,FINE,DTUNE", "scrs: an FM6 track, family 126: the operator editor's rows (14) as the device has them");
   ok(/scsOpen\(1, drumIndex\(\), l\)/.test(html) && /scsPages/.test(html), "scrs: the lane popup opens the device's pages of the lane; an FM6 track has the operator rows");
-  ok(await rq(E.req.scrsInfo(0, 0, 127), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.scrsRow(1, 0, 127, 127, 99), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
-    "scrs: the mixer is not offered, a row past the table: no reply");
+  ok(await rq(E.req.scrsInfo(4, 0, 127), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.scrsRow(1, 0, 127, 127, 99), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
+    "scrs: SYSTEM is not offered here, a row past the table: no reply");
   ok(/async function renderDevice\(/.test(html) && /function scsCard\(/.test(html) && /req\.scrsYes\(\.\.\.scsCtx\(\), r, k, true\)/.test(html) && /data-tab="device"/.test(html) && /b\.hidden = !scrsOn\(\)/.test(html),
     "scrs: the Device screens page: cards (sliders, steppers, switches, actions that ask), a store's YES, hidden without the tag");
   /* v13 SONGC (cmd 97, ed_song.c): the song chain */

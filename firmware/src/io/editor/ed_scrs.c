@@ -6,7 +6,7 @@
  * SCREENS) and the editor draws what they say, turns and asks through the same ones, so it shows the same pages in the same order with the same
  * names, units, ranges and questions, and cannot drift.
  *   99 SCRS  op scr trk lane fam [row k mode v14] -> op scr row ...
- *       scr   0 MIX (not offered), 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO (the INFO tag 0x5C mask says which are built)
+ *       scr   0 MIX (one row a knob set of each mixer row: the device pages them with SELECT), 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO (the INFO tag 0x5C mask says which are built)
  *       trk   the track the screen is about (0..3; SOUND, STEPS), lane 0..16 a drum lane picked (the drum track: its lane pages; 127 none,
  *             DR itself), fam the page family of SOUND (127 every row, as the device opens it; 126: an FM6 track's operator rows)
  *       op 0  -                          -> 0, scr, trk, lane, fam, rows n, the screen's name
@@ -20,16 +20,16 @@
  * The context is set for the one call and put back: the device's own cursor, track and page are not moved. A bad screen, track or row: no reply. */
 enum { ED_SCRS = 99, SCRS_FAM_FM6 = 126 };
 #if FELUCCA_UI == 1
-#define SCRS_MASK ((1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO))
+#define SCRS_MASK ((1u << SCR_HOME) | (1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO))
 static struct {                                         /* what a call changed on the device's UI, to put back */
-    uint8_t scr, sel, lane, lsel, fam, hot, master, row, rs;
+    uint8_t scr, sel, lane, lsel, fam, hot, master, row, rs, mset;
 } scrs_was;
 static int scrs_in(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
 {
     if (s >= SCR_N || !((SCRS_MASK >> s) & 1u) || t >= NTRK)
         return 0;
     scrs_was.scr = ui.scr, scrs_was.sel = (uint8_t)song.sel, scrs_was.lane = ui.lane, scrs_was.lsel = lane_sel;
-    scrs_was.fam = snd_fam, scrs_was.hot = ui.hot, scrs_was.master = ui.master, scrs_was.rs = ui.row[s];
+    scrs_was.mset = mx.set, scrs_was.fam = snd_fam, scrs_was.hot = ui.hot, scrs_was.master = ui.master, scrs_was.rs = ui.row[s];
     ui.scr = (uint8_t)s;
     song.sel = (uint8_t)t;
     ui.lane = l < 17u && is_drum(&trk[t]);
@@ -43,7 +43,31 @@ static void scrs_out(uint32_t s)
 {
     ui.row[s] = scrs_was.rs;
     ui.scr = scrs_was.scr, song.sel = scrs_was.sel, ui.lane = scrs_was.lane, lane_sel = scrs_was.lsel;
-    snd_fam = scrs_was.fam, ui.hot = scrs_was.hot, ui.master = scrs_was.master;
+    snd_fam = scrs_was.fam, ui.hot = scrs_was.hot, ui.master = scrs_was.master, mx.set = scrs_was.mset;
+}
+/* the mixer's rows are the tracks, the lanes, MASTER; each has knob sets (SELECT pages them on the device). SCRS lists a row a set: v -> the mixer row, mx.set the set */
+static uint32_t scrs_n(uint32_t s)
+{
+    uint32_t n = 0, r;
+    if (s != SCR_HOME)
+        return SCREENS[s].rows() < 127u ? SCREENS[s].rows() : 127u;
+    for (r = 0; r < MXR_N && n < 127u; r++)
+        n += mx_sets(r);
+    return n < 127u ? n : 127u;
+}
+static uint32_t scrs_map(uint32_t s, uint32_t v)
+{
+    uint32_t r;
+    if (s != SCR_HOME)
+        return v;
+    for (r = 0; r < MXR_N; r++) {
+        if (v < mx_sets(r)) {
+            mx.set = (uint8_t)v;
+            return r;
+        }
+        v -= mx_sets(r);
+    }
+    return 0;
 }
 static void scrs_cell(uint32_t s, uint32_t r, uint32_t k)
 {
@@ -78,10 +102,17 @@ static void scrs_row(uint32_t s, uint32_t r)
     uint32_t k;
     nm[0] = 0;
     ui.row[s] = (uint8_t)r;
-    if (s == SCR_SOUND)
+    if (s == SCR_SOUND) {
         snd_title_row(r, nm);
-    else
+    } else if (s == SCR_HOME) {                         /* (the row's code and its set: "T1 MIX", "M RETURNS", "SNARE SENDS") */
+        char set[16];
+        SCREENS[s].name(r, set);
+        str_cpy(nm, mx_code(r), 5);
+        str_cpy(nm + str_len(nm), " ", 2);
+        str_cpy(nm + str_len(nm), set, (uint32_t)sizeof nm - str_len(nm));
+    } else {
         SCREENS[s].name(r, nm);
+    }
     ed_b(s == SCR_SOUND && snd_fam != SND_FM6 && snd_page(r) ? snd_page(r)->fam : 127u);
     ed_b(s == SCR_PROJECT && prj_slots_row(prj_kind(r)));   /* bit 0: YES on any card runs the row's operation on its ITEM (a store: PROJECT, SNAPSHOT, USER) */
     ed_str(nm, 12);
@@ -92,23 +123,25 @@ static void scrs_row(uint32_t s, uint32_t r)
 /* 99 SCRS: 1 = handled (replied), 0 = not this command or bad arguments (no reply) */
 static int ed_scrs(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
-    uint32_t op = na ? a[0] : 127u, s, r, k, rc = 0;
+    uint32_t op = na ? a[0] : 127u, s, r, vr, k, rc = 0;
     if (cmd != ED_SCRS || na < 5u || op > 3u || !scrs_in(s = a[1], a[2], a[3], a[4]))
         return 0;
     r = na > 5u ? a[5] : 0u;
     if (op == 0u) {
         char nm[16];
         str_cpy(nm, SCR_NAME[s], sizeof nm);
-        ed_b(0), ed_b(s), ed_b(a[2]), ed_b(a[3]), ed_b(a[4]), ed_b(SCREENS[s].rows() < 127u ? SCREENS[s].rows() : 127u);
+        ed_b(0), ed_b(s), ed_b(a[2]), ed_b(a[3]), ed_b(a[4]), ed_b(scrs_n(s));
         ed_str(nm, 12);
         scrs_out(s);
         return 1;
     }
-    if (na < 6u || r >= SCREENS[s].rows() || (op == 2u && na < 10u) || (op == 3u && na < 8u)) {
+    if (na < 6u || r >= scrs_n(s) || (op == 2u && na < 10u) || (op == 3u && na < 8u)) {
         scrs_out(s);
         return 0;
     }
     k = na > 6u ? (a[6] & 3u) : 0u;
+    vr = r;
+    r = scrs_map(s, vr);
     ui.row[s] = (uint8_t)r;
     ui.hot = (uint8_t)k;
     if (op == 2u) {
@@ -122,7 +155,7 @@ static int ed_scrs(uint32_t cmd, const uint8_t *a, uint32_t na)
         rc = (uint32_t)SCREENS[s].yes(r, k, a[7] != 0u) != 0u;
     }
     ui.force = 1;
-    ed_b(op), ed_b(s), ed_b(r);
+    ed_b(op), ed_b(s), ed_b(vr);
     if (op == 3u)
         ed_b(rc);
     scrs_row(s, r);

@@ -801,6 +801,8 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   const r = {}, seg = (i) => [...document.querySelectorAll("#scbar .seg")[i].querySelectorAll("button")];
   const names = () => [...document.querySelectorAll("#scrows .scn")].map((h) => h.textContent);
   r.screens = seg(0).map((b) => b.textContent).join("|");
+  seg(0).find((b) => b.textContent === "SOUND").click();
+  await until(() => names()[0] === "ENV", 8000);
   r.fams = [...document.querySelectorAll("#scrows .scf")].map((h) => h.textContent).join(",");
   r.first = names().slice(0, 3).join(",");
   seg(1).at(-1).click();                             /* the drum track */
@@ -823,7 +825,7 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   r.bpm = row0.querySelector(".scv").textContent;
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(scsRes && scsRes.screens === "SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
+ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
   && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.wide,
   `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
 await shot("device-sound");

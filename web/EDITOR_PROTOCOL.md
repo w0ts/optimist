@@ -1015,8 +1015,8 @@ TOOLS, SLOOP's import, MEMORY), STEPS, SONG (the scenes, SONG REC, the parts) an
 screen's functions, and SCRS reads, turns and asks through the same ones, so an editor shows the same pages in the same order with the same names, units, ranges and questions. A page the build
 adds, an engine's own rows, a lane's pages (BODY, TONE, ENV, SENDS, KIT, SOURCE for a user sample, the lane's LFO), SONG REC, the scene rows and the MEMORY gauge arrive without an editor change.
 
-`INFO` tag `5C len 03 version mask(2 x 7 bits)`: bit n of the mask = the screen with the device's number n (1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO; 0 the mixer and 4 / 9 SYSTEM /
-GLOBAL are not offered here: the mixer is the editor's own, SYSTEM and GLOBAL are SCRN's). Every request has the same first five bytes: `op scr trk lane fam`.
+`INFO` tag `5C len 03 version mask(2 x 7 bits)`: bit n of the mask = the screen with the device's number n (0 MIX, 1 SOUND, 2 MASTER, 3 PROJECT, 5 STEPS, 6 SONG, 7 TEMPO; 4 / 9 SYSTEM and GLOBAL are not offered
+here: they are SCRN's). MIX has a row for each knob set of each mixer row (MASTER, T1..DR, the 16 lanes, the USB input), named by its code and set ("T1 MIX", "M RETURNS", "SD SENDS"). Every request has the same first five bytes: `op scr trk lane fam`.
 
 | op | Request args (after `scr trk lane fam`) | Reply args |
 |---|---|---|
