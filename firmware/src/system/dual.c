@@ -71,7 +71,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->poll = FM1_DUAL_SPIN_NOPS;
     c->ble = 1;
     c->policy = 1;
-    c->c1guard = 1;
+    c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
 }
 #define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2)
 #define DUAL_SPIN_CODE 1
