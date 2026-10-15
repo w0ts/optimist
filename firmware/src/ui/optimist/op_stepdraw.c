@@ -110,7 +110,7 @@ static void roll_range(const track_t *t)
             a = s->note[j] < a ? s->note[j] : a, b = s->note[j] > b ? s->note[j] : b;
     }
     if (a > b)                                          /* (an empty pattern: around the pick) */
-        a = b = (int32_t)pick_note(0);
+        a = b = (int32_t)pick_base();           /* (the view adds the octave below: the pick's own octave shift would count twice) */
     while (b - a < 12)
         a > 0 ? a-- : 0, b < 127 ? b++ : 0;
     if (b - a > 50)                                     /* (4 px a row at least: the lowest notes kept) */

@@ -2,10 +2,10 @@
 /* STEP (docs/UI-OPTIMIST-DESIGN.md section 4.2, phase 2): one screen for drums and synths. SEQ tapped opens it; the
  * 16 white keys are the 16 steps of the window with nothing held (the ISR's ly_lock LY_STEP: seq.c sends the keys
  * to lk_q, they play nothing). The window is 1-16, 17-32, 33-48, 49-64 up to the track's LEN; it follows the
- * playhead while playing (FOLLOW, the default); PRESETS and HOME + OCT- / OCT+ scroll it and stop the follow, HOME + OCT- +
- * OCT+ together resumes it. OCT on a synth's roll is the keyboard octave and moves the roll's view with it, ONE value (the user,
+ * playhead while playing (FOLLOW, the default); PRESETS scrolls it and stops the follow, OCT- (SHIFT) + PRESETS
+ * resumes it. OCT on a synth's roll is the keyboard octave and moves the roll's view with it, ONE value (the user,
  * 2026-10-12: "the oct up / down keys in piano roll should actually shift the piano roll"; 2026-10-13: "can we make them
- * one value?"; the view is the pattern's fit moved by song.octave octaves; both OCT: octave 0, the fit); on the drum track ghost / hard, which a tapped drum step
+ * one value?"; the view is the pattern's fit moved by song.octave octaves; both OCT: track <-> MASTER); on the drum track ghost / hard, which a tapped drum step
  * takes too; with a synth step held it moves the step's notes an octave instead.
  *   a step key tapped     an empty step: set with the pick; a set step: cleared. Both when the key is let go, and
  *                         only after a tap: a press held past the hold time (op_hold_ms) or one during which a knob
@@ -105,6 +105,11 @@ static uint32_t pick_note(uint32_t i)                   /* the pick's note i (0.
 {
     int32_t n = pen_n ? pen_note[i & 3u] : last_note;
     return (uint32_t)clamp(n + 12 * ((int32_t)song.octave - pen_oct), 0, 127);
+}
+static uint32_t pick_base(void)                         /* the pick's note 0 with no octave applied (the roll's view adds song.octave itself) */
+{
+    int32_t n = pen_n ? pen_note[0] : last_note;
+    return (uint32_t)clamp(n + 12 * (0 - pen_oct), 0, 127);
 }
 static void note_name(char *b, uint32_t n)              /* "C#4" (b holds 5) */
 {

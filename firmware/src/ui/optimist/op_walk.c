@@ -100,6 +100,26 @@ static void walk_to(uint32_t p, int lay)
         walk_master_out();                              /* (a layer over it too: the page left, else MASTER again) */
     walk_sel(p);
 }
+/* both OCT tapped: a track page to MASTER (the selection and the page remembered), again back to that track and page. MASTER entered
+ * any other way (the mixer's row, the FX button) has no memory: it goes back to the selected track */
+static struct {
+    uint8_t valid;
+    uint8_t row;                                        /* the mixer row of the selection that was left */
+} om;
+static void oct_master_toggle(void)
+{
+    if (master_sel()) {
+        uint32_t p = om.valid ? om.row : mx_sel_row();
+        om.valid = 0;
+        walk_to(p, 0);
+        if (ui.master)
+            ui.master = 0, ui.force = 1;                /* (SCOPE's source) */
+    } else {
+        om.row = (uint8_t)walk_pos(0);
+        om.valid = 1;
+        walk_to(MXR_MASTER, 0);
+    }
+}
 /* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */
 static void algo_walk(int32_t s, int lay)
 {

@@ -421,12 +421,34 @@ static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value 
 /* SHIFT2 (OCT+ held) on the volume card (VOLUME, a lane's LEVEL, the ACCENT lane's amount): the row's mute toggles, once per
  * hold (the user, 2026-10-14; the MUTE card is gone). 1: the card is a volume card (the turn is taken, nothing else changes) */
 static uint8_t mx_s2_done;                              /* toggled in this hold (ui_input clears it when OCT+ is let go) */
+static int mx_is_vol(const mitem_t *m)                  /* the volume card: VOLUME, a lane's LEVEL, the ACCENT amount, the USB VOLUME */
+{
+    return (m->kind == MI_TRK && m->id == P_LEVEL) || (m->kind == MI_GLOB && m->id == G_DRLVL) ||
+           (m->kind == MI_LANE && m->id == DE_LEVEL) || m->kind == MI_ACC || (m->kind == MI_UT && m->id == 0u);
+}
+/* a muted row whose volume card was turned (a value change, or HOME / OCT- + the knob's reset that moved it) is unmuted */
+static void mx_unmute(uint32_t r, const mitem_t *m)
+{
+    if (!mx_muted(r))
+        return;
+#if FELUCCA_USB_AUDIO
+    if (m->kind == MI_UT)
+        ut.v[UTV_MUTE] = 0;
+    else
+#endif
+    if (m->kind == MI_ACC)
+        (void)smute_toggle(SMUTE_ACC);
+    else if (m->kind == MI_LANE)
+        dlm_set_mute(r - MXR_LANE0, 0);
+    else
+        trk[mx_trk_of(r)].p[P_MUTE] = 0;
+    ui_say(m->kind == MI_ACC ? DACC_CODE : m->kind == MI_LANE ? LANE_CODE[r - MXR_LANE0] : m->kind == MI_TRK || m->kind == MI_GLOB ? trk_tag(mx_trk_of(r)) : "USB", " ON");
+}
 static int mx_mute_toggle(uint32_t r, const mitem_t *m)
 {
     int on;
     uint32_t t = mx_trk_of(r);
-    if (!(m->kind == MI_TRK && m->id == P_LEVEL) && !(m->kind == MI_GLOB && m->id == G_DRLVL) &&
-        !(m->kind == MI_LANE && m->id == DE_LEVEL) && m->kind != MI_ACC && !(m->kind == MI_UT && m->id == 0u))
+    if (!mx_is_vol(m))
         return 0;
     if (mx_s2_done)
         return 1;
@@ -485,12 +507,24 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     } else if (m.kind == MI_LANE && (m.id == 21u || m.id == 22u)) {   /* a lane slot's TYPE: no reset (as a track's) */
         if (s != OP_RESET)
             mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
-    } else if (m.kind == MI_LANE)
+    } else if (m.kind == MI_LANE) {
+        int8_t was = dl.ofs[(r - MXR_LANE0) % DRUM_LANES][DE_LEVEL];   /* (the lane's offset, where mx_lane_set writes it) */
         mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
-    else if (m.kind == MI_ACC)
+        if (m.id == DE_LEVEL && (dl.ofs[(r - MXR_LANE0) % DRUM_LANES][DE_LEVEL] != was || s == OP_RESET))
+            mx_unmute(r, &m);
+    }
+    else if (m.kind == MI_ACC) {
+        int16_t was = *vp;
         acc_turn(k, s, fine);                           /* (the ACCENT amount: motion too) */
-    else
+        if (*vp != was)
+            mx_unmute(r, &m);
+    }
+    else {
+        int16_t was = *vp;
         val_turn(d, vp, k, s, fine);
+        if (mx_is_vol(&m) && (*vp != was || s == OP_RESET))
+            mx_unmute(r, &m);                           /* (a reset counts, whatever the value was) */
+    }
 }
 /* YES on the mixer: none (the user, 2026-10-12, D6: SAVE tapped there is PROJECT, always, op_input.c). FX on and MUTE are
  * knobs; a row's SOUND row is EDIT's first; MASTER's effects are FX on its row */

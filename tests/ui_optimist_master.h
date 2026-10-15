@@ -40,8 +40,76 @@ static void algo_inplace_tests(void)
     check(ok, "ALGORITHM on STEP: synth to synth to the drum track, in place");
     reset_ui();
 }
+/* both OCT tapped together (let go): the track <-> MASTER toggle (the user, 2026-10-15), the track and the page remembered */
+static void both_oct(void)
+{
+    press(B_OCTDN);
+    press(B_OCTUP);
+    release(B_OCTUP);
+    release(B_OCTDN);
+    frames(2);
+}
+static void oct_master_tests(void)
+{
+    reset_ui();
+    song.sel = 1;
+    song.octave = 0;
+    tap(B_ENV);
+    frames(2);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && !master_sel(), "both OCT: the start, T2's ENV page");
+    press(B_OCTDN);
+    press(B_OCTUP);
+    frames(2);
+    check(!master_sel() && song.octave == 0, "both OCT held: nothing yet (it acts when let go)");
+    release(B_OCTUP);
+    release(B_OCTDN);
+    frames(2);
+    check(master_sel() && ui.scr == SCR_FX && song.octave == 0, "both OCT tapped: MASTER (the master FX page), the octave untouched");
+    both_oct();
+    check(!master_sel() && song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV, "both OCT again: back on T2's ENV page");
+    song.octave = 1;
+    both_oct();
+    check(master_sel() && song.octave == 1, "both OCT: it never was 'octave back to 0' (the octave stays)");
+    both_oct();
+    song.octave = 0;
+    tap(B_SEQ);
+    frames(2);
+    both_oct();
+    check(master_sel(), "both OCT on STEP: MASTER");
+    both_oct();
+    check(ui.scr == SCR_STEP && song.sel == 1, "... and back on STEP, T2");
+    song.sel = 2;
+    op_enter(SCR_HOME);
+    ui.row[SCR_HOME] = MXR_T1 + 2u;
+    frames(2);
+    both_oct();
+    check(mx_on_master(), "both OCT on the mixer: its MASTER row");
+    both_oct();
+    check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_T1 + 2u, "... and back to the row it was on");
+    press(B_OCTDN);
+    press(B_OCTUP);
+    turn(EN_K1, 1);
+    release(B_OCTUP);
+    release(B_OCTDN);
+    frames(2);
+    check(!master_sel(), "both OCT with a knob turned meanwhile: no toggle");
+    press(B_OCTDN);
+    press(B_OCTUP);
+    kdown(WK(0));
+    release(B_OCTUP);
+    release(B_OCTDN);
+    kup(WK(0));
+    frames(2);
+    check(!master_sel(), "both OCT with a key played meanwhile: no toggle");
+    op_enter(SCR_GLOBAL);
+    frames(2);
+    both_oct();
+    check(ui.scr == SCR_GLOBAL, "both OCT on GLOBAL (no track): nothing");
+    reset_ui();
+}
 static void master_tests(void)
 {
+    oct_master_tests();
     layout_tests();
     held_page_tests();
     cell_t c;

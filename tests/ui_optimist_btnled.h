@@ -107,7 +107,7 @@ static void btnled_tests(void)
         bk_set(BK_SYN, SCR_HOME);
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, the mixer on a synth track: both dim (SHIFT, SHIFT2 combos)");
         bk_set(BK_MASTER, SCR_HOME);
-        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, the mixer on MASTER: both dark");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, the mixer on MASTER: both dim (both = back to the track)");
         bk_set(BK_SYN, SCR_SOUND);
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, SOUND on a synth: both dim (the octave)");
         bk_set(BK_SYN, SCR_STEP);
@@ -115,7 +115,7 @@ static void btnled_tests(void)
         bk_set(BK_DR, SCR_STEP);
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, STEP on DR: both dim (ghost / hard)");
         bk_set(BK_DR, SCR_SOUND);
-        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SOUND on DR: OCT- dim (SHIFT), OCT+ dark (no octave on drums)");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, SOUND on DR: both dim (the track <-> MASTER pair)");
         bk_set(BK_SYN, SCR_PROJECT);
         check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, PROJECT: both dark");
         {   /* OCT- / OCT+ on a store of more than 16 slots: the bank back / on (the user, 2026-10-15), lit only that way */
@@ -144,9 +144,9 @@ static void btnled_tests(void)
         frames(2);
         check(led_lvl(B_OCTUP) == 0, "OCT LEDs, GLOBAL (off the tempo line): OCT+ dark");
         bk_set(BK_SYN, SCR_FX);
-        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, the master FX: both dark");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, the master FX: both dim (back to the track)");
         bk_set(BK_SYN, SCR_SCOPE);
-        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SCOPE: both dark");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, SCOPE: both dim (it has a source: track or MASTER)");
     }
     {   /* GLOBAL and SYSTEM (the user, 2026-10-14: "glo -> save, glo -> arp, glo -> seq don't work, while the button is half lit") */
         static const uint8_t SC2[2] = {SCR_GLOBAL, SCR_SYSTEM};

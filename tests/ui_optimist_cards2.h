@@ -86,7 +86,7 @@ static void c2_roll_tests(void)
     tap(B_OCTUP);
     roll_range(TSEL);
     check(rg.lo == lo0 + 12 && rg.hi == hi0 + 12 && song.octave == 1,
-          "STEP's roll, OCT+: the view an octave up AND the keyboard octave (one value)");
+          "STEP's roll, OCT+ once: exactly 12 semitones up, the view an octave up AND the keyboard octave (one value)");
     check(px_at(s35_x(4), s35_y(64), lvl_col(trk_col(0), LV_NORM)) || 64 < rg.lo,
           "... drawn there (E4 where the new view puts it, or out of it)");
     ppm("opt-cards2-roll-octup");
@@ -94,12 +94,9 @@ static void c2_roll_tests(void)
     tap(B_OCTDN);
     roll_range(TSEL);
     check(rg.lo == lo0 - 12 && rg.hi == hi0 - 12 && song.octave == -1, "OCT- OCT-: an octave under the fit, the keyboard octave -1");
-    press(B_OCTDN);                                     /* both together: the fit again */
-    press(B_OCTUP);
-    release(B_OCTUP);
-    release(B_OCTDN);
+    tap(B_OCTUP);
     roll_range(TSEL);
-    check(rg.lo == lo0 && song.octave == 0, "OCT- + OCT+ together: the fit again, octave 0");
+    check(rg.lo == lo0 && song.octave == 0, "OCT+ from -1: the fit again, octave 0 (one tap, one octave)");
     for (i = 0; i < 6u; i++)                            /* the top: the keyboard octave stops at +3, the view with it */
         tap(B_OCTUP);
     roll_range(TSEL);
@@ -117,6 +114,20 @@ static void c2_roll_tests(void)
     tap(B_OCTDN);
     roll_range(TSEL);
     check(rg.lo == lo0 && song.octave == 0, "... back on T1 at octave 0: its fit again");
+    song.sel = 2;                                       /* an EMPTY pattern: the view is around the pick, which the octave moved too (the roll moved 2 octaves a tap) */
+    frames(2);
+    roll_range(TSEL);
+    lo = rg.lo;
+    tap(B_OCTUP);
+    roll_range(TSEL);
+    check(song.octave == 1 && rg.lo == lo + 12, "an empty pattern, OCT+ once: the view exactly 12 semitones up");
+    tap(B_OCTDN);
+    tap(B_OCTDN);
+    roll_range(TSEL);
+    check(song.octave == -1 && rg.lo == lo - 12, "... OCT- twice: 12 down from the start, one a tap");
+    tap(B_OCTUP);
+    song.sel = 0;
+    frames(2);
     kdown(WK(0));                                       /* a held step + OCT: transposed, the view not moved */
     frames(HOLD_FRAMES);
     tap(B_OCTUP);
@@ -126,10 +137,9 @@ static void c2_roll_tests(void)
     turn(EN_PRESET, 1);                                 /* PRESETS: the window, the octave and view not moved */
     check(song.octave == 0 && st.follow == 0, "PRESETS: the window (FOLLOW off), the octave and view not moved");
     press(B_OCTDN);
-    press(B_OCTUP);
-    release(B_OCTUP);
+    turn(EN_PRESET, 1);
     release(B_OCTDN);
-    check(st.follow == 1 && song.octave == 0, "both OCT: FOLLOW again");
+    check(st.follow == 1 && song.octave == 0, "OCT- (SHIFT) + PRESETS: FOLLOW again");
     song.octave = 0;
     press(B_OCTUP);
     check(song.octave == 0, "OCT+ pressed: the octave changes when it is let go, not at the press");
