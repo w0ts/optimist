@@ -42,10 +42,10 @@ static void header_tracknum_tests(void)
     hn_badge_is(TRK_DRUM, "DRUMS", "the drum track: 4 DRUMS");
 #if ACC_UI
     acc_pick();
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(DACC_KEY);
     kup(DACC_KEY);
-    release(B_HOME);
+    release(B_OCTDN);
     hn_badge_is(TRK_DRUM, "ACCENT", "the accent lane: 4 ACCENT");
 #endif
     reset_ui();

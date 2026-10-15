@@ -79,9 +79,9 @@ static void mixer_walk_tests(void)
         tap(B_ARP);
         tap(B_SEQ);
         check(ui.scr == SCR_HOME && mx_row() == MXR_MASTER && !op_armed(), "... a track button tapped: nothing, still the MASTER row");
-        press(B_HOME);
+        press(B_OCTDN);
         tap(B_ENV);
-        release(B_HOME);
+        release(B_OCTDN);
         check(!op_armed(), "... HOME + ENV: no INIT of T1 asked");
         if (op_armed())
             op_no();
@@ -112,8 +112,8 @@ static void mixer_sets_tests(void)
     reset_ui();
     n = mx_sets(MXR_T1);
     last = n - 1u;
-    check(mx_labels(MXR_T1, 0, "MUTE", "VOLUME", "PAN", 0) && n >= 3u,
-          "a track: MUTE VOLUME PAN (the mix), then the inserts and the sends (no FX ON, no SOUND card)");
+    check(mx_labels(MXR_T1, 0, "VOLUME", "PAN", 0, 0) && n >= 3u,
+          "a track: VOLUME PAN (the mix, no MUTE card: SHIFT2 on VOLUME mutes), then the inserts and the sends (no FX ON, no SOUND card)");
     {   /* values only: no knob set of any row holds a screen */
         uint32_t r, s, k, bad = 0, keep = mx.set;
         cell_t e;
@@ -170,9 +170,9 @@ static void mixer_sets_tests(void)
         mx.set = 0;
 #endif
     }
-    check(mx_labels(MXR_DR, 0, "MUTE", "VOLUME", 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
+    check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
               (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)),
-          "DR: MUTE VOLUME, its insert slots, its send levels (REV DLY CHO); no FX ON, no KIT card");
+          "DR: VOLUME, its insert slots, its send levels (REV DLY CHO); no MUTE, no FX ON, no KIT card");
     {   /* the drum track's send levels (2026-10-12, "it should be like any other track"): 100 % by default */
         cell_t c;
         int16_t v0 = dsend_kit[0];
@@ -183,9 +183,9 @@ static void mixer_sets_tests(void)
         dsend_kit[0] = v0;
         mx.set = 0;
     }
-    check(mx_labels(MXR_LANE0 + 2u, 0, "MUTE", "LEVEL", "CUT", 0) &&
+    check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", 0, 0) &&
               (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "DRIVE", "DST", FELUCCA_MASTER_COMP ? "CMP" : 0, 0)),
-          "a lane: MUTE LEVEL CUT, then DRIVE DST CMP (the sound's own inserts: always heard)");
+          "a lane: LEVEL CUT, then DRIVE DST CMP (the sound's own inserts: always heard)");
     check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0),
           "... then REV DLY CHO (no SOUND card)");
     check(mx_labels(MXR_MASTER, 0, FELUCCA_FX_DJF ? "FILT" : FELUCCA_FX_DUST ? "DUST" : "DUCK", 0, 0, 0) &&
@@ -236,7 +236,7 @@ static void mixer_sets_tests(void)
     {
         char h[40];
         head_title(SCR_HOME, mx_row(), h, sizeof h);
-        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 insert"), "SELECT: the next knob set; the header names the row and the set (T1 insert)");
+        check(mx_set(MXR_T1) == 1u && !strcmp(h, "Insert"), "SELECT: the next knob set; the header names the set (Insert; the badge the row)");
     }
     ui.force = 1;
     frame();
@@ -258,8 +258,8 @@ static void mixer_sets_tests(void)
         int16_t lv;
         turn(EN_ALGO, 1);                               /* T2 */
         lv = trk[1].p[P_LEVEL];
-        turn(EN_K2, -3);
-        check(trk[1].p[P_LEVEL] < lv && ui.hot == 1u, "T2's row: KNOB 2 its VOLUME (KNOB 1 MUTE, 2026-10-12)");
+        turn(EN_K1, -3);
+        check(trk[1].p[P_LEVEL] < lv && ui.hot == 0u, "T2's row: KNOB 1 its VOLUME (the MUTE card is gone, 2026-10-14)");
         trk[1].p[P_LEVEL] = lv;
         ui.force = 1;
         frame();
@@ -267,8 +267,8 @@ static void mixer_sets_tests(void)
         while (mx_row() < MXR_LANE0 + 1u)
             turn(EN_ALGO, 1);
         lv = dl.ofs[1][DE_LEVEL];
-        turn(EN_K2, -2);
-        check(dl.ofs[1][DE_LEVEL] < lv && lane_selected() == 1u, "a lane's row: KNOB 2 its LEVEL (the sound's offset)");
+        turn(EN_K1, -2);
+        check(dl.ofs[1][DE_LEVEL] < lv && lane_selected() == 1u, "a lane's row: KNOB 1 its LEVEL (the sound's offset)");
         dl.ofs[1][DE_LEVEL] = (int8_t)lv;
         tap(B_SAVE);
         check(ui.scr == SCR_PROJECT && lane_selected() == 1u, "SAVE on a lane's row, a cell turned: PROJECT (no YES on the mixer, D6)");
@@ -283,9 +283,9 @@ static void mixer_sets_tests(void)
         check(ui.scr == SCR_PROJECT && !op_armed(), "SAVE tapped on the mixer, no cell picked: PROJECT");
         tap(B_HOME);
         check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME, "HOME held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
         check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
@@ -294,18 +294,18 @@ static void mixer_sets_tests(void)
         reset_ui();
         song.sel = TRK_DRUM;
         frame();
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         key(4);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
               "HOME held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         press(B_GLO);
         release(B_GLO);
-        release(B_HOME);
+        release(B_OCTDN);
         check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "HOME held long + a layer button: the layer locks, no SYSTEM");
         tap(B_SEQ);
         song.sel = 0;
@@ -496,7 +496,7 @@ static int head_badge_drawn(void)
 }
 static void header_track_tests(void)
 {
-    static const uint8_t SCR_WANT[SCR_N] = {[SCR_SOUND] = 1, [SCR_STEP] = 1};
+    static const uint8_t SCR_WANT[SCR_N] = {[SCR_HOME] = 1, [SCR_SOUND] = 1, [SCR_STEP] = 1};   /* (the mixer on a track row: its badge) */
     uint32_t s, l, bad = 0;
     reset_ui();
     song.sel = 0;
@@ -509,7 +509,7 @@ static void header_track_tests(void)
             printf("  screen %s: badge %d, wanted %d\n", SCR_NAME[s], !SCR_WANT[s], SCR_WANT[s]);
             bad++;
         }
-        check(head_has_track() == SCR_WANT[s], "the screen's flag (SOUND, STEPS: the track; the rest: none)");
+        check(head_has_track() == SCR_WANT[s], "the screen's flag (the mixer on a track, SOUND, STEPS: the track; the rest: none)");
     }
     check(!bad, "each non-track screen draws no track badge, each track screen does");
     ui.scr = SCR_SOUND;

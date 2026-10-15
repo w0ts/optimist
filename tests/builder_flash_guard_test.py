@@ -127,48 +127,140 @@ def menu_checks():
     import asyncio
     import configure as C
     import menu as M
-    calls = []
-    save = (M.F.preflight, M.F.install)
+    from textual.widgets import Label, ProgressBar
+    calls, builds = [], []
+    seen = []                                                # the bar's value after each line the fake install prints
+    save = (M.F.preflight, M.F.install, M.C.validate)
     M.F.preflight = lambda pkg, port=None, notes=None: calls.append(("preflight", str(pkg))) or FL.Plan(
         pkg, "FM-1_700", "FM-1_700  [running]", None, [])
-    M.F.install = lambda plan, capture=True: calls.append(("install", str(plan.package))) or (0, "done")
+
+    def fake_install(plan, capture=True, on_line=None):      # (runs in the menu's worker thread, as the real one)
+        calls.append(("install", str(plan.package)))
+        for ln in ("checking the package (7 reads)", "switching to update mode", "writing   0%", "writing  98%",
+                   "writing   2%", "writing 100%", "restarting", "done: the FM-1 runs FM-1_700"):
+            on_line(ln)
+            seen.append(app_box[0].query_one("#prog_bar", ProgressBar).progress)
+        return 0, "done: the FM-1 runs FM-1_700"
+    M.F.install = fake_install
+    app_box = []
+
+    def bar_on(app):
+        return app.query_one("#prog").has_class("on")
+
+    def label(app):
+        return str(app.query_one("#prog_label", Label).render())
+
+    async def settle(pilot, until, tries=40):
+        for _ in range(tries):
+            await pilot.pause(0.05)
+            if until():
+                return True
+        return False
 
     async def run():
         app = M.Builder(C.defaults(), "test")
-        async with app.run_test() as pilot:
-            await pilot.press("f")
-            await pilot.pause()
-            check("menu: f with no build in this builder: FLASH REFUSED, the device not read",
-                  app.build_out.startswith("FLASH REFUSED") and "build first" in app.build_out and not calls)
+        app_box.append(app)
+        async with app.run_test(size=(160, 50)) as pilot:
             with tempfile.TemporaryDirectory() as td:
                 pkg = Path(td) / "optimist-0.1-dev-t.fwsc"
                 pkg.write_bytes(b"built")
-                app.built = ST.Stamp(pkg, C.cfg_hash(app.cfg) ^ 1, "test")   # (a build of another configuration)
+
+                def finish(ok, stamp):                       # (what run_build ends with, on the main thread)
+                    app.show_build(("BUILD OK" if ok else "BUILD FAILED") + "\n  exact flash ...", None, stamp)
+
+                def fake_build(cfg, name, then_emu=False):
+                    builds.append(name)
+                app.run_build = fake_build                   # (no toolchain: the menu's own flow is what is tested)
+
+                # -- f with no build: a build starts, with its bar; the device is not read yet
                 await pilot.press("f")
                 await pilot.pause()
-                check("menu: f after the configuration changed: refused, the device not read",
-                      app.build_out.startswith("FLASH REFUSED") and "configuration changed" in app.build_out
+                check("menu: f with no build in this builder: it builds first (no refusal), the device not read yet",
+                      builds == ["test"] and app.flash_after_build and not calls
+                      and "then the flash" in app.build_out)
+                check("menu: the build shows its progress bar, not knowing the length yet",
+                      bar_on(app) and "build: starting" in label(app))
+                await asyncio.to_thread(app.build_line, "==> [3/5] app")        # (a worker thread's call)
+                await pilot.pause()
+                check("menu: a stage line moves the bar: 'build 3/5: app', the two short stages before it done "
+                      "(about a fifth: the app is most of the time)",
+                      "build 3/5: app" in label(app) and app.query_one("#prog_bar", ProgressBar).progress == 19)
+                await pilot.press("f")
+                await pilot.pause()
+                check("menu: f again while it builds: nothing second starts", builds == ["test"])
+                # -- the build ends well: bar away, then the usual preflight for that package
+                finish(True, ST.Stamp(pkg, C.cfg_hash(app.cfg), "test"))
+                await settle(pilot, lambda: calls)
+                check("menu: the build ended: the bar is gone and the flash goes on to the device read (preflight) "
+                      "for that package, nothing written before the answer",
+                      calls == [("preflight", str(pkg))] and not app.flash_after_build)
+                await settle(pilot, lambda: not bar_on(app))
+                check("menu: waiting for the answer, the bar is hidden", not bar_on(app))
+                await pilot.press("escape")
+                await pilot.pause()
+
+                # -- a build that fails: no flash, said so
+                calls.clear()
+                builds.clear()
+                app.built = None
+                await pilot.press("f")
+                await pilot.pause()
+                finish(False, None)
+                await pilot.pause()
+                check("menu: the build failed: no preflight, 'flash: not started' in the panel, the bar gone",
+                      not calls and "flash: not started" in app.build_out and not app.flash_after_build
+                      and not bar_on(app))
+
+                # -- a configuration that cannot be built: no build, no flag left behind
+                M.C.validate = lambda cfg: (["bad"], [], [])
+                builds.clear()
+                await pilot.press("f")
+                await pilot.pause()
+                check("menu: f with a configuration that cannot be built: CANNOT BUILD, no build, no flash pending",
+                      app.build_out.startswith("CANNOT BUILD") and not builds and not app.flash_after_build
                       and not calls)
+                M.C.validate = save[2]
+
+                # -- another configuration's build: built again now, not refused
+                app.built = ST.Stamp(pkg, C.cfg_hash(app.cfg) ^ 1, "test")
+                await pilot.press("f")
+                await pilot.pause()
+                check("menu: f after the configuration changed: it builds again first (no refusal)",
+                      builds == ["test"] and app.flash_after_build and not calls)
+                finish(False, None)
+                await pilot.pause()
+
+                # -- the builder's own code changed: building cannot fix that, still refused, nothing built
+                builds.clear()
                 app.built = ST.Stamp(pkg, C.cfg_hash(app.cfg), "test")
                 app.code0 = dict(app.code0, **{str(ST.HERE / "registry.py"): "older"})
                 await pilot.press("f")
                 await pilot.pause()
-                check("menu: f when the builder's code is stale: refused, restart named, the device not read",
-                      app.build_out.startswith("FLASH REFUSED") and "make builder" in app.build_out and not calls)
+                check("menu: f when the builder's code is stale: refused, restart named, nothing built, device not read",
+                      app.build_out.startswith("FLASH REFUSED") and "make builder" in app.build_out and not builds
+                      and not calls)
                 app.code0 = ST.code_fingerprint()
+
+                # -- a current build of this configuration: no build at all, straight to the device read
                 await pilot.press("f")
-                for _ in range(20):
-                    await pilot.pause(0.05)
-                    if calls:
-                        break
-                check("menu: f after this builder's build of this configuration: the device is read (preflight) "
-                      "for that package, nothing written before the answer",
-                      calls == [("preflight", str(pkg))])
-                await pilot.press("escape")
+                await settle(pilot, lambda: calls)
+                check("menu: f after this builder's build of this configuration: no build, the device is read "
+                      "(preflight) for that package, nothing written before the answer",
+                      calls == [("preflight", str(pkg))] and not builds)
+
+                # -- the answer 'Flash': the bar follows the install, rising only, to 100, then it goes
+                await settle(pilot, lambda: app.screen.query("#pick"))
+                await pilot.press("down", "enter")
+                await settle(pilot, lambda: ("install", str(pkg)) in calls and not bar_on(app))
+                check("menu: the install's progress lines moved the bar, only upward, to 100",
+                      len(seen) == 8 and all(a <= b for a, b in zip(seen, seen[1:])) and seen[-1] == 100
+                      and 0 < seen[3] < 50 and seen[5] > 50)
+                check("menu: after the flash the bar is gone and FLASH OK is in the panel",
+                      not bar_on(app) and app.build_out.startswith("FLASH OK"))
     try:
         asyncio.run(run())
     finally:
-        M.F.preflight, M.F.install = save
+        M.F.preflight, M.F.install, M.C.validate = save
 
 
 if importlib.util.find_spec("textual") is not None:

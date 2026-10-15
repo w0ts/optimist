@@ -54,9 +54,9 @@ static void pages_nav_tests(void)
 #endif
     }
     reset_ui();
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
-    release(B_HOME);
+    release(B_OCTDN);
     frames(2);
     check(ui.scr == SCR_HOME, "D1: HOME held alone on the mixer: nothing (no SYSTEM, no SCOPE)");
     tap(B_HOME);
@@ -347,13 +347,13 @@ static void keys_global_tests(void)
         check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "GLOBAL: a black key plays nothing");
         kup(1);
         sel0 = lane_selected();
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         kdown(WK(5));
         check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: HOME + a key: no lane pick, no sound");
         keys_are(0, 0, "GLOBAL: HOME held: the keys stay dark");
         kup(WK(5));
-        release(B_HOME);
+        release(B_OCTDN);
         tap(B_GLO);
         frames(2);
         check(ui.scr == SCR_SYSTEM, "keys, no-track pages: GLO again: SYSTEM");
@@ -379,13 +379,13 @@ static void keys_global_tests(void)
         frames(2);
         check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM && song.g[G_SLOT] == 3, "PROJECT, slot row: the key still picks slot 3");
         kup(WK(2));
-        press(B_HOME);
+        press(B_OCTDN);
         frames(HOLD_FRAMES);
         sel0 = lane_selected();
         kdown(WK(1));
         check(lane_selected() == sel0 && song.g[G_SLOT] == 3, "PROJECT, HOME held + a key: no lane pick, no slot");
         kup(WK(1));
-        release(B_HOME);
+        release(B_OCTDN);
         reset_ui();
         /* MASTER FX, SCOPE, SONG (not its PATTERNS row), TEMPO: the same */
         {
@@ -406,12 +406,12 @@ static void keys_global_tests(void)
                 kdown(1);
                 check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "MASTER FX / SCOPE / SONG: a black key plays nothing");
                 kup(1);
-                press(B_HOME);
+                press(B_OCTDN);
                 frames(HOLD_FRAMES);
                 kdown(WK(5));
                 check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: HOME + a key: no lane pick");
                 kup(WK(5));
-                release(B_HOME);
+                release(B_OCTDN);
             }
             reset_ui();
             press(B_PLAY);
@@ -462,16 +462,16 @@ static void pages_keys_tests(void)
     song.sel = TRK_DRUM;
     frames(2);
     keys_are(0, 0, "D10: the mixer, the drum track: the keys play, all dark (the lane key only where keys pick lanes)");
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
     keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | (ACC_UI ? 1u << DACC_KEY : 0u),
              "D10: the mixer, HOME held: the sequencer mutes, the 16 lanes, the 4 black keys and the last upper key (ACCENT) dim, none muted");
-    release(B_HOME);
+    release(B_OCTDN);
     tap(B_EDIT);
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
     keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, HOME held: the 16 lanes (and the last upper key, ACCENT) dim, the selected one full");
-    release(B_HOME);
+    release(B_OCTDN);
     reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);
@@ -480,10 +480,10 @@ static void pages_keys_tests(void)
     dstep_set(&TDRUM->dstep[2], 4, LV_NORM, 0);
     dstep_set(&TDRUM->dstep[3], 7, LV_NORM, 0);
     frames(2);
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
     keys_are(kw(4), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "STEP, the drum track, HOME held: the 16 lanes (and the last upper key) dim, the selected one full, as elsewhere");
-    release(B_HOME);                                    /* (a tap: NO, off STEP) */
+    release(B_OCTDN);                                    /* (a tap: NO, off STEP) */
     op_enter(SCR_STEP);
     frames(2);
     press(B_SEQ);

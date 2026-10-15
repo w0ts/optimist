@@ -143,11 +143,11 @@ static void algo_every_tests(void)
     op_enter(SCR_SOUND);
     song.sel = TRK_DRUM;
     frame();
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     kdown(WK(5));
     kup(WK(5));
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
     check(ok, "HOME + a drum key on SOUND: that lane selected, the walk on from it");
@@ -191,10 +191,10 @@ static void algo_presets_tests(void)
     ok = lane_picked() && lane_selected() == 3u && drum_kit_pos() != kit && !memcmp(src, dl.src, sizeof src);
     check(ok, "PRESETS on a lane with the source KIT: the kit (as on DR), every lane's source stays");
     check(ui.toast_t && ui.toast_col == kit_col() && !strncmp(ui.msg, "KIT ", 4), "... the toast names the kit");
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     turn(EN_PRESET, 1);
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frames(2);
     check(drum_kit_pos() != kit && !memcmp(src, dl.src, sizeof src), "HOME + PRESETS on a lane with SRC KIT: the kits, as on DR");
     TDRUM->p[P_E0] = (int16_t)kit;                      /* (the kit back: kit was a factory kit) */
@@ -219,10 +219,10 @@ static void algo_presets_tests(void)
     dl.src[2] = src[2];
     snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     k0 = ls_kind(ls_cur(2, n));
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     turn(EN_PRESET, 1);
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frames(2);
     ppm("opt-algo-lane-kind");
     k1 = ls_kind(ls_cur(2, n));

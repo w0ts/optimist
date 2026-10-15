@@ -44,11 +44,11 @@ static int fv_val(uint32_t k, const char *want)         /* the FAVS row's card k
     fv_cell(1, k, &c);
     return !strcmp(c.val, want);
 }
-static void fv_home_turn(uint32_t enc, int32_t s)       /* HOME held + a knob */
+static void fv_home_turn(uint32_t enc, int32_t s)       /* SHIFT (OCT- held, was HOME) + a knob */
 {
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     turn(enc, s);
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
 }
 static void favorites_tests(void)

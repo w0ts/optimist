@@ -37,6 +37,7 @@ sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
 import toolchain as TC
+import progress as PR  # noqa: E402  (the stage lines the builder menu's progress bar reads)
 sys.path.insert(0, str(SRC / "tools" / "builder"))
 import configure  # noqa: E402  (the firmware builder: .config -> build/gen/felucca_config.h)
 
@@ -204,7 +205,7 @@ ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unus
                "-ffp-contract=off"]
 # the backported features' switches (firmware/src/core/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
-                  "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ",
+                  "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ", "FELUCCA_ENG_JUNO",
                   "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
 BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
@@ -768,6 +769,12 @@ def main():
         generate(HOST_GEN, HOST_ENV)
         return 0
     MEASURE = a.measure
+    stages = len(PR.BUILD_STAGES) - (1 if MEASURE else 0)     # (a measurement build makes no package)
+
+    def mark(n):
+        print(PR.stage_line(n, stages, PR.BUILD_STAGES[n - 1]), flush=True)
+
+    mark(1)
     env = dict(os.environ, AC79_SDK=str(a.sdk)) if a.sdk else os.environ
     BACKEND, sdk = TC.preflight(env)     # Pillow, the toolchain, the SDK files: what is missing and how to get it
     print(f"toolchain {BACKEND.describe()}")
@@ -783,6 +790,7 @@ def main():
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
             print(f"warning: SDK {rel} differs from AC79NN_SDK_V1.2.1; the package will not match the reference")
+    mark(2)
     OUT.mkdir(parents=True, exist_ok=True)
     sync_view(recent=True)          # sources (and headers) changed lately: the loader reads them now
     with ThreadPoolExecutor(2) as ex:
@@ -791,8 +799,10 @@ def main():
         ota = ldr.result()
     ble_rf_tables()
     sync_view(*(p for p in GEN.iterdir() if p.is_file()))     # every generated header, rewritten or not
+    mark(3)
     img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
+    mark(4)
     errors, notes = check(img, syms, dis, rt)
     hal_err = mmio_check()
     errors += hal_err
@@ -809,6 +819,7 @@ def main():
     if MEASURE:
         print(f"measure  {OUT / 'sizes.json'} (no package: a measurement build is not flashable)")
         return 0
+    mark(5)
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"

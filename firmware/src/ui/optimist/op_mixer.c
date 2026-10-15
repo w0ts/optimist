@@ -95,7 +95,6 @@ static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
 static uint32_t mx_items_synth(mitem_t *it)
 {
     uint32_t n = 0;
-    n = mx_add(it, n, MG_MIX, "MUTE", MI_TRK, P_MUTE);   /* (the user, 2026-10-12: "a card for muting the track, first card") */
     n = mx_add(it, n, MG_MIX, "VOLUME", MI_TRK, P_LEVEL);
     n = mx_add(it, n, MG_MIX, "PAN", MI_TRK, P_PAN);
     n = mx_items_ins(it, n);
@@ -143,11 +142,9 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE its sequencer
                                                          * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,
                                                          * no CUT, DRIVE, DST, CMP, sends or sound */
-        n = mx_add(it, n, MG_MIX, "MUTE", MI_AMUTE, 0);
         return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);   /* (the amount, as the SOUND row's ACCENT card: a velocity, not dB) */
     }
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
-        n = mx_add(it, n, MG_MIX, "MUTE", MI_LMUTE, 0);   /* (the lane's own: GLO's lane mutes, SLOOP's kit pads) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
         n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (PAN's place: a sound has no pan) */
 #if FELUCCA_FX_DIST
@@ -168,7 +165,6 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     if (r == MXR_DR) {                                  /* the drum track: its level | its insert slots | its send levels
                                                          * (2026-10-12, the user: "it should be like any other track") |
                                                          */
-        n = mx_add(it, n, MG_MIX, "MUTE", MI_TRK, P_MUTE);
         n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
         n = mx_items_ins(it, n);
         if (FXS_ON(FXT_REV))
@@ -339,6 +335,33 @@ static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value 
     else if (id < DE_N && !lane_value_rec(l % DRUM_LANES, id, v))   /* (REC playing: the row's lane's motion, D12) */
         dl.ofs[l % DRUM_LANES][id] = (int8_t)v;
 }
+/* SHIFT2 (OCT+ held) on the volume card (VOLUME, a lane's LEVEL, the ACCENT lane's amount): the row's mute toggles, once per
+ * hold (the user, 2026-10-14; the MUTE card is gone). 1: the card is a volume card (the turn is taken, nothing else changes) */
+static uint8_t mx_s2_done;                              /* toggled in this hold (ui_input clears it when OCT+ is let go) */
+static int mx_mute_toggle(uint32_t r, const mitem_t *m)
+{
+    int on;
+    uint32_t t = mx_trk_of(r);
+    if (!(m->kind == MI_TRK && m->id == P_LEVEL) && !(m->kind == MI_GLOB && m->id == G_DRLVL) &&
+        !(m->kind == MI_LANE && m->id == DE_LEVEL) && m->kind != MI_ACC)
+        return 0;
+    if (mx_s2_done)
+        return 1;
+    mx_s2_done = 1;
+    if (m->kind == MI_ACC) {
+        on = smute_toggle(SMUTE_ACC);
+        ui_say(DACC_CODE, on ? " SEQ MUTE" : " SEQ ON");
+    } else if (m->kind == MI_LANE) {
+        on = !dlm_muted(r - MXR_LANE0);
+        dlm_set_mute(r - MXR_LANE0, on);
+        ui_say(LANE_CODE[r - MXR_LANE0], on ? " MUTE" : " ON");
+    } else {
+        on = !trk[t].p[P_MUTE];
+        trk[t].p[P_MUTE] = (int16_t)on;
+        ui_say(trk_tag(t), on ? " MUTE" : " ON");
+    }
+    return 1;
+}
 static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     mitem_t m;
@@ -346,6 +369,8 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     const param_desc_t *d;
     r %= MXR_N;
     if (!mx_item(r, k, &m))
+        return;
+    if (op_shift2(fm1_in.buttons) && mx_mute_toggle(r, &m))
         return;
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)

@@ -182,10 +182,10 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
     dsend[snare] = dsend_word(2, 11, 20);
     op_enter(SCR_STEP);
     frames(2);
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(WK(0));
     kup(WK(0));
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == kick && ui.lane == 1u && ui.scr == SCR_STEP, "STEP, HOME held + a key: the lane picked");
     tap(B_FX);
     check(ui.scr == SCR_SOUND, "... FX opens the FX family");
@@ -197,10 +197,10 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
     ppm("opt-lane-sends-kick");
     tap(B_SEQ);
     check(ui.scr == SCR_STEP, "SEQ: back on STEP");
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(WK(2));
     kup(WK(2));
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == snare, "STEP, HOME held + another key: that lane");
     tap(B_FX);
     r = lv_row_named("SENDS");

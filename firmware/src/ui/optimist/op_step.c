@@ -59,10 +59,10 @@ static void step_clear(step_t *s)
 }
 static uint32_t step_pages(const track_t *t) { return (trk_len(t) + 15u) / 16u; }
 
-/* the drum track's lane pick on STEP: HOME held, no step held (a step held + HOME is the clear), as on every page */
+/* the drum track's lane pick on STEP: SHIFT (OCT-) held, no step held, as on every page (so OCT- no longer makes a ghost hit on STEP) */
 static int step_pick(uint32_t held)
 {
-    return ui.scr == SCR_STEP && is_drum(TSEL) && (held & (1u << panel.btn[B_HOME])) && !st.held;
+    return ui.scr == SCR_STEP && is_drum(TSEL) && op_shift(held) && !st.held;
 }
 /* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
  * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
@@ -177,7 +177,7 @@ static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
 }
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
-    if (is_drum(t)) {                                   /* (OCT- / OCT+ held: a ghost / hard hit) */
+    if (is_drum(t)) {                                   /* (OCT+ held: a hard hit; OCT- is SHIFT) */
         uint32_t lv = fm1_in.buttons & dyn_bit[0] ? LV_GHOST : fm1_in.buttons & dyn_bit[1] ? LV_HARD : LV_NORM;
         dstep_set(&t->dstep[idx], lane_selected(), lv, 0);
     } else {
@@ -258,8 +258,6 @@ static int step_shown(const track_t *t, uint32_t idx)
     return step_has(t, idx);
 }
 
-/* SHIFT (OCT- held; controls-nav's op_shift() on merge) */
-#define STEP_SHIFT(held) (((held) & (1u << panel.btn[B_OCTDN])) != 0u)
 /* step idx's p-locks go (IRQ off): the step-only events of a parameter, a drum lane's values included; the step's notes,
  * its nudge, fill, chance and condition (the pseudo-parameters) and its motion stay; -> how many */
 static uint32_t step_unlock(track_t *t, uint32_t idx)
@@ -300,7 +298,13 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         if ((st.pend & bit) && fm1_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
             undo_mark(t, st.sess);
             fm1_irq_off();
-            if (step_has(t, idx))
+            if (step_has(t, idx) && is_drum(t) && lane_selected() != DRUM_ACC && dstep_has(&t->dstep[idx], lane_selected()) &&
+                dstep_lvl(&t->dstep[idx], lane_selected()) <= LV_HARD && dstep_lvl(&t->dstep[idx], lane_selected()) != LV_GHOST &&
+                dstep_lvl(&t->dstep[idx], lane_selected()) != LV_SOFT)   /* a drum hit tapped: normal -> hard -> ghost -> off (the user, 2026-10-14) */
+                dstep_set(&t->dstep[idx], lane_selected(),
+                          dstep_lvl(&t->dstep[idx], lane_selected()) == LV_NORM ? LV_HARD : LV_GHOST,
+                          dstep_rat(&t->dstep[idx], lane_selected()));
+            else if (step_has(t, idx))
                 is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
             else if (step_kept(t, idx))
                 step_back(t, idx);                      /* (the pitch it had) */
@@ -323,7 +327,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
-    if (STEP_SHIFT(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
+    if (op_shift(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
                                                          * step not hit yet: OCT- is its ghost hit, seq.c) */
         uint32_t n;
         undo_mark(t, st.sess);

@@ -126,7 +126,7 @@ static void se_header_tests(void)
         {
             char p[12];
             head_pos(SCR_HOME, MXR_ACC, p);
-            check(!strcmp(t, "Accent") && !p[0], "#35: the mixer's ACCENT row: \"Accent\", no n/N (was \"accent mix\")");
+            check(!strcmp(t, "Mix") && !p[0], "#35: the mixer's ACCENT row: the title \"Mix\" (the badge names the lane), no n/N (was \"accent mix\")");
         }
 #endif
     }

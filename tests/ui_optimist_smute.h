@@ -27,7 +27,7 @@ static void smute_tests(void)
     lane_select(0);
     go_home();
     frames(2);
-    press(B_HOME);
+    press(B_OCTDN);
     key(key_of_lane(2));                                /* (the third drum key: lane 2) */
     check(smute_lane_on(2) && smute_lane == 4u && smute_trk == 0u && lane_selected() == 0u && ui.scr == SCR_HOME,
           "the mixer, HOME held + the third drum key: lane 2's sequencer muted, no pick, still the mixer");
@@ -42,17 +42,17 @@ static void smute_tests(void)
     key(10);                                            /* (a black key past the four: nothing) */
     key(13);                                            /* (the second octave's black keys too) */
     check(smute_trk == 10u && smute_lane == 0x8000u, "another black key: nothing");
-    release(B_HOME);
+    release(B_OCTDN);
     check(ui.scr == SCR_HOME, "HOME let go after keys: no NO (the mixer stays)");
     smute_clear();
     song.sel = 0;
     lane_select(0);
     reset_ui();
     frames(2);
-    press(B_HOME);
+    press(B_OCTDN);
     key(key_of_lane(3));
     check(smute_lane_on(3) && lane_selected() == 0u, "a synth track selected: the same, whatever the track");
-    release(B_HOME);
+    release(B_OCTDN);
     smute_clear();
 
     /* the rows: the steps grey, the X */
@@ -81,12 +81,12 @@ static void smute_tests(void)
     frames(2);
     keys_lit(&f, &d);
     check(!f && !d, "the mixer, no HOME: the keys dark");
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
     keys_lit(&f, &d);
     check(f == ((1u << key_of_lane(2)) | (1u << smute_black(0))) && (d | f) == (keys_white(16) | (1u << 1) | (1u << 3) | (1u << 5) | (1u << 8) | (ACC_UI ? 1u << DACC_KEY : 0u)),
           "HOME held: the 16 drum keys, the 4 black keys and the last upper key lit, the muted lane and T1 full, the rest dim");
-    release(B_HOME);
+    release(B_OCTDN);
     frames(2);
     keys_lit(&f, &d);
     check(!f && !d, "HOME let go: the keys dark again");
@@ -98,9 +98,9 @@ static void smute_tests(void)
     lane_select(0);
     tap(B_EDIT);
     check(ui.scr == SCR_SOUND, "(the drum track's EDIT: the SOUND rows)");
-    press(B_HOME);
+    press(B_OCTDN);
     key(key_of_lane(4));
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == 4u && smute_lane == 0u && smute_trk == 0u, "SOUND: HOME held + a drum key still picks the lane, mutes nothing");
     reset_ui();
     song.sel = TRK_DRUM;
@@ -112,9 +112,9 @@ static void smute_tests(void)
     release(B_SEQ);
     check(smute_lane == 0u && smute_trk == 0u && !dstep_has(&TDRUM->dstep[4], lane_selected()), "STEP: SEQ held + a step clears it, mutes nothing");
     dstep_set(&TDRUM->dstep[4], 4, LV_NORM, 0);
-    press(B_HOME);
+    press(B_OCTDN);
     key(key_of_lane(4));
-    release(B_HOME);
+    release(B_OCTDN);
     check(smute_lane == 0u && smute_trk == 0u && lane_selected() == 4u && dstep_has(&TDRUM->dstep[4], 4), "STEP: HOME held + a key picks the lane, clears and mutes nothing");
     smute_clear();
     song.sel = 0;

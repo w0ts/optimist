@@ -21,6 +21,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_ENG_NOISE": "NOISE (colours, crackle, shift-register noise)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
+    "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
@@ -84,6 +85,9 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
                       "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
                       "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
+    "FELUCCA_ENG_JUNO": "Juno-106 voice from fm-106 / KR-106 (engine 14): the DCO (saw, pulse, sub, noise), the "
+                        "4-pole OTA ladder filter and the 4-position HPF; the track's ENV and LFO drive it; 6 voices, "
+                        "8 patches of our own (no Roland factory patches). About 2x the CPU of an ANALOG voice.",
     "FELUCCA_REC_MODES": "REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 "
                          "count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; "
                          "off: free recording started by a note.",
@@ -222,6 +226,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_ENG_NOISE": 140,                              # (the NOISE engine; 139 is JUNO's: feat/engine-juno)
     "FELUCCA_UP_FM6": 135,
     "FELUCCA_ENG_CZ": 136,
+    "FELUCCA_ENG_JUNO": 139,
     "FELUCCA_SL24_SAFE": 161,
     "FELUCCA_SL24_XSTEP": 162,
     "FELUCCA_SL24_IMPORT": 163,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)

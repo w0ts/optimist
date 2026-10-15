@@ -25,7 +25,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
 | `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
-| `flash [PACKAGE.fwsc] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (`make flash [PKG=file]`): the newest `build/optimist-*.fwsc` unless you name one; shows the running FM-1's identity and the package's, how to recover, and asks (`--yes` does not); refuses without a build, a package that is not an Optimist one (stock, SLOOP, Felucca: `tools/fm1_install.py` does those), or an FM-1 it cannot find; never passes `--force`. It runs `tools/fm1_install.py`, the web installer's update. Needs mido and python-rtmidi, which `setup` puts in the builder venv (`tools/requirements-flash.txt`; a failed install there only turns `flash` off) |
+| `flash [PACKAGE.fwsc \| --no-build] [--profile P \| --config F] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (`make flash [PKG=file]`): with no package it builds the chosen profile first (the stage lines `==> [3/5] app` are the progress), so it never flashes a stale file; `--no-build` flashes the newest `build/optimist-*.fwsc` as it is instead; shows the running FM-1's identity and the package's, how to recover, and asks (`--yes` does not); refuses without a build, a package that is not an Optimist one (stock, SLOOP, Felucca: `tools/fm1_install.py` does those), or an FM-1 it cannot find; never passes `--force`. It runs `tools/fm1_install.py`, the web installer's update. Needs mido and python-rtmidi, which `setup` puts in the builder venv (`tools/requirements-flash.txt`; a failed install there only turns `flash` off) |
 | `costs [measure_costs.py args]` | measure the builder's costs that `tools/builder/costs.json` lacks (new items); run after merging a batch, `make costs` (docs/BUILDER.md) |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; the profiles CI builds: `--profiles`, `--publish`, `--unpublish`, `--share`, `--delete`, docs/BUILDER.md; `tools/builder/configure.py --help`) |
 | `emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update] [--rebuild]` | run a firmware in the emulator (`emu --help`) |
@@ -414,6 +414,7 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
 | `FELUCCA_ENG_NOISE` | 0 | the NOISE engine (engine 15), `eng_noise.c` of hugelton/Felucca-Engines (Leo Kuroshita, Hügelton Instruments; **MIT**, the file keeps its header): ANLG / DUST / LFSR / META sources, white to brown colour, a low-pass to band-pass filter with key tracking, drift and crush; 4 presets, 8 EDIT values; +3.0 KB flash, no RAM (measured: two builds of user-default) |
 | `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.9 KB flash, +3.1 KB RAM (everything-that-fits: +7.3 KB, +3.2 KB, +32 B RAM code); on in everything-that-fits |
+| `FELUCCA_ENG_JUNO` | 0 | the JUNO engine (engine 14), the Juno-106 voice of fm-106 (PatttF; a port of Ultramaster KR-106, GPL-3.0): DCO, 4-pole OTA ladder, VCA curve, 4-position HPF; 6 voices; 8 patches of our own (no Roland factory patches), 8 EDIT values |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |
 | `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.6 KB flash, +152 B RAMTEXT |
 | `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
@@ -514,8 +515,9 @@ The web installer (Chrome or Edge) is on the project's GitHub Pages site once th
 "Releases and the hosted site" below), or make it locally, as below. The
 `.fwsc` of each release is on the GitHub releases page.
 
-From the build tooling: `make flash` (`python3 tools/optimist.py flash [PACKAGE.fwsc]`), or `f` in the builder menu after a
-build. It shows the identity of the FM-1 and of the package, asks, then runs `fm1_install.py` (below) on it. Its mido and
+From the build tooling: `make flash` (`python3 tools/optimist.py flash [PACKAGE.fwsc]`; it builds first when no package is
+named), or `f` in the builder menu (it builds first when the menu has no current build of the configuration shown; a
+progress bar follows the build and the flash). It shows the identity of the FM-1 and of the package, asks, then runs `fm1_install.py` (below) on it. Its mido and
 python-rtmidi come from the builder venv (`make setup`). Back up first and know the way back: OPTIMIST.md, "Rescue, going back".
 
 From the command line with `fm1_install.py` directly (needs `pip3 install mido python-rtmidi`; for stock, SLOOP or other Felucca packages too):

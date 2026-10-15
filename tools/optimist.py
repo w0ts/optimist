@@ -8,8 +8,10 @@
   python tools/optimist.py package [--profile P | --config F] [--out DIR] [--summary FILE]
   python tools/optimist.py config ...                    the builder without the menu (--list, --budget, --fit,
                                                          --write; tools/builder/configure.py --help)
-  python tools/optimist.py flash [PACKAGE.fwsc] [--port NAME] [--yes]   install a build on an FM-1 over USB-MIDI
-                                                         (default: the last build/optimist-*.fwsc; asks first)
+  python tools/optimist.py flash [PACKAGE.fwsc | --no-build] [--profile P | --config F] [--port NAME] [--yes]
+                                                         install a build on an FM-1 over USB-MIDI: builds the
+                                                         profile first unless a PACKAGE is given (--no-build: the
+                                                         newest build/optimist-*.fwsc as it is); asks first
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
@@ -42,7 +44,8 @@ import deps
 import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
-PY_TESTS = ("tests/builder_test.py", "tests/builder_flash_guard_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py", "tests/rescue_any_test.py",
+PY_TESTS = ("tests/builder_test.py", "tests/builder_flash_guard_test.py", "tests/builder_progress_test.py",
+            "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py", "tests/rescue_any_test.py",
             "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py",
             "tests/emu_driver_once_test.py")
 
@@ -145,11 +148,36 @@ def cmd_config(a):
     return C.main(a.rest)
 
 
+def build_for_flash(a):
+    """flash without a package builds the chosen configuration first (the stage lines are its progress) -> the
+    package it made, or None (the build failed, or the configuration is wrong: said, nothing to flash)"""
+    try:
+        cfg, name = load_config(a)
+    except C.ConfigError as e:
+        print(f"flash: {e}", file=sys.stderr)
+        return None
+    print(f"flash: building {name} first (--no-build flashes the newest build/optimist-*.fwsc as it is)", flush=True)
+    started = time.time()
+    ok, _, _ = C.build(cfg, name, echo=True)
+    if not ok:
+        print("flash: the build failed; nothing was flashed", file=sys.stderr)
+        return None
+    return named_package(started)
+
+
 def cmd_flash(a):
     """install a build on the connected FM-1 (tools/flash.py -> tools/fm1_install.py): shows the running identity and
-    the package's, asks (unless --yes), never --force"""
+    the package's, asks (unless --yes), never --force. With no PACKAGE it builds the chosen configuration first
+    (a build of the tree as it is now, not whatever is newest in build/); --no-build uses the newest file instead"""
     import flash
-    pkg = Path(a.package).expanduser() if a.package else flash.last_package()
+    if a.package:
+        pkg = Path(a.package).expanduser()
+    elif a.no_build:
+        pkg = flash.last_package()
+    else:
+        pkg = build_for_flash(a)
+        if pkg is None:
+            return 1
     try:
         plan = flash.preflight(pkg, a.port)
         print("\n".join(plan.lines()))
@@ -363,8 +391,12 @@ def parser():
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_package)
-    p = sub.add_parser("flash", help="install a build on an FM-1 over USB-MIDI (fm1_install.py; asks first)")
-    p.add_argument("package", nargs="?", help="PACKAGE.fwsc (default: the newest build/optimist-*.fwsc)")
+    p = sub.add_parser("flash", help="install a build on an FM-1 over USB-MIDI (builds first unless a PACKAGE is "
+                       "given; fm1_install.py; asks first)")
+    p.add_argument("package", nargs="?", help="PACKAGE.fwsc (default: build the chosen configuration, then flash it)")
+    p.add_argument("--no-build", action="store_true",
+                   help="no PACKAGE and no build: flash the newest build/optimist-*.fwsc as it is")
+    add_config_args(p)                                   # (what to build when there is no PACKAGE)
     p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     p.set_defaults(fn=cmd_flash)

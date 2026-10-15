@@ -345,9 +345,9 @@ static void cond_card_tests(void)
     check(step_cond(t, 2) == 2u && !strcmp(c.val, "2:2"), "... turned: 1:2, 2:2 (an event of the step)");
     turn(EN_K1 + EX_N - 1u, 20);
     check(step_cond(t, 2) == AUTO_NCOND, "... stops at 4:4");
-    fm1_in.buttons |= BT(B_HOME);
+    fm1_in.buttons |= BT(B_OCTDN);
     turn(EN_K1 + EX_N - 1u, 1);
-    fm1_in.buttons &= ~BT(B_HOME);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     check(!step_cond(t, 2), "... HOME + KNOB 4: cleared");
     kup(WK(2));
     track_defaults_steps(t);

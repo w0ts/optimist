@@ -126,9 +126,9 @@ static void lfo2ui_tests(void)
     ui.row[SCR_SOUND] = (uint8_t)r;
     frame();
     for (k = 0; k < 4u; k++) {
-        press(B_HOME);
+        press(B_OCTDN);
         turn(EN_K1 + k, 1);
-        release(B_HOME);
+        release(B_OCTDN);
     }
     check(TSEL->p[P_L2RATE] == TP[P_L2RATE].def && TSEL->p[P_L2WAVE] == TP[P_L2WAVE].def && TSEL->p[P_L2TRIG] == TP[P_L2TRIG].def &&
               TSEL->p[P_L2POL] == TP[P_L2POL].def && ui.scr == SCR_SOUND,
@@ -138,13 +138,13 @@ static void lfo2ui_tests(void)
     frame();
     turn(EN_K2, 2);
     check(TSEL->p[P_L2AA] > 30 && TSEL->p[P_L2DA] == LT_SHP, "LFO2 DEST: KNOB 2 moves AMT, not DEST");
-    press(B_HOME);
+    press(B_OCTDN);
     turn(EN_K2, 1);
-    release(B_HOME);
+    release(B_OCTDN);
     check(TSEL->p[P_L2AA] == TP[P_L2AA].def, "HOME held + KNOB 2 on LFO2 DEST: AMT back to 0");
-    press(B_HOME);
+    press(B_OCTDN);
     turn(EN_K1, 1);
-    release(B_HOME);
+    release(B_OCTDN);
     check(TSEL->p[P_L2DA] == TP[P_L2DA].def, "HOME held + KNOB 1: DEST back to OFF");
     /* the LFO 2 wave drawn, LFO2 DEST under it */
     TSEL->p[P_L2WAVE] = 1, TSEL->p[P_L2POL] = 1;

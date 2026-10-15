@@ -61,6 +61,9 @@
 #ifndef FELUCCA_ENG_CZ
 #define FELUCCA_ENG_CZ 0         /* the CZ engine (engine 13), from Melodee 0.11 */
 #endif
+#ifndef FELUCCA_ENG_JUNO
+#define FELUCCA_ENG_JUNO 0       /* the JUNO engine (engine 14), the Juno-106 voice of fm-106 */
+#endif
 #ifndef FELUCCA_BPM_LOCK
 #define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */
 #endif

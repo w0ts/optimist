@@ -28,10 +28,10 @@ static void acc_key_tests(void)
     acc_pick();
     drums.hits = 0;
     aud_lanes = 0;
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(DACC_KEY);
     kup(DACC_KEY);
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == DRUM_ACC && ui.lane == 1u && lane_picked() && drums.hits == 0u && aud_lanes == 0u,
           "SOUND, HOME held + the last upper key: the ACCENT lane picked, silent");
     check(!strcmp(head_engine(), "ACCENT"), "... the header's badge: ACCENT");
@@ -47,18 +47,18 @@ static void acc_key_tests(void)
     lane_select(3);
     op_enter(SCR_STEP);
     frames(2);
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(DACC_KEY);
     kup(DACC_KEY);
-    release(B_HOME);
+    release(B_OCTDN);
     check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
           "STEP, HOME held + the last upper key: the ACCENT lane picked, silent");
     for (i = 0; i < 16u; i++) {                         /* a white key still picks its lane, the last upper key only the accent */
         lane_select(DRUM_ACC);
-        press(B_HOME);
+        press(B_OCTDN);
         kdown(WK(i));
         kup(WK(i));
-        release(B_HOME);
+        release(B_OCTDN);
         ok &= lane_selected() == i;
     }
     check(ok, "... HOME + a white key picks its sound");
@@ -116,14 +116,14 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     frame();
     lane_select(2);
     smute_trk = 0;
-    press(B_HOME);
+    press(B_OCTDN);
     kdown(1);
     kup(1);
-    release(B_HOME);
+    release(B_OCTDN);
     check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, HOME held + upper key 1: T1's sequencer mute, as ever");
     smute_trk = 0;
     smute_lane = 0;
-    press(B_HOME);
+    press(B_OCTDN);
     frames(HOLD_FRAMES);
     kdown(DACC_KEY);
     kup(DACC_KEY);
@@ -141,7 +141,7 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
         keys_lit(&f, &d);
         check(!smute_lane_on(DRUM_ACC) && !(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... the key again: off, its LED dim");
     }
-    release(B_HOME);
+    release(B_OCTDN);
     smute_lane = 0;
     reset_ui();
 }
@@ -175,9 +175,9 @@ static void acc_sound_tests(void)
     check(TDRUM->p[P_DACC] > 27, "KNOB 4: the ACCENT amount up");
     turn(EN_K3, 5);
     check(TDRUM->p[P_DACC] > 27, "KNOB 3 (no SRC): nothing");
-    press(B_HOME);
+    press(B_OCTDN);
     turn(EN_K4, 1);
-    release(B_HOME);
+    release(B_OCTDN);
     check(TDRUM->p[P_DACC] == DACC_DEF, "HOME + KNOB 4: back to the default");
     TDRUM->p[P_DACC] = 120;
     turn(EN_K4, 40);
@@ -275,9 +275,9 @@ static void acc_step_tests(void)
               "KNOB 3: the ACCENT amount locked on the step, the track's value kept");
         step_cell(0, 2, &c);
         check(c.mark == 1u && c.gv == x, "... its padlock and value on the card");
-        press(B_HOME);
+        press(B_OCTDN);
         turn(EN_K3, 1);
-        release(B_HOME);
+        release(B_OCTDN);
         check(!lock_get(t, 6, P_DACC, &x), "HOME + KNOB 3: the lock dropped");
         turn(EN_K3, 6);
         ui.hot = 2;
@@ -366,44 +366,44 @@ static void acc_walk_tests(void)
     {
         cell_t l;
         mix_cell(MXR_LANE0 + 4u, 0, &l);
-        ok &= l.label && !strcmp(l.label, "MUTE");
-        mix_cell(MXR_LANE0 + 4u, 1, &l);
         ok &= l.label && !strcmp(l.label, "LEVEL");
+        mix_cell(MXR_LANE0 + 4u, 1, &l);
+        ok &= l.label && !strcmp(l.label, "CUT");
     }
     mix_cell(MXR_ACC, 0, &c);
-    ok &= c.label && !strcmp(c.label, "MUTE");           /* (the lane's sequencer mute: smute_toggle(SMUTE_ACC)) */
+    ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;   /* (no MUTE card: SHIFT2 on it toggles the lane's sequencer mute, smute_toggle(SMUTE_ACC)) */
     mix_cell(MXR_ACC, 1, &c);
-    ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
+    ok &= !c.label || !c.label[0];
     mix_cell(MXR_ACC, 2, &c);
     ok &= !c.label || !c.label[0];
     mix_cell(MXR_ACC, 3, &c);
     ok &= !c.label || !c.label[0];
-    check(ok, "the mixer's ACCENT row: a lane's layout (MUTE, ACCENT = the amount), no CUT, sends or sound");
+    check(ok, "the mixer's ACCENT row: a lane's layout (ACCENT = the amount, no MUTE card), no CUT, sends or sound");
     check(mx_sets(MXR_ACC) == 1u, "... one set of cards");
     TDRUM->p[P_DACC] = DACC_DEF;
-    turn(EN_K2, 4);
-    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 2 (LEVEL) turns the amount");
-    press(B_HOME);
-    turn(EN_K2, 1);
-    release(B_HOME);
-    check(TDRUM->p[P_DACC] == DACC_DEF, "... HOME + KNOB 2: back to 27");
+    turn(EN_K1, 4);
+    check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 1 (the amount) turns it");
+    press(B_OCTDN);
+    turn(EN_K1, 1);
+    release(B_OCTDN);
+    check(TDRUM->p[P_DACC] == DACC_DEF, "... SHIFT + KNOB 1: back to 27");
     turn(EN_K3, 3);
     turn(EN_K4, 3);
     check(TDRUM->p[P_DACC] == DACC_DEF, "... the empty cards: inert");
     smute_lane = 0;
+    press(B_OCTUP);
     turn(EN_K1, 1);
-    check(smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && !dlm_muted(0), "KNOB 1 (MUTE): the ACCENT lane's sequencer mute on");
+    release(B_OCTUP);
+    check(smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && !dlm_muted(0) && TDRUM->p[P_DACC] == DACC_DEF,
+          "SHIFT2 + KNOB 1 on the ACCENT card: the ACCENT lane's sequencer mute on, the amount kept");
     frames(130);                                        /* (the help line, over the foot a while after a turn, gone) */
     ui.force = 1;
     frames(2);
     check(px_in(6, mx_row_y(MXR_ACC) + 2u, 30, 12, C_GRAY), "... the row drawn muted (its code grey)");
-    turn(EN_K1, -1);
-    check(!smute_lane_on(DRUM_ACC), "... and off");
+    press(B_OCTUP);
     turn(EN_K1, 1);
-    press(B_HOME);
-    turn(EN_K1, 1);
-    release(B_HOME);
-    check(!smute_lane_on(DRUM_ACC), "HOME + KNOB 1: MUTE off (the default)");
+    release(B_OCTUP);
+    check(!smute_lane_on(DRUM_ACC), "... and off (the next hold)");
     smute_lane = 0;
     TDRUM->p[P_DACC] = DACC_DEF;
     ui.force = 1;
@@ -505,7 +505,7 @@ static void acc_help_tests(void)
     ui.lane = 1;
     go_home();
     ui.row[SCR_HOME] = MXR_ACC;
-    mix_cell(MXR_ACC, 1, &c);
+    mix_cell(MXR_ACC, 0, &c);
     check(hl_find(SCR_HOME, MXR_ACC, &c) != 0u, "... and the mixer's ACCENT LEVEL card");
     /* (STEP's ACCENT page is gone, batch D: the amount is the SOUND row's card, checked above) */
     reset_ui();

@@ -145,7 +145,9 @@ static void lane_held_tests(void)
     kup(WK(6));
     check(!dstep_has(&t->dstep[6], 4), "... and the step stays empty");
     dstep_set(&t->dstep[2], 0, LV_NORM, 0);             /* the kick there too */
-    key(WK(2));                                         /* tapped: the hat's hit goes, the kick stays */
+    key(WK(2));                                         /* tapped: the hat's hit cycles normal -> hard -> ghost -> off (three taps), the kick stays */
+    key(WK(2));
+    key(WK(2));
     check(!dstep_has(&t->dstep[2], 4) && dstep_has(&t->dstep[2], 0) && !lane_ev_n(4, DE_DECAY) &&
               !lane_ev_n(4, DE_TUNE) && !lane_ev_n(4, DE_CLICK), "the lane's hit removed: its locks there with it (D4)");
     {   /* STEP's marks: a lane's event in its lane's colour (D9), whichever lane is selected */
