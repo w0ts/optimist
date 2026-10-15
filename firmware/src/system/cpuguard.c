@@ -27,7 +27,7 @@
 #include "cpuguard_costs.h"
 #if FELUCCA_INS_JCHORUS
 #define CG_COST_JUNO 140u   /* JUNO CHORUS while it runs, an instance: ~130 host instructions a sample (tests/juno_cho_test.c)
-                             * x 1.04, not yet a cpu_costs.py entry (the master's not counted: as the master's other inserts) */
+                             * x 1.04, not yet a cpu_costs.py entry */
 #endif
 #if CG_REV
 #define REV_LIVE() ((int)rev_live)
@@ -170,6 +170,10 @@ static uint32_t cg_ins_mst(void)
             n += CG_COST_DBDUST;
         if (t >= FXT_NEW0 && t < FXT_NEWN && mst_amt[t])
             n += CG_COST_DBINS[t - FXT_NEW0];
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (mst_amt[FXT_JUNO] || ifx_w(FXT_JUNO, IFX_MST)))
+            n += CG_COST_JUNO;
+#endif
     }
     return n;
 }
