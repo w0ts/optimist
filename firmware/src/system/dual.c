@@ -45,6 +45,17 @@
                                                     * once fm1_ms reaches it (after the boot's USB / BLE start-up), as X0X
                                                     * starts it from a setting (plat_fm1.c plat_cpu2_set) */
 #endif
+/* 2026-10-15 (B11 on the FM-1): every BLE build with CPU1 running faulted while CPU0 ran the BLE radio's start-up program
+ * (hal/fm1_ble_rf.h, the Wi-Fi / RF front end captured from stock V15: rf_init group 10, op ~1928, a BBP window access),
+ * at random places (invalid AXI reads / writes, a PC-limit error); without BLE, CPU1 ran clean (B9c). None of the
+ * firmwares that run CPU1 (stock's order unknown; X0X, Melodee, Jangada) runs that program with it. So CPU1 is never
+ * running while it does: in a BLE build it is started from the main loop, after the boot's BLE start-up (DUAL_DEFER),
+ * and held while BLUETOOTH ON starts the radio later (dual_park / dual_unpark, midi_ble.c) */
+#if DUAL_LATE_MS || (defined(FELUCCA_BLE) && FELUCCA_BLE)
+#define DUAL_DEFER 1
+#else
+#define DUAL_DEFER 0
+#endif
 #ifndef DUAL_HOLD_MS
 #define DUAL_HOLD_MS 0                             /* a test build (OPTIMIST_DUAL_HOLD_MS): no job for CPU1 before fm1_ms
                                                     * reaches it (the boot's work done; fm1_ms counts from IRQS on) */
@@ -78,7 +89,8 @@ static struct {
      * stop: the INFO line's record (dual_mode.h) */
     uint32_t down_ms, down_mask, down_beat;
     uint8_t down_pend;
-    uint8_t late;                                  /* DUAL_LATE_MS: CPU1 to be started from the main loop */
+    uint8_t late;                                  /* DUAL_DEFER: CPU1 to be started from the main loop */
+    uint8_t parked;                                /* held for a radio start-up (dual_park), to be started again */
     uint32_t t_start;                              /* TIMER4 when CPU1 was started (dual_boot) */
     uint32_t posts;                                /* jobs posted (mix_block_dual) */
     uint8_t mring[8];                              /* the masks of the last 8 posts (posts & 7: the next) */
@@ -347,7 +359,7 @@ static __attribute__((noinline)) void dual_boot(void)
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
 #endif
-    if (DUAL_LATE_MS && dual.late != 2u) {
+    if (DUAL_DEFER && dual.late != 2u) {
         dual.late = 1;                             /* (dual_frame starts it: dual_start_late) */
         return;
     }
@@ -359,7 +371,7 @@ static __attribute__((noinline)) void dual_boot(void)
         dual_down(DUAL_CANARY, 0);
 }
 
-#if DUAL_LATE_MS
+#if DUAL_DEFER
 /* main loop, once: CPU1 started now (X0X plat_cpu2_set): its entry word is in the locked top of RAM and it goes
  * through the chip's ROM, which the PC limits refuse; both set back after */
 static __attribute__((noinline)) void dual_start_late(void)
@@ -374,6 +386,27 @@ static __attribute__((noinline)) void dual_start_late(void)
     fm1_guard_lock_top();
     fm1_irq_on();
 }
+
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+/* main loop, before the BLE radio's start-up program (midi_ble.c ble_radio_start): CPU1 into reset (it is in its RAM
+ * loop: no job outside the audio interrupt), the mailbox back to its start; dual_unpark starts it again after */
+static void dual_park(void)
+{
+    if (!dual.up)
+        return;
+    fm1_dual_halt();
+    dual.up = 0;
+    dual.parked = 1;
+}
+static void dual_unpark(void)
+{
+    if (!dual.parked)
+        return;
+    dual.parked = 0;
+    fm1_dual_mb.req = fm1_dual_mb.done = fm1_dual_mb.took = 0;   /* (CPU1's loop starts from done 0) */
+    dual_start_late();
+}
+#endif
 #endif
 
 /* every flash operation, IRQs off (hal/fm1_flash.h irq_save): CPU1 must be in its RAM loop.
@@ -405,7 +438,7 @@ static void dual_dec(char *b, uint32_t v)          /* v in decimal, 10 digits at
 static void dual_frame(void)
 {
     static uint8_t told;
-#if DUAL_LATE_MS
+#if DUAL_DEFER
     if (dual.late) {
         if (fm1_ms < DUAL_LATE_MS)
             return;

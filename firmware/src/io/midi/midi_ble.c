@@ -325,8 +325,20 @@ static void ble_midi_set(uint8_t on)
     ble_on = on;
     if (on)
         BLE_STEP(SET_ON);
-    if (!ble_up && (!on || !ble_radio_start()))
-        return;                                 /* never started and OFF, or no stored trims: only the setting */
+    if (!ble_up && on) {
+        int ok;
+#if FELUCCA_DUAL >= 2
+        dual_park();                            /* (CPU1 not running while the radio's start-up program runs: dual.c) */
+#endif
+        ok = ble_radio_start();
+#if FELUCCA_DUAL >= 2
+        dual_unpark();
+#endif
+        if (!ok)
+            return;                             /* no stored trims: only the setting */
+    }
+    if (!ble_up)
+        return;                                 /* never started and OFF: only the setting */
     fm1_ble_irqs_hold(1);
     BLE_STEP(ENABLE);
 #if BLE_CENTRAL
