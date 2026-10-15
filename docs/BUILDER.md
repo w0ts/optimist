@@ -95,7 +95,7 @@ parent is off, and no option depends on another item.
 | Group | Items |
 |---|---|
 | Reserve | keep at least 0 / 4 / 8 / 16 / 32 KB of undo history; keep at least 0 / 8 / 16 / 32 / 64 KB of app flash free (settings of the build, not firmware; below) |
-| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID, CZ, NOISE (at least one) |
+| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID, CZ, JUNO, NOISE (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE, user presets that keep their voice (UP_FM6, Felucca 1.0.3 idea) |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits (at least one drum source; each lane's REV / DLY / CHO sends are in every build, no longer an item); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
@@ -188,6 +188,7 @@ same build without it.
 | ACID (TB-303 bass + line generator) | `ENG_ACID` | X0X's TB-303-style bass voice (one monophonic voice per part, engine 12) with the TB-3PO line generator. Experimental: floating-point DSP (about 14.4 KB of flash, 1.7 KB of RAM) that ran on a real FM-1 in X0X but has not been tried here; no pitch bend or TUNE on the 303; 4 presets. |
 | NOISE (colours, crackle, shift-register noise) | `ENG_NOISE` | Noise engine from Felucca-Engines (engine 15, MIT): white, pink and brown noise, crackle (DUST), a shift register clocked above the key (LFSR) and short-sequence metal tones (META), through a resonant filter that morphs from low-pass to band-pass, with key tracking, a slow random drift and a bit crusher; 4 presets. About 3 KB of flash, no RAM; 1.1..1.3 K host instructions a sample with 8 voices (the heaviest ANALOG preset: 1.7 K). |
 | CZ (CZ-1 style tones) | `ENG_CZ` | Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About 7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator). |
+| JUNO (Juno-106 voice) | `ENG_JUNO` | Juno-106 voice from fm-106 / KR-106 (engine 14): the DCO (saw, pulse, sub, noise), the 4-pole OTA ladder filter and the 4-position HPF; the track's ENV and LFO drive it; 6 voices, 8 patches of our own (no Roland factory patches). About 2x the CPU of an ANALOG voice. |
 
 #### Drums
 

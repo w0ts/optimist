@@ -34,7 +34,7 @@ CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the log: sec_*_test, sections_test)
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
-BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1"
+BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
 # the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO with 2 and 1
 # instances (fxi.c)
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1"
@@ -263,6 +263,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/cz_test" tests/cz_test.c -lm
     run "CZ engine (FELUCCA_ENG_CZ=1): UID 13, every preset audible / bounded / voices free, tests/golden_cz.txt, EDIT values, retrigger" "$OUT/cz_test" tests/golden_cz.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_JUNO=1 -o "$OUT/juno_test" tests/juno_test.c -lm
+    run "JUNO engine (FELUCCA_ENG_JUNO=1): UID 14, every preset audible / bounded / voices free, tests/golden_juno.txt, level, EDIT values, 6 voices, retrigger" "$OUT/juno_test" tests/golden_juno.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     # the reverb (fx.c): at 44.1 kHz, then with REV_HALF (the tank at 22.05 kHz) against those numbers; SPRING beside it
@@ -1287,6 +1291,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/regress_cz" tests/regress.c -lm
     run "regression with the CZ engine built (FELUCCA_ENG_CZ): the same golden renders, CZ's health and voices (its renders: tests/golden_cz.txt)" "$OUT/regress_cz" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_JUNO=1 -o "$OUT/regress_juno" tests/regress.c -lm
+    run "regression with the JUNO engine built (FELUCCA_ENG_JUNO): the same golden renders, JUNO's health, voices and CPU (its renders: tests/golden_juno.txt)" "$OUT/regress_juno" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -o "$OUT/regress_cg" tests/regress.c -lm

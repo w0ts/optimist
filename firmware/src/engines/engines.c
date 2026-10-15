@@ -19,11 +19,14 @@
 #if FELUCCA_SLICE
 #include "slice/eng_slice.c"
 #endif
-#if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID || FELUCCA_ENG_CZ) && !FELUCCA_ANALOG2
-#error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12, 13)"
+#if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID || FELUCCA_ENG_CZ || FELUCCA_ENG_JUNO) && !FELUCCA_ANALOG2
+#error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12, 13, 14)"
 #endif
 #if FELUCCA_ENG_CZ
 #include "cz/eng_cz.c"                      /* CZ (from Melodee 0.11; uPD933 parts BSD-3-Clause): engine 13 */
+#endif
+#if FELUCCA_ENG_JUNO
+#include "juno/eng_juno.c"                  /* JUNO (fm-106 / KR-106's Juno-106 voice): engine 14 */
 #endif
 #if FELUCCA_ENG_PHYS
 #include "phys/eng_phys.c"                    /* PHYS (from Felucca 1.0; DaisySP / Rings parts MIT): engine 11 */
@@ -99,6 +102,7 @@ static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 #define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
 #define ENG_IX_ACID ((uint32_t)ENG_SLOT_ACID)
 #define ENG_IX_CZ ((uint32_t)ENG_SLOT_CZ)
+#define ENG_IX_JUNO ((uint32_t)ENG_SLOT_JUNO)
 static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stand-ins, the slots are dense) */
 
 /* a factory preset this build can play: a SAMPLE / GRAIN preset needs its sample set (a set left out of the
