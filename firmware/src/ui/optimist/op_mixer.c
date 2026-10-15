@@ -54,6 +54,18 @@ static int mx_master_dead(uint32_t b)
     return master_sel() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ);
 }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
+/* row r muted, the state SHIFT2 on its volume card toggles (a channel's P_MUTE, a lane's own mute, the ACCENT lane's sequencer
+ * mute): drawn struck through in the mixer, the header and the volume card (the user, 2026-10-15) */
+static uint32_t mx_muted(uint32_t r)
+{
+    if (r == MXR_MASTER)
+        return 0u;
+    if (mx_is_acc(r))
+        return (uint32_t)smute_lane_on(DRUM_ACC);
+    if (r >= MXR_LANE0)
+        return (uint32_t)dlm_muted(r - MXR_LANE0);
+    return trk[mx_trk_of(r)].p[P_MUTE] != 0;
+}
 /* a drum lane selected, not DR itself (ui.lane): on the mixer its row says it (a lane row), elsewhere ui.lane while the
  * drum track is selected. PRESETS then steps the lane's sound, not the kit (op_walk.c) */
 static int lane_picked(void)
@@ -338,6 +350,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
+    c->strike = (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
+                           (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC) && mx_muted(r));   /* (the volume cards of a muted row) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";                        /* (op_help.c: its own line, the amount) */
     c->col = mx_col(r);

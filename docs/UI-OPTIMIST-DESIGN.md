@@ -1,5 +1,7 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
+> **2026-10-15: a muted track is struck through** (a 1 px line, 2 in the large face, in the text's own colour through the glyphs' middle): its mixer row's name, the header badge ("2 DIGITAL") on its pages, and its volume card's label and value (a lane's LEVEL, the ACCENT lane's amount). Unmuted: no line.
+>
 > **2026-10-14, SHIFT moves to OCT- (the user: "shift on home is not working well, two buttons on the same hand").** **SHIFT = OCT- held, SHIFT2 = OCT+ held.**
 > Every gesture this document words as "HOME held" / "HOME + x" is now **SHIFT** / **SHIFT + x** (op_input.c `op_shift(held)`, op_state.c): the knob to its default,
 > the drum lane pick, a button's clear, the layer lock, PRESETS the engine, the NAME clear. **HOME is only HOME / NO** (SAVE then HOME is still undo).

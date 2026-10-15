@@ -65,7 +65,7 @@ static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a ov
 static uint32_t hu(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t hc(uint32_t h, const cell_t *c)        /* a cell's signature: all it draws */
 {
-    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u + c->dr * 512u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
+    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u + c->dr * 512u + c->strike * 1024u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
     return hs(h, c->unit);
 }
 
@@ -180,6 +180,14 @@ static int head_fit(char *t, const char *pos, int32_t w)
     str_cpy(t, c, 32);
     return 1;                                           /* (cut: a word dropped, or the name) */
 }
+/* text struck through (a muted track: the user, 2026-10-15): a line in the text's own colour across its width, through the
+ * glyphs' middle, 1 px in the small face, 2 in the large; x, y the text's origin, s its text */
+static void strike_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t col)
+{
+    int32_t w = text_w(f, s);
+    if (w > 0)
+        cv_rect(x, y + (int32_t)f->h / 2 - 1, w, f->h > 8 ? 2 : 1, col);
+}
 /* the header's badge: the selected track's engine (the drum track: DRUMS; a lane selected: its name, "SNARE"), in its
  * colour (the user, 2026-10-08: the track tag "brings no value, put the algo there"; the track is the colour and the
  * strips) */
@@ -198,6 +206,12 @@ static const char *head_engine(void)
 }
 /* the track page's badge (the user, 2026-10-14: "we should always have the track number on the top left with the engine/
  * preset"): the track code and the engine, "2 DIGITAL", "4 DRUMS", "4 SNARE" for a picked lane, "4 ACCENT" */
+static uint32_t head_muted(void)                        /* the selected track's / lane's mute (the mixer's, struck through) */
+{
+    if (lane_picked())
+        return lane_acc() ? (uint32_t)smute_lane_on(DRUM_ACC) : (uint32_t)dlm_muted(lane_selected());
+    return TSEL->p[P_MUTE] != 0;
+}
 static const char *head_badge(char *b, uint32_t n)
 {
     fmt_int(b, (int32_t)song.sel % NTRK + 1);           /* (the number only: 1 2 3, the drum track 4) */
@@ -297,7 +311,7 @@ typedef struct {
     char t[32], r[16], bpm[8], pos[12], bt[24], pr[16];
     const char *eng;                    /* the badge's text, "" none */
     uint16_t tc, mc;                    /* the badge's colour, the title's */
-    uint8_t badge, cut;                 /* a badge drawn; the title cut to its room (never, on a track page) */
+    uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
 /* the badge of a page that is not a track's, and the title it leaves (the audit's #11): MASTER (the master FX, the mixer's
@@ -360,8 +374,13 @@ static void head_make(head_t *h)
     h->pos[0] = 0;
     h->t[0] = 0;
     h->badge = 1;                                       /* (every screen: the audit's #11; a message takes the header whole) */
-    if (trkb)
+    h->muted = 0;
+    if (trkb) {
         h->eng = head_badge(h->bt, sizeof h->bt);       /* (a track page: "2 DIGITAL") */
+        h->muted = (uint8_t)head_muted();
+    }
+    if (trkb)
+        ;
     else if (!ui.msg_t)
         done = (uint32_t)head_other(h);
     else
@@ -413,6 +432,7 @@ static void draw_head(void)
     bx = 236 - text_w(&FONT_S, h.bpm);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
     sig = hs(sig, h.pr);
+    sig = hu(sig, h.muted);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     tflash_tick();
     if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
@@ -431,6 +451,8 @@ static void draw_head(void)
         if (h.badge) {
             cv_rect(2, 3, h.bw, 19, h.tc);              /* the track's engine, in its colour */
             cv_text(2 + HEAD_PAD, 4, &FONT_S, h.eng, C_BLACK);
+            if (h.muted)
+                strike_text(2 + HEAD_PAD, 4, &FONT_S, h.eng, C_BLACK);   /* (a muted track: struck through) */
         }
         tw = head_draw_title(&h, c);
         if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
@@ -531,7 +553,10 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
         cv_text(x + w - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_GRAY);
     {
         const char *lab = card_label_n(c, u, b, sizeof b, nb);   /* (the names table's: in capitals, 6 at most) */
-        cv_text(x + (text_w(&FONT_S, lab) > w - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY));
+        int32_t lx = x + (text_w(&FONT_S, lab) > w - 4 ? 0 : 3);
+        cv_text(lx, 3, &FONT_S, lab, knob_col(k, C_GRAY));
+        if (c->strike)
+            strike_text(lx, 3, &FONT_S, lab, knob_col(k, C_GRAY));
     }
     if (u[0])                                           /* the unit: the label row, right-aligned (never after the value) */
         cv_text(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), (c->dr ? text_w(&FONT_S, "DR") + 4 : 0) + (c->mark ? 10 : 0)), 3, &FONT_S, u,
@@ -541,6 +566,8 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
         return;
     }
     cv_text(x + 3, 20, &FONT_S, cut(b, v, (uint32_t)(w - 6) / 8u), vc);
+    if (c->strike)
+        strike_text(x + 3, 20, &FONT_S, b, vc);
     if (c->ak) {                                        /* two bars: entered, then the actual value (op_effval.c) */
         draw_gauge(x + 4, EFFV_Y1 - 4, w - 8, 2, c, vc, C_LINE);
         effv_bar(x + 4, EFFV_Y1, w - 8, c, hot);
@@ -585,6 +612,8 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     {
         char l[16];
         cv_text(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
+        if (c->strike)
+            strike_text(x + 5, y + 2, &FONT_S, b, knob_col(k, C_GRAY));
     }
     if (u[0])
         cv_text(x + BIG_W - 3 - text_w(&FONT_S, u) - (c->mark ? 10 : 0) - dw, y + 2, &FONT_S, u, C_DIM);
@@ -598,10 +627,15 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
             cv_text(x + 5, y + 20, &FONT_S, cut(b, vb, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
         return;
     }
-    if (text_w(font_big(), v) <= BIG_W - 10)
+    if (text_w(font_big(), v) <= BIG_W - 10) {
         cv_text(x + 5, y + 13, font_big(), v, vc);
-    else
+        if (c->strike)
+            strike_text(x + 5, y + 13, font_big(), v, vc);
+    } else {
         cv_text(x + 5, y + 20, &FONT_S, cut(b, v, 13), vc);
+        if (c->strike)
+            strike_text(x + 5, y + 20, &FONT_S, b, vc);
+    }
     draw_gauge(x + 5, y + BIG_H - 3, BIG_W - 10, 2, c, vc, C_LINE);
     if (c->ak)                                          /* the actual value's bar, over the entered one (op_effval.c) */
         effv_bar(x + 5, y + EFFV_Y2, BIG_W - 10, c, hot);

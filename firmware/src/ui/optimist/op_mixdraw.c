@@ -189,17 +189,26 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     int32_t x;
     mrect_t q;
     uint16_t c = mx_col(i);
+    uint16_t cc = mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
+    int32_t cy = i >= MXR_LANE0 ? 2 : MXL_TY;
     mx_rect(i, &q);
+    cy += q.y;
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
-    cv_text(q.x + 6, q.y + (i >= MXR_LANE0 ? 2 : MXL_TY), &FONT_S, mx_code(i),   /* (a muted lane: its code in the */
-            mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY
-                                                          : i == mx_row() ? C_WHITE : c);   /* M badge's colour) */
+    cv_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
+    if (mx_muted(i))                                    /* (a muted row: its name struck through, the user, 2026-10-15) */
+        strike_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
     if (i < MXR_LANE0) {                                /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
         x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
-        if (pr[0])
-            cv_text(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), i == mx_row() ? C_WHITE : C_GRAY);
+        if (mx_muted(i))
+            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, b, c);
+        if (pr[0]) {
+            uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
+            cv_text(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc);
+            if (mx_muted(i))
+                strike_text(x + 8, q.y + MXL_TY, &FONT_S, b, pc);
+        }
         if (trk[mx_trk_of(i)].p[P_MUTE])
             cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
         else if ((song.solo >> mx_trk_of(i)) & 1u)

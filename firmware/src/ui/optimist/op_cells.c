@@ -32,6 +32,7 @@ typedef struct {
     const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
     const char *obj;                    /* an action's object on its card ("PROJECT"; the user, 2026-10-13: the card shows the verb) */
     uint8_t danger;                     /* an action that destroys or replaces: its verb in the alarm colour */
+    uint8_t strike;                     /* a muted row's volume card: label and value struck through (op_draw.c) */
     uint8_t dr;                         /* the drum track's own value, shown with a drum lane picked: drawn tagged "DR" (op_draw.c) */
 } cell_t;
 
