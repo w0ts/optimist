@@ -7,6 +7,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <title>Optimist Editor</title>
 <style>
   /* The FM-1's screen font: Terminus 8x16 (Dimitar Toshkov Zhekov, SIL OFL 1.1, TERMINUS-LICENSE.txt) as a TrueType font whose outlines are the
@@ -788,7 +789,7 @@
 <main class="main">
   <!-- the top: the page, the status line, the transport and the four tracks (one click selects the track the editors act on) -->
   <header class="top" id="transport">
-    <div class="titlebar"><h1 id="pagetitle"></h1><div id="status"></div></div>
+    <div class="titlebar"><a class="brand" href="../installer/" title="Optimist firmware installer" aria-label="Optimist firmware installer" style="color:inherit;margin-right:10px;flex:none"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/><rect x="40" y="124" width="10" height="25"/><path d="M96 111L95 131L103 138L106 120Z"/><rect x="12.5" y="49" width="5" height="65"/></svg></a><h1 id="pagetitle"></h1><div id="status"></div></div>
     <div class="tbar">
       <span id="mock" class="dim" hidden data-t="mock"></span>
       <span class="tp" id="tp" hidden>
@@ -804,7 +805,7 @@
   <p class="hint" id="hint" hidden></p>
   <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
   <section id="connectcard" class="connectcard" aria-live="polite">
-    <h1 class="clogo">Optimist</h1>
+    <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>

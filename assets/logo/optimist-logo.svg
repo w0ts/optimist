@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" role="img" aria-label="Optimist" fill="currentColor">
+<title>Optimist</title>
+<mask id="op-sail"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask>
+<path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail)"/>
+<path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/>
+<rect x="40" y="124" width="10" height="25"/>
+<path d="M96 111L95 131L103 138L106 120Z"/>
+<rect x="12.5" y="49" width="5" height="65"/>
+</svg>
