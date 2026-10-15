@@ -46,12 +46,19 @@ typedef struct {
     uint8_t ble, pad[3];                           /* 0: no BLE radio start-up at boot, whatever BLUETOOTH says */
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
+#ifndef DUALCFG_DEF_START
+#define DUALCFG_DEF_START DCS_AFTER                /* (the defaults; the emulator's tests set others: OPTIMIST_DUALCFG_*) */
+#endif
+#ifndef DUALCFG_DEF_SLEEP
+#define DUALCFG_DEF_SLEEP 0
+#endif
 static dualcfg_t dualcfg;
 static void dualcfg_defaults(dualcfg_t *c)
 {
     memset(c, 0, sizeof *c);
     c->magic = DUALCFG_MAGIC;
-    c->start = DCS_AFTER;
+    c->start = DUALCFG_DEF_START;
+    c->sleep = DUALCFG_DEF_SLEEP;
     c->park = 1;
     c->poll = FM1_DUAL_SPIN_NOPS;
     c->ble = 1;
