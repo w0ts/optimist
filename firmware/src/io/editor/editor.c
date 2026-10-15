@@ -195,6 +195,7 @@ static void ed_shadow(void)                              /* the editor is in syn
     ed_w.sel = song.sel;
     sync_reload = 0;
 }
+#include "ed_fxp.c"           /* v13: cmd 94 every effect slot and its parameters by owner, INFO tag 0x57 */
 #include "ed_fxs.c"           /* v10: cmd 86 the FX slots, 87 their push, INFO tag 0x56 */
 #include "ed_sync9.c"         /* v9: every track's changes, coalesced (PARAMS, STEPS, LANE, TRACKS, SONG pushes) */
 /* the editor's own sound load on the selected track (PRESET, SET of G_ENGSEL): the editor re-reads DUMP after
@@ -401,6 +402,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(SEC_IDS);
 #endif
         ed_fx_info();                   /* tag 0x56: the FX slots' types (v10, ed_fxs.c) */
+        ed_fxp_info();                  /* tag 0x57: the slots by owner (v13, ed_fxp.c) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -691,7 +693,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
             break;
 #endif
-        if (ed_fxs(cmd, a, na)) {                          /* 86: the FX slots (v10) */
+        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na)) {    /* 86: the FX slots (v10); 94: the owners' slots (v13) */
             ed9_known_fx();                                /* (the editor's own writes: no FX push) */
             ui.force = 1;
             break;

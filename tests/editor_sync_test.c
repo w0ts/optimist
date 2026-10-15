@@ -32,6 +32,9 @@ static uint32_t ed_n;
 static void ed_begin(uint32_t cmd) { ed_out[0] = 0xF0; ed_out[1] = 0x7D; ed_out[2] = 0x46; ed_out[3] = 0x4C; ed_out[4] = (uint8_t)cmd; ed_n = 5; }
 static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out - 1u) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
+static struct { uint32_t force; } ui;
+static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
+static void ed_str(const char *s, uint32_t max) { uint32_t n = 0; if (s) for (; s[n] && n < max; n++) ed_b((uint8_t)s[n]); ed_b(0); }
 #define NF 4096
 static uint8_t fr[NF][128];
 static uint32_t frn[NF], nf, bytes_total;
@@ -73,10 +76,66 @@ static void sl24_auto_import(void) {}                          /* (sl24_guard.c:
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
 #include "../firmware/src/io/editor/ed_status.c"
+#include "../firmware/src/io/editor/ed_fxp.c"
 #include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
 
 static int fails;
+
+/* v13 FXP: the device's own parameter tables as JSON, for the web editor's mock (web/editor.html FXP_TABLE, tools/gen_fxp_table.py):
+ * per kind of owner (track, master, usb, return, lane) and type it may hold, the parameters (label, fmt, min, max, def, unit,
+ * names). tests/fxp_table.json is the golden: this test fails when the firmware's tables moved (FXP_WRITE=1 rewrites it) */
+static void fxp_json_desc(FILE *f, const param_desc_t *d)
+{
+    uint32_t i;
+    fprintf(f, "{\"label\":\"%s\",\"fmt\":%u,\"min\":%d,\"max\":%d,\"def\":%d,\"unit\":\"%s\"", d->label, (unsigned)d->fmt, d->min, d->max, d->def, d->unit ? d->unit : "");
+    if (d->fmt == F_ENUM && d->names) {
+        fprintf(f, ",\"names\":[");
+        for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)
+            fprintf(f, "%s\"%s\"", i ? "," : "", d->names[i]);
+        fprintf(f, "]");
+    }
+    fprintf(f, "}");
+}
+static void fxp_json(FILE *f)
+{
+    static const struct { const char *name; uint32_t ow; } K[] = {{"track", 0}, {"master", FXP_MST}, {"usb", FXP_USB}, {"return", FXP_RET0 + 1}, {"lane", FXP_LANE0}};
+    uint32_t k, t, i, first, nk = 0;
+    fprintf(f, "{\n");
+    for (k = 0; k < 5u; k++) {
+        uint32_t ow = K[k].ow, sl = 0, ok = fxp_owner(ow) ? fxp_ok(ow) : 0;
+        if (!fxp_owner(ow))
+            continue;
+        fprintf(f, "%s \"%s\": {\"slots\": %u, \"types\": [\n", nk++ ? ",\n" : "", K[k].name, fxp_slots(ow));
+        for (first = 1, t = 1; t < FXT_N; t++) {
+            if (!(ok >> t & 1u))
+                continue;
+            fxp_set_type(ow, sl, t);
+            fprintf(f, "%s   {\"id\": %u, \"params\": [", first ? "" : ",\n", t);
+            first = 0;
+            for (i = 0; i < fxp_n(ow, sl); i++) {
+                int16_t *vp;
+                const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
+                fprintf(f, "%s", i ? ", " : "");
+                fxp_json_desc(f, d);
+            }
+            fprintf(f, "]}");
+        }
+        fprintf(f, "\n  ]");
+        if (ow == FXP_USB) {
+            fprintf(f, ", \"values\": [");
+            for (i = 0; i < fxp_n(ow, 2); i++) {
+                int16_t *vp;
+                fprintf(f, "%s", i ? ", " : "");
+                fxp_json_desc(f, fxp_loc(ow, 2, i, &vp));
+            }
+            fprintf(f, "]");
+        }
+        fprintf(f, "}");
+        fxp_set_type(ow, sl, FXT_NONE);
+    }
+    fprintf(f, "\n}\n");
+}
 static void check(int c, const char *what) { printf("%-100s %s\n", what, c ? "ok" : "FAIL"); if (!c) fails++; }
 static void drain(void) { so_r = so_w; }               /* the host took everything */
 static void run_ms(uint32_t ms)                         /* the main loop for ms: a scan when due, the host drains */
@@ -263,6 +322,146 @@ int main(void)
     fxs_set(FXS_DEF);
     memset(dins_amt, 0, sizeof dins_amt);
     ed9_known_fx();
+
+
+    /* v13 FXP (ed_fxp.c, cmd 94): every effect slot by owner (tracks, master, USB input, returns, drum sounds), a type's
+     * parameters from the device's own descriptors; a set is clamped; the editor's writes are known, a device-side change
+     * of a setting no other push covers (an EQ band, the lane slots) goes out in the FX push */
+    {
+        static const uint8_t G0[] = {0, 0}, G9[] = {0, 99}, OP9[] = {9, 0};
+        uint8_t q[8];
+        int r;
+        uint32_t ow, sl;
+        ins_defaults();
+        fxs_set(FXS_DEF);
+        ed_begin(ED_FXP); r = ed_fxp(ED_FXP, G0, sizeof G0);
+        check(r && ed_out[5] == 0u && ed_out[6] == 0u && ed_out[7] == 2u && ed_out[8] == INS_DEF0 && ed_out[10] == INS_DEF1 &&
+              ed_n == 5u + 3u + 4u + 5u, "v13 FXP op 0: T1's two slots (types and parameter counts), the types it may hold");
+        ed_begin(ED_FXP); r = ed_fxp(ED_FXP, G9, sizeof G9);
+        check(!r, "v13 FXP: an owner past the table: no reply");
+        ed_begin(ED_FXP); r = ed_fxp(ED_FXP, OP9, sizeof OP9);
+        check(!r, "v13 FXP: an unknown op: no reply");
+        {   /* every owner, slot and allowed type: each parameter answers a label and a value in its range; the type reads back */
+            uint32_t bad = 0, t, i, tried = 0;
+            for (ow = 0; ow < FXP_NOWN; ow++) {
+                if (!fxp_owner(ow))
+                    continue;
+                for (sl = 0; sl < fxp_slots(ow); sl++)
+                    for (t = 0; t < FXT_N; t++) {
+                        uint32_t ok = 1;
+                        if (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u))
+                            continue;
+                        if (!(ow == FXP_USB && sl == 2u))
+                            fxp_set_type(ow, sl, t), ok = fxp_type(ow, sl) == t, tried++;
+                        for (i = 0; i < fxp_n(ow, sl); i++) {
+                            int16_t *vp;
+                            const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
+                            ok = ok && d && vp && d->label && d->label[0] && *vp >= d->min && *vp <= d->max;
+                        }
+                        if (!ok)
+                            printf("owner %u slot %u type %u\n", ow, sl, t);
+                        bad += !ok;
+                    }
+            }
+            printf("(%u owner / slot / type combinations)\n", tried);
+            check(!bad, "v13 FXP: every owner, slot and allowed type: its parameters have labels, values in range, and the type reads back");
+            ins_defaults();
+            fxs_set(FXS_DEF);
+#if FELUCCA_USB_AUDIO
+            ut_defaults();
+#endif
+            memset(dins_amt, 0, sizeof dins_amt);
+            ed9_known_fx();
+        }
+#if FELUCCA_INS_EQ3
+        {   /* EQ3 into T2's S1: six parameters; LO is dB, ON an enum; a band set is clamped (KILL at the bottom) */
+            static const uint8_t TY[] = {1, 1, 0, FXT_EQ3}, DS0[] = {2, 1, 0, 0}, DS3[] = {2, 1, 0, 3}, VA[] = {3, 1, 0};
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, TY, sizeof TY);
+            check(r && ins_slot[1][0] == FXT_EQ3 && ed_out[5] == 1u && ed_out[8] == FXT_EQ3 && ed_out[9] == 6u, "v13 FXP op 1: EQ3 into T2's S1: it has six parameters");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DS0, sizeof DS0);
+            check(r && ed_out[5] == 2u && ed_out[9] == F_INT && ed_out[8] == 0u, "v13 FXP op 2: EQ3's LO is an integer (dB)");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DS3, sizeof DS3);
+            check(r && ed_out[9] == F_ENUM, "v13 FXP op 2: EQ3's fourth parameter is ON (an enum)");
+            q[0] = 4, q[1] = 1, q[2] = 0, q[3] = 0, q[4] = (uint8_t)((-100 + 8192) & 127), q[5] = (uint8_t)((-100 + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
+            check(r && eq3_v[1][0] == EQ_KILL, "v13 FXP op 4: a band set below its range is clamped to KILL");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, VA, sizeof VA);
+            check(r && ed_out[8] == 6u && ed_n == 5u + 4u + 12u, "v13 FXP op 3: the slot's six values");
+        }
+        n0 = nf;
+        eq3_v[0][1] = 3;
+        run_ms(ED9_WIN);
+        check(count(ED_FX_PUSH, n0) == 1, "v13 FXP: an EQ band moved on the device: the FX push goes out");
+        n0 = nf;
+        {
+            static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
+            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 5u + 1u && ed_out[ed_n - 1u] == fxs_line[2],
+                  "v13 FXP op 1: EQ3 into R2: its line's RET and the six; the reply ends with the return's send line");
+            q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
+            check(r && eq3_v[NTRK + 2u + fxs_line[2]][3] == 10, "v13 FXP op 4: a return's EQ3 FREQ L (the owner of its line)");
+        }
+        run_ms(2 * ED9_WIN);
+        check(count(ED_FX_PUSH, n0) == 0, "v13 FXP: the editor's own writes are known (no push back)");
+        fxs_set(FXS_DEF);
+        ins_defaults();
+        eq3_defaults();
+        ed9_known_fx();
+#endif
+        if (LIN_OK >> FXT_FOLD & 1u) {                 /* a drum sound's slot: the type, then the amount by the lane's rule */
+            static const uint8_t LT[] = {1, FXP_LANE0 + 2, 0, FXT_FOLD};
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LT, sizeof LT);
+            check(r && lin_slot[2][0] == FXT_FOLD && ed_out[8] == FXT_FOLD && ed_out[9] == 1u, "v13 FXP op 1: FOLD into a drum sound's S1");
+            q[0] = 4, q[1] = FXP_LANE0 + 2, q[2] = 0, q[3] = 0, q[4] = (uint8_t)((300 + 8192) & 127), q[5] = (uint8_t)((300 + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
+            check(r && dins_amt[0][2] == 127u, "v13 FXP op 4: the drum sound's amount, clamped to the type's range");
+            lin_defaults();
+            memset(dins_amt, 0, sizeof dins_amt);
+        }
+#if FELUCCA_MASTER_COMP
+        {   /* the master's DYN is the GLO > COMP / LIMIT globals; a track's CEIL is its own setting */
+            uint8_t m[8] = {1, FXP_MST, 0, FXT_DYN};
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, m, 4);
+            check(r && mst_slot[0] == FXT_DYN && ed_out[9] == 6u, "v13 FXP op 1: DYN into the master's S1: THRS RATIO ATK REL GAIN CEIL");
+            q[0] = 4, q[1] = FXP_MST, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((GP[G_CCEIL].max + 8192) & 127), q[5] = (uint8_t)((GP[G_CCEIL].max + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
+            check(r && song.g[G_CCEIL] == GP[G_CCEIL].max, "v13 FXP op 4: the master's DYN CEIL is G_CCEIL");
+            m[1] = 0, m[2] = 0;
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, m, 4);
+            q[0] = 4, q[1] = 0, q[2] = 0, q[3] = 4, q[4] = (uint8_t)((GP[G_CCEIL].max + 8192) & 127), q[5] = (uint8_t)((GP[G_CCEIL].max + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
+            check(r && ins_cset[0][3] == GP[G_CCEIL].max, "v13 FXP op 4: a track's DYN GAIN is its own setting (ins_cset)");
+            ins_defaults();
+        }
+#endif
+    }
+
+    {   /* the tables as JSON: the golden (an every-item build only: the default build has most types off) */
+#if FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_JCHORUS && FELUCCA_USB_AUDIO
+        const char *gold = "tests/fxp_table.json";
+        FILE *f = tmpfile();
+        char *a, *b;
+        long na, nb;
+        fxp_json(f);
+        fflush(f);
+        na = ftell(f);
+        a = malloc((size_t)na + 1u), b = malloc(1u << 20);
+        rewind(f);
+        na = (long)fread(a, 1, (size_t)na, f);
+        fclose(f);
+        if (getenv("FXP_WRITE") && (f = fopen(gold, "w"))) {
+            fwrite(a, 1, (size_t)na, f);
+            fclose(f);
+        }
+        f = fopen(gold, "r");
+        nb = f ? (long)fread(b, 1, 1u << 20, f) : -1;
+        if (f)
+            fclose(f);
+        check(nb == na && !memcmp(a, b, (size_t)na), "v13 FXP: the parameter tables equal tests/fxp_table.json (FXP_WRITE=1 rewrites it; web/editor.html's mock follows: tools/gen_fxp_table.py)");
+        free(a), free(b);
+#endif
+    }
 
     /* never in the way of a reply: a request waiting, or the ring past half: nothing goes out; later it does */
     n0 = nf;

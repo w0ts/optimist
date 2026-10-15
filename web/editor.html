@@ -271,6 +271,18 @@
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
   .strip.master .fxk { display: grid; grid-template-columns: repeat(2, auto); gap: 2px 4px; justify-content: center; }
+  /* v13: the FX owners' cards (FXP): a card per owner, its slots side by side, each a type list and the type's knobs */
+  .fxo-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+  .fxslot { border: 1px solid var(--line); padding: 6px 8px; min-width: 0; }
+  .fxslot .fxt { margin-bottom: 6px; max-width: none; }
+  .fxslot .fxt select { max-width: none; }
+  .fxslot .fxe { display: block; font-size: 11px; margin: 4px 0; }
+  .fxslot .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+  .fxslot[data-type="0"] .knobs { display: none; }
+  .fxslot > button.ib { width: auto; padding: 2px 8px; margin-top: 6px; }
+  .fxlp { margin-bottom: 8px; }
+  .fxo + .fxo, .fxlane { margin-top: 8px; }
+  .fx button.fxi { width: auto; min-width: 28px; }
   .strip.master .fxg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
   .strip.master .fxg button.ib { width: 32px; height: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
   .strip.master .fxg button.ib:hover { background: var(--panel); }
@@ -768,6 +780,7 @@
     <button type="button" data-go="loadpreset" data-for="synth" data-t="popLoad" data-ic="symbol_folder_open"></button>
     <button type="button" data-go="savepreset" data-for="synth" data-t="popSave" data-ic="port_disk"></button>
     <button type="button" data-go="sequence" data-for="any" data-t="popSeq" data-ic="note_eight"></button>
+    <button type="button" data-go="fxins" data-for="any" data-t="popIns" data-ic="symbol_effector" data-fxp hidden></button>
     <button type="button" data-go="lane" data-for="drums" data-t="drumKit" data-ic="ui_knob"></button>
     <button type="button" data-go="kit" data-for="drums" data-t="popKit" data-ic="symbol_folder_open"></button>
     <button type="button" data-go="kitstore" data-for="drums" data-t="userKits" data-ic="symbol_folder"></button>
@@ -776,6 +789,8 @@
     <button type="button" data-go="fxreverb" data-t="popReverb"></button>
     <button type="button" data-go="fxchorus" data-t="popChorus"></button>
     <button type="button" data-go="fxcomp" data-t="popComp"></button>
+    <button type="button" data-go="fxmst" data-t="popMstIns" data-fxp hidden></button>
+    <button type="button" data-go="fxret" data-t="popRet" data-fxp hidden></button>
     <span class="navh" data-t="navLib"></span>
     <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
     <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
@@ -1025,7 +1040,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84,   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
   FX: 86, FX_PUSH: 87,   /* (v10: the FX slots, ed_fxs.c; INFO tag 0x56) */
   SL24_PUT: 90, SL24_BANK: 91,   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
-  AUTO_GET: 92, AUTO_SET: 93 };   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
+  AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
+  FXP: 94 };   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -1814,6 +1830,7 @@ const parse = {
     o.midiSet = null;                                /* 54: the MIDI settings, mask (1 channels, 2 OUT, 4 IN), scope, first id */
     o.pat = null;                                    /* 55: the per-track patterns built: slots a track, scenes (ed_pat.c) */
     o.fxs = null;                                    /* 56: the FX slots' types built (v10, ed_fxs.c; below, FXT) */
+    o.fxp = null;                                    /* 57: every FX slot by owner (v13, ed_fxp.c): {usb, owners} */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
       if (r.i + n > a.length) break;
@@ -1827,6 +1844,7 @@ const parse = {
           types.push({ id: a[p], kind: a[p + 1], amt: a[p + 2] === 127 ? null : a[p + 2], lane: a[p + 3] === 127 ? null : a[p + 3] });
         o.fxs = { types };
       }
+      if (id === 0x57 && n >= 3 && a[r.i] >= 1) o.fxp = { usb: !!(a[r.i + 1] & 1), owners: a[r.i + 2] };   /* 57: version, flags (bit 0 USB input), owners */
       r.i += n;
     }
     return o;
@@ -2012,6 +2030,26 @@ const parse = {
              tcset: t ? [0, 1, 2, 3].map((k) => a.slice(48 + 3 * k, 51 + 3 * k)) : null, kit: t ? a.slice(60, 63) : null };
   },
   [CMD.FX_PUSH](a) { return parse[CMD.FX](a); },
+  /* v13 FXP: op 0 / 1 -> {op, ow, slots: [{type, n}], mask (bit t: type id t may be held), line (a return: its send line 0..2, null none)};
+     op 2 -> {op, ow, sl, i, desc (null: no such parameter)}; op 3 -> {op, ow, sl, vals}; op 4 -> {op, ow, sl, i, value} */
+  [CMD.FXP](a) {
+    const r = new Reader(a), op = r.b(), ow = r.b();
+    if (op === 0 || op === 1) {
+      const slots = [], n = r.b();
+      for (let k = 0; k < n; k++) slots.push({ type: r.b(), n: r.b() });
+      let mask = 0;
+      for (let k = 0; k < 5; k++) mask += r.b() * 2 ** (7 * k);
+      const line = ow >= 6 && ow < 9 && r.i < a.length ? r.b() : 127;
+      return { op, ow, slots, mask, line: line < 3 ? line : null };
+    }
+    const sl = r.b();
+    if (op === 3) { const vals = [], n = r.b(); for (let k = 0; k < n; k++) vals.push(r.v()); return { op, ow, sl, vals }; }
+    const i = r.b();
+    if (op === 4) return { op, ow, sl, i, value: r.v() };
+    if (r.i >= a.length) return { op, ow, sl, i, desc: null };
+    const d = parse[CMD.DESC]([ow, i, ...a.slice(r.i)]);
+    return { op, ow, sl, i, desc: { fmt: d.fmt, min: d.min, max: d.max, def: d.def, label: d.label, unit: d.unit, names: d.names } };
+  },
   [CMD.TRACKS](a) { return parse[CMD.TRACK](a); },
   /* SONG: the sections stored (bit per section), the song's parts and loop, the snapshot list's change count */
   [CMD.SONG](a) { return { used: a[0] | (a[1] << 7) | (a[2] << 14), parts: a[3], loop: a[4], snaps: a[5] }; },
@@ -2248,6 +2286,12 @@ const req = {
   /* v10 the FX slots (ed_fxs.c): op 0 get, 1 the four slots (type ids), 2 the COMP inserts' RATIO ATK REL, 3 a drum sound's insert
      (lane, kind 0 DIST / 1 COMP, amount) */
   fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
+  /* v13 FXP (ed_fxp.c): owner = 0..3 tracks, 4 master, 5 USB input, 6..8 returns, 9..24 drum sounds */
+  fxpGet: (ow) => [CMD.FXP, [0, ow & 0x7F]],
+  fxpType: (ow, sl, ty) => [CMD.FXP, [1, ow & 0x7F, sl & 0x7F, ty & 0x7F]],
+  fxpDesc: (ow, sl, i) => [CMD.FXP, [2, ow & 0x7F, sl & 0x7F, i & 0x7F]],
+  fxpVals: (ow, sl) => [CMD.FXP, [3, ow & 0x7F, sl & 0x7F]],
+  fxpSet: (ow, sl, i, v) => [CMD.FXP, [4, ow & 0x7F, sl & 0x7F, i & 0x7F, ...v14enc(v)]],
   /* SLOOP 2.4 import: begin (the object's length and CRC), a chunk, commit; 2.4's FM6 bank kept in flash: a chunk */
   sl24Begin: (len, crc) => [CMD.SL24_PUT, [0, ...wr7(len, 3), ...wr7(crc, 5)]],
   sl24Data: (off, bytes) => [CMD.SL24_PUT, [1, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
@@ -2291,6 +2335,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: case CMD.SCENE: return a[0] === args[0] && a[1] === args[1];
     case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.PAT_OP: case CMD.FX: return a[0] === args[0];
     case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
+    case CMD.FXP: return a[0] === args[0] && a[1] === args[1] && (args[0] < 2 || a[2] === args[2]) && (args[0] !== 2 && args[0] !== 4 || a[3] === args[3]);   /* (op, owner, slot, parameter) */
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
     case CMD.SL24_PUT: return a[0] === args[0] && (args[0] !== 1 || (a[1] === args[1] && a[2] === args[2] && a[3] === args[3]));
@@ -3444,6 +3489,51 @@ function fxsLoad(slots, k, t) {
 const fxType = (info, t) => (info && info.fxs && info.fxs.types.find((x) => x.id === t)) || null;
 /* slot k's amount id (P_*, a track's and the drum bus's), null: empty or not built */
 const fxSlotAmt = (info, slots, k) => { const x = fxType(info, slots[k]); return x ? x.amt : null; };
+/* v13 FX owners (FXP, cmd 94; firmware ed_fxp.c, INFO tag 0x57): where a slot lives. 0..3 the tracks T1 T2 T3 DR, 4 the master, 5 the USB
+   input, 6..8 the returns R1 R2 R3, 9..24 the drum sounds. A slot holds a type (FXT) and a type has its own parameters, which the device
+   describes (the editor names none): fxpOwner / fxpSlot read them, fxpFmt shows a value as the device does */
+const FXP = { TRK0: 0, MST: 4, USB: 5, RET0: 6, LANE0: 9, N: 25 };
+const fxpClass = (ow) => (ow < 4 ? "track" : ow === 4 ? "master" : ow === 5 ? "usb" : ow < 9 ? "return" : "lane");
+const fxpName = (ow) => (ow < 4 ? ["T1", "T2", "T3", "DR"][ow] : ow === 4 ? "MASTER" : ow === 5 ? "USB IN" : ow < 9 ? "R" + (ow - 5) : "SOUND " + (ow - 8));
+const fxpTypeName = (ty) => FXT_NAMES[ty] || String(ty);
+const fxpAllows = (lay, ty) => ty === FXT.NONE || Math.floor(lay.mask / 2 ** ty) % 2 === 1;
+/* EQ3's crossovers: the Hz of FREQ L / FREQ H's index 0..60 (firmware fx_slots.c EQ_FL_HZ, EQ_FH_HZ; the web test compares them) */
+const EQ_FL_HZ = [51, 54, 57, 59, 62, 66, 69, 73, 76, 80, 84, 88, 93, 98, 103, 108, 113, 119, 125, 131, 138, 145, 152, 160, 168, 177, 186, 195, 205, 215, 226, 238, 250, 263, 276, 290, 305, 320, 336, 354, 371, 390, 410, 431, 453, 476, 500, 525, 552, 580, 610, 640, 673, 707, 743, 781, 820, 862, 906, 952, 1000];
+const EQ_FH_HZ = [625, 657, 690, 725, 762, 801, 841, 884, 929, 976, 1025, 1077, 1132, 1190, 1250, 1313, 1380, 1450, 1524, 1601, 1682, 1768, 1857, 1952, 2051, 2155, 2264, 2379, 2500, 2627, 2760, 2900, 3048, 3202, 3365, 3536, 3715, 3904, 4102, 4310, 4529, 4758, 5000, 5254, 5520, 5801, 6095, 6404, 6730, 7071, 7430, 7807, 8203, 8620, 9057, 9517, 10000, 10508, 11041, 11601, 12190];
+/* a value as the device shows it: DESC's format, and EQ3's bands (KILL .. +6 dB) and crossovers (Hz) fx_slots.c fxs_fmt */
+function fxpFmt(d, v) {
+  if (d.fmt === F.INT && d.unit === "dB") return v <= -31 ? ["KILL", ""] : [v > 0 ? "+" + v : String(v), "dB"];
+  if (d.fmt === F.INT && d.unit === "Hz" && (d.label === "FREQ L" || d.label === "FREQ H")) {
+    const hz = (d.label === "FREQ L" ? EQ_FL_HZ : EQ_FH_HZ)[Math.max(0, Math.min(60, v))];
+    return hz < 1000 ? [String(hz), "Hz"] : hz < 10000 ? [(Math.floor((hz + 50) / 100) / 10).toFixed(1), "kHz"] : [String(Math.floor((hz + 500) / 1000)), "kHz"];
+  }
+  return fmtValue(d, v);
+}
+/* the firmware's parameter tables per kind of owner and type (the mock device's: tests/fxp_table.json, tools/gen_fxp_table.py) */
+/* FXP_TABLE BEGIN: tools/gen_fxp_table.py from tests/fxp_table.json (do not edit here) */
+const FXP_TABLE = {"lane":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":1,"fmt":8,"label":"EQ3","max":1,"min":0,"names":["OFF","ON"],"unit":""}]}]},"master":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":0,"label":"THRS","max":0,"min":-30,"unit":"dB"},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":0,"label":"GAIN","max":15,"min":0,"unit":"dB"},{"def":6,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"return":{"slots":1,"types":[{"id":1,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":2,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":3,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":4,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""}]},{"id":18,"params":[{"def":127,"fmt":1,"label":"RET","max":127,"min":0,"unit":""},{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"track":{"slots":2,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"THRS","max":127,"min":0,"unit":""},{"def":1,"fmt":8,"label":"RATIO","max":7,"min":0,"names":["1.5:1","2:1","3:1","4:1","6:1","8:1","20:1","INF"],"unit":""},{"def":4,"fmt":8,"label":"ATK","max":5,"min":0,"names":["0.1ms","0.3ms","1ms","3ms","10ms","30ms"],"unit":""},{"def":6,"fmt":8,"label":"REL","max":6,"min":0,"names":["50ms","100ms","200ms","300ms","600ms","1.2s","AUTO"],"unit":""},{"def":0,"fmt":8,"label":"GAIN","max":16,"min":0,"names":["AUTO","0dB","1dB","2dB","3dB","4dB","5dB","6dB","7dB","8dB","9dB","10dB","11dB","12dB","13dB","14dB","15dB"],"unit":""},{"def":0,"fmt":8,"label":"CEIL","max":7,"min":0,"names":["OFF","-0.1","-0.3","-0.5","-1.0","-2.0","-3.0","-6.0"],"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":15,"params":[{"def":0,"fmt":1,"label":"DEPTH","max":127,"min":0,"unit":""},{"def":8,"fmt":8,"label":"PAT","max":15,"min":0,"names":["16TH","8TH","4TH","HALF","OFF8","OFF16","DOT8","DOT4","TRNC1","TRNC2","TRNC3","TRNC4","GALOP","RVGAL","CLAVE","TRESL"],"unit":""},{"def":1,"fmt":8,"label":"RATE","max":5,"min":0,"names":["1/8","1/16","1/32","8T","16T","32T"],"unit":""},{"def":0,"fmt":1,"label":"SHAPE","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""},{"def":0,"fmt":8,"label":"MODE","max":2,"min":0,"names":["I","II","I+II"],"unit":""}]},{"id":18,"params":[{"def":0,"fmt":0,"label":"LO","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"MID","max":6,"min":-31,"unit":"dB"},{"def":0,"fmt":0,"label":"HI","max":6,"min":-31,"unit":"dB"},{"def":1,"fmt":8,"label":"ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":32,"fmt":0,"label":"FREQ L","max":60,"min":0,"unit":"Hz"},{"def":28,"fmt":0,"label":"FREQ H","max":60,"min":0,"unit":"Hz"}]}]},"usb":{"slots":3,"types":[{"id":1,"params":[{"def":0,"fmt":1,"label":"DST","max":127,"min":0,"unit":""}]},{"id":5,"params":[{"def":0,"fmt":1,"label":"DYN","max":127,"min":0,"unit":""}]},{"id":6,"params":[{"def":0,"fmt":15,"label":"FILT","max":63,"min":-64,"unit":""}]},{"id":7,"params":[{"def":0,"fmt":1,"label":"FOLD","max":127,"min":0,"unit":""}]},{"id":8,"params":[{"def":0,"fmt":1,"label":"FUZZ","max":127,"min":0,"unit":""}]},{"id":9,"params":[{"def":0,"fmt":1,"label":"PHSR","max":127,"min":0,"unit":""}]},{"id":10,"params":[{"def":0,"fmt":1,"label":"FLNG","max":127,"min":0,"unit":""}]},{"id":11,"params":[{"def":0,"fmt":1,"label":"FRMT","max":127,"min":0,"unit":""}]},{"id":12,"params":[{"def":0,"fmt":1,"label":"WIDE","max":127,"min":0,"unit":""}]},{"id":13,"params":[{"def":0,"fmt":1,"label":"CHRS","max":127,"min":0,"unit":""}]},{"id":14,"params":[{"def":0,"fmt":1,"label":"ECHO","max":127,"min":0,"unit":""}]},{"id":16,"params":[{"def":0,"fmt":1,"label":"DUST","max":127,"min":0,"unit":""}]},{"id":17,"params":[{"def":0,"fmt":1,"label":"JUNO","max":127,"min":0,"unit":""}]}],"values":[{"def":112,"fmt":6,"label":"VOLUME","max":127,"min":0,"unit":""},{"def":0,"fmt":2,"label":"PAN","max":63,"min":-64,"unit":""},{"def":0,"fmt":8,"label":"MUTE","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":1,"fmt":8,"label":"FX ON","max":1,"min":0,"names":["OFF","ON"],"unit":""},{"def":0,"fmt":1,"label":"REV","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"DLY","max":127,"min":0,"unit":""},{"def":0,"fmt":1,"label":"CHO","max":127,"min":0,"unit":""}]}};
+/* FXP_TABLE END */
+/* an owner's slots: {ow, slots: [{type, n}], mask, line}; null: the device does not answer (no such owner, older firmware) */
+async function readFxpOwner(rq, ow) {
+  try { return parse[CMD.FXP](await rq(req.fxpGet(ow), { timeout: 400, retries: 1, quiet: true })); }
+  catch (e) { if (e.message === "closed") throw e; return null; }
+}
+/* one slot's parameters: [{d: descriptor, v: value}]; cache (a Map) keeps the descriptors (they follow the type, not the value) */
+async function readFxpSlot(rq, ow, sl, type, n, cache) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const key = `${ow}/${sl >= 2 ? sl : type}/${i}`;
+    let d = cache && cache.get(key);
+    if (!d) {
+      d = parse[CMD.FXP](await rq(req.fxpDesc(ow, sl, i))).desc;
+      if (d && cache) cache.set(key, d);
+    }
+    if (d) out.push({ d });
+  }
+  const vals = n ? parse[CMD.FXP](await rq(req.fxpVals(ow, sl))).vals : [];
+  out.forEach((x, i) => { x.v = vals[i]; });
+  return out;
+}
 /* the FX state (FX op 0), null: an older firmware (no tag 0x56) or no reply */
 async function readFx(rq, info) {
   if (!info || !info.fxs) return null;
@@ -3762,6 +3852,9 @@ const NAV = {
   fxreverb: { strip: "master", opener: "[data-pop=fxreverb]" },
   fxchorus: { strip: "master", opener: "[data-pop=fxchorus]" },
   fxcomp: { strip: "master", opener: "[data-pop=fxcomp]" },
+  fxins: { strip: "any", opener: "[data-pop=fxins]", fxp: true },      /* v13: the track's inserts (the drum track: its bus and the selected sound's) */
+  fxmst: { strip: "master", opener: "[data-pop=fxmst]", fxp: true },   /* the master's two inserts */
+  fxret: { strip: "master", opener: "[data-pop=fxret]", fxp: true },   /* the three returns */
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
 const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
@@ -3782,6 +3875,7 @@ const KEYS = [
   { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
   ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
   { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" }, { key: "o", id: "fxcomp", on: "page" },
+  { key: "f", id: "fxins", on: "track" }, { key: "m", id: "fxmst", on: "page" }, { key: "e", id: "fxret", on: "page" },
   { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
 ];
 /* the master strip: the master bus knobs, then one icon + knob per send / return FX (firmware core.h G_*, fx.c). `ret` is the
@@ -4144,6 +4238,59 @@ function makeMockDevice(opt = {}) {
   /* fx_slots.c fxs_set: a type a second time leaves its later slot empty; fxOut: the FX reply / push bytes (ed_fxs.c) */
   const fxsSet = (sl) => sl.map((t, k) => (sl.slice(0, k).includes(t) ? FXT.NONE : t));
   const fxOut = (b, op) => { b(op); st.fx.slots.forEach(b); st.fx.cset.forEach(b); st.fx.dist.forEach(b); st.fx.comp.forEach(b); };
+  /* v13 FXP (ed_fxp.c; opt.fxp): every owner's slots and their parameters, from the firmware's tables (FXP_TABLE). A type's values belong
+     to the type on a track, the master and a return; to the slot on the USB input and a drum sound (reset when the type changes) */
+  const fxm = !opt.fxp ? null : (() => {
+    const DEF = { track: [FXT.DIST, FXT.FILT], master: [FXT.FILT, FXT.COMP], usb: [0, 0], lane: [FXT.DIST, FXT.COMP] };
+    const slots = Array.from({ length: FXP.N }, (_, ow) => (ow >= FXP.RET0 && ow < FXP.LANE0 ? [[FXT.CHO, FXT.DLY, FXT.REV][ow - FXP.RET0]] : DEF[fxpClass(ow)].slice()));
+    const vals = new Map();
+    const cls = (ow) => FXP_TABLE[fxpClass(ow)];
+    const ent = (ow, ty) => cls(ow).types.find((x) => x.id === ty);
+    const params = (ow, sl) => {
+      if (ow === FXP.USB && sl === 2) return cls(ow).values;
+      const e = ent(ow, slots[ow][sl]);
+      return e ? e.params : [];
+    };
+    const key = (ow, sl, i) => (ow === FXP.USB || ow >= FXP.LANE0 ? `${ow}/${sl}/${i}` : ow >= FXP.RET0 && i === 0 ? `${ow}/ret` : `${ow}/${slots[ow][sl]}/${i}`);
+    const get = (ow, sl, i) => { const k = key(ow, sl, i); return vals.has(k) ? vals.get(k) : params(ow, sl)[i].def; };
+    const put = (ow, sl, i, v) => { const d = params(ow, sl)[i]; vals.set(key(ow, sl, i), clamp(v, d.min, d.max)); };
+    const mask = (ow) => cls(ow).types.reduce((m, x) => m + 2 ** x.id, 0);
+    const line = (ow) => {   /* a return's send line: its send type's own, another type's the first free (fx_slots.c fxs_fix) */
+      const t = slots[ow][0];
+      if (!t) return 127;
+      if (t >= 2 && t <= 4) return t - 2;
+      const used = new Set(slots.slice(FXP.RET0, FXP.LANE0).map((s) => s[0]).filter((x) => x >= 2 && x <= 4).map((x) => x - 2));
+      for (let o = FXP.RET0; o < ow; o++) { const u = slots[o][0]; if (u && !(u >= 2 && u <= 4)) { let j = 0; while (used.has(j)) j++; used.add(j); } }
+      let j = 0; while (used.has(j)) j++;
+      return j;
+    };
+    const setType = (ow, sl, ty) => {
+      if (ty && !((mask(ow) / 2 ** ty) % 2 >= 1)) return;
+      const s = slots[ow], old = s[sl];
+      if (ow >= FXP.RET0 && ow < FXP.LANE0) {   /* a type another return holds swaps the two */
+        const o2 = ty ? slots.findIndex((x, o) => o >= FXP.RET0 && o < FXP.LANE0 && o !== ow && x[0] === ty) : -1;
+        if (o2 >= 0) slots[o2][0] = old;
+        s[0] = ty;
+        return;
+      }
+      if (old === ty) return;
+      const other = s[sl ^ 1];
+      if (ty && other === ty) {
+        s[sl ^ 1] = old;
+        if (ow === FXP.USB || ow >= FXP.LANE0) for (let i = 0; i < 4; i++) { const a = `${ow}/0/${i}`, b = `${ow}/1/${i}`, va = vals.get(a), vb = vals.get(b); vals.delete(a); vals.delete(b); if (vb != null) vals.set(a, vb); if (va != null) vals.set(b, va); }
+      } else if (ow === FXP.USB || ow >= FXP.LANE0) for (let i = 0; i < 4; i++) vals.delete(`${ow}/${sl}/${i}`);
+      s[sl] = ty;
+    };
+    const layout = (b, op, ow) => {
+      const s = slots[ow].slice(), n = ow === FXP.USB ? 3 : s.length;
+      b(op); b(ow); b(n);
+      for (let sl = 0; sl < n; sl++) { b(sl < s.length ? s[sl] : 0); b(params(ow, sl).length); }
+      const m = mask(ow);
+      for (let k = 0; k < 5; k++) b(Math.floor(m / 2 ** (7 * k)) % 128);
+      if (ow >= FXP.RET0 && ow < FXP.LANE0) b(line(ow));
+    };
+    return { slots, vals, params, get, put, setType, layout, line, nslots: (ow) => (ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 ? 1 : 2) };
+  })();
   const seqEmpty = () => st.step.every((s) => !s.n);
   function loadPat16(pat) {                       /* ui.c load_pat16 */
     const ps = stepsFromPattern(pat);
@@ -4302,6 +4449,7 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
+        if (v5 && opt.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
@@ -4590,6 +4738,29 @@ function makeMockDevice(opt = {}) {
         else if (a[0] === 2) { if (a.length < 4) return null; X.cset = [clamp(a[1], 0, 7), clamp(a[2], 0, 5), clamp(a[3], 0, 6)]; }
         else if (a[0] === 3) { if (a.length < 4 || a[1] > 15 || a[2] > 1) return null; (a[2] ? X.comp : X.dist)[a[1]] = a[3] & 127; }
         fxOut(b, a[0]);
+        break;
+      }
+      /* every FX slot by owner (ed_fxp.c; opt.fxp): 0 get, 1 type, 2 desc, 3 values, 4 set */
+      case CMD.FXP: {
+        if (!fxm || a.length < 2 || a[0] > 4 || a[1] >= FXP.N) return null;
+        const op = a[0], ow = a[1];
+        if (op === 0) { fxm.layout(b, 0, ow); break; }
+        if (a.length < 3 || a[2] >= fxm.nslots(ow)) return null;
+        const sl = a[2], ps = fxm.params(ow, sl);
+        if (op === 1) { if (a.length < 4) return null; fxm.setType(ow, sl, a[3]); fxm.layout(b, 1, ow); break; }
+        if (op === 3) { b(3); b(ow); b(sl); b(ps.length); ps.forEach((_, i) => v(fxm.get(ow, sl, i))); break; }
+        if (a.length < 4) return null;
+        const i = a[3], d = ps[i];
+        if (op === 2) {
+          b(2); b(ow); b(sl); b(i);
+          if (!d) break;
+          b(d.fmt); v(d.min); v(d.max); v(d.def); s(d.label); s(d.unit || "");
+          if (d.fmt === F.ENUM && d.names) d.names.forEach((nm) => s(nm));
+          break;
+        }
+        if (!d || a.length < 6) return null;
+        fxm.put(ow, sl, i, v14dec(a[4], a[5]));
+        b(4); b(ow); b(sl); b(i); v(fxm.get(ow, sl, i));
         break;
       }
       /* the pages (ed_pages.c, params.c PAGES); opt.pages === false: a firmware without them (no reply) */
@@ -5152,6 +5323,9 @@ function makeMockDevice(opt = {}) {
     },
     /* FX > SLOTS on the device (fxs_load: a type held elsewhere swaps), or a drum sound's insert (SOUND 3): v9 pushes FX_PUSH */
     fxSlot(k, t) { st.fx.slots = fxsLoad(st.fx.slots, k, t); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return st.fx.slots.slice(); },
+    /* a device-side change of the FXP state (a knob turned on the device): v9 pushes FX_PUSH, which the editor answers by reading the slot again */
+    fxpSet(ow, sl, i, v) { fxm.put(ow, sl, i, v); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return fxm.get(ow, sl, i); },
+    fxpType(ow, sl, ty) { fxm.setType(ow, sl, ty); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return fxm.slots[ow].slice(); },
     fxIns(l, kind, v) { (kind ? st.fx.comp : st.fx.dist)[l] = v; if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return v; },
     /* REC on TRACKS: arm / disarm live recording of a track (no push: the editor reads TRACK) */
     arm(i = st.sel) { st.rec ^= 1 << i; return (st.rec >> i) & 1; },
@@ -5249,7 +5423,11 @@ const ICONS = {
   play: "M7 4v16l13-8z",
   stop: "M6 6h12v12H6z",
   snapshot: "M4 8h3.5l2-3h5l2 3H20v11H4zM12 10.5a3.25 3.25 0 1 0 0 6.5a3.25 3.25 0 1 0 0-6.5",
+  inserts: "M3 5h18v5H3zM3 14h18v5H3zM17 7.5h.01M17 16.5h.01",   /* (v13: two slots in series) */
+  returns: "M4 12h12M12 7l5 5-5 5M20 5v14",
 };
+ICONS.fxins = ICONS.fxmst = ICONS.inserts;   /* (popBtn names its icon by the popup) */
+ICONS.fxret = ICONS.returns;
 function svgIcon(name) {
   const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -5405,6 +5583,12 @@ const TEXT = {
   badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
+  popIns: "Inserts", popMstIns: "Master inserts", popRet: "Returns", fxpType: "type", fxpReturn: "Return", fxpValues: "values", fxpBus: "bus settings", fxpEmpty: "empty: pick an effect",
+  fxpSound: "Drum sound", fxpBusDrums: "Drum bus", fxpTypeHelp: "The effect in this slot (one of each: a type the other slot holds swaps with it)",
+  popInsHelp: "The track's two insert slots, S1 then S2 (in series, after the slicer). Every knob is the device's own; a type keeps its settings while it is out of a slot.",
+  fxpSoundHelp: "This drum sound's own two slots, before the drum bus: the sound's amount of each effect.",
+  popMstInsHelp: "The master's two insert slots, after the returns and before the master level.",
+  popRetHelp: "The three returns. A return holds a send effect (chorus, delay, reverb: the tracks' CHO DLY REV sends feed it) or any other effect, 100% wet on that send. RET is its level into the master. A type another return holds swaps with it.",
   rollTiles: "Steps", navPlay: "play", navTrack: "track", navFx: "fx buses", navLib: "library", navSys: "system",
   stepxTitle: "extras", nudge: "Nudge", nudgeTip: "Micro timing: this step plays earlier (-) or later (+), in 1/64 of a step (-32..31)",
   nudgeBack: "Earlier by 1/64", nudgeFwd: "Later by 1/64", nudgeZero: "No nudge", fillCond: "Fill", fillNormal: "normal", fillOnly: "fill only", fillNone: "no fill",
@@ -5540,7 +5724,7 @@ const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", 
 let popPanel = null;
 const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset"]);   /* (these act on the selected track: selected first) */
 async function openPop(id, track = 0, lane = 0) {
-  if (!dev || !dev.dump || !NAV[id]) return;
+  if (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn())) return;
   closePop();
   nav = navOpen(nav, id, track, lane);
   if (tab !== "mixer") { tab = "mixer"; renderPanels(); }
@@ -5570,6 +5754,7 @@ async function openPop(id, track = 0, lane = 0) {
 function closePop() {
   const dlg = $("pop");
   slotEnd();
+  if (dev) dev.fxpCards = null;
   if (popPanel) { popPanel.hidden = true; $("pophome").append(popPanel); popPanel = null; }
   if (dlg && dlg.open) dlg.close();
   if (nav.pop) {
@@ -5588,7 +5773,8 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", help: "help" }[id] || "help");
+    case "fxins": return `${t("popIns")} · ${drumTrack(track) ? t("fxpBusDrums") : tr}`;
+    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", fxmst: "popMstIns", fxret: "popRet", help: "help" }[id] || "help");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -5743,7 +5929,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", fxp: QS.get("fxp") === "1" }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
@@ -5972,14 +6158,14 @@ function renderSideGo() {
   const drum = hasTracks() && dev.sel === dev.info.ntrk - 1;
   for (const b of $("tabs").querySelectorAll("button[data-go]")) {
     const f = b.dataset.for;
-    b.hidden = !!f && f !== "any" && (f === "drums") !== drum;
+    b.hidden = !!f && f !== "any" && (f === "drums") !== drum || (b.hasAttribute("data-fxp") && !fxpOn());
   }
 }
 $("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-go]");
   if (!b || !dev || !dev.dump) return;
   const id = b.dataset.go;
-  openPop(id, id === "lane" || id === "kit" || id === "kitstore" ? drumIndex() : id.startsWith("fx") ? 0 : dev.sel, id === "lane" ? kl.sel : 0);
+  openPop(id, id === "lane" || id === "kit" || id === "kitstore" ? drumIndex() : id.startsWith("fx") && id !== "fxins" ? 0 : dev.sel, id === "lane" ? kl.sel : 0);
 });
 function selectTrack(i, done) {
   if (!dev || !hasTracks() || i === dev.sel) { if (done) done(); return; }
@@ -8864,6 +9050,150 @@ async function onFx(f) {
 }
 const fxTouched = (f, l) => performance.now() - (mixEdit.get(`fxi:${f}:${l}`) || 0) < 600 || (!!dev && dev.link.hasQueued(`fxi:${f}:${l}`));
 
+/* ------------------------------------------------------------- v13: every FX slot (FXP, cmd 94) --- */
+/* The effect slots of every owner, drawn from what the device says (ed_fxp.c): per owner its slots with a type each (the types it
+   may hold) and the type's own parameters (descriptor, value). Nothing here names a type's parameters: a new effect in the firmware
+   shows up with its knobs. Cards: the track's inserts (the drum track: its bus and the selected sound), the master's, the returns'. */
+const fxpOn = () => !!dev && !!dev.info && !!dev.info.fxp;
+const fxpDescs = () => (dev.fxpDesc || (dev.fxpDesc = new Map()));
+const fxpEdit = new Map();            /* "owner/slot/i" -> time of the user's last change */
+const fxpTouched = (ow, sl, i) => performance.now() - (fxpEdit.get(`${ow}/${sl}/${i}`) || 0) < 600 || (!!dev && dev.link.hasQueued(`fxp:${ow}/${sl}/${i}`));
+/* the device's pages that name an owner kind's parameters (tools/param_help.json), for a knob's help line */
+const FXP_HELP_PAGES = { track: ["INSERTS", "DYN", "DYN 2", "EQ3", "EQ3 FREQ", "GATER", "JUNO CHO", "FILTER"], master: ["MST INS", "COMP", "LIMIT", "MST EQ3", "MST EQ3 F", "MST JUNO"],
+  return: ["RET AMT", "RET EQ3", "RET EQ3 F", "SLOTS"], lane: ["SOUND 3"], usb: ["INSERTS"] };
+function fxpHelp(ow, ty, d) {
+  const labels = [d.label, fxpTypeName(ty), ...(d.label === "THRS" ? ["DYN"] : []), ...(d.label === "ON" ? ["EQ3"] : [])];
+  for (const pg of FXP_HELP_PAGES[fxpClass(ow)]) for (const l of labels) { const x = phText("page", pg, l); if (x) return x; }
+  return "";
+}
+/* one value to the device (the latest wins while one is in flight) */
+async function fxpPut(ow, sl, i, v) {
+  const key = `fxp:${ow}/${sl}/${i}`;
+  fxpEdit.set(`${ow}/${sl}/${i}`, performance.now());
+  try { await rq(req.fxpSet(ow, sl, i, v), { key }); } catch (e) { report(e); }
+}
+/* a parameter's control: a knob, or a list for an enum / switch; -> {el, value(v)} */
+function fxpControl(ow, sl, ty, i, d, v) {
+  const aria = `${fxpName(ow)}${sl < 2 ? ` S${sl + 1}` : ""} ${d.label}`, help = fxpHelp(ow, ty, d);
+  if (d.fmt === F.ENUM || d.fmt === F.ONOFF) {
+    const sel = setHelp(el("select", { "aria-label": aria, "data-fxp": `${sl}/${i}` }), help || aria);
+    for (let x = d.min; x <= d.max; x++) sel.append(el("option", { value: x, text: fxpFmt(d, x)[0] }));
+    sel.value = String(v);
+    sel.addEventListener("change", () => { fxpPut(ow, sl, i, +sel.value); });
+    return { el: el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel),
+      value: (x) => { if (document.activeElement !== sel && !fxpTouched(ow, sl, i)) sel.value = String(x); } };
+  }
+  const k = knob({ label: d.label, aria, help: help, min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "),
+    set: (x) => { fxpPut(ow, sl, i, x); } });
+  k.el.dataset.fxp = `${sl}/${i}`;
+  return { el: k.el, value: (x) => { if (!fxpTouched(ow, sl, i)) k.value(x, false); } };
+}
+/* a card for one owner: its slots, each with a type list and the type's knobs. o.after(card): what to read again once a type changed
+   (default: this card); o.extra: nodes under the title; o.bus: a send return's own popup */
+function fxpCard(ow, title, o = {}) {
+  const body = el("div", { class: "fxo-slots" });
+  const card = el("div", { class: "group fxo", "data-owner": ow, role: "group", "aria-label": title }, el("h3", { text: title }), ...(o.extra || []), body);
+  const c = { ow, el: card, sig: "", ctl: new Map(), lay: null };
+  c.setType = async (sl, ty) => {
+    const d = dev;
+    try { await rq(req.fxpType(ow, sl, ty)); } catch (e) { report(e); }
+    if (d !== dev) return;
+    await (o.after ? o.after(c) : c.load(true));
+  };
+  c.build = async (lay) => {
+    const d = dev, slots = [];
+    c.ctl.clear();
+    for (let sl = 0; sl < lay.slots.length; sl++) {
+      const { type, n } = lay.slots[sl], ps = await readFxpSlot(rq, ow, sl, type, n, fxpDescs());
+      if (d !== dev) return;
+      const head = [];
+      if (sl < 2 || ow >= FXP.RET0) {
+        const sel = el("select", { "aria-label": `${fxpName(ow)} S${sl + 1} ${t("fxpType")}`, "data-type": sl },
+          ...[FXT.NONE, ...FXT_NAMES.map((_, id) => id).filter((id) => id && fxpAllows(lay, id))].map((id) => el("option", { value: id, text: fxpTypeName(id) })));
+        sel.value = String(type);
+        setHelp(sel, t("fxpTypeHelp"));
+        sel.addEventListener("change", () => c.setType(sl, +sel.value));
+        head.push(el("label", { class: "pk fxt" }, el("span", { class: "kl", text: ow >= FXP.RET0 && ow < FXP.LANE0 ? t("fxpType") : `S${sl + 1}` }), sel));
+      } else head.push(el("span", { class: "kl", text: t("fxpValues") }));
+      const knobs = ps.map(({ d: pd, v }, i) => { const x = fxpControl(ow, sl, type, i, pd, v); c.ctl.set(`${sl}/${i}`, x); return x.el; });
+      const bus = type >= FXT.CHO && type <= FXT.REV && ow >= FXP.RET0 && ow < FXP.LANE0 ? [iconBtn("reverb", t("fxpBus"), () => openPop(["", "", "fxchorus", "fxdelay", "fxreverb"][type], 0), { "data-bus": type }, t("fxpBus"))] : [];
+      slots.push(el("div", { class: "fxslot", "data-slot": sl, "data-type": type }, ...head, ...(type || sl >= 2 ? [] : [el("span", { class: "dim fxe", text: t("fxpEmpty") })]),
+        el("div", { class: "knobs" }, ...knobs), ...bus));
+    }
+    body.replaceChildren(...slots);
+  };
+  /* rebuild: the slots changed; else only the values are read again (what the user is moving stays) */
+  c.load = async (rebuild) => {
+    const d = dev;
+    const lay = d && await readFxpOwner(rq, ow);
+    if (d !== dev || !lay) return;
+    c.lay = lay;
+    const sig = lay.slots.map((s) => `${s.type}:${s.n}`).join();
+    if (rebuild || sig !== c.sig) { c.sig = sig; await c.build(lay); return; }
+    for (let sl = 0; sl < lay.slots.length; sl++) {
+      if (!lay.slots[sl].n) continue;
+      const r = parse[CMD.FXP](await rq(req.fxpVals(ow, sl)));
+      if (d !== dev) return;
+      r.vals.forEach((v, i) => { const x = c.ctl.get(`${sl}/${i}`); if (x) x.value(v); });
+    }
+  };
+  return c;
+}
+const fxpOpen = (cards) => { if (dev) dev.fxpCards = cards; for (const c of cards) c.load(true).catch(report); };
+/* the device moved something (a push): what is open reads again, once the pushes settle */
+let fxpTimer = 0;
+function fxpPing() {
+  if (!dev || !dev.fxpCards || fxpTimer) return;
+  fxpTimer = setTimeout(async () => {
+    fxpTimer = 0;
+    const d = dev;
+    if (!d || !d.fxpCards || !d.link.idle) return;
+    for (const c of d.fxpCards) if (c.el.isConnected) await c.load(false).catch(report);
+  }, 400);
+}
+/* the track's inserts: T1..T3 (the drum track: its bus, and the selected sound's two slots, the sound picked in a list) */
+function dynFxIns(track) {
+  const drum = drumTrack(track), cards = [];
+  const bus = fxpCard(track, drum ? t("fxpBusDrums") : `${t("track")} ${track + 1}`);
+  const out = [el("p", { class: "dim", text: t("popInsHelp") }), bus.el];
+  cards.push(bus);
+  if (drum) {
+    const holder = el("div", { class: "fxlane" });
+    const pick = el("select", { "aria-label": t("fxpSound"), "data-lane": "" }, ...DRUM_LANES.map((_, l) => el("option", { value: l, text: laneName(l) })));
+    pick.value = String(kl.sel);
+    const show = () => {
+      const l = +pick.value, c = fxpCard(FXP.LANE0 + l, laneName(l), { extra: [el("p", { class: "dim", text: t("fxpSoundHelp") })] });
+      const i = cards.findIndex((x) => x.ow >= FXP.LANE0);
+      if (i >= 0) cards.splice(i, 1);
+      cards.push(c);
+      holder.replaceChildren(c.el);
+      c.load(true).catch(report);
+    };
+    pick.addEventListener("change", show);
+    out.push(el("label", { class: "pk fxlp" }, el("span", { class: "kl", text: t("fxpSound") }), pick), holder);
+    bus.load(true).catch(report);
+    if (dev) dev.fxpCards = cards;
+    show();
+    return out;
+  }
+  fxpOpen(cards);
+  return out;
+}
+/* the master's two inserts */
+function dynFxMst() {
+  const c = fxpCard(FXP.MST, t("popMstIns"));
+  fxpOpen([c]);
+  return [el("p", { class: "dim", text: t("popMstInsHelp") }), c.el];
+}
+/* the three returns: each an effect (a send bus CHO DLY REV, or any other, all wet) with its RET level; a type another return holds swaps */
+function dynFxRet() {
+  const cards = [];
+  const after = async () => { for (const c of cards) await c.load(true); };
+  for (let r = 0; r < 3; r++) cards.push(fxpCard(FXP.RET0 + r, `${t("fxpReturn")} ${r + 1}`, { after }));
+  fxpOpen(cards);
+  return [el("p", { class: "dim", text: t("popRetHelp") }), ...cards.map((c) => c.el)];
+}
+
 /* the Sound view's values of the selected track (and the drum level, a global) -> the strips */
 function mixFromDump() {
   if (!dev || !dev.mix || !dev.dump || panning) return;
@@ -8987,6 +9317,8 @@ async function patPoll(now) {
 setInterval(patPoll, 250);
 /* a button's tooltip and aria-label end with its key: "Sound (Track 1) · I" */
 const withKey = (label, k) => (k ? `${label} \u00b7 ${keyLabel(k)}` : label);
+/* v13: the strip's inserts (FXP): the track's two slots, in a popup */
+const insBtn = (i) => (fxpOn() ? [popBtn("fxins", "inserts", t("popIns"), i, 0, { class: "ib fxi" })] : []);
 const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, withKey(`${label} (${t("track")} ${track + 1})`, keyFor(id, lane || 0)), () => openPop(id, track, lane),
   { "data-pop": id, ...extra });
 function buildStrip(i) {
@@ -9055,7 +9387,7 @@ function fxBlock(i, c) {
       return k;
     });
     c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-    return box(...c.fxk.map((k) => k.el), c.fxl, ...(x.fxoff != null ? [c.fxoff] : []));
+    return box(...c.fxk.map((k) => k.el), c.fxl, ...insBtn(i), ...(x.fxoff != null ? [c.fxoff] : []));
   } else if (x.fx) {
     const ids = slotIds(), labels = slotLabels();
     c.fxk = ids.map((id, j) => {
@@ -9067,7 +9399,7 @@ function fxBlock(i, c) {
     });
   } else return box();
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return box(...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
+  return box(...c.fxk.map((k) => k.el), ...insBtn(i), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 /* a knob of an empty FX slot (or one a sound has no form of): greyed, keeps the row's place */
 function naKnob(label, aria) {
@@ -9106,7 +9438,7 @@ function drumFxBlock(i, c, box) {
   c.fxsnd = mode("sound", laneName(kl.sel), "fxSndMode");
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
   return box(...c.fxk.map((k) => k.el), el("div", { class: "fxmodes", role: "group", "aria-label": "SOUND | BUS" }, c.fxsnd, mode("bus", "BUS", "fxBusMode"),
-    ...(x.fxoff != null ? [c.fxoff] : [])));
+    ...insBtn(i), ...(x.fxoff != null ? [c.fxoff] : [])));
 }
 /* the drum strip's FX knobs again (a sound picked, its sends or inserts changed, a push) */
 const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW flag 4: this sound has no DIST / COMP: an X0X sound's) */
@@ -9294,6 +9626,11 @@ function updateMaster() {
 /* v10: the four slot pickers (each lists the types built, named after their amounts, and ----) and, with COMP built, the CMP card:
    the inserts' RATIO ATK REL (the master COMP's lists: their names from its DESC) */
 function fxSlotGroups() {
+  if (fxpOn()) {                                     /* v13: the owners' slots (FXP): the master's inserts and the returns, in popups */
+    const g = (id, key, short) => el("div", { class: "fxg", role: "group", "aria-label": t(key), "data-fx": id },
+      iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
+    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET")];
+  }
   const types = [{ id: FXT.NONE }, ...dev.info.fxs.types];
   const name = (x) => (x.id === FXT.NONE ? FXT_NAMES[0] : (x.amt != null && dev.pdesc[x.amt] && dev.pdesc[x.amt].label) || FXT_NAMES[x.id] || String(x.id));
   masterCtl.slots = [0, 1, 2, 3].map((k) => {
@@ -9486,7 +9823,7 @@ function liveValue(k, v) {
 /* the popups that are not a panel of their own: Load preset, Save preset, Kit, the FX buses (Delay, Reverb, Chorus), Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), fxins: dynFxIns, fxmst: dynFxMst, fxret: dynFxRet, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -9855,6 +10192,7 @@ function onPush(f) {
     } else if (f.cmd === CMD.STREAM) {              /* v9: the transport, the steps playing, the meters */
       onStream(parse[CMD.STREAM](f.a, d.info));
     } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
+      fxpPing();                                    /* (an insert's amount is a track parameter: an open FX popup follows) */
       for (const c of parse[CMD.PARAMS](f.a)) {
         if (c.track === d.info.ntrk - 1 && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
         if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
@@ -9869,6 +10207,7 @@ function onPush(f) {
       onTracks(parse[CMD.TRACKS](f.a));
     } else if (f.cmd === CMD.FX_PUSH) {             /* v10: the FX slots, the COMP settings, a drum sound's insert */
       onFx(parse[CMD.FX_PUSH](f.a)).catch(report);
+      fxpPing();                                    /* (v13: an open FX popup reads its slots again) */
     } else if (f.cmd === CMD.SONG) {                /* v9: the sections stored, the song, the snapshot list */
       onSong(parse[CMD.SONG](f.a));
     } else if (f.cmd === CMD.TRACK_CHANGED) {       /* v4: level / pan / mute of a track that is not selected */

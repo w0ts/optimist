@@ -10,6 +10,7 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
+Command 94 and `INFO` tag `57` (every effect slot of every owner and its parameters) form protocol v13 (below, "v13: FX owners"); the protocol byte stays.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -891,6 +892,43 @@ The web editor (web/editor.html): the strips' four FX knobs are the slots' amoun
 a SOUND | BUS switch (the selected sound's sends and inserts, or the drum bus's amounts after its inserts); the MASTER
 strip has the four slot pickers and, with COMP built, the CMP card (RATIO ATK REL). Without tag 56 (older firmware) it
 shows DST CHO DLY REV as before.
+
+## v13: FX owners (command 94 FXP; INFO tag 57)
+
+`firmware/src/io/editor/ed_fxp.c`. Since the FX rework the firmware has more effect slots than v10's four: two **insert slots**
+on every track (T1 T2 T3 DR), on the master and on the USB input, two on each of the 16 drum sounds, and three **returns**
+R1 R2 R3 (a send bus CHO DLY REV, or any other effect type, 100 % wet, with a RET level), and each type has its own
+parameters (DYN: THRS RATIO ATK REL GAIN CEIL; EQ3: LO MID HI ON FREQ L FREQ H; GATER: DEPTH PAT RATE SHAPE; JUNO: MIX MODE;
+the others one amount). FXP reaches all of it, by **owner**, and says what each slot and parameter is (its descriptor is the
+device's own, as `DESC`), so an editor draws a slot from the reply and names no type of its own.
+
+`INFO` tag `57 len 01 flags owners`: `flags` bit 0 the USB input is built; `owners` the table's size (25). A firmware without
+the tag does not answer 94.
+
+Owners: 0..3 tracks T1 T2 T3 DR, 4 the master, 5 the USB input (slots 0 1, and slot 2: its own values VOLUME PAN MUTE FX ON
+REV DLY CHO), 6..8 the returns R1 R2 R3 (one slot each), 9..24 the drum sounds (lanes 0..15; slots 0 1: the types a voice
+can hold, its slot's amount only). A type id is the v10 one (`FXT`): 0 empty, 1 DIST, 2 CHO, 3 DLY, 4 REV, 5 DYN, 6 FILT, 7
+FOLD, 8 FUZZ, 9 PHSR, 10 FLNG, 11 FRMT, 12 WIDE, 13 CHRS, 14 ECHO, 15 GATER, 16 DUST, 17 JUNO, 18 EQ3; never reused.
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 GET | owner | 0, owner, slots n, then per slot: type, parameter count; then the types the owner may hold (5 x 7 bits, bit t = type id t; the empty slot is always allowed); a return: then its send line (0 the chorus line, 1 the delay's, 2 the reverb's: the line a track's `P_CHOR`, `P_DLY`, `P_REV` send feeds; 127 none) |
+| 1 TYPE | owner, slot, type | 1, then as op 0. The slot loads the type as the device does (a type the other slot holds swaps the two, amounts with them; on the returns a type another return holds swaps the returns): an editor re-reads the returns after any return changed. A type the owner may not hold: unchanged |
+| 2 DESC | owner, slot, i | 2, owner, slot, i, then `DESC`'s body (fmt, min v14, max v14, def v14, label, unit, the enum's names); nothing after i: no such parameter |
+| 3 VALS | owner, slot | 3, owner, slot, n, n x v14: every value of the slot |
+| 4 SET | owner, slot, i, v14 | 4, owner, slot, i, v14 (clamped to the descriptor's range) |
+
+A bad owner (or USB without the USB input), slot or op: no reply. The parameters of a slot are in the device's order. A
+return's first parameter is its line's RET level (the `CRET DRET RRET` global of the line, 0..127 127 unity); a return that
+holds a send type has that one only (its own parameters are the global DLY / REV / CHO pages). A track's DYN THRS is
+`P_TCOMP`, its RATIO .. CEIL the track's own settings; the master's DYN is the `COMP` and `LIMIT` globals. The FX push (87)
+goes out too when any setting here moved on the device that no other push covers (EQ bands, DYN's settings, the lanes'
+slots, the returns' amounts, the USB input). The parameters' values that are track `P_*` or global `G_*` also arrive in the
+v9 `PARAMS` push. The editor's own writes are not echoed.
+
+`tests/fxp_table.json` is the golden table of every owner kind, type and parameter (label, format, range, default, names)
+that the firmware's host test checks against its own tables; `tools/gen_fxp_table.py` copies it into web/editor.html (the
+mock device's table, `FXP_TABLE`).
 
 ## Notes for the editor
 

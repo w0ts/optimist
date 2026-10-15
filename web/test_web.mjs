@@ -43,7 +43,8 @@ const E = vm.runInNewContext(proto + `
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate })`,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
+   FXP, FXP_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1135,6 +1136,69 @@ async function editorFxSlots() {
 }
 
 /* ------------------------------------- the Sound tab from the device's pages (52 PAGES) --- */
+/* v13 FXP (cmd 94, firmware ed_fxp.c): every owner's slots and parameters; the mock's table is the firmware's (tests/fxp_table.json) */
+async function editorFxp() {
+  const C = E.CMD, T = E.FXT, P = E.parse[C.FXP];
+  const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxp.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
+  const gold = JSON.parse(readFileSync(join(HERE, "../tests/fxp_table.json"), "utf8"));
+  ok(C.FXP === 94 && /ED_FXP = 94/.test(ef) && /ed_b\(0x57\)/.test(ef) && E.FXP.N === 25 && /FXP_NOWN \(FXP_LANE0 \+ DRUM_LANES\)/.test(ef)
+    && /define FXP_MST NTRK/.test(ef) && /define FXP_USB \(NTRK \+ 1u\)/.test(ef) && /define FXP_RET0 \(NTRK \+ 2u\)/.test(ef) && /define FXP_LANE0 \(NTRK \+ 5u\)/.test(ef)
+    && E.FXP.MST === 4 && E.FXP.USB === 5 && E.FXP.RET0 === 6 && E.FXP.LANE0 === 9, "fxp: command 94, tag 0x57 and the owner numbers == ed_fxp.c");
+  /* EQ3's crossovers: the editor's Hz tables are the firmware's */
+  const tab = (n) => [...fs.match(new RegExp(`static const uint16_t ${n}\\[61\\] = \\{([^}]*)\\}`))[1].matchAll(/\d+/g)].map((m) => +m[0]);
+  ok(js(E.EQ_FL_HZ) === js(tab("EQ_FL_HZ")) && js(E.EQ_FH_HZ) === js(tab("EQ_FH_HZ")), "fxp: EQ3's FREQ L / FREQ H tables == fx_slots.c");
+  ok(js(sortDeep(JSON.parse(JSON.stringify(E.FXP_TABLE)))) === js(sortDeep(gold)), "fxp: the mock's table (FXP_TABLE) == tests/fxp_table.json, the firmware host test's golden");
+  const { m, rq, ev, done } = attachMock({ fxs: true, fxp: true, watchMs: 1000 });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  ok(info.fxp && info.fxp.usb && info.fxp.owners === 25 && info.fxs, "fxp: INFO tag 0x57: the USB input is built, 25 owners");
+  const lay = async (ow) => P(await rq(E.req.fxpGet(ow)));
+  let l = await lay(0);
+  ok(l.op === 0 && l.ow === 0 && js(l.slots) === js([{ type: 1, n: 1 }, { type: 6, n: 1 }]) && E.fxpAllows(l, T.EQ3) && E.fxpAllows(l, T.NONE) && !E.fxpAllows(l, T.CHO) && !E.fxpAllows(l, T.REV),
+    "fxp: GET T1: S1 DIST, S2 FILT, one parameter each; the inserts may be held, the sends not");
+  l = await lay(6);
+  ok(js(l.slots) === js([{ type: 2, n: 1 }]) && l.line === 0 && E.fxpAllows(l, T.CHO) && E.fxpAllows(l, T.EQ3) && !E.fxpAllows(l, T.GATE), "fxp: GET R1: the chorus, RET only, on line 0; any insert but GATER too");
+  ok((await lay(5)).slots.length === 3 && (await lay(4)).slots[1].type === T.COMP && (await lay(9)).slots[0].type === T.DIST, "fxp: the USB input has three slots (the third its values), the master S2 DYN, a drum sound S1 DIST");
+  ok(await rq(E.req.fxpGet(25), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true), "fxp: an owner past the table: no reply");
+  /* a type into a slot: swap, parameters from the device */
+  let r = P(await rq(E.req.fxpType(1, 0, T.EQ3)));
+  ok(r.op === 1 && r.slots[0].type === T.EQ3 && r.slots[0].n === 6, "fxp: TYPE EQ3 into T2's S1: six parameters");
+  const cache = new Map();
+  let ps = await E.readFxpSlot(rq, 1, 0, T.EQ3, 6, cache);
+  ok(js(ps.map((x) => x.d.label)) === js(["LO", "MID", "HI", "ON", "FREQ L", "FREQ H"]) && js(ps.map((x) => x.v)) === js([0, 0, 0, 1, 32, 28]) && cache.size === 6
+    && ps[0].d.min === -31 && ps[0].d.max === 6 && ps[3].d.fmt === E.F.ENUM && js(ps[3].d.names) === js(["OFF", "ON"]), "fxp: EQ3's parameters: LO MID HI ON FREQ L FREQ H, their ranges and defaults");
+  ok(E.fxpFmt(ps[0].d, -31)[0] === "KILL" && E.fxpFmt(ps[0].d, 3).join(" ") === "+3 dB" && E.fxpFmt(ps[4].d, 32).join(" ") === "250 Hz" && E.fxpFmt(ps[5].d, 28).join(" ") === "2.5 kHz"
+    && E.fxpFmt(ps[5].d, 60).join(" ") === "12 kHz" && E.fxpFmt(ps[4].d, 60).join(" ") === "1.0 kHz", "fxp: EQ3 values as the device shows them (KILL, dB, Hz, kHz)");
+  r = P(await rq(E.req.fxpSet(1, 0, 0, -100)));
+  ok(r.op === 4 && r.value === -31 && P(await rq(E.req.fxpVals(1, 0))).vals[0] === -31, "fxp: SET clamps to the range (KILL)");
+  r = P(await rq(E.req.fxpType(1, 1, T.EQ3)));
+  ok(js(r.slots.map((x) => x.type)) === js([T.FILT, T.EQ3]), "fxp: EQ3 into S2 while S1 holds it: the two swap (S1 gets S2's FILT)");
+  /* DYN: threshold and its settings; the master's S2 */
+  r = P(await rq(E.req.fxpGet(4)));
+  ps = await E.readFxpSlot(rq, 4, 1, r.slots[1].type, r.slots[1].n, new Map());
+  ok(js(ps.map((x) => x.d.label)) === js(["THRS", "RATIO", "ATK", "REL", "GAIN", "CEIL"]) && ps[1].d.names.length === 8, "fxp: the master's DYN: THRS RATIO ATK REL GAIN CEIL, the enums' names");
+  /* the returns: a type another return holds swaps; the line follows */
+  r = P(await rq(E.req.fxpType(7, 0, T.FLNG)));
+  const r1 = await lay(6), r3 = await lay(8);
+  ok(r.slots[0].type === T.FLNG && r.slots[0].n === 2 && r.line === 1 && r1.slots[0].type === T.CHO && r3.slots[0].type === T.REV, "fxp: FLNG into R2 (the delay's place): RET and the amount, the first free line");
+  r = P(await rq(E.req.fxpType(8, 0, T.CHO)));
+  ok(r.slots[0].type === T.CHO && (await lay(6)).slots[0].type === T.REV && (await lay(6)).line === 2, "fxp: CHO into R3 swaps with R1 (REV moves to R1, on its own line)");
+  /* the USB input's values, a drum sound's amount */
+  ps = await E.readFxpSlot(rq, 5, 2, 0, 7, cache);
+  ok(js(ps.map((x) => x.d.label)) === js(["VOLUME", "PAN", "MUTE", "FX ON", "REV", "DLY", "CHO"]), "fxp: the USB input's own values: VOLUME PAN MUTE FX ON REV DLY CHO");
+  await rq(E.req.fxpType(10, 0, T.FOLD));
+  r = P(await rq(E.req.fxpSet(10, 0, 0, 300)));
+  ok(r.value === 127 && js((await lay(10)).slots.map((x) => x.type)) === js([T.FOLD, T.COMP]), "fxp: a drum sound's slot takes FOLD, its amount clamps");
+  /* a device-side change: the editor is told (FX_PUSH, v9) */
+  await E.startWatch(rq);
+  const n0 = ev.pushes.length;
+  m.sim.fxpSet(0, 0, 0, 77);
+  await sleep(30);
+  ok(ev.pushes.slice(n0).some((f) => f.cmd === C.FX_PUSH), "fxp: a change on the device: FX_PUSH");
+  /* the strips and popups are in the page: openers, strings, the push re-read */
+  ok(/function dynFxIns\(/.test(html) && /function dynFxMst\(/.test(html) && /function dynFxRet\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
+    "fxp: the popups (inserts, master, returns) read the owner's slots and follow the device's pushes");
+  done();
+}
 async function editorPages() {
   const C = E.CMD;
   const ep = readFileSync(join(HERE, "../firmware/src/io/editor/ed_pages.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/core/params.c"), "utf8");
@@ -1315,8 +1379,8 @@ async function editorDaw() {
     flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
     st = E.navClose(st);
   }
-  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
-  ok(flat && openers && ids.length === 12 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
+  ok(flat && openers && ids.length === 15 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -2568,8 +2632,8 @@ function editorKeys() {
   ok(new Set(keys).size === keys.length && !keys.some((k) => E.KEY_FIXED.includes(k)) && keys.every((k) => k.length === 1 && !/[\s]/.test(k)),
     `keys: ${keys.length} element keys, no duplicates, none on Space / Escape / the arrows, no Ctrl / Cmd combos`);
   ok(E.keyFor("sound") === "i" && E.keyFor("sequence") === "q" && E.keyFor("loadpreset") === "l" && E.keyFor("savepreset") === "p"
-    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("fxdelay") === "d" && E.keyFor("fxreverb") === "r" && E.keyFor("fxchorus") === "c" && E.keyFor("master") === "" && E.keyFor("help") === "h"
-    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, D R C for the FX, H, comma; M is gone)");
+    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("fxdelay") === "d" && E.keyFor("fxreverb") === "r" && E.keyFor("fxchorus") === "c" && E.keyFor("fxins") === "f" && E.keyFor("fxmst") === "m" && E.keyFor("fxret") === "e" && E.keyFor("master") === "" && E.keyFor("help") === "h"
+    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, D R C for the FX, F M E the inserts / master / returns, H, comma)");
   ok(K.every((k) => (k.id && E.NAV[k.id]) || k.screen === "settings") && E.keyLabel(" ") === "Space" && E.keyLabel("i") === "I" && E.keyLabel("ArrowLeft") === "←",
     "keys: every key opens a known popup (NAV) or Settings");
   const nav = (pop) => ({ screen: "mixer", pop }), ev = (key, o = {}) => ({ key, ...o });
@@ -2592,9 +2656,11 @@ function editorKeys() {
     "keys: 1-9 0 SELECT drum sound 1-10 (no popup); the selected one's digit again, or Enter, opens it");
   ok(open(st(3), "i") === "null" && open(st(3), "l") === "null" && open(st(3), "p") === "null" && open(st(1), "k") === "null" && open(st(1), "u") === "null"
     && open(st(0), "3") === "null", "keys: the synth keys are ignored on the drum track, the drum keys on a synth track");
-  ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "null"
+  ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "fxmst:0:0"
     && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
-    "keys: D / R / C = Delay / Reverb / Chorus (from any track), M does nothing, H = help, comma = Settings");
+    "keys: D / R / C = Delay / Reverb / Chorus (from any track), M = the master's inserts, H = help, comma = Settings");
+  ok(open(st(2), "f") === "fxins:2:0" && open(st(3), "F") === "fxins:3:0" && open(st(0), "e") === "fxret:0:0" && P(st(1, { id: "fxins", track: 1, lane: 0 }), ev("f")) === '{"close":true}',
+    "keys: F opens the selected track's inserts (the drum track's too), E the returns; F again closes");
   /* the same key again closes; another key does not stack a popup; no modifiers */
   const pp = (id, lane = 0) => ({ id, track: 1, lane });
   ok(P(st(1, pp("sound")), ev("i")) === '{"close":true}' && P(st(1, pp("sound")), ev("q")) === "null" && P(st(3, pp("lane", 2)), ev("3")) === '{"close":true}'
@@ -2946,6 +3012,7 @@ await editorKitEditor();
 await editorMixSends();
 await editorPages();
 await editorFxSlots();
+await editorFxp();
 await editorMacro();
 await editorAuto();
 await editorStepx();

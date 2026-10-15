@@ -675,6 +675,56 @@ const lanePop = await run(`${U} try {
 ok(lanePop && lanePop.slots && lanePop.stripKit === "++" && /DST/.test(lanePop.popKit) && /CMP/.test(lanePop.popKit) && lanePop.wrote && lanePop.gone
   && lanePop.stripX0x === "--" && lanePop.stripClosed === "--" && lanePop.stripOther === "++" && lanePop.stripBack === "--",
   `e2e v10: the lane popup has DST / CMP (written with FX op 3); an X0X sound: none in the popup, greyed on the strip, back on another sound (${JSON.stringify(lanePop)})`);
+/* v13 FX owners (the mock with ?fxp=1): the inserts popup of a track (two slots: a type list, the type's knobs from the device's descriptors), a
+   type change, a knob, the device moving a value (FX_PUSH), the drum track (its bus and the selected sound), the master's inserts, the returns */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await sleep(1500);
+const fxpRes = await run(`${U} try {
+  if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().fx && D().watch && D().info.fxp, 120000)) return { err: "no fxp" };
+  const mock = window.fm1Test.mock, r = {};
+  const pop = () => $("#pop"), labels = () => [...document.querySelectorAll("#pop .fxslot")].map((s) => [...s.querySelectorAll(".knob .kl, .pk:not(.fxt) .kl")].map((e) => e.textContent.trim()).join(","));
+  const setType = async (sl, v) => { const s = document.querySelector('#pop select[data-type="' + sl + '"]'); s.value = String(v); s.dispatchEvent(new Event("change")); await sleep(800); };
+  r.btns = document.querySelectorAll("#mixer .strip [data-pop=fxins]").length + ":" + document.querySelectorAll("#mixer .strip.master [data-pop=fxmst], #mixer .strip.master [data-pop=fxret]").length;
+  document.querySelector('#mixer .strip[data-track="0"] [data-pop=fxins]').click();
+  await until(() => pop().open && pop().dataset.pop === "fxins" && document.querySelector("#pop .fxslot .knob"), 10000); await sleep(400);
+  r.title = $("#poptitle").textContent; r.t1 = labels().join("|");
+  await setType(0, 18); await setType(1, 5);
+  r.t2 = labels().join("|");
+  const k = document.querySelector('#pop .fxslot[data-slot="1"] .knob[data-fxp="1/0"]');
+  for (let q = 0; q < 4; q++) k.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  await sleep(500);
+  r.thrs = mock.fxpGet ? 0 : 0;
+  mock.sim.fxpSet(0, 0, 0, -12);                 /* LO moved on the device */
+  r.followed = await until(() => document.querySelector('#pop .knob[data-fxp="0/0"]').getAttribute("aria-valuenow") === "-12", 8000);
+  r.slots = mock.sim.fxpType(0, 1, 0).join();
+  await sleep(700);
+  r.after = labels().join("|");
+  $("#popx").click(); await sleep(200);
+  document.querySelector('#mixer .strip[data-track="3"] [data-pop=fxins]').click();
+  await until(() => pop().open && document.querySelector("#pop .fxlp select"), 10000); await sleep(600);
+  r.drum = [...document.querySelectorAll("#pop .fxo")].map((c) => c.dataset.owner).join();
+  const lp = document.querySelector("#pop .fxlp select"); lp.value = "5"; lp.dispatchEvent(new Event("change")); await sleep(700);
+  r.drum2 = [...document.querySelectorAll("#pop .fxo")].map((c) => c.dataset.owner).join();
+  $("#popx").click(); await sleep(200);
+  document.querySelector("#mixer .strip.master [data-pop=fxmst]").click();
+  await until(() => pop().open && document.querySelector("#pop .fxslot .knob"), 10000); await sleep(400);
+  r.mst = labels().join("|"); $("#popx").click(); await sleep(200);
+  document.querySelector("#mixer .strip.master [data-pop=fxret]").click();
+  await until(() => pop().open && document.querySelectorAll("#pop .fxo").length === 3, 10000); await sleep(600);
+  r.ret1 = labels().join("|");
+  await setType(0, 10);                          /* R1 the flanger (the first card's slot) */
+  r.ret2 = labels().join("|");
+  r.bus = document.querySelectorAll("#pop [data-bus]").length;
+  r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  $("#popx").click(); await sleep(200);
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
+  r.key = pop().open && pop().dataset.pop;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(fxpRes && fxpRes.btns === "4:2" && /^Inserts · Track 1$/.test(fxpRes.title) && fxpRes.t1 === "DST|FILT" && fxpRes.t2 === "LO,MID,HI,ON,FREQ L,FREQ H|THRS,RATIO,ATK,REL,GAIN,CEIL"
+  && fxpRes.followed && fxpRes.after === "LO,MID,HI,ON,FREQ L,FREQ H|" && fxpRes.drum === "3,9" && fxpRes.drum2 === "3,14" && /^FILT|THRS/.test(fxpRes.mst)
+  && /^RET\|?/.test(fxpRes.ret1.split("|")[0] ? "RET" : "") && fxpRes.ret2.split("|")[0] === "RET,FLNG" && fxpRes.bus === 2 && fxpRes.wide && fxpRes.key === "fxins",
+  `e2e v13 FX owners (mock ?fxp=1): the track's inserts (type lists, EQ3 / DYN knobs from the device), the device moving a value and a slot, the drum bus + a sound, the master's inserts, the returns, F opens (${JSON.stringify(fxpRes)})`);
+await shot("fxp-inserts");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });
