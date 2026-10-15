@@ -359,21 +359,24 @@ static int gen_write(track_t *t, uint32_t slot)
     return ch != 0;
 }
 
-/* ---- the stored form (the FX record's GEN_TLV, fx/fx_rec.c): a slot not at its defaults, 5 bytes: slot | on << 7,
- * type << 4 | mode, the three values. None: every slot off at its defaults */
+/* ---- the stored form (the FX record's GEN_TLV, fx/fx_rec.c): a slot not at its defaults, 4 bytes (little-endian):
+ * slot 5 bits | on 1 | mode 2 | type 3 | the three values 7 bits each. None: every slot off at its defaults. (4 bytes,
+ * not 5: 20 slots fit the FX record's ceiling, ed_backup.c FXR1 / FXR2) */
 #define GEN_TLV 0x4Bu
-#define GEN_TLV_MAX (5u * GEN_NSLOT)
+#define GEN_TLV_MAX (4u * GEN_NSLOT)
+_Static_assert(GEN_NSLOT <= 32u && GM_N <= 4u && GT_N <= 8u, "GEN_TLV: a slot 5 bits, a mode 2, a type 3");
 static uint32_t gen_tlv(uint8_t *o)
 {
     uint32_t s, n = 0;
     for (s = 0; s < GEN_NSLOT; s++) {
         const gen_t *g = &gen[s];
+        uint32_t w;
         if (gen_is_default(g))
             continue;
-        o[n] = (uint8_t)(s | (g->on ? 0x80u : 0u));
-        o[n + 1u] = (uint8_t)((g->type & 15u) << 4 | (g->mode & 15u));
-        o[n + 2u] = g->p[0], o[n + 3u] = g->p[1], o[n + 4u] = g->p[2];
-        n += 5u;
+        w = s | (uint32_t)(g->on != 0) << 5 | (g->mode & 3u) << 6 | (g->type & 7u) << 8 | (g->p[0] & 127u) << 11 |
+            (g->p[1] & 127u) << 18 | (uint32_t)(g->p[2] & 127u) << 25;
+        o[n] = (uint8_t)w, o[n + 1u] = (uint8_t)(w >> 8), o[n + 2u] = (uint8_t)(w >> 16), o[n + 3u] = (uint8_t)(w >> 24);
+        n += 4u;
     }
     return n;
 }
@@ -381,15 +384,16 @@ static void gen_untlv(const uint8_t *a, uint32_t n)      /* (n 0: none; an entry
 {
     uint32_t i, j;
     gen_reset_all();
-    for (i = 0; i + 5u <= n; i += 5u) {
-        uint32_t s = a[i] & 0x7Fu, ty = a[i + 1u] >> 4, md = a[i + 1u] & 15u;
+    for (i = 0; i + 4u <= n; i += 4u) {
+        uint32_t w = a[i] | (uint32_t)a[i + 1u] << 8 | (uint32_t)a[i + 2u] << 16 | (uint32_t)a[i + 3u] << 24;
+        uint32_t s = w & 31u, md = (w >> 6) & 3u, ty = (w >> 8) & 7u;
         gen_t g;
         if (s >= GEN_NSLOT || ty >= GT_N || md >= GM_N)
             continue;
-        g.on = (uint8_t)(a[i] >> 7), g.type = (uint8_t)ty, g.mode = (uint8_t)md;
+        g.on = (uint8_t)((w >> 5) & 1u), g.type = (uint8_t)ty, g.mode = (uint8_t)md;
         for (j = 0; j < GEN_NP; j++) {
             const gen_par_t *d = &GEN_TYPES[ty].par[j];
-            uint32_t v = a[i + 2u + j];
+            uint32_t v = (w >> (11u + 7u * j)) & 127u;
             g.p[j] = (uint8_t)(v < d->min ? d->min : d->max && v > d->max ? d->max : v > NSTEP ? NSTEP : v);
         }
         gen[s] = g;

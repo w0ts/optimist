@@ -32,7 +32,7 @@
                                                         * spare: the editor's backup packs them in two objects since,
                                                         * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
                                                         * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
-                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 5 a slot, 20 slots) */
+                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP

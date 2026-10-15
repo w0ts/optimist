@@ -2724,7 +2724,7 @@ lane, named on WRITE). LENGTH is always the whole pattern. What they do (Felucca
   one undo level brings back the pattern and the slot's ON (`seq/undo.c` keeps the ON states with the steps, header bit
   UREC_GEN); the events stay where they are. OFF never touches the pattern (the *KEEP?* question is gone). The grid draws
   what plays: a generated hit or note outlined, a pattern's hit silenced a dim stub. Saved with the project and each
-  scene (the FX record's TLV 0x4B GEN_TLV, 5 bytes a slot not at its defaults; none: every slot off). A new generator
+  scene (the FX record's TLV 0x4B GEN_TLV, 4 bytes a slot not at its defaults; none: every slot off). A new generator
   is an entry of `GEN_TYPES` (its name, three values, a fit, its step function, its state).
 - Every tool works on steps 1..LEN; a step it empties loses its step-only events; locks, motion, chance, conditions,
   nudges and fills move with their steps. **The EDIT layer's SHIFT and LENGTH x2 now move and copy the events too**
