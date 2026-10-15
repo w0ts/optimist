@@ -43,11 +43,12 @@ static struct result render(uint32_t channel, int sliced, int variant)
             mix_block(out, CTL);
             ua.cap_alt = 1;
             ua.cw = ua.cr = 0;
+            ua_rs_reset();   /* (the resampler is always built since 2026-10-15: its step is 1.0 after a reset, and a frame comes out two input frames late) */
             ua_audio(out, track_capture, CTL, song.master_q12);
             for (uint32_t i = 0; i < CTL; i++) {
                 for (uint32_t ch = 0; ch < NTRK; ch++) {
                     int32_t x = track_capture[i * NTRK + ch];
-                    assert(ua_cap[i * NTRK + ch] == ua_clip(x));
+                    assert(ua_cap[i * NTRK + ch] == (i >= 2u ? ua_clip(track_capture[(i - 2u) * NTRK + ch]) : 0));
                     if (ch != channel) assert(x == 0);
                     else {
                         result.hash = (result.hash ^ (uint32_t)x) * 16777619u;
