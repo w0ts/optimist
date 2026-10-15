@@ -16,6 +16,7 @@ from pathlib import Path
 from builder_path import ROOT
 import configure as C  # noqa: E402
 import menu as M  # noqa: E402
+import registry as R
 import room as RM
 import stamp as ST
 from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
@@ -54,7 +55,53 @@ async def toggle(app, pilot, key):
     await pilot.pause()
 
 
+def tree_keys(app):
+    """the item keys in the tree's display order, per group"""
+    return [[n.data] + [c.data for c in n.children] for g in app.query_one("#tree").root.children for n in g.children]
+
+
+async def sort_test():
+    """o cycles default -> flash -> ram -> pool -> ramtext: items sorted largest first inside each group, children
+    under their parent, unmeasured last, the sorted column marked, the choice only per session"""
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        default = tree_keys(app)
+        check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
+        for want in ("flash", "ram", "pool", "ramtext", None):
+            await pilot.press("o")
+            await pilot.pause()
+            check(f"sort: o selects {want or 'default order'}", app.sort_by == want)
+            if want is None:
+                check("sort: back to the default order", tree_keys(app) == default)
+                break
+            check(f"sort {want}: the bar names it", f"sort (o): {want}" in str(app.query_one("#bars").content))
+            cost = lambda k: (app.savings.get(k) or {}).get(want)
+            ok_order = ok_unmeasured = ok_kids = True
+            for grp in app.query_one("#tree").root.children:
+                tops = [n.data for n in grp.children]
+                vals = [cost(k) for k in tops]
+                known = [v for v in vals if v is not None]
+                ok_order &= known == sorted(known, reverse=True)
+                ok_unmeasured &= vals == known + [None] * (len(vals) - len(known))
+                for n in grp.children:
+                    ok_kids &= all(R.ITEMS[c.data].parent == n.data for c in n.children)
+                    kv = [cost(c.data) for c in n.children]
+                    kk = [v for v in kv if v is not None]
+                    ok_order &= kk == sorted(kk, reverse=True) and kv == kk + [None] * (len(kv) - len(kk))
+            check(f"sort {want}: largest first inside each group and parent", ok_order)
+            check(f"sort {want}: unmeasured items last", ok_unmeasured)
+            check(f"sort {want}: children stay under their parent", ok_kids)
+            check(f"sort {want}: same items as the default order",
+                  sorted(sum(tree_keys(app), [])) == sorted(sum(default, [])))
+            check(f"sort {want}: the sorted column is highlighted",
+                  any(s.style and "reverse" in str(s.style) for k in app.nodes for s in app.nodes[k].label.spans)
+                  or app.over.get(want, 0) > 0)       # (an overflowing region keeps its red marks over the sort mark)
+    check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
+
+
 async def main():
+    await sort_test()
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()

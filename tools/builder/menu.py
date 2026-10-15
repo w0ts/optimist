@@ -116,7 +116,7 @@ class PagedTree(Tree):
 class Builder(App):
     TITLE = "Firmware builder"
     CSS = """
-    #bars { height: 7; padding: 0 1; border: round $accent; }
+    #bars { height: 8; padding: 0 1; border: round $accent; }
     #main { height: 1fr; }
     #tree { width: 3fr; border: round $primary; }
     #side { width: 2fr; }
@@ -138,7 +138,7 @@ class Builder(App):
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("f", "flash", "flash to FM-1"),
         Binding("left", "page_up", "page up", key_display="←", show=False), Binding("right", "page_down", "page down", key_display="→", show=False),
-        Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
+        Binding("o", "sort", "sort by size"), Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
@@ -160,6 +160,7 @@ class Builder(App):
         self.over, self.savings = {}, {}
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
+        self.sort_by = None                              # o cycles: None (registry order), flash, ram, pool, ramtext (per session)
         self.update_budget()
 
     # ---- layout
@@ -202,7 +203,8 @@ class Builder(App):
         deltas = self.delta_of(key)
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
-            t.append(f"  {r} {n / 1024:+.1f}K", style="bold red" if hot else "cyan")
+            t.append(f"  {r} {n / 1024:+.1f}K",
+                     style="bold red" if hot else ("bold reverse cyan" if r == self.sort_by else "cyan"))
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
@@ -243,6 +245,15 @@ class Builder(App):
         hay = f"{key} {it.label} {it.group} {it.desc}".lower()
         return self.filter.lower() in hay
 
+    def sorted_keys(self, keys):
+        """keys in the active sort: the largest use of the sort region first (what the item costs as set now,
+        self.savings); items without a measured cost last; ties and the default sort keep the registry order"""
+        keys = list(keys)
+        if not self.sort_by:
+            return keys
+        cost = lambda k: (self.savings or {}).get(k, {}).get(self.sort_by)
+        return sorted(keys, key=lambda k: (cost(k) is None, -(cost(k) or 0)))     # (sorted() is stable)
+
     def rebuild(self):
         tree = self.query_one("#tree")
         collapsed = {n.data for n in self.walk(tree.root) if n.children and not n.is_expanded and n.data}
@@ -250,6 +261,7 @@ class Builder(App):
         self.nodes = {}
         for g in R.GROUPS:
             items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.children)]
+            items = [R.ITEMS[k] for k in self.sorted_keys(it.key for it in items)]
             if not items:
                 continue
             gn = tree.root.add(Text(g, style="bold"), data=("group", g), expand=True)
@@ -257,7 +269,7 @@ class Builder(App):
                 if it.children:
                     n = gn.add(self.node_label(it.key), data=it.key,
                                expand=bool(self.filter) or it.key not in collapsed)
-                    for c in it.children:
+                    for c in self.sorted_keys(it.children):
                         if self.matches(c) or self.matches(it.key):
                             self.nodes[c] = n.add_leaf(self.node_label(c), data=c)
                 else:
@@ -291,6 +303,7 @@ class Builder(App):
         how = ("exact: the last real build of this selection" if b.get("exact")
                else "estimate from measured deltas; b = exact build")
         lines = Text(f"{self.cfg_name}  ({how})   {self.source}\n", style="italic")
+        lines.append(f"sort (o): {self.sort_by + ', largest first' if self.sort_by else 'default order'}\n", style="bold cyan")
         for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
@@ -406,6 +419,13 @@ class Builder(App):
             self.notify(self.room.note, title="BLE", severity="warning", timeout=12)
         self.refresh_all()
 
+
+    def action_sort(self):
+        """o: default order -> flash -> ram -> pool -> ramtext, within each group (children stay under their parent)"""
+        order = [None, *C.REGIONS]
+        self.sort_by = order[(order.index(self.sort_by) + 1) % len(order)]
+        self.rebuild()
+        self.refresh_all()
 
     def action_expand(self):
         for n in self.walk(self.query_one("#tree").root):
