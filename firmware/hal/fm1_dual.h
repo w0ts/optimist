@@ -135,7 +135,14 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
  * error on garbage read from its stack; B4: a return to address 2). The emulator's projects stayed above it (1.3 KB).
  * tools/build.py cpu1_stack checks every DUAL build against CPU1_STACK_ROOM; fm1_dual_start fills both with
  * FM1_C1_MARK (the console's cpu1_stack_*: their depth) */
+#ifndef FELUCCA_DUAL_PARK                                /* (dual_mode.h: the same default) */
+#define FELUCCA_DUAL_PARK 1
+#endif
+#if FELUCCA_DUAL_PARK
+#define FM1_C1_REGION 4u                                 /* words: CPU1 is parked (never started, dual_mode.h): the symbol stays, the 10 KiB do not */
+#else
 #define FM1_C1_REGION 1280u                              /* words: 5 KiB */
+#endif
 #define FM1_C1_STACK_WORDS (2u * FM1_C1_REGION)           /* 10 KiB */
 #define FM1_C1_MARK 0x43314D4Bu                          /* "C1MK" (X0X's) */
 uint32_t fm1_c1_stack[FM1_C1_STACK_WORDS] __attribute__((section(".pool"), aligned(8), used));
