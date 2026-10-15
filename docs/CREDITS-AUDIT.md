@@ -66,12 +66,28 @@ audit, corrected on `docs/credits`), **open** (a decision for the owner), **n/a*
 | The FM-1 emulator | Simon Johansson (`simonjohansson/fm1-emulator`), our fork; fetched by `tools/emu.py`, not in the tree | its own | none | credited (README) |
 | Python tools' dependencies: Textual, Pillow, mido, python-rtmidi, pyserial; numpy, scipy, soundfile for the sample scripts | their authors | MIT, MIT-CMU (HPND), MIT, MIT, BSD-3-Clause, BSD | `tools/requirements*.txt` | n/a: installed by the user, never distributed (licences from memory, not re-checked) |
 | Web editor libraries | none ("one file, no libraries") | | `web/editor.html` | n/a |
-| Optimist UI ABOUT page | | | `ui/optimist/op_project.c` (VERSION, BUILD, CHIP, the repository link) | has no credits text: open question 5 |
+| Optimist UI ABOUT / Credits | | | `ui/optimist/op_project.c` (About: VERSION, BUILD, CHIP, the link), `ui/optimist/op_gldraw.c` (Credits) | **fixed**: SYSTEM > Credits added after About (decision 5) |
 | SLOOP UI ABOUT page | | | `ui/sloop/ui_menu.c` | **fixed**: now names Melodee, X0X, Flowstate, Jangada, fm-106, KR-106 and points to LICENSING.md (klattsch moved off the screen for the room) |
 | Web editor footer | | | `web/editor.html` | **fixed**: Flowstate, Jangada, fm-106 / KR-106, CZ, the LICENSING.md link, the trademark notice |
 | Trademarks | Roland (Juno-106, JP-8000, TB-303, TR-808, TR-909), Yamaha (DX7), Casio (CZ), M-VAVE, teenage engineering, Elektron, Akai | | names in engine, kit, preset and format texts | **fixed**: one nominative-use notice in LICENSING.md, README, OPTIMIST.md, the editor |
 
-## Open questions (for the owner; not decided here)
+## Decisions (the owner, 2026-10-15)
+
+1. `juno_dac`: kept, with the note in its header and LICENSING.md.
+2. The engine name JUNO: kept, with the not-affiliated notice.
+3. `firmware/hal/ble_rf_tables_v15.h`: kept committed; LICENSING.md says plainly where it comes from (register values
+   for the radio's start-up, read out of M-VAVE's V15 firmware, no licence stated upstream).
+4. The 909 cymbals: kept; LICENSING.md flags their open provenance.
+5. Optimist UI: SYSTEM > Credits, a text page after About (`op_gldraw.c` `CRED`, `tests/ui_optimist_glstyle.h`
+   `gls_credits`). No builder item: it is part of the Optimist UI.
+6. KR-106's wording: kept as written.
+7. 9W9: both names credited (Charles Vestal per X0X's `assets/909/README.txt`, athousanddetails per X0X's
+   LICENSING.md and GitHub), with the note that the sources disagree.
+8. FM6's commit: Melodee `e459da5` is the one the port took (`958569b7` says so; `ebfe60e` is FM6's first commit in
+   Melodee, two days before, without the Dexed-exact rendering the port has). The builder registry is corrected;
+   LICENSING.md was right.
+
+The questions as they were put:
 
 1. **Juno-106 ROM-derived material.** We ship none of the envelope tables that fm-106 / KR-106 describe as copies of
    the Juno-106 voice CPU's ROM (`FM106_ENV_ATK`, `FM106_ENV_DEC_REL`; KR-106 credits `ErroneousBosh/j106roms` for its
