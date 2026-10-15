@@ -152,7 +152,7 @@ static void cc_red_tests(void)
     op_disarm();
     reset_ui();
 }
-/* dim is free / unused: a cell drawn dim is an empty slot, a free scene or slot, or a feature not in the build; and no cell
+/* dim is free / unused: a cell drawn dim is an empty slot, a free scene or slot, a feature not in the build, or an insert type every instance of which is taken (IN USE: the pool is shared since fx-pool); and no cell
  * carries the palette's secondary step (C_AMB: a read-out is grey, amber is C_WARN) */
 static void cc_dim_walk(uint32_t scr, uint32_t tr, uint32_t *bad_dim, uint32_t *bad_amb)
 {
@@ -170,7 +170,7 @@ static void cc_dim_walk(uint32_t scr, uint32_t tr, uint32_t *bad_dim, uint32_t *
             SCREENS[scr].cell(r, k, &c);
             SCREENS[scr].name(r, nm);
             if (c.label && (c.dim || c.col == C_DIM) &&
-                !(!strcmp(c.val, "EMPTY") || !strcmp(c.val, "NOT IN BUILD") || !strcmp(c.label, "SLOT") || !strcmp(c.label, "ITEM") || !strcmp(c.label, "SCENE"))) {
+                !(!strcmp(c.val, "EMPTY") || !strcmp(c.val, "NOT IN BUILD") || !strcmp(c.val, "IN USE") || !strcmp(c.label, "SLOT") || !strcmp(c.label, "ITEM") || !strcmp(c.label, "SCENE"))) {
                 printf("  colours: screen %u row %s cell %u (%s = %s) is dim but not free / unused\n", scr, nm, k, c.label, c.val);
                 (*bad_dim)++;
             }
