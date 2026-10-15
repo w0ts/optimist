@@ -89,7 +89,8 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     int ok;
     line_at(scr, i);
     glw_line(scr, i, &c, v);
-    ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO"));   /* (INFO, REPO: text in the unit, or the page itself) */
+    ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO") ||
+                                                                                                      !strcmp(c.label, "USB AUDIO"));   /* (INFO, USB AUDIO, REPO: text in the unit, or the page itself) */
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
         ok &= glw_still(EN_PRESET);

@@ -60,7 +60,11 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 static void glo_list_tests(void)
 {
     static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
-    static const char *const SS[] = {"INFO", "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
+    static const char *const SS[] = {"INFO",
+#if FELUCCA_USB_AUDIO
+                                     "USB AUDIO",               /* (INFO's second page: the USB audio counters) */
+#endif
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "CALIBRATE", "ABOUT"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -87,7 +91,7 @@ static void glo_list_tests(void)
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
-    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, 8) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
+    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
           "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth Calibrate About");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;

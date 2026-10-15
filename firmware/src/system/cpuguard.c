@@ -45,6 +45,20 @@
 #define CG_HALF_US (HALF_FRAMES * 1000000u / FS)   /* a half's time, us */
 #define CG_FAR __attribute__((noinline))   /* (once a half, from the audio ISR: in XIP, called FAR) */
 #define CG_SHED_MAX 4u                   /* voices a half predicted late fades out at most */
+/* the reactive path ("Spikes"): late halves scattered among lighter ones. Each late half adds CG_SPK_HIT to a leaky count
+ * that loses 1 a half; at CG_SPK_ON (3 late halves within ~30 halves, or a steady 3 a second and more) it reacts: one
+ * level up, at the top a voice cut and the voices capped one under what sounded (a new note then steals the oldest).
+ * One late half (a flash write, a USB burst) never reacts, nor do late halves at a light load (under CG_RFLOOR: the
+ * music is not what makes them late). A level a reaction set comes off only under the load the drop-outs came at less
+ * CG_RMARGIN (rcap); the cap rises a voice after CG_VSTEP halves with no late one */
+#define CG_SPK_HIT 64u
+#define CG_SPK_ON 160u
+#define CG_RFLOOR 128u                   /* 50 % of a half: the measured mean (avg) the reactive path needs */
+#define CG_RMARGIN 16u                   /* 1/16 of a half */
+#ifndef CG_VSTEP
+#define CG_VSTEP 345u                    /* halves (2 s) with no late one before the cap rises a voice */
+#endif
+#define CG_VMIN 2u                       /* the cap's floor */
 
 /* a part the guard never sheds: MONO / LEGATO / UNISON (the bass and the lead), and a monophonic engine */
 static int cg_keep(const track_t *t)
@@ -441,10 +455,45 @@ static volatile uint32_t cg_trace[1024] __attribute__((section(".pool")));   /* 
 #define CG_BENCH(m) ((void)0)
 #endif
 
-/* audio ISR, a half's end: it took us microseconds */
+/* the reactive path, once a half (late: this half ran late): the leaky count, a reaction at CG_SPK_ON; the cap's rise */
+static void cg_spike(uint32_t late)
+{
+    uint32_t r;
+    if (late)
+        cg.spk = (uint16_t)(cg.spk + CG_SPK_HIT < 0xFFFFu ? cg.spk + CG_SPK_HIT : 0xFFFFu);
+    else if (cg.spk)
+        cg.spk--;
+    if (cg.vcap) {                       /* (the cap: a voice back after CG_VSTEP halves with none late; NVOICE: off) */
+        if (late)
+            cg.vcn = 0;
+        else if (++cg.vcn >= CG_VSTEP) {
+            cg.vcn = 0;
+            cg.vcap = (uint8_t)(cg.vcap + 1u < NVOICE ? cg.vcap + 1u : 0u);
+        }
+    }
+    if (cg.spk < CG_SPK_ON || !cg_react || cg.avg < CG_RFLOOR)
+        return;
+    cg.spk = 0;
+    cg.reacts++;
+    r = cg.avg > CG_RMARGIN + 1u ? cg.avg - CG_RMARGIN : 1u;   /* (the load the drop-outs came at, less the margin) */
+    if (cg.level < CG_TOP) {
+        cg_step();
+        cg.rcap[cg.level] = (uint8_t)(r < 255u ? r : 255u);
+    } else {
+        uint32_t busy = voices_busy();
+        if (cg_shed(1)) {                /* a voice cut now, the rest capped one under what sounded */
+            busy = busy > CG_VMIN + 1u ? busy - 1u : CG_VMIN;
+            cg.vcap = (uint8_t)(!cg.vcap || busy < cg.vcap ? busy : cg.vcap - (cg.vcap > CG_VMIN));
+            cg.vcn = 0;
+        }
+        cg.rcap[CG_TOP] = (uint8_t)(r < 255u ? r : 255u);
+    }
+}
+
+/* audio ISR, a half's end: it took us microseconds (cg.late: the DMA moved on while it rendered, audio.c) */
 static CG_FAR void cg_post(uint32_t us)
 {
-    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est, prev = cg.meas, c;
+    uint32_t m = us * 256u / CG_HALF_US, load = m > cg.est ? m : cg.est, prev = cg.meas, c, late = m >= CG_FULL || cg.late;
     m = m < 0xFFFFu ? m : 0xFFFFu;
     load = load < 0xFFFFu ? load : 0xFFFFu;
     c = m < CG_FULL ? m : CG_FULL;
@@ -471,13 +520,15 @@ static CG_FAR void cg_post(uint32_t us)
             cg_step();
         }
     } else {
+        uint32_t back = load + cg.gain[cg.level];   /* (the load with the level's saving back) */
         cg.over = 0;
-        if (cg.level && load + cg.gain[cg.level] < CG_REL) {
+        if (cg.level && !late && !cg.vcap && back < CG_REL && (!cg.rcap[cg.level] || back < cg.rcap[cg.level])) {
             if (++cg.under >= CG_RELEASE) {   /* one level off, and the ones under it with nothing to ease now; the
                                           * reverb's level only if the reverb is off already (on the way down it
-                                          * would turn it off, though it was not what had to go) */
+                                          * would turn it off, though it was not what had to go). A level a reaction
+                                          * set: only under the load the drop-outs came at (rcap), with no voice cap */
                 do
-                    cg.level--;
+                    cg.rcap[cg.level--] = 0;
                 while (cg.level && (!cg_useful(cg.level) || (cg.level == CG_L_REVERB && REV_ON())));
                 cg.under = 0;
             }
@@ -486,4 +537,6 @@ static CG_FAR void cg_post(uint32_t us)
         }
     }
     cg.avg = (uint16_t)((cg.avg * 7u + c + 4u) >> 3);   /* (after the step: its load before is the one before) */
+    cg.late = 0;
+    cg_spike(late);
 }

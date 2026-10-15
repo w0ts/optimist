@@ -258,17 +258,36 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO,
+       SI_PEAK, SI_DROPS, SI_GUARD, SI_UAINFO };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
 #define LOAD_AMBER 60
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
+/* INFO's PEAK, DROPS and GUARD lines (system/overload.h, cpuguard.c): DROPS and the voices shed counted from a baseline OCT- + YES
+ * on INFO sets (op_global.c info_clear; the counters themselves go on: the console still reads them since boot) */
+#define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
+static uint32_t info_shed0;
+static void info_clear_counts(void)
+{
+    ovl_clear();
+#if FELUCCA_CPU_GUARD
+    info_shed0 = cg.sheds;
+#endif
+}
+#if FELUCCA_CPU_GUARD
+static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REVERB", "NOTES"};
+#endif
 #define SI_IF(c, i)((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
+#if FELUCCA_USB_AUDIO
+    {"USB AUDIO", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* INFO's second page: the USB audio glitch counters (INFO keeps the load,
+                                                         * PEAK, DROPS and GUARD readable at the line pitch the style keeps, 2026-10-15) */
+#endif
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
 #if FELUCCA_LIGHTS
@@ -412,6 +431,46 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "%";
         cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
         break;
+    case SI_PEAK: {                                     /* the longest audio half of the last ~5 s, its wait for the interrupt too: over 100 % late */
+        uint32_t pk = ovl_peak_pct(fm1_ms);
+        c->label = "PEAK 5S";
+        c->kind = CK_RO;
+        fmt_int(c->val, (int32_t)pk);
+        c->col = load_col((int32_t)pk);
+        c->unit = "%";
+        cell_gauge(c, 0, 0, 100, (int32_t)(pk < 100u ? pk : 100u));
+        break;
+    }
+    case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
+        uint32_t n = ovl_drops();
+        c->label = "DROPS";
+        c->kind = CK_RO;
+        fmt_int(c->val, (int32_t)n);
+        c->col = !n ? C_OK : ovl_recent(fm1_ms, DROPS_RED_MS) ? C_ERR : C_WARN;
+        c->unit = "";
+        cell_gauge(c, 0, 0, 1, n != 0u);
+        break;
+    }
+#if FELUCCA_CPU_GUARD
+    case SI_GUARD: {                                    /* what the CPU guard eases now, and the voices it shed (cpuguard.c) */
+        uint32_t n = cg.sheds - info_shed0, l = cg.level <= CG_TOP ? cg.level : CG_TOP;
+        c->label = "GUARD";
+        c->kind = CK_RO;
+        str_cpy(c->val, CG_NAME[l], sizeof c->val);
+        if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
+            str_cpy(c->val + str_len(c->val), " MAX", sizeof c->val - str_len(c->val));
+            fmt_int(c->val + str_len(c->val), cg.vcap);
+        }
+        if (n && str_len(c->val) + 5u < sizeof c->val) {
+            str_cpy(c->val + str_len(c->val), " -", sizeof c->val - str_len(c->val));
+            fmt_int(c->val + str_len(c->val), (int32_t)(n < 999u ? n : 999u));
+        }
+        c->unit = n ? "V" : "";
+        c->col = !l ? C_OK : l < CG_L_REVERB ? C_WARN : C_ERR;
+        cell_gauge(c, 0, 0, CG_TOP, (int32_t)l);
+        break;
+    }
+#endif
     case SI_CPU1: {                                     /* the second core: ON and its share of each audio half (dual_load.h), OFF and why, or not in the build */
 #if DUAL_LOAD
         int32_t pct = dual_c1_pct();
@@ -441,6 +500,10 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
     case SI_INFO:                                       /* the info page's one line (op_gldraw.c draws the page itself) */
         c->label = "INFO";
+        c->kind = CK_RO;
+        break;
+    case SI_UAINFO:                                     /* the USB AUDIO page's one line (op_gldraw.c draws the page itself) */
+        c->label = "USB AUDIO";
         c->kind = CK_RO;
         break;
     case SI_BATT: {                                     /* BATTERY: the bars out of 3 and the raw ADC count, no invented percentage */
@@ -705,13 +768,18 @@ static void sys_rst_cell(cell_t *c)
 #else
 #define INFO_RST 0u
 #endif
-/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the battery,
- * LAST RESET, the second core's lines (DUAL builds), then the USB AUDIO diagnostics (USB audio builds) */
-#define INFO_BASE 4u
-#define INFO_N (INFO_BASE + INFO_RST + INFO_C1 + INFO_UA)
+/* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), PEAK,
+ * DROPS, GUARD (CPU_GUARD builds), the battery, LAST RESET, the second core's lines (DUAL builds). The USB AUDIO diagnostics: a
+ * page of their own after it (USB audio builds: info_cell, page 1) */
+#define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
+#define INFO_N (INFO_BASE + INFO_RST + INFO_C1)
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
+    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_PEAK, SI_DROPS,
+#if FELUCCA_CPU_GUARD
+                                            SI_GUARD,
+#endif
+                                            SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; PEAK, DROPS: the overload monitor) */
     i %= INFO_N;
 #if INFO_RST
     if (i == INFO_BASE) {
@@ -725,13 +793,20 @@ static void sys_info_cell(uint32_t i, cell_t *c)
         return;
     }
 #endif
+    sys_it_cell(INFO[i], c);
+}
+/* the read-out pages (op_gldraw.c gl_info): page 0 INFO, page 1 USB AUDIO; their lines */
+static uint32_t info_lines(uint32_t pg) { return pg ? INFO_UA : INFO_N; }
+static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
+{
 #if FELUCCA_USB_AUDIO
-    if (i >= INFO_BASE + INFO_RST + INFO_C1) {
-        sys_ua_cell(i - INFO_BASE - INFO_RST - INFO_C1, c);
+    if (pg) {
+        sys_ua_cell(i % INFO_UA, c);
         return;
     }
 #endif
-    sys_it_cell(INFO[i], c);
+    (void)pg;
+    sys_info_cell(i, c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */
 static void sys_set(uint32_t it, int32_t s)
