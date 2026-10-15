@@ -103,6 +103,7 @@ static void edtools_tests(void)
         uint32_t hits = 0;
         for (i = 0; i < 8u; i++)
             was[i] = t->step[i].time;
+        tl.hits = 4, tl.steps = 16, tl.rot = 0;         /* (EUCLID's values are kept until the power goes: the ones this test starts from, as ui_optimist_seqtools.h does; an earlier screen on a 2-step track had pinned STEPS to 2) */
         q[0] = 3, q[1] = 127;
         ed_begin(ED_TOOLS);
         r = ed_tools(ED_TOOLS, q, 2);
