@@ -157,8 +157,9 @@ static void set_engine_of(track_t *t, uint32_t ei)
     if (is_drum(t))
         return;
     fm1_irq_off();
-#if FELUCCA_PLOCK
-    locks_restore(t);                                 /* (a lock in force: its base first, then the new sound) */
+#if FELUCCA_MOTION || FELUCCA_PLOCK
+    motion_restore(t);                                /* (the automation's values back first, then the new sound: it is
+                                                       * the patch now, STOP keeps it) */
 #endif
     sound_change(t);                                  /* (SLOOP 2.6: the sound as it is, before anything new is written) */
     t->eng_req = (uint8_t)(ei % NENGINES);

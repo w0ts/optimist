@@ -166,8 +166,6 @@ static void t_forms(void)
           !stepx_lock_used(&sx.lock[1]));
     proj_capture(&gp, &gd);
     m = auto_for(&gp, 1);
-    check("a drum list with lane events: not in today's old forms (auto_trk_old_ok 0, auto_old_ok 0)",
-          !auto_trk_old_ok(m, TRK_DRUM) && !auto_old_ok(m));
     nb = pat_encode(&gp, TRK_DRUM, b);
     check("... its pattern record is V2, read back equal", (b[0] & PF_VER) == PF_V2 && pat_decode(b, nb, TRK_DRUM, &gp.t[TRK_DRUM], &l2, &on) &&
           auto_list_same(AUTO_L(TRK_DRUM), &l2));
@@ -180,7 +178,8 @@ static void t_forms(void)
     for (i = 0; i < m->l[TRK_DRUM].n; i++)
         if (!(m->l[TRK_DRUM].ev[i].place & AUTO_ONLY) && AUTO_IS_LANE(m->l[TRK_DRUM].ev[i].param))
             auto_del(&m->l[TRK_DRUM], i--);
-    check("a lane lock alone (no lane hold): still the new forms (AUTO_X_LANE)", !auto_trk_old_ok(m, TRK_DRUM));
+    nb = pat_encode(&gp, TRK_DRUM, b);
+    check("a lane lock alone (no lane hold): still the new forms (V2)", (b[0] & PF_VER) == PF_V2);
     /* a scene saved and loaded, the autosave */
     memset(nor, 0xFF, sizeof nor);
     sec_pend_clear();

@@ -254,7 +254,7 @@ raw:
 
 #if FELUCCA_MOTION
 /* the record (n bytes in out, SEC_REC_MAX room) with p's motion store m (not empty): its chunk after the flags
- * byte; a raw body, or a compressed one no smaller than the raw one without magic, size, sum: that raw one */
+ * byte (only the first start's move of an old slot writes one now: sec_encode_mig); a raw body, or a compressed one no smaller than the raw one without magic, size, sum: that raw one */
 static uint32_t sec_put_motion(uint8_t *out, uint32_t n, const project_t *p, const dlrec_t *d, const motion_store_t *m)
 {
     uint32_t c = 2u + 3u * m->count, dl = (out[0] & SEC_DL) ? (uint32_t)sizeof *d : 0u;
@@ -319,21 +319,30 @@ static const int8_t *sec_from_va(uint32_t f, project_t *p, int8_t *va)
 }
 #endif
 
-/* project p and its drum record d -> out (SEC_REC_MAX bytes room), with p's motion when it has one; -> the
- * record's length */
+/* project p and its drum record d -> out (SEC_REC_MAX bytes room); -> the record's length. Never a motion chunk now
+ * (SEC_MOT: an older Optimist's, still read): the automation store is the extras record's (stepx_log.c) */
 static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
 {
-    uint32_t n = sec_body(p, d, out, 0);
+    return sec_body(p, d, out, 0);
+}
 #if FELUCCA_MOTION
+/* the first start of a log build (sections.c sec_migrate): an old slot with its motion (its MOTN record, read into
+ * p's store) as a section record with the chunk, as the log held it before: the move writes one record a slot, so
+ * the motion goes in it (the hold events' first 64: all an old slot can have) */
+static uint32_t sec_encode_mig(const project_t *p, const dlrec_t *d, uint8_t *out)
+{
+    uint32_t n = sec_body(p, d, out, 0);
     const auto_store_t *m = auto_of(p);
     if (m && auto_has_motion(m)) {
-        motion_store_t ms;                             /* (the hold events' first 64; the rest: the extras record) */
+        motion_store_t ms;
         (void)auto_motion_of(m, &ms);
         n = sec_put_motion(out, n, p, d, &ms);
     }
-#endif
     return n;
 }
+#else
+#define sec_encode_mig sec_encode
+#endif
 
 /* a record (n bytes) -> project p and its drum record d (none: all 0), its motion (motion builds); 0 = not a
  * section record */

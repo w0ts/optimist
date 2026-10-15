@@ -213,8 +213,8 @@ static void t_motion_mute(void)
 {
     uint8_t o[4];
     setup_play();
-    check("the ACCENT amount is a value motion records (the drum track's P_E1; its kit P_E0 still not)",
-          motion_param(TDRUM, P_DACC) && !motion_param(TDRUM, P_E0) && !motion_param(TDRUM, P_E2));
+    check("the ACCENT amount is a value motion records (the drum track's P_E1; its kit P_E0 too since one list with the locks)",
+          motion_param(TDRUM, P_DACC) && motion_param(TDRUM, P_E0) && lock_ok(TDRUM, P_E0));
     (void)auto_put(AUTO_L(TRK_DRUM), 3u, P_DACC, 10);    /* (a hold from step 4: the amount 10 until the pass's end) */
     auto_w.on = 1u << TRK_DRUM;
     auto_touch(TRK_DRUM);

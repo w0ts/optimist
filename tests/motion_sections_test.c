@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Motion recording (FELUCCA_MOTION, firmware/src/motion*.c) with every FELUCCA_SECTIONS (4, 8, 16) on a
  * simulated NOR. Built three times by tests/run_tests.sh (-DFELUCCA_SECTIONS=4 / 8 / 16).
- *   8 / 16   a section's motion travels in its record (sec_codec.c SEC_MOT): record, save, load and it plays;
+ *   8 / 16   a section's motion travels in its extras record (the new form; the SEC_MOT chunk of an older record still read): record, save, load and it plays;
  *            none recorded, no chunk (the record as before); stored while playing (the arena), staged for the
  *            song; a save cut at every flash program leaves the old section with its own motion; the reserve
  *            keeps a dense raw section with 64 events savable; the four old slots with their motion (beside
@@ -356,8 +356,9 @@ int main(void)
     m1 = *mview();
     project_save(1);
     n = slg.alen[1];
-    check("B saved with 10 events: the chunk in its record (+2 +3 x 10 bytes)", !strcmp(last_msg, "SAVED") &&
-          slg_get(1, sec_rbuf) > 0 && (sec_rbuf[0] & SEC_MOT) && n == n0 + 2u + 30u);
+    check("B saved with 10 events: no chunk in its record (the store in its extras record, the new form)",
+          !strcmp(last_msg, "SAVED") && slg_get(1, sec_rbuf) > 0 && !(sec_rbuf[0] & SEC_MOT) && n == n0 &&
+          slg_has(SX_ID0 + 1) && slg_get(SX_ID0 + 1, sx_rbuf) > 4 && sx_rbuf[4] == AUTO_ENC_TAG);
     make(0);
     motion_reset();
     project_load(1);
@@ -376,9 +377,10 @@ int main(void)
         rec_motion(64, 3);
         project_save(3);
         sec_mem(&pct2, &more2);
-        check("the MEM gauge counts the motion: a section with 64 events takes its record + 194 B",
-              slg_live_bytes() - before == SEC_ALIGN(SEC_HEAD + slg.alen[3]) && pct2 >= pct1 &&
-              slg.alen[3] == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk, 0) + 2u + 192u);
+        check("the MEM gauge counts the motion: a section with 64 events takes its record + its extras record (192 B of events)",
+              slg_live_bytes() - before == SEC_ALIGN(SEC_HEAD + slg.alen[3]) + SEC_ALIGN(SEC_HEAD + slg.alen[SX_ID0 + 3]) &&
+              pct2 >= pct1 && slg.alen[3] == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk, 0) &&
+              slg.alen[SX_ID0 + 3] >= 4u + 3u + NTRK + 192u);
     }
 
     /* ---- stored while playing, then written; the song's stage */
@@ -465,7 +467,7 @@ int main(void)
     m2 = *mview();
     live_sec = 1;
     project_save(1);
-    ok = !strcmp(last_msg, "SAVED") && slg_get(1, sec_rbuf) > 0 && (sec_rbuf[0] & SEC_MOT);
+    ok = !strcmp(last_msg, "SAVED") && slg_get(1, sec_rbuf) > 0;
     motion_reset();
     project_load(1);
     check("... the playing section (B), dense with 64 events, is still saved and loads back with its motion",
@@ -489,7 +491,7 @@ int main(void)
         va_layout(&oldp);
         va_motion(&mo, &mw, &oldp);
         motion_store_put(&oldp, &mo);
-        n = sec_encode(&oldp, &oldd, bk);
+        n = sec_encode_mig(&oldp, &oldd, bk);              /* (the chunk: as an older Optimist wrote the record) */
         ok = (bk[0] & SEC_V2) && (bk[0] & SEC_MOT);
         bk[0] &= (uint8_t)~SEC_V2;
         ok &= sec_decode(bk, n, &got, &gotd) && proj_ok(&got);

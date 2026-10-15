@@ -465,8 +465,10 @@ static void t_motion(void)
     t->p[P_SLEN] = 4;
     base = t->p[P_CHOR];
     check(motion_set_event(t, 2, P_CHOR, base == 77 ? 78 : 77) == 0 && motion_count(t) == 1u && (auto_w.on & 1u), "motion: an event on step 3, PLAY on");
-    check(motion_set_event(t, 2, P_SLEN, 5) == 1 && motion_set_event(TDRUM, 1, P_E0, 3) == 1,
-          "motion: not on LEN, not on the drum track's kit");
+    check(motion_set_event(t, 2, P_SLEN, 5) == 1 && motion_set_event(TDRUM, 1, P_E0, 3) == 0,
+          "motion: not on LEN; on the drum track's kit (lockable: one list with the locks, 2026-10-15)");
+    (void)auto_step_hold_drop(TDRUM, 1, P_E0);
+    auto_w.on &= (uint8_t)~(1u << TRK_DRUM);           /* (as before the kit's event) */
     transport_req = 1;
     {
         uint32_t idx[4], v[4], k;

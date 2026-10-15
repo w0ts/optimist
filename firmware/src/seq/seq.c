@@ -540,7 +540,7 @@ static int32_t rec_nudge(track_t *t, uint32_t idx, uint32_t abs)
 static void rec_gate_set(track_t *t, uint32_t L, int32_t g, uint32_t own)
 {
     const step_t *s = &t->step[L % NSTEP];
-    int32_t base = lock_base_of(t, P_SGATE, t->p[P_SGATE]), d;
+    int32_t base = auto_patch(t, P_SGATE), d;
     if (!own || s->time == ST_REST || (s->time == ST_NOTE && s->rat))
         return;
     g = clamp(g, 1, 127);
@@ -2349,8 +2349,8 @@ static void seq_reset_tracks(uint32_t pos)
 #endif
     click_last = SEQ_NONE;
     song.tick = 0;
-#if FELUCCA_MOTION
-    motion_begin();                                /* (motion.c: every track from its patch) */
+#if FELUCCA_MOTION || FELUCCA_PLOCK
+    motion_begin();                                /* (auto_base.c: every track from its patch) */
 #endif
     song.playing = 1;
     slicer_start(pos);                             /* slicer.c: its step 0 with the sequencer's */
@@ -2477,14 +2477,11 @@ static void seq_stop(void)
     song.playing = 0;
     for (i = 0; i < NTRK; i++) {
         seq_release(&trk[i]);
-#if FELUCCA_PLOCK
-        locks_restore(&trk[i]);                    /* the parameters back to their base (SLOOP 2.4) */
-#endif
         trk[i].rh_n = trk[i].rt_m = 0;               /* a recorded note held over the stop: as far as it got */
     }
     seq_out_all_off();                              /* MIDI OUT: STOP ends what is still on */
-#if FELUCCA_MOTION
-    motion_end();                                  /* (motion.c: the patches back) */
+#if FELUCCA_MOTION || FELUCCA_PLOCK
+    motion_end();                                  /* (auto_base.c: the patches back, the locks let go: SLOOP 2.4's too) */
 #endif
 #if FELUCCA_ARRANGER
     if (arrangement_clock.running) {

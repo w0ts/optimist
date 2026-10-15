@@ -6,10 +6,10 @@
  *   pattern record  flags (PF_*), LEN DIV SWING GATE (a byte each), [PF_MOT: n, n x (place, param, value): the
  *                   track's automation], the step bitmap and steps up to LEN (sec_codec.c's form, codec A or B: PF_B,
  *                   the shorter), [PF_SX: the track's SLOOP 2.4 step extras, stepx.h's stored form]
- *                   The version (PF_VER): V1 when today's forms hold the track's automation exactly (at most 64 hold
- *                   events in the chunk, its step-only events as PF_SX's extras: 24 locks, no chance), so an older
- *                   build reads it whole; else V2 (phase 3): the chunk is the automation store's list (seq/auto.h: up
- *                   to 128 events, place's bit 6 STEP-ONLY), no PF_SX. A build before V2 refuses a V2 record (its
+ *                   The version (PF_VER): V2 (phase 3) for a track with automation: the chunk is the automation
+ *                   store's list (seq/auto.h: up to 128 events, place's bit 6 STEP-ONLY), no PF_SX; V1 without (no
+ *                   chunk). An older Optimist's V1 records with a motion chunk (at most 64 hold events) and PF_SX's
+ *                   2.4 extras are still read, never written. A build before V2 refuses a V2 record (its
  *                   version): the pattern reads as missing there (counted, said), never as something it is not
  *
  * Every build with the log reads them: a scene is flattened as it is read (pat_flatten: sec_read puts its patterns
@@ -167,7 +167,7 @@ static void pat_mark(const project_t *p, int apply)
 }
 
 /* the record of track k of project p -> out (SEC_REC_MAX room), its length; 0: an empty pattern (no step, motion
- * or extras: the scene says none). V1 when today's forms hold its automation (auto_proj.c auto_trk_old_ok), else V2 */
+ * or extras: the scene says none). V2 when it has automation (a list or a PLAY bit), else V1 (no chunk: the same bytes) */
 static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
 {
     const proj_trk_t *t = &p->t[k];
@@ -176,21 +176,12 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
 #if FELUCCA_AUTO
     const auto_store_t *m = auto_of(p);
     const auto_list_t *l = m ? &m->l[k] : 0;
-    stepx_t x;
-    int v1 = !l || auto_trk_old_ok(m, k);
-    if (l && l->n && !v1) {                            /* V2: the list */
+    if (l && l->n) {                                   /* V2: the list (V1's motion chunk and 2.4 extras: read only) */
         f = (f & ~(uint32_t)PF_VER) | PF_V2 | PF_MOT;
         o += auto_enc_trk(l, o);
-    } else if (l && auto_count(l, AUTO_HOLDS)) {       /* V1: the hold events as motion */
-        uint8_t *c = o++;
-        *c = 0;
-        for (i = 0; i < l->n; i++)
-            if (!(l->ev[i].place & AUTO_ONLY))
-                *o++ = l->ev[i].place & AUTO_STEP, *o++ = l->ev[i].param, *o++ = (uint8_t)l->ev[i].value, (*c)++;
-        f |= PF_MOT;
     }
-    if (m && ((m->on >> k) & 1u) && (FELUCCA_MOTION || (f & PF_VER) == PF_V2))
-        f |= PF_ON;                                    /* (a build without motion wrote none in V1) */
+    if (m && ((m->on >> k) & 1u))
+        f = (f & ~(uint32_t)PF_VER) | PF_V2 | PF_ON;
 #endif
     for (i = 0; i < 4u; i++)
         out[1u + i] = (uint8_t)t->p[P_SLEN + i];
@@ -201,12 +192,6 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
             any |= s[i];                               /* (the bitmap: a step kept) */
         f |= (b ? PF_B : 0u) | (any ? 0u : 0x100u);
     }
-#if FELUCCA_AUTO
-    if (l && v1 && ((void)auto_to_stepx(&x, l), !stepx_is_empty(&x))) {   /* V1: the step-only events as extras */
-        f |= PF_SX;
-        o += stepx_encode_trk(&x, o);
-    }
-#endif
     if ((f & 0x100u) && !(f & (PF_MOT | PF_ON | PF_SX)))
         return 0;
     out[0] = (uint8_t)f;

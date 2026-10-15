@@ -1993,6 +1993,23 @@ foreign 2.4 project has one) is clamped and the import says *2.4 IMPORTED, LOCK 
   - otherwise the new forms: **a pattern record V2** (`PF_V2` 0x40 in the version bits; its motion chunk is the list,
     n up to 128, no PF_SX), and **the extras record in its new form** (the whole store; for a section and the autosave,
     log ids 88..104; the MOTN record / SEC_MOT chunk still carry the first 64 hold events for older readers).
+  - **2026-10-15 (perf/automation-merge; the Formats ruling: no compatibility duty to other firmwares or older
+    builds)**: the old forms are now only READ (an older Optimist's projects load and convert), never written. With the
+    section log a store is always written in the new forms: the extras record's AUTO_ENC_TAG form, a pattern record V2
+    for a track with automation; no MOTN record, no SEC_MOT chunk, no PF_SX, no 2.4 stepx extras (the one exception: the
+    first start's move of an old slot into its section writes its motion as the chunk, `sec_encode_mig`). The four-slot
+    builds (SECTIONS 4, no log) still write the MOTN record: it is their only automation storage. A capture while a
+    p-lock is in force now stores the patch under the lock (`auto_patch`), not the lock's value.
+  - **One list, one base (2026-10-15, user ruling)**: `seq/auto_base.c` `auto_param` is the one list of values an
+    event may set, hold or step-only: everything lockable is recordable and the other way round (locks gain the FX
+    insert amounts, DUST, COMP, STRUM/VLEAD; motion gains ARP, scale, CHORD, GATE, LFO WAVE, the trim, SLICER's values,
+    the drum kit and EDIT values). Out of both: VOICE GLMODE PRIO ALLOC VOICES (voices in flight), MUTE, FX OFF, LEN
+    DIV SWING, the LFO DEST slots, and values with no stored id (LFO 2, GATER PATTERN RATE SHAPE, JUNO MODE). One base
+    (`motion_base` / `motion_active`) under holds and locks; a lock lets go to that base, or to the hold value set under
+    it; PLAY, STOP, a pass's step 0 (motion playing), a load, a pattern switch and an engine change put every automated
+    value back. A preset, MIDI or editor change made while playing on an automated value is put back at STOP (motion
+    and locks alike); a knob turned while not recording is the new patch at once (`auto_knob_base`).
+    The two bullets above describe what was written before.
   - read: the motion form first (`auto_fresh`: the buffer's store emptied, then its hold events), then the extras record
     (the old form adds its step-only events, the new form is the store). autosave_resume reads the MOTN record before
     the extras record now (it read them the other way).

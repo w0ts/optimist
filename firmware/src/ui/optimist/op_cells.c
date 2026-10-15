@@ -586,6 +586,9 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
             ui_message("MOTION FULL");
         }
     }
+#elif FELUCCA_PLOCK
+    if ((pg->scope == SC_TRACK || pg->scope == SC_ENGINE) && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+        auto_knob_base(TSEL, (uint32_t)(vp - TSEL->p), v);   /* (the new patch: a lock in force lets go) */
 #endif                                                  /* (a MACRO's motion: SLOOP's macro_ui.c, not here yet) */
     if (pg->scope == SC_FXSLOT && fxs_type_set(id, v))  /* MST INS: the master's S1 / S2 TYPE (fx_slots.c) */
         return;
@@ -658,6 +661,8 @@ static void acc_turn(uint32_t k, int32_t s, int fine)
         motion_full = 0;
         ui_message("MOTION FULL");
     }
+#elif FELUCCA_PLOCK
+    auto_knob_base(TDRUM, P_DACC, v);
 #endif
 }
 

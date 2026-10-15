@@ -623,7 +623,7 @@ static void sec_migrate(void)
 #if FELUCCA_MOTION
             motion_flash_read(OBJ_PROJECT0 + i, &proj_tmp.cur);   /* (its motion, beside it: into the record) */
 #endif
-            n = sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);
+            n = sec_encode_mig(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);   /* (the motion in its chunk) */
             if (!slg.sorder[stale] || slg.head != stale) {
                 if (slg_open(stale))
                     return;                            /* (flash: tried again at the next start) */

@@ -17,10 +17,7 @@ static void mac_motion(uint32_t id, int32_t value)
     if (into > slen / 2u)
         idx = (idx + 1u) % trk_len(t);
     fm1_irq_off();
-    if ((motion_base_valid >> TRK_DRUM) & 1u && !((motion_active[TRK_DRUM][id / 32u] >> (id % 32u)) & 1u)) {
-        motion_base[TRK_DRUM][id] = t->p[id];          /* (STOP puts the position back, as motion_knob) */
-        motion_active[TRK_DRUM][id / 32u] |= 1u << (id % 32u);
-    }
+    auto_take(t, TRK_DRUM, id);                        /* (STOP puts the position back, as motion_knob) */
     fm1_irq_on();
     (void)motion_set_event(t, idx, id, value);
 }
