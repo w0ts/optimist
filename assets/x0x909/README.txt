@@ -10,4 +10,4 @@ floating point C arrays in build/gen/x0x_drum_samples.h (hh.wav is 24-bit and
 is rounded to 16 bits first); X0X keeps them as int16.
 
 (9W9 is athousanddetails/schwung-9W9 on GitHub, and X0X's own LICENSING.md names athousanddetails as
-its author. ER-99 does not say where its cymbal recordings come from.)
+its author, where this file names Charles Vestal: the sources disagree, and Optimist credits both. ER-99 does not say where its cymbal recordings come from.)
