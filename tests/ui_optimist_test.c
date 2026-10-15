@@ -339,6 +339,62 @@ static int forms_draw(void)
         }
     return 1;
 }
+#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+/* fx-pool (2026-10-15): a return holding another type (PHSR on R1: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
+ * EQ3 (a return's RET EQ3 rows, a track's EQ3 and EQ3 FREQ rows): the rows exist, their cards are drawn (opt-fxpool-*.ppm) */
+static int fx_row_of(const char *t)                   /* the master FX screen's row titled t, -1 none */
+{
+    uint32_t r, n = fxs_rows();
+    for (r = 0; r < n; r++)
+        if (!strcmp(fx_pg(r)->title, t))
+            return (int)r;
+    return -1;
+}
+static int snd_row_of(const char *t)
+{
+    uint32_t r, n = snd_rows();
+    for (r = 0; r < n; r++)
+        if (snd_page(r) && !strcmp(snd_page(r)->title, t))
+            return (int)r;
+    return -1;
+}
+static void fxpool_tests(void)
+{
+    int r;
+    const uint8_t s[2] = {FXT_EQ3, FXT_NONE};
+    cell_t c;
+    reset_ui();
+    fxs_load(1, FXT_PHSR);
+    fxs_load(3, FXT_EQ3);
+    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R3: REV's line 2) */
+    go_home();
+    ui.row[SCR_HOME] = MXR_MASTER;
+    tap(B_FX);
+    check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
+          fx_row_of("RET EQ3 F") >= 0, "fx-pool: PHSR on R1, EQ3 on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
+    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
+    r = fx_row_of("RETURNS");
+    ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
+    fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
+    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' line-0 card named PHSR RT (the return's type)");
+    ins_put(0, s);
+    song.sel = 0;
+    go_home();
+    tap(B_FX);
+    check(ui.scr == SCR_SOUND && snd_row_of("EQ3") >= 0 && snd_row_of("EQ3 FREQ") >= 0, "... T1 holding EQ3: its EQ3 and EQ3 FREQ rows");
+    eq3_v[0][EQV_LO] = EQ_KILL, eq3_v[0][EQV_HI] = 4;
+    ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-eq3");
+    ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3 FREQ"), ui.force = 1, frame(), ppm("opt-fxpool-eq3freq");
+    ins_defaults();                                     /* (every slot the default again, the screens' rows the first) */
+    eq3_defaults();
+    fxs_set(FXS_DEF);
+    ui.row[SCR_FX] = 0, ui.row[SCR_SOUND] = 0;
+    reset_ui();
+    go_home();
+}
+#endif
 static void rows_tests(void)
 {
     char why[64] = "";
@@ -2504,6 +2560,9 @@ int main(int argc, char **argv)
     go_home();
     frames(3);
     rows_tests();
+#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+    fxpool_tests();
+#endif
     key_tests();
     confirm_tests();
     message_tests();
