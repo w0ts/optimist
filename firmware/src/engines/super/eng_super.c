@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SUPER: a superwave per voice, so a chord plays as a chord (ANALOG's SUPERSAW preset stacks
  * the eight voices of UNISON on one note). Ported from Jangada's ANALOG superwave (eng_analog.c
- * analog_render_x), which shares Felucca's ancestry with SLOOP:
+ * analog_render_x; Jangada by zednaked, Thiago Gonçalves, https://github.com/zednaked/jangada, d43e6ab, GPL-3.0-only),
+ * which shares Felucca's ancestry with SLOOP:
  *
  *   a band-limited saw and up to 6 copies of it (SUPR), copy k sitting COPY_AT[k] steps of the
  *   spread (SDTN) above or below, so one accumulator of the spread phase drives them all; MIX the
