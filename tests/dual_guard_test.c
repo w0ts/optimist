@@ -130,6 +130,9 @@ static void test_mode(void)
     CHECK(dual_boot_why(DUALM_OFF, 0) == DUAL_SETOFF, "OFF does not");
     CHECK(dual_boot_why(DUALM_AUTO, 1) == DUAL_EARLY, "a boot after an early crash stays on one core");
     CHECK(dual_boot_why(DUALM_OFF, 2) == DUAL_SETOFF, "OFF wins over the crash (no message)");
+    CHECK(dual_park(DUAL_UP, 1) == DUAL_PARKED && dual_park(DUAL_UP, 0) == DUAL_UP, "parked: CPU1 is never started unless built with OPTIMIST_DUAL_PARK=0");
+    CHECK(dual_park(DUAL_SETOFF, 1) == DUAL_SETOFF && dual_park(DUAL_EARLY, 1) == DUAL_EARLY, "parking does not hide the setting or an early crash");
+    CHECK(!dual_why_parks(DUAL_PARKED) && !strcmp(dual_why_name(DUAL_PARKED), "PARKED") && FELUCCA_DUAL_PARK == 1, "PARKED is its own reason (not a failure), parked by default");
     /* the settings word: 0 (a record without the bits) is AUTO; the other bits are kept */
     CHECK(dual_mode_in(0u) == DUALM_AUTO, "no bits: AUTO");
     CHECK(dual_mode_in(3u << 27) == DUALM_AUTO, "an unknown value: AUTO");

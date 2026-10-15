@@ -27,13 +27,13 @@ enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
 
 /* why CPU1 is not taking jobs (dual.up 0); DUAL_UP while it runs */
 enum { DUAL_UP, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH, DUAL_MISREAD, DUAL_CANARY, DUAL_EARLY, DUAL_SETOFF,
-       DUAL_WHY_N };
+       DUAL_PARKED, DUAL_WHY_N };
 
 /* the reason's name, as the screens show it ("" for DUAL_UP; a value out of range reads as DUAL_UP's) */
 static inline const char *dual_why_name(uint32_t why)
 {
     static const char *const DUAL_WHY_TXT[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
-                                                         "AFTER CRASH", "SETTING"};
+                                                         "AFTER CRASH", "SETTING", "PARKED"};
     return DUAL_WHY_TXT[why % DUAL_WHY_N];
 }
 
@@ -52,6 +52,14 @@ static inline uint32_t dual_boot_why(uint32_t mode, uint32_t early_crashes)
         return DUAL_EARLY;
     return DUAL_UP;
 }
+
+/* PARKED (2026-10-15, the user's ruling until the hardware tests settle the second core: the FM-1's power-on crashes with CPU1 rendering
+ * jobs): a DUAL build never starts CPU1 unless it is built with OPTIMIST_DUAL_PARK=0 (tools/build.py, for hardware test builds),
+ * so no render job ever runs on it; SYSTEM > INFO says "2ND CORE OFF PARKED" (the CPU1 diagnostics lines stay) */
+#ifndef FELUCCA_DUAL_PARK
+#define FELUCCA_DUAL_PARK 1
+#endif
+static inline uint32_t dual_park(uint32_t why, uint32_t park) { return why == DUAL_UP && park ? DUAL_PARKED : why; }
 
 /* a reason that says this FM-1 cannot run CPU1 at this supply (AUTO turns itself OFF); not a start that never answered
  * (nothing ran), not a boot kept on one core by a crash or by the setting */

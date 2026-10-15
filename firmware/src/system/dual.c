@@ -315,7 +315,7 @@ static void dual_down(uint32_t why, uint32_t wait_us)
 static __attribute__((noinline)) void dual_boot(void)
 {
     dual.boot_mode = dual_mode;
-    dual.why = (uint8_t)dual_boot_why(dual_mode, bootguard.failed);   /* 2ND CORE OFF, or the last boot crashed early */
+    dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
     if (dual.why != DUAL_UP)
         return;                                    /* (CPU1 stays in reset, as at power-on) */
 #if FELUCCA_DUAL_BOOST
@@ -367,7 +367,7 @@ static void dual_frame(void)
         dual_down(DUAL_FAULT, 0);
     if (!dual.up && !told) {
         told = 1;
-        if (dual.why != DUAL_SETOFF)
+        if (dual.why != DUAL_SETOFF && dual.why != DUAL_PARKED)
             ui_say("CPU1 OFF ", DUAL_WHY(dual.why));
         dual_mode = (uint8_t)dual_mode_after(dual_mode, dual.boot_mode, dual.why);
     }

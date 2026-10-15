@@ -430,3 +430,10 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   the single / dual0 / dual WAV comparison (`bench.c` signatures locate the first differing part/block).
 
 - **Boot order (build check):** CPU1 may start only after the UBOOT hold and the boot guard, never on the recovery path. A DUAL build keeps `boot_hold`, `bootguard_begin`, `fm1_main`, `recovery_main`, `dual_boot` and `fm1_dual_start` out of line (`BOOT_ORDER`, noinline, +192 B), and `tools/build.py boot_order()` reads their call graph: the start only through `dual_boot` <- `fm1_main` <- `fm1_cstart`, which calls `boot_hold` and `bootguard_begin` first, and `recovery_main` cannot reach it.
+
+## Parked by default (2026-10-15)
+
+Until the hardware tests settle the second core (the FM-1's power-on crash while CPU1 rendered jobs), a DUAL build never starts CPU1:
+`dual.why` is `DUAL_PARKED`, SYSTEM > INFO reads "2ND CORE OFF PARKED", and no render job ever runs on CPU1. A hardware test build that
+must run CPU1 sets `OPTIMIST_DUAL_PARK=0` in the environment (tools/build.py, like `OPTIMIST_DUAL_IDLE`); the emulator checks that
+need CPU1 up (tests/emu_dual_check.py, tests/emu_boot_check.py on a DUAL=2 build) are built that way too.

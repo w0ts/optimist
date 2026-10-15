@@ -232,6 +232,8 @@ def build_app():
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
+    if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
+        flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
     v = os.environ.get("OPTIMIST_DUAL_IDLE")   # (not FELUCCA_*: the builder strips those) a DUAL build's CPU1 between jobs:
     if v in ("0", "1") and os.environ.get("FELUCCA_DUAL_IDLE") is None:   # 1 asleep in `idle` (default), 0 spinning in RAM
         flags.append(f"-DFELUCCA_DUAL_IDLE={v}")
