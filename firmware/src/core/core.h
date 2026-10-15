@@ -713,6 +713,16 @@ volatile uint32_t fm1_astage __attribute__((section(".noinit")));
 volatile uint32_t fm1_aloop __attribute__((section(".noinit")));
 static uint32_t fm1_astage_prev, fm1_aloop_prev;
 #define ASTAGE(s) (fm1_astage = (s))
+/* (code either core may run: only CPU0 writes the marker; CPU1 must not write .noinit, its write limits there) */
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__)
+#define ASTAGE0(s)                                                                                                     \
+    do {                                                                                                               \
+        if (!fm1_cnum())                                                                                               \
+            fm1_astage = (s);                                                                                          \
+    } while (0)
+#else
+#define ASTAGE0(s) ASTAGE(s)
+#endif
 #define LOOP_GUARD(id, cnt, max)                                                                                       \
     if (++(cnt) > (max)) {                                                                                             \
         if (!fm1_aloop)                                                                                                \

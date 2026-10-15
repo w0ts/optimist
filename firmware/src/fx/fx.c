@@ -1910,6 +1910,7 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
     const int16_t *p = TDRUM->p;
     int32_t on = fx_on(TDRUM), to[3];
     uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, m, nc = DBUS_NC();
+    ASTAGE0(0x98);
 #if DINS
     for (t = 0; t < NDRUM; t++)                         /* (the drums have rendered: the voices' inserts that ran) */
         dins_ran[t] = dins_now[t], dins_now[t] = 0;

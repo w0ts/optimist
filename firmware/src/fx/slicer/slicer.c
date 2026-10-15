@@ -161,10 +161,14 @@ static HOT void slicer_track(const track_t *t, int32_t *b, uint32_t n)
     uint32_t k = (uint32_t)(t - trk), i = 0, bpm = (uint32_t)song.g[G_BPM];
     sl_t *s = &sl[k];
     int act = FELUCCA_FX_SLICER && b && (sl_mode(t) != SL_OFF || s->gc || s->w);   /* (registry.h) */
+    uint32_t guard = 0;
     while (i < n) {
-        uint32_t m, left;
-        while (s->pos >= s->len)
+        uint32_t m, left, g2 = 0;
+        LOOP_GUARD(0x90, guard, 4u * CTL)
+        while (s->pos >= s->len) {
+            LOOP_GUARD(0x91, g2, 64u)
             sl_enter(t, s);
+        }
         left = (s->len - s->pos + bpm - 1u) / bpm;  /* samples to the boundary */
         m = left < n - i ? left : n - i;
         if (act)
@@ -187,9 +191,12 @@ static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
     const track_t *t = TDRUM;
     const sl_t *s = &sl[TRK_DRUM];
     uint32_t i;
+    ASTAGE0(0x90);
     if (!FELUCCA_FX_SLICER || (sl_mode(t) == SL_OFF && !s->gc && !s->w)) {
         slicer_track(t, 0, n);
+        ASTAGE0(0x91);
         drums_render(ml, mr, rev, n);
+        ASTAGE0(0x97);
         return;
     }
     for (i = 0; i < n; i++)
