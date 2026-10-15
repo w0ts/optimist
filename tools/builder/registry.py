@@ -478,7 +478,7 @@ _add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the 
           "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off."
           + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
 FM106 = Provenance("fm-106 (PatttF/fm-106)", "PatttF", "GPL-3.0-only", "be74757", "https://github.com/PatttF/fm-106")
-_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 140, default=0, provenance=FM106,
+_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
      choices=((0, "off"), (1, "1 slot (2 KB pool)"), (2, "2 slots (4 KB)"), (3, "3 slots (6 KB)"),
               (4, "4 slots (8 KB)")),
      desc="The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the "
