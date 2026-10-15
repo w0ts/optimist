@@ -57,9 +57,10 @@
 #define MXM_GW 200
 #define MXM_GY 68
 #define MXM_GH 6
-#define MXM_CY 84                       /* the FX returns' meters: a line each */
-#define MXM_CP 20
-#define MXM_CH 4
+#define MXM_CY 82                       /* the FX returns' meters: a line each */
+#define MXM_CP 22
+#define MXM_CH 10                       /* (a return's meter: as thick as its name reads) */
+#define MXM_CV 3                        /* its top under its name's line */
 #define MX_LV 255u                      /* a level: 0 .. 255, the meter's whole width */
 enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row alone, past the drum sounds) */
 static struct {
@@ -188,7 +189,7 @@ static void mx_paint_master(void)
         cv_text(MXM_X, MXM_CY + (int32_t)i * MXM_CP, &FONT_S, MX_RET_NAME[2u - ret[i]], C_HI);
     mx_vu_paint(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
     for (i = 0; i < n; i++)                             /* (a return's meter state: the row T1 + its line's, unseen here) */
-        mx_vu_paint(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + 6, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
+        mx_vu_paint(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
 }
 static void mx_paint_row(uint32_t i)                    /* a channel's or a lane's row */
 {
@@ -331,8 +332,7 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
     cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
-    cv_rect(x, y, px, h, pk > MX_LV - 10u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : r == MXR_MASTER ? C_OK :
-                         mxd.first == MXR_MASTER ? C_HI : C_OK);   /* (MASTER's page: the returns, C_HI) */
+    cv_rect(x, y, px, h, pk > MX_LV - 10u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : C_OK);   /* (the returns' meters too: the channels' green) */
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
@@ -456,7 +456,7 @@ static void mx_draw(void)
         mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
         mx_master_gr();
         for (i = 0; i < n; i++)
-            mx_vu_at(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + 6, MXM_GW, MXM_CH, ret_lv[i], 0);
+            mx_vu_at(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, ret_lv[i], 0);
         return;
     }
     for (i = mxd.first; i < mxd.last; i++) {

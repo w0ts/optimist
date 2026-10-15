@@ -19,7 +19,7 @@ static void core_row_tests(void)
         dual_c1_q8 = 128u;
         dual.why = DUAL_UP;
         sys_info_cell(2, &c);
-        check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == 0, "2ND CORE ON: the CPU1 load, 50 %");
+        check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK, "2ND CORE ON: the CPU1 load, 50 %, green (under 60)");
         dual_c1_q8 = DUAL_C1_OFF;
         dual.why = DUAL_MISREAD;
         sys_info_cell(2, &c);
