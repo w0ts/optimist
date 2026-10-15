@@ -10,6 +10,7 @@ Never picks a stock or foreign package: the default is the newest build/optimist
 Optimist one (identity FM-1_700, or FM-1_720 .. 769 for a release) that fm1_install.load_package accepts.
 Nothing here touches MIDI itself: every device access goes through run_tool() (fm1_install.py in a subprocess),
 which the tests replace."""
+import os
 import re
 import subprocess
 import sys
@@ -21,6 +22,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(1, str(HERE / "builder"))               # (stamp: the commit a package was built from)
 import fm1_install as FI  # noqa: E402
+import progress  # noqa: E402  (stream: the tool's output as it arrives)
 import stamp  # noqa: E402
 
 TOOL = HERE / "fm1_install.py"
@@ -72,12 +74,16 @@ def midi_python():
     return None
 
 
-def run_tool(args, capture=True):
+def run_tool(args, capture=True, on_line=None):
     """fm1_install.py with args under a Python that has the MIDI modules -> (exit code, output). The only place
-    a device is reached"""
+    a device is reached. on_line: called with each line and each \\r progress update as the tool prints it (the
+    menu's progress bar; progress.parse_flash reads them)"""
     py = midi_python()
     if not py:
         raise FlashError(NEED)
+    if on_line:
+        rc, out = progress.stream([py, str(TOOL), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
+        return rc, out.strip()
     r = subprocess.run([py, str(TOOL), *args], capture_output=capture, text=True)
     return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
 
@@ -149,7 +155,7 @@ def preflight(package, port=None, notes=None):
     return Plan(package, product, text, port, notes)
 
 
-def install(plan, capture=True):
-    """write the plan's package (the caller has asked) -> (exit code, output). Never --force"""
+def install(plan, capture=True, on_line=None):
+    """write the plan's package (the caller has asked) -> (exit code, output). Never --force. on_line: see run_tool"""
     args = [str(plan.package), "--yes", *(["--port", plan.port] if plan.port else [])]
-    return run_tool(args, capture)
+    return run_tool(args, capture, on_line) if on_line else run_tool(args, capture)
