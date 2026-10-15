@@ -447,6 +447,12 @@ static void con_status(void)
     con_kx("cpu1_exc_emu", fm1_dual_exc.emu);
     con_kx("cpu1_exc_pc", fm1_dual_exc.pc);
     con_kx("cpu1_exc_rets", fm1_dual_exc.rets);
+    con_kx("cpu1_exc_c1con", fm1_dual_exc.c1con);
+    con_kx("cpu1_exc_c1etm0", fm1_dual_exc.c1etm[0]);   /* CPU1's last branches then */
+    con_kx("cpu1_exc_c1etm1", fm1_dual_exc.c1etm[1]);
+    con_kx("cpu1_exc_c1etm2", fm1_dual_exc.c1etm[2]);
+    con_kx("cpu1_exc_c1etm3", fm1_dual_exc.c1etm[3]);
+    con_kx("cpu1_c1con", fm1_dual_c1con());                   /* (what it reads back now) */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif

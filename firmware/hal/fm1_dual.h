@@ -174,6 +174,9 @@ static void fm1_dual_bank_clear(void)
 }
 
 static void fm1_dual_halt(void);
+static volatile uint8_t fm1_dual_on;                      /* CPU1 started and answered, not held since (fm1_dual_start,
+                                                           * fm1_dual_halt): C1_CON's bits do not read back as written
+                                                           * on the FM-1 (2026-10-15, B3: the test on them missed) */
 
 /* An exception about CPU1 (keremimo/melodee hal/fm1_irq.h fm1_core1_fault_c, GPL-3.0, measured on the FM-1): CPU1
  * enables no interrupt of its own, so the debug unit's errors about it (a fetch outside the PC limits, a bus error,
@@ -184,7 +187,12 @@ static void fm1_dual_halt(void);
  * once per CPU1 fault. 1: handled, CPU0 resumes; 0: CPU0's own, the crash report */
 #define FM1_DBG_C1 ((1u << 6) | (1u << 8) | (1u << 10) | (1u << 11) | (7u << 16))
 #define FM1_DBG_C0 ((1u << 7) | (1u << 9) | (1u << 12) | (1u << 13) | (7u << 19))
-static struct { volatile uint32_t count; uint32_t echoes, cpu, dbg, emu, pc, rets, vec; } fm1_dual_exc;
+static struct {
+    volatile uint32_t count;
+    uint32_t echoes, cpu, dbg, emu, pc, rets, vec;
+    uint32_t c1con;                                       /* C1_CON as read then (what it reads back: not known) */
+    uint32_t c1etm[4];                                    /* CPU1's branch trace then (q32DSP(1)->ETM_PC0..3) */
+} fm1_dual_exc;
 static int fm1_dual_exc_c(const uint32_t *f)
 {
     uint32_t cpu = fm1_cnum(), dbg = FM1_DBG_MSG, was, vec = (f[19] - (uint32_t)(uintptr_t)fm1_fatal_stubs) / 6u - 1u;
@@ -196,7 +204,7 @@ static int fm1_dual_exc_c(const uint32_t *f)
          * and this function did not take it: DBG_MSG had neither core's bits (the bus-invalid bits 4, 5 belong to
          * neither mask) or was already cleared. While CPU1 runs, such an exception (no CPU0 bits, EMU_MSG 0) holds
          * CPU1 first; the same again with CPU1 held is CPU0's and gets the crash report */
-        uint32_t c1_runs = (FM1_C1_CON & 8u) && !(FM1_C1_CON & 2u);
+        uint32_t c1_runs = fm1_dual_on;
         if (fm1_dual_exc.echoes < fm1_dual_exc.count) {
             fm1_dual_exc.echoes++;
             return 1;                                     /* CPU1's, echoed */
@@ -206,6 +214,12 @@ static int fm1_dual_exc_c(const uint32_t *f)
     }
     if (!cpu && fm1_dual_exc.count >= 16u)
         return 0;                                         /* a hold that did not take */
+    {
+        uint32_t i;
+        fm1_dual_exc.c1con = FM1_C1_CON;
+        for (i = 0; i < 4u; i++)
+            fm1_dual_exc.c1etm[i] = *(volatile uint32_t *)(0x1EEF3C4u + 4u * i);   /* (before the hold) */
+    }
     if (!cpu)
         fm1_dual_halt();
     fm1_dual_exc.cpu = cpu;
@@ -243,6 +257,7 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     fm1_dual_mb.wakes = 0;
     fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
+    *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* CPU1's branch trace on (its ETM_CON, as CPU0's: fm1_irq.h) */
     FM1_C1_VEC = (uint32_t)(uintptr_t)fm1_cpu1_entry;
     FM1_SYSCLK1 = sys | 8u;
     FM1_C1_CON |= 8u;
@@ -256,6 +271,7 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
         FM1_C1_CON &= ~8u;
         FM1_C1_CON |= 2u;
     }
+    fm1_dual_on = (uint8_t)ok;
     return ok;
 }
 
@@ -365,8 +381,10 @@ __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
 extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
+static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
 static void fm1_dual_halt(void)
 {
+    fm1_dual_on = 0;
     FM1_C1_CON &= ~8u;
     FM1_C1_CON |= 2u;
     fm1_dual_sync();

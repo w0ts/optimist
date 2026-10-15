@@ -131,6 +131,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         song.cpu_q8 = (song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS)) / 16u;
 #if FELUCCA_DUAL >= 2
         dual_load_half();                                  /* CPU1's, the same way (dual.c, dual_load.h) */
+        felucca_dbg.c1 = fm1_dual_mb.stage;                /* (kept by a reset; TIMER5 keeps it too, from IRQS on) */
 #endif
         if (fm1_audio_free_half() != half)
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */
