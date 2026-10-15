@@ -86,14 +86,14 @@ static void usbfx_tests(void)
         s = ut_set_of("INSERT");
         mx.set = (uint8_t)(s < 0 ? 0 : s);
         mix_cell(MXR_USB, 0, &c);
-        check(s >= 0 && c.label && !strcmp(c.label, "S1 CHRS") && !strcmp(c.val, "FULL") && c.dim,
-              "... CHRS on S1 with every instance taken: the card S1 CHRS over FULL, dim (as a track's)");
+        check(s >= 0 && c.label && !strcmp(c.label, "S1 CHRS") && !strcmp(c.val, "CHRS") && c.strike && c.dim,
+              "... CHRS on S1 with every instance taken: the card S1 CHRS, the name struck through, dim (as a track's)");
         ui.force = 1, frame(), ppm("opt-usbfx-full");
         ins_defaults();
         for (k = 0; k < 30u; k++)
             fxi_poll(), frame();                        /* (the tracks' fade out, then theirs back, the input's handed out) */
         mix_cell(MXR_USB, 0, &c);
-        check(strcmp(c.val, "FULL") != 0 && !c.dim, "... a track's CHRS gone: the input's card heard again");
+        check(!c.strike && !c.dim, "... a track's CHRS gone: the input's card heard again (not struck)");
     }
     ut_defaults();
     eq3_defaults();

@@ -48,7 +48,7 @@ static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: 
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
-#if INS_FX
+#if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
 static const char *const N_TJMODE[] = {"I", "II", "I+II"};   /* JUNO CHORUS's MODE (juno_cho.h) */
 static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF16", "DOT8", "DOT4",   /* GATER's */
                                       "TRNC1", "TRNC2", "TRNC3", "TRNC4", "GALOP", "RVGAL", "CLAVE", "TRESL"};   /* IGT_PAT */
