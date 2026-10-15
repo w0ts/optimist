@@ -247,9 +247,9 @@ static void geo_accent_row(void)
 {
 #if ACC_UI
     mrect_t a, l;
-    mx_rect(MXR_N - 1u, &a);
+    mx_rect(MXR_LN - 1u, &a);
     mx_rect(MXR_LANE0 + 7u, &l);
-    check(mx_is_acc(MXR_N - 1u) && a.x == 0 && a.w == 240 && a.y == l.y + l.h && a.y + a.h == OP_PH && a.h >= l.h - 1 && a.h <= l.h + 1 &&
+    check(mx_is_acc(MXR_LN - 1u) && a.x == 0 && a.w == 240 && a.y == l.y + l.h && a.y + a.h == OP_PH && a.h >= l.h - 1 && a.h <= l.h + 1 &&
               a.sx + 16 * a.sp <= 240 && a.sx + 15 * a.sp > MXS_W,
           "#34 the mixer's ACCENT lane: a ninth row across both columns, as tall as a lane's, its steps over the width");
 #endif

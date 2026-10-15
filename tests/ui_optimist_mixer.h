@@ -31,26 +31,45 @@ static void mixer_walk_tests(void)
     check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == (OP_FOOT ? 36 : 41) &&
               px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
           "the mixer opens on T1 T2 T3 DR, four rows of 41 px (36 over the help band; MASTER above, out of view)");
-    for (i = 1; i < MXR_N - MXR_T1; i++) {              /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
+    for (i = 1; i < MXR_LN - MXR_T1; i++) {             /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
         ok &= i < TRK_DRUM ? song.sel == i : song.sel == TRK_DRUM;
         if (MXR_T1 + i >= MXR_LANE0)
             ok &= lane_selected() == MXR_T1 + i - MXR_LANE0;
     }
+#if FELUCCA_USB_AUDIO
+    turn(EN_ALGO, 1);                                   /* (fx-rework stage 3: the USB input's row after the drum tracks) */
+    ok &= mx_row() == MXR_USB && song.sel == TRK_DRUM;
     turn(EN_ALGO, 1);
-    check(ok && mx_row() == MXR_N - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
+    ok &= mx_row() == MXR_USB;
     ui.force = 1;
     frame();
-    check(mxd.first == MXR_LANE0 && mxd.last == MXR_N && mx_row_x(MXR_N - 1u) == (ACC_UI ? 0u : 120u) && mx_row_y(MXR_N - 1u) > mx_row_y(MXR_N - 2u) &&
-              px_in(ACC_UI ? 0 : 120, mx_row_y(MXR_N - 1u), 120, 10, col_shade(ACC_UI ? C_HI : lane_col(15), 3u)),
+    ok &= mxd.first == MXR_USB && mxd.last == MXR_N && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
+    {
+        uint32_t av = op_btn_avail();
+        ok &= !(av & (1u << B_ENV | 1u << B_EDIT | 1u << B_FX));   /* (no instrument: the track buttons dark) */
+    }
+    ppm("opt-mixer-usb");
+    check(ok, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), then the USB input's row, alone (the badge 5 USB, the "
+          "track buttons dark), stopping there");
+    turn(EN_ALGO, -1);
+    ok = mx_row() == MXR_LN - 1u;
+#else
+    turn(EN_ALGO, 1);
+#endif
+    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
+    ui.force = 1;
+    frame();
+    check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == (ACC_UI ? 0u : 120u) && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
+              px_in(ACC_UI ? 0 : 120, mx_row_y(MXR_LN - 1u), 120, 10, col_shade(ACC_UI ? C_HI : lane_col(15), 3u)),
           "past DR the view is the 16 drum sounds, two columns of eight; the selected lane tinted in its colour (the last: the 16th, right; with the ACCENT lane built, its row across the foot)");
     ppm("opt-mixer-h-lane16");
     ok = mx_row_x(MXR_LANE0 + 15u) == 120u && mx_row_y(MXR_LANE0 + 15u) > mx_row_y(MXR_LANE0 + 14u);
     check(ok, "the 16th lane is still the right column's last row");
     for (i = 0, ok = 1; i < DRUM_UILANES; i++) {        /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
-        ok &= mx_row() == MXR_N - 2u - i;
+        ok &= mx_row() == MXR_LN - 2u - i;
     }
     check(ok && mx_row() == MXR_DR && song.sel == TRK_DRUM, "ALGORITHM back: the lanes, then DR");
     frame();

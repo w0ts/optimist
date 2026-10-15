@@ -61,7 +61,7 @@
 #define MXM_CP 20
 #define MXM_CH 4
 #define MX_LV 255u                      /* a level: 0 .. 255, the meter's whole width */
-enum { MV_MASTER, MV_CH, MV_SOUNDS };
+enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row alone, past the drum sounds) */
 static struct {
     uint8_t first, last;                /* the rows in view: first .. last - 1 (the cursor's group) */
     uint8_t vu[MXR_N], gr[MXR_N];       /* the meters as drawn (0xFF: again) */
@@ -78,15 +78,16 @@ typedef struct {
 
 static uint32_t mx_smuted(uint32_t r)                   /* row r's sequencer muted (seq_mute.c): its steps dimmed, a badge */
 {
-    return r == MXR_MASTER ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) : (uint32_t)smute_trk_on(mx_trk_of(r));
+    return r == MXR_MASTER || mx_is_usb(r) ? 0u : r >= MXR_LANE0 ? (uint32_t)smute_lane_on(r - MXR_LANE0) :
+           (uint32_t)smute_trk_on(mx_trk_of(r));
 }
-static uint32_t mx_lmuted(uint32_t r) { return r >= MXR_LANE0 && !mx_is_acc(r) && dlm_muted(r - MXR_LANE0); }   /* (the accent: no mute) */
-static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : MV_SOUNDS; }
+static uint32_t mx_lmuted(uint32_t r) { return mx_is_lane(r) && !mx_is_acc(r) && dlm_muted(r - MXR_LANE0); }   /* (the accent: no mute) */
+static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS; }
 static void mx_view(void)                               /* the rows in view: the cursor's group */
 {
     uint32_t m = mx_mode(mx_row());
-    mxd.first = (uint8_t)(m == MV_MASTER ? MXR_MASTER : m == MV_CH ? MXR_T1 : MXR_LANE0);
-    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_T1 : m == MV_CH ? MXR_LANE0 : MXR_N);
+    mxd.first = (uint8_t)(m == MV_MASTER ? MXR_MASTER : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
+    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_T1 : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_N : MXR_LN);
 }
 static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its group's view */
 {
@@ -94,8 +95,9 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
     if (r == MXR_MASTER) {
         q->w = 240, q->h = OP_PH;
         q->vx = MXM_X, q->vy = MXM_VY, q->vw = MXM_W, q->vh = MXM_VH;
-    } else if (r < MXR_LANE0) {
-        q->y = (int32_t)(r - MXR_T1) * MXL_H, q->w = 240, q->h = MXL_H;
+    } else if (r < MXR_LANE0 || mx_is_usb(r)) {
+        q->y = mx_is_usb(r) ? 0 : (int32_t)(r - MXR_T1) * MXL_H, q->w = 240, q->h = MXL_H;   /* (the USB input: a channel's row,
+                                                         * alone, no steps) */
         q->sx = MXL_VX, q->sy = MXL_SY, q->sp = MXL_SP, q->sh = MXL_SH;
         q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
@@ -114,7 +116,7 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
 }
 static const char *mx_code(uint32_t r)                  /* the row's code at its left */
 {
-    return r == MXR_MASTER ? "M" : r >= MXR_LANE0 ? lane_code(r - MXR_LANE0) : trk_tag(mx_trk_of(r));
+    return r == MXR_MASTER ? "M" : mx_is_usb(r) ? "U" : r >= MXR_LANE0 ? lane_code(r - MXR_LANE0) : trk_tag(mx_trk_of(r));
 }
 /* the row's sound as two words: the engine (DRUMS for the drum track, MASTER, a lane's name) and the preset (the kit
  * for the drum track, a lane's own sound, a user preset's name); each cut to the room it has */
@@ -123,6 +125,11 @@ static void mx_names(uint32_t r, char *eng, char *pre)
     pre[0] = 0;
     if (r == MXR_MASTER) {
         str_cpy(eng, "MASTER", 9);
+#if FELUCCA_USB_AUDIO
+    } else if (mx_is_usb(r)) {                          /* (the computer's audio: streaming or not) */
+        str_cpy(eng, "USB IN", 9);
+        str_cpy(pre, ut_live ? "streaming" : "no stream", 14);
+#endif
     } else if (r >= MXR_LANE0) {
         str_cpy(eng, lane_name(r - MXR_LANE0), 9);
         if (!mx_is_acc(r))
@@ -190,7 +197,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mrect_t q;
     uint16_t c = mx_col(i);
     uint16_t cc = mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
-    int32_t cy = i >= MXR_LANE0 ? 2 : MXL_TY;
+    int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? 2 : MXL_TY;
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
@@ -198,7 +205,16 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     cv_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
     if (mx_muted(i))                                    /* (a muted row: its name struck through, the user, 2026-10-15) */
         strike_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
-    if (i < MXR_LANE0) {                                /* a channel: its engine and preset, its M / S badge */
+    if (mx_is_usb(i)) {                                 /* the USB input: its name and whether it streams, its M badge */
+        uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
+        mx_names(i, en, pr);
+        x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
+        if (mx_muted(i))
+            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
+        cv_text(x + 8, q.y + MXL_TY, &FONT_S, pr, pc);
+        if (mx_muted(i))
+            cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
+    } else if (i < MXR_LANE0) {                         /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
         x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
         if (mx_muted(i))
@@ -238,6 +254,11 @@ static uint32_t mx_static_sig(void)
     char en[10], pr[16];
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
+        if (mx_is_usb(i)) {                             /* (the USB input: muted, streaming) */
+            mx_names(i, en, pr);
+            sig = hs(hu(sig, mx_muted(i)), pr);
+            continue;
+        }
         if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
             sig = hu(sig, mx_lmuted(i) * 2u + mx_smuted(i));
             continue;
@@ -286,6 +307,13 @@ static uint32_t mx_level(uint32_t r, const uint32_t *trk_lv)   /* row r's level 
         return mx_vu_lv(mx_master_pk());
     if (mx_is_acc(r))
         return 0u;                                      /* (no sound: no hits to light) */
+#if FELUCCA_USB_AUDIO
+    if (mx_is_usb(r)) {                                 /* (its peak since the last frame, fx.c ut_mix) */
+        int32_t pk = ut_pk;
+        ut_pk = 0;
+        return mx_vu_lv(pk);
+    }
+#endif
     if (r >= MXR_LANE0)
         return MX_LV * mx.lit[r - MXR_LANE0] / 12u;
     return trk_lv[mx_trk_of(r)];
@@ -353,6 +381,8 @@ static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row 
  * channel's row) */
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
 {
+    if (mx_is_usb(r))
+        return;                                         /* (no sequence) */
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, np;
     uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);   /* (the sequencer muted: the steps grey, no playhead) */
@@ -378,6 +408,8 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
 }
 static void mx_steps(uint32_t r)
 {
+    if (mx_is_usb(r))
+        return;
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, sig;
     uint16_t c = mx_col(r), bg = r == mx_row() ? col_shade(c, 3u) : C_BLACK;

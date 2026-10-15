@@ -294,7 +294,7 @@ static uint32_t head_has_track(void)
         return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
     if (ui.scr == SCR_HOME)                             /* the mixer: the badge names the row's track or lane (the user, 2026-10-14: "it says mix on
                                                          * drum main and sub tracks"), MASTER its own */
-        return mx_row() != MXR_MASTER && !ui.master;
+        return mx_row() != MXR_MASTER && !mx_is_usb(mx_row()) && !ui.master;
     return HEAD_TRK_SCR[ui.scr % SCR_N] && !ui.master;
 }
 /* the title t (32 bytes, as drawn) with the n/N pos, cut to the room only where the names table failed (losing the
@@ -341,7 +341,8 @@ static int head_other(head_t *h)
         }
         return 1;
     }
-    h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : SCR_NAME[ui.scr % SCR_N];
+    h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : mx_on_usb() ? "5 USB" : SCR_NAME[ui.scr % SCR_N];
+    h->muted = (uint8_t)(mx_on_usb() && mx_muted(mx_row()));   /* (the USB input muted: its badge struck through) */
     if (!gl_scr(ui.scr))
         return 0;
     {
