@@ -231,6 +231,9 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
        LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
        LT_L2RT, LT_L2AMT, LT_N };
 #define LT_NB (FELUCCA_LFO2 ? LT_N : LT_L2RT)  /* the destinations of this build (L2RT L2AMT: with LFO 2) */
+/* ENV's summed AMT on FLT (its slots; ENV DEST FLT d of before is AMT 2 d): for an engine that models the envelope's
+ * cutoff depth itself (eng_juno.c) */
+#define ENV1_FLT_AMT(p) (((p)[P_N1DA] == LT_FLT ? (p)[P_N1AA] : 0) + ((p)[P_N1DB] == LT_FLT ? (p)[P_N1AB] : 0))
 #define LT_XRATE_V1 LT_L1RT             /* (the stored numbers of XRATE XAMT, LFO's slots until 2026-10-14) */
 #define LT_XAMT_V1 LT_L1AMT
 #define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
