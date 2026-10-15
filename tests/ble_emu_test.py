@@ -51,7 +51,11 @@ def name_ad(addr):
     return " ".join(f"{b:02x}" for b in bytes([len(name) + 1, 0x09]) + name)
 MHZ = "96"
 PRESS = "144000000:3:4:9600000"        # a note key held 0.1 s from 1.5 s (matrix column 3, row 4)
+PRESS_LOSS = "216000000:3:4:9600000"   # the same press from 2.25 s for the loss runs: with every third peripheral PDU lost the connection steps take longer, and a
+                                       # press at 1.5 s can come before the subscription (no notification, "notifications 2" waits forever: 11 steps ok, 2026-10-15)
 STEPS = "330000000"                    # ~3.4 s of guest time at 96 MHz
+LOSS_STEPS = "450000000"               # the loss runs retransmit, so the 18 steps finish later: 330 M ended them at step 11 at 96 MHz (2026-10-15,
+                                       # after the BLE radio program was packed: the start-up is a little longer); the same budget as the menu runs
 
 SCRIPT = """scan 2
 connect
@@ -759,13 +763,13 @@ def main():
         check("a BLE-MIDI note from the central plays the synth (non-silent frames; none without it)",
               len(loud) == 2 and loud[0] > 1000 and loud[1] == 0, str(loud))
         out, _ = run(diag, fwsc, tmp, "loss", SCRIPT.format(midi=midi, midi_off="midi 80 80 80 3c 00"),
-                     FM1_PRESS=PRESS, FM1_BLE_LOSS="3")
+                     FM1_PRESS=PRESS_LOSS, FM1_BLE_LOSS="3", steps=LOSS_STEPS)
         ok, bad = steps_ok(out)
         lost = re.search(r"(\d+) peripheral PDUs lost on purpose", out)
         check("FM1_BLE_LOSS=3: every step still passes (retransmissions both ways)",
-              len(ok) == 18 and not bad and bool(lost) and int(lost.group(1)) > 10, f"{len(ok)} ok, {bad}, {lost}")
+              len(ok) == 18 and not bad and bool(lost) and int(lost.group(1)) > 10, f"{len(ok)} ok {ok[-2:]}, {bad}, {lost}")
         out, air = run(diag, fwsc, tmp, "store", SCRIPT.format(midi=midi, midi_off="midi 80 80 80 3c 00"),
-                       FM1_PRESS=PRESS, FM1_BLE_LOSS="3", FM1_BLE_MODEL="old_sn=store")
+                       FM1_PRESS=PRESS_LOSS, FM1_BLE_LOSS="3", FM1_BLE_MODEL="old_sn=store", steps=LOSS_STEPS)
         ok, bad = steps_ok(out)
         check("repeated SNs stored by the engine (old_sn=store) are dropped by the driver: every step passes",
               len(ok) == 18 and not bad and "stored anyway" in air, f"{len(ok)} ok, {bad}")

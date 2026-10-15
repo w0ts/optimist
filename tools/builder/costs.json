@@ -750,16 +750,16 @@
   },
   "USB_MODE": {
    "1": {
-    "flash": 4380,
+    "flash": 4824,
     "ram": 2880,
     "pool": 0,
     "ramtext": -48
    },
    "2": {
-    "flash": 2892,
-    "ram": 2016,
+    "flash": 4248,
+    "ram": 3600,
     "pool": 12288,
-    "ramtext": 196
+    "ramtext": 0
    }
   },
   "UART": {
@@ -772,26 +772,10 @@
   },
   "MIDI_CLOCK": {
    "0": {
-    "flash": -5356,
-    "ram": -448,
+    "flash": -5976,
+    "ram": -656,
     "pool": 0,
-    "ramtext": -32
-   }
-  },
-  "MIDI_CLKOUT": {
-   "0": {
-    "flash": -3244,
-    "ram": -160,
-    "pool": 0,
-    "ramtext": -32
-   }
-  },
-  "UA_RESAMPLE": {
-   "1": {
-    "flash": 4,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
+    "ramtext": 32
    }
   },
   "MIDI_EXPR": {
@@ -1323,7 +1307,7 @@
    }
   }
  },
- "measured": "2026-10-15 14:15",
+ "measured": "2026-10-15 15:25",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1542,10 +1526,10 @@
    },
    "built_hash": "5e3dd6af",
    "sizes": {
-    "flash": 536304,
-    "ram": 83800,
+    "flash": 535456,
+    "ram": 83752,
     "pool": 320312,
-    "ramtext": 27584
+    "ramtext": 27580
    }
   },
   "mots": {
@@ -1606,10 +1590,10 @@
    },
    "built_hash": "4e22ece0",
    "sizes": {
-    "flash": 531184,
-    "ram": 62788,
+    "flash": 531328,
+    "ram": 62804,
     "pool": 316616,
-    "ramtext": 32848
+    "ramtext": 32684
    }
   },
   "user-default+ble-test": {
@@ -1894,10 +1878,10 @@
    },
    "built_hash": "643bedc6",
    "sizes": {
-    "flash": 518024,
-    "ram": 83304,
+    "flash": 517008,
+    "ram": 83272,
     "pool": 320312,
-    "ramtext": 27584
+    "ramtext": 27572
    }
   },
   "mots~": {
@@ -1960,10 +1944,10 @@
    },
    "built_hash": "32d04272",
    "sizes": {
-    "flash": 531028,
+    "flash": 531204,
     "ram": 64628,
     "pool": 316808,
-    "ramtext": 31532
+    "ramtext": 31452
    }
   },
   "user-default+ble-test~": {
@@ -2132,16 +2116,16 @@
    "ramtext": 0
   },
   "BLE=1,USB_MODE=1": {
-   "flash": 2100,
-   "ram": 240,
+   "flash": -3412,
+   "ram": 272,
    "pool": 0,
-   "ramtext": 60
+   "ramtext": -84
   },
   "BLE=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 6264,
-   "ram": 0,
+   "flash": 6196,
+   "ram": -64,
    "pool": 0,
-   "ramtext": -96
+   "ramtext": -16
   },
   "CPU_GUARD=1,ENG_ACID=1": {
    "flash": 1324,
@@ -2174,10 +2158,10 @@
    "ramtext": -124
   },
   "USB_MODE=0,MACROS=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 656,
+   "ram": -32,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -36
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1": {
    "flash": -3368,
@@ -2198,22 +2182,22 @@
    "ramtext": 0
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,USB_MODE=1": {
-   "flash": -904,
-   "ram": 16,
+   "flash": -232,
+   "ram": 336,
    "pool": 0,
-   "ramtext": -56
+   "ramtext": 136
   },
   "BLE=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 2504,
-   "ram": 80,
+   "flash": 3520,
+   "ram": 416,
    "pool": 0,
-   "ramtext": 64
+   "ramtext": 260
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 904,
-   "ram": -16,
+   "flash": 232,
+   "ram": -336,
    "pool": 0,
-   "ramtext": 56
+   "ramtext": -136
   },
   "SL24_SAFE=0,SL24_IMPORT=0": {
    "flash": 3772,
@@ -2774,16 +2758,16 @@
    "ramtext": -76
   },
   "UI=1,USB_MODE=1": {
-   "flash": 2152,
+   "flash": 1708,
    "ram": -16,
    "pool": 0,
    "ramtext": 0
   },
   "UI=1,USB_MODE=2": {
-   "flash": 5776,
-   "ram": 1776,
+   "flash": 4424,
+   "ram": 192,
    "pool": 0,
-   "ramtext": -56
+   "ramtext": 140
   },
   "UI=1,UART=0": {
    "flash": 712,
@@ -2792,10 +2776,10 @@
    "ramtext": 0
   },
   "UI=1,MIDI_CLOCK=0": {
-   "flash": 1948,
-   "ram": -160,
+   "flash": 2568,
+   "ram": 48,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -64
   },
   "UI=1,MIDI_EXPR=0": {
    "flash": 164,
@@ -3212,16 +3196,16 @@
    "ramtext": 0
   },
   "UI=1,BLE=1,USB_MODE=1": {
-   "flash": -2816,
-   "ram": 16,
+   "flash": 2696,
+   "ram": -16,
    "pool": 0,
-   "ramtext": -104
+   "ramtext": 40
   },
   "UI=1,BLE=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 124,
-   "ram": 48,
+   "flash": 192,
+   "ram": 112,
    "pool": 0,
-   "ramtext": 276
+   "ramtext": 196
   },
   "UI=1,CPU_GUARD=1,ENG_ACID=1": {
    "flash": 32,
@@ -3254,10 +3238,10 @@
    "ramtext": 88
   },
   "UI=1,USB_MODE=0,MACROS=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": -656,
+   "ram": 32,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 36
   },
   "UI=1,BLE=1,BLE_BOND=1,BLE_CENTRAL=1": {
    "flash": 1008,
@@ -3278,22 +3262,22 @@
    "ramtext": 0
   },
   "UI=1,BLE=1,BLE_BOND=1,BLE_CENTRAL=1,USB_MODE=1": {
-   "flash": 596,
-   "ram": 16,
+   "flash": -76,
+   "ram": -304,
    "pool": 0,
-   "ramtext": 56
+   "ramtext": -136
   },
   "UI=1,BLE=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 320,
-   "ram": -80,
+   "flash": -696,
+   "ram": -416,
    "pool": 0,
-   "ramtext": -176
+   "ramtext": -372
   },
   "UI=1,BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": -596,
-   "ram": -16,
+   "flash": 76,
+   "ram": 304,
    "pool": 0,
-   "ramtext": -56
+   "ramtext": 136
   },
   "UI=1,SL24_SAFE=0,SL24_IMPORT=0": {
    "flash": 44,
@@ -3368,10 +3352,10 @@
    "ramtext": 120
   },
   "USB_MODE=2": {
-   "flash": 1352,
-   "ram": 1584,
+   "flash": -4,
+   "ram": 0,
    "pool": 0,
-   "ramtext": -196
+   "ramtext": 0
   }
  },
  "groups": {
