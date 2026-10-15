@@ -1397,7 +1397,7 @@
    }
   }
  },
- "measured": "2026-10-16 00:22",
+ "measured": "2026-10-16 00:39",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1481,7 +1481,7 @@
    }
   },
   "user-default": {
-   "hash": "09f15066",
+   "hash": "38e1dbbd",
    "cfg": {
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
@@ -1494,6 +1494,7 @@
     "SET_SCRCH": 0,
     "DLY_LEN": 32768,
     "REV_POOL": 1,
+    "PATTERNS": 1,
     "ED_FXP": 1,
     "ED_SCRS": 1,
     "CHANCE": 1,
@@ -1505,12 +1506,12 @@
     "PLOCK": 1,
     "COND": 1
    },
-   "built_hash": "09f15066",
+   "built_hash": "38e1dbbd",
    "sizes": {
-    "flash": 545084,
-    "ram": 63548,
+    "flash": 552848,
+    "ram": 63660,
     "pool": 319336,
-    "ramtext": 31340
+    "ramtext": 31372
    }
   },
   "x0x-drums": {
@@ -1690,7 +1691,7 @@
    }
   },
   "user-default+ble-test": {
-   "hash": "0a192d97",
+   "hash": "38994d88",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1708,6 +1709,7 @@
     "SET_SCRCH": 0,
     "DLY_LEN": 32768,
     "REV_POOL": 1,
+    "PATTERNS": 1,
     "ED_FXP": 1,
     "ED_SCRS": 1,
     "BLE": 1,
@@ -1717,12 +1719,12 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "0a192d97",
+   "built_hash": "38994d88",
    "sizes": {
-    "flash": 556824,
-    "ram": 69260,
+    "flash": 565644,
+    "ram": 69388,
     "pool": 300152,
-    "ramtext": 24756
+    "ramtext": 24688
    }
   },
   "user-default+ble-full": {
@@ -1836,7 +1838,7 @@
    }
   },
   "user-default~": {
-   "hash": "31bf16bc",
+   "hash": "2fd19c6b",
    "cfg": {
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
@@ -1850,6 +1852,7 @@
     "DLY_LEN": 32768,
     "REV_AIRWIN": 1,
     "REV_POOL": 1,
+    "PATTERNS": 1,
     "BACKUP": 0,
     "ED_FXP": 1,
     "ED_SCRS": 1,
@@ -1864,12 +1867,12 @@
     "PLOCK": 1,
     "COND": 1
    },
-   "built_hash": "31bf16bc",
+   "built_hash": "2fd19c6b",
    "sizes": {
-    "flash": 547228,
-    "ram": 68204,
+    "flash": 555084,
+    "ram": 68396,
     "pool": 319336,
-    "ramtext": 30324
+    "ramtext": 30412
    }
   },
   "x0x-drums~": {
@@ -2052,7 +2055,7 @@
    }
   },
   "user-default+ble-test~": {
-   "hash": "66d0a7a9",
+   "hash": "17963e8a",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2071,6 +2074,7 @@
     "FX_DIST": 0,
     "DLY_LEN": 32768,
     "REV_POOL": 1,
+    "PATTERNS": 1,
     "MIDI_CLOCK": 0,
     "ED_FXP": 1,
     "ED_SCRS": 1,
@@ -2083,12 +2087,12 @@
     "SL24_IMPORT": 0,
     "COND": 1
    },
-   "built_hash": "66d0a7a9",
+   "built_hash": "17963e8a",
    "sizes": {
-    "flash": 564532,
-    "ram": 69724,
+    "flash": 571056,
+    "ram": 69852,
     "pool": 308280,
-    "ramtext": 24472
+    "ramtext": 24504
    }
   },
   "user-default+ble-full~": {
