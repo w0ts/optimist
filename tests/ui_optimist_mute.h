@@ -17,6 +17,7 @@ static void mute_tests(void)
     for (i = 0; i < DRUM_LANES; i++)
         dlm_set_mute(i, 0);
     reset_ui();
+    song.octave = 0;                                    /* (reset_ui keeps the octave: an earlier test may have left one) */
     song.sel = 1;
     frames(2);
     mx.set = 0;

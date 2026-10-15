@@ -1451,10 +1451,10 @@ static void layer_tests(void)
     check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
     tap(B_SAVE);
     check(!pat_has(0, 1), "... YES: cleared");
-    press(B_HOME);                                      /* HOME tapped with LFO held and no key: the lock, as before */
-    release(B_HOME);
+    press(B_OCTDN);                                     /* SHIFT tapped with LFO held and no key: the lock, as before */
+    release(B_OCTDN);
     frames(2);
-    check(lay.lock == LY_PAT, "LFO held + HOME tapped (no key): the patterns layer locked open, as before");
+    check(lay.lock == LY_PAT, "LFO held + SHIFT tapped (no key): the patterns layer locked open, as before");
     release(B_LFO);
     frames(2);
     tap(B_ENV);
