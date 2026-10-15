@@ -230,6 +230,9 @@ def build_app():
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
+    v = os.environ.get("OPTIMIST_DUAL_IDLE")   # (not FELUCCA_*: the builder strips those) a DUAL build's CPU1 between jobs:
+    if v in ("0", "1") and os.environ.get("FELUCCA_DUAL_IDLE") is None:   # 1 asleep in `idle` (default), 0 spinning in RAM
+        flags.append(f"-DFELUCCA_DUAL_IDLE={v}")
     v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
     if v is not None and len(v) == 1 and v in "01234":
         flags.append(f"-DLCD_BAUD={v}u")

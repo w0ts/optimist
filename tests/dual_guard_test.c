@@ -198,8 +198,57 @@ static void test_supply(void)
     CHECK(p33_n <= 8u + 16u, "a stuck register ends the loop (%u writes)", p33_n);
 }
 
+/* SYSTEM > INFO's CPU1 lines (dual_mode.h): the stop record's text on every path, the stages, the short numbers */
+static void test_info(void)
+{
+    char v[14], u[16], b[16];
+    dual_stop_t st;
+    memset(&st, 0, sizeof st);
+    dual_stop_text(&st, v, u);
+    CHECK(!strcmp(v, "--") && !u[0], "never down: -- (%s|%s)", v, u);
+    /* the hardware report of 2026-10-15: the first job never picked up, before the ms clock ticked */
+    st.stopped = st.in_job = st.no_clock = 1;
+    st.c1_ms = 41;
+    st.job = 0;
+    st.wait_us = 5805;
+    dual_stop_text(&st, v, u);
+    CHECK(!strcmp(v, "41ms* W") && !strcmp(u, " #0 5805us"), "first job, never taken (%s|%s)", v, u);
+    st.took = 1;
+    st.at = 5;
+    st.no_clock = 0;
+    st.c1_ms = 123456;
+    st.job = 4000000u;
+    dual_stop_text(&st, v, u);
+    CHECK(!strcmp(v, "123s J5") && !strcmp(u, " #4000k 5805us"), "in the drums, later (%s|%s)", v, u);
+    st.in_job = 0;
+    dual_stop_text(&st, v, u);
+    CHECK(!strcmp(v, "123s IDLE") && !u[0], "no job posted: a boot check (%s|%s)", v, u);
+    st.c1_ms = 4294967295u;
+    st.in_job = 1;
+    st.took = 1;
+    st.at = 6;
+    st.job = 4294967295u;
+    st.wait_us = 4294967295u;
+    dual_stop_text(&st, v, u);
+    CHECK(strlen(v) < sizeof v && strlen(u) < sizeof u, "the widest record fits (%s|%s)", v, u);
+    b[0] = 0;
+    dual_cnum(b, 0);
+    dual_cat(b, "/");
+    dual_cnum(b, 9999);
+    dual_cat(b, "/");
+    dual_cnum(b, 10000);
+    dual_cat(b, "/");
+    dual_cnum(b, 12345678);
+    CHECK(!strcmp(b, "0/9999/10k/12M"), "short numbers (%s)", b);
+    CHECK(!strcmp(dual_stage_name(C1S_LOOP, 1), "SLEEP") && !strcmp(dual_stage_name(C1S_LOOP, 0), "SPIN") &&
+              !strcmp(dual_stage_name(C1S_NONE, 1), "NONE") && !strcmp(dual_stage_name(C1S_TOOK, 0), "TOOK JOB") &&
+              !strcmp(dual_stage_name(C1S_DONE, 1), "JOB DONE") && !strcmp(dual_stage_name(99, 1), "?"),
+          "the stages' names");
+}
+
 int main(void)
 {
+    test_info();
     test_take();
     test_misreading_cpu1();
     test_canary();

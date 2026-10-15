@@ -39,6 +39,7 @@
 #define DUAL_BALANCE 1                             /* the jobs split each block by their measured cost */
 #endif
 #include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
+_Static_assert(C1S_LOOP == 3u, "hal/fm1_dual.h fm1_dual_sleep_ram writes 3 as C1S_LOOP");
 #if FELUCCA_DUAL_BOOST
 #include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
 #endif
@@ -62,10 +63,14 @@ static struct {
     uint8_t supply;                                /* FELUCCA_DUAL_BOOST: VDC14 << 4 | SYSVDD before the boost */
     uint32_t jobs, wait_max;                       /* jobs done; longest CPU0 wait (ticks) */
     uint32_t rewakes;                              /* wakes sent again for a job CPU1 had not picked up (dual_join) */
-    /* when it went down in a job (SYSTEM > INFO, console): the time since boot (ms), the job's mask, how long CPU0
-     * had waited (us), whether CPU1 had picked the job up and the job it was in (1 + its bit; 0: none yet) */
-    uint32_t down_ms, down_mask, down_wait_us;
-    uint8_t down_took, down_at;
+    /* when it went down (SYSTEM > INFO, console; every path: dual_down): fm1_ms then, the job's mask, the latch word
+     * whether its wake was still pending (hal/fm1_dual.h fm1_dual_wake_pending), the beat it had counted;
+     * stop: the INFO line's record (dual_mode.h) */
+    uint32_t down_ms, down_mask, down_beat;
+    uint8_t down_pend;
+    uint32_t t_start;                              /* TIMER4 when CPU1 was started (dual_boot) */
+    uint32_t posts;                                /* jobs posted (mix_block_dual) */
+    dual_stop_t stop;
 } dual;
 static uint8_t dual_mode;                          /* the 2ND CORE setting (dual_mode.h; settings_word.c bits 27..28) */
 static volatile uint8_t dual_c1_at;               /* CPU1: 1 + the job it renders now (0: none yet; dual_down's note) */
@@ -167,6 +172,12 @@ static HOT uint32_t dual_split(uint32_t jobs)    /* jobs: the block's (the rever
                               * would see it), 5 a wrong boot canary, 6 a lost wake (CPU1 back to sleep with a job
                               * posted, once: dual_join wakes it again) (never in a release) */
 #endif
+/* CPU1: how far it got (dual_mode.h C1S_*), only ever forward */
+#define C1_STAGE(s)                                                                                                    \
+    do {                                                                                                               \
+        if (fm1_dual_mb.stage < (s))                                                                                   \
+            fm1_dual_mb.stage = (s);                                                                                   \
+    } while (0)
 #if !DUAL_SLEEPS
 /* (stage 1, or CPU1 spinning: the wake interrupt is never set up, but hal/fm1_dual.h's entry isr_c1_wake
  * calls this body: without it FELUCCA_DUAL=1 did not link) */
@@ -180,6 +191,8 @@ void HOT fm1_cpu1_wake(void)
     static uint32_t jobs, done;                    /* (done: CPU1's own, never read back from the mailbox) */
     uint32_t r, a;
     fm1_dual_wake_ack();
+    fm1_dual_mb.wakes++;
+    C1_STAGE(C1S_WOKEN);
 #if DUAL_FAILTEST == 6
     {
         static uint8_t lost;
@@ -197,6 +210,7 @@ void HOT fm1_cpu1_wake(void)
             break;
         }
         fm1_dual_mb.took = r;                      /* (CPU0 stops waking it again) */
+        C1_STAGE(C1S_TOOK);
 #if DUAL_FAILTEST == 2
         if (jobs == 3000u)
             for (;;)
@@ -210,6 +224,7 @@ void HOT fm1_cpu1_wake(void)
         done = r;
         fm1_dual_sync();                           /* the job's stores before `done` */
         fm1_dual_mb.done = r;
+        C1_STAGE(C1S_DONE);
         fm1_dual_sync();
     }
     if (fm1_dual_mb.ping != fm1_dual_mb.pong)
@@ -220,6 +235,7 @@ void HOT fm1_cpu1_wake(void)
 void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry (hal/fm1_dual.h) */
 {
     uint32_t seq = 0, arg = 0;
+    fm1_dual_mb.stage = C1S_MAIN;
 #if DUAL_FAILTEST == 1
     for (;;)
         ;
@@ -230,6 +246,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 #endif
     fm1_dual_sync();                               /* the canary before the hello */
     fm1_dual_mb.hello = FM1_DUAL_HELLO;
+    fm1_dual_mb.stage = C1S_HELLO;
 #if DUAL_SLEEPS
     (void)seq;
     (void)arg;
@@ -237,8 +254,13 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
     for (;;)
         ;
 #else
+    fm1_dual_mb.stage = C1S_LOOP;
     for (;;) {
-        seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1, DUAL_ALLOWED, &arg);   /* (a request it may run) */
+        seq = FL_FAR(fm1_dual_idle_ram)(seq, 1u, DUAL_ALLOWED, &arg);   /* (a request it may run; its beat counted) */
+#if FELUCCA_DUAL >= 2
+        fm1_dual_mb.took = seq;                    /* (as the wake handler: CPU1 STOP's W / J) */
+        C1_STAGE(C1S_TOOK);
+#endif
 #if DUAL_FAILTEST == 2
         if (seq == 3000u)
             for (;;)
@@ -250,6 +272,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 #endif
 #if FELUCCA_DUAL >= 2
         FAR(dual_job)(arg);
+        C1_STAGE(C1S_DONE);
 #else
         (void)arg;
 #endif
@@ -257,13 +280,27 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 #endif
 }
 
-static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for good */
+/* CPU0: CPU1 into reset, for good; what it was doing kept for SYSTEM > INFO (CPU1 STOP, HELLO, BEAT) and the
+ * console, on every path (a job not done, a fault, a misread, the boot's canary or no hello, a flash operation).
+ * WAIT_US: how long CPU0 had waited for the job (0: not in a join) */
+static void dual_down(uint32_t why, uint32_t wait_us)
 {
+    uint32_t req = fm1_dual_mb.req;
+    dual.down_pend = (uint8_t)fm1_dual_wake_pending();   /* (before the halt: the wake as CPU1 left it) */
     fm1_dual_halt();
     dual.down_ms = fm1_ms;
     dual.down_mask = fm1_dual_mb.arg;
-    dual.down_took = (uint8_t)(fm1_dual_mb.took == fm1_dual_mb.req);
-    dual.down_at = dual_c1_at;
+    dual.down_beat = fm1_dual_mb.count;
+    dual.stop.stopped = 1;
+    dual.stop.in_job = (uint8_t)(fm1_dual_mb.done != req);
+    dual.stop.took = (uint8_t)(fm1_dual_mb.took == req);
+    dual.stop.at = dual_c1_at;
+    dual.stop.no_clock = (uint8_t)(fm1_ms == 0u);
+    dual.stop.c1_ms = (fm1_ticks() - dual.t_start) / (1000u * FM1_TICKS_PER_US);   /* (TIMER4 wraps after 178 s) */
+    if (dual.down_ms > 170000u)
+        dual.stop.c1_ms = dual.down_ms;            /* (late: the ms since boot instead, as near) */
+    dual.stop.job = dual.jobs;
+    dual.stop.wait_us = wait_us;
     dual.up = 0;
     dual.why = (uint8_t)why;
 }
@@ -281,11 +318,12 @@ static __attribute__((noinline)) void dual_boot(void)
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
 #endif
+    dual.t_start = fm1_ticks();
     dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US);
     if (!dual.up)
-        dual.why = DUAL_NO_HELLO;
+        dual_down(DUAL_NO_HELLO, 0);               /* (already in reset: the record only) */
     else if (fm1_dual_mb.canary != 1u)             /* it read the canary wrong (or never read it) */
-        dual_down(DUAL_CANARY);
+        dual_down(DUAL_CANARY, 0);
 }
 
 /* every flash operation, IRQs off (hal/fm1_flash.h irq_save): CPU1 must be in its RAM loop.
@@ -293,7 +331,7 @@ static __attribute__((noinline)) void dual_boot(void)
 static void dual_flash_enter(void)
 {
     if (dual.up && (fm1_dual_mb.done != fm1_dual_mb.req || fm1_dual_mb.fault))
-        dual_down(fm1_dual_mb.fault ? DUAL_FAULT : DUAL_FLASH);
+        dual_down(fm1_dual_mb.fault ? DUAL_FAULT : DUAL_FLASH, 0);
 }
 
 static void ui_say(const char *a, const char *b);   /* ui.c */
@@ -360,8 +398,7 @@ static HOT int dual_join(uint32_t req)
         if (why == DUAL_TIMEOUT && fm1_dual_mb.done == req)
             continue;                              /* (done while CPU0 was away, in a higher interrupt: not late) */
         if (why != DUAL_UP) {
-            dual.down_wait_us = dt / FM1_TICKS_PER_US;
-            FAR(dual_down)(why);
+            FAR(dual_down)(why, dt / FM1_TICKS_PER_US);
             return 0;
         }
 #if DUAL_SLEEPS
@@ -438,6 +475,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     }
     if (post) {
         req = fm1_dual_mb.req + 1u;
+        dual.posts++;
         fm1_dual_mb.arg = mask;
         fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);
         dual_c1_at = 0;                            /* (CPU1 sets it as it starts each of these jobs) */

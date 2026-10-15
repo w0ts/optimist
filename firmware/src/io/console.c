@@ -425,11 +425,21 @@ static void con_status(void)
     con_kv("cpu1_bad", (int32_t)fm1_dual_mb.bad);       /* requests it refused (misreads): 0 on a healthy unit */
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
-    con_kv("cpu1_down_ms", (int32_t)dual.down_ms);      /* went down in a job: when, its mask, CPU0's wait, picked up?, in which */
+    con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
+    con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);   /* how far CPU1 got (dual_mode.h C1S_*) */
+    con_kv("cpu1_beat", (int32_t)fm1_dual_mb.count);    /* its spin loops / returns from idle */
+    con_kv("cpu1_wakes", (int32_t)fm1_dual_mb.wakes);   /* its wake handler's entries (asleep) */
+    con_kv("cpu1_stopped", dual.stop.stopped);          /* put down (any path, dual.c dual_down): */
+    con_kv("cpu1_down_ms", (int32_t)dual.down_ms);      /* fm1_ms then (0: before the clock's first tick) */
+    con_kv("cpu1_down_c1_ms", (int32_t)dual.stop.c1_ms);   /* ms since CPU1 was started */
+    con_kv("cpu1_down_job", (int32_t)dual.stop.job);    /* jobs joined before (0: the first) */
     con_kv("cpu1_down_mask", (int32_t)dual.down_mask);
-    con_kv("cpu1_down_wait_us", (int32_t)dual.down_wait_us);
-    con_kv("cpu1_down_took", dual.down_took);
-    con_kv("cpu1_down_at", dual.down_at);
+    con_kv("cpu1_down_wait_us", (int32_t)dual.stop.wait_us);
+    con_kv("cpu1_down_in_job", dual.stop.in_job);
+    con_kv("cpu1_down_took", dual.stop.took);
+    con_kv("cpu1_down_at", dual.stop.at);
+    con_kv("cpu1_down_beat", (int32_t)dual.down_beat);
+    con_kv("cpu1_down_pend", dual.down_pend);           /* its wake (soft interrupt 124) still pending then */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif

@@ -43,7 +43,7 @@ typedef struct {
     volatile uint32_t done;       /* CPU1: the last job finished (= req: idle) */
     volatile uint32_t arg;        /* CPU0: the job's argument (which parts) */
     volatile uint32_t hello;      /* CPU1: FM1_DUAL_HELLO once it runs C code */
-    volatile uint32_t count;      /* CPU1: stage 1, incremented while idle */
+    volatile uint32_t count;      /* CPU1: its beat: each pass of its spin loop, or each return from `idle` asleep */
     volatile uint32_t ping, pong; /* CPU0 / CPU1: pong follows ping while idle (liveness) */
     volatile uint32_t fault;      /* CPU1: its exception vector + 1 after a fault */
     volatile uint32_t check;      /* CPU0: FM1_DUAL_CHECK(req, arg), written before req (fm1_dual_guard.h) */
@@ -51,7 +51,9 @@ typedef struct {
     volatile uint32_t bad_req, bad_done;   /* CPU1: the last one, as read, and its own done then */
     volatile uint32_t canary;     /* CPU1: 1 + the canary words it read wrong at boot (0: not run) */
     volatile uint32_t took;       /* CPU1 asleep between jobs: the last request its wake picked up (CPU0 wakes it again
-                                   * while a posted one is not taken: dual.c dual_join) */
+                                   * while a posted one is not taken: dual.c dual_join); the spin loop sets it too */
+    volatile uint32_t stage;      /* CPU1: how far it got, the furthest (dual_mode.h C1S_*: SYSTEM > INFO CPU1 HELLO) */
+    volatile uint32_t wakes;      /* CPU1 asleep: its wake handler's entries */
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
 static fm1_dual_mb_t fm1_dual_mb;
@@ -143,6 +145,9 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     fm1_dual_mb.fault = 0;
     fm1_dual_mb.bad = 0;
     fm1_dual_mb.canary = 0;
+    fm1_dual_mb.stage = 0;
+    fm1_dual_mb.count = 0;
+    fm1_dual_mb.wakes = 0;
     fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
     FM1_C1_VEC = (uint32_t)(uintptr_t)fm1_cpu1_entry;
@@ -179,6 +184,12 @@ static void fm1_dual_wake_setup(void (*isr)(void))
     FM1_VEC_[FM1_IRQ_C1_WAKE] = (uint32_t)(uintptr_t)isr;
     FM1_ICFG_C1(FM1_IRQ_C1_WAKE) = ((1u << 1) | 1u) << ((FM1_IRQ_C1_WAKE & 7u) * 4u);
 }
+/* the soft interrupts' pending word (bit 28: 124, the wake; the 32-per-word layout is the emulator's reading, not
+ * verified on a device): read by CPU0 when CPU1 goes down (SYSTEM > INFO CPU1 HELLO's P1 / P0) */
+static inline __attribute__((always_inline)) uint32_t fm1_dual_wake_pending(void)
+{
+    return (*(volatile uint32_t *)(0x1EEF180u + 4u * (FM1_IRQ_C1_WAKE >> 5)) >> (FM1_IRQ_C1_WAKE & 31u)) & 1u;
+}
 /* CPU0: a job is posted (after req) */
 static inline __attribute__((always_inline)) void fm1_dual_wake(void)
 {
@@ -201,7 +212,8 @@ static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
     __asm__ volatile("csync" ::: "memory");
 }
 /* CPU1: its interrupts on (icfg bit 8, sti), then asleep in RAM for good: every job runs in the
- * handler, which returns to the idle.
+ * handler, which returns to the idle. Each return from `idle` counts its beat (fm1_dual_mb.count: an `idle` that
+ * returns without the handler having run shows as beats with no wakes).
  * A core woken from `idle` runs 4 more issue slots before the interrupt enters (FM-1_996, measured
  * on CPU0 with TIMER3; the emulator models it). A bare `idle; goto idle` reaches the next `idle`
  * inside that window and goes back to sleep without ever taking the interrupt: CPU1 never ran its
@@ -211,11 +223,15 @@ static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
 RAMFN static void fm1_dual_sleep_ram(void)
 {
     uint32_t v;
+    fm1_dual_mb.stage = 3u;                               /* (dual_mode.h C1S_LOOP: in its wait loop) */
+    fl_csync();
     __asm__ volatile("%0 = icfg" : "=r"(v));
     __asm__ volatile("icfg = %0" ::"r"(v | 0x100u) : "memory");
     __asm__ volatile("csync\n\tsti" ::: "memory");
-    for (;;)
+    for (;;) {
         __asm__ volatile("idle\n\tcsync\n\tcsync\n\tcsync\n\tcsync" ::: "memory");
+        fm1_dual_mb.count++;
+    }
 }
 /* the handler's entry, in RAM with the code it calls (core.h HOT: .ram_hot): as fm1_isr.S */
 void fm1_cpu1_wake(void);                                 /* the C body (src/dual.c) */

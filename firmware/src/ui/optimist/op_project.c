@@ -585,11 +585,17 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
 #define INFO_UA 0u
 #endif
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2
-/* the second core's lines (2026-10-14: TIMEOUT on the FM-1, cause not known; dual.c). CPU1 JOBS: jobs joined (thousands) /
- * wakes sent again for a job CPU1 had not picked up (each one a wake that would otherwise have been lost). CPU1 STOP, once
- * it went down in a job: when (s since boot), W (never picked the job up: a lost wake) or J and the job it was in (1..4
- * a part, 5 the drums, 6 the reverb; J0: picked up, no job begun), unit: how long CPU0 had waited (us) */
-#define INFO_C1 2u
+/* the second core's lines (2026-10-14/15: TIMEOUT on the FM-1, cause not known; dual.c, dual_mode.h):
+ *   CPU1 JOB/REWAKE  jobs joined (thousands) / wakes sent again for a job CPU1 had not picked up
+ *   CPU1 STOP        "--" (never put down) | "<t> W" (the job never picked up) | "<t> J<n>" (in job n: 1..4 a part,
+ *                    5 the drums, 6 the reverb; J0 none begun) | "<t> IDLE" (no job posted: a boot check, a flash
+ *                    operation); t: since CPU1 was started (ms under 10 s, else s), "*": the ms clock had not ticked yet (the first audio
+ *                    interrupt); unit: "#<the job's index, 0 = the first> <CPU0's wait>us"
+ *   CPU1 HELLO       how far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN (its wait loop), WOKEN (its wake handler ran),
+ *                    TOOK JOB (its first job), JOB DONE; unit once down: P1 = its wake was still latched (not taken)
+ *   CPU1 BEAT IDLE / SPIN  its beat (returns from `idle`, or spin loops) / its wake handler's entries; the label names
+ *                    the build (FELUCCA_DUAL_IDLE 1 / 0) */
+#define INFO_C1 4u
 static void c1_put(char *b, uint32_t v, char sep)        /* v (capped at 999999), then sep (0: none), appended */
 {
     uint32_t n = str_len(b);
@@ -600,33 +606,39 @@ static void c1_put(char *b, uint32_t v, char sep)        /* v (capped at 999999)
 }
 static void sys_c1_cell(uint32_t i, cell_t *c)
 {
-    static char u[12];
+    static char u[16];
     char *v = c->val;
     cell_clear(c);
     c->kind = CK_RO;
-    if (!i) {
+    switch (i) {
+    case 0:
         c->label = "CPU1 JOB/REWAKE";
         c1_put(v, dual.jobs / 1000u, '/');
         c1_put(v, dual.rewakes, 0);
         c->unit = "k/n";
         c->col = dual.rewakes ? C_WARN : 0;
-        return;
+        break;
+    case 1:
+        c->label = "CPU1 STOP";
+        dual_stop_text(&dual.stop, v, u);
+        c->unit = u;
+        c->col = dual.stop.stopped ? C_WARN : 0;
+        break;
+    case 2:
+        c->label = "CPU1 HELLO";
+        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS), sizeof c->val);
+        c->unit = !dual.stop.stopped ? "" : dual.down_pend ? " P1" : " P0";
+        c->col = fm1_dual_mb.stage < C1S_DONE ? C_WARN : 0;
+        break;
+    default:
+        c->label = DUAL_SLEEPS ? "CPU1 BEAT IDLE" : "CPU1 BEAT SPIN";
+        v[0] = 0;
+        dual_cnum(v, fm1_dual_mb.count);
+        dual_cat(v, "/");
+        dual_cnum(v, fm1_dual_mb.wakes);
+        c->unit = "";
+        break;
     }
-    c->label = "CPU1 STOP";
-    if (!dual.down_ms) {
-        str_cpy(v, "--", 3);
-        return;
-    }
-    c1_put(v, dual.down_ms / 1000u, 's');
-    str_cpy(v + str_len(v), dual.down_took ? " J" : " W", 3);
-    if (dual.down_took)
-        c1_put(v, dual.down_at, 0);
-    u[0] = ' ';                                         /* (the unit follows the value directly) */
-    u[1] = 0;
-    c1_put(u, dual.down_wait_us, 0);
-    str_cpy(u + str_len(u), "us", 3);
-    c->unit = u;
-    c->col = C_WARN;
 }
 #else
 #define INFO_C1 0u
