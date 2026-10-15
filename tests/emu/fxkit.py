@@ -14,17 +14,18 @@ import fwfacts as F
 import session as S
 
 FXT = dict(NONE=0, DIST=1, CHO=2, DLY=3, REV=4, COMP=5, FILT=6, FOLD=7, FUZZ=8, PHSR=9, FLNG=10, FRMT=11, WIDE=12, CHRS=13,
-           ECHO=14, GATER=15, DUST=16)
+           ECHO=14, GATER=15, DUST=16, JUNO=17)
 NAME = {v: k for k, v in FXT.items()}
 CFG = {1: "FX_DIST", 2: "FX_CHORUS", 3: "FX_DELAY", 4: "FX_REVERB", 5: "MASTER_COMP", 6: "TRK_FILT", 7: "INS_FOLD",
        8: "INS_FUZZ", 9: "INS_PHASER", 10: "INS_FLANGER", 11: "INS_FORMANT", 12: "INS_WIDTH", 13: "INS_CHORUS", 14: "INS_DELAY",
-       15: "INS_GATER", 16: "FX_DUST"}
+       15: "INS_GATER", 16: "FX_DUST", 17: "INS_JCHORUS"}
 AMT = {7: "P_TFOLD", 8: "P_TFUZZ", 9: "P_TPHSR", 10: "P_TFLNG", 11: "P_TFRMT", 12: "P_TWIDE", 13: "P_TCHRS",
        14: "P_TECHO", 15: "P_TGATE"}   # (the further inserts)
 DSEND_CMP = 4                                    # (drum_sends.c: SOUND 3's value ids, 4 the COMP insert)
 
 
-INSERT = (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)   # (DIST COMP FILT, the further ones, DUST; CHO DLY REV are the sends)
+INSERT = (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)   # (DIST COMP FILT, the further ones, DUST, JUNO; CHO DLY REV are the sends)
+RET_OTHER = tuple(t for t in INSERT if t != 15)  # (fx-pool: the types a return may hold beside the sends: every insert but GATER)
 TRK_DEF = [FXT["DIST"], FXT["FILT"]]             # (every track's slots at the start: S1 DIST, S2 FILTER, amounts 0)
 MASTER_DEF = [0, 2, 3, 4]                        # (the master slots: ---- CHO DLY REV; slot 0 takes no send since
 #                                                  fx-rework: the master's 3 returns R1 R2 R3 are slots 1..3, KNOB1..KNOB3)
@@ -36,8 +37,10 @@ def on(facts, t):
 
 
 def built(facts):
-    """the types FX > SLOTS lists (the sends), in its order (fx_slots.c fxs_desc: NONE first)"""
-    return [0] + [t for t in range(1, len(CFG) + 1) if t not in INSERT and on(facts, t)]
+    """the types FX > SLOTS lists, in its order (fx_slots.c fxs_desc: NONE, the sends, then every other type a return may
+    hold: fx-pool 2026-10-15)"""
+    return ([0] + [t for t in range(1, len(CFG) + 1) if t not in INSERT and on(facts, t)] +
+            [t for t in range(1, len(CFG) + 1) if t in RET_OTHER and on(facts, t)])   # (then the others: fx-pool)
 
 
 def ins_built(facts):

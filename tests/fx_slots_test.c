@@ -150,9 +150,10 @@ static void t_ins(void)
     check("INSERTS' TYPE: a list of ---- and the inserts built, named by their amounts (DST FILT CMP), at the slot's", ok);
     d = fxs_desc(0, &v);
     ok = d == &FXS_DESC[0];
-    for (k = 1; k < FXS_NLIST; k++)
-        ok &= FXT_SEND_OK(fxs_list[k]);
-    check("FX > SLOTS' list: ---- and the sends only", ok && FXS_NLIST == 1 + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB);
+    for (k = 1; k <= (uint32_t)d->max; k++)
+        ok &= FXT_SEND_OK(fxs_list[k]) || (RT_OK >> fxs_list[k] & 1u);
+    check("FX > SLOTS' list (fx-pool): ----, the sends and every type a return may hold (no GATER)",
+          ok && d->max == FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB + __builtin_popcount(RT_OK));
     song.sel = 0;
 }
 
@@ -958,8 +959,8 @@ static void t_master(void)
     mst_defaults();
     d = fxs_desc(FXS_ID_MST, &v);
     for (i = 0, ok = d != 0; d && i <= (uint32_t)d->max; i++)
-        ok &= mst_list[i] != FXT_CHRS && mst_list[i] != FXT_ECHO && mst_list[i] != FXT_GATE;
-    check("the master's TYPE list: ---- and the inserts built but CHRS ECHO GATER; S1's entry FILT", ok &&
+        ok &= mst_list[i] != FXT_GATE;                  /* (fx-pool: CHRS ECHO on the master too, an instance of the pool) */
+    check("the master's TYPE list: ---- and the inserts built but GATER; S1's entry FILT", ok &&
           (!TFLT_ON || mst_list[*v] == FXT_FILT));
 #if FELUCCA_MASTER_COMP
     d = fxs_desc(FXS_ID_MST + 2u + (mst_slot[0] != FXT_DYN), &v);

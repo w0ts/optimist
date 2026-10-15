@@ -90,8 +90,8 @@ def body(ctx, r):
     ctx.check("the default layout: master ---- CHO DLY REV (sends only), every track S1 DIST S2 FILT",
               fx.slots() == X.MASTER_DEF and fx.tins() == [fx.trk_def()] * 4,
               f"{fx.names()}, {[fx.names(x) for x in fx.tins()]}")
-    ctx.check("COMP is not offered to a master slot (inserts live on the tracks): FX > SLOTS refuses it",
-              not slot_takes_insert(fx), fx.names())
+    ctx.check("FX > SLOTS offers the other types to a return (fx-pool: COMP, DIST ...), never GATER",
+              slot_takes_insert(fx) and 15 not in fx.seen, fx.names())
 
     comp_in(ctx, r, a)
     hi = r.t1("comp-hi")
@@ -113,6 +113,7 @@ def slot_takes_insert(fx):
                 seen |= set(fx.slots())
     fx.layout(X.MASTER_DEF)
     fx.P.home()
+    fx.seen = seen
     return bool(seen & set(X.INSERT))
 
 

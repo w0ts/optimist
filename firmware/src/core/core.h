@@ -126,8 +126,8 @@ typedef struct {
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
 #define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS)
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS)
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,

@@ -298,7 +298,7 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
     run "the limited inserts' instances (fxi.c, CHRS 2 ECHO 1): handed out in the main loop, zeroed; a swap keeps one; none left: FULL and bypassed; given back after the fade-out; a load in track order, the same every time" "$OUT/fxi_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=2 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=2 -DFELUCCA_INS_FLANGER=1 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
     run "limited inserts with JUNO CHORUS (2 instances): a track and the master each, FULL, given back after the fade, the side, its TLV" "$OUT/fxi_jc_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -551,6 +551,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
     run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record)" "$OUT/fx_slots_usb_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -o "$OUT/fx_rt_test" tests/fx_rt_test.c -lm
+    run "FX returns holding any type (fx-pool): lines, a send pinned to its own, swaps, the send through the type 100 % wet times RET, the pool on a return, RET_TLV" "$OUT/fx_rt_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_returns_test" tests/fx_returns_test.c -lm

@@ -25,12 +25,10 @@
  * nothing runs (the track sample for sample as without). A part's: one state a type a part; the drum bus's: L and R
  * only (its sends' accumulators, the drum sounds' own sends, pass them by, as every bus insert at QUALITY). */
 #if INS_FX
-#define IFX_NI (NPART + 6u)                             /* the instances: the parts, the drum bus's L, R, the master's L, R,
-                                                         * the USB input's L, R (fx-rework stage 3) */
-#define IFX_UT (NPART + 4u)
+#define IFX_NI (NPART + 12u)                            /* the instances: the parts, the drum bus's L, R, the master's L, R,
+                                                         * the USB input's L, R (fx-rework stage 3), the returns R1 R2 R3's
+                                                         * L, R (fx-pool 2026-10-15: IFX_RT) */
 #define IFX_AW_UT (NTRK + 1u)                           /* ifx_awake's entry for the USB input */
-#define IFX_BUS NPART
-#define IFX_MST (NPART + 2u)                            /* (fx-rework 2026-10-14: the master's two insert slots) */
 #define IFX_AW_MST NTRK                                 /* ifx_awake's entry for the master */
 #define IFX_SLOPE 256                                   /* the wet share's step a sample, Q15: 0 .. all in 128 (2.9 ms) */
 AINL int32_t ifx_mix(int32_t x, int32_t y, int32_t w) { return w >= 32768 ? y : x + mulq16(y - x, (uint32_t)w << 1); }
@@ -194,48 +192,65 @@ static HOT2 __attribute__((noinline)) void ifx_phaser(ifx_ph_t *s, int32_t a, in
 }
 #endif
 
-/* ---- FLNG: Felucca's flanger line, per instance in the pool */
+/* ---- FLNG: Felucca's flanger line. A limited type since fx-pool (2026-10-15): a builder count of instances (fxi.c), each
+ * with a line a side (a part: the first only); the sides share the sweep and the wet share (a stereo owner's two copies of
+ * before, bit for bit: they always moved together) */
 #if FELUCCA_INS_FLANGER
 #define IFX_FL_LEN 256u                                 /* 5.8 ms (a power of 2: masked) */
 typedef struct {
-    int32_t w, dc;
+    int32_t w, dc[2];
     uint32_t ph;
     uint16_t wp;
     uint8_t a;
-    int16_t line[IFX_FL_LEN];
+    int16_t line[2][IFX_FL_LEN];
 } ifx_fl_t;
-static ifx_fl_t ifx_flng[IFX_NI] __attribute__((section(".pool")));
+static ifx_fl_t ifx_flng[FELUCCA_INS_FLANGER] __attribute__((section(".pool"), aligned(4)));
 #define IFX_FL_RATE 31                                  /* ~0.25 Hz */
-static HOT2 __attribute__((noinline)) void ifx_flanger(ifx_fl_t *s, int32_t a, int32_t *b, uint32_t n, uint32_t sh)
+/* one side c of the block: from the block's first sweep, share and write place (*ph, *w, *wp: its last, out) */
+static HOT2 __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, int32_t *b, uint32_t n, uint32_t sh, int32_t to,
+                                                       int32_t fbk, uint32_t *php, int32_t *wq, uint32_t *wpp)
 {
-    uint32_t i, inc = IFX_INC(IFX_FL_RATE), wp = s->wp;
-    int32_t fbk, to, w = s->w;
-    if (!a && !w)
-        return;
-    if (!w) {
-        ifx_zero(s, sizeof *s);                        /* starting: no stale line */
-        wp = 0;
-    }
-    if (a)
-        s->a = (uint8_t)a;
-    to = a ? (a > 64 ? 64 : a) * 512 : 0;
-    fbk = s->a > 64 ? (s->a - 64) * 442 : 0;           /* 0 .. 0.85, Q15 */
-    for (i = 0; i < n; i++, s->ph += inc) {
+    uint32_t i, inc = IFX_INC(IFX_FL_RATE), wp = *wpp, ph = *php;
+    int32_t w = *wq, dc = s->dc[c];
+    int16_t *ln = s->line[c];
+    for (i = 0; i < n; i++, ph += inc) {
         int32_t x = b[i], r0, r1, v, fr;
-        uint32_t tr = ifx_tri(s->ph), sw = (tr * tr) >> 16;   /* longer near the short end */
+        uint32_t tr = ifx_tri(ph), sw = (tr * tr) >> 16;   /* longer near the short end */
         uint32_t d = (11u << 16) + 209u * (((sw >> 1) * 65532u) >> 15);   /* the delay, Q16: 0.25 .. 5 ms (DEPTH full) */
         w += clamp(to - w, -IFX_SLOPE, IFX_SLOPE);
         r0 = (int32_t)(wp - (d >> 16)) & (int32_t)(IFX_FL_LEN - 1u);
         r1 = (r0 - 1) & (int32_t)(IFX_FL_LEN - 1u);
         fr = (int32_t)((d >> 1) & 0x7FFFu);
-        v = s->line[r0] + (((s->line[r1] - s->line[r0]) * fr) >> 15);
-        s->line[wp] = (int16_t)clamp((x >> sh) + softclip(mulq15(v, fbk)), -32767, 32767);
+        v = ln[r0] + (((ln[r1] - ln[r0]) * fr) >> 15);
+        ln[wp] = (int16_t)clamp((x >> sh) + softclip(mulq15(v, fbk)), -32767, 32767);
         wp = (wp + 1u) & (IFX_FL_LEN - 1u);
         v <<= sh - 1u;                                  /* (the delayed half) */
-        s->dc += ((v << 4) - s->dc) >> 9;               /* a DC blocker (Q4) */
-        b[i] = ifx_mix(x, (x >> 1) + v - (s->dc >> 4), w);
+        dc += ((v << 4) - dc) >> 9;                     /* a DC blocker (Q4) */
+        b[i] = ifx_mix(x, (x >> 1) + v - (dc >> 4), w);
     }
-    s->wp = (uint16_t)wp, s->w = w;
+    s->dc[c] = dc;
+    *php = ph, *wq = w, *wpp = wp;
+}
+/* l (a part: r 0), or l and r (a stereo owner) */
+static HOT2 __attribute__((noinline)) void ifx_flanger(ifx_fl_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
+{
+    uint32_t ph, wp;
+    int32_t fbk, to, w = s->w;
+    if (!a && !w)
+        return;
+    if (!w)
+        ifx_zero(s, sizeof *s);                        /* starting: no stale line */
+    if (a)
+        s->a = (uint8_t)a;
+    to = a ? (a > 64 ? 64 : a) * 512 : 0;
+    fbk = s->a > 64 ? (s->a - 64) * 442 : 0;           /* 0 .. 0.85, Q15 */
+    ph = s->ph, wp = s->wp, w = s->w;
+    ifx_fl_side(s, 0, l, n, sh, to, fbk, &ph, &w, &wp);
+    if (r) {
+        ph = s->ph, wp = s->wp, w = s->w;               /* (the same sweep and share on the right) */
+        ifx_fl_side(s, 1, r, n, sh, to, fbk, &ph, &w, &wp);
+    }
+    s->ph = ph, s->wp = (uint16_t)wp, s->w = w;
 }
 #endif
 
@@ -316,9 +331,12 @@ typedef struct {
     int32_t px[IFX_AP], py[IFX_AP];
     uint8_t q;
 } ifx_wd_t;
-static ifx_wd_t ifx_wide[IFX_BUS + 3u];                 /* (the parts, the drum bus's L, the master's L at IFX_BUS + 1, the
-                                                         * USB input's at IFX_BUS + 2: ifx_wix) */
-AINL uint32_t ifx_wix(uint32_t i) { return i == IFX_MST ? IFX_BUS + 1u : i == IFX_UT ? IFX_BUS + 2u : i; }
+static ifx_wd_t ifx_wide[IFX_BUS + 6u];                 /* (the parts, the drum bus's L, the master's L at IFX_BUS + 1, the
+                                                         * USB input's at IFX_BUS + 2, the returns' at + 3 .. 5: ifx_wix) */
+AINL uint32_t ifx_wix(uint32_t i)
+{
+    return i == IFX_MST ? IFX_BUS + 1u : i == IFX_UT ? IFX_BUS + 2u : i >= IFX_RT0 ? IFX_BUS + 3u + ((i - IFX_RT0) >> 1) % 3u : i;
+}
 static int32_t ifx_side[NPART][CTL];                    /* a part's side this block (before its level): ifx_side_mix */
 static uint8_t ifx_sd[NPART];                           /* its side is set this block */
 #define IFX_WD_RATE 13                                  /* ~0.1 Hz */
@@ -396,14 +414,11 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #if FELUCCA_INS_PHASER
     case FXT_PHSR: return ifx_phsr[i].w;
 #endif
-#if FELUCCA_INS_FLANGER
-    case FXT_FLNG: return ifx_flng[i].w;
-#endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: return ifx_frmt[i].w;
 #endif
 #if FELUCCA_INS_WIDTH
-    case FXT_WIDE: return ifx_wix(i) < IFX_BUS + 3u ? ifx_wide[ifx_wix(i)].w : 0;
+    case FXT_WIDE: return ifx_wix(i) < IFX_BUS + 6u ? ifx_wide[ifx_wix(i)].w : 0;
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: return i < NTRK ? ifx_gate[i].c : 0;   /* (its closure: 0 open, at rest) */
@@ -426,12 +441,17 @@ AINL int ifx_has(uint32_t ty, uint32_t k)
  * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
  * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
  * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
-static uint32_t ifx_awake[NTRK + 2];                    /* (the tracks', the master's: IFX_AW_MST, the USB input's) */
+#define IFX_AW_RT0 (NTRK + 2u)                          /* ifx_awake's entries for the returns R1 R2 R3 */
+static uint32_t ifx_awake[NTRK + 5];                    /* (the tracks', the master's: IFX_AW_MST, the USB input's, the returns') */
+AINL uint32_t ifx_aw(uint32_t k)                        /* the audio's index k -> its ifx_awake entry */
+{
+    return k == IFX_MST ? IFX_AW_MST : k == IFX_UT ? IFX_AW_UT : k >= IFX_RT0 ? IFX_AW_RT0 + ((k - IFX_RT0) >> 1) % 3u : k % NTRK;
+}
 static __attribute__((noinline)) int32_t ifx_wn(uint32_t ty, uint32_t k) { return ifx_w(ty, k); }   /* (flash: the
                                                         * wrappers and the quiet loop call it through FAR, a block) */
 static __attribute__((noinline)) void ifx_mark(uint32_t ty, uint32_t k, int32_t a, int32_t w0)   /* (flash, FAR) */
 {
-    uint32_t j = k == IFX_MST ? IFX_AW_MST : k == IFX_UT ? IFX_AW_UT : k % NTRK;
+    uint32_t j = ifx_aw(k);
     if (a || w0 || ifx_w(ty, k))
         ifx_awake[j] |= FXT_BIT(ty);
     else
@@ -451,9 +471,6 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 #endif
 #if FELUCCA_INS_PHASER
     case FXT_PHSR: ifx_phaser(&ifx_phsr[i], a, b, n, sh + 1u); break;
-#endif
-#if FELUCCA_INS_FLANGER
-    case FXT_FLNG: ifx_flanger(&ifx_flng[i], a, b, n, sh); break;
 #endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: ifx_formant(&ifx_frmt[i], a, b, n, sh + 1u); break;
@@ -520,9 +537,6 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #if FELUCCA_INS_PHASER
         case FXT_PHSR: ifx_zero(&ifx_phsr[k], sizeof ifx_phsr[k]); break;
 #endif
-#if FELUCCA_INS_FLANGER
-        case FXT_FLNG: ifx_flng[k].w = 0; break;        /* (its line: cleared when it starts again) */
-#endif
 #if FELUCCA_INS_FORMANT
         case FXT_FRMT: ifx_zero(&ifx_frmt[k], sizeof ifx_frmt[k]); break;
 #endif
@@ -540,9 +554,9 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
  * type but JUNO CHORUS, no GATER there: fx_slots.c MST_OK) */
 AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
-#if FELUCCA_INS_JCHORUS
-    if (ty == FXT_JUNO) {                               /* (the master's: its instance, fxi.c FXI_MST; none: bypassed) */
-        ifx_lim_run(ty, IFX_MST, a, l, r, n, 2);
+#if INS_LIM
+    if (FXT_IS_LIM(ty)) {                               /* (the owner's instance, fxi.c; none: bypassed) */
+        ifx_lim_run(ty, i0, a, l, r, n, 2);
         return;
     }
 #endif
@@ -582,18 +596,14 @@ static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32
     ifx_bus_run(ty, a, l, r, n);
     FAR(ifx_mark)(ty, IFX_BUS, a, w0);
 }
-/* the USB input's further insert ty at amount a (fx.c ut_ins), its L and R (no limited type: fx_slots.c UT_OK) */
-static HOT2 __attribute__((noinline)) void ifx_ut(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+/* a stereo owner's further insert ty at amount a, its L and R: the master (fx.c mst_ins, i0 IFX_MST), the USB input (ut_ins,
+ * IFX_UT), a return (IFX_RT(j)); a limited type: the owner's instance (fxi.c) */
+static HOT2 __attribute__((noinline)) void ifx_st(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
-    int32_t w0 = FAR(ifx_wn)(ty, IFX_UT);
-    ifx_st_run(ty, IFX_UT, a, l, r, n);
-    FAR(ifx_mark)(ty, IFX_UT, a, w0);
+    int32_t w0 = FAR(ifx_wn)(ty, i0);
+    ifx_st_run(ty, i0, a, l, r, n);
+    FAR(ifx_mark)(ty, i0, a, w0);
 }
-/* the master's further insert ty at amount a (fx.c mst_ins), its L and R */
-static HOT2 __attribute__((noinline)) void ifx_mst(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
-{
-    int32_t w0 = FAR(ifx_wn)(ty, IFX_MST);
-    ifx_st_run(ty, IFX_MST, a, l, r, n);
-    FAR(ifx_mark)(ty, IFX_MST, a, w0);
-}
+#define ifx_ut(ty, a, l, r, n) ifx_st(ty, IFX_UT, a, l, r, n)
+#define ifx_mst(ty, a, l, r, n) ifx_st(ty, IFX_MST, a, l, r, n)
 #endif

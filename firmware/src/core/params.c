@@ -724,7 +724,9 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
-    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the send on each master return R1 R2 R3 (fx_slots.c; last of FX) */
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the type on each master return R1 R2 R3 (fx_slots.c; last of FX) */
+    {"RET AMT", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_RAMT, FXS_ID_RAMT + 1, FXS_ID_RAMT + 2, 0xFF}},   /* (fx-pool) a return's
+                                                     * other type's amount; page_shown: while one holds one */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
@@ -902,20 +904,22 @@ static int engine_page_used(const page_t *pg)
  * it is not shown either */
 static int page_shown(const page_t *pg)
 {
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_ON(FXT_DLY)) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_ON(FXT_REV) && !FXS_ON(FXT_CHO)))
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
 #if REV_MULTI
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
-        return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
+        return FXS_HAS(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
 #if FELUCCA_INS_JCHORUS
     if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_JMST)
         return MST_ON(FXT_JUNO);                      /* MST JUNO: while a master slot holds it */
 #endif
+    if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_RAMT)
+        return rt_any();                              /* RET AMT: while a return holds a type that is not a send */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
         return MST_OK != 0u;                          /* MST INS: the master's insert slots */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
@@ -979,8 +983,8 @@ static int cell_built(const page_t *pg, uint32_t id)
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
-               id == G_RSIZE || id == G_RDAMP ? FXS_ON(FXT_REV) :   /* (in a slot: fx_slots.c) */
-               id == G_CRATE || id == G_CDEPTH ? FXS_ON(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
+               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) :   /* (in a slot: fx_slots.c) */
+               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
@@ -1071,5 +1075,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         if (TSEL->p[id] <= 0 || (uint32_t)TSEL->p[id] > m)
             TSEL->p[id] = (int16_t)m;
     }
+    if (id == P_CHOR || id == P_DLY || id == P_REV)    /* a send: named by its line's return (fx-pool: PHSR ...) */
+        return fxs_send_d(id);
     return track_desc(TSEL, id);
 }

@@ -157,11 +157,10 @@ static uint32_t mx_items_synth(mitem_t *it)
 static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 {
     static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    static const char *const L[3] = {"REV RET", "DLY RET", "CHO RET"};
     uint32_t k;
     for (k = 0; k < 3u; k++)
         if (FXS_ON(T[k]))
-            n = mx_add(it, n, MG_SEND, L[k], MI_RET, G_CRET + (T[k] - FXT_CHO));
+            n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(T[k])), MI_RET, G_CRET + (T[k] - FXT_CHO));
     return n;
 }
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
@@ -292,7 +291,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     switch (m->kind) {
     case MI_TRK:
         *vp = &trk[mx_trk_of(r)].p[m->id];
-        return &TP[m->id];
+        return m->id == P_CHOR || m->id == P_DLY || m->id == P_REV ? fxs_send_d(m->id) : &TP[m->id];   /* (a send: by its
+                                                        * line's return, fx-pool) */
     case MI_GLOB:
         *vp = &song.g[m->id];
         return &GP[m->id];
