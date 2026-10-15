@@ -96,7 +96,10 @@ static volatile uint8_t fxl_lent;
 #endif
 
 /* a layout s (the record, the SLOTS page, the editor) into the master slots: sends only (an insert id: empty, its
- * place is the tracks' now: fx_rec.c ins_map); a type a second time leaves its slot empty */
+ * place is the tracks' now: fx_rec.c ins_map); a type a second time leaves its slot empty. The master has 3 return buses
+ * (fx-rework 2026-10-14: "master has 3 return buses"): R1 R2 R3 are slots 1..3, slot 0 stays empty (the stored layout
+ * keeps its 4 places, so every project of before reads as it was); a send an old layout holds in slot 0 takes the first
+ * empty return (3 sends, one instance each: there is always one) */
 static void fxs_set(const uint8_t *s)
 {
     uint32_t k, j, live = 0;
@@ -108,6 +111,15 @@ static void fxs_set(const uint8_t *s)
         fxs_slot[k] = (uint8_t)t;
         if (t < FXT_N)
             live |= FXT_BIT(t) & FXT_BUILT;
+    }
+    if (fxs_slot[0] != FXT_NONE) {                     /* (slot 0's send into the first empty return) */
+        for (k = 1; k < FX_NSLOT && fxs_slot[k] != FXT_NONE; k++)
+            ;
+        if (k < FX_NSLOT)
+            fxs_slot[k] = fxs_slot[0];
+        else
+            live &= ~FXT_BIT(fxs_slot[0]);              /* (a fourth send type: no return for it) */
+        fxs_slot[0] = FXT_NONE;
     }
     fxs_live = (uint8_t)live;
     fxs_lm[0] = FXS_ON(FXT_REV) ? 31u : 0u;
@@ -157,8 +169,8 @@ static void fxs_load(uint32_t k, uint32_t t)
 {
     uint8_t s[FX_NSLOT];
     uint32_t j;
-    if (t != FXT_NONE && !FXT_SEND_OK(t))
-        return;
+    if ((t != FXT_NONE && !FXT_SEND_OK(t)) || !(k & 3u))
+        return;                                        /* (slot 0: no return, fxs_set) */
     memcpy(s, fxs_slot, sizeof s);
     for (j = 0; j < FX_NSLOT; j++)
         if (s[j] == t && j != (k & 3u) && t != FXT_NONE)
@@ -551,9 +563,9 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
 static const char *fxs_names[FXS_NLIST];
 static uint8_t fxs_list[FXS_NLIST];
 static int16_t fxs_v[FX_NSLOT];
-static const param_desc_t FXS_DESC[FX_NSLOT] = {
-    {"S1", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"S2", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0},
-    {"S3", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"S4", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}};
+static const param_desc_t FXS_DESC[FX_NSLOT] = {   /* (slot 0: no return since fx-rework; R1 R2 R3 the master's returns) */
+    {"S1", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"R1", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0},
+    {"R2", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"R3", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}};
 /* INSERTS' S1 and S2 TYPE (the selected track's): an enum of the inserts built and ---- (empty) */
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
                    FELUCCA_INS_PHASER + FELUCCA_INS_FLANGER + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \

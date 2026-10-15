@@ -200,6 +200,7 @@ static void pages_master_order_tests(void)
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -256,6 +257,7 @@ static void pages_master_tests(void)
     cell_t c;
     int16_t tune = song.g[G_TUNE];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);

@@ -91,7 +91,8 @@
       "SHAPE": "Gate edges: hard to smooth"}},
     {"kind": "page", "ctx": "SLOTS", "params": {
       "S1": "Send in master slot 1 (swaps)", "S2": "Send in master slot 2 (swaps)", "S3": "Send in master slot 3 (swaps)",
-      "S4": "Send in master slot 4 (swaps)"}},
+      "S4": "Send in master slot 4 (swaps)", "R1": "Send on return 1 (swaps)", "R2": "Send on return 2 (swaps)",
+      "R3": "Send on return 3 (swaps)"}},
     {"kind": "page", "ctx": "SCL", "params": {
       "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
     {"kind": "page", "ctx": "SCL 2", "params": {

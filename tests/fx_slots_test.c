@@ -90,10 +90,10 @@ static void t_layout(void)
     check("the default: ---- CHO DLY REV, the three sends heard, SENDS' ids P_CHOR P_DLY P_REV in slot order",
           is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == 0xFFu &&
           fxs_send_amt(0) == P_CHOR && fxs_send_amt(1) == P_DLY && fxs_send_amt(2) == P_REV && fxs_send_amt(3) == 0xFFu);
-    layout(FXT_REV, FXT_REV, FXT_DLY, FXT_REV);
+    layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_REV);
     check("a type a second time: its slot empty (one instance per type)",
-          is_layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_NONE) && fxs_live == (FXT_BIT(FXT_REV) | FXT_BIT(FXT_DLY)) &&
-          fxs_amt(1) == 0xFFu && fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 0u);
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_NONE) && fxs_live == (FXT_BIT(FXT_REV) | FXT_BIT(FXT_DLY)) &&
+          fxs_amt(3) == 0xFFu && fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 0u);
     layout(FXT_DIST, 200, FXT_COMP, FXT_CHO);
     check("an insert id (an old record's DIST, COMP): empty (the tracks' slots hold the inserts); an id this build lacks "
           "(a newer firmware's): kept, not heard", is_layout(FXT_NONE, 200, FXT_NONE, FXT_CHO) &&
@@ -102,8 +102,13 @@ static void t_layout(void)
     fxs_load(0, FXT_DIST);
     check("FX > SLOTS: an insert refused", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
     fxs_load(0, FXT_REV);
-    check("... REV into S1 swaps with S4 (nothing lost), SENDS follow the order (REV CHO DLY)",
-          is_layout(FXT_REV, FXT_CHO, FXT_DLY, FXT_NONE) && fxs_send_amt(0) == P_REV && fxs_send_amt(2) == P_DLY);
+    check("the master's 3 returns (fx-rework): slot 0 takes no send", is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV));
+    fxs_load(1, FXT_REV);
+    check("... REV into R1 swaps with R3 (nothing lost), SENDS follow the order (REV DLY CHO)",
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && fxs_send_amt(0) == P_REV && fxs_send_amt(2) == P_CHOR);
+    layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_CHO);
+    check("... an old layout's send in slot 0: into the first empty return (REV on R1)",
+          is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && FXS_ON(FXT_REV));
     fxs_set(FXS_DEF);
 }
 
@@ -754,8 +759,8 @@ static void t_map(void)
     {   /* the whole path: an old record (no flag, no TLV 0x42) loads the mapped slots and the sends */
         uint8_t o[FXR_HEAD] = {1, 0, FXT_REV, FXT_DIST, FXT_NONE, FXT_CHO};
         k = (uint32_t)fxr_decode(o, sizeof o, 1);
-        check("an old record (REV DIST ---- CHO): the master REV ---- ---- CHO, every track's S1 DIST", k &&
-              is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_CHO) && ins_dflt() && !ins_drop);
+        check("an old record (REV DIST ---- CHO): the master's returns REV ---- CHO (slot 0's REV on R1), every track's S1 DIST", k &&
+              is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_CHO) && ins_dflt() && !ins_drop);
     }
     fxs_set(FXS_DEF);
     ins_all(INS_D);
@@ -769,13 +774,13 @@ static void t_record(void)
     fxs_set(FXS_DEF);
     ins_all(INS_D);
     check("the default (the master's sends, the tracks' S1 DIST S2 FILTER): nothing to keep (no record)", fxr_encode(b) == 0u);
-    layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY);
+    layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_DLY);
     n = fxr_encode(b);
     fxs_set(FXS_DEF);
     check("a layout: version 1, the flag of the track slots, the sends, an empty place the insert the tracks hold (DIST: "
           "an older build hears it); no TLV 0x42 (the mapping gives the slots); decoded back the same", n == FXR_HEAD &&
-          b[0] == 1u && b[1] == FXR_F_INS && b[2] == FXT_REV && b[3] == FXT_DIST && fxr_decode(b, n, 1) &&
-          is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY) && ins_dflt());
+          b[0] == 1u && b[1] == FXR_F_INS && b[2] == FXT_DIST && b[3] == FXT_REV && fxr_decode(b, n, 1) &&
+          is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_DLY) && ins_dflt());
     {
         static const ins_t X = {{FXT_NONE, FXT_DIST}, {D0, D1}, {D0, D1}, {D0, D1}};
         uint32_t k, at, ok = 0;
@@ -793,11 +798,11 @@ static void t_record(void)
         memcpy(c, b, n);
         c[1] = 0;                                       /* (an older build's reader: no flag known, the TLV skipped) */
     }
-    layout(FXT_REV, FXT_NONE, FXT_DIST, FXT_DLY);
+    layout(FXT_NONE, FXT_REV, FXT_DIST, FXT_DLY);
     n = fxr_encode(b);
     memcpy(c, b, n);
     c[n] = 77, c[n + 1u] = 3, c[n + 2u] = c[n + 3u] = c[n + 4u] = 9;   /* (a later firmware's type) */
-    check("an unknown TLV: skipped, the layout read", fxr_decode(c, n + 5u, 1) && is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_DLY));
+    check("an unknown TLV: skipped, the layout read", fxr_decode(c, n + 5u, 1) && is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_DLY));
     check("a TLV cut short: refused, the defaults (a record-less project's)", !fxr_decode(c, n + 3u, 1) &&
           is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && ins_dflt());
     c[0] = 2;
@@ -823,14 +828,14 @@ static void t_stores(void)
     sec_boot();
     song.playing = 0, transport_req = 0;
     tracks(1);
-    layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_NONE);
+    layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_NONE);
     ins_all(X);
     project_save(3);
     ok = !strcmp(last_msg, "SAVED") && slg_has(FXR_ID0 + 3);
     tracks(2);
     fxs_set(FXS_DEF);
     project_load(3);
-    check("SAVE D with a layout and T1's slots; LOAD it back: the same", ok && is_layout(FXT_REV, FXT_DLY, FXT_NONE, FXT_NONE) &&
+    check("SAVE D with a layout and T1's slots; LOAD it back: the same", ok && is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_NONE) &&
           ins_is(0, FXT_NONE, FXT_DIST));
     tracks(3);
     fxs_set(FXS_DEF);
@@ -894,7 +899,7 @@ static void t_stores(void)
         static project_t as;
         static dlrec_t ad;
         tracks(16);
-        layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE);
+        layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_NONE);
         ins_all(X);
         proj_capture(&as, &ad);
         ok = fxr_log_put(FXR_ID_AUTO, as.sum, &as, 0) == 0 && slg_has(FXR_ID_AUTO);
@@ -903,7 +908,7 @@ static void t_stores(void)
         fxr_for(&as, 1)->psum = 0;
         fxr_log_get(FXR_ID_AUTO, as.sum, &as);
         proj_apply(&as, &ad, 1);
-        ok &= is_layout(FXT_REV, FXT_NONE, FXT_NONE, FXT_NONE) && ins_is(0, FXT_NONE, FXT_DIST);
+        ok &= is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_NONE) && ins_is(0, FXT_NONE, FXT_DIST);
         fxr_log_get(FXR_ID_AUTO, as.sum ^ 1u, &as);     /* another project's key: none */
         proj_apply(&as, &ad, 1);
         check("the autosave's FX record: written beside it, read back with it; another key: the defaults",

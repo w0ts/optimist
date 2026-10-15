@@ -689,7 +689,7 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
-    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {0, 1, 2, 3}},   /* the type in each FX slot (fx_slots.c; last of FX) */
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the send on each master return R1 R2 R3 (fx_slots.c; last of FX) */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
