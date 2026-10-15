@@ -12,8 +12,9 @@ optimizer, this script adds 'minsize' to those definitions, and the IR is then c
 (without the edit, that round trip is byte-identical to compiling felucca.c directly).
 
 Never marked, whatever file defines them: functions placed in RAM (a section attribute: HOT,
-.ram_text) and every function the audio side can reach through direct calls or address
-references. The audio side is the IRQ bodies (*_irq), the RAM code and every function defined in
+.ram_text) and every function the audio side can reach through direct calls, address
+references, or a global whose initializer holds the function (a function pointer table such as
+an engine's, or seq_tick's pattern-switch hook). The audio side is the IRQ bodies (*_irq), the RAM code and every function defined in
 AUDIO_FILES.
 
   size_fns.py IN.ll OUT.ll        mark and write OUT.ll
@@ -54,6 +55,8 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
+# (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
+# half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
 OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
@@ -129,14 +132,25 @@ def ir_functions(ir):
     return funcs
 
 
-def audio_reach(funcs, audio_names):
-    """every IR function the sound side can reach (direct calls and address references)"""
+IR_GLOBAL = re.compile(r"^@\"?([\w.]+)\"? = [^\n]*$", re.M)
+
+
+def ir_globals(ir):
+    """{name: initializer text} for every global variable the IR defines (one line each)"""
+    return {m.group(1): m.group(0).split("=", 1)[1] for m in IR_GLOBAL.finditer(ir)}
+
+
+def audio_reach(funcs, audio_names, globs=None):
+    """every IR function the sound side can reach: direct calls, address references, and the functions a
+    reached global's initializer holds (an engine's table of render / note functions, a dispatch table)"""
+    globs = globs or {}
     roots = {n for n, (head, _) in funcs.items()
              if n.endswith("_irq") or n in audio_names or re.search(r'section "\.ram', head)}
     seen, todo = set(roots), list(roots)
     while todo:
-        for ref in IR_REF.findall(funcs[todo.pop()][1]):
-            if ref in funcs and ref not in seen:
+        n = todo.pop()
+        for ref in IR_REF.findall(funcs[n][1] if n in funcs else globs[n]):
+            if (ref in funcs or ref in globs) and ref not in seen:
                 seen.add(ref)
                 todo.append(ref)
     return seen
@@ -166,7 +180,7 @@ def main(argv):
         return 0
     funcs = ir_functions(ir)
     want = names_in(SIZE_FILES)
-    keep = audio_reach(funcs, names_in(AUDIO_FILES))
+    keep = audio_reach(funcs, names_in(AUDIO_FILES), ir_globals(ir))
     held = sorted(n for n in want if n in keep and n in funcs)
     hit = set()
 

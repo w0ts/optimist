@@ -308,7 +308,9 @@ def build_app():
                                "ORIGIN = 0x01C30000, LENGTH = 0x80000")
                       .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
         sync_view(ld)
-    tc("pi32v2/bin/ld", "-T", ld, *objs, "-o", elf)
+    # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
+    # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
+    tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
