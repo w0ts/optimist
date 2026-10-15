@@ -110,22 +110,20 @@ static void fm1_irq_enable_all(void)
  * f[0..15] r0..r15, f[16] reti, f[17] rete, f[18] retx, f[19] stub+6,
  * f[20] psr, f[21] icfg, f[22] usp, f[23] ssp, f[24] sp, f[25] interrupted rets */
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL
-static void fm1_dual_cpu1_fault(uint32_t vec);           /* fm1_dual.h: CPU1 parks in RAM */
+static int fm1_dual_exc_c(const uint32_t *f);            /* fm1_dual.h: an exception about CPU1 (1: CPU0 resumes) */
 #endif
+/* returns only after an exception about CPU1 (FELUCCA_DUAL): fm1_vec.S resumes the interrupted code */
 void fm1_fault_c(uint32_t *f)
 {
     static volatile uint32_t in_fault;
-    uint32_t i, count = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0;
-    uint32_t early = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.early : 0;
-    fm1_irq_off();
+    uint32_t i, count, early;
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL
-    {   /* a fault on CPU1: no report from there (CPU0 owns the screen); CPU0 notices and halts it */
-        uint32_t id;
-        __asm__ volatile("%0 = cnum" : "=r"(id));
-        if (id)
-            fm1_dual_cpu1_fault((f[19] - (uint32_t)(uintptr_t)fm1_fatal_stubs) / 6u - 1u);
-    }
+    if (fm1_dual_exc_c(f))                    /* (CPU1 itself parks there; no report from it, CPU0 owns the screen) */
+        return;
 #endif
+    count = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0;
+    early = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.early : 0;
+    fm1_irq_off();
     if (in_fault++)                           /* fault while reporting: reset at once */
         *(volatile uint32_t *)0x10000u |= 1u << 4;
     fm1_crash.magic = FM1_CRASH_MAGIC;

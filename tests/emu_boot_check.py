@@ -36,7 +36,7 @@ def peeks(out):
 def run(pc, fw, secs, mhz, dual):
     st = tempfile.mkdtemp(prefix="emu-boot-")
     try:
-        steps = [f"run:{secs}", f"peek:felucca_dbg:{len(DBG)}"] + (["peek:fm1_dual_mb:2"] if dual else [])
+        steps = [f"run:{secs}", f"peek:felucca_dbg:{len(DBG)}"] + (["peek:fm1_dual_mb:17"] if dual else [])
         env = dict(os.environ, FM1_CPU_MHZ=str(mhz))
         p = subprocess.run([pc, "--state", st + "/", "--fresh", fw, *steps], env=env, capture_output=True, text=True)
     finally:
@@ -58,7 +58,8 @@ def run(pc, fw, secs, mhz, dual):
         errs.append(f"boots {d['boots']} (a reset)")
     info = f"halves {d['halves']}, late {d['late']}, max_us {d['max_us']}"
     if dual:
-        req, done = v.get("fm1_dual_mb", [0, 0])
+        mb = v.get("fm1_dual_mb", [0] * 17)
+        req, done = mb[0], mb[16]   # (hal/fm1_dual.h: done on CPU1's cache line, word 16)
         if not (done and done >= req - 1):       # (a job may be in flight when the run stops)
             errs.append(f"CPU1 takes no jobs: req {req}, done {done}")
         info += f", CPU1 jobs {done} of {req}"

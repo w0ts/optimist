@@ -10,12 +10,15 @@
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 
 /* diagnostics, kept across resets and UBOOT entry: read with `fm1t memr` */
-#define DBG_MAGIC 0x44424731u                       /* "DBG1" */
+#define DBG_MAGIC 0x44424732u                       /* "DBG2" (2026-10-15: alive_ms, c1, crash_seen) */
 struct felucca_dbg {
     uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames;
     uint32_t last_us, cpu_q8, boots;
     uint32_t stage, page, home;           /* where the main loop is (breadcrumbs) */
     uint32_t prev_stage, prev_page, prev_home, prev_rst, prev_frames;   /* as found at boot */
+    uint32_t alive_ms, c1;                /* fm1_ms at the last TIMER5 millisecond; CPU1's stage then (DUAL builds) */
+    uint32_t prev_alive_ms, prev_c1;      /* (as found at boot: how long the boot before ran) */
+    uint32_t crash_seen, crash_new;       /* fm1_crash.count at boot; 1: it changed since (that boot ended in a crash) */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 

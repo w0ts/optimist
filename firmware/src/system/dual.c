@@ -219,7 +219,7 @@ void HOT fm1_cpu1_wake(void)
                 ;
 #elif DUAL_FAILTEST == 3
         if (jobs == 3000u)
-            FAR(fm1_dual_cpu1_fault)(1);
+            FL_FAR(fm1_dual_dead_ram)(1);
 #endif
         dual_job(a);
         jobs++;
@@ -238,6 +238,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 {
     uint32_t seq = 0, arg = 0;
     fm1_dual_mb.stage = C1S_MAIN;
+    fm1_dual_c1_emu();                             /* its own stack limit and traps (X0X, Melodee) */
 #if DUAL_FAILTEST == 1
     for (;;)
         ;
@@ -272,7 +273,7 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
                 ;
 #elif DUAL_FAILTEST == 3
         if (seq == 3000u)
-            fm1_dual_cpu1_fault(1);                /* (what fm1_fault_c does on CPU1: an exception itself
+            FL_FAR(fm1_dual_dead_ram)(1);          /* (what fm1_fault_c does on CPU1: an exception itself
                                                     * cannot be raised in the emulator) */
 #endif
 #if FELUCCA_DUAL >= 2
@@ -320,6 +321,7 @@ static __attribute__((noinline)) void dual_boot(void)
 #if FELUCCA_DUAL_BOOST
     dual.supply = (uint8_t)fm1_supply_boost();     /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
 #endif
+    fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
 #endif
@@ -361,6 +363,8 @@ static void dual_frame(void)
 {
     static uint8_t told;
     fm1_dual_mb.ping++;
+    if (dual.up && fm1_dual_mb.fault)              /* (an exception about CPU1 outside a join: hal/fm1_dual.h) */
+        dual_down(DUAL_FAULT, 0);
     if (!dual.up && !told) {
         told = 1;
         if (dual.why != DUAL_SETOFF)

@@ -440,6 +440,13 @@ static void con_status(void)
     con_kv("cpu1_down_at", dual.stop.at);
     con_kv("cpu1_down_beat", (int32_t)dual.down_beat);
     con_kv("cpu1_down_pend", dual.down_pend);           /* its wake (soft interrupt 124) still pending then */
+    con_kx("cpu1_icfg", fm1_dual_mb.icfg);              /* CPU1's icfg as it slept (bit 31: read) */
+    con_kv("cpu1_exc", (int32_t)fm1_dual_exc.count);    /* exceptions about CPU1 (hal/fm1_dual.h fm1_dual_exc_c) */
+    con_kv("cpu1_exc_cpu", (int32_t)fm1_dual_exc.cpu);
+    con_kx("cpu1_exc_dbg", fm1_dual_exc.dbg);
+    con_kx("cpu1_exc_emu", fm1_dual_exc.emu);
+    con_kx("cpu1_exc_pc", fm1_dual_exc.pc);
+    con_kx("cpu1_exc_rets", fm1_dual_exc.rets);
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif

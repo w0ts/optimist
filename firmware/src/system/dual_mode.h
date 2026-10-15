@@ -103,6 +103,14 @@ static inline void dual_cnum(char *b, uint32_t v)
         *b++ = sfx;
     *b = 0;
 }
+static inline void dual_chex(char *b, uint32_t v, uint32_t digits)   /* the low DIGITS hex digits of v appended */
+{
+    while (*b)
+        b++;
+    while (digits--)
+        *b++ = "0123456789ABCDEF"[(v >> (4u * digits)) & 15u];
+    *b = 0;
+}
 static inline void dual_cat(char *b, const char *s)   /* s appended to b */
 {
     while (*b)

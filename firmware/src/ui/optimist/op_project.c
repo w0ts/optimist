@@ -592,10 +592,12 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
  *                    operation); t: since CPU1 was started (ms under 10 s, else s), "*": the ms clock had not ticked yet (the first audio
  *                    interrupt); unit: "#<the job's index, 0 = the first>" (and CPU0's wait when less than a half: a fault, a
  *                    misread)
- *   CPU1 HELLO       how far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN (its wait loop), WOKEN (its wake handler ran),
- *                    TOOK JOB (its first job), JOB DONE; unit once down: P1 = its wake was still latched (not taken)
- *   CPU1 BEAT IDLE / SPIN  its beat (returns from `idle`, or spin loops) / its wake handler's entries; the label names
- *                    the build (FELUCCA_DUAL_IDLE 1 / 0) */
+ *   CPU1 SLEEP / SPIN  (the label names the build: FELUCCA_DUAL_IDLE 1 / 0) how far CPU1 got: NONE, MAIN, HELLO,
+ *                    SLEEP / SPIN (its wait loop), WOKEN (its wake handler ran), TOOK JOB (its first job), JOB DONE;
+ *                    unit: its beat (returns from `idle`, or spin passes / 256) / its wake handler's entries
+ *   CPU1 FAULT       an exception about CPU1 (hal/fm1_dual.h fm1_dual_exc_c): "D<DBG_MSG>" or "E<EMU_MSG>", unit
+ *                    "@<pc>" and the core that took it; none: "IC<CPU1's icfg as it slept>" and, once down, P1 / P0
+ *                    (its wake pending in CPU1's IPND3 then) */
 #define INFO_C1 4u
 static void c1_put(char *b, uint32_t v, char sep)        /* v (capped at 999999), then sep (0: none), appended */
 {
@@ -626,41 +628,102 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
         c->col = dual.stop.stopped ? C_WARN : 0;
         break;
     case 2:
-        c->label = "CPU1 HELLO";
+        c->label = DUAL_SLEEPS ? "CPU1 SLEEP" : "CPU1 SPIN";
         str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS), sizeof c->val);
-        c->unit = !dual.stop.stopped ? "" : dual.down_pend ? " P1" : " P0";
+        u[0] = ' ';
+        u[1] = 0;
+        dual_cnum(u, fm1_dual_mb.count);
+        dual_cat(u, "/");
+        dual_cnum(u, fm1_dual_mb.wakes);
+        c->unit = u;
         c->col = fm1_dual_mb.stage < C1S_DONE ? C_WARN : 0;
         break;
     default:
-        c->label = DUAL_SLEEPS ? "CPU1 BEAT IDLE" : "CPU1 BEAT SPIN";
-        v[0] = 0;
-        dual_cnum(v, fm1_dual_mb.count);
-        dual_cat(v, "/");
-        dual_cnum(v, fm1_dual_mb.wakes);
-        c->unit = "";
+        c->label = "CPU1 FAULT";
+        v[0] = u[0] = 0;
+        if (fm1_dual_exc.count) {
+            dual_cat(v, fm1_dual_exc.dbg ? "D" : "E");
+            dual_chex(v, fm1_dual_exc.dbg ? fm1_dual_exc.dbg : fm1_dual_exc.emu, 8);
+            dual_cat(u, fm1_dual_exc.cpu ? " 1@" : " 0@");
+            dual_chex(u, fm1_dual_exc.pc, 7);
+            c->col = C_WARN;
+        } else {
+            dual_cat(v, "IC");
+            dual_chex(v, fm1_dual_mb.icfg, 4);
+            if (dual.stop.stopped)
+                dual_cat(u, dual.down_pend ? " P1" : " P0");
+        }
+        c->unit = u;
         break;
     }
 }
 #else
 #define INFO_C1 0u
 #endif
+#ifdef DBG_MAGIC
+/* LAST RESET (2026-10-15: a boot AFTER CRASH with nothing to say why): how the boot before this one ended, from
+ * what the reset keeps (core/audio.c felucca_dbg, hal/fm1_irq.h fm1_crash, hal/fm1_sys.h's reset source).
+ * Value: POWER ON (nothing kept) | CRASH (the crash report reset it; CRASH1: the debug unit named CPU1) | WDT | SOFT |
+ * KEY (a long press) | LOW V, then how long it ran ("12s", "850ms"); unit: " @<the crash's pc>", or " S<the step or
+ * main-loop stage it was in, hex> C<CPU1's stage then>" */
+#define INFO_RST 1u
+static void sys_rst_cell(cell_t *c)
+{
+    static char u[16];
+    uint32_t r = felucca_dbg.prev_rst, up = felucca_dbg.prev_alive_ms;
+    char *v = c->val;
+    cell_clear(c);
+    c->kind = CK_RO;
+    c->label = "LAST RESET";
+    v[0] = u[0] = 0;
+    c->unit = u;
+    if ((r & 1u) && !(r & (4u | 0x40u)) && !felucca_dbg.crash_new) {
+        dual_cat(v, "POWER ON");
+        return;
+    }
+    if (felucca_dbg.crash_new)
+        dual_cat(v, (fm1_crash.dbg & ((1u << 6) | (1u << 8) | (1u << 10) | (1u << 11) | (7u << 16))) ? "CRASH1 " : "CRASH ");
+    else
+        dual_cat(v, (r & 4u) ? "WDT " : (r & 0x40u) ? "SOFT " : (r & 0x10u) ? "KEY " : (r & 0x22u) ? "LOW V " : "? ");
+    dual_cnum(v, up < 10000u ? up : up / 1000u);
+    dual_cat(v, up < 10000u ? "ms" : "s");
+    if (felucca_dbg.crash_new) {
+        dual_cat(u, " @");
+        dual_chex(u, fm1_crash.pc, 7);
+    } else {
+        dual_cat(u, " S");
+        dual_chex(u, felucca_dbg.prev_stage, 2);
+        dual_cat(u, " C");
+        dual_chex(u, felucca_dbg.prev_c1, 1);
+    }
+    c->col = (r & 4u) || felucca_dbg.crash_new ? C_WARN : 0;
+}
+#else
+#define INFO_RST 0u
+#endif
 /* the info page's lines (op_gldraw.c gl_info_draw): the clock, CPU0's load, the 2ND CORE line (ON + load, OFF + why, NOT IN BUILD), the battery,
- * then the USB AUDIO diagnostics (USB audio builds) */
+ * LAST RESET, the second core's lines (DUAL builds), then the USB AUDIO diagnostics (USB audio builds) */
 #define INFO_BASE 4u
-#define INFO_N (INFO_BASE + INFO_C1 + INFO_UA)
+#define INFO_N (INFO_BASE + INFO_RST + INFO_C1 + INFO_UA)
 static void sys_info_cell(uint32_t i, cell_t *c)
 {
     static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build) */
     i %= INFO_N;
+#if INFO_RST
+    if (i == INFO_BASE) {
+        sys_rst_cell(c);
+        return;
+    }
+#endif
 #if INFO_C1
-    if (i >= INFO_BASE && i < INFO_BASE + INFO_C1) {
-        sys_c1_cell(i - INFO_BASE, c);
+    if (i >= INFO_BASE + INFO_RST && i < INFO_BASE + INFO_RST + INFO_C1) {
+        sys_c1_cell(i - INFO_BASE - INFO_RST, c);
         return;
     }
 #endif
 #if FELUCCA_USB_AUDIO
-    if (i >= INFO_BASE + INFO_C1) {
-        sys_ua_cell(i - INFO_BASE - INFO_C1, c);
+    if (i >= INFO_BASE + INFO_RST + INFO_C1) {
+        sys_ua_cell(i - INFO_BASE - INFO_RST - INFO_C1, c);
         return;
     }
 #endif

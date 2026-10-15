@@ -65,7 +65,7 @@ def script(d, dual):
     s += sum((take(f"t2{k}", T2_CHORD, d) for k in "abc"), []) + ["peek:autosave_ms:1"] + select(BLACK1)
     s += SH_T1 + take("t1s", T1_NOTE, d) + ["click:KNOB1:-20"]
     s += sum((take(f"t1{k}", T1_NOTE, d) for k in "abc"), []) + ["peek:autosave_ms:1"]
-    return s + (["peek:fm1_dual_mb:2"] if dual else [])
+    return s + (["peek:fm1_dual_mb:17"] if dual else [])
 
 
 def name(fw):
@@ -116,7 +116,8 @@ def check(pc, fw, mhz, d):
         errs.append(f"an autosave before or in the takes (autosave_ms {saves}): the comparison says nothing")
     errs += [f"{t}: silence" for t in TAKES if not sounds(f"{d}/{t}.wav")]
     if dual:
-        req, done = v.get("fm1_dual_mb", [0, 0])
+        mb = v.get("fm1_dual_mb", [0] * 17)
+        req, done = mb[0], mb[16]   # (hal/fm1_dual.h: done on CPU1's cache line, word 16)
         if not (done and done >= req - 1):
             errs.append(f"CPU1 took no jobs: req {req}, done {done}")
     if not errs:
