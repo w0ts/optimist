@@ -230,6 +230,49 @@ static uint32_t cg_ins_rt(void)
     }
     return n;
 }
+#if FELUCCA_USB_AUDIO
+/* the USB input's insert slots (fx.c ut_mix, any insert type since 2026-10-15): the master's costs of the same kernels on a
+ * stereo pair, while set (FX on) or letting go (its wet share; DIST FILT DYN DUST: their own states) */
+static uint32_t cg_ins_ut(void)
+{
+    uint32_t n = 0, s, t;
+    for (s = 0; s < INS_N; s++) {
+        int32_t a;
+        t = ut.slot[s];
+        if (t >= FXT_N || !(UT_OK >> t & 1u))
+            continue;
+        a = ut.v[UTV_FXON] ? ut.amt[s] : 0;
+        if (t == FXT_DIST && a)
+            n += CG_COST_DBDIST * 2u / 5u;
+#if TFLT_ON
+        if (t == FXT_FILT && ut_sto.f.mode)
+            n += CG_COST_DBFILT * 2u / 5u;
+#endif
+#if FELUCCA_MASTER_COMP
+        if (t == FXT_DYN && a)
+            n += CG_COST_DBCOMP;
+#endif
+        if (t == FXT_DUST && FELUCCA_FX_DUST && a)
+            n += CG_COST_DBDUST;
+#if INS_FX
+        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_UT)))   /* (CHRS ECHO FLNG: only with an instance, ifx_w 0
+                                                        * without; GATER: one gain, the bus's cost) */
+            n += CG_COST_DBINS[t - FXT_NEW0];
+#endif
+#if FELUCCA_INS_JCHORUS
+        if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_UT)))
+            n += CG_COST_JUNO;
+#endif
+#if FELUCCA_INS_EQ3
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_UT) || (a && !eq3_flat(eq3_v[NTRK + 1u]))))
+            n += CG_COST_EQ3S;
+#endif
+    }
+    return n;
+}
+#else
+#define cg_ins_ut() 0u
+#endif
 /* the predicted cost of what sounds now: target instructions a sample */
 static uint32_t cg_est(void)
 {
@@ -249,6 +292,7 @@ static uint32_t cg_est(void)
     n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
     n += cg_ins_mst();                                /* the master's (fx.c mst_run) */
     n += cg_ins_rt();                                 /* the returns' other types (fx.c rt_run) */
+    n += cg_ins_ut();                                 /* the USB input's (fx.c ut_mix) */
 #if DINS
     for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
         n += cg_dvoice(dins_ran[i]);

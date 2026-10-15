@@ -925,6 +925,7 @@ static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
 #include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
+#include "ui_optimist_usbfx.h"                     /* the USB input's insert slots: every type, its sets, FULL */
 static void seq_long(void)                              /* SEQ held alone past HOLD, let go */
 {
     press(B_SEQ);
@@ -2562,6 +2563,9 @@ int main(int argc, char **argv)
     rows_tests();
 #if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
     fxpool_tests();
+#endif
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+    usbfx_tests();
 #endif
     key_tests();
     confirm_tests();

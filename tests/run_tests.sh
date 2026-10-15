@@ -549,8 +549,8 @@ job; ( jobin
     run "FX slots with the further inserts built (INS_*): the same layout, renders and records" "$OUT/fx_slots_ifx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
-    run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record)" "$OUT/fx_slots_usb_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/fx_slots_usb_test" tests/fx_slots_test.c -lm
+    run "FX slots with USB audio: the USB input as a track (level, pan, mute, FX on, sends, its insert slots, its record; every insert type on S1 / S2: heard, neutral = dry, the record, the pool FULL)" "$OUT/fx_slots_usb_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_EQ3=1 -o "$OUT/eq3_test" tests/eq3_test.c -lm
@@ -1340,6 +1340,10 @@ job; ( jobin
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -o "$OUT/cpuguard_ifx_test" tests/cpuguard_test.c -lm
     run "CPU guard with the further inserts built (INS_*; CHRS ECHO counted only with an instance)" "$OUT/cpuguard_ifx_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/cpuguard_usb_test" tests/cpuguard_test.c -lm
+    run "CPU guard with USB audio: the USB input's insert slots counted (any insert type, EQ3 only engaged, FX off none)" "$OUT/cpuguard_usb_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $X0X_ON -o "$OUT/cpuguard_x0x_test" tests/cpuguard_test.c -lm

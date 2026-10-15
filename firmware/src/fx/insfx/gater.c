@@ -55,6 +55,13 @@ typedef struct {
 } ifx_gt_t;
 static ifx_gt_t ifx_gate[NTRK];                         /* the parts', the drum bus's (IFX_BUS) */
 _Static_assert(IFX_BUS == NPART && NTRK == NPART + 1u, "ifx_gate: a part each, then the drum bus");
+#if FELUCCA_USB_AUDIO
+static ifx_gt_t ifx_gate_ut;                            /* the USB input's (fx_slots.c ut: its own PATTERN RATE SHAPE) */
+#endif
+/* an owner's GATER values for a block: RATE (0 .. 5), PATTERN, SHAPE, the swing's even step (igt_swing) */
+typedef struct {
+    uint32_t rt, pat, shp, b1;
+} igt_par_t;
 
 AINL uint32_t igt_slope(uint32_t shape, uint32_t inc)  /* the closure's step a sample (1 .. IGT_SMAX) */
 {
@@ -74,9 +81,25 @@ AINL uint32_t igt_swing(const track_t *t, uint32_t r)
         return IGT_STEP;
     return IGT_STEP + (uint32_t)clamp(t->p[P_SSWING] + song.g[G_SWING], 0, 100) * (IGT_STEP / 200u);
 }
-/* the block's phase at its first sample, a sample's step, the slope of track t's SHAPE (flash, FAR: its 64-bit
- * products stay out of the RAM code) */
-static __attribute__((noinline)) void igt_block(ifx_gt_t *s, const track_t *t, uint32_t r, igt_blk_t *o)
+AINL void igt_par_trk(const track_t *t, igt_par_t *p)   /* track t's GATER values */
+{
+    p->rt = (uint32_t)t->p[P_TGRATE] % 6u;
+    p->pat = (uint32_t)t->p[P_TGPAT] % IGT_NPAT;
+    p->shp = (uint32_t)t->p[P_TGSHP];
+    p->b1 = igt_swing(t, p->rt);
+}
+#if FELUCCA_USB_AUDIO
+AINL void igt_par_ut(igt_par_t *p)                     /* the USB input's: its own values; the global SWING on RATE 1/16 */
+{
+    p->rt = (uint32_t)ut.v[UTV_GRATE] % 6u;
+    p->pat = (uint32_t)ut.v[UTV_GPAT] % IGT_NPAT;
+    p->shp = (uint32_t)ut.v[UTV_GSHP];
+    p->b1 = IGT_DEN[p->rt] != 4u ? IGT_STEP : IGT_STEP + (uint32_t)clamp(song.g[G_SWING], 0, 100) * (IGT_STEP / 200u);
+}
+#endif
+/* the block's phase at its first sample, a sample's step, the slope of SHAPE shp (flash, FAR: its 64-bit products stay
+ * out of the RAM code) */
+static __attribute__((noinline)) void igt_block(ifx_gt_t *s, uint32_t shp, uint32_t r, igt_blk_t *o)
 {
     uint32_t kc = IGT_KC[r], d = (uint32_t)(((uint64_t)clk_blk * kc) >> 21), p0;
     if (song.playing) {
@@ -88,22 +111,22 @@ static __attribute__((noinline)) void igt_block(ifx_gt_t *s, const track_t *t, u
     s->ph = p0 + d;
     o->ph = p0;
     o->inc = d >> CTL_LOG2;                             /* (a block is CTL samples) */
-    o->sl = igt_slope((uint32_t)t->p[P_TGSHP], o->inc);
+    o->sl = igt_slope(shp, o->inc);
 }
-/* track t's GATER at depth a on n samples of l (r: the drum bus's right, 0 a part) */
-static HOT2 __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const track_t *t, int32_t a, int32_t *l, int32_t *r,
+/* a GATER with values p at depth a on n samples of l (r: a stereo owner's right, 0 a part) */
+static HOT2 __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const igt_par_t *p, int32_t a, int32_t *l, int32_t *r,
                                                      uint32_t n)
 {
     igt_blk_t bk;
-    uint32_t i, rt = (uint32_t)t->p[P_TGRATE] % 6u, pat, nx, b1, h0, h1, ph;
+    uint32_t i, rt = p->rt % 6u, pat, nx, b1, h0, h1, ph;
     int32_t c = s->c, cd = a >= 127 ? 32768 : a * 258, sl;
     if (!a && !c)
         return;                                         /* (off and open: the block as it is) */
-    FAR(igt_block)(s, t, rt, &bk);
+    FAR(igt_block)(s, p->shp, rt, &bk);
     ph = bk.ph, sl = a ? (int32_t)bk.sl : IGT_SMAX;    /* (off: open as fast as no click allows, then at rest) */
-    pat = IGT_PAT[(uint32_t)t->p[P_TGPAT] % IGT_NPAT];
+    pat = IGT_PAT[p->pat % IGT_NPAT];
     nx = (pat >> 1 | pat << 15) & 0xFFFFu;              /* bit k: step k + 1 is open */
-    b1 = igt_swing(t, rt);
+    b1 = p->b1;
     h0 = b1 >> 1, h1 = (b1 >> 1) + IGT_STEP;            /* the middles: (0 + b1) / 2, (b1 + IGT_PAIR) / 2 */
     for (i = 0; i < n; i++, ph += bk.inc) {
         uint32_t q = ph & (IGT_PAIR - 1u), k = (ph >> 28) & 14u, end;

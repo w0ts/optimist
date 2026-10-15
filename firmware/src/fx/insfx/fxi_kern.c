@@ -187,6 +187,11 @@ static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, 
  * master their L and R, the line fed the mid. From rest the line is zeroed (a word loop, once). Runs from flash (XIP) */
 #if FELUCCA_INS_JCHORUS
 #include "../junocho/juno_cho.h"
+#if FELUCCA_USB_AUDIO
+#define FXI_UT_JMODE(k) ((k) == IFX_UT ? ut.v[UTV_JMODE] : mst_jmode)   /* (the USB input: its own, fx_slots.c ut) */
+#else
+#define FXI_UT_JMODE(k) mst_jmode
+#endif
 typedef struct {
     juno_cho_t c;
     int32_t w;                                          /* the MIX now, << 8 */
@@ -198,8 +203,8 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
                                                        uint32_t sh)
 {
     int32_t to = a << 8, w = s->w;
-    uint32_t mode = (uint32_t)(k < NTRK ? trk[k].p[P_TJMODE] : mst_jmode) % 3u;   /* (a stereo owner but the drum bus: the
-                                                        * master's MODE) */
+    uint32_t mode = (uint32_t)(k < NTRK ? trk[k].p[P_TJMODE] : FXI_UT_JMODE(k)) % 3u;   /* (a stereo owner but the drum bus
+                                                        * and the USB input: the master's MODE) */
     if (!a && !w) {
         s->on = 0;
         if (!r)

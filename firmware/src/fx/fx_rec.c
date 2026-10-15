@@ -38,13 +38,15 @@
 #define FXR_F_INS 1u
 #define VCNT_TLV 0x47u                                 /* (below) */
 /* TLV UT_TLV (0x48, fx-rework stage 3, 2026-10-15): the USB input track (fx_slots.c ut): LEVEL PAN MUTE FX-ON REV DLY CHO
- * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's); only when not every one is the default
- * (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
+ * (a byte each, PAN signed), its slots' types (2) and amounts (2, signed: FILT's), then (2026-10-15, every insert type on
+ * the input) GATER's PATTERN RATE SHAPE and JUNO CHORUS's MODE (an UT_TLV of 11, before: their defaults); only when not
+ * every one is the default (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
 #define UT_TLV 0x48u
 /* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns R1 R2 R3 (fx_slots.c rt_tlv: each slot's type, line and amount), only
  * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
 #define RET_TLV 0x4Au
-#define UT_TLV_N 11u
+#define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */
+#define UT_TLV_N (UT_TLV_N0 + 4u)
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
 #define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c ins_cset[k][3, 4]) */
@@ -273,30 +275,35 @@ static void lin_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, the defaul
     }
 }
 #if FELUCCA_USB_AUDIO
+_Static_assert(UT_TLV_N == UT_TLV_N0 + UTV_N - UTV_N0 && UT_TLV_N0 == UTV_N0 + 2u * INS_N, "UT_TLV: its layout");
 static uint32_t ut_tlv(uint8_t *o)                     /* -> o (UT_TLV_N); 0: the defaults */
 {
     uint32_t k;
     if (ut_dflt() && !ut.amt[0] && !ut.amt[1])
         return 0;
-    for (k = 0; k < UTV_N; k++)
+    for (k = 0; k < UTV_N0; k++)
         o[k] = (uint8_t)(int8_t)ut.v[k];
-    o[UTV_N] = ut.slot[0], o[UTV_N + 1u] = ut.slot[1];
-    o[UTV_N + 2u] = (uint8_t)(int8_t)ut.amt[0], o[UTV_N + 3u] = (uint8_t)(int8_t)ut.amt[1];
+    o[UTV_N0] = ut.slot[0], o[UTV_N0 + 1u] = ut.slot[1];
+    o[UTV_N0 + 2u] = (uint8_t)(int8_t)ut.amt[0], o[UTV_N0 + 3u] = (uint8_t)(int8_t)ut.amt[1];
+    for (k = UTV_N0; k < UTV_N; k++)
+        o[UT_TLV_N0 + k - UTV_N0] = (uint8_t)(int8_t)ut.v[k];
     return UT_TLV_N;
 }
 static void ut_untlv(const uint8_t *a, uint32_t n)     /* (n short: the defaults) */
 {
     uint32_t k;
     ut_defaults();
-    if (n < UT_TLV_N)
+    if (n < UT_TLV_N0)
         return;
-    for (k = 0; k < UTV_N; k++)
+    for (k = 0; k < UTV_N0; k++)
         ut.v[k] = (int16_t)clamp((int8_t)a[k], UT_DESC[k].min, UT_DESC[k].max);
+    for (k = UTV_N0; n >= UT_TLV_N && k < UTV_N; k++)    /* (an UT_TLV of before: their defaults) */
+        ut.v[k] = (int16_t)clamp((int8_t)a[UT_TLV_N0 + k - UTV_N0], ut_vd(k)->min, ut_vd(k)->max);
     for (k = 0; k < INS_N; k++) {
-        uint32_t t = a[UTV_N + k];
+        uint32_t t = a[UTV_N0 + k];
         ut.slot[k] = (uint8_t)(t < FXT_N && (UT_OK >> t & 1u) && (!k || t != ut.slot[0] || t == FXT_NONE) ? t : FXT_NONE);
         ut.amt[k] = ut.slot[k] != FXT_NONE && FXT_AMT[ut.slot[k]] != 0xFFu ?
-                    (int16_t)clamp((int8_t)a[UTV_N + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
+                    (int16_t)clamp((int8_t)a[UTV_N0 + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
     }
 }
 #endif

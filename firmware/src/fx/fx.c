@@ -2218,7 +2218,8 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
     if (t == FXT_DUST)
         dust_run(&o->u, FELUCCA_FX_DUST ? a : 0, l, r, n);
 #if INS_FX
-    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu && (RT_OK >> t & 1u))
+    if (IFX_TYPE(t) && FXT_AMT[t] != 0xFFu && (FXT_BUILT >> t & 1u))   /* (what the owner may hold: its slots' lists; GATER:
+                                                        * the USB input's only, insfx.c ifx_st_run) */
         ifx_st(t, i0, a, l, r, n);
 #endif
     (void)o, (void)i0, (void)a, (void)l, (void)r, (void)n;
@@ -2277,8 +2278,8 @@ static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
 #if FELUCCA_USB_AUDIO
 /* ---- the USB input as a track (fx-rework stage 3; fx_slots.c ut): the computer's audio from the playback ring
  * (usb_audio_stream.c ua_take, a block, with the USB service held off for the copy only), its two insert slots on L and R
- * (the master's kernels, instances of its own; DYN: a compressor with the default RATIO ATK REL and AUTO make-up, no
- * CEIL; a mono insert type runs on each side), its LEVEL, MUTE (a block's fade), PAN (the balance: the pan law on each
+ * (sto_ins: any insert type, states of its own, the pool's instances for CHRS ECHO JUNO FLNG; DYN: a compressor with the
+ * default RATIO ATK REL and AUTO make-up, no CEIL; a mono insert type runs on each side; GATER one gain on both), its LEVEL, MUTE (a block's fade), PAN (the balance: the pan law on each
  * side), FX on, its sends from its mid; then into the mix bus with the tracks, before the returns and the master. At its
  * defaults (unity, centre, no slot) the samples go in as they are: the mix as before but that the master's inserts now
  * take them too (they were added after the master's limiter) */
