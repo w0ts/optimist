@@ -19,16 +19,16 @@
 #if INS_LIM
 /* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14). The owners of an instance (fxi.c): the
  * tracks 0 .. NTRK - 1, then the master (FXI_MST: its insert slots, fx_slots.c mst_slot; JUNO only, MST_OK) */
-#define FXI_NL 3u
-#define FXI_J(t) ((t) == FXT_JUNO ? 2u : (uint32_t)(t) - FXT_LIM0)   /* (a limited type t's index) */
+#define FXI_NL (2u + (FELUCCA_INS_JCHORUS > 0))        /* (the types this build has; the tables below hold 3) */
+#define FXI_J(t) (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO ? 2u : (uint32_t)(t) - FXT_LIM0)   /* (a limited type t's index) */
 #define FXI_TY(j) ((j) == 2u ? (uint32_t)FXT_JUNO : FXT_LIM0 + (j))   /* (index j's type) */
 #define FXI_MST NTRK
-#define FXI_NK (NTRK + 1u)                              /* the owners */
+#define FXI_NK (NTRK + (FELUCCA_INS_JCHORUS > 0))       /* the owners this build has (the master only with JUNO CHORUS) */
 #define FXI_NONE 0xFFu
 _Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_INS_DELAY >= 0 && FELUCCA_INS_DELAY <= NTRK &&
                FELUCCA_INS_JCHORUS >= 0 && FELUCCA_INS_JCHORUS <= NTRK, "an instance count: 0 .. NTRK");
 _Static_assert(FXT_LIM0 == FXT_LIMN - 2 && FXT_ECHO == FXT_CHRS + 1, "fxi: CHRS ECHO in a row (FXI_J)");
-static const uint8_t FXI_CAP[FXI_NL] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY, FELUCCA_INS_JCHORUS};   /* (by j) */
+static const uint8_t FXI_CAP[3] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY, FELUCCA_INS_JCHORUS};   /* (by j) */
 /* the instances a send's line can lend (fxi.c, "Lending"): CHRS in the chorus send's 2048 samples (2 lines of 1024),
  * ECHO in the delay send's (its lines of 4096: 4 at any DLY_LEN, 16384 the shortest), never more than the tracks left
  * after the builder's own (a type is once a track). Instance i of a type: its own pool line below FXI_CAP, then the
@@ -36,14 +36,14 @@ static const uint8_t FXI_CAP[FXI_NL] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY, F
 #define FXL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define FXL_N0 (FELUCCA_INS_CHORUS && FELUCCA_FX_CHORUS ? FXL_MIN(CHO_LEN / 1024u, NTRK - FELUCCA_INS_CHORUS) : 0u)
 #define FXL_N1 (FELUCCA_INS_DELAY && FELUCCA_FX_DELAY ? FXL_MIN(DLY_LEN / 4096u, NTRK - FELUCCA_INS_DELAY) : 0u)
-static const uint8_t FXI_LND[FXI_NL] = {FXL_N0, FXL_N1, 0};   /* (JUNO CHORUS: its own lines only) */
+static const uint8_t FXI_LND[3] = {FXL_N0, FXL_N1, 0};   /* (JUNO CHORUS: its own lines only) */
 #define FXI_TOT(j) ((uint32_t)FXI_CAP[j] + FXI_LND[j])
 /* the instance each owner's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
  * FXI_NONE: none (the type bypassed there); fxi_init sets every entry FXI_NONE before the audio starts */
-static volatile uint8_t fxi_at[FXI_NK][FXI_NL] = {{FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE},
+static volatile uint8_t fxi_at[NTRK + 1u][3] = {{FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE},
                                                   {FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE},
                                                   {FXI_NONE, FXI_NONE, FXI_NONE}};
-_Static_assert(FXI_NK == 5u, "fxi_at: T1 T2 T3 DR and the master");
+_Static_assert(NTRK == 4u, "fxi_at: T1 T2 T3 DR and the master");
 
 /* ---- CHRS */
 #if FELUCCA_INS_CHORUS
@@ -210,7 +210,7 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
 #endif
 
 /* owner k's instance of limited type ty (FXI_NONE: none); k: a track, or the master (IFX_MST) */
-AINL uint32_t ifx_lim_at(uint32_t ty, uint32_t k) { return fxi_at[k == IFX_MST ? FXI_MST : k % NTRK][FXI_J(ty) % FXI_NL]; }
+AINL uint32_t ifx_lim_at(uint32_t ty, uint32_t k) { return fxi_at[FELUCCA_INS_JCHORUS && k == IFX_MST ? FXI_MST : k % NTRK][FXI_J(ty) % FXI_NL]; }
 /* its wet share now (0: none, or at rest) */
 AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
 {

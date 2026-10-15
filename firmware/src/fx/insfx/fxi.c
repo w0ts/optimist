@@ -49,18 +49,18 @@ enum { FXI_NA, FXI_OK, FXI_WAIT, FXI_FULL };
 #if INS_LIM
 enum { FXL_SEND, FXL_LENT, FXL_BACK };
 _Static_assert(NTRK == 4, "fxi_own: an instance a track at most");
-static uint8_t fxi_own[FXI_NL][NTRK] = {{FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
+static uint8_t fxi_own[3][NTRK] = {{FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
                                         {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
                                                         /* each instance's owner (FXI_NONE: free); the main loop's only */
-static uint8_t fxi_full[FXI_NL];                        /* the owners (a bit each) holding the type with none left */
+static uint8_t fxi_full[3];                           /* the owners (a bit each) holding the type with none left */
 static uint8_t fxi_pend;                                /* a pass is due: a fade-out, a tail, a starved track */
-static uint8_t fxl_st[FXI_NL];                          /* each send line's owner (FXL_*: above); the main loop's only */
+static uint8_t fxl_st[3];                              /* each send line's owner (FXL_*: above); the main loop's only */
 _Static_assert(FXL_N0 + FELUCCA_INS_CHORUS <= NTRK && FXL_N1 + FELUCCA_INS_DELAY <= NTRK && FELUCCA_INS_JCHORUS <= NTRK,
                "fxi_own: NTRK instances");
 
 AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
-    if (k == FXI_MST)
+    if (FELUCCA_INS_JCHORUS && k == FXI_MST)
         return (mst_slot[0] == ty || mst_slot[1] == ty) && (MST_OK >> ty & 1u);
     return (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
 }
