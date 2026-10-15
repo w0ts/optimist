@@ -444,6 +444,12 @@ static BOOT_ORDER void fm1_main(void)
             usb_detach();
             fm1_delay_ms(30);
             bootguard.pending = 0;                      /* intentional reset: not a failed boot */
+            if (con_reboot_req == 2) {                  /* `wdtreset`: the watchdog resets (p3_rst bit 2), not the soft reset */
+                fm1_irq_off();
+                fm1_wdt_arm(0x0A);                     /* the shortest timeout; nothing feeds it from here */
+                for (;;)
+                    ;
+            }
             fm1_reboot();
         }
 #endif

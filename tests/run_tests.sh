@@ -1353,6 +1353,10 @@ job; ( jobin
     run "regression with the CPU guard built (FELUCCA_CPU_GUARD): the same golden renders (it acts only under overload)" "$OUT/regress_cg" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -o "$OUT/console_parse_test" tests/console_parse_test.c
+    run "console: the run-control commands parse (play pause stop rec proj load heavy wdtreset), others fall through" "$OUT/console_parse_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -o "$OUT/dual_guard_test" tests/dual_guard_test.c
     run "second core: only the next posted job runs (check word, part mask), the boot canary, 2ND CORE AUTO / OFF, the boost's P33 steps" "$OUT/dual_guard_test"
     $CC -DDUAL_MODE_MENU=1 -o "$OUT/dual_guard_menu_test" tests/dual_guard_test.c
