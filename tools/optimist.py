@@ -248,7 +248,7 @@ def ble_test_configs():
             return load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
     return [(f"{DEFAULT_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{DEFAULT_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "FM6_SYSEX=0"]))]
+            (f"{DEFAULT_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0"]))]
 
 
 def prepare_tests():
@@ -276,10 +276,10 @@ def prepare_tests():
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
     print(f"test: building {DEFAULT_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
-    # (FM6_SYSEX=0 in this set since 2026-10-15, batch 140: the batch's growth (fx-rework, JUNO) put the whole set 40 B over
-    # the slot (ld: region XIP overflowed by 40 bytes); --ble-drop FLUTE frees nothing here (user-default has it off). The DX7
-    # SysEx in / SEND frees ~1 KB and no BLE test uses it. Before that nothing was dropped: 2,720 B free 2026-10-10,
-    # 20,968 B with BLE_TEST_ROOM's later additions)
+    # (PATTERNS=0 in this set since 2026-10-15, batch 141 (batch 140 had FM6_SYSEX=0 for a 40 B overflow): the batches' growth
+    # (fx-rework, JUNO, env-dests) put the whole set 2,600 B over the slot (ld: region XIP overflowed); --ble-drop FLUTE frees
+    # nothing here (user-default has it off). The patterns and scenes (about 5.6 KB) are not used by any BLE test.
+    # Before that nothing was dropped: 2,720 B free 2026-10-10, 20,968 B with BLE_TEST_ROOM's later additions)
     ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
     if not ok:
         print("test: the full BLE build failed", file=sys.stderr)
