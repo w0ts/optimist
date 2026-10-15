@@ -26,20 +26,18 @@ static void setup(void)
     drums.tail = 0;
 }
 
-/* the sums: exact factors on a constant */
+/* the sum: (L + R) / 2 exactly (a floor), each side x 0.5; two Q15 sides never leave Q15 */
 static void test_sums(void)
 {
-    assert(fabs(20.0 * log10(23170.0 / 32768.0) + 3.0103) < 0.001);   /* the factors themselves */
-    for (int32_t x = -16000; x <= 16000; x += 7) {        /* each output: its factor applied */
-        assert(fabs(ua_sum3(x, x + 3) - (2.0 * x + 3) * (23170.0 / 32768.0)) <= 0.5);   /* rounded: within half an LSB */
-        assert(ua_sum6(x, x + 3) == (2 * x + 3) >> 1);
-    }
-    for (int32_t x = 4000; x <= 16000; x += 4000) {       /* on a constant: the gain in dB */
-        assert(fabs(20.0 * log10(ua_sum3(x, x) / (2.0 * x)) + 3.0103) < 0.001);
-        assert(fabs(20.0 * log10(ua_sum6(x, x) / (2.0 * x)) + 6.0206) < 0.001);
-    }
-    assert(ua_sum3(40000, 40000) == (65535 * 23170 + 16384) >> 15);   /* (held: it clips at Q15 anyway) */
-    assert(ua_sum6(-3, 0) == -2 && ua_sum6(3, 0) == 1);
+    for (int32_t l = -32768; l <= 32767; l += 97)
+        for (int32_t r = -32768; r <= 32767; r += 89) {
+            int32_t y = ua_sum(l, r);
+            assert(y == (int32_t)floor((l + r) / 2.0) && y >= -32768 && y <= 32767);
+        }
+    assert(ua_sum(-32768, -32768) == -32768 && ua_sum(32767, 32767) == 32767);   /* (the ends: no clipping) */
+    assert(ua_sum(-3, 0) == -2 && ua_sum(3, 0) == 1);
+    for (int32_t x = 4000; x <= 16000; x += 4000)        /* alike on both sides: its level kept */
+        assert(ua_sum(x, x) == x);
 }
 
 /* one block mixed, then routed */
@@ -60,13 +58,13 @@ static void test_sources(void)
     drum_on(36, 100);
     for (uint32_t b = 0; b < 64; b++)
         assert(block(out) == track_capture);              /* the default: the stems as they are, no copy */
-    set_route(UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S3, UAS_MAIN_S6);
+    set_route(UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_OFF);
     for (uint32_t b = 0; b < 64; b++) {
         const int32_t *f = block(out);
         assert(f != track_capture);
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS, l = out[2 * i], r = out[2 * i + 1];
-            assert(x[0] == l && x[1] == r && x[2] == ua_sum3(l, r) && x[3] == (l + r) >> 1);
+            assert(x[0] == l && x[1] == r && x[2] == (l + r) >> 1 && x[3] == 0);
             e[0] += (int64_t)l * l;
         }
     }
@@ -160,7 +158,7 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
     setup();
     TDRUM->p[P_E0] = (int16_t)kit;
     trk[TRK_DRUM].p[P_PAN] = -64;
-    set_route(UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S6, UAS_DBUS_S3);
+    set_route(UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_MAIN_S);
     assert(ua_dbus_on && !ua_ident);
     ea = eb = 0;
     for (uint32_t b = 0; b < 128; b++) {
@@ -169,7 +167,7 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS;
             assert(x[0] == ua_dbus[0][i] && x[1] == ua_dbus[1][i]);
-            assert(x[2] == (x[0] + x[1]) >> 1 && x[3] == ua_sum3(x[0], x[1]));
+            assert(x[2] == (x[0] + x[1]) >> 1 && x[3] == (out[2 * i] + out[2 * i + 1]) >> 1);
             ea += (int64_t)x[0] * x[0], eb += (int64_t)x[1] * x[1];
         }
     }
@@ -182,7 +180,7 @@ static void test_setting(void)
     char b[6];
     set_route(UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS);
     ua_src_step(0, -1);
-    assert(ua_src[0] == UAS_MAIN_S6 && !ua_ident);
+    assert(ua_src[0] == UAS_MAIN_S && !ua_ident);
     ua_src_step(0, 1);
     assert(ua_src[0] == UAS_T1 && ua_ident);
     ua_src[3] = UAS_N - 1;
@@ -196,7 +194,8 @@ static void test_setting(void)
     assert(!strcmp(ua_src_name(UAS_DR1, b), "DR1") && !strcmp(ua_src_name(UAS_N - 1, b), "DR16"));
     for (uint32_t v = 0; v < UAS_N; v++)
         assert(strlen(ua_src_name(v, b)) <= 13u);
-    assert(!strcmp(ua_src_name(UAS_MAIN_S3, b), "MAIN L+R -3dB"));
+    assert(!strcmp(ua_src_name(UAS_MAIN_S, b), "MAIN L+R") && !strcmp(ua_src_name(UAS_DBUS_S, b), "DRUM BUS L+R"));
+    assert(UAS_N == 27u);                                  /* (OFF, 10 names, 16 lanes: no -3 / -6 dB entries) */
     /* two channels on one lane: one tap */
     set_route(UAS_DR1 + 4, UAS_DR1 + 4, UAS_OFF, UAS_DR1 + 15);
     assert(dlt_mask == (1u << 4 | 1u << 15) && dlt_slot[4] == 0 && dlt_slot[15] == 1);

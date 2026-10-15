@@ -1133,6 +1133,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/favorites_test" tests/favorites_test.c -lm
     run "favorites (FELUCCA_FAVORITES): the store (64 factory marks by engine UID + name, 32 user slots), the settings record keeps them last: a record from before reads whole with none, older lengths, flash round trip" "$OUT/favorites_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_USB_AUDIO=1 -o "$OUT/favorites_ua_test" tests/favorites_test.c -lm
+    run "favorites with USB audio: the record's USB AUDIO routing last (older records: the default; UAR1's -3 / -6 dB as L+R)" "$OUT/favorites_ua_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_BLE=1 -o "$OUT/favorites_ble_test" tests/favorites_test.c -lm
     run "favorites in a BLE build: a record from before the favorites keeps the BLE address, trims, bond and device store; older BLE lengths" "$OUT/favorites_ble_test"
 ) >"$U.out" 2>&1 & jobbg

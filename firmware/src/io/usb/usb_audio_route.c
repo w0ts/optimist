@@ -10,8 +10,8 @@ static int32_t ua_routed[CTL * UA_CAP_CHANNELS];
 /* the names (SYSTEM > USB AUDIO's lines; at most 13 characters: a value of the settings list) */
 static const char *ua_src_name(uint32_t v, char *b)
 {
-    static const char *const N[UAS_DR1] = {"OFF", "MAIN L", "MAIN R", "MAIN L+R -3dB", "MAIN L+R -6dB", "T1", "T2", "T3",
-                                           "DRUMS", "DRUM BUS L", "DRUM BUS R", "DRUM L+R -3dB", "DRUM L+R -6dB"};
+    static const char *const N[UAS_DR1] = {"OFF", "MAIN L", "MAIN R", "MAIN L+R", "T1", "T2", "T3", "DRUMS",
+                                           "DRUM BUS L", "DRUM BUS R", "DRUM BUS L+R"};
     uint32_t l;
     if (v < UAS_DR1)
         return N[v];
@@ -25,13 +25,12 @@ static const char *ua_src_name(uint32_t v, char *b)
     return b;
 }
 
-/* the mono sums: (l + r) x 23170 / 32768, rounded (-3.0103 dB), or / 2 (-6.0206 dB). The sum is held to +-65536 first: past it
- * the channel clips at Q15 either way (65536 x 0.7071 > 32767), and the product stays in 32 bits */
-AINL int32_t ua_sum3(int32_t l, int32_t r) { return (clamp(l + r, -65536, 65535) * 23170 + 16384) >> 15; }
-AINL int32_t ua_sum6(int32_t l, int32_t r) { return (l + r) >> 1; }
+/* the mono sum: (l + r) / 2, each side x 0.5 (-6.02 dB) exactly, >> 1 (a floor: toward minus infinity). Two Q15
+ * sides give a Q15 sum: it never clips */
+AINL int32_t ua_sum(int32_t l, int32_t r) { return (l + r) >> 1; }
 
-/* one channel's n samples into o (stride os): a, b the source's sides with their strides; how: 0 silence, 1 a, 3 / 6
- * the sum at -3 / -6 dB */
+/* one channel's n samples into o (stride os): a, b the source's sides with their strides; how: 0 silence, 1 a, 2
+ * the sum (L + R) / 2 */
 static void ua_col(int32_t *o, uint32_t os, const int32_t *a, uint32_t sa, const int32_t *b, uint32_t sb, uint32_t how,
                    uint32_t n)
 {
@@ -39,12 +38,9 @@ static void ua_col(int32_t *o, uint32_t os, const int32_t *a, uint32_t sa, const
     if (how == 1u)                                      /* (one loop a kind: no test a sample) */
         for (i = 0; i < n; i++)
             o[i * os] = a[i * sa];
-    else if (how == 3u)
+    else if (how == 2u)
         for (i = 0; i < n; i++)
-            o[i * os] = ua_sum3(a[i * sa], b[i * sb]);
-    else if (how == 6u)
-        for (i = 0; i < n; i++)
-            o[i * os] = ua_sum6(a[i * sa], b[i * sb]);
+            o[i * os] = ua_sum(a[i * sa], b[i * sb]);
     else
         for (i = 0; i < n; i++)
             o[i * os] = 0;
@@ -59,16 +55,16 @@ static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *mast
 {
     uint32_t v = ua_src[c % UA_ROUTE_N], how = 1u, sa = 1u, sb = 1u;
     const int32_t *a = 0, *b = 0;
-    if (v >= UAS_MAIN_L && v <= UAS_MAIN_S6) {
+    if (v >= UAS_MAIN_L && v <= UAS_MAIN_S) {
         a = master, b = master + 1, sa = sb = 2u;
         if (v == UAS_MAIN_R)
             a = master + 1;
-        how = v == UAS_MAIN_S3 ? 3u : v == UAS_MAIN_S6 ? 6u : 1u;
+        how = v == UAS_MAIN_S ? 2u : 1u;
     } else if (v >= UAS_T1 && v <= UAS_DRUMS) {
         a = track_capture + (v - UAS_T1), sa = NTRK;
-    } else if (v >= UAS_DBUS_L && v <= UAS_DBUS_S6) {
+    } else if (v >= UAS_DBUS_L && v <= UAS_DBUS_S) {
         a = ua_dbus[v == UAS_DBUS_R], b = ua_dbus[1];
-        how = v == UAS_DBUS_S3 ? 3u : v == UAS_DBUS_S6 ? 6u : 1u;
+        how = v == UAS_DBUS_S ? 2u : 1u;
     } else if (v >= UAS_DR1 && v < UAS_N) {
         a = dlt_buf[dlt_slot[v - UAS_DR1] & (UA_ROUTE_N - 1u)];
     } else {

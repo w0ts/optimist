@@ -7,13 +7,14 @@
  *   OFF          silence.
  *   MAIN L / R   the master output as the FM-1's own output gets it: after the master inserts, the volume, the limiter
  *                (or LIMIT's brickwall) and the knee, before the codec's -6 dB shift (Q15 full scale = 0 dBFS here).
- *   MAIN L+R -3dB / -6dB   the master's two sides summed to mono, at 0.70709 (23170 / 32768: -3.0103 dB, within
- *                0.0002 dB) or at 0.5 exactly (-6.0206 dB).
+ *   MAIN L+R     the master's two sides to mono, (L + R) / 2: each side x 0.5 (-6.02 dB, the user 2026-10-15: never
+ *                clips, a signal alike on both sides keeps its level); >> 1, rounded toward minus infinity (a
+ *                floor: at most 1/2 LSB low). No -3 dB choice.
  *   T1 T2 T3     a synth track's stem, as before: after its inserts, its LEVEL and its mute, before its pan, its sends,
  *                the FX buses and the master (POST-fader: what the track contributes to the mix, without the space).
  *   DRUMS        the drum track's stem, as before: its lanes summed (mono), each after its lane level, cut and inserts and
  *                the drum track's level and mute, before the lanes' and the track's pan and the drum bus inserts.
- *   DRUM BUS L / R, DRUM L+R -3dB / -6dB   the drum bus in stereo: after its pans and its two insert slots (dbus_run),
+ *   DRUM BUS L / R / L+R   the drum bus in stereo (L+R: (L + R) / 2 as MAIN's): after its pans and its two insert slots (dbus_run),
  *                before its sends and the master.
  *   DR1..DR16    one drum lane's own share of DRUMS (the same point: post lane level / cut / inserts and the track's
  *                level and mute, pre pan). Only the lanes a channel picks are tapped, only while the host records: a
@@ -21,8 +22,8 @@
  *                tail of a stopped voice (drums.tail) belongs to no lane: it is in DRUMS only.
  * PRE-fader stems are not offered: a stem is the track's contribution at its mixer level (a muted track records silence),
  * as the stems always were. Defaults = the routing before this setting: T1, T2, T3, DRUMS. */
-enum { UAS_OFF, UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S3, UAS_MAIN_S6, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS,
-       UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S3, UAS_DBUS_S6, UAS_DR1, UAS_N = UAS_DR1 + DRUM_LANES };
+enum { UAS_OFF, UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS,
+       UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_DR1, UAS_N = UAS_DR1 + DRUM_LANES };   /* (stored: settings record "UAR2") */
 #define UA_ROUTE_N 4u                           /* the capture channels (usb_audio_stream.c UA_CAP_CHANNELS) */
 static uint8_t ua_src[UA_ROUTE_N] = {UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS};   /* each channel's source (the setting) */
 static uint8_t ua_ident = 1;                    /* ua_src is the default: the stems go out as they are (no routing) */
@@ -77,7 +78,7 @@ static void ua_route_apply(void)
         if (v >= UAS_N)
             ua_src[c] = (uint8_t)(v = DEF[c]);
         id &= v == DEF[c];
-        bus |= v >= UAS_DBUS_L && v <= UAS_DBUS_S6;
+        bus |= v >= UAS_DBUS_L && v <= UAS_DBUS_S;
         if (v >= UAS_DR1 && !((m >> (v - UAS_DR1)) & 1u)) {
             dlt_slot[v - UAS_DR1] = (uint8_t)s++;
             m |= 1u << (v - UAS_DR1);

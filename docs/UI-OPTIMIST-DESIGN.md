@@ -512,8 +512,9 @@ display the info about the item"; "NEW is just clearing what is in memory and cr
 **A settings list since section 20** (one setting a line, pages of 4 lines, no cards; what follows names its sections). Today's HOME menu, as rows: **INFO (section 31: CLOCK, the loads, the memory, read-outs; first)**, SCREEN (COLOR BRIGHT -
 KNOB COLORS), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT / BASS+ ...), USB (SERIAL), BLUETOOTH, USB AUDIO (CH1 CH2 CH3 CH4), CALIBRATE (PANEL, HOLD), ABOUT:
 the setup. **USB AUDIO** (USB audio builds, 2026-10-15, the user: "four lines that allow to select the source for each of
-the 4 channels"): one line a capture channel, its source as text (no bar): OFF, MAIN L, MAIN R, MAIN L+R -3dB, MAIN L+R -6dB,
-T1, T2, T3, DRUMS, DRUM BUS L, DRUM BUS R, DRUM L+R -3dB, DRUM L+R -6dB, DR1..DR16; the knob walks the list (stops at the
+the 4 channels"): one line a capture channel, its source as text (no bar): OFF, MAIN L, MAIN R, MAIN L+R,
+T1, T2, T3, DRUMS, DRUM BUS L, DRUM BUS R, DRUM BUS L+R, DR1..DR16 (L+R: (L + R) / 2, each side x 0.5, -6.02 dB:
+never clips, a mono signal keeps its level; no -3 dB choice, the user 2026-10-15); the knob walks the list (stops at the
 ends), YES steps it round, OCT- held + the knob its default (T1 T2 T3 DRUMS, the stems as before). Where each is taken:
 io/usb/ua_tap.h; kept in the settings record. CALIBRATE > PANEL asks first ("CALIBRATE? PANEL"); its screen says that 30 s with no input cancels. **MIDI (OUT IN SYNC CLOCK), CLOCK OUT and CHANNELS
 (T1 T2 T3 DR) moved to GLOBAL** (2026-10-12, section 4.11): they are defined once, at the end of SYSTEM's table, and

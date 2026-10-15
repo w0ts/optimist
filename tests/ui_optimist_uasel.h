@@ -27,8 +27,8 @@ static void uasel_tests(void)
     ppm("opt-usbaudio");
     turn(LINE_KNOB(w[0]), -1);
     SCR->cell(w[0], gl_kn(SCR_SYSTEM, w[0]), &c);
-    check(ua_src[0] == UAS_MAIN_S6 && !strcmp(c.val, "MAIN L+R -6dB") && !ua_ident,
-          "SYSTEM USB AUDIO: CH1's knob left: MAIN L+R -6dB, the routing on");
+    check(ua_src[0] == UAS_MAIN_S && !strcmp(c.val, "MAIN L+R") && !ua_ident,
+          "SYSTEM USB AUDIO: CH1's knob left: MAIN L+R (one sum, (L + R) / 2), the routing on");
     line_named(SCR_SYSTEM, "CH4");
     for (k = 0; k < 40u; k++)
         turn(LINE_KNOB(w[3]), 1);

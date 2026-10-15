@@ -42,7 +42,8 @@ typedef struct {
                                                     * defaults, T1 T2 T3 DRUMS) */
 #endif
 } persist_t;
-#define PERSIST_UA_MARK 0x31524155u                /* "UAR1" */
+#define PERSIST_UA_MARK 0x32524155u                /* "UAR2": the list without -3 / -6 dB (ua_tap.h) */
+#define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_BRIGHT || BP23_SET
 #define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
@@ -153,11 +154,19 @@ static void persist_fav_save(persist_t *p)
 static void persist_ua_load(const persist_t *p)
 {
     uint32_t c;
+    /* UAR1's indices: OFF ML MR M-3 M-6 T1 T2 T3 DRUMS BL BR B-3 B-6 DR1.. -> today's (each sum: L+R) */
+    static const uint8_t V1[13] = {UAS_OFF, UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_MAIN_S, UAS_T1, UAS_T2, UAS_T3,
+                                   UAS_DRUMS, UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_DBUS_S};
     ua_route_default();
-    if (p->ua_mark != PERSIST_UA_MARK)
+    if (p->ua_mark != PERSIST_UA_MARK && p->ua_mark != PERSIST_UA_MARK1)
         return;
-    for (c = 0; c < UA_ROUTE_N; c++)
-        ua_src[c] = p->ua_src[c] < UAS_N ? p->ua_src[c] : ua_src[c];
+    for (c = 0; c < UA_ROUTE_N; c++) {
+        uint32_t v = p->ua_src[c];
+        if (p->ua_mark == PERSIST_UA_MARK1)
+            v = v < 13u ? V1[v] : v - 13u < DRUM_LANES ? UAS_DR1 + (v - 13u) : 0xFFu;
+        if (v < UAS_N)
+            ua_src[c] = (uint8_t)v;
+    }
     ua_route_apply();
 }
 static void persist_ua_save(persist_t *p)
