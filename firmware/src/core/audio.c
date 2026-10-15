@@ -200,11 +200,16 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     ASTAGE(0x7F);
 }
 extern void isr_alnk0(void);
+extern void isr_alnk0_ram(void);                   /* (fm1_isr.S: the same entry in RAM, dualcfg isr ram) */
 
 static void audio_init(void)                   /* hal/fm1_audio.h */
 {
     uint32_t i;
     for (i = 0; i < 2u * HALF_WORDS; i++)
         abuf[i] = 0;
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    fm1_audio_init(abuf, HALF_WORDS, dualcfg.isrram ? isr_alnk0_ram : isr_alnk0, 3);
+#else
     fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);
+#endif
 }

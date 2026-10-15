@@ -514,6 +514,14 @@ extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
 static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
+/* CPU1 paused (1: the pause request, bit 2) or resumed (0: bit 3), as the stock firmware's flash exclusion (the emulator's
+ * model, fm1-emulator SMP.md): the run bit kept, reset (bit 1) never touched */
+static inline void fm1_dual_pause(int on)
+{
+    uint32_t c = FM1_C1_CON;
+    FM1_C1_CON = on ? ((c & ~0x1Cu) | 4u) : ((c & ~0x14u) | 8u);
+    __asm__ volatile("csync" ::: "memory");
+}
 /* bytes of CPU1's stack REGION (0: the small one at the bottom, 1 KiB; 1: the big one above it, 5 KiB) ever used (the
  * marks overwritten); 0: never started */
 static uint32_t fm1_dual_stack_used(uint32_t region)

@@ -55,7 +55,9 @@ typedef struct {
     uint8_t insoff;                                /* 1: no part / drum lane / drum bus insert runs (fx.c FX_INS_BYPASS) */
     uint8_t jobs;                                  /* the jobs CPU1 may be given (bit k: job k; 0xFF all, the default;
                                                     * 0x10: the reverb only, from RAM code: an XIP-contention test) */
-    uint8_t pad[2];
+    uint8_t isrram;                                /* 1: TIMER5's and the audio's entries attached from RAM (fm1_isr.S) */
+    uint8_t fpause;                                /* 1: CPU1 paused (C1_CON's pause request, as stock) around every flash
+                                                    * operation, resumed after (dual_flash_enter / _leave) */
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -63,6 +65,12 @@ typedef struct {
 #endif
 #ifndef DUALCFG_DEF_SLEEP
 #define DUALCFG_DEF_SLEEP 0
+#endif
+#ifndef DUALCFG_DEF_ISRRAM
+#define DUALCFG_DEF_ISRRAM 0
+#endif
+#ifndef DUALCFG_DEF_FPAUSE
+#define DUALCFG_DEF_FPAUSE 0
 #endif
 static dualcfg_t dualcfg;
 static void dualcfg_defaults(dualcfg_t *c)
@@ -76,6 +84,8 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->ble = 1;
     c->policy = 1;
     c->jobs = 0xFFu;
+    c->isrram = DUALCFG_DEF_ISRRAM;
+    c->fpause = DUALCFG_DEF_FPAUSE;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
 }
 #define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)   /* (the asleep mode built only with OPTIMIST_DUAL_IDLE=1:
@@ -534,10 +544,38 @@ static void dual_radio_release(void)
 
 /* every flash operation, IRQs off (hal/fm1_flash.h irq_save): CPU1 must be in its RAM loop.
  * The audio interrupt always ends its job (or halts it), so this only catches the impossible. */
+#if FELUCCA_DUALCFG
+/* dualcfg fpause: CPU1 also paused for the operation, as the stock firmware does around its flash work (its pause request
+ * C1_CON bit 2, the stopped status bit 4, resumed with bit 3: fm1-emulator SMP.md, inferred from stock's code; the SDK's
+ * norflash_set_write_cpu_hold holds the other core too). Counted: pauses, and those whose stopped bit never showed */
+static uint32_t dual_fp_n, dual_fp_nostop;
+static uint8_t dual_fp_on;
+#endif
 static void dual_flash_enter(void)
 {
     if (dual.up && (fm1_dual_mb.done != fm1_dual_mb.req || fm1_dual_mb.fault))
         dual_down(fm1_dual_mb.fault ? DUAL_FAULT : DUAL_FLASH, 0);
+#if FELUCCA_DUALCFG
+    if (dual.up && dualcfg.fpause && !dual_fp_on) {
+        uint32_t t0 = fm1_ticks();
+        fm1_dual_pause(1);
+        while (!(fm1_dual_c1con() & 0x10u) && fm1_ticks() - t0 < 200u * FM1_TICKS_PER_US)
+            ;
+        dual_fp_nostop += !(fm1_dual_c1con() & 0x10u);
+        dual_fp_n++;
+        dual_fp_on = 1;
+    }
+#endif
+}
+static void dual_flash_leave(void)
+{
+#if FELUCCA_DUALCFG
+    if (dual_fp_on) {
+        dual_fp_on = 0;
+        if (dual.up)
+            fm1_dual_pause(0);
+    }
+#endif
 }
 
 static void ui_say(const char *a, const char *b);   /* ui.c */

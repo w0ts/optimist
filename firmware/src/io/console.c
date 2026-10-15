@@ -430,6 +430,11 @@ static void con_status(void)
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
     con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
 #if FELUCCA_DUALCFG
+    con_kv("cpu1_fpause_n", (int32_t)dual_fp_n);        /* flash operations CPU1 was paused for (dualcfg fpause) */
+    con_kv("cpu1_fpause_nostop", (int32_t)dual_fp_nostop);   /* ... whose stopped bit never showed (200 us) */
+    con_kx("isr_timer5_at", fm1_vec_word(FM1_IRQ_TIMER5));   /* the TIMER5 entry attached (RAM 0x01C..., XIP 0x020...) */
+#endif
+#if FELUCCA_DUALCFG
     {   /* RAM read errors (hal/fm1_dual.h fm1_flip): per core, the count, the words read, the first one's address and XOR */
         uint32_t c;
         static const char *const K[2][4] = {{"flip0_n", "flip0_checks", "flip0_addr", "flip0_xor"},
@@ -684,6 +689,8 @@ static void con_dualcfg_show(void)
     con_kv("dualcfg c1guard", dualcfg.c1guard);
     con_puts(dualcfg.insoff ? "dualcfg ins off\r\n" : "dualcfg ins on\r\n");
     con_kx("dualcfg jobs", dualcfg.jobs ? dualcfg.jobs : 0xFFu);
+    con_puts(dualcfg.isrram ? "dualcfg isr ram\r\n" : "dualcfg isr xip\r\n");
+    con_kv("dualcfg fpause", dualcfg.fpause);
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -720,6 +727,10 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.boost);
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
+    else if (con_word(&p, "isr"))
+        ok = con_word(&p, "ram") ? (c.isrram = 1, 1) : con_word(&p, "xip") ? (c.isrram = 0, 1) : 0;
+    else if (con_word(&p, "fpause"))
+        ok = con_onoff(&p, &c.fpause);
     else if (con_word(&p, "jobs")) {
         v = con_num(&p, &n);
         ok = n && v >= 1u && v <= 0xFFu;
@@ -759,7 +770,8 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
+                 " | isr ram|xip | fpause on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

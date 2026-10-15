@@ -236,7 +236,8 @@ def build_app():
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
     if os.environ.get("OPTIMIST_DUALCFG") == "1":   # (the switchable second-core test image: the console's dualcfg)
         flags.append("-DFELUCCA_DUALCFG=1")
-        for k, d in (("OPTIMIST_DUALCFG_START", "DUALCFG_DEF_START"), ("OPTIMIST_DUALCFG_SLEEP", "DUALCFG_DEF_SLEEP")):
+        for k, d in (("OPTIMIST_DUALCFG_START", "DUALCFG_DEF_START"), ("OPTIMIST_DUALCFG_SLEEP", "DUALCFG_DEF_SLEEP"),
+                     ("OPTIMIST_DUALCFG_ISRRAM", "DUALCFG_DEF_ISRRAM"), ("OPTIMIST_DUALCFG_FPAUSE", "DUALCFG_DEF_FPAUSE")):
             v = os.environ.get(k)               # (its defaults, for the emulator: the console is not there)
             if v in ("0", "1", "2"):
                 flags.append(f"-D{d}={v}")

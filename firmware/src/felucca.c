@@ -11,7 +11,9 @@
 #endif
 #if FELUCCA_DUAL
 static void dual_flash_enter(void);
+static void dual_flash_leave(void);
 #define FM1_FLASH_ENTER() dual_flash_enter()
+#define FM1_FLASH_LEAVE() dual_flash_leave()
 #endif
 #include "fm1_time.h"
 #include "fm1_clock.h"
