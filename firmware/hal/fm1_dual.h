@@ -123,15 +123,21 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
         ;
 }
 
-/* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into
- * reti, rti. Which of usp / ssp / sp CPU1's C code and its wake interrupt run on after the rti is not known on the
- * FM-1: each starts at the top of its own 2 KiB (usp: the first, ssp: the second, sp: the third). The emulator's
- * reading (the ROM hands CPU1 over in interrupt context: the rti takes usp, the interrupt then the sp value the rti
- * left in ssp): the main loop on usp's +2048 (12 B), the job on +6144. Under any reading the job, the deep one, has
- * at least 4 KiB below its top before another stack: an ACID part takes ~2 KiB (emulator 1,936 B, static 2,452),
- * past its own 2 KiB into the one nothing uses. tools/build.py cpu1_stack checks every DUAL build against that room
- * (CPU1_STACK_ROOM). */
-#define FM1_C1_STACK_WORDS 1536u                         /* 6 KiB */
+/* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into reti, rti.
+ * After the rti CPU1's C code runs on usp (the emulator's reading, and X0X's on the FM-1: "after rti the core runs on
+ * this one: the render's"); an interrupt (the wake, asleep builds) on the sp value the rti left in ssp. So a spinning
+ * build renders its jobs on usp, an asleep one in the wake interrupt on ssp / sp: each gets 5 KiB of its own
+ * (FM1_C1_REGION), sp = ssp at the top of the first, usp at the top of the second, the deepest job (ACID, 2,948 B
+ * static) with 2 KiB to spare.
+ * 2026-10-15 (B .. B4 on the FM-1): usp had only the lowest 2 KiB (+2048, sp +6144): the spinning builds rendered
+ * their jobs there, an ACID part 2.9 KB deep, through the bottom of the stack into the top of part_mem (the parts'
+ * engine state, just below in .pool), and CPU0, rendering from that state, crashed in its first blocks (B3: a bus
+ * error on garbage read from its stack; B4: a return to address 2). The emulator's projects stayed above it (1.3 KB).
+ * tools/build.py cpu1_stack checks every DUAL build against CPU1_STACK_ROOM; fm1_dual_start fills both with
+ * FM1_C1_MARK (the console's cpu1_stack_*: their depth) */
+#define FM1_C1_REGION 1280u                              /* words: 5 KiB */
+#define FM1_C1_STACK_WORDS (2u * FM1_C1_REGION)           /* 10 KiB */
+#define FM1_C1_MARK 0x43314D4Bu                          /* "C1MK" (X0X's) */
 uint32_t fm1_c1_stack[FM1_C1_STACK_WORDS] __attribute__((section(".pool"), aligned(8), used));
 void fm1_cpu1_main(void);                                 /* the C entry (src/dual.c), never returns */
 /* (cli, icfg = 0 first: CPU1's interrupts off whatever the ROM's hand-over left, as X0X's and Melodee's entries on
@@ -142,9 +148,9 @@ __asm__(".section .text.fm1_cpu1,\"ax\",@progbits\n"
         "\tcli\n"
         "\tr0 = 0\n"
         "\ticfg = r0\n"
-        "\tusp = fm1_c1_stack + 2048\n"
-        "\tssp = fm1_c1_stack + 4096\n"
-        "\tsp = fm1_c1_stack + 6144\n"
+        "\tusp = fm1_c1_stack + 10240\n"
+        "\tssp = fm1_c1_stack + 5120\n"
+        "\tsp = fm1_c1_stack + 5120\n"
         "\treti = fm1_cpu1_main\n"
         "\trti\n"
         "\t.previous\n");
@@ -255,6 +261,11 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     fm1_dual_mb.stage = 0;
     fm1_dual_mb.count = 0;
     fm1_dual_mb.wakes = 0;
+    {
+        uint32_t i;
+        for (i = 0; i < FM1_C1_STACK_WORDS; i++)
+            fm1_c1_stack[i] = FM1_C1_MARK;                /* (how deep each of CPU1's stacks went: the console) */
+    }
     fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
     *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* CPU1's branch trace on (its ETM_CON, as CPU0's: fm1_irq.h) */
@@ -382,6 +393,16 @@ extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
 static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
+/* bytes of CPU1's stack REGION (0: sp / ssp, the interrupt's; 1: usp, the C code's) ever used (the marks overwritten);
+ * 0: never started */
+static uint32_t fm1_dual_stack_used(uint32_t region)
+{
+    const uint32_t *b = fm1_c1_stack + region * FM1_C1_REGION;
+    uint32_t i = 0;
+    while (i < FM1_C1_REGION && b[i] == FM1_C1_MARK)
+        i++;
+    return (FM1_C1_REGION - i) * 4u;
+}
 static void fm1_dual_halt(void)
 {
     fm1_dual_on = 0;

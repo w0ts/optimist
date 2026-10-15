@@ -447,7 +447,8 @@ def boot_refs(dis):
 # 2,452), PHYS 1,556 (1,556), ANALOG 680 (668), FM6 648 (856), PHASE 456 (456)
 CPU1_ROOTS = ("isr_c1_wake", "fm1_cpu1_main")
 CPU1_MIX = ("mix_part", "dual_run")  # (where the engines' render hooks are called from, inlined or not)
-CPU1_STACK_ROOM = 4096 - 256        # (256 B: the main loop's own frames and the interrupt's entry, above the job)
+CPU1_STACK_ROOM = 4096 - 256        # (of each 5 KiB region, hal/fm1_dual.h FM1_C1_REGION: a spinning build's jobs run on
+                                    #  usp, an asleep one's in the wake on sp; 2026-10-15: usp had 2 KiB, ACID overflowed it)
 
 
 def cpu1_stack(dis):

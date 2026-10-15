@@ -452,7 +452,9 @@ static void con_status(void)
     con_kx("cpu1_exc_c1etm1", fm1_dual_exc.c1etm[1]);
     con_kx("cpu1_exc_c1etm2", fm1_dual_exc.c1etm[2]);
     con_kx("cpu1_exc_c1etm3", fm1_dual_exc.c1etm[3]);
-    con_kx("cpu1_c1con", fm1_dual_c1con());                   /* (what it reads back now) */
+    con_kx("cpu1_c1con", fm1_dual_c1con());
+    con_kv("cpu1_stack_irq_used", (int32_t)fm1_dual_stack_used(0));   /* bytes of 5120 (sp / ssp: the wake's) */
+    con_kv("cpu1_stack_main_used", (int32_t)fm1_dual_stack_used(1));  /* bytes of 5120 (usp: its C code, spin jobs) */                   /* (what it reads back now) */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif

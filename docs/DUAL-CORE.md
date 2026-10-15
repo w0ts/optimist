@@ -372,7 +372,11 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
   guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
   CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
-- **CPU1's stack (measured 2026-10-12):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
+- **CPU1's stack, since 2026-10-15:** 10 KiB, sp = ssp at +5120 (the wake interrupt's), usp at +10240 (CPU1's C code,
+  and a spinning build's jobs): 5 KiB each. The layout below gave usp only the lowest 2 KiB; the spinning builds (B..B4)
+  rendered their jobs there and an ACID part (2,948 B static) ran through the bottom into `part_mem`, just below in
+  `.pool`, and CPU0 crashed rendering from it in the first blocks of every power-on (hal/fm1_dual.h).
+- **CPU1's stack (measured 2026-10-12, superseded):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
   `cpu1_start` sets `usp` and then `sp` to the *system* stack (`_cpu1_sstack`): CPU1 is handed over in interrupt
   context, where sp is the system stack, and its rti saves sp into ssp and takes usp. The emulator models it so: the
   main loop runs on usp's top (+2048, 12 B used), and the wake interrupt with the job runs on +6144, the value the rti
