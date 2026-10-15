@@ -176,6 +176,7 @@ static void fm1_dual_c1_emu(void)
     *(volatile uint32_t *)0x1EEF2E0u = hi;
     *(volatile uint32_t *)0x1EEF2E4u = lo;
     *(volatile uint32_t *)0x1EEF2D0u = (*(volatile uint32_t *)0x1EEF2D0u & ~((1u << 2) | (0x1Fu << 16))) | (1u << 3);
+    *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* its branch trace on, from CPU1 too (ETM_CON) */
 }
 
 /* CPU1's interrupt bank (CPU0's at 0x1EEF100), all 32 words off: before every start, in every build (X0X, Melodee) */
@@ -206,6 +207,41 @@ static struct {
     uint32_t c1con;                                       /* C1_CON as read then (what it reads back: not known) */
     uint32_t c1etm[4];                                    /* CPU1's branch trace then (q32DSP(1)->ETM_PC0..3) */
 } fm1_dual_exc;
+
+/* CPU1's state at an exception, read by CPU0 (the AC79 SDK's cpu/wl82/debug.c does the same): CMD_PAUSE stops it,
+ * then q32DSP(1)'s read-only mirror of its registers (asm/csfr.h: DR00..15 at +0x00, RETI +0x40, RETS +0x4C, PSR
+ * +0x54, ICFG +0x6C, USP / SSP / SP +0x70..78, PCRS (where it runs) +0x7C, EMU_MSG +0xD4), and corex2's
+ * AXI_RD_INV_ID / AXI_WR_INV_ID (+0x370 / +0x374: which bus master made an "axi_rd_inv" / "axi_wr_inv", DBG_MSG bits
+ * 4 / 5, the SDK's names). Kept across the reset (the console's `crash`, `status`) */
+#define FM1_C1_SNAP_MAGIC 0x43315350u                     /* "C1SP" */
+typedef struct {
+    uint32_t magic, dbg, axi_rd_id, axi_wr_id, pcrs, reti, rets, psr, icfg, usp, ssp, sp, emu, r[16];
+} fm1_c1_snap_t;
+fm1_c1_snap_t fm1_c1_snap __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
+static void fm1_dual_snap(uint32_t dbg)
+{
+    volatile uint32_t *q = (volatile uint32_t *)0x1EEF200u;   /* q32DSP(1) */
+    uint32_t i;
+    fm1_c1_snap.dbg = dbg;
+    fm1_c1_snap.axi_rd_id = *(volatile uint32_t *)0x1EEE370u;
+    fm1_c1_snap.axi_wr_id = *(volatile uint32_t *)0x1EEE374u;
+    if (fm1_dual_on) {
+        q[0x26] = 0xFFFFFFFFu;                            /* CMD_PAUSE (debug.c putpchex) */
+        __asm__ volatile("csync" ::: "memory");
+    }
+    fm1_c1_snap.pcrs = q[0x1F];
+    fm1_c1_snap.reti = q[0x10];
+    fm1_c1_snap.rets = q[0x13];
+    fm1_c1_snap.psr = q[0x15];
+    fm1_c1_snap.icfg = q[0x1B];
+    fm1_c1_snap.usp = q[0x1C];
+    fm1_c1_snap.ssp = q[0x1D];
+    fm1_c1_snap.sp = q[0x1E];
+    fm1_c1_snap.emu = q[0x35];
+    for (i = 0; i < 16u; i++)
+        fm1_c1_snap.r[i] = q[i];
+    fm1_c1_snap.magic = FM1_C1_SNAP_MAGIC;
+}
 static int fm1_dual_exc_c(const uint32_t *f)
 {
     uint32_t cpu = fm1_cnum(), dbg = FM1_DBG_MSG, was, vec = (f[19] - (uint32_t)(uintptr_t)fm1_fatal_stubs) / 6u - 1u;
@@ -227,6 +263,8 @@ static int fm1_dual_exc_c(const uint32_t *f)
     }
     if (!cpu && fm1_dual_exc.count >= 16u)
         return 0;                                         /* a hold that did not take */
+    if (!cpu)
+        fm1_dual_snap(dbg);                               /* (CPU1 paused, its registers read, before the hold) */
     {
         uint32_t i;
         fm1_dual_exc.c1con = FM1_C1_CON;

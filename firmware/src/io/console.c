@@ -512,10 +512,41 @@ static void con_dbg(void)
 #endif
 }
 
+#if FELUCCA_DUAL
+/* the last exception's CPU1 state and bus master (hal/fm1_dual.h fm1_dual_snap; the crash report's or a hold's) */
+static void con_snap(void)
+{
+    static const char *const R[16] = {"c1_r0", "c1_r1", "c1_r2", "c1_r3", "c1_r4", "c1_r5", "c1_r6", "c1_r7", "c1_r8",
+                                      "c1_r9", "c1_r10", "c1_r11", "c1_r12", "c1_r13", "c1_r14", "c1_r15"};
+    uint32_t i;
+    if (fm1_c1_snap.magic != FM1_C1_SNAP_MAGIC) {
+        con_puts("no cpu1 snapshot\r\n");
+        return;
+    }
+    con_kx("snap_dbg", fm1_c1_snap.dbg);                 /* DBG_MSG: 4 axi_rd_inv 5 axi_wr_inv 16..18 c1_if/rd/wr_bus_inv 19..21 c0_ */
+    con_kx("snap_axi_rd_id", fm1_c1_snap.axi_rd_id);     /* the bus master of an axi_rd_inv */
+    con_kx("snap_axi_wr_id", fm1_c1_snap.axi_wr_id);
+    con_kx("c1_pc", fm1_c1_snap.pcrs);                   /* where CPU1 was (PCRS) */
+    con_kx("c1_reti", fm1_c1_snap.reti);
+    con_kx("c1_rets", fm1_c1_snap.rets);
+    con_kx("c1_psr", fm1_c1_snap.psr);
+    con_kx("c1_icfg", fm1_c1_snap.icfg);
+    con_kx("c1_usp", fm1_c1_snap.usp);
+    con_kx("c1_ssp", fm1_c1_snap.ssp);
+    con_kx("c1_sp", fm1_c1_snap.sp);
+    con_kx("c1_emu", fm1_c1_snap.emu);
+    for (i = 0; i < 16u; i++)
+        con_kx(R[i], fm1_c1_snap.r[i]);
+}
+#endif
+
 static void con_crash(void)
 {
     if (fm1_crash.magic != FM1_CRASH_MAGIC) {
         con_puts("no crash record\r\n");
+#if FELUCCA_DUAL
+        con_snap();                                     /* (a hold of CPU1 leaves one without a crash) */
+#endif
         return;
     }
     con_kv("count", (int32_t)fm1_crash.count);
@@ -533,6 +564,9 @@ static void con_crash(void)
     con_kx("psr", fm1_crash.psr);
     con_kv("uptime_ms", (int32_t)fm1_crash.uptime_ms);
     con_kv("early", (int32_t)fm1_crash.early);
+#if FELUCCA_DUAL
+    con_snap();
+#endif
 }
 
 /* how this boot started and how the one before ended (2026-10-15, the CPU1 investigation: tools fm1_console.py boot,

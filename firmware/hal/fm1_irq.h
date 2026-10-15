@@ -111,6 +111,7 @@ static void fm1_irq_enable_all(void)
  * f[20] psr, f[21] icfg, f[22] usp, f[23] ssp, f[24] sp, f[25] interrupted rets */
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL
 static int fm1_dual_exc_c(const uint32_t *f);            /* fm1_dual.h: an exception about CPU1 (1: CPU0 resumes) */
+static void fm1_dual_snap(uint32_t dbg);                 /* fm1_dual.h: CPU1's registers and the AXI ids, kept */
 #endif
 /* returns only after an exception about CPU1 (FELUCCA_DUAL): fm1_vec.S resumes the interrupted code */
 void fm1_fault_c(uint32_t *f)
@@ -124,6 +125,14 @@ void fm1_fault_c(uint32_t *f)
     count = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0;
     early = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.early : 0;
     fm1_irq_off();
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL
+    {
+        uint32_t id;
+        __asm__ volatile("%0 = cnum" : "=r"(id));
+        if (!id)
+            fm1_dual_snap(FM1_DBG_MSG);               /* (the crash report's companion: CPU1 and the bus master) */
+    }
+#endif
     if (in_fault++)                           /* fault while reporting: reset at once */
         *(volatile uint32_t *)0x10000u |= 1u << 4;
     fm1_crash.magic = FM1_CRASH_MAGIC;
