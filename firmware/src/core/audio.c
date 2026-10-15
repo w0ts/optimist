@@ -10,7 +10,7 @@
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 
 /* diagnostics, kept across resets and UBOOT entry: read with `fm1t memr` */
-#define DBG_MAGIC 0x44424733u                       /* "DBG3" (2026-10-15: alive_ms, c1, crash_seen; loop / where / starve) */
+#define DBG_MAGIC 0x44424734u                       /* "DBG4" (2026-10-15: alive_ms, c1, crash_seen; loop / where / starve; peaks) */
 struct felucca_dbg {
     uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames;
     uint32_t last_us, cpu_q8, boots;
@@ -25,6 +25,9 @@ struct felucca_dbg {
      * it first went DUAL_STARVE_MS without one); where: bit 0 in dual_join, bit 1 in the audio render */
     uint32_t loop_ms, loop_gap_max, starve_ms, where;
     uint32_t prev_loop_gap_max, prev_starve_ms, prev_where, prev_in_audio, prev_cpu_q8, prev_late;
+    /* the audio's peaks (system/overload.h, the INFO's MAX 5S / MAX), % of a half (over 100: late), each half: kept by a reset */
+    uint32_t pk_all, pk_5s, pk1_5s, drops;
+    uint32_t prev_pk_all, prev_pk_5s, prev_pk1_5s, prev_drops;
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 
@@ -164,6 +167,10 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_max_us = us;
         late = fm1_audio_free_half() != half;              /* the DMA moved on while we rendered: a drop-out */
         ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
+        felucca_dbg.pk_all = ovl_maxall_pct(OVL_CPU0);     /* (the same measures into the reset-kept record) */
+        felucca_dbg.pk_5s = ovl_max5_pct(OVL_CPU0, fm1_ms);
+        felucca_dbg.pk1_5s = ovl_max5_pct(OVL_CPU1, fm1_ms);
+        felucca_dbg.drops = ovl.drops;
 #if FELUCCA_CPU_GUARD
         cg.late = (uint8_t)late;                           /* (a late half the guard reacts to: cpuguard.c cg_spike) */
         FAR(cg_post)(us);                                  /* the load: ease back, shed, or let go (cpuguard.c) */

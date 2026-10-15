@@ -229,6 +229,11 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.prev_in_audio = felucca_dbg.in_audio;
     felucca_dbg.prev_cpu_q8 = felucca_dbg.cpu_q8;
     felucca_dbg.prev_late = felucca_dbg.late;
+    felucca_dbg.prev_pk_all = felucca_dbg.pk_all;
+    felucca_dbg.prev_pk_5s = felucca_dbg.pk_5s;
+    felucca_dbg.prev_pk1_5s = felucca_dbg.pk1_5s;
+    felucca_dbg.prev_drops = felucca_dbg.drops;
+    felucca_dbg.pk_all = felucca_dbg.pk_5s = felucca_dbg.pk1_5s = felucca_dbg.drops = 0;
     felucca_dbg.loop_ms = felucca_dbg.loop_gap_max = felucca_dbg.starve_ms = felucca_dbg.where = 0;
     felucca_dbg.alive_ms = felucca_dbg.c1 = 0;
     {

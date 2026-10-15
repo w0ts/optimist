@@ -411,6 +411,9 @@ static void con_status(void)
     con_kv("cpu_guard_rev_gain_pct", (int32_t)(cg.gain[CG_L_REVERB] * 100u / 256u));
 #endif
     con_kv("audio_late", (int32_t)felucca_dbg.late);
+    con_kv("audio_max_pct", (int32_t)felucca_dbg.pk_all);   /* system/overload.h: INFO's MAX, % of a half */
+    con_kv("audio_max5_pct", (int32_t)felucca_dbg.pk_5s);   /* INFO's MAX 5S */
+    con_kv("cpu1_max5_pct", (int32_t)felucca_dbg.pk1_5s);   /* CPU1's jobs, MAX 5S */
 #if FELUCCA_FX_REVERB
     con_kv("rev_state", (int32_t)rgd.st);               /* (fx.c RG_*: 0 on, 1 fading out, 2 clearing, 3 off) */
     con_kv("rev_live", (int32_t)rev_live);
@@ -626,7 +629,11 @@ static void con_boot(void)
     con_kv("prev_starve_ms", (int32_t)felucca_dbg.prev_starve_ms);   /* when it starved (no pass for 1.5 s), 0: never */
     con_kx("prev_where", felucca_dbg.prev_where);       /* bit 0 in dual_join, bit 1 in the audio render (then) */
     con_kv("prev_in_audio", (int32_t)felucca_dbg.prev_in_audio);
-    con_kv("prev_cpu_pct", (int32_t)(felucca_dbg.prev_cpu_q8 * 100u / 256u));
+    con_kv("prev_cpu_pct", (int32_t)(felucca_dbg.prev_cpu_q8 * 100u / 256u));   /* (smoothed: jumpy, not the load) */
+    con_kv("prev_audio_max_pct", (int32_t)felucca_dbg.prev_pk_all);   /* the longest half since that boot, % of a half */
+    con_kv("prev_audio_max5_pct", (int32_t)felucca_dbg.prev_pk_5s);  /* the longest of its last ~5 s */
+    con_kv("prev_cpu1_max5_pct", (int32_t)felucca_dbg.prev_pk1_5s);  /* CPU1's jobs' longest half, its last ~5 s */
+    con_kv("prev_drops", (int32_t)felucca_dbg.prev_drops);  /* late halves then (INFO's DROPS) */
     con_kv("prev_late", (int32_t)felucca_dbg.prev_late);
     con_kv("loop_gap_max_ms", (int32_t)felucca_dbg.loop_gap_max);   /* this boot so far */
     con_kx("prev_audio_stage", fm1_astage_prev);        /* core.h ASTAGE: where the audio interrupt was (0x7F: out of it) */
