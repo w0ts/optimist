@@ -3,7 +3,7 @@
 
 Inputs:
   tests/cpu_baseline.txt   the host CPU baseline tests/regress.c writes (BUDGET_UPDATE=1): instructions per sample
-                           of each engine x preset with 8 notes held (VOICE 4, ACID 1: its voices), of the idle mix
+                           of each engine x preset with 8 notes held (VOICE 4, ACID 1, JUNO 6: its voices), of the idle mix
                            and of the idle mix with the drum groove
   tools/builder/costs.json "cpu": the target's instructions per host instruction, per engine where measured
                            ("scale_pct", "engine_pct"), fitted in the emulator (docs/CPU-GUARD.md, "Calibration")
@@ -52,7 +52,7 @@ BASELINE = ROOT / "tests" / "cpu_baseline.txt"
 COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
-NOTES = {"VOICE": 4, "ACID": 1}
+NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6}   # (JUNO: six voices, eng_juno.c JUNO_POLY)
 INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE
 
 

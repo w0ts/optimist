@@ -6,8 +6,8 @@
 #pragma once
 #define CG_COST_BASE 153u      /* the idle mix */
 #define CG_COST_DRUMS 525u     /* the drum groove on top of it */
-#define CG_NVCOST 14u
-static const uint16_t CG_VCOST[CG_NVCOST] = {166, 134, 146, 93, 75, 241, 162, 121, 115, 257, 459, 459, 490, 459};   /* a sounding voice, by engine UID: ANALOG DIGITAL PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN FM6 SLICE PHYS ACID CZ */
+#define CG_NVCOST 15u
+static const uint16_t CG_VCOST[CG_NVCOST] = {166, 134, 146, 93, 75, 241, 162, 121, 115, 257, 459, 459, 490, 459, 204};   /* a sounding voice, by engine UID: ANALOG DIGITAL PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN FM6 SLICE PHYS ACID CZ JUNO */
 #define CG_X0X_SHARED 216u    /* while any X0X channel sounds (their mix) */
 static const uint16_t CG_X0X[24] = {204, 234, 185, 201, 200, 187, 169, 84, 85, 6, 6, 158, 217, 149, 153, 151, 224, 95, 97, 149, 195, 238, 257, 467};   /* a sounding X0X channel (drum_x0x.c: the 909's voices, the 808's lanes) */
 #define CG_COST_TCOMP 31u     /* a part's COMP insert while it runs (fx.c tcomp_run) */

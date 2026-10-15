@@ -78,6 +78,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c",
+               "engines/juno/eng_juno.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
                "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c", "drums/lane_play.c", "seq/seq_mute.c"]

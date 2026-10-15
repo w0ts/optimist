@@ -335,6 +335,40 @@
       "warning": false
     },
     {
+      "switch": "FELUCCA_ENG_JUNO",
+      "title": "JUNO engine: the Juno-106 voice of fm-106 (DCO saw / pulse / sub / noise, the IR3109 / BA662 4-pole OTA ladder, the 4-position HPF), engine number 14, with patches of our own",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 14,
+      "source": {
+        "repo": "https://github.com/PatttF/fm-106",
+        "commit": "be74757 (2026-10-11)",
+        "author": "PatttF (fm-106); a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106)",
+        "licence": "GPL-3.0-only (fm-106 and KR-106)",
+        "files": "firmware/src/fm106_osc.h, fm106_vcf.h, fm106_engine.h (fm106_render_voice), fm106_tables.h (the DSP tables)"
+      },
+      "not_taken": "Roland's 128 Juno-106 factory patches (fm106_presets.h), fm-106's D7811G envelope, LFO, arpeggiator, sequencer, chorus, insert FX, SysEx librarian and its firmware platform",
+      "files": [
+        "firmware/src/engines/juno/eng_juno.c (engine, 8 patches of our own, the EDIT values, the VCA curve, the HPF on the part)",
+        "firmware/src/engines/juno/juno_dsp.h (fm-106's DCO, ladder, HPF and cutoff DAC routine)",
+        "firmware/src/engines/juno/juno_tables.h (fm-106's tables, generated, unchanged)",
+        "hooks: registry.h ENGINE_LIST (UID 14, fallback ANALOG), engines.c, backports.h, model.c BANK, tools/colors.json, web/editor.html engine list",
+        "tests/juno_test.c, tests/golden_juno.txt"
+      ],
+      "cost": {
+        "flash": 0,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "see the branch notes",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 14; the 8 EDIT values (WAVE, PW, SUB, NOIS, CUT, RES, KEY, HPF) in P_E0..P_E7: no project format change",
+      "limits": "the envelope is the track's ADSR (not the D7811G curve); RANGE is the part's TRANSPOSE, VCA GATE is SUS 127 / REL 0; no bender to the VCF; the chorus is the shared chorus send; 6 voices",
+      "notice": "JUNO engine from fm-106 by PatttF (GPL-3.0), a port of Ultramaster KR-106 (GPL-3.0). No Roland factory patches.",
+      "warning": false
+    },
+    {
       "switch": "FELUCCA_REC_MODES",
       "title": "REC screen dials: MODE free / tempo, LENGTH 1 / 2 / 4 bars, START note / count-in (4-3-2-1)",
       "default": 0,
