@@ -3,7 +3,7 @@
 What Optimist takes from other people's work, where it is, under which licence, and whether it is credited. Base:
 local `optimist` at `f1f11fa9`. Method: the file headers (`SPDX`, `Copyright`, "after", "ported", "from"), the git
 history (commit subjects naming a port), the builder's provenance records (`tools/builder/registry.py`), the upstream
-repositories (local reference clones under `~/GitHub/refs/`, `~/GitHub/melodee`, `~/GitHub/jangada`, and GitHub's API
+repositories (local clones of the upstream projects, and GitHub's API
 for Ultramaster KR-106, Open303, schwung-303, ER-99, 9W9, 8W8, the Phazerville Suite). Not a legal opinion: the
 points that need a decision are in "Open questions" at the end.
 
