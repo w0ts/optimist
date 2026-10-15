@@ -818,20 +818,6 @@
     "ramtext": 44
    }
   },
-  "SPLASH": {
-   "2": {
-    "flash": -528,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "0": {
-    "flash": -1036,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "ICONS": {
    "0": {
     "flash": -5332,
@@ -2847,12 +2833,6 @@
    "pool": 0,
    "ramtext": 168
   },
-  "UI=1,SPLASH=0": {
-   "flash": 9268,
-   "ram": 80,
-   "pool": 0,
-   "ramtext": 24
-  },
   "UI=1,ICONS=0": {
    "flash": 5336,
    "ram": 0,
@@ -3374,12 +3354,6 @@
    "ram": -16,
    "pool": 0,
    "ramtext": 69
-  },
-  "UI=1,SPLASH=2": {
-   "flash": 9220,
-   "ram": 80,
-   "pool": 0,
-   "ramtext": 24
   },
   "UI=1,FAVORITES=0": {
    "flash": 9360,
