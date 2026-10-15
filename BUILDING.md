@@ -41,7 +41,7 @@ The same profile and configuration give the same `.fwsc` bytes whichever way the
 (natively, in the image, with a mounted copy, `--in-docker`): see "Reproducibility" below.
 
 On macOS and Linux the older commands still work and call `tools/optimist.py`: `make builder`,
-`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`,
+`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`, `make web` (the local installer and web editor: builds the site from `build/felucca.fwsc`, serves it on 127.0.0.1:8766 (`PORT=` for another), prints the installer and editor URLs and opens the editor; needs a build first, and Chrome or Edge for Web MIDI; `python3 tools/optimist.py web --help`),
 `make test`, `make setup`, `make profiles`, `make publish PROFILE=name` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
 
 Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
