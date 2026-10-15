@@ -235,6 +235,17 @@ static void mixer_sets_tests(void)
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, "DUCK", 0, 0, 0),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
           "REV DLY CHO RET, the one order), DUCK (fx-rework)");
+    if (FELUCCA_FX_REVERB && FELUCCA_FX_DELAY && FELUCCA_FX_CHORUS && FELUCCA_FX_DIST) {   /* the user, 2026-10-15: "match the
+                                                        * order between master return and the send": card k is R(k+1) */
+        uint32_t ps = 2u, ok;                           /* (T1: MIX, INSERT, SENDS) */
+        fxs_load(1, FXT_CHO);                           /* (R1 CHO, R3 REV: a swap) */
+        ok = mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "CHO RET", "DLY RET", "REV RET", 0) &&
+             mx_labels(MXR_T1, ps, "CHO", "DLY", "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", "DLY", "REV", 0);
+        fxs_load(2, FXT_NONE);                          /* (R2 empty: its card blank, the others in place) */
+        ok &= mx_labels(MXR_T1, ps, "CHO", 0, "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", 0, "REV", 0);
+        fxs_set(FXS_DEF);
+        check(ok, "R1 CHO, R3 REV (swapped): the returns, a track's and a lane's sends follow, CHO DLY REV; R2 empty: a blank card");
+    }
     {   /* the master's TYPE card: DYN out of its slots, its set gone; DUST / FILT never a card of their own */
         mitem_t it[MX_MAXI];
         uint32_t n, i, own = 0;
@@ -265,7 +276,7 @@ static void mixer_sets_tests(void)
         check(song.g[G_CRET] == c0 && song.g[G_DRET] == d0, "... KNOB 4 on the empty card: nothing");
         turn(EN_K3, -3);
         check(song.g[G_CRET] < c0, "... KNOB 3 (CHO RET): CHO RET down");
-        fxs_load(3, FXT_NONE);                          /* REV in no slot: no card for its return, DLY and CHO move up */
+        fxs_load(1, FXT_NONE);                          /* REV in no slot: no card for its return, DLY and CHO move up */
         for (k = 0; k < 4u; k++) {
             mix_cell(MXR_MASTER, k, &c);
             any |= c.d == &GP[G_RRET];

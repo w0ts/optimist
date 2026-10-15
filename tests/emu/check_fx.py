@@ -87,7 +87,7 @@ def body(ctx, r):
     a, b = r.t1("default"), r.t1("default-again")
     r.same("a capture is deterministic: the same setting twice, the same samples", a, b)
     ctx.check("T1 sounds (steady RMS > -50 dBFS)", X.level_db(a) > -50, f"{X.level_db(a):.1f} dBFS")
-    ctx.check("the default layout: master ---- CHO DLY REV (sends only), every track S1 DIST S2 FILT",
+    ctx.check("the default layout: master ---- REV DLY CHO (sends only), every track S1 DIST S2 FILT",
               fx.slots() == X.MASTER_DEF and fx.tins() == [fx.trk_def()] * 4,
               f"{fx.names()}, {[fx.names(x) for x in fx.tins()]}")
     ctx.check("FX > SLOTS offers the other types to a return (fx-pool: COMP, DIST ...), never GATER",
@@ -182,7 +182,7 @@ def drums(ctx, r):
     """the drum bus's COMP (heard only in a drum-track slot) and a sound's COMP insert (always heard: D7)"""
     e, P, fx = r.e, r.P, r.fx
     fx.slots_page()                                   # (REV out of the master slots: no reverb tail between captures,
-    fx.drop(REV)                                      #  and SOUND 3 has room for its CMP cell: DST CHO DLY CMP)
+    fx.drop(REV)                                      #  and SOUND 3 has room for its CMP cell: DST DLY CHO CMP)
     ctx.check("REV out of the master slots: SOUND 3 shows a CMP cell", REV not in fx.slots() and fx.sound_cmp_knob() == 4,
               fx.names())
     d0 = r.drum("drum-dry")

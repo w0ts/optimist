@@ -150,6 +150,7 @@ static void cards_tests(void)
     }
     fuzz(3000, 777);                                    /* random use: every draw on the screen */
     tracks_default();                                   /* (what the random run changed goes: the tests after start alike) */
+    fxs_set(FXS_DEF);                                   /* (the master's returns too) */
     lay.lock = lay.held = lay.shown = LY_PLAY;          /* (a layer the random run locked open goes too) */
     reset_ui();
     check(1, "3000 frames of random use with the 2x2 cards: every draw on the screen");

@@ -152,17 +152,14 @@ static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
     }
 }
-/* the MASTER page's return lines, top down: REV DLY CHO, those built (ret: fx.c fx_ret_pk's index of each) */
-static const char *const MX_RET_NAME[3] = {"REV", "DLY", "CHO"};
+/* the MASTER page's return lines, top down: R1 R2 R3, those holding something (fx_slots.c fxs_card, the one order; ret:
+ * each one's line, fx.c fx_ret_pk's index) */
 static uint32_t mx_rets(uint8_t *ret)
 {
-    uint32_t n = 0;
-    if (FELUCCA_FX_REVERB)
-        ret[n++] = 2u;
-    if (FELUCCA_FX_DELAY)
-        ret[n++] = 1u;
-    if (FELUCCA_FX_CHORUS)
-        ret[n++] = 0u;
+    uint32_t n = 0, k, t;
+    for (k = 0; k < 3u; k++)
+        if ((t = fxs_card(k)) != FXT_NONE)
+            ret[n++] = (uint8_t)FXS_LN(t);
     return n;
 }
 /* MASTER alone: its name, the tall meter's dB scale (a tick each 6 dB, 0 -12 -24 -48 named), "GR", the returns' names */
@@ -184,8 +181,8 @@ static void mx_paint_master(void)
     }
     cv_text(MXM_X, MXM_GY - 5, &FONT_S, "GR", C_DIM);
     n = mx_rets(ret);
-    for (i = 0; i < n; i++)                             /* (2 - ret: REV DLY CHO's names) */
-        cv_text(MXM_X, MXM_CY + (int32_t)i * MXM_CP, &FONT_S, MX_RET_NAME[2u - ret[i]], C_HI);
+    for (i = 0; i < n; i++)                             /* (the type each return holds: a send's, or the other one's) */
+        cv_text(MXM_X, MXM_CY + (int32_t)i * MXM_CP, &FONT_S, fxs_line_name(ret[i]), C_HI);
     mx_vu_paint(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
     for (i = 0; i < n; i++)                             /* (a return's meter state: the row T1 + its line's, unseen here) */
         mx_vu_paint(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + 6, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);

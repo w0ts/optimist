@@ -185,7 +185,7 @@ static void pages_master_order_tests(void)
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
         {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
         {"DUCK", "MASTER", SC_GLOBAL},
-        {"RETURNS", 0, 0}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET REV", "REV/CHO", SC_GLOBAL},
+        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL},
         {"SLOTS", "SLOTS", SC_FXSLOT},
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
@@ -195,7 +195,7 @@ static void pages_master_order_tests(void)
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
+    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -236,13 +236,13 @@ static void pages_master_order_tests(void)
         i++;
     }
     ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET DELAY, RET REV), SLOTS, MACRO");
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY), SLOTS, MACRO");
     check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET DELAY", "RET REV", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "SLOTS",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -252,7 +252,7 @@ static void pages_master_tests(void)
     cell_t c;
     int16_t tune = song.g[G_TUNE];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the same) */
+    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -265,7 +265,7 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET DELAY RET REV, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");

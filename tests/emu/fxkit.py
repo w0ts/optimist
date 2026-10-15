@@ -27,7 +27,8 @@ DSEND_CMP = 4                                    # (drum_sends.c: SOUND 3's valu
 INSERT = (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18)   # (DIST COMP FILT, the further ones, DUST, JUNO; CHO DLY REV are the sends)
 RET_OTHER = tuple(t for t in INSERT if t != 15)  # (fx-pool: the types a return may hold beside the sends: every insert but GATER)
 TRK_DEF = [FXT["DIST"], FXT["FILT"]]             # (every track's slots at the start: S1 DIST, S2 FILTER, amounts 0)
-MASTER_DEF = [0, 2, 3, 4]                        # (the master slots: ---- CHO DLY REV; slot 0 takes no send since
+SEND_ORDER = [FXT["REV"], FXT["DLY"], FXT["CHO"]]   # (fx_slots.c FXS_ORDER: the one order of the sends and returns)
+MASTER_DEF = [0] + SEND_ORDER                    # (the master slots: ---- REV DLY CHO; slot 0 takes no send since
 #                                                  fx-rework: the master's 3 returns R1 R2 R3 are slots 1..3, KNOB1..KNOB3)
 
 
@@ -37,9 +38,9 @@ def on(facts, t):
 
 
 def built(facts):
-    """the types FX > SLOTS lists, in its order (fx_slots.c fxs_desc: NONE, the sends, then every other type a return may
-    hold: fx-pool 2026-10-15)"""
-    return ([0] + [t for t in range(1, len(CFG) + 1) if t not in INSERT and on(facts, t)] +
+    """the types FX > SLOTS lists, in its order (fx_slots.c fxs_desc: NONE, the sends in SEND_ORDER, then every other
+    type a return may hold: fx-pool 2026-10-15)"""
+    return ([0] + [t for t in SEND_ORDER if on(facts, t)] +
             [t for t in range(1, len(CFG) + 1) if t in RET_OTHER and on(facts, t)])   # (then the others: fx-pool)
 
 
@@ -170,7 +171,7 @@ class Fx:
 
     def scramble(self, t=0):
         """track t's COMP amount 0 (t selected for it, then T1 again), its slots S1 DIST S2 FILTER and the master
-        slots ---- CHO DLY REV (those this build lists), HOME"""
+        slots ---- REV DLY CHO (those this build lists), HOME"""
         self.P.track(t + 1)
         self.inserts_page()
         if FXT["COMP"] in self.tins()[t]:

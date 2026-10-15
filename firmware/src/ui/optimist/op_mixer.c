@@ -7,9 +7,10 @@
  *   ALGORITHM  walks the rows, MASTER, T1 .. DR .. the 16th lane and back (it stops at the ends; op_walk.c, the same
  *              walk as every page's): the track selected follows (song.sel), a lane row selects the lane (lane_sel, ui.lane)
  *   SELECT     the row's knob sets, its pages, in the same order on every row (the user, 2026-10-11): the mix
- *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (REV DLY CHO) (no FX on, no
- *              SOUND card: 2026-10-14); a lane MUTE LEVEL CUT | DRIVE | REV DLY CHO; DR MUTE VOLUME | FILTER; MASTER FILT
- *              DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns, REV DLY CHO RET, those a FX slot holds (batch D;
+ *              (MUTE VOLUME PAN), the inserts (DRIVE or DIST, FILTER, COMP), the sends (R1 R2 R3's: REV DLY CHO by
+ *              default, fx_slots.c fxs_card) (no FX on, no SOUND card: 2026-10-14); a lane MUTE LEVEL CUT | DRIVE | its
+ *              sends; DR MUTE VOLUME | FILTER; MASTER FILT DUST DUCK (those built) | THRS RATIO GAIN CEIL | the returns,
+ *              R1 R2 R3 (REV DLY CHO RET by default), those holding something (batch D;
  *              2026-10-12 had a card a slot, "-" for an insert or an empty one). Each group on a set of its own. Values only: the screens are not sets.
  *              SELECT pages the sets (GLO tapped opens GLOBAL since 2026-10-12). The header names the set
  *   PRESETS    the row's sound: a track's preset, DR's kit, a lane's own sound (op_walk.c lane_sound_step)
@@ -126,17 +127,20 @@ static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
     n = mx_add(it, n, MG_INS, 0, MI_INST, 1);
     return mx_add(it, n, MG_INS, 0, MI_INSA, 1);
 }
-/* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends in a slot, REV DLY
- * CHO */
-/* the sends set, as the SENDS page has it (the user, 2026-10-14: "we have 3 sends, card 4 should be pan"): REV DLY CHO in
- * cards 1..3 (a blank card for a send no slot holds), PAN card 4. ids: the three sends' ids in kind's own numbering */
+/* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends, in the returns'
+ * order */
+/* the sends set, as the SENDS page has it (the user, 2026-10-14: "we have 3 sends, card 4 should be pan"): cards 1..3
+ * returns R1 R2 R3's sends (fx_slots.c fxs_card, a blank card for an empty return), PAN card 4. ids, lbl: the sends' ids
+ * in kind's own numbering, REV DLY CHO (FXS_DSI) */
 static uint32_t mx_items_sends(mitem_t *it, uint32_t n, const char *const *lbl, uint32_t kind, const uint8_t *ids,
                                uint32_t pan_kind, uint32_t pan_id)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    uint32_t k;
-    for (k = 0; k < 3u; k++)
-        n = FXS_ON(T[k]) ? mx_add(it, n, MG_SEND, lbl ? lbl[k] : 0, kind, ids[k]) : mx_add(it, n, MG_SEND, 0, MI_NONE, 0);
+    uint32_t k, t;
+    for (k = 0; k < 3u; k++) {
+        t = fxs_card(k);
+        n = t != FXT_NONE ? mx_add(it, n, MG_SEND, lbl ? lbl[FXS_DSI(t)] : 0, kind, ids[FXS_DSI(t)]) :
+                            mx_add(it, n, MG_SEND, 0, MI_NONE, 0);
+    }
     return mx_add(it, n, MG_SEND, "PAN", pan_kind, pan_id);
 }
 static uint32_t mx_items_synth(mitem_t *it)
@@ -150,17 +154,15 @@ static uint32_t mx_items_synth(mitem_t *it)
     return n;                                           /* (no FX ON and no SOUND card: the user, 2026-10-14; PRESETS is a button) */
 }
 /* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
- * tracks"): a card a send a master slot holds, REV DLY CHO (the one order, as the master FX's RETURNS page, op_screens.c
- * FX_RET), "REV RT" "DLY RT" "CHO RT"; each turns its return (core.h G_CRET G_DRET G_RRET, fx.c). An insert or an empty
- * slot has no return, so no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). One instance per type
- * (fx_slots.c fxs_set): one return per send. No send in any slot: no set */
+ * tracks"): a card a return, R1 R2 R3 (fx_slots.c fxs_card: the one order, as the master FX's RETURNS page, op_screens.c
+ * FX_RET), "REV RET" ..; each turns its line's return level (core.h G_CRET G_DRET G_RRET, fx.c). An empty return has
+ * no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). No return holding anything: no set */
 static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    uint32_t k;
+    uint32_t k, t;
     for (k = 0; k < 3u; k++)
-        if (FXS_ON(T[k]))
-            n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(T[k])), MI_RET, G_CRET + (T[k] - FXT_CHO));
+        if ((t = fxs_card(k)) != FXT_NONE)
+            n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(t)), MI_RET, G_CRET + FXS_LN(t));
     return n;
 }
 static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value items, unpadded */
@@ -194,6 +196,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #if FELUCCA_USB_AUDIO
     if (mx_is_usb(r)) {                                 /* the USB input: VOLUME PAN FX ON | its insert slots | its sends
                                                          * (MUTE: SHIFT2 on VOLUME, as every row) */
+        uint32_t k, t;
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_LVL);
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_PAN);
         n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_FXON);
@@ -203,12 +206,9 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_add(it, n, MG_INS, 0, MI_UTST, 1);
             n = mx_add(it, n, MG_INS, 0, MI_UTSA, 1);
         }
-        if (FXS_ON(FXT_REV))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_REV);
-        if (FXS_ON(FXT_DLY))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_DLY);
-        if (FXS_ON(FXT_CHO))
-            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_CHO);
+        for (k = 0; k < 3u; k++)                        /* (its sends in the returns' order: fx_slots.c fxs_card) */
+            if ((t = fxs_card(k)) != FXT_NONE)
+                n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_REV + FXS_DSI(t));
         return n;
     }
 #endif

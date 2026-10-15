@@ -363,8 +363,8 @@ static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)
  * then send returns, then fx slots, then macro"): INSERTS (the master's two insert slots, fx-rework 2026-10-14: its FILT,
  * DUST and DYN are insert types now), INS DYN 1 INS DYN 2 (DYN's settings, while a master slot holds it: the compressor
  * THRS RATIO ATK REL, then GAIN CEIL and the reduction), DUCK (the kick ducking the parts: MASTER's page without its
- * DUST and FILT, now insert amounts), RETURNS
- * RET DELAY RET REV (the return levels, then the effects they return; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
+ * DUST and FILT, now insert amounts), RETURNS RET REV RET DELAY (the return levels, then the effects they return, REV
+ * first as R1: fx_slots.c FXS_ORDER; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
  * order and titles (its UI draws them: ui/sloop/ui_draw.c); the order and names shown are this table's (FX_ORDER, a
  * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, is
  * GLOBAL's Tempo list's fourth line (op_global.c; it sat on LIMIT's free card until fx-rework) */
@@ -372,10 +372,18 @@ static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET
                                           {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
                                           {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"},
                                           {"MST EQ3", "INS EQ3"}, {"MST EQ3 F", "INS EQ3 F"}};
-static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MASTER", "RETURNS", "DLY",
-                                       "REV/CHO", "REVERB", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F", "MACRO"};
+static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MASTER", "RETURNS", "REV/CHO",
+                                       "REVERB", "DLY", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
-static const page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};   /* (REV DLY CHO: the one order) */
+/* RETURNS: R1 R2 R3's return levels (the one order, fx_slots.c fxs_card: fx_ret_sync writes the ids; an empty return:
+ * none), REVERB's TYPE the fourth */
+static page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};
+static void fx_ret_sync(void)
+{
+    uint32_t k, t;
+    for (k = 0; k < 3u; k++)
+        FX_RET.id[k] = (uint8_t)((t = fxs_card(k)) != FXT_NONE ? G_CRET + FXS_LN(t) : 0xFFu);
+}
 #define FX_RET_IX 0xFEu                                 /* fx_ix's entry for FX_RET (past PAGES) */
 static uint8_t fx_ix[OP_MAXROWS];
 static const page_t *fx_pg_of(uint32_t ix)
@@ -420,7 +428,7 @@ static uint32_t fxs_rows(void)
             fx_ix[j++] = fx_ix[i];
     n = j;
     if (n < OP_MAXROWS)
-        fx_ix[n++] = FX_RET_IX;
+        fx_ix[n++] = FX_RET_IX, fx_ret_sync();
     for (i = 1; i < n; i++) {                           /* PAGES' order to this one's (stable insertion sort) */
         uint8_t v = fx_ix[i];
         for (j = i; j && fx_rank(fx_ix[j - 1u]) > fx_rank(v); j--)
@@ -445,9 +453,10 @@ static void fxs_name(uint32_t r, char *b)
  * of a page); RETURNS: the returns of the sends a slot holds (as the mixer's), then REVERB's TYPE where it is built and shown */
 static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
 {
-    static const uint8_t RT[3] = {FXT_REV, FXT_DLY, FXT_CHO};
     const page_t *pg = fx_pg(r), *ty = pg == &FX_RET ? fx_type_page() : 0;
     uint32_t n = 0;
+    if (pg == &FX_RET)
+        fx_ret_sync();
     for (*j = 0; *j < 4u; (*j)++) {
         uint32_t id = page_id(pg, *j);
         if (pg == &FX_RET && *j == 3u && ty && page_shown(ty)) {
@@ -457,8 +466,9 @@ static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
             }
             break;
         }
-        if (id != 0xFFu && pg->scope == SC_GLOBAL && (!cell_built(pg, id) || (pg == &FX_RET && *j < 3u && !FXS_ON(RT[*j])) ||
-                                                      id == G_DUST || id == G_FILT))   /* (DUST FILT: INSERTS' amounts) */
+        if ((pg == &FX_RET && *j < 3u && id == 0xFFu) ||   /* (an empty return: no card) */
+            (id != 0xFFu && pg->scope == SC_GLOBAL && (!cell_built(pg, id) || id == G_DUST || id == G_FILT)))   /* (DUST
+                                                        * FILT: INSERTS' amounts) */
             continue;
         if (n++ == (k & 3u))
             return pg;
@@ -473,8 +483,8 @@ static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
     if (!pg)
         return;
     page_cell(pg, j, c);
-    if (pg == &FX_RET && j < 3u)
-        c->label = fxs_ret_label(2u - j);               /* (REV DLY CHO: lines 2 1 0; a return's other type by its name) */
+    if (pg == &FX_RET && j < 3u && fxs_card(j) != FXT_NONE)
+        c->label = fxs_ret_label(FXS_LN(fxs_card(j)));  /* (a return's other type by its name) */
 }
 static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {

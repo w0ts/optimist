@@ -53,16 +53,17 @@ int main(void)
     int32_t peak;
     host_tracks_init();
     fxs_set(FXS_DEF);
-    check("default: R1 R2 R3 = CHO DLY REV on lines 0 1 2, no other type, every built line live",
-          fxs_line[1] == 0 && fxs_line[2] == 1 && fxs_line[3] == 2 && !rt_any() && FXS_ON(FXT_CHO) == FELUCCA_FX_CHORUS &&
+    check("default: R1 R2 R3 = REV DLY CHO (the one order) on lines 2 1 0, no other type, every built line live",
+          fxs_line[1] == 2 && fxs_line[2] == 1 && fxs_line[3] == 0 && !rt_any() && FXS_ON(FXT_CHO) == FELUCCA_FX_CHORUS &&
           FXS_ON(FXT_REV) == FELUCCA_FX_REVERB);
     check("... nothing to keep: no FX record", fxr_encode(b) == 0u);
-    fxs_load(1, FXT_PHSR);
-    check("PHSR into R1: on line 0 (CHO's), CHO not heard, its line is; amount 64 (full wet)",
-          fxs_slot[1] == FXT_PHSR && fxs_line[1] == 0 && fxs_rty[0] == FXT_PHSR && !FXS_HAS(FXT_CHO) && FXS_ON(FXT_CHO) &&
-          fxs_ramt[1] == 64 && rt_amt(0) == 64);
-    check("... the tracks' CHO send card is named PHSR; the others keep theirs",
-          !strcmp(fxs_send_d(P_CHOR)->label, "PHSR") && fxs_send_d(P_DLY) == &TP[P_DLY] && fxs_send(0) == FXT_CHO);
+    fxs_load(3, FXT_PHSR);
+    check("PHSR into R3: on line 0 (CHO's), CHO not heard, its line is; amount 64 (full wet)",
+          fxs_slot[3] == FXT_PHSR && fxs_line[3] == 0 && fxs_rty[0] == FXT_PHSR && !FXS_HAS(FXT_CHO) && FXS_ON(FXT_CHO) &&
+          fxs_ramt[3] == 64 && rt_amt(0) == 64);
+    check("... the tracks' CHO send card (card 3: R3's) is named PHSR; the others keep theirs",
+          !strcmp(fxs_send_d(P_CHOR)->label, "PHSR") && fxs_send_d(P_DLY) == &TP[P_DLY] && fxs_send(2) == FXT_CHO &&
+          fxs_card(2) == FXT_CHO && fxs_card(0) == FXT_REV);
     fxs_load(2, FXT_GATE);
     check("GATER refused on a return (a track's tempo values)", fxs_slot[2] == FXT_DLY);
     for (i = 0, eq = 1, peak = 0; i < 40u; i++) {
@@ -80,9 +81,10 @@ int main(void)
     blk(0, 40000, 1);
     check("CHO RET (line 0's return) at 0: nothing out", !any(mix_l));
     song.g[G_CRET] = 127;
-    fxs_load(1, FXT_REV);
-    check("REV into R1: swaps with PHSR, each keeps its line (REV 2, PHSR 0)", fxs_slot[1] == FXT_REV && fxs_line[1] == 2 &&
-          fxs_slot[3] == FXT_PHSR && fxs_line[3] == 0 && fxs_rty[0] == FXT_PHSR && fxs_rty[2] == FXT_NONE);
+    fxs_load(3, FXT_REV);
+    check("REV into R3: swaps with PHSR, each keeps its line (REV 2, PHSR 0); the cards follow (R1 PHSR's CHO line)",
+          fxs_slot[3] == FXT_REV && fxs_line[3] == 2 && fxs_slot[1] == FXT_PHSR && fxs_line[1] == 0 &&
+          fxs_rty[0] == FXT_PHSR && fxs_rty[2] == FXT_NONE && fxs_card(0) == FXT_CHO && fxs_card(2) == FXT_REV);
     fxs_load(2, FXT_FLNG);
     fxi_poll();
     check("FLNG into R2 (line 1): the pool's instance, owner R2's line", fxs_rty[1] == FXT_FLNG &&
@@ -90,18 +92,18 @@ int main(void)
     for (i = 0; i < 20u; i++)
         blk(1, 40000, i);
     check("... heard", any(mix_l) != 0);
-    fxs_ramt[3] = 77;
+    fxs_ramt[1] = 77;
     n = fxr_encode(b);
     for (k = 0, eq = 1; k < FX_NSLOT; k++)
         eq &= b[2u + k] != FXT_PHSR && b[2u + k] != FXT_FLNG;
     check("record: the header holds the sends (and the tracks' inserts as before), never a return's other type; a RET_TLV",
-          n > FXR_HEAD && b[3] == FXT_REV && eq);
+          n > FXR_HEAD && b[5] == FXT_REV && eq);
     fxs_set(FXS_DEF);
     check("... the default again (a header alone: no other type)", !rt_any());
     fxr_decode(b, n, 1);
-    check("... decoded: REV FLNG PHSR, lines 2 1 0, PHSR's amount 77", fxs_slot[1] == FXT_REV && fxs_slot[2] == FXT_FLNG &&
-          fxs_slot[3] == FXT_PHSR && fxs_line[2] == 1 && fxs_line[3] == 0 && fxs_ramt[3] == 77 && fxs_rty[0] == FXT_PHSR);
-    fxs_load(3, FXT_NONE);
+    check("... decoded: PHSR FLNG REV, lines 0 1 2, PHSR's amount 77", fxs_slot[1] == FXT_PHSR && fxs_slot[2] == FXT_FLNG &&
+          fxs_slot[3] == FXT_REV && fxs_line[1] == 0 && fxs_line[2] == 1 && fxs_ramt[1] == 77 && fxs_rty[0] == FXT_PHSR);
+    fxs_load(1, FXT_NONE);
     fxs_load(2, FXT_NONE);
     for (i = 0; i < RT_TAIL + 2u; i++)
         blk(0, 40000, i);

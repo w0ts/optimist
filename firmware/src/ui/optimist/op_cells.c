@@ -256,7 +256,7 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
 #define LFO_PGN 0u
 #endif
 /* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's two
- * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its REV DLY CHO, those the master slots hold: LSEND0 + k, mapped by lane_send_vid), in place
+ * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its sends in the returns' order: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
 #define LPAN_ID (LSEND0 + 3u)                          /* SENDS' card 4: the lane's PAN (drum_mix.c dlm_pan; the mixer's MI_LANE id 23: 19..22 are the lane inserts) */
@@ -348,15 +348,12 @@ static uint32_t op_pg_at(uint32_t j)
     return j;
 }
 _Static_assert(OP_NPG < 0xFFu, "the page lists' indexes: a byte");
-/* a lane's value id of SENDS' card k (REV, DLY, CHO), 0xFF none (no master slot holds it): REV 16, DLY 17, CHO 18 */
-static uint32_t lane_send_vid(uint32_t k)             /* (REV DLY CHO, the one order: a type no slot holds, none) */
+/* a lane's value id of SENDS' card k (return R(k+1)'s send: fx_slots.c fxs_card, the one order), 0xFF none (an empty
+ * return): REV 16, DLY 17, CHO 18 */
+static uint32_t lane_send_vid(uint32_t k)
 {
-    static const uint8_t T[3] = {FXT_REV, FXT_DLY, FXT_CHO};
-    uint32_t i;
-    for (i = 0; k < 3u && i < 3u; i++)
-        if (fxs_send(i) == T[k])
-            return 16u + k;
-    return 0xFFu;
+    uint32_t t = fxs_card(k);
+    return t == FXT_NONE ? 0xFFu : 16u + FXS_DSI(t);
 }
 /* a lane's PAN (the one value dsnd_desc_lane has not: SLOOP's mixer keeps it in drum_mix.c, so does this one) */
 static const param_desc_t *lane_pan_desc(uint32_t l, int16_t **vp)

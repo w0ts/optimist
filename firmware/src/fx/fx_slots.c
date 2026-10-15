@@ -5,7 +5,7 @@
  *     to a slot (D4): a track's P_DIST P_TFLT P_TCOMP, its sends P_CHOR P_DLY P_REV, so presets, locks, motion, MACRO
  *     and SLOOP 2.4 keep their meaning whatever the slots. A type in no slot is not heard and keeps its amounts.
  *   - The four master slots hold the SENDS only (D1): FX > SLOTS, the record's header. One instance per type: a type
- *     held elsewhere swaps the two slots. Default ---- CHO DLY REV.
+ *     held elsewhere swaps the two slots. Default ---- REV DLY CHO (FXS_ORDER).
  *   - Each track (T1 T2 T3 DR) has two INSERT slots, S1 then S2, run in that order after the SLICER (D2): fx.c
  *     ins_part, dbus_run. One type at most once on a track: picking the other slot's type swaps them (D3). A new
  *     track's: S1 DIST, S2 FILTER (D5), both at 0 (bypassed: a compare a block). Old projects: fx_rec.c ins_map.
@@ -87,11 +87,16 @@ static const uint8_t FXT_AMT[FXT_N] = {
     0xFF,
 #endif
 };
-/* the master layout before the track slots, and of a project with no FX record: DIST CHO DLY REV (fx_rec.c ins_map
- * reads an old layout's inserts; a record's header is written in it as far as it can: fx_rec.c fxr_head) */
-static const uint8_t FXS_OLD[FX_NSLOT] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV};
-static const uint8_t FXS_DEF[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};
-static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};   /* (an id this build lacks: kept, unheard) */
+/* THE send order (2026-10-15, the user: "match the order between master return and the send"): REV DLY CHO. The
+ * returns R1 R2 R3 hold them by default, FX > SLOTS lists them so, and every screen shows the sends and the returns in the
+ * returns' order (fxs_card: card k is return R(k+1), whatever it holds), so a send's card sits on its return's knob */
+#define FXS_ORDER FXT_REV, FXT_DLY, FXT_CHO
+static const uint8_t FXS_ORD[3] = {FXS_ORDER};
+/* the header of the default layout, and the layout of a project with no FX record: DIST, then the sends (fx_rec.c ins_map
+ * reads a layout's inserts; a record's header is written in it as far as it can: fx_rec.c fxr_head) */
+static const uint8_t FXS_OLD[FX_NSLOT] = {FXT_DIST, FXS_ORDER};
+static const uint8_t FXS_DEF[FX_NSLOT] = {FXT_NONE, FXS_ORDER};
+static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXS_ORDER};   /* (an id this build lacks: kept, unheard) */
 /* ---- the returns R1 R2 R3 (fx-pool 2026-10-15: "any effect type ... AND a return-bus slot"). Three send LINES, the buses
  * every track's sends feed (fx.c send_c send_d send_r: a track's P_CHOR, P_DLY, P_REV, the drum lanes' and the USB input's
  * sends), named by the send type that owns each: line 0 CHO, 1 DLY, 2 REV. Each return slot (1..3) holds a type and owns one
@@ -125,10 +130,11 @@ static const uint8_t FXS_LT[3] = {FXT_CHO, FXT_DLY, FXT_REV};   /* line j's send
 #define FXS_LIVE_DEF (FXT_BUILT & (FXT_BIT(FXT_CHO) | FXT_BIT(FXT_DLY) | FXT_BIT(FXT_REV)))
 static uint32_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lnl = (uint8_t)((FELUCCA_FX_CHORUS ? 1u : 0u) | (FELUCCA_FX_DELAY ? 2u : 0u) | (FELUCCA_FX_REVERB ? 4u : 0u));
-static uint8_t fxs_line[FX_NSLOT] = {0xFF, 0, 1, 2};   /* slot k's line (0xFF: none) */
+static uint8_t fxs_line[FX_NSLOT] = {0xFF, FXS_LN(FXT_REV), FXS_LN(FXT_DLY), FXS_LN(FXT_CHO)};   /* slot k's line (0xFF:
+                                                        * none; FXS_DEF's) */
 static int16_t fxs_ramt[FX_NSLOT];                     /* a return's amount (a type not a send) */
 static volatile uint8_t fxs_rty[3] = {FXT_NONE, FXT_NONE, FXT_NONE};
-static volatile uint8_t fxs_rsl[3] = {1, 2, 3};
+static volatile uint8_t fxs_rsl[3] = {3, 2, 1};       /* (line j's slot: FXS_DEF's, CHO in R3, DLY R2, REV R1) */
 static uint8_t fxs_lm[3] = {31, 31, 31};
 #define FXS_HAS(x) (fxs_live >> (x) & 1u)
 #define FXS_ON(x) (fxs_lnl >> FXS_LN(x) & 1u)
@@ -244,6 +250,16 @@ static uint32_t fxs_send(uint32_t i)
     return FXT_NONE;
 }
 #define fxs_send_amt(i) (fxs_send(i) == FXT_NONE ? 0xFFu : (uint32_t)FXT_AMT[fxs_send(i)])
+/* card k (0..2) of every sends / returns set (the SENDS pages, the mixer's sends and returns, RETURNS): return R(k+1)'s
+ * send line, as its send type (CHO DLY REV: the line's track amount P_CHOR P_DLY P_REV, its return level G_CRET + FXS_LN;
+ * a return holding another type: its line's), FXT_NONE: an empty return (a blank card) */
+static uint32_t fxs_card(uint32_t k)
+{
+    uint32_t j = k < 3u ? fxs_line[k + 1u] : 0xFFu;
+    return j < 3u && (fxs_lnl >> j & 1u) ? FXS_LT[j] : FXT_NONE;
+}
+#define FXS_DSI(t) (2u - FXS_LN(t))                    /* a send type's index in the REV DLY CHO tables (drum_sends.c's
+                                                        * fields, the kit's levels, the USB input's UTV_REV ..) */
 /* line j's name (the type its return holds: a send's, or the other type's), "" none */
 static const char *fxs_line_name(uint32_t j)
 {
@@ -1146,10 +1162,10 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
     }
 #endif
     fxs_v[k & 3u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
-    for (i = 0; i < 2u * FXT_N; i++) {                /* (the list from the table: each type's amount names it): ----
-                                                        * and the sends first (the list of before), then the others */
-        t = i % FXT_N;
-        if (i < FXT_N ? t == FXT_NONE || ((FXT_BUILT >> t & 1u) && FXT_SEND_OK(t)) : FXS_GEN(t)) {
+    for (i = 0; i < 4u + FXT_N; i++) {                /* (the list from the table: each type's amount names it): ----
+                                                        * and the sends first, in FXS_ORD, then the others */
+        t = i == 0 ? FXT_NONE : i < 4u ? FXS_ORD[i - 1u] : i - 4u;
+        if (i < 4u ? t == FXT_NONE || (FXT_BUILT >> t & 1u) : FXS_GEN(t)) {
             fxs_names[n] = t == FXT_NONE ? "----" : t == FXT_DYN ? "DYN" : TP[FXT_AMT[t]].label;
             if (fxs_slot[k & 3u] == t)
                 fxs_v[k & 3u] = (int16_t)n;

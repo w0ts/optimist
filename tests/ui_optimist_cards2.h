@@ -19,7 +19,7 @@ static void c2_master_tests(void)
     frame();
     n = mx_rets(ret);
     check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 2u && ret[1] == 1u && ret[2] == 0u,
-          "MASTER page: three return lines, REV DLY CHO (every FX built here)");
+          "MASTER page: three return lines, R1 R2 R3 = REV DLY CHO (the default; every FX built here)");
     for (i = 0; i < n; i++) {                           /* the names in C_HI where T1 .. DR were */
         y = (uint32_t)(OP_PY + MXM_CY + (int32_t)i * MXM_CP);
         ok &= (uint32_t)px_in(MXM_X, y, 24, 14, C_HI);
