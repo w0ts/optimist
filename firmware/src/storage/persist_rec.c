@@ -33,10 +33,17 @@ typedef struct {
                                                     * ble_store.h, io/midi/ble_devices.c; zero: nothing remembered) */
 #endif
 #if FELUCCA_FAVORITES
-    fav_t fav;                                     /* appended last (core/favorites.c): the marked sounds, 136 B. A record from
+    fav_t fav;                                     /* appended (core/favorites.c): the marked sounds, 136 B. A record from
                                                     * before it reads whole, with none (persist_upgrade) */
 #endif
+#if FELUCCA_USB_AUDIO
+    uint8_t ua_src[UA_ROUTE_N];                    /* appended last (io/usb/ua_tap.h): the USB capture channels' sources */
+    uint32_t ua_mark;                              /* PERSIST_UA_MARK: they are set (else, or another build's layout: the
+                                                    * defaults, T1 T2 T3 DRUMS) */
+#endif
 } persist_t;
+#define PERSIST_UA_MARK 0x32524155u                /* "UAR2": the list without -3 / -6 dB (ua_tap.h) */
+#define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_BRIGHT || BP23_SET
 #define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
@@ -53,6 +60,12 @@ typedef struct {
 static int persist_upgrade(persist_t *pp, int n)
 {
     persist_t p = *pp;
+#if FELUCCA_USB_AUDIO
+    if (n < (int)sizeof p)                         /* (first: a record from before the USB routing is whole without it) */
+        memset(p.ua_src, 0, sizeof p.ua_src), p.ua_mark = 0;
+    if (n == (int)__builtin_offsetof(persist_t, ua_src))
+        n = (int)sizeof p;
+#endif
 #if FELUCCA_FAVORITES
     if (n < (int)sizeof p)                         /* (st_load sets the first n bytes only) */
         memset(&p.fav, 0, sizeof p.fav);
@@ -133,5 +146,32 @@ static void persist_fav_save(persist_t *p)
 {
     p->fav = fav;
     p->fav.mark = FAV_MARK;
+}
+#endif
+
+#if FELUCCA_USB_AUDIO
+/* the USB capture channels' sources of a record read (persist_boot; none, or out of range: the defaults), and out (settings_save) */
+static void persist_ua_load(const persist_t *p)
+{
+    uint32_t c;
+    /* UAR1's indices: OFF ML MR M-3 M-6 T1 T2 T3 DRUMS BL BR B-3 B-6 DR1.. -> today's (each sum: L+R) */
+    static const uint8_t V1[13] = {UAS_OFF, UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_MAIN_S, UAS_T1, UAS_T2, UAS_T3,
+                                   UAS_DRUMS, UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_DBUS_S};
+    ua_route_default();
+    if (p->ua_mark != PERSIST_UA_MARK && p->ua_mark != PERSIST_UA_MARK1)
+        return;
+    for (c = 0; c < UA_ROUTE_N; c++) {
+        uint32_t v = p->ua_src[c];
+        if (p->ua_mark == PERSIST_UA_MARK1)
+            v = v < 13u ? V1[v] : v - 13u < DRUM_LANES ? UAS_DR1 + (v - 13u) : 0xFFu;
+        if (v < UAS_N)
+            ua_src[c] = (uint8_t)v;
+    }
+    ua_route_apply();
+}
+static void persist_ua_save(persist_t *p)
+{
+    memcpy(p->ua_src, ua_src, sizeof p->ua_src);
+    p->ua_mark = PERSIST_UA_MARK;
 }
 #endif

@@ -145,7 +145,11 @@ static void t_record(void)
     uint32_t off = (uint32_t)offsetof(persist_t, fav);
     fill(&p, 3);
     q = p;
+#if FELUCCA_USB_AUDIO
+    check("the favorites are the record's last field but the USB routing", off + sizeof(fav_t) == offsetof(persist_t, ua_src));
+#else
     check("the favorites are the record's last field", off + sizeof(fav_t) == sizeof(persist_t));
+#endif
     check("... and the record still fits a sector and stays below SLOOP 2.5's (checked at build)", sizeof(persist_t) <= ST_PAYLOAD_MAX);
 
     /* a record a build before the favorites wrote: its length is the offset of fav */
@@ -206,6 +210,33 @@ static void t_record(void)
 #endif
 }
 
+#if FELUCCA_USB_AUDIO
+/* the USB routing (SYSTEM > USB AUDIO), appended last: an older record reads whole with the defaults, a UAR1 record's
+ * -3 / -6 dB sums load as L+R (the user, 2026-10-15: one sum, (L + R) / 2) */
+static void t_ua(void)
+{
+    persist_t p, q;
+    int r;
+    fill(&p, 7);
+    q = p;
+    memset(p.ua_src, 0xA5, sizeof p.ua_src), p.ua_mark = 0xA5A5A5A5u;
+    r = persist_upgrade(&p, (int)offsetof(persist_t, ua_src));
+    persist_ua_load(&p);
+    check("USB AUDIO: a record from before it reads whole, the routing the default, the favorites kept",
+          r == (int)sizeof p && ua_ident && !memcmp(&p.fav, &q.fav, sizeof p.fav) && p.bp23 == q.bp23);
+    p.ua_mark = PERSIST_UA_MARK1;
+    p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 15, p.ua_src[3] = 13 + 16;   /* (M-6, B-3, DR16, out of range) */
+    persist_ua_load(&p);
+    check("USB AUDIO: a UAR1 record: -6 / -3 dB as L+R, a lane kept, out of range the default",
+          ua_src[0] == UAS_MAIN_S && ua_src[1] == UAS_DBUS_S && ua_src[2] == UAS_N - 1u && ua_src[3] == UAS_DRUMS);
+    persist_ua_save(&q);
+    ua_route_default();
+    persist_ua_load(&q);
+    check("USB AUDIO: saved as UAR2 and read back", q.ua_mark == PERSIST_UA_MARK && ua_src[0] == UAS_MAIN_S && ua_src[2] == UAS_N - 1u);
+    ua_route_default();
+}
+#endif
+
 static void t_flash(void)
 {
     persist_t p, q, r;
@@ -241,6 +272,9 @@ int main(void)
 {
     t_store();
     t_record();
+#if FELUCCA_USB_AUDIO
+    t_ua();
+#endif
     t_flash();
     printf("favorites: %s\n", bad ? "FAILED" : "all ok");
     return bad;
