@@ -13,6 +13,7 @@ from pathlib import Path
 
 FS = 44100
 CTL = 32
+PITCH_TOP = 2048 - 192   # pitch_inc: PITCH_INC_OCT's first pitch (MIDI 116, in 1/16 semitones)
 
 
 def arr(name, ctype, vals, per=12, ram=False):
@@ -168,12 +169,27 @@ def main(path):
          "#elif defined(__PI32V2__)", '#define TAB_RAM __attribute__((section(".data.tab_ram")))',
          "#else", "#define TAB_RAM", "#endif", ""]
     L += arr("SINE", "int16_t", [int(round(32767 * math.sin(2 * math.pi * i / 1024))) for i in range(1024)], ram=True)
-    # phase increment for pitch in 1/16 semitone, MIDI 0..127
-    inc = []
-    for p in range(128 * 16):
+    # phase increment for pitch in 1/16 semitone, MIDI 0..127: the top octave (MIDI 116..127.94) and a shift per octave
+    # below (pitch_inc). The increments are truncated, so a shift gives each lower one exactly (checked here against
+    # the 2,048-entry table this replaced: 8 KB less flash)
+    def inc_of(p):
         f = 440.0 * 2 ** ((p / 16 - 69) / 12)
-        inc.append(min(int(f / FS * 2 ** 32), 0x7FFFFFFF))
-    L += arr("PITCH_INC", "uint32_t", inc, 8)
+        return min(int(f / FS * 2 ** 32), 0x7FFFFFFF)
+    top = [inc_of(PITCH_TOP + k) for k in range(192)]
+    for p in range(128 * 16):
+        q = p + 64
+        assert top[q % 192] >> (10 - q // 192) == inc_of(p), p
+    L += arr("PITCH_INC_OCT", "uint32_t", top, 8)
+    L += ["/* the increment of pitch p (1/16 semitones, 0..2047): the octave's entry shifted down; q / 192 as",
+          " * (q / 64) * 171 / 512 (exact for q < 2112; no divide) */",
+          "#if defined(__GNUC__) || defined(__clang__)",
+          "__attribute__((always_inline))   /* (RAM code calls it: never an XIP copy) */",
+          "#endif",
+          "static inline uint32_t pitch_inc(int32_t p)",
+          "{",
+          "    uint32_t q = (uint32_t)p + 64u, o = ((q >> 6) * 171u) >> 9;",
+          "    return PITCH_INC_OCT[q - o * 192u] >> (10u - o);",
+          "}"]
     # times 1 ms .. 10 s (exponential), env in Q24 (1.0 = 1<<24)
     ms = [1.0 * (10000 ** (v / 127)) for v in range(128)]
     L += arr("TIME_MS_X10", "uint32_t", [int(round(m * 10)) for m in ms], 10)

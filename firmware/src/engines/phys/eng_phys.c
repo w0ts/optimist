@@ -3,7 +3,7 @@
  * hugelton/Felucca 727f272, firmware/src/eng_phys.c; its DSP phys_dsp.c / phys_symp.c are MIT ports, see there) */
 /* In SLOOP-plus / Optimist: a pluggable engine (FELUCCA_ENG_PHYS, backports.h), stable engine number 11
  * (engines.c: 10 stays SLICE's); its 12 voice states take 51.5 KB of pool. Changes from Felucca 1.0: our engine_t
- * (macro knobs, colour), PITCH_INC for its pitch_inc, three preset names that SLOOP's bank already holds renamed
+ * (macro knobs, colour), the firmware's pitch_inc (felucca_tables.h), three preset names that SLOOP's bank already holds renamed
  * (MARIMBA, KALIMBA, HARP: other engines' presets of those names exist), no legacy DUST import (no project
  * ever held PHYS here). */
 /* PHYS: physical models. The DSP is ported to fixed point from DaisySP (Electrosmith, Emilie Gillet;
@@ -157,7 +157,7 @@ static __attribute__((noinline)) void phys_symp_pitches(const track_t *t, const 
         int32_t p16 = PHYS_DETUNE[k];
         p16 += c < 7u ? m->pitch16 + ((PHYS_CHORDS[c][k] * 41) >> 8)   /* cents -> 1/16 semitones (0.16) */
                       : (48 + t->p[P_ROOT] + (k == 1u ? 7 : k == 2u ? 12 : 0)) * 16;
-        f[k] = PITCH_INC[clamp(p16, 0, 2047)];
+        f[k] = pitch_inc(clamp(p16, 0, 2047));
     }
 }
 

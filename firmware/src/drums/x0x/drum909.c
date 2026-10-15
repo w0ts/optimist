@@ -124,8 +124,8 @@ int drum909_get(const drum909_t *d, int voice, int i)
 /* er99_pot_to_value */
 static float d9_pot_value(const d9_pspec_t *s, int pot)
 {
-    if (s->curve == CV_EXP)
-        return x0x_pot_exp[s->exp][pot];
+    if (s->curve == CV_EXP)                         /* Optimist: computed here (set time), was an 18 x 128 table */
+        return x0x_exp_lo[s->exp] * fm_exp2f(((float)pot / 127.0f) * x0x_exp_l2[s->exp]);
     if (s->curve == CV_SW)
         return (float)pot;
     return fm_lin_pot(s->lo, s->hi, pot);          /* (Optimist: dsp_float.h, the 808's too) */

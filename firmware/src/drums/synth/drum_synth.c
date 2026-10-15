@@ -102,7 +102,7 @@ static int32_t ds_onepole(uint32_t cut)                 /* CUTOFF_HZ index -> a 
  * (>= ~80 Hz), LEVEL in dB (-24..6) as a Q12 gain 2^(dB / 6.02), 0 = no edit */
 AINL int32_t dl_cut_k(int32_t cut) { return ds_onepole((uint32_t)clamp(127 + 2 * cut, 20, 127)); }
 AINL int32_t dl_lvl_g(int32_t db) { return db ? (int32_t)(pow2_q16(db * 32) >> 4) : 0; }
-AINL uint32_t ds_inc(int32_t p16) { return PITCH_INC[clamp(p16, 0, 127 * 16 + 15)]; }
+AINL uint32_t ds_inc(int32_t p16) { return pitch_inc(clamp(p16, 0, 127 * 16 + 15)); }
 AINL uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
 
 /* the filter's coefficients for this block: the cutoff plus the envelope's share (dsp.c tsvf_coef_k's lines: the call
@@ -162,7 +162,7 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
     s->rnd = (int32_t)(0x9E3779B9u ^ (note * 2654435761u) ^ rng());
     s->lfsr = 0x4001u;
     {   /* CHIP clock: 8x that note; saturated (the top notes would wrap 32 bits: a dull noise) */
-        uint32_t ci = PITCH_INC[clamp((int32_t)d->chip, 0, 127) * 16];
+        uint32_t ci = pitch_inc(clamp((int32_t)d->chip, 0, 127) * 16);
         s->cinc = ci >= 0x20000000u ? 0xFFFFFFFFu : ci << 3;
     }
     for (i = 0; i < 6u; i++)

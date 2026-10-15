@@ -51,12 +51,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-import ble_vm                          # (tools/: the script's own folder, on sys.path when run or imported from it)
+import ble_rf_pack                     # (tools/: the script's own folder, on sys.path when run or imported from it)
+import ble_vm
 from fm1_rescue import STOCK_SHA256
 
 ROOT = Path(__file__).resolve().parents[1]
 
-FORMAT = 2                              # the header's format (hal/fm1_ble_rf.h checks it)
+FORMAT = 3                              # the header's format (hal/fm1_ble_rf.h checks it): 3 = the program packed
+                                        # (tools/ble_rf_pack.py); the program this tool makes and pins is format 2
 # SHA-256 of the extracted data (program, addresses, AGC, fields) as this tool made it from stock V15 in fm1-emulator
 # feat/ble-engine 6531e20 on 2026-10-08 (two runs identical). Not the table: only its fingerprint.
 PINNED = "30ba97eac84ae1b5574c6328a2ab67df7a0c97720b7276b3dcb13cb0e49dcba3"
@@ -604,7 +606,30 @@ def masked(seq):
 
 # ------------------------------------------------------------------------------------------- the header ---
 
+def field_bytes():
+    return bytes(x for kind, where, s, w, rid, b, k in FIELDS for x in (REC[rid], b, s, w | k << 7))
+
+
+def tables_digest(prog, addrs, agc):
+    """the fingerprint PINNED is: the format-2 program, the addresses, the AGC words, the fields"""
+    blob = bytes(prog) + b"".join(a.to_bytes(4, "little") for a in addrs) + b"".join(v.to_bytes(4, "little") for v in agc)
+    return hashlib.sha256(blob + field_bytes()).hexdigest()
+
+
+def header_digest(text):
+    """a format-3 header's tables (its program unpacked) -> their fingerprint; the program decoded back to format 2
+    is byte for byte the capture exactly when this is PINNED"""
+    A = ble_rf_pack.header_array
+    if bytes(A(text, "ble_rf_fields")) != field_bytes():
+        return "fields differ"
+    return tables_digest(ble_rf_pack.unpack(bytes(A(text, "ble_rf_prog"))), A(text, "ble_rf_addr"), A(text, "ble_rf_agc"))
+
+
 def header(prog, addrs, agc, notes, bbp_flags, digest, counts):
+    try:
+        packed = ble_rf_pack.pack(prog)
+    except ble_rf_pack.PackError as e:
+        raise CaptureError(f"packing the program: {e}")
     def arr(name, ctype, vals, per, fmt):
         rows = [", ".join(fmt % v for v in vals[i:i + per]) for i in range(0, len(vals), per)]
         return f"static const {ctype} {name}[{len(vals)}] = {{\n    " + ",\n    ".join(rows) + "\n};\n"
@@ -621,10 +646,11 @@ def header(prog, addrs, agc, notes, bbp_flags, digest, counts):
         f"#define BLE_RF_LUT_TRIMMED {counts['lut_trim']}u   /* LUT words a stored trim changes: written as captured, "
         "TODO(hardware) */\n"
         f"#define BLE_RF_NFIELDS {len(FIELDS)}u\n"
-        f"/* program {len(prog)} bytes: {counts['m']} register writes, {counts['ww']} window writes, {counts['wr']} window "
+        f"/* program {len(prog)} bytes as captured (format 2), {len(packed)} packed (tools/ble_rf_pack.py: OP_LUT2, "
+        f"OP_WWG): {counts['m']} register writes, {counts['ww']} window writes, {counts['wr']} window "
         f"reads, {counts['b']} direct BBP, {counts['lut']} LUT words, {counts['trim']} trim marks, {counts['delay']} delays, "
         f"{counts['replay']} replays, sections {' '.join(str(g) for g in notes['sections'])} (§16.1 groups) */\n"
-        + arr("ble_rf_prog", "uint8_t", list(prog), 24, "0x%02X")
+        + arr("ble_rf_prog", "uint8_t", list(packed), 24, "0x%02X")
         + arr("ble_rf_addr", "uint32_t", addrs, 8, "0x%05Xu")
         + arr("ble_rf_agc", "uint32_t", agc, 8, "0x%08Xu")
         + "/* trim fields: record (0 = VM 106, 1 = 107, 2 = 108, 3 = 187), byte, shift, width | kind << 7 (1: a non-zero\n"
@@ -736,9 +762,7 @@ def capture(stock, diagnose, out, work):
     if agc != agc_p:
         raise CaptureError("the AGC table depends on the stored trims (§2.2 says it is constant)")
     prog, addrs, notes, flags, counts, want = build_program(part, part_p, agc, trims, pert)
-    blob = prog + b"".join(a.to_bytes(4, "little") for a in addrs) + b"".join(v.to_bytes(4, "little") for v in agc)
-    blob += bytes(x for kind, where, s, w, rid, b, k in FIELDS for x in (REC[rid], b, s, w | k << 7))
-    digest = hashlib.sha256(blob).hexdigest()
+    digest = tables_digest(prog, addrs, agc)
     if PINNED and digest != PINNED:
         raise CaptureError(f"the captured tables' SHA-256 {digest} is not the pinned {PINNED}: the emulator or its "
                            "trace format changed (fm1-emulator feat/ble-engine 6531e20 made the pinned one); nothing "
@@ -792,6 +816,11 @@ def committed_reason(path=COMMITTED):
     text = path.read_text()
     if f"#define BLE_RF_TABLES_FORMAT {FORMAT}\n" not in text or f'#define BLE_RF_SHA256 "{PINNED}"' not in text:
         return f"{path} is not capture format {FORMAT} with the pinned tables"
+    try:
+        if header_digest(text) != PINNED:
+            return f"{path}: its program, unpacked, is not the pinned capture"
+    except (ble_rf_pack.PackError, IndexError, ValueError) as e:
+        return f"{path}: its program does not unpack ({e})"
     return None
 
 

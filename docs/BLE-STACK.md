@@ -786,9 +786,17 @@ steps 3–4 and §5.4 (§11.4). The program, as captured: 522 register writes (`
 `0x30F00`/`04`, the MAC window; bit 14 of `0x11900` kept as found, HW §16.2), 1,179 window writes and 18 window reads
 (HW §16.3; the reload of group 10 is a replay of group 4's block), 26 direct BBP registers, 512 RF-die LUT
 words (SPI `0x14028` / `0x1402C`, the five-high five-low kick, HW §5.2), 101 trim marks, 4 delays (stock's gaps of
-20 µs or more), one VCO scan, one left-out block and 10 section markers (10,706 bytes). The clock words of group 1 are
+20 µs or more), one VCO scan, one left-out block and 10 section markers (10,706 bytes; stored packed in 5,795: Packed, below). The clock words of group 1 are
 not replayed (`0x10010` bit 10 is our UART's clock, `0x10008` bit 3 the second core's start).
 
+- **Packed (capture format 3, perf/flash-wins)**: the header stores the program packed by `tools/ble_rf_pack.py`,
+  with two ops `fm1_ble_rf_exec` runs write for write as the ops they replace: `OP_LUT2` (0x91) the 512 RF-die LUT words
+  as two commands' word deltas from small tables (one index byte a word), `OP_WWG` (0x92) a window-write group whose n
+  entries repeat (group 4's per-channel BBP load, 128 records of 6 writes). A packed op never starts after a trim mark
+  nor crosses a replay's range, so the replay's offsets stay op boundaries. The pinned SHA-256 is still over the format-2
+  program: `ble_rf_capture.committed_reason` (every BLE build) unpacks the committed program and checks it, so the
+  decoded program is byte for byte the capture. The op counter and the breadcrumb count each write as one op, as before.
+  10,706 B -> 5,795 B.
 - **Section markers**: the capture marks where each §16.1 group starts, by register pattern only (`sections()` in the
   tool): 2 the first analog word, 3 the radio configuration, 4 the BBP first load, 5 the crystal trim (106), 6 the
   analog init, 7 the VCO scan, 8 the post-scan set-up, 10 the BBP second phase, 11 the RF-die LUT, 13 the 108 entries;
@@ -867,7 +875,7 @@ field; a change no field of §12.1 explains stops the tool. Self-checks: the pro
 gives that run's writes exactly (outside the scan and the loop); the result's SHA-256 must be the pinned one
 (`30ba97ea…` since the section markers; two runs identical); else nothing is written. About 30 s.
 
-Output: the tables are **committed** as `firmware/hal/ble_rf_tables_v15.h` (format 2, about 70 KB, SHA-256 of the data
+Output: the tables are **committed** as `firmware/hal/ble_rf_tables_v15.h` (format 3: the program packed, about 40 KB, SHA-256 of the data
 `30ba97ea…`; one comment line: captured from the stock FM-1 V15 firmware). The tool also writes, git-ignored in
 `config/ble/`: `ble_rf_tables.h`, `ble_rf_tables.json` (the V15 SHA-256 it was captured from, the format version and the
 tables' pinned SHA-256) and `ble_rf_capture/` (the emulator's own VM and the expected writes, for §12.4). **The build**

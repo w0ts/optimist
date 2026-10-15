@@ -99,7 +99,7 @@ Builds: which switches put the copy in (engine switches only drop the engine fro
 | # | Copies | Loc. | Builds | Identical | Status |
 |---|---|---|---|---|---|
 | P1 | `fine_inc` inline: voice.c:673, eng_analog.c:34, eng_analog2.c:603/607/608, eng_phase.c:141, eng_super.c:95, cz_native.c:187, eng_trio.c:251 | RAM | | yes | see Merged |
-| P2 | DTN in cents (whole 1/16 st from PITCH_INC, the rest as fine): `eng_analog.c:32`, `eng_analog2.c:600`, `eng_phase.c:133` | RAM | | yes (trio, cz: one multiply, no) | see Merged |
+| P2 | DTN in cents (whole 1/16 st from pitch_inc, the rest as fine): `eng_analog.c:32`, `eng_analog2.c:600`, `eng_phase.c:133` | RAM | | yes (trio, cz: one multiply, no) | see Merged |
 | P3 | 2^x converters: `pow2_q16` (sample), `fmt_ratio` + `SEMI_Q16[13]` (52 B), `px_exp2`, `fm6_pow2`, `cz_scale` + `CZ_POW16[16]` (64 B), `QDB[24]` (48 B), float `fm_exp2f`, `d8_exp2_cr`, `d9_exp_small`, `d8_exp` | | | no: each rounds its own way | see Left |
 | P4 | drum note-on dB and CUT-: `drum_edit.c:163`, `drum_x0x.c:219` | XIP | DRUM_EDIT; X0X | yes | see Merged |
 | P5 | note -> Hz: 303 `tuning * exp2((n - 69) * (1/12))`, 808 `440 * exp2_cr((n - 69) / 12)` | | | no | separate |
@@ -122,10 +122,10 @@ Builds: which switches put the copy in (engine switches only drop the engine fro
 
 | # | Tables | Bytes | Identical | Status |
 |---|---|---|---|---|
-| T1 | `felucca_tables.h` (gen_tables.py): SINE, PITCH_INC, ENV_*, LFO_INC, SVF_G, LEVEL_Q12, DECAY_K, TANH_Q15, FM6_* | | one copy each already; no table is copied elsewhere | nothing to merge |
-| T2 | `x0x_drum_tables.h` (gen_x0x_drums.py): `x0x_tanh_tab[1026]` float, `x0x_pot_exp[18][128]` | 4,104; 9,216 | 909 only; the 808 computes the same pot curves at run time with another pow (last bits differ) | see Ears |
+| T1 | `felucca_tables.h` (gen_tables.py): SINE, PITCH_INC_OCT (pitch_inc: one octave and a shift, was the 2,048-entry PITCH_INC), ENV_*, LFO_INC, SVF_G, LEVEL_Q12, DECAY_K, TANH_Q15, FM6_* | | one copy each already; no table is copied elsewhere | nothing to merge |
+| T2 | `x0x_drum_tables.h` (gen_x0x_drums.py): `x0x_tanh_tab[1026]` float; the 909's EXP pot ranges `x0x_exp_lo[18]`, `x0x_exp_l2[18]` | 4,104; 144 | the 909 computes its pot curves when a pot is set (lo * fm_exp2f(pot / 127 * log2(hi / lo)), within 4 float steps of the 18 x 128 table it replaced, perf/flash-wins); the 808 with its own correctly rounded exp2 | done |
 | T3 | FM6 RAM tables built from flash ones: `FM6_MKI_LOG` (2 KB RAM) from `FM6_MKI_LOGQ` (2 KB flash), `FM6_OPL_LOG` (1 KB) from `FM6_OPL_LOGQ` | | the RAM copy is the speed path (FELUCCA_FM6_MKI_FLASH reads flash instead) | left (a deliberate RAM/flash trade) |
-| T4 | 2^(k/N): `SEMI_Q16[13]`, `CZ_POW16[16]`, `QDB[24]` vs PITCH_INC ratios | 52, 64, 48 | no (rounding) | see Left |
+| T4 | 2^(k/N): `SEMI_Q16[13]`, `CZ_POW16[16]`, `QDB[24]` vs pitch_inc ratios | 52, 64, 48 | no (rounding) | see Left |
 | T5 | `GR_HANN[257]` (RAM, sin^2 window) ~ `(32767 - SINE[...]) / 2` | 514 | no | see Ears |
 | T6 | `COPY_PH`, `COPY_AT` (SUPER / ANALOG 2) | 30 | never in one build | left |
 

@@ -636,7 +636,7 @@ xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: e
 own inlined copy into its own functions, and an item left out takes its copy with it. So the per-item model needs no
 "shared by A or B" term for them: an item's delta is exactly what it adds, and the deltas did not move when the
 blocks were merged (2026-10-07: every function of the six measured builds identical). A shared *table* (IMA_STEP
-for SAMPLE / GRAIN / SLICE, SVF_G, PITCH_INC, SINE...) is `static const` in the one unit: the compiler keeps it when
+for SAMPLE / GRAIN / SLICE, SVF_G, PITCH_INC_OCT, SINE...) is `static const` in the one unit: the compiler keeps it when
 any built item reads it, so it is in the default build's base while any default item uses it, and it is counted in
 the delta of an item measured alone only when no default item reads it (e.g. a table only PHYS and CZ read would be
 counted in both items' deltas, once too often when both are on: then the item pairs belong in `PAIRS`). No such

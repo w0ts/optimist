@@ -89,14 +89,14 @@ static void pitch_test(void)
     settle(t);
     p0 = t->v[0].ph[0];
     track_render(t, render_buf, CTL);
-    assert(t->v[0].ph[0] - p0 == PITCH_INC[71 * 16] * CTL);
+    assert(t->v[0].ph[0] - p0 == pitch_inc(71 * 16) * CTL);
     assert(t->v[0].note == 69);                   /* its note-off identity is not bent */
     send_midi(0xE0, 0, 0);
     settle(t);
     assert(t->bend_q8 == -512);
     p0 = t->v[0].ph[0];
     track_render(t, render_buf, CTL);
-    assert(t->v[0].ph[0] - p0 == PITCH_INC[67 * 16] * CTL);
+    assert(t->v[0].ph[0] - p0 == pitch_inc(67 * 16) * CTL);
     send_midi(0xE0, 0, 64);
     settle(t);
     assert(t->bend_q8 == 0);
@@ -104,8 +104,8 @@ static void pitch_test(void)
     settle(t);
     p0 = t->v[0].ph[0];
     track_render(t, render_buf, CTL);
-    assert(t->v[0].ph[0] - p0 > PITCH_INC[69 * 16] * CTL);
-    assert(t->v[0].ph[0] - p0 < PITCH_INC[69 * 16 + 1] * CTL);
+    assert(t->v[0].ph[0] - p0 > pitch_inc(69 * 16) * CTL);
+    assert(t->v[0].ph[0] - p0 < pitch_inc(69 * 16 + 1) * CTL);
     send_midi(0xB0, 6, 12);                      /* data entry without RPN 0: ignored */
     assert(midi_ch[0].semis == 2);
     send_midi(0xB0, 101, 0); send_midi(0xB0, 100, 0);

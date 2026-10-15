@@ -247,7 +247,7 @@ static HOT void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, co
 static HOT uint32_t trio_inc(int32_t pitch16, int32_t semi, int32_t ct, int32_t fine)
 {
     int32_t d16 = ct * 16 / 100, rem = ct * 16 - d16 * 100;      /* rem: 1/1600 semitone */
-    uint32_t inc = PITCH_INC[clamp(pitch16 + semi * 16 + d16, 0, 2047)];
+    uint32_t inc = pitch_inc(clamp(pitch16 + semi * 16 + d16, 0, 2047));
     return inc + (uint32_t)((int32_t)(inc >> 12) * (rem * 2367 / 16000 + fine));
 }
 
@@ -273,7 +273,7 @@ static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
     uint32_t w1 = ws->w[0], w2 = ws->w[1], w3 = ws->w[2], i;
     uint32_t ring = ws->flags & TRIO_RING, sync = ws->flags & TRIO_SYNC;
     int32_t g1 = ws->g[0], g2 = ws->g[1], g3 = ws->g[2];
-    uint32_t base = PITCH_INC[m->pitch16];
+    uint32_t base = pitch_inc(m->pitch16);
     int32_t fine = (base >> 12) ? (int32_t)(m->inc - base) / (int32_t)(base >> 12) : 0;
     uint32_t inc1 = m->inc;
     uint32_t inc2 = trio_inc(m->pitch16, p[P_E1], p[P_E3], fine);

@@ -236,7 +236,7 @@ static void t_pitch(void)
         for (det = -127; det <= 127; det++, n++) {            /* (DTN: 0..127 cents, signed with the swarm's) */
             int32_t fine = (int32_t)(tst_rand() % 513u) - 256;
             int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;   /* eng_analog2.c / eng_phase.c / eng_analog.c */
-            uint32_t inc2 = fine_inc(PITCH_INC[clamp(pitch + d16, 0, 2047)], fine);
+            uint32_t inc2 = fine_inc(pitch_inc(clamp(pitch + d16, 0, 2047)), fine);
             inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
             bad += det_inc(pitch, det, fine) != inc2;
         }

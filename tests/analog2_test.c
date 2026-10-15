@@ -386,7 +386,7 @@ static int32_t zip_cut(uint32_t path, uint32_t f)
 static void zip_run(uint32_t path, int32_t res, uint32_t note)
 {
     int32_t st[NSCH][6], kd = a2_k(res), c0 = zip_cut(path, 0) , b[CTL], x[CTL];
-    uint32_t ph = 0, inc = PITCH_INC[note * 16], f, i, s, j;
+    uint32_t ph = 0, inc = pitch_inc(note * 16), f, i, s, j;
     tsvf_t c;
     memset(st, 0, sizeof st);
     for (f = 0; f < ZN; f += CTL) {
