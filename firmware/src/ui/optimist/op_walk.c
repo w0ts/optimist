@@ -107,7 +107,8 @@ static void algo_walk(int32_t s, int lay)
     if (!algo_has_track())
         return;                                         /* (a page with no track: nothing, op_input.c) */
     p = walk_pos(lay);
-    n = (uint32_t)clamp((int32_t)p + s, MXR_MASTER, MXR_N - 1);
+    n = (uint32_t)clamp((int32_t)p + s, MXR_MASTER, (int32_t)(ui.scr == SCR_HOME ? MXR_N : MXR_LN) - 1);   /* (the USB
+                                                         * input's row: the mixer's only, it has no pages of a track) */
     if (n != p)
         walk_to(n, lay);
 }

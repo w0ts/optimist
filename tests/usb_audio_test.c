@@ -20,13 +20,17 @@ static void pcm(uint8_t *p, uint32_t frames, int16_t l, int16_t r)
     }
 }
 
+/* a mix block as the firmware runs it since the USB input became a track (fx-rework stage 3): the playback pulled first
+ * (ua_play_take, from mix_block: fx.c ut_mix at its defaults adds it to the mix bus as it is, the master's volume then
+ * scales mix and playback alike: modelled here as mix + playback x MASTER, clipped), then ua_audio takes the stems */
 static void block(int32_t l, int32_t r, uint32_t master, int32_t *out)
 {
-    uint32_t i;
-    int32_t tracks[32 * UA_CAP_CHANNELS];
+    uint32_t i, got;
+    int32_t tracks[32 * UA_CAP_CHANNELS], pl[32], pr[32];
+    got = ua_play_take(pl, pr, 32);
     for (i = 0; i < 32; i++) {
-        out[2 * i] = l;
-        out[2 * i + 1] = r;
+        out[2 * i] = got ? ua_clip(l + ((pl[i] * (int32_t)master) >> 12)) : l;
+        out[2 * i + 1] = got ? ua_clip(r + ((pr[i] * (int32_t)master) >> 12)) : r;
         tracks[4 * i] = l;
         tracks[4 * i + 1] = r;
         tracks[4 * i + 2] = 300;

@@ -48,7 +48,7 @@ static void mixer_views_tests(void)
     check(ok, "... back: the four channels, in place");
     while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
-    ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_N &&
+    ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_LN &&
          px_in(0, OP_PY, 120, 10, col_shade(lane_col(0), 3u));
     check(ok, "past DR: the 16 drum sounds, in place, the kick's cell tinted");
     ok = algo_step_inplace(-1) && mx_row() == MXR_DR && mxd.first == MXR_T1;

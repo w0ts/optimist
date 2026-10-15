@@ -71,7 +71,7 @@ static uint32_t effv_lane(uint32_t l, uint32_t v, int32_t *val, int32_t *mn, int
 static uint32_t effv_lane_l(void)
 {
     uint32_t r = ui.row[SCR_HOME] % MXR_N;
-    return ui.scr == SCR_HOME && r >= MXR_LANE0 ? r - MXR_LANE0 : lane_selected();
+    return ui.scr == SCR_HOME && mx_is_lane(r) ? r - MXR_LANE0 : lane_selected();
 }
 
 /* ---- synths */

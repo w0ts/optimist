@@ -42,6 +42,20 @@ static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 }
 #endif
 
+#if FELUCCA_USB_AUDIO
+/* the USB input track's frames (fx.c ut_mix, from mix_block): the playback ring's next n, the USB service held off for
+ * the copy only (as ua_block); 0 none */
+static __attribute__((noinline)) uint32_t ua_take(int32_t *l, int32_t *r, uint32_t n)
+{
+    uint32_t got = 0;
+    fm1_irq_hold(FM1_IRQ_TIMER5, 1);
+    if (usb.up && usb.config && !usb.suspended)
+        got = ua_play_take(l, r, n);
+    fm1_irq_hold(FM1_IRQ_TIMER5, 0);
+    return got;
+}
+#endif
+
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;

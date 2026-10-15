@@ -475,6 +475,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         }
     if (sw)
         FAR(pold_out)(sw);                         /* (and the new one back) */
+#if FELUCCA_USB_AUDIO
+    ut_mix(n);                                     /* the USB input, a track (fx.c) */
+#endif
     mix_finish(out, n);
 #if FELUCCA_MACROS
     FAR(mac_post)();

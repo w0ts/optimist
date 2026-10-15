@@ -1370,7 +1370,8 @@ typedef struct {
     uint8_t seed;                                       /* bit per state: the LP starts from its next input (tflt_run) */
     int32_t z[5][2];                                    /* the SVF states: a part's [0]; the drums' L R REV DLY CHO */
 } tflt_t;
-static tflt_t tflt[NTRK + 1];                           /* (the tracks', then the master's: its DJ filter, fx-rework) */
+static tflt_t tflt[NTRK + 2];                           /* (the tracks', then the master's: its DJ filter, fx-rework; the USB
+                                                         * input's, stage 3) */
 
 /* the SVF states to zero: a loop, not memset (memset is XIP code and this runs from RAM: build.py refuses the call) */
 static HOT void tflt_clear(tflt_t *f)
@@ -2152,6 +2153,115 @@ static HOT2 __attribute__((noinline)) void mst_run(int32_t *l, int32_t *r, uint3
         if (m & 1u)
             mst_ins(t, 0, l, r, n);
 }
+
+#if FELUCCA_USB_AUDIO
+/* ---- the USB input as a track (fx-rework stage 3; fx_slots.c ut): the computer's audio from the playback ring
+ * (usb_audio_stream.c ua_take, a block, with the USB service held off for the copy only), its two insert slots on L and R
+ * (the master's kernels, instances of its own; DYN: a compressor with the default RATIO ATK REL and AUTO make-up, no
+ * CEIL; a mono insert type runs on each side), its LEVEL, MUTE (a block's fade), PAN (the balance: the pan law on each
+ * side), FX on, its sends from its mid; then into the mix bus with the tracks, before the returns and the master. At its
+ * defaults (unity, centre, no slot) the samples go in as they are: the mix as before but that the master's inserts now
+ * take them too (they were added after the master's limiter) */
+static uint32_t ua_take(int32_t *l, int32_t *r, uint32_t n);   /* usb_audio_stream.c (XIP: FAR) */
+static int32_t ut_l[CTL], ut_r[CTL];
+#if FELUCCA_FX_DIST
+static dist_t ut_dist[2];
+#endif
+#if FELUCCA_MASTER_COMP
+static mc_t ut_comp = {0, 0, 8192, 0};
+#endif
+static dust_t ut_dust = {0, 0, 0, 0, 0, 0x4F1BBCDD, 0, 0};
+static int32_t ut_g = 32767, ut_lv = 4096, ut_snd[3];   /* the mute gain, the level and the sends at the end of the last block */
+static volatile int32_t ut_pk;                          /* its peak since the mixer took it (op_mixdraw.c), after its level */
+static volatile uint8_t ut_live;                        /* frames came in the last block (the mixer: "no stream") */
+static HOT2 __attribute__((noinline)) void ut_ins(uint32_t t, int32_t a, int32_t *l, int32_t *r, uint32_t n)
+{
+#if FELUCCA_FX_DIST
+    if (t == FXT_DIST) {
+        dist_run(&ut_dist[0], a, l, n);
+        dist_run(&ut_dist[1], a, r, n);
+    }
+#endif
+#if TFLT_ON
+    if (t == FXT_FILT) {
+        tflt_t *f = &tflt[NTRK + 1];
+        tsvf_t c;
+        if (tflt_block(f, a, &c)) {
+            tflt_run(f, &c, l, n, 0, 0);
+            tflt_run(f, &c, r, n, 1, 0);
+        }
+    }
+#endif
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_DYN && (a || !tcomp_rest(&ut_comp))) {
+        mc_set_t c;
+        int32_t thr = a > 0 ? -1 - (a - 1) * 29 / 126 : 0;
+        mc_settings(&c, thr, GP[G_CRAT].def, GP[G_CATK].def, GP[G_CREL].def, (-thr * MC_SLOPE[GP[G_CRAT].def & 7]) >> 15);
+        mc_run(&ut_comp, &c, l, r, l, r, n);
+    }
+#endif
+    if (t == FXT_DUST)
+        dust_run(&ut_dust, FELUCCA_FX_DUST ? a : 0, l, r, n);
+#if INS_FX
+    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu && (UT_OK >> t & 1u))
+        ifx_ut(t, a, l, r, n);
+#endif
+    (void)a, (void)l, (void)r, (void)n;
+}
+/* the USB input into the mix (mix_block, dual.c mix_block_dual: after the parts, before mix_finish) */
+static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
+{
+    uint32_t i, s, t, m, got = FAR(ua_take)(ut_l, ut_r, n), on = ut.v[UTV_FXON] != 0;
+    int32_t g1 = ut.v[UTV_MUTE] ? 0 : 32767, lv1 = LEVEL_Q12[clamp(ut.v[UTV_LVL], 0, 127)], gl, gr, to[3], mx = 0, xmax, pk = ut_pk;
+    ut_live = (uint8_t)got;
+    if (!got) {
+        if (ut.slot[0] == FXT_NONE && ut.slot[1] == FXT_NONE)
+            return;                                     /* (no stream, no insert: nothing to do) */
+        for (i = 0; i < n; i++)
+            ut_l[i] = ut_r[i] = 0;                      /* (the inserts' tails on silence) */
+    }
+    for (s = 0; s < INS_N; s++)
+        ut_ins(ut.slot[s], on && (UT_OK >> ut.slot[s] & 1u) ? ut.amt[s] : 0, ut_l, ut_r, n);
+    m = (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_DUST)
+#if INS_FX
+         | ifx_awake[IFX_AW_UT]
+#endif
+        ) & UT_OK & ~(FXT_BIT(ut.slot[0]) | FXT_BIT(ut.slot[1]));
+    for (t = 0; m; t++, m >>= 1)                        /* (in no slot: at 0, they let go) */
+        if (m & 1u)
+            ut_ins(t, 0, ut_l, ut_r, n);
+    pan_gains(ut.v[UTV_PAN], &gl, &gr);
+    to[0] = on && FXS_ON(FXT_CHO) ? ut.v[UTV_CHO] * 258 : 0;
+    to[1] = on && FXS_ON(FXT_DLY) ? ut.v[UTV_DLY] * 258 : 0;
+    to[2] = on && FXS_ON(FXT_REV) ? ut.v[UTV_REV] * 258 : 0;
+    for (i = 0; i < 3u; i++)
+        mx = to[i] > mx ? to[i] : mx, mx = ut_snd[i] > mx ? ut_snd[i] : mx;
+    xmax = 0x7FFFFFFF / (mx | 1);
+    for (i = 0; i < n; i++) {
+        int32_t lv = ut_lv + (((lv1 - ut_lv) * (int32_t)i) >> CTL_LOG2), g = ut_g + (((g1 - ut_g) * (int32_t)i) >> CTL_LOG2);
+        int32_t xl = clamp(ut_l[i], -200000, 200000), xr = clamp(ut_r[i], -200000, 200000), md;
+        if (lv != 4096)
+            xl = (xl * lv) >> 12, xr = (xr * lv) >> 12;
+        if (g < 32767)
+            xl = (xl * (g >> 3)) >> 12, xr = (xr * (g >> 3)) >> 12;
+        md = clamp((xl >> 1) + (xr >> 1), -xmax, xmax);
+        if (ut_snd[0] | to[0])
+            send_c[i] += mulq15(md, ut_snd[0] + (((to[0] - ut_snd[0]) * (int32_t)(i + 1u)) >> CTL_LOG2));
+        if (ut_snd[1] | to[1])
+            send_d[i] += mulq15(md, ut_snd[1] + (((to[1] - ut_snd[1]) * (int32_t)(i + 1u)) >> CTL_LOG2));
+        if (ut_snd[2] | to[2])
+            send_r[i] += mulq15(md, ut_snd[2] + (((to[2] - ut_snd[2]) * (int32_t)(i + 1u)) >> CTL_LOG2));
+        mix_l[i] += gl == 4096 ? xl : (xl * gl) >> 12;
+        mix_r[i] += gr == 4096 ? xr : (xr * gr) >> 12;
+        xl = xl < 0 ? -xl : xl, xr = xr < 0 ? -xr : xr;
+        pk = xl > pk ? xl : xr > pk ? xr : pk;
+    }
+    ut_pk = pk;
+    ut_g = g1, ut_lv = lv1;
+    for (i = 0; i < 3u; i++)
+        ut_snd[i] = to[i];
+}
+#endif
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
 #if FELUCCA_VIS || FELUCCA_UI == 1
 /* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
@@ -2289,6 +2399,9 @@ static HOT void mix_block(int32_t *out, uint32_t n)
         if (sw)
             FAR(pold_out)(sw);                          /* (and the new one back) */
     }
+#if FELUCCA_USB_AUDIO
+    ut_mix(n);                                          /* the USB input, a track (above) */
+#endif
     mix_finish(out, n);
 #if FELUCCA_MACROS
     FAR(mac_post)();                                    /* the authored values back */

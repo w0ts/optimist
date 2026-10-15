@@ -1179,6 +1179,84 @@ static void t_lanes(void)
     (void)base, (void)h, (void)n, (void)v;
 }
 
+/* ---- fx-rework stage 3: the USB input as a track (fx_slots.c ut, fx.c ut_mix) */
+#if FELUCCA_USB_AUDIO
+static void ut_block(uint32_t seed)                    /* the host's USB block (a stereo signal), the buses cleared, ut_mix */
+{
+    uint32_t i;
+    for (i = 0; i < CTL; i++) {
+        host_ua_l[i] = (int32_t)((seed * 2654435761u + i * 40503u) >> 18) - 8192;
+        host_ua_r[i] = (int32_t)(i * 997u % 12000u) - 6000;
+        mix_l[i] = mix_r[i] = send_c[i] = send_d[i] = send_r[i] = 0;
+    }
+    ut_mix(CTL);
+}
+static void t_usb(void)
+{
+    uint8_t b[FXR_MAX];
+    uint32_t i, k, n, ok;
+    int16_t *v;
+    const param_desc_t *d;
+    int32_t pk;
+    ut_defaults();
+    fxs_set(FXS_DEF);
+    host_ua_on = 1;
+    for (k = 0, ok = 1; k < 4u; k++) {
+        ut_block(k);
+        for (i = 0; i < CTL; i++)
+            ok &= mix_l[i] == host_ua_l[i] && mix_r[i] == host_ua_r[i] && !send_r[i] && !send_d[i] && !send_c[i];
+    }
+    check("the USB input at its defaults: its samples into the mix as they are, no send", ok);
+    ut.v[UTV_LVL] = 0;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 1; i < CTL; i++)
+        ok &= !mix_l[i] && !mix_r[i];
+    check("... VOLUME 0 (after a block's ramp): silent", ok);
+    ut.v[UTV_LVL] = UT_LVL_DEF, ut.v[UTV_MUTE] = 1;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 1; i < CTL; i++)
+        ok &= !mix_l[i] && !mix_r[i];
+    check("... MUTE: silent after its fade", ok);
+    ut.v[UTV_MUTE] = 0, ut.v[UTV_PAN] = 63;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 1, pk = 0; i < CTL; i++)
+        ok &= mix_r[i] == host_ua_r[i], pk |= mix_l[i] != host_ua_l[i];
+    check("... PAN right: the left side down, the right as it is", ok && pk);
+    ut.v[UTV_PAN] = 0, ut.v[UTV_REV] = 100;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 0; i < CTL; i++)
+        ok |= send_r[i] != 0;
+    check("... REV 100: its mid into the reverb send", ok);
+    ut.v[UTV_FXON] = 0;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 1; i < CTL; i++)
+        ok &= !send_r[i] && mix_l[i] == host_ua_l[i];
+    check("... FX off: no send, dry", ok);
+    ut.v[UTV_FXON] = 1, ut.v[UTV_REV] = 0;
+    ut_block(9), ut_block(9);
+    d = ut_desc(8, &v);
+    for (i = 0; d && i <= (uint32_t)d->max && ut_list[i] != (FELUCCA_FX_DIST ? FXT_DIST : FXT_DYN); i++)
+        ;
+    ut_load(0, ut_list[i]);
+    ut.amt[0] = 100;
+    ut_block(9), ut_block(9);
+    for (i = 0, ok = 0; i < CTL; i++)
+        ok |= mix_l[i] != host_ua_l[i];
+    check("... S1 DIST (or DYN) at 100: heard on the input (both sides through the kernel)", ok && ut_desc(10, &v) && v == &ut.amt[0]);
+    n = fxr_encode(b);
+    ut_defaults();
+    check("the record: UT_TLV, the input's values and slots back with a load", fxr_decode(b, n, 1) && ut.amt[0] == 100 &&
+          ut.slot[0] != FXT_NONE && ut.v[UTV_FXON] == 1);
+    fxr_decode(0, 0, 1);
+    check("... no record: the defaults", ut_dflt() && !ut.amt[0]);
+    host_ua_on = 0;
+    ut_block(1);
+    for (i = 0, ok = 1; i < CTL; i++)
+        ok &= !mix_l[i] && !mix_r[i];
+    check("no stream: nothing mixed", ok);
+}
+#endif
+
 int main(void)
 {
     t_layout();
@@ -1193,6 +1271,9 @@ int main(void)
     t_stores();
     t_master();
     t_lanes();
+#if FELUCCA_USB_AUDIO
+    t_usb();
+#endif
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

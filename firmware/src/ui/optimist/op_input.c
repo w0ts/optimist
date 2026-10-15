@@ -44,7 +44,7 @@ static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL
  * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
 static int keys_none(void)
 {
-    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master()
+    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master() || mx_on_usb()
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
 /* ALGORITHM walks the track only where there is one (the user, 2026-10-14: "it makes no sense to change track when i am
@@ -863,6 +863,10 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         m &= ~(1u << B_ARP | 1u << B_SCL);             /* (the drum track and its lanes: no arp, no scale; a held layer alone is no light, 2026-10-15) */
     if (ui.scr == SCR_STEP && !step_yes_any())
         m &= ~(1u << B_SAVE);                           /* (STEP: SAVE lit only where YES acts: a tool card, a toggle or GO, a held step) */
+    if (mx_on_usb())                                    /* the mixer's USB row: no track button, no FX (op_mixer.c) */
+        for (i = 0; i < NB; i++)
+            if (mx_master_dead(i))
+                m &= ~(1u << i);
     if (master_sel()) {                                 /* MASTER (any page): no track button; FX the master FX */
         for (i = 0; i < NB; i++)
             if (mx_master_dead(i))

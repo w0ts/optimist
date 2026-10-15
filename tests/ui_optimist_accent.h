@@ -343,6 +343,8 @@ static void acc_walk_tests(void)
         frames(2);
         turn(EN_ALGO, 40);
         frames(2);
+        if (S[scr] == SCR_HOME && MXR_N > MXR_LN)       /* (the mixer: the USB input's row after it, built) */
+            turn(EN_ALGO, -1), frames(2);
         ok &= lane_selected() == DRUM_ACC && mx_sel_row() == MXR_ACC && lane_picked() && ui.scr == S[scr];
         turn(EN_ALGO, -1);
         frames(2);
@@ -358,6 +360,8 @@ static void acc_walk_tests(void)
     frame();
     turn(EN_ALGO, 40);
     frames(2);
+    if (MXR_N > MXR_LN)                                 /* (the USB input's row after it, built) */
+        turn(EN_ALGO, -1), frames(2);
     ok = mx_row() == MXR_ACC && mxd.first == MXR_LANE0;
     {
         cell_t l;
@@ -527,6 +531,6 @@ static void accent_ui_tests(void)
 static void accent_ui_tests(void)                       /* no ACCENT lane in the UI: the walk, the mixer and the keys are the 16 sounds' */
 {
     check(DRUM_UILANES == DRUM_LANES, "(no ACCENT lane in this build's UI)");
-    check(MXR_N == MXR_LANE0 + DRUM_LANES, "... the mixer has the 16 lanes' rows only");
+    check(MXR_LN == MXR_LANE0 + DRUM_LANES, "... the mixer has the 16 lanes' rows only");
 }
 #endif

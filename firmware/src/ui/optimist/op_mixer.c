@@ -18,10 +18,26 @@
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
-enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_UILANES };
+enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + DRUM_UILANES,
+#if FELUCCA_USB_AUDIO
+       MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
+       MXR_N
+#else
+       MXR_N = MXR_LN
+#endif
+};
+static int mx_is_lane(uint32_t r) { return r >= MXR_LANE0 && r < MXR_LN; }
+#if FELUCCA_USB_AUDIO
+static int mx_is_usb(uint32_t r) { return r == MXR_USB; }
+#else
+#define mx_is_usb(r) 0
+#endif
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA,
+       MI_UT, MI_UTST, MI_UTSA };
+/* MI_UT: the USB input's value id (fx_slots.c ut_desc: VOLUME PAN MUTE FX ON REV DLY CHO), MI_UTST / MI_UTSA its slot id's
+ * TYPE / amount */
 /* MI_MINST / MI_MINSA: MASTER's insert slot id's TYPE / amount (fx_slots.c mst_slot, fx-rework 2026-10-14) */
 /* MI_LMUTE: a lane's mute (drum_mix.c dlm_mute); MI_RET: MASTER's FX slot id's return; MI_INST / MI_INSA: the row's
  * insert slot id's TYPE / amount (fx_slots.c); MI_DKS: the drum track's send level id (drum_sends.c dsend_kit: 0 REV,
@@ -46,12 +62,15 @@ static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
  * do nothing there, FX is the master FX (the user, 2026-10-12: "many buttons like env lfo are active while on master
  * and send to track 1. wrong") */
 static int mx_on_master(void) { return ui.scr == SCR_HOME && mx_row() == MXR_MASTER; }
+/* the mixer on its USB row: no instrument either (the track buttons dark, the keys silent), not the master */
+static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
 /* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
 static int mx_master_dead(uint32_t b)
 {
-    return master_sel() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ);
+    return (master_sel() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ)) ||
+           (mx_on_usb() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ || b == B_FX));
 }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
 /* row r muted, the state SHIFT2 on its volume card toggles (a channel's P_MUTE, a lane's own mute, the ACCENT lane's sequencer
@@ -60,9 +79,13 @@ static uint32_t mx_muted(uint32_t r)
 {
     if (r == MXR_MASTER)
         return 0u;
+#if FELUCCA_USB_AUDIO
+    if (mx_is_usb(r))
+        return ut.v[UTV_MUTE] != 0;
+#endif
     if (mx_is_acc(r))
         return (uint32_t)smute_lane_on(DRUM_ACC);
-    if (r >= MXR_LANE0)
+    if (mx_is_lane(r))
         return (uint32_t)dlm_muted(r - MXR_LANE0);
     return trk[mx_trk_of(r)].p[P_MUTE] != 0;
 }
@@ -71,7 +94,7 @@ static uint32_t mx_muted(uint32_t r)
 static int lane_picked(void)
 {
     if (ui.scr == SCR_HOME)
-        return ui.row[SCR_HOME] % MXR_N >= MXR_LANE0;
+        return mx_is_lane(ui.row[SCR_HOME] % MXR_N);
     return ui.lane && is_drum(TSEL);
 }
 static uint32_t mx_sel_row(void)                        /* the row of the selection (the track, DR or its lane) */
@@ -80,7 +103,7 @@ static uint32_t mx_sel_row(void)                        /* the row of the select
 }
 static uint16_t mx_col(uint32_t r)                      /* the row's colour: its engine's, its lane's source */
 {
-    return r == MXR_MASTER ? C_HI : r >= MXR_LANE0 ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
+    return r == MXR_MASTER || mx_is_usb(r) ? C_HI : mx_is_lane(r) ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
 }
 
 static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
@@ -169,6 +192,27 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
                                                          * no CUT, DRIVE, DST, CMP, sends or sound */
         return mx_add(it, n, MG_MIX, "ACCENT", MI_ACC, 0);   /* (the amount, as the SOUND row's ACCENT card: a velocity, not dB) */
     }
+#if FELUCCA_USB_AUDIO
+    if (mx_is_usb(r)) {                                 /* the USB input: VOLUME PAN FX ON | its insert slots | its sends
+                                                         * (MUTE: SHIFT2 on VOLUME, as every row) */
+        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_LVL);
+        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_PAN);
+        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_FXON);
+        if (UT_OK) {
+            n = mx_add(it, n, MG_INS, 0, MI_UTST, 0);
+            n = mx_add(it, n, MG_INS, 0, MI_UTSA, 0);
+            n = mx_add(it, n, MG_INS, 0, MI_UTST, 1);
+            n = mx_add(it, n, MG_INS, 0, MI_UTSA, 1);
+        }
+        if (FXS_ON(FXT_REV))
+            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_REV);
+        if (FXS_ON(FXT_DLY))
+            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_DLY);
+        if (FXS_ON(FXT_CHO))
+            n = mx_add(it, n, MG_SEND, 0, MI_UT, UTV_CHO);
+        return n;
+    }
+#endif
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
         n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (its PAN is the sends set's card 4) */
@@ -265,6 +309,14 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         if (d)
             dsv_rec(r - MXR_LANE0, m->id);              /* (recording: the hold the knob goes on from) */
         return d && !PARAM_HIDDEN(d) ? d : 0;
+#if FELUCCA_USB_AUDIO
+    case MI_UT:
+        return ut_desc(m->id, vp);
+    case MI_UTST:
+        return ut_desc(8u + m->id, vp);
+    case MI_UTSA:
+        return ut_desc(10u + m->id, vp);
+#endif
     case MI_MINST:                                      /* (an index into fx_slots.c mst_list) */
         return fxs_desc(FXS_ID_MST + m->id, vp);
     case MI_MINSA:                                      /* (an empty slot: "-") */
@@ -351,7 +403,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     if (m.label)
         c->label = m.label;
     c->strike = (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
-                           (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC) && mx_muted(r));   /* (the volume cards of a muted row) */
+                           (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
+                          mx_muted(r));   /* (the volume cards of a muted row) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";                        /* (op_help.c: its own line, the amount) */
     c->col = mx_col(r);
@@ -373,11 +426,18 @@ static int mx_mute_toggle(uint32_t r, const mitem_t *m)
     int on;
     uint32_t t = mx_trk_of(r);
     if (!(m->kind == MI_TRK && m->id == P_LEVEL) && !(m->kind == MI_GLOB && m->id == G_DRLVL) &&
-        !(m->kind == MI_LANE && m->id == DE_LEVEL) && m->kind != MI_ACC)
+        !(m->kind == MI_LANE && m->id == DE_LEVEL) && m->kind != MI_ACC && !(m->kind == MI_UT && m->id == 0u))
         return 0;
     if (mx_s2_done)
         return 1;
     mx_s2_done = 1;
+#if FELUCCA_USB_AUDIO
+    if (m->kind == MI_UT) {                             /* (the USB input's VOLUME) */
+        ut.v[UTV_MUTE] = (int16_t)!ut.v[UTV_MUTE];
+        ui_say("USB", ut.v[UTV_MUTE] ? " MUTE" : " ON");
+        return 1;
+    }
+#endif
     if (m->kind == MI_ACC) {
         on = smute_toggle(SMUTE_ACC);
         ui_say(DACC_CODE, on ? " SEQ MUTE" : " SEQ ON");
@@ -410,6 +470,12 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             (void)smute_toggle(SMUTE_ACC);
     } else if (m.kind == MI_LMUTE)
         dlm_set_mute(r - MXR_LANE0, s == OP_RESET ? 0 : param_step(d, *vp, s) != 0);
+#if FELUCCA_USB_AUDIO
+    else if (m.kind == MI_UTST) {                       /* the USB input's slot TYPE: as a track's (no reset) */
+        if (s != OP_RESET)
+            ut_load(m.id, ut_list[(uint32_t)param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))) % FXT_N]);
+    }
+#endif
     else if (m.kind == MI_MINST) {                      /* MASTER's slot TYPE: as a track's */
         if (s != OP_RESET)
             mst_load(m.id, mst_list[(uint32_t)param_step(d, *vp, s) % MST_NLIST]);
@@ -442,6 +508,10 @@ static void mx_apply(uint32_t r)                        /* the cursor on row r: 
     ui.row[SCR_HOME] = (uint8_t)r;
     if (r == MXR_MASTER)
         return;
+    if (mx_is_usb(r)) {                                 /* (the USB input: no track to select, as MASTER) */
+        op_repaint();
+        return;
+    }
     ui.lane = (uint8_t)(r >= MXR_LANE0);                /* (DR itself or a lane) */
     track_select(mx_trk_of(r));
     if (r >= MXR_LANE0)
@@ -468,14 +538,14 @@ static void mx_tick(void)
     fm1_irq_on();
     for (i = 0; i < DRUM_LANES; i++)
         mx.lit[i] = (uint8_t)((hits >> i) & 1u ? 12u : mx.lit[i] ? mx.lit[i] - 1u : 0u);
-    if (r == MXR_MASTER)
+    if (r == MXR_MASTER || (ui.scr == SCR_HOME && mx_is_usb(r)))
         return;
     if (ui.scr != SCR_HOME || mx_trk_of(r) != song.sel)
         ui.row[SCR_HOME] = (uint8_t)mx_sel_row();      /* (off the mixer, another track: the row follows the selection) */
-    else if (r >= MXR_LANE0 && r - MXR_LANE0 != lane_selected())
+    else if (mx_is_lane(r) && r - MXR_LANE0 != lane_selected())
         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());
     if (ui.scr == SCR_HOME && is_drum(TSEL))
-        ui.lane = (uint8_t)(ui.row[SCR_HOME] % MXR_N >= MXR_LANE0);   /* (on the mixer its row is the selection) */
+        ui.lane = (uint8_t)mx_is_lane(ui.row[SCR_HOME] % MXR_N);   /* (on the mixer its row is the selection) */
 }
 
 /* the SCOPE screen's rows (op_scope.c, after the renderer: its trace draws with it): for the screen table */

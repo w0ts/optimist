@@ -21,9 +21,18 @@ static void algo_mixer_tests(void)
     song.sel = 0;
     frames(2);
     ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == MXR_MASTER;
-    for (r = MXR_T1; r < MXR_N; r++)
+    for (r = MXR_T1; r < MXR_LN; r++)
         ok &= al_walk(1) == r;
-    ok &= al_walk(1) == MXR_N - 1u && lane_picked() && lane_selected() == DRUM_UILANES - 1u;
+#if FELUCCA_USB_AUDIO
+    ok &= al_walk(1) == MXR_USB && al_walk(1) == MXR_USB;   /* (the USB input's row, the mixer's last) */
+    ok &= al_walk(-1) == MXR_LN - 1u;
+#endif
+#if FELUCCA_USB_AUDIO
+    ok &= al_walk(1) == MXR_N - 1u && al_walk(-1) == MXR_LN - 1u;
+#else
+    ok &= al_walk(1) == MXR_LN - 1u;
+#endif
+    ok &= lane_picked() && lane_selected() == DRUM_UILANES - 1u;
     check(ok, "walk, the mixer: MASTER, T1 .. DR, the 16 lanes and the ACCENT lane (built), stopping at both ends");
     ok = al_walk(-(int32_t)DRUM_UILANES) == MXR_DR && !lane_picked() && song.sel == TRK_DRUM;
     check(ok, "... back to DR: DR itself selected (no lane)");
@@ -67,11 +76,12 @@ static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
     uint32_t r, ok = 1, n;
     ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == MXR_MASTER && mx_master_dead(B_ENV) && mx_master_dead(B_ARP);
     ok &= al_walk(1) == MXR_T1 && ui.scr == scr0 && !mx_master_dead(B_ENV) && (in_lay ? lay.shown != LY_PLAY : 1);
-    for (r = MXR_T1 + 1u; r < MXR_N; r++) {
+    for (r = MXR_T1 + 1u; r < MXR_LN; r++) {
         n = al_walk(1);
         ok &= n == r && (r < MXR_LANE0 ? !lane_picked() : lane_picked() && lane_selected() == r - MXR_LANE0);
     }
-    ok &= al_walk(3) == MXR_N - 1u && ui.scr == scr0;
+    ok &= al_walk(3) == (scr0 == SCR_HOME ? MXR_N : MXR_LN) - 1u && ui.scr == scr0;   /* (the mixer: on to the USB input's
+                                                         * row, in a build with USB audio) */
     ok &= al_walk(-(int32_t)MXR_N) == MXR_MASTER;
     if (!ok)
         printf("  walk on %s: broke (scr %u, at %u)\n", nm, ui.scr, mx_sel_row());
