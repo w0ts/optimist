@@ -212,14 +212,15 @@ static void test_info(void)
     st.job = 0;
     st.wait_us = 5805;
     dual_stop_text(&st, v, u);
-    CHECK(!strcmp(v, "41ms* W") && !strcmp(u, " #0 5805us"), "first job, never taken (%s|%s)", v, u);
+    CHECK(!strcmp(v, "41ms* W") && !strcmp(u, " #0"), "first job, never taken (%s|%s)", v, u);
     st.took = 1;
     st.at = 5;
     st.no_clock = 0;
     st.c1_ms = 123456;
     st.job = 4000000u;
+    st.wait_us = 120;
     dual_stop_text(&st, v, u);
-    CHECK(!strcmp(v, "123s J5") && !strcmp(u, " #4000k 5805us"), "in the drums, later (%s|%s)", v, u);
+    CHECK(!strcmp(v, "123s J5") && !strcmp(u, " #4000k 120us"), "in the drums, later (%s|%s)", v, u);
     st.in_job = 0;
     dual_stop_text(&st, v, u);
     CHECK(!strcmp(v, "123s IDLE") && !u[0], "no job posted: a boot check (%s|%s)", v, u);

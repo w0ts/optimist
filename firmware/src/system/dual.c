@@ -170,7 +170,9 @@ static HOT uint32_t dual_split(uint32_t jobs)    /* jobs: the block's (the rever
 #define DUAL_FAILTEST 0      /* emulator tests of the fallbacks: 1 no hello, 2 a job that never ends, 3 CPU1's
                               * fault handler in a job, 4 a request whose check word is wrong (a misread, as CPU1
                               * would see it), 5 a wrong boot canary, 6 a lost wake (CPU1 back to sleep with a job
-                              * posted, once: dual_join wakes it again) (never in a release) */
+                              * posted, once: dual_join wakes it again), 7 a wake that never reaches CPU1 (asleep
+                              * builds: it stays in its loop with its interrupt off, as on the FM-1 of 2026-10-15?)
+                              * (never in a release) */
 #endif
 /* CPU1: how far it got (dual_mode.h C1S_*), only ever forward */
 #define C1_STAGE(s)                                                                                                    \
@@ -250,6 +252,9 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
 #if DUAL_SLEEPS
     (void)seq;
     (void)arg;
+#if DUAL_FAILTEST == 7
+    FL_FAR(fm1_dual_deaf_ram)();
+#endif
     FL_FAR(fm1_dual_sleep_ram)();                  /* never returns: the jobs come by interrupt */
     for (;;)
         ;

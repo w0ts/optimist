@@ -233,6 +233,15 @@ RAMFN static void fm1_dual_sleep_ram(void)
         fm1_dual_mb.count++;
     }
 }
+#if defined(DUAL_FAILTEST) && DUAL_FAILTEST == 7
+/* (the emulator's test of a wake that never reaches CPU1: in its loop, in RAM, its interrupt never on) */
+RAMFN static void fm1_dual_deaf_ram(void)
+{
+    fm1_dual_mb.stage = 3u;
+    for (;;)
+        fl_csync();
+}
+#endif
 /* the handler's entry, in RAM with the code it calls (core.h HOT: .ram_hot): as fm1_isr.S */
 void fm1_cpu1_wake(void);                                 /* the C body (src/dual.c) */
 __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"

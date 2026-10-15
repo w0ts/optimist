@@ -124,7 +124,8 @@ typedef struct {
 } dual_stop_t;
 
 /* the CPU1 STOP line: V (14 bytes) "--" | "<t>[*] W" (never picked up; t: ms under 10 s, else s) | "J<n>" (in job n) | "IDLE" (no job
- * posted: a boot check, a flash operation); U (16 bytes) " #<job> <wait>us" (in a job) or "" */
+ * posted: a boot check, a flash operation); U (16 bytes) " #<job>" (in a job; and " <wait>us" when CPU0 had waited
+ * less than a half) or "" */
 static inline void dual_stop_text(const dual_stop_t *s, char *v, char *u)
 {
     v[0] = u[0] = 0;
@@ -147,8 +148,10 @@ static inline void dual_stop_text(const dual_stop_t *s, char *v, char *u)
     }
     dual_cat(u, " #");
     dual_cnum(u, s->job);
-    dual_cat(u, " ");
-    dual_cnum(u, s->wait_us);
-    dual_cat(u, "us");
+    if (s->wait_us < 5000u) {                  /* (not a whole half: a fault or a misread came first) */
+        dual_cat(u, " ");
+        dual_cnum(u, s->wait_us);
+        dual_cat(u, "us");
+    }
 }
 #endif

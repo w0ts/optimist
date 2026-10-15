@@ -590,7 +590,8 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
  *   CPU1 STOP        "--" (never put down) | "<t> W" (the job never picked up) | "<t> J<n>" (in job n: 1..4 a part,
  *                    5 the drums, 6 the reverb; J0 none begun) | "<t> IDLE" (no job posted: a boot check, a flash
  *                    operation); t: since CPU1 was started (ms under 10 s, else s), "*": the ms clock had not ticked yet (the first audio
- *                    interrupt); unit: "#<the job's index, 0 = the first> <CPU0's wait>us"
+ *                    interrupt); unit: "#<the job's index, 0 = the first>" (and CPU0's wait when less than a half: a fault, a
+ *                    misread)
  *   CPU1 HELLO       how far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN (its wait loop), WOKEN (its wake handler ran),
  *                    TOOK JOB (its first job), JOB DONE; unit once down: P1 = its wake was still latched (not taken)
  *   CPU1 BEAT IDLE / SPIN  its beat (returns from `idle`, or spin loops) / its wake handler's entries; the label names

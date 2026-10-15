@@ -336,6 +336,16 @@ Stage 2 (parts 2 and 3 on CPU1), only after stage 1 passed:
   TIMEOUT; INFO shows CPU1 JOB/REWAKE (jobs in thousands / wakes sent again) and CPU1 STOP (`<s>s W`: the job never
   picked up, `<s>s J<n>`: in job n, 1-4 a part, 5 the drums, 6 the reverb; unit: CPU0's wait). Emulator:
   `DUAL_FAILTEST=6` (one lost wake at job 3000) recovers with 1 rewake, no late half.
+- 2026-10-15, the second report (mots, batch 141 a3ce53c4, with the rewake): "2ND CORE OFF TIMEOUT", CPU1 JOB/REWAKE
+  0/58, CPU1 STOP "--". 58 rewakes are one whole join (a rewake at 100, 200 .. 5800 us, the TIMEOUT past 5805 us) with
+  the job never picked up: the rewake did not help. STOP "--" was dual.down_ms == 0: the stop was recorded, at fm1_ms 0,
+  before TIMER5's first millisecond, i.e. the first audio interrupt's first job (the emulator's `DUAL_FAILTEST=7`, a
+  wake that never reaches CPU1, gives the same 0/58 and fm1_ms 0). Since fix/dual-idle: the stop is recorded on every
+  path (`dual_stop_t`, dual_mode.h) and INFO shows CPU1 STOP `<t>[*] W|J<n>|IDLE #<job>` (t since CPU1 started, `*`:
+  before the ms clock's first tick, #0: the first job), CPU1 HELLO (how far CPU1 got: MAIN, HELLO, SLEEP / SPIN,
+  WOKEN, TOOK JOB, JOB DONE; P1 / P0: its wake still pending at the stop, read from FM1_IPND(3) bit 28, a layout only
+  the emulator's [HW?]) and CPU1 BEAT IDLE / SPIN (CPU1's beat: returns from `idle` or spin loops, then its wake
+  handler's entries). `OPTIMIST_DUAL_IDLE=0` builds the spin variant through `tools/optimist.py build`.
 
 What to watch overall: resets (and when), the screen message, audio glitches on parts 2-3 only, the
 console counters, battery drain (CPU1 sleeps between jobs with `FELUCCA_DUAL_IDLE`, the default:
