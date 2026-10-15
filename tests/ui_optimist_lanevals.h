@@ -142,9 +142,7 @@ static void lv_dr_tag_tests(void)
     {
         cell_t c;
         SCR->cell(r, 0, &c);
-        check(!strcmp(c.label, "KIT") && c.dr, "the SOUND row's first card: the KIT, tagged DR (a lane on the kit)");
-        SCR->cell(r, 1, &c);
-        check(!c.label && c.kind == CK_NONE, "... no second card: the LANE read-out is gone (2026-10-14)");
+        check(!c.label || strcmp(c.label, "KIT"), "the SOUND row has no KIT card (PRESETS is the one place for the kit, 2026-10-14)");
     }
     r = lv_row_named("SOUND 3");
     check(r < SCR->rows() && lv_row_plain(r), "SOUND 3 (the lane's DST CHO DLY REV): no tag");

@@ -578,9 +578,6 @@ static void header_footer_tests(void)
     song.sel = 0;
     tap(B_EDIT);
     tap(B_EDIT);
-    if (FV_ROWS)
-        tap(B_EDIT);                                    /* (EDIT 1: no picture, its rows under the 2x2 cards; the SOUND row
-                                                         * first has the presets' picture, FAVS second) */
     ui.force = 1;
     frame();
     check(px_in(0, 202, 240, 38, C_GRAY) || px_in(0, 202, 240, 38, C_HI),

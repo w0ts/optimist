@@ -161,7 +161,7 @@ static void rk_discard(uint32_t role, int home, const char *what)
 }
 static void risk_edits_tests(void)                      /* the user, 2026-10-13: "always ask if the sound/preset has edits" */
 {
-    uint32_t pre, h0;
+    uint32_t pre, eng, h0;
     reset_ui();
     song.sel = 0;
     rk_n = 0;
@@ -169,15 +169,13 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
     op_enter(SCR_SOUND);
     frame();
     pre = TSEL->preset;
+    eng = TSEL->eng_req;
     turn(EN_PRESET, 1);
-    check(!op_armed() && TSEL->preset != pre, "an unedited sound: PRESETS browses, nothing asked");
+    check(!op_armed() && (TSEL->preset != pre || TSEL->eng_req != eng), "an unedited sound: PRESETS browses, nothing asked");
     rk_discard(EN_PRESET, 0, "PRESETS over edits");
     rk_discard(EN_PRESET, 1, "HOME + PRESETS (the engine) over edits");
-    ui.row[SCR_SOUND] = 0;                              /* the SOUND row: PRESET, ENGINE */
-    frame();
-    rk_discard(EN_K1, 0, "the SOUND row's PRESET over edits");
-    rk_discard(EN_K2, 0, "the SOUND row's ENGINE over edits");
-    rk_at(SCR_SOUND, "SOUND", "INIT");
+    op_enter(SCR_PROJECT);                              /* (INIT's home: PROJECT > USER, the SOUND row is gone) */
+    rk_at(SCR_PROJECT, "USER", "INIT");
     ui.msg[0] = 0;
     h0 = rk_state();
     tap(B_SAVE);

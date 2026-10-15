@@ -250,7 +250,6 @@ static void turn(uint32_t role, int32_t s)
 }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
-#define FV_ROWS (FELUCCA_FAVORITES ? 1 : 0)       /* the FAVS row under the SOUND row (ui_optimist_favorites.h): EDIT tapped again goes there first */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static void reset_ui(void)
@@ -497,15 +496,15 @@ static void key_tests(void)
     check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_T1 && song.sel == 0 && mx_set(MXR_T1) == 0,
           "power-on: the mixer, on T1's row (MASTER above it, out of view), its first knob set");
     sound_all();
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0, "SOUND, every row: on the SOUND row");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0 && snd_page(0), "SOUND, every row: on its first page (no PRESET row: PRESETS is the one place for a sound)");
     (void)lv, (void)n;
     ui.force = 1;
     frame();
     ppm("opt-sound");
     pre = TSEL->preset;
     eng = TSEL->eng_req;
-    turn(EN_K1, 1);
-    check(TSEL->preset != pre || TSEL->eng_req != eng, "SOUND row: KNOB 1 the next sound");
+    turn(EN_PRESET, 1);
+    check(TSEL->preset != pre || TSEL->eng_req != eng, "PRESETS: the next sound");
     tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND])->fam == FAM_ENV && snd_page(ui.row[SCR_SOUND])->id[0] == P_ATK,
           "ENV tapped: SOUND's ENV row");
@@ -846,8 +845,8 @@ static void family_tests(void)
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
     sound_all();
     all = SCR->rows();
-    check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && !snd_page(0) && all > n + 3u,
-          "HOME > Sound: every row, the SOUND row first, as before");
+    check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && snd_page(0) && all > n + 3u,
+          "HOME > Sound: every row, its pages (no SOUND row)");
     song.sel = TRK_DRUM;
     frame();
     tap(B_EDIT);
@@ -2087,11 +2086,14 @@ static void name_tests(void)
     char t[32];
     reset_ui();
     song.sel = 0;
-    op_enter(SCR_SOUND);
-    ui.row[SCR_SOUND] = 0;
-    turn(EN_K4, 1);                                     /* SAVE AS hot */
+    op_enter(SCR_PROJECT);                              /* SAVE AS lives on PROJECT > USER (the SOUND row is gone, 2026-10-14) */
+    for (l = 0; l < NPRJ && prj_kind(l) != PR_USER; l++)
+        ;
+    ui.row[SCR_PROJECT] = (uint8_t)l;
+    ui.user_slot = 2;
+    turn(EN_K2, 1);                                     /* OPERATION: SAVE */
     tap(B_SAVE);
-    check(op_armed() && !strcmp(ui.arm_q, "SAVE AS PRESET?") && !name_on(), "SAVE AS: asks first, NAME not open");
+    check(op_armed() && !name_on(), "SAVE AS: asks first, NAME not open");
     tap(B_HOME);
     check(!op_armed() && !name_on() && up_stores == n0, "SAVE AS: HOME cancels, nothing changed");
     tap(B_SAVE);
@@ -2131,12 +2133,14 @@ static void name_tests(void)
     tap(B_SAVE);
     check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t,
           "SAVE: written under the typed name, a toast");
-    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again: asks, then NAME) */
+    ui.user_slot = 3;
+    turn(EN_K2, 1);                                     /* (SAVE AS again: asks, then NAME) */
+    tap(B_SAVE);
     tap(B_SAVE);
     check(name_on(), "SAVE AS again: NAME");
     turn(EN_K1, -20);
     tap(B_HOME);
-    check(!name_on() && up_stores == n0 + 1u && ui.scr == SCR_SOUND, "cursor at the start, HOME: cancelled, nothing written");
+    check(!name_on() && up_stores == n0 + 1u && ui.scr == SCR_PROJECT, "cursor at the start, HOME: cancelled, nothing written");
     op_enter(SCR_PROJECT);
     for (l = 0; l < NPRJ && prj_kind(l) != PR_USER; l++)
         ;
@@ -2353,37 +2357,6 @@ static void preset_engine_tests(void)
         check(ok, "... every turn a new instrument, round the list");
         reset_ui();
     }
-    {   /* the SOUND row's ENGINE card = HOME + PRESETS: the next / previous engine with its FIRST preset (the user, 2026-10-13) */
-        uint32_t i, k, eA, pA, uA, eB, pB, uB, same = 1, first = 1, c0;
-        song.sel = 0;
-        c0 = preset_pos(&total);
-        for (i = 0; i < 2u; i++) {
-            int32_t d = i ? -1 : 1;
-            song.sel = 0;
-            op_preset_go(c0);                           /* (the same start each time) */
-            ed_done();
-            op_enter(SCR_SOUND);
-            ui.row[SCR_SOUND] = 0;
-            frame();
-            press(B_OCTDN);                              /* HOME + PRESETS */
-            turn(EN_PRESET, d);
-            release(B_OCTDN);
-            eA = TSEL->eng_req, pA = TSEL->preset, uA = TSEL->user;
-            song.sel = 0;
-            op_preset_go(c0);
-            ed_done();
-            op_enter(SCR_SOUND);
-            ui.row[SCR_SOUND] = 0;
-            frame();
-            turn(EN_K2, d);                             /* the ENGINE card */
-            eB = TSEL->eng_req, pB = TSEL->preset, uB = TSEL->user;
-            same &= eA == eB && pA == pB && uA == uB;
-            cur = preset_pos(&total);
-            first &= (cur == 0u || preset_at(cur - 1u, &k) != eB) && !op_armed();
-            reset_ui();
-        }
-        check(same && first, "the SOUND row's ENGINE card: the same engine and preset as HOME + PRESETS, the engine's first sound, not its defaults");
-    }
     {   /* the master FX slots name their role by type, not place (the user, 2026-10-12: "slot 1 is insert, right ?") */
         cell_t c;
         int16_t *vp;
@@ -2490,7 +2463,6 @@ static void led_tests(void)
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
 #include "ui_optimist_lanesrc.h"                    /* 2026-10-13: a lane's SRC on page 1, knob 3 */
-#include "ui_optimist_lanekit.h"                    /* 2026-10-14: the SOUND row's first card follows the lane's source (KIT / PRESET / SLOT / "-") */
 #include "ui_optimist_effval.h"                    /* 2026-10-12: live effective values, one number and two bars */
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
@@ -2614,7 +2586,6 @@ int main(int argc, char **argv)
     pages_hit_tests();
     lane_ui_tests();
     lane_src_tests();
-    lanekit_tests();
     effval_tests();
     inslots_tests();
     fxi_ui_tests();

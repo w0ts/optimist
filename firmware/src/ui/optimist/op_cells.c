@@ -273,7 +273,7 @@ static int lane_fx_pg(const page_t *pg) { return pg == &LANE_FX_PG[0] || pg == &
 /* a drum lane's SRC is the SOUND row's knob 3 (the user, 2026-10-13: "this should be on third knob on page 1"): LANE_SRC_PG
  * is that cell (snd_cell, never a row of its own). PAGES' SOURCE (SRC HIT START LEN) is then only HIT START LEN, a user
  * sample's: this UI shows it as LANE_SMP_PG, on a lane playing one, and on no other lane (SLOOP's UI keeps PAGES' as it is) */
-static const page_t LANE_SRC_PG = {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0xFF, 0xFF, 8, 0xFF}};
+static const page_t LANE_SRC_PG = {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {8, 0xFF, 0xFF, 0xFF}};
 static const page_t LANE_SMP_PG = {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {9, 10, 11, 0xFF}};
 static int src_page(const page_t *pg) { return pg->scope == SC_DSND && pg->fam == FAM_EDIT && pg->id[0] == 8u; }   /* PAGES' SOURCE */
 static int smp_pg(const page_t *pg) { return pg == &LANE_SMP_PG; }

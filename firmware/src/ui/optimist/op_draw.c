@@ -796,8 +796,6 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         cv_rect(70, y + 5, 7, 7, song_row_col(i));
     for (k = 0; k < 4u; k++)
         SCR->cell(i, k, &c[k]);
-    if (ui.scr == SCR_SOUND)
-        snd_list_cells(i, c);                           /* (the SOUND row: the name over two cells, INIT, SAVE AS) */
     row_layout(c, &L, LC_END(wide));
     for (k = 0; k < 4u; k++) {
         int32_t x = L.x[k], gw = (k < 3u ? L.x[k + 1u] : LC_END(wide)) - x - 2;   /* (the form: to the next cell's place) */

@@ -12,7 +12,7 @@
  *   the work          changed when the tracks, sounds, lanes and globals differ from when a scene or project was last
  *                     loaded, stored or made NEW (work_mark): a scene or project LOAD asks only then
  * Signatures: FNV-1a in the main loop, on demand (the work's only when a load asks); 4 words of RAM a track. */
-enum { EK_NONE, EK_PRESET, EK_ENGINE, EK_LSOUND, EK_LKIND, EK_LUSR, EK_LFIRST };
+enum { EK_NONE, EK_PRESET, EK_ENGINE, EK_LSOUND, EK_LKIND };
 static struct {
     uint32_t id[NTRK], sig[NTRK];       /* the sound as loaded / saved: what it is, its signature */
     uint8_t ok;                         /* bit t: id / sig taken for track t */
@@ -148,12 +148,6 @@ static void ed_run(uint32_t trk_i)                      /* YES on "Discard T2 ed
         break;
     case EK_LKIND:
         lane_kind_step(edt.s);
-        break;
-    case EK_LUSR:
-        lane_card_turn(LCF_SLOT, edt.s);
-        break;
-    case EK_LFIRST:
-        lane_card_first();
         break;
     default:
         break;

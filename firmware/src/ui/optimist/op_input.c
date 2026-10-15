@@ -494,6 +494,16 @@ static void op_tap(uint32_t b, uint32_t id)
         op_jump(JUMP_FAM[b]);
 }
 
+#if FELUCCA_FAVORITES
+/* FAVORITES (docs section 37) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
+ * preset button, that is enough"): SHIFT2 (OCT+ held) + PRESETS marks the sound playing (right) or unmarks it (left), SHIFT2 + SELECT
+ * browses only the favorites (right) or every sound (left); a synth track's, not under a question, the NAME screen, STEP or MASTER */
+static int fav_gesture_ok(void)
+{
+    return !is_drum(TSEL) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_STEP && ui.scr != SCR_FX && !sys_scr(ui.scr) &&
+           !ui.master && !mx_on_master();
+}
+#endif
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
  * where it pages the window, and GLOBAL and SYSTEM, where it does nothing (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
  * the turn is drained and changes nothing. 1: a turn was taken */
@@ -509,6 +519,11 @@ static int op_presets_turn(void)
     } else if (ui.scr == SCR_STEP && op_shift(fm1_in.buttons)) {   /* STEP: SHIFT + PRESETS does nothing (it changed the engine only
                                                          * because this branch came first; PRESETS alone scrolls the window) */
         op_clean &= ~BIT(B_OCTDN);                      /* (SHIFT let go: no octave) */
+#if FELUCCA_FAVORITES
+    } else if (op_shift2(fm1_in.buttons) && fav_gesture_ok()) {   /* SHIFT2 + PRESETS: the sound playing a favorite (right) or not (left) */
+        op_fav_mark(s > 0);
+        pre_toast_fav(0);
+#endif
     } else if (op_shift(fm1_in.buttons) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
@@ -536,7 +551,7 @@ static int op_presets_turn(void)
 }
 static void op_knobs(uint32_t shift)
 {
-    uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
+    uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
     int32_t s;
     cell_t c;
     ui.shift = (fm1_in.buttons & BIT(B_LFO)) != 0u;     /* SHIFT = LFO held (the user): the cells' fine path */
@@ -547,13 +562,21 @@ static void op_knobs(uint32_t shift)
     }
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
-    if (ui.scr == SCR_HOME) {                           /* the mixer: SELECT its knob sets */
+#if FELUCCA_FAVORITES
+    if (op_shift2(fm1_in.buttons) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
+        op_fav_list(s > 0);
+        pre_toast_fav(fav_list ? "FAVORITES ONLY" : "ALL SOUNDS");
+        favsel = 1;
+        turned = 1;
+    }
+#endif
+    if (ui.scr == SCR_HOME && !favsel) {                /* the mixer: SELECT its knob sets */
         if ((s = panel_enc(EN_SELECT)) != 0) {
             mx_page(s);
             turned = 1;
         }
     }
-    if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
+    if (!favsel && (s = panel_enc(EN_SELECT)) != 0) {   /* the cursor: a row a detent, stopping at the ends */
         if (glo_cycle())
             glo_step(s);                                /* (GLOBAL, SYSTEM: their pages of 4 lines, op_global.c) */
         else

@@ -60,7 +60,7 @@ static void prjflow_tests(void)
         check(!strcmp(pf_label(r, 2), "ITEM"), "the third card is the ITEM");
         check((prj_banks(kinds[kind]) > 1u) == !strcmp(pf_label(r, 0), "BANK"), "BANK only on a store of more than 16 slots");
         check(prj_banks(kinds[kind]) > 1u || !pf_label(r, 0)[0], "... otherwise an empty card");
-        check(!pf_label(r, 3)[0] == (kinds[kind] != PR_PROJECT), "card 4: NEW on PROJECT, empty on the others");
+        check(!pf_label(r, 3)[0] == (kinds[kind] != PR_PROJECT && kinds[kind] != PR_USER), "card 4: NEW on PROJECT, INIT on USER, empty on the others");
     }
     /* USER: 32 slots, two banks; the test's store has U01 and U02 used */
     r = pf_row(PR_USER);

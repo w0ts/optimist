@@ -229,17 +229,7 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
-/* FAVORITES (docs section 37): the row after the SOUND row of a synth track, KNOB 1 FAV and KNOB 2 LIST (the SOUND row's four
- * cards are taken); the drum track has no mark */
-static int snd_fav_row(void)
-{
-#if FELUCCA_FAVORITES
-    return (snd_fam == SND_ALL || snd_fam == FAM_EDIT) && !is_drum(TSEL);
-#else
-    return 0;
-#endif
-}
-static uint32_t snd_first(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT ? 1u + (uint32_t)snd_fav_row() : 0u; }   /* the SOUND row (and FAVORITES) */
+static uint32_t snd_first(void) { return is_drum(TSEL) && (snd_fam == SND_ALL || snd_fam == FAM_EDIT) ? 1u : 0u; }   /* the drum track's lane row (SRC, ACCENT); a synth track has no SOUND row: PRESETS is the one place for a sound (the user, 2026-10-14) */
 /* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
@@ -256,7 +246,7 @@ static void snd_name_row(uint32_t r, char *b)
     if (snd_fam == SND_FM6)
         fm6_row_name(r, b);
     else
-        str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : r == 1u && snd_fav_row() ? "FAVS" : "SOUND", 12);
+        str_cpy(b, snd_page(r) ? (lane_picked() ? dr_title(snd_page(r)) : snd_page(r)->title) : "SOUND", 12);
 }
 /* the drum track's pages as the list and the header title them (the audit's #19, #20): the shared names stay what the
  * help line keys on ("SOUND", "SOUND 2", "SENDS"), the titles say what each page holds: the SOUND row (KIT LANE SRC
@@ -280,18 +270,6 @@ static void snd_title_row(uint32_t r, char *b)          /* row r's name as title
     a = snd_page(r) ? dr_alias(snd_page(r)) : "LANE";
     if (a)
         str_cpy(b, a, 12);
-}
-/* the synth SOUND row as its list row shows it (the audit's #36): the preset's name over the ENGINE cell's place (the
- * badge names the engine), then INIT, then SAVE AS in the room left (its 4-letter form SAVE, op_draw.c row_layout); a
- * name too long for that (10 letters or more) keeps its place whole and SAVE AS stays the card's alone. The cards keep
- * all four */
-static void snd_list_cells(uint32_t r, cell_t *c)
-{
-    if (snd_fam == SND_FM6 || snd_page(r) || is_drum(TSEL) || (r == 1u && snd_fav_row()))
-        return;
-    cell_clear(&c[1]);
-    if (str_len(c[0].val) > 9u)
-        cell_clear(&c[3]);
 }
 static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
 {
@@ -323,62 +301,6 @@ static uint32_t snd_mem_row(uint32_t fam)               /* the row of family fam
     uint32_t r = snd_mem[song.sel % NTRK][snd_slot(fam)], n = snd_rows();
     return r < n ? r : n ? n - 1u : 0u;
 }
-/* the first card of a lane that is not on the KIT: its PRESET, its sample SLOT, or KIT dim "-" with nothing to pick */
-static void snd_lane_card(cell_t *c)
-{
-    uint32_t f = lane_card_form(), n, i;
-    if (f == LCF_NONE) {
-        c->label = "KIT";
-        c->kind = CK_RO;
-        c->dim = 1;
-        c->hlp = "NO KIT";
-        str_cpy(c->val, "-", sizeof c->val);
-        return;
-    }
-    c->label = f == LCF_SLOT ? "SLOT" : "PRESET";
-    c->kind = CK_VAL;
-    c->hlp = f == LCF_SLOT ? "LANE SLOT" : "LANE PRESET";
-    str_cpy(c->val, lane_sound_name(lane_selected()), sizeof c->val);
-    c->col = op_lane_col(lane_selected());
-    i = lane_card_pos(&n);
-    cell_gauge(c, 1, 0, (int32_t)n - 1, (int32_t)i);
-}
-#if FELUCCA_FAVORITES
-/* the FAVORITES row: FAV (this sound is marked; "--" where it has no mark: the engines' own collections) and LIST */
-static void snd_fav_cell(uint32_t k, cell_t *c)
-{
-    uint32_t e, e2;
-    int can = fav_cur(&e, &e2), on = can && op_fav_here();
-    if (k == 0u) {
-        c->label = "FAV";
-        c->kind = can ? CK_VAL : CK_RO;
-        c->dim = (uint8_t)!can;
-        str_cpy(c->val, can ? (on ? "ON" : "OFF") : "--", sizeof c->val);
-        cell_gauge(c, 1, 0, 1, on);
-    } else if (k == 1u) {
-        c->label = "LIST";
-        c->kind = CK_VAL;
-        str_cpy(c->val, fav_list ? "FAV" : "ALL", sizeof c->val);
-        cell_gauge(c, 1, 0, 1, fav_list);
-    }
-}
-static void snd_fav_turn(uint32_t k, int32_t s)         /* a set, not a toggle: right ON, left OFF, HOME held + the knob: OFF / ALL */
-{
-    int on = s != OP_RESET && s > 0;
-    if (k == 0u)
-        op_fav_mark(on);
-    else if (k == 1u)
-        op_fav_list((uint32_t)on);
-}
-static int snd_fav_yes(uint32_t k)                      /* YES toggles the card */
-{
-    if (k == 0u)
-        op_fav_mark(!op_fav_here());
-    else if (k == 1u)
-        op_fav_list(!fav_list);
-    return k < 2u;
-}
-#endif
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     if (snd_fam == SND_FM6) {
@@ -390,59 +312,14 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
     cell_clear(c);
-#if FELUCCA_FAVORITES
-    if (r == 1u && snd_fav_row()) {
-        snd_fav_cell(k, c);
+    if (!is_drum(TSEL))
         return;
-    }
-#endif
-    if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
-        if (k == 2u) {                                  /* the lane's SRC (the user, 2026-10-13); empty where a build has none */
-            if (lane_snd())                             /* (the ACCENT lane has no sound: no SRC) */
-                page_cell(&LANE_SRC_PG, k, c);
-            return;
-        }
-        if (k == 3u) {                                  /* the ACCENT amount, next to the KIT (every lane: the track's own) */
-            if (ACC_UI) {
-                acc_cell(c);
-                c->dr = (uint8_t)(lane_picked() && lane_snd());   /* (the ACCENT lane's own amount: its lane's) */
-            }
-            return;
-        }
-        if (k != 0u)
-            return;                                     /* (card 2 was the LANE read-out: gone, the user 2026-10-14; the SOUND row is the
-                                                         * lane's source: this card follows it, SRC is the third) */
-        if (lane_card_form() != LCF_KIT) {              /* the lane's own sound, not the kit (op_walk.c lane_card_form) */
-            snd_lane_card(c);
-            return;
-        }
-        c->label = "KIT";
-        c->kind = CK_VAL;
-        str_cpy(c->val, drum_kit_name(), sizeof c->val);
-        c->col = kit_col();
-        c->dr = (uint8_t)lane_picked();                 /* (the kit is the track's) */
-        cell_gauge(c, 1, 0, (int32_t)drum_kit_total() - 1, (int32_t)drum_kit_pos());
-        return;
-    }
-    switch (k) {
-    case 0:
-        c->label = "PRESET";
-        c->kind = CK_VAL;
-        snd_name(song.sel, c->val);
-        break;
-    case 1:
-        c->label = "ENGINE";
-        c->kind = CK_VAL;
-        str_cpy(c->val, ENGINES[TSEL->eng_req % NENGINES]->name, sizeof c->val);
-        c->col = ENG_COL[TSEL->eng_req % NENGINES];
-        cell_gauge(c, 1, 0, NENGINES - 1, TSEL->eng_req % NENGINES);
-        break;
-    case 2:
-        cell_act(c, "SOUND", "INIT", 0, 1);
-        break;
-    default:
-        cell_act(c, "SOUND", "SAVE AS", 0, 0);
-        break;
+    if (k == 0u) {                                      /* the drum track's lane row: the lane's SRC (the user, 2026-10-13); empty where a build has none */
+        if (lane_snd())                                 /* (the ACCENT lane has no sound: no SRC) */
+            page_cell(&LANE_SRC_PG, k, c);
+    } else if (k == 1u && ACC_UI) {                     /* the ACCENT amount (every lane: the track's own) */
+        acc_cell(c);
+        c->dr = (uint8_t)(lane_picked() && lane_snd());   /* (the ACCENT lane's own amount: its lane's) */
     }
 }
 static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
@@ -455,37 +332,13 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(snd_page(r), k, s, fine);
         return;
     }
-#if FELUCCA_FAVORITES
-    if (r == 1u && snd_fav_row()) {
-        snd_fav_turn(k, s);
+    if (!is_drum(TSEL))
         return;
-    }
-#endif
-    if (is_drum(TSEL) && k == 2u) {                     /* the lane's SRC (page_turn: no reset to a default) */
+    if (k == 0u) {                                      /* the lane's SRC (page_turn: no reset to a default) */
         if (lane_snd())
             page_turn(&LANE_SRC_PG, k, s, fine);
-        return;
-    }
-    if (is_drum(TSEL) && k == 3u) {                     /* the ACCENT amount */
-        if (ACC_UI)
-            acc_turn(k, s, fine);
-        return;
-    }
-    if (is_drum(TSEL) && k == 1u)                       /* (no second card on the drum SOUND row) */
-        return;
-    if (is_drum(TSEL) && k == 0u && lane_card_form() != LCF_KIT) {   /* a lane off the KIT: its own PRESET / SLOT, never the kit */
-        if (s == OP_RESET)
-            lane_card_first();
-        else
-            lane_card_turn(lane_card_form(), s);
-        return;
-    }
-    if (s == OP_RESET)
-        return;
-    if (k == 0u) {
-        op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
-    } else if (k == 1u) {
-        op_engine_step(s);                              /* = HOME + PRESETS: the next engine's first sound (the user, 2026-10-13) */
+    } else if (k == 1u && ACC_UI) {                     /* the ACCENT amount */
+        acc_turn(k, s, fine);
     }
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
@@ -494,25 +347,16 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         return fm6_yes(r, k, ok);
     if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
-#if FELUCCA_FAVORITES
-    if (r == 1u && snd_fav_row())
-        return snd_fav_yes(k);
-#endif
-    if (is_drum(TSEL) || k < 2u)
-        return 0;
-    if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */
-        if (!ok) {                                      /* (asked always, the user 2026-10-13) */
-            op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel), 1);
-            return 1;
-        }
-        return op_global_go(G_INITSND);
-    }
+    return 0;
+}
+/* INIT: the engine's defaults, the edits go; asked always (the user 2026-10-13). Its home is PROJECT > USER (op_prjflow.c) */
+static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)
+{
     if (!ok) {
-        op_arm(SCR_SOUND, r, k, "SAVE AS", "PRESET", 0);
+        op_arm(scr, r, k, "INIT", trk_tag(song.sel), 1);
         return 1;
     }
-    name_user_free();                                   /* SAVE AS: the first free user preset slot, NAME first */
-    return 1;
+    return op_global_go(G_INITSND);
 }
 
 /* ---- MASTER (SCR_FX): the global effects' pages, in the signal's order (the user, 2026-10-14: "we should have inserts,

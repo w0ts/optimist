@@ -27,13 +27,13 @@ static int lsrc_check_lane(uint32_t l, uint8_t src, const char *what)
     ui.row[SCR_SOUND] = 0;
     frame();
     memset(&c, 0, sizeof c);
-    SCR->cell(0, 2, &c);
+    SCR->cell(0, 0, &c);
     ok = c.label && str_eq(c.label, "SRC") && c.kind != CK_RO;
-    (void)snprintf(msg, sizeof msg, "%s: SRC is page 1's knob 3", what);
+    (void)snprintf(msg, sizeof msg, "%s: SRC is page 1's knob 1", what);
     check(ok, msg);
     memset(&c, 0, sizeof c);
-    SCR->cell(0, 3, &c);
-    (void)snprintf(msg, sizeof msg, "%s: page 1's knob 4 stays empty", what);
+    SCR->cell(0, 1, &c);
+    (void)snprintf(msg, sizeof msg, "%s: page 1's knob 2 is the ACCENT amount or empty", what);
     check(ACC_UI ? (c.label && str_eq(c.label, "ACCENT")) : (!c.label || !c.label[0]), msg);   /* (the ACCENT amount, where built) */
     return ok;
 }
@@ -53,21 +53,21 @@ static void lane_src_tests(void)
     frame();
     ppm("opt-lane-src");
     memset(&c, 0, sizeof c);
-    SCR->cell(0, 2, &c);
+    SCR->cell(0, 0, &c);
     check(c.d && c.d->label && str_eq(c.d->label, "SRC") && c.col == 0u + c.col, "the cell is SRC's descriptor (the help line's key)");
 #if FELUCCA_PARAM_HELP
     check(hl_find(SCR_SOUND, 0, &c) != 0u, "SRC on page 1 keeps its help line");
 #endif
     before = dl.src[l];
     ui.row[SCR_SOUND] = 0;
-    turn(EN_K3, 1);
-    check(dl.src[l] != before, "KNOB 3 on page 1: the lane's source changes");
+    turn(EN_K1, 1);
+    check(dl.src[l] != before, "KNOB 1 on page 1: the lane's source changes");
     check(snd_page(0) == 0 && ui.row[SCR_SOUND] == 0u, "... and the cursor stays on page 1");
-    turn(EN_K3, -1);
+    turn(EN_K1, -1);
     check(dl.src[l] == before, "... and back");
     src0 = dl.src[l];
-    turn(EN_K3, OP_RESET);
-    check(dl.src[l] == src0, "HOME + KNOB 3 (reset): SRC has no default to go back to, unchanged");
+    turn(EN_K1, OP_RESET);
+    check(dl.src[l] == src0, "HOME + KNOB 1 (reset): SRC has no default to go back to, unchanged");
     lsrc_check_lane(l, DL_KIT0, "a sampled kit lane");
     check(lsrc_rows_titled("SOURCE") == 0u && SCR->rows() == rows_kit, "a sampled kit lane: no SOURCE page, as many pages");
 #if FELUCCA_DRUM_USR

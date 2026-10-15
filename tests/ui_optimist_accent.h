@@ -162,36 +162,32 @@ static void acc_sound_tests(void)
     check(!bad, "the ACCENT lane selected: no lane page (SOUND, SOURCE, KIT, ENV, LFO) among SOUND's rows");
     check(snd_rows() < n && snd_rows() >= 1u, "... but the SOUND row is there");
     SCR->cell(0, 0, &c);
-    ok = c.label && !strcmp(c.label, "KIT");
+    ok = !c.label || !c.label[0];                       /* (no SRC: no sound) */
     SCR->cell(0, 1, &c);
-    ok &= !c.label && c.kind == CK_NONE;               /* (no LANE card any more) */
-    SCR->cell(0, 2, &c);
-    ok &= !c.label || !c.label[0];
-    SCR->cell(0, 3, &c);
     ok &= c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC] && c.d == &DRUM_ACC_DESC;
-    check(ok, "the SOUND row: KIT, no second card, no SRC, the ACCENT amount");
+    check(ok, "the SOUND row: no SRC, the ACCENT amount second");
     TDRUM->p[P_DACC] = 27;
-    turn(EN_K4, 5);
-    check(TDRUM->p[P_DACC] > 27, "KNOB 4: the ACCENT amount up");
-    turn(EN_K3, 5);
-    check(TDRUM->p[P_DACC] > 27, "KNOB 3 (no SRC): nothing");
+    turn(EN_K2, 5);
+    check(TDRUM->p[P_DACC] > 27, "KNOB 2: the ACCENT amount up");
+    turn(EN_K1, 5);
+    check(TDRUM->p[P_DACC] > 27, "KNOB 1 (no SRC): nothing");
     press(B_OCTDN);
-    turn(EN_K4, 1);
+    turn(EN_K2, 1);
     release(B_OCTDN);
-    check(TDRUM->p[P_DACC] == DACC_DEF, "HOME + KNOB 4: back to the default");
+    check(TDRUM->p[P_DACC] == DACC_DEF, "SHIFT + KNOB 2: back to the default");
     TDRUM->p[P_DACC] = 120;
-    turn(EN_K4, 40);
+    turn(EN_K2, 40);
     check(TDRUM->p[P_DACC] == DACC_MAX, "... stops at 127");
     TDRUM->p[P_DACC] = 5;
-    turn(EN_K4, -40);
+    turn(EN_K2, -40);
     check(TDRUM->p[P_DACC] == 0, "... and at 0");
     TDRUM->p[P_DACC] = DACC_DEF;
     lane_select(4);
     ui.lane = 1;
     frame();
-    SCR->cell(0, 3, &c);
+    SCR->cell(0, 1, &c);
     check(c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC], "a sound lane: the ACCENT card there too (the track's own)");
-    SCR->cell(0, 2, &c);
+    SCR->cell(0, 0, &c);
     check(c.label && !strcmp(c.label, "SRC"), "... next to its SRC");
     lane_select(DRUM_ACC);
     ui.lane = 1;
@@ -329,7 +325,7 @@ static void acc_step_tests(void)
     op_enter(SCR_SOUND);
     ui.row[SCR_SOUND] = 0;
     frames(2);
-    SCR->cell(0, 3, &c);
+    SCR->cell(0, 1, &c);
     check(c.label && !strcmp(c.label, "ACCENT") && c.vp == &TDRUM->p[P_DACC], "... the amount: the SOUND row's ACCENT card");
     reset_ui();
     memset(t->dstep, 0, sizeof t->dstep);
@@ -463,7 +459,7 @@ static void acc_motion_tests(void)                      /* REC playing, the ACCE
     TDRUM->p[P_DACC] = DACC_DEF;
     lane_transport(1);
     song.rec = 1u << TRK_DRUM;
-    turn(EN_K4, 5);
+    turn(EN_K2, 5);
     a = AL(TDRUM);
     for (i = 0; i < a->n; i++)
         n += a->ev[i].param == mot_sid(P_DACC) && !(a->ev[i].place & AUTO_ONLY);
@@ -499,7 +495,7 @@ static void acc_help_tests(void)
 {
     cell_t c;
     acc_pick();
-    SCR->cell(0, 3, &c);
+    SCR->cell(0, 1, &c);
     check(hl_find(SCR_SOUND, 0, &c) != 0u, "the help line: the ACCENT card of the SOUND row has its text");
     lane_select(DRUM_ACC);
     ui.lane = 1;

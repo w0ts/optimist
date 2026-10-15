@@ -159,8 +159,6 @@ static void cards_pic_tests(void)
     song.sel = 0;
     tap(B_EDIT);
     tap(B_EDIT);
-    if (FV_ROWS)
-        tap(B_EDIT);                                    /* (EDIT's first row is the SOUND row, D7: FAVS the second, EDIT 1 the third) */
     cp_draw();
     ppm("opt-cardspic-edit1");
     check(ui.scr == SCR_SOUND && cp_list(), "2x2: EDIT 1, the big values, its rows under them, the header's n/N");
