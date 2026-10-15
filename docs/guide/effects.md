@@ -47,6 +47,7 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | CHRS | a two-tap chorus around 7 ms | up to 64 its mix, then its depth | none |
 | ECHO | a short single repeat, 75 ms | up to 64 its level, then its feedback | none |
 | JUNO | the Juno-106 chorus (below) | MIX, 127 the Juno's chorus on | `JUNO CHO` |
+| EQ3 | a three-band DJ equaliser (below) | ON or OFF | `EQ3`, `EQ3 FREQ` |
 
 A drum sound can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR and FRMT. Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
@@ -77,20 +78,29 @@ These three keep a line of memory each, so the builder gives them a count of ins
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): the `JUNO CHO` page has MIX (127 = the Juno's chorus fully on) and MODE (I, II, I+II). A mono track comes out in stereo. The page shows while one of the track's slots holds JUNO. On the master it is `MST JUNO` (SLOOP UI), `INS JUNO` (Optimist UI), with the same two cards.
 
+### EQ3: a three-band DJ equaliser
+
+EQ3 (builder item `INS_EQ3`) splits the sound at two crossover frequencies and sets the gain of each band, like the three-band DJ equaliser of a mixer. It can sit in any insert slot: a track's, the drum bus', a drum sound's, the master's, the USB input's, or a return's.
+
+- **LO, MID, HI** (page `EQ3`): the gain of each band, KILL (the band is cut off completely) or -30 to +6 dB in 1 dB steps; 0 dB is the default.
+- **FREQ LO, FREQ HI** (page `EQ3 FREQ`): the two crossovers, FREQ LO from 51 Hz to 1 kHz (default 250 Hz) and FREQ HI from 625 Hz to 12 kHz (default 2.5 kHz). The bands add up flat at any setting of the frequencies.
+- **The amount** is ON or OFF (ON by default). With all three gains at 0 dB, or with the type out of the slot, nothing runs and the sound passes unchanged; entering or leaving that state is a 3 ms crossfade, so there is no click.
+- On the master the pages are `MST EQ3` and `MST EQ3 F`; on a return, `RET EQ3` and `RET EQ3 F`. The CPU guard counts an EQ3 only while it is doing something.
+
 ## The master
 
 ### Master insert slots
 
 The master has two insert slots, S1 and S2, after the returns and PUNCH and before the master volume. The Optimist UI shows them as `INSERTS` on the master FX screen (and the mixer's MASTER row, INSERT); SLOOP's UI has the page `MST INS` (S1, S2 and their amounts).
 
-- They take every type the build has except CHRS, ECHO and GATER (those depend on a per-track instance count or on a track's tempo).
+- They take every type the build has except GATER (it needs a track's tempo values). CHRS, ECHO, FLNG and JUNO take an instance from the pool, as on a track.
 - Their amounts: FILT is the master's DJ filter (-64..63), DUST the master DUST, DYN the master compressor's THRS; any other type has its own master amount.
 - A new project: S1 FILT (amount 0, bypassed), S2 DYN.
 - An old project (saved before the master had slots) converts: the master effects it used take the slots, and when all three of DUST, FILT and DYN were in use, DYN and DUST win and FILT is dropped. PUNCH now runs before the master inserts (it ran between DUST and the DJ filter), which only differs when DUST and a punch effect are used together.
 
 ### The three returns: R1, R2, R3
 
-The send buses (reverb, delay, chorus) come back into the mix through three **returns**, R1, R2 and R3. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines).
+The send buses (reverb, delay, chorus) come back into the mix through three **returns**, R1, R2 and R3. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
 
 The return levels are on `RETURNS` (Optimist UI) with the cards in the order REV, DLY, CHO: 0..127, 127 unity (the values RRET, DRET, CRET). The effects the returns carry have their own pages: the delay `DLY` / `RET DELAY` (TIME, FDBK 0..120, COLR, MIX; the defaults are FDBK 60, COLR 70, MIX 90), the reverb `REV/CHO` / `RET REV` (SIZE, DAMP, then the chorus's CRT and CDP), and `REVERB` / `RET TYPE`, the reverb algorithm.
 
@@ -108,7 +118,7 @@ In the Optimist UI the track's sends are on `SENDS`: REV, DLY, CHO (the slots a 
 
 ## USB audio in, as a track
 
-**USB audio in** is the computer's audio as a mixer track. It exists only in a build with USB audio (`FELUCCA_USB_AUDIO`). The track is a stereo track after the drum tracks, named USB IN in the mixer. It has VOLUME (default unity), PAN, FX ON, two insert slots (the master's types except CHRS, ECHO, GATER and JUNO) and sends REV, DLY, CHO taken from its mid (all 0 by default). It is mixed into the mix bus before the master's inserts. The mute is SHIFT2 on VOLUME, as on every row. Its settings (level, pan, mute, FX ON, the three sends, the two slots and their amounts) are kept in the project's FX record (TLV 0x48, 11 bytes, written only when something differs from the defaults). In the Optimist UI its row is the mixer's USB row, after the drum tracks; it has no instrument, so the keys are silent on it. By default: unity, centre, no insert, no send, which is how the computer's audio was mixed before the track existed, except that it now goes into the mix bus before the master's inserts.
+**USB audio in** is the computer's audio as a mixer track. It exists only in a build with USB audio (`FELUCCA_USB_AUDIO`). The track is a stereo track after the drum tracks, named USB IN in the mixer. It has VOLUME (default unity), PAN, FX ON, two insert slots (every insert type a track's slots take, EQ3, GATER and the JUNO chorus included; the pooled ones, CHRS, ECHO, FLNG and JUNO, take an instance from the pool, and when none is free the slot reads FULL and is bypassed) and sends REV, DLY, CHO taken from its mid (all 0 by default). It is mixed into the mix bus before the master's inserts. The mute is SHIFT2 on VOLUME, as on every row. Its settings (level, pan, mute, FX ON, the three sends, the two slots and their amounts) are kept in the project's FX record (TLV 0x48, 15 bytes: it was 11 before GATER's and the JUNO chorus's own values were added; written only when something differs from the defaults). In the Optimist UI its row is the mixer's USB row, after the drum tracks; it has no instrument, so the keys are silent on it. By default: unity, centre, no insert, no send, which is how the computer's audio was mixed before the track existed, except that it now goes into the mix bus before the master's inserts.
 
 ## Effects in projects
 

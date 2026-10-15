@@ -884,7 +884,7 @@ Not in the `FX` command (2026-10-15): the master's two **insert slots** (type id
 - 0x44 (`MST_TLV`): the master's S1 S2 type ids, then its amounts for DIST and each further type with no global of its own;
 - 0x46 (`LIN_TLV`): the drum sounds' two insert slots, a byte a lane (S1's index, S2's in the high nibble), only when a lane is not S1 DIST, S2 DYN;
 - 0x47 (`VCNT_TLV`): the parts' VOICES (0..8, 0 = the engine's maximum), a byte a part, only when one is not 0;
-- 0x48 (`UT_TLV`): the USB input track in a USB audio build: LEVEL PAN MUTE FX-ON REV DLY CHO (a byte each, PAN signed), its two slots' types and amounts, 11 bytes, only when not every one is the default.
+- 0x48 (`UT_TLV`): the USB input track in a USB audio build: LEVEL PAN MUTE FX-ON REV DLY CHO (a byte each, PAN signed), its two slots' types and amounts, then GATER's PATTERN RATE SHAPE and the JUNO chorus' MODE, 15 bytes (11 before 2026-10-15's USB input inserts), only when not every one is the default.
 0x45 is not used by the firmware.
 
 The web editor (web/editor.html): the strips' four FX knobs are the slots' amounts, named after them; the drum strip has

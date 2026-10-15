@@ -103,42 +103,55 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**
-- **INFO:** read-outs (next section). It is always the first page.
+- **INFO, INTERNALS, USB STATS:** read-outs (next section). INFO is always the first page.
 - **SCREEN:** COLOR (the palette), BRIGHT (the screen backlight, 1 to 8, in builds with it), KNOB COLORS (ON / OFF).
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BLUETOOTH:** BLE, OFF, ON, LINK (connected) or NO CAL (the radio has no stored trims and never starts). SAVE on it opens the list of BLE devices.
 - **CALIBRATE:** PANEL (runs the panel calibration, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
+- **USB AUDIO:** (USB audio builds) CH1 to CH4, the source of each of the four capture channels sent to the computer: the main mix (L, R or sums), T1 to T3, DRUMS, the drum bus, a drum lane tap (DR1 to DR16) or OFF.
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time), CHIP (AC791N, 1 core or 2 cores) and the repository address.
 
-## SYSTEM > INFO
+## SYSTEM > INFO, INTERNALS and USB STATS
 
-INFO is one page of read-outs, text only, no bars; no knob does anything there. The lines, in order:
+The first SYSTEM pages are read-outs, text only; no knob does anything there. There are three, each drawn whole: INFO first, then INTERNALS, then (in a USB audio build) USB STATS.
+
+**INFO** is what a musician reads:
 
 | Line | Meaning |
 |---|---|
 | CLOCK | The CPU clock, in MHz. |
-| CPU0 (LOAD without a second core) | The audio render load of CPU0, in percent; with a second core it includes CPU0's wait for CPU1. |
+| CPU0 (LOAD without a second core) | The audio render load of CPU0, in percent; with a second core it includes CPU0's wait for CPU1. Knob 2 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late half. |
 | 2ND CORE ON | The share of each audio half CPU1 takes. |
 | 2ND CORE OFF, then a reason | CPU0 renders everything. The reason: NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING or PARKED. In the current default build the second core is PARKED: it is never started (2026-10-15, until the hardware tests settle it), so INFO says 2ND CORE OFF PARKED; a build made with `OPTIMIST_DUAL_PARK=0` starts it. |
+| DROPS | How many audio halves were late (a gap in the sound) since boot or the last clear; red for a while after a new one. |
+| UNDERRUNS | USB audio's and MIDI in's losses together, and where (`USB3 MIDI1`). |
+| GUARD | What the CPU guard is easing now, the voices it capped (`MAX n`) and the voices it shed. In builds with the CPU guard. |
 | BATTERY | The battery as bars out of 3 and the raw ADC count, as `n/3` and the count; "USB" in the unit while powered by USB; NO READING before the first sample. There is no calibration, so no volts and no percentage are shown. |
-| LAST RESET | How the boot before this one ended: POWER ON, CRASH (CRASH1: CPU1 named), WDT, SOFT, KEY or LOW V, then how long it ran, and a crash address or the step it was in. Debug builds only. |
-| CPU1 JOB/REWAKE | Jobs joined (thousands) / times CPU0 woke CPU1 again for a job it had not picked up (amber when not 0). |
-| CPU1 STOP | `--`: CPU1 never stopped. Otherwise when and where: `W` the job was never picked up; `J<n>` it was in job n (1 to 4 a part, 5 the drums, 6 the reverb, 0 none begun); `IDLE` no job was posted (a boot check, a flash operation). The time is since CPU1 started (milliseconds under 10 s, then seconds). |
-| CPU1 SLEEP or CPU1 SPIN | How far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE. |
-| CPU1 FAULT | An exception about CPU1 (`D` or `E` code, `@` address and the core that took it); none: `IC` and its interrupt setup. |
 
-The CPU1 lines appear in builds with two cores. In a USB audio build four more lines follow, counters since boot, read-only:
+**INTERNALS** is for finding a fault:
 
 | Line | Meaning |
 |---|---|
-| UA U/O/M/B | Playback underruns / overruns / missed USB frames / bad packets (amber when any is not 0). An underrun is the computer's audio running dry: the ring empties, the FM-1 resets it and refills 512 frames, so at least about 12 ms is silent. |
-| UA RX/FB | Packets received (thousands) / the feedback value sent to the computer (Hz). |
-| UA LOW/GAP | The lowest the ring got (frames of 1024; the target is 512) / the longest gap between two USB polls (microseconds) / how many gaps were over 900 us. |
-| FLASH OFF | The longest time interrupts were off for a flash operation (microseconds). |
+| LAST RESET | How the boot before this one ended: POWER ON, CRASH (CRASH1: CPU1 named), WDT, SOFT, KEY or LOW V, then how long it ran, and a crash address or the step it was in. Debug builds only. |
+| FLASH IRQS OFF | The longest time interrupts were off for a flash operation, in microseconds (amber when longer than an audio half). |
+| CPU1 JOBS DONE / RE-WAKES | Jobs joined (thousands) / times CPU0 woke CPU1 again for a job it had not picked up (amber when not 0). Builds with two cores. |
+| CPU1 LAST STOP | `--`: CPU1 never stopped. Otherwise when and where: `W` the job was never picked up; `J<n>` it was in job n (1 to 4 a part, 5 the drums, 6 the reverb, 0 none begun); `IDLE` no job was posted (a boot check, a flash operation). The time is since CPU1 started (milliseconds under 10 s, then seconds). |
+| CPU1 GOT TO / HEARTBEAT | How far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE. |
+| CPU1 FAULT | An exception about CPU1 (`D` or `E` code, `@` address and the core that took it); none: `IC` and its interrupt setup. |
 
-These lines exist to find the cause of an occasional glitch while the computer plays audio to the FM-1. The cause is **not yet measured** on hardware. While a computer is streaming, flash writes that can wait are held back.
+**USB STATS** (USB audio builds) holds the counters since boot, read-only:
+
+| Line | Meaning |
+|---|---|
+| USB UNDERRUNS, USB OVERRUNS | Playback underruns and overruns (amber when not 0). An underrun is the computer's audio running dry: the ring empties, the FM-1 resets it and refills 512 frames, so at least about 12 ms is silent. |
+| MISSED FRAMES, BAD PACKETS | USB frames that did not arrive, and packets that were bad (amber when not 0). |
+| PACKETS IN, RATE ASKED | Packets received, and the feedback rate sent to the computer (Hz). |
+| LOWEST BUFFER | The lowest the ring got, in frames (the ring holds 1024; the target is 512); NONE YET before the first reading. |
+| LONGEST GAP, GAPS > 0.9 MS | The longest gap between two USB polls (microseconds), and how many gaps were over 0.9 ms. |
+
+These counters exist to find the cause of an occasional glitch while the computer plays audio to the FM-1. The cause is **not yet measured** on hardware. While a computer is streaming, flash writes that can wait are held back.
 
 ## Connections
 
