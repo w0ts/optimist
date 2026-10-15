@@ -442,7 +442,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
-    c->strike = (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
+    c->strike |= (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
                            (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
                           mx_muted(r));   /* (the volume cards of a muted row) */
     if (m.kind == MI_ACC)

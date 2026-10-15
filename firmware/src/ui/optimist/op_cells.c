@@ -514,7 +514,7 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 }
 
 /* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count beside
- * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 CHRS" over FULL (bypassed; "IN USE"
+ * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 AMT" over the name CHRS struck through (bypassed; the same look while
  * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
  * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
 #if INS_LIM
@@ -541,8 +541,9 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
     if (st == FXI_WAIT && fxi_can(o, t))
         v = "WAIT";
     else {
-        v = st == FXI_FULL ? "FULL" : "IN USE";
+        v = c->hlp;                                     /* (the effect's name, struck through like a muted track's text) */
         c->dim = 1;
+        c->strike = 1;
         c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" : "FULL ECHO";
     }
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
