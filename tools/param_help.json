@@ -292,6 +292,8 @@
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"},
       "FX ON": "Track effects on or off"}},
+    {"kind": "op", "ctx": "FAVS", "if": "FELUCCA_FAVORITES", "params": {
+      "FAV": "Mark this sound a favorite", "LIST": "Browse all, or only favorites"}},
     {"kind": "op", "ctx": "SOUND", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
