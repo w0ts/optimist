@@ -80,8 +80,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
         draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, C_LINE);
     }
 }
-/* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, a bar
- * under it over the screen's width (the clock, the load of each core, the memory in use of the running image). No knob
+/* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
+ * only, no bars (the clock, the load of each core, the battery). No knob
  * does anything here and no line is the cursor */
 static uint32_t gl_info(void)
 {
@@ -99,15 +99,13 @@ static void gl_info_draw(int32_t y0)
         uint16_t vc;
         sys_info_cell(i, &c);
         vc = c.col ? c.col : C_GRAY;
-        ty = y + (ph - (int32_t)FONT_S.h - 3 - 3) / 2;
+        ty = y + (ph - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
         cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);
         x = 236 - uw - text_w(&FONT_S, c.val);
         cv_text(x, ty, &FONT_S, cut(lv, c.val, 13), vc);
         if (uw)
             cv_text(236 - uw, ty, &FONT_S, c.unit, C_DIM);
-        if (c.gk != GK_NONE)
-            draw_gauge(GL_BX, ty + (int32_t)FONT_S.h + 3, GL_BW, 3, &c, vc, C_LINE);
     }
 }
 static void gl_paint(void)
