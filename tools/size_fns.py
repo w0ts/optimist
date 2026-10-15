@@ -5,8 +5,8 @@
 # Leo Kuroshita) into SLOOP-plus: our file list, a definition finder for any return type, and a
 # guard that never marks a function the sound code can reach (audio stays at -Os, in RAM where it is).
 """Build the main-loop code for size (build.py): the functions defined in SIZE_FILES get LLVM's
-minsize (about -Oz) while everything else (the sound, render and ISR code, the flash and OTA code)
-keeps -Os. The JieLi clang 4 has no '#pragma clang attribute' and its minsize
+minsize (about -Oz) while everything else (the sound, render and ISR code, the flash and OTA code,
+the main loop) keeps -Os. The JieLi clang 4 has no '#pragma clang attribute' and its minsize
 attribute is an error on variables, so build.py compiles felucca.c to LLVM IR without the
 optimizer, this script adds 'minsize' to those definitions, and the IR is then compiled at -Os
 (without the edit, that round trip is byte-identical to compiling felucca.c directly).
@@ -52,13 +52,12 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
               "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_tools.c",
-              "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c",
-              # boot and the main loop (fm1_main, the store's wrappers): never the sound side, which the guard
-              # below keeps at -Os whatever file defines it
-              "system/main.c", "felucca.c"]
-# kept at -Os on purpose: recovery, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
+              "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c"]
+# kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
-OS_FILES = ["system/recovery.c", "system/ota.c", "io/usb/usb.c",
+# (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
+# half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
+OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/sloop/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
