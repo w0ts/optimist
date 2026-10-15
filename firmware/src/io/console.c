@@ -613,6 +613,10 @@ static void con_boot(void)
     con_kv("cpu1_why", dual.why);
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
     con_kv("cpu1_start_ms", (int32_t)(dual.t_start / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 ms: CPU1 started */
+    con_kv("early_crashes", (int32_t)felucca_dbg.boot_failed);   /* bootguard.failed as this boot found it (AFTER CRASH) */
+#if FELUCCA_DUALCFG
+    con_kv("afterhold", (int32_t)!dualcfg.noafter);    /* 1: a boot after an early crash keeps CPU1 off (dualcfg afterhold) */
+#endif
 #if FELUCCA_DUALCFG
     con_dualcfg_show();
 #endif
@@ -654,6 +658,7 @@ static void con_dualcfg_show(void)
     con_kx("dualcfg jobs", dualcfg.jobs ? dualcfg.jobs : 0xFFu);
     con_puts(dualcfg.isrram ? "dualcfg isr ram\r\n" : "dualcfg isr xip\r\n");
     con_kv("dualcfg fpause", dualcfg.fpause);
+    con_puts(dualcfg.noafter ? "dualcfg afterhold off\r\n" : "dualcfg afterhold on\r\n");
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -694,9 +699,15 @@ static void con_dualcfg(const char *p)
         ok = con_word(&p, "ram") ? (c.isrram = 1, 1) : con_word(&p, "xip") ? (c.isrram = 0, 1) : 0;
     else if (con_word(&p, "fpause"))
         ok = con_onoff(&p, &c.fpause);
+    else if (con_word(&p, "afterhold")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.noafter = (uint8_t)!on;
+    }
     else if (con_word(&p, "jobs")) {
         v = con_num(&p, &n);
-        ok = n && v >= 1u && v <= 0xFFu;
+        ok = n && v >= 1u && v <= 0xFFu;                /* (0x80: none, CPU1 runs with no job: no job has bit 7) */
         if (ok)
             c.jobs = (uint8_t)v;
     } else if (con_word(&p, "c1guard"))
@@ -734,7 +745,7 @@ static void con_dualcfg(const char *p)
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
                  " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
-                 " | isr ram|xip | fpause on|off\r\n");
+                 " | isr ram|xip | fpause on|off | afterhold on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

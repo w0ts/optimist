@@ -241,6 +241,9 @@ def build_app():
             v = os.environ.get(k)               # (its defaults, for the emulator: the console is not there)
             if v in ("0", "1", "2"):
                 flags.append(f"-D{d}={v}")
+        v = os.environ.get("OPTIMIST_DUALCFG_JOBS")   # (what CPU1 may render, 1..255; 128: none, its heartbeat only)
+        if v and v.isdigit() and 1 <= int(v) <= 255:
+            flags.append(f"-DDUALCFG_DEF_JOBS={v}u")
     v = os.environ.get("OPTIMIST_DUAL_LATE_MS")   # (a test build: CPU1 started from the main loop after this many ms)
     if v and v.isdigit() and 0 < int(v) <= 60000:
         flags.append(f"-DDUAL_LATE_MS={v}u")

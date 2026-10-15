@@ -58,6 +58,9 @@ typedef struct {
     uint8_t isrram;                                /* 1: TIMER5's and the audio's entries attached from RAM (fm1_isr.S) */
     uint8_t fpause;                                /* 1: CPU1 paused (C1_CON's pause request, as stock) around every flash
                                                     * operation, resumed after (dual_flash_enter / _leave) */
+    uint8_t noafter;                               /* 1 (`dualcfg afterhold off`): a boot after an early crash starts CPU1
+                                                    * all the same (bootguard.failed ignored for it): the test matrix */
+    uint8_t pad2[3];
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -72,6 +75,9 @@ typedef struct {
 #ifndef DUALCFG_DEF_FPAUSE
 #define DUALCFG_DEF_FPAUSE 0
 #endif
+#ifndef DUALCFG_DEF_JOBS
+#define DUALCFG_DEF_JOBS 0xFFu                     /* (0x80: no job, CPU1 up with its heartbeat only) */
+#endif
 static dualcfg_t dualcfg;
 static void dualcfg_defaults(dualcfg_t *c)
 {
@@ -83,7 +89,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->poll = FM1_DUAL_SPIN_NOPS;
     c->ble = 1;
     c->policy = 1;
-    c->jobs = 0xFFu;
+    c->jobs = DUALCFG_DEF_JOBS;
     c->isrram = DUALCFG_DEF_ISRRAM;
     c->fpause = DUALCFG_DEF_FPAUSE;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
@@ -445,7 +451,11 @@ static __attribute__((noinline)) void dual_boot(void)
     fm1_ins_bypass = dualcfg.insoff;
 #endif
     dual.boot_mode = dual_mode;
-    dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
+#if FELUCCA_DUALCFG
+    dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, dualcfg.noafter ? 0u : bootguard.failed), FELUCCA_DUAL_PARK);
+#else
+    dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);
+#endif   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
     if (dual.why == DUAL_UP && DUAL_BLE_BLOCKS())
         dual.why = DUAL_BLE;                       /* (BLUETOOTH ON: one core this boot, dual_mode.h dual_ble_rule) */
     if (dual.why != DUAL_UP) {
