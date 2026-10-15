@@ -39,6 +39,11 @@
 #define DUAL_BALANCE 1                             /* the jobs split each block by their measured cost */
 #endif
 #include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
+#define DUAL_JOBS_MAX 8u                           /* (dual.first_post: NPART + 2 at most) */
+#ifndef DUAL_HOLD_MS
+#define DUAL_HOLD_MS 0                             /* a test build (OPTIMIST_DUAL_HOLD_MS): no job for CPU1 before fm1_ms
+                                                    * reaches it (the boot's work done; fm1_ms counts from IRQS on) */
+#endif
 _Static_assert(C1S_LOOP == 3u, "hal/fm1_dual.h fm1_dual_sleep_ram writes 3 as C1S_LOOP");
 #if FELUCCA_DUAL_BOOST
 #include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
@@ -70,6 +75,8 @@ static struct {
     uint8_t down_pend;
     uint32_t t_start;                              /* TIMER4 when CPU1 was started (dual_boot) */
     uint32_t posts;                                /* jobs posted (mix_block_dual) */
+    uint8_t mring[8];                              /* the masks of the last 8 posts (posts & 7: the next) */
+    uint32_t first_post[DUAL_JOBS_MAX];            /* 1 + the post at which CPU1 was first given job k (0: never) */
     dual_stop_t stop;
 } dual;
 static uint8_t dual_mode;                          /* the 2ND CORE setting (dual_mode.h; settings_word.c bits 27..28) */
@@ -487,12 +494,16 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     rev_late = (uint8_t)(dual.up && n == CTL);     /* CPU1 up: the reverb one block late (fx.c fx_buses) */
     jobs |= rvj.pend ? DUAL_JOB_REV : 0u;          /* (its kept block, on either core) */
 #endif
-    if (dual.up && n == CTL) {
+    if (dual.up && n == CTL && (!DUAL_HOLD_MS || fm1_ms >= DUAL_HOLD_MS)) {
         mask = dual_split(jobs);
         post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
     }
     if (post) {
         req = fm1_dual_mb.req + 1u;
+        dual.mring[dual.posts & 7u] = (uint8_t)mask;
+        for (i = 0; i < DUAL_JOBS && i < DUAL_JOBS_MAX; i++)
+            if (((mask >> i) & 1u) && !dual.first_post[i])
+                dual.first_post[i] = dual.posts + 1u;
         dual.posts++;
         fm1_dual_mb.arg = mask;
         fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);

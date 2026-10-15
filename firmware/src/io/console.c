@@ -426,6 +426,17 @@ static void con_status(void)
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
     con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
+    {
+        uint32_t i, m = 0;
+        for (i = 0; i < 8u; i++)                        /* the last 8 masks, oldest first, a hex digit each (bit 0..2 a */
+            m = m << 4 | (dual.mring[(dual.posts + i) & 7u] & 15u);   /* part, 3 the drums) */
+        con_kx("cpu1_masks", m);
+        for (i = 0; i < DUAL_JOBS && i < DUAL_JOBS_MAX; i++) {
+            static const char *const K[DUAL_JOBS_MAX] = {"cpu1_first_j0", "cpu1_first_j1", "cpu1_first_j2", "cpu1_first_j3",
+                                                         "cpu1_first_j4", "cpu1_first_j5", "cpu1_first_j6", "cpu1_first_j7"};
+            con_kv(K[i], (int32_t)dual.first_post[i]);  /* 1 + the post CPU1 first got job i (3 = NPART: the drums) */
+        }
+    }
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);   /* how far CPU1 got (dual_mode.h C1S_*) */
     con_kv("cpu1_beat", (int32_t)fm1_dual_mb.count);    /* its spin loops / returns from idle */
     con_kv("cpu1_wakes", (int32_t)fm1_dual_mb.wakes);   /* its wake handler's entries (asleep) */
