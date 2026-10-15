@@ -275,7 +275,7 @@
       "ACTION": "Load, save, clear, then a key", "ITEM": "Slot: turn or key (dim: free)"}},
     {"kind": "op", "ctx": "USER", "params": {
       "BANK": "16 slots a bank (the keys)", "ACTION": "Load, save, clear, then a key",
-      "ITEM": "Slot: turn or key (dim: free)", "INIT": "Reset the sound (asks)"}},
+      "ITEM": "Slot: turn or key (dim: free)"}},
     {"kind": "op", "ctx": "TOOLS", "params": {
       "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
