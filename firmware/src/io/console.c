@@ -515,6 +515,12 @@ static void con_crash(void)
     con_kx("pc", fm1_crash.pc);
     con_kx("rets", fm1_crash.rets);
     con_kx("emu", fm1_crash.emu);
+    con_kx("dbg", fm1_crash.dbg);                       /* DBG_MSG: which guard / bus error (hal/fm1_guard.h) */
+    con_kx("icfg", fm1_crash.icfg);
+    con_kx("etm0", fm1_crash.etm[0]);                   /* the last branches before it */
+    con_kx("etm1", fm1_crash.etm[1]);
+    con_kx("etm2", fm1_crash.etm[2]);
+    con_kx("etm3", fm1_crash.etm[3]);
     con_kx("sp", fm1_crash.sp);
     con_kx("psr", fm1_crash.psr);
     con_kv("uptime_ms", (int32_t)fm1_crash.uptime_ms);

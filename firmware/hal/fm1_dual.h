@@ -191,10 +191,18 @@ static int fm1_dual_exc_c(const uint32_t *f)
     if (!cpu && (dbg & FM1_DBG_C0))
         return 0;                                         /* CPU0's own */
     if (!cpu && !(dbg & FM1_DBG_C1)) {
-        if (fm1_dual_exc.echoes >= fm1_dual_exc.count)
+        /* 2026-10-15 (B, B2 on the FM-1): every power-on boot took vector 1 on CPU0 in its first audio blocks, the
+         * first ones CPU1 rendered, at plain stack loads and stores (not a fault of CPU0's own instruction), EMU_MSG 0,
+         * and this function did not take it: DBG_MSG had neither core's bits (the bus-invalid bits 4, 5 belong to
+         * neither mask) or was already cleared. While CPU1 runs, such an exception (no CPU0 bits, EMU_MSG 0) holds
+         * CPU1 first; the same again with CPU1 held is CPU0's and gets the crash report */
+        uint32_t c1_runs = (FM1_C1_CON & 8u) && !(FM1_C1_CON & 2u);
+        if (fm1_dual_exc.echoes < fm1_dual_exc.count) {
+            fm1_dual_exc.echoes++;
+            return 1;                                     /* CPU1's, echoed */
+        }
+        if (!c1_runs || vec != 1u || FM1_EMU_MSG != 0u)
             return 0;                                     /* CPU0's own */
-        fm1_dual_exc.echoes++;
-        return 1;
     }
     if (!cpu && fm1_dual_exc.count >= 16u)
         return 0;                                         /* a hold that did not take */
