@@ -1174,14 +1174,14 @@ static void test_scan(void)
     check("scan: then its SCAN_RSP", n == 20u && (q[0] & 15u) == 4u && rssi == 0x0A13u);
     check("scan: SCAN_REQ / non-connectable reports dropped in the interrupt (counted)",
           ble_ll_scan_take(q, &rssi) == 0u && ble_dgs.rep_other == 3u && ble_dgs.rep_adv_ind == 1u);
-    for (k = 0; k < 10u; k++) {
+    for (k = 0; k < 20u; k++) {
         n = scan_rep(p, 0x0, (uint8_t)(0x40 + k), 4);
         ble_ll_hw_adv_report(p, n, k, 37);
     }
     for (k = 0; ble_ll_scan_take(q, &rssi); k++)
         ;
-    check("scan: the ring holds 8; the rest counted lost, the main loop gets them in order", k == 8u &&
-          ble_dgs.ring_full == 2u && q[2] == 0x47u);
+    check("scan: the ring holds 16 (BLE_SCAN_RING); the rest counted lost, the main loop gets them in order", k == 16u &&
+          ble_dgs.ring_full == 4u && q[2] == 0x4Fu);
     n = scan_rep(p, 0x0, 0x01, 40);
     ble_ll_hw_adv_report(p, (uint8_t)(n > 39u ? 48u : n), 0, 37);
     check("scan: a report longer than an advertising PDU is not taken", ble_ll_scan_take(q, &rssi) == 0u);
