@@ -573,6 +573,7 @@ static void con_snap(void)
     con_kv("snap_ble_gop", (int32_t)fm1_c1_snap.ble[3]); /* access begun (hal/fm1_ble_rf.h) */
     con_kx("snap_ble_addr", fm1_c1_snap.ble[4]);
     con_kv("snap_ms", (int32_t)(fm1_c1_snap.ticks / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 then, ms */
+    con_kv("snap_boot", (int32_t)fm1_c1_snap.boot);     /* the boot it is from (status boots: this one) */
     con_kv("now_ms", (int32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)));
 }
 #endif
@@ -682,6 +683,7 @@ static void con_dualcfg_show(void)
     con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
     con_kv("dualcfg c1guard", dualcfg.c1guard);
     con_puts(dualcfg.insoff ? "dualcfg ins off\r\n" : "dualcfg ins on\r\n");
+    con_kx("dualcfg jobs", dualcfg.jobs ? dualcfg.jobs : 0xFFu);
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -718,7 +720,12 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.boost);
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
-    else if (con_word(&p, "c1guard"))
+    else if (con_word(&p, "jobs")) {
+        v = con_num(&p, &n);
+        ok = n && v >= 1u && v <= 0xFFu;
+        if (ok)
+            c.jobs = (uint8_t)v;
+    } else if (con_word(&p, "c1guard"))
         ok = con_onoff(&p, &c.c1guard);
     else if (con_word(&p, "ins")) {
         uint8_t on;
@@ -752,7 +759,7 @@ static void con_dualcfg(const char *p)
         ok = 0;
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
-                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off\r\n");
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

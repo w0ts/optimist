@@ -209,6 +209,9 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.crash_seen = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;   /* (an older crash) */
     }
     felucca_dbg.boots++;
+#if FELUCCA_DUAL
+    fm1_dual_bootno = felucca_dbg.boots;
+#endif
     felucca_dbg.max_us = 0;
     felucca_dbg.prev_stage = felucca_dbg.stage;     /* a WDT reset leaves the last breadcrumb here: a main-loop
                                                      * stage (1..9) or the start-up step it stopped in (BOOT_STAGE) */

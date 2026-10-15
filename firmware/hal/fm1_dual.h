@@ -285,8 +285,10 @@ typedef struct {
     uint32_t ble[5];              /* the BLE breadcrumb then (hal/fm1_ble_rf.h fm1_ble_bc: now, irqs, op, gop, addr) */
     uint32_t c1_wr_num;           /* C1_WR_LIMIT_ERR_NUM then: the write-limit window a CPU1 write hit (bit n: window n) */
     uint32_t ticks;               /* TIMER4 then */
+    uint32_t boot;                /* felucca_dbg.boots then: which boot the snapshot is from (console: snap_boot) */
 } fm1_c1_snap_t;
 fm1_c1_snap_t fm1_c1_snap __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
+static uint32_t fm1_dual_bootno;                          /* main.c: felucca_dbg.boots of this boot (the snapshot's stamp) */
 static void fm1_dual_snap_ble(fm1_c1_snap_t *s);          /* (hal/fm1_ble_rf.h in a BLE build, else system/main.c) */
 static void fm1_dual_snap(uint32_t dbg)
 {
@@ -312,6 +314,7 @@ static void fm1_dual_snap(uint32_t dbg)
     for (i = 0; i < 16u; i++)
         fm1_c1_snap.r[i] = q[i];
     fm1_c1_snap.ticks = fm1_ticks();
+    fm1_c1_snap.boot = fm1_dual_bootno;
     fm1_dual_snap_ble(&fm1_c1_snap);
     fm1_c1_snap.magic = FM1_C1_SNAP_MAGIC;
 }

@@ -53,7 +53,9 @@ typedef struct {
     uint8_t flat;                                  /* 1: no nested interrupts (TIMER5 and BLE at the audio's priority 3) */
     uint8_t c1guard;                               /* 1: CPU1 may not write CPU0's RAM code, stacks, .noinit, vectors */
     uint8_t insoff;                                /* 1: no part / drum lane / drum bus insert runs (fx.c FX_INS_BYPASS) */
-    uint8_t pad[3];
+    uint8_t jobs;                                  /* the jobs CPU1 may be given (bit k: job k; 0xFF all, the default;
+                                                    * 0x10: the reverb only, from RAM code: an XIP-contention test) */
+    uint8_t pad[2];
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -73,6 +75,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->poll = FM1_DUAL_SPIN_NOPS;
     c->ble = 1;
     c->policy = 1;
+    c->jobs = 0xFFu;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
 }
 #define DUAL_SLEEP_CODE (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)   /* (the asleep mode built only with OPTIMIST_DUAL_IDLE=1:
@@ -706,6 +709,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     }
     if (dual.up && n == CTL && (!DUAL_HOLD_NOW || fm1_ms >= DUAL_HOLD_NOW)) {
         mask = dual_split(jobs);
+#if FELUCCA_DUALCFG
+        mask &= dualcfg.jobs ? dualcfg.jobs : 0xFFu;  /* (dualcfg jobs: what CPU1 may render; 0 reads as all: older records) */
+#endif
         post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
     }
     if (post) {

@@ -1721,6 +1721,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
     dins_st_t *st = &dins_st[k][s];
     if (!a && !dins_busy(k, s))
         return;
+    ASTAGE0(0xF0 + ((s & 1u) << 3) + (t & 7u));        /* (a drum lane's insert: slot s, type t's low bits; core.h) */
     dins_now[k] |= FXT_BIT(t);
     switch (t) {
 #if FELUCCA_FX_DIST
