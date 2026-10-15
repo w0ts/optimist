@@ -97,8 +97,12 @@ def alive(label, out, dbg):
           "instruction limit" in out and "exception" not in out.lower(), wd.group(0) if wd else out[-1500:])
 
 
-def stops_bounded(label, dg):
-    over = {p: dg.stop_us_max[p] for p in range(5) if dg.stop_us_max[p] > STOP_CAP_US[p] + 100}
+def stops_bounded(label, dg, dbg):
+    """each stop's longest wait within its bound plus 100 us plus ONE audio render: the wait is timed in wall ticks, and the
+    audio-render interrupt (felucca_dbg.max_us, word 2: the longest half rendered) can land exactly as a bound ends and be
+    counted in the wait (measured 2026-10-15: 40,333 us at 92 MHz, 40,302 at 96 MHz, 40,000 at 104 MHz with the same code)"""
+    render = dbg[2] if len(dbg) > 2 else 1500
+    over = {p: dg.stop_us_max[p] for p in range(5) if dg.stop_us_max[p] > STOP_CAP_US[p] + 100 + render}
     check(f"{label}: every link stop within its bound (stop_us_max per path {list(dg.stop_us_max)})", not over, over)
 
 
@@ -159,7 +163,7 @@ def main():
               dg is not None and dg.stop_n[2] + dg.stop_n[1] >= 1 and
               len(E.model_times(out, "link 0 advertising started")) >= 2, list(dg.stop_n) if dg else out[-800:])
         if dg is not None:
-            stops_bounded("last, the phone away", dg)
+            stops_bounded("last, the phone away", dg, dbg)
         # busy: bit1 never clears after a stop
         out, air, dbg, bc, dg = boot(diag, fwsc, tmp, "busy", last, dump, FM1_BLE_ADVERTISERS="default",
                                      FM1_BLE_MODEL="busy_after_stop_us=100000000")
@@ -168,7 +172,7 @@ def main():
               dg is not None and dg.busy_timeouts >= 2 and dg.stop_n[2] + dg.stop_n[1] >= 1,
               f"{dg.busy_timeouts if dg else '-'} {list(dg.stop_n) if dg else ''}")
         if dg is not None:
-            stops_bounded("busy", dg)
+            stops_bounded("busy", dg, dbg)
         stop = bc[10] if len(bc) > 10 else 0
         check("busy: the link-stop breadcrumb names the last stop, finished (0x5E, its path, the wait)",
               stop >> 24 == 0x5E and (stop >> 16 & 0xFF) < 5, hex(stop))
