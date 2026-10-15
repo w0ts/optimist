@@ -205,13 +205,9 @@ static uint32_t sl24_slots_out(const int16_t *s, uint8_t *o)
  * not (its slots OFF or at 0), it becomes 2.4's LFO: RATE (synced: the nearest free one, SX24_LSYNC), WAVE, PHS and FADE
  * 0, its slots as depths (sl24_slots_out); 2.4 has no TRIG FREE, no POL UNI, nothing but PIT FLT SHP AMP: those, and a
  * LFO 2 beside a LFO that acts, are lost (SX24_LFO2) */
-static uint32_t sl24_l2_out(const project_t *q, uint32_t k, const int16_t *l1, int32_t bpm, uint8_t *o)
+static uint32_t sl24_l2_out(const int16_t *l, const int16_t *l1, int32_t bpm, uint8_t *o)
 {
-    int16_t x[NPART][L2_NV];
-    const int16_t *l;
     uint32_t lost = 0;
-    (void)l2_unpack(q, x);
-    l = x[k % NPART];
     if (!(l[4] && l[5]) && !(l[6] && l[7]))            /* (OFF, or AMT 0: nothing heard) */
         return 0;
     if ((l1[0] && l1[1]) || (l1[2] && l1[3]))
@@ -248,13 +244,31 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
         sl24_w16(o + 2u * i, v[i]);
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));
     lost |= v[P_LRATE] < 0 ? SX24_LSYNC : 0u;
-    if (k < NPART) {                                    /* LFO DEST's slots as 2.4's depths (SX24_LFODEST: not all) */
-        int16_t s[4];
+    if (k < NPART) {                                    /* LFO DEST's slots as 2.4's depths (SX24_LFODEST: not all); the
+                                                         * slots: the project's modulation record, else its words */
+        int16_t s[4], mv[P_COUNT];
         int32_t spill;
-        (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
+        const uint8_t *mb = mrec_parts_of(q);
+#if FELUCCA_LFO2
+        int16_t x[NPART][L2_NV];
+        (void)l2_unpack(q, x);
+#endif
+        if (mb) {
+            memcpy(mv, v, sizeof mv);
+            mrec_part_vals(mb, k, mv);
+            memcpy(s, &mv[P_L1DA], sizeof s);
+#if FELUCCA_LFO2
+            memcpy(x[k], &mv[P_L2RATE], sizeof x[k]);
+#endif
+            (void)env_store(mv);                        /* (ENV DEST's slots as 2.4's FLT SHP depths) */
+            sl24_w16(o + 2u * P_ED_FLT, mv[P_ED_FLT]);
+            sl24_w16(o + 2u * P_ED_SHP, mv[P_ED_SHP]);
+        } else {
+            (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
+        }
         lost |= sl24_slots_out(s, o) ? SX24_LFODEST : 0u;
 #if FELUCCA_LFO2
-        lost |= sl24_l2_out(q, k, s, q->g[G_BPM], o);
+        lost |= sl24_l2_out(x[k], s, q->g[G_BPM], o);
 #endif
     }
     for (i = 0; i < 3u; i++)

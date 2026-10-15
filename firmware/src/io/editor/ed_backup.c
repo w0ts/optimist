@@ -605,8 +605,10 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
 #ifdef UP_BANK_MAGIC
     if (obj == OBJ_UPRESET0 || obj == OBJ_UPRESET0 + 1u) {
         const up_bank_t *k = (const up_bank_t *)(const void *)b;
-        return n == sizeof *k && (k->magic == UP_BANK_MAGIC || (UP_FROM_V1 && k->magic == 0x31425055u)) &&
-               k->rsize == sizeof(up_rec_t) && k->nslot == UP_PER_BANK;
+        const up_bank2_t *k2 = (const up_bank2_t *)(const void *)b;   /* (UPB2 / UPB1 of before: converted at boot) */
+        return (n == sizeof *k && k->magic == UP_BANK_MAGIC && k->rsize == sizeof(up_rec_t) && k->nslot == UP_PER_BANK) ||
+               (n == sizeof *k2 && (k2->magic == UP_BANK_MAGIC_V2 || (UP_FROM_V1 && k2->magic == 0x31425055u)) &&
+                k2->rsize == sizeof(up_rec2_t) && k2->nslot == UP_PER_BANK);
     }
 #endif
 #if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && defined(UPF_MAGIC)   /* (upreset.c: the firmware; host tests without it) */

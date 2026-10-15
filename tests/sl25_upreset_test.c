@@ -49,7 +49,7 @@ static void check(const char *what, int ok)
 }
 
 #define BANK_N 3080u                              /* (SLOOP's up_bank_t: 8 + 16 x 192) */
-_Static_assert(sizeof(up_bank_t) == BANK_N, "a bank as SLOOP's");
+_Static_assert(sizeof(up_bank2_t) == BANK_N, "a bank as SLOOP's (UPB1: our up_bank2_t)");
 /* obj as SLOOP's storage.c writes it (the copy that is not its current one, seq + 1) */
 static void sloop_save(uint32_t obj, const void *p, uint32_t len)
 {
@@ -81,10 +81,17 @@ static int sloop_load(uint32_t obj, uint8_t *b)
  * 12, np 8..72, a name) */
 static int sloop_valid(const uint8_t *b, int len, uint32_t k)
 {
-    const up_bank_t *bk = (const up_bank_t *)(const void *)b;
-    const up_rec_t *r = &bk->r[k];
+    const up_bank2_t *bk = (const up_bank2_t *)(const void *)b;
+    const up_rec2_t *r = &bk->r[k];
     return len == (int)BANK_N && bk->magic == 0x31425055u && bk->rsize == 192u && bk->nslot == 16u &&
            r->used == 0xA5u && r->ver == 1u && r->engine < 12u && r->np >= 8u && r->np <= 72u && r->name[0];
+}
+/* a record in RAM (today's struct) as the 192 bytes m of a record of before */
+static int same2(const up_rec_t *r, const uint8_t *m)
+{
+    up_rec2_t o;
+    up_rec_to2(&o, r);
+    return !memcmp(&o, m, sizeof o);
 }
 static int load(const char *path, uint8_t *b, uint32_t n)
 {
@@ -173,8 +180,9 @@ static void round_trip(const char *who, const uint8_t *gold, uint32_t e0)
     for (k = 0; k < P_COUNT; k++)
         TSEL->p[k] = (int16_t)clamp((int32_t)(k % 17u), TP[k].min, TP[k].max);
     ok = up_store(4, "OURS") == 0;
-    memcpy(mine, up_rec(4), sizeof mine);
     n = sloop_load(OBJ_UPRESET0, b);
+    memcpy(mine, b + 8u + 192u * 4u, sizeof mine);    /* (ours in their bank: an UP_VER 2 record, upreset.c up_vals_put2) */
+    ok &= mine[0] == UP_USED && mine[1] == 2u && mine[4] == 'O';
     snprintf(what, sizeof what, "%s: Optimist saves its preset into their empty slot 4: SAVED, the bank stays UPB1", who);
     check(what, ok && n == (int)BANK_N && !memcmp(b, gold, 8));
     for (k = 0, ok = 1; k < 16u; k++)
@@ -183,19 +191,19 @@ static void round_trip(const char *who, const uint8_t *gold, uint32_t e0)
     snprintf(what, sizeof what, "%s: ... every other record byte for byte as SLOOP wrote it", who);
     check(what, ok);
     ok = sloop_valid(b, n, 0) && sloop_valid(b, n, 1) && sloop_valid(b, n, 2) && sloop_valid(b, n, 3) &&
-         sloop_valid(b, n, 5) && !sloop_valid(b, n, 4) && !memcmp(b + 8u + 192u * 4u, mine, 192u);
+         sloop_valid(b, n, 5) && !sloop_valid(b, n, 4);
     snprintf(what, sizeof what, "%s: ... SLOOP still reads its five presets; ours (UP_VER 2) is an empty slot to it", who);
     check(what, ok);
     boot();
     snprintf(what, sizeof what, "%s: ... Optimist's next start: its preset read back as saved, theirs as before", who);
-    check(what, up_used(4) && !memcmp(up_rec(4), mine, sizeof mine) && up_rec(4)->ver == 2u);
+    check(what, up_used(4) && same2(up_rec(4), mine) && up_rec(4)->ver == 2u);
     reads(who, e0);
 
     memcpy(b + 8u + 192u * 6u, gold + 8u, 192u);  /* SLOOP saves (its whole bank, ours in it): a copy of slot 0 in 6 */
     sloop_save(OBJ_UPRESET0, b, BANK_N);
     boot();
     snprintf(what, sizeof what, "%s: SLOOP saves the bank again: Optimist still reads its preset and SLOOP's new one", who);
-    check(what, up_used(4) && !memcmp(up_rec(4), mine, sizeof mine) && up_used(6) && up_rec(6)->engine == 0u);
+    check(what, up_used(4) && same2(up_rec(4), mine) && up_used(6) && up_rec(6)->engine == 0u);
 
     ok = up_put(4, 0) == 0 && up_put(5, 0) == 0;   /* Optimist erases its own, then one of SLOOP's (asked for) */
     n = sloop_load(OBJ_UPRESET0, b);
@@ -224,11 +232,12 @@ int main(void)
     boot();
     ok = up_store(3, "MINE") == 0 && up_store(17, "MINE 2") == 0;
     n = sloop_load(OBJ_UPRESET0, b);
-    ok &= n == (int)BANK_N && !memcmp(b, "UPB2", 4) && sloop_load(OBJ_UPRESET0 + 1u, b) == (int)BANK_N && !memcmp(b, "UPB2", 4);
+    ok &= n == (int)sizeof(up_bank_t) && !memcmp(b, "UPB3", 4) && sloop_load(OBJ_UPRESET0 + 1u, b) == (int)sizeof(up_bank_t) &&
+          !memcmp(b, "UPB3", 4);
     boot();
     ok &= up_used(3) && up_used(17) && up_count() == 2u;
-    ok &= up_store(5, "MINE 3") == 0 && sloop_load(OBJ_UPRESET0, b) == (int)BANK_N && !memcmp(b, "UPB2", 4);
-    check("no SLOOP bank: our banks written as UPB2, as before, and read back", ok);
+    ok &= up_store(5, "MINE 3") == 0 && sloop_load(OBJ_UPRESET0, b) == (int)sizeof(up_bank_t) && !memcmp(b, "UPB3", 4);
+    check("no SLOOP bank: our banks written as UPB3 (2026-10-14: every value in its word), and read back", ok);
     printf("%s\n", bad ? "FAILED" : "all ok");
     return bad != 0;
 }

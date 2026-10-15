@@ -322,7 +322,7 @@ static void t_project(void)
 #if FELUCCA_LFO2
     {
         static const int16_t V[NPART][L2_NV] = {{-10, 4, 1, 1, LT_AMP, -128, LT_PAN, 127}, {127, 0, 0, 1, LT_PIT, 126, 0, 0},
-                                                 {0, 3, 1, 0, LT_SHP, -1, LT_L2AMT, -77}};   /* (a DEST past 31: its bit 5 in the tag) */
+                                                 {0, 3, 1, 0, LT_SHP, -1, LT_L2AMT, -77}};   /* (a DEST past 31) */
         uint32_t j;
         init();
         TDRUM->p[P_LEG_FLT] = -20;
@@ -330,10 +330,11 @@ static void t_project(void)
             memcpy(&trk[k].p[P_L2RATE], V[k], sizeof V[k]);
         trk[1].p[P_L1DA] = LT_FLT, trk[1].p[P_L1AA] = 40;   /* (LFO's slots: the depths of before, part 2) */
         proj_capture(&q, &tdl);
-        ok = l2_tagged(&q) && l2_tag(&q) == L2_TAG && q.t[TRK_DRUM].p[P_LEG_FLT] == -20 && proj_ok(&q);
-        ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Bu && q.t[1].p[P_LEG_FLT] == 20 && q.t[1].p[P_LEG_PIT] == 0;
-        check(ok, "project: LFO 2 on: tagged in the drum track's LFO slots (macros' untouched); AMT B: part 1's LFO DEST tagged, "
-                  "part 2's the depths of before (FLT 20)");
+        ok = !l2_tagged(&q) && q.t[TRK_DRUM].p[P_LEG_FLT] == -20 && proj_ok(&q);
+        for (k = 0; k < NPART; k++)
+            ok &= !q.t[k].p[P_LEG_PIT] && !q.t[k].p[P_LEG_FLT] && !q.t[k].p[P_LEG_SHP] && !q.t[k].p[P_LEG_AMP];
+        check(ok, "project: LFO 2 on: none of it in the drum track's slots (macros' untouched), the parts' LFO DEST words 0: "
+                  "the slots in the modulation record (2026-10-14)");
         init();
         for (k = 0; k < NPART; k++)
             l2_set(&trk[k], 1, 1, 0, 0, 1, 1);
@@ -354,8 +355,8 @@ static void t_project(void)
               "project: a song section (apply, not all) brings its LFO 2");
         q2 = q;
         q2.t[TRK_DRUM].p[L2_W0[0]] = (int16_t)(0x7Fu | 0x80u << 8);   /* (RATE 127, AMT A -128) */
-        q2.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)0x7FFF;  /* (WAVE 7, TRIG, POL, DEST A 63, DEST B 63 with their bit 5 in the */
-        q2.t[TRK_DRUM].p[P_LRATE] = (int16_t)(L2_TAG | 3u);   /* tag: past the ranges) */
+        q2.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)0x7FFF;  /* (a project of before: WAVE 7, TRIG, POL, DEST A 31, DEST B 31: */
+        q2.t[TRK_DRUM].p[P_LRATE] = (int16_t)L2_TAG;   /* past its list) */
         q2.sum = proj_sum(&q2);
         proj_apply(&q2, &tdl, 1);
         check(trk[0].p[P_L2WAVE] == 4 && trk[0].p[P_L2DA] == LT_OFF && trk[0].p[P_L2DB] == LT_OFF && trk[0].p[P_L2RATE] == 127,

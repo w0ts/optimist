@@ -48,6 +48,8 @@ static int motion_param(const track_t *t, uint32_t id)
     if (id >= P_E0)
         return !is_drum(t) || id == P_DACC;                  /* (the drum track's P_E0 is its kit; its P_E1 the ACCENT
                                                               * amount, a sweep as any value: core.h P_DACC) */
+    if (is_drum(t) && (id == P_ED_FLT || id == P_ED_SHP))
+        return 1;                                            /* (the drum track's: the macros' COLOR SPACE, params.c MAC_ID) */
     return id <= P_REL || id == P_ED_PIT || (id >= P_LRATE && id <= P_LFADE && id != P_LWAVE) ||
            (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN || id == P_DETUNE || id == P_SLDEPTH
 #if FELUCCA_ANALOG2

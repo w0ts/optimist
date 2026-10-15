@@ -113,18 +113,18 @@ int main(void)
     bad += check("bank save", st_save(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]) == 0);
     memset(up_bank, 0, sizeof up_bank);
     len = st_load(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]);
-    up_bank_check(1, len);
+    up_bank_check(1, &up_bank[1], len);
     got = *up_rec(17);
     bad += check("bank load: the record is back", up_used(17) && !memcmp(&got, &r, sizeof r));
     bad += check("other slots empty", !up_used(16) && !up_used(18) && !up_used(0));
     len = st_load(OBJ_UPRESET0, &up_bank[0], sizeof up_bank[0]);
-    up_bank_check(0, len);
+    up_bank_check(0, &up_bank[0], len);
     bad += check("bank 0 never written -> empty", len < 0 && !up_used(0) && up_bank[0].magic == 0);
     bad += check("banks in 0xDC000..0xDFFFF", st_sector(OBJ_UPRESET0, 0) == 0xDC000u &&
                                                    st_sector(OBJ_UPRESET0 + 1, 1) == 0xDF000u &&
                                                    st_sector(OBJ_PROJECT0 + 3, 1) + 4096u <= 0xA0000u);
     up_bank[1].rsize = 190;                                 /* another record layout */
-    up_bank_check(1, (int)sizeof up_bank[1]);
+    up_bank_check(1, &up_bank[1], (int)sizeof up_bank[1]);
     bad += check("bank with another record size -> empty", !up_used(17));
     up_bank[1].magic = UP_BANK_MAGIC;
     up_bank[1].rsize = sizeof(up_rec_t);
@@ -208,13 +208,20 @@ int main(void)
         ok = 1;
         for (k = 0; k < 3u; k++) {
             for (i = 0; i < P_COUNT; i++)
-                w[i] = def[i];
+                w[i] = ENV_ID(i) ? 0 : def[i];               /* (the words of the depths of before: 0 at run time) */
             memcpy(&w[P_N1DA], S[k], n * sizeof w[0]);
             up_vals_put(&r, w);
             up_params(&r, v, def);
             ok &= !memcmp(&v[P_N1DA], S[k], n * sizeof v[0]) && !v[P_ED_FLT] && !v[P_ED_SHP];
-            ok &= k || (r.p[P_ED_FLT] == 0 && r.p[P_ED_SHP] == 0);   /* (ENV on AMP alone: stored as the depths 0 0) */
+            ok &= r.ver == UP_VER && !r.p[P_ED_FLT] && !r.p[P_ED_SHP] && !memcmp(&r.p[r.np], S[k], n * sizeof v[0]);   /* (the
+                                                                                    * slots in words of their own) */
         }
+        for (i = 0; i < P_COUNT; i++)                        /* the editor's values with ENV DEST FLT 30 (a file of before) */
+            w[i] = ENV_ID(i) ? 0 : def[i];
+        w[P_ED_FLT] = 30;
+        up_vals_put(&r, w);
+        up_params(&r, v, def);
+        ok &= v[P_N1DA] == LT_AMP && v[P_N1AA] == 127 && v[P_N1DB] == LT_FLT && v[P_N1AB] == 60 && !r.p[P_ED_FLT];
         r.ver = 1, r.np = P_ENG_END;                        /* a record of before: FLT 20 SHP -40 -> AMP 127, SHP -80 */
         for (i = 0; i < P_ENG_END; i++)
             r.p[i] = def[i];
@@ -222,7 +229,7 @@ int main(void)
         up_params(&r, v, def);
         ok &= v[P_N1DA] == LT_AMP && v[P_N1AA] == 127 && v[P_N1DB] == LT_SHP && v[P_N1AB] == -80;
     }
-    bad += check("ENV DEST / ENV2 DEST slots: round trip (tagged), ENV on AMP alone as before, depths of before", ok);
+    bad += check("ENV DEST / ENV2 DEST slots: round trip (their own words, UP_VER 3), depths given from outside, depths of before", ok);
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];

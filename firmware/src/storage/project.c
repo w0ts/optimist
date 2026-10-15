@@ -207,6 +207,16 @@ static void pj_from_p(int16_t *d, const int16_t *p)
     for (k = 0; k < 8u; k++)
         d[PJ_E0 + k] = p[P_E0 + k];
 }
+/* a part's stored values s: the words of the depths of before at 0 (LFO DEST's, ENV DEST FLT SHP, ENV2's FLT; the
+ * slots are the modulation record's, dlfo_rec.c) */
+static void pj_mods_zero(int16_t *s)
+{
+    s[P_LEG_PIT] = s[P_LEG_FLT] = s[P_LEG_SHP] = s[P_LEG_AMP] = 0;
+    s[P_ED_FLT] = s[P_ED_SHP] = 0;
+#if FELUCCA_ANALOG2
+    s[P_A2FENV] = 0;
+#endif
+}
 #if FELUCCA_ANALOG2
 static int16_t *pj_x(project_t *q, uint32_t part) { return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * part]; }
 /* a project read from an older format: the parts' ENV2 SUS2 REL2 and amounts at 0, the sound as it was (the AD
@@ -590,7 +600,9 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
-/* LFO DEST's slots (core.h P_L1DA .. P_L1AB) are stored in the four words that held the depths PIT FLT SHP AMP:
+/* The projects of before (read only since 2026-10-14: a project saved since keeps every modulation slot in its
+ * modulation record, dlfo_rec.c, those words at 0). Then:
+ * LFO DEST's slots (core.h P_L1DA .. P_L1AB) are stored in the four words that held the depths PIT FLT SHP AMP:
  * params.c lfo1_store / lfo1_load (the depths themselves while the slots are only those: a project of before loads and
  * saves byte for byte, an older build plays it; else the tagged layout). A project of before with three or four depths
  * keeps the two of the most weight (lfo_from_depths).
@@ -605,17 +617,15 @@ static int proj_import(project_t *q, const void *b, int n)
  * L2_TAG_V1 (feat/lfo2, one slot: AMT 7 bits at its old scale, x 2 now; WAVE 3 | DEST << 3 (3) | TRIG << 6 | POL << 7)
  * is read. Without a tag (every project before; one saved without a LFO 2 on) the slots are the drum track's own. Every
  * build reads the tags: a build without LFO2 gives the slots back their defaults (TOOLS > MISS: LFO 2, miss.c) */
-#define L2_TAG 0x4E00u                                   /* (out of the RATE slot's range, -10..127). Its low byte: each
-                                                         * part's DEST A, DEST B's bit 5 (bit 2 k, 2 k + 1; core.h LT_N > 32
-                                                         * since 2026-10-14) */
-#define L2_TAG_V2 0x4D00u                                /* (5-bit DESTs, until 2026-10-14; the same numbers) */
+#define L2_TAG 0x4D00u                                   /* (out of the RATE slot's range, -10..127) */
+#define LT_N_V1 25                                       /* (LT_N of then: OFF .. XAMT) */
 #define L2_TAG_V1 0x4C00u                                /* (LFO 2 with one DEST, 2026-10-13) */
 #define L2_NV 8u                                         /* RATE WAVE TRIG POL DEST A, AMT A, DEST B, AMT B */
 static const uint8_t L2_W0[NPART] = {P_LWAVE, P_LPHASE, P_LFADE};
 static const uint8_t L2_W1[NPART] = {P_LEG_PIT, P_LEG_SHP, P_LEG_AMP};
 static uint32_t l2_tag(const project_t *p) { return (uint16_t)p->t[TRK_DRUM].p[P_LRATE] & 0xFF00u; }
 /* the project in p holds LFO 2 values (its drum track's LFO slots are not the drum track's) */
-static int l2_tagged(const project_t *p) { return l2_tag(p) == L2_TAG || l2_tag(p) == L2_TAG_V2 || l2_tag(p) == L2_TAG_V1; }
+static int l2_tagged(const project_t *p) { return l2_tag(p) == L2_TAG || l2_tag(p) == L2_TAG_V1; }
 /* part k's LFO 2 in p (its defaults without a tag): v[L2_NV], RATE .. AMT B, each inside its range (a destination
  * past this build's: OFF) */
 static void l2_get(const project_t *p, uint32_t k, int16_t *v)
@@ -630,17 +640,15 @@ static void l2_get(const project_t *p, uint32_t k, int16_t *v)
         v[0] = (int16_t)(int8_t)(uint8_t)w0, v[1] = (int16_t)(w1 & 7u), v[2] = (int16_t)(w1 >> 6 & 1u);
         v[3] = (int16_t)(w1 >> 7 & 1u), v[4] = (int16_t)(w1 >> 3 & 7u);
         v[5] = (int16_t)(2 * ((int32_t)((w0 >> 8 & 0x7Fu) ^ 0x40u) - 0x40));   /* (its AMT was half today's) */
-    } else if (l2_tag(p) == L2_TAG || l2_tag(p) == L2_TAG_V2) {
-        uint32_t hi = l2_tag(p) == L2_TAG ? (uint32_t)(uint16_t)d[P_LRATE] >> (2u * k) : 0u;
+    } else if (l2_tag(p) == L2_TAG) {
         (void)lfo1_load(&p->t[k].p[P_LEG_PIT], s, &spill);
         v[0] = (int16_t)(int8_t)(uint8_t)w0, v[1] = (int16_t)(w1 & 7u), v[2] = (int16_t)(w1 >> 3 & 1u);
-        v[3] = (int16_t)(w1 >> 4 & 1u), v[4] = (int16_t)((w1 >> 5 & 31u) | (hi & 1u) << 5);
-        v[5] = (int16_t)(int8_t)(uint8_t)(w0 >> 8);
-        v[6] = (int16_t)((w1 >> 10 & 31u) | (hi >> 1 & 1u) << 5), v[7] = (int16_t)spill;
+        v[3] = (int16_t)(w1 >> 4 & 1u), v[4] = (int16_t)(w1 >> 5 & 31u), v[5] = (int16_t)(int8_t)(uint8_t)(w0 >> 8);
+        v[6] = (int16_t)(w1 >> 10 & 31u), v[7] = (int16_t)spill;
     }
     v[0] = (int16_t)clamp(v[0], -LSYNC_N, 127), v[1] = (int16_t)clamp(v[1], 0, 4);
-    for (j = 4u; j < L2_NV; j += 2u)
-        if (v[j] >= LT_NB)
+    for (j = 4u; j < L2_NV; j += 2u)                     /* (a DEST past the list of then, 25: OFF) */
+        if (v[j] >= LT_NB || v[j] >= LT_N_V1)
             v[j] = LT_OFF, v[j + 1u] = 0;
 }
 /* the parts whose LFO 2 acts in p (a slot not OFF, its AMT not 0): a bit each */
@@ -664,10 +672,12 @@ static void l2_slots_def(int16_t *v)
 }
 #if FELUCCA_LFO2
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
-               P_L2AB == P_L2RATE + 7 && P_N1DA == P_L2RATE + L2_NV && LT_N <= 64 && NPART * 2u <= 8u,
-               "LFO 2's values: in a row; a DEST in 6 bits (5 + one in the tag's low byte)");
+               P_L2AB == P_L2RATE + 7 && P_N1DA == P_L2RATE + L2_NV,
+               "LFO 2's values: in a row (the projects of before: l2_get)");
+#if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
 /* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default (AMT B: lfo1_store's
- * spill, written with the part's LFO DEST) */
+ * spill, written with the part's LFO DEST): the form of before, which only SLOOP's importer still makes (sl24_import.c,
+ * the project it hands to proj_apply; never saved so: proj_capture keeps LFO 2 in the modulation record) */
 static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
 {
     int16_t *d = p->t[TRK_DRUM].p;
@@ -678,15 +688,13 @@ static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
     if (!any)
         return;
     d[P_LRATE] = (int16_t)L2_TAG;
-    for (k = 0; k < NPART; k++)                          /* (the DESTs' bit 5) */
-        d[P_LRATE] = (int16_t)((uint16_t)d[P_LRATE] | ((uint32_t)x[k][4] >> 5 & 1u) << (2u * k) |
-                               ((uint32_t)x[k][6] >> 5 & 1u) << (2u * k + 1u));
     for (k = 0; k < NPART; k++) {
         d[L2_W0[k]] = (int16_t)(((uint32_t)x[k][0] & 0xFFu) | ((uint32_t)x[k][5] & 0xFFu) << 8);
         d[L2_W1[k]] = (int16_t)(((uint32_t)x[k][1] & 7u) | ((uint32_t)x[k][2] & 1u) << 3 | ((uint32_t)x[k][3] & 1u) << 4 |
                                 ((uint32_t)x[k][4] & 31u) << 5 | ((uint32_t)x[k][6] & 31u) << 10);
     }
 }
+#endif
 /* -> x, the parts' LFO 2 values (their defaults without a tag, each inside its range); 1 when p has them */
 static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
 {
@@ -792,8 +800,6 @@ static void proj_patch(int16_t *v, uint32_t k)
 #else
     memcpy(v, trk[k].p, sizeof trk[k].p);
 #endif
-    if (k < NPART)
-        env_store(v);                                   /* ENV DEST's, ENV2 DEST's slots: their stored form (env_store.h) */
 }
 /* The master COMP / LIMIT (core.h G_CTHR .. G_CCEIL, master_comp.c) in the project's reserved bytes, which every
  * project written so far left 0 (proj_capture clears it first): 0 = THRS OFF, CEIL OFF, the master as before.
@@ -918,9 +924,6 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if SL24_TP
     int16_t px[NTRK][3];                                /* (SLOOP 2.4's track values: px_pack) */
 #endif
-#if FELUCCA_LFO2
-    int16_t l2[NPART][L2_NV];                           /* (the parts' LFO 2: l2_pack) */
-#endif
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
@@ -944,15 +947,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if SL24_TP
         memcpy(px[i], &v[P_TFLT], sizeof px[i]);
 #endif
-#if FELUCCA_LFO2
-        if (i < NPART)
-            memcpy(l2[i], &v[P_L2RATE], sizeof l2[i]);
-        if (i < NPART)                                  /* LFO DEST's slots in their stored form (LFO 2's AMT B with them) */
-            lfo1_store(&p->t[i].p[P_LEG_PIT], &v[P_L1DA], v[P_L2AB]);
-#else
-        if (i < NPART)                                  /* LFO DEST's slots in their stored form */
-            lfo1_store(&p->t[i].p[P_LEG_PIT], &v[P_L1DA], 0);
-#endif
+        if (i < NPART)                                  /* (LFO DEST's, ENV DEST's, ENV2's slots: the modulation record,
+                                                         * dlfo_rec.c; the words of their depths of before at 0) */
+            pj_mods_zero(p->t[i].p);
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
         steps_store(p->t[i].step, &trk[i], i);         /* (each note's own end: an event of its store, below) */
@@ -975,8 +972,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_ANALOG2
     dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build) */
     p->dl_hash = dlrec_hash(d);
-    for (i = 0; i < NPART; i++) {                       /* the parts' ENV2 SUS2 REL2 and amounts (pj_x) */
+    for (i = 0; i < NPART; i++) {                       /* the parts' ENV2 SUS2 REL2 (pj_x; its amounts of before: 0) */
         proj_patch(v, i);
+        v[P_A2EPIT] = v[P_A2ESHP] = v[P_A2EOS2] = v[P_A2ESDT] = 0;
         a2x_pack(pj_x(p, i), &v[P_A2ESUS]);
     }
 #else
@@ -984,9 +982,6 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #endif
 #if SL24_TP
     px_pack(p, px);                                     /* (after the drum track's values: in its free slots) */
-#endif
-#if FELUCCA_LFO2
-    l2_pack(p, l2);                                     /* (the same: its LFO slots) */
 #endif
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO

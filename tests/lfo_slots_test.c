@@ -165,9 +165,8 @@ static void t_stored(void)
     init();
     t->p[P_L1DA] = LT_PIT, t->p[P_L1AA] = -20, t->p[P_L1DB] = LT_AMP, t->p[P_L1AB] = 77;
     proj_capture(&q, &tdl);
-    ok = q.t[0].p[P_LEG_PIT] == -10 && q.t[0].p[P_LEG_FLT] == 0 && q.t[0].p[P_LEG_SHP] == 0 && q.t[0].p[P_LEG_AMP] == 77;
-    check(ok, "stored: slots that are depths: stored as the depths (an older build plays it, a project of before stays byte "
-              "for byte)");
+    ok = !q.t[0].p[P_LEG_PIT] && !q.t[0].p[P_LEG_FLT] && !q.t[0].p[P_LEG_SHP] && !q.t[0].p[P_LEG_AMP];
+    check(ok, "stored: the slots in the modulation record (2026-10-14), the words of the depths of before 0");
     init();
     proj_apply(&q, &tdl, 1);
     check(t->p[P_L1DA] == LT_PIT && t->p[P_L1AA] == -20 && t->p[P_L1DB] == LT_AMP && t->p[P_L1AB] == 77, "... and read back");
@@ -178,15 +177,14 @@ static void t_stored(void)
             init();
             memcpy(&t->p[P_L1DA], S[k], sizeof S[k]);
             proj_capture(&q, &tdl);
-            ok &= ((uint16_t)q.t[0].p[P_LEG_PIT] >> 8) == 0x5Bu;
+            ok &= !q.t[0].p[P_LEG_PIT] && !q.t[0].p[P_LEG_SHP];
             init();
             proj_apply(&q, &tdl, 1);
             ok &= !memcmp(&t->p[P_L1DA], S[k], sizeof S[k]);
             proj_capture(&q2, &tdl);
             ok &= !memcmp(&q, &q2, sizeof q);
         }
-        check(ok, "stored: slots that are no depths (PAN, AMP < 0, B alone, AMT 0, odd, E3 DEC, B before A): tagged, read back, "
-                  "byte for byte again");
+        check(ok, "stored: any slots (PAN, AMP < 0, B alone, AMT 0, odd, E3 DEC, B before A): read back, byte for byte again");
     }
     w[0] = 10, w[1] = -30, w[2] = 20, w[3] = 50;       /* a project of before with four depths */
     ok = lfo1_load(w, s, &sp) == 2u && s[0] == LT_FLT && s[2] == LT_AMP && !sp;
@@ -200,18 +198,18 @@ static void t_stored(void)
         memset(&r, 0, sizeof r);
         r.engine = 0;
         up_vals_put(&r, v);
-        ok = r.p[P_LEG_FLT] == 20 && r.p[P_LEG_PIT] == 0;
+        ok = r.ver == UP_VER && r.p[P_L1DA] == LT_FLT && r.p[P_L1AA] == 40;   /* (UP_VER 3: in their own words) */
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && !out[P_L1DB];
         v[P_L1DB] = LT_RES, v[P_L1AB] = -90;
         up_vals_put(&r, v);
         up_params(&r, out, def);
-        ok &= ((uint16_t)r.p[P_LEG_PIT] >> 8) == 0x5Bu && out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES &&
-              out[P_L1AB] == -90;
-        r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;   /* (a record of before) */
+        ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES && out[P_L1AB] == -90;
+        r.ver = FELUCCA_ANALOG2 ? 2 : 1, r.np = P_ENG_END;          /* (a record of before: the depths) */
+        r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_PIT && out[P_L1AA] == 6 && out[P_L1DB] == LT_AMP && out[P_L1AB] == 100;
-        check(ok, "user presets: depths stored as depths, other slots tagged, records of before read as their slots");
+        check(ok, "user presets: the slots in their own words (UP_VER 3), records of before read as their slots");
     }
 }
 

@@ -46,13 +46,16 @@ static union {
 #include "../firmware/src/storage/motion_flash.c"
 #define AUTO_VIEW_PROJ 1
 #include "auto_view.h"              /* (the automation store as motion's old store) */
-/* a track's values p as a project stores them (ENV DEST's, ENV2 DEST's slots in the words of the depths they replaced:
- * env_store.h) */
+/* a part's values p as a project stores them (2026-10-14: the words of the depths of before at 0, the slots in the
+ * modulation record) */
 static const int16_t *env_rt(const int16_t *p)
 {
     static int16_t x[P_COUNT];
     memcpy(x, p, sizeof x);
-    env_store(x);
+    x[P_LEG_PIT] = x[P_LEG_FLT] = x[P_LEG_SHP] = x[P_LEG_AMP] = x[P_ED_FLT] = x[P_ED_SHP] = 0;
+#if FELUCCA_ANALOG2
+    x[P_A2FENV] = x[P_A2EPIT] = x[P_A2ESHP] = x[P_A2EOS2] = x[P_A2ESDT] = 0;
+#endif
     return x;
 }
 
@@ -109,7 +112,14 @@ static int plays(const motion_store_t *w)
     for (i = 0; i < w->count; i++) {
         uint32_t k = w->ev[i].place >> 6, st = w->ev[i].place & 63u;
         auto_step(&trk[k], st);
-        ok &= trk[k].p[w->ev[i].param] == w->ev[i].value;
+        if (k < NPART && LEG_ID(w->ev[i].param)) {     /* (a depth of before: played onto its slot, params.c lfo_leg_ev) */
+            uint32_t did, dst, taken = 0, id;
+            int32_t v = w->ev[i].value;
+            id = lfo_leg_ev(&trk[k], w->ev[i].param, &v, &taken, &did, &dst);
+            ok &= id < P_COUNT && trk[k].p[id] == v;
+        } else {
+            ok &= trk[k].p[w->ev[i].param] == w->ev[i].value;
+        }
     }
     motion_end();
     return ok;
@@ -623,7 +633,7 @@ int main(void)
         motion_reset();
         make(0);
         proj_apply(&proj_slot[2], &proj_dl[2], 1);
-        ok &= env_rt(trk[0].p)[P_A2EPIT] == 30 && env_rt(trk[0].p)[P_A2FENV] == 0 && trk[0].p[P_A2ESUS] == 40;
+        ok &= trk[0].p[P_N2DA] == LT_PIT && trk[0].p[P_N2AA] == 60 && trk[0].p[P_N2DB] == LT_OFF && trk[0].p[P_A2ESUS] == 40;
         check("FUNA slot with its motion: converted (DST2 PITCH -> PIT), the motion renumbered, it plays",
               ok && motion_is(mview(), &mw) && plays(&mw));
     }
