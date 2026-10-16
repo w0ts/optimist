@@ -1,7 +1,7 @@
 # Second core (CPU1) for audio rendering: design and prototype
 
-Status: **EXPERIMENTAL. Validated in the emulator. The first report from an FM-1 (2026-10-14, section 6 "2ND CORE OFF TIMEOUT") is a fallback to CPU0 whose cause is not measured; no gain has been measured on a device.**
-Build flag `FELUCCA_DUAL` (default 0 = off, the normal single-core firmware).
+Status: **the default in every build (the builder's DUAL item is on unless a profile turns it off; user ruling 2026-10-16). Verified on an FM-1: a soak of about 75 minutes with BLE on and USB MIDI, 2ND CORE ON, zero drops and zero underruns.** Earlier reports from other FM-1s (section 6, "2ND CORE OFF TIMEOUT") are what the stock-order start-up (3.6) fixed; a unit that still misreads RAM falls back to one core by itself (CPU1 OFF MISREAD).
+Build flag `FELUCCA_DUAL`: the builder's default is 2 (second core on); a profile may set `DUAL=0` for the single-core firmware, and a raw compile without the builder still defaults to 0. The emulator gate builds DUAL profiles single-core (`OPTIMIST_DUAL_PARK=1`) unless `EMU_DUAL=1`.
 Branch `feat/dual-core` (from `feat/sloop-plus`). Emulator changes: `fm1-emulator`, branch `feat/dual-core-emu`.
 
 Tags: **[V]** verified this session (code, disassembly, emulator run). **[SDK]** read in the JieLi AC79
