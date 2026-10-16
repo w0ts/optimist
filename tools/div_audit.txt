@@ -266,9 +266,10 @@ src/ui/optimist/op_tools.c:tl_euclid:len | guarded "len &&" in the loop (the cal
 src/ui/optimist/op_tools.c:tl_lane_rnd:len | TLEN
 src/ui/optimist/op_tools.c:tl_random_notes:(int32_t)g | guarded "if (g)"
 src/ui/optimist/op_tools.c:tl_cook_hit:len | TLEN
-src/ui/optimist/op_tools.c:eu_fit:tl.steps | set to 1..16 just above when 0 or past LEN (TLEN)
-src/ui/optimist/op_tools.c:eu_hit:n | n = tl.steps, or 1 when it is 0
-src/ui/optimist/op_tools.c:eu_turn:(int32_t)tl.steps | eu_fit just before: tl.steps 1..LEN
+src/seq/gen.c:eu_gfit:n | eu_cyc: 1..LEN (STEPS, 16 when 0, then LEN at most, 1 when that is 0)
+src/seq/gen.c:eu_gstep:n | eu_cyc: 1..LEN
+src/seq/gen.c:pu_gfit:g->p[0] | set to 1 just above when 0
+src/seq/gen.c:pu_gstep:n | n = EVERY, or 1 when it is 0
 src/system/bench.c:bench_rnd:m | the bench 16 (FELUCCA_BENCH only, never in a release build): every caller passes a non-zero constant (31, 128, 24, 64, 4, 6, 7)
 src/ui/optimist/op_graph.c:graph_fx:(span/2>0?span/2:1) | the ternary: never 0 (UI main loop)
 src/ui/optimist/op_graph.c:graph_fx:span | the loop skips a cell with span <= 0 just above (UI main loop)

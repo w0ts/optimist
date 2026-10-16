@@ -2717,16 +2717,17 @@ event and plays the step always.
 | The marks | the step's event dot, as any non-fill event |
 | SLOOP's UI | plays them, draws the dot; nothing edits them |
 
-**The tools.** STEP gains two last pages, **TOOLS** and **EUCLID** (SELECT; SEQ tapped again cycles to them):
+**The tools.** STEP gains three last pages, **TOOLS**, **GEN** and **GEN OUT** (SELECT; SEQ tapped again cycles to them):
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | YES |
 |---|---|---|---|---|---|
-| TOOLS | REVERSE | RANDOM | COOK | LENGTH: x2 (turned right) / 1/2 (left) | does the hot card; a toast (*T1 REVERSED*, *SNARE RANDOM*, *DOUBLED: 32 STEPS*, *PATTERN FULL*); one undo each, no question |
-| EUCLID | HITS | STEPS | ROT | LANE (a read-out; a synth track: none) | - (each turn writes at once; a run of turns is one undo) |
+| TOOLS | REVERSE | RANDOM | COOK | LENGTH: x2 (turned right) / 1/2 (left) | does the hot card; a toast (*T1 REVERSED*, *SNARE RANDOM*, *DOUBLED: 32 STEPS*, *PATTERN FULL*); one undo each |
+| GEN | TYPE (EUCLID RANDOM PULSE) | value 1 | value 2 | value 3 | - (every turn heard at the next step; nothing written) |
+| GEN OUT | GEN (ON / OFF) | MODE (REPLACE ADD MASK) | WRITE (over T1 or the lane's code; OFF: an empty cell, the cards never move) | - | ON toggles; WRITE asks *WRITE T1?*, YES writes and turns it OFF (one undo: both back) |
 
 A turn of a TOOLS card arms it (its YES), so a knob bumped does nothing. The scope is ALGORITHM's: a synth track; DR
-itself the whole kit; a drum lane walked to that lane only (REVERSE RANDOM COOK EUCLID; EUCLID on DR itself the last
-picked lane, named on LANE). LENGTH is always the whole pattern. What they do (Felucca's, `ui/optimist/op_tools.c`):
+itself the whole kit; a drum lane walked to that lane only (REVERSE RANDOM COOK; GEN on DR itself the last picked
+lane, named on WRITE). LENGTH is always the whole pattern. What they do (Felucca's, `ui/optimist/op_tools.c`):
 
 - **REVERSE**: the steps mirrored inside LEN. A note moves whole: its NOTE, its TIEs and the carry steps that go on
   with its pitch are one unit, kept in order at the mirrored place, so its exact length (a step's own end, `ngate`)
@@ -2740,9 +2741,25 @@ picked lane, named on LANE). LENGTH is always the whole pattern. What they do (F
   lane's last nor the kick on step 1); again until something changed.
 - **LENGTH x2** (DOUBLE): the steps after themselves, LEN x2 (64 at most), their events copied (refused, *PATTERN
   FULL*, when the copies would pass the track's 128). **1/2** (HALF): LEN / 2, the steps past it kept (as the LEN card).
-- **EUCLID**: HITS spread over STEPS, turned by ROT, repeated through LEN, written from the pattern as the run began
-  (the undo session's start: no copy of our own); a synth hit keeps the step's note, else the root near C4; the drum
-  lane's hits only. Values kept until the power goes (first 4 / 16 / 0); SHIFT + a knob its default.
+- **GEN** (feat/note-generators, 2026-10-15; the user: "is the euclidean a real-time generator now, with the option to
+  effectively write to pattern"): a note generator is a layer the sequencer plays over the pattern, never written into
+  it (`seq/gen.c`). A slot each synth track and each drum step lane (the 16 sounds and ACCENT); several on at once.
+  At the step it fires, the sequencer plays the pattern's step merged with the generator's output there, down the
+  pattern's own path: the step's events (locks, motion, chance, condition, fill, nudge, a lane's values) are its place's,
+  whatever plays there; then chance, ENERGY, the notes, the ratchets (from the same merged step). **EUCLID** HITS STEPS
+  ROT (Felucca's formula; REPLACE is the old writer bit for bit); **RANDOM** DENSITY % SEED ACCENT % (its own hash of
+  the seed, the slot and the step: the same hits every pass, never rng(), so chance rolls are undisturbed); **PULSE**
+  EVERY OFFSET RATCHET x1..x4. MODE: **REPLACE** the hits are the steps, **ADD** the pattern's and the hits, **MASK** the
+  pattern's only where it hits. A synth hit plays the pattern's NOTE there, else the note a TIE there holds, else the
+  ROOT near C4; a TIE goes on only while its note does; a lane's hit keeps the pattern's level and ratchet (RANDOM's
+  accent, PULSE's ratchet laid over). Each generator is a pure function of its values and the step: a pass plays as
+  the one before, PLAY and a launched pattern start it from step 1, and **WRITE** (asks) writes exactly what plays into
+  steps 1..LEN as ordinary steps and turns the slot OFF (the user, 2026-10-15: its output is baked into the pattern);
+  one undo level brings back the pattern and the slot's ON (`seq/undo.c` keeps the ON states with the steps, header bit
+  UREC_GEN); the events stay where they are. OFF never touches the pattern (the *KEEP?* question is gone). The grid draws
+  what plays: a generated hit or note outlined, a pattern's hit silenced a dim stub. Saved with the project and each
+  scene (the FX record's TLV 0x4B GEN_TLV, 4 bytes a slot not at its defaults; none: every slot off). A new generator
+  is an entry of `GEN_TYPES` (its name, three values, a fit, its step function, its state).
 - Every tool works on steps 1..LEN; a step it empties loses its step-only events; locks, motion, chance, conditions,
   nudges and fills move with their steps. **The EDIT layer's SHIFT and LENGTH x2 now move and copy the events too**
   (before, they stayed on their old steps); SLOOP's EDIT layer is unchanged.
@@ -2750,8 +2767,9 @@ picked lane, named on LANE). LENGTH is always the whole pattern. What they do (F
 Not ported (Q11): Felucca's BEAT and lane FILL; CLEAR and SHIFT exist (the REC ring, EDIT KNOB 1).
 
 Tests: tests/cond_test.c (the conditions alone), tests/auto_test.c `t_cond` (with FILL and chance, the forms, the 2.4
-bit), tests/ui_optimist_seqtools.h (every tool on note chains, the drum kit and a lane, EUCLID's run and undo, the EDIT
-layer's SHIFT, the COND card), run with the store whole and with COND alone.
+bit), tests/ui_optimist_seqtools.h (every tool on note chains, the drum kit and a lane, GEN / GEN OUT: live, the modes,
+WRITE asked and undone, a lane; the EDIT layer's SHIFT, the COND card), tests/gen_test.c (EUCLID = the old writer, the
+modes, WRITE = heard on the MIDI out, determinism, chance and conditions on generated notes, GEN_TLV), run with the store whole and with COND alone.
 
 ## 23. The help line, and the risky actions asked (feat/help-line, 2026-10-13)
 
@@ -2840,7 +2858,7 @@ PATTERN on every entry), SOUND (a page button always opened its family on the fi
 | Screen | Remembered | Fallback, and what still jumps |
 |---|---|---|
 | SOUND | per track and per family (ENV LFO FX SCL EDIT ARP, FM6's operators): the row the family showed last on that track, op_screens.c `snd_mem`, kept by `snd_mem_tick` once a frame while SOUND is up | a row the track no longer has (another engine): the nearest, the family's last. A page button still opens its family, **on the row it last showed**, and tapped again goes to the next row, round. ALGORITHM on SOUND still keeps the page's name across tracks (the walk is not a jump) |
-| STEP | its row (PATTERN, ARP, the LANE page, TOOLS, EUCLID); the first time PATTERN | a row the track lacks: the last. The drum track's page is the track's, not the lane's: another lane picked meanwhile shows the same page |
+| STEP | its row (PATTERN, ARP, the LANE page, TOOLS, GEN, GEN OUT); the first time PATTERN | a row the track lacks: the last. The drum track's page is the track's, not the lane's: another lane picked meanwhile shows the same page |
 | a step held | per track: the card page last used (STEP, EXTRA or a p-lock page), saved when the last step is let go or STEP is left, reopened by the next step held on that track (op_step.c `hp_mem`) | a p-lock page the track (or build) lacks: STEP. A page button with a step held still jumps to its family's p-lock page, and that becomes the page remembered; OCT- / OCT+ on a held step go back to STEP's NOTE, and that is remembered |
 | lists, TEMPO, SCOPE, MASTER, the mixer's knob set | the cursor row / line / set, as before | SONG's SAVE-held SELECT shortcut still puts the cursor on the scene playing |
 
@@ -2941,7 +2959,7 @@ ACCENT amount `P_DACC`, default 27) is a lane of this UI: `DRUM_UILANES` (17 wit
   bypass keys are 1-4, FM6's end at key 22), so no clash; on the mixer SHIFT + it is the ACCENT lane's sequencer mute. The pick's key LEDs dim it too.
 - **STEP**: a 17th row "AC" under the 16 sounds (12 px rows), edited as any lane's (tap, level, ratchet, SHIFT + step). The held step's
   first page is LEVEL RATCHET ACCENT (no TUNE / DECAY: no sound); KNOB 3 locks the ACCENT amount on the step (needs the accent hit there,
-  as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount records as motion (YES: a lock <-> a hold). STEP's LANE page of the lane shows the amount alone. TOOLS and EUCLID work on the lane.
+  as a lane's locks need the lane's: "NO HIT ON THIS STEP"; the hit removed takes the lock). The amount records as motion (YES: a lock <-> a hold). STEP's LANE page of the lane shows the amount alone. TOOLS and GEN work on the lane.
 - **The amount** is the SOUND row's fourth card next to KIT / LANE / SRC on every lane, and the lane's mixer row's ACCENT card (that row: MUTE, ACCENT; section 32).
 - **Pages**: the lane has no SOUND, SOURCE, KIT, ENV or LFO pages (`sound_page`); `lane_snd()` guards every per-lane sound array (dl.*, the
   names); PRESETS on it steps the kit as on DR; the SOUND row's picture says "+amount to the hits".
@@ -3065,7 +3083,7 @@ SLOOP's UI and the shared tables (params.c PAGES, the descriptors' lists) are un
     Tempo (BPM NUDGE SWING SYNC) and Rec (MODE LENGTH START CLICK) are full and QUANT keeps its page *Rec 3/3* (op_tempo.c
     `tps_*`; GLOBAL's lines are unchanged).
   - The ACCENT lane's STEP page (its amount alone, *Accnt 2/4*) is gone: the amount is the SOUND row's ACCENT card and the
-    mixer's ACCENT row, a held step's lock is on the held step's cards. STEP on the ACCENT lane: Pattern, Tools, Euclid.
+    mixer's ACCENT row, a held step's lock is on the held step's cards. STEP on the ACCENT lane: Pattern, Tools, Gen, Gen out.
   - REVERB's TYPE (builds with two reverb algorithms or more, while a slot holds the reverb) is RETURNS' fourth card on the
     master FX, after REV DLY CHO RT: no *Ret type* page (op_screens.c `fxs_at`).
   - Kept, a full family page beside them: SCL 2 (TRANSP alone) without CHORD+ (SCL is ROOT SCALE QUANT CHORD), TEMPO's

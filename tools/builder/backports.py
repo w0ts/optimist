@@ -41,7 +41,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.4 (web editor)",
     "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.4 backup file (web editor)",
     "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
-    "FELUCCA_SEQTOOLS": "STEP tools: REVERSE RANDOM COOK EUCLID (Felucca 1.5.6)",
+    "FELUCCA_SEQTOOLS": "STEP tools and note generators (Felucca 1.5.6)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -194,9 +194,10 @@ DESC["FELUCCA_COND"] = (
     "A step-only event of the automation store (it builds the store); an older build plays such a step always. About "
     "1.4 KB of flash beside the store's other items (11 KB when it builds the store alone).")
 DESC["FELUCCA_SEQTOOLS"] = (
-    "The sequence tools of Felucca 1.5.6 on STEP's last two pages (the Optimist UI): TOOLS (REVERSE, RANDOM: new notes "
-    "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one asking first, and EUCLID (HITS STEPS "
-    "ROT, ON / OFF: ON plays it over the pattern, OFF asks to keep it or give the pattern back). On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
+    "The sequence tools of Felucca 1.5.6 on STEP's last three pages (the Optimist UI): TOOLS (REVERSE, RANDOM: new notes "
+    "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one asking first, and the note generators "
+    "GEN / GEN OUT (EUCLID, RANDOM, PULSE; REPLACE, ADD or MASK the pattern): played live over the pattern, never written "
+    "into it but by WRITE, which asks. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
     "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash; nothing with "
     "SLOOP's UI.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",

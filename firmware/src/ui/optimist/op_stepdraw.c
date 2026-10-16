@@ -28,6 +28,32 @@ static int32_t sg_dy;
 #define SG_INFO_DY 18                   /* the two lines' pitch */
 #define SG_INFO_Y (SG_MK_Y - 2 - SG_INFO_H)
 
+/* a note generator on (seq/gen.c): the steps as they play, drawn instead of the pattern's; a generated hit or note
+ * outlined, a pattern's hit the generator silences a dim stub (stored and played: solid, as ever) */
+#if GEN_ON
+static step_t sg_gst[NSTEP];
+static const step_t *sg_st;             /* the steps drawn (0: the pattern's) */
+static void sg_prep(const track_t *t)
+{
+    sg_st = (gen_trk >> trk_index(t)) & 1u ? sg_gst : 0;
+    if (sg_st)
+        gen_render(t, sg_gst, ~0u);
+}
+#define SGS(t) (sg_st ? sg_st : (t)->step)
+#define SGD(t) (sg_st ? (const dstep_t *)(const void *)sg_st : (t)->dstep)
+#else
+#define sg_prep(t) ((void)0)
+#define sg_st ((const step_t *)0)
+#define SGS(t) ((t)->step)
+#define SGD(t) ((t)->dstep)
+#endif
+static void sg_outline(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a generated hit: its frame */
+{
+    cv_rect(x, y, w, 1, c);
+    cv_rect(x, y + h - 1, w, 1, c);
+    cv_rect(x, y, 1, h, c);
+    cv_rect(x + w - 1, y, 1, h, c);
+}
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};
@@ -65,6 +91,7 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
 static void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
+    sg_prep(t);
     cv_rect(0, SG_LY(sel) - 1, 240, 1, C_DIM);          /* the selected lane's row: lined above and below */
     cv_rect(0, SG_LY(sel + 1u) - 1, 240, 1, C_DIM);
     sg_ground(t);
@@ -77,10 +104,19 @@ static void sg_drums(const track_t *t)
         cv_text(6, y + (lh - 11) / 2 - 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
-            const dstep_t *d = &t->dstep[idx % NSTEP];
-            int32_t x = SG_X + (int32_t)w * SG_CW;
-            if (idx >= len || !dstep_has(d, l))
+            const dstep_t *d = &SGD(t)[idx % NSTEP];
+            int32_t x = SG_X + (int32_t)w * SG_CW, own = dstep_has(&t->dstep[idx % NSTEP], l);
+            if (idx >= len)
                 continue;
+            if (!dstep_has(d, l)) {
+                if (own)                                /* (silenced by a generator: a dim stub) */
+                    cv_rect(x, y + lh - 3, SG_CW - 2, 2, col_shade(c, 2u));
+                continue;
+            }
+            if (!own) {                                 /* (a generator's hit: outlined) */
+                sg_outline(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
+                continue;
+            }
             cv_rect(x, y, SG_CW - 2, lh - 1,
                     op_step_auto(t, idx, l) ? lvl_acol(dstep_lvl(d, l)) : lvl_col(c, dstep_lvl(d, l)));   /* (automated: its own colour) */
             sg_notches(x, y, SG_CW - 2, lh - 1, dstep_rat(d, l));
@@ -110,7 +146,7 @@ static void roll_range(const track_t *t)
     uint32_t i, j, len = trk_len(t);
     int32_t a = 127, b = 0, rows, ex;
     for (i = 0; i < len && i < NSTEP; i++) {
-        const step_t *s = &t->step[i];
+        const step_t *s = &SGS(t)[i];
         if (!step_on(s))
             continue;
         for (j = 0; j < s->n && j < 4u; j++)
@@ -148,7 +184,7 @@ static void roll_range(const track_t *t)
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
 {
     uint32_t k, len = trk_len(t);
-    for (k = 0; k < len && t->step[idx % NSTEP].time == ST_TIE; k++)
+    for (k = 0; k < len && SGS(t)[idx % NSTEP].time == ST_TIE; k++)
         idx = (idx + len - 1u) % len;
     return idx;
 }
@@ -161,7 +197,7 @@ static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_
     if (!(s->flags & SF_CARRY) || s->rat)
         return 0;
     o = roll_org(t, p);
-    q = &t->step[o % NSTEP];
+    q = &SGS(t)[o % NSTEP];
     for (k = 0; k < q->n && k < 4u && q->note[k] != s->note[i]; k++)
         ;
     return step_on(q) && k < q->n && k < 4u && !ngate_of(q, k);
@@ -222,10 +258,11 @@ static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octave
 }
 static void sg_roll(const track_t *t)
 {
-    uint32_t w, i, len = trk_len(t);
+    uint32_t w, i, len = trk_len(t), gn;
     uint64_t used = 0;
     uint16_t c = trk_col(song.sel);
     int32_t m, h, ye;
+    sg_prep(t);
     roll_range(t);
     m = rg.rh >= 6 ? 1 : 0;
     h = rg.rh >= 6 ? rg.rh - 2 : rg.rh - 1;
@@ -237,8 +274,16 @@ static void sg_roll(const track_t *t)
         int32_t x = RL_X + (int32_t)w * RL_CW;
         if (idx >= len)
             break;
-        tie = t->step[idx % NSTEP].time == ST_TIE;
-        s = &t->step[roll_org(t, idx) % NSTEP];
+        tie = SGS(t)[idx % NSTEP].time == ST_TIE;
+        s = &SGS(t)[roll_org(t, idx) % NSTEP];
+        gn = sg_st && !tie && !(step_on(&t->step[idx % NSTEP]) && t->step[idx % NSTEP].note[0] == s->note[0]);
+        if (sg_st && !step_on(s) && !tie && step_on(&t->step[idx % NSTEP])) {   /* (silenced by a generator: a dim stub) */
+            const step_t *q = &t->step[idx % NSTEP];
+            for (i = 0; i < q->n && i < 4u; i++)
+                if (q->note[i] >= rg.lo && q->note[i] <= rg.hi)
+                    RR(x, NY(q->note[i]) + rg.rh / 2, RL_CW - 1, 1, col_shade(c, 2u));
+            continue;
+        }
         if (!step_on(s))
             continue;
         for (i = 0; i < s->n && i < 4u; i++) {
@@ -258,6 +303,10 @@ static void sg_roll(const track_t *t)
             used |= (uint64_t)1u << (nt - rg.lo);
             if (tie || roll_carried(t, s, idx, i)) {    /* (a tie, a note carried on: the bar on, over the gap) */
                 RR(x - 1, y + m, cw + 1, h, nc);
+                continue;
+            }
+            if (gn) {                                   /* (a generator's note: outlined) */
+                sg_outline(x - sg_ox, y + m, cw, h, nc);
                 continue;
             }
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
@@ -336,6 +385,11 @@ static uint32_t step_sig(void)                          /* all the panel shows b
 #if FELUCCA_AUTO
     p = (const uint8_t *)AL(t);                         /* (the events' marks) */
     for (i = 0; i < 1u + 3u * AL(t)->n; i++)
+        h = (h ^ p[i]) * 16777619u;
+#endif
+#if GEN_ON
+    p = (const uint8_t *)gen;                           /* (the generators: what plays) */
+    for (i = 0; i < sizeof gen; i++)
         h = (h ^ p[i]) * 16777619u;
 #endif
     if (is_drum(t))

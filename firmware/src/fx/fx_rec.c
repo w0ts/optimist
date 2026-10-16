@@ -15,8 +15,13 @@
  *                            (seq/seq_mute.c).
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
+#if GEN_ON
+#define FXR_GEN_N (2u + GEN_TLV_MAX)                   /* (seq/gen.c's TLV at its longest: every slot not at its defaults) */
+#else
+#define FXR_GEN_N 0u
+#endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX 352u                                   /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (352u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -26,7 +31,8 @@
                                                         * for the TLVs coming (the voice counts' VCNT_TLV 2 + NPART, the Juno chorus) and ~40 B
                                                         * spare: the editor's backup packs them in two objects since,
                                                         * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
-                                                        * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare) */
+                                                        * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
+                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -77,8 +83,11 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
 #define FXRET_TLV_N (FXRET_N + 1u)
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
 _Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RSND_TLV == RET_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
+#if GEN_ON
+_Static_assert(GEN_TLV == RET_TLV + 1u && GEN_TLV_MAX <= 255u, "the note generators' TLV (seq/gen.c): 0x4B, past fx-pool's 0x49 0x4A");
+#endif
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
@@ -396,6 +405,15 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+#if GEN_ON
+    {   /* the note generators (seq/gen.c): a TLV of its own, none when every slot is off at its defaults */
+        uint32_t m = gen_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)GEN_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
+#endif
     {   /* the parts' VOICES (above) */
         uint32_t m = vcnt_tlv(o + n + 2u);
         if (m) {
@@ -477,6 +495,11 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     fxs_untlv_none(all);
     dlm_none();                                        /* (none: every drum lane at the centre, heard) */
     smute_untlv(0, 0);                                 /* (none: no sequencer muted) */
+#if GEN_ON
+    gen_untlv(0, 0);                                   /* (none: every note generator off, at its defaults; a song
+                                                        * section without GEN_TLV too, ruled 2026-10-15: a section
+                                                        * plays as it was stored, its generators neutral) */
+#endif
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
         rs_untlv(0, 0);                                /* (none: no send between the returns) */
@@ -490,6 +513,10 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             dlm_untlv(a + at + 2u, a[at + 1u]);
         else if (a[at] == SMUTE_TLV)
             smute_untlv(a + at + 2u, a[at + 1u]);
+#if GEN_ON
+        else if (a[at] == GEN_TLV)
+            gen_untlv(a + at + 2u, a[at + 1u]);
+#endif
         else if (a[at] == VCNT_TLV) {
             if (all)
                 vcnt_untlv(a + at + 2u, a[at + 1u]);

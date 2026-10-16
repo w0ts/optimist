@@ -53,6 +53,9 @@ static struct {
 #if FELUCCA_AUTO
     auto_list_t al;                      /* the track's automation as it was */
 #endif
+#if GEN_BUILT
+    uint32_t gon;                        /* its note generators' ON states (gen.c gen_on_mask) */
+#endif
 } undo IN_POOL;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static volatile uint8_t undo_isr;        /* events_block is running (the audio ISR): IRQs stay as they are */
@@ -67,6 +70,9 @@ static void undo_snap(const track_t *t, uint32_t i, uint32_t sess)
         undo.pp[k] = t->p[UNDO_P[k]];
 #if FELUCCA_AUTO
     memcpy(&undo.al, AUTO_L(i), sizeof undo.al);
+#endif
+#if GEN_BUILT
+    undo.gon = gen_on_mask(i);
 #endif
     undo.trk = (uint8_t)i;
     undo.sess = sess;
@@ -114,6 +120,13 @@ static int undo_apply(int redo)
         auto_touch(undo.trk % NTRK);
     }
 #endif
+#if GEN_BUILT
+    {
+        uint32_t g = gen_on_mask(undo.trk);             /* (the generators' ON states swap with the steps) */
+        gen_on_put(undo.trk, undo.gon);
+        undo.gon = g;
+    }
+#endif
     undo.undone = (uint8_t)!redo;
     fm1_irq_on();
     return 1;
@@ -132,11 +145,17 @@ static void undo_status(uint32_t *n, uint32_t *m, uint32_t *tk)
 #define UREC_HEAD 2u                     /* [trk | pmask << 2 | LINK] [steps n] */
 #define UREC_TAIL 2u                     /* [size lo] [size hi] */
 #define UREC_STEP (1u + sizeof(step_t))  /* [index] [the step's 14 bytes: its own note ends too] */
+#define UREC_GEN 0x20u                   /* header byte 0 bit 5: the note generators' ON states kept (4 bytes, after the list) */
+#if GEN_BUILT
+#define UREC_GEN_N 4u
+#else
+#define UREC_GEN_N 0u
+#endif
 #if FELUCCA_AUTO
 #define UREC_AL 0x10u                    /* header byte 0 bit 4: the automation list kept (sizeof(auto_list_t)) */
-#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + (uint32_t)sizeof(auto_list_t) + UREC_TAIL)
+#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + (uint32_t)sizeof(auto_list_t) + UREC_GEN_N + UREC_TAIL)
 #else
-#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + UREC_TAIL)
+#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + UREC_GEN_N + UREC_TAIL)
 #endif
 _Static_assert(UREC_MAX <= UNDO_MIN, "undo: the smallest ring holds a record");
 static struct {
@@ -219,9 +238,9 @@ static void ring_swap(uint32_t o, void *p, uint32_t n)
 }
 static uint32_t popc2(uint32_t m) { return (m & 1u) + ((m >> 1) & 1u); }
 #if FELUCCA_AUTO
-#define REC_SX(h) ((h) & UREC_AL ? (uint32_t)sizeof(auto_list_t) : 0u)
+#define REC_SX(h) (((h) & UREC_AL ? (uint32_t)sizeof(auto_list_t) : 0u) + ((h) & UREC_GEN ? UREC_GEN_N : 0u))
 #else
-#define REC_SX(h) 0u
+#define REC_SX(h) ((h) & UREC_GEN ? UREC_GEN_N : 0u)
 #endif
 static uint32_t rec_size(uint32_t o)     /* the record starting at o, from its header */
 {
@@ -266,6 +285,10 @@ static void undo_commit(void)
 #if FELUCCA_AUTO
     if (memcmp(&undo.al, AUTO_L(undo.trk), sizeof undo.al))
         pm |= 4u;                                       /* (bit 2 of pm: header bit 4) */
+#endif
+#if GEN_BUILT
+    if (undo.gon != gen_on_mask(undo.trk))
+        pm |= 8u;                                       /* (bit 3 of pm: header bit 5, UREC_GEN) */
 #endif
     if (!n && !pm)
         return;                                         /* nothing changed: no level (redo stays) */
@@ -312,6 +335,12 @@ static void undo_commit(void)
         o += sizeof undo.al;
     }
 #endif
+#if GEN_BUILT
+    if ((pm >> 3) & 1u) {
+        ring_put(o, &undo.gon, UREC_GEN_N);
+        o += UREC_GEN_N;
+    }
+#endif
     hd[0] = (uint8_t)sz;
     hd[1] = (uint8_t)(sz >> 8);
     ring_put(o, hd, 2u);
@@ -344,6 +373,14 @@ static void rec_swap(uint32_t o)
     if (h & UREC_AL) {
         ring_swap(o, AUTO_L(h & 3u), sizeof(auto_list_t));
         auto_touch(h & 3u);
+        o += sizeof(auto_list_t);
+    }
+#endif
+#if GEN_BUILT
+    if (h & UREC_GEN) {
+        uint32_t g = gen_on_mask(h & 3u);
+        ring_swap(o, &g, UREC_GEN_N);
+        gen_on_put(h & 3u, g);
     }
 #endif
 }
