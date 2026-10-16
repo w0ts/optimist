@@ -783,7 +783,7 @@ def ui_sidecar(fwsc):
             zi.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(zi, data)
         add("index.html", (web / "editor.html").read_bytes())
-        for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
+        for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt"):
             if (web / f).exists():
                 add(f, (web / f).read_bytes())
         for f in NOTICE_FILES:                  # the package holds JieLi SDK files (Apache-2.0): the licence travels

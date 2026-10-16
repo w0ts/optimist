@@ -86,7 +86,7 @@ assets, is entirely governed by the GPL.
 | Instrument and drum samples (Versilian Studios VSCO-2 CE, VCSL; Sonic Pi: SCRCH) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
 | Terminus font 8x16 (ter-u16n) | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
 | Fukiai icon font (Hügelton Instruments), web editor only | MIT | `web/fukiai.ttf`, `web/FUKIAI-LICENSE.txt` |
-| Terminus font, inlined in the web editor as a TrueType font (the look of the SLOOP 2.4 editor, isod89/sloop-fm1 v2.4, 8d3823f) | SIL OFL 1.1 | `web/TERMINUS-LICENSE.txt` |
+| JetBrains Mono (Regular, Medium, Bold as WOFF2), inlined in the web editor | SIL OFL 1.1 | `web/JETBRAINSMONO-LICENSE.txt` |
 | CrispyZebra by Leo Kuroshita (<https://github.com/hugelton/CrispyZebra>): the PHASE engine's waveforms are a C port of its oscillator | GPL-3.0 | `firmware/src/engines/phase/eng_phase.c` |
 | klattsch by Tony Gies (<https://github.com/tgies/klattsch>): design reference for the VOICE (formant) engine; no code copied. Formant data from Klatt (1980) / Hillenbrand et al. (1995) | MIT (klattsch) | credit only |
 | FM6 engine by Kerem Kilic (Melodee, <https://github.com/keremimo/melodee>, `firmware/src/eng_fm6.c`, `eng_fm6_rom.h`, `fm6_store.c`, its tests and web editor support, at e459da5): ported into SLOOP, where it replaces the DX7 engine; its factory voices are Melodee's own | GPL-3.0-only | `firmware/src/engines/fm6/eng_fm6.c`, `firmware/src/engines/fm6/eng_fm6_rom.h`, `firmware/src/engines/fm6/fm6_store.c`, `tests/fm6_*`, `tests/dexed_ref.cc`, `web/editor.html` |

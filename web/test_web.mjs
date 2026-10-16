@@ -2791,12 +2791,11 @@ async function masterStrip() {
   ok(!/id="theme"|id="appearance"|id="appearbox"|data-t="theme"|applyTheme|THEMES/.test(html) && /matchMedia\("\(prefers-color-scheme: light\)"\)\.addEventListener\("change"/.test(html)
     && !/data-theme/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")) && /prefers-color-scheme: light/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")),
     "theme: no selector or toggle anywhere (the editor follows prefers-color-scheme, live)");
-  /* the SLOOP 2.4 look: Terminus inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
-  const lic = existsSync(join(HERE, "TERMINUS-LICENSE.txt")) ? readFileSync(join(HERE, "TERMINUS-LICENSE.txt"), "utf8") : "";
-  ok(/@font-face \{ font-family: "SLOOP Terminus"; src: \/\*SLOOP-FONT\*\/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(html) && /SIL OPEN FONT LICENSE Version 1\.1/.test(lic) && /Zhekov/.test(lic)
-    && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")) && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "../tools/build.py"), "utf8"))
-    && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
-    "look: Terminus inlined (SIL OFL 1.1, TERMINUS-LICENSE.txt in the site and the package), credited to SLOOP 2.4");
+  /* the editor look: JetBrains Mono inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
+  const lic = existsSync(join(HERE, "JETBRAINSMONO-LICENSE.txt")) ? readFileSync(join(HERE, "JETBRAINSMONO-LICENSE.txt"), "utf8") : "";
+  ok((html.match(/@font-face \{ font-family: "JetBrains Mono"; font-weight: \d+; font-style: normal; font-display: block; src: url\(data:font\/woff2;base64,[A-Za-z0-9+\/=]{20000,}\)/g) || []).length === 3 && /SIL OPEN FONT LICENSE Version 1\.1/.test(lic) && /JetBrains/.test(lic)
+    && /JETBRAINSMONO-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")),
+    "look: JetBrains Mono inlined (SIL OFL 1.1, JETBRAINSMONO-LICENSE.txt in the site and the package)");
   ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 3 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
     "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, the four track colours");

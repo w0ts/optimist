@@ -139,7 +139,7 @@ A `v*` tag runs `.github/workflows/release.yml`: it builds every profile in `con
 
 ## Licence
 
-Code: **GPL-3.0-only** ([LICENSE](LICENSE)). Assets have their own terms (samples CC0, Terminus font SIL OFL 1.1, Fukiai icons MIT): [LICENSING.md](LICENSING.md) and `LICENSES/`. No warranty. If you distribute a build, you must give its source under the same licence. A build's `build/ATTRIBUTION.txt` lists the CC0 samples it carries.
+Code: **GPL-3.0-only** ([LICENSE](LICENSE)). Assets have their own terms (samples CC0, Terminus and JetBrains Mono fonts SIL OFL 1.1, Fukiai icons MIT): [LICENSING.md](LICENSING.md) and `LICENSES/`. No warranty. If you distribute a build, you must give its source under the same licence. A build's `build/ATTRIBUTION.txt` lists the CC0 samples it carries.
 
 ## Credits
 
@@ -156,7 +156,7 @@ list: [docs/CREDITS-AUDIT.md](docs/CREDITS-AUDIT.md)).
 - **[Jangada](https://github.com/zednaked/jangada)** by zednaked: the SUPER engine, the second core's supply levels and AUTO / OFF setting.
 - **[fm-106](https://github.com/PatttF/fm-106)** by PatttF, a port of **[Ultramaster KR-106](https://github.com/kayrockscreenprinting/ultramaster_kr106)** by Kayrock Screenprinting: the JUNO engine and JUNO CHORUS.
 - DSP and data from others, each with its licence in `LICENSES/`: DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet), MAME's uPD933 (Devin Acker, BSD-3-Clause), Airwindows (Chris Johnson), MSFA (Google) and Dexed (Pascal Gauthier), sc808 (Yoshinosuke Horiuchi, Sam Aaron); klattsch (Tony Gies) as a design reference.
-- Samples: Versilian Studios VSCO-2 CE and VCSL, and the Sonic Pi sample set (all CC0). Fonts: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1), Fukiai (Hügelton Instruments, MIT, web editor).
+- Samples: Versilian Studios VSCO-2 CE and VCSL, and the Sonic Pi sample set (all CC0). Fonts: JetBrains Mono (JetBrains, SIL OFL 1.1) in the web editor, Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1) on the device, Fukiai (Hügelton Instruments, MIT, web editor).
 - **[fm1-emulator](https://github.com/simonjohansson/fm1-emulator)** by Simon Johansson; [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter) by kurogedelic and [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq (the rescue path).
 - Interface ideas after teenage engineering, Elektron and Akai. Roland, Yamaha and Casio product names (Juno-106, TB-303, TR-808, TR-909, DX7, CZ) only say what an engine or kit models. None of these companies is affiliated with this project. The full list is in OPTIMIST.md, "Rescue, going back, credits".
 
