@@ -31,6 +31,7 @@ static int32_t cv_oy;            /* y offset for graph drawing */
 #define C_WARN COL_ST_WARN           /* a notice: another build, MISSING, EXPERIMENTAL */
 #define C_ERR COL_ST_ERR             /* an error: damaged, full, clipping; recording */
 #define C_AUTO COL_MK_AUTO           /* a step with automation (a lock or motion): STEP's grid, the mixer's strips */
+#define C_NOTE COL_MK_NOTE           /* the note SELECT picked on a held step of several: STEP's roll */
 static const uint16_t C_STATUS[4] = {0, C_OK, C_WARN, C_ERR};
 /* The screen is five steps of one colour, darkest to brightest, plus white, on black: nothing fills a background
  * with grey (the user, 2026-10-10: "the grey background is just too bright. use black"). Step 1 draws lines and

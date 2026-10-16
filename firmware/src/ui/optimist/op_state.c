@@ -76,6 +76,7 @@ static struct {
     uint8_t on;                         /* REC down since a plain arm / disarm press */
     uint8_t ring;                       /* the ring filling (the press undone) */
     uint8_t trk;                        /* the track it clears */
+    int8_t lane;                        /* a drum lane picked when the ring began: only that lane is cleared (-1: the track) */
     uint8_t prev_rec, prev_wait;        /* song.rec, rec_wait before the press */
     uint32_t t0, t1;                    /* the press, the ring's start */
 } rh;

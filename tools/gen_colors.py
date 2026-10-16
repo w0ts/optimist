@@ -6,7 +6,7 @@
 
 One table for the device and the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs):
 COL_ENG_<NAME> per engine (the names the UI shows: VOICE, WHEEL...), COL_KIND_<KIND> per drum source kind,
-COL_ST_OK / COL_ST_WARN / COL_ST_ERR (status: green, amber, red), COL_MK_AUTO (the mark of a step with automation, device only) and COL_OTHER. Colour carries meaning only.
+COL_ST_OK / COL_ST_WARN / COL_ST_ERR (status: green, amber, red), COL_MK_AUTO (the mark of a step with automation) / COL_MK_NOTE (the note edited on a held step, device only) and COL_OTHER. Colour carries meaning only.
 """
 import json
 import re

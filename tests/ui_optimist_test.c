@@ -2452,6 +2452,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+#include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -2664,6 +2665,7 @@ int main(int argc, char **argv)
     uniform_tests();
     lforate_tests();
     step_hold_tests();
+    step_move_tests();
     step_pitch_tests();
     led_tests();
     btnled_tests();

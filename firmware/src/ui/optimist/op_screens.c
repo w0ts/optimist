@@ -63,6 +63,37 @@ static void op_clear_track(uint32_t i)                  /* the REC ring and TOOL
     ui_say(trk_tag(i), " CLEARED");
     ui.force = 1;
 }
+/* the REC ring on a picked drum lane (the user, 2026-10-16): only that lane's hits, and its locks and motion, go; the other lanes, the
+ * step's own extras and the pattern stay (undo brings it back) */
+static void op_clear_lane(uint32_t l)
+{
+    track_t *t = &trk[TRK_DRUM];
+    uint32_t i;
+    undo_mark(t, (undo_sess += 4u) | 3u);
+    fm1_irq_off();
+    for (i = 0; i < NSTEP; i++) {
+        dstep_clr(&t->dstep[i], l);
+#if DLA_ON
+        if (l < DRUM_LANES) {
+            uint32_t v;
+            (void)lane_step_drop(t, i, l);
+            for (v = 0; v < DE_N; v++)
+                (void)lane_hold_drop(t, i, l, v);
+        }
+#endif
+#if FELUCCA_PLOCK
+        if (l == DRUM_ACC)
+            lock_drop(t, i, P_DACC);                    /* (the ACCENT hits gone: its amount's locks too) */
+#endif
+    }
+#if FELUCCA_AUTO
+    auto_touch(trk_index(t));
+#endif
+    fm1_irq_on();
+    sync_reload = 1;
+    ui_say(lane_name(l), " CLEARED");
+    ui.force = 1;
+}
 /* TOOLS' GO buttons (op_cells.c page_yes, confirmed) */
 static int op_global_go(uint32_t id)
 {

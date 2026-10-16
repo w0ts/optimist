@@ -138,8 +138,13 @@ static void roll_range(const track_t *t)
     a += ex, b += ex;
     rg.lo = a < 0 ? 0 : a;
     rg.hi = b;
+    ex = held_note();                                   /* the note being edited (a step held): always inside the rows, whatever OCT and the pattern say */
+    if (ex >= 0 && ex < rg.lo)
+        rg.hi -= rg.lo - ex, rg.lo = ex;
+    else if (ex > rg.hi)
+        rg.lo += ex - rg.hi, rg.hi = ex;
 }
-#define NY(nt) (SG_TOP + (rg.hi - (nt)) * rg.rh)
+#define NY(nt) (SG_TOP + sg_dy + (rg.hi - (nt)) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
 {
     uint32_t k, len = trk_len(t);
@@ -194,7 +199,7 @@ static void roll_names(uint64_t used)
 }
 static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octaves, the beats; the gutter's keys */
 {
-    int32_t n, w, ye = SG_TOP + (rg.hi - rg.lo + 1) * rg.rh, xe;
+    int32_t n, w, ye = SG_TOP + sg_dy + (rg.hi - rg.lo + 1) * rg.rh, xe;
     uint32_t end = len > st.page * 16u ? len - st.page * 16u : 0u;
     (void)t;
     end = end > 16u ? 16u : end;
@@ -224,7 +229,7 @@ static void sg_roll(const track_t *t)
     roll_range(t);
     m = rg.rh >= 6 ? 1 : 0;
     h = rg.rh >= 6 ? rg.rh - 2 : rg.rh - 1;
-    ye = SG_TOP + (rg.hi - rg.lo + 1) * rg.rh;
+    ye = SG_TOP + sg_dy + (rg.hi - rg.lo + 1) * rg.rh;
     roll_ground(t, len);
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w, tie;
@@ -240,6 +245,8 @@ static void sg_roll(const track_t *t)
             int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
             uint32_t lv = (s->lvl >> (2u * i)) & 3u;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
+            if (!tie && held_note_sel(idx) == (int)i)
+                nc = C_NOTE;                            /* (the note SELECT picked on a held step of several: its own colour) */
             if (nt < rg.lo || nt > rg.hi)
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
@@ -323,7 +330,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
 {
     const track_t *t = TSEL;
     const uint8_t *p = (const uint8_t *)(is_drum(t) ? (const void *)t->dstep : (const void *)t->step);
-    uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), st.held), lane_sel * 2u + is_drum(t)), trk_col(song.sel)), i;
+    uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), st.held), lane_sel * 2u + is_drum(t) + (uint32_t)st.nsel * 64u), trk_col(song.sel)), i;
     for (i = 0; i < NSTEP * sizeof(step_t); i++)
         h = (h ^ p[i]) * 16777619u;
 #if FELUCCA_AUTO
@@ -409,6 +416,14 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
 {
     int32_t top = OP_PY - SP_Y, lim = inf ? SG_INFO_Y : SG_TOP + SG_H, y, lh;
     uint32_t sel = lane_selected();
+    if (want && !is_drum(TSEL) && held_note() >= 0) {   /* the roll: the edited note a row clear of the cards and of the step's lines */
+        int32_t nt = held_note();
+        roll_range(TSEL);
+        y = SG_TOP + (rg.hi - nt) * rg.rh;
+        if (y < top + rg.rh)
+            return top + rg.rh - y;
+        return y + 2 * rg.rh > lim ? lim - 2 * rg.rh - y : 0;
+    }
     if (!want || !is_drum(TSEL))
         return 0;
     y = SG_LY0(sel);

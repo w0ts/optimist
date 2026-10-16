@@ -32,7 +32,8 @@
   "err": "#e04848"
  },
  "marks": {
-  "auto": "#ffec80"
+  "auto": "#ffec80",
+  "note": "#4de6ff"
  },
  "other": "#8a8a8a"
 }

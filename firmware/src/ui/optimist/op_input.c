@@ -298,10 +298,14 @@ static void rec_held(uint32_t held)
         rh.ring = 1;
         rh.t1 = fm1_ms;
         rh.trk = song.sel;
+        rh.lane = (int8_t)(is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1);   /* (a lane picked: only its steps) */
     }
     if (rh.ring && fm1_ms - rh.t1 >= RH_CLEAR_MS) {
         ui.toast_next = 1;                              /* (what it says: a toast, as a confirmed clear) */
-        op_clear_track(rh.trk);
+        if (rh.lane >= 0)
+            op_clear_lane((uint32_t)rh.lane);           /* ("SNARE CLEARED": the lane's steps, locks and motion; the rest stays) */
+        else
+            op_clear_track(rh.trk);
         ui.toast_next = 0;
         rh.on = rh.ring = 0;                            /* (until REC is up: nothing more) */
     }
