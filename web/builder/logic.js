@@ -138,6 +138,13 @@ export function presets(prof) {
   return out;
 }
 
+/** the preset the page opens with and "Reset to default" restores: the manifest's flavour marked "default": true, else
+    its first flavour, else the first profile (presets() order) */
+export function defaultPreset(prof, list = presets(prof)) {
+  const flav = (prof.flavours || []).find((f) => f.default === true) || (prof.flavours || [])[0];
+  return (flav && list.find((p) => p.id === `flavour:${flav.id}`)) || list.find((p) => p.kind === "profile") || list.at(-1);
+}
+
 /** the summary line of the messages (menu.py refresh_msgs): the overflow per region with the biggest items in it */
 export function overflowLines(over, savings, byKey) {
   return Object.entries(over || {}).map(([r, o]) => {

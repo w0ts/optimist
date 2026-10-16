@@ -122,6 +122,12 @@ const tq = L.treeOf(reg, "reverb", {}, null);
 ok(tq.length > 0 && tq.every((g) => g.items.every((i) => L.matches(reg.byKey[i.key], "reverb") || i.children.some((c) => L.matches(reg.byKey[c], "reverb")))), "search: what matches label, key, group or description, with its parent");
 const ps = L.presets(prof);
 ok(ps[0].kind === "flavour" && ps.filter((p) => p.kind === "profile").length === prof.profiles.length && ps.at(-1).kind === "defaults", "presets: the flavours, then every profile, then the registry defaults");
+{
+  const P = { profiles: [{ name: "a", text: "" }, { name: "synth", text: "ENG_FM6=1\n" }], flavours: [{ id: "x", title: "X", profile: "a" }, { id: "synth", title: "Synth", profile: "synth", default: true }] };
+  const P2 = { profiles: P.profiles, flavours: [{ id: "x", title: "X", profile: "a" }, { id: "synth", title: "Synth", profile: "synth" }] };
+  ok(L.defaultPreset(P).id === "flavour:synth" && L.defaultPreset(P2).id === "flavour:x" && L.defaultPreset({ profiles: P.profiles }).id === "profile:a"
+    && L.defaultPreset(prof).kind === "flavour", "default preset: the flavour marked default, else the first flavour, else the first profile");
+}
 ok(L.fileName("user default") === "user-default.config" && L.fileName("../x") === "x.config" && L.fileName("") === "optimist.config" && L.firmwareName("a<b>c d+e.f_g-h12345678") === "abc d+e.f_g-h123", "names: the file's, the firmware's (16 characters)");
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN

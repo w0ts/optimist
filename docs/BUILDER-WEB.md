@@ -26,8 +26,9 @@ of that code.
 - **Search, sort and folding:** search matches the label, key, group and description. Sort works like the menu's `o`
   (default order, then flash, ram, pool or ramtext, largest first). Keys outside the text fields: `/` search, `o` sort,
   `x` expand all, `c` collapse all.
-- **Presets:** the flavours (`web/flavours.json`), every shipped profile (`config/profiles/`) and the registry
-  defaults.
+- **Presets:** the flavours (`web/flavours.json`), every shipped profile (`config/profiles/`), the registry defaults
+  and, when the browser kept it, your last configuration. The page always opens with the manifest's default flavour:
+  the entry marked `"default": true`, or the first one if none is marked. **Reset to default** goes back to it.
 - **Import and export:** you can load a `.config` file or paste one. It is read with `core.parse`, and unknown keys
   are warned about as on the CLI. **Download .config** writes `core.dump`.
 - **The configuration hash, the canonical form and the cloud key:** the key is `core.cloud_key`. It needs the full
@@ -36,7 +37,7 @@ of that code.
 - **Build in the cloud:** this button is disabled for now ("Cloud builds are not live yet"). The cloud-build workflow
   is a later step.
 
-The page needs no storage. It remembers the last configuration in `localStorage` when it can, and works without it.
+The page needs no storage. It keeps the last configuration in `localStorage` when it can, offered as a preset, and works without it.
 Light and dark follow the system. It works on a phone (16 px gutters, no sideways scroll).
 
 ## Pyodide

@@ -3,7 +3,7 @@
 // them; every rule runs in Python (py-worker.js -> tools/builder/web_api.py). docs/BUILDER-WEB.md.
 import {
   PYODIDE_VERSION, REGIONS, SORTS, barModel, built, commitOf, defaults, deltaOf, fileName, fmt, indexRegistry, kDelta,
-  offFits, overflowLines, presets, pyodideBase, treeOf,
+  defaultPreset, offFits, overflowLines, presets, pyodideBase, treeOf,
 } from "./logic.js";
 
 const $ = (id) => document.getElementById(id);
@@ -323,6 +323,7 @@ function wire() {
   $("expand").addEventListener("click", () => { S.collapsed.clear(); renderTree(); });
   $("collapse").addEventListener("click", () => { for (const it of S.reg.items) if (it.children.length) S.collapsed.add(it.key); renderTree(); });
   $("download").addEventListener("click", download);
+  $("reset").addEventListener("click", () => choosePreset(S.default.id));
   $("fit").addEventListener("click", runFit);
   $("file").addEventListener("change", async (e) => {
     const f = e.target.files[0];
@@ -352,6 +353,13 @@ async function main() {
   const sel = $("preset");
   const flav = S.presets.filter((p) => p.kind === "flavour"), profs = S.presets.filter((p) => p.kind !== "flavour");
   sel.append(el("option", { value: "", text: "(your own)" }));
+  const last = recall();
+  if (last) {
+    S.presets.unshift({ id: "last", label: "your last configuration (this browser)", kind: "last", text: last, name: "custom", description: "" });
+    sel.append(el("option", { value: "last", text: "your last configuration (this browser)" }));
+  }
+  S.default = defaultPreset(prof, S.presets);
+  $("reset").textContent = `Reset to default (${S.default.label})`;
   if (flav.length) sel.append(el("optgroup", { label: "Flavours (the site's packages)" }, flav.map((p) => el("option", { value: p.id, text: p.label }))));
   sel.append(el("optgroup", { label: "Profiles (config/profiles)" }, profs.map((p) => el("option", { value: p.id, text: p.label }))));
   wire();
@@ -371,11 +379,8 @@ async function main() {
   $("loading").hidden = true;
   S.ready = true;
   $("fit").disabled = false;
-  const last = recall();
-  const first = flav[0] || profs[0];
-  const r = last ? await loadText(last, "custom", "the last configuration") : { ok: false };
-  if (r.ok) sel.value = "";
-  else { sel.value = first.id; await choosePreset(first.id); }
+  $("reset").disabled = false;
+  await choosePreset(S.default.id);           // (always the manifest's default: the last configuration is a choice)
   window.optimistBuilder.readyFlag = true;
 }
 

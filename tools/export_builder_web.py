@@ -47,9 +47,10 @@ def profiles():
 
 
 def flavours():
-    """web/flavours.json's entries for the page (a preset each: its profile), without the package glob"""
+    """web/flavours.json's entries for the page (a preset each: its profile; "default": true marks the one the page opens
+    with, else the first), without the package glob"""
     data = json.loads((ROOT / "web" / "flavours.json").read_text(encoding="utf-8"))
-    return [{k: f[k] for k in ("id", "title", "description", "profile") if k in f} for f in data["flavours"]]
+    return [{k: f[k] for k in ("id", "title", "description", "profile", "default") if k in f} for f in data["flavours"]]
 
 
 def files():

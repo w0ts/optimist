@@ -37,6 +37,17 @@ const SITE = join(WORK, "site");
 py(["web/make_site.py", "--builder", SITE]);
 const SHA = "89abcdef0123456789abcdef0123456789abcdef";
 writeFileSync(join(SITE, "webapp", "builder", "build-info.json"), JSON.stringify({ commit: SHA }) + "\n");
+/* STANDIN_DEFAULT=FILE.config: the test site (only it: build/) gets that file as profile "synth" and a flavour "Synth"
+   marked default, as the manifest will have it once config/profiles/synth.config lands; the page must open with it */
+const STANDIN = process.env.STANDIN_DEFAULT || null;
+if (STANDIN) {
+  const pf = join(SITE, "webapp", "builder", "data", "profiles.json");
+  const pj = JSON.parse(readFileSync(pf, "utf8"));
+  if (!pj.profiles.some((p) => p.name === "synth")) pj.profiles.push({ name: "synth", text: readFileSync(STANDIN, "utf8"), published: true });
+  pj.flavours = [{ id: "synth", title: "Synth", description: "stand-in: " + STANDIN, profile: "synth", default: true },
+    ...pj.flavours.filter((f) => f.id !== "synth").map((f) => ({ ...f, default: false }))];
+  writeFileSync(pf, JSON.stringify(pj, null, 1) + "\n");
+}
 const PYDIR = process.env.PYODIDE_DIR || null;
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".wasm": "application/wasm",
   ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".zip": "application/zip" };
@@ -128,6 +139,20 @@ const prof0 = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "p
 const reg = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "registry.json"), "utf8"));
 const items = reg.registry.items;
 const pageReg = await run(`${U} return await B.call("registry_view");`);
+/* the page opens with the manifest's default flavour (marked "default", else the first), and it validates */
+{
+  const dflt = prof0.flavours.find((f) => f.default === true) || prof0.flavours[0];
+  const text = prof0.profiles.find((p) => p.name === dflt.profile).text;
+  const init = await run(`${U} const p = await B.call("parse_text", ${JSON.stringify(text)});
+    return { same: JSON.stringify(Object.entries(p.values).sort()) === JSON.stringify(Object.entries(B.state.values).sort()), preset: $("#preset").value,
+      errors: B.state.view.eval.errors.map((e) => e.text), reset: $("#reset").textContent };`);
+  ok(init.same && init.preset === `flavour:${dflt.id}` && !init.errors.length && init.reset.includes(dflt.title),
+    `page: opens with the manifest's default flavour ${dflt.title} (${dflt.profile}), no errors${init.errors.length ? ": " + init.errors.join("; ") : ""}`);
+  const rs = await run(`${U} const before = JSON.stringify(B.state.values); await B.setItem("ENG_FM6", B.state.values.ENG_FM6 ? 0 : 1);
+    const changed = JSON.stringify(B.state.values) !== before; $("#reset").click(); await until(() => JSON.stringify(B.state.values) === before, 20000);
+    return { changed, back: JSON.stringify(B.state.values) === before, preset: $("#preset").value };`);
+  ok(rs.changed && rs.back && rs.preset === `flavour:${dflt.id}`, "page: Reset to default restores it");
+}
 ok(same(pageReg, reg), "the page's registry (Pyodide: registry + backports) = the CLI's export");
 let seed = 1016;
 const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
