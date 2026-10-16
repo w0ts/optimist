@@ -385,8 +385,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
-        ed_b(7);                                          /* v5: the protocol version (7: ENV 1 MOD, 2026-10-16: the ids of
-                                                           * ENV DEST P_E1PIT .. P_E1Z are depths, no DEST any more) */
+        ed_b(6);                                          /* v5: the protocol version */
         for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
             ed_b(eng_uid(i));
         ed_b(0x53); ed_b(1); ed_b(3);   /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
