@@ -46,7 +46,7 @@
  * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
 #define RET_TLV 0x4Au
 /* TLV RSND_TLV (0x4B, 2026-10-16): the sends between the returns (fx_slots.c rs_tlv: A -> B, A -> C, B -> C, a byte each,
- * 0..127), only when one is not 0; none: every one at 0, as every project from before. A reader takes the sends it knows
+ * 0..127; with RET_FB then B -> A, C -> A, C -> B: 6 bytes), only when one is not 0; none: every one at 0, as every project from before. A reader takes the sends it knows
  * (a longer form's further ones skipped). A load's (`all`), as the returns' levels */
 #define RSND_TLV 0x4Bu
 #define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */

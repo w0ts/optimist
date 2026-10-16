@@ -908,7 +908,8 @@ the tag does not answer 94.
 
 Owners: 0..3 tracks T1 T2 T3 DR, 4 the master, 5 the USB input (slots 0 1, and slot 2: its own values VOLUME PAN MUTE FX ON
 REV DLY CHO), 6..8 the returns A B C (slot 0 its type; slot 1, 2026-10-16, its sends to the returns to its right, type 0
-always: A's two, labelled B and C, B's one, C, C's none), 9..24 the drum sounds (lanes 0..15; slots 0 1: the types a voice
+always: A's two, labelled B and C, B's one, C, C's none; with the builder item RET_FB each return's two others, A: B C, B: A C,
+C: A B, in that order), 9..24 the drum sounds (lanes 0..15; slots 0 1: the types a voice
 can hold, its slot's amount only). A type id is the v10 one (`FXT`): 0 empty, 1 DIST, 2 CHO, 3 DLY, 4 REV, 5 DYN, 6 FILT, 7
 FOLD, 8 FUZZ, 9 PHSR, 10 FLNG, 11 FRMT, 12 WIDE, 13 CHRS, 14 ECHO, 15 GATER, 16 DUST, 17 JUNO, 18 EQ3; never reused.
 

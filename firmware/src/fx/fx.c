@@ -1185,7 +1185,28 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n);    /
 static uint32_t rs_on, rs_srcm;                       /* (rs_srcm: the lines a send leaves) */
 static uint8_t rs_ord[3] = {0, 1, 2}, rs_sl[RS_N], rs_dl[RS_N];
 static int32_t rs_cur[RS_N], rs_to[RS_N];
+#define RS_FBG 65                                       /* (a feedback send's gain law: 127 x 65 / 32768, 0.25) */
 static int32_t rs_pre_v[CTL], rs_tl[CTL], rs_tr[CTL];   /* a source's output before its stage (mono); the wet before the chorus (a chain) */
+#if FELUCCA_RET_FB
+/* the feedback sends (RET_FB: B -> A, C -> A, C -> B). A line a feedback send leaves keeps its output of the block (rs_fbv,
+ * mono), DC-blocked (rs_dcx / rs_dcy), levelled (rs_fbe / rs_fbg: a limiter, the block's peak held over RS_FBT, -12 dBFS,
+ * released over ~0.4 s) and soft-clipped (rs_soft); the return it goes to (to its left: it runs first) adds that copy the
+ * next block. So the loop's latency is one block (32 samples, 0.73 ms), nothing in a block hears itself, and what goes
+ * round is bounded: no loop runs away whatever the returns hold (DIST, a delay at FDBK 120); a loop with more than unity
+ * gain (a resonant delay) settles at the limiter's level instead of climbing. Its gain law: a quarter of a forward send's
+ * (127: 0.25, RS_FBG). rs_fbm: the lines keeping a copy; rs_fbnz: those whose copy was not all 0 (a woken bus, rs_wake).
+ * All on the core that runs mix_finish: nothing crosses to the second core */
+#define RS_FBT 8192
+static int32_t rs_fbv[3][CTL], rs_dcx[3], rs_dcy[3], rs_fbe[3], rs_fbg[3] = {32768, 32768, 32768};
+static uint32_t rs_fbm, rs_fbnz;
+AINL int32_t rs_soft(int32_t x)                         /* |x| up to 0.5 FS as it is, above it a quarter, 1.0 FS at most */
+{
+    int32_t a = x < 0 ? -x : x;
+    a = a > 16384 ? 16384 + ((a - 16384) >> 2) : a;
+    a = a > 32767 ? 32767 : a;
+    return x < 0 ? -a : a;
+}
+#endif
 static HOT2 __attribute__((noinline)) uint32_t rs_block(void)
 {
     uint32_t k, j, on = 0, s, n = 0, srcm = 0, lnl = fxs_lnl;
@@ -1195,13 +1216,28 @@ static HOT2 __attribute__((noinline)) uint32_t rs_block(void)
             ln[fxs_rsl[j] % FX_NSLOT] = (uint8_t)j;
     for (k = 0; k < RS_N; k++) {
         int ok = ln[RS_SRC[k]] < 3u && ln[RS_DST[k]] < 3u;
-        rs_to[k] = ok ? rs_amt[k] * 258 : 0;
+        rs_to[k] = ok ? rs_amt[k] * (k < RS_NF ? 258 : RS_FBG) : 0;   /* (a feedback send: a quarter, RS_FBG) */
         if (!ok)
             rs_cur[k] = 0;                              /* (a return emptied: its sends gone, at once) */
         if (rs_to[k] | rs_cur[k])
             on |= 1u << k, rs_sl[k] = ln[RS_SRC[k]], rs_dl[k] = ln[RS_DST[k]], srcm |= 1u << rs_sl[k];
     }
     rs_srcm = srcm;
+#if FELUCCA_RET_FB
+    {
+        uint32_t fbm = 0;
+        for (k = RS_NF; k < RS_N; k++)
+            fbm |= (on >> k & 1u) << rs_sl[k] % 3u;
+        for (j = 0; j < 3u; j++)
+            if ((fbm >> j & 1u) && !(rs_fbm >> j & 1u)) {   /* (a line starting a copy: none of an old one) */
+                for (k = 0; k < CTL; k++)
+                    rs_fbv[j][k] = 0;
+                rs_dcx[j] = rs_dcy[j] = rs_fbe[j] = 0, rs_fbg[j] = 32768;
+                rs_fbnz &= ~(1u << j);
+            }
+        rs_fbm = fbm;
+    }
+#endif
     if (on) {
         for (s = 1; s < FX_NSLOT; s++)
             if (ln[s] < 3u)
@@ -1217,7 +1253,12 @@ static HOT2 __attribute__((noinline)) uint32_t rs_block(void)
 static HOT2 __attribute__((noinline)) uint32_t rs_wake(uint32_t live)
 {
     uint32_t k;
-    for (k = 0; k < RS_N; k++)
+#if FELUCCA_RET_FB
+    for (k = RS_NF; k < RS_N; k++)                      /* (a feedback send: the copy of the block before) */
+        if ((rs_on >> k & 1u) && (rs_fbnz >> rs_sl[k] & 1u))
+            live |= 1u << rs_dl[k];
+#endif
+    for (k = 0; k < RS_NF; k++)
         if ((rs_on >> k & 1u) && (live >> rs_sl[k] & 1u))
             live |= 1u << rs_dl[k];
     return live;
@@ -1255,6 +1296,20 @@ static HOT2 __attribute__((noinline)) uint32_t rs_gen(void)
 static HOT2 __attribute__((noinline)) void rs_pre(uint32_t j, uint32_t n)
 {
     uint32_t i;
+#if FELUCCA_RET_FB
+    {   /* the feedback sends to line j: the copies of the block before, into its send, ramped */
+        int32_t *const snd[3] = {send_c, send_d, send_r};
+        uint32_t k;
+        for (k = RS_NF; k < RS_N; k++) {
+            int32_t g0 = rs_cur[k], d = rs_to[k] - g0, *o = snd[j % 3u];
+            const int32_t *c = rs_fbv[rs_sl[k] % 3u];
+            if (!(rs_on >> k & 1u) || rs_dl[k] != j)
+                continue;
+            for (i = 0; i < n; i++)
+                o[i] += mulq15(c[i], g0 + ((d * (int32_t)(i + 1u)) >> CTL_LOG2));
+        }
+    }
+#endif
     if (rs_srcm >> j & 1u) {
         const int32_t *l = RS_OUT(j, 0), *r = RS_OUT(j, 1);
         for (i = 0; i < n; i++)
@@ -1271,7 +1326,30 @@ static HOT2 __attribute__((noinline)) void rs_post(uint32_t j, uint32_t n)
     if (!(rs_srcm >> j & 1u))
         return;
     l = RS_OUT(j, 0), r = RS_OUT(j, 1);
-    for (k = 0; k < RS_N; k++) {
+#if FELUCCA_RET_FB
+    if (rs_fbm >> j & 1u) {                             /* (a feedback send leaves it: the block's copy) */
+        int32_t *c = rs_fbv[j % 3u], x0 = rs_dcx[j % 3u], y = rs_dcy[j % 3u], nz = 0, pk = 0, e, g0 = rs_fbg[j % 3u], dg;
+        for (i = 0; i < n; i++) {
+            int32_t x = clamp((l[i] >> 1) + (r[i] >> 1) - rs_pre_v[i], -65535, 65535);
+            y += (x - x0) * 256 - (y >> 10);            /* (DC blocked: a one-pole high-pass, ~7 Hz, Q8 state) */
+            x0 = x;
+            c[i] = clamp(y >> 8, -65535, 65535);
+            pk = (c[i] < 0 ? -c[i] : c[i]) > pk ? (c[i] < 0 ? -c[i] : c[i]) : pk;
+        }
+        e = rs_fbe[j % 3u] - (rs_fbe[j % 3u] >> 9);     /* (the level: the block's peak, held, released ~0.4 s) */
+        e = pk > e ? pk : e;
+        rs_fbe[j % 3u] = e;
+        rs_fbg[j % 3u] = e > RS_FBT ? (RS_FBT << 15) / e : 32768;   /* (over RS_FBT: down to it; a divide a block) */
+        dg = rs_fbg[j % 3u] - g0;
+        for (i = 0; i < n; i++) {
+            c[i] = rs_soft((c[i] * ((g0 + ((dg * (int32_t)(i + 1u)) >> CTL_LOG2)) >> 1)) >> 14);
+            nz |= c[i];
+        }
+        rs_dcx[j % 3u] = x0, rs_dcy[j % 3u] = y;
+        rs_fbnz = nz ? rs_fbnz | 1u << j : rs_fbnz & ~(1u << j);
+    }
+#endif
+    for (k = 0; k < RS_NF; k++) {
         int32_t g0 = rs_cur[k], d = rs_to[k] - g0;
         int32_t *o = snd[rs_dl[k] % 3u];
         if (!(rs_on >> k & 1u) || rs_sl[k] != j)
@@ -2583,7 +2661,7 @@ static __attribute__((noinline)) void scope_drums_take(uint32_t n)
 static inline __attribute__((always_inline)) void rets_mix(uint32_t n)
 {
     uint32_t i;
-    if (rs_amt[0] | rs_amt[1] | rs_amt[2] | rs_on)
+    if (rs_any() | (int32_t)rs_on)
         rs_block();                                     /* (a send between the returns: a chain, fx_buses runs them all) */
     if (!rs_on && (fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE || rt_tail[0] | rt_tail[1] | rt_tail[2]))
         rt_run(n);                                      /* the returns holding another type (above): first, their sends */

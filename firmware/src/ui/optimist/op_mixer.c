@@ -49,14 +49,14 @@ enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
 enum { MG_MIX, MG_INS, MG_SEND, MG_LAST,
        MG_UEQ, MG_UEQF, MG_UGT, MG_UJC,                /* (the USB input's insert settings: a set each, named by mix_name) */
-       MG_RSA, MG_RSB };                               /* (MASTER: return A's sends, B's: a set each) */              /* (the USB input's insert settings: a set each, named by mix_name) */
+       MG_RSA, MG_RSB, MG_RSC };                       /* (MASTER: return A's sends, B's, C's (RET_FB): a set each) */              /* (the USB input's insert settings: a set each, named by mix_name) */
 typedef struct {
     const char *label;                                  /* 0: the descriptor's */
     uint8_t kind, id;                                   /* MI_*; a P_* / G_* / lane value id / screen */
     uint8_t grp;                                        /* MG_* */
 } mitem_t;
-#define MX_MAXI 28u                                     /* (the USB row: 4 + 4, two types' settings, 4; MASTER: 4 + 4, the
-                                                        * returns 4, A's and B's sends 4 + 4, DUCK) */
+#define MX_MAXI 32u                                     /* (the USB row: 4 + 4, two types' settings, 4; MASTER: 4 + 4, the
+                                                        * returns 4, A's B's (C's: RET_FB) sends 4 each, DUCK) */
 static struct {
     uint8_t set;                                        /* the knob set shown (SELECT) */
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
@@ -172,12 +172,13 @@ static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
 /* MASTER's return sends (2026-10-16, fx_slots.c rs_amt): a set a return that may send, A SENDS then B SENDS, in a track's
  * sends grammar: cards 1..3 the returns A B C (the card of the return a send goes to, named by what it holds; blank: the
  * return itself, one to its left, an empty one), card 4 blank (a return has no PAN). C sends to none: no set. A return
- * holding nothing, or nothing to its right: no set */
+ * holding nothing, or nothing to its right: no set. With RET_FB (the feedback sends) each return sends to the other two
+ * (A: B C, B: A C, C: A B), C SENDS too; blank: the return itself, an empty one */
 static uint32_t mx_items_rsend(mitem_t *it, uint32_t n)
 {
     uint32_t s, k, i, any;
     int16_t *vp;
-    for (s = 1; s < 3u; s++) {
+    for (s = 1; s < (FELUCCA_RET_FB ? 4u : 3u); s++) {   /* (RET_FB: C SENDS too, and B's to A, C's to A and B) */
         for (k = 0, any = 0; rs_of(s, k) < RS_N; k++)
             any |= rs_desc(rs_of(s, k), &vp) != 0;
         if (!any)
@@ -441,7 +442,7 @@ static void mix_name(uint32_t r, char *b)
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp;
     if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
-        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_RSA ? "A SENDS" : g == MG_RSB ? "B SENDS" : g == MG_LAST ? "DUCK" :
+        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_RSA ? "A SENDS" : g == MG_RSB ? "B SENDS" : g == MG_RSC ? "C SENDS" : g == MG_LAST ? "DUCK" :
                    it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
     else
         str_cpy(b, G[g & 7u], 12);
