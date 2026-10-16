@@ -2541,6 +2541,7 @@ static void led_tests(void)
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
+#include "ui_optimist_stepauto.h"                    /* a step with automation: its own colour (STEP grid, roll, mixer strips) */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
@@ -2645,6 +2646,9 @@ int main(int argc, char **argv)
     actcards_tests();
     prjflow_tests();
     colours_tests();
+#if FELUCCA_AUTO
+    step_auto_tests();
+#endif
     algo_tests();
     mute_tests();
     solo_tests();

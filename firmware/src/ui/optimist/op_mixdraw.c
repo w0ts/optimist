@@ -393,7 +393,8 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
         uint32_t s = page + i;
         if (s >= len)
             continue;
-        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE : mx_on(r, s) ? c : C_BLACK;
+        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
+                    : mx_on(r, s) ? (!mx_smuted(r) && op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? C_AUTO : c) : C_BLACK;
         if (r >= MXR_LANE0 && sc == C_BLACK)            /* (a lane's empty step: a foot line, no box: 16 small boxes a */
             cv_rect(x + (int32_t)i * q.sp, y + q.sh - 1, q.sp - 1, 1, C_LINE);   /* lane read as noise) */
         else
@@ -418,7 +419,7 @@ static void mx_steps(uint32_t r)
     mx_rect(r, &q);
     sig = hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r));
     for (i = 0; i < 16u; i++)
-        sig = sig * 3u + mx_on(r, page + i);
+        sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu));
     if (sig == mxd.stp[r])
         return;
     mxd.stp[r] = sig;

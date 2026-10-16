@@ -749,6 +749,15 @@ sequencer's scan bites. The sequencer reads a step's NUDGE and FILL in the same 
 needs the next step's nudge ahead of time, as `micro_units` reads it from the array today, so the scan is per step,
 never per sample [E].
 
+**A step with automation is coloured** (2026-10-16, the user: "in SEQ the step with automation should be colored differently"):
+a step that carries a lock or a motion event of the sound (`op_step_auto`, op_state.c; NUDGE, FILL, CHANCE and COND are step
+extras, not automation) is drawn in the automation colour `C_AUTO` (colors.json "marks" / auto, `#ffec80`, a pale yellow:
+lighter and less saturated than every engine, kind and status colour, and not white, which is the playhead and the held
+frame) instead of its lane's or the track's colour, its level still the shade (ghost 5/8 .. hard full, the plain ones 3/8 ..
+full). It applies to the drum grid cells, the synth roll's notes and the mixer's step strips (a drum lane's strip: that lane's
+locks; the DR row: any lane's). A lane's lock marks that lane's cell only, a track's lock or motion every cell of the step.
+The dot below the grid stays. Host test: `tests/ui_optimist_stepauto.h` (opt-step-auto-drums / -roll, opt-mixer-auto).
+
 The STEP screen shows an event as a dot under its step in the lane's or the roll's colour; a hold event with a tail
 to the next event of that parameter. With a step held and a page button down, a cell with an event on that step
 shows a lock mark and its value; the hot cell's event: YES toggles bit 6, SHIFT + the knob clears it. SHIFT + the step
