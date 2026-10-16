@@ -34,8 +34,12 @@ enum { TL_REV, TL_RND, TL_COOK, TL_LEN };
 #define TL_ALL ((1u << DRUM_SLANES) - 1u)      /* every step lane: the 16 sounds and the ACCENT lane (core.h DRUM_ACC) */
 static struct {
     uint8_t half;                       /* LENGTH armed: 0 x2 (DOUBLE), 1 1/2 (HALF) */
+    uint8_t sel;                        /* the tool the one TOOLS card has picked: TS_* below */
     uint32_t sess;                      /* the undo session of the last tool */
-} tl = {0, 0};
+} tl = {0, 0, 0};
+enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF, TS_N };   /* (the card's choices; DOUBLE and HALF are LENGTH's two) */
+static const char *const TS_NAME[TS_N] = {"REVERSE", "RANDOM", "COOK", "DOUBLE", "HALF"};
+static uint32_t ts_tool(uint32_t sel) { return sel == TS_DBL || sel == TS_HALF ? (uint32_t)TL_LEN : sel; }
 
 static uint32_t tl_rnd(uint32_t n) { return n ? rng() % n : 0u; }
 static int32_t tl_lane(void) { return is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1; }
@@ -612,15 +616,19 @@ static void tl_double_do(track_t *t, uint32_t len)
 /* ---- the pages */
 static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT */
 {
-    static const char *const TN[4] = {"REVERSE", "RANDOM", "COOK", "LENGTH"};
     cell_clear(c);
     if (!pg) {
-        cell_act(c, 0, TN[k & 3u], 0, 0);           /* (the verb alone, large: the title says Tools, the object is the
-                                                         * pattern on all three; the audit's #29) */
-        if (k == TL_LEN) {
+        if (k == 0u) {                                       /* (one card: its knob picks the tool, YES does it) */
+            c->kind = CK_VAL;                                /* (a value cell: the turn reaches tl_turn, an action cell's would only pick it) */
+            c->label = "TOOL";
+            str_cpy(c->val, TS_NAME[tl.sel % TS_N], sizeof c->val);
+            cell_gauge(c, 1, 0, (int32_t)TS_N - 1, tl.sel);       /* (dots: the five tools) */
+        } else if (k == 1u) {                                  /* what it will work on: the track, or the picked drum lane */
+            int32_t ln = tl_lane();
             c->kind = CK_VAL;
-            str_cpy(c->val, tl.half ? "1/2" : "x2", sizeof c->val);
-            cell_gauge(c, 1, 0, 1, tl.half);
+            c->label = "ON";
+            str_cpy(c->val, ln >= 0 ? lane_name((uint32_t)ln) : trk_tag(song.sel), sizeof c->val);
+            cell_gauge(c, 1, 0, 1, 1);
         }
         return;
     }
@@ -632,10 +640,13 @@ static void tl_turn(uint32_t pg, uint32_t k, int32_t s)
         ng_turn(pg, k, s);
         return;
     }
-    if (k == TL_LEN)
-        tl.half = (uint8_t)(s == OP_RESET ? 0 : s > 0 ? 0 : 1);
+    if (k == 0u) {                                      /* the one TOOLS card: a turn picks the tool */
+        int32_t v = s == OP_RESET ? 0 : (int32_t)tl.sel + s;
+        v %= (int32_t)TS_N;
+        tl.sel = (uint8_t)(v < 0 ? v + (int32_t)TS_N : v);
+        tl.half = tl.sel == TS_HALF;
+    }
 }
-static const char *const TN_VERB[4] = {"REVERSE", "RANDOM", "COOK", "LENGTH"};
 static void tl_say(const char *a, const char *b)       /* what was done: a toast */
 {
     ui.toast_next = 1;
@@ -720,6 +731,8 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *sa, *sb;
     if (pg)                                             /* GEN OUT's ON (at once) and WRITE (asks) */
         return pg == 2u ? ng_yes(k, ok) : 0;
+    if (k != 0u)                                        /* TOOLS has one card: the others do nothing */
+        return 0;
     if (!ok) {                                          /* (every tool asks: "Reverse T1?") */
         char a[12];
         if (!ui.hot_lit) {                              /* (a card is picked by turning its knob) */
@@ -727,10 +740,10 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
             return 1;
         }
         str_cpy(a, who, sizeof a);
-        op_arm(SCR_STEP, ui.row[SCR_STEP], k, k == TL_LEN ? (tl.half ? "HALF" : "DOUBLE") : TN_VERB[k & 3u], a, 0);
+        op_arm(SCR_STEP, ui.row[SCR_STEP], k, TS_NAME[tl.sel % TS_N], a, 0);
         return 1;
     }
-    (void)tl_run(t, k, lane, tl.half, &sa, &sb, b);
+    (void)tl_run(t, ts_tool(tl.sel), lane, tl.sel == TS_HALF, &sa, &sb, b);
     tl_say(sa, sb);
     return 1;
 }

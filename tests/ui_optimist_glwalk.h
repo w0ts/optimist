@@ -371,8 +371,14 @@ static void glwalk_tests(void)
         }
     i = line_named(SCR_SYSTEM, "PANEL");
     glw_line(SCR_SYSTEM, i, &c, v);
-    check(ok && acts == 1u + (FELUCCA_BLE ? 1u + (BLE_CENTRAL && ble_store_has_last(&ble_store) ? 1u : 0u) : 0u) && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
-          "no GLOBAL / SYSTEM line draws YES; the actions (Calibrate's PANEL; with BLE DEVICES and LAST DEVICE) draw their verb");
+    {
+        uint32_t want = 1u;                             /* (Calibrate's PANEL; with BLE also DEVICES, and LAST DEVICE when one is kept) */
+#if FELUCCA_BLE
+        want += 1u + (BLE_CENTRAL && ble_store_has_last(&ble_store) ? 1u : 0u);
+#endif
+        check(ok && acts == want && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
+              "no GLOBAL / SYSTEM line draws YES; the actions (Calibrate's PANEL; with BLE DEVICES and LAST DEVICE) draw their verb");
+    }
     glw_factory_tests();
     glw_sync_long_tests();
     glw_midi_long_tests();

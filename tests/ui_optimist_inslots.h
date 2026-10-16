@@ -59,7 +59,7 @@ static void inslots_tests(void)
         frame();
         ins_desc(0, 0, &v);
         turn(EN_K1, cmp - *v);
-        check(ins_slot[0][0] == FXT_COMP && ins_slot[0][1] == INS_DEF0, "KNOB 1 turned to CMP: S2's type, the two slots swap");
+        check(ins_slot[0][1] == FXT_COMP && ins_slot[0][0] != FXT_COMP, "KNOB 1 turned to CMP: S2's type, skipped (no more swapping the other slot's insert)");
         ins_defaults();
     }
 #endif

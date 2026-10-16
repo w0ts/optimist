@@ -27,9 +27,13 @@ static void stt_yes(void)                               /* SAVE, and SAVE again 
     if (op_armed())
         tap(B_SAVE);
 }
-static void stt_do(uint32_t card)                       /* arm card (KNOB card + 1) and YES */
+static void stt_do(uint32_t card)                       /* TOOLS' one card: its knob picks the tool (TL_LEN: DOUBLE), YES does it */
 {
-    turn(EN_K1 + card, 1);
+    uint32_t n = ((card == TL_LEN ? TS_DBL : card) + TS_N - tl.sel) % TS_N;
+    if (!n)
+        n = TS_N;                                       /* (a turn that lands on the same tool still picks the card) */
+    while (n--)
+        turn(EN_K1, 1);                                 /* (a detent at a time: no acceleration) */
     tap(B_SAVE);
     if (op_armed())                                     /* (REVERSE, RANDOM, COOK ask first, the user 2026-10-13) */
         tap(B_SAVE);
@@ -186,7 +190,7 @@ static void seqtools_tests(void)
         check(t->p[P_SLEN] == 16 && t->step[12].ngate[0] == 64 && v == 9,
               "LENGTH x2 (DOUBLE): 16 steps, the copy whole (its own ends, its locks)");
     }
-    turn(EN_K4, -1);
+    turn(EN_K1, 1);                                     /* (DOUBLE -> HALF) */
     stt_yes();
     check(t->p[P_SLEN] == 8 && t->step[12].note[0] == 64, "LENGTH 1/2 (HALF): 8 steps, the steps past it kept");
 #if FELUCCA_PLOCK
@@ -200,7 +204,7 @@ static void seqtools_tests(void)
             (void)lock_set(t, i, P_E0, 1);
     }
     n = AL(t)->n;
-    turn(EN_K4, 1);
+    turn(EN_K1, -1);                                    /* (HALF -> DOUBLE) */
     stt_yes();
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
@@ -322,7 +326,8 @@ static void seqtools_tests(void)
     stt_open(0, 0);
     t = &trk[0];
     stt_chains(t);
-    turn(EN_K1, 1);
+    for (i = TS_N - tl.sel; i; i--)
+        turn(EN_K1, 1);                                 /* (round to REVERSE) */
     tap(B_SAVE);
     check(op_armed() && !strcmp(ui.arm_verb, "REVERSE?") && tl_gate(&t->step[0]), "TOOLS: SAVE asks \"Reverse T1?\", nothing done yet");
     tap(B_HOME);
@@ -416,6 +421,7 @@ static void cond_card_tests(void)
     reset_ui();
     song.sel = 0;
     track_defaults_steps(t);
+    t->step[2].n = 1;                                   /* (one note: SELECT pages the cards; with several it picks the note) */
     tap(B_SEQ);
     key(WK(2));
     kdown(WK(2));
@@ -435,5 +441,17 @@ static void cond_card_tests(void)
     kup(WK(2));
     track_defaults_steps(t);
     AL(t)->n = 0;
+    /* TOOLS and EUCLID on a drum lane low in the list: its row stays in view (not under the cards) */
+    {
+        uint32_t pg;
+        for (pg = 0; pg < 2u; pg++) {
+            stt_open(TRK_DRUM, pg);
+            lane_select(14);
+            ui.lane = 1;
+            turn(EN_K1, 1);
+            frame();
+            ppm(pg ? "gen-lane" : "tools-lane");
+        }
+    }
 }
 #endif

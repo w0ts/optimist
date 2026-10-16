@@ -184,7 +184,7 @@ static void mixer_sets_tests(void)
                 cmp = ins_list[i] == FXT_COMP ? i : cmp;
             turn(EN_K1, cmp - *v);                      /* S1 to COMP: S2's type, so the two swap (D3) */
         }
-        check(ins_slot[0][0] == FXT_COMP && ins_slot[0][1] == INS_DEF0, "... KNOB 1 on S1 TYPE to COMP: the two slots swap");
+        check(ins_slot[0][1] == FXT_COMP && ins_slot[0][0] != FXT_COMP, "... KNOB 1 on S1 TYPE to COMP (S2's): skipped, S2 keeps it");
         ins_defaults();
         mx.set = 0;
 #endif

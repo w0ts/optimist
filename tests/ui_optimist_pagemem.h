@@ -195,6 +195,7 @@ static void pm_held_tests(void)
     reset_ui();
     song.sel = 0;
     track_select(0);
+    trk[0].step[0].n = trk[0].step[2].n = 1;            /* (one note: SELECT pages the cards; with several it picks the note) */
     memset(hp_mem, 0, sizeof hp_mem);
     tap(B_SEQ);
     frames(2);

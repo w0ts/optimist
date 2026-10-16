@@ -141,30 +141,43 @@ static void edtools_tests(void)
     ed_begin(ED_TOOLS);
     r = ed_tools(ED_TOOLS, q, 4);
     check(r && trk_len(t) == 8u, "TOOLS op 1: LENGTH 1/2: back to 8");
-    {   /* EUCLID: ON writes the generator's steps; HITS turns it; OFF restore gives the pattern back */
+    {   /* EUCLID, the generator layer: ON leaves the pattern alone, HITS turns it, OFF (4) writes what plays, OFF (5) leaves the pattern as it was */
         uint8_t was[8];
         uint32_t hits = 0;
+        gen_t g0 = gen[gen_slot(song.sel % NTRK, lane_selected()) % GEN_NSLOT];
         for (i = 0; i < 8u; i++)
             was[i] = t->step[i].time;
-        tl.hits = 4, tl.steps = 16, tl.rot = 0;         /* (EUCLID's values are kept until the power goes: the ones this test starts from, as ui_optimist_seqtools.h does; an earlier screen on a 2-step track had pinned STEPS to 2) */
+        gen_defaults(&gen[gen_slot(song.sel % NTRK, lane_selected()) % GEN_NSLOT], GT_EUCLID);   /* (HITS 4 STEPS 16 ROT 0, off) */
+        gen_sync();
         q[0] = 3, q[1] = 127;
         ed_begin(ED_TOOLS);
         r = ed_tools(ED_TOOLS, q, 2);
         ok = r && ed_out[6] == 0u && ed_out[13] == 1u;
+        for (i = 0; i < 8u; i++)
+            ok &= t->step[i].time == was[i];            /* (the pattern is untouched while it plays) */
         q[0] = 2, q[1] = 0, q[2] = 3;                   /* HITS 3 over STEPS (len 8: 16 clamps to 8) */
         ed_begin(ED_TOOLS);
         r = ed_tools(ED_TOOLS, q, 3);
-        ok &= r && tl.hits == 3u && ed_out[10] == 3u;
-        for (i = 0; i < 8u; i++)
-            hits += t->step[i].time == ST_NOTE;
-        ok &= hits == 3u;
-        q[0] = 5;
+        ok &= r && ed_out[10] == 3u;
+        q[0] = 4;                                       /* OFF, what plays kept: the 3 hits are the pattern now */
         ed_begin(ED_TOOLS);
         r = ed_tools(ED_TOOLS, q, 1);
         for (i = 0; i < 8u; i++)
-            ok &= t->step[i].time == was[i];
+            hits += t->step[i].time == ST_NOTE;
+        ok &= r && ed_out[13] == 0u && hits == 3u;
+        q[0] = 3, q[1] = 127;                           /* ON again, then OFF (5): the pattern stays as it is */
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 2);
+        q[0] = 5;
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 1);
         ok &= r && ed_out[13] == 0u;
-        check(ok, "TOOLS op 3 / 2 / 5: EUCLID ON writes 3 hits over the pattern, HITS 3 turns it, OFF (restore) gives the pattern back");
+        for (i = 0; i < 8u; i++)
+            ok &= (t->step[i].time == ST_NOTE) == (hits ? t->step[i].time == ST_NOTE : 0);
+        gen[gen_slot(song.sel % NTRK, lane_selected()) % GEN_NSLOT] = g0;
+        gen_sync();
+        (void)was;
+        check(ok, "TOOLS op 3 / 2 / 4 / 5: EUCLID ON leaves the pattern, HITS 3 turns it, OFF keeps the 3 hits as steps, OFF (5) writes nothing");
     }
     q[0] = 9;
     ed_begin(ED_TOOLS);

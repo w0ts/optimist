@@ -1250,11 +1250,6 @@ static void step_synth_tests(void)
     check(step_micro(t, 3) == 3 && ui.scr == SCR_STEP, "a step held + SELECT to the extras, NUDGE +3");
     turn(EN_SELECT, -1);
 #endif
-#if FELUCCA_CHANCE
-    turn(EN_PRESET, -4);
-    check(step_chance_ev(t, 3) == 100u && step_chance(&t->step[3]) == 100u,
-          "a step held + PRESETS: no chance edit any more (2026-10-10: PRESETS is the sound only)");
-#endif
 #if FELUCCA_FILLS
     tap(B_SAVE);
     check(step_fill(t, 3) == FC_FILL && ui.scr == SCR_STEP, "a step held + SAVE: its fill condition (FILL ONLY)");
