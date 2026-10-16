@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* ENV 1 MOD (core.h P_E1PIT .., env1_cards.h; voice.c env_plan / env_pre / env_post) and ENV2 DEST's two slots (P_N2DA
  * ..). ENV 1 is the engine's own envelope: the amplitude always wired, four depth knobs made per engine. Run by
- * tests/run_tests.sh with LFO2=1 and LFO2=0 (every engine built):
+ * tests/run_tests.sh (every engine built):
  *   cards     every engine: four cards, each a path (FLT SHP PIT), a move of an EDIT value (P_E1X ..) or an alias of one;
  *             the ids distinct, a filter card where the engine has a filter path, ENV2's default DEST A per engine
  *   default   a new sound, INIT, every preset: ENV 1's PIT and moves at 0, its FLT SHP the table's (ACID 303: FLT 52),
