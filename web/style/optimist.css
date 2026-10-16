@@ -55,7 +55,7 @@
 :where(*, *::before, *::after) { box-sizing: border-box; }
 :where(html) { -webkit-text-size-adjust: 100%; background: var(--bg); }
 :where(body) { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-3)/20px var(--font-ui); overflow-x: hidden;
-               -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed; }
+               -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 :where(a) { color: inherit; }
 :where(code, kbd, pre) { font-family: var(--font-mono); }
 ::selection { background: var(--trk); color: var(--on); }
