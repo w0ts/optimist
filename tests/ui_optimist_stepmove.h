@@ -166,9 +166,13 @@ static void step_move_notes_tests(void)
     check(st.nsel == 1 && held_note_sel(3) == 1, "step notes: SELECT picks the second note");
     turn(EN_ALGO, 1);
     check(t->step[3].note[0] == 60 && t->step[3].note[1] == 65, "step notes: ALGORITHM moves only the selected note");
-    turn(EN_SELECT, 5);
-    check(st.nsel == 1, "step notes: SELECT stops at the last note");
+    turn(EN_SELECT, 1);
+    check(st.nsel == 1 && (hp_count() < 2u || st.hp == 1u), "step notes: SELECT past the last note pages the cards");
     turn(EN_SELECT, -1);
+    check(st.nsel == 1 && st.hp == 0u, "step notes: ... and back, the last note again");
+    turn(EN_SELECT, -1);
+    turn(EN_SELECT, -3);
+    check(st.nsel == 0 && st.hp == 0u, "step notes: SELECT stops at the first note");
     turn(EN_ALGO, -2);
     check(t->step[3].note[0] == 58 && t->step[3].note[1] == 65, "step notes: ... and the first");
     turn(EN_PRESET, 1);

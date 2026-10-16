@@ -1372,8 +1372,10 @@ static int step_knobs(void)                             /* a step held: SELECT i
         return 0;
     if ((s = panel_enc(EN_SELECT)) != 0) {
         turned = 1;
-        if (held_note_sel((uint32_t)held_first()) >= 0) {   /* a step of several notes: SELECT picks the note ALGORITHM moves */
-            st.nsel = (uint8_t)clamp((int32_t)st.nsel + s, 0, (int32_t)TSEL->step[held_first()].n - 1);
+        int32_t n = held_note_sel((uint32_t)held_first()) >= 0 ? (int32_t)TSEL->step[held_first()].n : 0;
+        int32_t v = (int32_t)(st.nsel < n ? st.nsel : n - 1) + s;
+        if (n && st.hp == 0u && v < n) {                /* a step of several notes: SELECT picks the note ALGORITHM moves; past */
+            st.nsel = (uint8_t)clamp(v, 0, n - 1);      /* the last one it pages the cards, back from them the last note again */
             st.pend &= (uint16_t)~st.held;
             step_cards_show();
             ui.force = 1;
