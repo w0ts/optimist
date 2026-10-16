@@ -155,6 +155,21 @@ static void se_step_tests(void)
         kup(WK(3));
         frames(OP_CARDS_FRAMES + 10u);
         check(ui.cards_t == 0u && sg_dy == 0, "#15: ... the cards gone: the grid back in place");
+        lane_select(6);                                 /* (the user, 2026-10-16: a hit on the first lane, another lane selected) */
+        memset(&trk[TRK_DRUM].dstep[3], 0, sizeof trk[TRK_DRUM].dstep[3]);
+        dstep_set(&trk[TRK_DRUM].dstep[3], 0, LV_NORM, 0);
+        frames(2);
+        kdown(WK(3));
+        frames(HOLD_FRAMES + 2u);
+        ui.force = 1;
+        frame();
+        y = SG_LY(0);
+        lh = SG_LY(1) - y;
+        check(ui.cards_t > 0u && sg_dy != 0 && y >= top && y + lh <= SG_INFO_Y,
+              "#15: drum STEP, a held step's hit on the first lane, lane 7 selected: the hit's row under the cards (was hidden)");
+        kup(WK(3));
+        frames(OP_CARDS_FRAMES + 10u);
+        dstep_clr(&trk[TRK_DRUM].dstep[3], 0);
         tap(B_HOME);
     }
 #endif

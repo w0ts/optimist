@@ -480,6 +480,14 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
     }
     if (!want || !is_drum(TSEL))
         return 0;
+    if (held_first() >= 0 && !dstep_has(&TSEL->dstep[held_first()], sel)) {   /* (the held step's hit, not the selected lane's */
+        uint32_t l;                                                         /* empty row: its first lane with one, the user 2026-10-16) */
+        for (l = 0; l < DRUM_UILANES; l++)
+            if (dstep_has(&TSEL->dstep[held_first()], l)) {
+                sel = l;
+                break;
+            }
+    }
     y = SG_LY0(sel);
     lh = SG_LY0(sel + 1u) - y;
     return y >= top && y + lh <= lim ? 0 : top - y;
