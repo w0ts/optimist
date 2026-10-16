@@ -54,7 +54,7 @@ let id = 0;
 const pending = new Map();
 ws.addEventListener("message", (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
-const run = async (expr) => (await send("Runtime.evaluate", { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true })).result.result.value;
+const run = async (expr) => { const x = (await send("Runtime.evaluate", { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true })).result; return x.exceptionDetails ? { err: x.exceptionDetails.exception ? x.exceptionDetails.exception.description : x.exceptionDetails.text } : x.result.value; };
 const key = async (k) => { await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code: k, windowsVirtualKeyCode: k === "Escape" ? 27 : 0 });
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code: k, windowsVirtualKeyCode: k === "Escape" ? 27 : 0 }); };
 const shot = async (name) => {
@@ -242,7 +242,7 @@ const dsel = await run(`${U} const d = document.querySelector('#mixer .strip[dat
   const opened = await until(() => $("#pop").open && $("#pop").dataset.pop === "lane", 10000); await sleep(300);
   const title = $("#poptitle").textContent; $("#popx").click(); await sleep(300);
   const strips = [...document.querySelectorAll("#mixer .strip")].slice(0, 4), fxTop = new Set(strips.map((s) => Math.round(s.querySelector(".fx").getBoundingClientRect().top))).size === 1;
-  const fit = strips[3].querySelector(".fx").scrollHeight <= Math.max(...strips.slice(0, 3).map((s) => s.querySelector(".fx").scrollHeight));   /* (no taller than a synth strip's) */
+  const fit = strips.every((s) => s.querySelector(".fx").scrollHeight <= s.querySelector(".srow[data-row=sends]").clientHeight + 1);   /* (every send block fits its row) */
   const fxh = strips.map((s) => { const f = s.querySelector(".fx"); return f.scrollHeight + "/" + f.clientHeight; }).join(" ");
   return JSON.stringify({ noPop, hi, name, labels, wrote, others, lane0, opened, title, fxTop, fit, fxh });`);
 ok(/"noPop":true,"hi":true,"name":"[A-Z. 0-9]+","labels":"DST-,CHO,DLY,REV","wrote":true,"others":true,"lane0":true,"opened":true,"title":"[^"]+","fxTop":true,"fit":true/.test(dsel || ""),
@@ -340,7 +340,7 @@ ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 2 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
   const d = $('#mixer .strip[data-track="3"]'); const dg = d.querySelector(".pops");
-  const lay2 = dg.querySelectorAll("button").length === 4 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
+  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
   return JSON.stringify({ bad, lay, lay2 });`) === '{"bad":[],"lay":true,"lay2":true}', "e2e: tooltips end with their key; strip layout: group row (3 buttons; the drum group: Kit, User kits, fold, one-or-all), Sequence below");
 await shot("strips");
 /* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
@@ -459,23 +459,24 @@ ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#
 /* the SLOOP look: the side bar's groups, the four tracks on top (one click selects), a side button opens an editor for the selected track, the steps as tiles, Terminus */
 const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(q)], r = {};
   try {
-  $$("#toptracks button")[0].click(); await until(() => $$("#toptracks button")[0].getAttribute("aria-pressed") === "true", 8000); await sleep(300);
+  const head = (i) => $('#mixer .strip[data-track="' + i + '"] .shead');
+  head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
   r.groups = $$(".side .navh").map((e) => e.textContent).join(",");
   r.font = getComputedStyle(document.body).fontFamily.includes("SLOOP Terminus") && document.fonts.check("16px 'SLOOP Terminus'");
-  r.tracks = $$("#toptracks button").length;
-  $$("#toptracks button")[2].click(); await until(() => $$("#toptracks button")[2].getAttribute("aria-pressed") === "true", 8000); await sleep(300);
-  r.sel = +$("#toptracks button[aria-pressed=true]").dataset.i; r.trk = getComputedStyle(document.documentElement).getPropertyValue("--trk").trim();
-  r.goes = $$(".side button[data-go]").filter((b) => !b.hidden).map((b) => b.dataset.go).join(",");
-  $(".side [data-go=sound]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sound", 8000);
+  r.tabs = !!$("#toptracks") + ":" + $$(".side button[data-go]").length;
+  r.tracks = $$("#mixer .strip[data-track] .shead").length;
+  head(2).click(); await until(() => head(2).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
+  r.sel = $$("#mixer .strip[data-track]").findIndex((s) => s.classList.contains("sel")); r.trk = getComputedStyle(document.documentElement).getPropertyValue("--trk").trim();
+  $("#strip-3-inst-open").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sound", 8000);
   r.pop = $("#pop").dataset.pop + ":" + /Track 3/.test($("#poptitle").textContent); $("#popx").click(); await sleep(200);
-  $(".side [data-go=sequence]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sequence", 8000); await sleep(300);
+  $('#mixer .strip[data-track="2"] [data-pop=sequence]').click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sequence", 8000); await sleep(300);
   r.tiles = $$("#roll .tiles .tile").length; $("#popx").click(); await sleep(200);
-  $$("#toptracks button")[0].click(); await until(() => $$("#toptracks button")[0].getAttribute("aria-pressed") === "true", 8000);
+  head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === "play,track,fx buses,library,system" && lookRes.font && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
-  && lookRes.goes === "sound,loadpreset,savepreset,sequence,fxdelay,fxreverb,fxchorus,fxcomp" && lookRes.pop === "sound:true" && lookRes.tiles === 16,
-  `e2e: the SLOOP look: Terminus, the side bar's groups, four track buttons on top (the track colour follows), a side button opens its editor for the selected track, 16 step tiles (${JSON.stringify(lookRes)})`);
+ok(lookRes && lookRes.groups === "play,library,system" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
+  && lookRes.pop === "sound:true" && lookRes.tiles === 16,
+  `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects, the track colour follows), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
 const smpRes = await run(`${U} window.confirm = () => true; const r = {};
   try {
@@ -726,7 +727,7 @@ const fxpRes = await run(`${U} try {
   r.rows = new Set(strips.map(rowsOf)).size + ":" + rowsOf(strips[0]);
   /* the rows line up: the same top on every strip, for every row */
   const tops = (q) => new Set(strips.filter((s) => !s.classList.contains("sub")).map((s) => Math.round(s.querySelector(q).getBoundingClientRect().top))).size;
-  r.aligned = ["head", "inst", "slot1", "slot2", "pan", "sends", "level", "btns"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join();
+  r.aligned = ["head", "inst", "slot1", "slot2", "level"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join();
   /* the slot widget: one name part (the open button) and one list a slot, the ids of the convention; no visible duplicate opener anywhere */
   r.widgets = strips.map((s) => [...s.querySelectorAll(".slotw")].map((w) => w.querySelectorAll("button.fxname").length + "" + w.querySelectorAll("select.fxtype").length).join("")).join("|");
   r.ids = ["strip-1-inst-type", "strip-1-inst-open", "strip-1-slot1-type", "strip-1-slot1-open", "strip-1-slot2-type", "strip-4-inst-type", "strip-4-slot2-open", "strip-usb-slot1-type", "strip-usb-slot2-open",
@@ -739,13 +740,14 @@ const fxpRes = await run(`${U} try {
   /* Live-like strips: the fader the bottom-most big control with MUTE (an activator showing the number) and SOLO under it; no number under a knob (a tooltip), no FX toggle;
      nothing beside the master; Song in the transport bar; a return's sends to the returns after it (A: B C, B: C, C none) */
   r.live = ["strip-1-fader", "strip-1-mute", "strip-1-solo", "strip-4-fader", "strip-4-mute", "strip-usb-fader", "strip-usb-mute", "strip-ret-a-fader", "strip-ret-c-fader"].filter((id) => !$1(id)).join() + "|"
-    + strips.slice(0, 4).map((x) => { const f = x.querySelector(".srow[data-row=level]").getBoundingClientRect(), b = x.querySelector(".srow[data-row=btns]").getBoundingClientRect(), pn = x.querySelector(".srow[data-row=sends]").getBoundingClientRect();
-      return f.bottom <= b.top + 1 && pn.bottom <= f.top + 1; }).join()
+    + strips.slice(0, 4).map((x) => { const f = x.querySelector(".srow[data-row=level] .fm").getBoundingClientRect(), mu = x.querySelector(".srow[data-row=level] .row2 button").getBoundingClientRect(), pn = x.querySelector(".srow[data-row=sends]").getBoundingClientRect();
+      return mu.right <= f.left + 1 && pn.bottom <= x.querySelector(".srow[data-row=level]").getBoundingClientRect().top + 1; }).join()
     + "|" + $1("strip-1-mute").textContent + $1("strip-3-mute").textContent;
   r.nums = [...document.querySelectorAll("#mixer .strip .knob .kv")].filter((e) => getComputedStyle(e).display !== "none").length + ":" + ($("#mixer .strip .srow[data-row=pan] .knob").title.includes(":") ? 1 : 0);
   r.fxbtn = document.querySelectorAll("#mixer .strip .fx button, #mixer .strip .fx .tog").length;
+  r.rec = document.querySelectorAll("#mixer .strip .rec, #mixer [id$=\\"-rec\\"]").length;
   r.side = document.querySelectorAll("#mixer .strip.master .mx, #mixer .strip.master [data-pop=song], #mixer .strip.master [data-fx]").length + ":" + (document.querySelector("#songbtn") && !$("#songbtn").hidden ? 1 : 0);
-  r.rsends = ["0", "1", "2"].map((k) => [...document.querySelectorAll("#mixer > .strip.ret[data-ret='" + k + "'] .srow[data-row=sends] .knob .kl")].map((e) => e.textContent.trim()).join("")).join("|");
+  r.rsends = ["0", "1", "2"].map((k) => [...document.querySelectorAll("#mixer > .strip.ret[data-ret='" + k + "']  .col > .fx:not(.mainks) .knob .kl")].map((e) => e.textContent.trim()).join("")).join("|");
   /* a type from the widget's list: the name follows, the open part opens the slot's parameters */
   const setT = async (id, v) => { const x = $1(id); x.value = String(v); x.dispatchEvent(new Event("change")); await sleep(900); };
   await setT("strip-1-slot1-type", 18); await setT("strip-1-slot2-type", 5);
@@ -780,6 +782,20 @@ const fxpRes = await run(`${U} try {
   document.querySelector('#mixer .strip[data-track="3"] [data-fold]').click(); await sleep(600);
   r.wlane = Math.round(100 * document.querySelector("#mixer > .strip.sub").getBoundingClientRect().width / document.querySelector('#mixer .strip[data-track="0"]').getBoundingClientRect().width);
   r.lane = document.querySelectorAll("#mixer > .strip.sub").length + ":" + (document.getElementById("strip-lane3-slot1-type") ? 1 : 0) + ":" + document.querySelectorAll("#mixer > .strip.sub .lnav select").length;
+  /* every drum sound's MUTE and SEQ MUTE (and the ACCENT lane's SEQ MUTE): the strip shows it (the button, a struck-through name, the dimmed controls) and the DEVICE's state changed */
+  r.lm = [];
+  for (let n = 0; n < 17; n++) {
+    const st = document.querySelector('#mixer > .strip.sub[data-lane="' + n + '"]'), btns = [...st.querySelectorAll(".lblk .row2 button")];
+    const acc = n === 16, mute = acc ? null : btns[0], sq = btns[btns.length - 1], one = async (b, ix) => {
+      b.click(); await sleep(250);
+      const on = b.getAttribute("aria-pressed") === "true" && mock.sim.dlanVal(0, n, ix) === 1;
+      const look = ix !== 1 || (st.classList.contains("lmuted") && getComputedStyle(st.querySelector(".srow[data-row=name] .lname")).textDecorationLine.includes("line-through") && +getComputedStyle(st.querySelector(".lblk .fm")).opacity < 1);
+      b.click(); await sleep(250);
+      return on && look && b.getAttribute("aria-pressed") === "false" && mock.sim.dlanVal(0, n, ix) === 0 ? 1 : 0;
+    };
+    r.lm.push((acc ? 1 : await one(mute, 1)) && await one(sq, acc ? 0 : 3) ? 1 : 0);
+  }
+  r.lm = r.lm.join("");
   document.querySelector('#mixer > .strip.sub[data-lane="2"] [data-pop=lane]').click();
   await until(() => pop().open && pop().dataset.pop === "lane" && document.querySelectorAll("#pop .dlan").length === 2, 10000); await sleep(500);
   r.laneCards = [...document.querySelectorAll("#pop .dlan, #pop .fxo")].map((c) => c.getAttribute("aria-label") + ":" + c.querySelectorAll(".knob, select").length).join("|");
@@ -819,13 +835,13 @@ const fxpRes = await run(`${U} try {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
   r.key = pop().open && pop().dataset.pop;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(fxpRes && /^1:head,name,inst,slot1,slot2,tools,seq,ov,pan,sends,level,btns$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
-  && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "U,A,B,C"
+ok(fxpRes && /^1:head,name,inst,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
+  && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "A,B,C"
   && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
   && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^Mix:4\|LFO:8\|Inserts:/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
-  && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.side === "0:1" && fxpRes.rsends === "BC|C|" && fxpRes.wlane > 50 && fxpRes.wlane < 75
+  && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|C|" && fxpRes.wlane > 50 && fxpRes.wlane < 75
   && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");
@@ -888,7 +904,7 @@ const keyRes = await run(`${U} ${ORD} try {
   const lv = document.querySelector('#mixer > .strip.sub[data-lane="2"] input.fader'); const l0 = D().dl.lanes[2].ofs[7];
   lv.value = String(+lv.value + 3); lv.dispatchEvent(new Event("input", { bubbles: true })); lv.dispatchEvent(new Event("change", { bubbles: true }));
   await sleep(600); r.level = D().dl.lanes[2].ofs[7] - l0;
-  const m = document.querySelector('#mixer > .strip.sub[data-lane="2"] .lb button'); m.click(); await sleep(600);
+  const m = document.querySelector('#mixer > .strip.sub[data-lane="2"] .row2 button'); m.click(); await sleep(600);
   r.mute = D().dlMix.lanes[2][1] + ":" + m.getAttribute("aria-pressed") + ":" + document.querySelector('#mixer > .strip.sub[data-lane="2"]').classList.contains("lmuted");
   r.btns = ["lane", "fxslot"].map((p) => document.querySelectorAll('#mixer > .strip.sub[data-lane="2"] [data-pop=' + p + ']').length).join();
   r.insLane = "2";
@@ -990,7 +1006,7 @@ await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&
 await sleep(1500);
 const favRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#mixer .strip").length >= 5 && D() && D().dump, 120000)) return { err: "no mixer" };
-  document.querySelector('#tabs [data-go="loadpreset"]').click();
+  document.querySelector('#mixer .strip[data-track="0"] [data-pop=loadpreset]').click();
   if (!await until(() => document.querySelectorAll("#pop .pw .fv").length > 10, 20000)) return { err: "no stars" };
   const r = {}, stars = () => [...document.querySelectorAll("#pop .pw")].filter((w) => w.dataset.fav === "1").length;
   r.before = stars();
@@ -1021,7 +1037,7 @@ const v13Probe = async (off) => {
     document.querySelector('#tabs [data-tab="settings"]').click(); await sleep(1200);
     r.lines = document.querySelectorAll("#devscr .sl").length > 0;
     document.querySelector('#tabs [data-tab="mixer"]').click(); await sleep(300);
-    document.querySelector('#tabs [data-go="loadpreset"]').click();
+    document.querySelector('#mixer .strip[data-track="0"] [data-pop=loadpreset]').click();
     await until(() => document.querySelectorAll("#pop .pw").length > 10, 20000);
     r.stars = document.querySelectorAll("#pop .pw .fv").length > 0;
     document.querySelector("#popclose, #pop .x, #pop [data-close]") && document.querySelector("#popclose, #pop .x, #pop [data-close]").click();

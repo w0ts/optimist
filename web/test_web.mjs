@@ -1369,7 +1369,7 @@ async function editorFxp() {
       if (k !== "return" && ty.params.length && !idx.length) bad.push(`${k}/${name}: no main knob`);
       if (idx.length > 3 || idx.some((i) => !ty.params[i])) bad.push(`${k}/${name}: bad main knobs`);
     }
-    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level", "btns"])
+    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "clips", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level"])
       && Object.values(ui.BUS_MAIN).every(([id, labels]) => E.MASTER_FX.find((f) => f.id === id).labels.includes(labels[0]) && labels.every((l) => E.MASTER_FX.find((f) => f.id === id).labels.includes(l))),
       "fxp: every effect type has 1..3 main knobs (the descriptors' first parameters, FXP_MAIN's labels; a bus: its own globals); every strip kind is built by stripShell with the same rows" + (bad.length ? " " + bad.join("; ") : ""));
     const shell = html.slice(html.indexOf("function stripShell("), html.indexOf("const fxpSlotsOf"));
@@ -2768,9 +2768,9 @@ async function masterStrip() {
     && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")) && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "../tools/build.py"), "utf8"))
     && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
     "look: Terminus inlined (SIL OFL 1.1, TERMINUS-LICENSE.txt in the site and the package), credited to SLOOP 2.4");
-  ok(/<aside class="side"/.test(html) && /id="toptracks"/.test(html) && ["navPlay", "navTrack", "navFx", "navLib", "navSys"].every((k) => html.includes(`data-t="${k}"`))
+  ok(/<aside class="side"/.test(html) && !/id="toptracks"/.test(html) && ["navPlay", "navLib", "navSys"].every((k) => html.includes(`data-t="${k}"`)) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
-    "look: a side bar of grouped pages (each side editor button is a NAV popup), the track buttons on top, the step tiles, the four track colours");
+    "look: a side bar of the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, the four track colours");
   /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
   ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/chopSend\(k\)\ \}, `USR/.test(html)
     && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
