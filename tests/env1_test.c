@@ -428,6 +428,6 @@ int main(void)
     t_e1amt();
     t_env2();
     t_fold();
-    printf("env1_test (LFO2=%d): %d failed\n", FELUCCA_LFO2, fails);
+    printf("env1_test: %d failed\n", fails);
     return fails;
 }
