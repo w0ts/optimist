@@ -7,7 +7,36 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 
 `web/make_site.py` builds the site (`make web` builds the same thing locally into `build/optimist-site/`):
 
-- `webapp/installer/`: the web installer (Chrome or Edge, Web MIDI), with the firmware package choice.
+- `webapp/installer/`: the web installer (Chrome or Edge, Web MIDI), with the firmware package choice. Its page
+  (`index.html`, from `web/installer/index.html`) is a thin wrapper: the shared header and style, and the installer
+  module mounted in it, everything inlined (one offline file). Next to it, for the one-page app (the installer as a tab of
+  the editor): `installer.js`, the same module as one file (`web/installer/installer.js` with `web/fm1ota.js`,
+  `web/fm1pkg.js` and `web/installer/installer.css` put in), and `site.json`, the packages it installs.
+
+## The installer module
+
+`web/installer/installer.js` exports `mountInstaller(container, { packages, version, source, onNavigate, links, midi })`:
+it renders the four steps (1 Connect: Find the FM-1, what it runs, what to do when it is not found; 2 Choose: the
+manifest's flavours with their descriptions, a `.fwsc` of yours, a link to the builder; 3 Install: the back-up question,
+the four phases and the bar, the errors in words; 4 When something goes wrong: the rescue paths and the return to the
+official V15) and returns `{ unmount(), busy }` (`busy` while writing: the host must not unload or hide it then).
+`packages` and `version` / `source` are `site.json`'s; `onNavigate(where)` (`"build"`, `"backup"`, `"editor"`,
+`"about"`) lets the host open its own tab or About box instead of following the link; `midi` replaces
+`navigator.requestMIDIAccess` (the tests). A host mounts it so (the editor's page is at the same depth as the
+installer's, so the packages' relative paths hold):
+
+```js
+import { mountInstaller } from "../installer/installer.js";
+const site = await fetch("../installer/site.json").then((r) => r.json());
+const inst = mountInstaller(document.getElementById("tab-install"), { ...site, onNavigate: (where) => openTab(where) });
+```
+
+The update is `web/fm1ota.js` and `web/fm1pkg.js`, unchanged. Its styles use only the shared tokens (docs/WEB-STYLE.md),
+so it takes the look of the page it is mounted in. Tests: `web/test_web.mjs` (the logic: identities, the package
+checks, the bar, the messages, the texts against OPTIMIST.md, README.md and the firmware) and `web/e2e_installer.mjs`
+(headless Chrome, a simulated FM-1, `web/installer/mock_fm1.js`, behind `requestMIDIAccess`: connect, choose, install,
+done, a pulled cable and the resume, no FM-1, a wrong file, the keyboard, light / dark, 390 px, no Web MIDI, mounted by a
+host page; downloads refused, no real MIDI port opened). `node web/e2e_installer.mjs --shots DIR [--style FILE.css]`.
 - `webapp/editor/`: the web editor.
 - `webapp/builder/`: the web firmware builder (docs/BUILDER-WEB.md): the builder of `make builder` run in the browser
   by Pyodide, its data exported fresh by `tools/export_builder_web.py`, `build-info.json` the commit for the cloud key.

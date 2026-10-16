@@ -65,3 +65,10 @@ Fonts: `--font-ui` (the system's sans) and `--font-mono` (numbers that line up, 
 - No theme switch and no `data-theme`: the system decides.
 - Phones: no sideways scroll, 16 px gutters, 16 px text in fields (no zoom on focus), larger hit areas under
   `pointer: coarse`.
+
+## A mounted module's layout
+
+A module that can be mounted in another page (the installer, `web/installer/installer.css`, scoped to `.oi`) keeps its
+layout in its own file and takes every colour, size and font from the tokens above, never a value of its own, so it has
+the look of whatever page holds it (the standalone installer, or a tab of the editor). `web/test_web.mjs` checks that
+the installer's CSS has no colour literal.
