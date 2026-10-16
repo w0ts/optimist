@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 642232,
-  "ram": 79964,
-  "pool": 357668,
-  "ramtext": 34624
+  "flash": 648260,
+  "ram": 81916,
+  "pool": 358436,
+  "ramtext": 34540
  },
  "deltas": {
   "RESERVE_UNDO_KB": {
@@ -1395,9 +1395,49 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "ED_UNDO": {
+   "0": {
+    "flash": -356,
+    "ram": -16,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "ED_NOTE": {
+   "0": {
+    "flash": -3252,
+    "ram": -240,
+    "pool": 0,
+    "ramtext": 32
+   }
+  },
+  "ED_SOLO": {
+   "0": {
+    "flash": -480,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "ED_STEPLANE": {
+   "0": {
+    "flash": 4,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "RET_FB": {
+   "0": {
+    "flash": -1332,
+    "ram": -576,
+    "pool": -384,
+    "ramtext": -32
+   }
   }
  },
- "measured": "2026-10-16 01:16",
+ "measured": "2026-10-16 08:09",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1419,7 +1459,7 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "4fbbf71f",
+   "hash": "3213f1ce",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1432,16 +1472,16 @@
     "PATTERNS": 1,
     "USB_MODE": 1
    },
-   "built_hash": "4fbbf71f",
+   "built_hash": "3213f1ce",
    "sizes": {
-    "flash": 618964,
-    "ram": 76384,
-    "pool": 357316,
-    "ramtext": 25656
+    "flash": 622256,
+    "ram": 78352,
+    "pool": 358084,
+    "ramtext": 25596
    }
   },
   "everything-that-fits": {
-   "hash": "3f554618",
+   "hash": "4be0d4b3",
    "cfg": {
     "SET_STRGS": 0,
     "SET_SCRCH": 0,
@@ -1452,16 +1492,16 @@
     "LCD_DIRTY": 0,
     "ENG_CZ": 1
    },
-   "built_hash": "3f554618",
+   "built_hash": "4be0d4b3",
    "sizes": {
-    "flash": 617852,
-    "ram": 68044,
-    "pool": 342268,
-    "ramtext": 34576
+    "flash": 620632,
+    "ram": 69948,
+    "pool": 343036,
+    "ramtext": 34496
    }
   },
   "fm-va-studio": {
-   "hash": "3ff3be25",
+   "hash": "0c47d7f0",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1472,19 +1512,21 @@
     "PATTERNS": 1,
     "USB_MODE": 1
    },
-   "built_hash": "3ff3be25",
+   "built_hash": "0c47d7f0",
    "sizes": {
-    "flash": 617792,
-    "ram": 79996,
-    "pool": 348320,
-    "ramtext": 28752
+    "flash": 622968,
+    "ram": 81964,
+    "pool": 349088,
+    "ramtext": 28708
    }
   },
   "user-default": {
-   "hash": "38e1dbbd",
+   "hash": "4d30c8c5",
    "cfg": {
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
+    "ENG_TRIO": 0,
+    "ENG_DRAWBAR": 0,
     "FM6_MODERN": 0,
     "FM6_OPL": 0,
     "NATIVE_BANKS": 1,
@@ -1495,6 +1537,7 @@
     "DLY_LEN": 32768,
     "REV_POOL": 1,
     "PATTERNS": 1,
+    "ED_SCOPE": 0,
     "CHANCE": 1,
     "MOTION": 1,
     "UP_FM6": 1,
@@ -1504,16 +1547,16 @@
     "PLOCK": 1,
     "COND": 1
    },
-   "built_hash": "38e1dbbd",
+   "built_hash": "4d30c8c5",
    "sizes": {
-    "flash": 552848,
-    "ram": 63660,
-    "pool": 319336,
-    "ramtext": 31372
+    "flash": 556648,
+    "ram": 63116,
+    "pool": 320104,
+    "ramtext": 27052
    }
   },
   "x0x-drums": {
-   "hash": "68199a77",
+   "hash": "53581676",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1538,16 +1581,16 @@
     "ED_FAVS": 0,
     "ED_SCOPE": 0
    },
-   "built_hash": "68199a77",
+   "built_hash": "53581676",
    "sizes": {
-    "flash": 581112,
-    "ram": 60472,
-    "pool": 318748,
-    "ramtext": 25684
+    "flash": 586068,
+    "ram": 62456,
+    "pool": 319516,
+    "ramtext": 25700
    }
   },
   "mots-ui": {
-   "hash": "2c371eaf",
+   "hash": "63e30642",
    "cfg": {
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
@@ -1617,16 +1660,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "48669fd0",
+   "built_hash": "43002cc7",
    "sizes": {
-    "flash": 555480,
-    "ram": 87496,
-    "pool": 314520,
-    "ramtext": 28020
+    "flash": 562156,
+    "ram": 89784,
+    "pool": 315288,
+    "ramtext": 27848
    }
   },
   "mots": {
-   "hash": "049dda3c",
+   "hash": "6ba18555",
    "cfg": {
     "ENG_DRAWBAR": 0,
     "ENG_GRAIN": 0,
@@ -1681,16 +1724,16 @@
     "FILLS": 1,
     "PLOCK": 1
    },
-   "built_hash": "075f299f",
+   "built_hash": "5ebe74b8",
    "sizes": {
-    "flash": 540752,
-    "ram": 64020,
-    "pool": 310824,
-    "ramtext": 33012
+    "flash": 550520,
+    "ram": 66068,
+    "pool": 311592,
+    "ramtext": 32908
    }
   },
   "user-default+ble-test": {
-   "hash": "38994d88",
+   "hash": "41aabb9e",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1709,6 +1752,7 @@
     "DLY_LEN": 32768,
     "REV_POOL": 1,
     "PATTERNS": 1,
+    "ED_SCOPE": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_CENTRAL": 1,
@@ -1716,16 +1760,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "38994d88",
+   "built_hash": "41aabb9e",
    "sizes": {
-    "flash": 565644,
-    "ram": 69388,
-    "pool": 300152,
-    "ramtext": 24688
+    "flash": 568880,
+    "ram": 71356,
+    "pool": 300920,
+    "ramtext": 24668
    }
   },
   "user-default+ble-full": {
-   "hash": "65b1c725",
+   "hash": "2ea8ae1f",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1744,6 +1788,7 @@
     "DLY_LEN": 32768,
     "REV_POOL": 1,
     "USB_MODE": 1,
+    "ED_SCOPE": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_BOND": 1,
@@ -1752,16 +1797,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "65b1c725",
+   "built_hash": "2ea8ae1f",
    "sizes": {
-    "flash": 576288,
-    "ram": 72428,
-    "pool": 300152,
-    "ramtext": 24688
+    "flash": 580116,
+    "ram": 74412,
+    "pool": 300920,
+    "ramtext": 24656
    }
   },
   "drum-machine~": {
-   "hash": "53d8495d",
+   "hash": "1ae18f98",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1778,16 +1823,16 @@
     "ED_FXP": 0,
     "SPRING": 1
    },
-   "built_hash": "53d8495d",
+   "built_hash": "1ae18f98",
    "sizes": {
-    "flash": 618740,
-    "ram": 78704,
-    "pool": 357316,
-    "ramtext": 24444
+    "flash": 621620,
+    "ram": 80656,
+    "pool": 358084,
+    "ramtext": 24440
    }
   },
   "everything-that-fits~": {
-   "hash": "075b7866",
+   "hash": "0fc6e025",
    "cfg": {
     "SET_STRGS": 0,
     "SET_SCRCH": 0,
@@ -1795,21 +1840,23 @@
     "FX_SLICER": 0,
     "PUNCH_N": 16384,
     "INS_PHASER": 1,
+    "RET_FB": 0,
+    "USB_MODE": 1,
     "PARAM_HELP": 1,
     "LCD_DIRTY": 0,
     "ENG_CZ": 1,
     "DIV_LONG": 0
    },
-   "built_hash": "075b7866",
+   "built_hash": "0fc6e025",
    "sizes": {
-    "flash": 611920,
-    "ram": 67724,
-    "pool": 309596,
-    "ramtext": 33556
+    "flash": 620808,
+    "ram": 71996,
+    "pool": 309980,
+    "ramtext": 33504
    }
   },
   "fm-va-studio~": {
-   "hash": "5d01b37d",
+   "hash": "04fe7fb4",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1824,19 +1871,21 @@
     "ED_SONG": 0,
     "MOTION": 1
    },
-   "built_hash": "5d01b37d",
+   "built_hash": "04fe7fb4",
    "sizes": {
-    "flash": 633476,
-    "ram": 81868,
-    "pool": 358152,
-    "ramtext": 25952
+    "flash": 639672,
+    "ram": 83804,
+    "pool": 358924,
+    "ramtext": 25908
    }
   },
   "user-default~": {
-   "hash": "2fd19c6b",
+   "hash": "5c77df35",
    "cfg": {
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
+    "ENG_TRIO": 0,
+    "ENG_DRAWBAR": 0,
     "FM6_MODERN": 0,
     "FM6_OPL": 0,
     "NATIVE_BANKS": 1,
@@ -1849,6 +1898,7 @@
     "REV_POOL": 1,
     "PATTERNS": 1,
     "BACKUP": 0,
+    "ED_SCOPE": 0,
     "CHANCE": 1,
     "KEYLIT": 0,
     "MOTION": 1,
@@ -1860,16 +1910,16 @@
     "PLOCK": 1,
     "COND": 1
    },
-   "built_hash": "2fd19c6b",
+   "built_hash": "5c77df35",
    "sizes": {
-    "flash": 555084,
-    "ram": 68396,
-    "pool": 319336,
-    "ramtext": 30412
+    "flash": 558668,
+    "ram": 67900,
+    "pool": 320104,
+    "ramtext": 26000
    }
   },
   "x0x-drums~": {
-   "hash": "0c45e121",
+   "hash": "4b7257e0",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1896,16 +1946,16 @@
     "ED_FAVS": 0,
     "ED_SCOPE": 0
    },
-   "built_hash": "0c45e121",
+   "built_hash": "4b7257e0",
    "sizes": {
-    "flash": 582172,
-    "ram": 60488,
-    "pool": 318748,
-    "ramtext": 25708
+    "flash": 586068,
+    "ram": 62472,
+    "pool": 319516,
+    "ramtext": 25700
    }
   },
   "mots-ui~": {
-   "hash": "1974498b",
+   "hash": "0af3613c",
    "cfg": {
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
@@ -1972,16 +2022,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "35e653f9",
+   "built_hash": "2b9ec26e",
    "sizes": {
-    "flash": 536716,
-    "ram": 87000,
-    "pool": 314520,
-    "ramtext": 28040
+    "flash": 543208,
+    "ram": 89192,
+    "pool": 315288,
+    "ramtext": 27732
    }
   },
   "mots~": {
-   "hash": "4a7a2b5c",
+   "hash": "6d7de66d",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_DRAWBAR": 0,
@@ -2038,16 +2088,16 @@
     "FILLS": 1,
     "PLOCK": 1
    },
-   "built_hash": "7cfb6ce3",
+   "built_hash": "7c688e6c",
    "sizes": {
-    "flash": 540672,
-    "ram": 66356,
-    "pool": 311016,
-    "ramtext": 31636
+    "flash": 550356,
+    "ram": 68340,
+    "pool": 311784,
+    "ramtext": 31416
    }
   },
   "user-default+ble-test~": {
-   "hash": "17963e8a",
+   "hash": "395fa3c8",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2068,6 +2118,7 @@
     "REV_POOL": 1,
     "PATTERNS": 1,
     "MIDI_CLOCK": 0,
+    "ED_SCOPE": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_CENTRAL": 1,
@@ -2077,16 +2128,16 @@
     "SL24_IMPORT": 0,
     "COND": 1
    },
-   "built_hash": "17963e8a",
+   "built_hash": "395fa3c8",
    "sizes": {
-    "flash": 571056,
-    "ram": 69852,
-    "pool": 308280,
-    "ramtext": 24504
+    "flash": 578552,
+    "ram": 71772,
+    "pool": 309048,
+    "ramtext": 24364
    }
   },
   "user-default+ble-full~": {
-   "hash": "4857f41b",
+   "hash": "04d30873",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2107,6 +2158,7 @@
     "REV_POOL": 1,
     "FX_DUCK": 0,
     "USB_MODE": 1,
+    "ED_SCOPE": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_BOND": 1,
@@ -2115,12 +2167,12 @@
     "DIV_LONG": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "4857f41b",
+   "built_hash": "04d30873",
    "sizes": {
-    "flash": 574856,
-    "ram": 72412,
-    "pool": 300152,
-    "ramtext": 24488
+    "flash": 578728,
+    "ram": 74412,
+    "pool": 300920,
+    "ramtext": 24452
    }
   }
  },
@@ -3522,6 +3574,36 @@
    "ram": 336,
    "pool": 0,
    "ramtext": 60
+  },
+  "UI=1,ED_UNDO=0": {
+   "flash": 7228,
+   "ram": 336,
+   "pool": 0,
+   "ramtext": 164
+  },
+  "UI=1,ED_NOTE=0": {
+   "flash": 7980,
+   "ram": 352,
+   "pool": 0,
+   "ramtext": 72
+  },
+  "UI=1,ED_SOLO=0": {
+   "flash": 6920,
+   "ram": 336,
+   "pool": 0,
+   "ramtext": 164
+  },
+  "UI=1,ED_STEPLANE=0": {
+   "flash": 7204,
+   "ram": 336,
+   "pool": 0,
+   "ramtext": 164
+  },
+  "UI=1,RET_FB=0": {
+   "flash": 8084,
+   "ram": 448,
+   "pool": 0,
+   "ramtext": 172
   }
  },
  "groups": {
