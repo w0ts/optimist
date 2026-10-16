@@ -64,7 +64,7 @@ static void glo_list_tests(void)
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
 #endif
-                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -92,7 +92,7 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
     check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth USB-audio Calibrate About Credits");
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info Screen Audio Keys USB Bluetooth Devices USB-audio Calibrate About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
@@ -257,7 +257,7 @@ static void glo_tests(void)
         tap(B_HOME);
         check(!op_armed() && ui.scr == SCR_SYSTEM, "... HOME: cancelled");
 #if FELUCCA_BLE
-        w = line_named(SCR_SYSTEM, "BLE");
+        w = line_named(SCR_SYSTEM, "DEVICES");
         frame();
         tap(B_SAVE);
         ok = dev_listing();
@@ -266,7 +266,7 @@ static void glo_tests(void)
         ok &= song.sel == i && dev_listing() && ui.row[SCR_SYSTEM] <= 1u;
         tap(B_HOME);
         check(ok && !dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == w,
-              "Bluetooth: YES on BLE opens the devices, SELECT moves their cursor (no track), HOME back to the BLE line");
+              "Bluetooth: YES on DEVICES opens the list, SELECT moves its cursor (no track), HOME back to the DEVICES line");
 #endif
     }
     reset_ui();

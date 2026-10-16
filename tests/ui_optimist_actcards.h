@@ -38,7 +38,9 @@ static void ac_walk(uint32_t scr, uint32_t tr)
             }
 #endif
             if (scr == SCR_STEP && (!strcmp(c.label, "REVERSE") || !strcmp(c.label, "RANDOM") || !strcmp(c.label, "COOK")))
-                continue;                               /* (STEP's tools: the verb shown, no question: undo covers them) */
+                continue;
+            if (scr == SCR_SYSTEM && !strcmp(c.label, "DEVICES"))
+                continue;                               /* (SYSTEM > Devices: SCAN opens the devices list, a picker: nothing to ask) */                               /* (STEP's tools: the verb shown, no question: undo covers them) */
             ui.row[scr] = (uint8_t)r;
             if (glo_cycle())
                 gl_pick(r, k);                          /* (the settings lists: a page row's cell k is a line) */
