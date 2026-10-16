@@ -12,6 +12,8 @@ Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "Th
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 Commands 94..101 and `INFO` tags `57`..`5E` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
 Each of the eight is a builder item (`ED_FXP` 94 / tag 57, `ED_DLAN` 95 / 58, `ED_SCRN` 96 / 59, `ED_SONG` 97 / 5A, `ED_TOOLS` 98 / 5B, `ED_SCRS` 99 / 5C, `ED_FAVS` 100 / 5D, `ED_SCOPE` 101 / 5E; docs/BUILDER.md): a build that leaves one out sends no INFO tag for it and does not answer its command, so an editor offers a command only when its tag is in INFO (web/editor.html hides the pop-up, tab, button or settings that need it and keeps the rest; its mock serves any subset, `?off=dlan,scope`). The commands that read the Optimist UI (96, 98, 99, 101) are built only with it (UI=1), and 100 only with the favorites.
+Commands 102..105 and `INFO` tags `5F`..`62` (undo and redo, notes played from the editor, track and drum-lane solo, a drum lane's step with the device's own list of lockable values) form protocol v14 (below, "v14: undo" .. "v14: step lanes"); the protocol byte stays.
+Each of the four is a builder item (`ED_UNDO` 102 / tag 5F, `ED_NOTE` 103 / 60, `ED_SOLO` 104 / 61, `ED_STEPLANE` 105 / 62; docs/BUILDER.md), on by default, and a build that leaves one out sends no INFO tag for it and does not answer its command (an editor offers a command only when its tag is in INFO, as for v13).
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -1067,6 +1069,106 @@ a time, drawn trigger-stable (the latest rising zero crossing after a swing belo
 Asking sets the ring's source as the panel's SCOPE would for the next 2 s, so ask again about every 80 ms to watch; while asked, the mixer's MASTER meter on the device reads that source too.
 `shift` is the right shift that fits the peak into the heights (never amplified: a quiet source is a small trace); `peak` is the ring's largest sample (>> 2, at most 8191). A bad src: no reply.
 The SCOPE screen's cards (the source's LEVEL PAN FX DRIVE, the master's FILT THRS RATIO GR) are SCRS screen 8.
+
+## v14: undo (command 102 UNDO; INFO tag 5F)
+
+`firmware/src/io/editor/ed_undo.c`. The device's undo and redo (seq/undo.c; the panel's SAVE then HOME is undo, SHIFT then SAVE redo, EDIT + OCT- / OCT+ on SLOOP's UI) for the patterns: steps, the
+pattern's LEN and DIV, and the automation store's events (locks, motion, nudges, fills, chance, conditions). UNDO runs the device's own function (`undo_apply`) in the main loop, as the panel does. With this
+item built **the editor's own step writes are undo levels too**: `STEP_SET` (7), `TRACK_STEP` (30), `DRUM_STEP` (33), `LOCK_SET` (73), `MICRO_SET` (75), `FILL_SET` (77), `AUTO_SET` (93) and the STEPLANE writes (105) mark
+the track first, as a step key on the panel does; writes to the same track within 800 ms are one level (a drag is one undo). A level of a project load or a pattern launch is not kept (the device clears its history there).
+
+`INFO` tag `5F len 02 version flags` (version 1): `flags` bit 0 = a history of many levels (`FELUCCA_UNDO_HISTORY`; else the single level of SLOOP 2.x: depth 0 or 1).
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 GET | - | the state |
+| 1 UNDO | - | the state (after) |
+| 2 REDO | - | the state (after) |
+
+Every reply: `op, rc, done lo, done hi, all lo, all hi, track, can_undo, can_redo`. `rc` 0 done (GET: always 0), 1 nothing to undo (op 1) / to redo (op 2): nothing moved. `done` / `all` are the levels applied and
+the levels held (applied plus undone), as 2 x 7 bits (lo, hi). `track` is the track (0..3) of the last undo or redo. `can_undo` / `can_redo` 0 / 1 (an open session that changed something counts as one to undo, though it is
+not in `done` until it is closed). After UNDO or REDO that moved something the device sets RELOAD and the v9 pushes (STEPS 60, PARAMS 59) follow as for a change made on the panel: an editor re-reads the pattern
+(`TRACK_STEP` / `DRUM_STEP` / `AUTO_GET`) of the track named in `track`. A bad op: no reply. UNDO and REDO are the panel's own functions and refuse exactly what the panel does: nothing to move is rc 1.
+
+## v14: playing notes (command 103 NOTE; INFO tag 60)
+
+`firmware/src/io/editor/ed_note.c`, `firmware/src/seq/ednote.c`. A note on or off for one track, through the device's own note input (`input_on` / `input_off`, seq.c: the path the panel keys and MIDI take, so the arp, the
+chord layout, the engine's voice budget with its steal rule, the REC / free-take capture and MIDI OUT KEYS apply as they do to the panel's keys). The audio interrupt takes the notes from a ring of its own (one writer: the main
+loop; one reader: the audio interrupt; no interrupt is masked), so nothing in the sound path is shared with the USB side.
+
+`INFO` tag `60 len 02 version quiet` (version 1): `quiet` is the silence in seconds (3) after which the device ends every note the editor holds.
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 ON | track, note, vel (1..127) [, dur] | 0, rc, track, note, held |
+| 1 OFF | track, note | 1, rc, track, note, held |
+| 2 ALL | track (127: every track) | 2, rc, track, 127, held |
+
+`track` 0..2 are the synth tracks, 3 the drum track. A synth track's `note` is a MIDI note 0..127; it goes through the track's layout as a MIDI note does (SCL > KEYS snap, CHORD, TRANSPOSE: `midi_map`). On the drum track `note` is the
+**lane** 0..15 (the lane's own sound, as the lane's key plays it; 16 is the ACCENT lane when built, which makes no sound and only records), `vel` becomes the lane's level (`vel_lvl`) and OFF / dur do nothing (a hit is a one-shot).
+`dur` (1..127, optional): the note ends by itself after dur x 100 ms. The editor holds at most 8 notes (the device's 8 voices): an ON past 8 ends the oldest one it holds. A repeated ON of a held note retriggers it.
+`rc`: 0 done, 1 refused: the ring to the audio interrupt was full (nothing happened; send it again). `held` is the number of notes the editor holds now.
+**No hanging notes.** The device ends every note the editor holds when (a) `dur` runs out, (b) the host has sent nothing at all for 3 s (any request counts: a held key needs a `PING` or a repeated ON at least every 2 s),
+(c) USB is unconfigured or was reset (cable out), (d) the track changes its sound (the engine panic), (e) the editor sends OFF / ALL. A bad op, track, note or vel: no reply.
+
+## v14: solo and mute (command 104 SOLO; INFO tag 61)
+
+`firmware/src/io/editor/ed_solo.c`. The device's own grammar, no state of its own: a track's SOLO is the bit of `song.solo` that GLO + key 5..8 toggles (the others are silent: `trk_silent`); a track's MUTE is `P_MUTE`, as GLO + key 1..4 and
+`TRACK_MIX` (28) set it; a drum lane's SOLO and MUTE are `drum_mix.c`'s masks (`dlm_set_solo`, `dlm_set_mute`; a soloed lane that is also muted stays silent, any lane soloed silences the others), the same values DLAN (95) group 0
+edits. `INFO` tag `61 len 02 version flags` (version 1; `flags` 0).
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 GET | - | the state |
+| 1 TRACK SOLO | track, on | the state (after) |
+| 2 TRACK MUTE | track, on | the state (after) |
+| 3 LANE SOLO | lane (0..15), on | the state (after) |
+| 4 LANE MUTE | lane (0..15), on | the state (after) |
+
+`on`: 0 off, 1 on, 2 toggle (what the panel key does). Every reply: `op, rc, solo, mute, silent, lsolo0, lsolo1, lsolo2, lmute0, lmute1, lmute2`: `rc` 0 done; the track masks (bit n = track n, 0..3): `solo`, `mute`, `silent` (the tracks not heard now:
+muted, or another track soloed); the lane masks as 3 x 7 bits (lane 0..6, 7..13, 14..15). The TRACKS push (62) carries the solo and mute bits as ever. A bad op, track, lane or on: no reply.
+
+## v14: step lanes (command 105 STEPLANE; INFO tag 62)
+
+`firmware/src/io/editor/ed_steplane.c`; needs the automation store (`FELUCCA_AUTO`; locks need `FELUCCA_PLOCK`). A step seen in the context of a **track and a drum lane**, as the Optimist UI's held step is: the lane's level and
+ratchet, the step's extras (chance, condition, nudge, fill) as the one automation store keeps them, and the device's **own list of lockable values** for that track and lane, with the locks and hold events on the step.
+Works with either UI (the Optimist UI's list is its lock pages, `lock_pg_ok` / `lock_param` in op_step.c; with SLOOP's UI it is the pages' values that `lock_ok` takes). Writes mark the undo history (ED_UNDO) and take the interrupt off as
+`LOCK_SET` does.
+
+`INFO` tag `62 len 03 version a b` (version 1). `a`: bit 0 = the list is the Optimist UI's lock pages (else the pages' lockable values), bit 1 = locks built (`FELUCCA_PLOCK`), bit 2 = a drum lane's values are lockable (TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL),
+bit 3 = hold events (motion) built. `b`: bit 0 chance, bit 1 condition, bit 2 nudge, bit 3 fill built (a field of a feature not built reads its default and a SET of it answers rc 1).
+
+Every request starts `op, track, lane`. `track` 0..3. `lane` 0..15 a drum lane, 16 the ACCENT lane (built with `FELUCCA_DRUM_ACCENT`), 127 none; on a synth track `lane` must be 127. A bad op, track or lane (or a short request): no reply.
+
+| op | Request args (after `op track lane`) | Reply args |
+|---|---|---|
+| 0 LIST | - | 0, track, lane, n (lockable values, at most 127), np (lock pages) |
+| 1 DESC | i | 1, track, lane, i, kind, id, page, cell, title (12), fmt, min v14, max v14, def v14, label (8), unit (8), then for an enum (fmt 8) one name (8) per value; nothing after i: no such value |
+| 2 STEP | step (0..63) | the state (op 2) |
+| 3 SET | step, field, v14 | the state (op 3, after) |
+| 4 LOCK | step, i, v14 | the state (op 4, after) |
+| 5 UNLOCK | step, i | the state (op 5, after) |
+| 6 KIND | step, i | the state (op 6, after) |
+
+**The list** (LIST, DESC): the values the device lets a step lock in this context, in the device's order (pages in the order the device pages them, then a page's cells), no value twice. `kind` 0 = a track parameter
+(`id` = its `P_*` id: the `param` of `LOCK_SET` (73) and `AUTO_SET` (93)), 1 = a drum lane's value (`id` = 0..7: TUNE DECAY SNAP CLICK BEND CUT DRIVE LEVEL, offsets as the lane's sound editor keeps them; stored as the event `AUTO_LANE(lane, id)`, 0x7C + lane x 8 + id).
+`page` is the lock page's ordinal (0..np-1), `title` its name as the device shows it ("ENV", "LFO", "BODY"), `cell` the card on it (0..3). `fmt, min, max, def, label, unit, names` are `DESC`'s (5). The list is that of
+`(track, lane)`: on the drum track with a lane picked it is the lane's values (+ what the device offers beside them), with lane 127 the drum track's own, with lane 16 the ACCENT amount alone (`P_DACC`; its lock needs the accent hit on the step, as a lane's lock needs the lane's hit: D4).
+A value the device does not lock (VCE, GLMOD, PRIO, ALLOC, MUTE, LEN, DIV, SWG, the DEST slots, S1 / S2 TYPE, VOICES, the mixer's, a GO button) is not in the list. Ask LIST again after an engine or kit change.
+
+**The state** (STEP, SET, LOCK, UNLOCK, KIND): `op, rc, track, lane, step, flags, level, ratchet, chance, cond, nudge+64, fill, n, then n x (i, kind, v14)`.
+`rc`: 0 done, 1 refused (a bad field, value or value index, or the feature is not built), 2 the event list is full (24 locks a track, the store's 128 events: the device's "NO LOCK LEFT"), 3 no hit: the lane has no hit on that step, so a lock
+would never be heard (D4: nothing written), 4 nothing to do (KIND: no event on the step, or the other kind is not allowed there). `flags`: bit 0 = the step has a hit in this context (a drum lane's hit; a synth step with notes),
+bit 1 = locks can be written here now (a drum lane: it hits there; a synth step: always), bit 2 = the step is past the pattern's LEN. `level` and `ratchet` are the raw 2-bit codes of `DRUM_STEP` (33) (level: 0 NORM, 1 GHOST, 2 SOFT, 3 HARD; ratchet 0..3 = x1..x4) of the lane;
+on a synth step those of its first note (SET writes every note). `chance` 0..100 %, `cond` 0 none, 1..9 = 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, `nudge+64` the nudge -32..31, `fill` 0 normal, 1 fill only, 2 no fill: the step's, as AUTO_GET lists
+them (a drum step has one of each for the whole step, whatever the lane). Then the step's events that are in this context's list: `i` (the DESC index), `kind` 1 = a lock (step only), 2 = a hold event (motion), `v14` its value.
+**SET** fields: 0 level (raw 0..3), 1 ratchet (0..3), 2 chance (0..100), 3 cond (0..9), 4 nudge (-32..31), 5 fill (0..2). Level and ratchet need the hit (else rc 3, nothing written); the others are the step's.
+**LOCK** writes the lock of value `i` at `v14` (clamped to the value's range) as the device's knob does: a hold event of the value already on the step takes the value instead (kind 2 stays), else a step-only event.
+**UNLOCK** drops the step's events of value `i`, both kinds (the device's SHIFT + knob). **KIND** turns the lock into a hold event or back (the device's YES on the cell; a hold needs motion built).
+An event of `LOCK_SET` / `AUTO_SET` on the same step is the same event: the editor can mix the commands.
+
+`tests/steplane_table.json` is the golden of the list for a synth track and for the drum track (lane 127, a lane, the ACCENT lane) of the host test's build (`tests/editor_sync_test.c`, `STEPLANE_WRITE=1` rewrites it); `tools/gen_fxp_table.py` copies it into
+web/editor.html (`STEPLANE_TABLE`: data only, the mock device does not answer the command).
 
 ## Notes for the editor
 
