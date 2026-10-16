@@ -2,6 +2,15 @@
 
 > **Landed state, 2026-10-15 (what is built on `optimist` at 5756d5ac; where the sections below say otherwise, this list and the banners above win).**
 > - **Gestures:** SHIFT = OCT- held, SHIFT2 = OCT+ held (the banner above). HOME is only HOME / NO. OCT- / OCT+ glow only where they do something, like any button; ARP and SCL are dark on the drum track and its lanes, and SAVE is dark on STEP lines with no YES action. SAVE works on GLOBAL, SYSTEM and PROJECT's read-outs (YES, else PROJECT).
+
+> **2026-10-16, solo on every row but the returns (the user).** One solo set: any soloed track (GLO + keys 5-8, or the row), drum lane or USB IN
+> silences every item of those three groups that is not soloed; a soloed lane keeps the drum track heard and only that lane (and the click)
+> sounds in it, the other tracks and USB IN are silent; the returns A / B / C and MASTER are never silenced, the ACCENT lane has no solo. A mute
+> wins over a solo. **Gesture: SHIFT + SHIFT2 (OCT- and OCT+ both held) + the volume card's knob** on a track, DR, a lane or USB IN toggles that
+> row's solo, once per hold, the value untouched (SHIFT + the knob alone is the reset, so SHIFT2 + SHIFT is the free neighbour of the mute
+> gesture; both OCT held and a knob turned is no master toggle). A soloed row: the S badge (a lane: its code in green), a toast "T2 SOLO". The
+> lanes' solo is saved with the project (the FX record's lane TLV), the tracks' and USB IN's are not (a load starts without them). Editor
+> protocol v14 SOLO ops 5 and 6 carry USB IN.
 > - **No preset rows:** no SOUND and no FAVS row on EDIT (the SOUND row, the mixer's PRESET and FX ON cards, PAN / MUTE on EDIT, the drum LANE card and the ARP / LANE rows on STEP are gone). Presets are picked with PRESETS; SHIFT + PRESETS steps the engine. Favorites: SHIFT2 + PRESETS marks, SHIFT2 + SELECT browses only them (section 37 words the old FAVS row). INIT is PROJECT > USER's 4th card, SAVE AS is USER's SAVE.
 > - **PROJECT:** the storage rows are BANK, ACTION, ITEM (+ NEW on PROJECT); the actions are LOAD / SAVE / DELETE (a project slot is cleared through the section log's tombstones, asked first); a key selects the slot of the bank and runs the action; OCT- / OCT+ tapped on the page pick the previous or next bank (toast and LEDs); a user preset's LOAD over an edited sound is asked in red.
 > - **Mixer:** the sends set is REV DLY CHO (blank where no slot holds one) and a fourth card PAN on the synth tracks, the drum track and the drum lanes; a muted track is struck through (the banner above); the ACCENT row's MUTE is the lane's sequencer mute.

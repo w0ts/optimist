@@ -606,7 +606,8 @@ typedef struct {
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
     int8_t octave;
-    volatile uint8_t solo;       /* bit per track soloed (GLO + key), 0 = none: the others are silent */
+    volatile uint8_t solo;       /* the soloed: bits 0..3 the tracks (GLO + key), SOLO_USB the USB input, SOLO_LANE a drum lane (derived from the lanes' mask);
+                                  * any set: every item not soloed is silent (one set across the tracks, the lanes and the USB input; the returns and the master never are) */
     uint32_t tick;               /* sub-blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
@@ -687,11 +688,13 @@ static const uint8_t *trk_step_raw(const track_t *t, uint32_t i, uint32_t *n)
     *n = is_drum(t) ? (uint32_t)sizeof(dstep_t) : (uint32_t)sizeof(step_t);
     return is_drum(t) ? (const uint8_t *)&t->dstep[i % NSTEP] : (const uint8_t *)&t->step[i % NSTEP];
 }
-/* silent: MUTE, or another track is soloed */
+#define SOLO_USB 0x80u                                  /* song.solo: the USB input soloed */
+#define SOLO_LANE 0x40u                                 /* song.solo: a drum lane is soloed (derived: drums/drum_mix.c dlm_solo_sync, never set elsewhere) */
+/* silent: MUTE, or something else is soloed (one set: the tracks, the drum lanes, the USB input; SOLO_LANE >> 3 is the drum track's own bit 3) */
 AINL int trk_silent(const track_t *t)
 {
-    uint32_t i = (uint32_t)(t - trk);
-    return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
+    uint32_t s = song.solo;
+    return t->p[P_MUTE] || (s && !(((s | (s >> 3 & 8u)) >> (uint32_t)(t - trk)) & 1u));
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }

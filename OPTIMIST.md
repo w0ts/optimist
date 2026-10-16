@@ -231,7 +231,7 @@ The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on an FM6 tra
 
 ### GLO — mix
 
-- White keys **1–4 mute** tracks 1–4 (a muted track fades out in a few ms and plays no new notes; its pattern runs on in time), keys **5–8 solo** them (several solos add up). The tiles show what is heard.
+- White keys **1–4 mute** tracks 1–4 (a muted track fades out in a few ms and plays no new notes; its pattern runs on in time), keys **5–8 solo** them (several solos add up). The tiles show what is heard. Solo is one set across the four tracks, the 16 drum lanes and USB IN: while anything is soloed, everything of those that is not soloed is silent (the returns and the master never are). On the mixer, **OCT- and OCT+ held together + the volume knob** of a track, a lane or USB IN toggles that row's solo (an S badge; a soloed lane keeps the drum track heard, only that lane sounds in it).
 - Keys **9–12 turn the effects of tracks 1–4 off and on** (FX bypass): the track plays dry — no DIST, no SLICER, no chorus / delay / reverb send (the drum track: its sounds' sends) — and its FX values stay as they are, so turning it back on brings the sound back. The tiles read *fx n* (on) or *dry n*; the TRACKS row says *dry*, the FX page *FX OFF*. The master effects (DUST, DUCK, the filter, the punch-in FX) stay on the whole mix. Saved with the project (projects of SLOOP 2.0 .. 2.2 load with every FX on).
 - The last white key (**G5**): **tap tempo** (two taps or more).
 - **KNOB 1–4: the levels** of tracks 1–4.
