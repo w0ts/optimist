@@ -9,7 +9,8 @@
   webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
                               fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
   webapp/installer/installer.js  the same module as one file (mountInstaller), for the one-page app; site.json the packages
-  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder
+  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder; beside it what its Install and Build
+                              tabs import: style/optimist.css, fm1ota.js, fm1pkg.js, installer/ (installer.js, .css, site.json), builder/
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
@@ -151,10 +152,11 @@ def site_commit():
     return sha if sha and re.fullmatch(r"[0-9a-f]{40}", sha) and dirty == "" else None
 
 
-def builder_site(out):
+def builder_site(out, dst=None):
     """webapp/builder/: the web builder (web/builder/, docs/BUILDER-WEB.md), its data exported fresh from this source
-    (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key)"""
-    dst = Path(out) / "webapp" / "builder"
+    (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key). dst: another directory (the
+    editor's builder/, for its Build tab: the same files, no index.html page needed but harmless)"""
+    dst = Path(dst) if dst else Path(out) / "webapp" / "builder"
     (dst / "data").mkdir(parents=True, exist_ok=True)
     shutil.copy(HERE / "TERMINUS-LICENSE.txt", dst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in BUILDER_FILES:
@@ -168,6 +170,22 @@ def builder_site(out):
     commit = site_commit()
     (dst / "build-info.json").write_text(json.dumps({"commit": commit} if commit else {}) + "\n", encoding="utf-8")
     return dst
+
+
+def editor_modules(ed, out, site):
+    """what the editor's Install and Build tabs import, next to webapp/editor/index.html (editor.html loads ./style/optimist.css,
+    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1ota.js
+    and ../fm1pkg.js): the shared style and its font, fm1ota.js, fm1pkg.js, installer/, builder/ (with its data)"""
+    (ed / "style").mkdir(parents=True, exist_ok=True)
+    (ed / "installer").mkdir(parents=True, exist_ok=True)
+    for f in ("optimist.css", "terminus.ttf"):
+        shutil.copy(HERE / "style" / f, ed / "style" / f)
+    for f in ("fm1ota.js", "fm1pkg.js"):
+        shutil.copy(HERE / f, ed / f)
+    for f in ("installer.js", "installer.css"):
+        shutil.copy(HERE / "installer" / f, ed / "installer" / f)
+    (ed / "installer" / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
+    builder_site(out, ed / "builder")
 
 
 def flavours_of(manifest):
@@ -221,6 +239,7 @@ def main(pkg, version, out, flavours=None):
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
     builder_site(out)
+    editor_modules(ed, out, site)
     shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
         if (HERE / f).exists():
