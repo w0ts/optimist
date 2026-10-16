@@ -231,8 +231,8 @@ of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, 
   (`python tools/optimist.py package --profile P --out dist`, as `build.yml` does, same cached toolchain) and drafts a
   GitHub release with `optimist-<version>-<profile>.fwsc`, `...-ui.zip` and `SHA256SUMS.txt`. Publish the draft by hand
   after reading it.
-- `.github/workflows/pages.yml`, on a `v*` tag or by hand: builds `user-default`, runs
-  `web/make_site.py <pkg> <version> site` and deploys `site/` with GitHub Pages. The site is static; it holds one
+- `.github/workflows/pages.yml`, on a `v*` tag or by hand: builds the profile of each flavour in `web/flavours.json` (today Synth, the default profile), runs
+  `web/make_site.py --flavours web/flavours.json <version> site` and deploys `site/` with GitHub Pages. The site is static; it holds one
   firmware (`firmware/optimist-<version>.fwsc`, fetched by the installer page by a relative URL and checked against the
   SHA-256 in the page), the installer and the editor. All its URLs are relative, so it works under `/<repository>/`.
 - Neither has run (a tag and a repository where Actions and Pages are on are needed; Pages on a private repository

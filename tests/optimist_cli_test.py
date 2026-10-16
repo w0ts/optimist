@@ -74,7 +74,8 @@ check("emu, config and cpu: their arguments go to them untouched",
 rc, _ = quiet(ap.parse_args, ["build", "--profile", "a", "--config", "b"])
 check("build: --profile and --config together is a usage error", rc == 2)
 cfg, name = optimist.load_config(ap.parse_args(["build"]))
-check(f"build without a configuration builds {optimist.DEFAULT_PROFILE}", name and cfg)
+check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (Synth), not the reference profile",
+      name and cfg and optimist.DEFAULT_PROFILE == "synth" and name == "Synth" and optimist.REFERENCE_PROFILE == "user-default")
 rc, out = quiet(optimist.main, ["build", "--config", str(ROOT / "no-such.config")])
 check("a missing .config: exit 2 and its name", rc == 2 and "no-such.config" in out)
 rc, out = quiet(optimist.main, ["config", "--profile", "drum-machine", "--budget"])

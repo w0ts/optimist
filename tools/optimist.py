@@ -48,7 +48,8 @@ import configure as C
 import deps
 import toolchain as TC
 
-DEFAULT_PROFILE = "user-default"
+DEFAULT_PROFILE = C.DEFAULT_PROFILE            # Optimist Synth: what build, builder and make use without a profile
+REFERENCE_PROFILE = C.REFERENCE_PROFILE        # user-default: the generic profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
             "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/install_test.py",
             "tests/rescue_test.py", "tests/rescue_any_test.py",
@@ -338,10 +339,10 @@ def ble_test_configs():
     the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
     def load(sets, ble_drop=None):
         with contextlib.redirect_stdout(io.StringIO()):
-            return load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False, set=list(sets),
+            return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
-    return [(f"{DEFAULT_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{DEFAULT_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0"]))]
+    return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0"]))]
 
 
 def prepare_tests():
@@ -353,12 +354,12 @@ def prepare_tests():
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
     check_builds()
-    print(f"test: building {DEFAULT_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
+    print(f"test: building {REFERENCE_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
           "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
           "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
           "or a capture from FM1_STOCK_FWSC)")
     (_, ble_cfg), (_, full_cfg) = ble_test_configs()
-    cfg, name = C.load_profile(DEFAULT_PROFILE)
+    cfg, name = C.load_profile(REFERENCE_PROFILE)
     ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
     if not ok:
         print("test: the BLE build failed", file=sys.stderr)
@@ -367,7 +368,7 @@ def prepare_tests():
     ble.mkdir(exist_ok=True)
     shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
-    print(f"test: building {DEFAULT_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
+    print(f"test: building {REFERENCE_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
     # (PATTERNS=0 in this set since 2026-10-15, batch 141 (batch 140 had FM6_SYSEX=0 for a 40 B overflow): the batches' growth
     # (fx-rework, JUNO, env-dests) put the whole set 2,600 B over the slot (ld: region XIP overflowed); --ble-drop FLUTE frees
@@ -379,7 +380,7 @@ def prepare_tests():
         return 1
     shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble-full.fwsc")
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble-full.elf")
-    print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
+    print(f"test: building {REFERENCE_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"
     if not ok or not app.exists():
