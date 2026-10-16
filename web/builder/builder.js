@@ -53,7 +53,9 @@ const TEMPLATE = `
           </div>
           <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key">-</code></p>
           <p class="o-small o-dim" id="keynote"></p>
-          <p id="buildnote" class="o-small o-dim">Cloud builds are not live yet. Build it yourself from a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
+          <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
+            <p id="buildnote" class="o-small o-dim">Cloud builds are not live yet. Build it yourself from a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
+          </details>
           <details class="o-details" id="import">
             <summary>Load a .config file (or paste one)</summary>
             <div>
@@ -440,6 +442,7 @@ function renderResult() {
   const ev = S.view.eval;
   $("hash").textContent = ev.cfg_hash || "-";
   $("key").textContent = ev.key || "-";
+  $("key").title = ev.key || "";
   $("keynote").textContent = ev.key ? `The key of this configuration at the site's commit ${S.commit.slice(0, 12)} (sha256 of "${S.reg.key_tag}", the commit and the canonical form).`
     : "The cloud key will be computed at build time (this page does not know the commit it would be built from).";
   $("canon").textContent = ev.canonical || "";
