@@ -126,7 +126,7 @@ A `v*` tag runs `.github/workflows/release.yml`: it builds every profile in `con
 | | |
 | --- | --- |
 | [OPTIMIST.md](OPTIMIST.md) | the manual |
-| [docs/guide/](docs/guide/) | user guides: [interface](docs/guide/interface.md), [sound](docs/guide/sound.md), [effects](docs/guide/effects.md), [sequencer](docs/guide/sequencer.md) |
+| [docs/guide/](docs/guide/) | user guides: [interface](docs/guide/interface.md), [sound](docs/guide/sound.md), [effects](docs/guide/effects.md), [sequencer](docs/guide/sequencer.md), [every shortcut](docs/guide/shortcuts.md) |
 | [BUILDING.md](BUILDING.md), [docs/BUILDER.md](docs/BUILDER.md) | building, the toolchain, packages; the firmware builder and its profiles |
 | [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md), [docs/MEMORY-BUDGET.md](docs/MEMORY-BUDGET.md) | where flash and RAM go, and what was saved |
 | [docs/UI-OPTIMIST-DESIGN.md](docs/UI-OPTIMIST-DESIGN.md) | the Optimist UI: decisions, screens, gestures |

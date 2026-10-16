@@ -1,5 +1,7 @@
 # The Optimist UI: controls, pages and read-outs
 
+Every gesture in one list: [shortcuts.md](shortcuts.md).
+
 This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
 
 ## The controls
@@ -14,7 +16,7 @@ This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP
 | HOME | NO, or back. HOME is only HOME / NO. |
 | OCT- held | **SHIFT** (below). |
 | OCT+ held | **SHIFT2** (below). |
-| LFO held | The fine path: a knob turned edits the value by single units (a pattern length by one). |
+| LFO held | The patterns layer ([PATTERNS]); with a knob, PATTERN's LEN moves by one instead of in powers of two. |
 | PLAY | Tapped: start / stop. Held: the tempo page (below). |
 | GLO | Tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line. |
 | SEQ | Tapped: STEP (below). |
@@ -24,7 +26,7 @@ This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP
 SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held first:
 
 - **SHIFT + a knob:** the value goes back to its default. On a step's p-lock card it drops that cell's lock.
-- **SHIFT + a key on the drum track:** picks the drum lane (the key still plays). On STEP, with no step held, the same. The last upper key picks the ACCENT lane.
+- **SHIFT + a key on the drum track:** picks the drum lane (the key plays when stopped, silently while playing). On STEP, with no step held, the same. The last upper key picks the ACCENT lane.
 - **SHIFT + PRESETS:** changes the instrument (an engine on a synth track, the next or previous kind on a lane that is not on a kit). On STEP it makes the window follow the playhead again.
 - **SHIFT + a key on the mixer:** toggles the sequencer mute of what the key names: the 16 white keys the 16 drum lanes, the black keys F#, G#, A#, C# the tracks T1, T2, T3, DR, the last upper key the ACCENT lane. A sequencer-muted track or lane plays no steps; keys you play yourself still sound.
 - **SHIFT + a step (STEP):** clears that step's p-locks. The notes, nudge, fill, chance and recorded motion stay.
@@ -85,7 +87,7 @@ SEQ tapped opens STEP, one screen for synth tracks and the drum track. The 16 wh
 - **A step key held:** the cards are the step's: drums LEVEL and RATCHET; synths NOTE, LEVEL, RATCHET, LENGTH. Several held steps edit together. SELECT pages the cards: the step, its extras (CHANCE, NUDGE, FILL, COND, as built), then the sound pages as p-locks. SAVE sets the fill condition and HOME clears the held step.
 - **A step held and a page button** (ENV, LFO, FX, SCL, ARP): that page's cells become the step's events. A turn writes a step-only event (a p-lock, shown by a padlock mark; a held motion value shows an arrow). YES toggles the hot cell between step-only and held. SHIFT + the knob drops it; SHIFT + the step clears all its p-locks. Not lockable: LFO DEST, VOICE, ALLOC, PRIO, GLMODE, MUTE, INSERTS S1 and S2, and a drum lane's SENDS.
 - With no step held the cards are the track's PATTERN row, TOOLS and EUCLID. EUCLID is a note generator with ON / OFF; turning it OFF asks to keep or restore the pattern. TOOLS ask first.
-- **SEQ held + keys:** a synth's notes become the next steps'. SEQ tapped again: the keys play with the screen up; again: steps.
+- **SEQ held + keys:** a synth's notes become the next steps'. SEQ tapped on STEP: its next page (PATTERN, TOOLS, GEN, GEN OUT); SEQ held alone and let go: the keys play with the screen up; again: steps.
 - **OCT+** held on the drum track makes a hard hit; on a held synth step, OCT- / OCT+ move its notes an octave.
 
 ## PROJECT

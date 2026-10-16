@@ -125,7 +125,7 @@ A **snapshot** keeps the working project, every section and the song in one slot
 
 ## Undo and redo
 
-Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. Optimist UI: SAVE then HOME is undo; HOME then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. SLOOP UI: hold EDIT and press OCT- (undo) or OCT+ (redo). Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free ([OPTIMIST.md](../../OPTIMIST.md), "Undo, clear, save, autosave").
+Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. Optimist UI: SAVE then HOME is undo; SHIFT (OCT- held) then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. SLOOP UI: hold EDIT and press OCT- (undo) or OCT+ (redo). Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free ([OPTIMIST.md](../../OPTIMIST.md), "Undo, clear, save, autosave").
 
 ## Mute and solo
 
