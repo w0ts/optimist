@@ -754,12 +754,17 @@ static uint32_t fm1_astage_prev, fm1_aloop_prev;
 #else
 #define ASTAGE0(s) ASTAGE(s)
 #endif
+#if (defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG) || !defined(__PI32V2__)   /* (the host tests keep them: recstress) */
 #define LOOP_GUARD(id, cnt, max)                                                                                       \
     if (++(cnt) > (max)) {                                                                                             \
         if (!fm1_aloop)                                                                                                \
             fm1_aloop = (id);                                                                                          \
         break;                                                                                                         \
     }
+#else
+#define LOOP_GUARD(id, cnt, max) (void)(cnt);    /* (B18's hang probes: the console test image only, as the stage markers;
+                                                  * no code in a product build: tests/target_budget.txt) */
+#endif
 static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "../system/bootguard.h"

@@ -903,6 +903,7 @@ D8_TICK float bank_tick(d8_bank_t *b)
  * drift's six before the squares of its sample), so every square gets the same numbers on the same samples. The
  * squares' parts are summed per sample in bank_tick's order: the same bus. pair: the CB pair, (o5 + o6) / 2. */
 #ifndef LOOP_GUARD                                  /* (built as its own unit, X0X's FPU flags: core.h's guard, the same record) */
+#if (defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG) || !defined(__PI32V2__)   /* (the host tests keep them: recstress) */
 extern volatile uint32_t fm1_aloop;
 #define LOOP_GUARD(id, cnt, max)                                                                                       \
     if (++(cnt) > (max)) {                                                                                             \
@@ -910,6 +911,9 @@ extern volatile uint32_t fm1_aloop;
             fm1_aloop = (id);                                                                                          \
         break;                                                                                                         \
     }
+#else
+#define LOOP_GUARD(id, cnt, max) (void)(cnt);    /* (the console test image only: core.h) */
+#endif
 #endif
 #define BANK_NONE 0x7FFF
 typedef struct { float c[6][CHUNK]; float sq[2][CHUNK]; } d8_bank_buf_t;
