@@ -1386,6 +1386,7 @@ async function editorFxp() {
       && /id="aboutbtn"/.test(html) && /\$\("about"\)\.showModal\(\)/.test(html),
       "about: the credits, licences and trademark notes live in the About dialog (header button, Escape closes, modal focus), no footer on the page");
   }
+  ok(/function patternIds\(p, ids\)/.test(html) && /patternIds\(p, p\.ids\.filter/.test(html), "pattern: the PATTERN page of an Optimist UI build gets LEN and GATE besides DIV and SWG (QA D5)");
   ok(/function dlanCard\(/.test(html) && /readDlMix\(\)/.test(html) && /dlanCard\(0, l, t\("dlMix"\)\)/.test(html) && /dlanCard\(1, l, t\("dlLfo"\)\)/.test(html), "dlan: the lane popup has the LFO card, the strips the lanes' mix: pan, sends, mute, solo, SEQ");
   ok(/function dynFxSlot\(/.test(html) && !/function dynFxIns\(|function dynFxMst\(|function dynFxRet\(|function dynFxUsb\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
     "fxp: the slot popup (opened from a strip's slot widget) reads the owner's slot and follows the device's pushes; no separate inserts / master / returns popups");
