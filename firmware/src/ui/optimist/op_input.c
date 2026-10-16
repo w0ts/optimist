@@ -288,7 +288,7 @@ static void rec_held(uint32_t held)
     if (!(held & (1u << panel.btn[B_REC]))) {
         if (rh.ring)
             ui.force = 1;                               /* (let go before the end: the ring goes, nothing done) */
-        rh.on = rh.ring = 0;
+        rh.on = rh.ring = rh.knob = rh.kdone = 0;
         return;
     }
     if (rh.on && !rh.ring && fm1_ms - rh.t0 >= RH_ARM_MS) {
@@ -626,6 +626,38 @@ static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
     return 0;
 #endif
 }
+
+/* REC held + a knob: the parameter of card c, its motion and locks cleared as SHIFT + SHIFT2 + the knob does (a drum
+ * lane's value: that lane's), once a knob a hold. The first turn undoes REC's press (recording as it was) and stops the
+ * ring, so the hold never clears the track (the user, 2026-10-16). 0: not taken (REC up; the cards knob_auto_clear
+ * leaves alone) */
+static int rec_knob(uint32_t row, uint32_t k, const cell_t *c)
+{
+#if FELUCCA_AUTO
+    if (!(fm1_in.buttons & (1u << panel.btn[B_REC])))
+        return 0;
+    if (!rh.knob) {
+        if (rh.on && !rh.ring) {                        /* (the ring began: the press was undone already) */
+            song.rec = rh.prev_rec;
+            rec_wait = rh.prev_wait;
+            ui.msg_t = 0;
+        }
+        if (rh.ring)
+            ui.force = 1;                               /* (the ring goes) */
+        rh.on = rh.ring = 0;
+        rh.knob = 1;
+    }
+    if ((rh.kdone >> k) & 1u)
+        return 1;
+    if (!knob_auto_clear(row, k, c))
+        return 0;
+    rh.kdone |= (uint8_t)(1u << k);
+    return 1;
+#else
+    (void)row, (void)k, (void)c;
+    return 0;
+#endif
+}
 static void op_knobs(uint32_t shift)
 {
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
@@ -689,6 +721,8 @@ static void op_knobs(uint32_t shift)
         gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
         HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
+        if (c.kind == CK_VAL && rec_knob(row, k, &c))
+            continue;                                   /* REC held: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL && shift && op_shift2(fm1_in.buttons) && knob_auto_clear(row, k, &c))
             continue;                                   /* SHIFT + SHIFT2: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL)

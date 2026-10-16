@@ -1778,6 +1778,27 @@ static void combo_tests(void)
         kac_done = 0;
         check(knob_auto_clear(0, 0, &c) && strstr(ui.msg, "NO LOCKS"), "... none left: said so, nothing changes");
         kac_done = 0;
+        {                                               /* REC held + a knob: the same clear; REC's press undone, no ring */
+            uint32_t b0 = fm1_in.buttons, r0 = song.rec;
+            fm1_irq_off();
+            (void)lock_set(&trk[0], 3, P_ATK, 43);
+            fm1_irq_on();
+            check(!rec_knob(0, 0, &c), "REC up: a knob is a knob");
+            fm1_in.buttons = b0 | 1u << panel.btn[B_REC];
+            memset(&rh, 0, sizeof rh);
+            rh.on = 1, rh.prev_rec = 0, rh.prev_wait = 0, rh.t0 = fm1_ms;
+            song.rec = 1;                               /* (the press armed it) */
+            check(rec_knob(0, 0, &c) && !lock_get(&trk[0], 3, P_ATK, &g) && strstr(ui.msg, "CLEARED") && song.rec == 0 &&
+                      !rh.on && !rh.ring && rh.knob,
+                  "REC held + a knob: that parameter's locks go, REC's press is undone");
+            check(rec_knob(0, 0, &c) && !strstr(ui.msg, "NO LOCKS"), "... once a knob a hold");
+            rec_held(fm1_in.buttons);
+            check(!rh.ring, "... and the ring never starts, so the track is not cleared");
+            fm1_in.buttons = b0;
+            rec_held(fm1_in.buttons);
+            check(!rh.knob && !rh.kdone, "... REC up: the next hold is a new one");
+            song.rec = r0;
+        }
         ui.scr = SCR_HOME;
     }
 #if DLA_ON

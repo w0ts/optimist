@@ -78,6 +78,8 @@ static struct {
     uint8_t trk;                        /* the track it clears */
     int8_t lane;                        /* a drum lane picked when the ring began: only that lane is cleared (-1: the track) */
     uint8_t prev_rec, prev_wait;        /* song.rec, rec_wait before the press */
+    uint8_t knob;                       /* a knob turned while REC is down: the press undone, no ring until REC is up */
+    uint8_t kdone;                      /* the knobs whose parameter this hold cleared (bit k: once a knob a hold) */
     uint32_t t0, t1;                    /* the press, the ring's start */
 } rh;
 
