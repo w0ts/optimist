@@ -75,6 +75,7 @@ typedef struct {
     uint32_t send_to;                                   /* blocks sent noise */
     uint32_t zero_at, up_at;                            /* the return to 0 from zero_at, back to ret from up_at (0: never) */
     uint32_t guard_at;                                  /* (FELUCCA_CPU_GUARD) the guard's REVERB level from here (0: never) */
+    uint32_t mute_at, unmute_at;                        /* the return's MUTE (fx.c fx_rmute) from mute_at, off from unmute_at (0: never) */
 } plan_t;
 static int line_clear(int bus)
 {
@@ -107,6 +108,7 @@ static void run(const plan_t *p)
         uint32_t b, i, rnd = 12345u;
         int16_t *g = &song.g[p->bus == BC ? G_CRET : p->bus == BD ? G_DRET : G_RRET];
         host_tracks_init();
+        fx_rmute = 0;
         song.g[G_DFDBK] = 100, song.g[G_DTIME] = 3;     /* (a long delay tail, 1/32: echoes before the sends end) */
         *g = (int16_t)p->ret;
         for (b = 0; b < NB; b++) {
@@ -114,6 +116,10 @@ static void run(const plan_t *p)
                 *g = 0;
             if (p->up_at && b == p->up_at)
                 *g = (int16_t)p->ret;
+            if (p->mute_at && b == p->mute_at)
+                fx_rmute = (uint8_t)(1u << (p->bus == BC ? 0u : p->bus == BD ? 1u : 2u));
+            if (p->unmute_at && b == p->unmute_at)
+                fx_rmute = 0;
 #if FELUCCA_CPU_GUARD
             if (p->guard_at && b == p->guard_at)
                 cg.level = CG_L_REVERB;
@@ -224,6 +230,24 @@ static void t_audio(void)
         snprintf(w, sizeof w, "%s RET back up with nothing sent: still silent (no old tail comes back)", NM[bus]);
         check(w, silent_from(R, 260));
         p.zero_at = 0, p.up_at = 0;
+        {   /* the return's MUTE (fx_rmute): silent into the master, the bus runs on */
+            plan_t m = {bus, 127, 300, 0, 0, 0, 100, 200};
+            int ok;
+            run(&m);
+            ok = heard(R, 0, 100) && !heard(R, 100, 200) && heard(R, 200, 300);
+            snprintf(w, sizeof w, "%s MUTE from block 100 to 200, noise sent throughout: heard, silent, heard again", NM[bus]);
+            check(w, ok);
+            if (bus != BC) {
+                plan_t t = {bus, 127, 150, 0, 0, 0, 100, 160};
+                run(&t);
+                snprintf(w, sizeof w, "%s MUTE over the end of the sends, off in the tail: the tail was running meanwhile and is heard (a RET of 0 would have cleared it)", NM[bus]);
+                check(w, !heard(R, 100, 160) && heard(R, 160, 260));
+            }
+            m.ret = 64, m.mute_at = 1, m.unmute_at = 0;
+            run(&m);
+            snprintf(w, sizeof w, "%s MUTE with RET at one half: silent", NM[bus]);
+            check(w, silent_from(R, 1));
+        }
         free(u);
         free(h);
     }
@@ -266,16 +290,32 @@ static void t_record(void)
     rets(10, 64, 0);
     n = fxr_encode(b);
     check("CHO 10 DLY 64 REV 0: a record with their TLV (0x41, CHO DLY REV)",
-          n == FXR_HEAD + 5u && b[FXR_HEAD] == 0x41u && b[FXR_HEAD + 1u] == 3u && b[FXR_HEAD + 2u] == 10u &&
-          b[FXR_HEAD + 3u] == 64u && b[FXR_HEAD + 4u] == 0u);
+          n == FXR_HEAD + 6u && b[FXR_HEAD] == 0x41u && b[FXR_HEAD + 1u] == 4u && b[FXR_HEAD + 2u] == 10u &&
+          b[FXR_HEAD + 3u] == 64u && b[FXR_HEAD + 4u] == 0u && b[FXR_HEAD + 5u] == 0u);
     rets(127, 127, 127);
     check("... decoded back (a load)", fxr_decode(b, n, 1) && rets_are(10, 64, 0));
     rets(1, 2, 3);
     check("... a song section (all 0): the returns playing kept", fxr_decode(b, n, 0) && rets_are(1, 2, 3));
     b[FXR_HEAD + 1u] = 2u;
-    check("... a TLV too short (a damaged one): unity", fxr_decode(b, n - 1u, 1) && rets_are(127, 127, 127));
+    check("... a TLV too short (a damaged one): unity", fxr_decode(b, n - 2u, 1) && rets_are(127, 127, 127));
     rets(5, 5, 5);
     check("no record (a project from before): unity", !fxr_decode(0, 0, 1) && rets_are(127, 127, 127));
+    rets(127, 127, 127);
+    fx_rmute = 5;
+    n = fxr_encode(b);
+    check("a return muted at unity: a record (0x41, 4 bytes, the mute bits last)", n == FXR_HEAD + 6u && b[FXR_HEAD] == 0x41u && b[FXR_HEAD + 1u] == 4u && b[FXR_HEAD + 5u] == 5u);
+    fx_rmute = 0;
+    check("... decoded back (a load): lines CHO and REV muted", fxr_decode(b, n, 1) && fx_rmute == 5 && rets_are(127, 127, 127));
+    fx_rmute = 2;
+    check("... a song section (all 0): the mute playing kept", fxr_decode(b, n, 0) && fx_rmute == 2);
+    fx_rmute = 7;
+    check("no record: every return unmuted", !fxr_decode(0, 0, 1) && fx_rmute == 0);
+    rets(10, 64, 0);
+    n = fxr_encode(b);
+    b[FXR_HEAD + 1u] = 3u;
+    fx_rmute = 7;
+    check("an older 3 byte TLV (a project from before the mute): the levels, unmuted", fxr_decode(b, n - 1u, 1) && rets_are(10, 64, 0) && fx_rmute == 0);
+    rets(127, 127, 127);
 }
 
 /* ---- the stores */

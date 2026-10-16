@@ -72,26 +72,30 @@ _Static_assert(LIN_NT <= 16u, "LIN_TLV: a type index a nibble");
 AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)FXT_DIST; }   /* the i-th amount's type */
 /* TLV FXRET_TLV (0x41, 2026-10-12): the FX returns, CHO DLY REV (core.h G_CRET G_DRET G_RRET, 0..127), only when one is
  * not at unity (127); none: every return at unity, as every project from before. A load's (`all`), as the layout: a
- * song section keeps the returns playing */
+ * song section keeps the returns playing. 2026-10-16: a 4th byte, the returns' MUTE bits (bit j = line j, fx.c fx_rmute), so
+ * the TLV is also written when one is muted; an older reader takes the 3 levels, a 3 byte TLV (or none) loads every return unmuted */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX <= FXR_MAX, "the FX record: every TLV fits");
+#define FXRET_TLV_N (FXRET_N + 1u)
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX <= FXR_MAX, "the FX record: every TLV fits");
 _Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RSND_TLV == RET_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
-static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity (nothing to keep) */
+static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity, none muted (nothing to keep) */
 {
     uint32_t k, any = 0;
     for (k = 0; k < FXRET_N; k++)
         any |= (uint32_t)((o[k] = (uint8_t)song.g[G_CRET + k]) != 127u);
-    return any ? FXRET_N : 0u;
+    o[FXRET_N] = (uint8_t)(fx_rmute & 7u);
+    return any || o[FXRET_N] ? FXRET_TLV_N : 0u;
 }
 static void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every return at unity; a shorter one: as none) */
 {
     uint32_t k;
     for (k = 0; k < FXRET_N; k++)
         song.g[G_CRET + k] = (int16_t)(n >= FXRET_N && a[k] < 127u ? a[k] : 127u);
+    fx_rmute = (uint8_t)(n >= FXRET_TLV_N ? a[FXRET_N] & 7u : 0u);
 }
 /* TLV VCNT_TLV (0x47, 2026-10-14): the parts' VOICES (core.h P_VOICES, 0..8, 0 = the engine's max), a byte a part, only when
  * one is not 0; none: every part at the engine's max, as every project from before. A load's (`all`): a song section

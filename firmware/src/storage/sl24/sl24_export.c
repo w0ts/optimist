@@ -367,7 +367,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
                                                                                * are stored 0, P4-2) */
     for (i = 1; i < 4u; i++) {
         lost |= FXS_HAS(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
-        lost |= FXS_HAS(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
+        lost |= FXS_HAS(T[i]) && (song.g[G_CRET + (T[i] - FXT_CHO)] < 127 || (fx_rmute >> (T[i] - FXT_CHO) & 1u)) ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
         lost |= FXS_HAS(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX

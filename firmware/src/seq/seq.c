@@ -1081,6 +1081,7 @@ static uint32_t ft_btn_prev;
 static volatile uint8_t ft_bars;              /* the loop just closed: bars (the UI says so), 0xFF dropped */
 static volatile uint32_t ft_close_ms;         /* when (the UI drops the press that closed it) */
 static volatile uint8_t ft_closed;            /* (ft_close_ms is set) */
+static volatile uint8_t ft_req;               /* the editor's REC (ed_rec.c): close the take at the next block, as the REC button */
 
 static int track_empty(const track_t *t)
 {
@@ -1396,15 +1397,18 @@ static void ft_block(void)
 {
     uint32_t b = fm1_in.buttons & (ft_btn_mask | ft_drop_mask), press = b & ~ft_btn_prev;
     ft_btn_prev = b;
-    if (!ft_on)
+    if (!ft_on) {
+        ft_req = 0;                                   /* (a request that found no take: gone) */
         return;
+    }
     ft_t++;
     if (press & ft_drop_mask) {
         ft_on = 0;                                    /* PLAY: dropped, nothing changes */
         ft_bars = 0xFF;
         ft_close_ms = fm1_ms;
         ft_closed = 1;
-    } else if ((press & ft_btn_mask) || ft_t >= FT_BLOCKS) {
+    } else if ((press & ft_btn_mask) || ft_req || ft_t >= FT_BLOCKS) {
+        ft_req = 0;
         ft_close();
     }
 }

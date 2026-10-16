@@ -484,6 +484,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     c->strike |= (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
                            (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
                           mx_muted(r));   /* (the volume cards of a muted row) */
+    c->strike |= (uint8_t)(m.kind == MI_RET && (fx_rmute >> (m.id - G_CRET) & 1u));   /* (a muted return's card) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
     if (m.kind == MI_RSND)
@@ -530,12 +531,25 @@ static void mx_unmute(uint32_t r, const mitem_t *m)
         trk[mx_trk_of(r)].p[P_MUTE] = 0;
     mx_say(r, " ON");
 }
+/* a return's mute (MASTER's RET cards, fx.c fx_rmute: its output into the master is silent, its bus runs on): SHIFT2 on the card toggles it, once per hold */
+static int mx_ret_mute(const mitem_t *m)
+{
+    uint32_t ln = (uint32_t)(m->id - G_CRET) % 3u;
+    if (mx_s2_done)
+        return 1;
+    mx_s2_done = 1;
+    fx_rmute = (uint8_t)(fx_rmute ^ (1u << ln));
+    ui_say(fxs_ret_label(ln), (fx_rmute >> ln & 1u) ? " MUTE" : " ON");
+    return 1;
+}
 /* with solo (SHIFT + SHIFT2: OCT- and OCT+ both held; SHIFT + the knob alone is the reset) the row's solo toggles instead, on a track, DR, a lane or
  * the USB input (the ACCENT lane has none: its mute) */
 static int mx_mute_toggle(uint32_t r, const mitem_t *m, int solo)
 {
     int on;
     const char *mu = " MUTE";
+    if (m->kind == MI_RET)
+        return mx_ret_mute(m);
     if (!mx_is_vol(m))
         return 0;
     if (mx_s2_done)
@@ -614,6 +628,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         val_turn(d, vp, k, s, fine);
         if (mx_is_vol(&m) && (*vp != was || s == OP_RESET))
             mx_unmute(r, &m);                           /* (a reset counts, whatever the value was) */
+        else if (m.kind == MI_RET && (*vp != was || s == OP_RESET) && (fx_rmute >> ((uint32_t)(m.id - G_CRET) % 3u) & 1u)) {
+            fx_rmute = (uint8_t)(fx_rmute & ~(1u << ((uint32_t)(m.id - G_CRET) % 3u)));   /* (a turned level unmutes it, as a volume knob) */
+            ui_say(fxs_ret_label((uint32_t)(m.id - G_CRET) % 3u), " ON");
+        }
     }
 }
 /* YES on the mixer: none (the user, 2026-10-12, D6: SAVE tapped there is PROJECT, always, op_input.c). FX on and MUTE are

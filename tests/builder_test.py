@@ -100,11 +100,11 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
-# the web editor's v13 and v14 commands are twelve builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+# the web editor's v13 and v14 commands are thirteen builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
       "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",
-      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE"}
-check("web editor items: the twelve ED_* exist, options of OTA, on by default, one flag each",
+      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE", "ED_REC": "FELUCCA_ED_REC"}
+check("web editor items: the thirteen ED_* exist, options of OTA, on by default, one flag each",
       all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
 check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
@@ -122,8 +122,8 @@ check("... the commands that read the Optimist UI cost nothing without it (NEEDS
       all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
       C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
       not C.counted(dict(C.defaults(), UI=0), "ED_SCRS") and C.counted(dict(C.defaults(), UI=1), "ED_SCRS"))
-check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
-      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166])
+check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166, 168 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
+      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166, 168])
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):

@@ -319,7 +319,12 @@ AINL int32_t dly_fb(int32_t v)
 /* a return level (core.h G_CRET G_DRET G_RRET, 0..127) -> its gain, Q15: 127 unity (32768: the mix of before, sample
  * for sample), below it v / 128 (64: one half exactly) */
 #define FX_RETQ(v) ((v) >= 127 ? 32768 : (int32_t)(v) << 8)
-#define FX_ZCHUNK 512u           /* a return at 0: its bus' line cleared this many samples a block (fx_zclear) */
+/* a return's MUTE (2026-10-16; bit j = line j: CHO DLY REV, as G_CRET + j; fx_rec.c FXRET_TLV's 4th byte, op_mixer.c, ed_solo.c op 7): its level
+ * reads 0 at the gain sites below (RET_LV), while the plan (fx_ret_block) still sees the stored level: the bus runs and its tail is there
+ * when it is unmuted (a level of 0 stops the bus and clears its line) */
+static volatile uint8_t fx_rmute;
+#define RET_LV(j) ((fx_rmute >> (j) & 1u) ? 0 : song.g[G_CRET + (j)])
+#define FX_ZCHUNK 512u          /* a return at 0: its bus' line cleared this many samples a block (fx_zclear) */
 static struct {
     uint32_t cclr, dclr;         /* the chorus' and the delay's line cleared up to here (0: not clearing) */
 } fxz;
@@ -354,7 +359,7 @@ static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, int32_t *col, i
 {
     *fb = dly_fb(song.g[G_DFDBK]);
     *col = 2000 + song.g[G_DCOLOR] * 240;
-    *dmix = (int32_t)((uint32_t)(song.g[G_DMIX] * 258) * (uint32_t)FX_RETQ(song.g[G_DRET]) >> 15);
+    *dmix = (int32_t)((uint32_t)(song.g[G_DMIX] * 258) * (uint32_t)FX_RETQ(RET_LV(1)) >> 15);
     return delay_samples();
 }
 /* the loop's saturator (it was a clamp to int16): linear up to K = 28416 (-1.2 dB), above it a quadratic knee 8192
@@ -1017,7 +1022,7 @@ static HOT2 __attribute__((noinline)) void rev_pre(uint32_t rg, int32_t *tl, int
 static HOT2 __attribute__((noinline)) void rev_post(uint32_t rg, const int32_t *tl, const int32_t *tr, int32_t *wl,
                                                     int32_t *wr, uint32_t n, int32_t *wv)
 {
-    uint32_t i, f = rg == RG_FADE ? rgd.fade : 0u, rq = (uint32_t)FX_RETQ(song.g[G_RRET]);
+    uint32_t i, f = rg == RG_FADE ? rgd.fade : 0u, rq = (uint32_t)FX_RETQ(RET_LV(2));
     if (rg != RG_ON && rg != RG_FADE) {
         if (rg == RG_CLEAR)
             FAR(rev_gclear)();
@@ -1064,7 +1069,7 @@ static HOT2 __attribute__((noinline)) uint32_t fx_ret_block(uint32_t run)
     uint32_t rg = rev_guard((int)(run & FXB_R));
     if (rg != RG_ON && rg != RG_FADE)
         run &= ~FXB_R;                                  /* (off: no tank run, the wet not written by the bus) */
-    run |= rg << FXB_RG | (rg != RG_ON || song.g[G_RRET] < 127 ? FXB_RS : 0u);
+    run |= rg << FXB_RG | (rg != RG_ON || RET_LV(2) < 127 ? FXB_RS : 0u);
 #endif
     if ((run & FXB_C) && (!song.g[G_CRET] || fxz.cclr)) {
         run &= ~FXB_C;
@@ -1074,14 +1079,14 @@ static HOT2 __attribute__((noinline)) uint32_t fx_ret_block(uint32_t run)
         run &= ~FXB_D;
         FAR(dly_zero)();
     }
-    return run | ((run & FXB_C) && song.g[G_CRET] < 127 ? FXB_CG : 0u);
+    return run | ((run & FXB_C) && RET_LV(0) < 127 ? FXB_CG : 0u);
 }
 /* CHO RET between 0 and unity (fx_buses; core.h G_CRET): the chorus' block (the wet so far, its alone) times its
  * return, Q15 (< 32768: no overflow), from main RAM (HOT2); returns the right's last (the returns' tap). Unity: not
  * called, the chorus as before */
 static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr, uint32_t n)
 {
-    int32_t g = FX_RETQ(song.g[G_CRET]);
+    int32_t g = FX_RETQ(RET_LV(0));
     uint32_t i;
     for (i = 0; i < n; i++) {
         wl[i] = (wl[i] * g) >> 15;
@@ -2546,7 +2551,7 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
 {
     int32_t *const snd[3] = {send_c, send_d, send_r};
     uint32_t i, t, m;
-    int32_t l[CTL], r[CTL], g = FX_RETQ(song.g[G_CRET + j % 3u]);
+    int32_t l[CTL], r[CTL], g = FX_RETQ(RET_LV(j % 3u));
     j %= 3u;
     t = fxs_rty[j];
     if (t == FXT_NONE && !rt_tail[j])

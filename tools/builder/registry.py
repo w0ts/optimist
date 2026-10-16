@@ -721,6 +721,8 @@ _add("ED_SOLO", "FELUCCA_ED_SOLO", "web editor: track and lane solo and mute (cm
      desc="the web editor's track and drum-lane SOLO and MUTE through the device's own masks (cmd 104 SOLO, INFO tag 0x61): the same state GLO + key 1..8 and the lane rows set. Off: the strip's SOLO stays a label. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 _add("ED_STEPLANE", "FELUCCA_ED_STEPLANE", "web editor: a step in a drum lane, its lockable values (cmd 105)", Y, 166, parent="OTA",
      desc="the web editor's held step in a track and drum-lane context: level, ratchet, chance, condition, nudge, fill, and the device's own list of lockable values (the Optimist UI's lock pages, a drum lane's TUNE .. LEVEL) with the locks and hold events on the step (cmd 105 STEPLANE, INFO tag 0x62). Needs the automation store. Off: the editor lists raw parameter ids and has no lane context. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_REC", "FELUCCA_ED_REC", "web editor: the REC key and its state (cmd 107)", Y, 168, parent="OTA",
+     desc="the web editor's REC button in the transport bar: the device's own REC key (arm, start recording, stop, close a free take) and its state: recording, waiting for the start, count-in, free take (cmd 107 REC, INFO tag 0x63). Off: the editor has no REC button. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
