@@ -742,11 +742,15 @@ static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIME
 volatile uint32_t fm1_astage __attribute__((section(".noinit")));
 volatile uint32_t fm1_aloop __attribute__((section(".noinit")));
 static uint32_t fm1_astage_prev, fm1_aloop_prev;
+#if !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
+/* (the markers are read by the console test image's `boot` (prev_audio_stage): elsewhere no code, no flash, no RAM text) */
+#define ASTAGE(s) ((void)0)
+#define ASTAGE0(s) ((void)0)
+#else
 #define ASTAGE(s) (fm1_astage = (s))
+#endif
 /* (code either core may run: only CPU0 writes the marker; CPU1 must not write .noinit, its write limits there) */
-#if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__) && !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
-#define ASTAGE0(s) ((void)0)                       /* (the drum job's fine markers: the console test image only, their RAM
-                                                    * text kept for the second core's code) */
+#if !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
 #elif defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__)
 #define ASTAGE0(s)                                                                                                     \
     do {                                                                                                               \

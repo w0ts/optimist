@@ -733,7 +733,7 @@ static void dual_radio_release(void)
  * norflash_set_write_cpu_hold holds the other core too). Counted: pauses, and those whose stopped bit never showed */
 static uint32_t dual_fp_n, dual_fp_nostop, dual_fp_noack;   /* (noack: 2 = stock's park, CPU1 never said parked) */
 static uint8_t dual_fp_on;
-static void dual_flash_enter(void)
+static __attribute__((noinline)) void dual_flash_enter(void)   /* (one copy, not one per irq_save) */
 {
     if (dual.up && (fm1_dual_mb.done != fm1_dual_mb.req || fm1_dual_mb.fault))
         dual_down(fm1_dual_mb.fault ? DUAL_FAULT : DUAL_FLASH, 0);
@@ -760,7 +760,7 @@ static void dual_flash_enter(void)
         dual_fp_on = 1;
     }
 }
-static void dual_flash_leave(void)
+static __attribute__((noinline)) void dual_flash_leave(void)
 {
     if (dual_fp_on) {
         dual_fp_on = 0;
