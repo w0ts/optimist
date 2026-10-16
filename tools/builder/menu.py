@@ -3,7 +3,7 @@
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
-      | d delete a profile (asks first; never user-default)
+      | d delete a profile (asks first; never synth or user-default)
       | w write a .config file | l load | b build | e build and run it in the emulator
       | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
@@ -518,11 +518,11 @@ class Builder(App):
                     (f"; shared to config/profiles/{n}.config" if shared else "") + " - commit it", timeout=8)
 
     def action_delete(self):
-        """d: pick a profile (mine, then shipped; user-default is never offered), type yes, it is gone"""
+        """d: pick a profile (mine, then shipped; synth and user-default are never offered), type yes, it is gone"""
         mine = [n for n in C.my_profile_names() if n not in C.profile_names()]
-        names = [f"mine: {n}" for n in mine] + [n for n in C.profile_names() if n != C.DEFAULT_PROFILE]
+        names = [f"mine: {n}" for n in mine] + [n for n in C.profile_names() if n not in (C.DEFAULT_PROFILE, C.REFERENCE_PROFILE)]
         if not names:
-            self.notify("no profile to delete (user-default stays)", severity="warning")
+            self.notify("no profile to delete (synth and user-default stay)", severity="warning")
             return
 
         def confirm(n):
@@ -773,7 +773,7 @@ def remember(kind, value):
 
 
 def recall():
-    """-> (cfg, name, path, profile) of the last profile or .config the menu used, else the registry defaults"""
+    """-> (cfg, name, path, profile) of the last profile or .config the menu used, else the default profile"""
     try:
         kind, value = LAST.read_text().splitlines()[:2]
         if kind == "profile":
@@ -784,7 +784,11 @@ def recall():
             return cfg, name or Path(value).stem, value, None
     except (OSError, ValueError, C.ConfigError):
         pass
-    return None, "default", None, None
+    try:
+        cfg, name = C.load_profile(C.DEFAULT_PROFILE)       # never used before: the default profile (Optimist Synth)
+        return cfg, name, None, C.DEFAULT_PROFILE
+    except (OSError, C.ConfigError):
+        return None, "default", None, None
 
 
 def main(argv):

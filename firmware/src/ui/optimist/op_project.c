@@ -258,7 +258,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -336,7 +336,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                                                          * allow to select the source for each of the 4 channels"; ua_tap.h; after BLUETOOTH: USB + BLUETOOTH stay one page) */
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
-    {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
+    {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
@@ -596,12 +596,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         str_cpy(c->val, __DATE__, sizeof c->val);
         c->unit = __TIME__;
-        break;
-    case SI_CHIP:
-        c->label = "CHIP";
-        c->kind = CK_RO;
-        str_cpy(c->val, "AC791N", sizeof c->val);
-        c->unit = DUAL_LOAD ? "2 cores" : "1 core";
         break;
     case SI_REPO:                                       /* the source, as text: the link right-aligned in the unit */
         c->label = " ";                                 /* (blank: the link takes the line's width, the label must not be empty for the help) */

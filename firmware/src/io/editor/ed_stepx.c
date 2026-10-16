@@ -86,6 +86,8 @@ static int ed_auto(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (na < 2u)
         return 0;
     ed_b(a[1]);
+    if (a[1] != 3u)
+        ed_undo_edit(t);                                      /* (v14: the editor's write is an undo level; PLAY is not the pattern) */
     fm1_irq_off();
     switch (a[1]) {
     case 0:
@@ -177,6 +179,7 @@ static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
         int ok = 0;
         if (na < 3u || a[1] >= NSTEP)
             return 0;
+        ed_undo_edit(t);
         fm1_irq_off();
         if (na < 5u) {                                    /* (no value: the lock goes) */
             lock_drop(t, a[1], a[2]);
@@ -207,6 +210,7 @@ static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
     case ED_FILL_SET:
         if (na < 3u || a[1] >= NSTEP)
             return 0;
+        ed_undo_edit(t);
         fm1_irq_off();
         if (cmd == ED_MICRO_SET)
             (void)step_micro_set(t, a[1], (int32_t)a[2] - 64);

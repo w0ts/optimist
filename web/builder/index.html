@@ -1,0 +1,208 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     The web firmware builder: the builder of `make builder` (tools/builder) in the browser, its Python rules run by Pyodide.
+     docs/BUILDER-WEB.md. Served as webapp/builder/ by web/make_site.py (data/ from tools/export_builder_web.py), which
+     puts in the shared style (web/style/optimist.css, docs/WEB-STYLE.md) and header. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimist builder</title>
+<meta name="description" content="Pick the features of an Optimist firmware for the M-VAVE FM-1 and see what fits.">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
+<style>/*OPTIMIST-CSS*/</style>
+<style>
+  /* the builder's own layout; the tokens and components are the shared style's (prefers-color-scheme: light there) */
+  :root { --page-w: 1240px; }
+  .o-page { padding-top: var(--sp-4); }
+
+  /* the gauges: always in view (sticky), with Make it fit and the configuration's key */
+  #gauges { position: sticky; top: 0; z-index: 20; background: var(--surface-1); border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(0, 0, 0, .12); }
+  #gauges .in { max-width: var(--page-w); margin: 0 auto; padding: var(--sp-2) var(--sp-4); display: flex; align-items: center; gap: var(--sp-2) var(--sp-4); flex-wrap: wrap; }
+  #bars { flex: 1 1 560px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2) var(--sp-4); min-width: 0; }
+  #bars:empty::before { content: "The size estimate appears once Python has started."; color: var(--text-dim); font-size: var(--fs-2); }
+  #gauges .side { display: flex; align-items: center; gap: var(--sp-2); flex: 0 1 auto; min-width: 0; }
+  #keychip { cursor: pointer; font-family: var(--font-mono); }
+  #undo:empty { display: none; }
+  #undo.short { color: var(--err); border-color: currentColor; }
+  #fitbox { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--sp-4) var(--sp-2); font-size: var(--fs-2); display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+  #fitbox[hidden] { display: none; }
+  #fitmsg { display: inline-flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+
+  /* loading */
+  #loading { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r); padding: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3); font-size: var(--fs-2); }
+  #loading[hidden] { display: none; }
+  #loading .o-progress { margin: var(--sp-2) 0 var(--sp-1); }
+  #loading.failed { border-left: 3px solid var(--err); }
+
+  /* the toolbar */
+  .tools { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: end; margin: 0 0 var(--sp-2); }
+  #preset { max-width: 300px; }
+  #search { width: 220px; }
+  .grow { flex: 1 1 auto; }
+  #presetdesc { margin: 0 0 var(--sp-2); }
+  #presetdesc:empty { display: none; }
+  #import { margin: 0 0 var(--sp-3); }
+  #import .row2 { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: var(--sp-2) 0; align-items: center; }
+
+  /* the messages: errors, the experimental items that are on; the notes closed */
+  #msgs { margin: 0 0 var(--sp-2); }
+  #msgs:empty { display: none; }
+  #msgs .o-msg .o-info { margin-left: auto; align-self: center; }
+  #notes { margin: 0 0 var(--sp-3); }
+  #notes[hidden] { display: none; }
+  #notes ul { list-style: none; font-size: var(--fs-2); color: var(--text-dim); }
+  #notes li { padding: var(--sp-1) 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  #notes li:first-child { border-top: 0; }
+  #notes li b { color: var(--text); font-weight: 600; }
+
+  /* the list and the details */
+  .cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--sp-3); align-items: start; }
+  #tree { min-width: 0; }
+  .group { margin: 0 0 var(--sp-2); }
+  .group ul { list-style: none; margin: 0; padding: 0; }
+  .group ul ul { padding-left: 22px; margin-left: 14px; border-left: 1px solid var(--line-strong); }
+  .row { display: flex; align-items: flex-start; gap: var(--sp-2); padding: 4px var(--sp-3); border-top: 1px solid var(--line); min-width: 0; min-height: 30px; }
+  .group > ul > li:first-child > .row { border-top: 0; }
+  .row:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+  .row.sel { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+  .row.dead .lab { color: var(--text-mute); }
+  .row .o-check { margin-top: 3px; }
+  .row select { min-height: 22px; font-size: var(--fs-2); flex: none; max-width: 44%; }
+  .row .lab { flex: 1 1 auto; min-width: 0; cursor: pointer; overflow-wrap: anywhere; }
+  .row .lab .k { font: var(--fs-1) var(--font-mono); color: var(--text-mute); margin-left: 6px; }
+  .row .tags { display: flex; flex-wrap: wrap; gap: 2px var(--sp-2); align-items: center; font-size: var(--fs-1); margin-top: 1px; }
+  .row .tags:empty { display: none; }
+  .row .o-info { margin-top: 2px; }
+  .row .fold { flex: none; min-height: 20px; width: 22px; padding: 0; font-size: var(--fs-2); }
+  .cost { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cost.hot { color: var(--err); font-weight: 700; }
+  .cost.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+  .fits { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .kit { color: var(--text-mute); }
+  .xerr { color: var(--err); font-weight: 600; flex-basis: 100%; }
+  .bleline { color: var(--text); flex-basis: 100%; padding: 2px var(--sp-2); border-left: 2px solid var(--accent); background: var(--accent-soft); font-size: var(--fs-2); }
+  #info { position: sticky; top: calc(var(--gauges-h, 60px) + var(--sp-2)); max-height: calc(100vh - var(--gauges-h, 60px) - 2 * var(--sp-2)); overflow: auto; font-size: var(--fs-3); }
+  #info .o-panel-b > :first-child { margin-top: 0; }
+  #info h3 { margin: 0 0 2px; font-size: var(--fs-4); font-weight: 600; }
+  #info .meta { font: var(--fs-1) var(--font-mono); color: var(--text-mute); margin: 0 0 var(--sp-2); overflow-wrap: anywhere; }
+  #info p { margin: 0 0 var(--sp-2); }
+  #info table { border-collapse: collapse; font-size: var(--fs-2); font-variant-numeric: tabular-nums; margin: var(--sp-2) 0; width: 100%; }
+  #info th { font-size: var(--fs-1); color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--line); }
+  #info td, #info th { padding: 3px 6px 3px 0; text-align: right; white-space: nowrap; }
+  #info td:first-child, #info th:first-child { text-align: left; white-space: normal; }
+  #info tbody tr + tr td { border-top: 1px solid var(--line); }
+  #info .tablewrap { overflow-x: auto; }
+  #info .notes { color: var(--text-dim); font-size: var(--fs-2); border-top: 1px solid var(--line); padding-top: var(--sp-2); }
+
+  /* the popover of an item's (i) */
+  #pop { position: fixed; inset: auto; margin: 0; }
+  #pop .src, #info .src { font-size: var(--fs-2); color: var(--text-dim); overflow-wrap: anywhere; }
+
+  /* the result */
+  #result { margin-top: var(--sp-4); }
+  #result .row2 { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: center; margin: 0 0 var(--sp-2); }
+  #result code, #result pre { font: var(--fs-2)/1.45 var(--font-mono); overflow-wrap: anywhere; }
+  #result pre { white-space: pre-wrap; max-height: 260px; overflow: auto; background: var(--surface-0); border: 1px solid var(--line); padding: var(--sp-2); margin: var(--sp-2) 0 0; border-radius: var(--r); }
+  #result .o-details { margin-top: var(--sp-2); }
+  #key { word-break: break-all; }
+
+  @media (max-width: 860px) {
+    .cols { grid-template-columns: minmax(0, 1fr); }
+    #info { position: static; max-height: none; margin: 0 0 var(--sp-2); }
+    #bars { flex-basis: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #gauges .side { flex: 1 1 100%; }
+    #gauges .side #fit { margin-right: auto; }
+  }
+  @media (max-width: 520px) {
+    #gauges .in { padding: 6px var(--sp-4); gap: 6px var(--sp-3); }
+    #bars { gap: 6px var(--sp-3); }
+    .o-gauge > .gn { font-size: var(--fs-1); }
+    #search, #preset { width: 100%; max-width: none; }
+    .tools .o-field { flex: 1 1 100%; }
+    .tools .o-field.half { flex: 1 1 40%; }
+    .row select { max-width: 50%; }
+  }
+</style>
+</head>
+<body class="o-ui">
+<!--OPTIMIST-HEADER-->
+<div id="gauges" role="region" aria-label="Size estimate">
+  <div class="in">
+    <div id="bars"></div>
+    <div class="side">
+      <button type="button" id="fit" disabled>Make it fit</button>
+      <span id="undo" class="o-chip"></span>
+      <button type="button" id="keychip" class="o-chip tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
+      <button type="button" id="how" class="o-info" aria-label="About the estimate" aria-haspopup="dialog">i</button>
+    </div>
+  </div>
+  <div id="fitbox" hidden><span id="fitmsg" role="status"></span><button type="button" id="fitclose" class="quiet sm" aria-label="Close the proposal">×</button></div>
+</div>
+<main class="o-page">
+  <h1 class="o-h1">Firmware builder for the M-VAVE FM-1</h1>
+  <p class="o-lead">Pick what goes into your firmware: the same items, rules and size estimate as <code>make builder</code>. What does not fit is shown, with by how much; you decide what to leave out.</p>
+
+  <div id="loading" role="status" aria-live="polite"><span id="loadtext">Loading the builder</span>
+    <progress id="loadbar" class="o-progress" max="100" aria-label="Loading Python"></progress>
+    <div class="o-dim" id="loadnote">The builder's rules are its Python code, run in this page (Pyodide, about 13 MB the first time, then cached by the browser).</div>
+  </div>
+
+  <div class="tools">
+    <label class="o-field">Start from<select id="preset" aria-describedby="presetdesc"></select></label>
+    <label class="o-field">Name<input id="name" type="text" maxlength="40" autocomplete="off" spellcheck="false"></label>
+    <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
+    <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="pool">pool, largest first</option><option value="ramtext">ramtext, largest first</option></select></label>
+    <button type="button" id="expand">Expand all</button>
+    <button type="button" id="collapse">Collapse all</button>
+    <button type="button" id="reset" disabled>Reset to default</button>
+  </div>
+  <p id="presetdesc" class="o-small o-dim"></p>
+
+  <details class="o-details" id="import">
+    <summary>Load a .config file (or paste one)</summary>
+    <div>
+      <div class="row2"><label class="btn" for="file">Choose a file</label><input id="file" type="file" accept=".config,.txt,text/plain" class="o-sr"><span id="filename" class="o-small o-dim"></span></div>
+      <label for="paste" class="o-sr">.config text</label>
+      <textarea id="paste" placeholder="ENG_FM6=1&#10;FX_REVERB=1&#10;..." spellcheck="false"></textarea>
+      <div class="row2"><button type="button" id="pasteload">Load the pasted text</button><span id="importmsg" class="o-small" role="status"></span></div>
+    </div>
+  </details>
+
+  <div id="msgs" aria-live="polite"></div>
+  <details class="o-details" id="notes" hidden><summary id="notessum">Notes</summary><ul id="noteslist"></ul></details>
+
+  <div class="cols">
+    <section id="tree" aria-label="Items"></section>
+    <aside id="info" class="o-panel" aria-live="polite" aria-label="Details"><div class="o-panel-h"><h2>Details</h2></div><div class="o-panel-b" id="infob"><p class="o-dim">Select an item to see what it does and what it costs.</p></div></aside>
+  </div>
+
+  <section id="result" class="o-panel" aria-label="Your configuration">
+    <div class="o-panel-h"><h2>Your configuration</h2></div>
+    <div class="o-panel-b">
+      <div class="row2">
+        <button type="button" id="download" class="primary" disabled>Download .config</button>
+        <button type="button" id="build" disabled aria-describedby="buildnote">Build in the cloud</button>
+        <span id="buildnote" class="o-small o-dim">Cloud builds are not live yet. Build it yourself from a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</span>
+      </div>
+      <p class="o-small">Configuration hash <code id="hash">-</code> · cloud key <code id="key">-</code></p>
+      <p class="o-small o-dim" id="keynote"></p>
+      <details class="o-details"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
+      <details class="o-details"><summary>The .config file</summary><pre id="dump"></pre></details>
+    </div>
+  </section>
+
+  <footer class="o-foot">
+    Optimist is GPL-3.0-only, no warranty. Source: <a href="https://github.com/w0ts/optimist" rel="noopener" target="_blank">github.com/w0ts/optimist</a>.
+    Python in the page: Pyodide <span id="pyver"></span> (MPL-2.0), loaded from cdn.jsdelivr.net.
+    Licences: <a href="../../LICENSE">LICENSE</a>, <a href="../../LICENSING.md">LICENSING.md</a>.
+  </footer>
+</main>
+<div id="pop" class="o-pop" popover role="dialog" aria-labelledby="poph"></div>
+<div id="toasts" class="o-toasts" aria-live="polite"></div>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

@@ -616,6 +616,8 @@ Turn the LFO's **RATE** down past its slowest free rate (0.05 Hz) and it locks t
 
 ## Optional features (build switches)
 
+The default build profile is **Synth** (`config/profiles/synth.config`, the maintainer's own configuration): the experimental engines and features (X0X drums, ACID, JUNO, DUAL core, BLE, the Optimist UI, USB audio, EQ3) are on in it. `user-default` is the generic reference profile the tests build, and differs from it in exactly those items; docs/BUILDER.md, "Published profiles".
+
 Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
 
 ### Snapshots (`FELUCCA_SNAPSHOTS`, 4 by default)
@@ -704,7 +706,7 @@ An engine of its own (engine 14; a build without it plays a JUNO track on ANALOG
 
 ### Modulation destinations: two slots an envelope and an LFO
 
-ENV, ENV2, LFO and LFO2 each have **two free destinations**: **DST A** with **AMT A**, and **DST B** with **AMT B** (the ENV DEST, ENV2 DEST, LFO DEST and LFO2 DEST pages). All four read **one shared list** of destinations: the engine's own values (named by the engine), the track's level, pan and sends, the S1 and S2 insert amounts (the LFO list names the insert type the slot holds), and the rate (RT) and amount (AMT) of the LFOs, so an envelope or an LFO can move another LFO. The amplitude is ENV slot A on AMP at 127 by default (new tracks, INIT, the presets, old projects); with no amplitude route in ENV's slots the voice plays at full level while ENV runs, then ends. ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave is its own value, **DROP** (VOICE 2 on the Optimist UI, VOICE 3 on SLOOP's). Projects, presets and old motion and p-locks on the old destinations (ENV DEST FLT and SHP, ENV2's amounts) are converted when they load and play onto the slots. User presets are stored as UP_VER 3 (the bank UPB3); older banks are read and converted. Details: [docs/BUILDER.md](docs/BUILDER.md).
+ENV, ENV2, LFO and LFO2 (a second LFO on every synth track, always on) each have **two free destinations**: **DST A** with **AMT A**, and **DST B** with **AMT B** (the ENV DEST, ENV2 DEST, LFO DEST and LFO2 DEST pages). All four read **one shared list** of destinations: the engine's own values (named by the engine), the track's level, pan and sends, the S1 and S2 insert amounts (the LFO list names the insert type the slot holds), and the rate (RT) and amount (AMT) of the LFOs, so an envelope or an LFO can move another LFO. The amplitude is ENV slot A on AMP at 127 by default (new tracks, INIT, the presets, old projects); with no amplitude route in ENV's slots the voice plays at full level while ENV runs, then ends. ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave is its own value, **DROP** (VOICE 2 on the Optimist UI, VOICE 3 on SLOOP's). Projects, presets and old motion and p-locks on the old destinations (ENV DEST FLT and SHP, ENV2's amounts) are converted when they load and play onto the slots. User presets are stored as UP_VER 3 (the bank UPB3); older banks are read and converted. Details: [docs/BUILDER.md](docs/BUILDER.md).
 
 ### Insert effects: generic slots (builder items INS_*, FX_*)
 

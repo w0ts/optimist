@@ -85,15 +85,31 @@ check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 
 check("no shipped profile or estimate configuration names SIMD",
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
            if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
-# the web editor's v13 commands are eight builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+# LFO2 (bit 91) retired 2026-10-16: LFO 2 is always built. An old .config or --set naming it (=0 or =1) loads, says "dropped",
+# and keeps its other keys; the header has no FELUCCA_LFO2 switch; no shipped profile or estimate configuration names it
+for _v in (0, 1):
+    _w = io.StringIO()
+    with contextlib.redirect_stderr(_w):
+        _cfg, _ = C.parse(f"# name: old\nLFO2={_v}\nICONS=0\n")
+        _a = argparse.Namespace(config=None, profile=None, set=[f"LFO2={_v}"], name=None, ble_drop=None)
+        _c3, _ = C.resolve_cli(_a)[:2]
+    check(f"LFO2={_v} in an old .config and as --set: loads, warns \"dropped\" each time, keeps its other keys, ignored",
+          "LFO2" not in _cfg and "LFO2" not in _c3 and _cfg["ICONS"] == 0 and _w.getvalue().count("LFO2 was dropped") == 2 and
+          "FELUCCA_LFO2" not in C.header(_cfg))
+check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configuration hash, no shipped profile or estimate names it",
+      "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
+      not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
+           if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
+# the web editor's v13 and v14 commands are twelve builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
-      "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE"}
-check("web editor items: the eight ED_* exist, options of OTA, on by default, one flag each",
+      "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",
+      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE"}
+check("web editor items: the twelve ED_* exist, options of OTA, on by default, one flag each",
       all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
-check("... the shipped profiles set them only where the slot asks: x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
+check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
+      {"synth": ["ED_FAVS=0", "ED_SCOPE=0"], "user-default": ["ED_DLAN=0", "ED_FAVS=0", "ED_SCOPE=0", "ED_SONG=0"], "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
 _fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
@@ -106,8 +122,8 @@ check("... the commands that read the Optimist UI cost nothing without it (NEEDS
       all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
       C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
       not C.counted(dict(C.defaults(), UI=0), "ED_SCRS") and C.counted(dict(C.defaults(), UI=1), "ED_SCRS"))
-check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM)",
-      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157])
+check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
+      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166])
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
@@ -275,8 +291,21 @@ import tempfile  # noqa: E402
 from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 
 pub = C.published_profiles()
-check(f"published profiles ({', '.join(pub)}): shipped ones, user-default among them",
-      "user-default" in pub and set(pub) <= set(C.profile_names()))
+check(f"published profiles ({', '.join(pub)}): shipped ones, synth and user-default among them",
+      {"synth", "user-default"} <= set(pub) and set(pub) <= set(C.profile_names()))
+# the default profile is Synth (the maintainer's own build); user-default stays the generic reference profile
+_syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
+_syn_errs, _, _ = C.validate(_syn)
+check("the default profile is synth (configure, optimist.py), user-default the reference profile (tests, gate)",
+      C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
+      O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
+_ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
+check("the default profile validates, with the full web editor (every ED_* item at its default but the oscilloscope screen and the favorites command: ED_SCOPE=0 ED_FAVS=0 make room, the user's standing approval 2026-10-16; PARAM_HELP off)",
+      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items() if k not in ("ED_SCOPE", "ED_FAVS")) and
+      _syn["ED_SCOPE"] == 0 and _syn["ED_FAVS"] == 0)
+_syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
+check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
+      _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
 out = io.StringIO()
 with redirect_stdout(out):
     rc = C.main(["--published"])
@@ -333,14 +362,15 @@ with tempfile.TemporaryDirectory() as tmp:
           "gone" not in C.my_profile_names() and "a" not in C.profile_names())
     (C.PROFILES / "user-default.config").write_text("ICONS=0\n")
     refused = []
-    for n in ("user-default", "nope"):
+    (C.PROFILES / "synth.config").write_text("ICONS=0\n")
+    for n in ("synth", "user-default", "nope"):
         try:
             C.delete_profile(n)
             refused.append(False)
         except C.ConfigError:
             refused.append(True)
-    check("... never user-default (make's and the CLI's default), nor a name with no profile",
-          all(refused) and "user-default" in C.profile_names())
+    check("... never synth (make's and the CLI's default) or user-default (the reference profile), nor a name with no profile",
+          all(refused) and {"synth", "user-default"} <= set(C.profile_names()))
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())

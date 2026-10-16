@@ -10,91 +10,86 @@
 <link rel="icon" href="../../favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <link rel="manifest" href="../../manifest.webmanifest">
+<style>/*OPTIMIST-CSS*/</style>
 <style>
-  :root { --bg: #000; --fg: #f2f2f2; --dim: #8a8a92; --tile: #16161a; --line: #2a2a30;
-          --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; --on: #000; color-scheme: dark; }
-  @media (prefers-color-scheme: light) {   /* follows the system, live; no switch */
-    :root { --bg: #f4f4f2; --fg: #14141a; --dim: #5e5e66; --tile: #e6e6e2; --line: #d0d0cc;
-            --blue: #1f62d6; --green: #17803f; --yellow: #a56a00; --orange: #c8400a; --red: #c42a30; --on: #fff; color-scheme: light; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-         font: 15px/1.6 "Helvetica Neue", -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
-  main { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
-  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--fg); text-decoration: none; }
-  .brand svg { display: block; width: 44px; height: 44px; }
-  .brand b { font-size: 26px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
-  .dim { color: var(--dim); }
-  .strip { display: flex; height: 4px; margin: 20px 0 24px; }
-  .strip i { flex: 1; } .strip i:nth-child(1) { background: var(--blue); } .strip i:nth-child(2) { background: var(--green); }
-  .strip i:nth-child(3) { background: var(--yellow); } .strip i:nth-child(4) { background: var(--orange); }
-  h1 { font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
-  .lead { font-size: 20px; line-height: 1.35; margin: 0 0 24px; }
-  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 28px; }
-  .tile { background: var(--tile); padding: 10px 10px 12px; border-top: 3px solid var(--c); min-height: 92px; }
-  .tile b { display: block; font-size: 22px; font-weight: 600; color: var(--c); line-height: 1.1; }
-  .tile span { display: block; font-size: 12px; color: var(--dim); text-transform: lowercase; margin-top: 4px; }
-  p { margin: 0 0 14px; }
-  button#go { font: 600 15px/1 inherit; font-family: inherit; background: var(--orange); color: var(--on); border: 0;
-              padding: 16px 0; width: 100%; cursor: pointer; letter-spacing: .08em; text-transform: uppercase; }
-  button#go:disabled { background: var(--tile); color: var(--dim); cursor: default; }
-  #status { margin-top: 14px; min-height: 1.6em; font-variant-numeric: tabular-nums; }
-  .small { color: var(--dim); font-size: 12.5px; }
-  .small a, a { color: inherit; }
-  progress { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin-top: 16px; border: 0; background: var(--tile); }
-  progress::-webkit-progress-bar { background: var(--tile); }
-  progress::-webkit-progress-value { background: var(--orange); }
-  progress::-moz-progress-bar { background: var(--orange); }
-  pre { color: var(--dim); font-size: 11px; white-space: pre-wrap; margin-top: 12px; max-height: 160px; overflow: auto; }
-  hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 18px; }
-  .ed { display: inline-block; margin: 8px 0 0; padding: 10px 14px; background: var(--tile); text-decoration: none; }
-  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  /* the installer's own layout; light and dark: the shared style's tokens (prefers-color-scheme: light there) */
+  :root { --page-w: 600px; }
+  .o-page { padding-top: var(--sp-5); }
+  .o-lead { font-size: var(--fs-5); line-height: 1.4; margin-bottom: var(--sp-5); }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-1); margin: 0 0 var(--sp-5); }
+  .tile { background: var(--surface-1); border: 1px solid var(--line); border-top: var(--bar-h) solid var(--c); border-radius: var(--r); padding: var(--sp-2) var(--sp-2) var(--sp-3); min-height: 88px; }
+  .tile b { display: block; font-size: var(--fs-6); font-weight: 600; color: var(--c); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile span { display: block; font-size: var(--fs-2); color: var(--text-dim); text-transform: lowercase; margin-top: var(--sp-1); }
+  p { margin: 0 0 var(--sp-3); }
+  .install { background: var(--surface-1); border: 1px solid var(--line); border-top: var(--bar-h) solid var(--accent); border-radius: var(--r); padding: var(--sp-4); margin: 0 0 var(--sp-4); }
+  .install p:last-child { margin-bottom: 0; }
+  #pkgsel { width: 100%; }
+  #pkgdesc:empty { display: none; }
+  button#go { width: 100%; }
+  #bar { margin-top: var(--sp-3); }
+  #status { margin: var(--sp-2) 0 0; min-height: 1.45em; font-variant-numeric: tabular-nums; }
+  #log { color: var(--text-dim); font-size: var(--fs-1); white-space: pre-wrap; margin: var(--sp-2) 0 0; max-height: 160px; overflow: auto; }
+  #log:empty { display: none; }
+  .apps { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin: 0 0 var(--sp-5); }
+  .app { display: block; background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r); padding: var(--sp-3); text-decoration: none; font-size: var(--fs-3); color: var(--text); }
+  .app:hover { background: var(--surface-2); border-color: var(--line-strong); }
+  .fine { font-size: var(--fs-2); color: var(--text-dim); }
+  .fine p { margin: 0 0 var(--sp-2); }
+  #stock { margin: var(--sp-3) 0; }
+  #stock p { margin: var(--sp-2) 0; }
+  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } .apps { grid-template-columns: 1fr; } }
 </style>
 </head>
-<body>
-<main>
-  <div class="top"><a class="brand" href="../../" title="Optimist"><!--LOGO--><b>Optimist</b></a></div>
-  <div class="strip"><i></i><i></i><i></i><i></i></div>
+<body class="o-ui">
+<!--OPTIMIST-HEADER-->
+<main class="o-page">
   <!--STUDIO_GUIDE-->
-  <h1>Firmware for the M-VAVE FM-1</h1>
-  <p class="lead">A groovebox you play live: four tracks — three synths and a drum machine — 9 synth engines, 54 sounds, 34 drum kits from 808 to techno, afro and ambient, your own samples, 16 punch-in effects. House, techno, hip-hop, drum &amp; bass, synthwave, lo-fi, ambient: make what you want. No factory patterns, nothing to load: everything you hear, you play.</p>
+  <h1 class="o-h1">Firmware for the M-VAVE FM-1</h1>
+  <p class="o-lead">A groovebox you play live: four tracks — three synths and a drum machine — 9 synth engines, 54 sounds, 34 drum kits from 808 to techno, afro and ambient, your own samples, 16 punch-in effects. House, techno, hip-hop, drum &amp; bass, synthwave, lo-fi, ambient: make what you want. No factory patterns, nothing to load: everything you hear, you play.</p>
   <div class="tiles">
-    <div class="tile" style="--c: var(--blue)"><b>54</b><span>sounds, 9 engines, your samples</span></div>
-    <div class="tile" style="--c: var(--green)"><b>34</b><span>drum kits, 909 to afro</span></div>
-    <div class="tile" style="--c: var(--yellow)"><b>16</b><span>punch-in fx: hold fx + key</span></div>
-    <div class="tile" style="--c: var(--orange)"><b>rec</b><span>no click: the loop follows you</span></div>
+    <div class="tile" style="--c: var(--t1)"><b>54</b><span>sounds, 9 engines, your samples</span></div>
+    <div class="tile" style="--c: var(--t2)"><b>34</b><span>drum kits, 909 to afro</span></div>
+    <div class="tile" style="--c: var(--t3)"><b>16</b><span>punch-in fx: hold fx + key</span></div>
+    <div class="tile" style="--c: var(--t4)"><b>rec</b><span>no click: the loop follows you</span></div>
   </div>
-  <p data-t="intro"></p>
-  <p data-t="warn"></p>
-  <p><select id="pkgsel" hidden aria-label="Firmware"></select></p>
-  <p id="pkgdesc" class="dim"></p>
-  <p><button id="go" disabled data-t="install"></button></p>
-  <progress id="bar" max="100" value="0"></progress>
-  <p id="status"></p>
-  <pre id="log"></pre>
-  <a class="ed" href="../editor/" data-t="editor"></a>
-  <hr>
-  <p class="small" data-t="direct"></p>
-  <p class="small" data-t="beta"></p>
-  <p class="small"><span data-t="brick"></span>
+  <section class="install" aria-label="Install">
+    <p data-t="intro"></p>
+    <p class="o-dim" data-t="warn"></p>
+    <p><select id="pkgsel" hidden aria-label="Firmware"></select></p>
+    <p id="pkgdesc" class="o-dim"></p>
+    <p><button id="go" class="primary o-btn big" disabled data-t="install"></button></p>
+    <progress id="bar" class="o-progress" max="100" value="0"></progress>
+    <p id="status" role="status"></p>
+    <pre id="log"></pre>
+  </section>
+  <nav class="apps" aria-label="After installing">
+    <a class="app ed" href="../editor/" data-t="editor"></a>
+    <a class="app ed" href="../builder/" data-t="builder"></a>
+  </nav>
+  <div class="fine">
+  <p data-t="direct"></p>
+  <p data-t="beta"></p>
+  <p><span data-t="brick"></span>
     <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">FM-1-transporter</a></p>
-  <p class="small" data-t="back"></p>
-  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download</a></p>
+  <p data-t="back"></p>
+  <p><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download</a></p>
   <!-- return to the official V15 from this page (after Felucca 1.0.1's installer, Leo Kuroshita, GPL-3.0-only) -->
-  <details class="small"><summary data-t="stockTitle"></summary>
+  <details class="o-details" id="stock"><summary data-t="stockTitle"></summary>
+    <div>
     <p data-t="stockHow"></p>
-    <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
+    <p><label class="o-field"><span data-t="stockFile"></span><input id="stock-file" type="file" accept=".fwsc"></label></p>
     <p><button id="stock-go" disabled data-t="stockGo"></button></p>
     <p data-t="stockSave"></p>
+    </div>
   </details>
-  <p class="small">Optimist is based on SLOOP (isod89/sloop-fm1) and on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
+  <footer class="o-foot">Optimist is based on SLOOP (isod89/sloop-fm1) and on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
     Hold OCT− alone while switching on for USB rescue.<br>
     Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0), and the Hügelton Sample Pack (© Hügelton Instruments, GPL-3.0-only).<br>
     M-VAVE and FM-1 are trademarks of their respective owners; Optimist is not affiliated with them.<br>
     <span data-t="license"></span> <a href="https://github.com/w0ts/optimist<!--SRCREF-->" target="_blank" rel="noopener">github.com/w0ts/optimist</a><br>
     The package also holds three unmodified files of the JieLi AC79 SDK (<code>uboot.boot</code>, <code>cfg_tool.bin</code>, <code>eq_cfg_hw.bin</code>; Apache-2.0, <a href="https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK" target="_blank" rel="noopener">Jieli-Tech/fw-AC79_AIoT_SDK</a>).
-    Licences: <a href="../../LICENSE">LICENSE</a>, <a href="../../LICENSING.md">LICENSING.md</a>, <a href="../../LICENSES/Apache-2.0.txt">Apache-2.0</a>.</p>
+    Licences: <a href="../../LICENSE">LICENSE</a>, <a href="../../LICENSING.md">LICENSING.md</a>, <a href="../../LICENSES/Apache-2.0.txt">Apache-2.0</a>.</footer>
+  </div>
 </main>
 <script type="module">
 /*LIB*/
@@ -105,6 +100,7 @@ const TEXT = {
   install: "Install",
   backupFirst: "Back up first? (projects, kits, presets)\nOK: open the editor's Backup (then come back here)\nCancel: install now",
   editor: "Editor (after installing: edit sounds and sequences from the computer)",
+  builder: "Builder (pick the features of your own firmware and see what fits)",
   direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
   brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
   beta: "This is a beta and may be unstable. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",

@@ -295,10 +295,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_TRK_FILT 0                 /* SLOOP 2.4's track FILTER (P_TFLT): FX > FILTER, FX + KNOB 4; LP <- off -> HP
                                             * on each part and on the drum bus with all its sends (fx.c tflt_*) */
 #endif
-#ifndef FELUCCA_LFO2
-#define FELUCCA_LFO2 0                     /* LFO 2: a second LFO a part (core.h P_L2RATE .. P_L2AB, voice.c lfo2_tick):
-                                            * RATE (SYNC), WAVE, TRIG, POL, one DEST and its AMT */
-#endif
 /* more insert types for the tracks' insert slots (fx/insfx/insfx.c; fx_slots.c S1 S2), each a builder item: FOLD FUZZ
  * PHSR FLNG after Felucca 1.5.6's track INSERT, FRMT WIDE after Melodee 1.3.1's inserts */
 #ifndef FELUCCA_INS_FOLD
@@ -330,6 +326,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_INS_JCHORUS
 #define FELUCCA_INS_JCHORUS 0              /* JUNO CHORUS: the Juno-106's chorus (fx/junocho), 2 KB of pool an instance */
+#endif
+#ifndef FELUCCA_RET_FB
+#define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif
 #ifndef FELUCCA_INS_EQ3
 #define FELUCCA_INS_EQ3 0                  /* EQ3: a three-band DJ EQ (fx/insfx/eq3.c, Ableton's EQ Three), any number */
@@ -448,6 +447,18 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_ED_SCOPE
 #define FELUCCA_ED_SCOPE 1                    /* web editor protocol v13: the oscilloscope's trace (cmd 101, tag 0x5E; the Optimist UI) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_UNDO
+#define FELUCCA_ED_UNDO 1                    /* web editor protocol v14: undo and redo (cmd 102, tag 0x5F) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_NOTE
+#define FELUCCA_ED_NOTE 1                    /* web editor protocol v14: notes played from the editor (cmd 103, tag 0x60) (io/editor/ed_*.c, seq/ednote.c) */
+#endif
+#ifndef FELUCCA_ED_SOLO
+#define FELUCCA_ED_SOLO 1                    /* web editor protocol v14: track and lane solo and mute (cmd 104, tag 0x61) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_STEPLANE
+#define FELUCCA_ED_STEPLANE 1                /* web editor protocol v14: a step in a drum lane's context, its lockable values (cmd 105, tag 0x62; the automation store) (io/editor/ed_*.c) */
 #endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */

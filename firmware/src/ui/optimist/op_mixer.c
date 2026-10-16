@@ -36,7 +36,8 @@ static int mx_is_usb(uint32_t r) { return r == MXR_USB; }
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
 enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA,
-       MI_UT, MI_UTST, MI_UTSA, MI_UEQ };
+       MI_UT, MI_UTST, MI_UTSA, MI_UEQ, MI_RSND };
+/* MI_RSND: a send between the returns (fx_slots.c rs_amt's index: A -> B, A -> C, B -> C; MASTER's A SENDS, B SENDS) */
 /* MI_UT: the USB input's value id (fx_slots.c ut_desc: VOLUME PAN MUTE FX ON REV DLY CHO, GATER's PAT RATE SHAPE, JUNO's
  * MODE), MI_UTST / MI_UTSA its slot id's TYPE / amount, MI_UEQ its EQ3's value id (fx_slots.c FXS_ID_UEQ + id) */
 /* MI_MINST / MI_MINSA: MASTER's insert slot id's TYPE / amount (fx_slots.c mst_slot, fx-rework 2026-10-14) */
@@ -47,13 +48,15 @@ enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI
  * MASTER its FILT DUST DUCK), the insert effects (DRIVE / DIST, FILTER, COMP; MASTER: its compressor), the sends (REV DLY
  * CHO), then the rest (FX on, the sound or the kit). A group starts a set of its own where the padding fits MX_MAXI */
 enum { MG_MIX, MG_INS, MG_SEND, MG_LAST,
-       MG_UEQ, MG_UEQF, MG_UGT, MG_UJC };              /* (the USB input's insert settings: a set each, named by mix_name) */
+       MG_UEQ, MG_UEQF, MG_UGT, MG_UJC,                /* (the USB input's insert settings: a set each, named by mix_name) */
+       MG_RSA, MG_RSB, MG_RSC };                       /* (MASTER: return A's sends, B's, C's (RET_FB): a set each) */              /* (the USB input's insert settings: a set each, named by mix_name) */
 typedef struct {
     const char *label;                                  /* 0: the descriptor's */
     uint8_t kind, id;                                   /* MI_*; a P_* / G_* / lane value id / screen */
     uint8_t grp;                                        /* MG_* */
 } mitem_t;
-#define MX_MAXI 24u                                     /* (the USB row at most: 4 + 4, two types' settings, 4) */
+#define MX_MAXI 32u                                     /* (the USB row: 4 + 4, two types' settings, 4; MASTER: 4 + 4, the
+                                                        * returns 4, A's B's (C's: RET_FB) sends 4 each, DUCK) */
 static struct {
     uint8_t set;                                        /* the knob set shown (SELECT) */
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
@@ -166,6 +169,29 @@ static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
             n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(t)), MI_RET, G_CRET + FXS_LN(t));
     return n;
 }
+/* MASTER's return sends (2026-10-16, fx_slots.c rs_amt): a set a return that may send, A SENDS then B SENDS, in a track's
+ * sends grammar: cards 1..3 the returns A B C (the card of the return a send goes to, named by what it holds; blank: the
+ * return itself, one to its left, an empty one), card 4 blank (a return has no PAN). C sends to none: no set. A return
+ * holding nothing, or nothing to its right: no set. With RET_FB (the feedback sends) each return sends to the other two
+ * (A: B C, B: A C, C: A B), C SENDS too; blank: the return itself, an empty one */
+static uint32_t mx_items_rsend(mitem_t *it, uint32_t n)
+{
+    uint32_t s, k, i, any;
+    int16_t *vp;
+    for (s = 1; s < (FELUCCA_RET_FB ? 4u : 3u); s++) {   /* (RET_FB: C SENDS too, and B's to A, C's to A and B) */
+        for (k = 0, any = 0; rs_of(s, k) < RS_N; k++)
+            any |= rs_desc(rs_of(s, k), &vp) != 0;
+        if (!any)
+            continue;
+        for (k = 0; k < 4u; k++) {
+            for (i = 0; rs_of(s, i) < RS_N && RS_DST[rs_of(s, i)] != k + 1u; i++)
+                ;
+            n = rs_of(s, i) < RS_N ? mx_add(it, n, MG_RSA + s - 1u, 0, MI_RSND, rs_of(s, i)) :
+                                     mx_add(it, n, MG_RSA + s - 1u, 0, MI_NONE, 0);
+        }
+    }
+    return n;
+}
 #if FELUCCA_USB_AUDIO
 /* the USB input's insert settings, while one of its slots holds the type (the input has no SOUND pages: they are its row's
  * sets, after its slots, as MASTER's DYN): EQ3's LO MID HI, then FREQ L FREQ H (USB EQ3, USB EQ3 F); GATER's PAT RATE
@@ -213,6 +239,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
         }
 #endif
         n = mx_items_ret(it, n);
+        n = mx_items_rsend(it, n);
         if (g_built(G_DUCK))
             n = mx_add(it, n, MG_LAST, "DUCK", MI_GLOB, G_DUCK);
         return n;
@@ -329,6 +356,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_RET:                                        /* (a send's return: its G_* id) */
         *vp = &song.g[m->id];
         return &GP[m->id];
+    case MI_RSND:                                       /* (a send between the returns: none, a blank card) */
+        return rs_desc(m->id, vp);
     case MI_ACC:                                        /* the ACCENT amount: the drum track's own value */
         *vp = &TDRUM->p[P_DACC];
         return &DRUM_ACC_DESC;
@@ -411,11 +440,12 @@ static void mix_name(uint32_t r, char *b)
     uint32_t g;
     r %= MXR_N;
     mx_items(r, it);
-    g = it[mx_set(r) * 4u].grp & 7u;
+    g = it[mx_set(r) * 4u].grp;
     if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
-        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_LAST ? "DUCK" : it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
+        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_RSA ? "A SENDS" : g == MG_RSB ? "B SENDS" : g == MG_RSC ? "C SENDS" : g == MG_LAST ? "DUCK" :
+                   it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
     else
-        str_cpy(b, G[g], 12);
+        str_cpy(b, G[g & 7u], 12);
 }
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
@@ -446,7 +476,9 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
                            (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
                           mx_muted(r));   /* (the volume cards of a muted row) */
     if (m.kind == MI_ACC)
-        c->hlp = "ACCENT LEVEL";                        /* (op_help.c: its own line, the amount) */
+        c->hlp = "ACCENT LEVEL";
+    if (m.kind == MI_RSND)
+        c->hlp = "RET SEND";                            /* (a send between the returns: one line, whatever the target holds) */                        /* (op_help.c: its own line, the amount) */
     c->col = mx_col(r);
 }
 static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value id (the offsets and the sends) */

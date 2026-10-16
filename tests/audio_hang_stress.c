@@ -21,6 +21,7 @@
  * HOST_DUAL=1 (with FELUCCA_DUAL=2): the second core as a thread (tests/audio_hang_dual.h); with -fsanitize=thread.
  *   env: HANG_MODE=det|sig, HANG_SEED=n, HANG_FRAMES=n (det; default 6000), HANG_SECS=n (sig; default 10), HANG_MS=n */
 #define HOST_IRQ_HOOKS 1
+#define EDN_HOST 1                                      /* seq/ednote.c is built: the stress writes the editor's note ring from the main loop */
 #ifndef FELUCCA_DUAL
 #define FELUCCA_DUAL 0
 #endif
@@ -316,6 +317,10 @@ static void act_notes(void)
             ;
         kb_next = (kb_next & ~(1u << i)) | 1u << k;
     }
+#if EDN_ON
+    if (R(3) == 0)                                      /* the web editor's notes (v14, ednote.c): the main loop is the ring's one writer, events_block (ISR) its reader */
+        (void)ednote_push(R(4) ? (R(3) ? EDN_OP_ON : EDN_OP_OFF) : (R(2) ? EDN_OP_OFF : EDN_OP_FORGET), R(NTRK), is_drum(&trk[0]) ? 0u : 36u + R(48), 1u + R(127));
+#endif
     if (!sig_mode)
         fm1_in.notes = kb_next;                         /* (sig mode: TIMER5's scan takes it) */
 }
@@ -403,6 +408,17 @@ static void act_step(void)                              /* a step put / cleared,
 #endif
     fm1_irq_on();
 }
+/* the sends between the returns (fx_slots.c rs_amt, fx.c rs_block: the chain planned in the ISR), a return's type swapped
+ * under them (fxs_load: its lines, IRQ_SAVE) */
+static void act_rsend(void)
+{
+    static const uint8_t T[] = {FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO, FXT_FILT, FXT_DIST};
+    where_now = "rsend";
+    if (R(4))
+        rs_amt[R(RS_N)] = (int16_t)(R(3) ? R(128) : 0);   /* (a knob: a 16-bit store, as the UI does) */
+    else
+        fxs_load(1u + R(3), T[R(sizeof T)]);
+}
 static void act_misc(void)
 {
     uint32_t r = R(12);
@@ -481,6 +497,8 @@ static void stress_frame(void)
             act_global();
         else if (r < 88)
             act_step();
+        else if (r < 91)
+            act_rsend();
         else
             act_misc();
         maybe_isr();

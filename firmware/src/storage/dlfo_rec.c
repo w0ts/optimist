@@ -27,10 +27,8 @@ static void proj_patch(int16_t *v, uint32_t k);        /* (project.c: a track's 
 static uint32_t mrec_grp(uint32_t g, uint32_t *n)
 {
     *n = g == 1u ? 8u : 4u;
-#if FELUCCA_LFO2
     if (g == 1u)
         return P_L2RATE;
-#endif
 #if FELUCCA_ANALOG2
     if (g == 3u)
         return P_N2DA;

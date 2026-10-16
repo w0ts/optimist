@@ -43,7 +43,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
               "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
-              "io/editor/ed_fav.c", "io/editor/ed_scope.c",
+              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
@@ -86,7 +86,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
-               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c"]
+               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
                "engines/acid/bass303.c")

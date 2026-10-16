@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* LFO DEST's two slots (core.h LT_*, P_L1DA .. P_L1AB; voice.c lfo_dep / lfo_apply / lfo_over; params.c lfo_*), both
- * LFOs. Run by tests/run_tests.sh with LFO2=1 (everything) and LFO2=0 (the destinations without XRATE XAMT):
+ * LFOs. Run by tests/run_tests.sh :
  *   depths    the four depths of before -> two slots: the two of the most weight (AMP's at half), in the depths' order,
  *             AMT 2 x (AMP 1 x), the rest counted lost; back to depths exactly, every combination of up to two
  *   sound     a part with up to two depths of before renders sample for sample as their slots (the old arithmetic
@@ -10,7 +10,7 @@
  *             and read back the same; three or four depths: two kept
  *   values    PAN LVL ATK DEC RES E1..E8 moved for the block between pold_in and pold_out (+-half the range at full,
  *             clamped), the authored values back after; RES: the engine's EDIT value named RES / RESO / Q
- *   cross     (LFO2) XRATE: the other LFO's free RATE moved (a synced one stays), XAMT: its AMTs x 0..2; both LFOs on
+ *   cross     XRATE: the other LFO's free RATE moved (a synced one stays), XAMT: its AMTs x 0..2; both LFOs on
  *             each other for 2000 blocks: every value in range, the authored ones untouched (no runaway)
  *   macros    (MACROS) MOTION gives LFO's FLT depth as before, with or without a slot on FLT
  *   events    an old lock / motion on a depth: onto the slot on it (AMT units), else onto a slot that does nothing
@@ -219,11 +219,7 @@ static void bracket(int32_t v1, int32_t v2)
 {
     uint32_t m;
     trk[0].lfo_val = v1, trk[0].lfo_fade = 32767;
-#if FELUCCA_LFO2
     lfo2[0].v = v2;
-#else
-    (void)v2;
-#endif
     m = pold_any() ? pold_in() : 0u;
     memcpy(in_v, trk[0].p, sizeof in_v);
     if (m)
@@ -281,7 +277,6 @@ static void t_values(void)
     t->p[P_L1DA] = t->p[P_L1AA] = t->p[P_L1DB] = t->p[P_L1AB] = 0;
     check(!lfo_over_any(), "values: no slot on a value: nothing bracketed");
 }
-#if FELUCCA_LFO2
 static void t_cross(void)
 {
     track_t *t = &trk[0];
@@ -312,7 +307,6 @@ static void t_cross(void)
     }
     check(ok, "cross: LFO and LFO 2 on each other's RATE and AMT for 2000 blocks: every value in range, the authored untouched");
 }
-#endif
 #if FELUCCA_MACROS
 static void t_macros(void)
 {
@@ -391,7 +385,6 @@ static void t_names(void)
     ok = !strcmp(b, "PAN");
     dest_text(&TP[P_L1DA], LT_OFF, b);
     check(ok && !strcmp(b, "OFF"), "names: the other destinations keep their plain names");
-#if FELUCCA_LFO2
     dest_text(&TP[P_L1DA], LT_L2RT, b);
     ok = !strcmp(b, "L2 RT");
     dest_text(&TP[P_L1DB], LT_L2AMT, b);
@@ -401,7 +394,6 @@ static void t_names(void)
     dest_text(&TP[P_L2DB], LT_L1AMT, b);
     ok &= !strcmp(b, "L1 AMT");
     check(ok, "names: L1 RT / L1 AMT, L2 RT / L2 AMT the same on every DEST (one list)");
-#endif
 }
 
 /* phase 2 names: INS1 / INS2 show the type the selected track's slot holds, as INSERTS names it; empty: "S1 --" */
@@ -460,14 +452,12 @@ int main(void)
     t_values();
     t_names();
     t_ins_names();
-#if FELUCCA_LFO2
     t_cross();
-#endif
 #if FELUCCA_MACROS
     t_macros();
 #endif
     t_events();
     (void)q2;
-    printf("lfo_slots_test (LFO2=%d): %d failed\n", FELUCCA_LFO2, fails);
+    printf("lfo_slots_test: %d failed\n", fails);
     return fails;
 }

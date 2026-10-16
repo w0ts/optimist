@@ -2671,7 +2671,7 @@ async function masterStrip() {
      returns (2026-10-12: CRET DRET RRET, G_CRET.., the device's mixer MASTER row) are not on the strip yet: DLY RET scales
      dmix, CHO / REV RET their wet (fx.c) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*G_DRET/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*G_DRET/.test(fxc) && /dly_step\((dly_in|in)\[i\], dl, col, fb, dmix/.test(fxc)
     && /song\.g\[G_RRET\]/.test(fxc) && /song\.g\[G_CRET\]/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
     "master strip: Delay MIX, Reverb SIZE, Chorus CDP beside the icons; the firmware's FX returns (DLY RET in dmix, CHO / REV RET) not on the strip yet");
   /* Settings: only true settings; every parameter that left it is in the mixer */

@@ -352,7 +352,7 @@
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
-      "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built", "CHIP": "The processor and its cores",
+      "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},
     {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "Whose work Optimist uses"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
@@ -392,16 +392,18 @@
     {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT LANE": "Raises every hit of its step",
       "ACCENT LEVEL": "Accent amount added to hits"}},
-    {"kind": "page", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
+    {"kind": "op", "ctx": "INSERTS", "params": {
+      "RET SEND": "Send this return into that"}},
+    {"kind": "page", "ctx": "LFO 2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
-    {"kind": "page", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
+    {"kind": "page", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
       "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
-    {"kind": "op", "ctx": "LFO 2", "if": "FELUCCA_LFO2", "params": {
+    {"kind": "op", "ctx": "LFO 2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
-    {"kind": "op", "ctx": "LFO2 DEST", "if": "FELUCCA_LFO2", "params": {
+    {"kind": "op", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
       "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_PATTERNS", "params": {

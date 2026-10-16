@@ -233,26 +233,24 @@ static int gls_ble_enter(void)                          /* YES on BLE, from the 
 static int gls_about_info(void)
 {
     uint32_t ok = 1, i, f = gl_pfirst(1, gl_npg(1) - 2u);   /* (the page before the last, CREDITS) */
-    cell_t c, v, b, ch, rp;
+    cell_t c, v, b, rp;
     char nm[24];
     gl_cell(1, f, &v);
     gl_cell(1, f + 1u, &b);
-    gl_cell(1, f + 2u, &ch);
-    gl_cell(1, f + 3u, &rp);
+    gl_cell(1, f + 2u, &rp);
     gl_ptitle(1, f, nm, sizeof nm);
-    ok &= !strcmp(nm, "About") && gl_end(1, f) - f == 4u && !strcmp(v.label, "VERSION") && !strcmp(b.label, "BUILD");
+    ok &= !strcmp(nm, "About") && gl_end(1, f) - f == 3u && !strcmp(v.label, "VERSION") && !strcmp(b.label, "BUILD");
     ok &= !strcmp(b.val, __DATE__) && !strcmp(b.unit, __TIME__) && strlen(b.val) >= 10u && strlen(b.unit) == 8u;   /* (the date and time) */
-    ok &= !strcmp(ch.label, "CHIP") && !strcmp(ch.val, "AC791N") && ch.unit[0];
     ok &= rp.kind == CK_RO && !strcmp(rp.unit, "github.com/w0ts/optimist");
-    ok &= v.kind == CK_RO && b.kind == CK_RO && ch.kind == CK_RO;
-    for (i = 0; i < 4u; i++) {                          /* the date, the time and the link fit their line */
+    ok &= v.kind == CK_RO && b.kind == CK_RO;
+    for (i = 0; i < 3u; i++) {                          /* the date, the time and the link fit their line */
         gl_cell(1, f + i, &c);
         if (getenv("GLSTYLE_DUMP"))
             printf("  glstyle: About line %u: label %d value %d unit %d\n", i, text_w(&FONT_S, c.label), text_w(&FONT_S, c.val), text_w(&FONT_S, c.unit));
         ok &= text_w(&FONT_S, c.val) + text_w(&FONT_S, c.unit) + text_w(&FONT_S, c.label) + 24 + 8 <= 236;   /* (the label, a gap, the value) */
     }
     if (!ok)
-        printf("  glstyle: About '%s' '%s' '%s' '%s'\n", b.val, b.unit, ch.val, rp.unit);
+        printf("  glstyle: About '%s' '%s' '%s'\n", b.val, b.unit, rp.unit);
     return (int)ok;
 }
 static int gls_credits(void)                            /* the last page: CREDITS, text lines that fit, LICENSING.md the last */

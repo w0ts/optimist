@@ -37,10 +37,10 @@
  * the ANALOG filter TYPE (P_FTYPE: LP BP HP) of an ANALOG part -> our ANALOG 2's FTYP (LP: as 2.4, BP, HP); LFO 2's
  * SYNC (P_LSYNC n, 1 4BAR .. 10 1/32) -> the part's LFO RATE -n (params.c LRATE_OF_SLOOP; OFF: its free RATE, kept;
  * a lock on SYNC is dropped, below). 2.6's "LFO 2" page is its one LFO's SYNC TRIG POL: a part whose LFO is TRIG FREE or
- * POL UNI (P_LTRIG, P_LPOL; ours restarts on a note and is bipolar) moves to our LFO 2 when built (FELUCCA_LFO2), which
+ * POL UNI (P_LTRIG, P_LPOL; ours restarts on a note and is bipolar) moves to our LFO 2, which
  * has both: its two slots with the LFO's RATE and WAVE (sl26_lfo2_in, what it loses there). LOST:
- *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's TRIG and POL without LFO2 (or on
- *     the depths that stay on LFO): not ours; their values and their locks dropped;
+ *   - the INSERT (TYPE, A, B, C, MIX: P_ITYPE .. P_IMIX), ENV SYNC (P_ESYNC), LFO 2's TRIG and POL on
+ *     the depths that stay on LFO: not ours; their values and their locks dropped;
  *   - FTYPE on a part that is not ANALOG (2.6 plays it on ANALOG only);
  *   - GLO > TEXTURE (SRC LEVEL TONE MOVE RATE WHEN DUCK, in the spare bytes and the slots of G_DRCH and G_INFO):
  *     those two globals take our defaults;
@@ -145,7 +145,7 @@ _Static_assert(SL26_MF + 64u + 4u * NLOCK == SL26_TRK && 12u + 2u * PJ_NG + NTRK
                "SLOOP 2.6's FUN6 (tests/sl26_gen.c, with its own types)");
 /* a SLOOP 2.6 project (sl26_is) at b, in place -> a 2.5 one (sl24_is; b holds SL24_SIZE bytes). Each track from the
  * last, each part of it from its end (FUN5's are 6 bytes longer: nothing is read after it is written over). -> the
- * parts' ANALOG filter TYPE, 2 bits each (1 BP, 2 HP; 0: LP or not an ANALOG part); with LFO2, bits 8 + 2 k and
+ * parts' ANALOG filter TYPE, 2 bits each (1 BP, 2 HP; 0: LP or not an ANALOG part); bits 8 + 2 k and
  * 9 + 2 k: part k's LFO is TRIG FREE, POL UNI (sl26_lfo2_in) */
 static uint32_t sl26_to_sl24(uint8_t *b)
 {
@@ -156,12 +156,10 @@ static uint32_t sl26_to_sl24(uint8_t *b)
         int32_t lr = LRATE_OF_SLOOP(s[2u * SL24_NP + SL26_LSYNC], (int16_t)(s[2u * P_LRATE] | s[2u * P_LRATE + 1u] << 8));
         if (i < NPART && !eng && s[2u * SL24_NP + SL26_FTYPE] <= 2u)
             ft |= (uint32_t)s[2u * SL24_NP + SL26_FTYPE] << (2u * i);
-#if FELUCCA_LFO2
         if (i < NPART)                                  /* (LFO 2's TRIG FREE, POL UNI: bits 8 + 2 i, 9 + 2 i; 2.6 clamps
                                                          * them to 0..1 at its load: any other value is 1) */
             ft |= (uint32_t)(s[2u * SL24_NP + SL26_LTRIG] != 0u) << (8u + 2u * i) |
                   (uint32_t)(s[2u * SL24_NP + SL26_LPOL] != 0u) << (9u + 2u * i);
-#endif
         memcpy(mf, s + SL26_MF, sizeof mf);
         memmove(d + SL24_LOCKS, s + SL26_MF + 64u, 4u * NLOCK);
         for (k = 0; k < NLOCK; k++) {                   /* its ids: P_E0.. at 63 (2.5's 53), its ten own (53..62) LOST */
@@ -194,7 +192,6 @@ static uint32_t sl26_to_sl24(uint8_t *b)
     w = proj_hash(b, SL24_SIZE - 4u), memcpy(b + SL24_SIZE - 4u, &w, 4);
     return ft;
 }
-#if FELUCCA_LFO2
 /* 2.6's LFO with TRIG FREE or POL UNI (sl26_to_sl24's bits 8..13) on part k of q -> our LFO 2, which has both and two
  * slots as LFO's: the part's LFO slots (its depths' two of the most weight, params.c lfo1_load) go there whole, with
  * the LFO's RATE (its SYNC already in it) and WAVE, as 2.6 plays them; LFO's DEST to OFF. LOST: PHS on a TRIG NOTE
@@ -227,9 +224,8 @@ static void sl26_lfo2_in(project_t *q, uint32_t ft)
         lfo1_store(&q->t[k].p[P_LEG_PIT], s, x[k][7]);
     }
 }
-#endif
 /* the parts' ANALOG filter TYPE (sl26_to_sl24) -> q's ANALOG parts (ANALOG 2's FTYP: LP12 LP24 BP HP); their LFO's TRIG
- * FREE or POL UNI -> LFO 2 (sl26_lfo2_in, FELUCCA_LFO2) */
+ * FREE or POL UNI -> LFO 2 (sl26_lfo2_in) */
 static void sl26_ftype_in(project_t *q, uint32_t ft)
 {
 #if FELUCCA_ANALOG2
@@ -238,14 +234,8 @@ static void sl26_ftype_in(project_t *q, uint32_t ft)
         if ((ft >> (2u * k)) & 3u && !q->t[k].engine)
             q->t[k].p[P_A2FTYP] = (int16_t)(((ft >> (2u * k)) & 3u) == 1u ? 2 : 3);
 #endif
-#if FELUCCA_LFO2
     sl26_lfo2_in(q, ft);
-#endif
-#if FELUCCA_ANALOG2 || FELUCCA_LFO2
     q->sum = proj_sum(q);
-#else
-    (void)q, (void)ft;
-#endif
 }
 
 /* track k of a SLOOP 2.4 project (sl24_is) at b: its PTCH when it is an FM6 part, else -1 */

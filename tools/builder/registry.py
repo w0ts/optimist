@@ -49,14 +49,16 @@ RETIRED = {
     "DLY_HALVE": "a delay time longer than the line always halves, on the beat (retired 2026-10-14: X0X 892a3b5, unchanged in X0X 1.0.6)",
     "UA_RESAMPLE": "the USB audio choice of USB_MODE always resamples the capture to the host's clock (retired 2026-10-15; "
                    "USB_MODE=2 now means USB audio + MIDI, resampled)",
+    "LFO2": "LFO 2, a second LFO on each synth track, is always built (retired 2026-10-16: no off; any old LFO2 value is ignored)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
-# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1}   # (each was its default in every profile)
+# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
+# counted ON (the image every build is now; a build that had it off is a different image).
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
@@ -251,15 +253,7 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "
           "RAM; off by default.", provenance=FELUCCA)
-_add("LFO2", "FELUCCA_LFO2", "LFO 2 (a second LFO on each synth track)", E, 91, default=0,
-     desc="A second LFO on tracks 1-3: RATE (free, or synced to the tempo as LFO's: 4BAR .. 1/32), WAVE (SIN TRI SAW "
-          "SQR S&H), TRIG (NOTE: restarts when a phrase starts; FREE: runs on), POL (BI, or UNI: one way only) and two "
-          "destinations as LFO DEST's (DEST A + AMT A, DEST B + AMT B: PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, the "
-          "sends CHO DLY REV, the inserts' amounts INS1 INS2, and XRATE XAMT: LFO's RATE and amounts, either way round). It adds to LFO (AMP: multiplies). Saved with the "
-          "project (no format change: an older build plays it without, and says LFO 2 is missing), kept when the sound "
-          "changes; a SLOOP 2.6 project whose LFO is TRIG FREE or POL UNI imports onto it. Pages LFO 2 and LFO2 DEST. "
-          "About 1-3 KB of flash, 0.2 KB of RAM, 0.2 KB of RAMTEXT; off (every slot OFF or at 0) it costs no CPU; on, "
-          "well under 1 % of an 8-voice part.")
+# (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums
 D = "Drums"
@@ -501,6 +495,15 @@ _add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, defa
           "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
           "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
      symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
+# the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
+_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
+     desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
+          "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
+          "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
+          "to -12 dBFS and soft-clipped, at a quarter of the gain of a send to the right, so no loop runs away. "
+          "Without it a return sends only to its right (A to B and C, B to C). About 1.2 KB of RAM; nothing runs "
+          "while every such send is 0.",
+     symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
 _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),
@@ -712,6 +715,14 @@ _add("ED_FAVS", "FELUCCA_ED_FAVS", "web editor: favorites (cmd 100)", Y, 156, pa
      desc="the web editor's stars in Load preset and its favorites-only list (cmd 100 FAVS, INFO tag 0x5D). Needs the favorites (FAVORITES). Off: no stars in the editor. About 1.0 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 _add("ED_SCOPE", "FELUCCA_ED_SCOPE", "web editor: the oscilloscope (cmd 101)", Y, 157, parent="OTA",
      desc="the web editor's Device screens > SCOPE: the device's own trace of the master or a track (cmd 101 SCOPE, INFO tag 0x5E). Needs the Optimist UI (UI=1). Off: no scope in the editor. About 0.6 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_UNDO", "FELUCCA_ED_UNDO", "web editor: undo and redo (cmd 102)", Y, 158, parent="OTA",
+     desc="the web editor's UNDO and REDO of the patterns through the device's own undo history (cmd 102 UNDO, INFO tag 0x5F); with it built the editor's own step, lock, nudge, fill and chance writes are undo levels, as a panel step key's are (writes to one track within 800 ms are one level). Off: no undo in the editor. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_NOTE", "FELUCCA_ED_NOTE", "web editor: play notes from the editor (cmd 103)", Y, 159, parent="OTA",
+     desc="the web editor's keyboard: a note on / off for a track through the device's own note input (the arp, the chord layout, the voice budget, REC and MIDI OUT KEYS apply), a ring to the audio interrupt of its own, at most 8 notes held, and an automatic note off after 3 s without a request from the host, on a USB reset, or after a given length (cmd 103 NOTE, INFO tag 0x60). Off: the editor cannot play notes. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_SOLO", "FELUCCA_ED_SOLO", "web editor: track and lane solo and mute (cmd 104)", Y, 165, parent="OTA",
+     desc="the web editor's track and drum-lane SOLO and MUTE through the device's own masks (cmd 104 SOLO, INFO tag 0x61): the same state GLO + key 1..8 and the lane rows set. Off: the strip's SOLO stays a label. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_STEPLANE", "FELUCCA_ED_STEPLANE", "web editor: a step in a drum lane, its lockable values (cmd 105)", Y, 166, parent="OTA",
+     desc="the web editor's held step in a track and drum-lane context: level, ratchet, chance, condition, nudge, fill, and the device's own list of lockable values (the Optimist UI's lock pages, a drum lane's TUNE .. LEVEL) with the locks and hold events on the step (cmd 105 STEPLANE, INFO tag 0x62). Needs the automation store. Off: the editor lists raw parameter ids and has no lane context. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,

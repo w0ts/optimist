@@ -113,7 +113,7 @@ static void sl26_convert(void)
     memcpy(b, f26, sizeof f26);
     ft = sl26_to_sl24(b);
     check("2.6 -> 2.5 in place: a FUN5 (sl24_is); the parts' filter TYPE: track 1 ANALOG HP (TRIO's BP not heard)",
-          sl24_is(b, 3840) && (ft & 0xFFu) == 2u && ft >> 8 == (FELUCCA_LFO2 ? 0x3Fu : 0u));
+          sl24_is(b, 3840) && (ft & 0xFFu) == 2u && ft >> 8 == 0x3Fu);
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *s = T26(k), *d = b + 76u + k * 940u;
         ok &= !memcmp(d, s, 2u * P_LRATE) && !memcmp(d + 2u * P_LRATE + 2u, s + 2u * P_LRATE + 2u, 122u - 2u * P_LRATE - 2u) && d[122] == s[132] && d[123] == s[133] && !memcmp(d + 124, s + 134, 640);
@@ -288,7 +288,7 @@ static void export_engines(void)
 }
 #endif
 
-#if FELUCCA_LFO2 && !defined(SL25_OLD)
+#if !defined(SL25_OLD)
 static dlrec_t tdl;
 /* the 2.6 golden with part k's LFO depths PIT FLT SHP AMP, TRIG and POL set (n: leave as it is) -> imported (LOAD) */
 static int l2_import(const int16_t (*dep)[4], const int8_t (*tp)[2])
@@ -325,7 +325,8 @@ static void sl26_lfo2(void)
     static uint8_t out[3840];
     uint32_t k, lost;
     int ok;
-    ok = l2_import(0, 0) && !strcmp(last_msg, "2.4 IMPORTED, LFO CUT");
+    ok = l2_import(0, 0) && (!strcmp(last_msg, "2.4 IMPORTED, LFO CUT") ||
+                              !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS"));   /* (without XSTEP the golden's step locks are lost first) */
     for (k = 0; k < NPART; k++)                         /* (golden: TRIG 9.., POL 10..: FREE, UNI; depths k 7 + 13 ..) */
         ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, LT_FLT, 28 + 14 * (int32_t)k, LT_SHP, 30 + 14 * (int32_t)k) && l1_is(k, 0, 0, 0, 0);
     check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: its two depths of the most weight (FLT SHP), RATE (SYNC), WAVE; LFO off; PIT AMP "
@@ -385,7 +386,7 @@ int main(void)
 #if FELUCCA_SL24_EXPORT
     export_engines();
 #endif
-#if FELUCCA_LFO2 && !defined(SL25_OLD)
+#if !defined(SL25_OLD)
     sl26_lfo2();
 #endif
     printf("%s\n", bad ? "FAILED" : "all ok");

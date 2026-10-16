@@ -166,13 +166,17 @@ def share_profile(name):
     return dest
 
 
-DEFAULT_PROFILE = "user-default"        # make's and tools/optimist.py's default: never deleted
+DEFAULT_PROFILE = "synth"               # make's, tools/optimist.py's and the menu's default (Optimist Synth): never deleted
+REFERENCE_PROFILE = "user-default"      # the generic profile the tests, the gate and the emulator checks build: never deleted
 
 
 def delete_profile(name):
     """-> the path removed: one of mine first, else a shipped one (git has it back until the deletion is committed)"""
     if name == DEFAULT_PROFILE:
         raise ConfigError(f"{name!r} is the default profile (make, tools/optimist.py): change it, do not delete it")
+    if name == REFERENCE_PROFILE:
+        raise ConfigError(f"{name!r} is the reference profile (the tests, the gate and the emulator checks build it): "
+                          "change it, do not delete it")
     for d in (MY_PROFILES, PROFILES):
         p = d / f"{name}.config"
         if p.exists():

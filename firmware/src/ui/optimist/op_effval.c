@@ -111,14 +111,12 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
             dep[d - LT_PIT] += effv_p(k, P_L1AA + 2u * (uint32_t)j);
     }
     lfo_apply(dep, lfo, (lfo + 32768) >> 1, &lm, &lm.g1);
-#if FELUCCA_LFO2
     if (k < NPART && LFO2_ON(t)) {                      /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the
                                                          * audio side left them) */
         int32_t w = lfo_shape((uint32_t)t->p[P_L2WAVE], lfo2[k].ph, lfo2[k].rnd), u = (w + 32768) >> 1, d2[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
         lfo_dep(&t->p[P_L2DA], d2);
         lfo_apply(d2, t->p[P_L2POL] ? u : w, u, &lm, &lm.g2);
     }
-#endif
     m->cut = lm.m[1];
     if (v && v->vel > 110)                              /* (an accent opens the filter with the envelope) */
         m->cut += (env * 24) >> 7;
@@ -177,15 +175,9 @@ static void effv_at(uint32_t k, int32_t dest, int32_t mod, int32_t *val, int32_t
     *mn = d->min, *mx = d->max;
     *val = clamp(effv_p(k, (uint32_t)dest) + (mod >> 8), d->min, d->max);
 }
-#if FELUCCA_LFO2
 #define EFFV_NLFO (k < NPART ? 2u : 1u)
 #define EFFV_FIRST(j) ((j) ? P_L2DA : P_L1DA)
 #define EFFV_LV(j) ((j) ? lfo2[k].v : mulq15(t->lfo_val, t->lfo_fade))
-#else
-#define EFFV_NLFO 1u
-#define EFFV_FIRST(j) ((void)(j), P_L1DA)
-#define EFFV_LV(j) ((void)(j), mulq15(t->lfo_val, t->lfo_fade))
-#endif
 /* part k's value LT_RES .. LT_INS2 (DEST d; INS1 INS2: the amount of the insert in that slot) as the render has it now (voice.c lfo_over_in: its slots on it in turn, from
  * the LFOs' values of the block before) into *val, its range; 0 for another destination (XRATE XAMT) */
 static uint32_t effv_over(uint32_t k, int32_t d, int32_t *val, int32_t *mn, int32_t *mx)
@@ -221,9 +213,7 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         return 1;
     }
     if (id == P_L1AA || id == P_L1AB || id == P_N1AA || id == P_N1AB
-#if FELUCCA_LFO2
         || id == P_L2AA || id == P_L2AB
-#endif
 #if FELUCCA_ANALOG2
         || id == P_N2AA || id == P_N2AB
 #endif

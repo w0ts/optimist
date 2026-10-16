@@ -2934,6 +2934,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
         if ((mask & (1u << i)) && ENG_IS(ENGINES[trk[i].engine % NENGINES], FM6))
             fm6_midi_ptime(i, v);
 }
+#include "ednote.c"                                /* notes played from the web editor (editor protocol v14) */
 #include "../io/midi/midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */
 
 #include "../io/midi/clock_sync.c"           /* MIDI clock in (GLO > SYSTEM SYNC) */
@@ -3068,6 +3069,7 @@ static void events_block(uint32_t n)
     ASTAGE(0x22);
     {
     uint32_t guard = 0;
+    ednote_block();                                   /* the web editor's notes (ednote.c) */
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         LOOP_GUARD(0x22, guard, 2u * MQ)
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
