@@ -288,7 +288,27 @@
   .strip .fxo.compact .fxslot .fxt { flex: 1 1 auto; min-width: 0; margin: 0; }
   .strip .fxo.compact select { width: 100%; max-width: none; min-width: 0; font-size: 12px; padding: 2px 16px 2px 4px; }
   .strip .fxo.inst { margin-bottom: 4px; }
+  .kbd { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--s1, var(--bg)); }
+  .kbd .keys { display: flex; position: relative; height: 54px; flex: 1 1 420px; min-width: 300px; max-width: 760px; }
+  .kbd .keys button { border: 1px solid var(--line); background: var(--bg); color: var(--dim); padding: 0; min-width: 0; font-size: 9px; }
+  .kbd .keys .wk { flex: 1 1 0; height: 100%; align-self: flex-end; }
+  .kbd .keys .bk { position: absolute; top: 0; height: 60%; width: 4%; background: var(--fg); color: var(--bg); z-index: 1; transform: translateX(-50%); }
+  .kbd .keys .pad { flex: 1 1 0; height: 100%; }
+  .kbd .keys button.down { background: var(--accent, var(--fg)); color: var(--bg); }
+  .kbd label { display: inline-flex; align-items: center; gap: 6px; }
   .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
+  /* Live-like strips: no numbers under the knobs (the value is the tooltip), the fader the bottom-most big control, MUTE (an activator in the track's colour showing its number / letter)
+     and SOLO under it */
+  .strip .knob .kv { display: none; }
+  #mixer .strip .fx { grid-template-columns: repeat(3, minmax(0, 1fr)); justify-content: stretch; gap: 2px 0; padding-top: 0; border-top: 0; height: auto; }
+  .strip .fx .knob[hidden] { display: none; }
+  .strip .row2 { display: flex; gap: 4px; align-items: center; justify-content: center; }
+  .strip .row2 .rec { font-size: 0; gap: 0; }
+  .strip .row2 button, .strip .row2 .rec { min-width: 28px; min-height: 28px; padding: 0 4px; }
+  .strip button.act { background: var(--eng, var(--tc, var(--fg))); color: var(--engfg, var(--bg)); border: 1px solid var(--eng, var(--tc, var(--fg))); font-weight: 700; }
+  .strip button.act[aria-pressed="true"] { background: var(--s2, var(--bg)); color: var(--dim); border-color: var(--line); }
+  .strip button.sol[aria-pressed="true"], .strip button.sol.on { background: var(--warn, #d93); color: var(--bg); }
+  .strip .fm .fader { align-self: stretch; }
   .strip .fxnote { font-size: 10px; margin: 0; line-height: 1.2; }
   .strip.sub .fxo.compact { margin: 2px 0; }
   .strip .fxo:not(.compact) .fxslot > .fxt { display: inline-block; width: calc(100% - 34px); vertical-align: bottom; }
@@ -411,7 +431,7 @@
   /* every strip (tracks and master) shares the same rows (--slot-rows: room for rows above the head), top to bottom, at the same heights (as Ableton's session mixer):
      head, sound name, instrument group, Sequence, step overview, content (the drum lanes; the master's FX), sends (DST CHO DLY REV +
      FX / DRY), pan knob, fader + meter, level readout, REC / SOLO / mute */
-  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--slot-rows,) 28px 34px 32px 32px 32px 34px 32px 8px 150px 16px 62px 180px 32px; row-gap: 6px; align-items: center; align-content: start; }
+  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--slot-rows,) 28px 34px 32px 32px 32px 34px 32px 8px 62px 62px 220px 36px; row-gap: 6px; align-items: center; align-content: start; }
   #mixer .strip > * { min-width: 0; }
   #mixer .strip > .knob { justify-self: center; }
   #mixer .strip .fx button.tog { min-height: 24px; }
@@ -444,6 +464,8 @@
      groups in a 2 x 2 grid over every row (the strip grows wider, never taller; the meters never under an FX) */
   #mixer .strip.master { grid-template-columns: 112px minmax(0, 1fr); column-gap: 8px; }
   #mixer .strip.master > .srow, #mixer .strip.master > .shead { grid-column: 1; }
+  #mixer .strip.master.alone { grid-template-columns: minmax(0, 1fr); }
+  .mixer > .strip.master.alone { flex: 0 1 190px; min-width: 178px; }
   #mixer .strip.master .mx { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-self: start; gap: 6px; }
   /* the one strip template: every kind (track, drum sound, USB input, return, master) has the same rows (STRIP_ROWS), a blank .ph where the device has nothing */
   #mixer .strip > .srow { display: flex; align-items: center; justify-content: center; min-width: 0; align-self: stretch; }
@@ -692,7 +714,7 @@
   .strip.master .fxg button.ib, .strip.master .fxg button.ib:hover { border: 0; border-radius: 0; }
   .meter, .gr, #mixer .strip .meter { border-radius: 0; }
   #mixer > .strip { flex-basis: 176px; min-width: 176px; } #mixer > .strip.master { flex-basis: 380px; min-width: 380px; }
-  #mixer .strip { grid-template-rows: var(--slot-rows,) 28px 40px 32px 32px 32px 34px 32px 8px 150px 20px 62px 220px 32px; }
+  #mixer .strip { grid-template-rows: var(--slot-rows,) 28px 40px 32px 32px 32px 34px 32px 8px 62px 62px 220px 36px; }
   #mixer .strip .snd { height: 40px; }
   #mixer .strip .fx { height: 220px; }
   #mixer .strip .lanes .ln { padding: 0 1px 0 4px; }
@@ -855,6 +877,11 @@
      USB input and the three RETURNS sit after all the tracks behind a divider, MASTER last behind another */
   #mixer > .strip.sect { position: relative; margin-left: 10px; }
   #mixer > .strip.sect::before { content: ""; position: absolute; left: -11px; top: 0; bottom: 0; width: 2px; background: var(--dim); opacity: .6; }
+  /* the drum sounds' strips: the same template, compact (about 65 % of a track strip: stripShell's compact flag) */
+  #mixer > .strip.sub.cmp { flex: 0 1 124px; min-width: 112px; }
+  #mixer > .strip.sub.cmp .knob svg { width: 32px; height: 32px; }
+  #mixer > .strip.sub.cmp .lb button { font-size: 11px; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; }
+  #mixer > .strip.sub.cmp .slotw .fxname { font-size: 11px; padding: 2px 4px; }
   #mixer > .strip.sub { flex: 0 1 140px; min-width: 132px; --tc: var(--t4); background: color-mix(in srgb, var(--t4) 9%, var(--bg)); border-left: 4px solid var(--t4); }
   #mixer > .strip.sub .shead { background: color-mix(in srgb, var(--eng, var(--t4)) 35%, var(--bg)); }
   #mixer > .strip.sub .lnav .lname { flex: 1; text-align: center; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -924,11 +951,18 @@
         <button id="stop" class="ib tog"></button>
         <span id="section" class="dim"></span>
       </span>
+      <span class="tp" id="undotp" hidden>
+        <button type="button" id="undobtn" class="ib" disabled aria-label="Undo" title="Undo (Ctrl / Cmd + Z)">\u21b6</button>
+        <button type="button" id="redobtn" class="ib" disabled aria-label="Redo" title="Redo (Ctrl / Cmd + Shift + Z, Ctrl + Y)">\u21b7</button>
+      </span>
+      <button type="button" id="kbdbtn" class="pill" aria-pressed="false" aria-label="Play notes" title="Play notes on the selected track" hidden>keys</button>
+      <button type="button" id="songbtn" class="pill" data-pop="song" data-t="popSong" aria-label="Song" title="Song" hidden></button>
       <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
       <button type="button" id="syncbtn" class="pill sync" title="MIDI clock (Settings)" aria-label="MIDI clock (Settings)" hidden></button>
     </div>
     <div class="toptracks" id="toptracks" role="group" aria-label="Track"></div>
   </header>
+  <div class="kbd" id="kbd" role="group" aria-label="Keyboard" hidden></div>
   <p class="hint" id="hint" hidden></p>
   <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
   <section id="connectcard" class="connectcard" aria-live="polite">
@@ -1154,7 +1188,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   FX: 86, FX_PUSH: 87,   /* (v10: the FX slots, ed_fxs.c; INFO tag 0x56) */
   SL24_PUT: 90, SL24_BANK: 91,   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
-  FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101 };   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105 };   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -1971,6 +2006,11 @@ const parse = {
       if (id === 0x5C && n >= 3 && a[r.i] >= 1) o.scrs = { mask: a[r.i + 1] | (a[r.i + 2] << 7) };   /* 5C: version, the screens built (2 x 7 bits) */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
+      if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
+      if (id === 0x60 && n >= 2 && a[r.i] >= 1) o.note = { quiet: a[r.i + 1] };   /* 60: version, the silence after which held notes end (s) */
+      if (id === 0x61 && n >= 1 && a[r.i] >= 1) o.solo = { v: a[r.i] };   /* 61: version */
+      if (id === 0x62 && n >= 3 && a[r.i] >= 1) o.steplane = { optimist: !!(a[r.i + 1] & 1), locks: !!(a[r.i + 1] & 2), laneLocks: !!(a[r.i + 1] & 4), hold: !!(a[r.i + 1] & 8),
+        chance: !!(a[r.i + 2] & 1), cond: !!(a[r.i + 2] & 2), nudge: !!(a[r.i + 2] & 4), fill: !!(a[r.i + 2] & 8) };   /* 62: version, a, b */
       if (id === 0x57 && n >= 3 && a[r.i] >= 1) o.fxp = { usb: !!(a[r.i + 1] & 1), owners: a[r.i + 2] };   /* 57: version, flags (bit 0 USB input), owners */
       r.i += n;
     }
@@ -2228,6 +2268,17 @@ const parse = {
     const d = parse[CMD.DESC]([g, i, ...a.slice(r.i)]);
     return { op, g, l, i, desc: { fmt: d.fmt, min: d.min, max: d.max, def: d.def, label: d.label, unit: d.unit, names: d.names } };
   },
+  /* v14 UNDO (ed_undo.c): op, rc, done, all (2 x 7 bits each), track, can_undo, can_redo */
+  [CMD.UNDO](a) { const r = new Reader(a); const o = { op: r.b(), rc: r.b() }; o.done = r.b() | (r.b() << 7); o.all = r.b() | (r.b() << 7); o.track = r.b(); o.canUndo = !!r.b(); o.canRedo = !!r.b(); return o; },
+  /* v14 NOTE (ed_note.c): op, rc, track, note, held */
+  [CMD.NOTE](a) { const r = new Reader(a); return { op: r.b(), rc: r.b(), track: r.b(), note: r.b(), held: r.b() }; },
+  /* v14 SOLO (ed_solo.c): op, rc, solo, mute, silent (track masks), lane solo / mute masks (3 x 7 bits: lanes 0..6, 7..13, 14..15) */
+  [CMD.SOLO](a) {
+    const r = new Reader(a), o = { op: r.b(), rc: r.b(), solo: r.b(), mute: r.b(), silent: r.b() }, l3 = () => { const x = [r.b(), r.b(), r.b()]; return x[0] | (x[1] << 7) | (x[2] << 14); };
+    o.lsolo = l3();
+    o.lmute = l3();
+    return o;
+  },
   [CMD.FXP](a) {
     const r = new Reader(a), op = r.b(), ow = r.b();
     if (op === 0 || op === 1) {
@@ -2483,6 +2534,12 @@ const req = {
      (lane, kind 0 DIST / 1 COMP, amount) */
   fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
   /* v13 FXP (ed_fxp.c): owner = 0..3 tracks, 4 master, 5 USB input, 6..8 returns, 9..24 drum sounds */
+  undo: (op) => [CMD.UNDO, [op & 0x7F]],                       /* 0 GET, 1 UNDO, 2 REDO */
+  noteOn: (tr, note, vel, dur) => [CMD.NOTE, [0, tr & 0x7F, note & 0x7F, vel & 0x7F, ...(dur ? [dur & 0x7F] : [])]],
+  noteOff: (tr, note) => [CMD.NOTE, [1, tr & 0x7F, note & 0x7F]],
+  noteAll: (tr) => [CMD.NOTE, [2, tr & 0x7F]],
+  soloGet: () => [CMD.SOLO, [0]],
+  soloOp: (op, n, on) => [CMD.SOLO, [op & 0x7F, n & 0x7F, on & 0x7F]],      /* 1 TRACK SOLO, 2 TRACK MUTE, 3 LANE SOLO, 4 LANE MUTE; on 0 / 1 / 2 toggle */
   fxpGet: (ow) => [CMD.FXP, [0, ow & 0x7F]],
   fxpType: (ow, sl, ty) => [CMD.FXP, [1, ow & 0x7F, sl & 0x7F, ty & 0x7F]],
   fxpDesc: (ow, sl, i) => [CMD.FXP, [2, ow & 0x7F, sl & 0x7F, i & 0x7F]],
@@ -2569,6 +2626,9 @@ function replyMatches(cmd, args, a) {
     case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SONGC: case CMD.TOOLS: return true;
     case CMD.SCOPE: return a[0] === args[0];
+    case CMD.UNDO: return a[0] === args[0];
+    case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
+    case CMD.SOLO: return a[0] === args[0];
     case CMD.FAVS: return a[0] === args[0] && (args[0] === 0 || args[0] === 3 || a[1] === args[1]) && (args[0] !== 2 || a[2] === args[2]);
     case CMD.SCRS: return a[0] === args[0] && a[1] === args[1] && (args[0] === 0 || a[2] === args[5]);
     case CMD.SCRN: return a[0] === args[0] && (args[0] === 4 || a[1] === args[1]) && (args[0] < 1 || args[0] === 4 || a[2] === args[2]);
@@ -4503,12 +4563,20 @@ function makeMockDevice(opt = {}) {
     const vals = new Map();
     const cls = (ow) => FXP_TABLE[fxpClass(ow)];
     const ent = (ow, ty) => cls(ow).types.find((x) => x.id === ty);
+    /* a return's sends to the other returns (the firmware's return sends: FXP owner 6..8, slot 1: type 0, one descriptor a send, labelled A B C by the target; F_PCT 0..127, default 0);
+       FXP_TABLE.return.sends is the golden's [[B C] [A C] [A B]] (or [[B C] [C] []] without RET_FB); until the golden has it: left to right */
+    const retSends = (ow) => {
+      if (opt.retSends !== true) return [];
+      const k = ow - FXP.RET0, want = (FXP_TABLE.return.sends || [["B", "C"], ["C"], []])[k] || [];
+      return want.map((l) => ({ def: 0, fmt: 1, label: l, max: 127, min: 0, unit: "" }));
+    };
     const params = (ow, sl) => {
       if (ow === FXP.USB && sl === 2) return cls(ow).values;
+      if (ow >= FXP.RET0 && ow < FXP.LANE0 && sl === 1) return retSends(ow);   /* (a return's second slot: its sends, labelled with the target return) */
       const e = ent(ow, slots[ow][sl]);
       return e ? e.params : [];
     };
-    const key = (ow, sl, i) => (ow === FXP.USB || ow >= FXP.LANE0 ? `${ow}/${sl}/${i}` : ow >= FXP.RET0 && i === 0 ? `${ow}/ret` : `${ow}/${slots[ow][sl]}/${i}`);
+    const key = (ow, sl, i) => (ow === FXP.USB || ow >= FXP.LANE0 || (ow >= FXP.RET0 && sl === 1) ? `${ow}/${sl}/${i}` : ow >= FXP.RET0 && i === 0 ? `${ow}/ret` : `${ow}/${slots[ow][sl]}/${i}`);
     const get = (ow, sl, i) => { const k = key(ow, sl, i); return vals.has(k) ? vals.get(k) : params(ow, sl)[i].def; };
     const put = (ow, sl, i, v) => { const d = params(ow, sl)[i]; vals.set(key(ow, sl, i), clamp(v, d.min, d.max)); };
     const mask = (ow) => cls(ow).types.reduce((m, x) => m + 2 ** x.id, 0);
@@ -4522,6 +4590,7 @@ function makeMockDevice(opt = {}) {
       return j;
     };
     const setType = (ow, sl, ty) => {
+      if (ow >= FXP.RET0 && ow < FXP.LANE0 && sl !== 0) return;   /* (a return's sends slot takes no type) */
       if (ty && !((mask(ow) / 2 ** ty) % 2 >= 1)) return;
       const s = slots[ow], old = s[sl];
       if (ow >= FXP.RET0 && ow < FXP.LANE0) {   /* a type another return holds swaps the two */
@@ -4540,14 +4609,14 @@ function makeMockDevice(opt = {}) {
       s[sl] = ty;
     };
     const layout = (b, op, ow) => {
-      const s = slots[ow].slice(), n = ow === FXP.USB ? 3 : s.length;
+      const s = slots[ow].slice(), n = ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 && opt.retSends === true ? 2 : s.length;
       b(op); b(ow); b(n);
       for (let sl = 0; sl < n; sl++) { b(sl < s.length ? s[sl] : 0); b(params(ow, sl).length); }
       const m = mask(ow);
       for (let k = 0; k < 5; k++) b(Math.floor(m / 2 ** (7 * k)) % 128);
       if (ow >= FXP.RET0 && ow < FXP.LANE0) b(line(ow));
     };
-    return { slots, vals, params, get, put, setType, layout, line, nslots: (ow) => (ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 ? 1 : 2) };
+    return { slots, vals, params, get, put, setType, layout, line, nslots: (ow) => (ow === FXP.USB ? 3 : ow >= FXP.RET0 && ow < FXP.LANE0 ? (opt.retSends === true ? 2 : 1) : 2) };
   })();
   /* v13 DLAN (ed_dlan.c; opt.dlan, with opt.fxp): the lanes' PAN MUTE SOLO SEQ MUTE, their LFOs, the tracks' sequencer mutes */
   const dln = !m13.dlan ? null : (() => {
@@ -4680,7 +4749,25 @@ function makeMockDevice(opt = {}) {
   const project = () => JSON.parse(JSON.stringify({ tracks: st.tracks, sel: st.sel, g: st.g }));
   st.slots[0] = project();
 
+  /* v14 (opt.v14): the undo levels of the editor's own step writes (ed_undo.c: writes to one track within 800 ms are one level), notes held, solo and mute */
+  const un = { stack: [], redo: [], at: 0, tr: -1, track: 0 };
+  const undoKeep = (t) => JSON.parse(JSON.stringify({ step: t.step, dstep: t.dstep, auto: t.auto || null, sx: t.sx || null }));
+  const undoPut = (t, k) => { t.step = k.step; t.dstep = k.dstep; t.auto = k.auto; t.sx = k.sx; };
+  const UNDO_WRITERS = new Set([CMD.STEP_SET, CMD.TRACK_STEP, CMD.DRUM_STEP, CMD.LOCK_SET, CMD.MICRO_SET, CMD.FILL_SET, CMD.AUTO_SET]);
+  const undoMark = (cmd, a) => {
+    if (!opt.v14 || !UNDO_WRITERS.has(cmd)) return;
+    const writes = cmd === CMD.TRACK_STEP ? a.length >= 10 : cmd === CMD.DRUM_STEP ? a.length >= 14 : cmd === CMD.STEP_SET ? a.length >= 9 : a.length >= 2;
+    if (!writes) return;
+    const tr = cmd === CMD.STEP_SET ? st.sel : cmd === CMD.DRUM_STEP ? TRK_DRUM : a[0], now = Date.now();
+    if (un.tr === tr && now - un.at < 800) { un.at = now; return; }
+    un.stack.push({ tr, k: undoKeep(st.tracks[tr]) });
+    un.redo = [];
+    un.tr = tr; un.at = now;
+  };
+  const held = new Set();
+  const maskOf = () => st.tracks.reduce((m, t, i) => m | (t.p[40] ? 1 << i : 0), 0);
   function handle(cmd, a) {
+    undoMark(cmd, a);
     const out = [];
     const b = (x) => out.push(x & 0x7F), v = (x) => out.push(...v14enc(x)), s = (x) => out.push(...strEnc(x));
     if (opt.legacy && cmd >= CMD.UP_LIST) return null;
@@ -4772,6 +4859,7 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
+        if (v5 && opt.v14) { b(0x5F); b(2); b(1); b(1); b(0x60); b(2); b(1); b(3); b(0x61); b(2); b(1); b(0); }   /* tags: undo (many levels), notes, solo (ed_undo.c, ed_note.c, ed_solo.c) */
         if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(m13.usb ? 1 : 0); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
         if (v5 && m13.dlan) { b(0x58); b(2); b(1); b(3); }   /* tag: the lanes' mix, LFOs and mutes (ed_dlan.c) */
         if (v5 && m13.scrn) { b(0x59); b(2); b(1); b(2); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
@@ -4793,7 +4881,7 @@ function makeMockDevice(opt = {}) {
         break;
       /* the automation store (ed_stepx.c, v11); opt.auto: answered (a list a track, 128 events at most) */
       case CMD.AUTO_GET: case CMD.AUTO_SET: {
-        if (!opt.auto || a.length < 1 || a[0] >= NTRK) return null;
+        if ((!opt.auto && !opt.store) || a.length < 1 || a[0] >= NTRK) return null;
         const t = st.tracks[a[0]], L = t.auto || (t.auto = { ev: [], on: 0 });
         b(a[0]);
         if (cmd === CMD.AUTO_GET) {
@@ -5107,6 +5195,42 @@ function makeMockDevice(opt = {}) {
         break;
       }
       /* the oscilloscope (ed_scope.c; opt.scrn) */
+      case CMD.UNDO: {
+        if (!opt.v14 || a.length < 1 || a[0] > 2) return null;
+        let rc = 0;
+        if (a[0] === 1) {
+          const e = un.stack.pop();
+          if (!e) rc = 1; else { un.redo.push({ tr: e.tr, k: undoKeep(st.tracks[e.tr]) }); undoPut(st.tracks[e.tr], e.k); un.track = e.tr; }
+        } else if (a[0] === 2) {
+          const e = un.redo.pop();
+          if (!e) rc = 1; else { un.stack.push({ tr: e.tr, k: undoKeep(st.tracks[e.tr]) }); undoPut(st.tracks[e.tr], e.k); un.track = e.tr; }
+        }
+        un.tr = -1;
+        const d = un.stack.length, all = d + un.redo.length;
+        b(a[0]); b(rc); b(d & 127); b(d >> 7); b(all & 127); b(all >> 7); b(un.track); b(d ? 1 : 0); b(un.redo.length ? 1 : 0);
+        break;
+      }
+      case CMD.NOTE: {
+        if (!opt.v14 || a.length < 2 || a[0] > 2 || (a[1] > 3 && !(a[0] === 2 && a[1] === 127)) || (a[0] < 2 && a.length < 3)) return null;
+        if (a[0] === 0) { if (a.length < 4 || !a[3]) return null; if (a[1] !== TRK_DRUM) held.add(a[1] * 128 + a[2]); (st.noteLog || (st.noteLog = [])).push([a[1], a[2], a[3]]); }
+        else if (a[0] === 1) held.delete(a[1] * 128 + a[2]);
+        else held.clear();
+        b(a[0]); b(0); b(a[1]); b(a[0] === 2 ? 127 : a[2]); b(held.size);
+        break;
+      }
+      case CMD.SOLO: {
+        if (!opt.v14 || a.length < 1 || a[0] > 4 || (a[0] > 0 && a.length < 3)) return null;
+        const bit = (n) => 1 << n;
+        if (a[0] === 1 || a[0] === 2) {
+          const n = a[1];
+          if (n > 3) return null;
+          const on = a[2] === 2 ? !((a[0] === 1 ? st.solo : maskOf(0)) & bit(n)) : !!a[2];
+          if (a[0] === 1) st.solo = on ? st.solo | bit(n) : st.solo & ~bit(n); else st.tracks[n].p[40] = on ? 1 : 0;
+        }
+        const mute = maskOf(0), solo = st.solo & 15, silent = solo ? ~solo & 15 : mute;
+        b(a[0]); b(0); b(solo); b(mute); b(silent); for (let k = 0; k < 6; k++) b(0);
+        break;
+      }
       case CMD.SCOPE: {
         if (!m13.scope || a.length < 1 || a[0] > 4) return null;
         const src = a[0], t = Date.now() / 1000;
@@ -6057,6 +6181,9 @@ const TEXT = {
   popMstInsHelp: "The master's two insert slots, after the returns and before the master level.",
   popRetHelp: "The three returns. A return holds a send effect (chorus, delay, reverb: the tracks' CHO DLY REV sends feed it) or any other effect, 100% wet on that send. RET is its level into the master. A type another return holds swaps with it.",
   rollTiles: "Steps", navPlay: "play", navTrack: "track", navFx: "fx buses", navLib: "library", navSys: "system",
+  undoNothing: "Nothing to undo", redoNothing: "Nothing to redo", kbdKeys: "Keys", kbdOct: "Octave", kbdVel: "Velocity", kbdComputer: "Computer keys (A S D F G H J K, W E T Y U: Z X octave)",
+  kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
+  soloTip: "Solo (set on the device with GLO + the track key; the editor's solo comes with protocol v14)",
   sideMissing: "This firmware has no", sideMissingHelp: "These editor features need a builder item (ED_*) or the Optimist UI (UI=1) in the firmware's build; the editor says so instead of hiding them. Build with them on, or update the firmware.",
   fxpOpen: "Open", instrument: "Instrument", fxpMissingShort: "No slot editing: this firmware has no FX slot command (ED_FXP off, or an older build)",
   fxpMissing: "This firmware has no slot editing (the builder item ED_FXP is off, or the build is older than protocol v13): the insert effects cannot be chosen from the editor. The sends and the master controls still work.",
@@ -6252,6 +6379,7 @@ function popTitle(id, track, lane = 0) {
     default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", song: "popSong", help: "help" }[id] || "help");
   }
 }
+$("songbtn").addEventListener("click", () => openPop("song", 0));
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
@@ -6420,7 +6548,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", ...mockV13(QS) }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
@@ -6660,6 +6788,9 @@ function sideNote() {
 /* the side bar's editor buttons: the ones for the selected track's kind (a synth: Sound, Load, Save; the drums: Kit, User kits), Sequence for both */
 function renderSideGo() {
   sideNote();
+  kbdRender();
+  if (undoOn() && !dev.undoSt) undoRefresh(); else if (!undoOn()) $("undotp").hidden = true;
+  $("songbtn").hidden = !(dev && dev.dump && dev.info && dev.info.songc);
   const drum = hasTracks() && dev.sel === dev.info.ntrk - 1;
   for (const b of $("tabs").querySelectorAll("button[data-go]")) {
     const f = b.dataset.for;
@@ -8042,6 +8173,7 @@ function knob(o) {
     if (plays != null) txt = `${txt} \u2192 ${t("macPlays")} ${plays}`;
     box.title = o.help || `${o.title || o.label}: ${txt}`;   /* the help line (tools/param_help.json), else the value */
     if (plays != null && o.help) box.title += ` · ${txt}`;   /* (a macro moves it: what plays, after the line) */
+    if (o.tip) box.title = `${o.title || o.label}: ${txt}${o.help ? ` \u00b7 ${o.help}` : ""}`;   /* (a strip knob shows no number: the value leads its tooltip) */
     box.dataset.st = o.hot ? o.hot(k.v) || "" : "";   /* amber / red: a value that may distort */
     box.setAttribute("aria-valuenow", k.v);
     box.setAttribute("aria-valuetext", txt);
@@ -10354,8 +10486,9 @@ function dynFxSlot() {
    across the strips. Ids: strip-<n>-inst-type / -inst-open (n = 1..4 the track: a synth's engine, the drum track's kit), strip-<n>-slot<k>-type / -open
    (k = 1, 2), strip-lane<n>-slot<k>-..., strip-usb-slot<k>-..., strip-ret-a / -b / -c-slot1-..., strip-master-slot<k>-...: exactly ONE type list and ONE
    open button a slot (a send return holding CHO / DLY / REV opens that bus's own panel, any other slot its parameters). */
-const STRIP_ROWS = ["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "level", "lvout", "pan", "sends", "btns"];
-function stripShell(attrs, pre, rows, extra = []) {
+const STRIP_ROWS = ["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level", "btns"];
+function stripShell(attrs, pre, rows, extra = [], o = {}) {
+  if (o.compact) attrs = { ...attrs, class: `${attrs.class} cmp`, "data-compact": "" };
   const kids = STRIP_ROWS.map((r) => {
     const x = rows[r];
     return el("div", { class: "srow", "data-row": r, ...(x == null ? { "data-blank": "" } : {}) }, ...(x == null ? [el("span", { class: "ph", "aria-hidden": "true" })] : Array.isArray(x) ? x : [x]));
@@ -10404,7 +10537,7 @@ function faderRow(o) {
   const inp = el("input", { type: "range", class: "fader", min: o.min, max: o.max, step: 1, "aria-label": o.aria, title: o.label, value: o.value ?? o.def });
   const out = el("span", { class: "v lv" });
   let drag = false;
-  const show = (v) => { out.textContent = o.fmt(v); };
+  const show = (v) => { out.textContent = o.fmt(v); inp.title = `${o.label}: ${out.textContent}`; };
   const f = { out, inp, el: el("div", { class: "fm" }, inp, el("span", { class: "meter ph", "aria-hidden": "true" })),
     value: (v) => { if (!drag) { inp.value = String(v); show(v); } }, disable: (d) => { inp.disabled = !!d; } };
   inp.addEventListener("pointerdown", () => { drag = true; });
@@ -10419,7 +10552,7 @@ function fxpGroup(ow, sl) {
   const g = { ow, sl, el: null, ctl: new Map() };
   const reg = (i, fn, node) => { g.ctl.set(i, fn); if (!g.el) g.el = node; return node; };
   g.knob = (i, d, label) => {
-    const k = knob({ label, aria: `${fxpName(ow)} ${label}`, help: fxpHelp(ow, 0, d), min: d.min, max: d.max, def: d.def, value: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
+    const k = knob({ tip: true, label, aria: `${fxpName(ow)} ${label}`, help: fxpHelp(ow, 0, d), min: d.min, max: d.max, def: d.def, value: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
     return reg(i, (v) => { if (!fxpTouched(ow, sl, i)) k.value(v, false); }, k.el);
   };
   g.fader = (i, d, label) => {
@@ -10548,12 +10681,13 @@ function buildLaneStrip(l) {
     c.name.addEventListener("change", () => laneSelect(+c.name.value));
   } else c.name = el("span", { class: "lname", text: nm });
   const lnav = el("div", { class: "lnav", role: "group", "aria-label": t("laneStrip") }, ...(nav1 ? [step(-1, "◂", "lanePrev")] : []), c.name, ...(nav1 ? [step(1, "▸", "laneNext")] : []));
-  const tog = (txt, label, i) => (c[txt] = el("button", { type: "button", class: "tog", "aria-pressed": "false", title: label, "aria-label": `${nm} ${label}`,
-    onclick: () => dlanPut(0, l, i, ((dev.dlMix && (acc ? dev.dlMix.acc : dev.dlMix.lanes[l])) || [])[i] ? 0 : 1) }, txt));
+  const tog = (txt, label, i) => (c[txt] = el("button", { type: "button", class: `tog${txt === "M" ? " act mute" : txt === "S" ? " sol" : ""}`, ...(txt === "M" ? { id: `strip-lane${l + 1}-mute` } : txt === "S" ? { id: `strip-lane${l + 1}-solo` } : {}),
+    "aria-pressed": "false", title: label, "aria-label": `${nm} ${label}`,
+    onclick: () => dlanPut(0, l, i, ((dev.dlMix && (acc ? dev.dlMix.acc : dev.dlMix.lanes[l])) || [])[i] ? 0 : 1) }, txt === "M" ? String(l + 1) : txt));
   const rows = { head: c.head, name: lnav };
   if (acc) {
     if (dl) {
-      c.amt = knob({ label: "ACCENT", aria: `${nm} ACCENT`, help: t("accNoSound"), min: LANE_ACC_DESC.min, max: LANE_ACC_DESC.max, def: LANE_ACC_DESC.def, value: 0,
+      c.amt = knob({ tip: true, label: "ACCENT", aria: `${nm} ACCENT`, help: t("accNoSound"), min: LANE_ACC_DESC.min, max: LANE_ACC_DESC.max, def: LANE_ACC_DESC.def, value: 0,
         fmt: (v) => fmtValue(LANE_ACC_DESC, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, 16, 1, v) });
       rows.level = c.amt.el;
       rows.btns = el("div", { class: "lb" }, tog("SEQ", t("seqMute"), 0));
@@ -10561,27 +10695,29 @@ function buildLaneStrip(l) {
   } else {
     const fmtL = (v) => `${sgn(v)} dB`;
     c.lvl = faderRow({ aria: `${nm} LEVEL`, label: "LEVEL", min: DL.MIN[7], max: DL.MAX[7], def: 0, value: 0, fmt: fmtL, set: (v) => setLaneOfs(l, 7, v) });
+    c.lvl.inp.id = `strip-lane${l + 1}-fader`;
     rows.level = c.lvl.el;
-    rows.lvout = c.lvl.out;
     if (dl) {
       const pd = FXP_TABLE.dlane.mix[0];
-      c.pan = knob({ label: "PAN", aria: `${nm} PAN`, help: dlanHelp(0, pd), min: pd.min, max: pd.max, def: pd.def, value: 0, fmt: (v) => fmtValue(pd, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, l, 0, v) });
+      c.pan = knob({ tip: true, label: "PAN", aria: `${nm} PAN`, help: dlanHelp(0, pd), min: pd.min, max: pd.max, def: pd.def, value: 0, fmt: (v) => fmtValue(pd, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, l, 0, v) });
       rows.pan = c.pan.el;
     }
     if (dev.dlV2) {
       const sk = ["rev", "dly", "cho"].map((f) => {
-        const k = knob({ label: f.toUpperCase(), aria: `${nm} ${f.toUpperCase()}`, help: phText("page", "SOUND 3", f.toUpperCase()), min: 0, max: DL.LV_MAX, def: f === "rev" ? DL.REV_DEF : 0,
+        const k = knob({ tip: true, label: f.toUpperCase(), aria: `${nm} ${f.toUpperCase()}`, help: phText("page", "SOUND 3", f.toUpperCase()), min: 0, max: DL.LV_MAX, def: f === "rev" ? DL.REV_DEF : 0,
           value: 0, set: (v, final) => setLaneSend(l, f, v, final) });
         c.snd.push([f, k]);
         return k.el;
       });
-      rows.sends = sendsGrid([naKnob("DST", `${nm} DST`).el, ...sendOrder(sk)].map((x) => x));
+      const so = sendOrder(sk);                       /* (in the returns' order: A B C, the letters the strips' sends carry) */
+      so.forEach((e, n) => { const kl = e.querySelector(".kl"); if (kl) kl.textContent = "ABC"[n]; });
+      rows.sends = sendsGrid(so);
     }
     if (dl) rows.btns = el("div", { class: "lb" }, tog("M", t("mute"), 1), tog("S", t("solo"), 2), tog("SEQ", t("seqMute"), 3));
     if (fxpOn()) Object.assign(rows, stripSlotRows(FXP.LANE0 + l, `strip-lane${l + 1}`));
   }
   rows.tools = el("div", { class: "lo" }, iconBtn("kit", withKey(`${t("drumKit")}: ${nm}`, keyFor("lane", l)), () => { pickLane(l); openPop("lane", drum, l); }, { "data-pop": "lane", "data-l": l }));
-  c.strip = stripShell({ class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, [], rows);
+  c.strip = stripShell({ class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, [], rows, [], { compact: true });
   return c;
 }
 /* the member strips again (a fold, the one sound changed): right after the drum strip, in the device's lane order */
@@ -10669,6 +10805,28 @@ function retMainKnobs(ow, ty, g) {
   }
   return out;
 }
+/* a return's sends to the other returns: the owner's second slot (FXP owner 6..8, slot 1: type 0, one descriptor a send, its label the TARGET return A / B / C). Each knob sits in its
+   target's column (the same A B C columns as the tracks' sends), the return's own column stays blank; an empty target's knob is dimmed (its value is kept) */
+async function retSendKnobs(ow, box) {
+  const d = dev, me = ow - FXP.RET0;
+  try {
+    const lay = await readFxpOwner(rq, ow);
+    if (d !== dev || !lay || lay.slots.length < 2 || !lay.slots[1].n) return;
+    const ps = await readFxpSlot(rq, ow, 1, lay.slots[1].type, lay.slots[1].n, fxpDescs());
+    if (d !== dev) return;
+    const g = fxpGroup(ow, 1), cells = [0, 1, 2].map((k) => {
+      const i = ps.findIndex(({ d: pd }) => pd.label === "ABC"[k]);
+      if (k === me || i < 0) return el("span", { class: "ph", "aria-hidden": "true" });
+      const kn = g.knob(i, ps[i].d, "ABC"[k]);
+      kn.dataset.target = "ABC"[k];
+      if (dev.fxpRet && dev.fxpRet[k] && !dev.fxpRet[k].type) kn.classList.add("na");   /* (the target is empty: dimmed, the value kept) */
+      return kn;
+    });
+    box.replaceChildren(...cells);
+    dev.stripFx.push(g);
+    g.load().catch(report);
+  } catch (e) { report(e); }
+}
 function buildSendStrip(ow) {
   const usb = ow === FXP.USB, r = ow - FXP.RET0, L = "ABC"[r];
   const label = usb ? t("usbStrip") : `${t("retStrip")} ${L}`, ids = usb ? "strip-usb" : `strip-ret-${L.toLowerCase()}`;
@@ -10677,20 +10835,29 @@ function buildSendStrip(ow) {
   const rows = { head, name: el("div", { class: "snd rname", text: usb ? "USB IN" : ty ? FXT_NAMES[ty] || "" : "" }), ...stripSlotRows(ow, ids, usb ? {} : { after: retAfter }) };
   if (usb) {                                          /* the input's own values, slot 2: VOLUME PAN MUTE FX ON REV DLY CHO */
     const V = FXP_TABLE.usb.values, g = fxpGroup(FXP.USB, 2), vol = g.fader(0, V[0], "VOLUME");
+    vol.inp.id = "strip-usb-fader";
     rows.level = vol.el;
-    rows.lvout = vol.out;
     rows.pan = g.knob(1, V[1], "PAN");
-    rows.sends = sendsGrid([naKnob("DST", "USB DST").el, g.knob(6, V[6], "CHO"), g.knob(5, V[5], "DLY"), g.knob(4, V[4], "REV")]);
-    rows.btns = el("div", { class: "row2" }, g.toggle(2, V[2], "MUTE"), g.toggle(3, V[3], "FX"));
+    /* its sends REV DLY CHO, labelled by the return that holds the type (A B C) */
+    const letter = (typ, nm) => { const k = dev.fxpRet ? dev.fxpRet.findIndex((x) => x && x.type === typ) : -1; return k >= 0 ? "ABC"[k] : nm; };
+    const sk = [[FXT.REV, "REV", 4], [FXT.DLY, "DLY", 5], [FXT.CHO, "CHO", 6]].map(([typ, nm, i]) => [letter(typ, nm), g.knob(i, V[i], letter(typ, nm))]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    rows.sends = sendsGrid(sk.map((x) => x[1]));
+    const mute = g.toggle(2, V[2], "U");
+    mute.id = "strip-usb-mute";
+    mute.classList.add("act", "mute");
+    rows.btns = el("div", { class: "row2" }, mute);
     dev.stripFx.push(g);
     g.load().catch(report);
-  } else {                                            /* a return: its RET level, and the effect's main knobs */
+  } else {                                            /* a return: its RET level, the effect's main knobs, its sends to the returns after it */
     const g = fxpGroup(ow, 0), f = g.fader(0, FXP_TABLE.return.types[0].params[0], "RET");
+    f.inp.id = `strip-ret-${L.toLowerCase()}-fader`;
     rows.level = f.el;
-    rows.lvout = f.out;
     const ks = retMainKnobs(ow, ty, g);
-    if (ks.length) rows.sends = sendsGrid(ks);
+    if (ks.length) rows.pan = el("div", { class: "fx mainks" }, ...ks);
+    const sb = sendsGrid([]);
+    rows.sends = sb;
     dev.stripFx.push(g);
+    retSendKnobs(ow, sb);
     g.load().catch(report);
   }
   return stripShell({ class: `strip ret${usb ? " usb" : ""}`, role: "group", "aria-label": label, "data-ret": usb ? "usb" : r }, [], rows);   /* (a return is edited on its own strip only) */
@@ -10699,6 +10866,124 @@ function buildSendStrips() {
   if (!fxpOn()) return [];
   return [...(dev.info.fxp.usb ? [FXP.USB] : []), ...[0, 1, 2].map((r) => FXP.RET0 + r)].map(buildSendStrip);
 }
+/* ------------------------------------------------------------------- v14: undo / redo, notes, solo (UNDO 102, NOTE 103, SOLO 104) --- */
+const undoOn = () => !!dev && !!dev.info && !!dev.info.undo;
+function undoShow(r) {
+  if (!dev) return;
+  dev.undoSt = r;
+  $("undotp").hidden = !undoOn();
+  $("undobtn").disabled = !r.canUndo;
+  $("redobtn").disabled = !r.canRedo;
+}
+async function undoRefresh() {
+  if (!undoOn() || !dev.link.idle || document.hidden) return;
+  try { undoShow(parse[CMD.UNDO](await rq(req.undo(0), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { if (e.message === "closed") throw e; }
+}
+/* what the device undid: the pattern of that track is read again (the device sets RELOAD and pushes as for a panel change; this is for the editor's own view at once) */
+async function undoReload(tr) {
+  if (!dev) return;
+  delete dev.sa; dev.sx = null;
+  if (tr === dev.sel) { await loadSteps(); if (!$("p-sequencer").hidden) renderSteps(); }
+  await readOverview(tr);
+  saSoon();
+}
+async function undoDo(op) {
+  if (!undoOn()) return;
+  const d = dev;
+  try {
+    const r = parse[CMD.UNDO](await rq(req.undo(op)));
+    if (d !== dev) return;
+    undoShow(r);
+    if (r.rc) { sayK(op === 1 ? "undoNothing" : "redoNothing"); return; }
+    await undoReload(r.track);
+  } catch (e) { report(e); }
+}
+$("undobtn").addEventListener("click", () => undoDo(1));
+$("redobtn").addEventListener("click", () => undoDo(2));
+setInterval(undoRefresh, 1500);
+document.addEventListener("keydown", (e) => {          /* Ctrl / Cmd + Z, + Shift + Z or Ctrl + Y: not while typing in a field (its own undo) */
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || !undoOn() || spaceIsTyping(e.target)) return;
+  const k = e.key.toLowerCase();
+  if (k === "z") { e.preventDefault(); undoDo(e.shiftKey ? 2 : 1); }
+  else if (k === "y" && !e.metaKey) { e.preventDefault(); undoDo(2); }
+}, true);
+/* solo: the track's own (GLO + key on the device); the strip's S button toggles it, the others fall silent as on the device */
+async function soloTrack(i) {
+  if (!dev || !dev.info.solo) return;
+  const d = dev;
+  try {
+    const r = parse[CMD.SOLO](await rq(req.soloOp(1, i, 2)));
+    if (d !== dev || !dev.mix) return;
+    dev.mix.solo = r.solo;
+    for (let k = 0; k < dev.mix.ntrk; k++) updateStrip(k);
+  } catch (e) { report(e); }
+}
+/* the keyboard: the selected track plays through the device's note input. A held key is a NOTE ON until its OFF; a PING every 1.2 s keeps the device from ending it (3 s of silence ends every held note) */
+const kbd = { on: false, keys: false, oct: 4, vel: 100, held: new Map(), timer: 0 };
+const KBD_MAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16 };
+const kbdDrum = () => !!dev && hasTracks() && dev.sel === dev.info.ntrk - 1;
+function kbdDown(id, note) {
+  if (!dev || !dev.info.note || kbd.held.has(id)) return;
+  const tr = dev.sel;
+  kbd.held.set(id, { tr, note });
+  rq(req.noteOn(tr, note, kbd.vel), { key: `note:${tr}:${note}` }).catch(report);
+  for (const b of document.querySelectorAll(`#kbd [data-kid="${id}"]`)) b.classList.add("down");
+  if (!kbd.timer) kbd.timer = setInterval(() => { if (kbd.held.size && dev) rq(req.ping(), { timeout: 400, retries: 0, quiet: true }).catch(() => {}); }, 1200);
+}
+function kbdUp(id) {
+  const h = kbd.held.get(id);
+  if (!h) return;
+  kbd.held.delete(id);
+  for (const b of document.querySelectorAll(`#kbd [data-kid="${id}"]`)) b.classList.remove("down");
+  if (dev && dev.info.note && !(dev.info.ntrk && h.tr === dev.info.ntrk - 1)) rq(req.noteOff(h.tr, h.note), { key: `note:${h.tr}:${h.note}` }).catch(report);
+  if (!kbd.held.size && kbd.timer) { clearInterval(kbd.timer); kbd.timer = 0; }
+}
+function kbdAllOff() {
+  for (const id of [...kbd.held.keys()]) kbdUp(id);
+  if (dev && dev.info && dev.info.note) rq(req.noteAll(127), { timeout: 400, retries: 0, quiet: true }).catch(() => {});
+}
+function kbdRender() {
+  const box = $("kbd"), on = !!dev && !!dev.info && !!dev.info.note && kbd.on;
+  $("kbdbtn").hidden = !(dev && dev.dump && dev.info && dev.info.note);
+  $("kbdbtn").setAttribute("aria-pressed", kbd.on ? "true" : "false");
+  box.hidden = !on;
+  if (!on) return;
+  const drum = kbdDrum(), keys = el("div", { class: "keys", role: "group", "aria-label": t("kbdKeys") });
+  const press = (b, id, note) => {
+    b.dataset.kid = id;
+    b.addEventListener("pointerdown", (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); kbdDown(id, note); });
+    b.addEventListener("pointerup", () => kbdUp(id));
+    b.addEventListener("pointercancel", () => kbdUp(id));
+  };
+  if (drum) {
+    for (let l = 0; l < 16; l++) { const b = el("button", { type: "button", class: "pad", title: laneName(l), "aria-label": `${laneName(l)}` }, laneShort(l)); press(b, `l${l}`, l); keys.append(b); }
+  } else {
+    const base = 12 * (kbd.oct + 1), white = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23], black = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5, 13: 7, 15: 8, 18: 10, 20: 11, 22: 12 };
+    white.forEach((o) => { const b = el("button", { type: "button", class: "wk", title: noteName(base + o), "aria-label": noteName(base + o) }, o % 12 === 0 ? noteName(base + o) : ""); press(b, `n${base + o}`, base + o); keys.append(b); });
+    for (const [o, wi] of Object.entries(black)) { const b = el("button", { type: "button", class: "bk", title: noteName(base + +o), "aria-label": noteName(base + +o) }); b.style.left = `${(wi + 1) * 100 / white.length}%`; press(b, `n${base + +o}`, base + +o); keys.append(b); }
+  }
+  const oct = (d) => el("button", { type: "button", class: "ib", "aria-label": `${t("kbdOct")} ${d < 0 ? "-" : "+"}`, title: `${t("kbdOct")} ${d < 0 ? "-" : "+"} (${d < 0 ? "Z" : "X"})`, disabled: drum, onclick: () => { kbd.oct = Math.max(1, Math.min(7, kbd.oct + d)); kbdRender(); } }, d < 0 ? "\u2212" : "+");
+  const vel = el("input", { type: "range", min: 1, max: 127, value: kbd.vel, "aria-label": t("kbdVel"), title: t("kbdVel") });
+  vel.addEventListener("input", () => { kbd.vel = +vel.value; });
+  const comp = el("button", { type: "button", class: "tog", "aria-pressed": kbd.keys ? "true" : "false", title: t("kbdComputer"), "aria-label": t("kbdComputer"), onclick: () => { kbd.keys = !kbd.keys; kbdRender(); } }, "A S D F");
+  box.replaceChildren(el("b", { text: `${t("kbdKeys")} \u00b7 ${drum ? t("drumKit") : `${t("track")} ${dev.sel + 1}`}` }), oct(-1), el("span", { class: "dim", text: drum ? "" : `${t("kbdOct")} ${kbd.oct}` }), oct(1),
+    el("label", {}, `${t("kbdVel")} `, vel), comp, keys, el("p", { class: "dim", text: t("kbdHelp") }));
+}
+$("kbdbtn").addEventListener("click", () => { kbd.on = !kbd.on; if (!kbd.on) kbdAllOff(); kbdRender(); });
+window.addEventListener("blur", () => kbdAllOff());
+/* the computer's keys: while "computer keys" is on (and not typing), A S D F .. play, Z X change the octave; they do not reach the shortcuts */
+document.addEventListener("keydown", (e) => {
+  if (!kbd.on || !kbd.keys || e.ctrlKey || e.metaKey || e.altKey || spaceIsTyping(e.target) || !dev || !dev.info || !dev.info.note) return;
+  const k = e.key.toLowerCase();
+  if (k === "z" || k === "x") { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) { kbd.oct = Math.max(1, Math.min(7, kbd.oct + (k === "z" ? -1 : 1))); kbdRender(); } return; }
+  if (!(k in KBD_MAP)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.repeat) return;
+  const drum = kbdDrum(), n = KBD_MAP[k];
+  if (drum) { if (n < 16) kbdDown(`k${k}`, n); } else kbdDown(`k${k}`, 12 * (kbd.oct + 1) + n);
+}, true);
+document.addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); if (kbd.held.has(`k${k}`)) kbdUp(`k${k}`); }, true);
 function renderMixer() {
   const box = $("mixer");
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; laneCtl.length = 0; return; }
@@ -10800,13 +11085,13 @@ function buildStrip(i) {
   const drum = drumTrack(i);
   const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || { fmt: F.INT, min: 0, max: 127, def: 100 };
   const pDesc = dev.pdesc[pPan()] || { fmt: F.BIPCT, min: -64, max: 63, def: 0 };
-  const fader = el("input", { type: "range", class: "fader", min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}`, title: t("level") });
+  const fader = el("input", { type: "range", class: "fader", id: `strip-${i + 1}-fader`, min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}`, title: t("level") });
   setHelp(fader, phText("page", "TRACKS", "level"));
   fader.addEventListener("pointerdown", () => { mixDrag = "lv:" + i; });
   fader.addEventListener("input", () => setLevel(i, +fader.value));
   fader.addEventListener("change", () => setLevel(i, +fader.value));
   fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
-  const pan = knob({ label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
+  const pan = knob({ tip: true, label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
     fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), eff: () => macP(i, pPan()), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
@@ -10814,9 +11099,11 @@ function buildStrip(i) {
     eng: el("span", { class: "eng" }),
     snd: el("div", { class: "snd" }),
     rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
-    solo: el("span", { class: "solo", text: t("solo") }),
+    solo: el("button", { type: "button", class: "tog sol", id: `strip-${i + 1}-solo`, "aria-pressed": "false", ...(dev.info.solo ? {} : { "aria-disabled": "true" }), title: dev.info.solo ? `${t("solo")} ${i + 1}` : t("soloTip"),
+      "aria-label": `${t("solo")} ${i + 1}`, onclick: () => (dev.info.solo ? soloTrack(i) : null) }, "S"),
     lvOut: el("span", { class: "v lv" }),
-    mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
+    mute: el("button", { type: "button", class: "tog act mute", id: `strip-${i + 1}-mute`, "aria-pressed": "false", title: `${t("mute")} ${i + 1}`, "aria-label": `${t("mute")} ${i + 1}`,
+      onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, String(i + 1)),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
     meter: meterEl(i, `${t("meter")} ${i + 1}`),        /* (the level data: the v9 push stream) */
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
@@ -10845,9 +11132,9 @@ function buildStrip(i) {
   c.strip = stripShell({ class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" }, patColumn(i), {
     head: c.head, name: c.snd, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
     tools: el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seq: seqBtn, ov: c.ov,
-    level: el("div", { class: "fm" }, fader, c.meter), lvout: c.lvOut, pan: pan.el, sends: c.fx,
-    btns: el("div", { class: "row2" }, c.rec, c.solo, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
-      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ")] : []), c.mute) });
+    pan: pan.el, sends: c.fx, level: el("div", { class: "fm" }, fader, c.meter),
+    btns: el("div", { class: "row2" }, c.mute, c.solo, c.rec, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
+      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ")] : [])) });
   if (c.lanes) {                                      /* (no FXP: the 16 sounds' buttons take the instrument and slot rows) */
     const rows = c.strip.querySelectorAll(":scope > .srow");
     const r = (n) => [...rows].find((x) => x.dataset.row === n);
@@ -10877,20 +11164,19 @@ function fxBlock(i, c) {
       k.el.tabIndex = -1;
       return k;
     });
-    c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-    return box(...c.fxk.map((k) => k.el), c.fxl, ...(x.fxoff != null ? [c.fxoff] : []));
+    return box(...c.fxk.map((k) => k.el), c.fxl);
   } else if (x.fx) {
     const ids = slotIds(), labels = slotLabels();
     c.fxk = ids.map((id, j) => {
       if (id == null) return naKnob(labels[j], `${t("track")} ${i + 1} ${labels[j]}`);
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
-      return knob({ label: labels[j], aria: `${t("track")} ${i + 1} ${labels[j]}${j ? ` (${t("retStrip")} ${"ABC"[j - 1]})` : ""}`, title: j ? `${labels[j]} \u00b7 ${t("retStrip")} ${"ABC"[j - 1]}` : undefined, help: phText("page", "FX", labels[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
+      return knob({ tip: true, label: fxpOn() && j ? "ABC"[j - 1] : labels[j], aria: `${t("track")} ${i + 1} ${labels[j]}${j ? ` (${t("retStrip")} ${"ABC"[j - 1]})` : ""}`, title: j ? `${labels[j]} \u00b7 ${t("retStrip")} ${"ABC"[j - 1]}` : undefined, help: phText("page", "FX", labels[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
         fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: labels[j] === "DST" ? (v) => (v > 100 ? "warn" : "") : null, eff: () => macP(i, id),
         set: (v, final) => setFx(i, j, v, final) });
     });
   } else return box();
-  c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return box(...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
+  if (fxpOn()) c.fxk[0].el.hidden = true;             /* (the old DST insert amount: the inserts are the slots now; the sends are the lettered knobs A B C) */
+  return box(...c.fxk.map((k) => k.el));
 }
 /* a knob of an empty FX slot (or one a sound has no form of): greyed, keeps the row's place */
 function naKnob(label, aria) {
@@ -10915,7 +11201,7 @@ function drumFxBlock(i, c, box) {
       const id = ids[j];
       if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
-      return knob({ label: l, aria: `DRUMS BUS ${l}`, help: phText("page", "FX", l), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
+      return knob({ tip: true, label: fxpOn() && j ? "ABC"[j - 1] : l, aria: `DRUMS BUS ${l}`, help: phText("page", "FX", l), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
         fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), eff: () => macP(i, id), set: (v, final) => setFx(i, j, v, final) });
     }
     const send = f === "rev" || f === "dly" || f === "cho";
@@ -10927,10 +11213,8 @@ function drumFxBlock(i, c, box) {
   const mode = (m, txt, help) => el("button", { type: "button", class: "tog fxm", "data-fxmode": m, title: t(help), "aria-pressed": drumFxMode === m ? "true" : "false",
     onclick: () => { if (drumFxMode === m) return; drumFxMode = m; mixCtl.length = 0; renderMixer(); } }, txt);
   c.fxsnd = mode("sound", laneName(kl.sel), "fxSndMode");
-  c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  if (fxpOn()) return box(...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
-  return box(...c.fxk.map((k) => k.el), el("div", { class: "fxmodes", role: "group", "aria-label": "SOUND | BUS" }, c.fxsnd, mode("bus", "BUS", "fxBusMode"),
-    ...(x.fxoff != null ? [c.fxoff] : [])));
+  if (fxpOn()) { c.fxk[0].el.hidden = true; return box(...c.fxk.map((k) => k.el)); }
+  return box(...c.fxk.map((k) => k.el), el("div", { class: "fxmodes", role: "group", "aria-label": "SOUND | BUS" }, c.fxsnd, mode("bus", "BUS", "fxBusMode")));
 }
 /* the drum strip's FX knobs again (a sound picked, its sends or inserts changed, a push) */
 const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW flag 4: this sound has no DIST / COMP: an X0X sound's) */
@@ -11023,6 +11307,7 @@ function updateStrip(i) {
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
+  c.fader.title = `${t("level")}: ${c.lvOut.textContent}`;
   {   /* GLO > MACRO: ENERGY moves the drums' level (GLO > DRUMS LVL); the readout says what plays */
     const e = drum ? macG(gDrLvl()) : null;
     if (e != null && e !== x.level) { const [et, eu] = fmtValue(c.lvDesc, e); c.lvOut.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`; c.lvOut.dataset.mac = "1"; }
@@ -11084,7 +11369,7 @@ const fxIds = (f) => f.labels.map((l, n) => gIdByLabel(l, f.dflt[n])).filter((i)
 const inMixer = (id) => { const d = dev.gdesc[id], l = d && d.label; return !!l && (MASTER_BUS.includes(l) || MASTER_FX.some((f) => f.labels.includes(l)) || ["LVL", "REV"].includes(l)); };
 function masterKnob(id, l, aria, help) {
   const d = dev.gdesc[id];
-  const k = knob({ label: l, aria: aria, help: help, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
+  const k = knob({ tip: true, label: l, aria: aria, help: help, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
     eff: () => macG(id), set: (v, final) => userSet(1, id, v, final) });
   masterCtl.knobs.push([id, k]);
   return k.el;
@@ -11093,7 +11378,7 @@ function buildMaster() {
   const bus = MASTER_BUS.map((l) => [l, gIdByLabel(l, -1)]).filter(([, id]) => id >= 0)
     .map(([l, id]) => masterKnob(id, l, `MASTER ${l}`, phText("page", "MASTER", l)));
   const fx = MASTER_FX.map((f) => {
-    if (!fxIds(f).length || (fxpOn() && f.id !== "fxcomp")) return null;   /* (FXP: the sends' buses are the return strips', A B C; their bus panels open from there) */
+    if (!fxIds(f).length || fxpOn()) return null;   /* (FXP: the sends' buses are the return strips', A B C; their bus panels open from there) */
     const nm = t(popKey(f.id));
     const open = iconBtn(f.icon, withKey(`${nm}: ${fxIds(f).map((i) => dev.gdesc[i].label).join(" ")}`, keyFor(f.id)), () => openPop(f.id, 0), { "data-pop": f.id });
     const ks = fxInline(f).map((l) => [l, gIdByLabel(l, -1)]).filter(([, id]) => id >= 0 && dev.gdesc[id] && dev.gdesc[id].label)
@@ -11105,12 +11390,13 @@ function buildMaster() {
   const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
-  /* the master's rows are the template's: its inserts in the slot rows, its meter (+ GR) in the level row, DUST DUCK FILT where the sends are; the FX groups
-     that are not rows (COMP / LIMIT, SONG) stand beside them. No return is on it: the returns A B C are strips of their own. */
+  /* the master's rows are the template's: its inserts in the slot rows, its meter (+ GR) beside nothing but the level row's place, DUST DUCK FILT where the sends are.
+     With FXP nothing stands beside it (the compressor is the slot's [dyn v], the returns A B C are strips of their own, Song is in the transport bar). */
   masterCtl.strip = stripShell({ class: "strip master", role: "group", "aria-label": "MASTER" }, patColumn(-1), {
     head, name: el("div", { class: "snd rname", text: "MASTER" }), ...stripSlotRows(FXP.MST, "strip-master"),
     level: el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl()), sends: sendsGrid(bus, "mk") },
-  [el("div", { class: "fxs mx", role: "group", "aria-label": "FX" }, ...fx)]);
+  fxpOn() ? [] : [el("div", { class: "fxs mx", role: "group", "aria-label": "FX" }, ...fx)]);
+  masterCtl.strip.classList.toggle("alone", fxpOn());
   return masterCtl.strip;
 }
 const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp" })[id];
@@ -11128,7 +11414,7 @@ function fxSlotGroups() {
     iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
   const song = dev.info.songc ? [g("song", "popSong", "SONG")] : [];   /* (v13 SONGC: its own command, built with or without the FX owners' slots) */
   if (fxpOn()) {                                     /* v13: the owners' slots (FXP): the master's inserts and the returns, in popups */
-    return song;   /* (the master's inserts are on its strip: stripSlotRows; the returns and the USB input have strips of their own, before it) */
+    return [];   /* (the master's inserts are on its strip: stripSlotRows; the returns and the USB input have strips of their own; Song is the transport bar's button) */
   }
   const types = [{ id: FXT.NONE }, ...dev.info.fxs.types];
   const name = (x) => (x.id === FXT.NONE ? FXT_NAMES[0] : (x.amt != null && dev.pdesc[x.amt] && dev.pdesc[x.amt].label) || FXT_NAMES[x.id] || String(x.id));

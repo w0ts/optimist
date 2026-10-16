@@ -167,7 +167,7 @@ if (EMU) {
 if (process.argv.includes("--readme-shots")) {
   const out = process.argv[process.argv.indexOf("--readme-shots") + 1];
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000,deviceScaleFactor: 2, mobile: false });
-  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxs=1&e2e=1#mixer` });
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxs=1&e2e=1#mixer` });
   await sleep(1500);
   await run(`${U} return await until(() => document.querySelectorAll("#mixer .strip").length === 5 && !/Reading|reading/.test($("#status").textContent), 120000);`);
   for (const mode of ["light", "dark"]) {
@@ -181,7 +181,7 @@ if (process.argv.includes("--readme-shots")) {
   process.exit(0);
 }
 /* not connected (?connect=0: no auto-connect): the connect card only, no mixer, no strip, no value */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&connect=0#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
   && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
@@ -198,7 +198,7 @@ ok(darkBg === "rgb(0, 0, 0)" && lightBg === "rgb(244, 244, 242)" && await run(`$
   "e2e: not connected: dark / light follow the system live (no reload), no theme picker");
 await scheme("dark"); await sleep(150);
 /* auto-connect: the page connects to the (mock) device on load, no click */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1#mixer` });
 await sleep(1500);
 ok(await run(`${U} return (await until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000))
   && !shown($("#connectcard")) && shown($("#disconnect"));`),
@@ -414,6 +414,30 @@ const sxRes = await run(`${U} const x = $("#stepx"); if (!await until(() => !x.h
   return { pass: extras === "50,3,7,2" && groups.length > 3 && !forbidden.length && !dup && rows === 1 && lock === 1 && marked >= 1 && after === 0 && gone === 0, extras, groups: groups.length, forbidden, dup, rows, lock, marked, after, gone };`);
 ok(sxRes && sxRes.pass, `e2e: step automation: chance, condition, nudge, fill and a lock (from the device's Sound pages: no VCE / MUTE / LEN ..., no duplicate label) written to the store, marked on the tile, removed; defaults delete the events (${JSON.stringify(sxRes)})`);
 await shot("step-detail");
+/* v14 (the mock's undo, notes, solo): the step automation just written is undone / redone from the header and with Ctrl + Z, SOLO of a strip, the keyboard plays a note */
+const v14Res = await run(`${U} try {
+  const mock = window.fm1Test.mock, evs = () => ((mock.state.tracks[0].auto || { ev: [] }).ev).filter((q) => q.param === 0xFF).length;
+  const set = async (id, v) => { const e = $(id); e.value = String(v); e.dispatchEvent(new Event("input")); e.dispatchEvent(new Event("change")); await sleep(500); };
+  await sleep(1000); await set("#sa-chance", 30);
+  const r = { shown: !$("#undotp").hidden && !!$("#undobtn") };
+  await until(() => !$("#undobtn").disabled, 6000); r.canUndo = !$("#undobtn").disabled; r.before = evs();
+  $("#undobtn").click(); await until(() => evs() === 0, 6000); r.undone = evs() === 0;
+  await until(() => !$("#redobtn").disabled, 6000);
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, bubbles: true })); await until(() => evs() === 1, 6000); r.redone = evs() === 1;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true })); await until(() => evs() === 0, 6000); r.keyUndo = evs() === 0;
+  $("#popx").click(); await sleep(300);
+  const so = $("#strip-2-solo"); r.soloEnabled = !so.hasAttribute("aria-disabled"); so.click(); await sleep(700); r.solo = mock.state.solo & 15;
+  r.soloOn = $("#strip-2-solo").classList.contains("on");
+  so.click(); await sleep(500);
+  $("#kbdbtn").click(); await sleep(400);
+  const key = $("#kbd .wk"); r.keys = !$("#kbd").hidden && document.querySelectorAll("#kbd .wk").length;
+  key.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 })); await sleep(500);
+  r.note = (mock.state.noteLog || []).length;
+  key.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); await sleep(300);
+  $("#kbdbtn").click(); await sleep(300); r.closed = $("#kbd").hidden;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(v14Res && v14Res.shown && v14Res.canUndo && v14Res.before === 1 && v14Res.undone && v14Res.redone && v14Res.keyUndo && v14Res.soloEnabled && v14Res.solo === 2 && v14Res.soloOn && v14Res.keys === 14 && v14Res.note === 1 && v14Res.closed,
+  `e2e v14 (mock): undo / redo buttons and Ctrl / Cmd + Z undo the device's own history, a strip's SOLO, the keyboard plays a note (${JSON.stringify(v14Res)})`);
 await run(`document.querySelector("#popx").click();`);
 /* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
 ok(await run(`${U} $("#mixer").children[3].querySelector("[data-pop=sequence]").click();
@@ -581,7 +605,7 @@ await shot("snapshots");
 /* a stored pattern that does not play (PAT_READ / PAT_WRITE; the mock with the patterns, ?pat=1): a click launches (after a moment: a
    double click is something else), a double click opens its steps in the Sequence popup (not the working copy), a note drawn is
    written back to the slot, nothing else changes; Escape ends it */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&pat=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&pat=1&e2e=1#mixer` });
 await sleep(1500);
 const slotPos = await run(`${U} window.confirm = () => true; try {
   if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().info && D().info.pat && document.querySelectorAll("#mixer .pslot").length >= 80, 120000)) return null;
@@ -613,7 +637,7 @@ await shot("pattern-slot-edit");
 /* v10 FX slots (the mock with them, ?fxs=1): the strips' FX knobs are the slots' amounts; the master's slot pickers load a type
    (the swap rule), the strips and the Sound tab's FX page follow; the drum strip's SOUND | BUS switch (the selected sound's insert, the
    drum bus's amount); a slot loaded on the device (FX_PUSH) moves the strips; the CMP card */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxs=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxs=1&e2e=1#mixer` });
 await sleep(1500);
 const fxRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().fx && D().watch, 120000)) return { err: "no fx" };
@@ -687,7 +711,7 @@ ok(lanePop && lanePop.slots && lanePop.stripKit === "++" && /DST/.test(lanePop.p
 /* v13 FX owners (the mock with ?fxp=1): the inserts popup of a track (two slots: a type list, the type's knobs from the device's descriptors), a
    type change, a knob, the device moving a value (FX_PUSH), the drum track (its bus and the selected sound), the master's inserts, the returns */
 await run(`try { localStorage.removeItem("fm1.mixLanes"); } catch (e) { return false; }`);   /* (the picked sound is kept per browser: earlier pages left one) */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#mixer` });
 await sleep(1500);
 const fxpRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#mixer .strip").length === 9 && D() && D().fx && D().watch && D().info.fxp, 120000)) return { err: "no fxp" };
@@ -702,7 +726,7 @@ const fxpRes = await run(`${U} try {
   r.rows = new Set(strips.map(rowsOf)).size + ":" + rowsOf(strips[0]);
   /* the rows line up: the same top on every strip, for every row */
   const tops = (q) => new Set(strips.filter((s) => !s.classList.contains("sub")).map((s) => Math.round(s.querySelector(q).getBoundingClientRect().top))).size;
-  r.aligned = ["head", "inst", "slot1", "slot2", "level", "pan", "sends", "btns"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join();
+  r.aligned = ["head", "inst", "slot1", "slot2", "pan", "sends", "level", "btns"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join();
   /* the slot widget: one name part (the open button) and one list a slot, the ids of the convention; no visible duplicate opener anywhere */
   r.widgets = strips.map((s) => [...s.querySelectorAll(".slotw")].map((w) => w.querySelectorAll("button.fxname").length + "" + w.querySelectorAll("select.fxtype").length).join("")).join("|");
   r.ids = ["strip-1-inst-type", "strip-1-inst-open", "strip-1-slot1-type", "strip-1-slot1-open", "strip-1-slot2-type", "strip-4-inst-type", "strip-4-slot2-open", "strip-usb-slot1-type", "strip-usb-slot2-open",
@@ -712,6 +736,16 @@ const fxpRes = await run(`${U} try {
   r.heads = [...document.querySelectorAll("#mixer .strip.ret .shead .num")].map((x) => x.textContent).join();
   /* the master has no return on it (no bus knob sets, no RET) */
   r.master = ["fxdelay", "fxreverb", "fxchorus"].filter((f) => document.querySelector("#mixer .strip.master [data-pop=" + f + "], #mixer .strip.master [data-fx=" + f + "]")).join() + "|" + [...document.querySelectorAll("#mixer .strip.master .knob .kl")].map((k) => k.textContent.trim()).join();
+  /* Live-like strips: the fader the bottom-most big control with MUTE (an activator showing the number) and SOLO under it; no number under a knob (a tooltip), no FX toggle;
+     nothing beside the master; Song in the transport bar; a return's sends to the returns after it (A: B C, B: C, C none) */
+  r.live = ["strip-1-fader", "strip-1-mute", "strip-1-solo", "strip-4-fader", "strip-4-mute", "strip-usb-fader", "strip-usb-mute", "strip-ret-a-fader", "strip-ret-c-fader"].filter((id) => !$1(id)).join() + "|"
+    + strips.slice(0, 4).map((x) => { const f = x.querySelector(".srow[data-row=level]").getBoundingClientRect(), b = x.querySelector(".srow[data-row=btns]").getBoundingClientRect(), pn = x.querySelector(".srow[data-row=sends]").getBoundingClientRect();
+      return f.bottom <= b.top + 1 && pn.bottom <= f.top + 1; }).join()
+    + "|" + $1("strip-1-mute").textContent + $1("strip-3-mute").textContent;
+  r.nums = [...document.querySelectorAll("#mixer .strip .knob .kv")].filter((e) => getComputedStyle(e).display !== "none").length + ":" + ($("#mixer .strip .srow[data-row=pan] .knob").title.includes(":") ? 1 : 0);
+  r.fxbtn = document.querySelectorAll("#mixer .strip .fx button, #mixer .strip .fx .tog").length;
+  r.side = document.querySelectorAll("#mixer .strip.master .mx, #mixer .strip.master [data-pop=song], #mixer .strip.master [data-fx]").length + ":" + (document.querySelector("#songbtn") && !$("#songbtn").hidden ? 1 : 0);
+  r.rsends = ["0", "1", "2"].map((k) => [...document.querySelectorAll("#mixer > .strip.ret[data-ret='" + k + "'] .srow[data-row=sends] .knob .kl")].map((e) => e.textContent.trim()).join("")).join("|");
   /* a type from the widget's list: the name follows, the open part opens the slot's parameters */
   const setT = async (id, v) => { const x = $1(id); x.value = String(v); x.dispatchEvent(new Event("change")); await sleep(900); };
   await setT("strip-1-slot1-type", 18); await setT("strip-1-slot2-type", 5);
@@ -744,6 +778,7 @@ const fxpRes = await run(`${U} try {
   /* the drum bus (T4): its own sends, never a sound's; the sounds are strips of their own */
   r.t4 = [...document.querySelectorAll('#mixer .strip[data-track="3"] .fx .knob .kl')].map((e) => e.textContent.trim()).join() + ":" + document.querySelectorAll('#mixer .strip[data-track="3"] .fxmodes, #mixer .strip[data-track="3"] .lanes').length;
   document.querySelector('#mixer .strip[data-track="3"] [data-fold]').click(); await sleep(600);
+  r.wlane = Math.round(100 * document.querySelector("#mixer > .strip.sub").getBoundingClientRect().width / document.querySelector('#mixer .strip[data-track="0"]').getBoundingClientRect().width);
   r.lane = document.querySelectorAll("#mixer > .strip.sub").length + ":" + (document.getElementById("strip-lane3-slot1-type") ? 1 : 0) + ":" + document.querySelectorAll("#mixer > .strip.sub .lnav select").length;
   document.querySelector('#mixer > .strip.sub[data-lane="2"] [data-pop=lane]').click();
   await until(() => pop().open && pop().dataset.pop === "lane" && document.querySelectorAll("#pop .dlan").length === 2, 10000); await sleep(500);
@@ -759,7 +794,7 @@ const fxpRes = await run(`${U} try {
   mock.sim.dlanSet(0, 2, 1, 0); await sleep(800);
   r.unmuted = !document.querySelector('#mixer > .strip.sub[data-lane="2"]').classList.contains("lmuted");
   document.querySelector('#mixer .strip[data-track="3"] [data-fold]').click(); await sleep(400);   /* (folded again: the next tests start from the default) */
-  document.querySelector("#mixer .strip.master [data-pop=song]").click();
+  document.querySelector("#songbtn").click();
   await until(() => pop().open && pop().dataset.pop === "song" && document.querySelectorAll("#pop .songparts tbody tr").length === 4, 10000); await sleep(300);
   const sc = document.querySelector('#pop [data-song="scene2"]'); sc.value = "7"; sc.dispatchEvent(new Event("change")); await sleep(500);
   document.querySelector('#pop [data-song="ins2"]').click(); await sleep(500);
@@ -784,12 +819,13 @@ const fxpRes = await run(`${U} try {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
   r.key = pop().open && pop().dataset.pop;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(fxpRes && /^1:head,name,inst,slot1,slot2,tools,seq,ov,level,lvout,pan,sends,btns$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
+ok(fxpRes && /^1:head,name,inst,slot1,slot2,tools,seq,ov,pan,sends,level,btns$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
   && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "U,A,B,C"
-  && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT,THRS,RATIO,GAIN"
+  && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
-  && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,CHO,FLNG,REV" && fxpRes.wide
+  && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
   && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^Mix:4\|LFO:8\|Inserts:/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
+  && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.side === "0:1" && fxpRes.rsends === "BC|C|" && fxpRes.wlane > 50 && fxpRes.wlane < 75
   && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");
@@ -797,10 +833,10 @@ await shot("fxp-inserts");
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
 const MIXKEY = "fm1.mixLanes";
 await send("Page.navigate", { url: "about:blank" });
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#mixer` });
 await sleep(1500);
 await run(`try { localStorage.removeItem("${MIXKEY}"); } catch (e) { return false; }`);
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#mixer` });
 await sleep(1500);
 const ORD = `const order = () => [...document.querySelectorAll("#mixer > .strip")].map((s) => s.dataset.track != null ? "T" + (+s.dataset.track + 1) : s.dataset.lane != null ? "L" + s.dataset.lane
   : s.dataset.ret != null ? (s.dataset.ret === "usb" ? "USB" : "ABC"[+s.dataset.ret]) : s.classList.contains("master") ? "MASTER" : "?").join();
@@ -828,7 +864,7 @@ ok(ordRes && ordRes.order0 === "T1,T2,T3,T4,USB,A,B,C,MASTER" && ordRes.stored0 
   && ordRes.order3 === `T1,T2,T3,T4,L${+/L(\d+)/.exec(ordRes.order2)[1] + 1},USB,A,B,C,MASTER` && ordRes.sel3 === 3 && ordRes.stored3 === +/L(\d+)/.exec(ordRes.order3)[1] && ordRes.on3 === String(ordRes.stored3),
   `e2e mixer order (mock ?fxp=1): T1 T2 T3 T4, USB IN, A B C, MASTER; folded by default; unfolded: T4 then its 16 sounds + ACCENT; one at a time with next; kept in localStorage (${JSON.stringify(ordRes)})`);
 /* a reload remembers the choice (one sound at a time, the second sound) */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#mixer` });
 await sleep(1500);
 const memRes = await run(`${U} ${ORD} try {
   if (!await until(() => document.querySelectorAll("#mixer > .strip").length === 10 && D() && D().dlMix && D().watch, 120000)) return { err: "no mixer", n: document.querySelectorAll("#mixer > .strip").length };
@@ -883,7 +919,7 @@ await run(`${U} document.querySelector('#mixer .strip[data-track="0"] .shead').c
   try { localStorage.removeItem("${MIXKEY}"); } catch (e) { return false; }`);
 /* v13 SCRN (the mock with ?fxp=1): Settings shows GLOBAL and SYSTEM as the device's lines (tests/scrn_table.json): a slider turns BPM, a stepper steps a list,
    a switch toggles, read-outs and the action (it asks first), and the editor saves a moment after the last edit */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#settings` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#settings` });
 await sleep(1500);
 const scrRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#devscr .sl").length > 20, 60000)) return { err: "no lines" };
@@ -906,7 +942,7 @@ ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRe
 await shot("settings-device-lines");
 /* v13 SCRS (the mock with ?fxp=1): the Device screens page lists the device's screens; SOUND shows the pages in the device's order grouped by family, a card turns, a drum lane
    shows its own pages (ENV: CLICK DECAY BEND LEVEL), PROJECT's stores have a YES that asks, SONG and TEMPO read as the device draws them */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#device` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#device` });
 await sleep(1500);
 const scsRes = await run(`${U} window.confirm = () => true; try {
   if (!await until(() => document.querySelectorAll("#scrows .scrow").length > 5, 60000)) return { err: "no rows" };
@@ -950,7 +986,7 @@ ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO|SCOPE
   `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
 await shot("device-sound");
 /* v13 FAVS (the mock with ?fxp=1): Load preset has a star beside each sound; a click marks it on the device; "favorites only" hides the rest (and is the device's PRESETS list) */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1#mixer` });
 await sleep(1500);
 const favRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#mixer .strip").length >= 5 && D() && D().dump, 120000)) return { err: "no mixer" };
@@ -972,14 +1008,14 @@ ok(favRes && favRes.before === 0 && favRes.marked && favRes.only && favRes.visib
 await shot("favorites");
 /* v13 optional commands (the builder's ED_* items): the editor with a firmware that left some out hides what needs them and keeps the rest. The same probe on the full mock is the control. */
 const v13Probe = async (off) => {
-  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxp=1&e2e=1${off ? "&off=" + off : ""}#mixer` });
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&fxp=1&e2e=1${off ? "&off=" + off : ""}#mixer` });
   await sleep(1500);
   return run(`${U} try {
     if (!await until(() => document.querySelectorAll("#mixer .strip").length >= 5 && D() && D().dump, 120000)) return { err: "no mixer" };
     await sleep(1500);
     const r = {}, vis = (sel) => [...document.querySelectorAll(sel)].some((e) => !e.hidden && e.getClientRects().length > 0);
     const have = (id) => !!document.querySelector('[data-pop="' + id + '"]');
-    r.ins = have("fxslot"); r.mst = !!document.getElementById("strip-master-slot1-type"); r.note = !!document.getElementById("strip-1-noslots") && vis("#strip-1-noslots"); r.song = have("song"); r.tools = have("tools");
+    r.ins = have("fxslot"); r.mst = !!document.getElementById("strip-master-slot1-type"); r.note = !!document.getElementById("strip-1-noslots") && vis("#strip-1-noslots"); r.song = vis('#songbtn'); r.tools = have("tools");
     r.dlan = !!document.querySelector("[data-dlan]") || !!document.querySelector("#mixer .sq");
     r.deviceTab = vis('#tabs [data-tab="device"]');
     document.querySelector('#tabs [data-tab="settings"]').click(); await sleep(1200);
@@ -1019,7 +1055,7 @@ const v13Probe = async (off) => {
 }
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&e2e=1#mixer` });
 await sleep(1500);
 const mv = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().stream, 120000)) return null;
   const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; $("#play").click(); await sleep(1200);
@@ -1044,14 +1080,14 @@ const grRes = await run(`${U} const g = document.querySelector("#mixer .strip.ma
   return JSON.stringify({ up, look, down }); } catch (e) { return "err " + e.message; }`);
 ok(grRes === '{"up":true,"look":true,"down":true}', "e2e v9 (mock): the master's GR meter shows the COMP's reduction (THRS set, playing), falls to 0 (" + JSON.stringify(grRes) + ")");
 await shot("v9-mock-gr");
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&v9=0&e2e=1#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&v9=0&e2e=1#mixer` });
 await sleep(1500);
 const m8 = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().watch, 120000)) return null;
   const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; await sleep(1500);
   return { meters: document.querySelectorAll("#mixer .meter[data-live]").length, polls: (m.statusReqs | 0) - q0, v9: D().v9, live: $("#live").textContent };`);
 ok(m8 && m8.meters === 0 && m8.polls >= 5 && !m8.v9 && !/v9/.test(m8.live), `e2e v8 fallback (mock ?v9=0): no meters, STATUS polled about every 150 ms (${JSON.stringify(m8)})`);
 /* a firmware without snapshots (?snap=0: the mock does not answer SN_LIST): no Snapshots tab */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&snap=0#mixer` });
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&snap=0#mixer` });
 await sleep(1500);
 ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000))
   && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=projects]"));`),
@@ -1059,7 +1095,7 @@ ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .
 /* the Reverb popup's TYPE (INFO tag 52, mock ?rev=mask): the four algorithms built: a selector of the four, a change reaches
    the device; one built (?rev=1): no selector */
 for (const [rev, want] of [[15, "ROOM,PLATE,FDN8,SPRING"], [1, ""]]) {
-  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&rev=${rev}#mixer` });
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&rev=${rev}#mixer` });
   await sleep(1500);
   const rt = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000)) return null;
     document.querySelector("#mixer .strip.master [data-pop=fxreverb]").click(); await until(() => $("#pop").open, 5000); await sleep(300);

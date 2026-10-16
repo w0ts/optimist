@@ -1369,7 +1369,7 @@ async function editorFxp() {
       if (k !== "return" && ty.params.length && !idx.length) bad.push(`${k}/${name}: no main knob`);
       if (idx.length > 3 || idx.some((i) => !ty.params[i])) bad.push(`${k}/${name}: bad main knobs`);
     }
-    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "level", "lvout", "pan", "sends", "btns"])
+    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level", "btns"])
       && Object.values(ui.BUS_MAIN).every(([id, labels]) => E.MASTER_FX.find((f) => f.id === id).labels.includes(labels[0]) && labels.every((l) => E.MASTER_FX.find((f) => f.id === id).labels.includes(l))),
       "fxp: every effect type has 1..3 main knobs (the descriptors' first parameters, FXP_MAIN's labels; a bus: its own globals); every strip kind is built by stripShell with the same rows" + (bad.length ? " " + bad.join("; ") : ""));
     const shell = html.slice(html.indexOf("function stripShell("), html.indexOf("const fxpSlotsOf"));
@@ -1415,6 +1415,53 @@ async function editorPages() {
   o.done();
   ok(html.includes("function paramKnob(") && html.includes('id="soundtitle"') && html.includes('id="drumsound"') && html.includes("editTrack(i)")
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
+}
+
+/* ------------------------------------- v14: undo / redo, notes, solo (cmds 102..104; web/EDITOR_PROTOCOL.md "v14") --- */
+async function editorV14() {
+  const C = E.CMD;
+  ok(C.UNDO === 102 && C.NOTE === 103 && C.SOLO === 104 && C.STEPLANE === 105, "v14: commands 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE");
+  const { m, rq, done } = attachMock({ v14: true, store: true });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  ok(info.undo && info.undo.many && info.note && info.note.quiet === 3 && info.solo, "v14: INFO tags 5F (undo, many levels), 60 (notes, quiet 3 s), 61 (solo)");
+  let u = E.parse[C.UNDO](await rq(E.req.undo(0)));
+  ok(u.rc === 0 && !u.canUndo && !u.canRedo && u.done === 0 && u.all === 0, "undo: GET on a fresh device: nothing to undo, nothing to redo");
+  u = E.parse[C.UNDO](await rq(E.req.undo(1)));
+  ok(u.rc === 1, "undo: UNDO with nothing held: rc 1");
+  /* an editor write marks the track: a step on track 0, then undone and redone */
+  await rq(E.req.autoSet(0, E.AUTO.OP.SET, 3 | E.AUTO.ONLY, E.AUTO.CHANCE, 40));
+  u = E.parse[C.UNDO](await rq(E.req.undo(0)));
+  ok(u.canUndo && !u.canRedo && u.done === 1, "undo: an AUTO_SET is one level");
+  const ev = async () => E.parse[C.AUTO_GET](await rq(E.req.autoGet(0, 0))).events.length;
+  ok(await ev() === 1, "undo: the event is there");
+  u = E.parse[C.UNDO](await rq(E.req.undo(1)));
+  ok(u.rc === 0 && u.track === 0 && !u.canUndo && u.canRedo && await ev() === 0, "undo: UNDO puts it back (track 0), REDO is possible");
+  u = E.parse[C.UNDO](await rq(E.req.undo(2)));
+  ok(u.rc === 0 && u.canUndo && !u.canRedo && await ev() === 1, "undo: REDO does it again");
+  /* notes: ON holds, OFF ends, ALL ends every one; the drum track's note is a lane (a one-shot) */
+  let n = E.parse[C.NOTE](await rq(E.req.noteOn(0, 60, 100)));
+  ok(n.rc === 0 && n.track === 0 && n.note === 60 && n.held === 1, "note: ON track 0 note 60: held 1");
+  n = E.parse[C.NOTE](await rq(E.req.noteOn(1, 64, 90, 5)));
+  ok(n.held === 2, "note: a second note (with a duration): held 2");
+  n = E.parse[C.NOTE](await rq(E.req.noteOff(0, 60)));
+  ok(n.held === 1 && n.note === 60, "note: OFF ends the first");
+  n = E.parse[C.NOTE](await rq(E.req.noteOn(3, 2, 110)));
+  ok(n.held === 1 && m.state.noteLog.length === 3, "note: a drum lane is a one-shot (not held), the notes reached the device");
+  n = E.parse[C.NOTE](await rq(E.req.noteAll(127)));
+  ok(n.held === 0, "note: ALL ends everything");
+  ok(await rq(E.req.noteOn(9, 60, 100), { timeout: 60, retries: 0, quiet: true }).then(() => false, () => true), "note: a bad track: no reply");
+  /* solo and mute */
+  let so = E.parse[C.SOLO](await rq(E.req.soloGet()));
+  ok(so.rc === 0 && so.solo === 0 && so.silent === so.mute, "solo: GET: nothing soloed");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(1, 2, 2)));
+  ok(so.solo === 4 && so.silent === 11, "solo: TRACK SOLO toggle on track 3: the others are silent");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(2, 0, 1)));
+  ok(so.mute === 1 && so.solo === 4 && so.silent === 11, "solo: TRACK MUTE track 1");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(1, 2, 0)));
+  ok(so.solo === 0 && so.silent === 1, "solo: TRACK SOLO off: only the muted one is silent");
+  ok(html.includes("function undoDo(") && html.includes('id="undobtn"') && /Ctrl \/ Cmd \+ Z/.test(html) && html.includes("function kbdDown(") && html.includes("function soloTrack(") && /id: `strip-\$\{i \+ 1\}-solo`/.test(html),
+    "v14: the editor has undo / redo buttons and Ctrl / Cmd + Z, the keyboard (clickable and the computer's keys) and the strips' SOLO");
+  done();
 }
 
 /* ------------------------------------------------ the automation store (cmds 92, 93, v11; ed_stepx.c) --- */
@@ -3225,6 +3272,7 @@ await editorFxp();
 await editorV13Optional();
 await editorMacro();
 await editorAuto();
+await editorV14();
 await editorStepx();
 await editorDaw();
 await editorBackup();
