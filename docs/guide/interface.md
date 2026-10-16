@@ -115,7 +115,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **BLUETOOTH:** BLE, OFF, ON, LINK (connected) or NO CAL (the radio has no stored trims and never starts). SAVE on it opens the list of BLE devices.
 - **CALIBRATE:** PANEL (runs the panel calibration, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) CH1 to CH4, the source of each of the four capture channels sent to the computer: the main mix (L, R or sums), T1 to T3, DRUMS, the drum bus, a drum lane tap (DR1 to DR16) or OFF.
-- **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time), CHIP (AC791N, 1 core or 2 cores) and the repository address.
+- **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address.
 
 ## SYSTEM > INFO, INTERNALS and USB STATS
 

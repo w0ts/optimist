@@ -305,7 +305,7 @@ static void forms_of(uint32_t scr)
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
                    (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
-                                                                 !strcmp(c.label, "BUILD") || !strcmp(c.label, "CHIP") ||
+                                                                 !strcmp(c.label, "BUILD") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
                     c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */

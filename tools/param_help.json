@@ -352,7 +352,7 @@
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
-      "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built", "CHIP": "The processor and its cores",
+      "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},
     {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "Whose work Optimist uses"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
