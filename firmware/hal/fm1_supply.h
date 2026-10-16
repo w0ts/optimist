@@ -131,6 +131,17 @@ static uint32_t fm1_supply_stock(void)
     return err;
 }
 
+/* stock's low-voltage detector (app_core, stockre §7.2): P3_VLVD_CON = 0x78 (VLVD_SEL 7 = 2.6 V, the pending flag
+ * cleared), then |= 1 (VLVD_EN). -> 0, or FM1_SUP_LVR when it does not read back */
+#define FM1_P3_VLVD 0x11u
+#define FM1_SUP_LVR 8u
+static uint32_t fm1_lvr_stock(void)
+{
+    fm1_p33_write(FM1_P3_VLVD, 0x78u);
+    fm1_p33_rmw(FM1_P3_VLVD, 0x00u, 0x01u);
+    return (fm1_p33_read(FM1_P3_VLVD) & 0x39u) == 0x39u ? 0u : FM1_SUP_LVR;
+}
+
 /* B24 test image, `dualcfg boostlvl N`: a ladder up to the boost, VDC14 first (what mattered on Jangada's unit), a
  * step of the smallest unit each: 0 nothing; 1 VDC14 4 (1.45 V); 2 VDC14 5 (1.50 V); 3..6 VDC14 5 and SYSVDD 12..15
  * (1.29 .. 1.38 V); 6 = the boost. -> VDC14 << 4 | SYSVDD targets (0: leave) */

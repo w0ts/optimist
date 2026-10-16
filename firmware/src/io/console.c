@@ -369,6 +369,17 @@ static void con_supply(void)
     con_kx("p33_regs_now", g);                          /* CON0 bit 2 LDO13, bit 3 DCDC13 (the 1.4 V rail's regulator) */
     con_kv("p33_timeouts", (int32_t)fm1_p33_timeouts);
     con_kv("cpu1_supply_ms", (int32_t)dual.supply_ms);  /* TIMER4 ms when the rails were raised (0: not this boot) */
+    con_kv("t4_cpu1_start_ms", (int32_t)dual_start_t4 - 1);   /* TIMER4 ms (-1: not): CPU1 started, */
+    con_kv("t4_audio_init_ms", (int32_t)dual_audio_t4 - 1);   /* audio_init, */
+    con_kv("t4_cpu1_job1_ms", (int32_t)dual_job1_t4 - 1);     /* CPU1's first job posted */
+    {
+        uint32_t ie = fm1_icfg() & 0x200u, v;
+        fm1_irq_off();
+        v = fm1_p33_read(FM1_P3_VLVD);
+        if (ie)
+            fm1_irq_on();
+        con_kx("p33_vlvd", v);                          /* P3_VLVD_CON (stockorder: 0x79, 2.6 V on) */
+    }
     con_kv("cpu1_parked", dual.parked);
 #if FELUCCA_BLE && FELUCCA_DUAL >= 2
     con_kv("cpu1_ok_ms", (int32_t)dual_ok_t4 - 1);      /* TIMER4 ms when CPU1 was first seen working (-1: not) */
@@ -433,6 +444,8 @@ static void con_status(void)
 #if FELUCCA_DUALCFG
     con_kv("cpu1_fpause_n", (int32_t)dual_fp_n);        /* flash operations CPU1 was paused for (dualcfg fpause) */
     con_kv("cpu1_fpause_nostop", (int32_t)dual_fp_nostop);   /* ... whose stopped bit never showed (200 us) */
+    con_kv("cpu1_fpause_noack", (int32_t)dual_fp_noack);     /* fpause stock: CPU1 never said parked (200 us) */
+    con_kv("cpu1_park_to", (int32_t)fm1_dual_mb.park_to);    /* ... CPU1's waits for the cache idle that ran out */
     con_kx("isr_timer5_at", fm1_vec_word(FM1_IRQ_TIMER5));   /* the TIMER5 entry attached (RAM 0x01C..., XIP 0x020...) */
 #endif
 #if FELUCCA_DUALCFG
@@ -697,6 +710,7 @@ static void con_dualcfg_show(void)
     con_kv("dualcfg rfquiet", dualcfg.rfquiet);
     con_kv("dualcfg release", dualcfg.rel_ms);
     con_kv("dualcfg bledelay", dualcfg.ble_delay);
+    con_kv("dualcfg stockorder", dualcfg.stockorder);
     con_kv("dualcfg ble", dualcfg.ble);
     con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
     con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
@@ -774,8 +788,10 @@ static void con_dualcfg(const char *p)
         ok = con_onoff(&p, &c.ble);
     else if (con_word(&p, "isr"))
         ok = con_word(&p, "ram") ? (c.isrram = 1, 1) : con_word(&p, "xip") ? (c.isrram = 0, 1) : 0;
-    else if (con_word(&p, "fpause"))
-        ok = con_onoff(&p, &c.fpause);
+    else if (con_word(&p, "fpause"))                   /* on: C1_CON pause; stock: CPU1 parked in RAM first, then paused */
+        ok = con_word(&p, "stock") ? (c.fpause = 2u, 1) : con_onoff(&p, &c.fpause);
+    else if (con_word(&p, "stockorder"))
+        ok = con_onoff(&p, &c.stockorder);
     else if (con_word(&p, "spin"))
         ok = con_word(&p, "ram") ? (c.spinv = FM1_SPIN_RAM, 1) : con_word(&p, "xip") ? (c.spinv = FM1_SPIN_XIP, 1)
            : con_word(&p, "nops") ? (c.spinv = FM1_SPIN_NOPS, 1) : 0;
@@ -842,7 +858,7 @@ static void con_dualcfg(const char *p)
                  " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
                  " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off | boostlvl 0..6 | rails V S"
                  " | boost stock|jangada | dcdc on|off | supply early on|off | rfquiet on|off | release MS"
-                 " | bledelay MS\r\n");
+                 " | bledelay MS | fpause stock | stockorder on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

@@ -298,10 +298,20 @@ static BOOT_ORDER void fm1_main(void)
                                                          * waits 50 ms) and before the vectors are locked */
     fm1_guard_enable(FM1_GUARD_BUS | FM1_GUARD_PC);
 #endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG && FELUCCA_BLE
+    if (dualcfg.stockorder) {                           /* B25: stock's order, the radio before the audio (dual.c) */
+        BOOT_STAGE(BLE);
+        ble_midi_init();
+        dual_stock_after_ble();
+    }
+#endif
     master_pot(&knob, 0);                               /* the knob as it stands, before the first block (#137; the */
     master_pot(&knob, 0);                               /* first conversion after the pin setup: read again) */
     kb_boot_hold = 1;                                   /* #137: no notes from the keys before the UI (seq.c) */
     BOOT_STAGE(AUDIO);
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dual_audio_t4 = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u;
+#endif
     audio_init();
     BOOT_STAGE(USB);
     usb_start();
@@ -310,6 +320,9 @@ static BOOT_ORDER void fm1_main(void)
 #endif
 #if FELUCCA_BLE
     BOOT_STAGE(BLE);
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    if (!dualcfg.stockorder)
+#endif
     ble_midi_init();                                    /* the radio, then advertising from boot, as stock
                                                          * (midi_ble.c): after the audio and USB are set up, its
                                                          * IRQs (45, 29 at priority 2, below the audio) on with the

@@ -298,6 +298,13 @@ static void test_supply_stock(void)
     timeout_at = 12u;
     e = fm1_supply_stock();
     CHECK(e & FM1_SUP_TIMEOUT, "a late timeout reported (%x)", (unsigned)e);
+    /* the low-voltage detector: 2.6 V, on; a register that does not take it: reported */
+    spl_state();
+    p33[0x11] = 0x80u;
+    CHECK(fm1_lvr_stock() == 0u && p33[0x11] == 0x79u, "VLVD 2.6 V on (%02x)", p33[0x11]);
+    spl_state();
+    p33_stuck = 1;
+    CHECK(fm1_lvr_stock() == FM1_SUP_LVR, "VLVD not taken: FM1_SUP_LVR");
     spl_state();
 }
 

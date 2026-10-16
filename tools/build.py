@@ -239,7 +239,8 @@ def build_app():
         for k, d in (("OPTIMIST_DUALCFG_START", "DUALCFG_DEF_START"), ("OPTIMIST_DUALCFG_SLEEP", "DUALCFG_DEF_SLEEP"),
                      ("OPTIMIST_DUALCFG_ISRRAM", "DUALCFG_DEF_ISRRAM"), ("OPTIMIST_DUALCFG_FPAUSE", "DUALCFG_DEF_FPAUSE"),
                      ("OPTIMIST_DUALCFG_SPIN", "DUALCFG_DEF_SPIN"), ("OPTIMIST_DUALCFG_BOOST", "DUALCFG_DEF_BOOST"),
-                     ("OPTIMIST_DUALCFG_EARLY", "DUALCFG_DEF_EARLY"), ("OPTIMIST_DUALCFG_POLICY", "DUALCFG_DEF_POLICY")):
+                     ("OPTIMIST_DUALCFG_EARLY", "DUALCFG_DEF_EARLY"), ("OPTIMIST_DUALCFG_POLICY", "DUALCFG_DEF_POLICY"),
+                     ("OPTIMIST_DUALCFG_STOCKORDER", "DUALCFG_DEF_STOCKORDER")):
             v = os.environ.get(k)               # (its defaults, for the emulator: the console is not there)
             if v in ("0", "1", "2"):
                 flags.append(f"-D{d}={v}")

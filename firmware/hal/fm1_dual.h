@@ -45,7 +45,8 @@ typedef struct {
     volatile uint32_t arg;        /* CPU0: the job's argument (which parts) */
     volatile uint32_t ping;       /* CPU0: pong follows it while CPU1 waits (liveness) */
     volatile uint32_t check;      /* CPU0: FM1_DUAL_CHECK(req, arg), written before req (fm1_dual_guard.h) */
-    uint32_t pad0[12];
+    volatile uint32_t park;       /* CPU0: 1 while a flash operation wants CPU1 parked in RAM (B25 `fpause stock`) */
+    uint32_t pad0[11];
     volatile uint32_t done;       /* CPU1: the last job finished (= req: idle) */
     volatile uint32_t hello;      /* CPU1: FM1_DUAL_HELLO once it runs C code */
     volatile uint32_t count;      /* CPU1: its beat: spin loops (every FM1_DUAL_BEAT_EVERY), or returns from `idle` */
@@ -59,7 +60,9 @@ typedef struct {
     volatile uint32_t stage;      /* CPU1: how far it got, the furthest (dual_mode.h C1S_*: SYSTEM > INFO CPU1 HELLO) */
     volatile uint32_t wakes;      /* CPU1 asleep: its wake handler's entries */
     volatile uint32_t icfg;       /* CPU1: its icfg as it went to sleep (read back after sti), 0: never */
-    uint32_t pad1[3];
+    volatile uint32_t parked;     /* CPU1: 1 while parked for CPU0's flash operation (after the cache went idle) */
+    volatile uint32_t park_to;    /* CPU1: parks whose wait for the cache idle bit ran out */
+    uint32_t pad1[1];
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
 /* (2026-10-15, B10a: in a 256-byte block of its own in .pool, away from the BLE baseband RAM it had been next to: the
@@ -154,6 +157,26 @@ RAMFN static void fm1_dual_nops_ram(void)
         __asm__ volatile("nop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop");
 }
 #endif
+/* CPU1, B25 `fpause stock` (stock V15's SOFT4 handler 0x01C05F58, stockre §7.3): CPU0 asks (park), CPU1 waits for the
+ * cache idle (CACHE_CON bit 14, bounded), acks (parked) and spins in RAM until CPU0 lets go; CPU0 then pauses it in hardware
+ * (C1_CON bit 2) for the flash operation and resumes it after. Inlined into RAM code only */
+static inline __attribute__((always_inline)) void fm1_dual_park_check(void)
+{
+    fm1_dual_mb_t *mb = &fm1_dual_mb;
+    if (mb->park) {
+        uint32_t k = 100000u;
+        while (!(*(volatile uint32_t *)0x1EEE008u & 0x4000u) && --k)
+            ;
+        if (!k)
+            mb->park_to++;
+        mb->parked = 1u;
+        fl_csync();
+        while (mb->park)
+            ;
+        mb->parked = 0;
+        fl_csync();
+    }
+}
 static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_t done, uint32_t count, uint32_t allowed,
                                                                          uint32_t *arg)
 {
@@ -163,6 +186,9 @@ static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_
     mb->done = done;
     fl_csync();
     for (;;) {
+#if FELUCCA_DUALCFG
+        fm1_dual_park_check();
+#endif
         r = mb->req;
         if (r != done) {
             fl_csync();                                   /* the request's data after `req` */
