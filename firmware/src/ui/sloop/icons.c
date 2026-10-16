@@ -111,9 +111,7 @@ static uint32_t param_icon(const param_desc_t *d, int32_t v)
     if (is_lrate(d) && v < 0)
         return ICON_DIVISION;                 /* a synced LFO RATE is a note division, not Hz */
     if (d == &TP[P_LWAVE]
-#if FELUCCA_LFO2
         || d == &TP[P_L2WAVE]
-#endif
     )
         return ICON_LFO_WAVE;                /* "WAVE" is also the oscillator wave */
     if (d == &TP[P_ARATE] || d == &TP[P_SLRATE]

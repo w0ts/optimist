@@ -22,7 +22,7 @@
  *     ENGINE other than MARK I (2.4's), operators switched off;
  *   - the LFO's RATE synced to the tempo (< 0, params.c N_LSYNC: SLOOP 2.6's, not 2.4's) -> the free rate nearest
  *     that note value's at the project's tempo (sl24_rate_out), its locks too (LOST: LSYNC, the sync);
- *   - a part's LFO 2 (FELUCCA_LFO2, project.c l2_pack; the drum track's LFO slots that hold it: their defaults): 2.4's
+ *   - a part's LFO 2 (project.c l2_pack; the drum track's LFO slots that hold it: their defaults): 2.4's
  *     LFO when the part's own does nothing (sl24_l2_out); else, and its TRIG FREE, POL UNI, AMP < 0: LOST (SX24_LFO2);
  *   - LFO DEST's two slots: 2.4's depths PIT FLT SHP AMP (an odd AMT on PIT FLT SHP: APPROXIMATE, half rounded toward
  *     0); another destination, AMP < 0: LOST (SX24_LFODEST);
@@ -200,7 +200,6 @@ static uint32_t sl24_slots_out(const int16_t *s, uint8_t *o)
         sl24_w16(o + 2u * (P_LEG_PIT + i), d[i]);
     return r;
 }
-#if FELUCCA_LFO2
 /* part k's LFO 2 (project.c l2_unpack) over 2.4's values at o (its p[]), v ours: when it acts and the part's LFO does
  * not (its slots OFF or at 0), it becomes 2.4's LFO: RATE (synced: the nearest free one, SX24_LSYNC), WAVE, PHS and FADE
  * 0, its slots as depths (sl24_slots_out); 2.4 has no TRIG FREE, no POL UNI, nothing but PIT FLT SHP AMP: those, and a
@@ -221,7 +220,6 @@ static uint32_t sl24_l2_out(const int16_t *l, const int16_t *l1, int32_t bpm, ui
     lost |= l[2] || l[3] ? SX24_LFO2 : 0u;
     return lost;
 }
-#endif
 /* global i of q as 2.4 keeps it: G_MIDI (our MIDI channels), G_VIEW (2.4's G_ROUTE) and G_INFO (our REC QUANTIZE) 0,
  * SYNC AUTO -> INT, the drum reverb our lanes took (DRREV_MOVED) -> 2.4's default 16 */
 static int32_t sl24_g_out(const project_t *q, uint32_t i)
@@ -249,17 +247,13 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
         int16_t s[4], mv[P_COUNT];
         int32_t spill;
         const uint8_t *mb = mrec_parts_of(q);
-#if FELUCCA_LFO2
         int16_t x[NPART][L2_NV];
         (void)l2_unpack(q, x);
-#endif
         if (mb) {
             memcpy(mv, v, sizeof mv);
             mrec_part_vals(mb, k, mv);
             memcpy(s, &mv[P_L1DA], sizeof s);
-#if FELUCCA_LFO2
             memcpy(x[k], &mv[P_L2RATE], sizeof x[k]);
-#endif
             (void)env_store(mv);                        /* (ENV DEST's slots as 2.4's FLT SHP depths) */
             sl24_w16(o + 2u * P_ED_FLT, mv[P_ED_FLT]);
             sl24_w16(o + 2u * P_ED_SHP, mv[P_ED_SHP]);
@@ -267,9 +261,7 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
             (void)lfo1_load(&q->t[k].p[P_LEG_PIT], s, &spill);
         }
         lost |= sl24_slots_out(s, o) ? SX24_LFODEST : 0u;
-#if FELUCCA_LFO2
         lost |= sl24_l2_out(x[k], s, q->g[G_BPM], o);
-#endif
     }
     for (i = 0; i < 3u; i++)
         sl24_w16(o + 2u * (SL24_TFLT + i), px[i]);

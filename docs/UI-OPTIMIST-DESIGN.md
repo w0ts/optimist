@@ -2637,9 +2637,9 @@ VERSION the version), tests/ui_optimist_pages.h (D1 as now:
 GLO toggles, SELECT pages within a screen; the headers), and the cards, knob colours, CLOCK OUT, HOLD and BLE tests on
 the lines. Screens: opt-glo-global-top, opt-glo-global-mid, opt-glo-system-cpu.
 
-## LFO 2 pages (builder item LFO2, 2026-10-13)
+## LFO 2 pages (2026-10-13; always built since 2026-10-16, the builder item LFO2 was retired)
 
-With LFO2 built in, a synth track's LFO family is LFO, LFO DEST, **LFO 2** and **LFO2 DEST** (core/params.c PAGES; the drum track has no LFO 2: `page_for_drum`, its lanes have their own LFOs). Cards are 2 x 2, SELECT is the page, ALGORITHM the track, SHIFT + a knob the default.
+A synth track's LFO family is LFO, LFO DEST, **LFO 2** and **LFO2 DEST** (core/params.c PAGES; the drum track has no LFO 2: `page_for_drum`, its lanes have their own LFOs). Cards are 2 x 2, SELECT is the page, ALGORITHM the track, SHIFT + a knob the default.
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 |---|---|---|---|---|
@@ -2648,7 +2648,7 @@ With LFO2 built in, a synth track's LFO family is LFO, LFO DEST, **LFO 2** and *
 
 LFO 2's graph (`GR_LFO2`, op_graph.c `graph_lfo2`) is its WAVE over two cycles, POL UNI one way only; LFO2 DEST shows it, as LFO DEST shows LFO's. The header keeps the number of "LFO 2" with the n/N (a second unit, as OSC 2 and FLT 2; FM6's LFO 2 row is still a continuation, op_draw.c `head_cont`). Not recorded as motion and no locks yet (the core: motion.c). **The DEST cards (LFO DEST and LFO2 DEST, feat/lfo-slots-ui)**: both LFOs have two slots, KNOB 1 DST A, KNOB 2 AMT A, KNOB 3 DST B, KNOB 4 AMT B (the same table, `PAGES`; the SLOOP UI gets them from it). The destinations: OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, and with LFO 2 XRATE XAMT. The card's text (params.c `param_format`, so both UIs): **E1..E8 show the selected part's engine's own name for that EDIT value** (the card the engine's `edit[]` / `desc` hook gives that knob: FM's RATIO, ACID's ACCENT ...; "E1" where the engine names none), **XRATE / XAMT show the other LFO's**: "L2 RT" / "L2 AMT" on LFO's DEST, "L1 RT" / "L1 AMT" on LFO 2's. The SLOOP UI (UI=0) gets the same two pages through PAGES (the LFO button steps four pages; VIEW ALL's LFO family shows four rows and no graph), with no graph of its own for LFO 2.
 
-Tests: tests/ui_optimist_lfo2.h (the pages exist only with LFO2=1, order, cards to params, the RATE sync display and knob, SHIFT + each knob, the graph, the AMT bar equal to the render), tests/ui_optimist_effval.h (`effv_over_tests`: the AMT bar of RES PAN LVL ATK DEC E1..E8 equals what `lfo_over_in` gave the render, one and two LFOs on a value; the DEST cards' E and L2 RT text), tests/lfo_slots_test.c (`t_names`: every engine's E1..E8, the L1 / L2 names), tests/ui_pages_test.c (the SLOOP UI's four-page LFO family, the RATE gauge), tests/lforate_ui.c (both LFOs' RATE gauge and division icon on the SLOOP UI's screens). Screens: opt-lfo2-page, opt-lfo2-dest, opt-lfo2-sync.
+Tests: tests/ui_optimist_lfo2.h (the pages, order, cards to params, the RATE sync display and knob, SHIFT + each knob, the graph, the AMT bar equal to the render), tests/ui_optimist_effval.h (`effv_over_tests`: the AMT bar of RES PAN LVL ATK DEC E1..E8 equals what `lfo_over_in` gave the render, one and two LFOs on a value; the DEST cards' E and L2 RT text), tests/lfo_slots_test.c (`t_names`: every engine's E1..E8, the L1 / L2 names), tests/ui_pages_test.c (the SLOOP UI's four-page LFO family, the RATE gauge), tests/lforate_ui.c (both LFOs' RATE gauge and division icon on the SLOOP UI's screens). Screens: opt-lfo2-page, opt-lfo2-dest, opt-lfo2-sync.
 
 ## 21. Sequencer mutes (feat/seq-mutes, 2026-10-13)
 

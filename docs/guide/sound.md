@@ -72,7 +72,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 ### LFO 1 and LFO 2
 
 **LFO** has the cards RATE, WAVE (SIN, TRI, SAW, SQR, S&H), PHS (start phase) and FADE (fade-in). **LFO 2** (a synth
-track's second LFO; builder item `LFO2`) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or
+track's second LFO, always on) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or
 UNI). RATE below its free range is a tempo-synced value: 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T, 1/32.
 
 ### ENV and ENV 2

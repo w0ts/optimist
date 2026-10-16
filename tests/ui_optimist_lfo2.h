@@ -1,21 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, LFO 2 (builder item LFO2; core/params.c PAGES, voice.c lfo2_tick):
+/* tests/ui_optimist_test.c, LFO 2 (core/params.c PAGES, voice.c lfo2_tick):
  *   the pages   "LFO 2" (RATE WAVE TRIG POL) and "LFO2 DEST" (DEST AMT, two empty cards) are SOUND rows right after
- *               LFO DEST, on the synth tracks only, and only with LFO2 built in (a build without: no such row)
+ *               LFO DEST, on the synth tracks only
  *   the cards   each maps to its P_L2* value; RATE shows as LFO's does (the free bar from 0, a synced division as ten
  *               cells), SHIFT held + a knob puts the value back to its default
  *   the bars    AMT's second bar is the destination's actual value, equal to what the render used (ANALOG 2's cutoff)
  * Included after ui_optimist_inslots.h (ins_row). */
-static void lfo2ui_off_tests(void)
-{
-    uint32_t r;
-    song.sel = 0;
-    r = ins_row("LFO 2");
-    check(r >= SCR->rows(), "no LFO 2 page without LFO2 built in");
-    r = ins_row("LFO2 DEST");
-    check(r >= SCR->rows(), "no LFO2 DEST page without LFO2 built in");
-}
-#if FELUCCA_LFO2
 static void lfo2ui_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     ui.row[SCR_SOUND] = (uint8_t)r;
@@ -193,4 +183,3 @@ static void lfo2ui_tests(void)
     trk[0] = keep;
     reset_ui();
 }
-#endif

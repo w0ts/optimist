@@ -189,7 +189,6 @@ static void graph_lfo(uint16_t col)
     }
     cv_line(0, mid, 239, mid, C_LINE);
 }
-#if FELUCCA_LFO2
 /* LFO 2 as it runs: two cycles of its WAVE from phase 0, POL UNI one way only (from the centre line up, lfo2_tick's
  * (v + 1) / 2); S&H as random steps, as LFO's */
 static void graph_lfo2(uint16_t col)
@@ -209,7 +208,6 @@ static void graph_lfo2(uint16_t col)
     }
     cv_line(0, mid, 239, mid, C_LINE);
 }
-#endif
 /* a SOUND FX page's picture (SENDS, INSERTS, BUS SENDS, COMP, SLICER...): its own four values as needles (SLOOP's
  * graph_fx's look), read from the page's own cells, so the needles are the cards' values in the cards' order (the audit's
  * #31: SLOOP's fx_needle read SLOOP's page order, CHO DLY REV under REV DLY CHO). Placed for the 2x2 cards: under each
@@ -548,9 +546,7 @@ static uint32_t graph_sig(void)
         h = h * 31u + t->held[i];
     h = h * 31u + t->nheld;
     h ^= (uint32_t)t->p[P_FXOFF] << 24 ^ (uint32_t)t->p[P_LWAVE] << 26 ^ (uint32_t)t->p[P_LPHASE] << 12;
-#if FELUCCA_LFO2
     h = h * 31u + (uint32_t)t->p[P_L2WAVE] * 5u + (uint32_t)t->p[P_L2POL];   /* (LFO 2's wave and its POL) */
-#endif
     for (i = 0; i < 4u; i++)
         h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u + fxi_state(song.sel, i & 1u) * 7919u;
     for (i = 0; i < NSTEP; i++)
@@ -576,11 +572,9 @@ static void draw_sound_graph(const page_t *pg)
     case GR_LFO:
         graph_lfo(col);
         break;
-#if FELUCCA_LFO2
     case GR_LFO2:
         graph_lfo2(col);
         break;
-#endif
     case GR_FX:
     case GR_INS:
     case GR_BUS:
