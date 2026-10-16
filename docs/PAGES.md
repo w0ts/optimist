@@ -12,6 +12,8 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 - `webapp/builder/`: the web firmware builder (docs/BUILDER-WEB.md): the builder of `make builder` run in the browser
   by Pyodide, its data exported fresh by `tools/export_builder_web.py`, `build-info.json` the commit for the cloud key.
   `python3 web/make_site.py --builder OUT` makes only this part.
+- The installer and the builder share one look and one header (docs/WEB-STYLE.md): `web/style/optimist.css`, which
+  `make_site.py` inlines into each page, so every page stays a standalone file.
 - `firmware/optimist-<version>-<id>.fwsc`: one package per flavour; the installer checks the download against the
   SHA-256 written into its page.
 - `icon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-*.png`, `manifest.webmanifest`: the dinghy icon

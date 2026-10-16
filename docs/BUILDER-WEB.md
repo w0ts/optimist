@@ -9,20 +9,28 @@ of that code.
 ## What it does
 
 - **The list:** grouped as in the menu, with check boxes for on/off items and choice lists for sized items. An option
-  sits under its parent and is greyed while the parent is off. EXPERIMENTAL is a red tag and NOTICE is an orange one
-  (shown while the item is on).
+  sits under its parent and is greyed while the parent is off. An experimental item has an `experimental` tag, amber
+  only while the item is on. An item with notes (how it was tested, its notice, where it comes from, what turning it
+  off loses) has an (i) button that opens them in a popover.
 - **What each item costs:** the cost chips use the menu's words (`flash +1.2K`), and a chip turns red when the item
   holds part of an overflow. `◀ off = fits` marks an item that alone would make everything fit. The sampled kits say
   they share the PERC samples. Errors from `validate()` show on the items they name (`✗ ...`) and in the messages, in
   plain words.
-- **The bars:** FLASH, RAM, POOL and RAMTEXT show used / capacity and the bytes free, or `OVER by N B`, plus the UNDO
-  ring when the undo history is built. This is the estimate: the same as `configure.budget(..., use_exact=False)`,
+- **The gauges:** a bar at the top of the page that stays in view while the list scrolls (desktop and phone). FLASH,
+  RAM, POOL and RAMTEXT show used / limit in KiB with the exact bytes on hover, and, only when over, the overflow in red
+  (`+12.3K`) with the limit marked on the bar; next to them Make it fit, the UNDO ring when the undo history is built,
+  the configuration's key (a click copies it) and an (i) that says where the estimate comes from. This is the estimate: the same as `configure.budget(..., use_exact=False)`,
   taken from the nearest real build in `costs.json`. The size is only shown. Nothing on the page is refused because of
   it.
 - **Make it fit:** proposes the changes `core.fit` would make (its fixed order of least loss). You choose whether to
   apply them.
-- **BLE:** ticking BLE makes room the way the menu does (`room.py`), and the message names what it removed and the
-  alternatives.
+- **Messages:** the page shows only what the user must act on, one line each: in red an error (a rule that is not met,
+  the undo ring too small) and an overflow (ONE line for every region over, with the biggest items and the legend of
+  the list's red sizes and `◀ off = fits`); in amber one line per experimental item that is on. Everything else (the
+  NOTICE texts: provenance, "tested in the emulator only", credits; the hints; what is not measured) is in the item's
+  (i) and in a "Notes (n)" section, closed by default, each text once with the items it concerns.
+- **BLE:** ticking BLE makes room the way the menu does (`room.py`), and a line on the Bluetooth row names what it
+  removed and the alternatives.
 - **Search, sort and folding:** search matches the label, key, group and description. Sort works like the menu's `o`
   (default order, then flash, ram, pool or ramtext, largest first). Keys outside the text fields: `/` search, `o` sort,
   `x` expand all, `c` collapse all.
@@ -37,7 +45,8 @@ of that code.
   is a later step.
 
 The page needs no storage. It remembers the last configuration in `localStorage` when it can, and works without it.
-Light and dark follow the system. It works on a phone (16 px gutters, no sideways scroll).
+Light and dark follow the system. It works on a phone (16 px gutters, no sideways scroll). Its look is the shared web
+style (docs/WEB-STYLE.md), put in by `web/make_site.py` with the header.
 
 ## Pyodide
 
@@ -70,7 +79,9 @@ fails while the data is stale. `make_site.py` exports fresh data into the site e
   - `logic.js` against the menu's rules.
 - `node web/e2e_builder.mjs [--shots DIR]` runs the same comparison in headless Chrome with the real Pyodide from the
   CDN, plus `tools/optimist.py cloud-key --json` on the page's own download, then the page itself: toggling, errors,
-  search, sort, import, download, light and dark, and a 390 px phone. It is not part of `make test`, because it needs
+  search, sort, import, download, the notices policy (no NOTICE on the page with the default flavour, one line for an
+  overflow, the (i) popover, the BLE line), the gauges staying on top while scrolling, light and dark, and a 390 px
+  phone. `E2E_PORT` sets its server's first port (8800). It is not part of `make test`, because it needs
   Chrome and the network. `PYODIDE_DIR=path` serves a local copy of the same Pyodide release instead of the CDN (for
   example the npm package `pyodide@314.0.7`).
 
