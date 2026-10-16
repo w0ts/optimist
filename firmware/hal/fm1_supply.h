@@ -44,12 +44,37 @@ static uint32_t fm1_rail_raise(uint32_t reg, uint32_t mask, uint32_t level)
     return now;
 }
 
-/* VDC14 first, then SYSVDD (Jangada's order), then 1 ms to settle. -> VDC14 << 4 | SYSVDD as found (the console's) */
-static uint32_t fm1_supply_boost(void)
+/* both rails as they are now: VDC14 << 4 | SYSVDD */
+static uint32_t fm1_supply_now(void)
 {
-    uint32_t was = fm1_rail_get(FM1_P3_VDC14, FM1_VDC14_MASK) << 4 | fm1_rail_get(FM1_P3_SYSVDD, FM1_SYSVDD_MASK);
-    fm1_rail_raise(FM1_P3_VDC14, FM1_VDC14_MASK, FM1_VDC14_BOOST);
-    fm1_rail_raise(FM1_P3_SYSVDD, FM1_SYSVDD_MASK, FM1_SYSVDD_BOOST);
+    return fm1_rail_get(FM1_P3_VDC14, FM1_VDC14_MASK) << 4 | fm1_rail_get(FM1_P3_SYSVDD, FM1_SYSVDD_MASK);
+}
+
+/* VDC14 up to VDC, then SYSVDD up to SYS (Jangada's order; 0: that rail left as it is; never lowered), then 1 ms to
+ * settle. -> VDC14 << 4 | SYSVDD as found (the console's) */
+static uint32_t fm1_supply_to(uint32_t vdc, uint32_t sys)
+{
+    uint32_t was = fm1_supply_now();
+    if (vdc)
+        fm1_rail_raise(FM1_P3_VDC14, FM1_VDC14_MASK, vdc > FM1_VDC14_MASK ? FM1_VDC14_MASK : vdc);
+    if (sys)
+        fm1_rail_raise(FM1_P3_SYSVDD, FM1_SYSVDD_MASK, sys > FM1_SYSVDD_MASK ? FM1_SYSVDD_MASK : sys);
     fm1_delay_us(1000);
     return was;
+}
+
+/* the boost: VDC14 5 (1.50 V), SYSVDD 15 (1.38 V) */
+static uint32_t fm1_supply_boost(void) { return fm1_supply_to(FM1_VDC14_BOOST, FM1_SYSVDD_BOOST); }
+
+/* B24 test image, `dualcfg boostlvl N`: a ladder up to the boost, VDC14 first (what mattered on Jangada's unit), a
+ * step of the smallest unit each: 0 nothing; 1 VDC14 4 (1.45 V); 2 VDC14 5 (1.50 V); 3..6 VDC14 5 and SYSVDD 12..15
+ * (1.29 .. 1.38 V); 6 = the boost. -> VDC14 << 4 | SYSVDD targets (0: leave) */
+#define FM1_BOOST_LEVELS 7u
+static inline uint32_t fm1_boost_level(uint32_t n)
+{
+    if (!n || n >= FM1_BOOST_LEVELS)
+        return n ? (FM1_VDC14_BOOST << 4 | FM1_SYSVDD_BOOST) : 0u;
+    if (n <= 2u)
+        return (3u + n) << 4;
+    return FM1_VDC14_BOOST << 4 | (9u + n);
 }

@@ -204,6 +204,27 @@ static void test_supply(void)
     fm1_supply_boost();
     p33_stuck = 0;
     CHECK(p33_n <= 8u + 16u, "a stuck register ends the loop (%u writes)", p33_n);
+    /* B24: the levels' ladder and fm1_supply_to (0: a rail left as it is) */
+    CHECK(fm1_boost_level(0) == 0u, "level 0: nothing");
+    CHECK(fm1_boost_level(1) == 0x40u && fm1_boost_level(2) == 0x50u, "levels 1, 2: VDC14 4, 5 only");
+    CHECK(fm1_boost_level(3) == 0x5Cu && fm1_boost_level(6) == 0x5Fu, "levels 3..6: VDC14 5, SYSVDD 12..15");
+    CHECK(fm1_boost_level(6) == (FM1_VDC14_BOOST << 4 | FM1_SYSVDD_BOOST), "level 6 = the boost");
+    for (i = 1; i < FM1_BOOST_LEVELS; i++)
+        CHECK((fm1_boost_level(i) >> 4) >= (fm1_boost_level(i - 1u) >> 4) &&
+              (fm1_boost_level(i) & 15u) >= (fm1_boost_level(i - 1u) & 15u), "level %u raises no rail less than %u", i, i - 1u);
+    p33[FM1_P3_VDC14] = 0x18u | 3u;
+    p33[FM1_P3_SYSVDD] = 11u;
+    p33_n = 0;
+    was = fm1_supply_to(4u, 0u);
+    CHECK(was == 0x3Bu && p33[FM1_P3_VDC14] == (0x18u | 4u) && p33[FM1_P3_SYSVDD] == 11u && p33_n == 1u,
+          "VDC14 to 4 only, SYSVDD left (%02x %02x, %u writes)", p33[FM1_P3_VDC14], p33[FM1_P3_SYSVDD], p33_n);
+    CHECK(fm1_supply_now() == 0x4Bu, "read back 4 / 11");
+    p33_n = 0;
+    fm1_supply_to(0u, 13u);
+    CHECK(p33[FM1_P3_VDC14] == (0x18u | 4u) && p33[FM1_P3_SYSVDD] == 13u && p33_n == 2u, "SYSVDD to 13 only (%u writes)", p33_n);
+    p33_n = 0;
+    fm1_supply_to(3u, 11u);
+    CHECK(p33_n == 0u && fm1_supply_now() == 0x4Du, "never lowered (%u writes)", p33_n);
 }
 
 /* SYSTEM > INFO's CPU1 lines (dual_mode.h): the stop record's text on every path, the stages, the short numbers */

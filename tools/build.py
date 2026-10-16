@@ -242,6 +242,9 @@ def build_app():
             v = os.environ.get(k)               # (its defaults, for the emulator: the console is not there)
             if v in ("0", "1", "2"):
                 flags.append(f"-D{d}={v}")
+        v = os.environ.get("OPTIMIST_DUALCFG_RAILS")   # (VDC14 << 4 | SYSVDD targets before CPU1 starts, e.g. 0x5F)
+        if v and re.fullmatch(r"0x[0-7][0-9a-fA-F]", v):
+            flags.append(f"-DDUALCFG_DEF_RAILS={v}u")
         v = os.environ.get("OPTIMIST_DUALCFG_JOBS")   # (what CPU1 may render, 1..255; 128: none, its heartbeat only)
         if v and v.isdigit() and 1 <= int(v) <= 255:
             flags.append(f"-DDUALCFG_DEF_JOBS={v}u")

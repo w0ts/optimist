@@ -62,7 +62,8 @@ typedef struct {
                                                     * all the same (bootguard.failed ignored for it): the test matrix */
     uint8_t spinv;                                 /* B23 `dualcfg spin ram|xip|nops`: CPU1's spin loop (hal/fm1_dual.h FM1_SPIN_*) */
     uint8_t pcnt;                                  /* 1: corex2 DBG_CON |= 0x707 at the start (the SDK's cpu_effic_init) */
-    uint8_t pad2[1];
+    uint8_t rails;                                 /* B24 `dualcfg boostlvl N` / `rails V S`: VDC14 << 4 | SYSVDD targets raised to
+                                                    * before CPU1 starts (0 a rail: left; 0: none; boost on without it: 5 / 15) */
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -80,6 +81,9 @@ typedef struct {
 #ifndef DUALCFG_DEF_SPIN
 #define DUALCFG_DEF_SPIN 0                         /* (FM1_SPIN_RAM; 1 xip, 2 nops: OPTIMIST_DUALCFG_SPIN, the emulator) */
 #endif
+#ifndef DUALCFG_DEF_RAILS
+#define DUALCFG_DEF_RAILS 0                        /* (none; OPTIMIST_DUALCFG_RAILS, the emulator: VDC14 << 4 | SYSVDD) */
+#endif
 #ifndef DUALCFG_DEF_JOBS
 #define DUALCFG_DEF_JOBS 0xFFu                     /* (0x80: no job, CPU1 up with its heartbeat only) */
 #endif
@@ -96,6 +100,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->policy = 1;
     c->jobs = DUALCFG_DEF_JOBS;
     c->spinv = DUALCFG_DEF_SPIN;
+    c->rails = DUALCFG_DEF_RAILS;
     c->isrram = DUALCFG_DEF_ISRRAM;
     c->fpause = DUALCFG_DEF_FPAUSE;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
@@ -174,6 +179,9 @@ static struct {
     uint8_t why;                                   /* DUAL_*: why it is down (dual_mode.h) */
     uint8_t boot_mode;                             /* the 2ND CORE setting this boot started with */
     uint8_t supply;                                /* FELUCCA_DUAL_BOOST: VDC14 << 4 | SYSVDD before the boost */
+#if FELUCCA_DUALCFG
+    uint8_t supply_set;                            /* (the test image) VDC14 << 4 | SYSVDD read back after it */
+#endif
     uint32_t jobs, wait_max;                       /* jobs done; longest CPU0 wait (ticks) */
     uint32_t rewakes;                              /* wakes sent again for a job CPU1 had not picked up (dual_join) */
     /* when it went down (SYSTEM > INFO, console; every path: dual_down): fm1_ms then, the job's mask, the latch word
@@ -489,11 +497,19 @@ static __attribute__((noinline)) void dual_boot(void)
         dual.late = 1;                             /* (dual_frame starts it: dual_start_late) */
         return;
     }
+#if FELUCCA_DUALCFG
+    if ((dualcfg.rails || DUAL_BOOST_NOW) && !dual.supply) {
+        uint32_t t = dualcfg.rails ? dualcfg.rails : fm1_boost_level(FM1_BOOST_LEVELS - 1u);
+        dual.supply = (uint8_t)fm1_supply_to(t >> 4, t & 15u);   /* EXPERIMENTAL (hal/fm1_supply.h): the test's levels */
+        dual.supply_set = (uint8_t)fm1_supply_now();
+    }
+#else
     if (DUAL_BOOST_NOW && !dual.supply) {
-#if FELUCCA_DUAL_BOOST || FELUCCA_DUALCFG
+#if FELUCCA_DUAL_BOOST
         dual.supply = (uint8_t)fm1_supply_boost(); /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
 #endif
     }
+#endif
     fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
 #if FELUCCA_DUALCFG
     if (dualcfg.c1guard)

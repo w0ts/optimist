@@ -464,6 +464,17 @@ static void con_status(void)
     con_kv("cpu1_stack_big_used", (int32_t)fm1_dual_stack_used(1));    /* bytes of 5120 (the jobs' one) */                   /* (what it reads back now) */
 #if FELUCCA_DUAL_BOOST
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
+#if FELUCCA_DUALCFG
+    con_kx("cpu1_supply_set", dual.supply_set);         /* read back right after it */
+    {
+        uint32_t ie = fm1_icfg() & 0x200u, r;
+        fm1_irq_off();                                  /* (P33 access: not reentrant) */
+        r = fm1_supply_now();
+        if (ie)
+            fm1_irq_on();
+        con_kx("rails_now", r);                         /* VDC14 << 4 | SYSVDD as they are */
+    }
+#endif
 #endif
 #endif
     con_kv("track", (int32_t)song.sel + 1);
@@ -672,6 +683,7 @@ static void con_dualcfg_show(void)
     con_puts(dualcfg.spinv == FM1_SPIN_XIP ? "dualcfg spin xip\r\n" : dualcfg.spinv == FM1_SPIN_NOPS ? "dualcfg spin nops\r\n"
                                                                                                   : "dualcfg spin ram\r\n");
     con_kv("dualcfg pcnt", dualcfg.pcnt);
+    con_kx("dualcfg rails", dualcfg.rails);           /* VDC14 << 4 | SYSVDD targets (0: none) */
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -704,8 +716,11 @@ static void con_dualcfg(const char *p)
         ok = con_word(&p, "sleep") ? (c.sleep = 1, 1) : con_word(&p, "spin") ? (c.sleep = 0, 1) : 0;
     else if (con_word(&p, "park"))
         ok = con_onoff(&p, &c.park);
-    else if (con_word(&p, "boost"))
+    else if (con_word(&p, "boost")) {
         ok = con_onoff(&p, &c.boost);
+        if (ok)
+            c.rails = 0;                                /* (boost on: 5 / 15; off: no rail raised) */
+    }
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
     else if (con_word(&p, "isr"))
@@ -715,7 +730,20 @@ static void con_dualcfg(const char *p)
     else if (con_word(&p, "spin"))
         ok = con_word(&p, "ram") ? (c.spinv = FM1_SPIN_RAM, 1) : con_word(&p, "xip") ? (c.spinv = FM1_SPIN_XIP, 1)
            : con_word(&p, "nops") ? (c.spinv = FM1_SPIN_NOPS, 1) : 0;
-    else if (con_word(&p, "pcnt"))
+    else if (con_word(&p, "boostlvl")) {
+        v = con_num(&p, &n);
+        ok = n && v < FM1_BOOST_LEVELS;
+        if (ok)
+            c.rails = (uint8_t)fm1_boost_level(v), c.boost = 0;
+    } else if (con_word(&p, "rails")) {             /* rails V S: VDC14 0 or 3..7, SYSVDD 0 or 11..15 (0: left) */
+        uint32_t s;
+        int n2;
+        v = con_num(&p, &n);
+        s = con_num(&p, &n2);
+        ok = n && n2 && (v == 0u || (v >= 3u && v <= 7u)) && (s == 0u || (s >= 11u && s <= 15u));
+        if (ok)
+            c.rails = (uint8_t)(v << 4 | s), c.boost = 0;
+    } else if (con_word(&p, "pcnt"))
         ok = con_onoff(&p, &c.pcnt);
     else if (con_word(&p, "afterhold")) {
         uint8_t on;
@@ -763,7 +791,7 @@ static void con_dualcfg(const char *p)
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
                  " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
-                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off\r\n");
+                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off | boostlvl 0..6 | rails V S\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;
