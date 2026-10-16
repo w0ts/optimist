@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     The standalone installer page (webapp/installer/ on the site): the shared header and style, and the installer module
+     (web/installer/installer.js) mounted in <main>. web/make_site.py puts in the style, the header, the module (with
+     web/fm1ota.js, web/fm1pkg.js and web/installer/installer.css inlined) and the site's packages, so the page is one
+     standalone, offline file. docs/PAGES.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimist installer</title>
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<link rel="manifest" href="../../manifest.webmanifest">
+<style>/*OPTIMIST-CSS*/</style>
+</head>
+<body class="o-ui">
+<!--OPTIMIST-HEADER-->
+<main class="o-page" id="installer"><noscript>The installer needs JavaScript, and Chrome or Edge (Web MIDI).</noscript></main>
+<script type="module">
+/*INSTALLER*/
+const site = /*META*/;                               /* { version, source, packages: [{ id, title, description, pkg, product, sha256 }] } */
+window.optimistInstaller = mountInstaller(document.getElementById("installer"), site);
+</script>
+</body>
+</html>

@@ -11,13 +11,16 @@
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { STOCK_V15_SHA256, logicalImage, productOf, validateStockPackage } from "./fm1pkg.js";
-import { OFFICIAL_LOADER, OUR_LOADER, Updater, pack7, unpack7 } from "./fm1ota.js";
+import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "./fm1ota.js";
+import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
+import * as INST from "./installer/installer.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -2487,9 +2490,9 @@ async function editorBackup() {
   /* the UI and the installer */
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
     /if \(h === "backup"\) return "projects"/.test(html), "editor: Backup section (projects tab, #backup), progress, restore");
-  const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 1 && /\.\.\/editor\/#backup/.test(inst),
-    "installer: asks to back up first, opens the editor's Backup");
+  const inst = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
+  ok(/const answer = await ask\(pkg\.stock\)/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
+    && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first, opens the editor's Backup (or the host's tab)");
 }
 
 /* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */
@@ -2712,7 +2715,7 @@ function editorTabs() {
   ok(!miss.length && !("ja" in TEXT) && !("en" in TEXT), `editor: every string has its English text (${used.size} used${miss.length ? ", missing " + miss : ""})`);
   ok(TEXT.sl24 === "SLOOP (kept)" && TEXT.keptSlot.includes("(SLOOP)") && !/2\.4/.test(TEXT.sl24 + TEXT.keptSlot),
     "editor: a kept SLOOP 2.4 / 2.5 / 2.6 project slot says SLOOP");
-  const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "index_pkg.html"), "utf8");
+  const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "installer", "installer.js"), "utf8") + readFileSync(join(HERE, "installer", "index.html"), "utf8");
   ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en"[ >]/.test(html),
     "editor + installer: English only (no Japanese text, no language switch)");
   /* the page script parses (the browser's view of it) */
@@ -2789,7 +2792,7 @@ async function masterStrip() {
     "settings: the drums' LVL on the drum strip; the retired REV (G_DRREV) nowhere: the sounds' sends are on the strip");
   /* no theme picker anywhere: the page follows the system */
   ok(!/id="theme"|id="appearance"|id="appearbox"|data-t="theme"|applyTheme|THEMES/.test(html) && /matchMedia\("\(prefers-color-scheme: light\)"\)\.addEventListener\("change"/.test(html)
-    && !/data-theme/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")) && /prefers-color-scheme: light/.test(readFileSync(join(HERE, "index_pkg.html"), "utf8")),
+    && !["installer.js", "installer.css", "index.html"].some((f) => /data-theme|prefers-color-scheme/.test(readFileSync(join(HERE, "installer", f), "utf8"))),
     "theme: no selector or toggle anywhere (the editor follows prefers-color-scheme, live)");
   /* the SLOOP 2.4 look: Terminus inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
   const lic = existsSync(join(HERE, "TERMINUS-LICENSE.txt")) ? readFileSync(join(HERE, "TERMINUS-LICENSE.txt"), "utf8") : "";
@@ -3154,67 +3157,8 @@ sys.stdout.buffer.write(b"".join(raw[i * 48:i * 48 + 47] for i in range(20)) + r
 }
 
 /* ------------------------------------------------- update protocol (fm1ota.js) --- */
-const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
-const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
-
-/* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
-class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity, finalIdentity = "FM-1_900", identity = "FM-1_015",
-                       loaderIdentity = "ota-FM-1_900" } = {}) {
-    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
-    this.finalIdentity = finalIdentity; this.loaderIdentity = loaderIdentity;
-    this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot(identity, "FM-1");
-  }
-  boot(identity, name) {
-    this.identity = identity; this.waiting = null; this.queue = [];
-    for (const m of [this.access.inputs, this.access.outputs]) { for (const p of m.values()) p.state = "disconnected"; m.clear(); }
-    const id = Math.random().toString(36).slice(2);
-    this.input = { id: "i" + id, name, state: "connected", onmidimessage: null, open: async () => {} };
-    this.output = { id: "o" + id, name, state: "connected", open: async () => {}, send: (d) => {
-      if (this.output.state !== "connected") throw new Error("InvalidStateError");
-      setTimeout(() => this.rx(Array.from(d)), 1);
-    } };
-    this.access.inputs.set(this.input.id, this.input);
-    this.access.outputs.set(this.output.id, this.output);
-  }
-  tx(bytes) { const i = this.input; setTimeout(() => { if (i.state === "connected" && i.onmidimessage) i.onmidimessage({ data: Uint8Array.from(bytes) }); }, 1); }
-  rx(d) {
-    if (eq(d, HS)) {
-      const t = [...new TextEncoder().encode(this.identity)];
-      const body = [0, 0x59, 0x11, 0, 0, 0, ...t, ...new Array(28 - t.length).fill(0)];
-      this.tx([0xF0, ...pack7(body), 0xF7]);
-    } else if (eq(d, UPGRADE)) {
-      this.queue = this.identity.startsWith("ota-")
-        ? [...Array.from({ length: 6 }, (_, k) => [k * 512, 512]), [0xF0000000, 8]]
-        : [[0, 64], [0x40, 160], [0x1000, 512], [0xE0000000, 8]];
-      this.next();
-    } else if (this.waiting) {
-      const u = unpack7(d.slice(1, -1));
-      const [addr, len] = this.waiting;
-      const got = u.slice(14, 14 + (addr >= 0xE0000000 ? 8 : len));
-      const want = addr >= 0xE0000000 ? [...new TextEncoder().encode("success"), 0] : Array.from(this.image.subarray(addr, addr + len));
-      if (!eq(got, want)) this.bad++;
-      this.waiting = null;
-      this.served++;
-      if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
-      if (addr === 0xE0000000) setTimeout(() => this.boot(this.loaderIdentity, "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.finalIdentity, "Felucca"), 300);
-      else this.next();
-    }
-  }
-  next() {
-    const r = this.queue.shift();
-    if (!r) return;
-    this.waiting = r;
-    const [addr, len] = r;
-    const u = [0, 0x59, 0x30, 0, 0, 0, 0, addr & 0xFF, (addr >>> 8) & 0xFF, (addr >>> 16) & 0xFF, (addr >>> 24) & 0xFF, len & 0xFF, len >> 8, 0];
-    let s = 0;
-    for (let i = 6; i < 14; i++) s += u[i];
-    u.push(~s & 0xFF);
-    this.tx([0xF0, ...pack7(u), 0xF7]);
-  }
-}
+/* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image (web/installer/mock_fm1.js, also the
+   installer e2e's device) */
 
 async function updater() {
   const image = Uint8Array.from({ length: 0x2000 }, (_, i) => (i * 7) & 0xFF);
@@ -3280,6 +3224,63 @@ async function updater() {
   }
 }
 
+/* ------------------------------------------- the installer module (web/installer/installer.js) --- */
+async function installerModule() {
+  const T = INST.TEXT;
+  const d = (text) => INST.describeIdentity({ text, model: text.split("_")[0], version: 0 });
+  ok(d("FM-1_015") === "the official firmware V15 (FM-1_015)" && d("FM-1_720") === "Optimist (FM-1_720)" && d("FM-1_000") === "Optimist in USB rescue (FM-1_000)"
+    && d("FM-1_905") === "SLOOP, Felucca or X0X (FM-1_905)" && d("ota-FM-1_720") === "in update mode (ota-FM-1_720)" && d("FM-1_050") === "another firmware (FM-1_050)",
+    "installer: an identity in words (official V15, Optimist, USB rescue, SLOOP / Felucca, update mode, another)");
+  const raw = fakePackage("FM-1_720");
+  const sha = createHash("sha256").update(raw).digest("hex");
+  const p = await INST.checkPackage(raw, { product: "FM-1_720", sha256: sha });
+  ok(p.product === "FM-1_720" && p.sha256 === sha && !p.stock && p.image.length === raw.length - 20, "installer: checkPackage: the site's package (identity, sha256, the image)");
+  const code = (pr) => pr.then(() => "none", (e) => e.code);
+  ok(await code(INST.checkPackage(raw, { product: "FM-1_720", sha256: "0".repeat(64) })) === "badpkg"
+    && await code(INST.checkPackage(raw, { product: "FM-1_721", sha256: sha })) === "badpkg",
+    "installer: checkPackage: a download that is not the site's (checksum, identity) is refused");
+  const own = await INST.checkPackage(fakePackage("FM-1_905"));
+  const noLoader = fakePackage("FM-1_720");
+  noLoader.fill(0, 0x1000, 0x1010);
+  ok(own.product === "FM-1_905" && await code(INST.checkPackage(fakePackage("FM-1_015"))) === "notours" && await code(INST.checkPackage(noLoader)) === "noloaderpkg"
+    && await code(INST.checkPackage(new Uint8Array(100))) === "notours",
+    "installer: checkPackage: a file of yours: Optimist / SLOOP packages with the loader; nothing else (not the stock identity, no loader, too short)");
+  let prev = 0;
+  const seq = [["start"], ["verify", 10], ["verify", 74], ["loader"], ["write", 1, 0], ["write", 9, 0x8000], ["write", 2, 0x100], ["write", 99, 0xFE00], ["reboot"], ["done"]]
+    .map(([k, a, addr]) => (prev = INST.progressOf(k, a, addr, 0x10000, prev).pct));
+  const phases = ["start", "verify", "loader", "write", "reboot", "done"].map((k) => INST.progressOf(k, 1, 0, 0x10000, 0).phase);
+  ok(seq.every((v, i) => i === 0 || v >= seq[i - 1]) && seq[2] === 10 && seq.at(-1) === 100 && seq[7] === 95 && JSON.stringify(phases) === "[0,0,1,2,3,4]",
+    `installer: the bar only goes forward, the write fills 15-95 by address (${seq.join(" ")})`);
+  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg"];
+  const ota = readFileSync(join(HERE, "fm1ota.js"), "utf8");
+  const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
+  ok(thrown.length >= 8 && thrown.every((c) => codes.includes(c)) && codes.every((c) => typeof T[c] === "string" && !INST.errorText({ code: c }).startsWith(T.error)),
+    `installer: every error fm1ota.js throws has its own message (${thrown.join(" ")})`);
+  ok(INST.errorText({ code: "mismatch", detail: "FM-1_000" }) === T.rescueBack && INST.errorText({ code: "mismatch", detail: "FM-1_905" }).endsWith("FM-1_905")
+    && INST.errorText(new Error("x")) === T.error + "x", "installer: back in USB rescue after a write is said plainly; an unknown error keeps its message");
+  /* the texts: what the docs say (OPTIMIST.md, README.md, the firmware) */
+  const man = readFileSync(join(HERE, "../OPTIMIST.md"), "utf8"), readme = readFileSync(join(HERE, "../README.md"), "utf8");
+  const rec = readFileSync(join(HERE, "../firmware/src/system/recovery.c"), "utf8"), guard = readFileSync(join(HERE, "../firmware/src/system/bootguard.h"), "utf8");
+  ok(/hold \*\*OCT−\*\* alone while switching on \(\*OPTIMIST USB RESCUE\*\)/.test(man) && rec.includes('"OPTIMIST USB RESCUE"') && /\(buttons & 3u\) == 1u/.test(guard)
+    && T.r2.includes("Hold OCT− alone while switching the FM-1 on") && T.r2.includes("OPTIMIST USB RESCUE") && T.notfoundHelp.some((l) => l.includes("hold OCT− alone")),
+    "installer: USB rescue = OCT− alone at power-on, OPTIMIST USB RESCUE (OPTIMIST.md, recovery.c, bootguard.h)");
+  ok(/#define BOOTGUARD_HOLD_MS 3000u/.test(guard) && /OCT− \+ OCT\+\*\* while switching on and keep them held for \*\*3 s\*\*/.test(man) && /3 seconds/.test(T.r3) && /UBOOT/.test(T.r3),
+    "installer: UBOOT = OCT− + OCT+ held 3 s at power-on (bootguard.h, OPTIMIST.md)");
+  ok(/an install writes only the firmware area/.test(readme) && T.what.includes("An install writes only the firmware area") && /Back up first/.test(T.what)
+    && /SLOOP 2\.4 data is kept/.test(readme) && T.what.includes("SLOOP 2.4's data is kept") && !/minute|seconds? to install/i.test(Object.values(T).flat().join(" ")),
+    "installer: what is kept is what README.md says (only the firmware area written; back up; SLOOP 2.4 kept); no timing promised");
+  ok(/Safari and the browsers on iPhone and iPad do not have Web MIDI/.test(T.nomidi) && /Chrome or Edge/.test(T.connectHow), "installer: Chrome or Edge; no Web MIDI on Safari, iPhone, iPad, said plainly");
+  /* the page and the style */
+  const page = readFileSync(join(HERE, "installer", "index.html"), "utf8"), css = readFileSync(join(HERE, "installer", "installer.css"), "utf8");
+  ok(["/*OPTIMIST-CSS*/", "<!--OPTIMIST-HEADER-->", "/*INSTALLER*/", "/*META*/"].every((m) => page.split(m).length === 2) && /mountInstaller\(document\.getElementById\("installer"\), site\)/.test(page),
+    "installer page: a thin wrapper (the shared style and header, the module, the site's packages)");
+  ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && /var\(--on-track\)/.test(css) && !/\.tile|\.tiles/.test(css + page),
+    "installer style: colours only from the shared tokens (no colour of its own), no SLOOP tiles");
+  const mod = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
+  ok(/export function mountInstaller\(container, opts = \{\}\)/.test(mod) && !/innerHTML/.test(mod) && !/confirm\(/.test(mod) && /showModal\(\)/.test(mod),
+    "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");
+}
+
 await editorMock();
 await editorLibrarian();
 await editorFM6Engine();
@@ -3326,5 +3327,6 @@ samplesMatch();
 chopTests();
 await packages();
 await updater();
+await installerModule();
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

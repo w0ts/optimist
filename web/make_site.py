@@ -6,7 +6,9 @@
   index.html                  redirect to the installer
   firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
-  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, the metadata and the shared style inlined
+  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
+                              fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
+  webapp/installer/installer.js  the same module as one file (mountInstaller), for the one-page app; site.json the packages
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
@@ -68,6 +70,25 @@ def source_ref():
 BUILDER_FILES = ("index.html", "logic.js", "ui.js", "py-worker.js")
 EDITOR_INSTALLER_LINK = '<a class="dim inst" href="../installer/" data-t="installer"></a>'
 EDITOR_BUILDER_LINK = '<a class="dim inst" href="../builder/">Firmware builder</a>'
+
+
+INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
+CSS_MARK = "const BUNDLED_CSS = null;"
+
+
+def installer_module(inline):
+    """web/installer/installer.js as one file: web/fm1pkg.js and web/fm1ota.js in place of its imports (their exports
+    dropped), web/installer/installer.css in BUNDLED_CSS. inline=False: a module that still exports mountInstaller and
+    its helpers (webapp/installer/installer.js, for the one-page app); inline=True: the page's own <script type=module>"""
+    src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
+    if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
+        raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
+    lib = "".join(strip_module((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
+    css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
+    src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
+    if not inline:
+        return lib + src
+    return (lib + re.sub(r"^export\s+", "", src, flags=re.M)).replace("</", "<\\/")   # (an inline script holds no closing tag)
 
 
 def logo_svg():
@@ -162,9 +183,7 @@ def main(pkg, version, out, flavours=None):
     """pkg: one package file (the single flavour "Optimist"), or None with flavours = flavours_of(manifest)"""
     out = Path(out)
     flavours = flavours or [{"id": "", "title": "Optimist", "description": "", "pkg": Path(pkg)}]
-    html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
-    lib = strip_module((HERE / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
-        strip_module((HERE / "fm1ota.js").read_text(encoding="utf-8"))
+    html = (HERE / "installer" / "index.html").read_text(encoding="utf-8")
     ver = re.sub(r"[^A-Za-z0-9.-]", "-", version)
     packages, files = [], []
     for fl in flavours:
@@ -179,28 +198,21 @@ def main(pkg, version, out, flavours=None):
                          "pkg": "../../firmware/" + name, "product": product,
                          "sha256": hashlib.sha256(raw).hexdigest()})   # the page checks the download against it
         files.append((Path(fl["pkg"]), name))
-    meta = json.dumps({"version": version, "packages": packages})
-    for mark in ("/*LIB*/", "/*META*/"):
+    site = {"version": version, "source": source_ref(), "packages": packages}
+    meta = json.dumps(site)
+    for mark in ("/*INSTALLER*/", "/*META*/"):
         if html.count(mark) != 1:
-            raise SystemExit(f"index_pkg.html must contain {mark} once; update make_site.py")
-    ref = source_ref()
-    if html.count("<!--SRCREF-->") != 1:
-        raise SystemExit("index_pkg.html must contain <!--SRCREF--> once; update make_site.py")
-    html = html.replace("<!--SRCREF-->", f"/tree/{ref}" if ref else "")
-    html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
-    html = styled(html, "installer", "index_pkg.html")
+            raise SystemExit(f"web/installer/index.html must contain {mark} once; update make_site.py")
+    html = html.replace("/*INSTALLER*/", installer_module(inline=True)).replace("/*META*/", meta)
+    html = styled(html, "installer", "web/installer/index.html")
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
-    guide = HERE.parent / "output/pdf/Studio-0.3-guide-rapide-FR.pdf"
-    guide_link = ""
-    if guide.exists() and "--studio-guide" in sys.argv:   # LIVE: that guide describes the removed RYTHME tab
-        shutil.copy(guide, out / guide.name)
-        guide_link = '<p lang="fr"><a href="../../' + guide.name + '">Guide rapide illustré (PDF, 4 pages)</a></p>'
-    html = html.replace("<!--STUDIO_GUIDE-->", guide_link)
     for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")):   # only the current packages
         old.unlink()
     (inst / "index.html").write_text(html, encoding="utf-8")
+    (inst / "installer.js").write_text(installer_module(inline=False), encoding="utf-8")   # for the one-page app
+    (inst / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     for src, name in files:
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
@@ -229,7 +241,7 @@ def main(pkg, version, out, flavours=None):
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--studio-guide"]
+    args = sys.argv[1:]
     if args[:1] == ["--builder"] and len(args) == 2:
         Path(args[1]).mkdir(parents=True, exist_ok=True)
         for f in ICONS:                             # (the page's icon links: ../../icon.svg ...)
