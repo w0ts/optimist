@@ -174,6 +174,7 @@ static void midi_pedal_up(uint32_t ch)
 static void __attribute__((noinline)) midi_forget_track(uint32_t track)
 {
     uint32_t i = 0, k = 0;
+    edn_forget(track);                                  /* (the web editor's presses too: ednote.c) */
     for (; i < midi_nheld; i++)
         if (midi_held[i].trk != track)
             midi_held[k++] = midi_held[i];

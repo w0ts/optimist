@@ -21,6 +21,7 @@
  * HOST_DUAL=1 (with FELUCCA_DUAL=2): the second core as a thread (tests/audio_hang_dual.h); with -fsanitize=thread.
  *   env: HANG_MODE=det|sig, HANG_SEED=n, HANG_FRAMES=n (det; default 6000), HANG_SECS=n (sig; default 10), HANG_MS=n */
 #define HOST_IRQ_HOOKS 1
+#define EDN_HOST 1                                      /* seq/ednote.c is built: the stress writes the editor's note ring from the main loop */
 #ifndef FELUCCA_DUAL
 #define FELUCCA_DUAL 0
 #endif
@@ -316,6 +317,10 @@ static void act_notes(void)
             ;
         kb_next = (kb_next & ~(1u << i)) | 1u << k;
     }
+#if EDN_ON
+    if (R(3) == 0)                                      /* the web editor's notes (v14, ednote.c): the main loop is the ring's one writer, events_block (ISR) its reader */
+        (void)ednote_push(R(4) ? (R(3) ? EDN_OP_ON : EDN_OP_OFF) : (R(2) ? EDN_OP_OFF : EDN_OP_FORGET), R(NTRK), is_drum(&trk[0]) ? 0u : 36u + R(48), 1u + R(127));
+#endif
     if (!sig_mode)
         fm1_in.notes = kb_next;                         /* (sig mode: TIMER5's scan takes it) */
 }

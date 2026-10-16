@@ -89,6 +89,7 @@ static const char *preset_name(uint32_t e, uint32_t k) { return k == 0xFFu || !E
 #include "../firmware/src/io/editor/ed_fxp.c"
 #include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
+#include "editor_v14.h"                                     /* v14: UNDO, NOTE, SOLO, STEPLANE */
 
 static int fails;
 
@@ -738,6 +739,7 @@ int main(void)
 #if FELUCCA_FAVORITES && FELUCCA_ED_FAVS
     ed_begin(1); ed_fav_info(); check(ed_n > 5u && ed_out[5] == 0x5Du, "ED_FAVS on: INFO carries tag 0x5D");
 #endif
+    v14_tests();
     printf("%s\n", fails ? "EDITOR SYNC TESTS FAILED" : "editor sync: all ok");
     return fails != 0;
 }
