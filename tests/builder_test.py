@@ -300,8 +300,9 @@ check("the default profile is synth (configure, optimist.py), user-default the r
       C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
       O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
-check("the default profile validates, with the full web editor (every ED_* item at its default, PARAM_HELP off)",
-      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items()))
+check("the default profile validates, with the full web editor (every ED_* item at its default but the oscilloscope screen: ED_SCOPE=0 makes the build link, the user's standing approval 2026-10-16; PARAM_HELP off)",
+      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items() if k != "ED_SCOPE") and
+      _syn["ED_SCOPE"] == 0)
 _syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
 check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
       _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
