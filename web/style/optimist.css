@@ -1,50 +1,65 @@
 /* SPDX-License-Identifier: GPL-3.0-only
    The Optimist web style: the tokens and the shared components of the installer, the editor and the builder.
-   docs/WEB-STYLE.md. web/make_site.py inlines this file where a page says / *OPTIMIST-CSS* / (without the spaces), so
-   every page stays one standalone, offline file. Tokens and components only: a page's own layout stays in the page.
-   Flat, dense, neutral grey surfaces, thin separators, small type (after Ableton Live), in the sea's colours: a teal
-   accent and a warm signal for what needs attention. Light and dark follow the system (no switch). */
+   docs/WEB-STYLE.md. web/make_site.py inlines this file where a page says / *OPTIMIST-CSS* / (without the spaces), and
+   puts the Terminus font in (the url("terminus.ttf") below becomes a data: URL), so every page stays one standalone,
+   offline file. Tokens and components only: a page's own layout stays in the page.
+   This IS the web editor's look (the SLOOP 2.4 look: the FM-1's screen on a big display): black (light: warm grey),
+   square corners, no shadows, the device's Terminus pixel font at 16 px, the four track colours, the surfaces mixed
+   from --bg and --fg. Terminus 8x16 by Dimitar Toshkov Zhekov (SIL OFL 1.1, TERMINUS-LICENSE.txt); the look, SLOOP 2.4
+   by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Light and dark follow the system (no switch). */
+
+@font-face { font-family: "SLOOP Terminus"; src: url("terminus.ttf") format("truetype"); font-display: block; }
 
 :root {
-  /* the surfaces: 0 the page, 1 a panel, 2 a control or a panel's head, 3 hover / pressed */
-  --surface-0: #141617; --surface-1: #1d2021; --surface-2: #282c2d; --surface-3: #343a3b;
-  --line: #31373a; --line-strong: #4b5356;
-  --text: #e3e8e6; --text-dim: #9aa5a3; --text-mute: #6f7a78;
-  --accent: #2fc1ae; --accent-hi: #5ad8c7; --accent-soft: rgba(47, 193, 174, .14); --on-accent: #04211d;
-  --ok: #78d38a; --warn: #f5a524; --err: #ff5d4f; --on-signal: #170806;
-  --warn-soft: rgba(245, 165, 36, .12); --err-soft: rgba(255, 93, 79, .12);
-  /* the four tracks (the editor's, the FM-1's): blue, green, yellow, orange */
-  --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --on-track: #000;
-  --focus: var(--accent-hi);
-  --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  /* the editor's: --bg the page, --fg the text, --panel a raised surface, --dim secondary text, --line separators */
+  --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c;
+  /* the four tracks (the editor's, the FM-1's): blue, green, yellow, orange; --trk the current one (the accent) */
+  --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
+  --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
+  --on: #000;   /* text on a track-coloured or status-coloured fill */
+  --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
+  --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
+  --mute: var(--s3);
 
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 15px; --fs-5: 18px; --fs-6: 22px;
+  /* the shared names (the o- components use these): 0 the page, 1 a card, 2 a control or a card's head, 3 hover / pressed */
+  --surface-0: var(--bg); --surface-1: var(--s1); --surface-2: var(--s2); --surface-3: var(--s3);
+  --line-strong: var(--s3);
+  --text: var(--fg2); --text-dim: var(--dim); --text-mute: color-mix(in srgb, var(--dim) 72%, var(--bg));
+  --accent: var(--trk); --accent-hi: color-mix(in srgb, var(--trk) 80%, var(--fg)); --accent-soft: color-mix(in srgb, var(--trk) 16%, transparent); --on-accent: var(--on);
+  --on-signal: var(--on); --on-track: var(--on);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent); --err-soft: color-mix(in srgb, var(--err) 14%, transparent);
+  --focus: var(--trk);
+  --shadow: none;
+
+  --font-ui: "SLOOP Terminus", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-mono: var(--font-ui);
+  /* Terminus is drawn at 16 px (and 32 px): every text size is one of the two, so the pixels stay sharp */
+  --fs-1: 16px; --fs-2: 16px; --fs-3: 16px; --fs-4: 16px; --fs-5: 16px; --fs-6: 32px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
-  --r: 3px; --ctl-h: 26px; --bar-h: 3px; --head-h: 44px;
+  --r: 0; --ctl-h: 30px; --bar-h: 3px; --head-h: 41px;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {   /* follows the system, live */
   :root {
-    --surface-0: #d9dedd; --surface-1: #eceeed; --surface-2: #f8f9f9; --surface-3: #ccd3d1;
-    --line: #c2c9c7; --line-strong: #98a2a0;
-    --text: #121716; --text-dim: #4b5554; --text-mute: #6d7776;
-    --accent: #066b60; --accent-hi: #04524a; --accent-soft: rgba(6, 107, 96, .12); --on-accent: #ffffff;
-    --ok: #26742f; --warn: #965400; --err: #bf271e; --on-signal: #ffffff;
-    --warn-soft: rgba(150, 84, 0, .10); --err-soft: rgba(191, 39, 30, .09);
-    --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207; --on-track: #ffffff;
-    --shadow: 0 6px 24px rgba(20, 30, 30, .22);
+    --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
+    --ok: #11682b; --warn: #825000; --err: #a82229;
+    --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+    --on: #fff;
+    --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
+    --mute: var(--dim);
+    --text-mute: var(--dim);
     color-scheme: light;
   }
 }
 
 /* ---- the base (low specificity: a page's own rules win) */
 :where(*, *::before, *::after) { box-sizing: border-box; }
-:where(html) { -webkit-text-size-adjust: 100%; }
-:where(body) { margin: 0; background: var(--surface-0); color: var(--text); font: var(--fs-3)/1.45 var(--font-ui); overflow-x: hidden; }
+:where(html) { -webkit-text-size-adjust: 100%; background: var(--bg); }
+:where(body) { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-3)/20px var(--font-ui); overflow-x: hidden;
+               -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed; }
 :where(a) { color: inherit; }
-:where(code, kbd, pre) { font-family: var(--font-mono); font-size: .92em; }
+:where(code, kbd, pre) { font-family: var(--font-mono); }
+::selection { background: var(--trk); color: var(--on); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .o-dim { color: var(--text-dim); }
 .o-mute { color: var(--text-mute); }
@@ -52,157 +67,168 @@
 .o-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .o-num { font-variant-numeric: tabular-nums; }
 .o-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.o-label { font-size: var(--fs-1); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.o-label { font-size: var(--fs-1); font-weight: 400; text-transform: uppercase; color: var(--text-dim); }
 
-/* ---- the page: one column, 16 px gutters */
-.o-page { max-width: var(--page-w, 1200px); margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
+/* ---- the page: one column, 16 px gutters (the editor's: 1100 px) */
+.o-page { max-width: var(--page-w, 1100px); margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
 
-/* ---- the header: the dinghy, the name, the app, the links between the three apps; the four track colours under it */
-.o-head { background: var(--surface-1); border-bottom: 1px solid var(--line); padding: 0 var(--sp-4); }
-.o-head-in { max-width: var(--page-w, 1200px); margin: 0 auto; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; min-height: var(--head-h); }
-.o-brand { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text); text-decoration: none; min-width: 0; }
-.o-brand svg { display: block; width: 26px; height: 26px; flex: none; }
-.o-brand b { font-size: var(--fs-4); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.o-brand span { font-size: var(--fs-2); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
-.o-nav { display: flex; gap: 2px; }
-.o-nav a { display: inline-flex; align-items: center; height: var(--ctl-h); padding: 0 var(--sp-3); font-size: var(--fs-2); text-decoration: none;
-           color: var(--text-dim); border-radius: var(--r); letter-spacing: .02em; }
-.o-nav a:hover { background: var(--surface-2); color: var(--text); }
-.o-nav a[aria-current="page"] { background: var(--surface-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
-.o-tracks { display: flex; height: var(--bar-h); }
-.o-tracks i { flex: 1; } .o-tracks i:nth-child(1) { background: var(--t1); } .o-tracks i:nth-child(2) { background: var(--t2); }
-.o-tracks i:nth-child(3) { background: var(--t3); } .o-tracks i:nth-child(4) { background: var(--t4); }
+/* ---- the header: the editor's menu bar (the dinghy, OPTIMIST, the three apps as tabs, a thin separator between them) */
+.o-head { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; padding: 6px 32px;
+          background: var(--bg); border-bottom: 1px solid var(--line); }
+.o-brand { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--fg); text-decoration: none; min-width: 0; }
+.o-brand svg { display: block; width: 28px; height: 28px; flex: none; }
+.o-brand b { font-size: 24px; line-height: 28px; font-weight: 400; text-transform: uppercase; }
+.o-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.o-nav a { display: inline-flex; align-items: center; padding: 4px 10px; color: var(--dim); text-decoration: none; text-transform: lowercase; white-space: nowrap;
+           }
+.o-nav a:hover { color: var(--fg); background: var(--s1); }
+.o-nav a[aria-current="page"] { color: var(--fg); background: var(--s2); }
+.o-nav .o-sep { width: 1px; height: 20px; margin: 0 10px; background: var(--line); flex: none; }
+.o-nav .o-sep:first-child { display: none; }
+@media (max-width: 860px) {
+  .o-head { position: static; padding: 8px 16px; }
+  .o-nav { flex-basis: 100%; order: 3; }
+  .o-nav .o-sep { display: none; }
+}
 
 /* ---- type */
-.o-h1 { font-size: var(--fs-1); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); margin: 0 0 var(--sp-1); }
-.o-lead { font-size: var(--fs-4); line-height: 1.45; margin: 0 0 var(--sp-4); max-width: 760px; }
+.o-h1 { font-size: var(--fs-1); font-weight: 400; text-transform: uppercase; color: var(--fg); margin: 0 0 var(--sp-1); }
+.o-lead { font-size: var(--fs-4); line-height: 20px; margin: 0 0 var(--sp-4); max-width: 760px; }
 
 /* ---- controls: buttons, selects, text fields, check boxes (the classes, or every bare one inside .o-ui) */
 .o-btn, :where(.o-ui) :where(button, .btn) {
-  font: inherit; font-size: var(--fs-3); color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r); min-height: var(--ctl-h); padding: 0 var(--sp-3); cursor: pointer; display: inline-flex; align-items: center;
-  justify-content: center; gap: var(--sp-1); white-space: nowrap; text-decoration: none; line-height: 1; }
-.o-btn:hover, :where(.o-ui) :where(button, .btn):hover { background: var(--surface-3); }
-.o-btn:active, :where(.o-ui) :where(button, .btn):active { background: var(--surface-3); border-color: var(--text-mute); }
-.o-btn:disabled, :where(.o-ui) button:disabled { opacity: .5; cursor: default; background: var(--surface-2); }
-.o-btn.primary, :where(.o-ui) button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.o-btn.primary:hover, :where(.o-ui) button.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
-.o-btn.quiet, :where(.o-ui) button.quiet { background: transparent; border-color: transparent; color: var(--text-dim); }
-.o-btn.quiet:hover, :where(.o-ui) button.quiet:hover { background: var(--surface-2); color: var(--text); }
-.o-btn.sm, :where(.o-ui) button.sm { min-height: 20px; padding: 0 var(--sp-2); font-size: var(--fs-2); }
-.o-btn.big { min-height: 40px; padding: 0 var(--sp-5); font-size: var(--fs-4); letter-spacing: .06em; text-transform: uppercase; }
+  font: inherit; font-size: var(--fs-3); color: var(--fg); background: var(--s2); border: 0; text-transform: lowercase;
+  border-radius: var(--r); min-height: var(--ctl-h); padding: 4px 12px; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; gap: var(--sp-1); white-space: nowrap; text-decoration: none; line-height: 20px; }
+.o-btn:hover, :where(.o-ui) :where(button, .btn):hover { background: var(--s3); }
+.o-btn:disabled, :where(.o-ui) button:disabled { cursor: default; color: var(--mute); background: var(--s1); }
+.o-btn.primary, :where(.o-ui) button.primary { background: var(--trk); color: var(--on); }
+.o-btn.primary:hover, :where(.o-ui) button.primary:hover { background: var(--accent-hi); }
+.o-btn.quiet, :where(.o-ui) button.quiet { background: transparent; color: var(--dim); }
+.o-btn.quiet:hover, :where(.o-ui) button.quiet:hover { background: var(--s2); color: var(--fg); }
+.o-btn.sm, :where(.o-ui) button.sm { min-height: 22px; padding: 0 var(--sp-2); }
+.o-btn.big { min-height: 40px; padding: 8px 16px; }
 .o-select, .o-input, :where(.o-ui) :where(select, input[type=text], input[type=search], input[type=number], textarea) {
-  font: inherit; font-size: var(--fs-3); color: var(--text); background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--r); min-height: var(--ctl-h); padding: 0 var(--sp-2); max-width: 100%; }
-:where(.o-ui) textarea, textarea.o-input { padding: var(--sp-2); font: var(--fs-2)/1.4 var(--font-mono); width: 100%; min-height: 110px; }
-.o-select:hover, :where(.o-ui) select:hover { border-color: var(--text-mute); }
-.o-check, :where(.o-ui) input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; cursor: pointer; }
-.o-field { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-1); color: var(--text-dim); letter-spacing: .04em; min-width: 0; }
-.o-field > * { color: var(--text); letter-spacing: normal; }
-@media (pointer: coarse) {   /* a finger: taller controls, and 16 px text so that iOS does not zoom on focus */
-  :root { --ctl-h: 34px; }
-  .o-select, .o-input, :where(.o-ui) :where(select, input[type=text], input[type=search], textarea) { font-size: 16px; }
+  font: inherit; font-size: var(--fs-3); color: var(--fg); background-color: var(--bg); border: 1px solid var(--s3);
+  border-radius: var(--r); min-height: var(--ctl-h); padding: 3px 6px; max-width: 100%; }
+.o-select, :where(.o-ui) select { appearance: none; padding-right: 22px; cursor: pointer;
+  background: var(--bg) linear-gradient(45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 9px) 55% / 5px 5px,
+              linear-gradient(-45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 4px) 55% / 5px 5px; }
+:where(.o-ui) select option { background: var(--bg); color: var(--fg); }
+:where(.o-ui) input::placeholder, :where(.o-ui) textarea::placeholder { color: var(--mute); }
+:where(.o-ui) textarea, textarea.o-input { padding: var(--sp-2); width: 100%; min-height: 110px; }
+.o-select:hover, :where(.o-ui) select:hover { border-color: var(--dim); }
+.o-check, :where(.o-ui) input[type=checkbox] { appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--dim); background: var(--bg); flex: none; cursor: pointer;
+  display: inline-grid; place-content: center; vertical-align: -3px; }
+.o-check:checked, :where(.o-ui) input[type=checkbox]:checked { background: var(--trk); border-color: var(--trk); }
+.o-check:checked::after, :where(.o-ui) input[type=checkbox]:checked::after { content: ""; width: 8px; height: 8px; background: var(--on); }
+.o-check:disabled, :where(.o-ui) input[type=checkbox]:disabled { opacity: .5; cursor: default; }
+.o-field { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-1); color: var(--text-dim); text-transform: uppercase; min-width: 0; }
+.o-field > * { color: var(--fg); text-transform: none; }
+@media (pointer: coarse) {   /* a finger: taller controls, and 16 px text (Terminus's size) so that iOS does not zoom on focus */
+  :root { --ctl-h: 36px; }
   .o-check, :where(.o-ui) input[type=checkbox] { width: 22px; height: 22px; }
+  .o-check:checked::after, :where(.o-ui) input[type=checkbox]:checked::after { width: 12px; height: 12px; }
 }
 
-/* ---- the info button: (i), opens a popover */
-.o-info { flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line-strong);
-          background: transparent; color: var(--text-dim); font: italic 600 11px/16px Georgia, "Times New Roman", serif; cursor: pointer; }
-.o-info:hover { color: var(--text); border-color: var(--text-dim); background: var(--surface-2); }
-@media (pointer: coarse) { .o-info { width: 26px; height: 26px; line-height: 24px; font-size: 13px; } }
+/* ---- the info button: (i), opens a popover (the editor's page-help circle) */
+.o-info { flex: none; width: 20px; height: 20px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line);
+          background: transparent; color: var(--dim); font: italic 13px/18px Georgia, "Times New Roman", serif; text-transform: none; cursor: pointer; display: inline-block; text-align: center; }
+.o-info:hover { color: var(--fg); border-color: var(--fg); background: transparent; }
+@media (pointer: coarse) { .o-info { width: 26px; height: 26px; line-height: 24px; } }
 
-/* ---- tabs (a segmented row; the header's links use the same look) */
-.o-tabs { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 1px; gap: 1px; }
-.o-tabs > * { font: inherit; font-size: var(--fs-2); color: var(--text-dim); background: transparent; border: 0; border-radius: 2px; min-height: calc(var(--ctl-h) - 4px);
-              padding: 0 var(--sp-3); cursor: pointer; }
-.o-tabs > [aria-selected="true"], .o-tabs > .on { background: var(--surface-0); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+/* ---- tabs and segments: plain buttons, the open one in the track colour (the editor's .seg) */
+.o-tabs { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.o-tabs > * { font: inherit; color: var(--dim); background: var(--s2); border: 0; padding: 4px 12px; cursor: pointer; text-transform: lowercase; }
+.o-tabs > *:hover { background: var(--s3); }
+.o-tabs > [aria-selected="true"], .o-tabs > .on { background: var(--trk); color: var(--on); }
 
-/* ---- tags and chips */
-.o-tag { display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 2px; font-size: 10px; font-weight: 700;
-         letter-spacing: .06em; text-transform: uppercase; background: var(--surface-3); color: var(--text-dim); white-space: nowrap; vertical-align: 1px; }
-.o-tag.outline { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
-.o-tag.accent { background: var(--accent); color: var(--on-accent); }
-.o-tag.ok { background: var(--ok); color: var(--on-signal); }
-.o-tag.warn { background: var(--warn); color: var(--on-signal); }
-.o-tag.err { background: var(--err); color: var(--on-signal); }
-.o-chip { display: inline-flex; align-items: center; gap: var(--sp-1); height: 20px; padding: 0 var(--sp-2); border-radius: 10px; font-size: var(--fs-2);
-          background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.o-chip.err { color: var(--err); border-color: currentColor; background: var(--err-soft); }
-.o-chip.accent { color: var(--accent); border-color: currentColor; background: var(--accent-soft); }
+/* ---- tags and chips (the editor's pills: square, on the control fill) */
+.o-tag { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; font-size: var(--fs-1); text-transform: lowercase;
+         background: var(--s2); color: var(--dim); white-space: nowrap; vertical-align: 1px; }
+.o-tag.outline { background: transparent; box-shadow: inset 0 0 0 1px var(--s3); }
+.o-tag.accent { background: var(--trk); color: var(--on); }
+.o-tag.ok { background: var(--ok); color: var(--on); }
+.o-tag.warn { background: var(--warn); color: var(--on); }
+.o-tag.err { background: var(--err); color: var(--on); }
+.o-chip { display: inline-flex; align-items: center; gap: var(--sp-1); height: 22px; padding: 0 6px; font-size: var(--fs-2); border: 0;
+          background: var(--s2); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.o-chip.err { color: var(--err); }
+.o-chip.accent { color: var(--trk); }
 
 /* ---- tooltips: data-tip="..." on anything focusable (CSS only; a popover for anything longer than a line) */
 [data-tip] { position: relative; }
 [data-tip]:hover::after, [data-tip]:focus-visible::after {
   content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 50;
-  width: max-content; max-width: min(280px, 80vw); padding: var(--sp-1) var(--sp-2); border-radius: var(--r); background: var(--text); color: var(--surface-0);
-  font: 400 var(--fs-2)/1.35 var(--font-ui); letter-spacing: normal; text-transform: none; white-space: normal; text-align: left; pointer-events: none; box-shadow: var(--shadow); }
+  width: max-content; max-width: min(320px, 80vw); padding: var(--sp-1) var(--sp-2); background: var(--fg); color: var(--bg);
+  font: 400 var(--fs-2)/20px var(--font-ui); text-transform: none; white-space: normal; text-align: left; pointer-events: none; }
 
 [data-tip].tip-end:hover::after, [data-tip].tip-end:focus-visible::after { left: auto; right: 0; transform: none; }   /* (at the right edge) */
 
 /* ---- popovers: [popover].o-pop (the browser's top layer; the page places it) */
-.o-pop { padding: var(--sp-3); max-width: min(360px, calc(100vw - 32px)); background: var(--surface-1); color: var(--text);
-         border: 1px solid var(--line-strong); border-top: var(--bar-h) solid var(--c, var(--accent)); border-radius: var(--r); box-shadow: var(--shadow); font-size: var(--fs-3); }
-.o-pop h3, .o-pop .o-pop-h { margin: 0 0 var(--sp-1); font-size: var(--fs-3); font-weight: 600; }
+.o-pop { padding: var(--sp-3); max-width: min(400px, calc(100vw - 32px)); background: var(--panel); color: var(--fg2);
+         border: 1px solid var(--s3); border-top: var(--bar-h) solid var(--c, var(--trk)); font-size: var(--fs-3); }
+.o-pop h3, .o-pop .o-pop-h { margin: 0 0 var(--sp-1); font-size: var(--fs-3); font-weight: 400; text-transform: uppercase; color: var(--fg); }
 .o-pop p { margin: 0 0 var(--sp-2); }
 .o-pop p:last-child { margin-bottom: 0; }
 
-/* ---- panels: a flat surface with a head (a coloured bar on top, as Live's clips and devices) */
-.o-panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; }
-.o-panel-h { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 28px; padding: 0 var(--sp-3);
-             background: var(--surface-2); border-bottom: 1px solid var(--line); border-top: 2px solid var(--c, var(--accent)); border-radius: var(--r) var(--r) 0 0; }
-.o-panel-h h2, .o-panel-h .o-panel-t { margin: 0; font-size: var(--fs-1); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+/* ---- cards: the editor's .group (a raised surface, a thin line) with a head as its strips' (the control fill, the track colour under it) */
+.o-panel { background: var(--s1); border: 1px solid var(--line); min-width: 0; }
+.o-panel-h { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 30px; padding: 3px var(--sp-3);
+             background: var(--s2); box-shadow: inset 0 -3px var(--c, var(--trk)); }
+.o-panel-h h2, .o-panel-h .o-panel-t { margin: 0; padding: 0; border: 0; font-size: var(--fs-1); font-weight: 400; text-transform: uppercase; color: var(--fg); }
 .o-panel-b { padding: var(--sp-3); }
 
 /* ---- messages: one line each, red only for what stops a build, amber only for what is experimental and on */
-.o-msg { display: flex; gap: var(--sp-2); align-items: baseline; margin: 0 0 2px; padding: 5px var(--sp-3); background: var(--surface-1);
-         border-left: 3px solid var(--line-strong); font-size: var(--fs-3); overflow-wrap: anywhere; border-radius: 0 var(--r) var(--r) 0; }
-.o-msg > b:first-child { flex: none; font-size: var(--fs-1); letter-spacing: .08em; text-transform: uppercase; }
+.o-msg { display: flex; gap: var(--sp-2); align-items: baseline; margin: 0 0 2px; padding: 4px var(--sp-3); background: var(--s1);
+         border-left: 3px solid var(--s3); font-size: var(--fs-3); overflow-wrap: anywhere; }
+.o-msg > b:first-child { flex: none; font-weight: 400; text-transform: uppercase; color: var(--dim); }
 .o-msg.err { border-color: var(--err); background: var(--err-soft); } .o-msg.err > b:first-child { color: var(--err); }
 .o-msg.warn { border-color: var(--warn); background: var(--warn-soft); } .o-msg.warn > b:first-child { color: var(--warn); }
 .o-msg.ok { border-color: var(--ok); } .o-msg.ok > b:first-child { color: var(--ok); }
 .o-msg .sub { display: block; color: var(--text-dim); font-size: var(--fs-2); }
 
 /* ---- disclosure (a closed section: notes, imports) */
-.o-details { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r); }
+.o-details { background: var(--s1); border: 1px solid var(--line); }
 .o-details > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--sp-2); min-height: 28px; padding: 0 var(--sp-3);
                        font-size: var(--fs-2); color: var(--text-dim); user-select: none; }
 .o-details > summary::-webkit-details-marker { display: none; }
-.o-details > summary::before { content: ""; width: 0; height: 0; border: 4px solid transparent; border-left: 6px solid currentColor; border-right: 0; transition: transform .12s; }
+.o-details > summary::before { content: ""; width: 0; height: 0; border: 4px solid transparent; border-left: 6px solid currentColor; border-right: 0; }
 .o-details[open] > summary::before { transform: rotate(90deg); }
-.o-details > summary:hover { color: var(--text); }
+.o-details > summary:hover { color: var(--fg); }
 .o-details > :not(summary) { margin: 0; padding: 0 var(--sp-3) var(--sp-3); }
 
 /* ---- gauges: label, used / limit, a bar (a mark at the limit when over), the overflow in the alert colour */
 .o-gauge { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "l n" "b b"; gap: 2px var(--sp-2); align-items: baseline; min-width: 0; font-variant-numeric: tabular-nums; }
-.o-gauge > .gl { grid-area: l; font-size: var(--fs-1); font-weight: 700; letter-spacing: .08em; color: var(--text-dim); }
+.o-gauge > .gl { grid-area: l; font-size: var(--fs-1); color: var(--text-dim); }
 .o-gauge > .gn { grid-area: n; justify-self: end; font-size: var(--fs-2); white-space: nowrap; }
-.o-gauge > .gn .go { color: var(--err); font-weight: 700; margin-left: var(--sp-1); }
-.o-gauge > .gb { grid-area: b; position: relative; height: 6px; background: var(--surface-3); border-radius: 1px; overflow: hidden; }
-.o-gauge > .gb > .gf { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.o-gauge > .gn .go { color: var(--err); margin-left: var(--sp-1); }
+.o-gauge > .gb { grid-area: b; position: relative; height: 6px; background: var(--s3); overflow: hidden; }
+.o-gauge > .gb > .gf { position: absolute; inset: 0 auto 0 0; background: var(--trk); }
 .o-gauge > .gb > .gx { position: absolute; top: 0; bottom: 0; background: var(--err); }
-.o-gauge > .gb > .gc { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--text); }
+.o-gauge > .gb > .gc { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--fg); }
 .o-gauge[data-state="tight"] > .gb > .gf { background: var(--warn); }
 .o-gauge[data-state="over"] > .gl { color: var(--err); }
 
 /* ---- progress */
-.o-progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 4px; border: 0; background: var(--surface-3); border-radius: 1px; }
-.o-progress::-webkit-progress-bar { background: var(--surface-3); }
-.o-progress::-webkit-progress-value { background: var(--accent); }
-.o-progress::-moz-progress-bar { background: var(--accent); }
+.o-progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 6px; border: 0; background: var(--s3); }
+.o-progress::-webkit-progress-bar { background: var(--s3); }
+.o-progress::-webkit-progress-value { background: var(--trk); }
+.o-progress::-moz-progress-bar { background: var(--trk); }
 
 /* ---- toasts: .o-toasts holds them (bottom, centred); each fades out after a while (the page removes it) */
 .o-toasts { position: fixed; left: 50%; bottom: var(--sp-4); transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: var(--sp-2);
             width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
-.o-toast { pointer-events: auto; padding: var(--sp-2) var(--sp-3); background: var(--surface-3); color: var(--text); border-left: 3px solid var(--c, var(--accent));
-           border-radius: var(--r); box-shadow: var(--shadow); font-size: var(--fs-3); max-width: 520px; animation: o-toast-in .16s ease-out; }
+.o-toast { pointer-events: auto; padding: var(--sp-2) var(--sp-3); background: var(--s3); color: var(--fg); border-left: 3px solid var(--c, var(--trk));
+           font-size: var(--fs-3); max-width: 520px; }
 .o-toast.err { --c: var(--err); } .o-toast.ok { --c: var(--ok); }
-@keyframes o-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .o-toast, .o-details > summary::before { animation: none; transition: none; } }
+
+.o-ui [hidden] { display: none !important; }   /* (a hidden control stays gone whatever its display) */
 
 /* ---- the footer */
 .o-foot { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-2); color: var(--text-dim); }
 
 @media (max-width: 520px) {
-  .o-nav a { padding: 0 var(--sp-2); }
-  .o-brand span { display: none; }   /* (the current app is marked in the links) */
+  .o-head { padding: 8px 16px; }
+  .o-nav a { padding: 4px 8px; }
 }

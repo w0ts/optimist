@@ -132,12 +132,19 @@ ok(L.fileName("user default") === "user-default.config" && L.fileName("../x") ==
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN
   && /^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v\d+\.\d+\.\d+\/full\/$/.test(L.PYODIDE_CDN), "Pyodide: the pinned CDN version; a test may only point at this site");
-/* the gauges (the sticky bar): used / limit in KiB, the overflow only when over, the limit's mark past it */
+/* the gauges (the gauges card): used / limit in KiB, the overflow only when over, the limit's mark past it */
 const go = L.gaugeModel("flash", 600000, 581564, 18436), gf = L.gaugeModel("ram", 63660, 98304, -34644);
 ok(go.state === "over" && go.text === "585.9 / 567.9K" && go.overText === "+18.0K" && Math.abs(go.capAt - 581564 / 600000) < 1e-9 && go.fill === go.capAt
   && /over by 18,436 B/.test(go.tip), "gauges: over: used / limit, +N K in the alert colour, the limit marked, the exact bytes in the tooltip");
 ok(gf.state === "ok" && gf.text === "62.2 / 96.0K" && gf.overText === "" && gf.capAt === null && Math.abs(gf.fill - 63660 / 98304) < 1e-9 && /34,644 B free/.test(gf.tip)
   && L.gaugeModel("x", 98, 100, -2).state === "tight", "gauges: fitting: used / limit, no overflow text; over 97 % tight");
+/* ways to fit: a change as one line, what is lost as one sentence */
+const regW = { A: { choices: [], label: "alpha" }, D: { choices: [[0, "off"], [16384, "16K"], [32768, "32K"]], label: "delay length" } };
+ok(L.changeText({ key: "A", label: "alpha", from: 1, to: 0, reserve: false }, regW) === "alpha off"
+  && L.changeText({ key: "D", label: "Delay length", from: 32768, to: 16384, reserve: false }, regW) === "Delay length: 32K -> 16K"
+  && L.changeText({ key: "R", label: "Keep flash free", from: 200, to: 0, reserve: true }, regW) === "Keep flash free: 200 -> 0 KB",
+  "proposals: a change reads as one line (off, a choice lowered, a reserve lowered)");
+ok(L.oneLine("First sentence. Second one.") === "First sentence." && L.oneLine("x".repeat(300)).length === 110 && L.oneLine("") === "", "proposals: what is lost is one sentence, cut at 110 characters");
 /* the notices policy: errors and the experimental items that are on stay on the page; the NOTICE texts go to the notes */
 const reg1 = { byKey: { A: { key: "A", label: "alpha", experimental: true, tested: "emulator-tested only" }, B: { key: "B", label: "beta" }, C: { key: "C", label: "gamma" },
   U: { key: "U", label: "USB" }, X: { key: "X", label: "off exp", experimental: true, tested: "t" } } };
@@ -156,9 +163,13 @@ ok(m2.errors.length === 2 && m2.errors.filter((e) => e.kind === "over").length =
   && m2.errors[0].sub.some((s) => /◀ off = fits/.test(s)) && m2.errors[1].kind === "rule" && !m2.notes.length && !m2.experimental.length,
   "notices: an overflow is ONE error line (every region, the biggest items, the legend), a broken rule another");
 ok(L.hasInfo(reg1.byKey.A) && !L.hasInfo(reg1.byKey.B) && L.hasInfo({ notice: "n" }) && L.hasInfo({ provenance_line: "p" }), "notices: an (i) on the items with notes");
-const page = readFileSync(join(HERE, "builder", "index.html"), "utf8");
-ok(page.includes("<!--OPTIMIST-HEADER-->") && page.includes("/*OPTIMIST-CSS*/") && /Cloud builds are not live yet/.test(page) && /id="gauges"/.test(page)
-  && /#gauges \{ position: sticky; top: 0/.test(page) && !/localStorage/.test(page), "page: the shared header and style, the sticky gauges, the build note");
+const shell = readFileSync(join(HERE, "builder", "index.html"), "utf8"), mod = readFileSync(join(HERE, "builder", "builder.js"), "utf8"), bcss = readFileSync(join(HERE, "builder", "builder.css"), "utf8");
+const page = shell + mod;
+ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/") && /Cloud builds are not live yet/.test(page) && /id="gauges"/.test(page) && /mountBuilder/.test(shell + readFileSync(join(HERE, "builder", "ui.js"), "utf8"))
+  && /\.ob-root #bside \{ position: sticky/.test(bcss) && !/localStorage/.test(shell), "page: the shared header and style, the sticky card column, the build note");
+ok(/export function mountBuilder\(container, opts = \{\}\)/.test(mod) && /activate\(\)/.test(mod) && /deactivate\(\)/.test(mod) && /destroy\(\)/.test(mod)
+  && !/document\.getElementById|document\.body|document\.querySelector\(/.test(mod) && !/^\s*(body|html|:root)\b/m.test(bcss) && bcss.split("\n").filter((l) => /\{/.test(l) && !/^\s*(\/\*|@media|\})/.test(l) && !/^\s*\.ob-root/.test(l)).length === 0,
+  "module: mountBuilder(container, opts) with activate / deactivate / destroy; no document-level lookup or body write; every CSS rule under .ob-root");
 const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8");
 ok(/@media \(prefers-color-scheme: light\)/.test(css) && ["--surface-0", "--surface-3", "--text-dim", "--accent", "--ok", "--warn", "--err", "--t1", "--t4"].every((t) => css.includes(t + ":"))
   && !/data-theme/.test(css), "style: the tokens, light / dark from the system (no switch)");
@@ -168,6 +179,11 @@ ok(/build: "\.\.\/builder\/"/.test(instJs) && /link\("build", TEXT\.buildLink\)/
 const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps([make_site.shared_header(a) for a in ('installer', 'editor', 'builder')]))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
+
+ok(hdr.every((h) => !/o-tracks/.test(h) && /<b>Optimist<\/b>/.test(h) && /o-sep/.test(h)) && !/o-tracks|2fc1ae/.test(css) && /--trk: var\(--t1\)/.test(css) && /"SLOOP Terminus"/.test(css) && !/border-bottom-color/.test(css.match(/\.o-nav a\[aria-current[^}]*\}/)[0]),
+  "header: the editor's menu bar (OPTIMIST, tabs, separators), no four-colour stripe, the active tab by its background; the editor's tokens and Terminus");
+const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps(make_site.shared_css()))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
+ok(/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(siteCss), "style: the site's CSS has Terminus inlined");
 
 console.log(failed ? `${failed} FAILED` : "all ok");
 process.exit(failed ? 1 : 0);

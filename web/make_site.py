@@ -24,6 +24,7 @@
 The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
 after the install.
 """
+import base64
 import glob
 import hashlib
 import json
@@ -67,7 +68,7 @@ def source_ref():
     return ref if re.fullmatch(r"[A-Za-z0-9._-]+", ref) else ""
 
 
-BUILDER_FILES = ("index.html", "logic.js", "ui.js", "py-worker.js")
+BUILDER_FILES = ("index.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
 EDITOR_INSTALLER_LINK = '<a class="dim inst" href="../installer/" data-t="installer"></a>'
 EDITOR_BUILDER_LINK = '<a class="dim inst" href="../builder/">Firmware builder</a>'
 
@@ -104,16 +105,18 @@ APPS = (("installer", "Installer"), ("editor", "Editor"), ("builder", "Builder")
 
 def shared_css():
     """the shared tokens and components (web/style/optimist.css)"""
-    return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
+    css = (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
+    font = base64.b64encode((HERE / "style" / "terminus.ttf").read_bytes()).decode("ascii")   # (Terminus, inlined as the editor does)
+    return css.replace('url("terminus.ttf") format("truetype")', f'url(data:font/ttf;base64,{font}) format("truetype")')
 
 
 def shared_header(app):
-    """the header of the three apps: the dinghy and the name (to the site's root), the app, the links between them
-    (the current one aria-current), the four track colours under it"""
-    links = "".join(f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
-    return (f'<header class="o-head"><div class="o-head-in"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}'
-            f'<b>Optimist</b><span>{app}</span></a><nav class="o-nav" aria-label="Optimist apps">{links}</nav></div></header>'
-            '<div class="o-tracks" aria-hidden="true"><i></i><i></i><i></i><i></i></div>')
+    """the header of the three apps, the editor's menu bar: the dinghy and OPTIMIST (to the site's root), the apps as
+    tabs with a separator between them (the current one aria-current)"""
+    links = '<span class="o-sep" role="separator" aria-orientation="vertical"></span>'.join(
+        f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
+    return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
+            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}</nav></header>')
 
 
 def styled(html, app, page):
@@ -153,6 +156,7 @@ def builder_site(out):
     (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key)"""
     dst = Path(out) / "webapp" / "builder"
     (dst / "data").mkdir(parents=True, exist_ok=True)
+    shutil.copy(HERE / "TERMINUS-LICENSE.txt", dst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in BUILDER_FILES:
         text = (HERE / "builder" / f).read_text(encoding="utf-8")
         if f == "index.html":
@@ -217,6 +221,7 @@ def main(pkg, version, out, flavours=None):
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
     builder_site(out)
+    shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
