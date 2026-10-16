@@ -297,13 +297,13 @@ About 90 starting points for any style (89 on the core engines; the optional eng
 | **FX** | SCRATCH — scratch, backspin, rewind across the keys · GM KIT (SAMPLE) |
 
 **ANALOG** is the virtual analogue: two band-limited oscillators (SAW, SQR, TRI, SIN, PWM), noise, drive and a resonant filter. EDIT **OSC**: WAVE, DTN (osc 2's detune, cents), MIX (osc 1 against osc 2), NOIS; EDIT **FLT**: CUT, RES, DRV, KTR (key tracking). On an ANALOG track the EDIT family has three more pages and the ENV family two (ANALOG 2; at their defaults the sound is the old ANALOG's):
-- **OSC 2**: WAVE2 (osc 2's own wave; =1 follows WAVE), SEMI (osc 2's interval, ±24 semitones; DTN fine-tunes on top), SYNC (hard sync: osc 2 restarts with osc 1, band-limited). With SYNC on, the SHP modulation (ENV DEST SHP, LFO DEST SHP) sweeps osc 2's pitch: the classic sync sweep.
+- **OSC 2**: WAVE2 (osc 2's own wave; =1 follows WAVE), SEMI (osc 2's interval, ±24 semitones; DTN fine-tunes on top), SYNC (hard sync: osc 2 restarts with osc 1, band-limited). With SYNC on, the SHP modulation (ENV 1 MOD's SHP, LFO DEST SHP) sweeps osc 2's pitch: the classic sync sweep.
 - **SWARM**: SWARM (0–6 detuned copies of osc 1 around it, any wave: the supersaw, one voice per note so chords stay chords; it was the SUPER engine), SDTN (their spread, up to 60 cents for the outer ones), DRFT (a slow random drift of the pitch, osc 2 against osc 1; DRFT above 0 also leaves the oscillators free-running: no restart at each note, as on a real analogue — keep it at 0 for 808s). When more than four voices sound (all tracks together) a swarm keeps four copies, above six two, so the CPU keeps up.
 - **FLT 2**: FTYP (LP12, LP24, BP, HP).
 
-On an ANALOG track the ENV family has a second envelope, **ENV2**, after ENV1 and ENV1 DEST (one VIEW ALL page of four rows):
+On an ANALOG track the ENV family has a second envelope, **ENV2**, after ENV1 and ENV 1 MOD (one VIEW ALL page of four rows):
 - **ENV2**: ATK2, DEC2, SUS2, REL2: an ADSR of its own, restarted by each note (REL2 at 0 takes DEC2's time). At SUS2 0 it is the filter envelope ANALOG 2 had.
-- **ENV2 DEST**: two free slots, DST A + AMT A and DST B + AMT B, taken from the same list of destinations as ENV DEST and the LFOs' (see [Modulation destinations](#modulation-destinations-two-slots-an-envelope-and-an-lfo)). The swarm's spread is still **ENV2** on the SWARM page (±63).
+- **ENV2 DEST**: two free slots, DST A + AMT A and DST B + AMT B, taken from the same list of destinations as the LFOs' (see [Modulation destinations](#modulation-destinations-two-slots-an-envelope-and-an-lfo)). The swarm's spread is still **ENV2** on the SWARM page (±63).
 
 Projects, song sections and user presets saved with the single destination of before (DST2 and its AMT2) load with that amount on that destination and the others at 0: the same sound.
 
@@ -704,7 +704,21 @@ An engine of its own (engine 14; a build without it plays a JUNO track on ANALOG
 
 ### Modulation destinations: two slots an envelope and an LFO
 
-ENV, ENV2, LFO and LFO2 each have **two free destinations**: **DST A** with **AMT A**, and **DST B** with **AMT B** (the ENV DEST, ENV2 DEST, LFO DEST and LFO2 DEST pages). All four read **one shared list** of destinations: the engine's own values (named by the engine), the track's level, pan and sends, the S1 and S2 insert amounts (the LFO list names the insert type the slot holds), and the rate (RT) and amount (AMT) of the LFOs, so an envelope or an LFO can move another LFO. The amplitude is ENV slot A on AMP at 127 by default (new tracks, INIT, the presets, old projects); with no amplitude route in ENV's slots the voice plays at full level while ENV runs, then ends. ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave is its own value, **DROP** (VOICE 2 on the Optimist UI, VOICE 3 on SLOOP's). Projects, presets and old motion and p-locks on the old destinations (ENV DEST FLT and SHP, ENV2's amounts) are converted when they load and play onto the slots. User presets are stored as UP_VER 3 (the bank UPB3); older banks are read and converted. Details: [docs/BUILDER.md](docs/BUILDER.md).
+**ENV 1 is the engine's own envelope**: it always shapes the amplitude, and its page **ENV 1 MOD** has four depth knobs
+made for each engine (FLT, PIT and SHP where the engine has them, and the engine's own values its envelope should move:
+RES, FB, DUTY, CLICK ...; ACID, CZ and FM6 show the EDIT values of their own envelopes there). The table per engine:
+[docs/guide/sound.md](docs/guide/sound.md#env-1-mod-four-depth-knobs-made-for-each-engine). ENV2, LFO and LFO2 each have
+**two free destinations**: **DST A** with **AMT A**, and **DST B** with **AMT B** (the ENV2 DEST, LFO DEST and LFO2 DEST
+pages). All three read **one shared list** of destinations: the engine's own values (named by the engine), the track's
+level, pan and sends, the S1 and S2 insert amounts (the LFO list names the insert type the slot holds), and the rate (RT)
+and amount (AMT) of the LFOs and envelopes, so an envelope or an LFO can move another LFO. ENV2's DEST A is the filter
+at 0 on a new sound, INIT and the presets that do not use ENV2 (WHEEL TOP, FM6 MOD, ACID CUT, CZ DCW where there is no
+filter). ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave
+is its own value, **DROP** (VOICE 2 on the Optimist UI, VOICE 3 on SLOOP's). Projects, presets, motion and p-locks of
+before keep their sound: the old ENV FLT and SHP depths are ENV 1 MOD's again; ENV DEST's two free slots (2026-10-14 to
+16) fold onto it (another destination moves to ENV2 when it is free, else TOOLS > MISS says "ENV DEST T1"). User presets
+are stored as UP_VER 4 (the bank UPB3); older records and banks are read and converted. Details:
+[docs/BUILDER.md](docs/BUILDER.md).
 
 ### Insert effects: generic slots (builder items INS_*, FX_*)
 

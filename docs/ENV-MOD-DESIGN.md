@@ -146,3 +146,59 @@ Tests:
 7. PHASE: **DCW (alias E3) PIT DTN SUB** / FLT-path DCW depth as a new knob?
 8. Post-141 ENV 1 slots on other targets: **move to ENV 2 when it is free (copy the ADSR)** / always drop with a note?
 9. Page name: **ENV 1 MOD** / ENV DEST (kept) / DEPTH?
+
+## 8. As built (feat/env1-fixed, 2026-10-16)
+
+The user's rulings: every recommended answer of §7 (ANALOG TRIO JUNO NOISE card 4 RES; DIGITAL IDX PIT FB MDEC; FM6
+M.TIM C.TIM MOD PIT; ACID the aliases ENV DEC ACC CUT; CZ DCW W.TIM A.TIM + PIT; WHEEL PIT DRV CLICK TOP; PHASE DCW PIT
+DTN SUB; ENV 1 slots on other targets moved to ENV 2 when it is free, else dropped and counted; the page ENV 1 MOD).
+Then (the user, the same day): "in general we should always have filter and amp, by default slot 1 of env2 is filter".
+
+Where the build differs from §1 to §6:
+
+* **Ids.** All four ids of ENV DEST are kept for the cards: `P_E1PIT` (PIT), `P_E1X`, `P_E1Y`, `P_E1Z` (the first,
+  second and third move card of an engine). §3 had `P_N1DB`/`P_N1AB` reserved, but the approved card sets need up to
+  three moves (WHEEL: DRV CLICK TOP; DIGITAL, PHASE, LOFI, SAMPLE, SLICE, PHYS: two). No id moves, P_COUNT is the same.
+* **The table** (`firmware/src/core/env1_cards.h`): per engine slot four cards {kind, the value it keeps, its name}
+  and ENV 2's default DEST A. Kinds: FLT SHP PIT (paths), a move (`env_vmove`, per voice), a **part move** (WHEEL: its
+  DRV CLICK TOP are read once a block in `drawbar_block`, so ENV 1 moves them for the block from the part's newest
+  voice, as an ENV 2 slot on PAN), an alias. A card's name is the engine's EDIT value it moves (its own label) or FLT,
+  PIT, SHP; an alias shows the EDIT value itself (PHASE's alias of E3 is named ENV there, as on EDIT).
+* **Labels on the page.** JUNO's FLT card is named FLT (not VCF ENV); TRIO's and ANALOG's are FLT; the others take
+  the EDIT value they drive (DIGITAL IDX, LOFI TONE, SAMPLE CUT, VOICE VOWL, GRAIN TONE, SLICE TONE, PHYS BRIT, NOISE
+  FREQ). The descriptors are made when the page asks (four in the pool, `params.c e1_card_desc`): no flash table of
+  names.
+* **The render** keeps FLT and SHP on every engine as before 2026-10-14 (`env x d >> 7`, the plain path), whether or
+  not the engine has that card: an old project's depth plays as it did. PIT and the moves run on the slow path.
+* **E1 AMT.** An LFO on it scales ENV 1's FLT and SHP depths for the block (x 0..2, kept in -64..63); ENV 2 on it
+  scales FLT SHP PIT for each voice. The moves are not scaled (as before).
+* **Fold** (`env_store.h env1_fold`): AMP dropped (an AMT other than 127 counted), FLT SHP PIT at AMT / 2; everything
+  else (RES and E1..E8 too) to ENV 2's slots when both do nothing, ENV's ATK DEC SUS REL copied into ATK2 DEC2 SUS2
+  REL2; else lost. Lost slots of a project load show in TOOLS > MISS as "ENV DEST T1". User presets UP_VER 3 fold the
+  same way (no note).
+* **Not done** (flash): §3's DIGITAL / PHASE tidy of old FLT / SHP depths. They keep playing as they did; on DIGITAL
+  the SHP depth acts with no card (it is the same index as IDX), on PHASE FLT and SHP act beside the DCW card.
+
+### ENV 2's default destination
+
+ENV 2's DEST A is FLT on a new sound, on INIT and on every factory preset that does not use ENV 2, at AMT 0: the
+filter is one turn away. ENV 2's DEST B stays OFF. Engines without a filter path take the nearest:
+
+| Engine | ENV 1: a filter card? | an amplitude path? | ENV 2's default DEST A |
+|---|---|---|---|
+| WHEEL | no (organ: no filter) | yes (wired) | TOP (E4, the top bars) |
+| FM6 | no (DX7 operators) | its own op EGs (fm6_amp) | SHP (MOD, the modulator levels) |
+| ACID | no path at all (the 303 ignores the voice paths) | the 303's own VEG | E1 (CUT, its cutoff) |
+| CZ | no (DCW is its "filter") | its own DCA (cz_amp) | E2 (DCW) |
+| PHASE | no FLT card (DCW alias; FLT drives DCW depth) | yes | FLT (it drives the DCW depth) |
+| DIGITAL | IDX (the FLT path drives the FM index, not a filter) | yes | FLT (the index) |
+
+Every other engine has a real filter path (ANALOG, SUPER, LOFI TONE, SAMPLE CUT, VOICE VOWL formants, TRIO, GRAIN TONE,
+SLICE TONE, PHYS BRIT, JUNO VCF, NOISE FREQ) and the amplitude wired. Old files keep the destinations they stored.
+
+### Findings for the user
+
+* **SLICE's START card does nothing:** START is read once, at the note-on, when ENV 1 is 0. It is kept as approved;
+  PTCH (E3, read each block) is the one other EDIT value SLICE reads while a voice plays; a replacement is the user's call.
+* WHEEL, FM6, ACID, CZ have no real filter; ACID and CZ have no amplitude path of ENV 1 (their own envelopes end the
+  voice); see the table above.
