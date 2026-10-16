@@ -34,7 +34,7 @@ static uint32_t hits_on(uint32_t step)
 {
     uint32_t i, n = 0, slen = BEAT_U / 4u;
     for (i = 0; i < nhits; i++)
-        n += hits[i].note == LANE_NOTE[0] && (hits[i].pos + slen / 2u) / slen % 8u == step;
+        n += hits[i].note == LANE_NOTE_OF(0) && (hits[i].pos + slen / 2u) / slen % 8u == step;
     return n;
 }
 static void play(uint32_t beats)

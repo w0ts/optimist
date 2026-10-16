@@ -632,10 +632,10 @@ static void key_tests(void)
     frame();
     fm1_in.buttons |= BT(B_OCTDN);
     frame();
-    key(4);                                             /* (the third white key: lane 2) */
+    key(key_of_lane(2));                                /* (the third lane's black key, A#3) */
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
-    check(lane_selected() != lane_of_key(4) && ui.scr == SCR_HOME && smute_lane_on(lane_of_key(4)),
+    check(lane_selected() != 2u && ui.scr == SCR_HOME && smute_lane_on(2),
           "SHIFT held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
     smute_lane = 0;
     tap(B_EDIT);
@@ -925,7 +925,8 @@ static void family_tests(void)
 }
 
 /* ---- STEP: the keys are steps (docs/UI-OPTIMIST-DESIGN.md section 4.2) */
-static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key index */
+static uint32_t WK(uint32_t w) { return white_key(w); }   /* white key w's key index */
+static uint32_t BK(uint32_t l) { return key_of_lane(l); }   /* drum lane l's black key (2026-10-16: it selects and plays the lane) */
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
 #include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
@@ -969,11 +970,9 @@ static void step_keys_tests(void)
     release(B_OCTUP);
     check(dstep_lvl(&t->dstep[1], 2) == LV_HARD, "drums: OCT+ held + a step: a hard hit (OCT- is SHIFT now: the lane pick)");
     dstep_set(&t->dstep[5], 2, LV_NORM, 0);
-    press(B_OCTDN);
-    key(WK(5));
-    release(B_OCTDN);
-    check(lane_selected() == 5 && pen_lane == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP && dstep_has(&t->dstep[5], 2),
-          "drums: SHIFT held + a key: the lane picked, heard, no step cleared; HOME let go, the keys are steps again");
+    key(BK(5));
+    check(lane_selected() == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP && dstep_has(&t->dstep[5], 2),
+          "drums: a black key: its lane picked, no step cleared, the white keys still steps");
     press(B_SEQ);
     key(WK(5));
     release(B_SEQ);
@@ -1040,8 +1039,8 @@ static void step_keys_tests(void)
     check(!dstep_mask(&t->dstep[4]), "drums: ... SEQ + the key clears it");
     seq_long();
     check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
-    key(WK(7));
-    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: no step set, the lane is the last hit");
+    key(BK(7));
+    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: a black key, no step set, the lane is the last hit");
     seq_long();
     check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
     turn(EN_SELECT, 9);
@@ -1811,7 +1810,7 @@ static void combo_tests(void)
         xtr_lane = 2;
         op_act_more(OA_EXTRAS, TRK_DRUM);
         check(!auto_get(AL(TDRUM), 4u | AUTO_ONLY, AUTO_LANE(2, 1), &x) && auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x) &&
-              !strcmp(ui.msg, "SNARE LOCKS CLEARED"), "SHIFT + SEQ, a lane picked: its locks go, the other lanes' stay");
+              !strcmp(ui.msg, "CLAP LOCKS CLEARED"), "SHIFT + SEQ, a lane picked: its locks go, the other lanes' stay");
         xtr_lane = -1;
         op_act_more(OA_EXTRAS, TRK_DRUM);
         check(!auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x), "... no lane picked: the whole drum track's");

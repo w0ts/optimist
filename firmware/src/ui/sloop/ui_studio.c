@@ -584,7 +584,7 @@ static void mix_row_draw(uint32_t r, uint32_t y, uint32_t *sig)
         col = lane_col(l);
         silent = !dlm_lane_heard(l) || trk_silent(TDRUM);
         badge = dlm_muted(l) ? 3u : dlm_soloed(l) ? 2u : !dlm_lane_heard(l) ? 3u : 0u;   /* (another lane soloed: MUTE) */
-        te_sentence(b, LANE_NAME[l], sizeof b);
+        te_sentence(b, LANE_NAME_OF(l), sizeof b);
         te_sentence(e, usr ? DS_SRC_NAMES[usr] : dl.src[l] == DL_KIT ? drum_kit_name() :
                        dl.src[l] >= DL_X909 && dsnd_src_idx(dl.src[l]) ? DS_SRC_NAMES[dsnd_src_idx(dl.src[l])] :
                        DRUM_KIT_NAMES[kit], sizeof e);
@@ -875,9 +875,9 @@ static void drum_screen_draw(void)
         cv_rect(2, 4, 34, 34, TE_DRUM);
 #if FELUCCA_DRUM_STEP
         if (!drum_page) {                              /* the GRID: the picked lane's number and name (the kit's under it) */
-            const char *ln = text_w(&FONT_L, LANE_NAME[drum_lane & 15u]) <= 116 ? LANE_NAME[drum_lane & 15u]
-                                                                                 : LANE_SHORT[drum_lane & 15u];
-            fmt_int(b, (int32_t)(drum_lane & 15u) + 1);
+            const char *ln = text_w(&FONT_L, LANE_NAME_OF(drum_lane % DRUM_LANES)) <= 116 ? LANE_NAME_OF(drum_lane % DRUM_LANES)
+                                                                                 : LANE_SHORT_OF(drum_lane % DRUM_LANES);
+            fmt_int(b, (int32_t)(drum_lane % DRUM_LANES) + 1);
             cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
             cv_text(44, 4, &FONT_L, ln, TE_DRUM);
 #if FELUCCA_AUTO && FELUCCA_PLOCK
@@ -931,9 +931,9 @@ static void drum_screen_draw(void)
                 if (i == drum_lane)
                     cv_rect(0, y - 1, 1, 7, TE_DRUM);
 #if DL_UI
-                tiny_text(2, y, LANE_CODE[i], pad_lit[i] || i == drum_lane ? C_WHITE : lane_col(i));   /* "BD": its code, lit on a hit */
+                tiny_text(2, y, LANE_CODE_OF(i), pad_lit[i] || i == drum_lane ? C_WHITE : lane_col(i));   /* "BD": its code, lit on a hit */
 #else
-                tiny_text(2, y, LANE_CODE[i], pad_lit[i] || i == drum_lane ? C_WHITE : TE_G3);
+                tiny_text(2, y, LANE_CODE_OF(i), pad_lit[i] || i == drum_lane ? C_WHITE : TE_G3);
 #endif
                 for (j = 0; j < 16u; j++) {
                     uint32_t p = bank * 16u + j;
@@ -977,7 +977,7 @@ static void drum_screen_draw(void)
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
                 cv_box(x, y, 56, 23, pad_lit[i] ? TE_DRUM : TE_G1);
-                te_text_c(x + 28, y + 4, LANE_SHORT[i], pad_lit[i] ? C_BLACK : i == drum_lane ? C_WHITE : TE_G3);
+                te_text_c(x + 28, y + 4, LANE_SHORT_OF(i), pad_lit[i] ? C_BLACK : i == drum_lane ? C_WHITE : TE_G3);
             }
         }
         cv_blit(0, 84);
@@ -989,7 +989,7 @@ static void drum_screen_draw(void)
         int32_t ratio[4];
         if (!drum_page) {
             const dstep_t *s = &TDRUM->dstep[drum_cursor];
-            str_cpy(v[0], LANE_SHORT[drum_lane], 8);
+            str_cpy(v[0], LANE_SHORT_OF(drum_lane), 8);
             fmt_int(v[1], drum_cursor + 1);
             if (dstep_has(s, drum_lane) && dstep_rat(s, drum_lane)) {   /* a ratchet: x2 .. x4 */
                 v[2][0] = 'x';
@@ -1037,16 +1037,16 @@ static void drum_screen_draw(void)
         } else {
             fmt_int(v[0], (int32_t)drum_kit_pos() + 1);
             fmt_int(v[1], song.g[G_DRLVL] * 100 / 127);
-            fmt_int(v[2], (int32_t)dsend_rev(dsend[drum_lane & 15u]));   /* (the sound's REV: drum_sends.c) */
+            fmt_int(v[2], (int32_t)dsend_rev(dsend[drum_lane % DRUM_LANES]));   /* (the sound's REV: drum_sends.c) */
             fmt_int(v[3], TDRUM->p[P_PAN]);
             ratio[0] = (int32_t)drum_kit_pos() * 1000 / (int32_t)(drum_kit_total() - 1u);
             ratio[1] = song.g[G_DRLVL] * 1000 / 127;
-            ratio[2] = (int32_t)dsend_rev(dsend[drum_lane & 15u]) * 1000 / (int32_t)DSEND_MAX;
+            ratio[2] = (int32_t)dsend_rev(dsend[drum_lane % DRUM_LANES]) * 1000 / (int32_t)DSEND_MAX;
             ratio[3] = (TDRUM->p[P_PAN] + 64) * 1000 / 127;
 #if FELUCCA_MACROS
             {   /* ENERGY moves the drums' level, SPACE each sound's reverb send: shown as they play */
                 int32_t e = mac_effective_g(G_DRLVL, song.g[G_DRLVL]);
-                uint32_t r = dsend_rev(dsend[drum_lane & 15u]), er = dsend_near(mac_effective_drev(dsend_lvl(r)));
+                uint32_t r = dsend_rev(dsend[drum_lane % DRUM_LANES]), er = dsend_near(mac_effective_drev(dsend_lvl(r)));
                 if (e != song.g[G_DRLVL]) {
                     te_mac |= 2u, te_mac_r[1] = e * 1000 / 127;
                     if (!ui.hot_t || ui.hot_col != 1u)
@@ -1194,7 +1194,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         } else {
             if (k == 0) drum_kit_step(s);
             if (k == 1) song.g[G_DRLVL] = (int16_t)clamp(song.g[G_DRLVL] + s, 0, 127);
-            if (k == 2) dsend_set(drum_lane, 0, (int32_t)dsend_rev(dsend[drum_lane & 15u]) + s);   /* the sound's REV */
+            if (k == 2) dsend_set(drum_lane, 0, (int32_t)dsend_rev(dsend[drum_lane % DRUM_LANES]) + s);   /* the sound's REV */
             if (k == 3) TDRUM->p[P_PAN] = (int16_t)clamp(TDRUM->p[P_PAN] + s, -64, 63);
         }
     }

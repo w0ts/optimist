@@ -82,6 +82,7 @@ static struct {
     uint8_t kit[NDRUM];
     int32_t filter[NDRUM], env[NDRUM];
     uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (ds[]) */
+    uint8_t lane[NDRUM];         /* the lane that hit it (DRUM_LANES: the click): its mix, sends, inserts, meter */
     dsv_t ds[NDRUM];
     volatile uint16_t hits;      /* bit per lane hit since the UI last looked (pads, key LEDs) */
     volatile uint8_t kick;       /* a kick was hit (fx.c DUCK) */
@@ -104,57 +105,126 @@ static int32_t drum_set(void)
 }
 
 /* ------------------------------------------------------------ lanes --- */
-/* The drum track's 16 sounds, one per white key, F3 (kick) .. G5 (cowbell): kicks, snare and clap,
- * the hi-hats, rim and a second snare, the toms, the cymbals, the percussion. Each plays a GM note
- * (the sampled kits: their samples; the synthesised kits: drum_synth.c DS_MAP). A black key plays
- * the lane of the white key left of it (two fingers on one sound). */
-static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
-static const char *const LANE_NAME[DRUM_LANES] = {
+/* The drum track's DRUM_LANES (10) lanes: each plays an instrument the user picks (drum_edit.c dl.inst, SOUND's
+ * INSTRUMENT row), and is named after it. An instrument is a GM note (the sampled kits: their samples; the
+ * synthesised kits: drum_synth.c DS_MAP; the X0X kits: X9_NOTE / X8_NOTE). INST_* keep the order of the 16 fixed
+ * lanes before 2026-10-16 (the tables keyed by them, drum_x0x.c X0X_STYLE, read the instrument), then MID TOM, CLAVE.
+ * The Optimist UI: black key n (F#3 .. D#5) selects and plays lane n, F#5 the ACCENT lane; the white keys are steps */
+enum { INST_KICK, INST_KICK2, INST_SNARE, INST_CLAP, INST_CH, INST_OH, INST_PH, INST_RIM, INST_SNARE2, INST_LT, INST_HT,
+       INST_CRASH, INST_RIDE, INST_SHAKER, INST_CONGA, INST_COWBELL, INST_MT, INST_CLAVE, INST_N };
+static const uint8_t INST_NOTE[INST_N] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56, 47, 75};
+static const char *const INST_NAME[INST_N] = {
     "KICK", "KICK 2", "SNARE", "CLAP", "CLOSED HAT", "OPEN HAT", "PEDAL HAT", "RIM",
-    "SNARE 2", "LOW TOM", "HI TOM", "CRASH", "RIDE", "SHAKER", "CONGA", "COWBELL"};
-static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: tiles, dials */
+    "SNARE 2", "LOW TOM", "HI TOM", "CRASH", "RIDE", "SHAKER", "CONGA", "COWBELL", "MID TOM", "CLAVE"};
+static const char *const INST_SHORT[INST_N] = {           /* 5 characters: tiles, dials */
     "kick", "kick2", "snare", "clap", "c.hat", "o.hat", "p.hat", "rim",
-    "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
-static const char *const LANE_CODE[DRUM_LANES] = {     /* 2 characters: the mixer's rows, the drum grids' lanes */
-    "BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS", "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
-/* the ACCENT lane's names (core.h DRUM_ACC: lane 16, no sound; LANE_NAME / LANE_SHORT / LANE_CODE are the 16 sounds') */
+    "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell", "tom m", "clave"};
+static const char *const INST_CODE[INST_N] = {     /* 2 characters: the mixer's rows, the drum grids' lanes */
+    "BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS", "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB", "MT", "CL"};
+/* the families (the GM notes no lane plays go to a lane of the same family): kick, snare / clap / rim, hats, toms,
+ * cymbals, percussion */
+static const uint8_t INST_FAM[INST_N] = {0, 0, 1, 1, 2, 2, 2, 1, 1, 3, 3, 4, 4, 5, 5, 5, 3, 5};
+/* a fresh project's lanes (dl.inst 0: the lane's default) */
+static const uint8_t LANE_DEF_INST[DRUM_LANES] = {INST_KICK, INST_SNARE, INST_CLAP, INST_CH, INST_OH,
+                                                  INST_LT, INST_HT, INST_RIM, INST_CRASH, INST_RIDE};
+static uint32_t lane_inst(uint32_t l);                 /* drum_edit.c: lane l's instrument (INST_*) */
+#define LANE_NOTE_OF(l) (INST_NOTE[lane_inst(l)])
+#define LANE_NAME_OF(l) (INST_NAME[lane_inst(l)])
+#define LANE_SHORT_OF(l) (INST_SHORT[lane_inst(l)])
+#define LANE_CODE_OF(l) (INST_CODE[lane_inst(l)])
+/* the ACCENT lane's names (core.h DRUM_ACC: the last lane, no sound) */
 #define DACC_NAME "ACCENT"
 #define DACC_SHORT "accent"
 #define DACC_CODE "AC"
-/* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
-static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
+/* the engine's drum notes: the sequencer and the keys hit a lane (DNOTE_LANE | lane: drum_on plays the lane's
+ * instrument, each lane its own sound, two lanes on one instrument too); a plain GM note (MIDI in) finds its lane */
+#define DNOTE_LANE 0x80u
+#define DLANE_NOTE(l) (DNOTE_LANE | (uint32_t)(l))
+#define DLANE_NONE 0xFFu                               /* lane_of_note: no lane for the note */
+/* a lane code (DLANE_NOTE: drums.lane[], drum_x0x.c xc.lane give a voice's) -> the lane (DRUM_LANES: the click's wood
+ * block, or a plain note) */
+AINL uint32_t dnote_lane(uint32_t n)
+{
+    uint32_t l = n & 0x7Fu;
+    return (n & DNOTE_LANE) && l < DRUM_LANES ? l : DRUM_LANES;
+}
+/* a GM note (MIDI in, old projects) -> the instrument it is nearest (35..81; below: kick, above: shaker) */
+static const uint8_t INST_OF_GM[81 - 35 + 1] = {
     /* 35 */ 1, 0, 7, 2, 3, 8, 9, 4, 9, 6,
-    /* 45 */ 9, 5, 10, 10, 11, 10, 12, 11, 12, 13,
+    /* 45 */ 9, 5, 16, 10, 11, 10, 12, 11, 12, 13,
     /* 55 */ 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     /* 65 */ 14, 14, 15, 15, 13, 13, 15, 15, 13, 13,
-    /* 75 */ 7, 7, 7, 14, 14, 15, 15};
-AINL uint32_t lane_of_note_i(uint32_t note)            /* (inlined: RAM code's, fx.c dins_*) */
+    /* 75 */ 17, 7, 7, 14, 14, 15, 15};
+static uint32_t inst_of_gm(uint32_t note) { return note < 35u ? INST_KICK : note > 81u ? INST_SHAKER : INST_OF_GM[note - 35u]; }
+/* a GM note -> its lane: the lane on that note, else on its instrument, else on its family (the lowest lane wins),
+ * else DLANE_NONE */
+static uint32_t lane_of_note(uint32_t note)
 {
-    return note < 35u ? 0u : note > 81u ? 13u : LANE_OF_GM[note - 35u];
+    uint32_t l, in = inst_of_gm(note);
+    for (l = 0; l < DRUM_LANES; l++)
+        if (LANE_NOTE_OF(l) == note)
+            return l;
+    for (l = 0; l < DRUM_LANES; l++)
+        if (lane_inst(l) == in)
+            return l;
+    for (l = 0; l < DRUM_LANES; l++)
+        if (INST_FAM[lane_inst(l)] == INST_FAM[in])
+            return l;
+    return DLANE_NONE;
 }
-static uint32_t lane_of_note(uint32_t note) { return lane_of_note_i(note); }
-/* the lane of key k (0 = F3 .. 26 = G5): white keys in order, a black key the white key left of it */
+/* the lane of key k (0 = F3 .. 26 = G5), DLANE_NONE: none. The Optimist UI: the black keys in order (F#3 .. D#5:
+ * lanes 0..9; F#5, DACC_KEY: seq.c kb_drum_lane, the ACCENT lane); SLOOP's UI: the white keys in order, a black key
+ * the white key left of it */
 static uint32_t lane_of_key(uint32_t k)
 {
     static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};   /* from F */
     int32_t i = W[k % 12u];
+#if FELUCCA_UI == 1
+    static const int8_t B[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1};   /* from F: F# G# A# C# D# */
+    i = B[k % 12u];
+    if (i < 0)
+        return DLANE_NONE;
+    i += (int32_t)(k / 12u) * 5;
+    (void)W;
+#else
     if (i < 0)
         i = W[(k - 1u) % 12u];
-    return (uint32_t)((int32_t)(k / 12u) * 7 + i) & 15u;
+    i += (int32_t)(k / 12u) * 7;
+#endif
+    return (uint32_t)i < DRUM_LANES ? (uint32_t)i : DLANE_NONE;
 }
-/* the white key of lane l (key index), for the key LEDs */
+/* the key of lane l (key index), for the key LEDs: the Optimist UI its black key, SLOOP's its white key */
 static uint32_t key_of_lane(uint32_t l)
 {
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
-#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+#if FELUCCA_UI == 1
+    static const uint8_t B[5] = {1, 3, 5, 8, 10};           /* F# G# A# C# D# */
+#if FELUCCA_DRUM_ACCENT && DACC_KEY_ON
     if (l == DRUM_ACC)
-        return DACC_KEY;                                    /* the ACCENT lane: the last upper key, 25 (the Optimist UI) */
+        return DACC_KEY;                                    /* the ACCENT lane: the last upper key, 25 */
 #endif
+    (void)K;
+    return (l / 5u) * 12u + B[l % 5u];
+#else
     return (l / 7u) * 12u + K[l % 7u];
+#endif
+}
+/* a lane in the editor's messages (io/editor): 0..15 the lanes, 16 the ACCENT lane (the 16 fixed lanes' numbering) <->
+ * the device's (DRUM_ACC 10); a wire lane DRUM_LANES..15: EDL_NONE */
+#define EDW_ACC 16u
+#define EDL_NONE 0xFEu
+static uint32_t edl_in(uint32_t w) { return w == EDW_ACC ? DRUM_ACC : w < DRUM_LANES ? w : w < EDW_ACC ? EDL_NONE : w; }
+static uint32_t edl_out(uint32_t l) { return l == DRUM_ACC ? EDW_ACC : l; }
+/* the white key of step w (0..15) of a window (the step keys' LEDs) */
+static uint32_t white_key(uint32_t w)
+{
+    static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
+    return (w / 7u) * 12u + K[w % 7u];
 }
 
-/* drum steps: a lane's bit, level, ratchet. Lane DRUM_ACC (16, the ACCENT lane: core.h) is the step's acc byte (bit 0
- * on, bits 1..2 level, bits 3..4 ratchet); dstep_mask is the 16 sounds', dstep_lanes every step lane's */
+/* drum steps: a lane's bit, level, ratchet. Lane DRUM_ACC (10, the ACCENT lane: core.h) is the step's acc byte (bit 0
+ * on, bits 1..2 level, bits 3..4 ratchet); dstep_mask is the lanes' (DRUM_LMASK: the stored bits past them ignored),
+ * dstep_lanes every step lane's */
 #define DACC_ON 1u
 #define DACC_LVL(a) (((uint32_t)(a) >> 1) & 3u)
 #define DACC_RAT(a) (((uint32_t)(a) >> 3) & 3u)
@@ -170,11 +240,13 @@ static uint32_t dstep_rat(const dstep_t *s, uint32_t l)
 {
     return l == DRUM_ACC ? DACC_RAT(s->acc) : (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
 }
-static uint32_t dstep_mask(const dstep_t *s) { return (uint32_t)s->on[0] | (uint32_t)s->on[1] << 8; }
+static uint32_t dstep_mask(const dstep_t *s) { return ((uint32_t)s->on[0] | (uint32_t)s->on[1] << 8) & DRUM_LMASK; }
 static uint32_t dstep_lanes(const dstep_t *s) { return dstep_mask(s) | (uint32_t)(s->acc & DACC_ON) << DRUM_ACC; }
 static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* lane on, with its level and ratchet */
 {
     uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
+    if (l > DRUM_ACC)
+        return;                                     /* (no lane: lane_of_note's DLANE_NONE) */
     if (l == DRUM_ACC) {
         s->acc = (uint8_t)(DACC_ON | (lvl & 3u) << 1 | (rat & 3u) << 3);
         return;
@@ -186,6 +258,8 @@ static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* l
 static void dstep_clr(dstep_t *s, uint32_t l)                                /* lane off */
 {
     uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
+    if (l > DRUM_ACC)
+        return;
     if (l == DRUM_ACC) {
         s->acc = 0;
         return;
@@ -239,7 +313,7 @@ static void drums_off(void)
 
 /* a voice for a hit: free, else the oldest (stolen: its last value fades, the declick tail); a closed or
  * pedal hat chokes the open one */
-static voice_t *drum_voice(uint32_t note, uint32_t vel)
+static voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
 {
     voice_t *v = &drums.v[0];
     uint32_t i;
@@ -260,6 +334,7 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
     if (v->active)
         drums.tail += v->s[7];                      /* stolen voice: fade its last value */
     v->note = (uint8_t)note;
+    drums.lane[v - drums.v] = (uint8_t)(lane < DRUM_LANES ? lane : DRUM_LANES);
     v->vel = (uint8_t)vel;
     v->active = 1;
     v->ofs = ev_ofs;                                /* a sequenced hit inside the block: from its sample */
@@ -292,7 +367,16 @@ static void drum_on(uint32_t note, uint32_t vel)
     int32_t si = drum_set(), shift;
     const smp_set_t *set;
     voice_t *v;
-    uint32_t i, vi, zi = 0xFFFFu, kit = drum_kit(), lane = note == 76u || note == 77u ? DRUM_LANES : lane_of_note(note);
+    uint32_t i, vi, zi = 0xFFFFu, kit = drum_kit(), lane;
+    if (note & DNOTE_LANE) {                        /* a lane's hit: its instrument */
+        lane = note & 0x7Fu;
+        if (lane >= DRUM_LANES)
+            return;
+        note = LANE_NOTE_OF(lane);
+    } else if (note == 76u || note == 77u || (lane = lane_of_note(note)) >= DRUM_LANES) {
+        lane = DRUM_LANES;                          /* (the click's wood block; a GM note no lane is near: the kit's sound for
+                                                     * it, no lane's edits, mix or sends, as the click) */
+    }
     if (!((dlm_heard >> lane) & 1u))
         return;                                     /* a muted lane, or another one soloed (drum_mix.c) */
     if (lane < DRUM_LANES)                        /* the pads and key LEDs (not the click's wood block) */
@@ -317,7 +401,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     }
 #endif
     if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
-        v = drum_voice(note, vel);
+        v = drum_voice(note, vel, lane);
         vi = (uint32_t)(v - drums.v);
 #if DINS
         dins_restart(vi);                           /* (its inserts start clean, as its envelope) */
@@ -335,7 +419,7 @@ static void drum_on(uint32_t note, uint32_t vel)
             zi = set->z0 + i;
     if (zi == 0xFFFFu)
         return;
-    v = drum_voice(note, vel);
+    v = drum_voice(note, vel, lane);
     vi = (uint32_t)(v - drums.v);
 #if DINS
     dins_restart(vi);
@@ -377,7 +461,7 @@ static __attribute__((noinline)) void dgl_lanes(int settle)   /* (XIP) the lanes
 }
 AINL void dgl_sends(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 {
-    uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note(note);
+    uint32_t l = dnote_lane(note);
     *r = dgl.r[l];
     *d = dgl.d[l];
     *c = dgl.c[l];
@@ -444,7 +528,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         int32_t r, d, c;                            /* its lane's sends (drum_sends.c) */
         if (!v->active || !drums.synth[k])
             continue;
-        uint32_t ln = dlm_lane(v->note);            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
         int32_t vpk = 0;
         if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
             v->active = 0;
@@ -454,14 +538,14 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         }
 #if FELUCCA_GLIDE
         int32_t pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
-        dgl_sends(v->note, &r, &d, &c);
+        dgl_sends(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
 #else
         int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
-        dsend_of(v->note, &r, &d, &c);
+        dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
 #endif
         dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
-        uint32_t ins = dins_of(k, v->note, on);     /* its inserts run: mixed after its loop (dins_post) */
+        uint32_t ins = dins_of(k, DLANE_NOTE(drums.lane[k]), on);     /* its inserts run: mixed after its loop (dins_post) */
 #endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -515,7 +599,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #if DINS
         if (ins) {
             dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
-            dins_post(k, v->note, o, m, m, &dx);
+            dins_post(k, DLANE_NOTE(drums.lane[k]), o, m, m, &dx);
         } else
 #endif
         DSEND_POST(o, m, r, d, c, pre);
@@ -533,7 +617,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         int32_t g, r, d, c;
         if (!v->active)
             continue;
-        uint32_t ln = dlm_lane(v->note);            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
         int32_t vpk = 0;
         if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
             v->active = 0;
@@ -543,7 +627,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         }
 #if FELUCCA_GLIDE
         int32_t g1, dg, pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
-        dgl_sends(v->note, &r, &d, &c);
+        dgl_sends(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
         g = mulq15(lv0, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
         g1 = mulq15(dgl.lv, v->vel * 258);
@@ -551,13 +635,13 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         dg = g1 - g;
 #else
         int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
-        dsend_of(v->note, &r, &d, &c);
+        dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
 #endif
         dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
-        uint32_t ins = dins_of(k, v->note, on);
+        uint32_t ins = dins_of(k, DLANE_NOTE(drums.lane[k]), on);
 #endif
         i = v->ofs < n ? v->ofs : 0u;              /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -634,7 +718,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #if DINS
         if (ins) {
             dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
-            dins_post(k, v->note, i0, i, n, &dx);
+            dins_post(k, DLANE_NOTE(drums.lane[k]), i0, i, n, &dx);
         } else
 #endif
         DSEND_POST(i0, i, r, d, c, pre);           /* (i: where it ended) */

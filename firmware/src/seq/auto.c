@@ -214,8 +214,9 @@ static void dla_event(const auto_ev_t *e, uint32_t mo)
 {
     uint32_t l = AUTO_LANE_L(e->param), v = AUTO_LANE_V(e->param);
     int8_t x;
-    if (smute_lane_on(l))
-        return;                                      /* (its sequencer muted: no lock, no motion; seq_mute.c) */
+    if (l >= DRUM_LANES || smute_lane_on(l))
+        return;                                      /* (no such lane: an id of the 16 fixed lanes; its sequencer muted: no lock,
+                                                      * no motion; seq_mute.c) */
     x = (int8_t)clamp(e->value, DE_MIN[v], DE_MAX[v]);
     if (e->place & AUTO_ONLY) {
 #if FELUCCA_PLOCK

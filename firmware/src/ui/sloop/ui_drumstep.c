@@ -49,7 +49,7 @@ static void lane_pick(uint32_t l, uint32_t hear)
 static int32_t ds_algo_walk(int32_t s)
 {
     static uint32_t last_ms;
-    uint32_t r = edge_walk_n(1u + (drum_lane & 15u), s, DS_WALK_ROWS, 1u, edge_fresh(&last_ms, fm1_ms));
+    uint32_t r = edge_walk_n(1u + (drum_lane % DRUM_LANES), s, DS_WALK_ROWS, 1u, edge_fresh(&last_ms, fm1_ms));
     if (r == 0u)
         return -1;
     if (r - 1u != (uint32_t)drum_lane)
@@ -167,7 +167,7 @@ static void grid_hold_tick(void)
         uint32_t bit = 1u << w;
         if (!(gh_down & bit))
             continue;
-        if (!((fm1_in.notes >> key_of_lane(w)) & 1u)) {   /* (its release was lost: forgotten, not a tap) */
+        if (!((fm1_in.notes >> white_key(w)) & 1u)) {   /* (its release was lost: forgotten, not a tap) */
             gh_down &= (uint16_t)~bit;
             gh_held &= (uint16_t)~bit;
             gh_off &= (uint16_t)~bit;

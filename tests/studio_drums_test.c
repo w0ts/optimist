@@ -14,14 +14,14 @@ int main(int argc,char **argv)
     uint32_t i,j,k,v,total=0; uint64_t energy[DRUM_KITS]={0};
     int32_t out[CTL*2]; dstep_t step={{0}};
     host_tracks_init();
-    for(i=0;i<DRUM_LANES;i++)dstep_set(&step,i,i&3u,(i>>2)&3u);   /* SLOOP 2.0: all 16 lanes in one step */
-    assert(dstep_mask(&step)==0xFFFFu);
+    for(i=0;i<DRUM_LANES;i++)dstep_set(&step,i,i&3u,(i>>2)&3u);   /* SLOOP 2.0: all the lanes in one step */
+    assert(dstep_mask(&step)==DRUM_LMASK);
     for(i=0;i<DRUM_LANES;i++)assert(dstep_has(&step,i) && dstep_lvl(&step,i)==(i&3u) && dstep_rat(&step,i)==((i>>2)&3u));
     dstep_clr(&step,5);assert(!dstep_has(&step,5) && dstep_has(&step,4) && dstep_has(&step,6) && dstep_lvl(&step,6)==2u);
-    for(i=0;i<27u;i++)assert(lane_of_key(i)<DRUM_LANES);
-    assert(lane_of_key(0)==0 && lane_of_key(1)==0 && lane_of_key(26)==15 && key_of_lane(15)==26);
-    for(i=35;i<=81;i++)assert(lane_of_note(i)<DRUM_LANES);
-    for(i=0;i<DRUM_LANES;i++)assert(lane_of_note(LANE_NOTE[i])==i);
+    for(i=0;i<27u;i++)assert(lane_of_key(i)<DRUM_LANES || lane_of_key(i)==DLANE_NONE);   /* (10 lanes: the keys past them none) */
+    assert(lane_of_key(0)==0 && lane_of_key(1)==0 && lane_of_key(16)==9 && key_of_lane(9)==16 && lane_of_key(17)==9 && lane_of_key(18)==DLANE_NONE);
+    for(i=35;i<=81;i++)assert(lane_of_note(i)<DRUM_LANES || INST_FAM[inst_of_gm(i)]==5u);   /* (no percussion lane by default) */
+    for(i=0;i<DRUM_LANES;i++)assert(lane_of_note(LANE_NOTE_OF(i))==i);
     /* Render the same hits through all five kits; each must be distinct,
      * finite and silent after its one-shots have finished. */
     for(i=0;i<DRUM_KITS;i++) if(drum_kit_built(i)) {   /* (a kit not built plays a stand-in: not distinct) */

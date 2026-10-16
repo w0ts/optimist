@@ -225,7 +225,7 @@ static void t_ua(void)
     check("USB AUDIO: a record from before it reads whole, the routing the default, the favorites kept",
           r == (int)sizeof p && ua_ident && !memcmp(&p.fav, &q.fav, sizeof p.fav) && p.bp23 == q.bp23);
     p.ua_mark = PERSIST_UA_MARK1;
-    p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 15, p.ua_src[3] = 13 + 16;   /* (M-6, B-3, DR16, out of range) */
+    p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 9, p.ua_src[3] = 13 + 10;   /* (M-6, B-3, DR10, out of range: 10 lanes) */
     persist_ua_load(&p);
     check("USB AUDIO: a UAR1 record: -6 / -3 dB as L+R, a lane kept, out of range the default",
           ua_src[0] == UAS_MAIN_S && ua_src[1] == UAS_DBUS_S && ua_src[2] == UAS_N - 1u && ua_src[3] == UAS_DRUMS);

@@ -196,7 +196,7 @@ static const char *head_engine(void)
     static char ln[8];
     uint32_t i;
     if (lane_picked()) {
-        const char *s = lane_acc() ? DACC_NAME : LANE_SHORT[lane_selected()];   /* (the ACCENT lane: "ACCENT") */
+        const char *s = lane_acc() ? DACC_NAME : LANE_SHORT_OF(lane_selected());   /* (the ACCENT lane: "ACCENT") */
         for (i = 0; s[i] && i < sizeof ln - 1u; i++)
             ln[i] = (char)(s[i] >= 'a' && s[i] <= 'z' ? s[i] - 32 : s[i]);
         ln[i] = 0;

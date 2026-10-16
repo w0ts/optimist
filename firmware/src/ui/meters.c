@@ -89,7 +89,7 @@ static void meter_tap(void)
 #if DINS && FELUCCA_MASTER_COMP
         for (c = 0; c < NDRUM; c++)     /* a sound's DYN runs per voice: its lane's */
             if (drums.v[c].active && (g = mt_gr_q4(dins_gr16(c))) != 0u) {
-                uint32_t l = dlm_lane(drums.v[c].note);
+                uint32_t l = drums.lane[c];
                 if (l < DRUM_LANES)
                     mt.gr[NTRK + l] = (uint8_t)(g > mt.gr[NTRK + l] ? g : mt.gr[NTRK + l]);
             }
@@ -144,8 +144,8 @@ static int32_t meter_ret_take(uint32_t k)
 /* the TRACKS screen: drum lane l's largest |output| since its last look */
 static int32_t meter_lane_take(uint32_t l)
 {
-    int32_t pk = mt.lane[l & 15u];
-    mt.lane[l & 15u] = 0;
+    int32_t pk = mt.lane[l % DRUM_LANES];
+    mt.lane[l % DRUM_LANES] = 0;
     return pk;
 }
 /* the TRACKS screen's MASTER row: on (in view) or off, the output scanned for it only while on */

@@ -35,6 +35,61 @@ static void ed_lane_get(uint32_t l, uint8_t *b)
     b[8] = dl.src[l];
     memcpy(b + 9, dl.ref[l], 3);
 }
+/* the lanes and a user kit on the wire: the layout of the 16 fixed lanes (before 2026-10-16), DRUM_LSTORE lanes, the
+ * lanes past DRUM_LANES zeros (read: ignored), so the editor's messages keep their sizes. The lanes' instruments are not
+ * in them (a set keeps the device's) */
+#define EDW_DL_N 204u                                       /* ofs[16][8] src[16] ref[16][3] ukit name[8] rsv[3] */
+#define EDW_UK_N 196u                                       /* used base src[16] ref[16][3] ofs[16][8] rsv[2] */
+_Static_assert(DRUM_LSTORE == 16u && DRUM_LANES <= DRUM_LSTORE && sizeof(dlanes_t) == EDW_DL_N && sizeof(ukit_t) == EDW_UK_N,
+               "the editor's lane messages: 16 lanes wide");
+static void edw_dl_put(const dlanes_t *d, uint8_t *b)       /* d -> its wire form (EDW_DL_N) */
+{
+    uint32_t l;
+    memset(b, 0, EDW_DL_N);
+    for (l = 0; l < DRUM_LANES; l++) {
+        memcpy(b + DE_N * l, d->ofs[l], DE_N);
+        b[128u + l] = d->src[l];
+        memcpy(b + 144u + 3u * l, d->ref[l], 3);
+    }
+    b[192] = d->ukit;
+    memcpy(b + 193, d->name, sizeof d->name);
+}
+static void edw_dl_get(const uint8_t *b, dlanes_t *d)       /* the wire form -> *d (its instruments: the device's) */
+{
+    uint32_t l;
+    *d = dl;
+    for (l = 0; l < DRUM_LANES; l++) {
+        memcpy(d->ofs[l], b + DE_N * l, DE_N);
+        d->src[l] = b[128u + l];
+        memcpy(d->ref[l], b + 144u + 3u * l, 3);
+    }
+    d->ukit = b[192];
+    memcpy(d->name, b + 193, sizeof d->name);
+}
+#if FELUCCA_DRUM_KITS
+static void edw_uk_put(const ukit_t *k, uint8_t *b)
+{
+    uint32_t l;
+    memset(b, 0, EDW_UK_N);
+    b[0] = k->used, b[1] = k->base;
+    for (l = 0; l < DRUM_LANES; l++) {
+        b[2u + l] = k->src[l];
+        memcpy(b + 18u + 3u * l, k->ref[l], 3);
+        memcpy(b + 66u + DE_N * l, k->ofs[l], DE_N);
+    }
+}
+static void edw_uk_get(const uint8_t *b, ukit_t *k)         /* (its instruments: each lane's default) */
+{
+    uint32_t l;
+    memset(k, 0, sizeof *k);
+    k->used = b[0], k->base = b[1];
+    for (l = 0; l < DRUM_LANES; l++) {
+        k->src[l] = b[2u + l];
+        memcpy(k->ref[l], b + 18u + 3u * l, 3);
+        memcpy(k->ofs[l], b + 66u + DE_N * l, DE_N);
+    }
+}
+#endif
 
 #include "ed_dsend.c"         /* version 2: the lanes with their sends */
 
@@ -46,17 +101,22 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
     switch (cmd) {
 #if DL_ANY
     case ED_DRUM_LANES:
-        if (na) {
-            dlanes_t n;
-            if (ed_unpack7(a, na, (uint8_t *)&n, sizeof n) != sizeof n)
-                return 0;
-            dl_fix(&n);
-            fm1_irq_off();
-            dl = n;
-            fm1_irq_on();
-            ui.force = 1;
+        {
+            uint8_t w[EDW_DL_N];
+            if (na) {
+                dlanes_t n;
+                if (ed_unpack7(a, na, w, sizeof w) != sizeof w)
+                    return 0;
+                edw_dl_get(w, &n);
+                dl_fix(&n);
+                fm1_irq_off();
+                dl = n;
+                fm1_irq_on();
+                ui.force = 1;
+            }
+            edw_dl_put(&dl, w);
+            ed_pack7(w, sizeof w);
         }
-        ed_pack7((const uint8_t *)&dl, sizeof dl);
         return 1;
     case ED_DRUM_LANE: {
         uint8_t b[12];
@@ -108,19 +168,21 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         ukit_t k;
         if (na < 1u || a[0] >= UK_N)
             return 0;
+        uint8_t w[EDW_UK_N];
         memset(&k, 0, sizeof k);
         ed_b(a[0]);
         ed_b((uint32_t)ukit_get(a[0], &k));
-        ed_pack7((const uint8_t *)&k, sizeof k);
+        edw_uk_put(&k, w);
+        ed_pack7(w, sizeof w);
         return 1;
     }
     case ED_UKIT_PUT: {
         ukit_t k;
+        uint8_t w[EDW_UK_N];
         uint32_t rc = 1;
         if (na < 1u)
             return 0;
-        if (a[0] < UK_N && ed_unpack7(a + 1, na - 1u, (uint8_t *)&k, sizeof k) == sizeof k &&
-            (!k.used || uk_valid(&k)))
+        if (a[0] < UK_N && ed_unpack7(a + 1, na - 1u, w, sizeof w) == sizeof w && (edw_uk_get(w, &k), !k.used || uk_valid(&k)))
             rc = song.playing || transport_req ? 3u : ukit_put(a[0], k.used ? &k : 0) ? 2u : 0u;
         ed_b(a[0]);
         ed_b(rc);

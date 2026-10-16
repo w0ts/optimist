@@ -92,7 +92,7 @@ static void reset(uint32_t on, uint32_t sync, int32_t bpm)
     mlim.on = song.g[G_CCEIL] > 0 && song.g[G_CCEIL] <= 7;   /* add: SYNC_LIM_T): empty and already on, as after boot */
 #endif
     for (i = 0; i < 16u; i += 4u)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);   /* a closed hat on every beat */
+        dstep_set(&TDRUM->dstep[i], 3, LV_NORM, 0);   /* a closed hat on every beat (lane 4) */
     host_drum_rev(0);
     song.playing = 0;
     transport_req = 0;

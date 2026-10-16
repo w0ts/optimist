@@ -1929,7 +1929,7 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
 }
 static void dins_restart(uint32_t k)                    /* voice k triggered: its lane's slots from rest */
 {
-    uint32_t l = lane_of_note_i(drums.v[k % NDRUM].note), s;
+    uint32_t l = drums.lane[k % NDRUM], s;
     for (s = 0; s < INS_N; s++)
         dins_rest(k, s, l < DRUM_LANES ? lin_slot[l][s] : (uint32_t)FXT_NONE, l < DRUM_LANES ? lin_amt(l, s) : 0);
 }
@@ -1969,7 +1969,7 @@ AINL int dins_busy(uint32_t k, uint32_t s)
 static HOT2 __attribute__((noinline)) uint32_t dins_of(uint32_t k, uint32_t note, int32_t on)
 {
     on = on && !FX_INS_BYPASS;                          /* (dualcfg ins off: the lanes' inserts fade to rest) */
-    uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), a = 0, s;
+    uint32_t l = dnote_lane(note), a = 0, s;
     for (s = 0; s < INS_N; s++) {
         if (l < DRUM_LANES && dins_ty[k][s] != lin_slot[l][s])
             FAR(dins_rest)(k, s, lin_slot[l][s], 0);    /* (the slot's type changed under the voice: from rest; XIP) */
@@ -2032,7 +2032,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
 static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, uint32_t i0, uint32_t i1, uint32_t n,
                                                     const dins_mix_t *x)
 {
-    uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), i, s;
+    uint32_t l = dnote_lane(note), i, s;
     int32_t *b = dsend_buf;
     for (i = 0; i < i0; i++)
         b[i] = 0;                                       /* (the block outside the voice: silence) */

@@ -262,6 +262,7 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
 #define LSEND0 0x40u
 #define LPAN_ID (LSEND0 + 3u)                          /* SENDS' card 4: the lane's PAN (drum_mix.c dlm_pan; the mixer's MI_LANE id 23: 19..22 are the lane inserts) */
 #define LPAN_VID 23u
+#define LINST_ID 0x50u                                 /* the lane's INSTRUMENT (drum_edit.c dl.ins: its sound's GM note, its name), the LANE row's knob 3 */
 #if DL_UI
 static const page_t LANE_FX_PG[2] = {{"INSERTS", FAM_FX, SC_DSND, GR_DSND, {21, 19, 22, 20}},   /* (S1 TYPE, its amount, S2 ..) */
                                      {"SENDS", FAM_FX, SC_DSND, GR_DSND, {LSEND0, LSEND0 + 1, LSEND0 + 2, LPAN_ID}}};
@@ -275,7 +276,7 @@ static int lane_fx_pg(const page_t *pg) { return pg == &LANE_FX_PG[0] || pg == &
 /* a drum lane's SRC is the SOUND row's knob 3 (the user, 2026-10-13: "this should be on third knob on page 1"): LANE_SRC_PG
  * is that cell (snd_cell, never a row of its own). PAGES' SOURCE (SRC HIT START LEN) is then only HIT START LEN, a user
  * sample's: this UI shows it as LANE_SMP_PG, on a lane playing one, and on no other lane (SLOOP's UI keeps PAGES' as it is) */
-static const page_t LANE_SRC_PG = {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {8, 0xFF, 0xFF, 0xFF}};
+static const page_t LANE_SRC_PG = {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {8, 0xFF, LINST_ID, 0xFF}};
 static const page_t LANE_SMP_PG = {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {9, 10, 11, 0xFF}};
 static int src_page(const page_t *pg) { return pg->scope == SC_DSND && pg->fam == FAM_EDIT && pg->id[0] == 8u; }   /* PAGES' SOURCE */
 static int smp_pg(const page_t *pg) { return pg == &LANE_SMP_PG; }
@@ -381,6 +382,12 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
     }
     if (id == LPAN_ID)
         return lane_pan_desc(lane_selected(), vp);
+    if (id == LINST_ID) {
+        static int16_t v;
+        v = (int16_t)lane_inst(lane_selected());
+        *vp = &v;
+        return &LANE_INST_DESC;
+    }
     if (id >= LSEND0) {                                 /* SENDS: card k's send (REV DLY CHO), this lane's */
         id = lane_send_vid(id - LSEND0);
         if (id == 0xFFu) {
@@ -405,6 +412,11 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
         dlm_set_pan(l, v);
         return;
     }
+    if (id == LINST_ID) {
+        lane_set_inst(l, (uint32_t)v);              /* the lane's instrument: its sound and its name */
+        ui.force = 1;
+        return;
+    }
     if (id >= LSEND0 && (id = lane_send_vid(id - LSEND0)) == 0xFFu)
         return;
 #if LANE_LFO_UI
@@ -427,7 +439,7 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
             v = steps > 0 ? 4 : 0;
         if (!FELUCCA_DRUM_KITS && v > 3)
             v = 3;
-        dl.src[l] = (uint8_t)dsnd_idx_src((uint32_t)v);
+        lane_set_src(l, dsnd_idx_src((uint32_t)v));   /* (an X0X voice: the lane takes its name) */
         ui.force = 1;
         break;
     case 9:
@@ -719,7 +731,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         char kit_arg[8] = "KIT ";
         const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
         if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */
-            arg = id == 15u ? LANE_NAME[lane_selected()] : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
+            arg = id == 15u ? LANE_NAME_OF(lane_selected()) : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
         else if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
             arg = "";                                   /* "NEW?" */
         op_arm(scr, row, k, d->label, arg, go_danger(d));
@@ -734,7 +746,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
             memset(dl.ref[l], 0, sizeof dl.ref[l]);
             dsend[l] = 0;
             fm1_irq_on();
-            ui_say("RESET ", LANE_NAME[l]);
+            ui_say("RESET ", LANE_NAME_OF(l));
         } else {
             ukit_ui(id - 13u, dsnd_slot);               /* 13 SAVE, 14 ERASE the user kit slot (drum_kits.c) */
         }

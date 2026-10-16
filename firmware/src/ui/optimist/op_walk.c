@@ -171,7 +171,7 @@ static uint32_t ls_cur(uint32_t l, uint32_t n)
 static void ls_set(uint32_t l, uint32_t i)
 {
     uint32_t was = ui.force;
-    dl.src[l] = (uint8_t)dsnd_idx_src(i);               /* (as the SOURCE row: op_cells.c op_dsnd_set) */
+    lane_set_src(l, dsnd_idx_src(i));                   /* (as the SOURCE row: op_cells.c op_dsnd_set) */
     op_preset_shown(was);                               /* (its pages may change: sampled / synthesised values) */
 }
 /* PRESETS acts on the lane's own sound: a lane selected whose source is not KIT (KIT: the kit, as on DR) */
@@ -213,7 +213,7 @@ static void lane_kind_step(int32_t s)                   /* SHIFT + PRESETS on a 
 /* lane l's sound by name: the kit's name while it plays the project's kit, else its source's ("X9 SD", "USR2") */
 static const char *lane_sound_name(uint32_t l)
 {
-    uint32_t i = dsnd_src_idx(dl.src[l & 15u]);
+    uint32_t i = dsnd_src_idx(dl.src[l % DRUM_LANES]);
     return i ? DS_SRC_NAMES[i] : drum_kit_name();
 }
 

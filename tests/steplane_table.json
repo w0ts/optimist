@@ -103,8 +103,7 @@
   {"kind":0,"id":32,"page":15,"cell":3,"title":"PATTERN","d":{"label":"GATE","fmt":1,"min":1,"max":127,"def":64,"unit":""}}
  ]},
  {"t":3,"l":127,"np":5,"e":[
-  {"kind":0,"id":33,"page":0,"cell":1,"title":"INSERTS","d":{"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
-  {"kind":0,"id":75,"page":0,"cell":3,"title":"INSERTS","d":{"label":"FILT","fmt":15,"min":-64,"max":63,"def":0,"unit":""}},
+  {"kind":0,"id":79,"page":0,"cell":3,"title":"INSERTS","d":{"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":39,"page":1,"cell":3,"title":"KIT SENDS","d":{"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":0,"id":36,"page":2,"cell":0,"title":"BUS SENDS","d":{"label":"REV","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":35,"page":2,"cell":1,"title":"BUS SENDS","d":{"label":"DLY","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
@@ -116,8 +115,7 @@
   {"kind":0,"id":32,"page":4,"cell":3,"title":"PATTERN","d":{"label":"GATE","fmt":1,"min":1,"max":127,"def":64,"unit":""}}
  ]},
  {"t":3,"l":0,"np":7,"e":[
-  {"kind":0,"id":33,"page":0,"cell":1,"title":"INSERTS","d":{"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
-  {"kind":0,"id":75,"page":0,"cell":3,"title":"INSERTS","d":{"label":"FILT","fmt":15,"min":-64,"max":63,"def":0,"unit":""}},
+  {"kind":0,"id":79,"page":0,"cell":3,"title":"INSERTS","d":{"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":39,"page":1,"cell":3,"title":"KIT SENDS","d":{"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":0,"id":36,"page":2,"cell":0,"title":"BUS SENDS","d":{"label":"REV","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":35,"page":2,"cell":1,"title":"BUS SENDS","d":{"label":"DLY","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
@@ -137,8 +135,7 @@
   {"kind":0,"id":32,"page":6,"cell":3,"title":"PATTERN","d":{"label":"GATE","fmt":1,"min":1,"max":127,"def":64,"unit":""}}
  ]},
  {"t":3,"l":2,"np":7,"e":[
-  {"kind":0,"id":33,"page":0,"cell":1,"title":"INSERTS","d":{"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
-  {"kind":0,"id":75,"page":0,"cell":3,"title":"INSERTS","d":{"label":"FILT","fmt":15,"min":-64,"max":63,"def":0,"unit":""}},
+  {"kind":0,"id":79,"page":0,"cell":3,"title":"INSERTS","d":{"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":39,"page":1,"cell":3,"title":"KIT SENDS","d":{"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":0,"id":36,"page":2,"cell":0,"title":"BUS SENDS","d":{"label":"REV","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
   {"kind":0,"id":35,"page":2,"cell":1,"title":"BUS SENDS","d":{"label":"DLY","fmt":1,"min":0,"max":127,"def":0,"unit":""}},
@@ -157,7 +154,23 @@
   {"kind":1,"id":7,"page":5,"cell":3,"title":"TONE","d":{"label":"LEVEL","fmt":0,"min":-24,"max":6,"def":0,"unit":"dB"}},
   {"kind":0,"id":32,"page":6,"cell":3,"title":"PATTERN","d":{"label":"GATE","fmt":1,"min":1,"max":127,"def":64,"unit":""}}
  ]},
- {"t":3,"l":16,"np":1,"e":[
+ {"t":3,"l":10,"np":0,"e":[
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
+  {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}},
   {"kind":0,"id":68,"page":0,"cell":0,"title":"ACCENT","d":{"label":"ACCENT","fmt":0,"min":0,"max":127,"def":27,"unit":""}}
  ]}
 ]}

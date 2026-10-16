@@ -66,7 +66,7 @@ static int ed_note(uint32_t cmd, const uint8_t *a, uint32_t na)
     } else {
         if (na < (op == 0u ? 4u : 3u) || track >= NTRK)
             return 0;
-        note = a[2];
+        note = is_drum(&trk[track]) ? edl_in(a[2]) : a[2];   /* (the drum track: a lane, the wire's: ed_drums.c) */
         if (op == 0u && (a[3] == 0u || (is_drum(&trk[track]) && !(note < DRUM_LANES || (FELUCCA_DRUM_ACCENT && note == DRUM_ACC)))))
             return 0;
         if (op == 1u) {

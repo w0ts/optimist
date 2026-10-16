@@ -155,8 +155,8 @@ static void algo_every_tests(void)
     frame();
     fm1_in.buttons |= BT(B_OCTDN);
     frame();
-    kdown(WK(5));
-    kup(WK(5));
+    kdown(key_of_lane(5));
+    kup(key_of_lane(5));
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
@@ -219,7 +219,7 @@ static void algo_presets_tests(void)
     for (i = 0; i < DRUM_LANES; i++)
         ok &= i == 2u || dl.src[i] == src[i];
     check(ok, "PRESETS on a lane on an instrument: that lane's sound only, the kit and the other lanes stay");
-    check(ui.toast_t && ui.toast_col == lane_col(2) && !strncmp(ui.msg, "SNARE: ", 7), "... the toast names the lane and its sound, in its colour");
+    check(ui.toast_t && ui.toast_col == lane_col(2) && !strncmp(ui.msg, "CLAP: ", 6), "... the toast names the lane and its sound, in its colour");
     turn(EN_PRESET, -1);
     frames(2);
     check(dl.src[2] == src[2], "... and back");

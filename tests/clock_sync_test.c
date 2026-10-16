@@ -146,7 +146,7 @@ static void reset(uint32_t sync)
     mlim.on = 0;                                    /* (LIMIT's lookahead, on by default: emptied at the next block, */
 #endif                                              /* or the scenario before leaves its last 1.45 ms in it) */
     for (i = 0; i < 16u; i += 4u)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);   /* a closed hat on every beat (it rings ~0.3 s) */
+        dstep_set(&TDRUM->dstep[i], 3, LV_NORM, 0);   /* a closed hat on every beat (lane 4, C.HAT; it rings ~0.3 s) */
     host_drum_rev(0);
     song.playing = 0;
     transport_req = 0;

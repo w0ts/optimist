@@ -9,7 +9,7 @@ static void ed_dstep_old(const dstep_t *d, uint32_t *n, uint8_t *notes, uint32_t
     uint32_t l, k = 0, hard = 0;
     for (l = 0; l < DRUM_LANES && k < 4u; l++)
         if (dstep_has(d, l)) {
-            notes[k++] = LANE_NOTE[l];
+            notes[k++] = LANE_NOTE_OF(l);
             hard |= dstep_lvl(d, l) == LV_HARD;
         }
     *n = k;
@@ -55,13 +55,14 @@ static void ed_step_out(const track_t *t, uint32_t i, uint32_t ends)
             ed_b(ngate_of(st, k));                       /* v12: its own end, 0 = the step's GATE */
     }
 }
-/* the drum track's step as DRUM_STEP sends it: on (16 bits as 3 x 7; bit 16 the ACCENT lane), lvl and rat (32 bits
+/* the drum track's step as DRUM_STEP sends it: on (16 bits as 3 x 7, lanes DRUM_LANES..15 zero; bit 16 the ACCENT lane), lvl and rat (32 bits
  * each as 5 x 7; bits 32..33 the ACCENT lane's: the fifth group's bits 4..5) */
 static void ed_dstep_out(const dstep_t *d)
 {
-    uint32_t i, on = dstep_lanes(d);
-    uint32_t lv = (uint32_t)d->lvl[0] | (uint32_t)d->lvl[1] << 8 | (uint32_t)d->lvl[2] << 16 | (uint32_t)d->lvl[3] << 24;
-    uint32_t rt = (uint32_t)d->rat[0] | (uint32_t)d->rat[1] << 8 | (uint32_t)d->rat[2] << 16 | (uint32_t)d->rat[3] << 24;
+    const uint32_t lm = (1u << (2u * DRUM_LANES)) - 1u;     /* (the lanes' 2-bit groups; the wire's 16 lanes: the rest 0) */
+    uint32_t i, on = dstep_mask(d) | (uint32_t)dstep_has(d, DRUM_ACC) << 16;   /* (the ACCENT lane: bit 16 on the wire) */
+    uint32_t lv = ((uint32_t)d->lvl[0] | (uint32_t)d->lvl[1] << 8 | (uint32_t)d->lvl[2] << 16 | (uint32_t)d->lvl[3] << 24) & lm;
+    uint32_t rt = ((uint32_t)d->rat[0] | (uint32_t)d->rat[1] << 8 | (uint32_t)d->rat[2] << 16 | (uint32_t)d->rat[3] << 24) & lm;
     ed_b(on);
     ed_b(on >> 7);
     ed_b(on >> 14);

@@ -74,7 +74,7 @@ static void session(uint32_t t, uint32_t nsteps, int params)
         if (t == TRK_DRUM) {
             if (dstep_has(&tr->dstep[i], rnd() % 16u) && (rnd() & 1u))
                 dstep_clr(&tr->dstep[i], rnd() % 16u);
-            dstep_set(&tr->dstep[i], rnd() % 16u, rnd() % 4u, rnd() % 4u);
+            dstep_set(&tr->dstep[i], rnd() % DRUM_LANES, rnd() % 4u, rnd() % 4u);
         } else {
             uint8_t *b = (uint8_t *)&tr->step[i];
             uint32_t j;

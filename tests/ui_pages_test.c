@@ -389,7 +389,7 @@ static void drum_sound_tests(void)
         dl.src[2] = DL_KIT0 + DRUM_SAMPLED;                /* the snare from the first synthesised kit */
         a[0] = 3; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
         n = ed_out[1] | (uint32_t)ed_out[2] << 7;
-        check(ed_n == 5u + str_len(LANE_NAME[3]) && !strcmp((const char *)ed_out + 4, LANE_NAME[3]), "editor DRUM_SHOW: the lane's name after the flags");
+        check(ed_n == 5u + str_len(LANE_NAME_OF(3)) && !strcmp((const char *)ed_out + 4, LANE_NAME_OF(3)), "editor DRUM_SHOW: the lane's name after the flags");
         a[0] = 2; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
         p = ed_out[1] | (uint32_t)ed_out[2] << 7;
         check(!FELUCCA_DRUM_EDIT || !FELUCCA_DRUM_KITS ||
@@ -1421,30 +1421,30 @@ int main(int argc, char **argv)
     encs[panel.enc[EN_K3]] = 1; frame(); check(dstep_has(&TDRUM->dstep[0], 0), "DRUMS: KNOB 3 adds the kick on step 1");
     encs[panel.enc[EN_K4]] = -1; frame(); check(dstep_lvl(&TDRUM->dstep[0], 0) == LV_SOFT, "DRUMS: KNOB 4 softer");
     encs[panel.enc[EN_K1]] = 100; encs[panel.enc[EN_K2]] = 100; frame();
-    check(drum_lane == 15 && drum_cursor == 15, "DRUMS: KNOB 1 / 2 bounded (16 sounds, 16 steps)");
+    check(drum_lane == DRUM_LANES - 1u && drum_cursor == 15, "DRUMS: KNOB 1 / 2 bounded (10 sounds, 16 steps)");
     {   /* a scene to look at */
         static const uint8_t BEAT[16] = {0x11, 0x10, 0x10, 0x10, 0x14, 0x10, 0x10, 0x21, 0x11, 0x10, 0x01, 0x10, 0x1C, 0x10, 0x10, 0x20};
         uint32_t j;
         for (j = 0; j < 16u; j++) {
             memset(&TDRUM->dstep[j], 0, sizeof(dstep_t));
             if (BEAT[j] & 1u) dstep_set(&TDRUM->dstep[j], 0, LV_HARD, 0);
-            if (BEAT[j] & 4u) dstep_set(&TDRUM->dstep[j], 2, LV_NORM, 0);
-            if (BEAT[j] & 8u) dstep_set(&TDRUM->dstep[j], 3, LV_GHOST, 0);
-            if (BEAT[j] & 0x10u) dstep_set(&TDRUM->dstep[j], 4, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
-            if (BEAT[j] & 0x20u) dstep_set(&TDRUM->dstep[j], 5, LV_NORM, 0);
+            if (BEAT[j] & 4u) dstep_set(&TDRUM->dstep[j], 1, LV_NORM, 0);
+            if (BEAT[j] & 8u) dstep_set(&TDRUM->dstep[j], 2, LV_GHOST, 0);
+            if (BEAT[j] & 0x10u) dstep_set(&TDRUM->dstep[j], 3, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
+            if (BEAT[j] & 0x20u) dstep_set(&TDRUM->dstep[j], 4, LV_NORM, 0);
         }
         for (j = 0; j < 16u; j += 3u) { trk[0].step[j].n = 1; trk[0].step[j].note[0] = 36; trk[0].step[j].time = ST_NOTE; }
         for (j = 0; j < 16u; j += 4u) { trk[1].step[j].n = 3; trk[1].step[j].time = ST_NOTE; }
-        drum_lane = 4; drum_cursor = 6; drum_page = 0; ui.force = 1; ui.msg_t = 0;
-        drums.hits = 1u | 1u << 4; frame(); ppm("live-grid");
-        {   /* the lanes' codes at the grid's left (the user, 2026-10-11): "SD" on lane 3 in its colour, the picked lane's white */
-            uint32_t y2 = 84u + 2u * 6u + 2u, y4 = 84u + 4u * 6u + 2u;
+        drum_lane = 3; drum_cursor = 6; drum_page = 0; ui.force = 1; ui.msg_t = 0;
+        drums.hits = 1u | 1u << 3; frame(); ppm("live-grid");
+        {   /* the lanes' codes at the grid's left (the user, 2026-10-11): "SD" on lane 2 in its colour, the picked lane's white */
+            uint32_t y2 = 84u + 1u * 6u + 2u, y4 = 84u + 3u * 6u + 2u;
 #if DL_UI
-            uint16_t c2 = lane_col(2);
+            uint16_t c2 = lane_col(1);
 #else
             uint16_t c2 = TE_G3;
 #endif
-            /* S = 011 100 010 001 110: its top row lit at x 3, 4, not 2; C = 011 100 100 100 011 (lane 5, "CH", picked) */
+            /* S = 011 100 010 001 110: its top row lit at x 3, 4, not 2; C = 011 100 100 100 011 (lane 4, "CH", picked) */
             check(screen[y2 * 240u + 3u] == swap16(c2) && screen[y2 * 240u + 4u] == swap16(c2) && screen[y2 * 240u + 2u] != swap16(c2) &&
                   screen[(y2 + 4u) * 240u + 2u] == swap16(c2) && screen[(y2 + 2u) * 240u + 6u] == swap16(c2) && screen[(y2 + 2u) * 240u + 7u] != swap16(c2),
                   "DRUMS grid: a lane's two-letter code at its left (SD, 3 x 5 px), in its colour");

@@ -917,13 +917,16 @@ async function editorV5() {
   const old = E.parse[C.TRACK_STEP](await rq(E.req.trackStep(3, 5)));
   await rq(E.req.trackStep(3, 6, { n: 2, notes: [38, 46, 0, 0], time: 0, flags: 1, vel: 100 }));
   const d6 = E.parse[C.DRUM_STEP](await rq(E.req.drumStep(6)));
-  ok(old.n === 3 && old.notes.slice(0, 3).join() === "36,42,56" && old.flags === 1 && d6.on === ((1 << 2) | (1 << 5)) && d6.lvl[2] === 3 && d6.lvl[5] === 3,
+  ok(old.n === 2 && old.notes.slice(0, 2).join() === "36,46" && old.flags === 1 && d6.on === ((1 << 1) | (1 << 4)) && d6.lvl[1] === 3 && d6.lvl[4] === 3,
     "v5: the drum track through TRACK_STEP: lanes <-> GM notes");
-  ok(E.DRUM_LANES.length === 16 && E.DRUM_LANES[0][0] === 36 && E.DRUM_LANES[15][0] === 56 && E.LV_NAMES.join() === "NORM,GHOST,SOFT,HARD",
-    "v5: the 16 lanes (kick .. cowbell), 4 levels");
+  ok(E.DRUM_LANES.length === 10 && E.DRUM_LANES[0][0] === 36 && E.DRUM_LANES[9][0] === 51 && E.LV_NAMES.join() === "NORM,GHOST,SOFT,HARD",
+    "v5: the 10 lanes (kick .. ride: a fresh project's), 4 levels");
   const dc = readFileSync(join(HERE, "../firmware/src/drums/drums.c"), "utf8");
-  const lanes = ((/LANE_NOTE\[DRUM_LANES\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split(",").map((x) => +x);
-  ok(lanes.join() === E.DRUM_LANES.map((x) => x[0]).join(), "v5: lane notes == drums.c LANE_NOTE");
+  const inst = ((/enum \{ (INST_KICK[^}]*)\}/.exec(dc) || [])[1] || "").split(",").map((x) => x.trim());
+  const inote = ((/INST_NOTE\[INST_N\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split(",").map((x) => +x);
+  const ldef = ((/LANE_DEF_INST\[DRUM_LANES\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split(",").map((x) => x.trim());
+  const lanes = ldef.map((n) => inote[inst.indexOf(n)]);
+  ok(lanes.length === 10 && lanes.join() === E.DRUM_LANES.map((x) => x[0]).join(), "v5: lane notes == drums.c LANE_DEF_INST's INST_NOTE");
   /* the kit: the drum track's P_E0 */
   await rq(E.req.track(3));
   const kit = E.parse[C.DESC](await rq(E.req.desc(0, info.pe0)));
@@ -1008,7 +1011,7 @@ async function editorKitEditor() {
     "kit: save to KIT 3 (UKIT_OP 2), start from it again (UKIT_OP 0)");
   /* audition: a note on the drum channel (GLO > DRUMS CH), else channel 16 with the drum track selected */
   ok(E.auditionChannel(10, false) === 9 && E.auditionChannel(0, true) === 15 && E.auditionChannel(0, false) === -1
-    && js(E.auditionMsgs(2, 9)) === js([[0x99, 38, 100], [0x89, 38, 0]]), "kit: audition channel and the note of a lane (SNARE = 38)");
+    && js(E.auditionMsgs(1, 9)) === js([[0x99, 38, 100], [0x89, 38, 0]]), "kit: audition channel and the note of a lane (lane 2, SNARE = 38)");
   const sent = E.auditionMsgs(4, 9);
   link.sendRaw(sent[0]); link.sendRaw(sent[1]);
   const p = await rq(E.req.ping());
@@ -1242,7 +1245,7 @@ async function editorFxp() {
   {   /* the ACCENT lane (lane 16, ed_dlan.c): SEQ MUTE and its amount; the editor reads it as a lane of the drum group */
     const acc = await dl(0, 16), core = readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"), prm = readFileSync(join(HERE, "../firmware/src/core/params.c"), "utf8");
     ok(acc.n === 2 && js(acc.o.map((d) => d.label)) === js(["SEQ MUTE", "ACCENT"]) && acc.o[1].min === 0 && acc.o[1].max === 127 && acc.o[1].def === 27 && js(acc.vals) === js([0, 27])
-      && /define DRUM_ACC 16u/.test(core) && /define DACC_MAX 127/.test(core) && /define DACC_DEF 27/.test(core) && /"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF/.test(prm)
+      && /define EDW_ACC 16u/.test(readFileSync(join(HERE, "../firmware/src/drums/drums.c"), "utf8")) && /define DACC_MAX 127/.test(core) && /define DACC_DEF 27/.test(core) && /"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF/.test(prm)
       && /if \(l == DRUM_ACC\)\s*return i \? &DRUM_ACC_DESC : &DLN_SQ;/.test(ed),
       "dlan: the ACCENT lane (16): SEQ MUTE and ACCENT 0..127 (def 27), the firmware's descriptors (core.h DACC_*, params.c)");
     ok(D(await rq(E.req.dlanSet(0, 16, 1, 300))).value === 127 && D(await rq(E.req.dlanSet(0, 16, 0, 1))).value === 1 && js(D(await rq(E.req.dlanVals(0, 16))).vals) === js([1, 127]),
@@ -1806,7 +1809,7 @@ async function editorDrums() {
   const old = Uint8Array.from([...kb.slice(0, 2), ...Array.from("OLDNAME\0", (c) => c.charCodeAt(0)), ...kb.slice(2)]);
   ok(old.length === 204 && js(E.kitFrom(old)) === js(kit), "drums: an older kit's 204 bytes (with a name) read, the name dropped");
   const dk = readFileSync(join(HERE, "../firmware/src/drums/drum_kits.c"), "utf8");
-  ok(/sizeof\(ukit_t\) == 196u/.test(dk) && /0x33424B44u\s+\/\* "DKB3" \*\//.test(dk), "drums: 196-byte kits, bank DKB3 == drum_kits.c");
+  ok(/sizeof\(ukit_t\) == 196u/.test(dk) && /0x34424B44u\s+\/\* "DKB4" \*\//.test(dk), "drums: 196-byte kits (the 16 lanes' layout on the wire), bank DKB4 == drum_kits.c");
   /* version 2: each lane's sends after the lanes / the kit (REV, DLY, CHO 0..31) */
   const lanes2 = lanes.map((l, i) => ({ ...l, snd: { rev: i % 3 ? i : 4, dly: (i * 5) % 32, cho: 31 - i } }));
   const lb2 = E.lanesBytes({ ...blk, lanes: lanes2 }, true), kb2 = E.kitBytes({ ...kit, lanes: lanes2 }, true);

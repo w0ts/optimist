@@ -785,8 +785,8 @@ static const uint8_t LIN_T[] = {FXT_NONE, FXT_DIST, FXT_DYN, FXT_FILT, FXT_DUST,
 #define LIN_DEF1 (FELUCCA_MASTER_COMP ? FXT_DYN : FXT_NONE)
 #define LIN_D2 {LIN_DEF0, LIN_DEF1}
 #define LIN_D8 LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2, LIN_D2
-_Static_assert(DRUM_LANES == 16, "lin_slot's initialiser: 16 lanes");
-static uint8_t lin_slot[DRUM_LANES][INS_N] = {LIN_D8, LIN_D8};
+_Static_assert(DRUM_LANES == 10, "lin_slot's initialiser: 10 lanes");
+static uint8_t lin_slot[DRUM_LANES][INS_N] = {LIN_D8, LIN_D2, LIN_D2};
 static void lin_put(uint32_t l, const uint8_t *s)      /* lane l's slots (a type not of LIN_T: empty; twice: S2 empty) */
 {
     uint32_t a = s[0] < FXT_N && (LIN_OK >> s[0] & 1u) ? s[0] : (uint32_t)FXT_NONE;

@@ -1,5 +1,7 @@
 # Optimist editor protocol (SysEx over USB-MIDI)
 
+> **2026-10-16: the drum track has 10 lanes.** Every message keeps the 16 lanes' width and numbering: lanes 0..9 are the device's, 10..15 are sent as zeros and ignored when written; lane 16 is still the ACCENT lane (firmware: `DRUM_ACC` 10, `EDW_ACC` 16, drums.c `edl_in` / `edl_out`). DRUM_LANES (36) and the kits (39, 40) keep the 204 / 196-byte layouts of the 16 lanes (io/editor/ed_drums.c `edw_*`); the bank is DKB4. A lane's instrument is not in them (a write keeps the device's); DRUM_SHOW's name is the instrument's.
+
 The firmware side is `firmware/src/io/editor/editor.c` (Optimist is based on SLOOP, which is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,

@@ -85,7 +85,7 @@ static void run_block_rec(int rec)
             outbuf[rec][outn++] = (int16_t)clamp(out[k], -32768, 32767);
     if (drums.age != a)
         for (k = 0; k < NDRUM; k++)
-            if (drums.v[k].age > a && drums.v[k].note == LANE_NOTE[L] && nh < 4096u) {
+            if (drums.v[k].age > a && drums.v[k].note == LANE_NOTE_OF(L) && nh < 4096u) {
                 const int8_t *o = dl_ofs_play(L);
                 uint32_t v;
                 hits[nh].tick = tick, hits[nh].beat = beat, hits[nh].pos = pos;
@@ -298,11 +298,11 @@ static void t_record(void)
     check("every lane at the defaults: no record (as a project from before)", dlfo_encode(a) == 0u);
     set_lfo(0, -10, 4, 127, 127, DE_LEVEL + 1u, -64, DE_TUNE + 1u, 63);
     set_lfo(7, 127, 1, 5, 0, DE_CUT + 1u, 1, 0, 0);
-    set_lfo(15, 60, 0, 0, 0, 0, 0, DE_DRIVE + 1u, -1);
+    set_lfo(9, 60, 0, 0, 0, 0, 0, DE_DRIVE + 1u, -1);
     memcpy(want, dlfo, sizeof want);
     n = dlfo_encode(a);
-    check("three lanes set: a record of 4 + 3 x 8 bytes (version 1, 8 a lane, the lanes 0 7 15)", n == 28u && a[0] == 1u && a[1] == 8u &&
-          a[2] == 0x81u && a[3] == 0x80u);
+    check("three lanes set: a record of 4 + 3 x 8 bytes (version 1, 8 a lane, the lanes 0 7 9)", n == 28u && a[0] == 1u && a[1] == 8u &&
+          a[2] == 0x81u && a[3] == 0x02u);
     (void)dlfo_decode(0, 0);
     check("... read back: every field equal, the other lanes at the defaults", dlfo_decode(a, n) && !memcmp(dlfo, want, sizeof want));
     check("... none (an older project): every LFO off, the defaults", dlfo_decode(0, 0) && !dlfo_any_live() && dlfo_is_def(&dlfo[0]));
@@ -323,7 +323,7 @@ static void t_record(void)
     }
     b2[1] = 6;
     check("a shorter entry (6 bytes): the second slot at its default (OFF)", dlfo_decode(b2, k) && dlfo[0].s[0].dest == DE_LEVEL + 1u &&
-          !dlfo[0].s[1].dest && !dlfo[15].s[1].dest);
+          !dlfo[0].s[1].dest && !dlfo[9].s[1].dest);
     check("a length that is not 4 + lanes x entry: refused, every LFO off", !dlfo_decode(a, n - 1u) && !dlfo_any_live());
     memcpy(b2, a, n);
     b2[4] = 0x80, b2[5] = 9, b2[8] = 12, b2[6] = 200;  /* (rate -128, wave 9, dest 12, phase 200) */

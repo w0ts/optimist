@@ -33,7 +33,7 @@ static void uasel_tests(void)
     for (k = 0; k < 40u; k++)
         turn(LINE_KNOB(w[3]), 1);
     SCR->cell(w[3], gl_kn(SCR_SYSTEM, w[3]), &c);
-    check(ua_src[3] == UAS_N - 1u && !strcmp(c.val, "DR16") && (dlt_mask >> 15 & 1u), "SYSTEM USB AUDIO: CH4 stops at DR16, lane 16 tapped");
+    check(ua_src[3] == UAS_N - 1u && !strcmp(c.val, "DR10") && (dlt_mask >> 9 & 1u), "SYSTEM USB AUDIO: CH4 stops at DR10, lane 10 tapped");
     tap(B_SAVE);
     check(ua_src[3] == UAS_OFF && !dlt_mask, "SYSTEM USB AUDIO: YES steps round to OFF");
     turn(LINE_KNOB(w[3]), OP_RESET);                    /* (OCT- held + the knob) */

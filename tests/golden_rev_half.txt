@@ -92,7 +92,7 @@ preset/FM6/12_FLUTE f155bc522b44d245
 preset/FM6/13_STEEL_DRUM 15b068e25006b313
 preset/FM6/14_SAW_BASS bdf50d6e302cf7ca
 preset/FM6/15_TUBULAR e3f9828ad2067ecf
-drums/gm_kit f0f0df3b3c0c56ab
+drums/gm_kit 65d7ad7ca3e9b7a4
 mode/ANALOG/POLY 0813b3542d231b98
 mode/ANALOG/MONO 1fc96beac93846c0
 mode/ANALOG/LEGATO e818daf495c5319c

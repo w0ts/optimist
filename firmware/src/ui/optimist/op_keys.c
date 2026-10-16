@@ -18,20 +18,19 @@
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
  *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
  *   NAME                  every key with a job dim, the key cycling its letters full
- *   the mixer, SHIFT held  the 16 drum keys, the 4 black keys and the last upper key dim (the sequencer mutes: lanes, T1 T2 T3 DR,
- *                         ACCENT), the muted full
- *   the lane pick         the drum track, SHIFT held (STEP too): the 16 lanes and the last upper key (ACCENT) dim, the selected one full
+ *   the mixer, SHIFT held  the lanes' black keys, the first 4 white keys and the last upper key dim (the sequencer mutes:
+ *                         lanes, T1 T2 T3 DR, ACCENT), the muted full
+ *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
 {
     uint32_t i, m = 0;
     for (i = 0; i < n && i < 16u; i++)
-        m |= 1u << key_of_lane(i);
+        m |= 1u << white_key(i);
     return m;
 }
-static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << key_of_lane((uint32_t)w) : 0u; }
-static const uint8_t BLACK_KEY[4] = {1, 3, 5, 8};      /* black keys 1-4: F# G# A# C# (op_layers.c black_index) */
+static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << white_key((uint32_t)w) : 0u; }
 static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX layer (op_layers.c glo_key) */
 {
     uint32_t i;
@@ -97,7 +96,7 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
         if (idx < len && !step_shown(t, idx))
-            m |= 1u << key_of_lane(w);
+            m |= 1u << white_key(w);
     }
     return m;
 }
@@ -106,10 +105,6 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
 static int keys_muting(uint32_t held)
 {
     return mute_mod(held) && fm1_ms - op_t0[panel.btn[B_OCTDN] % 14u] >= op_hold_ms();
-}
-static int keys_picking(uint32_t held)                  /* the lane pick's modifier held past the hold time */
-{
-    return pick_mod(held) && fm1_ms - op_t0[panel.btn[B_OCTDN] % 14u] >= op_hold_ms();
 }
 /* the keys' full (*f) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
 static void keys_lit(uint32_t *f, uint32_t *d)
@@ -166,9 +161,12 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
         return;
     }
-    if (ui.scr == SCR_STEP && !keys_picking(fm1_in.buttons)) {   /* (SHIFT held on the drum track: the lanes, below) */
+    if (ui.scr == SCR_STEP) {
         *f = step_leds(blink);
         *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;
+        if (is_drum(TSEL))
+            for (k = 0; k < 27u; k++)                   /* (the lanes' black keys: dim, the selected one full) */
+                *d |= lane_key(k) ? 1u << k : 0u, *f |= lane_key(k) && lane_of(k) == lane_selected() ? 1u << k : 0u;
         return;
     }
 #if FELUCCA_PATTERNS
@@ -180,16 +178,23 @@ static void keys_lit(uint32_t *f, uint32_t *d)
     if (keys_none())
         return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SONG, SCOPE: no track, the keys do nothing: dark) */
     if (keys_muting(fm1_in.buttons)) {
-        uint32_t i;
-        *d = keys_white(16);
-        for (i = 0; i < 4u; i++)
-            *d |= 1u << BLACK_KEY[i];
-        *d |= ACC_UI ? 1u << DACC_KEY : 0u;             /* (the last upper key: the ACCENT lane's mute) */
+        for (k = 0; k < 27u; k++)
+            *d |= smute_key(k) >= 0 ? 1u << k : 0u;     /* (the lanes' keys, the tracks', the ACCENT lane's) */
         *f = smute_keys_lit();
         return;
     }
-    if (keys_picking(fm1_in.buttons)) {
-        *d = keys_white(16) | (ACC_UI ? 1u << DACC_KEY : 0u);   /* (and the last upper key, the ACCENT lane) */
-        *f = 1u << key_of_lane(lane_selected());
+    if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
+        const track_t *t = TSEL;                        /* the white keys its steps, as on STEP (they are steps on every page) */
+        uint32_t len = trk_len(t), at = t->seq_idx % len;
+        for (k = 0; k < 27u; k++)
+            *d |= lane_key(k) ? 1u << k : 0u;
+        *f |= 1u << key_of_lane(lane_selected());
+        for (k = 0; k < 16u; k++) {
+            uint32_t idx = st.page * 16u + k;
+            if (idx < len && (song.playing && idx == at ? blink : step_shown(t, idx)))
+                *f |= 1u << white_key(k);
+            else if (idx < len)
+                *d |= 1u << white_key(k);
+        }
     }
 }

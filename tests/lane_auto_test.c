@@ -76,7 +76,7 @@ static void run_block_rec(int rec)
             outbuf[rec][outn++] = (int16_t)clamp(out[k], -32768, 32767);
     if (drums.age != a)
         for (k = 0; k < NDRUM; k++)
-            if (drums.v[k].age > a && drums.v[k].note == LANE_NOTE[L]) {
+            if (drums.v[k].age > a && drums.v[k].note == LANE_NOTE_OF(L)) {
                 uint32_t s = (at + SLEN / 2u) / SLEN % 8u;
                 const int8_t *o = dl_ofs_play(L);
                 uint32_t v;
@@ -136,8 +136,8 @@ static void t_codec(void)
     }
     n = auto_enc_trk(&a, b);
     p = b;
-    check("a list of 32 lane events (both kinds, every lane): well formed, stored and read back byte for byte",
-          ok && n == 1u + 3u * 32u && auto_dec_trk(&c, &p, b + n) && p == b + n && !memcmp(&a, &c, 1u + 3u * a.n));
+    check("a list of 2 x DRUM_LANES lane events (both kinds, every lane): well formed, stored and read back byte for byte",
+          ok && n == 1u + 3u * 2u * DRUM_LANES && auto_dec_trk(&c, &p, b + n) && p == b + n && !memcmp(&a, &c, 1u + 3u * a.n));
 }
 static void t_forms(void)
 {

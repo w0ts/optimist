@@ -175,7 +175,7 @@ static void t_ratchet(void)
     uint32_t i, n = 0, gaps_ok = 1;
     uint64_t b[8];
     reset(120);
-    dstep_set(&TDRUM->dstep[0], 4, LV_NORM, 3);      /* a hat x4 on step 0 */
+    dstep_set(&TDRUM->dstep[0], 3, LV_NORM, 3);      /* a hat x4 on step 0 (lane 4, C.HAT) */
     dstep_set(&TDRUM->dstep[1], 0, LV_NORM, 0);      /* a kick on step 1 */
     transport_req = 1;
     while (blk < div_samples(2) * 2u / CTL + 2u)
@@ -221,7 +221,7 @@ static void t_roll(void)
     fm1_in.notes = 0;
     fm1_in.buttons = 0;
     run_block();
-    n = count_note(LANE_NOTE[3], 0, blk);
+    n = count_note(LANE_NOTE_OF(3), 0, blk);
     {
         uint32_t s, rat_ok = 1, on = 0;
         for (s = 1; s < 7u; s++) {
@@ -293,8 +293,8 @@ static void t_levels(void)
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    fm1_in.buttons = dyn_bit[0];                     /* OCT- held: a ghost snare (A3 = key 4) */
-    fm1_in.notes = 1u << 4;
+    fm1_in.buttons = dyn_bit[0];                     /* OCT- held: a ghost snare (G3 = key 2: lane 2, SNARE) */
+    fm1_in.notes = 1u << 2;
     run_block();
     fm1_in.notes = 0;
     run_block();
@@ -306,8 +306,8 @@ static void t_levels(void)
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
     for (i = 0; i < 16u; i++) {
-        if (dstep_has(&TDRUM->dstep[i], 2))
-            gh = dstep_lvl(&TDRUM->dstep[i], 2);
+        if (dstep_has(&TDRUM->dstep[i], 1))
+            gh = dstep_lvl(&TDRUM->dstep[i], 1);
         if (dstep_has(&TDRUM->dstep[i], 0))
             hd = dstep_lvl(&TDRUM->dstep[i], 0);
     }

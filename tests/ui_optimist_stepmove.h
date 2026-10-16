@@ -4,7 +4,7 @@
  * note a semitone, the SELECTed one of several; a drum hit one lane); the encoders keep their meaning with nothing held and when
  * the step is let go; the edited note stays in view under the cards, the selected note is drawn in C_NOTE. And REC held on a
  * picked drum lane clears only that lane. Included by ui_optimist_test.c. */
-static void sm_open(uint32_t drum, uint32_t len)
+static void stm_open(uint32_t drum, uint32_t len)
 {
     reset_ui();
     if (song.playing)
@@ -42,7 +42,7 @@ static uint32_t sm_count(uint16_t col)                  /* the pixels of colour 
 static void step_move_synth_tests(void)
 {
     track_t *t;
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 3, 60);
     sm_note(t, 5, 70);
@@ -79,7 +79,7 @@ static void step_move_synth_tests(void)
     sm_undo();
     check(t->step[5].note[0] == 70 && t->step[4].time != ST_NOTE, "step move: undo: the last move back");
     /* the ends */
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 0, 50);
     sm_note(t, 15, 52);
@@ -92,7 +92,7 @@ static void step_move_synth_tests(void)
     check(t->step[15].note[0] == 52 && !strcmp(ui.msg, "LAST STEP"), "step move: the last step right: stays, said, no wrap");
     kup(WK(15));
     /* across the window's pages */
-    sm_open(0, 32);
+    stm_open(0, 32);
     t = TSEL;
     sm_note(t, 15, 61);
     kdown(WK(15));
@@ -104,7 +104,7 @@ static void step_move_synth_tests(void)
     kup(WK(15));
     check(!st.held && t->step[16].time == ST_NOTE, "step move: let go on the other page: nothing stuck");
     /* ties: a note moves with its ties; a tied neighbour refuses */
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 2, 60);
     t->step[3].time = ST_TIE;
@@ -119,7 +119,7 @@ static void step_move_synth_tests(void)
     check(t->step[4].note[0] == 60 && t->step[5].time == ST_TIE && t->step[6].note[0] == 55 && t->step[7].time == ST_TIE, "step move: a note stops short of a tied note (its ties safe)");
     kup(WK(3));
     /* ALGORITHM: the pitch */
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 3, 60);
     kdown(WK(3));
@@ -134,7 +134,7 @@ static void step_move_synth_tests(void)
     check(t->step[3].note[0] == 127, "step move: ... clamped at 127");
     kup(WK(3));
     /* the encoders as they were with nothing held, and after the step is let go */
-    sm_open(0, 32);
+    stm_open(0, 32);
     turn(EN_PRESET, 1);
     check(st.page == 1, "step move: nothing held: PRESETS pages the window");
     turn(EN_PRESET, -1);
@@ -149,7 +149,7 @@ static void step_move_notes_tests(void)
 {
     track_t *t;
     int32_t y, top;
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 3, 60);
     t->step[3].n = 2;
@@ -178,7 +178,7 @@ static void step_move_notes_tests(void)
     turn(EN_PRESET, 1);
     check(t->step[4].n == 2 && t->step[4].note[1] == 65 && st.held == 1u << 4, "step notes: PRESETS still moves the whole step in time");
     kup(WK(3));
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 3, 60);
     kdown(WK(3));
@@ -190,7 +190,7 @@ static void step_move_notes_tests(void)
     check(st.nsel == 0 && (hp_count() < 2u || st.hp == 1u), "step notes: one note: SELECT keeps its meaning (the card pages)");
     kup(WK(3));
     /* the edited note stays in view under the cards */
-    sm_open(0, 16);
+    stm_open(0, 16);
     t = TSEL;
     sm_note(t, 1, 30);
     sm_note(t, 2, 90);
@@ -218,7 +218,7 @@ static void step_move_notes_tests(void)
 static void step_move_drum_tests(void)
 {
     track_t *t;
-    sm_open(1, 16);
+    stm_open(1, 16);
     t = TSEL;
     dstep_set(&t->dstep[1], 2, LV_HARD, 1);
     dstep_set(&t->dstep[1], 3, LV_NORM, 0);
@@ -262,7 +262,7 @@ static void lane_clear_tests(void)
 {
     track_t *t;
     uint32_t i;
-    sm_open(1, 16);
+    stm_open(1, 16);
     t = TSEL;
     ui.lane = 1;
     for (i = 0; i < 4u; i++)
@@ -289,7 +289,7 @@ static void lane_clear_tests(void)
             gone &= !dstep_has(&t->dstep[i], 2), kept &= dstep_has(&t->dstep[i], 3);
         check(gone && kept && dstep_has(&t->dstep[1], DRUM_ACC), "lane clear: only that lane's steps went; the other lanes and the accents stay");
     }
-    check(!strcmp(ui.msg, "SNARE CLEARED"), "lane clear: the toast names the lane");
+    check(!strcmp(ui.msg, "CLAP CLEARED"), "lane clear: the toast names the lane (lane 3, CLAP)");
 #if FELUCCA_AUTO
     {
         int32_t v;

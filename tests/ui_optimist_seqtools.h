@@ -343,15 +343,15 @@ static void seqtools_tests(void)
     stt_do(TL_RND);
     check(dstep_has(&t->dstep[0], 0) && dstep_has(&t->dstep[4], 2) && dstep_has(&t->dstep[12], 2),
           "DR RANDOM: a beat (the kick on step 1, the snare on 2 and 4)");
-    lane_select(4);
+    lane_select(3);                                     /* (CLOSED HAT: the fourth of the default lanes) */
     ui.lane = 1;
     {
         uint16_t kick = 0, hat = 0, hat2 = 0;
         for (i = 0; i < 16u; i++)
-            kick |= (uint16_t)(dstep_has(&t->dstep[i], 0) << i), hat |= (uint16_t)(dstep_has(&t->dstep[i], 4) << i);
+            kick |= (uint16_t)(dstep_has(&t->dstep[i], 0) << i), hat |= (uint16_t)(dstep_has(&t->dstep[i], 3) << i);
         stt_do(TL_REV);
         for (i = 0, n = 0; i < 16u; i++)
-            hat2 |= (uint16_t)(dstep_has(&t->dstep[i], 4) << i), n |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
+            hat2 |= (uint16_t)(dstep_has(&t->dstep[i], 3) << i), n |= (uint32_t)dstep_has(&t->dstep[i], 0) << i;
         ok = 1;
         for (i = 0; i < 16u; i++)
             ok &= ((hat >> i) & 1u) == ((hat2 >> (15u - i)) & 1u);

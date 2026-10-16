@@ -52,8 +52,8 @@ int main(void)
             continue;
         kits++;
         for (l = 0; l < DRUM_LANES; l++)
-            if (hit_peak(kit, LANE_NOTE[l]) == 0) {
-                printf("kit %2u %-10s lane %2u (note %u): silent  FAIL\n", kit, DRUM_KIT_NAMES[kit], l, LANE_NOTE[l]);
+            if (hit_peak(kit, LANE_NOTE_OF(l)) == 0) {
+                printf("kit %2u %-10s lane %2u (note %u): silent  FAIL\n", kit, DRUM_KIT_NAMES[kit], l, LANE_NOTE_OF(l));
                 silent++;
             }
     }
@@ -67,7 +67,7 @@ int main(void)
                 continue;                       /* (CR RD: no samples) */
             dl.src[2] = (uint8_t)s;
             n++;
-            if (hit_peak(DRUM_DEFAULT_KIT, LANE_NOTE[2]) == 0) {
+            if (hit_peak(DRUM_DEFAULT_KIT, LANE_NOTE_OF(2)) == 0) {
                 printf("lane 2 on X0X voice src %u: silent  FAIL\n", s);
                 silent++;
             }

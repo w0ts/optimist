@@ -240,7 +240,7 @@ static void make(uint32_t s)
         t->p[P_SLEN] = (int16_t)(8 + 4 * (int32_t)((s + k) % 5u));
         for (i = 0; i < 8u; i++)
             if (k == TRK_DRUM)
-                dstep_set(&t->dstep[i], (i * 3u + s) % 16u, LV_NORM, 0);
+                dstep_set(&t->dstep[i], (i * 3u + s) % DRUM_LANES, LV_NORM, 0);
             else {
                 t->step[i].note[0] = (uint8_t)(40u + i + k + s);
                 t->step[i].n = 1;
@@ -688,7 +688,7 @@ int main(int argc, char **argv)
                 trk[i].p[P_SLEN] = 16;
                 for (k = 0; k < 16u; k++)
                     if (i == TRK_DRUM)
-                        dstep_set(&trk[i].dstep[k], (k + s) % 16u, LV_NORM, 0);
+                        dstep_set(&trk[i].dstep[k], (k + s) % DRUM_LANES, LV_NORM, 0);
                     else if (k % 2u == 0u) {
                         trk[i].step[k].note[0] = (uint8_t)(48u + 3u * s + k + i);
                         trk[i].step[k].n = 1;

@@ -460,17 +460,21 @@ typedef struct {
     uint8_t ngate[4];
 } step_t;
 #define STEP_SN ((uint32_t)sizeof(pstep_t))   /* a stored step's bytes */
-#define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
+#define DRUM_LANES 10            /* the drum track: 10 sounds (lanes), each an instrument the user picks (drums.c INST_*,
+                                  * drum_edit.c dl.inst); the Optimist UI: a black key each (2026-10-16) */
+#define DRUM_LSTORE 16u          /* the lanes' width in the stored and wire forms (steps' bits, user kits, the drum record,
+                                  * the editor's messages, SLOOP 2.4): lanes DRUM_LANES.. are zeros there */
+#define DRUM_LMASK ((1u << DRUM_LANES) - 1u)   /* every lane's bit */
 #if FELUCCA_USB_AUDIO
 #include "../io/usb/ua_tap.h"     /* the capture channels' sources and their taps (SYSTEM > USB AUDIO) */
 #endif
-/* the drum track's 17th step lane, the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
+/* the drum track's last step lane (lane DRUM_LANES), the ACCENT lane (FELUCCA_DRUM_ACCENT, drums.c dacc_vel): a lane as the others
  * (steps, level, ratchet, length, the edits, the tools, patterns, sections, snapshots), no sound of its own; its
  * steps raise every hit of the step by the drum track's ACCENT amount (P_DACC), its ratchet hits too, scaled by the accent
  * step's own level (drums.c dacc_vel); its own ratchet is kept and edited, and changes nothing. The step's chance, condition
  * and fill are the step's: an accent plays exactly when its step does. DRUM_SLANES: the step lanes */
-#define DRUM_ACC 16u
-#define DRUM_SLANES 17u
+#define DRUM_ACC ((uint32_t)DRUM_LANES)
+#define DRUM_SLANES (DRUM_ACC + 1u)
 /* the ACCENT amount: the drum track's P_E1 (its EDIT values after the kit are free; stored with the track as amount -
  * DACC_DEF, so a project from before loads the default); velocity added to an accented hit, 0..DACC_MAX */
 #define P_DACC P_E1

@@ -113,7 +113,7 @@ static void ac_key_tests(void)
     {
         uint32_t ok = 1;
         for (w = 0; w < 16u; w++) {
-            uint32_t bit = 1u << key_of_lane(w), sel = w == 2u;
+            uint32_t bit = 1u << white_key(w), sel = w == 2u;
             if (w >= FELUCCA_SECTIONS)
                 ok &= !((f | d) & bit);
             else if (!sel)
@@ -122,7 +122,7 @@ static void ac_key_tests(void)
         check(ok, "... the keys light: a used slot full, a free one dim, past the slots dark");
     }
     {
-        uint32_t bit = 1u << key_of_lane(2), seen_on = 0, seen_off = 0, i;
+        uint32_t bit = 1u << white_key(2), seen_on = 0, seen_off = 0, i;
         for (i = 0; i < 40u; i++) {
             frames(1);
             keys_lit(&f, &d);

@@ -125,11 +125,13 @@ static void tiles_keys(tile_t *tl, uint32_t erase)      /* ERASE, REPEAT: the ke
     uint32_t i, j, q;
     uint16_t hc_ = erase ? C_ERR : trk_col(song.sel);
     for (i = 0; i < 16u; i++) {
-        uint32_t k = key_of_lane(i), down = (fm1_in.notes >> k) & 1u, present = 0;
+        uint32_t k = is_drum(t) ? key_of_lane(i) : white_key(i), down = (fm1_in.notes >> k) & 1u, present = 0;
         char b[8];
-        uint16_t col = is_drum(t) ? lane_col(i) : trk_col(song.sel);
+        uint16_t col = is_drum(t) ? lane_col(i % DRUM_LANES) : trk_col(song.sel);
+        if (is_drum(t) && i >= DRUM_LANES)
+            continue;                                   /* (the drum track: a tile per lane, its black key) */
         if (is_drum(t)) {
-            str_cpy(b, LANE_SHORT[i], sizeof b);
+            str_cpy(b, LANE_SHORT_OF(i), sizeof b);
             for (j = 0; j < trk_len(t); j++)
                 present |= dstep_has(&t->dstep[j], i);
         } else {
@@ -172,7 +174,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
     case LY_SCALE: {
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
         for (i = 0; i < 16u; i++) {
-            uint32_t pc = (53u + key_of_lane(i)) % 12u, in = (mask >> ((pc + 12u - root) % 12u)) & 1u;
+            uint32_t pc = (53u + white_key(i)) % 12u, in = (mask >> ((pc + 12u - root) % 12u)) & 1u;
             tile_set(&tl[i], N_NOTE[pc], pc == root ? trk_col(sel) : OP_SURF, pc == root ? C_BLACK : in ? C_WHITE : C_DIM, 0);
         }
         str_cpy(sub, "KEY ", n);

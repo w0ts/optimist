@@ -191,8 +191,8 @@ static void s35_drum_codes_tests(void)
         ok &= (uint32_t)(px_in(6, y, 18, h, c) && px_in(2, y, 3, h, c) && !px_in(6, y, 18, h, l == 3u ? lane_col(l) : C_WHITE));
     }
     check(ok && SG_X >= 6 + 16 + 2 && SG_X + 16 * SG_CW <= 240, "the drum grid: each lane's two-letter code and chip at its left, in its colour, the selected lane's white");
-    check(!strcmp(LANE_CODE[0], "BD") && !strcmp(LANE_CODE[15], "CB") && mx_code(MXR_LANE0 + 2u) == LANE_CODE[2],
-          "... the codes are the mixer's (LANE_CODE: BD .. CB)");
+    check(!strcmp(LANE_CODE_OF(0), "BD") && !strcmp(LANE_CODE_OF(DRUM_LANES - 1u), "RD") && mx_code(MXR_LANE0 + 2u) == LANE_CODE_OF(2),
+          "... the codes are the mixer's (LANE_CODE: BD .. RD)");
     reset_ui();
 }
 /* the page and its n/N in the header (the user, 2026-10-11: "when i page thru with select (for plock or normal pages)

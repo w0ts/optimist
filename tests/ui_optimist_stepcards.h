@@ -41,8 +41,8 @@ static void step_cards_tests(void)
         check(ui.cards_t > 0u, "... another edit restarts the timer");
         frames(15);
         check(ui.cards_t == 0u && sc_grid_up(), "... after the timeout the grid is drawn whole again");
-        check(px_in(2, SP_Y + SG_LY(15), 6, SG_LY(16) - SG_LY(15) - 1, lane_col(15)) && px_in(0, SP_Y + SG_LY(15), 240, 1, C_BLACK) &&
-              SP_Y + SG_PH_Y + 4 == OP_FOOT_Y && SG_LY(16) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip over the help band)");
+        check(px_in(2, SP_Y + SG_LY(DRUM_LANES - 1u), 6, SG_LY(DRUM_LANES) - SG_LY(DRUM_LANES - 1u) - 1, lane_col(DRUM_LANES - 1u)) &&
+              px_in(0, SP_Y + SG_LY(DRUM_LANES - 1u), 240, 1, C_BLACK) && SP_Y + SG_PH_Y + 4 == OP_FOOT_Y && SG_LY(DRUM_LANES) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip over the help band)");
         /* a page change: SEQ tapped to the next STEP page */
         tap(B_SEQ);
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
@@ -56,13 +56,11 @@ static void step_cards_tests(void)
             frames(2);
             ok = lane_selected() == l && ui.cards_t == 0u && !card0_up();
             check(ok, "STEP overlay: PRESETS leaves the drum lane, no overlay");
-            press(B_OCTDN);
-            kdown(WK(6));
-            kup(WK(6));
-            release(B_OCTDN);
+            kdown(BK(6));
+            kup(BK(6));
             frames(2);
             ok = lane_selected() == 6u && l != 6u && ui.cards_t == 0u && !card0_up();
-            check(ok, "STEP overlay: SHIFT + a key picks the drum lane, no overlay");
+            check(ok, "STEP overlay: a lane's black key picks the drum lane, no overlay");
             ui.row[SCR_STEP] = (uint8_t)STP_PAT;
             ui.lane = 1;
             frames(2);

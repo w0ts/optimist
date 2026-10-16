@@ -25,14 +25,54 @@ typedef struct {                 /* a project's drum lanes (204 bytes; user kits
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
     uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */
     uint8_t ref[DRUM_LANES][3];            /* user sample: hit (zone) 4 bits, start 10 bits, length 10 bits */
+    uint8_t ins[DRUM_LANES];              /* the lane's instrument + 1 (drums.c INST_*), 0 = its default (LANE_DEF_INST) */
     uint8_t ukit;                          /* the user kit these lanes came from (1..16), 0 = none */
     char name[8];                          /* its name (the project shows it without the bank) */
-    uint8_t rsv[3];
+    uint8_t rsv[204u - DRUM_LANES * (DE_N + 5u) - 9u];   /* (the record's size kept: 10 lanes since 2026-10-16) */
 } dlanes_t;
 _Static_assert(sizeof(dlanes_t) == 204u, "drum lanes: 204 bytes in the project");
 static dlanes_t dl __attribute__((aligned(4)));   /* the working project's lanes (aligned: lane_play.c copies a lane by words) */
 static volatile uint8_t dl_ui_pick;         /* a SOUND page is up (ui_drums.c): EDIT + a key picks the sound (seq.c) */
 static int16_t dl_e0 = -1;                  /* the kit (P_E0) they were set for: another kit drops a user kit */
+
+/* lane l's instrument (drums.c INST_*): its own, else its default */
+static uint32_t lane_inst(uint32_t l)
+{
+    uint32_t i;
+    if (l >= DRUM_LANES)
+        return INST_KICK;
+    i = dl.ins[l];
+    return i && i <= INST_N ? i - 1u : LANE_DEF_INST[l];
+}
+static void lane_set_inst(uint32_t l, uint32_t in)    /* (the UI, the editor: the lane takes the instrument's name) */
+{
+    if (l < DRUM_LANES && in < INST_N)
+        dl.ins[l] = (uint8_t)(in == LANE_DEF_INST[l] ? 0u : in + 1u);
+}
+/* the lane's INSTRUMENT value (the SOUND row's, the editor's) */
+static const param_desc_t LANE_INST_DESC = {"INSTR", F_ENUM, 0, INST_N - 1, 0, INST_NAME, 0};
+/* source src (an X0X voice, DL_X909 / DL_X808) -> the instrument it is (INST_N: another source, the lane keeps its own):
+ * a lane set to a machine's voice is named after it */
+static uint32_t dl_src_inst(uint32_t src)
+{
+    static const uint8_t X9[11] = {INST_KICK, INST_SNARE, INST_LT, INST_MT, INST_HT, INST_RIM, INST_CLAP, INST_CH, INST_OH,
+                                   INST_CRASH, INST_RIDE};
+    static const uint8_t X8[16] = {INST_KICK, INST_SNARE, INST_LT, INST_MT, INST_HT, INST_CONGA, INST_CONGA, INST_CONGA,
+                                   INST_RIM, INST_CLAVE, INST_SHAKER, INST_CLAP, INST_COWBELL, INST_CH, INST_OH, INST_CRASH};
+    if (src >= DL_X909 && src < DL_X909 + DL_X909_N)
+        return X9[src - DL_X909];
+    if (src >= DL_X808 && src < DL_X808 + DL_X808_N)
+        return X8[src - DL_X808];
+    return INST_N;
+}
+static void lane_set_src(uint32_t l, uint32_t src)    /* lane l's source; an X0X voice: its instrument too */
+{
+    if (l >= DRUM_LANES)
+        return;
+    dl.src[l] = (uint8_t)src;
+    if (dl_src_inst(src) < INST_N)
+        lane_set_inst(l, dl_src_inst(src));
+}
 
 /* the reference: hit z, start / length in 1/1024 of the hit (length 0 = 1024: to its end) */
 static uint32_t dl_hit(const uint8_t *r) { return r[0] >> 4; }
@@ -97,6 +137,8 @@ static void dl_fix(dlanes_t *d)
         if (d->src[l] > DL_USR + SMP_USER_SLOTS - 1u && d->src[l] < DL_KIT0)
             d->src[l] = DL_KIT;                     /* (a kit not in this build is kept: dl_kit_of skips it) */
     }
+    for (l = 0; l < DRUM_LANES; l++)
+        d->ins[l] = d->ins[l] > INST_N ? 0u : d->ins[l];
     d->ukit = d->ukit > 16u ? 0u : d->ukit;
 }
 _Static_assert(DE_N == 8 && DE_TUNE == 0 && DE_LEVEL == 7, "the lane event ids (seq/auto.h AUTO_LANE): the DE_* order is stored, never reorder");
@@ -329,7 +371,7 @@ static void dl_usr_hit(uint32_t l, uint32_t usr, uint32_t note, uint32_t vel)
     voice_t *v;
     if (!zp || pos >= end)
         return;
-    v = drum_voice(note, vel);
+    v = drum_voice(note, vel, l);
     vi = (uint32_t)(v - drums.v);
     v->s[4] = (int32_t)(0x8000u | (usr - 1u) << 5 | dl_hit(dl.ref[l]));
     v->ph[0] = v->ph[1] = 0;

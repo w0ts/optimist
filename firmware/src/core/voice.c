@@ -748,8 +748,8 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 #if FELUCCA_VIS
     vis_hit |= (uint8_t)(1u << ((uint32_t)(t - trk) & 3u));
     vis_note[(uint32_t)(t - trk) & 3u] = (uint8_t)note;
-    if (is_drum(t) && (note == 35u || note == 36u))
-        vis_kick_hit = 1;
+    if (is_drum(t) && (note & DNOTE_LANE ? LANE_NOTE_OF(note & 0x7Fu) : note) - 35u < 2u)
+        vis_kick_hit = 1;                               /* (a lane's hit: drums.c DLANE_NOTE) */
 #endif
     if (is_drum(t)) {                                   /* the drum track: GM drums (drums.c) */
         drum_on(note, vel);

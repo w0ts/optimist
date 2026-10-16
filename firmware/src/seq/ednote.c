@@ -77,7 +77,7 @@ static void edn_on(uint32_t track, uint32_t note, uint32_t vel)
         if (lane < DRUM_LANES || lane == DRUM_ACC) {
             drum_input(lane, lvl, 0, 1);
             if (lane != DRUM_ACC)
-                midi_key_out(trk_midi_ch(TRK_DRUM), LANE_NOTE[lane], lvl_vel(lvl, 100));
+                midi_key_out(trk_midi_ch(TRK_DRUM), LANE_NOTE_OF(lane), lvl_vel(lvl, 100));
         }
         return;
     }

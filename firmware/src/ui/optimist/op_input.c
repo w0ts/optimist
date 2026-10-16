@@ -336,13 +336,12 @@ static void lane_pick_from(uint32_t l, int key)
         audition_lane(l);                               /* (the ACCENT lane has no sound to preview) */                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
 static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
-/* the pick's modifier held on the drum track: HOME, on every page (on STEP too, unless a step is held: HOME then clears it;
- * SEQ + a key on STEP clears the step) */
+/* the pick's modifier held on the drum track: none since 2026-10-16 (the black keys select the lane on every page, the
+ * white keys are steps; was SHIFT + a white key) */
 static int pick_mod(uint32_t held)
 {
-    if (!is_drum(TSEL))
-        return 0;
-    return ui.scr == SCR_STEP ? step_pick(held) : op_shift(held);
+    (void)held;
+    return 0;
 }
 /* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
  * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
@@ -361,7 +360,7 @@ static void smute_notes(uint32_t notes)
             int32_t m = smute_key(id);
             if (m >= 0) {
                 int on = smute_toggle(m);
-                ui_say(m == SMUTE_ACC ? DACC_CODE : m >= 16 ? trk_tag((uint32_t)m - 16u) : LANE_CODE[m], on ? " SEQ MUTE" : " SEQ ON");
+                ui_say(m == SMUTE_ACC ? DACC_CODE : m >= 16 ? trk_tag((uint32_t)m - 16u) : LANE_CODE_OF(m), on ? " SEQ MUTE" : " SEQ ON");
             }
         }
 }
@@ -919,7 +918,7 @@ static uint32_t step_leds(uint32_t blink)
             on = blink;                                 /* the playhead's key */
         if ((st.held >> w) & 1u)
             on = 1;
-        m |= (uint32_t)on << key_of_lane(w);
+        m |= (uint32_t)on << white_key(w);
     }
     return m;
 }

@@ -102,21 +102,22 @@ static void pre_toast_fav(const char *what);            /* op_preset.c */
 static void lane_kind_step(int32_t s);
 static const char *lane_sound_name(uint32_t l);
 
-/* The drum track's ACCENT lane (core.h DRUM_ACC, lane 16) as this UI shows it: a lane as the others (a row in the grid,
+/* The drum track's ACCENT lane (core.h DRUM_ACC, lane 10) as this UI shows it: a lane as the others (a row in the grid,
  * the mixer and the walk, a key, a name), with no sound. lane_selected() is 0..DRUM_UILANES - 1; the per-lane SOUND
- * arrays (dl.*, dsend, the 16 names) only know the 16 sounds, so every site that indexes them asks lane_snd() first.
- * The last upper key (25) is its key where the build has it (core.h DACC_KEY_ON) */
+ * arrays (dl.*, dsend, the instruments' names) only know the DRUM_LANES sounds, so every site that indexes them asks
+ * lane_snd() first. The lanes' keys are the black keys (drums.c lane_of_key, 2026-10-16: they select and play the
+ * lane, the white keys are steps); the last upper key (25) is the ACCENT lane's where the build has it (DACC_KEY_ON) */
 #define ACC_UI (FELUCCA_DRUM_ACCENT && DACC_KEY_ON)
 static int lane_acc(void) { return ACC_UI && lane_selected() == DRUM_ACC; }   /* the accent lane is the selected one */
 static int lane_snd(void) { return !lane_acc(); }                              /* the selected lane has a sound */
-static int lane_key(uint32_t k)                         /* key k plays / picks a lane: the 16 white keys and the accent key */
+static int lane_key(uint32_t k)                         /* key k plays / picks a lane: a lane's black key and the accent key */
 {
-    return punch_key(k) >= 0 || (ACC_UI && k == DACC_KEY);
+    return lane_of_key(k) < DRUM_LANES || (ACC_UI && k == DACC_KEY);
 }
 static uint32_t lane_of(uint32_t k) { return ACC_UI && k == DACC_KEY ? DRUM_ACC : lane_of_key(k); }   /* (lane_key keys only) */
-static const char *lane_name(uint32_t l) { return l == DRUM_ACC ? DACC_NAME : LANE_NAME[l % DRUM_LANES]; }
-static const char *lane_short(uint32_t l) { return l == DRUM_ACC ? DACC_SHORT : LANE_SHORT[l % DRUM_LANES]; }
-static const char *lane_code(uint32_t l) { return l == DRUM_ACC ? DACC_CODE : LANE_CODE[l % DRUM_LANES]; }
+static const char *lane_name(uint32_t l) { return l == DRUM_ACC ? DACC_NAME : LANE_NAME_OF(l % DRUM_LANES); }
+static const char *lane_short(uint32_t l) { return l == DRUM_ACC ? DACC_SHORT : LANE_SHORT_OF(l % DRUM_LANES); }
+static const char *lane_code(uint32_t l) { return l == DRUM_ACC ? DACC_CODE : LANE_CODE_OF(l % DRUM_LANES); }
 static uint16_t op_lane_col(uint32_t l) { return l == DRUM_ACC ? C_HI : lane_col(l); }   /* (the accent: the bright tone, no kit kind) */
 /* does step `step` carry automation (a p-lock or motion event of the sound; the step extras NUDGE / FILL / CHANCE / COND are not)? On a
  * drum track a lane's event marks that lane's cell only (lane 16: the ACCENT lane, the track's own events only; 0xFF: any lane, the drum row of the mixer), a track's event every cell of the step */

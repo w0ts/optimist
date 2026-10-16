@@ -113,7 +113,7 @@ static void check(const char *what, int ok)
 }
 
 /* ------------------------------------------------------------------ audio */
-enum { L_KICK = 0, L_SNARE = 2, L_HAT = 4 };
+enum { L_KICK = 0, L_SNARE = 1, L_HAT = 3 };
 typedef struct { double dry, rev, dly, cho; uint32_t nz_rev, nz_dly, nz_cho; } sends_t;
 static int32_t rev_buf[48 * CTL], dry_buf[48 * CTL];   /* the last hit's reverb input and dry output */
 
@@ -261,8 +261,8 @@ static void pattern_test(void)
         for (k = 0; k < NDRUM; k++)
             if (drums.v[k].active) {
                 any_on = 1;
-                snare_on |= lane_of_note(drums.v[k].note) == L_SNARE;
-                now_snare |= lane_of_note(drums.v[k].note) == L_SNARE;
+                snare_on |= drums.lane[k] == L_SNARE;
+                now_snare |= drums.lane[k] == L_SNARE;
             }
         prev_snare = now_snare;
         for (i = 0; i < CTL; i++) {
@@ -516,7 +516,7 @@ static void kit_tests(void)
     ok = ukit_load(2) && dsend[L_SNARE] == dsend_word(25, 4, 0) && dsend[L_HAT] == dsend_word(DSEND_DEF, 12, 30) &&
          dl.ofs[2][DE_CUT] == -10 && dsend[0] == 0u;
     check("... load: the lanes and their sends", ok);
-    check("... the bank's tag is DKB3: nameless 196 B kits, then the sends", UK_MAGIC == 0x33424B44u &&
+    check("... the bank's tag is DKB4: nameless 196 B kits, then the sends", UK_MAGIC == 0x34424B44u &&
           sizeof(ukit_t) == 196u && ((const ukit_bank_t *)(void *)st_buf)->rsize == 196u);
     ukit_get(2, &k);
     {   /* a kit saved before 2026-10: its snare TRK with a delay, the hat its own REV 4 (bits set) */
@@ -531,30 +531,13 @@ static void kit_tests(void)
     }
     check("... a v1 import (no sends) over it: each lane as it is", ukit_put(2, &k) == 0 && ukit_sends(2, s) && s[L_SNARE] == 0u &&
           s[L_HAT] == 0u);
-    {   /* a DKB1 bank in flash (the first drum kits firmware: 204 B kits with a name, no sends): its kits load
-         * with every lane as it is, the names dropped */
-        static uint8_t v1[8u + UK_N * UK_RSIZE1];
-        uint32_t m = UK_MAGIC1;
-        uint16_t rs = UK_RSIZE1, nk = UK_N;
-        uint8_t *r = v1 + 8u + 5u * UK_RSIZE1;
-        memset(v1, 0, sizeof v1);
-        memcpy(v1, &m, 4);
-        memcpy(v1 + 4, &rs, 2);
-        memcpy(v1 + 6, &nk, 2);
-        memcpy(r, &k, 2);                                     /* used, base */
-        memcpy(r + 2, "OLD\0\0\0\0\0", 8);                /* the name */
-        memcpy(r + 10, (const uint8_t *)&k + 2, sizeof k - 2u);
-        st_save(OBJ_UKIT, v1, sizeof v1);
+    {   /* a bank of the 16 fixed lanes (DKB3, before 2026-10-16) in flash: not read, the bank is empty (no compatibility) */
+        ukit_bank_t *nb = UK_TMP;
+        memcpy(nb, uk_bank(), sizeof *nb);
+        nb->magic = 0x33424B44u;
+        st_save(OBJ_UKIT, nb, sizeof *nb);
         uk_read = 0;
-        dsend[L_SNARE] = dsend_word(9, 9, 9);
-        ok = ukit_used(5) && ukit_count() == 1u && ukit_load(5) && dl.ofs[2][DE_CUT] == -10;
-        for (l = 0; l < DRUM_LANES; l++)
-            ok &= dsend[l] == 0u;
-        check("a DKB1 bank: read, its kit loads with every lane's sends as it is", ok);
-        dsend[L_HAT] = dsend_word(3, 0, 0);
-        ok = ukit_store(6) == 0 && ((const ukit_bank_t *)(void *)st_buf)->magic == UK_MAGIC && ukit_used(5) &&
-             ukit_sends(6, s) && s[L_HAT] == dsend_word(3, 0, 0) && ukit_sends(5, s) && s[L_HAT] == 0u;
-        check("... a save rewrites it as DKB3, the old kit kept", ok);
+        check("a DKB3 bank (the 16 fixed lanes): not read, no kit", !ukit_used(2) && ukit_count() == 0u && !ukit_load(2));
     }
 }
 

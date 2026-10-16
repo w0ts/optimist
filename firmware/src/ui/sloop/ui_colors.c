@@ -33,7 +33,7 @@ static uint16_t kit_col(void)
  * an X0X voice) */
 static uint16_t lane_col(uint32_t l)
 {
-    uint32_t s = dl.src[l & 15u];
+    uint32_t s = dl.src[l % DRUM_LANES];
     if (s == DL_KIT)
         return kit_col();
     if (s < DL_KIT0)

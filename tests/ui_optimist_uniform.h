@@ -90,11 +90,11 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
         aud_lanes = 0;
         lane_select(0);
         kdown(k);
-        ok &= kb_kind[k] == KS_NONE && aud_lanes == 0u && lane_selected() == 0u;
+        ok &= kb_kind[k] == KS_DRUM && lane_selected() == lane_of_key(k);
         kup(k);
     }
     lane_select(0);
-    check(ok, "the drum track: an upper key (key 1 too) plays nothing and picks no lane (it used to play the lane on its left)");
+    check(ok, "the drum track: a black key plays its lane and picks it (2026-10-16)");
     if (ACC_UI) {                                       /* the last upper key is the ACCENT lane's: it plays (silently) and picks it */
         aud_lanes = 0;
         kdown(DACC_KEY);
@@ -105,7 +105,7 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     }
     aud_lanes = 0;
     kdown(WK(3));
-    check(kb_kind[WK(3)] == KS_DRUM, "... a white key still plays its lane");
+    check(kb_kind[WK(3)] == KS_UI, "... a white key is a step (the UI's): it plays nothing");
     kup(WK(3));
     lane_select(0);
     op_enter(SCR_SOUND);
@@ -115,25 +115,25 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
         lane_select(0);
         kdown(BLACK[i]);
         kup(BLACK[i]);
-        ok2 &= lane_selected() == 0u;
+        ok2 &= lane_selected() == lane_of_key(BLACK[i]);
     }
     release(B_OCTDN);
     lane_select(0);
-    check(ok2, "SHIFT held + an upper key off the mixer: no lane picked either (the last upper key: the ACCENT lane)");
+    check(ok2, "SHIFT held + a black key off the mixer: its lane picked as without SHIFT");
     press(B_OCTDN);
     kdown(WK(5));
     kup(WK(5));
     release(B_OCTDN);
-    check(lane_selected() == 5u, "... SHIFT + a white key still picks its lane");
+    check(lane_selected() == 0u, "... SHIFT + a white key picks no lane (the pick is gone, 2026-10-16)");
     go_home();
     frame();
     lane_select(0);
     smute_lane = 0;
     press(B_OCTDN);
-    kdown(BLACK[0]);
-    kup(BLACK[0]);
+    kdown(WK(0));
+    kup(WK(0));
     release(B_OCTDN);
-    check(smute_trk_on(0), "the mixer: SHIFT held + upper key 1 is still T1's sequencer mute");
+    check(smute_trk_on(0), "the mixer: SHIFT held + the first white key is T1's sequencer mute");
     smute_trk = 0;
     press(B_GLO);
     frames(HOLD_FRAMES);

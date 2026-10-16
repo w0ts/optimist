@@ -398,11 +398,11 @@ static void prj_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)
         if (s < 0)
             continue;
         if (prj_slot_used(kind, (uint32_t)s))
-            *f |= 1u << key_of_lane(w);
+            *f |= 1u << white_key(w);
         else
-            *d |= 1u << key_of_lane(w);
+            *d |= 1u << white_key(w);
         if ((uint32_t)s == prj_slot_cur(kind) && !blink)
-            *f &= ~(1u << key_of_lane(w)), *d &= ~(1u << key_of_lane(w));   /* (the selected one blinks) */
+            *f &= ~(1u << white_key(w)), *d &= ~(1u << white_key(w));   /* (the selected one blinks) */
     }
 }
 

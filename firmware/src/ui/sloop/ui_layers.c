@@ -69,7 +69,7 @@ static void layers_init(void)
     ft_drop_mask = 1u << panel.btn[B_PLAY];
 }
 
-static uint32_t key_of_white(uint32_t w) { return key_of_lane(w & 15u); }   /* white key w -> key index */
+static uint32_t key_of_white(uint32_t w) { return white_key(w & 15u); }   /* white key w -> key index */
 
 /* ------------------------------------------------------------ tools --- */
 /* EDIT layer knobs; each a step of one undo (the layer's hold) */
@@ -1065,7 +1065,7 @@ static void layer_screen_draw(void)
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
-                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
+                str_cpy(tl[i].lab, LANE_SHORT_OF(i), 8);
                 for (j = 0; j < trk_len(t); j++)
                     present |= dstep_has(&t->dstep[j], i);
             } else {
@@ -1117,7 +1117,7 @@ static void layer_screen_draw(void)
             uint32_t idx = page * 16u + i, on, lv = LV_NORM, rt = 0;
 #if FELUCCA_DRUM_STEP
             if (is_drum(t)) {                           /* the drum track: the 16 keys are the 16 lanes */
-                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
+                str_cpy(tl[i].lab, LANE_SHORT_OF(i), 8);
                 tl[i].bg = i == pen_lane ? TE_DRUM : TE_G1;
                 tl[i].fg = i == pen_lane ? C_BLACK : TE_G4;
                 continue;
@@ -1172,7 +1172,7 @@ static void layer_screen_draw(void)
 #endif
         lab[0] = is_drum(t) ? "sound" : "note";
         if (is_drum(t))
-            str_cpy(v[0], LANE_SHORT[pen_lane], 8);
+            str_cpy(v[0], LANE_SHORT_OF(pen_lane), 8);
         else
             note_name(v[0], pen_note[0]);
         ratio[0] = is_drum(t) ? pen_lane * 1000 / 15 : pen_note[0] * 1000 / 127;
@@ -1279,10 +1279,10 @@ static void layer_screen_draw(void)
             tl[4 + i].top = TRK_DIM(i);
             if (i == 3u && cur_page()->scope == SC_TRK && mix_lane() >= 0) {   /* a lane row: its MUTE and SOLO */
                 uint32_t l = (uint32_t)mix_lane();
-                str_cpy(tl[3].lab, LANE_SHORT[l], 8);
+                str_cpy(tl[3].lab, LANE_SHORT_OF(l), 8);
                 tl[3].bg = dlm_muted(l) ? TE_G1 : lane_col(l);
                 tl[3].fg = dlm_muted(l) ? TE_G3 : C_BLACK;
-                str_cpy(tl[7].lab, LANE_SHORT[l], 8);
+                str_cpy(tl[7].lab, LANE_SHORT_OF(l), 8);
                 tl[7].bg = dlm_soloed(l) ? C_WHITE : TE_G1;
                 tl[7].fg = dlm_soloed(l) ? C_BLACK : TE_G3;
             }

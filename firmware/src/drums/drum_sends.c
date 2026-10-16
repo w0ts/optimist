@@ -43,7 +43,7 @@ static void lin_set(uint32_t l, uint32_t id, int32_t v);
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
 typedef struct {
     dlanes_t l;                                /* drum_edit.c: offsets, sources, sample references, user kit */
-    uint16_t snd[DRUM_LANES];                  /* the sends, as dsend[] */
+    uint16_t snd[DRUM_LSTORE];                 /* the sends, as dsend[] (lanes DRUM_LANES..: 0) */
 } dlrec_t;
 _Static_assert(sizeof(dlrec_t) == 236u, "drum record: the lanes (204) + the sends (32)");
 
@@ -103,11 +103,11 @@ static __attribute__((noinline)) void dsend_table(int32_t on)
         dsend_rt[v] = on ? dks_of(DSEND_RLVL(dsend_lvl(v)) * 258, dsend_kit[0]) : 0;
     }
 }
-/* the bus sends of a drum voice that plays note (Q15, 0 = none), from the tables (dsend_table this block). The click's
+/* the bus sends of a drum voice whose note is note (drums.c dnote_lane: its lane; Q15, 0 = none), from the tables (dsend_table this block). The click's
  * wood block (76, 77) has no lane: a lane's as it is */
 AINL void dsend_of(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 {
-    uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
+    uint32_t l = dnote_lane(note), w = l < DRUM_LANES ? dsend[l] : 0u;
     *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
     *d = dsend_dt[dsend_dly(w) & fxs_lm[1]];
     *c = dsend_ct[dsend_cho(w) & fxs_lm[2]];
@@ -164,7 +164,8 @@ static __attribute__((noinline)) void dsend_post(uint32_t i0, uint32_t i1, int32
 static void dlrec_capture(dlrec_t *d)
 {
     d->l = dl;
-    memcpy(d->snd, dsend, sizeof d->snd);
+    memset(d->snd, 0, sizeof d->snd);
+    memcpy(d->snd, dsend, sizeof dsend);
 }
 static __attribute__((noinline)) void dlrec_fix(dlrec_t *d)   /* every value inside its range (a project, a kit, the editor) */
 {
@@ -226,11 +227,11 @@ static int16_t dsend_v[DSEND_NID];
  * channels mix apart, drum_x0x.c) */
 static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint32_t id, int16_t **vp)
 {
-    uint32_t w = dsend[l & 15u];
+    uint32_t w = dsend[l % DRUM_LANES];
     if (id >= DSEND_NID)
         return 0;
 #if DRUM_X0X
-    if (id >= 3u && dl_kit_of(l & 15u, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l & 15u))
+    if (id >= 3u && dl_kit_of(l % DRUM_LANES, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l % DRUM_LANES))
         return 0;
 #endif
     if (id >= 3u)
@@ -241,7 +242,7 @@ static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint
 }
 static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t v)   /* a knob: the next block hears it */
 {
-    uint32_t w = dsend[l & 15u], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
+    uint32_t w = dsend[l % DRUM_LANES], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
     uint32_t x = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
     if (id >= 3u) {
         lin_set(l, id - 3u, v);                        /* (the slots: fx_slots.c) */
@@ -253,5 +254,5 @@ static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t
         dy = x;
     else if (id == 2u)
         ch = x;
-    dsend[l & 15u] = dsend_word(r, dy, ch);
+    dsend[l % DRUM_LANES] = dsend_word(r, dy, ch);
 }

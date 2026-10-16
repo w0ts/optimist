@@ -10,7 +10,7 @@
  * settings of their own; and any voice on any lane (drum_edit.c DL_X909 / DL_X808, x0x_code).
  *
  * A GM note plays one of the machine's sounds (X9_NOTE / X8_NOTE), some as a variant (offsets under the lane's:
- * KICK 2 a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare...). The 16 lanes:
+ * KICK 2 a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare...). The instruments (INST_*):
  *   909  KICK BD, KICK 2 BD (longer), SNARE SD, CLAP CP, CLOSED HAT CH, OPEN HAT OH, PEDAL HAT CH (shorter), RIM RS,
  *        SNARE 2 SD (brighter), LOW TOM LT, HI TOM HT, CRASH CR, RIDE RD; SHAKER, CONGA, COWBELL: the 909 has
  *        none, they play the stand-in's (the synthesised 909 kit's) as every note it lacks
@@ -121,7 +121,7 @@ static uint32_t x0x_standin(uint32_t k)
 /* what lane l shows on the SOUND pages when it plays X0X kit k (XS_*), 0 = not an X0X sound */
 static uint32_t x0x_show(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     k = DRUM_UID_XMACH(k);
     if (c == XN_NONE)
         return 0;
@@ -165,27 +165,27 @@ static const int8_t X0X_STYLE[][4] = {
     {XS_MIAMI, 6, DE_DECAY, -12},
 };
 _Static_assert(XS_MIAMI + 1 == DRUM_NXSTYLE, "a style per kit UID 39..46");
-/* style kit k's offset of lane l's value d (0: another kit, or none) */
-static int32_t x0x_style(uint32_t k, uint32_t l, uint32_t d)
+/* style kit k's offset of instrument in's value d (0: another kit, or none; X0X_STYLE's lanes are the INST_*) */
+static int32_t x0x_style(uint32_t k, uint32_t in, uint32_t d)
 {
     uint32_t i;
     if (k < DRUM_UID_XSTYLE || k >= DRUM_UID_XSTYLE + DRUM_NXSTYLE)
         return 0;
     for (i = 0; i < sizeof X0X_STYLE / sizeof X0X_STYLE[0]; i++)
-        if ((uint32_t)X0X_STYLE[i][0] == k - DRUM_UID_XSTYLE && (uint32_t)X0X_STYLE[i][1] == l &&
+        if ((uint32_t)X0X_STYLE[i][0] == k - DRUM_UID_XSTYLE && (uint32_t)X0X_STYLE[i][1] == in &&
             (uint32_t)X0X_STYLE[i][2] == d)
             return X0X_STYLE[i][3];
     return 0;
 }
 static int32_t x0x_var_decay(uint32_t k, uint32_t l)    /* the DECAY its variant and style add (the graph) */
 {
-    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     return c == XN_NONE ? 0 : (DRUM_UID_XMACH(k) == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5][DE_DECAY] +
-                                  x0x_style(k, l & 15u, DE_DECAY);
+                                  x0x_style(k, l < DRUM_LANES ? lane_inst(l) : INST_N, DE_DECAY);
 }
 static const char *x0x_snd_name(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     k = DRUM_UID_XMACH(k);
     return c == XN_NONE ? "" : k == DRUM_UID_X909 ? X9_SND_NAME[c & 31u] : X8_SND_NAME[c & 15u];
 }
@@ -193,7 +193,7 @@ static const char *x0x_snd_name(uint32_t k, uint32_t l)
 /* per channel: the lane that played it (its note: the sends), its LEVEL (Q12, 0 = 0 dB) and CUT - (a one-pole
  * coefficient, 0 = none) and its state; the last sample of each path (the declick tail) */
 static struct {
-    uint8_t note[X0X_NCH];
+    uint8_t note[X0X_NCH], lane[X0X_NCH];        /* its GM note, the lane that played it (DRUM_LANES: none) */
     int32_t cut[X0X_NCH], flt[X0X_NCH], lg[X0X_NCH], last[X0X_NCH + 1];   /* last[X0X_NCH]: the shared sum */
     uint32_t live;                                 /* a bit per channel sounding or with a hit due (x0x_sounding) */
 } xc;
@@ -213,11 +213,12 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
     k = DRUM_UID_XMACH(k);                          /* (a style kit: its machine, its offsets below) */
     v = (k == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5];
     for (i = 0; i < DE_N; i++)
-        o[i] = (int8_t)clamp(v[i] + x0x_style(st, l, i) + (u ? u[i] : 0), -64, 63);
+        o[i] = (int8_t)clamp(v[i] + x0x_style(st, l < DRUM_LANES ? lane_inst(l) : INST_N, i) + (u ? u[i] : 0), -64, 63);
     ch = x0x_hit(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, o, ev_ofs < CTL ? ev_ofs : 0u);
     if (ch >= X0X_NCH)
         return 0;
     xc.note[ch] = (uint8_t)note;
+    xc.lane[ch] = (uint8_t)(l < DRUM_LANES ? l : DRUM_LANES);
     xc.live |= 1u << ch;                           /* (due in this block: drums_mix runs drums_x0x) */
     xc.lg[ch] = dl_lvl_g(clamp(o[DE_LEVEL], -24, 6));   /* 2^(dB / 6.02) (drum_synth.c) */
     xc.cut[ch] = o[DE_CUT] < 0 && !(((k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
@@ -306,8 +307,8 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         }
         g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
         ASTAGE0(0xA0 + ch);                         /* (the x0x channel rendering: core.h) */
-        dsend_of(xc.note[ch], &r, &d, &c);
-        ln = dlm_lane(xc.note[ch]);                 /* (its lane: its pan, its meter; drum_mix.c) */
+        dsend_of(DLANE_NOTE(xc.lane[ch]), &r, &d, &c);
+        ln = xc.lane[ch];                 /* (its lane: its pan, its meter; drum_mix.c) */
         if (!xc.cut[ch] && r == r0 && !d && !c && !dlm_pan[ln]) {
 #if FELUCCA_USB_AUDIO
             if ((dlt_live >> ln) & 1u) {            /* a lane a USB channel takes: rendered alone, added (the same sum) */

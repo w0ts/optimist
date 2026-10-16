@@ -59,17 +59,17 @@ static void check(const char *what, int ok)
 /* ---- the heard mask */
 static void t_heard(void)
 {
-    check("nothing muted or soloed: every lane and the click heard", dlm_heard_mask(0, 0) == 0x1FFFFu);
-    check("lanes 1 and 3 muted: the others heard", dlm_heard_mask(0x5u, 0) == (0x1FFFFu & ~0x5u));
-    check("lane 3 soloed: lane 3 alone (and the click)", dlm_heard_mask(0, 0x4u) == (0x4u | 0x10000u));
-    check("lanes 3 and 5 soloed, 5 muted: lane 3 alone", dlm_heard_mask(0x10u, 0x14u) == (0x4u | 0x10000u));
-    check("every lane muted: only the click", dlm_heard_mask(0xFFFFu, 0) == 0x10000u);
+    check("nothing muted or soloed: every lane and the click heard", dlm_heard_mask(0, 0) == (DRUM_LMASK | 1u << DRUM_LANES));
+    check("lanes 1 and 3 muted: the others heard", dlm_heard_mask(0x5u, 0) == ((DRUM_LMASK | 1u << DRUM_LANES) & ~0x5u));
+    check("lane 3 soloed: lane 3 alone (and the click)", dlm_heard_mask(0, 0x4u) == (0x4u | (1u << DRUM_LANES)));
+    check("lanes 3 and 5 soloed, 5 muted: lane 3 alone", dlm_heard_mask(0x10u, 0x14u) == (0x4u | (1u << DRUM_LANES)));
+    check("every lane muted: only the click", dlm_heard_mask(DRUM_LMASK, 0) == (1u << DRUM_LANES));
 }
 
 /* ---- the mix: a bar of drums (kick 1 and 9, snare 5 and 13, closed hat on the eighths), rendered in a child */
 #define L_KICK 0u
-#define L_SNARE 2u
-#define L_CHAT 4u
+#define L_SNARE 1u
+#define L_CHAT 3u
 typedef struct {
     uint32_t kit, drop;                                 /* the kit; lanes whose hits are left out of the pattern */
     int32_t tpan, lpan;                                 /* the drum track's PAN, every lane's PAN */
@@ -122,13 +122,13 @@ static rs_t render(const rq_t *q)
         for (b = 0; b < 2u * FS / CTL; b++) {
             if (q->mute_at > 0 && b == (uint32_t)q->mute_at) {
                 for (i = 0; i < NDRUM; i++)
-                    res.kick_before += drums.v[i].active && dlm_lane(drums.v[i].note) == L_KICK;
+                    res.kick_before += drums.v[i].active && drums.lane[i] == L_KICK;
                 dlm_set_mute(L_KICK, 1);
             }
             mix_block(o, CTL);
             if (q->mute_at > 0 && b == (uint32_t)q->mute_at)
                 for (i = 0; i < NDRUM; i++)
-                    res.kick_after += drums.v[i].active && dlm_lane(drums.v[i].note) == L_KICK;
+                    res.kick_after += drums.v[i].active && drums.lane[i] == L_KICK;
             for (i = 0; i < 2u * CTL; i++) {
                 res.h = (res.h ^ (uint32_t)o[i]) * 1099511628211ull;
                 if (b >= 24u)
@@ -246,7 +246,7 @@ static void t_solo_set(void)
 #endif
     song.solo = 0;
     dlm_solo_clear();
-    check("solo: dlm_solo_clear: no lane soloed", !dlm_solo && !song.solo && dlm_heard == 0x1FFFFu);
+    check("solo: dlm_solo_clear: no lane soloed", !dlm_solo && !song.solo && dlm_heard == (DRUM_LMASK | 1u << DRUM_LANES));
 }
 /* the render: the drum track under the solo set (a silent drum track fades out in 8 blocks: the tail is after it) */
 static void t_solo_mix(uint32_t kit, const char *name)
@@ -315,19 +315,19 @@ static void lanes_set(void)
     dlm_none();
     dlm_set_pan(0, -64);
     dlm_set_pan(7, 63);
-    dlm_set_pan(15, -5);
+    dlm_set_pan(8, -5);
     dlm_set_mute(3, 1);
-    dlm_set_mute(12, 1);
+    dlm_set_mute(6, 1);
     dlm_set_solo(9, 1);
 }
 static int lanes_are_set(void)
 {
-    return dlm_pan[0] == -64 && dlm_pan[7] == 63 && dlm_pan[15] == -5 && dlm_pan[1] == 0 && dlm_mute == ((1u << 3) | (1u << 12)) &&
-           dlm_solo == (1u << 9) && dlm_heard == ((1u << 9) | 0x10000u);
+    return dlm_pan[0] == -64 && dlm_pan[7] == 63 && dlm_pan[8] == -5 && dlm_pan[1] == 0 && dlm_mute == ((1u << 3) | (1u << 6)) &&
+           dlm_solo == (1u << 9) && dlm_heard == ((1u << 9) | (1u << DRUM_LANES));
 }
 static int lanes_default(void)
 {
-    uint32_t l, ok = dlm_mute == 0 && dlm_solo == 0 && dlm_heard == 0x1FFFFu;
+    uint32_t l, ok = dlm_mute == 0 && dlm_solo == 0 && dlm_heard == (DRUM_LMASK | 1u << DRUM_LANES);
     for (l = 0; l < DRUM_LANES; l++)
         ok &= dlm_pan[l] == 0;
     return (int)ok;

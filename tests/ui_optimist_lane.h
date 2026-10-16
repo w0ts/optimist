@@ -52,18 +52,17 @@ static void lane_preview_tests(void)
     aud_lanes = 0;
     turn(EN_ALGO, 1);
     check(song.sel == 1u && aud_lanes == 0u, "a synth track selected: no preview");
-    /* the pick's key: SHIFT held + a drum key on STEP */
+    /* the pick's key: a lane's black key on STEP (2026-10-16: no SHIFT) */
     song.sel = TRK_DRUM;
     frame();
     tap(B_SEQ);
     lane_select(0);
-    k = WK(6);
-    fm1_in.buttons |= BT(B_OCTDN);
+    k = BK(6);
     frame();
     aud_lanes = 0;
     kdown(k);
-    check(lane_selected() == 6u && ly_lock == LY_PLAY && kb_kind[k] != KS_UI && aud_lanes == 0u,
-          "stopped, SHIFT held + a drum key: the lane picked, its key plays (the preview), no second one");
+    check(lane_selected() == 6u && ly_lock == LY_STEP && kb_kind[k] == KS_UI && aud_lanes == 1u << 6,
+          "stopped, a lane's black key on STEP: the lane picked, heard (the preview)");
     kup(k);
     lane_transport(1);
     lane_select(0);
@@ -71,23 +70,22 @@ static void lane_preview_tests(void)
     memcpy(ln_before, TSEL->dstep, sizeof ln_before);
     kdown(k);
     check(lane_selected() == 6u && ly_lock == LY_STEP && kb_kind[k] == KS_UI && aud_lanes == 0u,
-          "playing, SHIFT held + a drum key: the lane picked silently (the key reaches the UI only)");
+          "playing, a lane's black key on STEP: the lane picked silently (the key reaches the UI only)");
     {
         kup(k);
         check(!memcmp(ln_before, TSEL->dstep, sizeof ln_before), "... and no step set by it");
     }
-    fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
-    check(ly_lock == LY_STEP && ui.scr == SCR_STEP, "HOME let go: the keys are steps again");
+    check(ly_lock == LY_STEP && ui.scr == SCR_STEP, "... the white keys are steps still");
     tap(B_HOME);                                        /* the mixer: SHIFT held + a drum key, playing */
     lane_select(0);
     fm1_in.buttons |= BT(B_OCTDN);
     frame();
-    kdown(WK(2));
-    check(lane_selected() == 0u && ly_lock == LY_STEP && kb_kind[WK(2)] == KS_UI && smute_lane_on(2),
-          "playing, SHIFT held + a drum key on the mixer: the lane's sequencer muted (the key silent), no pick (2026-10-13)");
+    kdown(BK(2));
+    check(lane_selected() == 0u && ly_lock == LY_STEP && kb_kind[BK(2)] == KS_UI && smute_lane_on(2),
+          "playing, SHIFT held + a lane's key on the mixer: the lane's sequencer muted (the key silent), no pick (2026-10-13)");
     smute_lane = 0;
-    kup(WK(2));
+    kup(BK(2));
     fm1_in.buttons &= ~BT(B_OCTDN);
     frame();
     lane_transport(0);

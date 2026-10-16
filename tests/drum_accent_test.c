@@ -86,7 +86,7 @@ static void run_block(void)
     if (drums.age != a)
         for (k = 0; k < NDRUM; k++)
             if (drums.v[k].age > a) {
-                for (l = 0; l < DRUM_LANES && LANE_NOTE[l] != drums.v[k].note; l++)
+                for (l = 0; l < DRUM_LANES && LANE_NOTE_OF(l) != drums.v[k].note; l++)
                     ;
                 if (l == DRUM_LANES) {
                     voices_other++;
@@ -100,7 +100,7 @@ static void run_block(void)
         mo_r++;
         if (st != 0x90u || !v)
             continue;
-        for (l = 0; l < DRUM_LANES && LANE_NOTE[l] != n; l++)
+        for (l = 0; l < DRUM_LANES && LANE_NOTE_OF(l) != n; l++)
             ;
         if (l < DRUM_LANES)
             mv[step_at(at)][l] = (uint8_t)v, mn[step_at(at)][l]++;

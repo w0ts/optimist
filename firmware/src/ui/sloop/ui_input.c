@@ -104,7 +104,7 @@ static uint32_t keys_lit(void)
         uint32_t len = trk_len(t);
 #if FELUCCA_DRUM_STEP
         if (is_drum(t))                            /* the drum track: the keys are the lanes, the picked one lit */
-            return (1u << key_of_white(pen_lane & 15u)) | fm1_in.notes;
+            return (1u << key_of_white(pen_lane % DRUM_LANES)) | fm1_in.notes;
 #endif
         for (i = 0; i < 16u; i++) {
             uint32_t idx = ui.step_page * 16u + i, on;

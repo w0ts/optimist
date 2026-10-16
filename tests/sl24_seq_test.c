@@ -153,11 +153,11 @@ static void t_dly_dot(void)
 /* ---- micro timing: step k of a 1/16 drum track (lane k: its own note) fires at k x slen + its nudge */
 static void t_micro(void)
 {
-    static const int8_t M[16] = {0, 0, 0, 0, 16, 0, 0, 0, -16, 0, 31, -32, 0, 0, -32, 31};
+    static const int8_t M[DRUM_LANES] = {0, 0, 16, 0, -16, 31, -32, 0, -32, 31};   /* (steps 0..9: a lane each, 2026-10-16) */
     uint32_t i, ok = 1, n = 0, slen = BEAT_U / 4u, blk_u;
     reset(120);
     blk_u = (uint32_t)CTL * 120u;
-    for (i = 0; i < 16u; i++) {
+    for (i = 0; i < DRUM_LANES; i++) {
         dstep_set(&TDRUM->dstep[i], i, LV_NORM, 0);
         step_micro_set(TDRUM, i, M[i]);              /* (a step-only AUTO_NUDGE event: auto.h) */
     }
@@ -166,22 +166,22 @@ static void t_micro(void)
     for (i = 0; i < nhits; i++) {
         uint32_t k, at;
         int32_t want, d;
-        for (k = 0; k < 16u && LANE_NOTE[k] != hits[i].note; k++)
+        for (k = 0; k < DRUM_LANES && LANE_NOTE_OF(k) != hits[i].note; k++)
             ;
-        if (k == 16u)
+        if (k == DRUM_LANES)
             continue;
         at = hits[i].pos;
-        want = (int32_t)((n / 16u) * 16u * slen + k * slen) + (int32_t)(slen / 64u) * M[k];
+        want = (int32_t)((n / DRUM_LANES) * 16u * slen + k * slen) + (int32_t)(slen / 64u) * M[k];
         if (want < 0)
             want = 0;                                /* (step 0 nudged early at PLAY: at once) */
         d = (int32_t)at - want;
-        if (n < 32u && (d < 0 || d >= (int32_t)blk_u)) {
+        if (n < 2u * DRUM_LANES && (d < 0 || d >= (int32_t)blk_u)) {
             ok = 0;
             printf("sl24:   step %u (hit %u): %d units from its nudged time\n", k, n, d);
         }
         n++;
     }
-    check(ok && n >= 32u, "MICRO: each step fires within a block of its nudged time (+-1/4, +-1/2 step)");
+    check(ok && n >= 2u * DRUM_LANES, "MICRO: each step fires within a block of its nudged time (+-1/4, +-1/2 step)");
 }
 static void t_micro_order(void)
 {
@@ -215,8 +215,8 @@ static void t_fills(void)
     uint32_t k0, s0, h0, k1, s1, h1;
     reset(120);
     dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
-    dstep_set(&TDRUM->dstep[8], 4, LV_NORM, 0);
+    dstep_set(&TDRUM->dstep[4], 1, LV_NORM, 0);       /* (lane 2: SNARE, lane 4: C.HAT) */
+    dstep_set(&TDRUM->dstep[8], 3, LV_NORM, 0);
     step_fill_set(TDRUM, 0, FC_FILL);
     step_fill_set(TDRUM, 4, FC_NOFILL);
     transport_req = 1;

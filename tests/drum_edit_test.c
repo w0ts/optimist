@@ -199,11 +199,11 @@ int main(int argc, char **argv)
           first_neg(rb) * 2u < first_neg(ra) && bounded(rb));
     lanes_zero();
     hit(DRUM_SAMPLED, 38, 100, ra);                            /* 808 snare: noise through its filter */
-    dl.ofs[2][DE_CUT] = -40;
+    dl.ofs[1][DE_CUT] = -40;
     hit(DRUM_SAMPLED, 38, 100, rb);
     check("808 snare CUT -40: darker", hf(rb, FS / 5u) < hf(ra, FS / 5u) * 0.5 && bounded(rb));
-    dl.ofs[2][DE_CUT] = 0;
-    dl.ofs[2][DE_DRIVE] = 63;
+    dl.ofs[1][DE_CUT] = 0;
+    dl.ofs[1][DE_DRIVE] = 63;
     hit(DRUM_SAMPLED, 38, 100, rb);
     check("808 snare DRIVE +63: another sound, bounded", !same(ra, rb) && bounded(rb));
     {   /* every kit x lane at the extremes: bounded, and every voice ends */
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
                     for (i = 0; i < DE_N; i++)
                         dl.ofs[l][i] = e ? DE_MAX[i] : DE_MIN[i];
                 for (l = 0; l < DRUM_LANES && ok; l += 3u) {
-                    nb = hit(kk, LANE_NOTE[l], 127, rb);
+                    nb = hit(kk, LANE_NOTE_OF(l), 127, rb);
                     ok &= bounded(rb) && nb < RN;
                 }
             }
@@ -228,19 +228,19 @@ int main(int argc, char **argv)
     /* ---- sampled (ACOUSTIC): TUNE, DECAY, CUT, LEVEL */
     lanes_zero();
     na = hit(0, 38, 100, ra);
-    dl.ofs[2][DE_TUNE] = 12;
+    dl.ofs[1][DE_TUNE] = 12;
     nb = hit(0, 38, 100, rb);
     check("ACOUSTIC snare TUNE +12: twice as fast (half as long +-5 %)", nb * 100u >= na * 45u && nb * 100u <= na * 55u);
     lanes_zero();
-    dl.ofs[2][DE_DECAY] = -40;
+    dl.ofs[1][DE_DECAY] = -40;
     nb = hit(0, 38, 100, rb);
     check("ACOUSTIC snare DECAY -40: ends sooner, less tail", nb < na / 2u && energy(rb, FS / 10u, RN) < energy(ra, FS / 10u, RN) / 4.0);
     lanes_zero();
-    dl.ofs[2][DE_CUT] = -40;
+    dl.ofs[1][DE_CUT] = -40;
     hit(0, 38, 100, rb);
     check("ACOUSTIC snare CUT -40: darker", hf(rb, FS / 5u) < hf(ra, FS / 5u) * 0.25);
     lanes_zero();
-    dl.ofs[2][DE_LEVEL] = -6;
+    dl.ofs[1][DE_LEVEL] = -6;
     hit(0, 38, 100, rb);
     check("ACOUSTIC snare LEVEL -6 dB: half the peak (+-2 %)", peak(rb) * 100 >= peak(ra) * 49 && peak(rb) * 100 <= peak(ra) * 51);
 
@@ -272,7 +272,7 @@ int main(int argc, char **argv)
     dl.src[0] = DL_KIT0 + DRUM_SAMPLED + 1u;
     hit(DRUM_SAMPLED, 36, 110, rb);                            /* the 808 kit, its kick lane on the 909's */
     check("808 kit, KICK lane on the 909's kick: the 909 kick", FELUCCA_DRUM_KITS ? same(ra, rb) : 1);
-    dl.src[2] = DL_KIT0 + 0u;
+    dl.src[1] = DL_KIT0 + 0u;
     hit(0, 38, 100, ra);
     hit(DRUM_SAMPLED, 38, 100, rb);
     check("808 kit, SNARE lane on ACOUSTIC's: the sampled snare", FELUCCA_DRUM_KITS ? same(ra, rb) : 1);
@@ -286,10 +286,10 @@ int main(int argc, char **argv)
         double num = 0, da = 0, db = 0;
         host_usr_slot(0, N, 3);
         lanes_zero();
-        dl.src[2] = DL_USR + 0u;                                /* USR1, hit 2, from the half, a quarter long */
-        dl_set_ref(dl.ref[2], 1, 512, 256);
+        dl.src[1] = DL_USR + 0u;                                /* USR1, hit 2, from the half, a quarter long */
+        dl_set_ref(dl.ref[1], 1, 512, 256);
         dl_tick();
-        check("the start's ADPCM state decoded (dl_tick)", dl_seek[2].key == dl_seek_key(2) && dl_seek[2].pos == N / 2u);
+        check("the start's ADPCM state decoded (dl_tick)", dl_seek[1].key == dl_seek_key(1) && dl_seek[1].pos == N / 2u);
         nb = hit(DRUM_SAMPLED, 38, 127, rb);
         check("USR1 on the snare lane: as long as the quarter of the hit (+- 1 block)",
               nb + CTL >= N / 4u && nb <= N / 4u + CTL);
@@ -306,19 +306,19 @@ int main(int argc, char **argv)
         for (j = 0; j < N / 4u; j++)
             best = rb[j] ? j : best;
         check("silent after the length", energy(rb, N / 4u + 512u, RN) == 0.0);
-        dl.ofs[2][DE_TUNE] = 12;
+        dl.ofs[1][DE_TUNE] = 12;
         nb = hit(DRUM_SAMPLED, 38, 127, rb);
         check("TUNE +12 on it: half as long", nb + CTL >= N / 8u && nb <= N / 8u + CTL);
-        dl.ofs[2][DE_TUNE] = 0;
-        dl.ofs[2][DE_LEVEL] = -6;
+        dl.ofs[1][DE_TUNE] = 0;
+        dl.ofs[1][DE_LEVEL] = -6;
         hit(DRUM_SAMPLED, 38, 127, ra);
-        dl.ofs[2][DE_LEVEL] = 0;
+        dl.ofs[1][DE_LEVEL] = 0;
         hit(DRUM_SAMPLED, 38, 127, rb);
         check("LEVEL -6 dB on it: half the peak (+-2 %)", peak(ra) * 100 >= peak(rb) * 49 && peak(ra) * 100 <= peak(rb) * 51);
-        dl_set_ref(dl.ref[2], 5, 0, 0);                        /* a hit the slot does not have: silent */
+        dl_set_ref(dl.ref[1], 5, 0, 0);                        /* a hit the slot does not have: silent */
         hit(DRUM_SAMPLED, 38, 127, rb);
         check("a hit the slot does not have: silent", energy(rb, 0, RN) == 0.0);
-        dl_set_ref(dl.ref[2], 0, 0, 0);
+        dl_set_ref(dl.ref[1], 0, 0, 0);
         host_usr_slot(0, N, 0);                                 /* the slot emptied (an upload): silent */
         hit(DRUM_SAMPLED, 38, 127, rb);
         check("an empty slot: silent", energy(rb, 0, RN) == 0.0);

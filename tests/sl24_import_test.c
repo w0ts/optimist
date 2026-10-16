@@ -353,8 +353,8 @@ int main(void)
         usr_zone[1][1].lo = 38, usr_zone[1][1].hi = 42;          /* (lanes SD 38, 39 CP, 42 CH, 40) */
         fun5_with(b24, 0, 0, E0, 37 + 1);                        /* (USR2) */
         ok = sl24_import_buf(b24, sizeof b24, 0) && proj_tmp.cur.dl_hash != 0;
-        ok &= dl.src[0] == DL_USR + 1 && dl_hit(dl.ref[0]) == 0 && dl.src[2] == DL_USR + 1 && dl_hit(dl.ref[2]) == 1 &&
-              dl.src[4] == DL_USR + 1 && dl.src[1] == 0 && dl.src[5] == 0 && dl_len(dl.ref[0]) == 1024u;
+        ok &= dl.src[0] == DL_USR + 1 && dl_hit(dl.ref[0]) == 0 && dl.src[1] == DL_USR + 1 && dl_hit(dl.ref[1]) == 1 &&
+              dl.src[3] == DL_USR + 1 && dl.src[4] == 0 && dl.src[5] == 0 && dl_len(dl.ref[0]) == 1024u;   /* (lanes KICK SNARE CLAP C.HAT O.HAT LOW TOM) */
         check("USR2 kit: its lanes play USR2's zones by their GM note (BD zone 0, SD and CH zone 1), the rest the kit", ok);
         fun5_with(b24, 0, 0, E0, 37 + 3);
         ok = sl24_import_buf(b24, sizeof b24, 0) && proj_tmp.cur.dl_hash == 0 && dl.src[0] == 0;

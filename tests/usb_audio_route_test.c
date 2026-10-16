@@ -96,7 +96,7 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
 {
     int32_t (*refs)[CTL * 2] = mmap(0, 256u * sizeof *refs, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     int32_t out[CTL * 2];
-    uint32_t la = dlm_lane(36), lb = dlm_lane(38), lc = 0, blocks = 0;
+    uint32_t la = lane_of_note(36), lb = lane_of_note(38), lc = 0, blocks = 0;
     uint64_t ea = 0, eb = 0, eo = 0;
     assert(la != lb && la < DRUM_LANES && lb < DRUM_LANES);
     while (lc == la || lc == lb)
@@ -191,14 +191,14 @@ static void test_setting(void)
     ua_src[2] = 200;
     ua_route_apply();
     assert(ua_src[2] == UAS_T3);                           /* out of range: the default */
-    assert(!strcmp(ua_src_name(UAS_DR1, b), "DR1") && !strcmp(ua_src_name(UAS_N - 1, b), "DR16"));
+    assert(!strcmp(ua_src_name(UAS_DR1, b), "DR1") && !strcmp(ua_src_name(UAS_N - 1, b), "DR10"));
     for (uint32_t v = 0; v < UAS_N; v++)
         assert(strlen(ua_src_name(v, b)) <= 13u);
     assert(!strcmp(ua_src_name(UAS_MAIN_S, b), "MAIN L+R") && !strcmp(ua_src_name(UAS_DBUS_S, b), "DRUM BUS L+R"));
-    assert(UAS_N == 27u);                                  /* (OFF, 10 names, 16 lanes: no -3 / -6 dB entries) */
+    assert(UAS_N == 11u + DRUM_LANES);                     /* (OFF, 10 names, the lanes: no -3 / -6 dB entries) */
     /* two channels on one lane: one tap */
-    set_route(UAS_DR1 + 4, UAS_DR1 + 4, UAS_OFF, UAS_DR1 + 15);
-    assert(dlt_mask == (1u << 4 | 1u << 15) && dlt_slot[4] == 0 && dlt_slot[15] == 1);
+    set_route(UAS_DR1 + 4, UAS_DR1 + 4, UAS_OFF, UAS_DR1 + 9);
+    assert(dlt_mask == (1u << 4 | 1u << 9) && dlt_slot[4] == 0 && dlt_slot[9] == 1);
     ua_route_default();
     assert(ua_ident && !dlt_mask);
 }
@@ -219,6 +219,6 @@ int main(void)
     test_lanes(DRUM_UID_X909, 1, 0);
     puts("(with the X0X 909)");
 #endif
-    puts("USB audio routing: MAIN L/R/sums, T1..T3, DRUMS, DRUM BUS, DR1..DR16 lane taps, OFF, defaults: OK");
+    puts("USB audio routing: MAIN L/R/sums, T1..T3, DRUMS, DRUM BUS, DR1..DR10 lane taps, OFF, defaults: OK");
     return 0;
 }

@@ -69,7 +69,7 @@ static int ed_dsrc(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b(m);
         ed_b(m >> 7);
         ed_b(f);
-        ed_str(LANE_NAME[a[0]], 12);                     /* (its name, as the device shows it) */
+        ed_str(LANE_NAME_OF(a[0]), 12);                     /* (its name, as the device shows it) */
         return 1;
     }
     return 0;

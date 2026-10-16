@@ -56,7 +56,7 @@ static void stl_in(uint32_t track, uint32_t lane)       /* the held step's conte
 {
     stl_was.sel = (uint8_t)song.sel, stl_was.lane = ui.lane, stl_was.lsel = lane_sel;
     song.sel = (uint8_t)track;
-    ui.lane = lane < 17u && is_drum(&trk[track]);
+    ui.lane = lane <= DRUM_ACC && is_drum(&trk[track]);
     if (ui.lane)
         lane_sel = (uint8_t)lane;
 }
@@ -330,12 +330,12 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
     stl_e e;
     if (cmd != ED_STEPLANE || na < 3u || op > 6u || a[1] >= NTRK)
         return 0;
-    track = a[1], lane = a[2], t = &trk[track];
+    track = a[1], lane = a[2] == 127u ? 127u : edl_in(a[2]), t = &trk[track];   /* (the wire's lane: ed_drums.c) */
     if (is_drum(t) ? !(lane < DRUM_LANES || lane == DRUM_ACC || lane == 127u) || (lane == DRUM_ACC && !FELUCCA_DRUM_ACCENT) : lane != 127u)
         return 0;
     if (op == 0u) {
         n = stl_count(track, lane, &np);
-        ed_b(0), ed_b(track), ed_b(lane), ed_b(n), ed_b(np);
+        ed_b(0), ed_b(track), ed_b(edl_out(lane)), ed_b(n), ed_b(np);
         return 1;
     }
     if (op == 1u) {
@@ -343,7 +343,7 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
             return 0;
         i = a[3];
         n = stl_walk(track, lane, i, &e, 0, 0);
-        ed_b(1), ed_b(track), ed_b(lane), ed_b(i);
+        ed_b(1), ed_b(track), ed_b(edl_out(lane)), ed_b(i);
         if (i >= n)
             return 1;
         ed_b(e.kind), ed_b(e.id), ed_b(e.page), ed_b(e.cell);

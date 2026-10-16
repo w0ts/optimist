@@ -9,7 +9,7 @@
  *   39 v2  0x40 + slot                                           -> 0x40 + slot, used, pack7 kit + sends (196 + 48 B)
  *   40 v2  0x40 + slot, pack7 kit + sends (196 + 48 B; used 0: erase) -> 0x40 + slot, rc (as 40) */
 #define ED_V2 0x40u
-#define ED_DL2_N (sizeof(dlanes_t) + 3u * DRUM_LANES)          /* 252 */
+#define ED_DL2_N (EDW_DL_N + 3u * DRUM_LSTORE)                 /* 252 (ed_drums.c: the wire's 16 lanes) */
 
 static void ed_snd_get(const uint16_t *w, uint8_t *b, uint32_t n)   /* n words -> 3n bytes */
 {
@@ -37,20 +37,22 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
             dlrec_t n;
             if (ed_unpack7(a + 1, na - 1u, b, sizeof b) != sizeof b)
                 return 0;
-            memcpy(&n.l, b, sizeof n.l);
-            ed_snd_set(n.snd, b + sizeof n.l, DRUM_LANES);
+            edw_dl_get(b, &n.l);
+            memset(n.snd, 0, sizeof n.snd);
+            ed_snd_set(n.snd, b + EDW_DL_N, DRUM_LANES);
             fm1_irq_off();
             dlrec_apply(&n, DRREV_MOVED);
             fm1_irq_on();
             ui.force = 1;
         }
-        memcpy(b, &dl, sizeof dl);
-        ed_snd_get(dsend, b + sizeof dl, DRUM_LANES);
+        memset(b, 0, sizeof b);
+        edw_dl_put(&dl, b);
+        ed_snd_get(dsend, b + EDW_DL_N, DRUM_LANES);
         ed_b(2);
         ed_pack7(b, sizeof b);
         return 1;
     }
-    if (cmd == ED_DRUM_LANE && na && (a[0] & ~15u) == ED_V2) {
+    if (cmd == ED_DRUM_LANE && na && (a[0] & ~15u) == ED_V2 && (a[0] & 15u) < DRUM_LANES) {
         uint32_t l = a[0] & 15u;
         if (na > 1u) {
             dlanes_t n = dl;
@@ -75,7 +77,7 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
         return 1;
     }
 #if FELUCCA_DRUM_KITS
-#define ED_KIT2 ((uint32_t)sizeof(ukit_t) + 3u * DRUM_LANES)   /* a kit (196 B) and its sends (48 B) */
+#define ED_KIT2 (EDW_UK_N + 3u * DRUM_LSTORE)                  /* a kit (196 B) and its sends (48 B) */
     if (cmd == ED_UKIT_GET && na && (a[0] & ~15u) == ED_V2) {
         ukit_t k;
         uint16_t w[DRUM_LANES];
@@ -83,8 +85,9 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
         memset(&k, 0, sizeof k);
         memset(w, 0, sizeof w);
         used = (uint32_t)(ukit_get(u, &k) && ukit_sends(u, w));
-        memcpy(b, &k, sizeof k);
-        ed_snd_get(w, b + sizeof k, DRUM_LANES);
+        memset(b, 0, sizeof b);
+        edw_uk_put(&k, b);
+        ed_snd_get(w, b + EDW_UK_N, DRUM_LANES);
         ed_b(a[0]);
         ed_b(used);
         ed_pack7(b, ED_KIT2);
@@ -95,8 +98,8 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
         uint16_t w[DRUM_LANES];
         uint32_t rc = 1;
         if (ed_unpack7(a + 1, na - 1u, b, ED_KIT2) == ED_KIT2) {
-            memcpy(&k, b, sizeof k);
-            ed_snd_set(w, b + sizeof k, DRUM_LANES);
+            edw_uk_get(b, &k);
+            ed_snd_set(w, b + EDW_UK_N, DRUM_LANES);
             if (!k.used || uk_valid(&k))
                 rc = song.playing || transport_req ? 3u : ukit_put_snd(a[0] & 15u, k.used ? &k : 0, w) ? 2u : 0u;
         }

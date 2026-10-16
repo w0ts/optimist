@@ -57,8 +57,8 @@ int main(void)
     host_tracks_init();
     song.g[G_BPM] = 120;
     section(0, 0, 2, 16);                                    /* A: a kick, 1 bar */
-    section(1, 2, 2, 32);                                    /* B: a snare, 2 bars */
-    section(2, 4, 7, 1);                                     /* C: a hat, one step of a bar */
+    section(1, 1, 2, 32);                                    /* B: a snare (lane 2), 2 bars */
+    section(2, 3, 7, 1);                                     /* C: a hat (lane 4), one step of a bar */
     check(section_bars(0) == 1 && section_bars(1) == 2 && section_bars(2) == 1 && section_bars(3) == 1,
           "the bars of each section: its longest pattern (A 1, B 2, C 1BAR x 1: 1; empty: 1)");
     proj_apply(&proj_slot[0], &proj_dl[0], 1);

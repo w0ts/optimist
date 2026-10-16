@@ -311,7 +311,7 @@ static int keys_are(uint32_t full, uint32_t dim, const char *what)   /* every ke
     check(ok, what);
     return (int)ok;
 }
-static uint32_t kw(uint32_t i) { return 1u << key_of_lane(i); }   /* white key i (0..15) */
+static uint32_t kw(uint32_t i) { return 1u << white_key(i); }   /* white key i (0..15) */
 static uint32_t kws(uint32_t a, uint32_t b)             /* white keys a..b */
 {
     uint32_t m = 0;
@@ -433,7 +433,7 @@ static void keys_global_tests(void)
         /* a key held over a page change: its note-off, and a UI key's release leaves no step held */
         reset_ui();
         kdown(WK(4));
-        check(kb_kind[WK(4)] == KS_NOTE || kb_kind[WK(4)] == KS_DRUM, "the mixer: a key plays");
+        check(kb_kind[WK(4)] == KS_NOTE || (is_drum(TSEL) && kb_kind[WK(4)] == KS_UI), "the mixer: a key plays (the drum track: a step)");
         tap(B_GLO);
         frames(2);
         kup(WK(4));
@@ -446,6 +446,19 @@ static void keys_global_tests(void)
         reset_ui();
     }
 }
+static uint32_t lane_keys_mask(void)                    /* the lanes' black keys (2026-10-16) */
+{
+    uint32_t l, m = 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        m |= 1u << key_of_lane(l);
+    return m;
+}
+static void lanes_lit(const char *what)                 /* the drum track: the lanes' keys lit, the selected one full */
+{
+    uint32_t f = 0, d = 0, lk = (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u));
+    keys_lit(&f, &d);
+    check(((f | d) & lk) == lk && ((f >> key_of_lane(lane_selected())) & 1u), what);
+}
 static void pages_keys_tests(void)
 {
     uint32_t k, root = 0;
@@ -456,17 +469,15 @@ static void pages_keys_tests(void)
     keys_are(0, 0, "D10: the mixer, a synth track: the keys only play, all dark");
     song.sel = TRK_DRUM;
     frames(2);
-    keys_are(0, 0, "D10: the mixer, the drum track: the keys play, all dark (the lane key only where keys pick lanes)");
+    lanes_lit("D10: the mixer, the drum track: the lanes' black keys lit, the selected one full (the white keys its steps)");
     press(B_OCTDN);
     frames(HOLD_FRAMES);
-    keys_are(0, kws(0, 15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | (ACC_UI ? 1u << DACC_KEY : 0u),
-             "D10: the mixer, SHIFT held: the sequencer mutes, the 16 lanes, the 4 black keys and the last upper key (ACCENT) dim, none muted");
+    keys_are(0, kws(0, 3) | (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u)),
+             "D10: the mixer, SHIFT held: the sequencer mutes, the lanes' keys, the 4 track keys and the last upper key (ACCENT) dim, none muted");
     release(B_OCTDN);
     tap(B_EDIT);
-    press(B_OCTDN);
-    frames(HOLD_FRAMES);
-    keys_are(kw(lane_selected()), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "D10: the drum track's SOUND, SHIFT held: the 16 lanes (and the last upper key, ACCENT) dim, the selected one full");
-    release(B_OCTDN);
+    frames(2);
+    lanes_lit("D10: the drum track's SOUND: the lanes' black keys (and the last upper key, ACCENT) lit, the selected one full");
     reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);
@@ -475,10 +486,7 @@ static void pages_keys_tests(void)
     dstep_set(&TDRUM->dstep[2], 4, LV_NORM, 0);
     dstep_set(&TDRUM->dstep[3], 7, LV_NORM, 0);
     frames(2);
-    press(B_OCTDN);
-    frames(HOLD_FRAMES);
-    keys_are(kw(4), kws(0, 15) | (ACC_UI ? 1u << DACC_KEY : 0u), "STEP, the drum track, SHIFT held: the 16 lanes (and the last upper key) dim, the selected one full, as elsewhere");
-    release(B_OCTDN);                                    /* (a tap: NO, off STEP) */
+    lanes_lit("STEP, the drum track: the lanes' black keys (and the last upper key) lit, the selected one full, as elsewhere");
     op_enter(SCR_STEP);
     frames(2);
     press(B_SEQ);
@@ -488,7 +496,7 @@ static void pages_keys_tests(void)
         keys_lit(&f, &d);
         for (w = 0; w < 16u && w < len; w++)
             edim |= (w == 2u || w == 3u) ? 0u : kw(w);
-        check(f == (kw(2) | kw(3)) && d == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
+        check((f & kws(0, 15)) == (kw(2) | kw(3)) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
     }
     release(B_SEQ);
     reset_ui();
@@ -533,7 +541,7 @@ static void pages_keys_tests(void)
     keys_are(kw(1) | kw(6), kws(0, 11) | kw(15), "D10: GLO layer: mute solo FX tap dim, T2 muted and T3 soloed full");
     trk[0].p[P_FXOFF] = 1;
     frames(2);
-    check(key_led(key_of_lane(8)) == 2u, "D10: GLO layer: T1's FX off, its key full");
+    check(key_led(white_key(8)) == 2u, "D10: GLO layer: T1's FX off, its key full");
 #endif
     for (k = 0; k < 4u; k++)
         trk[k].p[P_FXOFF] = fxoff[k];
@@ -603,7 +611,7 @@ static void pages_keys_tests(void)
         for (kk = 0; kk < 27u; kk++)
             d |= (uint32_t)(punch_key(kk) >= 0 || nm_black(kk) != NMK_NONE) << kk;
         keys_are(0, d, "D10: NAME: every key with a job dim");
-        key(key_of_lane(2));
+        key(white_key(2));
         keys_are(kw(2), d, "D10: NAME: the key cycling its letters full");
     }
     name_close();
@@ -799,7 +807,7 @@ static void pages_select_tests(void)
  * the drums on the keyboard it should switch to that instrument in all the relevant pages"); DR itself included */
 static void pages_hit_tests(void)
 {
-    uint32_t snare = lane_of_key(WK(2)), kick = lane_of_key(WK(0));
+    uint32_t snare = 1u, kick = 0u;
     reset_ui();
     song.sel = TRK_DRUM;
     ui.lane = 0;
@@ -807,15 +815,15 @@ static void pages_hit_tests(void)
     frames(30);                                         /* (no knob in the last 300 ms) */
     ui.row[SCR_HOME] = MXR_DR;
     frame();
-    key(WK(2));
+    key(key_of_lane(snare));
     check(lane_selected() == snare && ui.lane == 1u && mx_row() == MXR_LANE0 + snare,
           "drum key: on the mixer with DR itself selected, the key's lane selected, the cursor on its row");
     tap(B_EDIT);
     tap(B_EDIT);
-    key(WK(0));
+    key(key_of_lane(kick));
     check(ui.scr == SCR_SOUND && lane_selected() == kick && ui.lane == 1u, "drum key: on the drum SOUND pages, the lane follows");
     tap(B_FX);
-    key(WK(2));
+    key(key_of_lane(snare));
     check(lane_selected() == snare, "drum key: on the drum FX page too");
     {   /* (the knobs' last detents are 32-bit ticks that wrap every 179 s: a knob turned some wraps ago can look 5 ms old, which
          * made this test fail on the simulated clock's alignment alone; every knob last turned 10 s ago) */
@@ -826,15 +834,15 @@ static void pages_hit_tests(void)
     ui.hot = 0;
     turn(EN_K1, 1);
     turn(EN_K1, -1);
-    key(WK(0));
+    key(key_of_lane(kick));
     check(lane_selected() == snare, "drum key: a knob turned in the last 300 ms: the lane stays (the cards do not move)");
     frames(30);
-    key(WK(0));
+    key(key_of_lane(kick));
     check(lane_selected() == kick, "... later: the lane follows again");
     tap(B_HOME);
     press(B_FX);
     frames(HOLD_FRAMES);
-    key(WK(2));
+    key(key_of_lane(snare));
     release(B_FX);
     frames(2);
     check(lane_selected() == kick, "drum key: the FX layer held, the key is an effect: no lane change");
@@ -842,8 +850,8 @@ static void pages_hit_tests(void)
     song.sel = TRK_DRUM;
     tap(B_SEQ);
     frames(30);
-    key(WK(2));
-    check(lane_selected() == kick, "drum key: STEP, the keys steps: no lane change");
+    key(key_of_lane(snare));
+    check(lane_selected() == snare, "drum key: STEP, a lane's black key picks it (the white keys are the steps)");
     tap(B_HOME);
     song.sel = 0;
     lane_select(0);

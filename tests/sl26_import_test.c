@@ -273,10 +273,10 @@ static void export_engines(void)
         (void)proj_to_sl24(&q, 0, out, 0);
         ok &= out[73] == 0;
         for (l = 0; l < DRUM_LANES; l++)
-            dsend[l] = dsend_word(4, l < 8u ? 7u : 5u, 0);
+            dsend[l] = dsend_word(4, l < DRUM_LANES / 2u ? 7u : 5u, 0);
         (void)proj_to_sl24(&q, 0, out, 0);
         ok &= out[73] == 20;
-        check("export: 2.5's drums' delay send = the lanes' DLY most have (19 -> 78; 10 x 0 + 6 x 31 -> 0; 8 + 8: the lower)", ok);
+        check("export: 2.5's drums' delay send = the lanes' DLY most have (19 -> 78; 10 x 0 -> 0; 5 + 5: the lower)", ok);
         for (l = 0; l < DRUM_LANES; l++)
             dsend[l] = dsend_word(4, 19, 0);
         fxs_live &= (uint8_t)~(1u << FXT_DLY);

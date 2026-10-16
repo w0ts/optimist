@@ -62,10 +62,12 @@ static void step_clear(step_t *s)
 }
 static uint32_t step_pages(const track_t *t) { return (trk_len(t) + 15u) / 16u; }
 
-/* the drum track's lane pick on STEP: SHIFT (OCT-) held, no step held, as on every page (so OCT- no longer makes a ghost hit on STEP) */
+/* the drum track's lane pick on STEP: none since 2026-10-16 (the user: the black keys select the lane, the white keys are
+ * always steps; was SHIFT (OCT-) + a white key) */
 static int step_pick(uint32_t held)
 {
-    return ui.scr == SCR_STEP && is_drum(TSEL) && op_shift(held) && !st.held;
+    (void)held;
+    return 0;
 }
 /* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
  * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
@@ -289,14 +291,26 @@ static uint32_t step_unlock(track_t *t, uint32_t idx)
 #endif
     return n;
 }
-/* a step key down / up (seq.c lk_q, LY_STEP): white key w is step 16 page + w; black keys do nothing here */
+/* a step key down / up (seq.c lk_q, LY_STEP): white key w is step 16 page + w, on STEP and, on the drum track, on every
+ * page (the user, 2026-10-16: "while in drum mode they are always the step seq"; seq.c sends them here); the drum
+ * track's black keys on STEP select their lane (stopped: it is heard; seq.c plays them off STEP) */
+static void lane_pick_from(uint32_t l, int key);        /* op_input.c: the lane selected (its preview) */
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
     track_t *t = TSEL;
     int32_t w = punch_key(k);
     uint32_t idx, bit;
+    if (w < 0 && down && is_drum(t) && lane_key(k)) {
+        lane_pick_from(lane_of(k), 1);
+        if (lane_of(k) != DRUM_ACC && !song.playing && !transport_req)
+            audition_lane(lane_of(k));                  /* (the ACCENT lane has no sound to preview) */
+        op_repaint();
+        return;
+    }
     if (w < 0 || w > 15)
         return;
+    if (down && ui.scr != SCR_STEP)
+        step_tick();                                    /* (off STEP: the window FOLLOW keeps, inside LEN) */
     bit = 1u << w;
     idx = st.page * 16u + (uint32_t)w;
     if (!down) {
@@ -333,7 +347,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         }
         return;
     }
-    if (ui.scr != SCR_STEP || op_armed() || idx >= trk_len(t))
+    if ((ui.scr != SCR_STEP && !is_drum(t)) || op_armed() || idx >= trk_len(t))
         return;                                         /* (a question waits: the keys do nothing) */
     if (song.playing && arrangement_enabled) {
         ui_message("STOP THE SONG FIRST");

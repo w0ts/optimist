@@ -15,7 +15,7 @@
  * per page) both show them; the graph: the sound's name and source, its envelope and pitch drop.
  * The values' descriptors and the kit list are model, shared with the other UI and the editor: drums/dsnd_desc.c. */
 #if DL_UI
-static uint32_t dsnd_lane(void) { return pen_lane & 15u; }
+static uint32_t dsnd_lane(void) { return pen_lane % DRUM_LANES; }
 static int on_dsnd_page(void) { return cur_page()->scope == SC_DSND; }
 
 /* once a frame (ui_draw): another kit set elsewhere (the editor) drops a user kit's lanes; the start
@@ -89,7 +89,7 @@ static void dsnd_set(uint32_t id, int32_t v, int32_t steps)
         memset(dl.ref[l], 0, sizeof dl.ref[l]);
         dsend[l] = 0;                                   /* (its sends as it is: REV 4, no DLY / CHO) */
         fm1_irq_on();
-        ui_say("RESET ", LANE_NAME[l]);
+        ui_say("RESET ", LANE_NAME_OF(l));
         ui.force = 1;
         return;
     }
@@ -140,7 +140,7 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     const int8_t *o = dl_ofs(l);
     char b[24];
     int32_t y0 = top + 18, h = bot - 4 - y0;
-    str_cpy(b, LANE_NAME[l], sizeof b);
+    str_cpy(b, LANE_NAME_OF(l), sizeof b);
     cv_text(4, top, &FONT_S, b, C_WHITE);
     if (usr) {
         str_cpy(b, DS_SRC_NAMES[usr], sizeof b);
@@ -193,7 +193,7 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
         if (!usr && drum_set() >= 0) {
             const smp_set_t *set = &SMP_SETS[drum_set()];
             for (i = 0; i < set->nz; i++)
-                if (LANE_NOTE[l] >= SMP_ZONES[set->z0 + i].lo && LANE_NOTE[l] <= SMP_ZONES[set->z0 + i].hi)
+                if (LANE_NOTE_OF(l) >= SMP_ZONES[set->z0 + i].lo && LANE_NOTE_OF(l) <= SMP_ZONES[set->z0 + i].hi)
                     z = &SMP_ZONES[set->z0 + i];
             end = z ? z->n : 0u;
         }
@@ -226,7 +226,7 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     }
     {                                                   /* synthesised: the edited sound, as drum_synth.c runs it */
         int32_t semi;
-        const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE[l], &semi));
+        const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE_OF(l), &semi));
 #if FELUCCA_DRUM_EDIT
         static dsnd_t ed;
         if (o) {

@@ -13,7 +13,7 @@ Every button, knob and key gesture of the Optimist UI (builder item `UI`, value 
 | **A + B** | A held, then B |
 | **A then B** | A pressed first, then B, both down; it acts when one is let go |
 | **YES / NO** | SAVE / HOME. A question ("Clear T1 locks?") waits 3 s: SAVE yes, HOME no, anything else cancels it |
-| **a lane picked** | a drum lane selected (SHIFT + a drum key, ALGORITHM past DR, a lane row on the mixer) |
+| **a lane picked** | a drum lane selected (its black key, ALGORITHM past DR, a lane row on the mixer) |
 
 ## Moving around
 
@@ -59,8 +59,8 @@ Every button, knob and key gesture of the Optimist UI (builder item `UI`, value 
 | OCT- / OCT+ tapped | a synth track | the octave, -3 to +3 |
 | OCT- held + keys | the drum track | ghost hits |
 | OCT+ held + keys | the drum track | hard hits |
-| SHIFT + a white key | the drum track (not the mixer) | picks the lane; the last upper key the ACCENT lane. Heard when stopped, silent while playing |
-| a drum key | the drum track, off STEP | plays and picks its lane |
+| a black key | the drum track | lanes 1-10 on F#3..D#5, ACCENT on F#5: off STEP it plays and picks the lane; on STEP it picks it (heard when stopped, silent while playing) |
+| a white key | the drum track, any page | a step of the selected lane (the 16 steps of the window), as on STEP |
 | the keys | MASTER, SCOPE, GLOBAL, SYSTEM, PROJECT, SONG | silent (MASTER keeps the track's keys when you came with both OCT) |
 
 ## Transport, tempo and recording
@@ -160,7 +160,7 @@ Hold the button: its map shows and the keys and knobs are the layer's. **SHIFT +
 | SHIFT2 + the volume knob | the mixer (a track's VOLUME, a lane's LEVEL, ACCENT, USB IN) | mute on / off |
 | SHIFT2 + a RET card's knob | the mixer's MASTER row | that return muted on / off |
 | SHIFT + SHIFT2 + the volume knob | the mixer (not ACCENT, the returns, MASTER) | solo on / off |
-| SHIFT + a key | the mixer | the sequencer mute: white keys the 16 lanes, F# G# A# C# T1, T2, T3, DR, the last upper key ACCENT |
+| SHIFT + a key | the mixer | the sequencer mute: the lanes' black keys, the first four white keys T1, T2, T3, DR, the last upper key ACCENT |
 | GLO + keys 1-4 / 5-8 | anywhere | mute / solo T1-DR |
 
 ## Page by page
@@ -177,4 +177,4 @@ What only one page has; everything above works there too.
 
 **SCOPE** (HOME on the mixer). ALGORITHM the source; the knobs LEVEL, PAN, FX, DRIVE of a track, or FILT, THRS, RATIO of MASTER; SAVE the track's FX on / dry.
 
-**The mixer.** See Mixing. The drum track's keys play and pick their lane (not right after a knob turn).
+**The mixer.** See Mixing. The drum track's black keys play and pick their lane (not right after a knob turn); its white keys are steps.

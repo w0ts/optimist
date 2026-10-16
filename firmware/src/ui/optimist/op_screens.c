@@ -355,6 +355,8 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
     } else if (k == 1u && ACC_UI) {                     /* the ACCENT amount (every lane: the track's own) */
         acc_cell(c);
         c->dr = (uint8_t)(lane_picked() && lane_snd());   /* (the ACCENT lane's own amount: its lane's) */
+    } else if (k == 2u && lane_snd()) {                 /* the lane's INSTRUMENT: what it plays, its name (2026-10-16) */
+        page_cell(&LANE_SRC_PG, k, c);
     }
 }
 static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
@@ -374,6 +376,8 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             page_turn(&LANE_SRC_PG, k, s, fine);
     } else if (k == 1u && ACC_UI) {                     /* the ACCENT amount */
         acc_turn(k, s, fine);
+    } else if (k == 2u && lane_snd()) {                 /* the lane's INSTRUMENT */
+        page_turn(&LANE_SRC_PG, k, s, fine);
     }
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)

@@ -405,9 +405,9 @@ static void mixer_sets_tests(void)
         frame();
         press(B_OCTDN);
         frames(HOLD_FRAMES);
-        key(4);
+        key(BK(4));
         release(B_OCTDN);
-        check(ui.scr == SCR_HOME && lane_selected() != lane_of_key(4) && smute_lane_on(lane_of_key(4)),
+        check(ui.scr == SCR_HOME && lane_selected() != 4u && smute_lane_on(4),
               "SHIFT held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
         press(B_OCTDN);

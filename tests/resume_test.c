@@ -78,7 +78,7 @@ static void make(void)
             (void)env_load(t->p);                    /* (ENV DEST's, ENV2's words as depths -> the slots, as a load) */
         for (i = 0; i < 8u; i++)
             if (k == TRK_DRUM)
-                dstep_set(&t->dstep[i], (i * 3u) % 16u, LV_NORM, 0);
+                dstep_set(&t->dstep[i], (i * 3u) % DRUM_LANES, LV_NORM, 0);
             else {
                 t->step[i].note[0] = (uint8_t)(40u + i + k);
                 t->step[i].n = 1;

@@ -63,7 +63,7 @@ static void mapping_test(void)
     t->p[P_QUANT] = 2;
     for (k = 0; k < 27u; k++) {                /* the drum track: the key's lane, whatever the scale */
         TDRUM->p[P_QUANT] = 2;
-        assert(kb_map(TDRUM, k) == LANE_NOTE[lane_of_key(k)]);
+        assert(kb_map(TDRUM, k) == (lane_of_key(k) < DRUM_LANES ? LANE_NOTE_OF(lane_of_key(k)) : KB_SILENT));
     }
     t->engine = t->eng_req = 4;
     if (drum_set() >= 0) {
@@ -118,7 +118,7 @@ static void all_mapping_test(void)
     }
     song.octave = 0;
     TDRUM->p[P_QUANT] = Q_ALL;
-    for (k = 0; k < 27u; k++) assert(kb_map(TDRUM, k) == LANE_NOTE[lane_of_key(k)]);
+    for (k = 0; k < 27u; k++) assert(kb_map(TDRUM, k) == (lane_of_key(k) < DRUM_LANES ? LANE_NOTE_OF(lane_of_key(k)) : KB_SILENT));
     t->p[P_SCALE] = 1;                     /* ALL + CHORD: every key a chord (C# = the ii: D F A) */
     t->p[P_ROOT] = t->p[P_TRANS] = 0;
     t->p[P_CHORD] = 1;

@@ -431,7 +431,7 @@ static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, i
     if (!usr && drum_set() >= 0) {
         const smp_set_t *set = &SMP_SETS[drum_set()];
         for (i = 0; i < set->nz; i++)
-            if (LANE_NOTE[l] >= SMP_ZONES[set->z0 + i].lo && LANE_NOTE[l] <= SMP_ZONES[set->z0 + i].hi)
+            if (LANE_NOTE_OF(l) >= SMP_ZONES[set->z0 + i].lo && LANE_NOTE_OF(l) <= SMP_ZONES[set->z0 + i].hi)
                 z = &SMP_ZONES[set->z0 + i];
         end = z ? z->n : 0u;
     }
@@ -463,7 +463,7 @@ static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, i
 static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
 {
     int32_t semi;
-    const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE[l], &semi));
+    const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE_OF(l), &semi));
     uint32_t ka, kn, kp, j, blocks, per, hold, nhold, bend, x;
     int32_t a0, n0, pk, a, n, pe = 32767, px = 4, py = y0 + h, bot = y0 + h;
 #if FELUCCA_DRUM_EDIT

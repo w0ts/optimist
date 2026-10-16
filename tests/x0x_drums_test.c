@@ -129,11 +129,11 @@ int main(int argc, char **argv)
         snprintf(what, sizeof what, "%s: every GM note heard, bounded, silent within 9.5 s (hard hit)", KN[k]);
         check(what, ok);
         for (l = 0; l < DRUM_LANES; l++) {         /* the lanes at a step's velocity: the levels */
-            render(kit, LANE_NOTE[l], 100, 0, 1, ra, 0);
+            render(kit, LANE_NOTE_OF(l), 100, 0, 1, ra, 0);
             int32_t p = peak(ra, RN);
             pmin = p < pmin ? p : pmin;
             pmax = p > pmax ? p : pmax;
-            printf("  %-8s %-3s peak %6d\n", LANE_NAME[l], x0x_snd_name(kit, l), p);
+            printf("  %-8s %-3s peak %6d\n", LANE_NAME_OF(l), x0x_snd_name(kit, l), p);
         }
         render(kit, 36, 100, 0, 1, ra, 0);
         render(k ? DRUM_SAMPLED : DRUM_SAMPLED + 1u, 36, 100, 0, 1, rb, 0);
@@ -168,44 +168,44 @@ int main(int argc, char **argv)
         }
         /* the SOUND editor */
         {
-            uint32_t ln = 2;                       /* SNARE */
+            uint32_t ln = 1;                       /* SNARE (lane 2) */
             int32_t p0, p1;
             double h0, h1;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, ra, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, ra, 0);
             p0 = peak(ra, RN);
             h0 = hf(ra);
             dl.ofs[ln][DE_TUNE] = 5;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             snprintf(what, sizeof what, "%s snare TUNE +5: another sound", KN[k]);
             check(what, !same(ra, rb));
             dl.ofs[ln][DE_TUNE] = 0;
             dl.ofs[ln][DE_DECAY] = -40;
-            n = render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            n = render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             dl.ofs[ln][DE_DECAY] = 0;
             {
-                uint32_t n0 = render(kit, LANE_NOTE[ln], 100, 0, 1, rr, 0);
+                uint32_t n0 = render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rr, 0);
                 snprintf(what, sizeof what, "%s snare DECAY -40: shorter (%u vs %u samples)", KN[k], n, n0);
                 check(what, n < n0);
             }
             dl.ofs[ln][DE_LEVEL] = -12;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             p1 = peak(rb, RN);
             dl.ofs[ln][DE_LEVEL] = 0;
             snprintf(what, sizeof what, "%s snare LEVEL -12 dB: peak %d -> %d", KN[k], p0, p1);
             check(what, p1 * 3 < p0 && p1 * 5 > p0);
             dl.ofs[ln][DE_CUT] = -50;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             h1 = hf(rb);
             dl.ofs[ln][DE_CUT] = 0;
             snprintf(what, sizeof what, "%s snare CUT -50: darker (%.3g -> %.3g)", KN[k], h0, h1);
             check(what, h1 < h0 * 0.8);
             dl.ofs[ln][DE_BEND] = 12;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             dl.ofs[ln][DE_BEND] = 0;
             snprintf(what, sizeof what, "%s snare BEND (not shown for a model): no effect", KN[k]);
             check(what, same(ra, rb) && !(x0x_show(kit, ln) & (1u << DE_BEND)));
             dl.ofs[ln][DE_SNAP] = 40;
-            render(kit, LANE_NOTE[ln], 100, 0, 1, rb, 0);
+            render(kit, LANE_NOTE_OF(ln), 100, 0, 1, rb, 0);
             dl.ofs[ln][DE_SNAP] = 0;
             snprintf(what, sizeof what, "%s snare SNAP +40 (Snappy): another sound", KN[k]);
             check(what, !same(ra, rb));
@@ -216,7 +216,7 @@ int main(int argc, char **argv)
                         for (i = 0; i < DE_N; i++)
                             dl.ofs[l][i] = e ? DE_MAX[i] : DE_MIN[i];
                     for (l = 0; l < DRUM_LANES; l++) {
-                        uint32_t end = render(kit, LANE_NOTE[l], 127, 0, 1, rb, 0);
+                        uint32_t end = render(kit, LANE_NOTE_OF(l), 127, 0, 1, rb, 0);
                         ok2 &= peak(rb, RN) < 300000 && end < RN - FS / 4u;
                         if (!(peak(rb, RN) < 300000 && end < RN - FS / 4u))
                             printf("  lane %u %s: peak %d end %u\n", l, e ? "max" : "min", peak(rb, RN), end);
@@ -231,9 +231,9 @@ int main(int argc, char **argv)
         {
             static int32_t rv[RN], rv2[RN];
             render(kit, 38, 100, 0, 1, ra, rv);
-            dsend[2] = dsend_word(31, 0, 0);
+            dsend[1] = dsend_word(31, 0, 0);
             render(kit, 38, 100, 0, 1, rb, rv2);
-            dsend[2] = 0;
+            dsend[1] = 0;
             snprintf(what, sizeof what, "%s snare REV 31 (its own): the reverb bus gets more (%d -> %d)", KN[k],
                      peak(rv, RN), peak(rv2, RN));
             check(what, peak(rv2, RN) > peak(rv, RN) && same(ra, rb));
@@ -275,9 +275,9 @@ int main(int argc, char **argv)
         {
             uint32_t sk = DRUM_SAMPLED + 1u;
             render(kit, 38, 100, 0, 1, ra, 0);
-            dl.src[2] = (uint8_t)(DL_KIT0 + kit);
+            dl.src[1] = (uint8_t)(DL_KIT0 + kit);
             render(sk, 38, 100, 0, 1, rb, 0);
-            dl.src[2] = DL_KIT;
+            dl.src[1] = DL_KIT;
             snprintf(what, sizeof what, "%s: the synthesised 909 kit, its SNARE lane on %s's snare", KN[k], KN[k]);
             check(what, FELUCCA_DRUM_KITS ? same(ra, rb) : 1);
         }
@@ -304,10 +304,10 @@ int main(int argc, char **argv)
          * 909 / 808's sound for the lane */
         static const struct { uint8_t lane, note, src, ref_kit, ref_note; const char *what; } V[] = {
             {0, 36, DL_X808 + 0u, DRUM_UID_X808, 36, "the synthesised 909 kit, KICK on the 808's BD"},
-            {15, 56, DL_X808 + 12u, DRUM_UID_X808, 56, "COWBELL on the 808's CB"},
-            {9, 43, DL_X808 + 9u, DRUM_UID_X808, 75, "LOW TOM on the 808's claves (no lane of their own)"},
-            {4, 42, DL_X909 + 7u, DRUM_UID_X909, 42, "HAT on the 909's CH"},
-            {2, 38, DL_X909 + 1u, DRUM_UID_X909, 38, "SNARE on the 909's SD"},
+            {9, 51, DL_X808 + 12u, DRUM_UID_X808, 56, "RIDE on the 808's CB"},
+            {5, 43, DL_X808 + 9u, DRUM_UID_X808, 75, "LOW TOM on the 808's claves (no lane of their own)"},
+            {3, 42, DL_X909 + 7u, DRUM_UID_X909, 42, "HAT on the 909's CH"},
+            {1, 38, DL_X909 + 1u, DRUM_UID_X909, 38, "SNARE on the 909's SD"},
         };
         static const uint32_t SK[2] = {DRUM_SAMPLED + 1u, DRUM_SAMPLED};   /* the synthesised 909, 808 */
         uint32_t i, ok = 1, okm = 1;
@@ -327,7 +327,7 @@ int main(int argc, char **argv)
         /* a mixed kit: KICK the 808's BD, SNARE the synthesised 909's, HAT the 909's CH; the other lanes as before */
         render(DRUM_SAMPLED + 1u, 38, 100, 0, 1, rb, 0);
         dl.src[0] = (uint8_t)(DL_X808 + 0u);
-        dl.src[4] = (uint8_t)(DL_X909 + 7u);
+        dl.src[3] = (uint8_t)(DL_X909 + 7u);
         render(DRUM_SAMPLED + 1u, 38, 100, 0, 1, ra, 0);
         okm &= same(ra, rb);
         render(DRUM_SAMPLED + 1u, 36, 100, 0, 1, ra, 0);
@@ -336,11 +336,11 @@ int main(int argc, char **argv)
             static project_t p;
             static dlrec_t d;
             proj_capture(&p, &d);
-            dl.src[0] = dl.src[4] = DL_KIT;
+            dl.src[0] = dl.src[3] = DL_KIT;
             proj_apply(&p, &d, 1);
-            okm &= dl.src[0] == DL_X808 + 0u && dl.src[4] == DL_X909 + 7u;
+            okm &= dl.src[0] == DL_X808 + 0u && dl.src[3] == DL_X909 + 7u;
         }
-        dl.src[0] = dl.src[4] = DL_KIT;
+        dl.src[0] = dl.src[3] = DL_KIT;
         check("a mixed kit: KICK on the 808's BD, HAT on the 909's CH, the snare as the kit's; a project keeps them", okm);
     }
 #endif

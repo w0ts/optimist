@@ -20,7 +20,7 @@ static const param_desc_t DLN_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
 static const param_desc_t DLN_MUTE = PE("MUTE", N_ONOFF, 0);
 static const param_desc_t DLN_SOLO = PE("SOLO", N_ONOFF, 0);
 static const param_desc_t DLN_SQ = PE("SEQ MUTE", N_ONOFF, 0);
-#define DLN_NLANES (DRUM_LANES + (FELUCCA_DRUM_ACCENT ? 1u : 0u))   /* (the ACCENT lane: lane 16) */
+#define DLN_NLANES (DRUM_LANES + (FELUCCA_DRUM_ACCENT ? 1u : 0u))   /* (the ACCENT lane: DRUM_ACC, lane 16 on the wire) */
 
 static int dln_ok(uint32_t g, uint32_t l)
 {
@@ -99,17 +99,17 @@ static uint32_t ed_dlan_sig(uint32_t h)
 /* 95 DLAN: 1 = handled (replied), 0 = not this command or bad arguments (no reply) */
 static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
-    uint32_t op = na ? a[0] : 127u, g, l, i, n;
+    uint32_t op = na ? a[0] : 127u, g = na > 1u ? a[1] : 0u, l = na > 2u ? (g == DLG_TRK ? a[2] : edl_in(a[2])) : 0u, i, n;
     const param_desc_t *d;
-    if (cmd != ED_DLAN || na < 3u || op > 4u || op == 1u || !dln_ok(g = a[1], l = a[2]))
+    if (cmd != ED_DLAN || na < 3u || op > 4u || op == 1u || !dln_ok(g, l))   /* (l: the device's lane; the replies: the wire's) */
         return 0;
     n = dln_n(g, l);
     if (op == 0u) {
-        ed_b(0), ed_b(g), ed_b(l), ed_b(n);
+        ed_b(0), ed_b(g), ed_b(a[2]), ed_b(n);
         return 1;
     }
     if (op == 3u) {
-        ed_b(3), ed_b(g), ed_b(l), ed_b(n);
+        ed_b(3), ed_b(g), ed_b(a[2]), ed_b(n);
         for (i = 0; i < n; i++)
             ed_v(dln_get(g, l, i));
         return 1;
@@ -119,7 +119,7 @@ static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
     i = a[3];
     d = dln_d(g, l, i);
     if (op == 2u) {
-        ed_b(2), ed_b(g), ed_b(l), ed_b(i);
+        ed_b(2), ed_b(g), ed_b(a[2]), ed_b(i);
         if (!d)
             return 1;
         ed_b(d->fmt);
@@ -137,7 +137,7 @@ static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     dln_put(g, l, i, ed_rv(a + 4));
     ui.force = 1;
-    ed_b(4), ed_b(g), ed_b(l), ed_b(i);
+    ed_b(4), ed_b(g), ed_b(a[2]), ed_b(i);
     ed_v(dln_get(g, l, i));
     return 1;
 }

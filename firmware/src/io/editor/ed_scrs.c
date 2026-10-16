@@ -34,7 +34,8 @@ static int scrs_in(uint32_t s, uint32_t t, uint32_t l, uint32_t f)
     scrs_was.mset = mx.set, scrs_was.fam = snd_fam, scrs_was.hot = ui.hot, scrs_was.master = ui.master, scrs_was.rs = ui.row[s];
     ui.scr = (uint8_t)s;
     song.sel = (uint8_t)t;
-    ui.lane = l < 17u && is_drum(&trk[t]);
+    l = edl_in(l);                                      /* (the wire's lane: ed_drums.c) */
+    ui.lane = l <= DRUM_ACC && is_drum(&trk[t]);
     if (ui.lane)
         lane_sel = (uint8_t)l;
     if (s == SCR_STEP) {                                /* (STEPS: fam is the step held, 0..63: its cards' pages are the rows; 127 none: PATTERN, TOOLS, EUCLID) */

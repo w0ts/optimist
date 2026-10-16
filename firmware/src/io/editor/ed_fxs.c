@@ -20,7 +20,7 @@
  *       op 6  the drum track's send levels: REV DLY CHO (0..127)
  *   87 FX_PUSH  (v9 push, WATCH bit 2) op 0 and the same state, when it changed on the device (ed_sync9.c ed9_fx) */
 enum { ED_FX = 86, ED_FX_PUSH = 87 };
-#define ED_FX_N (4u + 3u + 2u * DRUM_LANES + NTRK * INS_N + 3u * NTRK + 3u)   /* the state's bytes after the op */
+#define ED_FX_N (4u + 3u + 2u * DRUM_LSTORE + NTRK * INS_N + 3u * NTRK + 3u)   /* the state's bytes after the op (16 lanes: past DRUM_LANES 0) */
 
 static uint32_t ed_cset(uint32_t k, uint32_t i)        /* track k's COMP setting i (127: no COMP built) */
 {
@@ -40,8 +40,8 @@ static void ed_fx_out(uint32_t op)
     for (k = 0; k < 3u; k++)
         ed_b(ed_cset(0, k));
     for (k = 0; k < 2u; k++)
-        for (l = 0; l < DRUM_LANES; l++)
-            ed_b(dins_amt[k][l]);
+        for (l = 0; l < DRUM_LSTORE; l++)
+            ed_b(l < DRUM_LANES ? dins_amt[k][l] : 0u);
     for (k = 0; k < NTRK * INS_N; k++)
         ed_b(ins_slot[k / INS_N][k % INS_N]);
     for (k = 0; k < 3u * NTRK; k++)

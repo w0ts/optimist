@@ -297,7 +297,7 @@ int main(void)
     ins_cset[0][0] = 5;
 #endif
     run_ms(ED9_WIN);
-    check(count(ED_FX_PUSH, n0) == 1 && fr[nf - 1][6 + 4 + 3 + DRUM_LANES + 2] == 90u
+    check(count(ED_FX_PUSH, n0) == 1 && fr[nf - 1][6 + 4 + 3 + DRUM_LSTORE + 2] == 90u
 #if FELUCCA_MASTER_COMP
           && fr[nf - 1][10] == 5u
 #endif
@@ -337,7 +337,7 @@ int main(void)
     {   /* the track insert slots (2026-10-12): op 4 a track's S1 S2, op 5 its COMP settings, op 6 the drum send levels;
          * the state's tail: T1..DR's slots, their RATIO ATK REL, the drum track's REV DLY CHO levels */
         static const uint8_t I4[] = {4, 2, FXT_COMP, FXT_COMP}, I5[] = {5, 1, 3, 2, 5}, I6[] = {6, 64, 127, 200}, B4[] = {4, 4, 1, 1};
-        const uint32_t T = 6u + 4u + 3u + 2u * DRUM_LANES;   /* (ed_out: the tail's first byte) */
+        const uint32_t T = 6u + 4u + 3u + 2u * DRUM_LSTORE;   /* (ed_out: the tail's first byte) */
         int r1, r2, r3, r4;
         ed_begin(ED_FX); r1 = ed_fxs(ED_FX, I4, sizeof I4); ed9_known_fx();
         check(r1 && ins_slot[2][0] == FXT_COMP && ins_slot[2][1] == FXT_NONE && ed_out[T + 4u] == FXT_COMP &&

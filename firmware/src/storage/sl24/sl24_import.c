@@ -356,7 +356,7 @@ static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
             return 0;                                   /* (not a user kit; USR4: not one of our slots) */
         for (l = 0; l < DRUM_LANES; l++)
             for (j = 0; j < usr_nz[k] && j < 16u; j++)
-                if (LANE_NOTE[l] >= usr_zone[k][j].lo && LANE_NOTE[l] <= usr_zone[k][j].hi) {
+                if (LANE_NOTE_OF(l) >= usr_zone[k][j].lo && LANE_NOTE_OF(l) <= usr_zone[k][j].hi) {
                     d->l.src[l] = (uint8_t)(DL_USR + k);
                     dl_set_ref(d->l.ref[l], j, 0, 0);
                     r = 1;

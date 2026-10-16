@@ -393,6 +393,7 @@
       "PRESET": "The track's sound", "ENGINE": "Next engine, first sound",
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"},
+      "INSTR": {"text": "The lane's instrument", "if": "DL_ANY"},
       "FX ON": "Track effects on or off"}},
     {"kind": "op", "ctx": "SOUND", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},

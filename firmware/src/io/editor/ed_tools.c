@@ -26,7 +26,7 @@ static void ed_tools_state(uint32_t op, uint32_t rc, const char *sa, const char 
     track_t *t = TSEL;
     gen_t g = *ng_cur();                                /* (the slot's settings; EUCLID's three values, ON only for EUCLID) */
     GEN_TYPES[g.type % GT_N].fit(&g, trk_len(t));
-    ed_b(op), ed_b(rc), ed_b(song.sel % NTRK), ed_b(lane_selected());
+    ed_b(op), ed_b(rc), ed_b(song.sel % NTRK), ed_b(edl_out(lane_selected()));
     ed_b(trk_len(t) & 0x7Fu), ed_b(g.p[0]), ed_b(g.p[1]), ed_b(g.p[2]), ed_b(g.on && g.type == GT_EUCLID);
     ed_str(sa, 24);
     ed_str(sb, 24);

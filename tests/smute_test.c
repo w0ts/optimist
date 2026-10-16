@@ -163,20 +163,20 @@ static void t_keys(void)
 {
     uint32_t k, l, nb = 0, ok = 1;
     static const uint8_t BLK[4] = {1, 3, 5, 8};
-    for (l = 0; l < 16u; l++)
+    for (l = 0; l < DRUM_LANES; l++)
         ok &= smute_key(key_of_lane(l)) == (int32_t)l;
-    check(ok, "the 16 white keys the lanes play (key_of_lane) mute lanes 0..15 in order");
+    check(ok, "the white keys the lanes play (key_of_lane) mute the lanes in order");
     ok = 1;
     for (k = 0; k < 4u; k++)
         ok &= smute_key(BLK[k]) == 16 + (int32_t)k;
     check(ok, "the black keys F# G# A# C# mute T1 T2 T3 DR");
     for (k = 0; k < 27u; k++)
         nb += smute_key(k) < 0;
-    check(nb == 27u - 20u, "the other 7 keys mute nothing (27 keys: 16 lanes + 4 tracks)");
+    check(nb == 27u - DRUM_LANES - 4u, "the other keys mute nothing (27 keys: the lanes + 4 tracks)");
     check(smute_key(27) < 0 && smute_key(200) < 0, "a key past the keyboard: nothing");
     ok = 1;
     for (k = 0; k < 27u; k++)
-        if (smute_key(k) >= 0 && smute_key(k) < 16)
+        if (smute_key(k) >= 0 && smute_key(k) < (int32_t)DRUM_LANES)
             ok &= lane_of_key(k) == (uint32_t)smute_key(k);
     check(ok, "a lane key is the lane drums.c lane_of_key says (the key plays it)");
     smute_trk = 0, smute_lane = 0;
@@ -266,8 +266,8 @@ static void t_lane(void)
     for (i = 0; i < out_n; i++)
         if (((out_pk[i] >> 24) & 0x7Fu) && (out_pk[i] & 0xFu) == 9u) {
             uint32_t note = (out_pk[i] >> 16) & 0x7Fu;
-            kick += note == LANE_NOTE[0];
-            hat += note == LANE_NOTE[4];
+            kick += note == LANE_NOTE_OF(0);
+            hat += note == LANE_NOTE_OF(4);
         }
     check(kick == 0u && hat >= 8u, "lane 0 muted: no kick note out, the lane 4's go on");
     check(!(drums.hits & 1u) && (drums.hits & 16u), "... and the sound: lane 0 never hits, lane 4 does");
@@ -291,11 +291,11 @@ static void t_record(void)
     reset();
     smute_trk = smute_lane = 0;
     check(smute_tlv(b) == 0u, "nothing muted: no TLV (a project as before writes nothing new)");
-    smute_trk = 5u, smute_lane = 0x8001u;
-    check(smute_tlv(b) == 3u && b[0] == 5u && b[1] == 1u && b[2] == 0x80u, "muted: the 3-byte TLV (tracks, lanes)");
+    smute_trk = 5u, smute_lane = 0x201u;
+    check(smute_tlv(b) == 3u && b[0] == 5u && b[1] == 1u && b[2] == 0x02u, "muted: the 3-byte TLV (tracks, lanes)");
     smute_trk = smute_lane = 0;
     smute_untlv(b, 3);
-    check(smute_trk == 5u && smute_lane == 0x8001u, "... read back");
+    check(smute_trk == 5u && smute_lane == 0x201u, "... read back");
     smute_untlv(b, 2);
     check(smute_trk == 0u && smute_lane == 0u, "a short one: nothing muted");
     smute_trk = 3u, smute_lane = 0x0102u;

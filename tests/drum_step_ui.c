@@ -384,9 +384,9 @@ static void drum_step_tests(void)
     encs[panel.enc[EN_ALGO]] = -1; frame();
     check(song.sel == TRK_DRUM - 1 && !on_drum_page(), "a fresh turn after the stop: leaves for T3");
     ds_open_grid();
-    drum_lane = 15; frames(30);
+    drum_lane = DRUM_LANES - 1u; frames(30);
     encs[panel.enc[EN_ALGO]] = 3; frame();
-    check(drum_lane == 15 && song.sel == TRK_DRUM, "ALGORITHM down at the last lane: stays");
+    check(drum_lane == DRUM_LANES - 1u && song.sel == TRK_DRUM, "ALGORITHM down at the last lane: stays");
 
     /* KNOB 3: set, ratchet, clear */
     ds_clear_drums(64);

@@ -53,15 +53,15 @@ static void acc_key_tests(void)
     release(B_OCTDN);
     check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
           "STEP, SHIFT held + the last upper key: the ACCENT lane picked, silent");
-    for (i = 0; i < 16u; i++) {                         /* a white key still picks its lane, the last upper key only the accent */
+    for (i = 0; i < DRUM_LANES; i++) {                  /* a lane's black key picks its lane, the last upper key only the accent */
         lane_select(DRUM_ACC);
         press(B_OCTDN);
-        kdown(WK(i));
-        kup(WK(i));
+        kdown(key_of_lane(i));
+        kup(key_of_lane(i));
         release(B_OCTDN);
         ok &= lane_selected() == i;
     }
-    check(ok, "... SHIFT + a white key picks its sound");
+    check(ok, "... a lane's black key picks its sound");
     lane_select(3);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     dstep_set(&TDRUM->dstep[0], DRUM_ACC, LV_NORM, 0);
@@ -69,8 +69,8 @@ static void acc_key_tests(void)
     kdown(DACC_KEY);
     kup(DACC_KEY);
     release(B_SEQ);
-    check(lane_selected() == 3u && dstep_has(&TDRUM->dstep[0], DRUM_ACC),
-          "STEP, SEQ held + the last upper key: nothing (no lane picked, no step cleared)");
+    check(lane_selected() == DRUM_ACC && dstep_has(&TDRUM->dstep[0], DRUM_ACC),
+          "STEP, SEQ held + the last upper key: the ACCENT lane picked (a lane key), no step cleared");
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     frames(2);
     /* the keys while recording: a hit of the accent lane into the step playing */
@@ -117,10 +117,10 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     lane_select(2);
     smute_trk = 0;
     press(B_OCTDN);
-    kdown(1);
-    kup(1);
+    kdown(WK(0));
+    kup(WK(0));
     release(B_OCTDN);
-    check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, SHIFT held + upper key 1: T1's sequencer mute, as ever");
+    check(smute_trk_on(0) && lane_selected() == 2u && !smute_lane_on(DRUM_ACC), "the mixer, SHIFT held + the first white key: T1's sequencer mute");
     smute_trk = 0;
     smute_lane = 0;
     press(B_OCTDN);
@@ -348,12 +348,12 @@ static void acc_walk_tests(void)
         ok &= lane_selected() == DRUM_ACC && mx_sel_row() == MXR_ACC && lane_picked() && ui.scr == S[scr];
         turn(EN_ALGO, -1);
         frames(2);
-        ok &= lane_selected() == 15u;
+        ok &= lane_selected() == DRUM_LANES - 1u;
         turn(EN_ALGO, 1);
         frames(2);
         ok &= lane_selected() == DRUM_ACC;
     }
-    check(ok, "ALGORITHM walks on to the ACCENT lane after the 16th, on SOUND, STEP and the mixer, and back");
+    check(ok, "ALGORITHM walks on to the ACCENT lane after the 10th, on SOUND, STEP and the mixer, and back");
     reset_ui();
     song.sel = TRK_DRUM;
     go_home();
@@ -487,10 +487,10 @@ static void acc_other_keys_tests(void)                  /* the other upper keys 
         drums.hits = 0;
         aud_lanes = 0;
         kdown(BLACK[i]);
-        ok &= kb_kind[BLACK[i]] == KS_NONE && aud_lanes == 0u && drums.hits == 0u && lane_selected() == 2u;
+        ok &= kb_kind[BLACK[i]] == KS_DRUM && lane_selected() == lane_of_key(BLACK[i]);
         kup(BLACK[i]);
     }
-    check(ok, "the other ten upper keys, key 1 too: silent, no lane picked (the last upper key is the ACCENT lane's alone)");
+    check(ok, "the other ten upper keys: each plays its lane and picks it (2026-10-16; the last upper key is the ACCENT lane's)");
     check(DACC_KEY == 25u && kb_drum_lane(1) != DRUM_ACC && key_of_lane(DRUM_ACC) == DACC_KEY, "(the ACCENT lane's key is the lone last upper key, 25)");
     reset_ui();
 }

@@ -791,7 +791,7 @@ static int32_t meter_ui_take(uint32_t c)
     *src = 0;
     return pk;
 }
-static int32_t meter_lane_take(uint32_t l) { int32_t pk = dlm_pk[l & 15u]; dlm_pk[l & 15u] = 0; return pk; }
+static int32_t meter_lane_take(uint32_t l) { int32_t pk = dlm_pk[l % DRUM_LANES]; dlm_pk[l % DRUM_LANES] = 0; return pk; }
 static uint32_t meter_gr_take(uint32_t r) { (void)r; return 0; }
 static void meter_master_want(uint32_t on) { (void)on; }
 static int32_t meter_master_take(void) { return 0; }
@@ -1087,9 +1087,9 @@ static void draw_foot(void)
             }
 #if DL_UI
         if (pg->scope == SC_DSND && ov_on()) {         /* VIEW ALL: the rows say the pages, this the sound */
-            pt = LANE_NAME[dsnd_lane()];               /* (CLOSED / PEDAL HAT: the tile name, the footer is full at 8) */
+            pt = LANE_NAME_OF(dsnd_lane());               /* (CLOSED / PEDAL HAT: the tile name, the footer is full at 8) */
             if (str_len(pt) > 8u)
-                pt = LANE_SHORT[dsnd_lane()];
+                pt = LANE_SHORT_OF(dsnd_lane());
         }
 #endif
 #if FELUCCA_ANALOG2

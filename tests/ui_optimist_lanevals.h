@@ -175,7 +175,7 @@ static void lv_dr_tests(void)
 }
 static void lv_step_tests(void)                         /* from STEP: the lane picked with SHIFT + a key, FX */
 {
-    uint32_t kick = lane_of_key(WK(0)), snare = lane_of_key(WK(2)), r;
+    uint32_t kick = 0u, snare = 1u, r;
     const cell_t *c;
     cell_t d;
     lv_set();
@@ -185,11 +185,9 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
     dsend[snare] = dsend_word(2, 11, 20);
     op_enter(SCR_STEP);
     frames(2);
-    press(B_OCTDN);
-    kdown(WK(0));
-    kup(WK(0));
-    release(B_OCTDN);
-    check(lane_selected() == kick && ui.lane == 1u && ui.scr == SCR_STEP, "STEP, SHIFT held + a key: the lane picked");
+    kdown(key_of_lane(kick));
+    kup(key_of_lane(kick));
+    check(lane_selected() == kick && ui.lane == 1u && ui.scr == SCR_STEP, "STEP, a lane's black key: the lane picked");
     tap(B_FX);
     check(ui.scr == SCR_SOUND, "... FX opens the FX family");
     r = lv_row_named("SENDS");
@@ -200,11 +198,9 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
     ppm("opt-lane-sends-kick");
     tap(B_SEQ);
     check(ui.scr == SCR_STEP, "SEQ: back on STEP");
-    press(B_OCTDN);
-    kdown(WK(2));
-    kup(WK(2));
-    release(B_OCTDN);
-    check(lane_selected() == snare, "STEP, SHIFT held + another key: that lane");
+    kdown(key_of_lane(snare));
+    kup(key_of_lane(snare));
+    check(lane_selected() == snare, "STEP, another lane's black key: that lane");
     tap(B_FX);
     r = lv_row_named("SENDS");
     c = lv_card(r, "CHO");

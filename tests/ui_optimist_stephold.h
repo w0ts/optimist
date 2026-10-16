@@ -66,9 +66,9 @@ static void step_hold_tests(void)
         check(sh_on(2) && !st.held, d ? "step hold, drums: ... the one held let go: still set" : "step hold, synth: ... the one held let go: still set");
         /* the held key's LED is lit from the press (the feedback before the toggle) */
         kdown(WK(7));
-        check((step_leds(0) >> key_of_lane(7)) & 1u, d ? "step hold, drums: a key pressed: its LED lit at once" : "step hold, synth: a key pressed: its LED lit at once");
+        check((step_leds(0) >> white_key(7)) & 1u, d ? "step hold, drums: a key pressed: its LED lit at once" : "step hold, synth: a key pressed: its LED lit at once");
         kup(WK(7));
-        check(sh_on(7) && ((step_leds(0) >> key_of_lane(7)) & 1u), d ? "step hold, drums: ... let go: set, lit" : "step hold, synth: ... let go: set, lit");
+        check(sh_on(7) && ((step_leds(0) >> white_key(7)) & 1u), d ? "step hold, drums: ... let go: set, lit" : "step hold, synth: ... let go: set, lit");
     }
 #if FELUCCA_PLOCK
     /* an empty step held + a lock: the lock is written on the rest, no note made (as lock_turn always did) */

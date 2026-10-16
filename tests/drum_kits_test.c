@@ -109,13 +109,13 @@ int main(void)
     dl.src[7] = DL_USR + 1u;
     dl_set_ref(dl.ref[7], 4, 100, 300);
     dl.ofs[0][DE_TUNE] = -3;
-    dl.ofs[15][DE_LEVEL] = -12;
+    dl.ofs[9][DE_LEVEL] = -12;
     check("SAVE into slot 1: ok", ukit_store(0) == 0);
     ukit_name(0, nm);
     check("... shown as KIT 1, the project plays it (ukit 1)", !strcmp(nm, "KIT 1") && dl.ukit == 1u);
     ok = ukit_get(0, &k) && k.base == DRUM_SAMPLED + 1u && k.src[0] == DL_KIT0 + DRUM_SAMPLED + 1u &&
          k.src[2] == DL_KIT0 + DRUM_SAMPLED && k.src[7] == DL_USR + 1u && dl_hit(k.ref[7]) == 4u &&
-         dl_start(k.ref[7]) == 100u && dl_len(k.ref[7]) == 300u && k.ofs[0][DE_TUNE] == -3 && k.ofs[15][DE_LEVEL] == -12;
+         dl_start(k.ref[7]) == 100u && dl_len(k.ref[7]) == 300u && k.ofs[0][DE_TUNE] == -3 && k.ofs[9][DE_LEVEL] == -12;
     check("... read back: KIT lanes as the kit they played, the others as set", ok);
     check("... 196 bytes a kit (no name), the bank in one flash object", sizeof(ukit_t) == 196u && sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX);
     check("the bank's sectors: 0xDA000 / 0xDB000 (after the FM6 bank, 0xD8000; USR3 and the snapshot area end there)", st_sector(OBJ_UKIT, 0) == 0xDA000u &&
@@ -146,41 +146,26 @@ int main(void)
     check("erase slot 1", ukit_put(0, 0) == 0 && !ukit_used(0) && ukit_count() == 1u);
     check("... the project keeps the kit it loaded (its lanes)", dl.ofs[0][DE_TUNE] == -3);
     for (i = 0; i < UK_N; i++) {
-        dl.ofs[i][DE_DECAY] = (int8_t)(i - 8);
+        dl.ofs[i % DRUM_LANES][DE_DECAY] = (int8_t)(i - 8);
         ukit_store(i);
     }
     ok = ukit_count() == UK_N;
     for (i = 0; i < UK_N && ok; i++)
-        ok &= ukit_get(i, &k) && k.ofs[i][DE_DECAY] == (int8_t)(i - 8);
+        ok &= ukit_get(i, &k) && k.ofs[i % DRUM_LANES][DE_DECAY] == (int8_t)(i - 8);
     check("16 kits, each read back", ok);
     uk_read = 0;
     check("after a restart: 16 kits, KIT 16 the last", (ukit_name(15, nm), !strcmp(nm, "KIT 16")) && ukit_count() == UK_N);
-    {   /* an older bank (DKB1: 204-byte kits with a name after used / base): read as the new one, names dropped */
-        static uint8_t old[8u + 16u * 204u];
-        uint32_t u;
-        ukit_get(3, &k);
-        memset(old, 0, sizeof old);
-        old[0] = 'D', old[1] = 'K', old[2] = 'B', old[3] = '1', old[4] = 204, old[6] = 16;
-        for (u = 0; u < 16u; u += 3u) {
-            uint8_t *r = old + 8u + u * 204u;
-            r[0] = UK_USED, r[1] = k.base;
-            memcpy(r + 2, "OLDNAME", 7);
-            memcpy(r + 10, &k.src, 196u - 4u);           /* src, ref, ofs as before the name went */
-        }
-        st_save(OBJ_UKIT, old, sizeof old);
+    {   /* a bank of the 16 fixed lanes (DKB3, before 2026-10-16): not read (no compatibility), the next save starts anew */
+        ukit_bank_t *ob = UK_TMP;
+        memcpy(ob, uk_bank(), sizeof *ob);
+        ob->magic = 0x33424B44u;
+        st_save(OBJ_UKIT, ob, sizeof *ob);
         uk_read = 0;
-        ok = ukit_count() == 6u && ukit_used(0) && ukit_used(15) && !ukit_used(1);
-        for (u = 0; u < 16u && ok; u += 3u) {
-            ukit_t g;
-            ok = ukit_get(u, &g) && g.base == k.base && !memcmp(g.src, k.src, sizeof g.src) && !memcmp(g.ref, k.ref, sizeof g.ref) &&
-                 !memcmp(g.ofs, k.ofs, sizeof g.ofs);
-        }
-        check("an older bank with names (DKB1): its 6 kits read, lanes intact, shown as numbers", ok && (ukit_name(15, nm), !strcmp(nm, "KIT 16")));
-        dl.ofs[0][DE_TUNE] = 5;
-        ok = ukit_store(1) == 0 && ukit_count() == 7u;
-        uk_read = 0;
-        ok &= ukit_count() == 7u && ukit_get(15, &k) && ((const ukit_bank_t *)(const void *)st_buf)->magic == UK_MAGIC;
-        check("... the next save writes the new format (DKB2), every kit kept", ok);
+        check("an older bank (DKB3, 16 lanes): not read, no kit", ukit_count() == 0u && !ukit_used(0));
+        for (i = 0; i < UK_N; i++)
+            ukit_store(i);
+        check("... saves write the new format (DKB4)", ukit_count() == UK_N &&
+              ((const ukit_bank_t *)(const void *)st_buf)->magic == UK_MAGIC && UK_MAGIC == 0x34424B44u);
     }
 
     /* USR3 is 16 KiB shorter (the banks): a longer sample there reads as empty */
@@ -204,9 +189,8 @@ int main(void)
 
     /* the editor commands */
     {
-        uint8_t a[300], b[12];
+        uint8_t a[300], b[12], gw[EDW_DL_N], dw[EDW_DL_N], kw[EDW_UK_N];
         uint32_t n;
-        dlanes_t got;
         for (i = 0; i < 12u; i++)
             b[i] = 0;
         b[DE_CUT] = (uint8_t)-20;
@@ -215,21 +199,23 @@ int main(void)
         n = 1u + pack(b, 12, a + 1);
         ok = cmd(ED_DRUM_LANE, a, n) && ed_out[0] == 9 && dl.ofs[9][DE_CUT] == -20 && dl.src[9] == DL_KIT0 + 3u;
         check("DRUM_LANE 37: set lane 10 (CUT -20, ACOUSTIC's... kit 3)", ok);
-        ok = cmd(ED_DRUM_LANES, a, 0) && ed_unpack7(ed_out, ed_n, (uint8_t *)&got, sizeof got) == sizeof got &&
-             !memcmp(&got, &dl, sizeof got);
-        check("DRUM_LANES 36: the 204 bytes as the device has them", ok);
-        got.ofs[1][DE_TUNE] = 99;                        /* out of range: clamped */
-        n = pack(&got, sizeof got, a);
+        edw_dl_put(&dl, dw);
+        ok = cmd(ED_DRUM_LANES, a, 0) && ed_unpack7(ed_out, ed_n, gw, sizeof gw) == sizeof gw && !memcmp(gw, dw, sizeof gw) &&
+             gw[128 + 9] == DL_KIT0 + 3u && gw[DE_N * 9 + DE_CUT] == (uint8_t)-20;
+        check("DRUM_LANES 36: the 204 bytes of the 16 lanes' layout (lanes 11..16 zero)", ok);
+        gw[DE_N * 1 + DE_TUNE] = 99;                     /* out of range: clamped */
+        n = pack(gw, sizeof gw, a);
         check("DRUM_LANES 36: set, clamped", cmd(ED_DRUM_LANES, a, n) && dl.ofs[1][DE_TUNE] == 24);
         ok = cmd(ED_UKIT_LIST, a, 0) && ed_n == 1u + UK_N && ed_out[0] == UK_N && ed_out[1] == 1 && ed_out[2] == 1;
         check("UKIT_LIST 38: 16, then used per slot (no names)", ok);
         a[0] = 3;                                        /* (used: the older bank's kits are 1, 4, 7, ..) */
         ok = cmd(ED_UKIT_GET, a, 1) && ed_out[0] == 3 && ed_out[1] == 1 &&
-             ed_unpack7(ed_out + 2, ed_n - 2u, (uint8_t *)&k, sizeof k) == sizeof k && k.used == UK_USED;
-        check("UKIT_GET 39: slot 4, 196 bytes", ok);
+             ed_unpack7(ed_out + 2, ed_n - 2u, kw, sizeof kw) == sizeof kw && (edw_uk_get(kw, &k), k.used == UK_USED);
+        check("UKIT_GET 39: slot 4, 196 bytes (the 16 lanes' layout)", ok);
         k.ofs[0][DE_CUT] = -7;
         a[0] = 2;
-        n = 1u + pack(&k, sizeof k, a + 1);
+        edw_uk_put(&k, kw);
+        n = 1u + pack(kw, sizeof kw, a + 1);
         ok = cmd(ED_UKIT_PUT, a, n) && ed_out[1] == 0 && ukit_get(2, &k) && k.ofs[0][DE_CUT] == -7;
         check("UKIT_PUT 40: slot 3 written (an import)", ok);
         song.playing = 1;

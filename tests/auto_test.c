@@ -277,7 +277,7 @@ static uint32_t hits_on(uint32_t step, uint32_t slen)
 {
     uint32_t i, n = 0;
     for (i = 0; i < nhits; i++)
-        n += hits[i].note == LANE_NOTE[0] && (hits[i].pos + slen / 2u) / slen % 8u == step;
+        n += hits[i].note == LANE_NOTE_OF(0) && (hits[i].pos + slen / 2u) / slen % 8u == step;
     return n;
 }
 static void t_chance(void)
@@ -334,7 +334,7 @@ static void make_tracks(uint32_t s)
         trk[i].p[P_SLEN] = 16;
         for (k = 0; k < 4u; k++)
             if (i == TRK_DRUM)
-                dstep_set(&trk[i].dstep[k * 2u], (k + s) % 16u, LV_NORM, 0);
+                dstep_set(&trk[i].dstep[k * 2u], (k + s) % DRUM_LANES, LV_NORM, 0);
             else
                 trk[i].step[k * 2u].note[0] = (uint8_t)(40u + s + k + i), trk[i].step[k * 2u].n = 1,
                 trk[i].step[k * 2u].time = ST_NOTE;

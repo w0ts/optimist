@@ -636,8 +636,7 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
 #if FELUCCA_DRUM_KITS
     if (obj == OBJ_UKIT) {
         const ukit_bank_t *k = (const ukit_bank_t *)(const void *)b;
-        return k->n == UK_N && ((n == sizeof *k && m == UK_MAGIC && k->rsize == sizeof(ukit_t)) ||
-                                (n == 8u + UK_N * UK_RSIZE1 && m == UK_MAGIC1 && k->rsize == UK_RSIZE1));
+        return k->n == UK_N && n == sizeof *k && m == UK_MAGIC && k->rsize == sizeof(ukit_t);   /* (DKB4 only: drum_kits.c) */
     }
 #endif
 #if FELUCCA_ANALOG2

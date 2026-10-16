@@ -95,6 +95,7 @@ static void step_auto_tests(void)
     track_defaults_steps(&trk[TRK_DRUM]);
     memset(&trk[TRK_DRUM].dstep[0], 0, 2u * sizeof(dstep_t));
     AL(&trk[TRK_DRUM])->n = 0;
+    AL(t)->n = 0;                                       /* (the synth step's lock above: with 10 lanes T1's row is in view) */
     ui.force = 1;
     frames(3);
     check(sa_count_auto(OP_PY, 240) == 0u, "step auto: the mixer without a lock has no automation colour");

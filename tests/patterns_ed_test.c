@@ -89,7 +89,7 @@ static void steps(uint32_t k, uint32_t n, uint32_t base)
     trk[k].p[P_SLEN] = (int16_t)n;
     for (i = 0; i < n; i++)
         if (k == TRK_DRUM)
-            dstep_set(&trk[k].dstep[i], (i + base) % 16u, LV_NORM, 0);
+            dstep_set(&trk[k].dstep[i], (i + base) % DRUM_LANES, LV_NORM, 0);
         else
             trk[k].step[i].note[0] = (uint8_t)(base + i), trk[k].step[i].n = 1, trk[k].step[i].time = ST_NOTE,
             trk[k].step[i].vel = (uint8_t)(90 + i % 30u), trk[k].step[i].flags = (uint8_t)(i & 3u), trk[k].step[i].lvl = (uint8_t)(i & 3u),
