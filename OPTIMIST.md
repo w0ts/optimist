@@ -616,6 +616,8 @@ Turn the LFO's **RATE** down past its slowest free rate (0.05 Hz) and it locks t
 
 ## Optional features (build switches)
 
+The default build profile is **Synth** (`config/profiles/synth.config`, the maintainer's own configuration): the experimental engines and features (X0X drums, ACID, JUNO, DUAL core, BLE, the Optimist UI, USB audio, EQ3) are on in it. `user-default` is the generic reference profile the tests build, and differs from it in exactly those items; docs/BUILDER.md, "Published profiles".
+
 Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
 
 ### Snapshots (`FELUCCA_SNAPSHOTS`, 4 by default)

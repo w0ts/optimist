@@ -89,6 +89,14 @@ make delete PROFILE=my-groove       # config --delete my-groove    (mine first, 
 
 In the menu: load the profile (`p`), then `u` (shares one of yours first).
 
+**The default profile is `synth` (Optimist Synth, the maintainer's own build).** `build`, `package`, `flash`, `config`
+and `make` without a profile use it, the menu opens with it the first time (afterwards where you left off), and it is the
+Pages site's flavour (`web/flavours.json`). Against `user-default` it has the experimental items on (the X0X drums, ACID,
+JUNO, PHYS and NOISE engines, DUAL, BLE, UI=1, USB audio, EQ3) and most sample sets and kits off; `PARAM_HELP=0` is the
+one item that goes so that every web editor item (`ED_*`) stays on and the build links. `user-default` is the generic
+reference profile, not the default: the host tests, the gate, `emu-check` and CI's fixtures build it, so its content stays
+as it is. `synth` and `user-default` cannot be deleted. `--defaults` is still every registry default.
+
 ## What is switchable
 
 `tools/builder/registry.py` is the list; `tools/menuconfig --list` prints it. One level only: a top-level
