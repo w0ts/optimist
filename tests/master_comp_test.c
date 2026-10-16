@@ -479,7 +479,7 @@ static void t_cost(void)
     mc_settings(&s, -20, 3, 4, 6, 3);
     a = insn();
     for (k = 0; k < 10u; k++)
-        for (i = 0; i < FS; i += CTL)
+        for (i = 0; i + CTL <= FS; i += CTL)         /* (whole blocks: FS is not a multiple of CTL, the last one read past L and R) */
             mc_run(&c, &s, L + i, R + i, L + i, R + i, CTL);
     b = insn();
     if (a && b) printf("master_comp: cost: compressor %.1f instructions / sample (host, cc -O2)\n", (b - a) / (10.0 * FS));

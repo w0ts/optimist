@@ -234,14 +234,6 @@
     "ramtext": 24
    }
   },
-  "LFO2": {
-   "1": {
-    "flash": 904,
-    "ram": 168,
-    "pool": 64,
-    "ramtext": 196
-   }
-  },
   "DRUM_SYNTH": {
    "0": {
     "flash": -10580,
