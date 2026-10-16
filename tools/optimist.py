@@ -287,7 +287,7 @@ def cmd_web(a):
               file=sys.stderr)
         return 1
     installer, editor = web_urls(a.port)
-    print(f"installer: {installer}\neditor:    {editor}\n"
+    print(f"installer: {installer}\neditor:    {editor}\nbuilder:   {installer.replace('/installer/', '/builder/')}\n"
           "Web MIDI needs Chrome or Edge (Safari and Firefox do not have it). Ctrl-C stops the server.", flush=True)
     if not a.no_open and not web_open(editor):
         print("(could not open a browser: open the editor URL yourself)")
