@@ -268,8 +268,9 @@ static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, '
 #ifdef FELUCCA_LOADER
 static const uint8_t STR2[] = {32, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'U', 0, 'p', 0, 'd', 0, 'a', 0, 't', 0, 'e', 0};   /* (installers match /optimist|felucca|ota/) */
 #else
-/* "Optimist (Felucca)": editors that look for /felucca/i still find it */
-static const uint8_t STR2[] = {38, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, '(', 0, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0, ')', 0};
+/* "Optimist": the product name, which macOS shows for the MIDI device and its ports (the jack strings are 0); editors and tools
+ * match /optimist|felucca/i (stock-era "Felucca" and the builds before 2026-10-16 "Optimist (Felucca)" still match too) */
+static const uint8_t STR2[] = {18, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0};
 #endif
 #if FELUCCA_USB_AUDIO                                   /* the audio functions: host device names */
 static const uint8_t STR3[] = {26, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'O', 0, 'u', 0, 't', 0};

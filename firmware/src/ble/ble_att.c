@@ -52,7 +52,7 @@ static const struct {
     {0, 0, 0, 0},
     {0x2800, A_R | A_SVC, 2, V_GAP},
     {0x2803, A_R, 5, V_NAME_D},
-    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "FM-1 XXXX") */
+    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "Optimist XXXX") */
     {0x2803, A_R, 5, V_APP_D},
     {0x2A01, A_R, 2, V_APP},
     {0x2803, A_R, 5, V_PPCP_D},
