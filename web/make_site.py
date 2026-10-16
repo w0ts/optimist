@@ -6,7 +6,7 @@
   index.html                  redirect to the installer
   firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
-  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
+  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, the metadata and the shared style inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
@@ -76,6 +76,33 @@ def logo_svg():
     return logo.read_text(encoding="utf-8") if logo.exists() else ""
 
 
+STYLE_MARK = "/*OPTIMIST-CSS*/"                    # where a page takes web/style/optimist.css (docs/WEB-STYLE.md)
+HEADER_MARK = "<!--OPTIMIST-HEADER-->"             # where a page takes the shared header
+APPS = (("installer", "Installer"), ("editor", "Editor"), ("builder", "Builder"))
+
+
+def shared_css():
+    """the shared tokens and components (web/style/optimist.css)"""
+    return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
+
+
+def shared_header(app):
+    """the header of the three apps: the dinghy and the name (to the site's root), the app, the links between them
+    (the current one aria-current), the four track colours under it"""
+    links = "".join(f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
+    return (f'<header class="o-head"><div class="o-head-in"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}'
+            f'<b>Optimist</b><span>{app}</span></a><nav class="o-nav" aria-label="Optimist apps">{links}</nav></div></header>'
+            '<div class="o-tracks" aria-hidden="true"><i></i><i></i><i></i><i></i></div>')
+
+
+def styled(html, app, page):
+    """a page with the shared style and header put in (each mark exactly once, else the build stops)"""
+    for mark in (STYLE_MARK, HEADER_MARK):
+        if html.count(mark) != 1:
+            raise SystemExit(f"{page} must contain {mark} once; update make_site.py")
+    return html.replace(STYLE_MARK, shared_css()).replace(HEADER_MARK, shared_header(app))
+
+
 def editor_page():
     """editor.html with a link to the builder after its installer link (the site only: web/editor.html is the editor's
     own file); said on stderr when the editor no longer has that link"""
@@ -108,9 +135,7 @@ def builder_site(out):
     for f in BUILDER_FILES:
         text = (HERE / "builder" / f).read_text(encoding="utf-8")
         if f == "index.html":
-            if text.count("<!--LOGO-->") != 1:
-                raise SystemExit("web/builder/index.html must contain <!--LOGO--> once; update make_site.py")
-            text = text.replace("<!--LOGO-->", logo_svg())
+            text = styled(text, "builder", "web/builder/index.html")
         (dst / f).write_text(text, encoding="utf-8")
     sys.path.insert(0, str(HERE.parent / "tools"))
     import export_builder_web
@@ -163,7 +188,7 @@ def main(pkg, version, out, flavours=None):
         raise SystemExit("index_pkg.html must contain <!--SRCREF--> once; update make_site.py")
     html = html.replace("<!--SRCREF-->", f"/tree/{ref}" if ref else "")
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
-    html = html.replace("<!--LOGO-->", logo_svg())
+    html = styled(html, "installer", "index_pkg.html")
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
@@ -187,7 +212,7 @@ def main(pkg, version, out, flavours=None):
         shutil.copy(HERE.parent / "assets" / "logo" / f, out / f)
     (out / "manifest.webmanifest").write_text(json.dumps({
         "name": "Optimist", "short_name": "Optimist", "start_url": "webapp/editor/", "display": "standalone",
-        "background_color": "#16161a", "theme_color": "#16161a",
+        "background_color": "#141617", "theme_color": "#141617",
         "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}]}, indent=2) + "\n", encoding="utf-8")
     for f in NOTICES:                               # the site root: ../../LICENSE etc. from the installer page

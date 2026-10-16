@@ -50,11 +50,12 @@ const server = createServer((q, r) => {
   r.writeHead(200, { "Content-Type": TYPES[extname(f)] || "application/octet-stream" });
   r.end(readFileSync(f));
 });
-let port = 8800;                                     // (this test's server: the first free port from 8800)
+const PORT0 = +(process.env.E2E_PORT || 8800);
+let port = PORT0;                                    // (this test's server: the first free port from E2E_PORT, default 8800)
 for (;; port++) {
   const up = await new Promise((res) => { server.once("error", () => res(false)); server.listen(port, "127.0.0.1", () => res(true)); });
   if (up) break;
-  if (port > 8899) throw new Error("no free port in 8800..8899");
+  if (port > PORT0 + 99) throw new Error(`no free port in ${PORT0}..${PORT0 + 99}`);
 }
 const cdpPort = 9400 + Math.floor(Math.random() * 400);
 const prof = join(WORK, "chrome");
@@ -108,7 +109,7 @@ await send("Network.enable");
 await send("Runtime.enable");
 await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
 if (PYDIR) await send("Page.addScriptToEvaluateOnNewDocument", { source: "window.OPTIMIST_PYODIDE_BASE = '/pyodide/';" });
-await metrics(1400, 1000, false);
+await metrics(1440, 1000, false);
 await scheme("dark");
 const START_MS = +(process.env.E2E_START_S || 600) * 1000;   // (a busy machine: Python starts slowly)
 const t0 = Date.now();
@@ -175,21 +176,21 @@ ok(!keyBad.length, `tools/optimist.py cloud-key --json on the page's .config: th
 /* ---- the page */
 const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.view && B.state.name === "user-default");
   const ev = B.state.view.eval;
-  return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll(".bar")].map((b) => b.dataset.region), build: $("#build").disabled,
+  return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
     note: $("#buildnote").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
 ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && ui.build && /Cloud builds are not live yet/.test(ui.note) && !ui.dl,
-  "page: the key shown, four bars (FLASH RAM POOL RAMTEXT), Build disabled with its note, Download on");
+  "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build disabled with its note, Download on");
 const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
   await until(() => B.state.values.ENG_FM6 === (was ? 0 : 1) && B.state.view.eval.config.ENG_FM6 === (was ? 0 : 1));
-  const after = B.state.view.eval.budget.total.flash; const shown = $(".bar[data-region=flash] .num").textContent;
+  const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;
   $("#it-ENG_FM6").click(); await until(() => B.state.view.eval.config.ENG_FM6 === (was ? 1 : 0));
   return { before, after, shown, back: B.state.view.eval.budget.total.flash };`);
 ok(tg.before !== tg.after && tg.shown.includes(tg.after.toLocaleString("en-US")) && tg.back === tg.before, `page: ticking FM6 moves the flash estimate (${tg.before} -> ${tg.after}) and back`);
 const er = await run(`${U} for (const k of B.state.reg.top["Synth engines"]) B.state.values[k] = 0; await B.setItem("ENG_ANALOG", 0);
   await until(() => B.state.view.eval.errors.length > 0);
-  const out = { msgs: [...document.querySelectorAll("#msgs .err")].map((p) => p.textContent), row: ($(".row[data-key=ENG_ANALOG] .xerr") || {}).textContent };
+  const out = { msgs: [...document.querySelectorAll("#msgs .o-msg.err[data-kind=rule]")].map((p) => p.textContent), row: ($(".row[data-key=ENG_ANALOG] .xerr") || {}).textContent };
   await B.choosePreset("flavour:default"); await until(() => !B.state.view.eval.errors.length); return out;`);
-ok(er.msgs.some((m) => /ERROR at least one synth engine/.test(m)) && /✗ at least one synth engine/.test(er.row || ""), "page: an error in plain words, in the messages and on the item (validate)");
+ok(er.msgs.some((m) => /^Errorat least one synth engine/.test(m)) && /✗ at least one synth engine/.test(er.row || ""), "page: an error in plain words, in the messages and on the item (validate)");
 const se = await run(`${U} const s = $("#search"); s.value = "reverb"; s.dispatchEvent(new Event("input")); await sleep(50);
   const shownRows = [...document.querySelectorAll(".row")].map((r) => r.dataset.key);
   s.value = ""; s.dispatchEvent(new Event("input"));
@@ -218,44 +219,88 @@ const kb = await run(`${U} const s = $("#sort").value; document.body.focus(); do
   return { s, v, back: $("#sort").value };`);
 ok(kb.s === "" && kb.v === "flash" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram, pool, ramtext)");
 
+/* ---- the notices policy: on the page only what must be acted on; the NOTICE texts in the (i) and the closed notes */
+const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name === "user-default"); await sleep(100);
+  const v = B.state.view, ms = [...document.querySelectorAll("#msgs .o-msg")];
+  const lab = (n) => { const k = (n.keys || [])[0], it = k && B.state.reg.byKey[k]; return it && n.text.startsWith(it.label + ": ") ? n.text.slice(it.label.length + 2) : n.text; };
+  return { kinds: ms.map((p) => p.dataset.kind), text: $("#msgs").textContent, open: $("#notes").open, hidden: $("#notes").hidden, sum: $("#notessum").textContent,
+    notes: $("#noteslist").textContent, notices: v.eval.notices.map(lab), expOn: v.built.filter((k) => B.state.reg.byKey[k].experimental),
+    expLines: [...document.querySelectorAll('#msgs [data-kind="experimental"]')].map((p) => p.dataset.key), red: document.querySelectorAll("#msgs .o-msg.err").length,
+    tags: [...document.querySelectorAll(".row .tags")].filter((t) => /NOTICE/.test(t.textContent)).length,
+    warnColour: [...document.querySelectorAll(".row .o-tag.warn")].every((t) => B.state.view.built.includes(t.closest(".row").dataset.key)) };`);
+ok(np.red === 0 && !/NOTICE/i.test(np.text) && np.kinds.every((k) => k === "experimental") && np.tags === 0,
+  `notices, the default flavour: no red line, no NOTICE on the page or in the list (${np.kinds.length} experimental line${np.kinds.length === 1 ? "" : "s"})`);
+ok(np.expOn.every((k) => np.expLines.includes(k)) && new Set(np.expLines).size === np.expLines.length && np.warnColour,
+  `notices: one line per experimental item that is on (${np.expOn.join(", ") || "none"}), amber only on the items that are on`);
+ok(np.notices.length === 0 ? np.hidden : (!np.open && !np.hidden && np.notices.every((t) => np.notes.includes(t)) && /^Notes \(\d+\)$/.test(np.sum)),
+  `notices: the ${np.notices.length} NOTICE texts in "${np.sum}", closed by default`);
+const pop = await run(`${U} const it = B.state.reg.items.find((x) => x.notice && document.querySelector('.row[data-key="' + x.key + '"] .o-info'));
+  const b = document.querySelector('.row[data-key="' + it.key + '"] .o-info'); b.scrollIntoView({ block: "center" }); b.click(); await sleep(150);
+  const p = $("#pop"), r = p.getBoundingClientRect(); const out = { key: it.key, open: p.matches(":popover-open"), text: p.textContent, notice: it.notice, inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); p.hidePopover(); return out;`);
+ok(pop.open && pop.text.includes(pop.notice) && pop.inView, `notices: an item's (i) opens its notes in a popover, in view (${pop.key})`);
+const ble = await run(`${U} const was = B.state.values.BLE; await B.setItem("BLE", was ? 0 : 1); await sleep(100);
+  const note = B.state.room && B.state.room.note, line = $('.row[data-key="BLE"] .bleline');
+  const r = { note, line: line ? line.textContent : null, inMsgs: !!note && $("#msgs").textContent.includes(note) };
+  await B.choosePreset("flavour:default"); await until(() => B.state.name === "user-default" && !B.state.room); return r;`);
+ok(ble.note ? ble.line === ble.note && !ble.inMsgs : ble.line === null, `BLE: its room note on the Bluetooth row only${ble.note ? ` ("${ble.note.slice(0, 50)}...")` : " (none: it fits)"}`);
+
+/* ---- the gauges stay in view (sticky) while the list scrolls */
+const sticky = (what, maxH) => run(`${U} window.scrollTo(0, 2500); await sleep(200); const g = $("#gauges").getBoundingClientRect();
+  const hit = document.elementFromPoint(Math.min(g.left + 40, innerWidth - 1), g.top + 8);
+  return { y: scrollY, top: g.top, h: g.height, inside: !!(hit && hit.closest("#gauges")), n: document.querySelectorAll("#gauges .o-gauge").length,
+    fit: $("#fit").getBoundingClientRect().bottom <= g.bottom, key: $("#keychip").getBoundingClientRect().bottom <= g.bottom };`).then((s) => {
+  ok(s.y > 1000 && s.top === 0 && s.inside && s.n === 4 && s.fit && s.key && s.h < maxH, `${what}: the gauges, Make it fit and the key stay on top while scrolling (${Math.round(s.h)} px high, at ${s.top})`);
+});
+await sticky("desktop", 110);
+
 /* ---- an overflow: what does not fit, and by how much (shown, never refused) */
 const allOn = items.map((it) => `${it.key}=${Math.max(...valuesOf(it))}`).join("\n") + "\n";
 const ov = await run(`${U} await B.importText(${JSON.stringify("# name: everything\n" + allOn)}, "all on"); await until(() => B.state.name === "everything");
   window.scrollTo(0, 0); await sleep(200);
-  return { over: [...document.querySelectorAll(".bar[data-state=over] .num")].map((e) => e.textContent), msg: [...document.querySelectorAll("#msgs .over")].map((p) => p.textContent),
-    hot: document.querySelectorAll(".cost.hot").length, dl: $("#download").disabled };`);
-await shot("builder-desktop-dark-overflow");
-ok(ov.over.length && ov.over.every((t) => /^OVER by [\d,]+ B$/.test(t)) && ov.msg.some((m) => /overflows by [\d,]+ B\. Biggest/.test(m)) && ov.hot > 0 && !ov.dl,
-  `page: everything on: ${ov.over.length} regions OVER by N B, the biggest items named, red costs; Download still on`);
-await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name === "user-default"); document.querySelector('.row[data-key="FX_REVERB"] .lab').click(); await sleep(300); return true;`);
+  return { over: [...document.querySelectorAll(".o-gauge[data-state=over] .go")].map((e) => e.textContent), msg: [...document.querySelectorAll('#msgs [data-kind="over"]')].map((p) => p.textContent),
+    hot: document.querySelectorAll(".cost.hot").length, dl: $("#download").disabled, regions: Object.keys(B.state.view.over).length, red: document.querySelectorAll("#msgs .o-msg.err").length,
+    rules: B.state.view.eval.errors.length + (B.state.view.undo && B.state.view.undo.short ? 1 : 0), fitPrimary: $("#fit").classList.contains("primary") };`);
+ok(ov.over.length === ov.regions && ov.over.every((t) => /^\+[\d,]+\.\dK$/.test(t)) && ov.msg.length === 1 && /^Over budget/.test(ov.msg[0]) && /Biggest .* items: /.test(ov.msg[0])
+  && /◀ off = fits/.test(ov.msg[0]) && ov.hot > 0 && !ov.dl && ov.fitPrimary,
+  `page: everything on: ${ov.over.length} gauges +N K over, ONE overflow line (the biggest items, the legend), red costs; Make it fit stands out; Download still on`);
+ok(ov.red === 1 + ov.rules, `page: the red lines are the overflow and the broken rules only (${ov.red} = 1 + ${ov.rules})`);
 
-/* ---- the looks: dark and light, desktop and a 390 px phone */
+/* ---- the looks: dark and light, desktop (1440) and a 390 px phone, over budget and fitting */
 const scrollW = () => run(`return { sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth };`);
 const colors = () => run(`return { bg: getComputedStyle(document.body).backgroundColor, fg: getComputedStyle(document.body).color };`);
-await run(`window.scrollTo(0, 0); return true;`);
-await shot("builder-desktop-dark");
+const top0 = () => run(`window.scrollTo(0, 0); await new Promise((r) => setTimeout(r, 150)); return true;`);
+const looks = async (name) => {
+  for (const [w, h, mobile, dev] of [[1440, 1000, false, "desktop"], [390, 844, true, "phone"]]) {
+    await metrics(w, h, mobile);
+    for (const s of ["dark", "light"]) { await scheme(s); await sleep(250); await top0(); await shot(`builder-${dev}-${s}-${name}`); }
+  }
+  await metrics(1440, 1000, false);
+  await scheme("dark");
+};
+await looks("over");
+await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name === "user-default"); document.querySelector('.row[data-key="FX_REVERB"] .lab').click(); await sleep(300); return true;`);
+await looks("fits");
+await top0();
 const dark = await colors();
 await scheme("light");
 await sleep(200);
 const light = await colors();
-await shot("builder-desktop-light");
-ok(dark.bg === "rgb(0, 0, 0)" && light.bg !== dark.bg && light.fg !== dark.fg, `light / dark follow the system (${dark.bg} / ${light.bg})`);
+ok(dark.bg === "rgb(20, 22, 23)" && light.bg === "rgb(217, 222, 221)" && light.fg !== dark.fg, `light / dark follow the system (${dark.bg} / ${light.bg})`);
 await run(`${U} const r = document.querySelector('.row[data-key="FX_REVERB"]'); r.scrollIntoView({ block: "center" }); await sleep(200); return true;`);
-await shot("builder-desktop-light-info");
+await shot("builder-desktop-light-scrolled");
 await metrics(390, 844, true);
 await sleep(400);
 const ph = await scrollW();
 ok(ph.sw <= ph.cw, `390 px phone: no sideways scroll (${ph.sw} <= ${ph.cw})`);
 const gut = await run(`const r = document.querySelector("main").getBoundingClientRect(); const p = getComputedStyle(document.querySelector("main")); return { pl: p.paddingLeft, pr: p.paddingRight, w: r.width };`);
 ok(gut.pl === "16px" && gut.pr === "16px", "390 px phone: 16 px gutters");
-await run(`window.scrollTo(0, 0); return true;`);
-await shot("builder-phone-light");
-await run(`${U} document.querySelector('.row[data-key="FX_REVERB"]').scrollIntoView({ block: "start" }); await sleep(200); return true;`);
-await shot("builder-phone-light-list");
+await sticky("390 px phone", 170);
+await run(`${U} document.querySelector('.row[data-key="FX_REVERB"]').scrollIntoView({ block: "center" }); await sleep(200); return true;`);
+await shot("builder-phone-light-scrolled");
 await scheme("dark");
 await sleep(200);
-await run(`window.scrollTo(0, 0); return true;`);
-await shot("builder-phone-dark");
+await top0();
 const ph2 = await scrollW();
 ok(ph2.sw <= ph2.cw, `390 px phone, dark: no sideways scroll (${ph2.sw} <= ${ph2.cw})`);
 const errs = events.filter((e) => e.method === "Runtime.exceptionThrown");

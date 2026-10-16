@@ -126,11 +126,42 @@ ok(L.fileName("user default") === "user-default.config" && L.fileName("../x") ==
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN
   && /^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v\d+\.\d+\.\d+\/full\/$/.test(L.PYODIDE_CDN), "Pyodide: the pinned CDN version; a test may only point at this site");
+/* the gauges (the sticky bar): used / limit in KiB, the overflow only when over, the limit's mark past it */
+const go = L.gaugeModel("flash", 600000, 581564, 18436), gf = L.gaugeModel("ram", 63660, 98304, -34644);
+ok(go.state === "over" && go.text === "585.9 / 567.9K" && go.overText === "+18.0K" && Math.abs(go.capAt - 581564 / 600000) < 1e-9 && go.fill === go.capAt
+  && /over by 18,436 B/.test(go.tip), "gauges: over: used / limit, +N K in the alert colour, the limit marked, the exact bytes in the tooltip");
+ok(gf.state === "ok" && gf.text === "62.2 / 96.0K" && gf.overText === "" && gf.capAt === null && Math.abs(gf.fill - 63660 / 98304) < 1e-9 && /34,644 B free/.test(gf.tip)
+  && L.gaugeModel("x", 98, 100, -2).state === "tight", "gauges: fitting: used / limit, no overflow text; over 97 % tight");
+/* the notices policy: errors and the experimental items that are on stay on the page; the NOTICE texts go to the notes */
+const reg1 = { byKey: { A: { key: "A", label: "alpha", experimental: true, tested: "emulator-tested only" }, B: { key: "B", label: "beta" }, C: { key: "C", label: "gamma" },
+  U: { key: "U", label: "USB" }, X: { key: "X", label: "off exp", experimental: true, tested: "t" } } };
+const view1 = { built: ["A", "B", "C", "U"], over: {}, savings: {}, undo: null, eval: {
+  errors: [], warnings: [{ text: "alpha: EXPERIMENTAL (emulator-tested only)", keys: ["A"] }, { text: "USB audio: EXPERIMENTAL, not checked", keys: ["U"] }, { text: "DUCK follows the kick", keys: ["B"] }],
+  notices: [{ text: "beta: Tested in the host tests only, not on a device.", keys: ["B"] }, { text: "gamma: Tested in the host tests only, not on a device.", keys: ["C"] }],
+  budget: { unmeasured: [] } } };
+const m1 = L.messagesOf(view1, reg1);
+ok(!m1.errors.length && same(m1.experimental.map((x) => x.key), ["A", "U"]) && m1.notes.length === 2
+  && same(m1.notes[1], { text: "Tested in the host tests only, not on a device.", labels: ["beta", "gamma"] }) && m1.notes[0].text === "DUCK follows the kick",
+  "notices: no error; one line per experimental item that is on (the off one not); a NOTICE text once, with its items; hints in the notes");
+const view2 = { ...view1, built: [], over: { flash: 4096, pool: 100 }, savings: { B: { flash: 5000, pool: 200 } },
+  eval: { ...view1.eval, warnings: [], notices: [], errors: [{ text: "at least one synth engine", keys: ["B"] }] } };
+const m2 = L.messagesOf(view2, reg1);
+ok(m2.errors.length === 2 && m2.errors.filter((e) => e.kind === "over").length === 1 && m2.errors[0].text === "FLASH +4.0K, POOL +0.1K"
+  && m2.errors[0].sub.some((s) => /◀ off = fits/.test(s)) && m2.errors[1].kind === "rule" && !m2.notes.length && !m2.experimental.length,
+  "notices: an overflow is ONE error line (every region, the biggest items, the legend), a broken rule another");
+ok(L.hasInfo(reg1.byKey.A) && !L.hasInfo(reg1.byKey.B) && L.hasInfo({ notice: "n" }) && L.hasInfo({ provenance_line: "p" }), "notices: an (i) on the items with notes");
 const page = readFileSync(join(HERE, "builder", "index.html"), "utf8");
-ok(page.includes("<!--LOGO-->") && /href="\.\.\/installer\/"/.test(page) && /href="\.\.\/editor\/"/.test(page) && /Cloud builds are not live yet/.test(page)
-  && /prefers-color-scheme: light/.test(page) && !/localStorage/.test(page), "page: logo, links to the installer and the editor, the build note, light / dark");
+ok(page.includes("<!--OPTIMIST-HEADER-->") && page.includes("/*OPTIMIST-CSS*/") && /Cloud builds are not live yet/.test(page) && /id="gauges"/.test(page)
+  && /#gauges \{ position: sticky; top: 0/.test(page) && !/localStorage/.test(page), "page: the shared header and style, the sticky gauges, the build note");
+const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8");
+ok(/@media \(prefers-color-scheme: light\)/.test(css) && ["--surface-0", "--surface-3", "--text-dim", "--accent", "--ok", "--warn", "--err", "--t1", "--t4"].every((t) => css.includes(t + ":"))
+  && !/data-theme/.test(css), "style: the tokens, light / dark from the system (no switch)");
 const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-ok(/href="\.\.\/builder\/" data-t="builder"/.test(inst) && /builder: "Builder/.test(inst), "installer: links to the builder");
+ok(/href="\.\.\/builder\/" data-t="builder"/.test(inst) && /builder: "Builder/.test(inst) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
+  "installer: the shared header and style, links to the builder");
+const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps([make_site.shared_header(a) for a in ('installer', 'editor', 'builder')]))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
+ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
+  && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
 
 console.log(failed ? `${failed} FAILED` : "all ok");
 process.exit(failed ? 1 : 0);
