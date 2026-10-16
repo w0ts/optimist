@@ -1,6 +1,6 @@
 # The Optimist UI: controls, pages and read-outs
 
-This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). It is still EXPERIMENTAL. What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
+This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
 
 ## The controls
 
@@ -37,6 +37,7 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 ### SHIFT2 is OCT+ held
 
 - **SHIFT2 + the volume knob on the mixer** (a track's VOLUME, the drum track's VOLUME, a lane's LEVEL, the ACCENT amount, the USB IN row's VOLUME): toggles that row's mute, once for each hold. There is no MUTE card. Turning a muted row's volume card unmutes it.
+- **SHIFT + SHIFT2 (OCT- and OCT+ both held) + the volume knob on the mixer** (a track, the drum track, a lane, USB IN; not the ACCENT lane, the returns or MASTER): toggles that row's **solo**, once for each hold. SHIFT + the knob alone resets the value, SHIFT2 + the knob alone mutes. The tracks also solo with GLO + keys 5-8.
 - **SHIFT2 + PRESETS:** marks the sound playing a **favorite** (turn right) or not (left). SHIFT2 + SELECT browses only the favorites (right) or every sound (left); the toast says FAVORITES ONLY or ALL SOUNDS. Synth tracks only; not on STEP, MASTER, GLOBAL or SYSTEM, and not while a question is asked. It needs the `FAVORITES` builder item.
 - **SHIFT2 + ITEM on PROJECT > USER:** marks that user preset slot a favorite.
 
@@ -61,9 +62,9 @@ The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2
 - **Mix:** a track VOLUME and PAN; the drum track VOLUME; a lane LEVEL, CUT, DRIVE; the ACCENT lane its ACCENT amount (a velocity).
 - **Inserts:** the row's two insert slots, S1 TYPE and amount, S2 TYPE and amount (see [effects.md](effects.md)). MASTER: its two slots, then THRS, RATIO, GAIN, CEIL while DYN is in a slot.
 - **Sends:** REV, DLY, CHO (blank where no slot holds that send) and card 4 PAN, on synth tracks, the drum track and the drum lanes. MASTER shows the returns, one card for each send a master slot holds (REV RET, DLY RET, CHO RET), and DUCK where built.
-- The USB IN row: VOLUME, PAN, FX ON, its two insert slots, REV, DLY, CHO; its mute is SHIFT2 on VOLUME.
+- The USB IN row: VOLUME, PAN, FX ON, its two insert slots, REV, DLY, CHO; its mute is SHIFT2 on VOLUME, its solo SHIFT + SHIFT2 on VOLUME.
 
-A muted track or lane is **struck through**: a 1 px line (2 in the large face) through its mixer row name, the header badge on its pages ("2 DIGITAL") and its volume card's label and value. Unmuted, nothing is drawn. The sequencer mute (SHIFT + a key) is a different mute from the volume mute (SHIFT2) and is saved with the project. On MASTER the keys are silent. PRESETS on a row changes that row's sound.
+A muted track or lane is **struck through**: a 1 px line (2 in the large face) through its mixer row name, the header badge on its pages ("2 DIGITAL") and its volume card's label and value. Unmuted, nothing is drawn. The sequencer mute (SHIFT + a key) is a different mute from the volume mute (SHIFT2) and is saved with the project. A soloed row shows an S in its mixer row (a lane's code turns green). Solo is one set across the tracks, the drum lanes and USB IN: whatever is not soloed is silent while anything is; a soloed lane keeps the drum track heard and only that lane plays in it; the returns and MASTER are never silenced. On MASTER the keys are silent. PRESETS on a row changes that row's sound.
 
 ## The tempo page: PLAY held
 
@@ -112,7 +113,8 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
-- **BLUETOOTH:** BLE, OFF, ON, LINK (connected) or NO CAL (the radio has no stored trims and never starts). SAVE on it opens the list of BLE devices.
+- **Bluetooth:** BLUETOOTH ON / OFF (NO CAL: the radio has no stored trims and never starts); STATE (OFF, STARTING, ADVERTISING, SCANNING, CONNECTING, SEARCHING, PAIRING, CONNECTED, FAILED); DEVICE (who the link is with: the device's name, HOST for a computer or phone that connected to the FM-1, NONE); MIDI (IN / OUT lit while messages pass).
+- **Devices:** DEVICES (SAVE: SCAN, the list of BLE devices: NONE, LAST, the devices nearby with signal bars; SAVE connects, asked first; HOME back); RECONNECT (OFF, or the last device's name: reconnect to it by itself); LAST DEVICE FORGET (asks first).
 - **CALIBRATE:** PANEL (runs the panel calibration, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) CH1 to CH4, the source of each of the four capture channels sent to the computer: the main mix (L, R or sums), T1 to T3, DRUMS, the drum bus, a drum lane tap (DR1 to DR16) or OFF.
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address.
@@ -139,7 +141,7 @@ The first SYSTEM pages are read-outs, text only; no knob does anything there. Th
 | Line | Meaning |
 |---|---|
 | LAST RESET | How the boot before this one ended: POWER ON, CRASH (CRASH1: CPU1 named), WDT, SOFT, KEY or LOW V, then how long it ran, and a crash address or the step it was in. Debug builds only. |
-| FLASH IRQS OFF | The longest time interrupts were off for a flash operation, in microseconds (amber when longer than an audio half). |
+| FLASH IRQS OFF | The longest time interrupts were off for a flash operation, in microseconds, and which one held it (erase, write or read; amber when longer than an audio half). A sector erase runs in windows of about 1 ms (the flash chip pauses it between them), so the audio keeps playing. |
 | CPU1 JOBS DONE / RE-WAKES | Jobs joined (thousands) / times CPU0 woke CPU1 again for a job it had not picked up (amber when not 0). Builds with two cores. |
 | CPU1 LAST STOP | `--`: CPU1 never stopped. Otherwise when and where: `W` the job was never picked up; `J<n>` it was in job n (1 to 4 a part, 5 the drums, 6 the reverb, 0 none begun); `IDLE` no job was posted (a boot check, a flash operation). The time is since CPU1 started (milliseconds under 10 s, then seconds). |
 | CPU1 GOT TO / HEARTBEAT | How far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE. |
@@ -159,7 +161,7 @@ These counters exist to find the cause of an occasional glitch while the compute
 
 ## Connections
 
-- **BLE MIDI** (experimental; our own Bluetooth stack): SYSTEM > BLUETOOTH above. The manual's note on it is the paragraph "HOME double tap > SYSTEM menu > BLUETOOTH" in [OPTIMIST.md](../../OPTIMIST.md) (written for the SLOOP UI), and the stack is in [docs/BLE-STACK.md](../BLE-STACK.md).
+- **BLE MIDI** (our own Bluetooth stack): SYSTEM > BLUETOOTH above. The manual's note on it is the paragraph "HOME double tap > SYSTEM menu > BLUETOOTH" in [OPTIMIST.md](../../OPTIMIST.md) (written for the SLOOP UI), and the stack is in [docs/BLE-STACK.md](../BLE-STACK.md).
 - **USB** carries MIDI, and in a USB audio build the computer's audio: [OPTIMIST.md, USB audio](../../OPTIMIST.md#usb-audio-experimental). The USB port item of the builder chooses console, USB audio or MIDI only.
 - **TRS MIDI** in and out, **MIDI clock in and out**, sync: [OPTIMIST.md, MIDI clock and sync](../../OPTIMIST.md#midi-clock-and-sync) and GLOBAL's MIDI page above.
 

@@ -246,15 +246,15 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
                                                          * slots: the project's modulation record, else its words */
         int16_t s[4], mv[P_COUNT];
         int32_t spill;
-        const uint8_t *mb = mrec_parts_of(q);
+        uint32_t mtag = 0;
+        const uint8_t *mb = mrec_parts_of(q, &mtag);
         int16_t x[NPART][L2_NV];
         (void)l2_unpack(q, x);
         if (mb) {
             memcpy(mv, v, sizeof mv);
-            mrec_part_vals(mb, k, mv);
+            (void)mrec_part_vals(mb, k, mv, mtag);
             memcpy(s, &mv[P_L1DA], sizeof s);
             memcpy(x[k], &mv[P_L2RATE], sizeof x[k]);
-            (void)env_store(mv);                        /* (ENV DEST's slots as 2.4's FLT SHP depths) */
             sl24_w16(o + 2u * P_ED_FLT, mv[P_ED_FLT]);
             sl24_w16(o + 2u * P_ED_SHP, mv[P_ED_SHP]);
         } else {
@@ -367,7 +367,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
                                                                                * are stored 0, P4-2) */
     for (i = 1; i < 4u; i++) {
         lost |= FXS_HAS(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
-        lost |= FXS_HAS(T[i]) && song.g[G_CRET + (T[i] - FXT_CHO)] < 127 ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
+        lost |= FXS_HAS(T[i]) && (song.g[G_CRET + (T[i] - FXT_CHO)] < 127 || (fx_rmute >> (T[i] - FXT_CHO) & 1u)) ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
         lost |= FXS_HAS(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX

@@ -94,6 +94,15 @@ static uint32_t mx_muted(uint32_t r)
         return (uint32_t)dlm_muted(r - MXR_LANE0);
     return trk[mx_trk_of(r)].p[P_MUTE] != 0;
 }
+/* row r soloed (the one solo set: song.solo's track bits, a lane's own mask, the USB input's SOLO_USB; the returns, the master and the ACCENT
+ * lane have none), what SHIFT + SHIFT2 on the volume card toggles */
+static uint32_t mx_soloed(uint32_t r)
+{
+    uint32_t l = r - MXR_LANE0;                         /* (a track or DR: below the lanes, wraps) */
+    if (l < DRUM_LANES)
+        return (uint32_t)dlm_soloed(l);
+    return r != MXR_MASTER && !mx_is_acc(r) && ((song.solo >> (mx_is_usb(r) ? 7u : mx_trk_of(r))) & 1u);
+}
 /* a drum lane selected, not DR itself (ui.lane): on the mixer its row says it (a lane row), elsewhere ui.lane while the
  * drum track is selected. PRESETS then steps the lane's sound, not the kit (op_walk.c) */
 static int lane_picked(void)
@@ -475,6 +484,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     c->strike |= (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
                            (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
                           mx_muted(r));   /* (the volume cards of a muted row) */
+    c->strike |= (uint8_t)(m.kind == MI_RET && (fx_rmute >> (m.id - G_CRET) & 1u));   /* (a muted return's card) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
     if (m.kind == MI_RSND)
@@ -498,6 +508,11 @@ static int mx_is_vol(const mitem_t *m)                  /* the volume card: VOLU
     return (m->kind == MI_TRK && m->id == P_LEVEL) || (m->kind == MI_GLOB && m->id == G_DRLVL) ||
            (m->kind == MI_LANE && m->id == DE_LEVEL) || m->kind == MI_ACC || (m->kind == MI_UT && m->id == 0u);
 }
+static const char *mx_code(uint32_t r);                 /* op_mixdraw.c */
+static void mx_say(uint32_t r, const char *what)        /* the toast: the row's code (the USB input's: its name), what happened to it */
+{
+    ui_say(mx_is_usb(r) ? "USB" : mx_code(r), what);
+}
 /* a muted row whose volume card was turned (a value change, or HOME / OCT- + the knob's reset that moved it) is unmuted */
 static void mx_unmute(uint32_t r, const mitem_t *m)
 {
@@ -514,36 +529,53 @@ static void mx_unmute(uint32_t r, const mitem_t *m)
         dlm_set_mute(r - MXR_LANE0, 0);
     else
         trk[mx_trk_of(r)].p[P_MUTE] = 0;
-    ui_say(m->kind == MI_ACC ? DACC_CODE : m->kind == MI_LANE ? LANE_CODE[r - MXR_LANE0] : m->kind == MI_TRK || m->kind == MI_GLOB ? trk_tag(mx_trk_of(r)) : "USB", " ON");
+    mx_say(r, " ON");
 }
-static int mx_mute_toggle(uint32_t r, const mitem_t *m)
+/* a return's mute (MASTER's RET cards, fx.c fx_rmute: its output into the master is silent, its bus runs on): SHIFT2 on the card toggles it, once per hold */
+static int mx_ret_mute(const mitem_t *m)
+{
+    uint32_t ln = (uint32_t)(m->id - G_CRET) % 3u;
+    if (mx_s2_done)
+        return 1;
+    mx_s2_done = 1;
+    fx_rmute = (uint8_t)(fx_rmute ^ (1u << ln));
+    ui_say(fxs_ret_label(ln), (fx_rmute >> ln & 1u) ? " MUTE" : " ON");
+    return 1;
+}
+/* with solo (SHIFT + SHIFT2: OCT- and OCT+ both held; SHIFT + the knob alone is the reset) the row's solo toggles instead, on a track, DR, a lane or
+ * the USB input (the ACCENT lane has none: its mute) */
+static int mx_mute_toggle(uint32_t r, const mitem_t *m, int solo)
 {
     int on;
-    uint32_t t = mx_trk_of(r);
+    const char *mu = " MUTE";
+    if (m->kind == MI_RET)
+        return mx_ret_mute(m);
     if (!mx_is_vol(m))
         return 0;
     if (mx_s2_done)
         return 1;
     mx_s2_done = 1;
+    if (solo && m->kind != MI_ACC) {
+        if (m->kind == MI_LANE)
+            dlm_set_solo(r - MXR_LANE0, !mx_soloed(r));
+        else
+            song.solo ^= (uint8_t)(m->kind == MI_UT ? SOLO_USB : 1u << mx_trk_of(r));
+        on = (int)mx_soloed(r);
+        mu = " SOLO";
 #if FELUCCA_USB_AUDIO
-    if (m->kind == MI_UT) {                             /* (the USB input's VOLUME) */
-        ut.v[UTV_MUTE] = (int16_t)!ut.v[UTV_MUTE];
-        ui_say("USB", ut.v[UTV_MUTE] ? " MUTE" : " ON");
-        return 1;
-    }
+    } else if (m->kind == MI_UT) {                      /* (the USB input's VOLUME) */
+        on = ut.v[UTV_MUTE] = (int16_t)!ut.v[UTV_MUTE];
 #endif
-    if (m->kind == MI_ACC) {
+    } else if (m->kind == MI_ACC) {
         on = smute_toggle(SMUTE_ACC);
-        ui_say(DACC_CODE, on ? " SEQ MUTE" : " SEQ ON");
+        mu = " SEQ MUTE";
     } else if (m->kind == MI_LANE) {
         on = !dlm_muted(r - MXR_LANE0);
         dlm_set_mute(r - MXR_LANE0, on);
-        ui_say(LANE_CODE[r - MXR_LANE0], on ? " MUTE" : " ON");
     } else {
-        on = !trk[t].p[P_MUTE];
-        trk[t].p[P_MUTE] = (int16_t)on;
-        ui_say(trk_tag(t), on ? " MUTE" : " ON");
+        on = trk[mx_trk_of(r)].p[P_MUTE] = (int16_t)!trk[mx_trk_of(r)].p[P_MUTE];
     }
+    mx_say(r, on ? mu : m->kind == MI_ACC ? " SEQ ON" : " ON");
     return 1;
 }
 static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
@@ -554,7 +586,7 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     r %= MXR_N;
     if (!mx_item(r, k, &m))
         return;
-    if (op_shift2(fm1_in.buttons) && mx_mute_toggle(r, &m))
+    if (op_shift2(fm1_in.buttons) && mx_mute_toggle(r, &m, op_shift(fm1_in.buttons)))
         return;
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)
@@ -596,6 +628,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         val_turn(d, vp, k, s, fine);
         if (mx_is_vol(&m) && (*vp != was || s == OP_RESET))
             mx_unmute(r, &m);                           /* (a reset counts, whatever the value was) */
+        else if (m.kind == MI_RET && (*vp != was || s == OP_RESET) && (fx_rmute >> ((uint32_t)(m.id - G_CRET) % 3u) & 1u)) {
+            fx_rmute = (uint8_t)(fx_rmute & ~(1u << ((uint32_t)(m.id - G_CRET) % 3u)));   /* (a turned level unmutes it, as a volume knob) */
+            ui_say(fxs_ret_label((uint32_t)(m.id - G_CRET) % 3u), " ON");
+        }
     }
 }
 /* YES on the mixer: none (the user, 2026-10-12, D6: SAVE tapped there is PROJECT, always, op_input.c). FX on and MUTE are

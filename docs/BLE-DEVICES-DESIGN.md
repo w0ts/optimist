@@ -357,7 +357,14 @@ timeout, the peer powered off). Only with `sel` = LAST; NONE (or no entry) just 
 
 ### 3.4 The advertised name
 
-`FM-1 XXXX`, XXXX = the last four hex digits of the device address (`persist_t.ble_addr`), upper case: `FM-1 A1B2`.
+**Renamed 2026-10-16: `Optimist XXXX`** (`Optimist A1B2`; `BLE_DEVICE_NAME` in `ble/ble_cfg.h`). Not `Optimist (Felucca) XXXX`, as the USB
+name is: that fits the 31-byte scan response and the 29-byte GAP name (23 characters), but a scanned device's name is kept
+to `BLE_NAME_MAX` = 16 characters, which would cut the XXXX in the DEVICES list; the editors match `/felucca|optimist/i`.
+KIND FM-1 = the `Optimist ` prefix, or `FM-1 ` (the builds before the rename). macOS keeps the name it first saw per
+peripheral address (Audio MIDI Setup, Bluetooth settings): after the rename "forget" the device in System Settings >
+Bluetooth (and remove it in Audio MIDI Setup > Bluetooth) and pair again to see the new name.
+
+The original text: `FM-1 XXXX`, XXXX = the last four hex digits of the device address (`persist_t.ble_addr`), upper case: `FM-1 A1B2`.
 Eight characters, in the AD or the scan response as today (+~0.05 KB for the hex). Macs and phones that cached the
 stock `FM-1_BLE` show the new name after the next scan; a Mac's saved Audio MIDI Setup entry is by address, so it
 keeps working [I: check in P1].

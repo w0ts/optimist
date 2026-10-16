@@ -31,5 +31,8 @@
   "warn": "#e3a21a",
   "err": "#e04848"
  },
+ "marks": {
+  "auto": "#ffec80"
+ },
  "other": "#8a8a8a"
 }

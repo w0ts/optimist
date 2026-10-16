@@ -1,10 +1,10 @@
 # BLE MIDI, route C: our own stack (link layer, host, BLE-MIDI)
 
-Status: **EXPERIMENTAL. Host-tested, end to end in the emulator against its model of the BLE engine (§11), and
+Status: **Host-tested, end to end in the emulator against its model of the BLE engine (§11), and
 tested on an FM-1: a Mac (macOS Audio MIDI Setup) connects and MIDI goes both ways (not yet tried with iOS or
 Windows).** Parts of the radio's start-up stay TODO(hardware) (§12.6). Build flag `FELUCCA_BLE` (default 0 = off; the
 image with it off is byte-identical to one without this code, but for the builder's configuration hash). A BLE build
-needs the user's own stock V15 once, to capture the radio's tables (§12.3). Builder items `BLE` (Experimental group)
+needs the user's own stock V15 once, to capture the radio's tables (§12.3). Builder items `BLE` (MIDI & USB group)
 and its options `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7), `BLE_BOND` (bonding, §5.1) and `BLE_CENTRAL`
 (the DEVICES list, connecting out to BLE-MIDI devices and reconnecting the last one, §13).
 

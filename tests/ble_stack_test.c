@@ -414,8 +414,8 @@ static void test_advertising(void)
     check("ADV_IND: header (type 0, TxAdd random, ChSel 0), AdvA, flags + MIDI UUID",
           hw.adv[0] == 0x40 && hw.adv[1] == 6 + sizeof ad && !memcmp(hw.adv + 2, ADDR, 6) &&
               !memcmp(hw.adv + 8, ad, sizeof ad));
-    check("SCAN_RSP: 0A 09 \"FM-1 2211\" (the last four hex digits of ..:22:11)",
-          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 11 && hw.sr[8] == 10 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "FM-1 2211", 9));
+    check("SCAN_RSP: 0E 09 \"Optimist 2211\" (the last four hex digits of ..:22:11)",
+          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 15 && hw.sr[8] == 14 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "Optimist 2211", 13));
     connect_ind(pdu, 0x50654A6B, 2, 3, 24, 0, 72, ALL, 7);
     pdu[8] ^= 1;
     ok &= !ble_ll_hw_connect_ind(pdu, 36);
@@ -604,10 +604,10 @@ static void test_gatt(void)
     check("characteristics: MIDI I/O (read, write w/o rsp, notify) at 14; CCCDs at 11 and 15",
           ok && midi_val == 14 && midi_ccc == 15 && sc_ccc == 11);
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("Read Device Name: FM-1 2211, the advertised name", r && r[0] == 0x0B && n == 10 && !memcmp(r + 1, "FM-1 2211", 9));
-    r = c_att((const uint8_t[]){0x0C, 3, 0, 5, 0}, 5, &n);
-    check("Read Blob at 5: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
-    r = c_att((const uint8_t[]){0x0C, 3, 0, 10, 0}, 5, &n);
+    check("Read Device Name: Optimist 2211, the advertised name", r && r[0] == 0x0B && n == 14 && !memcmp(r + 1, "Optimist 2211", 13));
+    r = c_att((const uint8_t[]){0x0C, 3, 0, 9, 0}, 5, &n);
+    check("Read Blob at 9: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
+    r = c_att((const uint8_t[]){0x0C, 3, 0, 14, 0}, 5, &n);
     check("Read Blob past the end: Invalid Offset", r && r[0] == 0x01 && r[4] == 0x07);
     r = c_att((const uint8_t[]){0x0A, 14, 0}, 3, &n);
     check("Read MIDI I/O: empty", r && r[0] == 0x0B && n == 1);
@@ -616,7 +616,7 @@ static void test_gatt(void)
     r = c_att((const uint8_t[]){0x0A, 16, 0}, 3, &n);
     check("Read handle 16: Invalid Handle", r && r[0] == 0x01 && r[2] == 16 && r[4] == 0x01);
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0x00, 0x2A}, 7, &n);
-    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 11 && r[2] == 3 && !memcmp(r + 4, "FM-1 2211", 9));
+    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 15 && r[2] == 3 && !memcmp(r + 4, "Optimist 2211", 13));
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0xFB, 0x34, 0x9B, 0x5F, 0x80, 0, 0, 0x80, 0, 0x10, 0, 0, 0x04,
                               0x2A, 0, 0}, 21, &n);
     check("Read By Type with a 128-bit base UUID (PPCP): 6, 9, 0, 100",
@@ -764,7 +764,7 @@ static void test_l2cap(void)
                   ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[0] == 0x0A &&
                   ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[1] == 3 && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].n == 3 &&
                   ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].ch == (BDP_ATT | BDP_TX) &&
-                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 10);
+                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 14);
     }
     memset(big, 0, sizeof big);
     big[0] = 0x52, big[1] = 14, big[2] = 0, big[3] = 0x80;
@@ -948,7 +948,7 @@ static void test_encryption(void)
     C.enc = 1;
     C.crx.ctr = 2;
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 10);
+    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 14);
     {
         uint8_t bad[2 + 8] = {0x02, 0x05, 1, 2, 3, 4, 5, 6, 7, 8};
         memcpy(C.q[C.qn++], bad, sizeof bad);
@@ -1080,7 +1080,7 @@ static void test_smp(void)
               peer_id.n == 1 && !memcmp(peer_id.irk, k55, 16) && !memcmp(peer_id.addr, k55, 6) && peer_id.rnd == 0);
     }
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 10);
+    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 14);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;
@@ -1088,7 +1088,7 @@ static void test_smp(void)
     c_events(2);
     check("a returning central: LL encryption with the bond's LTK (EDIV, Rand)", c_start_enc(ltk, rand, ediv));
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 10 && c_frame(6, &n) == 0);
+    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 14 && c_frame(6, &n) == 0);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;

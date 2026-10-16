@@ -58,7 +58,35 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-#define GL_MAXL 24u                                     /* the lines of a screen, at most (19 at most, DUAL, BLE, CDC, every option) */
+/* the lines of a screen, at most: SYSTEM's in this build (11 always, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
+ * BLE_CENTRAL), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
+#if FELUCCA_BLE
+#define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
+#else
+#define GL_NBLE 0u
+#endif
+#if FELUCCA_BRIGHT
+#define GL_NBRI 1u
+#else
+#define GL_NBRI 0u
+#endif
+#if FELUCCA_USB_AUDIO
+#define GL_NUA 5u
+#else
+#define GL_NUA 0u
+#endif
+#if FELUCCA_LIGHTS
+#define GL_NLIT 2u
+#else
+#define GL_NLIT 0u
+#endif
+#if FELUCCA_CDC
+#define GL_NCDC 1u
+#else
+#define GL_NCDC 0u
+#endif
+#define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE)
+#define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BLE
 #define GL_DEV (bdv.open != 0u)                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else

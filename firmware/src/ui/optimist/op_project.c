@@ -11,6 +11,7 @@
  * row's action and its signal. The words are in sentence case, as the rest of the UI; a device's name is shown as it
  * advertises itself ("KeyStep 37", "MPC Live"), never recased. */
 #define DEV_ROW_H 20
+#define BLE_ACT_MS 300u                                 /* SYSTEM > Bluetooth's MIDI IN / OUT lit this long after a message */
 #define DEV_STATUS_H 24                                 /* the status line under the rows */
 #define DEV_LINE_W 232                                  /* the status line's room: 4 px in from each side */
 static struct {
@@ -24,7 +25,13 @@ static struct {
     uint8_t near[BLE_SCAN_N];
     uint32_t n, cur, first, shown, h, tone;
     uint16_t bar;
-    char st[40];
+    union {
+        char st[40];                                    /* the status line (dev_draw, while the list is open) */
+        struct {
+            uint32_t i, o, ti, to;                      /* the Bluetooth page's MIDI line: midi_ble.c's ring counts seen, and when
+                                                         * they moved (only while the list is closed: no RAM of its own) */
+        } act;
+    };
 #if BLE_CENTRAL
     uint32_t key;                                       /* the passkey (BLE_NO_PASSKEY: none) */
 #endif
@@ -62,6 +69,8 @@ static void dev_close(void)
         return;
     bdv.open = 0;
     ble_devices_open(0);                                /* (the scan stops, advertising goes on) */
+    bdp.act.i = bmi_w, bdp.act.o = bmo_w;               /* (the MIDI line's counters take the status line's place: dark) */
+    bdp.act.ti = bdp.act.to = fm1_ms - BLE_ACT_MS;
     ui.row[SCR_SYSTEM] = bdv.sys_row;
     ui.hot = 0;
     ui.hot_lit = 0;
@@ -190,6 +199,8 @@ static void dev_paint(void)                             /* the panel's band in i
             dev_bars(wide - 22, y, bars, on);
             right = wide - 28;
         }
+        if ((int)i == bdp.last && str_eq(tag, "LAST") && (ble_store.dev.info & BLE_DEV_BONDED))
+            tag = "PAIRED";                           /* (LAST bonded: its keys kept, it reconnects encrypted) */
         if (tag[0]) {
             op_case(b, tag, sizeof b);
             right -= text_w(&FONT_S, b);
@@ -253,13 +264,107 @@ static void dev_draw(uint32_t y, uint32_t h)
     ui.sig[2] = sig;
     cv_tall(y, h, C_BLACK, dev_paint);
 }
+/* ---- SYSTEM > Bluetooth and Devices, the lines (docs/UI-OPTIMIST-DESIGN.md section 39): STATE in words, the DEVICE the
+ * link is with, MIDI activity, RECONNECT (the list's NONE / LAST) and FORGET LAST. Read from ble_devices.c, nothing new kept
+ * but the activity's two counters */
+#define bact bdp.act                                    /* (in the list's drawing state: the list and this line are never both shown) */
+static const char *const BLE_ST[9] = {"OFF", "ADVERTISING", "CONNECTED", "NO CAL", "SCANNING", "CONNECTING", "SEARCHING",
+                                      "PAIRING", "FAILED"};   /* (ble_dev_status's codes) */
+static void ble_state_cell(cell_t *c)
+{
+    uint32_t s = ble_dev_status();
+    c->kind = CK_RO;
+    c->label = "STATE";
+    c->big = 1;
+    str_cpy(c->val, ble_on && !ble_up && s == 0u ? "STARTING" : BLE_ST[s % 9u], sizeof c->val);
+    c->col = s == 2u ? C_OK : s == 3u ? C_WARN : s == 8u ? C_ERR : 0;
+}
+/* the device the link is with (or being made with, or searched for): its name as advertised; HOST, a computer or phone that
+ * connected to the FM-1 (its name is not known); NONE */
+static void ble_peer_cell(cell_t *c)
+{
+    char nm[40];
+    const char *v = "NONE";
+    c->kind = CK_RO;
+    c->label = "DEVICE";
+    c->big = 1;
+#if BLE_CENTRAL
+    if (ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
+        v = nm + rc_nm_at;                              /* (connecting / pairing / connected to a pick) */
+    else if (ble_connect_last_up() || ble_seeking() == 2)
+        ble_store_name(&ble_store, nm), v = nm;         /* (our link to LAST, or the search for it) */
+    else
+#endif
+        if (ble_on && ble_connected())
+        v = "HOST";
+    str_cpy(c->val, v, sizeof c->val);
+    c->col = ble_connected() ? C_OK : 0;
+}
+static void ble_midi_cell(cell_t *c)
+{
+    uint32_t in, out;
+    if (bmi_w != bact.i)
+        bact.i = bmi_w, bact.ti = fm1_ms;
+    if (bmo_w != bact.o)
+        bact.o = bmo_w, bact.to = fm1_ms;
+    in = fm1_ms - bact.ti < BLE_ACT_MS;
+    out = fm1_ms - bact.to < BLE_ACT_MS;
+    c->kind = CK_RO;
+    c->label = "MIDI";
+    c->big = 1;
+    str_cpy(c->val, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--", sizeof c->val);
+    c->col = in || out ? C_OK : 0;
+}
+#if BLE_CENTRAL
+static void ble_auto_cell(cell_t *c)                    /* RECONNECT: LAST's name when it is the choice, else OFF (NONE); a
+                                                         * read-out while there is no LAST (nothing to choose) */
+{
+    c->label = "RECONNECT";
+    if (!ble_store_has_last(&ble_store))
+        c->kind = CK_RO;
+    if (ble_store_has_last(&ble_store) && ble_store.sel == BLE_SEL_LAST) {
+        char nm[BLE_NAME_MAX + 1u];
+        ble_store_name(&ble_store, nm);
+        str_cpy(c->val, nm, sizeof c->val);
+    } else
+        str_cpy(c->val, "OFF", sizeof c->val);
+}
+static void ble_auto_set(int32_t s)                     /* right LAST, left NONE, YES (0) the other: ble_devices.c's pick */
+{
+    uint32_t last = ble_store.sel == BLE_SEL_LAST, want = s > 0 ? 1u : s < 0 ? 0u : !last;
+    if (want == last)
+        return;
+    if (want && !ble_store_has_last(&ble_store)) {
+        ui_message("NO LAST DEVICE");
+        return;
+    }
+    ble_dev_pick(want);                                 /* (row 1 is LAST when there is one) */
+}
+static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST: asked, naming it */
+{
+    char nm[BLE_NAME_MAX + 1u];
+    if (!ble_store_has_last(&ble_store)) {
+        ui_message("NO LAST DEVICE");
+        return 1;
+    }
+    if (ok) {
+        ble_dev_forget();
+        return 1;
+    }
+    ble_store_name(&ble_store, nm);
+    op_arm(SCR_SYSTEM, r, k, "FORGET", nm, 1);
+    ui.arm_raw = 1;                                     /* (the name as advertised) */
+    return 1;
+}
+#endif
 #endif
 
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
-       SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS };
+       SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
+       SI_BLEFGT };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
 #define LOAD_AMBER 60
@@ -329,7 +434,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
 #if FELUCCA_BLE
-    {"BLUETOOTH", {SI_BLE, SI_NONE, SI_NONE, SI_NONE}},   /* (the radio: ON / OFF, and what it is doing) */
+    {"BLUETOOTH", {SI_BLE, SI_BLEST, SI_BLEPEER, SI_BLEMIDI}},   /* the radio ON / OFF, its STATE in words, the DEVICE it is
+                                                         * connected to, MIDI in / out activity (ble_*_cell above) */
+    {"DEVICES", {SI_BLELIST, SI_IF(BLE_CENTRAL, SI_BLEAUTO), SI_IF(BLE_CENTRAL, SI_BLEFGT), SI_NONE}},   /* the list (YES), RECONNECT
+                                                         * (NONE / LAST), FORGET LAST (asked): LAST exists only with BLE_CENTRAL */
 #endif
 #if FELUCCA_USB_AUDIO
     {"USB AUDIO", {SI_UA1, SI_UA2, SI_UA3, SI_UA4}},   /* what each capture channel carries (the user, 2026-10-15: "four lines that
@@ -361,7 +469,7 @@ static void sys_name(uint32_t r, char *b)
 {
 #if FELUCCA_BLE
     if (bdv.open) {
-        str_cpy(b, "BLE", 12);                          /* (the list's header: "System BLE") */
+        str_cpy(b, "DEVICES", 12);                      /* (the list's header: "Devices 2/4") */
         return;
     }
 #endif
@@ -454,11 +562,34 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
 #if FELUCCA_BLE
     case SI_BLE:
-        c->label = "BLE";
-        str_cpy(c->val, !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : ble_up && ble_connected() ? "LINK" : "ON", sizeof c->val);
+        c->label = "BLUETOOTH";
+        str_cpy(c->val, !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : "ON", sizeof c->val);   /* (a link: STATE says it) */
         c->col = ble_on && !ble_radio_ok() ? C_WARN : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
         cell_gauge(c, 1, 0, 1, ble_on != 0u);
         break;
+    case SI_BLEST:
+        ble_state_cell(c);
+        break;
+    case SI_BLEPEER:
+        ble_peer_cell(c);
+        break;
+    case SI_BLEMIDI:
+        ble_midi_cell(c);
+        break;
+    case SI_BLELIST:
+        cell_act(c, 0, "DEVICES", "SCAN", 0);         /* (YES: the list, the scan while it is open) */
+        break;
+#if BLE_CENTRAL
+    case SI_BLEAUTO:
+        ble_auto_cell(c);
+        break;
+    case SI_BLEFGT:                                     /* FORGET while there is a LAST, else NONE, a read-out */
+        if (ble_store_has_last(&ble_store))
+            cell_act(c, 0, "LAST DEVICE", "FORGET", 1);
+        else
+            c->kind = CK_RO, c->label = "LAST DEVICE", str_cpy(c->val, "NONE", sizeof c->val);
+        break;
+#endif
 #endif
     case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 2: NOW, MAX 5S, MAX (over 100: late) */
         int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
@@ -667,7 +798,8 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     sys_it_cell(sys_item(r, k), c);
 }
-static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object) */
+static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object;
+                                                         * bits 0-27 the ticks, 28-29 the operation: 1 read, 2 write, 3 erase) */
 static void info_num(cell_t *c, uint32_t v, const char *unit)   /* a read-out's value: v (capped at 9999999) and its unit */
 {
     fmt_int(c->val, (int32_t)(v > 9999999u ? 9999999u : v));
@@ -869,8 +1001,11 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
         cell_clear(c);
         c->kind = CK_RO;
         c->label = "FLASH IRQS OFF";
-        info_num(c, fm1_irqoff_max / 24u, " us");
-        c->col = fm1_irqoff_max / 24u > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
+        {
+            uint32_t us = (fm1_irqoff_max & 0x0FFFFFFFu) / 24u, k = fm1_irqoff_max >> 28;
+            info_num(c, us, k == 3u ? " us erase" : k == 2u ? " us write" : k == 1u ? " us read" : " us");
+            c->col = us > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
+        }
         return;
     }
 #if FELUCCA_STOCK_SUPPLY
@@ -974,6 +1109,11 @@ static void sys_set(uint32_t it, int32_t s)
     case SI_BLE:                                        /* right ON, left OFF (OFF: a connected central is let go) */
         ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
         break;
+#if BLE_CENTRAL
+    case SI_BLEAUTO:                                    /* (kept in the device store, saved with the settings: ble_devices.c) */
+        ble_auto_set(s);
+        break;
+#endif
 #endif
 #if FELUCCA_USB_AUDIO
     case SI_UA1:
@@ -1077,10 +1217,20 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 #if FELUCCA_BLE
     if (bdv.open)
         return dev_yes(r, ok);
-    if (it == SI_BLE) {                                 /* YES on the BLE row: the devices (the knob switches it ON / OFF) */
+    if (it == SI_BLELIST) {                             /* YES on DEVICES: the list (BLUETOOTH's YES toggles it, as every on / off line) */
         dev_open();
         return 1;
     }
+    if (it == SI_BLEST || it == SI_BLEPEER || it == SI_BLEMIDI)
+        return 0;                                       /* (read-outs) */
+#if BLE_CENTRAL
+    if (it == SI_BLEFGT)
+        return ble_forget_yes(r, k, ok);
+    if (it == SI_BLEAUTO) {
+        sys_set(it, 0);
+        return 1;
+    }
+#endif
 #endif
     if (it == SI_CALIB) {                               /* PANEL: asked first (it takes every button until the end) */
         if (!ok)

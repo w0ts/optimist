@@ -59,7 +59,7 @@
 #define FELUCCA_ENG_PHYS 0                 /* PHYS (from Felucca 1.0: eng_phys.c, backports.h) */
 #endif
 #ifndef FELUCCA_ENG_ACID
-#define FELUCCA_ENG_ACID 0                 /* ACID (from X0X: eng_acid.c, backports.h), EXPERIMENTAL */
+#define FELUCCA_ENG_ACID 0                 /* ACID (from X0X: eng_acid.c, backports.h) */
 #endif
 #ifndef FELUCCA_ENG_CZ
 #define FELUCCA_ENG_CZ 0                   /* CZ (from Melodee 0.11: eng_cz.c, cz_native.c, backports.h) */
@@ -459,6 +459,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_ED_STEPLANE
 #define FELUCCA_ED_STEPLANE 1                /* web editor protocol v14: a step in a drum lane's context, its lockable values (cmd 105, tag 0x62; the automation store) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_REC
+#define FELUCCA_ED_REC 1                     /* web editor protocol v14: the REC key and its state (cmd 107, tag 0x63) (io/editor/ed_rec.c) */
 #endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */

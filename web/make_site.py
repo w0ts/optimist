@@ -6,8 +6,11 @@
   index.html                  redirect to the installer
   firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
-  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, the metadata and the shared style inlined
-  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder
+  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
+                              fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
+  webapp/installer/installer.js  the same module as one file (mountInstaller), for the one-page app; site.json the packages
+  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder; beside it what its Install and Build
+                              tabs import: style/optimist.css, fm1ota.js, fm1pkg.js, installer/ (installer.js, .css, site.json), builder/
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
@@ -22,6 +25,7 @@
 The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
 after the install.
 """
+import base64
 import glob
 import hashlib
 import json
@@ -65,9 +69,26 @@ def source_ref():
     return ref if re.fullmatch(r"[A-Za-z0-9._-]+", ref) else ""
 
 
-BUILDER_FILES = ("index.html", "logic.js", "ui.js", "py-worker.js")
-EDITOR_INSTALLER_LINK = '<a class="dim inst" href="../installer/" data-t="installer"></a>'
-EDITOR_BUILDER_LINK = '<a class="dim inst" href="../builder/">Firmware builder</a>'
+BUILDER_FILES = ("index.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
+
+
+INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
+CSS_MARK = "const BUNDLED_CSS = null;"
+
+
+def installer_module(inline):
+    """web/installer/installer.js as one file: web/fm1pkg.js and web/fm1ota.js in place of its imports (their exports
+    dropped), web/installer/installer.css in BUNDLED_CSS. inline=False: a module that still exports mountInstaller and
+    its helpers (webapp/installer/installer.js, for the one-page app); inline=True: the page's own <script type=module>"""
+    src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
+    if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
+        raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
+    lib = "".join(strip_module((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
+    css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
+    src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
+    if not inline:
+        return lib + src
+    return (lib + re.sub(r"^export\s+", "", src, flags=re.M)).replace("</", "<\\/")   # (an inline script holds no closing tag)
 
 
 def logo_svg():
@@ -83,16 +104,18 @@ APPS = (("installer", "Installer"), ("editor", "Editor"), ("builder", "Builder")
 
 def shared_css():
     """the shared tokens and components (web/style/optimist.css)"""
-    return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
+    css = (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
+    font = base64.b64encode((HERE / "style" / "terminus.ttf").read_bytes()).decode("ascii")   # (Terminus, inlined as the editor does)
+    return css.replace('url("terminus.ttf") format("truetype")', f'url(data:font/ttf;base64,{font}) format("truetype")')
 
 
 def shared_header(app):
-    """the header of the three apps: the dinghy and the name (to the site's root), the app, the links between them
-    (the current one aria-current), the four track colours under it"""
-    links = "".join(f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
-    return (f'<header class="o-head"><div class="o-head-in"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}'
-            f'<b>Optimist</b><span>{app}</span></a><nav class="o-nav" aria-label="Optimist apps">{links}</nav></div></header>'
-            '<div class="o-tracks" aria-hidden="true"><i></i><i></i><i></i><i></i></div>')
+    """the header of the three apps, the editor's menu bar: the dinghy and OPTIMIST (to the site's root), the apps as
+    tabs with a separator between them (the current one aria-current)"""
+    links = '<span class="o-sep" role="separator" aria-orientation="vertical"></span>'.join(
+        f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
+    return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
+            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}</nav></header>')
 
 
 def styled(html, app, page):
@@ -104,14 +127,8 @@ def styled(html, app, page):
 
 
 def editor_page():
-    """editor.html with a link to the builder after its installer link (the site only: web/editor.html is the editor's
-    own file); said on stderr when the editor no longer has that link"""
-    html = (HERE / "editor.html").read_text(encoding="utf-8")
-    if html.count(EDITOR_INSTALLER_LINK) != 1:
-        print("make_site: the editor's installer link moved: no builder link in the editor (update make_site.py)",
-              file=sys.stderr)
-        return html
-    return html.replace(EDITOR_INSTALLER_LINK, EDITOR_INSTALLER_LINK + "\n    " + EDITOR_BUILDER_LINK)
+    """web/editor.html as it is: its Install and Build tabs load the modules from beside it (editor_modules)"""
+    return (HERE / "editor.html").read_text(encoding="utf-8")
 
 
 def site_commit():
@@ -127,11 +144,13 @@ def site_commit():
     return sha if sha and re.fullmatch(r"[0-9a-f]{40}", sha) and dirty == "" else None
 
 
-def builder_site(out):
+def builder_site(out, dst=None):
     """webapp/builder/: the web builder (web/builder/, docs/BUILDER-WEB.md), its data exported fresh from this source
-    (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key)"""
-    dst = Path(out) / "webapp" / "builder"
+    (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key). dst: another directory (the
+    editor's builder/, for its Build tab: the same files, no index.html page needed but harmless)"""
+    dst = Path(dst) if dst else Path(out) / "webapp" / "builder"
     (dst / "data").mkdir(parents=True, exist_ok=True)
+    shutil.copy(HERE / "TERMINUS-LICENSE.txt", dst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in BUILDER_FILES:
         text = (HERE / "builder" / f).read_text(encoding="utf-8")
         if f == "index.html":
@@ -143,6 +162,22 @@ def builder_site(out):
     commit = site_commit()
     (dst / "build-info.json").write_text(json.dumps({"commit": commit} if commit else {}) + "\n", encoding="utf-8")
     return dst
+
+
+def editor_modules(ed, out, site):
+    """what the editor's Install and Build tabs import, next to webapp/editor/index.html (editor.html loads ./style/optimist.css,
+    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1ota.js
+    and ../fm1pkg.js): the shared style and its font, fm1ota.js, fm1pkg.js, installer/, builder/ (with its data)"""
+    (ed / "style").mkdir(parents=True, exist_ok=True)
+    (ed / "installer").mkdir(parents=True, exist_ok=True)
+    for f in ("optimist.css", "terminus.ttf"):
+        shutil.copy(HERE / "style" / f, ed / "style" / f)
+    for f in ("fm1ota.js", "fm1pkg.js"):
+        shutil.copy(HERE / f, ed / f)
+    for f in ("installer.js", "installer.css"):
+        shutil.copy(HERE / "installer" / f, ed / "installer" / f)
+    (ed / "installer" / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
+    builder_site(out, ed / "builder")
 
 
 def flavours_of(manifest):
@@ -162,9 +197,7 @@ def main(pkg, version, out, flavours=None):
     """pkg: one package file (the single flavour "Optimist"), or None with flavours = flavours_of(manifest)"""
     out = Path(out)
     flavours = flavours or [{"id": "", "title": "Optimist", "description": "", "pkg": Path(pkg)}]
-    html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
-    lib = strip_module((HERE / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
-        strip_module((HERE / "fm1ota.js").read_text(encoding="utf-8"))
+    html = (HERE / "installer" / "index.html").read_text(encoding="utf-8")
     ver = re.sub(r"[^A-Za-z0-9.-]", "-", version)
     packages, files = [], []
     for fl in flavours:
@@ -179,32 +212,27 @@ def main(pkg, version, out, flavours=None):
                          "pkg": "../../firmware/" + name, "product": product,
                          "sha256": hashlib.sha256(raw).hexdigest()})   # the page checks the download against it
         files.append((Path(fl["pkg"]), name))
-    meta = json.dumps({"version": version, "packages": packages})
-    for mark in ("/*LIB*/", "/*META*/"):
+    site = {"version": version, "source": source_ref(), "packages": packages}
+    meta = json.dumps(site)
+    for mark in ("/*INSTALLER*/", "/*META*/"):
         if html.count(mark) != 1:
-            raise SystemExit(f"index_pkg.html must contain {mark} once; update make_site.py")
-    ref = source_ref()
-    if html.count("<!--SRCREF-->") != 1:
-        raise SystemExit("index_pkg.html must contain <!--SRCREF--> once; update make_site.py")
-    html = html.replace("<!--SRCREF-->", f"/tree/{ref}" if ref else "")
-    html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
-    html = styled(html, "installer", "index_pkg.html")
+            raise SystemExit(f"web/installer/index.html must contain {mark} once; update make_site.py")
+    html = html.replace("/*INSTALLER*/", installer_module(inline=True)).replace("/*META*/", meta)
+    html = styled(html, "installer", "web/installer/index.html")
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
-    guide = HERE.parent / "output/pdf/Studio-0.3-guide-rapide-FR.pdf"
-    guide_link = ""
-    if guide.exists() and "--studio-guide" in sys.argv:   # LIVE: that guide describes the removed RYTHME tab
-        shutil.copy(guide, out / guide.name)
-        guide_link = '<p lang="fr"><a href="../../' + guide.name + '">Guide rapide illustré (PDF, 4 pages)</a></p>'
-    html = html.replace("<!--STUDIO_GUIDE-->", guide_link)
     for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")):   # only the current packages
         old.unlink()
     (inst / "index.html").write_text(html, encoding="utf-8")
+    (inst / "installer.js").write_text(installer_module(inline=False), encoding="utf-8")   # for the one-page app
+    (inst / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     for src, name in files:
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
     builder_site(out)
+    editor_modules(ed, out, site)
+    shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
@@ -229,7 +257,7 @@ def main(pkg, version, out, flavours=None):
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--studio-guide"]
+    args = sys.argv[1:]
     if args[:1] == ["--builder"] and len(args) == 2:
         Path(args[1]).mkdir(parents=True, exist_ok=True)
         for f in ICONS:                             # (the page's icon links: ../../icon.svg ...)

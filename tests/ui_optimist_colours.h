@@ -65,7 +65,8 @@ static void cc_mute_tiles_tests(void)
 static uint32_t cc_cards, cc_bad;
 static void cc_red_walk(uint32_t scr, uint32_t tr)
 {
-    static const char *const RED_OK[] = {"NEW", "CLEAR", "ERASE", "INIT", "RESET", "DELETE", "IMPORT", "SET", "STORE", "LOAD", "SAVE"};
+    static const char *const RED_OK[] = {"NEW", "CLEAR", "ERASE", "INIT", "RESET", "DELETE", "IMPORT", "SET", "STORE", "LOAD", "SAVE",
+                                         "FORGET"};   /* (FORGET: the last BLE device and its keys go) */
     uint32_t r, k, n, j;
     cell_t c;
     char nm[16];

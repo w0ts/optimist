@@ -232,11 +232,14 @@ enum {                          /* per-track parameters */
      * drum track has its lanes' LFOs). Not part of a sound nor of a user preset (param_kept, as the track FILTER); a
      * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
     P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
-    /* ENV DEST and ENV2 DEST (2026-10-14): each envelope's two slots, as LFO DEST's (DEST A + AMT A, DEST B + AMT B, the
-     * shared list LT_*; voice.c env_plan). Nothing is wired: ENV's slot A is AMP 127 by default (a new sound, INIT, a
-     * project or a preset of before), so every sound plays as it did. Part of a sound (model.c param_kept); stored in
-     * the words of the depths they replaced, ENV DEST FLT SHP and ENV2's amounts (env_store.h) */
-    P_N1DA, P_N1AA, P_N1DB, P_N1AB,
+    /* ENV 1 MOD (2026-10-16, env1_cards.h): ENV 1 is the engine's own envelope, the amplitude always wired; its four
+     * depth knobs are made per engine: FLT and SHP keep P_ED_FLT P_ED_SHP, PIT P_E1PIT, the moves of an EDIT value
+     * P_E1X P_E1Y P_E1Z (-64..63 each; 0 = nothing). These ids were ENV DEST's two slots (P_N1DA P_N1AA P_N1DB P_N1AB,
+     * 2026-10-14 .. 16: project MREC_TAG 0xD2, user presets UP_VER 3; env_store.h env1_fold reads them). ENV2 DEST
+     * (2026-10-14): ENV 2's two slots, as LFO DEST's (DEST A + AMT A, DEST B + AMT B, the shared list LT_*; voice.c
+     * env_plan); DEST A FLT at 0 by default (the engine's nearest where it has no filter: env2_def_dest). Part of a sound
+     * (model.c param_kept) */
+    P_E1PIT, P_E1X, P_E1Y, P_E1Z,
 #if FELUCCA_ANALOG2
     P_N2DA, P_N2AA, P_N2DB, P_N2AB,              /* ENV2 (its ADSR: P_A2FATK P_A2FDEC P_A2ESUS P_A2EREL), every engine */
 #endif
@@ -247,9 +250,9 @@ enum {                          /* per-track parameters */
     P_COUNT
 };
 #if FELUCCA_ANALOG2
-#define P_NLAST P_N2AB          /* the envelopes' slots: P_N1DA .. P_NLAST */
+#define P_NLAST P_N2AB          /* the envelopes' values: P_E1PIT .. P_NLAST */
 #else
-#define P_NLAST P_N1AB
+#define P_NLAST P_E1Z
 #endif
 /* The modulation destinations, one list for the four modulators (LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; params.c
  * N_LT, voice.c LT_TAB says how each acts):
@@ -274,9 +277,9 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
        LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
        LT_L2RT, LT_L2AMT, LT_N };
 #define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
-/* ENV's summed AMT on FLT (its slots; ENV DEST FLT d of before is AMT 2 d): for an engine that models the envelope's
- * cutoff depth itself (eng_juno.c) */
-#define ENV1_FLT_AMT(p) (((p)[P_N1DA] == LT_FLT ? (p)[P_N1AA] : 0) + ((p)[P_N1DB] == LT_FLT ? (p)[P_N1AB] : 0))
+/* ENV 1's AMT on FLT (2 x its FLT depth, P_ED_FLT): for an engine that models the envelope's cutoff depth itself
+ * (eng_juno.c) */
+#define ENV1_FLT_AMT(p) (2 * (p)[P_ED_FLT])
 #define LT_XRATE_V1 LT_L1RT             /* (the stored numbers of XRATE XAMT, LFO's slots until 2026-10-14) */
 #define LT_XAMT_V1 LT_L1AMT
 #define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
@@ -600,7 +603,8 @@ typedef struct {
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
     int8_t octave;
-    volatile uint8_t solo;       /* bit per track soloed (GLO + key), 0 = none: the others are silent */
+    volatile uint8_t solo;       /* the soloed: bits 0..3 the tracks (GLO + key), SOLO_USB the USB input, SOLO_LANE a drum lane (derived from the lanes' mask);
+                                  * any set: every item not soloed is silent (one set across the tracks, the lanes and the USB input; the returns and the master never are) */
     uint32_t tick;               /* sub-blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
@@ -681,11 +685,13 @@ static const uint8_t *trk_step_raw(const track_t *t, uint32_t i, uint32_t *n)
     *n = is_drum(t) ? (uint32_t)sizeof(dstep_t) : (uint32_t)sizeof(step_t);
     return is_drum(t) ? (const uint8_t *)&t->dstep[i % NSTEP] : (const uint8_t *)&t->step[i % NSTEP];
 }
-/* silent: MUTE, or another track is soloed */
+#define SOLO_USB 0x80u                                  /* song.solo: the USB input soloed */
+#define SOLO_LANE 0x40u                                 /* song.solo: a drum lane is soloed (derived: drums/drum_mix.c dlm_solo_sync, never set elsewhere) */
+/* silent: MUTE, or something else is soloed (one set: the tracks, the drum lanes, the USB input; SOLO_LANE >> 3 is the drum track's own bit 3) */
 AINL int trk_silent(const track_t *t)
 {
-    uint32_t i = (uint32_t)(t - trk);
-    return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
+    uint32_t s = song.solo;
+    return t->p[P_MUTE] || (s && !(((s | (s >> 3 & 8u)) >> (uint32_t)(t - trk)) & 1u));
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }

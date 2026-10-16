@@ -9,6 +9,7 @@ static uint32_t ed_step_sig(const track_t *t, uint32_t i) { (void)t; return i; }
 static void ed_known(uint32_t k, uint32_t id) { ed9_known_p(k, id); }
 #include "../firmware/src/io/editor/ed_undo.c"
 #include "../firmware/src/io/editor/ed_solo.c"
+#include "../firmware/src/io/editor/ed_rec.c"
 #include "../firmware/src/io/editor/ed_note.c"
 #include "../firmware/src/io/editor/ed_steplane.c"
 
@@ -201,7 +202,43 @@ static void v14_note(void)
     v14_stable();
 }
 #endif
+#if FELUCCA_USB_AUDIO
+#define FELUCCA_USB_AUDIO_V 1
+#else
+#define FELUCCA_USB_AUDIO_V 0
+#endif
 #if FELUCCA_ED_SOLO
+static void v14_ret_mute(void)                          /* op 7 (v4): a return's mute, the 13th reply arg */
+{
+    uint8_t q[3] = {7, 0, 1};
+    uint32_t r, ln, k;
+    fx_rmute = 0;
+    r = v14_call(ed_solo, ED_SOLO, (const uint8_t[]){0}, 1);
+    check(r && ed_n == 5u + 13u && ed_out[17] == 0, "SOLO 0: the reply has 13 args, ret 0 (no return muted)");
+    for (k = 0; k < 3u; k++) {
+        ln = fxs_line[1u + k];
+        q[1] = (uint8_t)k, q[2] = 1;
+        r = v14_call(ed_solo, ED_SOLO, q, 3);
+        if (ln < 3u && (fxs_lnl >> ln & 1u)) {
+            check(r && ed_out[5] == 7 && ed_out[6] == 0 && ed_out[17] == (1u << k) && fx_rmute == (1u << ln), "SOLO 7: return A / B / C muted: its bit in the reply (return order), the line's bit in fx_rmute");
+            q[2] = 2;
+            (void)v14_call(ed_solo, ED_SOLO, q, 3);
+            check(fx_rmute == 0, "SOLO 7 toggle (2): unmuted");
+            q[2] = 1;
+            (void)v14_call(ed_solo, ED_SOLO, q, 3);
+            q[2] = 0;
+            r = v14_call(ed_solo, ED_SOLO, q, 3);
+            check(r && ed_out[17] == 0 && fx_rmute == 0, "SOLO 7 off: unmuted");
+        } else {
+            check(!r && fx_rmute == 0, "SOLO 7 on an empty return: no reply, nothing set");
+        }
+    }
+    q[1] = 3, q[2] = 1;
+    check(!v14_call(ed_solo, ED_SOLO, q, 3), "SOLO 7 on return 3: no reply");
+    q[1] = 0, q[2] = 3;
+    check(!v14_call(ed_solo, ED_SOLO, q, 3) && !v14_call(ed_solo, ED_SOLO, q, 2), "SOLO 7: on 3, a short request: no reply");
+    fx_rmute = 0;
+}
 static void v14_solo(void)
 {
     uint8_t q[3] = {1, 1, 1};
@@ -238,10 +275,40 @@ static void v14_solo(void)
     q[0] = 3, q[1] = 16;
     check(!v14_call(ed_solo, ED_SOLO, q, 3), "SOLO 3 on lane 16: no reply");
     q[0] = 1, q[1] = 0, q[2] = 3;
-    check(!v14_call(ed_solo, ED_SOLO, q, 3) && !v14_call(ed_solo, ED_SOLO, q, 2) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5}, 1), "SOLO: on 3, a short request, an unknown op: no reply");
+    check(!v14_call(ed_solo, ED_SOLO, q, 3) && !v14_call(ed_solo, ED_SOLO, q, 2) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){7}, 1), "SOLO: on 3, a short request, an unknown op: no reply");
     ed_begin(1); ed_solo_info();
-    check(ed_n == 9u && ed_out[5] == 0x61u, "ED_SOLO on: INFO carries tag 0x61");
+    check(ed_n == 9u && ed_out[5] == 0x61u && ed_out[7] == 4u, "ED_SOLO on: INFO carries tag 0x61, version 4");
     song.solo = 0;
+    dlm_solo_clear();
+    q[0] = 3, q[1] = 4, q[2] = 1;
+    r = v14_call(ed_solo, ED_SOLO, q, 3);
+    check(r && ed_out[9] == 7 && ed_out[16] == (FELUCCA_USB_AUDIO_V ? 4 : 0) && !trk_silent(TDRUM), "SOLO v3: a lane soloed: the drum track counts as soloed (silent mask: T1 T2 T3), the USB input silent (usb bit 2)");
+    q[2] = 0;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+#if FELUCCA_USB_AUDIO
+    q[0] = 5, q[1] = 0, q[2] = 1;
+    r = v14_call(ed_solo, ED_SOLO, q, 3);
+    check(r && ed_out[16] == 1 && song.solo == SOLO_USB && ed_out[9] == 15 && trk_silent(&trk[0]), "SOLO 5: the USB input soloed: usb bit 0, every track silent, the USB input heard");
+    q[2] = 2;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+    check(song.solo == 0 && !ut_silent(), "SOLO 5 toggle (2): off again");
+    q[0] = 5, q[2] = 1;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+    ut.v[UTV_MUTE] = 1;
+    r = v14_call(ed_solo, ED_SOLO, (const uint8_t[]){0}, 1);
+    check(r && ed_out[16] == 7, "SOLO 0: the USB input soloed and muted (its FXP value): usb bits 0 1 2, a mute wins");
+    ut.v[UTV_MUTE] = 0;
+    song.solo = 0;
+    check(!v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5, 0, 3}, 3) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){6, 0, 1}, 3), "SOLO 5 with on 3, an op 6: no reply");
+    ed_begin(1); ed_solo_info();
+    check(ed_out[8] == 3u, "ED_SOLO: INFO flags bit 0 (the USB input is here) and bit 1 (the returns' mute)");
+#else
+    check(!v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5, 0, 1}, 3), "SOLO 5 without the USB input: no reply");
+    ed_begin(1); ed_solo_info();
+    check(ed_out[8] == 2u, "ED_SOLO: INFO flags bit 1 alone (no USB input)");
+#endif
+    song.solo = 0;
+    v14_ret_mute();
 }
 #endif
 #if STL_ON
@@ -398,6 +465,59 @@ static void v14_steplane(void)
     v14_stable();
 }
 #endif
+#if FELUCCA_ED_REC
+static uint32_t rec_call(uint32_t op)
+{
+    uint8_t q[1];
+    q[0] = (uint8_t)op;
+    return v14_call(ed_rec, ED_REC, q, 1);
+}
+static void v14_rec(void)                               /* cmd 107: the REC key and its state */
+{
+    uint32_t r;
+    song.rec = 0, rec_wait = 0, ft_on = 0, ft_req = 0, ft_closed = 0, song.playing = 0, arrangement_enabled = 0;
+    r = rec_call(0);
+    check(r && ed_n == 5u + 4u && ed_out[5] == 0 && ed_out[6] == 0 && ed_out[7] == 0 && ed_out[8] == 127, "REC 0: idle: state 0, track 127");
+    r = rec_call(1);
+    check(r && ed_out[5] == 1 && ed_out[6] == 0 && ed_out[7] == 2 && rec_wait == 1 && !song.playing && ed_out[8] == (song.sel % NTRK),
+          "REC 1 stopped: waiting (bit 1), the selected track, the transport stays stopped");
+    r = rec_call(1);
+    check(r && ed_out[7] == 0 && !rec_wait && !song.rec && ed_out[8] == 127, "REC 1 again: off");
+    song.playing = 1;
+    r = rec_call(1);
+    check(r && ed_out[6] == 0 && ed_out[7] == 1 && song.rec == (1u << (song.sel % NTRK)) && !rec_wait && ed_out[8] == (song.sel % NTRK),
+          "REC 1 playing: recording now (bit 0), on the selected track");
+    r = rec_call(1);
+    check(r && ed_out[7] == 0 && !song.rec, "REC 1 recording: off");
+    arrangement_enabled = 1;
+    r = rec_call(1);
+    check(r && ed_out[6] == 1 && ed_out[7] == 0 && !song.rec && !rec_wait && arrangement_enabled == 1, "REC 1 while a song plays: refused (rc 1), nothing changed");
+    arrangement_enabled = 0;
+    song.playing = 0;
+#if FELUCCA_REC_MODES
+    rec_wait = 1, ci_on = 1;
+    r = rec_call(0);
+    check(r && ed_out[7] == 6, "REC 0 counting in: bits 1 and 2");
+    r = rec_call(1);
+    check(r && ed_out[7] == 0 && !rec_wait, "REC 1 counting in: off (the count-in sees the wait gone and ends)");
+    ci_on = 0;
+#endif
+    ft_on = 1, ft_trk = 2;
+    r = rec_call(0);
+    check(r && ed_out[7] == 8 && ed_out[8] == 2, "REC 0 in a free take: bit 3, the take's track");
+    r = rec_call(1);
+    check(r && ed_out[6] == 0 && ft_req == 1 && ft_on == 1, "REC 1 in a free take: the close is asked for (the audio ends it at its next block)");
+    ft_on = 0, ft_req = 0;
+    ft_closed = 1, ft_close_ms = fm1_ms;
+    r = rec_call(1);
+    check(r && ed_out[6] == 2 && !rec_wait && !song.rec, "REC 1 right after a take ended: nothing done (rc 2), as the key");
+    ft_closed = 0;
+    check(!rec_call(2) && !v14_call(ed_rec, ED_REC, (const uint8_t[]){0}, 0), "REC: an unknown op, an empty request: no reply");
+    ed_begin(1); ed_rec_info();
+    check(ed_n == 9u && ed_out[5] == 0x63u && ed_out[6] == 2u && ed_out[7] == 1u && ed_out[8] == (FELUCCA_REC_MODES ? 1u : 0u), "ED_REC on: INFO carries tag 0x63 (version 1, the count-in flag)");
+    song.rec = 0, rec_wait = 0;
+}
+#endif
 static void v14_tests(void)
 {
 #if FELUCCA_ED_UNDO
@@ -419,6 +539,12 @@ static void v14_tests(void)
 #else
     ed_begin(1); ed_solo_info();
     check(ed_n == 5u && !ed_solo(104, (const uint8_t[]){0}, 1), "ED_SOLO off: cmd 104 is not handled, INFO has no tag 0x61");
+#endif
+#if FELUCCA_ED_REC
+    v14_rec();
+#else
+    ed_begin(1); ed_rec_info();
+    check(ed_n == 5u && !ed_rec(107, (const uint8_t[]){0}, 1), "ED_REC off: cmd 107 is not handled, INFO has no tag 0x63");
 #endif
 #if STL_ON
     v14_steplane();

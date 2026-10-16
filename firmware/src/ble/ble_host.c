@@ -21,7 +21,7 @@ static struct {
 } bhs;
 
 /* the advertised name and the GAP Device Name: BLE_DEVICE_NAME, then " XXXX" = the last four hex digits of the device
- * address (its two least significant octets, as an address is written: "FM-1 A1B2" for ..:A1:B2; docs/
+ * address (its two least significant octets, as an address is written: "Optimist A1B2" for ..:A1:B2; docs/
  * BLE-DEVICES-DESIGN.md §3.4) */
 #define BLE_GAP_NAME_MAX 29u
 static struct {

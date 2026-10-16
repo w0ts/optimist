@@ -361,6 +361,23 @@ static void act_global(void)
         return;                                         /* (no external clock here) */
     song.g[id] = (int16_t)(d->min + (int32_t)R((uint32_t)(d->max - d->min + 1)));
 }
+static void act_solo(void)                              /* the one solo set (core.h trk_silent, the drum lanes, the USB input): as the UI toggles it, no IRQ off */
+{
+    uint32_t r = R(8);
+    where_now = "solo";
+    if (r < 3)
+        song.solo ^= (uint8_t)(1u << R(NTRK));
+    else if (r == 3)
+        song.solo ^= (uint8_t)SOLO_USB;
+    else if (r < 6)
+        dlm_set_solo(R(DRUM_LANES), R(2));
+    else if (r == 6)
+        dlm_set_mute(R(DRUM_LANES), R(2));
+    else if (R(4) == 0) {
+        song.solo = 0;
+        dlm_solo_clear();                               /* (a new project) */
+    }
+}
 static void act_step(void)                              /* a step put / cleared, its extras (the UI: IRQ off) */
 {
     track_t *t = &trk[R(NTRK)];
@@ -495,6 +512,8 @@ static void stress_frame(void)
             act_param();
         else if (r < 73)
             act_global();
+        else if (r < 77)
+            act_solo();
         else if (r < 88)
             act_step();
         else if (r < 91)

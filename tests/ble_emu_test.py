@@ -4,7 +4,7 @@
 
 Runs a BLE build (FELUCCA_BLE=1) in the emulator's `diagnose` with its BLE engine model and virtual central
 (fm1-emulator, branch feat/ble-engine: rust-emulator/README.md "Bluetooth LE (BLE MIDI) model") and checks:
-advertising ("FM-1 XXXX" from the address, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
+advertising ("Optimist XXXX" from the address, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
 Changed, BLE-MIDI), the CCCD, our L2CAP parameter request and the update it leads to, a BLE-MIDI note from the
 central playing the synth (against a run without it), a key press reaching the central as a BLE-MIDI notification
 with a real timestamp, a channel-map update, an interval update, terminate, advertising again; the same with
@@ -45,9 +45,9 @@ MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-ED
 
 
 def name_ad(addr):
-    """the scan response's Complete Local Name for an address (LSB first): "FM-1 XXXX", XXXX = its last four hex
+    """the scan response's Complete Local Name for an address (LSB first): "Optimist XXXX", XXXX = its last four hex
     digits (docs/BLE-DEVICES-DESIGN.md §3.4)"""
-    name = f"FM-1 {int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
+    name = f"Optimist {int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
     return " ".join(f"{b:02x}" for b in bytes([len(name) + 1, 0x09]) + name)
 MHZ = "96"
 PRESS = "144000000:3:4:9600000"        # a note key held 0.1 s from 1.5 s (matrix column 3, row 4)
@@ -724,7 +724,7 @@ def main():
         addr = adv.group(1).split(", ") if adv else ["0"]
         check("advertising: a random static address (top bits 11)", int(addr[-1], 16) >> 6 == 3, str(addr))
         rsp = re.search(r"first SCAN_RSP: addr \[[0-9a-f, ]+\] data \[([0-9a-f, ]+)\]", out)
-        check("SCAN_RSP: the name FM-1 XXXX (the last four hex digits of the address)",
+        check("SCAN_RSP: the name Optimist XXXX (the last four hex digits of the address)",
               bool(rsp) and len(addr) == 6 and rsp.group(1).replace(",", "") == name_ad(addr),
               (rsp.group(1) if rsp else "") + " / " + str(addr))
         check("connect: state 7 programmed before the transmit window",

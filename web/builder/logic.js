@@ -215,3 +215,19 @@ export function messagesOf(view, reg) {
 /** the item has notes beyond its description: an (i) button on its row opens them (EXPERIMENTAL and how it was tested,
     its notice, where it comes from, what turning it off loses) */
 export const hasInfo = (it) => !!(it.experimental || it.notice || it.provenance_line || it.off_warning);
+
+/** a proposal's change as a short line (docs/BUILDER-WEB.md "Ways to fit"): "FM6 off", "Delay length: 64K -> 32K", "keep 200 KB flash free -> 0 KB" */
+export function changeText(c, byKey) {
+  const it = byKey[c.key], name = (v) => (it && it.choices.length ? (it.choices.find((x) => x[0] === v) || [v, String(v)])[1] : v ? "on" : "off");
+  if (c.reserve) return `${c.label}: ${c.from} -> ${c.to} KB`;
+  if (c.to === 0) return `${c.label} off`;
+  return `${c.label}: ${name(c.from)} -> ${name(c.to)}`;
+}
+
+/** the first sentence of a registry description, at most `max` characters: what the user loses, in one plain line */
+export function oneLine(text, max = 110) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  const m = s.match(/^.*?[.!?](?=\s|$)/);
+  const first = m ? m[0] : s;
+  return first.length > max ? first.slice(0, max - 3).trimEnd() + "..." : first;
+}

@@ -337,11 +337,9 @@ static void t_events(void)
     t->p[P_L1AB] = 0, taken = 0, v = 9;
     id = lfo_leg_ev(t, P_LEG_AMP, &v, &taken, &did, &dst);
     check(id == P_L1AB && did == P_L1DB && v == 9, "events: a slot that does nothing (B at 0) takes AMP 9 for the step");
-    t->p[P_N1DA] = LT_AMP, t->p[P_N1AA] = 127, t->p[P_N1DB] = LT_FLT, t->p[P_N1AB] = 40;   /* ENV DEST (2026-10-14) */
-    taken = 0, v = 30, id = lfo_leg_ev(t, P_ED_FLT, &v, &taken, &did, &dst);
-    check(id == P_N1AB && v == 60 && did == P_COUNT && dst == LT_FLT, "events: an ENV DEST FLT 30 of before -> ENV's slot B (FLT) at 60");
-    taken = 0, v = 20, id = lfo_leg_ev(t, P_ED_SHP, &v, &taken, &did, &dst);
-    check(id == P_COUNT, "events: ENV DEST SHP with both of ENV's slots in use: not played");
+    taken = 0, v = 30, id = lfo_leg_ev(t, P_ED_FLT, &v, &taken, &did, &dst);   /* ENV 1 MOD (2026-10-16) */
+    check(id == P_COUNT && !LEG_ID(P_ED_FLT) && !LEG_ID(P_ED_SHP),
+          "events: ENV FLT SHP are ENV 1 MOD's depths again: an event on them is their own, not a slot's");
 #if FELUCCA_ANALOG2
     t->p[P_N2DA] = LT_OFF, t->p[P_N2AA] = 0, t->p[P_N2DB] = LT_OFF, t->p[P_N2AB] = 0;
     taken = 0, v = -12, id = lfo_leg_ev(t, P_A2EOS2, &v, &taken, &did, &dst);

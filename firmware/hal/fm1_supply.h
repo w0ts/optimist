@@ -2,7 +2,7 @@
 /* The FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY, the builder's STOCK_SUPPLY, system/supply.c, docs/DUAL-CORE.md
  * 3.5): what the stock M-VAVE application does to the rails as it starts (fm1_supply_stock, fm1_lvr_stock), applied at the
  * top of the boot, before the second core and the BLE radio; the second-core test image's other levels (fm1_supply_to,
- * the boost, the ladder: dualcfg). EXPERIMENTAL; on by default in builds with the second core.
+ * the boost, the ladder: dualcfg). On by default in builds with the second core.
  *
  * Registers (JieLi AC79 SDK, include_lib/driver/cpu/wl82/asm/p33.h), both P33 analog registers:
  *   P3_ANA_CON6 (0x06) bits [2:0] VDC14_VOL_SEL: 1.25 V + 50 mV a step (VDC14_VOL_SEL_125V = 0 .. _160V = 7);

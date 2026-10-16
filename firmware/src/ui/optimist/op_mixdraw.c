@@ -194,7 +194,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     int32_t x;
     mrect_t q;
     uint16_t c = mx_col(i);
-    uint16_t cc = mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
+    uint16_t cc = mx_lmuted(i) ? C_WARN : i >= MXR_LANE0 && mx_soloed(i) ? C_OK : i >= MXR_LANE0 && mx_smuted(i) ? C_GRAY : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
     int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? 2 : MXL_TY;
     mx_rect(i, &q);
     cy += q.y;
@@ -212,6 +212,8 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
         cv_text(x + 8, q.y + MXL_TY, &FONT_S, pr, pc);
         if (mx_muted(i))
             cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
+        else if (mx_soloed(i))
+            cv_text(6, q.y + 18, &FONT_S, "S", C_OK);
     } else if (i < MXR_LANE0) {                         /* a channel: its engine and preset, its M / S badge */
         mx_names(i, en, pr);
         x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
@@ -254,11 +256,11 @@ static uint32_t mx_static_sig(void)
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
         if (mx_is_usb(i)) {                             /* (the USB input: muted, streaming) */
             mx_names(i, en, pr);
-            sig = hs(hu(sig, mx_muted(i)), pr);
+            sig = hs(hu(sig, mx_muted(i) * 2u + mx_soloed(i)), pr);
             continue;
         }
         if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
-            sig = hu(sig, mx_lmuted(i) * 2u + mx_smuted(i));
+            sig = hu(sig, (mx_lmuted(i) * 2u + mx_smuted(i)) * 2u + mx_soloed(i));
             continue;
         }
         mx_names(i, en, pr);
@@ -391,7 +393,8 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
         uint32_t s = page + i;
         if (s >= len)
             continue;
-        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE : mx_on(r, s) ? c : C_BLACK;
+        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
+                    : mx_on(r, s) ? (!mx_smuted(r) && op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? C_AUTO : c) : C_BLACK;
         if (r >= MXR_LANE0 && sc == C_BLACK)            /* (a lane's empty step: a foot line, no box: 16 small boxes a */
             cv_rect(x + (int32_t)i * q.sp, y + q.sh - 1, q.sp - 1, 1, C_LINE);   /* lane read as noise) */
         else
@@ -416,7 +419,7 @@ static void mx_steps(uint32_t r)
     mx_rect(r, &q);
     sig = hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r));
     for (i = 0; i < 16u; i++)
-        sig = sig * 3u + mx_on(r, page + i);
+        sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu));
     if (sig == mxd.stp[r])
         return;
     mxd.stp[r] = sig;

@@ -173,8 +173,9 @@ BLE_API void ble_scan_add(struct ble_scan_tab *t, const uint8_t *pdu, uint32_t l
         }
         e->name_type = ad.name_type;
     }
-    e->kind = (uint8_t)(BLE_KIND_MIDI | (ble_eq((const uint8_t *)e->name, (const uint8_t *)"FM-1 ", 5) ?
-                                         BLE_KIND_FM1 : 0u));
+    e->kind = (uint8_t)(BLE_KIND_MIDI | (ble_eq((const uint8_t *)e->name, (const uint8_t *)"Optimist ", 9) ||
+                                                 ble_eq((const uint8_t *)e->name, (const uint8_t *)"FM-1 ", 5) ?
+                                         BLE_KIND_FM1 : 0u));   /* (our name; "FM-1 " is that of the builds before 2026-10-16) */
     if (ad.midi && !e->midi)
         sc_listed(t, e);
 }

@@ -535,6 +535,12 @@ static void con_status(void)
     con_kv("midi_tx_pkts", (int32_t)usb.tx_pkts);
 #if FELUCCA_FLASH
     con_kv("flash", flash_ok);
+    con_kv("flash_irqoff_us", (int32_t)(FM1_IRQOFF_TICKS(fm1_irqoff_max) / FM1_TICKS_PER_US));   /* INTERNALS' FLASH IRQS OFF */
+    con_kv("flash_irqoff_kind", (int32_t)FM1_IRQOFF_KIND(fm1_irqoff_max));       /* FM1_FLOP_*: 0 other, 1 read, 2 write, 3 erase */
+    con_kv("flash_erase_windows_max", (int32_t)fl_erase_windows_max);   /* (hal/fm1_flash_slice.h) */
+    con_kv("flash_erase_held", (int32_t)fl_erase_held); /* erases a window waited out (no suspend) */
+    con_kv("flash_erase_nosus", (int32_t)fl_erase_nosus);   /* suspends without a SUS bit */
+    con_kv("flash_erase_redo", (int32_t)fl_erase_redo); /* erased again (not blank after the windows) */
 #endif
 }
 

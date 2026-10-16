@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Charles Vestal (X0X: charlesvestal/fm1-x0x 80b7d40; dsp/bass303.c, seq/tb3po.c) */
-/* ACID (FELUCCA_ENG_ACID, backports.h): EXPERIMENTAL. X0X's TB-303 voice as an engine of its own, engine number 12,
+/* ACID (FELUCCA_ENG_ACID, backports.h): X0X's TB-303 voice as an engine of its own, engine number 12,
  * monophonic, one per synth part, with X0X's TB-3PO line generator. Ported from X0X by Charles Vestal (GPL-3.0):
  *   - the voice: acid/bass303.c as X0X has it (Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303;
  *     Soft / RAT drive after schwung-303 and dm-Rat), float, in its own translation unit (acid/acid_dsp.c,
@@ -11,9 +11,10 @@
  *     integer comparisons (x / 2^24 < p / 100 as 100 x < p 2^24).
  * NOT X0X's break player (dsp/breaks*: no licence of its own, used by X0X by permission): nothing of it here.
  *
- * EDIT 1: CUT RESO ENV DEC, EDIT 2: ACC WAVE DRV SLD (the 303's pots 0..127; WAVE saw / square). A step's ACCENT
+ * EDIT 1: CUT RESO ENV DEC, EDIT 2: ACC WAVE DRV SLD (the 303's pots 0..127; WAVE saw / square). The shared FLT
+ * destination (an LFO, ENV 2) moves CUT (2026-10-16), RES its RESO (voice.c lo_res). A step's ACCENT
  * (velocity 127; MIDI: velocity >= 120) is the 303's accent; a SLIDE into the next step slides (the voice's legato,
- * voice.c), as on the 303. The track's ENV / LFO / pitch modulation and TUNE do not reach it (the 303 has its own
+ * voice.c), as on the 303. ENV 1 (the ADSR) and the pitch modulation and TUNE do not reach it (the 303 has its own
  * envelopes and tuning); the ADSR gates it (the presets: SUS 127). ACID GEN (an EDIT page on an ACID track): DENS,
  * ACC %, SLD %, GO (twice): a new line of TB-3PO into the pattern (LEN steps, the track's ROOT, its own minor
  * scale), undoable. */
@@ -51,10 +52,15 @@ static void acid_legato(track_t *t, voice_t *v)    /* a SLIDE: the 303 slides to
 
 static void acid_render_v(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
-    (void)m;
+    int16_t e[8];
+    int32_t c = m->cutoff - (v->vel > 110 ? (m->envq15 * 24) >> 7 : 0), i;   /* (the shared FLT path: an LFO, ENV 2;
+                                                     * not voice.c's accent kick: the 303 has its own accent) */
     if (t >= &trk[NPART] || v != &t->v[0])
         return;                                    /* (one 303 per part: its first voice) */
-    acid_pots(acid_k(t), &t->p[P_E0]);
+    for (i = 0; i < 8; i++)
+        e[i] = t->p[P_E0 + i];
+    e[0] = (int16_t)clamp(e[0] + (c >> 8), 0, 127);   /* (FLT moves the 303's CUT: 1 step a 1/127 of the range) */
+    acid_pots(acid_k(t), e);
     if (!v->gate)
         acid_off(acid_k(t));
 #if FELUCCA_CPU_GUARD

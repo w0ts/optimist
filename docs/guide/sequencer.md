@@ -4,7 +4,7 @@ How to write, edit and shape a pattern on Optimist: the steps and the STEP page,
 
 This is the user's guide for the sequencer. The manual [OPTIMIST.md](../../OPTIMIST.md) is the reference for the whole instrument (it describes SLOOP's way of playing in detail), [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md) and [SNAPSHOTS.md](../SNAPSHOTS.md) hold the design, and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md) holds every decision of the Optimist UI.
 
-Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the default) and the Optimist UI (EXPERIMENTAL: lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
+Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the default) and the Optimist UI (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
 
 **SHIFT and SHIFT2 on the Optimist UI.** SHIFT is OCT- held, SHIFT2 is OCT+ held. OCT- and OCT+ change the octave when they are let go, and only if nothing else was used while they were held.
 
@@ -27,6 +27,7 @@ Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up
 - A set step: press and let go and it is cleared. Press and hold, or press and turn a knob, and it is edited instead; the step stays.
 - A held step shows its cards: drums LEVEL (ghost, soft, norm, hard) and RATCHET (x1 to x4); synths NOTE, LEVEL, RATCHET and LENGTH (a longer note is written as ties; shorter clears its own ties). Several held steps are edited together.
 - On the Optimist UI, a step is only toggled by a short tap. A press held past the hold time (SYSTEM > HOLD), or one during which a knob was turned, leaves the step as it was. The window follows the playhead while playing (FOLLOW); PRESETS scrolls it and stops the following, SHIFT + PRESETS follows again.
+- On the Optimist UI a step that carries automation (a recorded motion or a p-lock of the sound, not its nudge, chance, fill or condition) is drawn in a pale yellow instead of its lane's or the track's colour: in the STEP grid and the synth roll, and in the mixer's step strips. A plain step keeps its own colour; the playhead stays white. On the drum track a lock of one lane marks that lane's step only, a lock of the track marks the step on every lane.
 - On the Optimist UI a held synth step moved with OCT- / OCT+ shifts its notes an octave. On the drum track, a **tapped drum hit cycles normal, hard, ghost, off** (a soft hit goes straight off). SEQ + a step clears a drum step completely; on a synth track SHIFT + a step clears its p-locks only (below), and SEQ held + keys sets the notes the next tapped steps take.
 - The drum track: SHIFT + a key picks the drum lane (the key plays its sound; the last upper key is the ACCENT lane, below). The grid shows the lit steps of the picked lane.
 

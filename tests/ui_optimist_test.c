@@ -305,10 +305,12 @@ static void forms_of(uint32_t scr)
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
                    (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
-                                                                 !strcmp(c.label, "BUILD") ||
+                                                                 !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
+                                                                 !strcmp(c.label, "DEVICE") || !strcmp(c.label, "MIDI") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
                     c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */
+                   (scr == SCR_SYSTEM && c.label && (!strcmp(c.label, "RECONNECT") || !strcmp(c.label, "LAST DEVICE"))) ||   /* (OFF / NONE or a device's name) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
@@ -2468,6 +2470,8 @@ static void preset_engine_tests(void)
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
+#include "ui_optimist_solo.h"                       /* 2026-10-16: solo on every mixer row but the returns, MASTER and ACCENT */
+#include "ui_optimist_retmute.h"                   /* 2026-10-16: a return's mute on MASTER, the editor's SOLO op 7 and REC */
 #include "ui_optimist_strike.h"                     /* 2026-10-15: a muted track struck through (mixer, header, volume card) */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, SHIFT held + a key on the mixer */
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
@@ -2540,6 +2544,7 @@ static void led_tests(void)
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
+#include "ui_optimist_stepauto.h"                    /* a step with automation: its own colour (STEP grid, roll, mixer strips) */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
@@ -2644,8 +2649,13 @@ int main(int argc, char **argv)
     actcards_tests();
     prjflow_tests();
     colours_tests();
+#if FELUCCA_AUTO
+    step_auto_tests();
+#endif
     algo_tests();
     mute_tests();
+    solo_tests();
+    retmute_tests();
     strike_tests();
     smute_tests();
     pagemem_tests();

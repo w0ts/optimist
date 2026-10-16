@@ -11,15 +11,17 @@ static void dev_yes_t(void)                             /* YES on a device row: 
     if (op_armed())
         tap(B_SAVE);
 }
-static uint32_t ble_sys_row(void)                       /* SYSTEM's BLE line (Bluetooth), the cursor on it; its knob */
+static uint32_t ble_line(const char *lab)                /* a line of SYSTEM's Bluetooth / Devices pages, the cursor on it; its knob */
 {
     uint32_t w;
     reset_ui();
-    w = line_named(SCR_SYSTEM, "BLE");
+    w = line_named(SCR_SYSTEM, lab);
     ui.force = 1;
     frame();
     return LINE_KNOB(w);
 }
+static uint32_t ble_sys_row(void) { return ble_line("BLUETOOTH"); }   /* the radio's ON / OFF */
+static uint32_t ble_list_row(void) { return ble_line("DEVICES"); }    /* YES: the devices list */
 static void ble_word_tests(void)
 {
     uint32_t w0, w, all;
@@ -105,7 +107,7 @@ static void ble_dev_tests(void)
     ble_link = 0;
     ble_store_reset(&ble_store);
     ble_connect_none();
-    ble_sys_row();
+    ble_list_row();
     sys_row = ui.row[SCR_SYSTEM];
     tap(B_SAVE);
     frames(2);
@@ -308,7 +310,7 @@ static void ble_dev_tests(void)
     op_enter(SCR_HOME);
     check(!dev_listing() && !ble_devs_open && blefk.want == 0u, "devices: SYSTEM left some other way: the list closes, the scan stops");
     /* ... also from the TEMPO page opened over the list (PLAY held): ui.scr is SCR_TEMPO there, not SYSTEM */
-    ble_sys_row();
+    ble_list_row();
     tap(B_SAVE);
     frames(2);
     check(dev_listing() && ble_devs_open, "devices: opened once more");
@@ -338,7 +340,7 @@ static void dev_open_fresh(void)                          /* a new list, nothing
     ble_store_reset(&ble_store);
     ble_connect_none();
     ble_dev_msg = 0;
-    ble_sys_row();
+    ble_list_row();
     tap(B_SAVE);
     frames(2);
 }
@@ -478,7 +480,7 @@ static void ble_dev_tests(void)
 {
     ble_on = 1;
     ble_store_reset(&ble_store);
-    ble_sys_row();
+    ble_list_row();
     tap(B_SAVE);
     frames(2);
     check(dev_listing() && SCREENS[SCR_SYSTEM].rows() == 1u, "devices (no scanner built in): the list is NONE alone");
@@ -488,9 +490,196 @@ static void ble_dev_tests(void)
     reset_ui();
 }
 #endif
+/* SYSTEM as the user walks it: GLO tapped twice from HOME, SELECT page by page; each page drawn (opt-ble-sys-<n>) */
+static void ble_sys_walk(const char *tag)
+{
+    uint32_t p, np;
+    char nm[64];
+    reset_ui();
+    go_home();
+    frames(2);
+    tap(B_GLO);
+    tap(B_GLO);
+    frames(2);
+    check(ui.scr == SCR_SYSTEM, "SYSTEM walk: GLO tapped twice from HOME is SYSTEM");
+    turn(EN_SELECT, -20);
+    np = gl_npg(1);
+    for (p = 0; p < np; p++) {
+        snprintf(nm, sizeof nm, "opt-ble-sys-%s-%u", tag, p + 1u);
+        ui.force = 1;
+        frames(3);
+        while (tf.t)                                    /* (the track's name flashed in the header: gone) */
+            frame();
+        ppm(nm);
+        turn(EN_SELECT, 1);
+    }
+    reset_ui();
+}
+/* ---- SYSTEM > Bluetooth (BLUETOOTH, STATE, DEVICE, MIDI) and Devices (DEVICES, RECONNECT, LAST DEVICE FORGET): the lines */
+static uint32_t blp_line(const char *lab, cell_t *c)    /* the SYSTEM line labelled lab: its index, its cell */
+{
+    uint32_t i;
+    op_enter(SCR_SYSTEM);
+    for (i = 0; i < gl_n(1); i++) {
+        gl_cell(1, i, c);
+        if (c->label && !strcmp(c->label, lab))
+            return i;
+    }
+    return GL_MAXL;
+}
+static const char *blp_val(const char *lab)
+{
+    static cell_t c;
+    return blp_line(lab, &c) < GL_MAXL ? c.val : "?";
+}
+static uint16_t blp_col(const char *lab)
+{
+    cell_t c;
+    return blp_line(lab, &c) < GL_MAXL ? c.col : 0xFFFFu;
+}
+static void blp_shot(const char *lab, const char *name)  /* the page of line lab drawn */
+{
+    cell_t c;
+    line_at(SCR_SYSTEM, blp_line(lab, &c));
+    ui.force = 1;
+    frames(3);
+    while (tf.t)
+        frame();
+    ppm(name);
+}
+static void ble_page_tests(void)
+{
+    cell_t c;
+    uint32_t b, i, ok = 1;
+    char t[24];
+    static const char *const BP[4] = {"BLUETOOTH", "STATE", "DEVICE", "MIDI"};
+    reset_ui();
+    ble_on = 0, ble_link = 0, ble_up = 1;
+    ble_store_reset(&ble_store);
+#if BLE_CENTRAL
+    ble_connect_none();
+#endif
+    b = blp_line("BLUETOOTH", &c);
+    for (i = 0; i < 4u; i++) {
+        gl_cell(1, b + i, &c);
+        ok &= c.label && !strcmp(c.label, BP[i]) && gl_pg(1, b + i) == gl_pg(1, b);
+    }
+    gl_ptitle(1, b, t, sizeof t);
+    check(ok && !strcmp(t, "Bluetooth"), "Bluetooth page: BLUETOOTH, STATE, DEVICE, MIDI on one page, titled Bluetooth");
+    i = blp_line("DEVICES", &c);
+    gl_ptitle(1, i, t, sizeof t);
+    check(i == b + 4u && c.kind == CK_ACT && !strcmp(c.val, "SCAN") && gl_pg(1, i) == gl_pg(1, b) + 1u && !strcmp(t, "Devices"),
+          "Devices page next: DEVICES (YES: SCAN, the list)");
+#if BLE_CENTRAL
+    gl_cell(1, i + 1u, &c);
+    ok = c.label && !strcmp(c.label, "RECONNECT");
+    gl_cell(1, i + 2u, &c);
+    check(ok && c.label && !strcmp(c.label, "LAST DEVICE") && c.kind == CK_RO && !strcmp(c.val, "NONE"),
+          "... then RECONNECT and LAST DEVICE (NONE while there is none)");
+#endif
+    check(!strcmp(blp_val("BLUETOOTH"), "OFF") && !strcmp(blp_val("STATE"), "OFF") && !strcmp(blp_val("DEVICE"), "NONE") &&
+              !strcmp(blp_val("MIDI"), "--"), "Bluetooth OFF: STATE OFF, DEVICE NONE, MIDI --");
+    blp_shot("BLUETOOTH", "opt-ble-page-off");
+    ble_on = 1, ble_up = 0;
+    check(!strcmp(blp_val("STATE"), "STARTING"), "ON, the radio not started yet: STATE STARTING");
+    ble_up = 1;
+    check(!strcmp(blp_val("BLUETOOTH"), "ON") && !strcmp(blp_val("STATE"), "ADVERTISING") && blp_col("STATE") == 0u,
+          "ON, nothing connected: STATE ADVERTISING (plain)");
+    blp_shot("BLUETOOTH", "opt-ble-page-on");
+    ble_link = 1;
+    check(!strcmp(blp_val("BLUETOOTH"), "ON") && !strcmp(blp_val("STATE"), "CONNECTED") && blp_col("STATE") == C_OK &&
+              !strcmp(blp_val("DEVICE"), "HOST"), "a computer connected to the FM-1: STATE CONNECTED (green), DEVICE HOST");
+    bmi_w++;
+    check(!strcmp(blp_val("MIDI"), "IN") && blp_col("MIDI") == C_OK, "MIDI: a message in lights IN");
+    bmo_w++;
+    check(!strcmp(blp_val("MIDI"), "IN OUT"), "... one out too: IN OUT");
+    blp_shot("BLUETOOTH", "opt-ble-page-host");
+    {
+        int32_t y = (int32_t)OH_HEAD + gl_y0() + 3 * gl_pitch();    /* (the MIDI line, the 4th) */
+        check(px_in(120, (uint32_t)y, 116, (uint32_t)gl_pitch(), C_OK), "... drawn in green, in the large face beside its name");
+    }
+    fm1_ms += 400u;
+    check(!strcmp(blp_val("MIDI"), "--") && blp_col("MIDI") == 0u, "... 0.4 s later, nothing: --");
+    ble_link = 0;
+#if BLE_CENTRAL
+    check(!strcmp(blp_val("RECONNECT"), "OFF"), "RECONNECT: no last device: OFF");
+    b = blp_line("RECONNECT", &c);
+    line_at(SCR_SYSTEM, b);
+    frame();
+    ui.msg_t = 0;
+    turn(LINE_KNOB(b), 1);
+    check(ble_store.sel == BLE_SEL_NONE && !strcmp(blp_val("RECONNECT"), "OFF"), "... right with none: still OFF (a read-out: nothing to choose)");
+    ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "KeyStep 37", BLE_KIND_MIDI);
+    ble_store_select(&ble_store, BLE_SEL_NONE);
+    line_at(SCR_SYSTEM, b);
+    frame();
+    check(blp_line("LAST DEVICE", &c) < GL_MAXL && c.kind == CK_ACT && c.danger && !strcmp(c.val, "FORGET"),
+          "... a last device: LAST DEVICE is the FORGET action (alarm colour)");
+    line_at(SCR_SYSTEM, b);
+    frame();
+    turn(LINE_KNOB(b), 1);
+    check(ble_store.sel == BLE_SEL_LAST && !strcmp(blp_val("RECONNECT"), "KeyStep 37"),
+          "... with a last device: right is LAST, the line names it as advertised");
+    ble_devices_poll();
+    check(!strcmp(blp_val("STATE"), "SEARCHING") && !strcmp(blp_val("DEVICE"), "KeyStep 37"),
+          "... the FM-1 searches for it: STATE SEARCHING, DEVICE KeyStep 37");
+    blp_shot("BLUETOOTH", "opt-ble-page-search");
+    line_at(SCR_SYSTEM, b);
+    frame();
+    turn(LINE_KNOB(b), -1);
+    check(ble_store.sel == BLE_SEL_NONE && !strcmp(blp_val("RECONNECT"), "OFF") && ble_store_has_last(&ble_store),
+          "... left is NONE (OFF), the device kept");
+    tap(B_SAVE);
+    check(ble_store.sel == BLE_SEL_LAST, "... YES toggles it (LAST again)");
+    blp_shot("RECONNECT", "opt-ble-page-devices");
+    i = blp_line("LAST DEVICE", &c);
+    line_at(SCR_SYSTEM, i);
+    frame();
+    tap(B_SAVE);
+    {
+        char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
+        modal_words(v, a, q);
+        check(op_armed() && ble_store_has_last(&ble_store) && !strcmp(q, "Forget KeyStep 37?"),
+              "LAST DEVICE: YES asks Forget KeyStep 37?, nothing forgotten yet");
+    }
+    blp_shot("LAST DEVICE", "opt-ble-page-forget");
+    tap(B_HOME);
+    check(!op_armed() && ble_store_has_last(&ble_store), "... HOME says no: kept");
+    line_at(SCR_SYSTEM, blp_line("LAST DEVICE", &c));
+    frame();
+    tap(B_SAVE);
+    tap(B_SAVE);
+    check(!op_armed() && !ble_store_has_last(&ble_store) && ble_store.sel == BLE_SEL_NONE && !strcmp(blp_val("RECONNECT"), "OFF"),
+          "... YES, YES: forgotten, RECONNECT OFF");
+    blp_line("LAST DEVICE", &c);
+    i = c.kind == CK_RO && !strcmp(c.val, "NONE");
+    check(i && blp_line("RECONNECT", &c) < GL_MAXL && c.kind == CK_RO,
+          "... none left: LAST DEVICE NONE and RECONNECT OFF are read-outs (nothing to choose)");
+    line_at(SCR_SYSTEM, blp_line("LAST DEVICE", &c));
+    frame();
+    ui.msg_t = 0;
+    tap(B_SAVE);
+    check(!op_armed() && ui.scr == SCR_SYSTEM && ui.msg_t && strstr(ui.msg, "NO LAST DEVICE"), "... YES with none left: NO LAST DEVICE, nothing asked");
+    /* the list: LAST paired is tagged so */
+    ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "KeyStep 37", BLE_KIND_MIDI);
+    ble_store.dev.info |= BLE_DEV_BONDED;
+    ble_list_row();
+    tap(B_SAVE);
+    frames(3);
+    dev_screen("opt-ble-devices-paired");
+    tap(B_HOME);
+    ble_connect_none();
+#endif
+    ble_store_reset(&ble_store);
+    ble_on = 0, ble_link = 0, ble_up = 1;
+    bmi_w = bmo_w = 0;
+    ble_dev_msg = 0;
+    reset_ui();
+}
 static void ble_tests(void)
 {
     uint32_t kb;
+    ble_sys_walk("off");
     ble_word_tests();
     kb = ble_sys_row();
     ble_sets = 0;                                       /* (the radio told: counted from here; a fuzz run before may have turned it) */
@@ -502,11 +691,17 @@ static void ble_tests(void)
     turn(kb, -1);
     check(ble_on == 0u && ble_sets == 2u, "... left is OFF");
     tap(B_SAVE);
-    check(dev_listing() && ble_on == 0u, "SYSTEM BLUETOOTH: YES opens the devices list (it does not switch the radio)");
+    check(!dev_listing() && ble_on == 1u && ble_sets == 3u, "SYSTEM BLUETOOTH: YES toggles it, as every on / off line (ON)");
+    tap(B_SAVE);
+    check(!dev_listing() && ble_on == 0u && ble_sets == 4u, "... YES again: OFF");
+    ble_list_row();
+    tap(B_SAVE);
+    check(dev_listing() && ble_on == 0u, "SYSTEM Devices: YES on DEVICES opens the devices list (it does not switch the radio)");
     tap(B_HOME);
     check(!dev_listing() && ui.scr == SCR_SYSTEM, "... HOME goes back to SYSTEM");
     ppm("opt-system-ble");
     reset_ui();
+    ble_page_tests();
     ble_dev_tests();
 #if BLE_CENTRAL
     ble_dev_more_tests();

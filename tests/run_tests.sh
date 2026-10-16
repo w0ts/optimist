@@ -40,6 +40,8 @@ BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCC
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_EQ3=1"
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
+# ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
+ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
 
 # ---- the units (see the top): nu started, np printed; unit N's files $JD/N.out, .rc (its exit status, written last
@@ -180,6 +182,10 @@ job; ( jobin
     run "built for size: every firmware source in one list (main-loop files get minsize, tools/size_fns.py)" python3 tools/size_fns.py --check
 ) >"$U.out" 2>&1 & jobbg
 
+job; ( jobin
+    $CC -o "$OUT/flash_slice_test" tests/flash_slice_test.c
+    run "sector erase in 1 ms interrupts-off windows (suspend 75h / resume 7Ah; parts that ignore the suspend, show no SUS bit, suspend late or lose progress)" "$OUT/flash_slice_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/storage_test" tests/storage_test.c
     run "flash storage (A/B, torn writes; SLOOP 2.3's checks: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test"
@@ -385,8 +391,12 @@ job; ( jobin
     run "LFO 2: params, off = nothing, free / synced RATE, PIT FLT SHP AMP maths, POL, S&H without rng(), TRIG, renders, project round trip, old projects" "$OUT/lfo2_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), L1RT L1AMT L2RT L2AMT bounded, macros, old locks" "$OUT/lfo_slots_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/env_dest_test" tests/env_dest_test.c -lm
-    run "ENV DEST / ENV2 DEST's two slots: ENV on AMP by default, nothing wired (no AMP: full while ENV runs; ENV2 alone on AMP keeps the voice), the plain path and env_post the same, values per voice (E5, DEC) and the part's (PAN), mod of mod bounded" "$OUT/env_dest_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $ENV1_ENG -o "$OUT/env1_test" tests/env1_test.c -lm
+    run "ENV 1 MOD: every engine's four cards (paths, moves, part moves, aliases), at 0 the default's render, each heard, the amplitude wired, the plain path and env_post the same, PIT +-31.5 st, E1 AMT bounded, ENV DEST's slots of before folded (FLT SHP PIT moves, the rest to a free ENV2), ENV2's default DEST A per engine" "$OUT/env1_test"
+    rm -rf "$OUT/gen-env1-slice" && mkdir -p "$OUT/gen-env1-slice" && cp "$HGEN"/*.h "$OUT/gen-env1-slice/"   # (SLICE's BREAK: its cards heard)
+    FELUCCA_SLICE=1 FELUCCA_SAMPLES_SKIP= python3 tools/gen_samples.py "$OUT/gen-env1-slice/felucca_samples.h" >/dev/null
+    $CC -O2 -w -I"$OUT/gen-env1-slice" -Ifirmware/src $ENV1_ENG -o "$OUT/env1_test_slc" tests/env1_test.c -lm
+    run "ENV 1 MOD with SLICE's BREAK in the headers: SLICE's four cards (TONE PIT DCAY PTCH) heard" "$OUT/env1_test_slc"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots without the macros" "$OUT/lfo_slots_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
@@ -606,7 +616,7 @@ job; ( jobin
     if grep -nE "fm1_irq_|IRQ_SAVE|IRQ_RESTORE|__asm__ volatile\(\"(cli|sti)" firmware/src/seq/ednote.c | grep -v "^[0-9]*:\s*\*\|/\*"; then echo "!! FAILED: seq/ednote.c masks an interrupt"; : > "$U.fail"; else echo "ednote.c: no interrupt masked (the ISR path takes the ring only)  ok"; fi
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    for off in "-DFELUCCA_ED_UNDO=0" "-DFELUCCA_ED_NOTE=0" "-DFELUCCA_ED_SOLO=0" "-DFELUCCA_ED_STEPLANE=0" "-DFELUCCA_ED_UNDO=0 -DFELUCCA_ED_NOTE=0 -DFELUCCA_ED_SOLO=0 -DFELUCCA_ED_STEPLANE=0"; do
+    for off in "-DFELUCCA_ED_UNDO=0" "-DFELUCCA_ED_NOTE=0" "-DFELUCCA_ED_SOLO=0" "-DFELUCCA_ED_STEPLANE=0" "-DFELUCCA_ED_REC=0" "-DFELUCCA_ED_UNDO=0 -DFELUCCA_ED_NOTE=0 -DFELUCCA_ED_SOLO=0 -DFELUCCA_ED_STEPLANE=0 -DFELUCCA_ED_REC=0"; do
         n=$(echo "$off" | tr -c 'A-Z\n' '_' | tr -s '_')
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 $off -o "$OUT/editor_v14off$n" tests/editor_sync_test.c -lm
         run "editor protocol v14 with items left out ($off): no command, no INFO tag, the rest as before" "$OUT/editor_v14off$n"
@@ -711,7 +721,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     mkdir -p "$OUT/optimist-edoff"
-    for off in "-DFELUCCA_ED_SCRN=0" "-DFELUCCA_ED_SCRS=0" "-DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SCRN=0 -DFELUCCA_ED_SCRS=0 -DFELUCCA_ED_SCOPE=0"; do
+    for off in "-DFELUCCA_ED_SCRN=0" "-DFELUCCA_ED_SCRS=0" "-DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SCRN=0 -DFELUCCA_ED_SCRS=0 -DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SOLO=0 -DFELUCCA_ED_REC=0"; do
         n=$(echo "$off" | tr -c 'A-Z\n' '_' | tr -s '_')
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BRIGHT=1 -DEDSCRN_GOLDEN=1 $SEC4 $off -o "$OUT/ui_optimist_edoff$n" tests/ui_optimist_test.c -lm
         run "Optimist UI with editor items left out ($off): no command, no INFO tag, every other test as before" "$OUT/ui_optimist_edoff$n" "$OUT/optimist-edoff"

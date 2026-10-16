@@ -44,7 +44,7 @@ static void pages_nav_tests(void)
         check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
 #if FELUCCA_BLE
         op_enter(SCR_SYSTEM);
-        line_named(SCR_SYSTEM, "BLE");
+        line_named(SCR_SYSTEM, "DEVICES");
         frame();
         tap(B_SAVE);
         i = (uint32_t)dev_listing();

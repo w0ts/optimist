@@ -100,11 +100,11 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
-# the web editor's v13 and v14 commands are twelve builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+# the web editor's v13 and v14 commands are thirteen builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
       "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",
-      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE"}
-check("web editor items: the twelve ED_* exist, options of OTA, on by default, one flag each",
+      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE", "ED_REC": "FELUCCA_ED_REC"}
+check("web editor items: the thirteen ED_* exist, options of OTA, on by default, one flag each",
       all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
 check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
@@ -122,8 +122,8 @@ check("... the commands that read the Optimist UI cost nothing without it (NEEDS
       all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
       C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
       not C.counted(dict(C.defaults(), UI=0), "ED_SCRS") and C.counted(dict(C.defaults(), UI=1), "ED_SCRS"))
-check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
-      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166])
+check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166, 168 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
+      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166, 168])
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
@@ -665,6 +665,31 @@ for n, cfg, real in _built:
 if not _have:
     print("  note: drift: no real build from this source in build/exact-sizes.json (optimist.py test makes them; "
           "--python / --no-build do not): the estimate is not held against today's firmware")
+# 3. monotonic (the user, 2026-10-16: "removing a feature INCREASES the flash figure"): in a shipped profile (and the
+#    defaults) switching an item off, with the dependants that must go with it (core._drop), never raises the estimated
+#    flash, RAM or pool. The causes it found: a margin per changed item (ANCHOR_MARGIN) that a 40 B item did not
+#    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
+#    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
+_mono_bad = []
+if costs:
+    for _pn in ("synth", "user-default", None):
+        _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
+        _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
+        for _k, _it in items.items():
+            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)):
+                continue
+            _v = C._off_value(_mcfg, _k)
+            _t = C._drop(_mcfg, _k, _v) if _v is not None and _mcfg[_k] else None
+            if _t is None:
+                continue
+            _b1 = C.budget(_t, costs, use_exact=False)["total"]
+            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool") if _b1[r] > _b0[r]}
+            if _up:
+                _mono_bad.append(f"{_pn or 'defaults'}: {_k}=0 {_up}")
+for _line in _mono_bad:
+    print(f"  not monotonic: {_line}")
+check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
+      "in synth, user-default and the defaults", not _mono_bad)
 # ---- the Reserve items (RESERVE_UNDO_KB, RESERVE_FLASH_KB): headroom kept, nothing in the image
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)

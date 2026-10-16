@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Making room for an item that does not fit: "BLE replaces samples" (docs/BUILDER.md, "Making room for BLE").
 
-BLE (Experimental, about +29 KB of flash and +6 KB of RAM, costs.json) overflows the app slot of the fuller profiles.
+BLE (about +29 KB of flash and +6 KB of RAM, costs.json) overflows the app slot of the fuller profiles.
 Ticking it removes one item to make room, FLUTE (the sample set) by default where that is enough; the user can have another set or big item
 removed instead. The same rules serve the menu (menu.py: toggling) and the headless path (configure.py /
 optimist.py --ble-drop KEY), and use what the builder has: the budget (costs.json), savings_of (what each built

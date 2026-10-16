@@ -25,10 +25,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "../firmware/src/storage/upreset.c"
 /* LFO DEST's four ids: their stored form is the depths of before or the slots' tagged layout (lfo_store.h; tests/lfo_slots_test.c) */
 #if FELUCCA_ANALOG2
-#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || (i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT) || \
-                   ((i) >= P_N1DA && (i) <= P_NLAST))
+#define ENV_ID(i) ((i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT) || ((i) >= P_E1PIT && (i) <= P_NLAST))
 #else
-#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || ((i) >= P_N1DA && (i) <= P_NLAST))
+#define ENV_ID(i) ((i) >= P_E1PIT && (i) <= P_NLAST)
 #endif
 /* the values a record keeps in another form: LFO DEST's slots (lfo_store.h), ENV DEST's / ENV2 DEST's (env_store.h: their
  * depths, the slots) */
@@ -199,37 +198,36 @@ int main(void)
             ok &= LFO_ID(i) || v[i] == def[i];
     }
     bad += check("np == P_ENG_END: as stored (the values after P_E7 are not)", ok);
-    {   /* ENV DEST's and ENV2 DEST's slots (env_store.h): any pair back as given; the depths of before as slots */
-        static const int16_t S[3][8] = {{LT_AMP, 127, LT_OFF, 0, LT_OFF, 0, LT_OFF, 0},
-                                        {LT_E3, -128, LT_N2AMT, 127, LT_PIT, 33, LT_SDTN, -7},
-                                        {LT_SHP, 40, LT_AMP, 90, LT_FLT, 88, LT_OSC2, -64}};
+    {   /* ENV 1 MOD's values and ENV2 DEST's slots (env_store.h): back as given; ENV's FLT SHP depths as they are */
+        static const int16_t S[3][8] = {{0, 0, 0, 0, LT_FLT, 0, LT_OFF, 0},
+                                        {-64, 63, 1, -1, LT_PIT, 33, LT_SDTN, -7},
+                                        {20, -30, 0, 7, LT_FLT, 88, LT_OSC2, -64}};
         int16_t w[P_COUNT];
         uint32_t k, n = FELUCCA_ANALOG2 ? 8u : 4u;
         ok = 1;
         for (k = 0; k < 3u; k++) {
             for (i = 0; i < P_COUNT; i++)
                 w[i] = ENV_ID(i) ? 0 : def[i];               /* (the words of the depths of before: 0 at run time) */
-            memcpy(&w[P_N1DA], S[k], n * sizeof w[0]);
+            memcpy(&w[P_E1PIT], S[k], n * sizeof w[0]);
+            w[P_ED_FLT] = (int16_t)(10 * k), w[P_ED_SHP] = (int16_t)(-5 * (int)k);
             up_vals_put(&r, w);
             up_params(&r, v, def);
-            ok &= !memcmp(&v[P_N1DA], S[k], n * sizeof v[0]) && !v[P_ED_FLT] && !v[P_ED_SHP];
-            ok &= r.ver == UP_VER && !r.p[P_ED_FLT] && !r.p[P_ED_SHP] && !memcmp(&r.p[r.np], S[k], n * sizeof v[0]);   /* (the
-                                                                                    * slots in words of their own) */
+            ok &= !memcmp(&v[P_E1PIT], S[k], n * sizeof v[0]) && v[P_ED_FLT] == (int16_t)(10 * k) && v[P_ED_SHP] == (int16_t)(-5 * (int)k);
+            ok &= r.ver == UP_VER && UP_VER == 4u && !memcmp(&r.p[r.np], S[k], n * sizeof v[0]);   /* (in words of their own) */
         }
-        for (i = 0; i < P_COUNT; i++)                        /* the editor's values with ENV DEST FLT 30 (a file of before) */
-            w[i] = ENV_ID(i) ? 0 : def[i];
-        w[P_ED_FLT] = 30;
-        up_vals_put(&r, w);
+        r.ver = 3;                                          /* UP_VER 3 (2026-10-14 .. 16): ENV DEST's slots, folded */
+        r.p[P_ED_FLT] = r.p[P_ED_SHP] = 0;
+        r.p[r.np + 0] = LT_SHP, r.p[r.np + 1] = -80, r.p[r.np + 2] = LT_PIT, r.p[r.np + 3] = 40;
         up_params(&r, v, def);
-        ok &= v[P_N1DA] == LT_AMP && v[P_N1AA] == 127 && v[P_N1DB] == LT_FLT && v[P_N1AB] == 60 && !r.p[P_ED_FLT];
-        r.ver = 1, r.np = P_ENG_END;                        /* a record of before: FLT 20 SHP -40 -> AMP 127, SHP -80 */
+        ok &= v[P_ED_SHP] == -40 && v[P_E1PIT] == 20 && !v[P_ED_FLT] && !v[P_E1X] && !v[P_E1Y] && !v[P_E1Z];
+        r.ver = 1, r.np = P_ENG_END;                        /* a record of before: FLT 20 SHP -40 as they are */
         for (i = 0; i < P_ENG_END; i++)
             r.p[i] = def[i];
         r.p[P_ED_FLT] = 20, r.p[P_ED_SHP] = -40;
         up_params(&r, v, def);
-        ok &= v[P_N1DA] == LT_AMP && v[P_N1AA] == 127 && v[P_N1DB] == LT_SHP && v[P_N1AB] == -80;
+        ok &= v[P_ED_FLT] == 20 && v[P_ED_SHP] == -40 && v[P_E1PIT] == def[P_E1PIT] && v[P_E1X] == def[P_E1X];   /* (theirs: the defaults) */
     }
-    bad += check("ENV DEST / ENV2 DEST slots: round trip (their own words, UP_VER 3), depths given from outside, depths of before", ok);
+    bad += check("ENV 1 MOD / ENV2 DEST: round trip (UP_VER 4), UP_VER 3's ENV DEST slots folded (SHP -80 PIT 40 -> SHP -40 PIT 20), depths of before as they are", ok);
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];

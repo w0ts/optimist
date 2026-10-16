@@ -111,8 +111,8 @@ static int track_ok_v2(const proj_trk_t *n, const proj_trk_v2_t *o, uint32_t t)
 }
 
 #if FELUCCA_ANALOG2
-/* a track's values p as a project stores them (ENV DEST's, ENV2 DEST's slots back in the words of the depths they
- * replaced: env_store.h) */
+/* a track's values p as a project stores them (ENV2 DEST's slots back in the words of the depths they replaced:
+ * env_store.h; ENV 1 MOD's FLT SHP are depths in their words) */
 static const int16_t *env_rt(const int16_t *p)
 {
     static int16_t x[P_COUNT];
@@ -120,7 +120,7 @@ static const int16_t *env_rt(const int16_t *p)
     env_store(x);
     return x;
 }
-#define ENV_ID(i) ((i) == P_ED_FLT || (i) == P_ED_SHP || (i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT))
+#define ENV_ID(i) ((i) == P_A2FENV || ((i) >= P_A2EPIT && (i) <= P_A2ESDT))   /* (ENV2's depths of before) */
 #endif
 int main(void)
 {
@@ -800,23 +800,35 @@ int main(void)
             v[i] = (int16_t)((int)(i * 7u % 120u) - 60);
         v[P_A2ESUS] = 127, v[P_A2EREL] = 0, v[P_A2EPIT] = -64, v[P_A2ESHP] = 63, v[P_A2EOS2] = -1, v[P_A2ESDT] = 1;
         v[P_L1DA] = LT_PAN, v[P_L1AA] = 50, v[P_L1DB] = LT_FLT, v[P_L1AB] = -30;   /* (LFO DEST: two slots, in range) */
-        v[P_N1DA] = LT_E2, v[P_N1AA] = -100, v[P_N1DB] = LT_AMP, v[P_N1AB] = 90;   /* (ENV's, ENV2's: in range) */
+        v[P_E1PIT] = 20, v[P_E1X] = -30, v[P_E1Y] = 5, v[P_E1Z] = -64;   /* (ENV 1 MOD's, ENV2's: in range) */
         v[P_N2DA] = LT_SDTN, v[P_N2AA] = 3, v[P_N2DB] = LT_L1RT, v[P_N2AB] = -128;
-        v[P_ED_FLT] = v[P_ED_SHP] = v[P_A2FENV] = v[P_A2EPIT] = v[P_A2ESHP] = v[P_A2EOS2] = v[P_A2ESDT] = 0;   /* (0 at run time) */
+        v[P_ED_FLT] = 12, v[P_ED_SHP] = -7;            /* (ENV 1's FLT SHP: in their words) */
+        v[P_A2FENV] = v[P_A2EPIT] = v[P_A2ESHP] = v[P_A2EOS2] = v[P_A2ESDT] = 0;   /* (0 at run time) */
         memset(&r, 0, sizeof r);
         r.used = UP_USED, r.name[0] = 'Y';
         up_vals_put(&r, v);
         up_params(&r, w, def);
         ok = r.ver == UP_VER && r.np == P_ENG_END && up_valid(&r) && sizeof(up_rec_t) == 216u;
-        for (i = 0; i < P_ENG_END; i++)                  /* (ENV DEST's words: the slots' stored form, 0 here) */
+        for (i = 0; i < P_ENG_END; i++)                  /* (ENV2's words: the slots' stored form, 0 here) */
             ok &= ENV_ID(i) ? !w[i] : w[i] == v[i];
         for (i = P_ENG_END; i < P_COUNT; i++)            /* (the values after P_E7: none in a record, the defaults; the */
-            ok &= i >= P_N1DA && i <= P_NLAST ? w[i] == v[i] : w[i] == def[i];   /* envelopes' slots back) */
-        bad += check("UP_VER 3: every value in its word, the envelopes' slots after them, read back as written", ok);
+            ok &= i >= P_E1PIT && i <= P_NLAST ? w[i] == v[i] : w[i] == def[i];   /* envelopes' values back) */
+        bad += check("UP_VER 4: every value in its word, ENV 1 MOD's and ENV2's after them, read back as written", ok);
+        {   /* UP_VER 3 (2026-10-14 .. 16): ENV DEST's slots in P_E1PIT .., ENV's FLT SHP words 0 -> folded (env1_fold) */
+            up_rec_t r3 = r;
+            r3.ver = 3;
+            r3.p[P_ED_FLT] = r3.p[P_ED_SHP] = 0;
+            r3.p[P_ENG_END + 0] = LT_AMP, r3.p[P_ENG_END + 1] = 127, r3.p[P_ENG_END + 2] = LT_FLT, r3.p[P_ENG_END + 3] = 61;
+            ok = up_valid(&r3);
+            up_params(&r3, w, def);
+            ok &= w[P_ED_FLT] == 30 && !w[P_ED_SHP] && !w[P_E1PIT] && !w[P_E1X] && !w[P_E1Y] && !w[P_E1Z];
+            ok &= w[P_N2DA] == LT_SDTN && w[P_N2AA] == 3;   /* (ENV2 as it was) */
+            bad += check("UP_VER 3: ENV DEST AMP 127 + FLT 61 -> ENV 1's FLT 30 (an odd AMT: an LSB), ENV2 kept", ok);
+        }
         r.np = 80;
         ok = !up_valid(&r);
-        r.np = P_ENG_END, r.ver = 4;
-        bad += check("UP_VER 3 of a size beyond the record, UP_VER 4: not valid", ok && !up_valid(&r));
+        r.np = P_ENG_END, r.ver = 5;
+        bad += check("UP_VER 4 of a size beyond the record, UP_VER 5: not valid", ok && !up_valid(&r));
     }
 #endif
 
