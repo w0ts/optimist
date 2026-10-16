@@ -2502,7 +2502,7 @@ async function editorUiPass() {
   const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   const card = (/<section id="connectcard"[\s\S]*?<\/section>/.exec(html) || [""])[0];
   ok(/<html lang="en" data-conn="off">/.test(html) && /html\[data-conn=off\] \.panel/.test(css) && /html:not\(\[data-conn=off\]\) #connectcard/.test(css)
-    && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="\.\.\/installer\/"/.test(card)
+    && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="#install"/.test(card)
     && /dataset\.conn = ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
     "ui: not connected, only the connect card (Connect, status, hint, installer link)");
   /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
@@ -2518,7 +2518,7 @@ async function editorUiPass() {
   const ev = (name, state, type) => ({ port: { name, state, type } });
   ok(E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, true) && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), true, true)
     && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, false) && !E.wantsReconnect(ev("Other synth", "connected", "output"), false, true)
-    && !E.wantsReconnect(ev("Optimist FM-1", "disconnected", "output"), false, true) && /if \(QS\.get\("connect"\) !== "0"\) connect\(\);/.test(html)
+    && !E.wantsReconnect(ev("Optimist FM-1", "disconnected", "output"), false, true) && /if \(QS\.get\("connect"\) !== "0" && !APPS\.includes\(tab\)\) connect\(\);/.test(html)
     && /access\.onstatechange = onState/.test(html), "ui: connects on load, and again when the FM-1 is plugged in (statechange)");
   /* BPM: the transport bar only (G_SKIP hides it from Settings, the popups' controls and the master strip) */
   const tbar = (/<div class="tbar">[\s\S]*?<\/div>/.exec(html) || [""])[0];
@@ -2699,7 +2699,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 8 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 10 && js(tabs.slice(0, 2)) === js(["install", "build"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
