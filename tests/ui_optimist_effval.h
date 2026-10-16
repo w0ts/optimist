@@ -164,12 +164,8 @@ static int effv_over_same(const int32_t *dest, uint32_t n, int32_t v1, int32_t v
         int32_t mv;
         const param_desc_t *ds = lo_dest(t, dest[i], &q);
         t->p[P_L1DA] = (int16_t)dest[i], t->p[P_L1AA] = 90, t->p[P_L1DB] = (int16_t)(both ? dest[i] : LT_OFF), t->p[P_L1AB] = both ? -50 : 0;
-#if FELUCCA_LFO2
         t->p[P_L2DA] = (int16_t)(both == 2u ? dest[i] : LT_OFF), t->p[P_L2AA] = both == 2u ? 70 : 0, t->p[P_L2DB] = t->p[P_L2AB] = 0;
         lfo2[0].v = v2;
-#else
-        (void)v2;
-#endif
         t->lfo_val = (int16_t)v1, t->lfo_fade = 32767;
         lfo_over_in();
         mv = t->p[q];                                   /* (what the render got) */
@@ -197,10 +193,8 @@ static void effv_over_tests(void)
         t->p[P_E0 + r] = (int16_t)((ENGINES[t->engine]->edit[r].min + ENGINES[t->engine]->edit[r].max) / 2);
     check(effv_over_same(D, 7, 32767, 0, 0) && effv_over_same(D, 7, -20000, 0, 0) && effv_over_same(D, 7, 12345, 0, 1),
           "live values: PAN LVL ATK DEC RES E1 E2 on slot A (and B on the same) as the render moved them");
-#if FELUCCA_LFO2
     check(effv_over_same(D, 7, 9000, -30000, 2) && effv_over_same(D, 7, 32767, 32767, 2),
           "... with LFO 2's slot on the same value too (the two LFOs in turn)");
-#endif
     t->p[P_L1DA] = LT_PAN, t->p[P_L1AA] = 60, t->p[P_L1DB] = LT_OFF, t->p[P_L1AB] = 0;
     t->lfo_val = 20000, t->lfo_fade = 32767;
     r = ins_row("LFO DEST");
@@ -216,10 +210,8 @@ static void effv_over_tests(void)
     t->p[P_L1DA] = LT_E1, t->p[P_L1DB] = LT_L2RT;
     SCR->cell(r, 0, &c);
     check(!strcmp(c.val, ENGINES[t->eng_req]->edit[0].label), "the DEST A card on E1: the engine's own name of its first EDIT value");
-#if FELUCCA_LFO2
     SCR->cell(r, 2, &c);
     check(!strcmp(c.val, "L2 RT"), "the DEST B card on L2RT: \"L2 RT\"");
-#endif
     *t = keep;
     reset_ui();
 }

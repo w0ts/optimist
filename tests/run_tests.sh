@@ -379,26 +379,18 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_sync_test_nomac" tests/lfo_sync_test.c -lm
     run "LFO RATE below 0, without the macros" "$OUT/lfo_sync_test_nomac"
 ) >"$U.out" 2>&1 & jobbg
-# LFO 2 (FELUCCA_LFO2: voice.c lfo2_tick, project.c l2_pack, sl24 import / export): built, and a project with it in a build without
+# LFO 2 (always built: voice.c lfo2_tick, project.c l2_pack, sl24 import / export)
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/lfo2_test" tests/lfo2_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo2_test" tests/lfo2_test.c -lm
     run "LFO 2: params, off = nothing, free / synced RATE, PIT FLT SHP AMP maths, POL, S&H without rng(), TRIG, renders, project round trip, old projects" "$OUT/lfo2_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=0 -o "$OUT/lfo2_test0" tests/lfo2_test.c -lm
-    run "LFO 2 left out: a project with it loads (the drum track's slots back to their defaults), MISS names it" "$OUT/lfo2_test0"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), L1RT L1AMT L2RT L2AMT bounded, macros, old locks" "$OUT/lfo_slots_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/env_dest_test" tests/env_dest_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/env_dest_test" tests/env_dest_test.c -lm
     run "ENV DEST / ENV2 DEST's two slots: ENV on AMP by default, nothing wired (no AMP: full while ENV runs; ENV2 alone on AMP keeps the voice), the plain path and env_post the same, values per voice (E5, DEC) and the part's (PAN), mod of mod bounded" "$OUT/env_dest_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/env_dest_test0" tests/env_dest_test.c -lm
-    run "ENV DEST / ENV2 DEST's slots without LFO 2" "$OUT/env_dest_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
-    run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
+    run "LFO DEST's two slots without the macros" "$OUT/lfo_slots_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
     run "LFO DEST's INS1 / INS2 named by every insert type built (FILT COMP FOLD ... ECHO), empty, swapped" "$OUT/lfo_slots_test_ins"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -DFELUCCA_LFO2=1 -o "$OUT/sl26_import_test_lfo2" tests/sl26_import_test.c -lm
-    run "SLOOP 2.6 import with LFO 2: its LFO's TRIG FREE / POL UNI onto LFO 2; LFO 2 exported as 2.4's LFO, else lost (bit 9)" "$OUT/sl26_import_test_lfo2"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/regress_lfo2" tests/regress.c -lm
-    run "regression with LFO 2 built: the same golden renders (off by default), its CPU (cpu/lfo2/off, on)" "$OUT/regress_lfo2" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 BP23_ON="-DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
 job; ( jobin
@@ -631,11 +623,6 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
     run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    mkdir -p "$OUT/lfo2"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LFO2=1 $SEC4 -o "$OUT/ui_pages_lfo2_test" tests/ui_pages_test.c -lm
-    run "live UI with LFO 2 built in: the LFO button steps LFO, LFO DEST, LFO 2, LFO2 DEST; LFO 2's RATE gauge and icons as LFO's" "$OUT/ui_pages_lfo2_test" "$OUT/lfo2"
-) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/nochord"   # (its screens apart: the STEP page without the chord names)
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CHORD_NAMES=0 $SEC4 -o "$OUT/ui_pages_nochord_test" tests/ui_pages_test.c -lm
@@ -685,11 +672,6 @@ mkdir -p "$OUT/optimist"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
     run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    mkdir -p "$OUT/optimist-lfo2"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LFO2=1 $SEC4 -o "$OUT/ui_optimist_lfo2_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with LFO 2 built in: the LFO 2 and LFO2 DEST rows after LFO DEST (synth tracks), RATE as LFO's, SHIFT + a knob, the AMT card's live bar equal to the render" "$OUT/ui_optimist_lfo2_test" "$OUT/optimist-lfo2"
 ) >"$U.out" 2>&1 & jobbg
 # the dual-core build's CPU1 load (system/dual_load.h): none in a single-core build; smoothed as song.cpu_q8, in range,
 # OFF when CPU1 is down; SYSTEM's CPU row with it (DUAL_LOAD alone: the readout without the second core's render)
@@ -774,7 +756,7 @@ job; ( jobin
     run "Optimist UI with the help line: GLOBAL / SYSTEM / PROJECT always, a value turned ~2 s; CALIBRATE, factory resets, the risky actions asked" "$OUT/ui_optimist_help_test" "$OUT/optimist-help"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 -DDUAL_LOAD=1 -DFELUCCA_MIDI_CLKOUT=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_LFO2=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_help2_test" tests/ui_optimist_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 -DDUAL_LOAD=1 -DFELUCCA_MIDI_CLKOUT=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_help2_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the help line, REC MODES, LIGHTS, USB SERIAL, BLE, CLOCK OUT, BRIGHT, LFO 2, the seq tools and the CPU1 load: every line has its help" "$OUT/ui_optimist_help2_test" "$OUT/optimist-help"
 ) >"$U.out" 2>&1 & jobbg
 # fx-pool (2026-10-15): every further insert and EQ3 built, the help line on (tests/ui_optimist_test.c fxpool_tests: a return
@@ -870,7 +852,7 @@ job; ( jobin
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_LFO2=1" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
         mkdir -p "$OUT/help"

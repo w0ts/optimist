@@ -119,14 +119,13 @@ static int16_t lfo_mac[NPART][4];                      /* LFO's depth of PIT FLT
 static uint16_t lfo_mac_m;                             /* bit 4 k + d: lfo_mac[k][d] stands for the slots' (macro.c) */
 #endif
 
-/* LFO 2 (FELUCCA_LFO2, core.h P_L2RATE .. P_L2AB): a second LFO a part, two slots as LFO's. Its state is the part's
+/* LFO 2 (core.h P_L2RATE .. P_L2AB): a second LFO a part, two slots as LFO's. Its state is the part's
  * (lfo2[], not in track_t: the drum track has none). Each block (track_render, either core): nothing at all while every
  * slot is OFF or at 0 (the phase waits); else the phase steps by RATE (free or synced, lfo_inc_of), S&H takes its next
  * value at each wrap from a hash of the last (no rng(): the same samples on either core, no draw order), the wave
  * (lfo_slot.h lfo_shape, LFO's five) and POL (UNI: (v + 1) / 2, SLOOP 2.6's) give v (Q15, kept for lfo_over), and its
  * slots of PIT FLT SHP AMP the block's offsets (lfo_apply). TRIG NOTE: a fresh phrase restarts it at phase 0
  * (trk_note_on, with LFO's); FREE: never. No divide, no 64-bit but the synced step (LFO's) */
-#if FELUCCA_LFO2
 #include "lfo_slot.h"
 typedef struct {
     uint32_t ph;                                        /* the phase */
@@ -163,11 +162,6 @@ AINL void lfo2_retrig(const track_t *t)
     if (!t->p[P_L2TRIG])
         lfo2[(uint32_t)(t - trk) % NPART].ph = 0;
 }
-#else
-#define LFO2_ON(t) ((void)(t), 0)
-AINL void lfo2_tick(const track_t *t, lfo_mod_t *o) { (void)t, (void)o; }
-#define lfo2_retrig(t) ((void)(t))
-#endif
 /* part t's LFO at lfo (Q15, its fade in) on the voices: its slots of PIT FLT SHP AMP (or a macro's depths) -> o */
 AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
 {
@@ -211,11 +205,7 @@ static const uint8_t LT_TAB[LT_N][3] = {
     LT_A2(P_A2FATK), LT_A2(P_A2FDEC), LT_A2(P_A2ESUS), LT_A2(P_A2EREL),       /* ATK2 DEC2 SUS2 REL2 */
     {LK_XA, P_N1DA, LC_VAL}, LT_N2XA,                                          /* E1 AMT E2 AMT */
     {LK_V, 4, LC_VOICE}, {LK_V, 5, LC_VOICE},                                  /* OSC2 SDTN */
-#if FELUCCA_LFO2
     {LK_XR, P_L2RATE, LC_PART}, {LK_XA, P_L2DA, LC_PART}};                     /* L2RT L2AMT */
-#else
-    {LK_NONE, 0, LC_VOICE}, {LK_NONE, 0, LC_VOICE}};
-#endif
 _Static_assert(LT_N <= 64 && P_COUNT <= 256, "a DEST in 6 bits (project.c l2_pack, env_store.h); an id in a byte");
 #define LO_MAX 32u                                     /* the values moved in a block (24 slots, an XAMT two each: more is
                                                         * left as authored) */
@@ -237,9 +227,7 @@ static __attribute__((noinline)) uint32_t lfo_over_any(void)
     for (k = 0; k < NPART; k++) {
         const int16_t *p = trk[k].p;
         a |= (uint32_t)(LT_OVER_AT(p, P_L1DA, 0) || LT_OVER_AT(p, P_L1DA, 1));
-#if FELUCCA_LFO2
         a |= (uint32_t)(LT_OVER_AT(p, P_L2DA, 0) || LT_OVER_AT(p, P_L2DA, 1));
-#endif
         a |= (uint32_t)(ENV_PART_AT(p, P_N1DA, 0) || ENV_PART_AT(p, P_N1DA, 1));
 #if FELUCCA_ANALOG2
         a |= (uint32_t)(ENV_PART_AT(p, P_N2DA, 0) || ENV_PART_AT(p, P_N2DA, 1));
@@ -337,11 +325,9 @@ static void lfo_over_in(void)
         for (s = 0; s < 2u; s++)
             if (LT_OVER_AT(t->p, P_L1DA, s))
                 lo_slot(t, t->p[P_L1DA + 2u * s], t->p[P_L1AA + 2u * s], v1, 0);
-#if FELUCCA_LFO2
         for (s = 0; s < 2u; s++)
             if (LT_OVER_AT(t->p, P_L2DA, s))
                 lo_slot(t, t->p[P_L2DA + 2u * s], t->p[P_L2AA + 2u * s], lfo2[k].v, 0);
-#endif
         for (s = 0; s < 2u; s++)
             if (ENV_PART_AT(t->p, P_N1DA, s))
                 lo_slot(t, t->p[P_N1DA + 2u * s], t->p[P_N1AA + 2u * s], env_pv[k][0], 1);

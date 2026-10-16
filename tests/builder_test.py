@@ -85,6 +85,21 @@ check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 
 check("no shipped profile or estimate configuration names SIMD",
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
            if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
+# LFO2 (bit 91) retired 2026-10-16: LFO 2 is always built. An old .config or --set naming it (=0 or =1) loads, says "dropped",
+# and keeps its other keys; the header has no FELUCCA_LFO2 switch; no shipped profile or estimate configuration names it
+for _v in (0, 1):
+    _w = io.StringIO()
+    with contextlib.redirect_stderr(_w):
+        _cfg, _ = C.parse(f"# name: old\nLFO2={_v}\nICONS=0\n")
+        _a = argparse.Namespace(config=None, profile=None, set=[f"LFO2={_v}"], name=None, ble_drop=None)
+        _c3, _ = C.resolve_cli(_a)[:2]
+    check(f"LFO2={_v} in an old .config and as --set: loads, warns \"dropped\" each time, keeps its other keys, ignored",
+          "LFO2" not in _cfg and "LFO2" not in _c3 and _cfg["ICONS"] == 0 and _w.getvalue().count("LFO2 was dropped") == 2 and
+          "FELUCCA_LFO2" not in C.header(_cfg))
+check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configuration hash, no shipped profile or estimate names it",
+      "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
+      not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
+           if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
 # the web editor's v13 and v14 commands are twelve builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
       "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",

@@ -49,14 +49,16 @@ RETIRED = {
     "DLY_HALVE": "a delay time longer than the line always halves, on the beat (retired 2026-10-14: X0X 892a3b5, unchanged in X0X 1.0.6)",
     "UA_RESAMPLE": "the USB audio choice of USB_MODE always resamples the capture to the host's clock (retired 2026-10-15; "
                    "USB_MODE=2 now means USB audio + MIDI, resampled)",
+    "LFO2": "LFO 2, a second LFO on each synth track, is always built (retired 2026-10-16: no off; any old LFO2 value is ignored)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
-# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1}   # (each was its default in every profile)
+# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
+# counted ON (the image every build is now; a build that had it off is a different image).
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
@@ -249,15 +251,7 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "
           "RAM; off by default.", provenance=FELUCCA)
-_add("LFO2", "FELUCCA_LFO2", "LFO 2 (a second LFO on each synth track)", E, 91, default=0,
-     desc="A second LFO on tracks 1-3: RATE (free, or synced to the tempo as LFO's: 4BAR .. 1/32), WAVE (SIN TRI SAW "
-          "SQR S&H), TRIG (NOTE: restarts when a phrase starts; FREE: runs on), POL (BI, or UNI: one way only) and two "
-          "destinations as LFO DEST's (DEST A + AMT A, DEST B + AMT B: PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, the "
-          "sends CHO DLY REV, the inserts' amounts INS1 INS2, and XRATE XAMT: LFO's RATE and amounts, either way round). It adds to LFO (AMP: multiplies). Saved with the "
-          "project (no format change: an older build plays it without, and says LFO 2 is missing), kept when the sound "
-          "changes; a SLOOP 2.6 project whose LFO is TRIG FREE or POL UNI imports onto it. Pages LFO 2 and LFO2 DEST. "
-          "About 1-3 KB of flash, 0.2 KB of RAM, 0.2 KB of RAMTEXT; off (every slot OFF or at 0) it costs no CPU; on, "
-          "well under 1 % of an 8-voice part.")
+# (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums
 D = "Drums"

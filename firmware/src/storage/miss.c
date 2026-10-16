@@ -29,7 +29,7 @@ enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV, MS_PAT };   /*
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
-       MF_CHANCE, MF_COMP, MF_LAUTO, MF_LLFO, MF_INS3, MF_LFO2 };
+       MF_CHANCE, MF_COMP, MF_LAUTO, MF_LLFO, MF_INS3 };
 #if DLA_ON                                            /* (drum_edit.c: the drum lanes' motion and locks played) */
 #define MISS_LAUTO 1
 #else
@@ -47,8 +47,7 @@ static const char MF_NAMES[] = MF_S(FELUCCA_FX_DELAY, "DELAY") MF_S(FELUCCA_FX_R
     MF_S(FELUCCA_FX_DJF, "FILT") MF_S(FELUCCA_FX_DUST, "DUST") MF_S(FELUCCA_FX_DUCK, "DUCK")
     MF_S(FELUCCA_DRUM_EDIT, "SOUND EDIT") MF_S(FELUCCA_DRUM_USR, "LANE SMP") MF_S(FELUCCA_DRUM_KITS, "LANE KIT")
     MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP") MF_S(MISS_LAUTO, "LANE MOTION") MF_S(MISS_LLFO, "LANE LFO")
-    "3RD INS" "\0"   /* (MF_INS3: an old project's third insert on a track, dropped: fx_rec.c ins_map) */
-    MF_S(FELUCCA_LFO2, "LFO 2");
+    "3RD INS" "\0";   /* (MF_INS3: an old project's third insert on a track, dropped: fx_rec.c ins_map) */
 #undef MF_S
 static uint16_t miss_m[MISS_MAX];                     /* the last scan's items */
 static uint32_t miss_cnt;
@@ -103,10 +102,6 @@ static void miss_part(uint32_t k)
     for (i = 0; !FELUCCA_CHANCE && i < NSTEP; i++)     /* (chance.c: step_t.flags bits 2..6) */
         if (t->step[i].flags & 0x7Cu)
             MFX(MF_CHANCE, k);
-#if !FELUCCA_LFO2
-    if ((l2_miss >> k) & 1u)                           /* (its LFO 2: in the project loaded, not played here) */
-        MFX(MF_LFO2, k);
-#endif
 }
 
 /* the drum track: its kit, the lanes' sources, edits and sends */

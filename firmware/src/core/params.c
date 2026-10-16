@@ -4,10 +4,8 @@
 static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first (core.h LSYNC_N, LRATE_OF_SLOOP) */
 static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
-#if FELUCCA_LFO2
 static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
 static const char *const N_L2POL[] = {"BI", "UNI"};
-#endif
 /* a modulation slot's DEST (core.h LT_*: LFO's, LFO 2's, ENV's, ENV2's) */
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
                                        "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
@@ -183,7 +181,6 @@ static const param_desc_t TP[P_COUNT] = {
 #if FELUCCA_INS_EQ3
     [P_TEQ] = PE("EQ3", N_ONOFF, 1),               /* EQ3 (insfx/eq3.c): on (its bands: the EQ3 pages) */
 #endif
-#if FELUCCA_LFO2
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
     [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
@@ -192,7 +189,6 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
-#endif
     [P_N1DA] = {"DST A", F_ENUM, 0, LT_NB - 1, LT_AMP, N_LT, 0},   /* ENV DEST: two slots (core.h LT_*), A on AMP */
     [P_N1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 127),
     [P_N1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
@@ -412,11 +408,7 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 }
 #endif
 
-#if FELUCCA_LFO2
 #define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
-#else
-#define is_lrate(d) ((d) == &TP[P_LRATE])
-#endif
 /* the LFO's RATE turned (steps detents, accelerated): a fast turn down stops at 0 first, the slowest free rate; below 0
  * (the synced note values, N_LSYNC) one value a detent, whatever the speed; above 0 as every value */
 static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
@@ -697,11 +689,9 @@ static const page_t PAGES[] = {
 #endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L1DA, P_L1AA, P_L1DB, P_L1AB}},   /* DEST A, AMT A, DEST B, AMT B */
-#if FELUCCA_LFO2
     /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
     {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
     {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DA, P_L2AA, P_L2DB, P_L2AB}},
-#endif
 #if FELUCCA_UI != 1
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* S1's amount, the master sends (page_id) */
 #endif

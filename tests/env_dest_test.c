@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* ENV DEST's and ENV2 DEST's two slots (core.h P_N1DA .., P_N2DA ..; voice.c env_plan / env_pre / env_post, env_store.h),
- * the shared destination list (LT_*). Run by tests/run_tests.sh with LFO2=1 and LFO2=0:
+ * the shared destination list (LT_*). Run by tests/run_tests.sh:
  *   default   a new track, INIT, a preset: ENV A on AMP at 127, nothing else; the depths of before -> slots
  *   amp       nothing is wired: ENV off AMP plays at full while ENV runs (its release too), then ends; ENV2 alone on AMP
  *             shapes the voice and keeps it alive until ENV2 has died away; ENV on AMP at -128 upside down
@@ -227,6 +227,6 @@ int main(void)
     t_values();
     t_mod2();
     t_names();
-    printf("env_dest_test (LFO2=%d): %d failed\n", FELUCCA_LFO2, fails);
+    printf("env_dest_test: %d failed\n", fails);
     return fails;
 }

@@ -73,7 +73,6 @@ static void lforate_tests(void)
     check(1, "lfo rate: -1, -10 and a free rate: the LFO page and its wave preview drawn");
     trk[0].p[P_LRATE] = keep;
     ui.force = 1; frames(2);
-#if FELUCCA_LFO2
     {   /* LFO 2's RATE: the same display (is_lrate: the gauge and the division icon) */
         int16_t keep2 = trk[0].p[P_L2RATE];
         lr_page_of(P_L2RATE);
@@ -91,5 +90,4 @@ static void lforate_tests(void)
         trk[0].p[P_L2RATE] = keep2;
         ui.force = 1; frames(2);
     }
-#endif
 }

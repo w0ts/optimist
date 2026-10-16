@@ -66,7 +66,7 @@ The engine parameters are `P_E0..P_E7`: P_COUNT−8 .. P_COUNT−1, and `INFO` g
 
 **LFO DEST** (2026-10, feat/lfo-slots): the four ids that held LFO's depths PIT FLT SHP AMP (13..16) are two slots:
 DEST A (enum), AMT A (−128..127), DEST B, AMT B. A DEST: OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8 CHO DLY REV INS1 INS2 (the sends, the S1 / S2
-inserts' amounts), and with LFO2
+inserts' amounts), and
 XRATE XAMT (the other LFO's RATE, its AMTs); `DESC` gives the names and the range of this build. An AMT of 2 is a depth
 of 1 of before on PIT FLT SHP, on AMP the same. They are part of a sound (user presets keep them; `UP_GET` / `UP_PUT`
 carry the slots, the device stores them as before when they are depths). Not lockable nor recordable as motion yet; an
@@ -74,8 +74,8 @@ old lock or motion event on a depth (id 13..16 in a project from before) plays o
 
 **ENV DEST** (2026-10-14, feat/env-dests): ENV and ENV2 each have the same two slots (DST A, AMT A, DST B, AMT B), taken from one list shared by LFO, LFO2, ENV and ENV2 (core.h `LT_*`; `DESC` gives the names of this build). The amplitude is ENV slot A on AMP 127 by default (a new sound, INIT, the presets, an old project). The old relative XRATE / XAMT are the absolute L1 RT, L1 AMT, L2 RT, L2 AMT. The fixed pitch drop that ENV DEST PIT used to give is its own value, DROP (key `PIT` in the web editor's `paramKeys`). ENV2 runs on every engine. A project stores the slots as int8 values in its modulation record (tag 0xD2, with the drum lanes' LFO records); old depth words are written 0 (0 = defaults) and an old project converts from its words. `UP_GET` / `UP_PUT` carry the device's P_COUNT and the slots. **VOICES** (`P_VOICES`, the last parameter id; 1 to the engine's maximum, never AUTO) is a track parameter listed by `DESC`.
 
-**LFO 2** (builds with the builder item LFO2, `FELUCCA_LFO2`): eight track parameters after every other one, the last
-ids of a track (P_COUNT−8 .. P_COUNT−1 in those builds; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
+**LFO 2** (every build, 2026-10-16: the builder item LFO2 was retired): eight track parameters after every other one, the last
+ids of a track (P_COUNT−8 .. P_COUNT−1; `DESC` names them): RATE (`F_LFOHZ`, −10..127 as LFO's RATE:
 below 0 a note value of the tempo), WAVE (SIN TRI SAW SQR S&H), TRIG (NOTE FREE), POL (BI UNI), DEST A, AMT A, DEST B,
 AMT B (as LFO DEST's). They are read and set as any track parameter (`GET` / `SET`, `TRACK_PARAM`, the dumps carry
 them as they carry P_COUNT values); they are not part of a sound (a user preset does not keep them) and are not
