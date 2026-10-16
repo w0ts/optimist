@@ -857,7 +857,7 @@ the scenes.
 
 ## v10: FX slots (commands 86, 87; INFO tag 56)
 
-Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: R1 R2 R3, the one order of the sends and returns on every screen); each track (T1 T2 T3
+Four master **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c) hold the **send** types (CHO DLY REV), default ---- REV DLY CHO (2026-10-15: the returns, the one order of the sends and returns on every screen); each track (T1 T2 T3
 DR) has two **insert slots**, S1 then S2, holding an insert type (DIST, FILT or COMP at first; since 2026-10-13 and 14 also FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER DUST JUNO, each a builder item), default S1 DIST, S2 FILT (2026-10-12). A slot is
 empty or holds one effect **type**, and a type sits in one slot at most (a track's: in one of its two): loading a type
 another slot holds swaps the two slots. The amounts belong to the type, not the slot: a type not heard on a track (no
@@ -898,7 +898,7 @@ shows DST CHO DLY REV as before.
 
 `firmware/src/io/editor/ed_fxp.c`. Since the FX rework the firmware has more effect slots than v10's four: two **insert slots**
 on every track (T1 T2 T3 DR), on the master and on the USB input, two on each of the 16 drum sounds, and three **returns**
-R1 R2 R3 (a send bus CHO DLY REV, or any other effect type, 100 % wet, with a RET level), and each type has its own
+A B C (the editor's names for the device's R1 R2 R3, as Live names its returns; a send bus CHO DLY REV, or any other effect type, 100 % wet, with a RET level), and each type has its own
 parameters (DYN: THRS RATIO ATK REL GAIN CEIL; EQ3: LO MID HI ON FREQ L FREQ H; GATER: DEPTH PAT RATE SHAPE; JUNO: MIX MODE;
 the others one amount). FXP reaches all of it, by **owner**, and says what each slot and parameter is (its descriptor is the
 device's own, as `DESC`), so an editor draws a slot from the reply and names no type of its own.

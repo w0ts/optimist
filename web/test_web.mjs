@@ -1357,9 +1357,29 @@ async function editorFxp() {
   await sleep(30);
   ok(ev.pushes.slice(n0).some((f) => f.cmd === C.FX_PUSH), "fxp: a change on the device: FX_PUSH");
   /* the strips and popups are in the page: openers, strings, the push re-read */
+  /* the strips' slot widget: the main knobs of every effect type come from the device's descriptors (FXP_TABLE) and FXP_MAIN's labels; the strip template */
+  {
+    const T = E.FXP_TABLE, kinds = ["track", "master", "return", "lane", "usb"];
+    const ui = vm.runInNewContext(html.slice(html.indexOf("const FXP_MAIN"), html.indexOf("function retMainKnobs")) + "; " + html.slice(html.indexOf("const STRIP_ROWS"), html.indexOf("function stripShell"))
+      + "; ({ FXP_MAIN, BUS_MAIN, fxpMainIdx, STRIP_ROWS })", { FXT: E.FXT });
+    const bad = [];
+    for (const k of kinds) for (const ty of T[k].types) {
+      const name = E.FXT_NAMES[ty.id], idx = ui.fxpMainIdx(ty.params, name, k === "return" ? 1 : 0);
+      if (k === "return" && !ui.BUS_MAIN[ty.id] && ty.params.length > 1 && !idx.length) bad.push(`return/${name}: no main knob`);
+      if (k !== "return" && ty.params.length && !idx.length) bad.push(`${k}/${name}: no main knob`);
+      if (idx.length > 3 || idx.some((i) => !ty.params[i])) bad.push(`${k}/${name}: bad main knobs`);
+    }
+    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "slot1", "slot2", "tools", "seq", "ov", "level", "lvout", "pan", "sends", "btns"])
+      && Object.values(ui.BUS_MAIN).every(([id, labels]) => E.MASTER_FX.find((f) => f.id === id).labels.includes(labels[0]) && labels.every((l) => E.MASTER_FX.find((f) => f.id === id).labels.includes(l))),
+      "fxp: every effect type has 1..3 main knobs (the descriptors' first parameters, FXP_MAIN's labels; a bus: its own globals); every strip kind is built by stripShell with the same rows" + (bad.length ? " " + bad.join("; ") : ""));
+    const shell = html.slice(html.indexOf("function stripShell("), html.indexOf("const fxpSlotsOf"));
+    const builders = ["function buildStrip(", "function buildLaneStrip(", "function buildSendStrip(", "function buildMaster("].map((f) => html.slice(html.indexOf(f), html.indexOf(f) + 6000).split(/\nfunction |\nconst |\n\/\*/)[0]);
+    ok(/STRIP_ROWS\.map/.test(shell) && builders.every((b) => /stripShell\(/.test(b)) && !/data-go="fx(ins|mst|ret|usb)"|\bfx(ins|mst|ret|usb):|\[data-pop=fx(ins|mst|ret|usb)\]/.test(html),
+      "strips: buildStrip, buildLaneStrip, buildSendStrip (USB IN, returns A B C) and buildMaster all go through stripShell; no separate inserts / returns popups");
+  }
   ok(/function dlanCard\(/.test(html) && /readDlMix\(\)/.test(html) && /dlanCard\(0, l, t\("dlMix"\)\)/.test(html), "dlan: the lane popup has the mix and LFO cards, the strips the lanes' mute / solo and the SEQ buttons");
-  ok(/function dynFxIns\(/.test(html) && /function dynFxMst\(/.test(html) && /function dynFxRet\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
-    "fxp: the popups (inserts, master, returns) read the owner's slots and follow the device's pushes");
+  ok(/function dynFxSlot\(/.test(html) && !/function dynFxIns\(|function dynFxMst\(|function dynFxRet\(|function dynFxUsb\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
+    "fxp: the slot popup (opened from a strip's slot widget) reads the owner's slot and follows the device's pushes; no separate inserts / master / returns popups");
   done();
 }
 async function editorPages() {
@@ -1542,8 +1562,8 @@ async function editorDaw() {
     flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
     st = E.navClose(st);
   }
-  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || ((id === "fxret" || id === "fxusb") && /function buildSendStrip\(/.test(html) && /iconBtn\(usb \? "fxusb" : "returns"/.test(html)));
-  ok(flat && openers && ids.length === 18 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
+  ok(flat && openers && ids.length === 15 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -2795,8 +2815,8 @@ function editorKeys() {
   ok(new Set(keys).size === keys.length && !keys.some((k) => E.KEY_FIXED.includes(k)) && keys.every((k) => k.length === 1 && !/[\s]/.test(k)),
     `keys: ${keys.length} element keys, no duplicates, none on Space / Escape / the arrows, no Ctrl / Cmd combos`);
   ok(E.keyFor("sound") === "i" && E.keyFor("sequence") === "q" && E.keyFor("loadpreset") === "l" && E.keyFor("savepreset") === "p"
-    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("fxdelay") === "d" && E.keyFor("fxreverb") === "r" && E.keyFor("fxchorus") === "c" && E.keyFor("fxins") === "f" && E.keyFor("fxmst") === "m" && E.keyFor("fxret") === "e" && E.keyFor("master") === "" && E.keyFor("help") === "h"
-    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, D R C for the FX, F M E the inserts / master / returns, H, comma)");
+    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("fxdelay") === "d" && E.keyFor("fxreverb") === "r" && E.keyFor("fxchorus") === "c" && E.keyFor("fxins") === "" && E.keyFor("fxmst") === "" && E.keyFor("fxret") === "" && E.keyFor("master") === "" && E.keyFor("help") === "h"
+    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, D R C for the FX, H, comma; the inserts are on the strips: no key)");
   ok(K.every((k) => (k.id && E.NAV[k.id]) || k.screen === "settings") && E.keyLabel(" ") === "Space" && E.keyLabel("i") === "I" && E.keyLabel("ArrowLeft") === "←",
     "keys: every key opens a known popup (NAV) or Settings");
   const nav = (pop) => ({ screen: "mixer", pop }), ev = (key, o = {}) => ({ key, ...o });
@@ -2819,11 +2839,11 @@ function editorKeys() {
     "keys: 1-9 0 SELECT drum sound 1-10 (no popup); the selected one's digit again, or Enter, opens it");
   ok(open(st(3), "i") === "null" && open(st(3), "l") === "null" && open(st(3), "p") === "null" && open(st(1), "k") === "null" && open(st(1), "u") === "null"
     && open(st(0), "3") === "null", "keys: the synth keys are ignored on the drum track, the drum keys on a synth track");
-  ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "fxmst:0:0"
+  ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "null"
     && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
-    "keys: D / R / C = Delay / Reverb / Chorus (from any track), M = the master's inserts, H = help, comma = Settings");
-  ok(open(st(2), "f") === "fxins:2:0" && open(st(3), "F") === "fxins:3:0" && open(st(0), "e") === "fxret:0:0" && open(st(0), "b") === "fxusb:0:0" && open(st(2), "s") === "song:0:0" && open(st(2), "t") === "tools:2:0" && open(st(3), "t") === "tools:3:0" && P(st(1, { id: "fxins", track: 1, lane: 0 }), ev("f")) === '{"close":true}',
-    "keys: F opens the selected track's inserts (the drum track's too), E the returns; F again closes");
+    "keys: D / R / C = Delay / Reverb / Chorus (from any track), H = help, comma = Settings");
+  ok(open(st(2), "f") === "null" && open(st(3), "F") === "null" && open(st(0), "e") === "null" && open(st(0), "b") === "null" && open(st(2), "s") === "song:0:0" && open(st(2), "t") === "tools:2:0" && open(st(3), "t") === "tools:3:0" ,
+    "keys: no key opens an inserts / returns popup (the slots are on the strips); S Song and T Tools stay");
   /* the same key again closes; another key does not stack a popup; no modifiers */
   const pp = (id, lane = 0) => ({ id, track: 1, lane });
   ok(P(st(1, pp("sound")), ev("i")) === '{"close":true}' && P(st(1, pp("sound")), ev("q")) === "null" && P(st(3, pp("lane", 2)), ev("3")) === '{"close":true}'
@@ -2874,9 +2894,9 @@ function editorKeys() {
       "mixer group: folded by default; fold / mode / sound kept per browser in localStorage, every access in try / catch");
   }
   /* the layout: row 1 the group (Sound, Load, Save | Kit, User kits), row 2 Sequence */
-  ok(/const pops = drum \? \[popBtn\("kit"[^\]]*popBtn\("kitstore"[^\]]*\]\s*: \[popBtn\("sound"[^\]]*popBtn\("loadpreset"[^\]]*popBtn\("savepreset"/.test(strip)
-    && /el\("div", \{ class: "pops"[^\n]*\.\.\.pops\), seqBtn,/.test(strip) && /\.strip \.pops \{[^}]*border: 1px solid/.test(html),
-    "keys: the strip: one bordered group (Sound, Load, Save; drums Kit, User kits), the Sequence button below");
+  ok(/const pops = drum \? \[\.\.\.\(fxpOn\(\) \? \[\] : \[popBtn\("kit"[^\]]*\]\), popBtn\("kitstore"[^\]]*\]\s*: \[popBtn\("loadpreset"[^\]]*popBtn\("savepreset"/.test(strip)
+    && /tools: el\("div", \{ class: "pops"[^\n]*\.\.\.pops\), seq: seqBtn,/.test(strip) && /\.strip \.pops \{[^}]*border: 1px solid/.test(html),
+    "keys: the strip: one bordered group (Load, Save; drums User kits: Sound and Kit open from the instrument widget), the Sequence button below");
 }
 
 /* ------------------------------------------------- editor icons (Fukiai) --- */
