@@ -520,6 +520,7 @@ static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
  * first job, CPU0 waited DUAL_JOIN_US for it (the first audio half late, 6.5 ms at boot) and put
  * CPU1 into reset for good. Four csyncs after the `idle` cover the window (tools/build.py checks
  * that no `idle` is reached again within 4 instructions of one). */
+#if !defined(FELUCCA_DUAL_IDLE) || FELUCCA_DUAL_IDLE || FELUCCA_DUALCFG   /* (a spin-only build: no sleep loop in RAM) */
 RAMFN static void fm1_dual_sleep_ram(void)
 {
     uint32_t v;
@@ -535,6 +536,7 @@ RAMFN static void fm1_dual_sleep_ram(void)
         fm1_dual_mb.count++;
     }
 }
+#endif
 #if defined(DUAL_FAILTEST) && DUAL_FAILTEST == 7
 /* (the emulator's test of a wake that never reaches CPU1: in its loop, in RAM, its interrupt never on) */
 RAMFN static void fm1_dual_deaf_ram(void)

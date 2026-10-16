@@ -147,7 +147,11 @@ static void dualcfg_defaults(dualcfg_t *c)
 #define DUAL_SLEEP_CODE DUAL_SLEEPS
 #define DUAL_SPIN_CODE (!DUAL_SLEEPS)
 #define DUAL_SLEEPS_NOW DUAL_SLEEPS
+#if DUAL_HOLD_MS
 #define DUAL_HOLD_NOW (dual.hold_at > DUAL_HOLD_MS ? dual.hold_at : (uint32_t)DUAL_HOLD_MS)
+#else
+#define DUAL_HOLD_NOW dual.hold_at                 /* (BLE running + 400 ms: dual_stock_after_ble) */
+#endif
 #define DUAL_LATE_NOW DUAL_LATE_MS
 #define DUAL_PARK_NOW (fm1_ms != 0u)               /* at boot (before TIMER5: fm1_ms 0) CPU1 runs free in its RAM loop through
                                                     * the RF program, as stock's (B25 on the FM-1: 3 x 3 x 180 s with BLE on);
@@ -426,22 +430,28 @@ void HOT fm1_cpu1_wake(void)
 #define C1_MAIN
 #define C1_RAM_CALL(f) FL_FAR(f)
 #endif
-void C1_MAIN fm1_cpu1_main(void)
+/* CPU1, once at its start (from the flash: it runs XIP from its entry until here anyway): its EMU bank, the canary, the
+ * hello; RAM text kept for the loop */
+static __attribute__((noinline)) void fm1_cpu1_hello(void)
 {
-    uint32_t seq = 0, arg = 0;
     fm1_dual_mb.stage = C1S_MAIN;
-    FAR(fm1_dual_c1_emu)();                        /* its own stack limit and traps (X0X, Melodee) */
+    fm1_dual_c1_emu();                             /* its own stack limit and traps (X0X, Melodee) */
 #if DUAL_FAILTEST == 1
     for (;;)
         ;
 #endif
-    fm1_dual_mb.canary = 1u + FAR(fm1_dual_canary_scan)(fm1_dual_canary, FM1_DUAL_CANARY_PASSES);   /* (CPU0 checks it) */
+    fm1_dual_mb.canary = 1u + fm1_dual_canary_scan(fm1_dual_canary, FM1_DUAL_CANARY_PASSES);   /* (CPU0 checks it) */
 #if DUAL_FAILTEST == 5
     fm1_dual_mb.canary++;                          /* (as if one word had been read wrong) */
 #endif
     fm1_dual_sync();                               /* the canary before the hello */
     fm1_dual_mb.hello = FM1_DUAL_HELLO;
     fm1_dual_mb.stage = C1S_HELLO;
+}
+void C1_MAIN fm1_cpu1_main(void)
+{
+    uint32_t seq = 0, arg = 0;
+    FAR(fm1_cpu1_hello)();
 #if DUAL_SLEEP_CODE
     if (DUAL_SLEEPS_NOW) {
         (void)seq;
@@ -798,6 +808,9 @@ static void dual_frame(void)
     if (dual.up && !dual_ok_t4 && (fm1_dual_mb.done || fm1_dual_mb.count))
         dual_ok_t4 = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u;   /* (CPU1 first seen working: TIMER4 ms + 1) */
 #endif
+    if (!dual_job1_t4 && fm1_dual_mb.req)
+        dual_job1_t4 = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u;   /* (CPU1's first job posted, as near
+                                                    * as the main loop sees it: the order's last stamp) */
     fm1_dual_mb.ping++;
     fm1_dual_state[0] = dual.up;
     fm1_dual_state[1] = dual.why;
@@ -946,14 +959,14 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #endif
         post = mask || !DUAL_BALANCE;              /* (a fixed DUAL_PARTS=0: CPU1 up, an empty job each block) */
     }
-    if (post && !dual_job1_t4)
-        dual_job1_t4 = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u;
     if (post) {
         req = fm1_dual_mb.req + 1u;
-        dual.mring[dual.posts & 7u] = (uint8_t)mask;
+#if FELUCCA_DUALCFG
+        dual.mring[dual.posts & 7u] = (uint8_t)mask;   /* (the console test image's diagnostics) */
         for (i = 0; i < DUAL_JOBS && i < DUAL_JOBS_MAX; i++)
             if (((mask >> i) & 1u) && !dual.first_post[i])
                 dual.first_post[i] = dual.posts + 1u;
+#endif
         dual.posts++;
         fm1_dual_mb.arg = mask;
         fm1_dual_mb.check = FM1_DUAL_CHECK(req, mask) ^ (uint32_t)(DUAL_FAILTEST == 4 && req == 3000u);

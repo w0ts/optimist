@@ -462,7 +462,6 @@ static void con_status(void)
         con_kv("vec_flips", (int32_t)fm1_vec_flips);    /* TIMER5's vector read back wrong (main loop) */
         con_kx("vec_got", fm1_vec_got);
     }
-#endif
     {
         uint32_t i, m = 0;
         for (i = 0; i < 8u; i++)                        /* the last 8 masks, oldest first, a hex digit each (bit 0..2 a */
@@ -474,6 +473,7 @@ static void con_status(void)
             con_kv(K[i], (int32_t)dual.first_post[i]);  /* 1 + the post CPU1 first got job i (3 = NPART: the drums) */
         }
     }
+#endif
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);   /* how far CPU1 got (dual_mode.h C1S_*) */
     con_kv("cpu1_beat", (int32_t)fm1_dual_mb.count);    /* its spin loops / returns from idle */
     con_kv("cpu1_wakes", (int32_t)fm1_dual_mb.wakes);   /* its wake handler's entries (asleep) */
