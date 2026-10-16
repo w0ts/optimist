@@ -154,3 +154,64 @@ export function overflowLines(over, savings, byKey) {
       biggest: `Biggest ${r} items: ` + best.map(([n, k]) => `${byKey[k].label} ${fmt(n)}`).join(", ") };
   });
 }
+
+/** 1234567 -> "1,205.6K" (KiB, one decimal: the gauges' compact numbers; the exact bytes go in their tooltip) */
+export const fmtK = (n) => (n / 1024).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "K";
+
+/** one region's gauge in the sticky bar: {region, state: ok | tight | over, text: "used / capK", overText: "+NK" or "",
+    fill: the used part (0..1 of the bar), capAt: the limit's mark when over (0..1, else null), tip: the exact bytes} */
+export function gaugeModel(region, used, cap, over) {
+  const m = barModel(region, used, cap, over);
+  const isOver = over > 0;
+  const scale = isOver ? used : cap;
+  return { region, state: m.state, text: `${fmtK(used).slice(0, -1)} / ${fmtK(cap)}`, overText: isOver ? `+${fmtK(over)}` : "",
+    fill: scale ? Math.min(1, (isOver ? cap : used) / scale) : 0, capAt: isOver && scale ? cap / scale : null,
+    tip: `${region.toUpperCase()}: ${fmt(used)} of ${fmt(cap)} B` + (isOver ? `, over by ${fmt(over)} B` : `, ${fmt(-over)} B free`) };
+}
+
+/** the notices policy: what the page shows of a view (docs/BUILDER-WEB.md "Messages").
+    -> {errors: [{kind, head, text, sub: [lines], keys}], experimental: [{key, label, text}], notes: [{text, labels}]}
+    errors: what stops a build or what the user must change (a parse error, an overflow as ONE line, the undo ring, an
+    unmet rule); experimental: one line per EXPERIMENTAL item that is on; notes: everything else (the NOTICE texts:
+    provenance, "tested in the emulator only", credits; the hints; what is not measured), identical texts once. */
+export function messagesOf(view, reg) {
+  const ev = view.eval || {}, byKey = reg.byKey;
+  const errors = [], experimental = [], notes = [];
+  if (ev.error) errors.push({ kind: "parse", head: "Error", text: ev.error, sub: [], keys: [] });
+  const ov = overflowLines(view.over, view.savings, byKey);
+  if (ov.length) {
+    errors.push({ kind: "over", head: "Over budget", text: ov.map((o) => `${o.region.toUpperCase()} +${fmtK(o.over)}`).join(", "),
+      sub: [...ov.map((o) => o.biggest), "Red sizes in the list hold the overflow; ◀ off = fits marks an item whose removal alone fits."], keys: [] });
+  }
+  const u = view.undo;
+  if (u && u.short) errors.push({ kind: "undo", head: "Undo", text: `ring ${fmt(u.ring)} B is ${fmt(u.short)} B below the ${fmt(u.keep)} B kept: a build is refused (switch features off, or lower the reserve).`, sub: [], keys: ["RESERVE_UNDO_KB"] });
+  for (const e of ev.errors || []) errors.push({ kind: "rule", head: "Error", text: e.text, sub: [], keys: e.keys || [] });
+  const seen = new Set();
+  const addExp = (key, text) => {
+    if (seen.has(key) || !byKey[key]) return;
+    seen.add(key);
+    experimental.push({ key, label: byKey[key].label, text });
+  };
+  for (const k of view.built || []) if (byKey[k] && byKey[k].experimental) addExp(k, byKey[k].tested || "");
+  const groups = new Map();
+  const note = (text, label) => {
+    if (!groups.has(text)) groups.set(text, []);
+    if (label && !groups.get(text).includes(label)) groups.get(text).push(label);
+  };
+  for (const w of ev.warnings || []) {
+    if (/EXPERIMENTAL/.test(w.text)) { for (const k of w.keys || []) addExp(k, w.text); continue; }
+    note(w.text, null);
+  }
+  for (const n of ev.notices || []) {
+    const k = (n.keys || [])[0], label = k && byKey[k] ? byKey[k].label : null;
+    const text = label && n.text.startsWith(label + ": ") ? n.text.slice(label.length + 2) : n.text;
+    note(text, label);
+  }
+  if (ev.budget && ev.budget.unmeasured && ev.budget.unmeasured.length) note(`Not measured yet (no cost in the estimate): ${ev.budget.unmeasured.join(", ")}.`, null);
+  for (const [text, labels] of groups) notes.push({ text, labels });
+  return { errors, experimental, notes };
+}
+
+/** the item has notes beyond its description: an (i) button on its row opens them (EXPERIMENTAL and how it was tested,
+    its notice, where it comes from, what turning it off loses) */
+export const hasInfo = (it) => !!(it.experimental || it.notice || it.provenance_line || it.off_warning);
