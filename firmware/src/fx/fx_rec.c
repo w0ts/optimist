@@ -45,6 +45,10 @@
 /* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns A B C (fx_slots.c rt_tlv: each slot's type, line and amount), only
  * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
 #define RET_TLV 0x4Au
+/* TLV RSND_TLV (0x4B, 2026-10-16): the sends between the returns (fx_slots.c rs_tlv: A -> B, A -> C, B -> C, a byte each,
+ * 0..127), only when one is not 0; none: every one at 0, as every project from before. A reader takes the sends it knows
+ * (a longer form's further ones skipped). A load's (`all`), as the returns' levels */
+#define RSND_TLV 0x4Bu
 #define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */
 #define UT_TLV_N (UT_TLV_N0 + 4u)
 #define INS_TLV 0x42u
@@ -71,8 +75,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)F
  * song section keeps the returns playing */
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RSND_TLV == RET_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 _Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
@@ -418,6 +422,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the sends between the returns (fx_slots.c rs_tlv) */
+        uint32_t m = rs_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)RSND_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     {   /* the master's slots (above), as the tracks' */
         uint8_t mm[INS_N];
         uint32_t m;
@@ -464,6 +475,7 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     smute_untlv(0, 0);                                 /* (none: no sequencer muted) */
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
+        rs_untlv(0, 0);                                /* (none: no send between the returns) */
         vcnt_untlv(0, 0);                              /* (none: every part's VOICES at the engine's max) */
 #if FELUCCA_USB_AUDIO
         ut_untlv(0, 0);                                /* (none: the USB input at its defaults) */
@@ -487,6 +499,9 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         else if (a[at] == FXRET_TLV) {
             if (all)
                 fxret_untlv(a + at + 2u, a[at + 1u]);
+        } else if (a[at] == RSND_TLV) {
+            if (all)
+                rs_untlv(a + at + 2u, a[at + 1u]);
         } else if (a[at] == INS_TLV)
             ia = a + at + 2u, in = a[at + 1u];
         else if (a[at] == MST_TLV)

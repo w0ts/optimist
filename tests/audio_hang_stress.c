@@ -403,6 +403,17 @@ static void act_step(void)                              /* a step put / cleared,
 #endif
     fm1_irq_on();
 }
+/* the sends between the returns (fx_slots.c rs_amt, fx.c rs_block: the chain planned in the ISR), a return's type swapped
+ * under them (fxs_load: its lines, IRQ_SAVE) */
+static void act_rsend(void)
+{
+    static const uint8_t T[] = {FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO, FXT_FILT, FXT_DIST};
+    where_now = "rsend";
+    if (R(4))
+        rs_amt[R(RS_N)] = (int16_t)(R(3) ? R(128) : 0);   /* (a knob: a 16-bit store, as the UI does) */
+    else
+        fxs_load(1u + R(3), T[R(sizeof T)]);
+}
 static void act_misc(void)
 {
     uint32_t r = R(12);
@@ -481,6 +492,8 @@ static void stress_frame(void)
             act_global();
         else if (r < 88)
             act_step();
+        else if (r < 91)
+            act_rsend();
         else
             act_misc();
         maybe_isr();

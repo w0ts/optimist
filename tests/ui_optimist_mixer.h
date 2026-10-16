@@ -232,9 +232,49 @@ static void mixer_sets_tests(void)
     check(mx_labels(MXR_MASTER, 0, "S1", 0, "S2", 0) &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "REV RET", "DLY RET", "CHO RET", 0) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, "DUCK", 0, 0, 0),
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, 0, "DLY", "CHO", 0) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 4 : 3, 0, 0, "CHO", 0) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 5 : 4, "DUCK", 0, 0, 0),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
-          "REV DLY CHO RET, the one order), DUCK (fx-rework)");
+          "REV DLY CHO RET, the one order), A's sends (B DLY, C CHO), B's (C CHO), DUCK (fx-rework)");
+    {   /* the sends between the returns (2026-10-16, fx_slots.c rs_amt): a set a return that sends, a track's sends grammar
+         * (card k is return k's, blank where none: the return itself, one to its left; card 4 no PAN) */
+        cell_t c;
+        char h[40];
+        uint32_t row0 = ui.row[SCR_HOME], sa = FELUCCA_MASTER_COMP ? 3u : 2u, i, n, ok;
+        mitem_t it[MX_MAXI];
+        ui.row[SCR_HOME] = MXR_MASTER;
+        mx.set = (uint8_t)sa;
+        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
+        check(!strcmp(h, "A sends"), "A SENDS: the header names it (A sends)");
+        mix_cell(MXR_MASTER, 1, &c);
+        check(c.vp == &rs_amt[RS_AB] && !strcmp(c.val, "0") && c.d->fmt == F_PCT, "... KNOB 2: A -> B (named by B's type, DLY), 0 by default");
+        mix_cell(MXR_MASTER, 0, &c);
+        check(!c.d && !c.label, "... KNOB 1 (A itself) and KNOB 4 (no PAN): blank");
+        turn(EN_K2, 5);
+        turn(EN_K3, 3);
+        check(rs_amt[RS_AB] > 0 && rs_amt[RS_AC] > 0 && rs_amt[RS_BC] == 0, "... KNOB 2 and 3 turned: A -> B, A -> C up, B -> C kept");
+        mx.set = (uint8_t)(sa + 1u);
+        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
+        turn(EN_K3, 4);
+        turn(EN_K2, 4);
+        turn(EN_K1, 4);
+        check(!strcmp(h, "B sends") && rs_amt[RS_BC] > 0, "B SENDS: KNOB 3 B -> C; KNOB 1 and 2 (left of it) do nothing");
+        rs_amt[RS_AB] = rs_amt[RS_AC] = rs_amt[RS_BC] = 0;
+        fxs_load(2, FXT_NONE);                          /* B empty: A's B card blank, no B SENDS set */
+        n = mx_items(MXR_MASTER, it);
+        for (i = 0, ok = 1; i < n; i++)
+            ok &= it[i].grp != MG_RSB;
+        check(ok && mx_labels(MXR_MASTER, sa, 0, 0, "CHO", 0), "B empty: A SENDS has only C's card, no B SENDS set");
+        fxs_load(1, FXT_NONE);
+        n = mx_items(MXR_MASTER, it);
+        for (i = 0, ok = 1; i < n; i++)
+            ok &= it[i].grp != MG_RSB && it[i].grp != MG_RSA;
+        check(ok, "A and B empty: no sends set (C sends to none)");
+        fxs_set(FXS_DEF);
+        ui.row[SCR_HOME] = (uint8_t)row0;
+        mx.set = 0;
+    }
     if (FELUCCA_FX_REVERB && FELUCCA_FX_DELAY && FELUCCA_FX_CHORUS && FELUCCA_FX_DIST) {   /* the user, 2026-10-15: "match the
                                                         * order between master return and the send": card k is R(k+1) */
         uint32_t ps = 2u, ok;                           /* (T1: MIX, INSERT, SENDS) */

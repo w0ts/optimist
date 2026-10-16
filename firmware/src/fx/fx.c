@@ -1049,6 +1049,7 @@ static HOT2 __attribute__((noinline)) void rev_post(uint32_t rg, const int32_t *
 #define FXB_D 2u
 _Static_assert(FXB_C == 1u && FXB_D == 2u, "fx_ret_block: fxl_lent's bits (fx_slots.c) are FXB_C FXB_D");
 #define FXB_R 4u
+#define FXB_BUILT ((FELUCCA_FX_CHORUS ? FXB_C : 0u) | (FELUCCA_FX_DELAY ? FXB_D : 0u) | (FELUCCA_FX_REVERB ? FXB_R : 0u))
 #define FXB_CG 8u
 #define FXB_RS 16u
 #define FXB_RG 8
@@ -1096,16 +1097,21 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
 static volatile int32_t fx_ret_pk[3];
 static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
 /* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
-static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t cpk, int32_t dpk, const int32_t *wr, uint32_t n)
+static HOT2 __attribute__((noinline)) int32_t fx_rev_pk(const int32_t *wr, uint32_t n)
 {
-    int32_t v[3], k, a;
+    int32_t a, v = 0;
     uint32_t i;
-    v[0] = cpk, v[1] = dpk, v[2] = 0;
     for (i = 0; i < n; i++) {                           /* (the reverb: what it added to the right wet) */
         a = wr[i] - ret_cd[i];
         a = a < 0 ? -a : a;
-        v[2] = a > v[2] ? a : v[2];
+        v = a > v ? a : v;
     }
+    return v;
+}
+static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t cpk, int32_t dpk, int32_t rpk)
+{
+    int32_t v[3], k;
+    v[0] = cpk, v[1] = dpk, v[2] = rpk;
     for (k = 0; k < 3; k++)
         if (v[k] > fx_ret_pk[k])
             fx_ret_pk[k] = v[k];
@@ -1167,6 +1173,123 @@ static HOT2 __attribute__((noinline)) void rev_job(void)   /* the kept block's t
 }
 #endif
 
+/* ---- the sends between the returns (fx_slots.c rs_amt: A -> B, A -> C, B -> C). rs_block (mix_finish, a call a block)
+ * plans the block: the lines in the returns' order (rs_ord: A's line, B's, C's, then any line with no return), the sends
+ * heard (rs_on: bit k for rs_amt[k], its gain ramped over the block from rs_cur to rs_to, Q15 as a track's send) and the
+ * line each comes from and goes to. Every send at 0 (and ramped down): rs_on 0, the returns render as before (rt_run,
+ * then fx_buses' buses in their own order), nothing else runs. Else fx_buses runs the returns in rs_ord, each return's
+ * output (the difference it made to the wet, or to the mix for a return holding another type: rt_line) tapped (rs_mark,
+ * rs_tap) into the lines to its right before they run: one order, no loop back, no latency added */
+static int32_t send_c[CTL], send_d[CTL], send_r[CTL], mix_l[CTL], mix_r[CTL];   /* (defined below) */
+static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n);    /* (below) */
+static uint32_t rs_on, rs_srcm;                       /* (rs_srcm: the lines a send leaves) */
+static uint8_t rs_ord[3] = {0, 1, 2}, rs_sl[RS_N], rs_dl[RS_N];
+static int32_t rs_cur[RS_N], rs_to[RS_N];
+static int32_t rs_pre_v[CTL], rs_tl[CTL], rs_tr[CTL];   /* a source's output before its stage (mono); the wet before the chorus (a chain) */
+static HOT2 __attribute__((noinline)) uint32_t rs_block(void)
+{
+    uint32_t k, j, on = 0, s, n = 0, srcm = 0, lnl = fxs_lnl;
+    uint8_t ln[FX_NSLOT] = {0xFF, 0xFF, 0xFF, 0xFF};    /* a return slot's line (none: 0xFF) */
+    for (j = 0; j < 3u; j++)
+        if (lnl >> j & 1u)
+            ln[fxs_rsl[j] % FX_NSLOT] = (uint8_t)j;
+    for (k = 0; k < RS_N; k++) {
+        int ok = ln[RS_SRC[k]] < 3u && ln[RS_DST[k]] < 3u;
+        rs_to[k] = ok ? rs_amt[k] * 258 : 0;
+        if (!ok)
+            rs_cur[k] = 0;                              /* (a return emptied: its sends gone, at once) */
+        if (rs_to[k] | rs_cur[k])
+            on |= 1u << k, rs_sl[k] = ln[RS_SRC[k]], rs_dl[k] = ln[RS_DST[k]], srcm |= 1u << rs_sl[k];
+    }
+    rs_srcm = srcm;
+    if (on) {
+        for (s = 1; s < FX_NSLOT; s++)
+            if (ln[s] < 3u)
+                rs_ord[n++] = ln[s];
+        for (j = 0; j < 3u; j++)
+            if (!(lnl >> j & 1u))
+                rs_ord[n++] = (uint8_t)j;
+    }
+    return rs_on = on;
+}
+/* the lines that hear a send from a line that may sound (live: a bit a line, from the buses' run and the returns holding
+ * another type; in the returns' order, so a chain A -> B -> C wakes C): the buses to run although their own send is quiet */
+static HOT2 __attribute__((noinline)) uint32_t rs_wake(uint32_t live)
+{
+    uint32_t k;
+    for (k = 0; k < RS_N; k++)
+        if ((rs_on >> k & 1u) && (live >> rs_sl[k] & 1u))
+            live |= 1u << rs_dl[k];
+    return live;
+}
+/* a chain's stages (fx_buses, from main RAM: a call a line a block). rs_start: the wet cleared (every bus adds into it,
+ * the chorus' block too: rs_cho0 / rs_cho1 keep what the wet held around it, as rev_pre / rev_post), its place kept */
+static int32_t *rs_w[2];
+static HOT2 __attribute__((noinline)) void rs_start(int32_t *wl, int32_t *wr, uint32_t n, int idle)
+{
+    uint32_t i;
+    rs_w[0] = wl, rs_w[1] = wr;
+    for (i = 0; !idle && i < n; i++)
+        wl[i] = wr[i] = 0;
+}
+static HOT2 __attribute__((noinline)) void rs_cho0(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        rs_tl[i] = rs_w[0][i], rs_tr[i] = rs_w[1][i];
+}
+static HOT2 __attribute__((noinline)) void rs_cho1(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        rs_w[0][i] += rs_tl[i], rs_w[1][i] += rs_tr[i];
+}
+/* the lines whose return holds another type (their send heard in rt_line, not by the bus) */
+static HOT2 __attribute__((noinline)) uint32_t rs_gen(void)
+{
+    return (uint32_t)(fxs_rty[0] != FXT_NONE) | (uint32_t)(fxs_rty[1] != FXT_NONE) << 1 | (uint32_t)(fxs_rty[2] != FXT_NONE) << 2;
+}
+/* line j's output: the wet's (a bus), the mix's (a return holding another type: rt_line) */
+#define RS_OUT(j, k) ((rs_gen() >> (j) & 1u) ? ((k) ? mix_r : mix_l) : rs_w[k])
+/* before line j's stage: its output so far (a source of a send), then its return when it holds another type (rt_line) */
+static HOT2 __attribute__((noinline)) void rs_pre(uint32_t j, uint32_t n)
+{
+    uint32_t i;
+    if (rs_srcm >> j & 1u) {
+        const int32_t *l = RS_OUT(j, 0), *r = RS_OUT(j, 1);
+        for (i = 0; i < n; i++)
+            rs_pre_v[i] = (l[i] >> 1) + (r[i] >> 1);
+    }
+    rt_line(j, n);
+}
+/* after it: what line j added (its output, mono) into the lines it sends to (to its right: not run yet), each send ramped */
+static HOT2 __attribute__((noinline)) void rs_post(uint32_t j, uint32_t n)
+{
+    int32_t *const snd[3] = {send_c, send_d, send_r};
+    const int32_t *l, *r;
+    uint32_t k, i;
+    if (!(rs_srcm >> j & 1u))
+        return;
+    l = RS_OUT(j, 0), r = RS_OUT(j, 1);
+    for (k = 0; k < RS_N; k++) {
+        int32_t g0 = rs_cur[k], d = rs_to[k] - g0;
+        int32_t *o = snd[rs_dl[k] % 3u];
+        if (!(rs_on >> k & 1u) || rs_sl[k] != j)
+            continue;
+        for (i = 0; i < n; i++) {
+            int32_t x = clamp((l[i] >> 1) + (r[i] >> 1) - rs_pre_v[i], -65535, 65535);   /* (mulq15 fits) */
+            o[i] += mulq15(x, g0 + ((d * (int32_t)(i + 1u)) >> CTL_LOG2));
+        }
+    }
+}
+/* the block's end: every ramp at its target */
+static HOT2 __attribute__((noinline)) void rs_done(void)
+{
+    uint32_t k;
+    for (k = 0; k < RS_N; k++)
+        rs_cur[k] = rs_to[k];
+}
+
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. Returns 0 when every bus was idle: wet_l / wet_r were not written (they would
@@ -1180,8 +1303,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
-    uint32_t plan;
+    uint32_t plan, s, gen, rs = rs_on;               /* (rs: a chain of the returns, rs_block) */
 #if FELUCCA_UI == 1
+    int32_t rpk = 0;                                    /* the reverb's */
     int32_t cpk = 0, dpk = 0;                           /* the chorus', the delay's largest |sample| of the block (the mixer's returns) */
 #endif
 #if REV_LATE
@@ -1219,86 +1343,115 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     if (had)                                            /* (the kept block's tank, before this block's decisions: */
         fx.rev_q = fx_q(fx.rev_q, rvj.wv, n);           /* the order inline has) */
 #endif
-    /* (the input scan only once the bus' lines are clear) */
-    run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || fx_any(cho_in, n));   /* (registry.h: an FX not built) */
-    run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
+    /* (the input scan only once the bus' lines are clear. A chain (rs_on): a line whose return holds another type hears
+     * its send in rt_line, not here; a line a send reaches may sound although its own send is quiet: rs_wake) */
+    gen = rs ? rs_gen() : 0u;
+    run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || (!(gen & 1u) && fx_any(cho_in, n)));   /* (registry.h: an FX not built) */
+    run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || (!(gen & 2u) && fx_any(dly_in, n)));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
-                                  REV_HALF_BUSY() || fx_any(rev_in, n));   /* (REV_HALF: its filters too) */
-    plan = fx_ret_block((uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2);   /* (the returns, the guard) */
+                                  REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (REV_HALF: its filters too) */
+    plan = (uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2;
+    if (rs)
+        plan |= rs_wake(plan | (uint32_t)had << 2 | gen) & ~gen & FXB_BUILT;
+    plan = fx_ret_block(plan);                          /* (the returns, the guard) */
     run_c = (plan & FXB_C) != 0, run_d = (plan & FXB_D) != 0, run_r = (plan & FXB_R) != 0;
 #define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r | had))   /* (SPRING: its own state) */
-    if (run_c) {
-        for (i = 0; i < n; i++) {
-            wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
-            wet_r[i] = yr;
-        }
-        if (plan & FXB_CG)                              /* (CHO RET below unity: the chorus' wet alone so far) */
-            yr = cho_gain(wet_l, wet_r, n);
+    if (rs)
+        rs_start(wet_l, wet_r, n, FX_ALL_IDLE);         /* (a chain: every bus adds into the wet) */
+#pragma clang loop unroll(disable)
+    for (s = 0; s < 3u; s++) {                          /* the lines: CHO DLY REV, a chain's in the returns' order */
+        uint32_t j = rs ? rs_ord[s] : s;
+        if (rs)
+            rs_pre(j, n);                               /* (a chain: the source's mark, a return holding another type) */
+        if (j == 0u) {
+            if (run_c) {
+                if (rs)
+                    rs_cho0(n);                         /* (a chain: the wet so far kept, the chorus' alone below) */
+                for (i = 0; i < n; i++) {
+                    wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
+                    wet_r[i] = yr;
+                }
+                if (plan & FXB_CG)                      /* (CHO RET below unity: the chorus' wet alone so far) */
+                    yr = cho_gain(wet_l, wet_r, n);
 #if FELUCCA_UI == 1
-        for (i = 0; i < n; i++) {
-            int32_t a = wet_r[i] < 0 ? -wet_r[i] : wet_r[i];
-            cpk = a > cpk ? a : cpk;
-        }
+                for (i = 0; i < n; i++) {
+                    int32_t a = wet_r[i] < 0 ? -wet_r[i] : wet_r[i];
+                    cpk = a > cpk ? a : cpk;
+                }
 #endif
-    } else {                                            /* idle: every cell holds 0, the output is 0 */
-        if (!FX_ALL_IDLE)                               /* (all idle: the wet is not added, below) */
-            for (i = 0; i < n; i++)
-                wet_l[i] = wet_r[i] = 0;
-        fx.cho_w += n;
-    }
-    if (run_d) {
-        dl = FAR(dly_block)(&fb, &col, &dmix);          /* (its divide: only for a running delay) */
-        for (i = 0; i < n; i++) {
-            x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
-            wet_l[i] += x;
-            wet_r[i] += x;
+                if (rs)
+                    rs_cho1(n);
+            } else {                                    /* idle: every cell holds 0, the output is 0 */
+                if (!FX_ALL_IDLE && !rs)                /* (all idle: the wet is not added, below; a chain's: cleared) */
+                    for (i = 0; i < n; i++)
+                        wet_l[i] = wet_r[i] = 0;
+                fx.cho_w += n;
+            }
+        } else if (j == 1u) {
+            if (run_d) {
+                dl = FAR(dly_block)(&fb, &col, &dmix);  /* (its divide: only for a running delay) */
+                for (i = 0; i < n; i++) {
+                    x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
+                    wet_l[i] += x;
+                    wet_r[i] += x;
 #if FELUCCA_UI == 1
-            dpk = (x < 0 ? -x : x) > dpk ? (x < 0 ? -x : x) : dpk;
+                    dpk = (x < 0 ? -x : x) > dpk ? (x < 0 ? -x : x) : dpk;
 #endif
-        }
-    } else {
-        fx.dly_w += n;
-    }
+                }
+            } else {
+                fx.dly_w += n;
+            }
+        } else {
 #if FELUCCA_UI == 1
-    if (!FX_ALL_IDLE)
-        for (i = 0; i < n; i++)
-            ret_cd[i] = wet_r[i];
+            if (!FX_ALL_IDLE)
+                for (i = 0; i < n; i++)
+                    ret_cd[i] = wet_r[i];               /* (the wet before the reverb: to tell its own, fx_rev_pk) */
 #endif
 #if REV_LATE
-    if (rev_late) {                                     /* kept for the next block (rev_job); the last one heard */
-        for (i = 0; i < n; i++)
-            rvj.in[i] = rev_in[i];
-        if (had)
-            for (i = 0; i < n; i++) {
-                wet_l[i] += rvj.l[i];
-                wet_r[i] += rvj.r[i];
+            if (rev_late) {                             /* kept for the next block (rev_job); the last one heard */
+                for (i = 0; i < n; i++)
+                    rvj.in[i] = rev_in[i];
+                if (had)
+                    for (i = 0; i < n; i++) {
+                        wet_l[i] += rvj.l[i];
+                        wet_r[i] += rvj.r[i];
+                    }
+                rvj.ma = ma, rvj.mb = mb, rvj.g = g, rvj.lpk = lpk, rvj.plan = plan;
+                rvj.pend = 1, rvj.done = 0;
+                wv = 0;                                 /* (fx.rev_q: when its tank has run) */
+            } else {                                    /* inline (the same code as the kept block's). CPU1 just */
+                rvj.pend = 0;                           /* gone down with a block kept: its tank ran (above), its */
+                rev_block(rev_in, wet_l, wet_r, ma, mb, g, lpk, plan, &wv);   /* wet is skipped: the tail jumps a block */
             }
-        rvj.ma = ma, rvj.mb = mb, rvj.g = g, rvj.lpk = lpk, rvj.plan = plan;
-        rvj.pend = 1, rvj.done = 0;
-        wv = 0;                                         /* (fx.rev_q: when its tank has run) */
-    } else {                                            /* inline (the same code as the kept block's). CPU1 just */
-        rvj.pend = 0;                                   /* gone down with a block kept: its tank ran (above), its */
-        rev_block(rev_in, wet_l, wet_r, ma, mb, g, lpk, plan, &wv);   /* wet is skipped: the tail jumps a block */
-    }
 #elif CG_REV
-    {   /* the bus on, REV RET at unity: the tank into the wet, as before; else (the guard fading or off, REV RET below
-         * unity) rev_pre / rev_post around it */
-        int32_t tl[CTL], tr[CTL];
-        int slow = (int)(plan & FXB_RS);
-        rg = plan >> FXB_RG;
-        if (slow)
-            rev_pre(rg, tl, tr, wet_l, wet_r, n);
-        if (rg == RG_ON || rg == RG_FADE)
-            rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
-        if (slow)
-            rev_post(rg, tl, tr, wet_l, wet_r, n, &wv);
-    }
+            {   /* the bus on, REV RET at unity: the tank into the wet, as before; else (the guard fading or off, REV RET
+                 * below unity) rev_pre / rev_post around it */
+                int32_t tl[CTL], tr[CTL];
+                int slow = (int)(plan & FXB_RS);
+                rg = plan >> FXB_RG;
+                if (slow)
+                    rev_pre(rg, tl, tr, wet_l, wet_r, n);
+                if (rg == RG_ON || rg == RG_FADE)
+                    rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+                if (slow)
+                    rev_post(rg, tl, tr, wet_l, wet_r, n, &wv);
+            }
 #else
-    rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
+            rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
 #endif
 #if FELUCCA_UI == 1
+            if (!FX_ALL_IDLE)
+                rpk = fx_rev_pk(wet_r, n);
+#endif
+        }
+        if (rs)
+            rs_post(j, n);                              /* (its output into the lines to its right, before they run) */
+    }
+    if (rs)
+        rs_done();
+#if FELUCCA_UI == 1
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
-        fx_ret_tap(cpk, dpk, wet_r, n);
+        fx_ret_tap(cpk, dpk, rpk);
 #endif
 #undef CHO_R0
 #undef CHO_R1
@@ -2267,44 +2420,49 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
 #define RT_TAIL 64u                                     /* blocks (46 ms): every insert here is at rest by then */
 static sto_t rt_sto[3] = {STO_INIT(0x2B9F11C5), STO_INIT(0x6A09E667), STO_INIT(0x3C6EF372)};
 static uint8_t rt_tail[3];                              /* blocks of tail left */
-static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
+static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* line j's return (fx_buses: in a chain's place) */
 {
     int32_t *const snd[3] = {send_c, send_d, send_r};
-    uint32_t j, i, t, m;
-    for (j = 0; j < 3u; j++) {
-        int32_t l[CTL], r[CTL], g = FX_RETQ(song.g[G_CRET + j]);
-        t = fxs_rty[j];
-        if (t == FXT_NONE && !rt_tail[j])
-            continue;
-        if (t != FXT_NONE)
-            for (i = 0; i < n; i++)
-                l[i] = r[i] = snd[j][i], snd[j][i] = 0;   /* (its bus: silence) */
-        else
-            for (i = 0; i < n; i++)
-                l[i] = r[i] = 0;
-        if (t != FXT_NONE)
-            sto_ins(&rt_sto[j], IFX_RT(j), t, rt_amt(j), l, r, n);
-        for (i = 0, m = STO_IDLE(IFX_RT(j)) & ~FXT_BIT(t); m; i++, m >>= 1)   /* (in no return: at 0, they let go) */
-            if (m & 1u)
-                sto_ins(&rt_sto[j], IFX_RT(j), i, 0, l, r, n);
-        rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
-        if (!g)
-            continue;
+    uint32_t i, t, m;
+    int32_t l[CTL], r[CTL], g = FX_RETQ(song.g[G_CRET + j % 3u]);
+    j %= 3u;
+    t = fxs_rty[j];
+    if (t == FXT_NONE && !rt_tail[j])
+        return;
+    if (t != FXT_NONE)
+        for (i = 0; i < n; i++)
+            l[i] = r[i] = snd[j][i], snd[j][i] = 0;   /* (its bus: silence) */
+    else
+        for (i = 0; i < n; i++)
+            l[i] = r[i] = 0;
+    if (t != FXT_NONE)
+        sto_ins(&rt_sto[j], IFX_RT(j), t, rt_amt(j), l, r, n);
+    for (i = 0, m = STO_IDLE(IFX_RT(j)) & ~FXT_BIT(t); m; i++, m >>= 1)   /* (in no return: at 0, they let go) */
+        if (m & 1u)
+            sto_ins(&rt_sto[j], IFX_RT(j), i, 0, l, r, n);
+    rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
+    if (!g)
+        return;
 #if FELUCCA_UI == 1
-        int32_t pk = 0;
+    int32_t pk = 0;
 #endif
-        for (i = 0; i < n; i++) {
-            int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
-            mix_l[i] += a, mix_r[i] += b;
+    for (i = 0; i < n; i++) {
+        int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
+        mix_l[i] += a, mix_r[i] += b;
 #if FELUCCA_UI == 1
-            pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
-#endif
-        }
-#if FELUCCA_UI == 1
-        if (pk > fx_ret_pk[j])
-            fx_ret_pk[j] = pk;                          /* (the mixer's return meter: this line's block peak, after its return level) */
+        pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
 #endif
     }
+#if FELUCCA_UI == 1
+    if (pk > fx_ret_pk[j])
+        fx_ret_pk[j] = pk;                              /* (the mixer's return meter: this line's block peak, after its return level) */
+#endif
+}
+static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
+{
+    uint32_t j;
+    for (j = 0; j < 3u; j++)
+        rt_line(j, n);
 }
 
 #if FELUCCA_USB_AUDIO
@@ -2420,13 +2578,14 @@ static __attribute__((noinline)) void scope_drums_take(uint32_t n)
 #define SCOPE_DRUMS(f) ((void)0)
 #endif
 /* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
-static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
+/* the returns into the mix (mix_finish; the tests): the sends between them (rs_block: a chain, fx_buses runs every return
+ * in their order), else those holding another type (rt_run) first, then the buses */
+static inline __attribute__((always_inline)) void rets_mix(uint32_t n)
 {
     uint32_t i;
-    int32_t m0, m1;
-    BENCH_SIG(4, mix_l, n);
-    BENCH_SIG(5, send_r, n);
-    if (fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE || rt_tail[0] | rt_tail[1] | rt_tail[2])
+    if (rs_amt[0] | rs_amt[1] | rs_amt[2] | rs_on)
+        rs_block();                                     /* (a send between the returns: a chain, fx_buses runs them all) */
+    if (!rs_on && (fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE || rt_tail[0] | rt_tail[1] | rt_tail[2]))
         rt_run(n);                                      /* the returns holding another type (above): first, their sends */
     if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n)) {  /* (0: every bus idle, nothing to add) */
         BENCH_SIG(6, wet_l, n);
@@ -2435,6 +2594,14 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
             mix_r[i] += wet_r[i];
         }
     }
+}
+static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    int32_t m0, m1;
+    BENCH_SIG(4, mix_l, n);
+    BENCH_SIG(5, send_r, n);
+    rets_mix(n);
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */

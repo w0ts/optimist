@@ -374,6 +374,57 @@ static void rt_untlv(const uint8_t *a, uint32_t n)      /* (after fxs_set: the h
     fxs_fix();
 }
 
+/* ---- the sends between the returns (2026-10-16, the user: "ideally A should have send B, C"): left to right only, A -> B,
+ * A -> C, B -> C, so the returns render in one order (A, then B with A's send in its input, then C with A's and B's: fx.c
+ * rs_block, fx_buses) and no send can come back (no feedback). A send takes its return's output as heard (after its RET
+ * level, the reverb's one block late on the second core as it is heard), mono, times its amount (0..127, as a track's send),
+ * into the line of the return it goes to. Positional: A's send to B stays A's to B whatever the two hold (a swap of types
+ * does not move it). 0: nothing runs for it. A project keeps them in its FX record (fx_rec.c RSND_TLV: none = all 0) */
+enum { RS_AB, RS_AC, RS_BC, RS_NMAX = 6 };              /* (RS_NMAX: room for B -> A, C -> A, C -> B in the stored form) */
+#define RS_N 3u
+static const uint8_t RS_SRC[RS_N] = {1, 1, 2}, RS_DST[RS_N] = {2, 3, 3};   /* the master slots (A B C = 1 2 3) */
+static int16_t rs_amt[RS_N];
+/* the i-th send of return slot s (1..3) to its right, its index into rs_amt; RS_N: none */
+static uint32_t rs_of(uint32_t s, uint32_t i)
+{
+    uint32_t k;
+    for (k = 0; k < RS_N; k++)
+        if (RS_SRC[k] == s && !i--)
+            return k;
+    return RS_N;
+}
+/* send k (rs_amt's index) as a knob: its value and descriptor, named by the return it goes to (that return's type: its line's
+ * name, as a track's send card); 0: its source or its target holds nothing (a blank card) */
+static const param_desc_t *rs_desc(uint32_t k, int16_t **vp)
+{
+    static param_desc_t d[RS_N];
+    uint32_t a, b;
+    *vp = 0;
+    if (k >= RS_N)
+        return 0;
+    a = fxs_line[RS_SRC[k]], b = fxs_line[RS_DST[k]];
+    if (a >= 3u || b >= 3u || !(fxs_lnl >> a & 1u) || !(fxs_lnl >> b & 1u))
+        return 0;
+    d[k] = TP[P_REV];
+    d[k].label = fxs_line_name(b);
+    *vp = &rs_amt[k];
+    return &d[k];
+}
+/* the stored form (fx_rec.c RSND_TLV): A -> B, A -> C, B -> C, a byte each; 0: every send at 0 (nothing to keep) */
+static uint32_t rs_tlv(uint8_t *o)
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < RS_N; k++)
+        o[k] = (uint8_t)rs_amt[k], any |= (uint32_t)rs_amt[k];
+    return any ? RS_N : 0u;
+}
+static void rs_untlv(const uint8_t *a, uint32_t n)      /* (0, 0: none, every send at 0; a longer form's further sends: skipped) */
+{
+    uint32_t k;
+    for (k = 0; k < RS_N; k++)
+        rs_amt[k] = (int16_t)(k < n ? clamp(a[k], 0, 127) : 0);
+}
+
 
 #if FELUCCA_INS_EQ3
 /* ---- EQ3's settings (fx/insfx/eq3.c: the kernel) */
