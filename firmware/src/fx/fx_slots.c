@@ -1117,7 +1117,7 @@ static int rt_any(void)                                /* a return holds a type 
 }
 /* INSERTS' S1 and S2 TYPE (the selected track's): an enum of the inserts built and ---- (empty) */
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
-                   FELUCCA_INS_PHASER + FELUCCA_INS_FLANGER + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
+                   FELUCCA_INS_PHASER + (FELUCCA_INS_FLANGER > 0) + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
                    (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0) + \
                    FELUCCA_INS_EQ3)
 static const char *ins_names[INS_NLIST];
