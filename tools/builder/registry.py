@@ -85,6 +85,8 @@ MELODEE_FM6 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem Kilic", "GPL-3.0-only", "670193c",
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
+MELODEE_SUPPLY = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "7a51700",
+                            MELODEE_URL)   # (its port of the stock V15 supply start-up, hal/fm1_power.h, 1.3.6)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
@@ -746,15 +748,21 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
           "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
           "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
      tested="emulator-tested; one user's FM-1 runs it")
-_add("DUAL_BOOST", "FELUCCA_DUAL_BOOST", "raise the core supply for the second core (EXPERIMENTAL, at your own risk)", X,
-     62, default=0, parent="DUAL", experimental=True, target_only=True, provenance=JANGADA,
-     notice="At your own risk: raises the chip's supply above JieLi's own profile (VDC14 to 1.50 V, SYSVDD to 1.38 V; "
-            "the chip's absolute limits are not public). Ported from Jangada (GPL-3.0), measured on one FM-1 only.",
-     desc="Experimental, for an FM-1 whose second core misreads RAM (CPU1 OFF MISREAD): before the second core starts, "
-          "VDC14 is raised to 5 (1.50 V) and then SYSVDD to 15 (1.38 V), a step at a time, never lowered (the boot "
-          "loader leaves 1.40 V and 1.26 V). On Jangada's FM-1 the second core then ran 15 minutes and 1.23 M blocks "
-          "with no misread, where it failed within seconds at the boot loader's supply. Not tried on an Optimist build.",
-     tested="not tested: Jangada's measurement on one FM-1")
+_add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
+     X, 62, default=1, parent="DUAL", experimental=True, target_only=True, provenance=MELODEE_SUPPLY,
+     notice="EXPERIMENTAL, at your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
+            "leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the "
+            "AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the "
+            "effect on heat and battery life has not been measured.",
+     desc="At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE "
+          "firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), "
+          "then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V "
+          "and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and "
+          "the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it "
+          "replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores "
+          "crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock "
+          "sequence itself is still being measured.",
+     tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "

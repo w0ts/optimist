@@ -455,9 +455,12 @@ static void con_status(void)
     con_kx("cpu1_c1con", fm1_dual_c1con());
     con_kv("cpu1_stack_irq_used", (int32_t)fm1_dual_stack_used(0));   /* bytes of 5120 (sp / ssp: the wake's) */
     con_kv("cpu1_stack_main_used", (int32_t)fm1_dual_stack_used(1));  /* bytes of 5120 (usp: its C code, spin jobs) */                   /* (what it reads back now) */
-#if FELUCCA_DUAL_BOOST
-    con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
 #endif
+#if FELUCCA_STOCK_SUPPLY
+    con_kx("supply_was", supply.was);                   /* VDC14 << 4 | SYSVDD as the boot loader left them (0x3B: 3, 11) */
+    con_kx("supply_now", supply.now);                   /* after the stock start-up (0x7F: 7, 15) */
+    con_kx("supply_err", supply.err);                   /* 0: read back right; 1 P33 timeout, 2 regulator bits, 4 a level */
+    con_kx("supply_regs", supply.regs);                 /* P3_ANA_CON0 | CON5 << 8 | CON6 << 16 | CON9 << 24 (CON0 bit 3: DC-DC) */
 #endif
     con_kv("track", (int32_t)song.sel + 1);
     con_kv("batt_raw", song.batt_raw);

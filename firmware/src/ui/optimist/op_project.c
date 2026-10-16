@@ -848,7 +848,8 @@ static void sys_rst_cell(cell_t *c)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
 #define INFO_N INFO_BASE                                /* INFO's lines */
-#define INFO_DIAG (INFO_RST + 1u + INFO_C1)             /* INTERNALS' lines */
+#define INFO_SUP ((uint32_t)FELUCCA_STOCK_SUPPLY)       /* the SUPPLY line (STOCK_SUPPLY builds) */
+#define INFO_DIAG (INFO_RST + 1u + INFO_SUP + INFO_C1)  /* INTERNALS' lines */
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
     static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_DROPS, SI_XRUN,
@@ -875,8 +876,35 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
         c->col = fm1_irqoff_max / 24u > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
         return;
     }
+#if FELUCCA_STOCK_SUPPLY
+    if (i == INFO_RST + 1u) {                           /* the rails after the stock start-up (supply.c): core, then RF */
+        uint32_t mv;
+        cell_clear(c);
+        c->kind = CK_RO;
+        c->label = "SUPPLY";
+        if (supply.err) {
+            str_cpy(c->val, "NOT RAISED", sizeof c->val);   /* (the read-back was wrong: one core, 2ND CORE OFF SUPPLY) */
+            c->unit = "";
+            c->col = C_WARN;
+            return;
+        }
+        for (mv = 0; mv < 2u; mv++) {               /* "1.38 V 1.60" V: the core rail, then the 1.4 V (RF) rail */
+            uint32_t v = mv ? supply_vdc14_mv(supply.now >> 4) : supply_sysvdd_mv(supply.now), n = str_len(c->val);
+            char *b = c->val + n;
+            if (mv)
+                str_cpy(b, " V ", sizeof c->val - n), b += 3;
+            b[0] = (char)('0' + v / 1000u);
+            b[1] = '.';
+            b[2] = (char)('0' + v / 100u % 10u);
+            b[3] = (char)('0' + v / 10u % 10u);
+            b[4] = 0;
+        }
+        c->unit = supply_on_dcdc(supply.regs) ? "V DC-DC" : "V LDO";
+        return;
+    }
+#endif
 #if INFO_C1
-    sys_c1_cell(i - INFO_RST - 1u, c);
+    sys_c1_cell(i - INFO_RST - 1u - INFO_SUP, c);
 #endif
 }
 /* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */

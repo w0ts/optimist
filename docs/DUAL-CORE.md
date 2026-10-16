@@ -187,11 +187,24 @@ Optimist used to run any job whose `req != done`. Now (`hal/fm1_dual_guard.h`, a
   30 s (`bootguard.failed`) stays on one core (`AFTER CRASH`). With `DUAL_MODE_MENU 1` (set when a menu
   can switch it back) AUTO turns itself OFF after a misread, canary, timeout or fault, saved once stopped;
   without that menu the self-disable lasts the session.
-- **Supply BOOST** (`FELUCCA_DUAL_BOOST`, builder `DUAL_BOOST`, default off, EXPERIMENTAL, at the owner's
-  risk; `hal/fm1_supply.h`): before CPU1 starts, VDC14 (P3_ANA_CON6 [2:0]) to 5 = 1.50 V, then SYSVDD
-  (P3_ANA_CON9 [3:0]) to 15 = 1.38 V, one step a 100 us, never lowered (AC79 SDK `wl82/asm/p33.h`; levels
-  and order from Jangada 07cce38 `fm1_core_supply`). Not tried on an Optimist build.
-- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_supply_was` (BOOST). Emulator fallbacks:
+- **STOCK SUPPLY** (`FELUCCA_STOCK_SUPPLY`, builder `STOCK_SUPPLY`, on by default in builds with the second
+  core, EXPERIMENTAL; `system/supply.c`, `hal/fm1_supply.h`; replaces the earlier `DUAL_BOOST`): at the top of
+  the boot (IRQs off, before CPU1, the audio and the BLE radio) the rails are set as the stock M-VAVE
+  application sets them (V15 `app_core` 0x02004F90..0x0200509A; the sequence as Melodee 1.3.6 ports it,
+  7a51700): LDO13 on, DCDC13 on, LDO13 off (the 1.4 V rail onto the DC-DC); P3_ANA_CON1 = 0x20, CON5 = 0x74
+  (VDDIOM / VDDIOW 3.2 V, written once: stock passes through 2.8 V), CON6 VD14_HD_SEL 1, CON7 = 0xA5, CON8 =
+  0x96 (the DC-DC's bias, duty, oscillator, current sense), CON9 bit 4; VDC14 (CON6 [2:0]) up to 7 = 1.60 V a
+  step every 100 us; CON0 bit 7, P3_ANA_KEEP [5:0] cleared, CON2 bit 6, P3_VLD_KEEP bit 5 cleared; SYSVDD (CON9
+  [3:0]) up to 15 = 1.38 V last; never lowered; the PLL is never written. Read back: DC-DC on and LDO off,
+  VDC14 7, SYSVDD 15, VDDIOM 4, no P33 timeout; else CPU1 is not started (`2ND CORE OFF SUPPLY`,
+  `dual_supply_why`) and the rails stay where the sequence stopped. SYSTEM > INTERNALS: `SUPPLY 1.38 V 1.60 V
+  DC-DC` (or `NOT RAISED`). Why: every custom firmware runs at the boot loader's 1.26 V / 1.40 V on the LDO;
+  stock runs 1.38 / 1.60 V on the DC-DC at the same 360 MHz. On the test unit (test/overnight B23, 2026-10-16)
+  configurations that crashed CPU0 within 17-61 s at the boot loader's rails survived 3 x 180 s with 1.50 V /
+  1.38 V (Jangada's levels), the real dual core too (~228 k CPU1 jobs a run); the stock sequence itself is
+  under test (B24 `dcdc on`). Risks: above the AC79 datasheet's table, absolute limits not public, unit to unit
+  variation, heat and battery effect not measured; the misread / canary / AFTER CRASH fallbacks stay.
+- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `supply_was`, `supply_now`, `supply_err`, `supply_regs` (STOCK_SUPPLY). Emulator fallbacks:
   `DUAL_FAILTEST=4` (a wrong check word at job 3000 -> MISREAD), `5` (a wrong canary -> CANARY).
 
 Also fixed on the way (default build too): DX7 phase sums (`phase += freq`, `phase + in[i]`) relied on

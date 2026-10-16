@@ -9,8 +9,8 @@
  *        setting then turns itself OFF (saved), so the next boots stay on one core until it is set back to AUTO.
  *   OFF (1): one core.
  * A boot that follows one that crashed in its first 30 s (bootguard.failed) stays on one core too, whatever the setting.
- * The supply BOOST is a builder item (FELUCCA_DUAL_BOOST, hal/fm1_supply.h), not a value here: the user's ruling, a fix
- * stays in the builder until it is verified on hardware. */
+ * The FM-1's own supply start-up is a builder item (FELUCCA_STOCK_SUPPLY, hal/fm1_supply.h), not a value here; when its
+ * read-back is wrong CPU1 is not started (SUPPLY, dual_supply_why). */
 #ifndef DUAL_MODE_H
 #define DUAL_MODE_H
 #include <stdint.h>
@@ -27,13 +27,13 @@ enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
 
 /* why CPU1 is not taking jobs (dual.up 0); DUAL_UP while it runs */
 enum { DUAL_UP, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH, DUAL_MISREAD, DUAL_CANARY, DUAL_EARLY, DUAL_SETOFF,
-       DUAL_PARKED, DUAL_WHY_N };
+       DUAL_PARKED, DUAL_SUPPLY, DUAL_WHY_N };     /* SUPPLY: the supply start-up did not read back right */
 
 /* the reason's name, as the screens show it ("" for DUAL_UP; a value out of range reads as DUAL_UP's) */
 static inline const char *dual_why_name(uint32_t why)
 {
     static const char *const DUAL_WHY_TXT[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
-                                                         "AFTER CRASH", "SETTING", "PARKED"};
+                                                         "AFTER CRASH", "SETTING", "PARKED", "SUPPLY"};
     return DUAL_WHY_TXT[why % DUAL_WHY_N];
 }
 
@@ -51,6 +51,13 @@ static inline uint32_t dual_boot_why(uint32_t mode, uint32_t early_crashes)
     if (early_crashes)
         return DUAL_EARLY;
     return DUAL_UP;
+}
+
+/* at boot, after dual_boot_why: a supply start-up whose read-back was wrong (SUPPLY_ERR, hal/fm1_supply.h FM1_SUP_*)
+ * keeps CPU1 off; it outranks PARKED (the user reads why the rails are suspect), not SETTING or AFTER CRASH */
+static inline uint32_t dual_supply_why(uint32_t why, uint32_t supply_err)
+{
+    return supply_err && (why == DUAL_UP || why == DUAL_PARKED) ? DUAL_SUPPLY : why;
 }
 
 /* PARKED (2026-10-15, the user's ruling until the hardware tests settle the second core: the FM-1's power-on crashes with CPU1 rendering

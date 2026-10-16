@@ -23,15 +23,11 @@
  * FM-1s whose CPU1 misreads RAM (docs/DUAL-CORE.md 3.5): CPU1 runs only the next posted job with a matching check
  * word (hal/fm1_dual_guard.h, after X0X), reads a boot canary before its hello, and is held at the first request it
  * refuses (MISREAD) or a wrong canary (CANARY). 2ND CORE OFF (dual_mode.h) or a boot after an early crash: one core.
- * FELUCCA_DUAL_BOOST: the core supply raised first (hal/fm1_supply.h, EXPERIMENTAL). */
+ * FELUCCA_STOCK_SUPPLY: the FM-1's own supply start-up at the top of the boot (supply_boot, hal/fm1_supply.h). */
 #if FELUCCA_DUAL
 #define DUAL_HELLO_US 50000u                       /* CPU1's hello at boot */
 #define DUAL_JOIN_US ((HALF_FRAMES * 1000000u) / FS) /* one half buffer (5.8 ms): late anyway */
 #define DUAL_KICK_US 100u                          /* a job not picked up after this long: CPU1 woken again (dual_join) */
-#ifndef FELUCCA_DUAL_BOOST
-#define FELUCCA_DUAL_BOOST 0                       /* EXPERIMENTAL, at the owner's risk: VDC14 5, SYSVDD 15 before CPU1
-                                                    * starts (hal/fm1_supply.h; the builder's DUAL_BOOST) */
-#endif
 #define DUAL_SLEEPS (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)
 #ifdef DUAL_PARTS
 #define DUAL_BALANCE 0                             /* a fixed set of parts on CPU1, the drums on CPU0 */
@@ -40,9 +36,6 @@
 #endif
 #include "dual_mode.h"                            /* 2ND CORE AUTO / OFF, DUAL_*: why CPU1 is down (pure) */
 _Static_assert(C1S_LOOP == 3u, "hal/fm1_dual.h fm1_dual_sleep_ram writes 3 as C1S_LOOP");
-#if FELUCCA_DUAL_BOOST
-#include "fm1_supply.h"                           /* EXPERIMENTAL: the core supply raised before CPU1 starts */
-#endif
 #define DUAL_JOB_DRUMS (1u << NPART)               /* a job's bit: the drum track (slicer_drums, dbus_run) */
 #if REV_LATE
 #define DUAL_JOB_REV (1u << (NPART + 1u))          /* the reverb's kept block (fx.c rev_job) */
@@ -60,7 +53,6 @@ static struct {
     uint8_t up;                                    /* CPU1 runs and takes jobs */
     uint8_t why;                                   /* DUAL_*: why it is down (dual_mode.h) */
     uint8_t boot_mode;                             /* the 2ND CORE setting this boot started with */
-    uint8_t supply;                                /* FELUCCA_DUAL_BOOST: VDC14 << 4 | SYSVDD before the boost */
     uint32_t jobs, wait_max;                       /* jobs done; longest CPU0 wait (ticks) */
     uint32_t rewakes;                              /* wakes sent again for a job CPU1 had not picked up (dual_join) */
     /* when it went down (SYSTEM > INFO, console; every path: dual_down): fm1_ms then, the job's mask, the latch word
@@ -316,11 +308,11 @@ static __attribute__((noinline)) void dual_boot(void)
 {
     dual.boot_mode = dual_mode;
     dual.why = (uint8_t)dual_park(dual_boot_why(dual_mode, bootguard.failed), FELUCCA_DUAL_PARK);   /* 2ND CORE OFF, the last boot crashed early, or parked (dual_mode.h) */
+#if FELUCCA_STOCK_SUPPLY
+    dual.why = (uint8_t)dual_supply_why(dual.why, supply.err);   /* (the rails did not read back right: one core) */
+#endif
     if (dual.why != DUAL_UP)
         return;                                    /* (CPU1 stays in reset, as at power-on) */
-#if FELUCCA_DUAL_BOOST
-    dual.supply = (uint8_t)fm1_supply_boost();     /* EXPERIMENTAL: VDC14 5, SYSVDD 15 first (hal/fm1_supply.h) */
-#endif
     fm1_dual_bank_clear();                         /* (CPU1's interrupts all off: X0X, Melodee) */
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);

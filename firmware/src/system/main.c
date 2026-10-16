@@ -208,6 +208,10 @@ static BOOT_ORDER void fm1_main(void)
     fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
 #endif
     BOOT_STAGE(PERSIST);
+#if FELUCCA_STOCK_SUPPLY
+    supply_boot();                                      /* the FM-1's own rails first, IRQs off, before CPU1, the audio and
+                                                         * the BLE radio (supply.c) */
+#endif
     persist_boot();
     BOOT_STAGE(STORES);
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */

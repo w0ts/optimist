@@ -55,6 +55,7 @@ static void dual_flash_enter(void);
 #if FELUCCA_BENCH
 #include "system/bench.c"           /* fixed scenarios for measurements (emulator) */
 #endif
+#include "system/supply.c"          /* the FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY) */
 #include "system/dual.c"            /* the second core (FELUCCA_DUAL) */
 #ifndef FELUCCA_OTA
 #define FELUCCA_OTA 1            /* M-UPGRADE update entry; needs FELUCCA_FLASH */
