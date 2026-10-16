@@ -169,6 +169,24 @@ static void wait_step(track_t *t, uint32_t step)
         run_block();
 }
 
+/* ENV 1 MOD (2026-10-16): its PIT and three moves lockable and recordable as motion, stored past every tail id of
+ * before (auto.c MOT_TAIL +15 .. +18); its FLT SHP (P_ED_FLT P_ED_SHP) their own values again */
+static void t_env1(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, ok = 1;
+    int32_t v;
+    reset();
+    for (k = 0; k < 4u; k++) {
+        uint32_t id = P_E1PIT + k;
+        ok &= auto_param(t, id) && mot_sid(id) == P_ENG_END + 15u + k && mot_id(P_ENG_END + 15u + k) == id;
+        ok &= lock_set(t, 2u + k, id, -20 + (int32_t)k) && lock_get(t, 2u + k, id, &v) && v == -20 + (int32_t)k;
+    }
+    ok &= auto_param(t, P_ED_FLT) && auto_param(t, P_ED_SHP) && lock_set(t, 9, P_ED_FLT, 33);
+    ok &= motion_set_event(t, 12, P_E1X, 40) == 0;
+    check("ENV 1 MOD: PIT and the moves lockable and recorded as motion (stored ids P_ENG_END + 15 .. 18), FLT SHP their own", ok);
+}
+
 static void t_list(void)
 {
     track_t *t = &trk[0];
@@ -809,6 +827,7 @@ int main(void)
     (void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1);   /* (as persist_boot binds them) */
     auto_init();
     t_list();
+    t_env1();
     t_both();
     t_fills();
     t_chance();

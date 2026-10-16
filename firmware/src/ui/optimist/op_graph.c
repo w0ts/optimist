@@ -98,7 +98,7 @@ static int has_graph(const page_t *pg)
 }
 /* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
  * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
- * their shape"): LFO DEST the LFO's wave, ENV DEST and ENV2 DEST their envelopes. 0: none */
+ * their shape"): LFO DEST the LFO's wave, ENV 1 MOD and ENV2 DEST their envelopes. 0: none */
 static const page_t *snd_graph_page(uint32_t r)
 {
     const page_t *p = snd_page(r), *q;

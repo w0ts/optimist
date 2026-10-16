@@ -1095,7 +1095,7 @@ static void draw_foot(void)
 #if FELUCCA_ANALOG2
         if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && !is_drum(t) && e == &ENG_ANALOG && !ov_on() &&
             pg->id[0] < P_A2WAVE)
-            pt = pg->graph == GR_ADSR ? "ENV1" : "ENV1 DEST";   /* ANALOG 2 has an ENV2 (ENV2, ENV2 DEST) */
+            pt = pg->graph == GR_ADSR ? "ENV1" : 0;     /* ANALOG 2 has an ENV2 (ENV2, ENV2 DEST; ENV 1 MOD as it is) */
 #endif
         str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
         if (ov_on()) {                                 /* VIEW ALL: the PAGE of 4 x 4 (the lit row: its bar) */

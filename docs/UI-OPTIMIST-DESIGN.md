@@ -15,7 +15,7 @@
 > - **PROJECT:** the storage rows are BANK, ACTION, ITEM (+ NEW on PROJECT); the actions are LOAD / SAVE / DELETE (a project slot is cleared through the section log's tombstones, asked first); a key selects the slot of the bank and runs the action; OCT- / OCT+ tapped on the page pick the previous or next bank (toast and LEDs); a user preset's LOAD over an edited sound is asked in red.
 > - **Mixer:** the sends set is REV DLY CHO (blank where no slot holds one) and a fourth card PAN on the synth tracks, the drum track and the drum lanes; a muted track is struck through (the banner above); the ACCENT row's MUTE is the lane's sequencer mute.
 > - **Effects pages:** the master FX screen reads INSERTS (S1 / S2 TYPE and amount), INS DYN 1 (THRS RATIO ATK REL) and INS DYN 2 (GAIN CEIL GR) while a master slot holds DYN, DUCK, then the returns (A B C); the mixer's MASTER row has INSERT, INS DYN (THRS RATIO GAIN CEIL), RETURNS, A SENDS, B SENDS (the sends between the returns, left to right), DUCK; a track's FX family has DYN (THRS RATIO GAIN CEIL) and DYN 2 (ATK REL). TUNE is on GLOBAL's Tempo list. Every drum sound has two insert slots.
-> - **Modulation:** ENV DEST, ENV2 DEST and LFO DEST each have DST A / AMT A / DST B / AMT B from one shared list (LFO and ENV rates and amounts included); VOICE 2 is ALLOC, DETUNE, VOICES, DROP (VOICES: 1 to the engine's maximum, never AUTO). The p-locks reach the ARP and SCL pages; EUCLID is a note generator with ON / OFF; a drum step tapped cycles normal, hard, ghost, off.
+> - **Modulation:** ENV 1 MOD (*ENV mod*) has four depth knobs made per engine, the amplitude always ENV 1's (2026-10-16); ENV2 DEST and LFO DEST each have DST A / AMT A / DST B / AMT B from one shared list (LFO and ENV rates and amounts included); VOICE 2 is ALLOC, DETUNE, VOICES, DROP (VOICES: 1 to the engine's maximum, never AUTO). The p-locks reach the ARP and SCL pages; EUCLID is a note generator with ON / OFF; a drum step tapped cycles normal, hard, ghost, off.
 > - **GLOBAL / SYSTEM:** the title is in the top bar (long ones in their short form), the cursor line is drawn inverted, ALGORITHM scrolls the lines; GLOBAL's MIDI page reads CLK IN, CLK OUT, MIDI IN, MIDI OUT (SYNC is PLAY's TEMPO page 4th card; fixed SYNC reads Int / USB / TRS); the MIDI IN setting is removed from the Optimist UI (it ignores settings bit 15; the router never drops notes). SYSTEM > INFO shows the battery as n/3 raw (no volts), each core's load, CPU1 JOB / REWAKE and CPU1 STOP (when and where it stopped), and, in a USB audio build, the USB AUDIO lines (underruns, overruns, missed, feedback, ring low, poll gaps, flash IRQ-off), which have no bar.
 > - **Boot logo:** the dinghy splash is always built (the SPLASH builder item is retired; sections below that mention a ring logo or a logo choice are history).
 
@@ -248,7 +248,7 @@ chosen from the value's range alone (its descriptor's min, max and kind: `param_
 | Value | Form | Where |
 |---|---|---|
 | a number, min 0 | a bar filled from the left | the card under the number, the list row under the number (2 px), the mixer's sends |
-| a number, min < 0 < max (PAN, FILT, TRANSPOSE, the ENV DEST amounts, a drum TUNE) | a bar from the centre | the same; the mixer's PAN and FILT |
+| a number, min < 0 < max (PAN, FILT, TRANSPOSE, ENV 1 MOD's depths, the slots' amounts, a drum TUNE) | a bar from the centre | the same; the mixer's PAN and FILT |
 | a list of up to 12 (WAVE, SYNC, a palette) | a row of segments, the current one lit | the same |
 | a longer list (an engine, a kit, a slot) | a tick at its place on a line | the same |
 | on / off (FX, SERIAL, MUTE) | a pill, filled when on | the same; the mixer's FX |
@@ -417,7 +417,7 @@ The erase-as-it-plays gesture (MPC style: hold the sound's key while the pattern
 ### 4.3 SOUND
 
 The selected track's pages as rows, in today's PAGES order (params.c:488): SOUND (the preset, the engine, INIT,
-SAVE AS), ENV, ENV DEST, ENV2, ENV2 DEST, LFO, LFO DEST, (LFO 2, LFO2 DEST: built with LFO2, synth tracks), EDIT 1, EDIT 2, OSC 2, SWARM, FLT 2, VOICE, VOICE 2,
+SAVE AS), ENV, ENV 1 MOD, ENV2, ENV2 DEST, LFO, LFO DEST, (LFO 2, LFO2 DEST: built with LFO2, synth tracks), EDIT 1, EDIT 2, OSC 2, SWARM, FLT 2, VOICE, VOICE 2,
 FX (the sends), FILTER, SLICER, SCL, SCL 2, ARP, ARP 2, PATTERN. The panel draws the cursor row's graph (ADSR,
 LFO, the FX bars, the scale), as Felucca. **A page button tapped shows only its family's rows** [D, 2026-10-08: the LFO screen should not show ENV2 and SLICER rows]: LFO the LFO and LFO DEST rows (*Sound LFO*, its graph),
 ENV the envelopes and their DEST rows, FX the track's effects (FX, FILTER, SLICER ...), EDIT the engine's EDIT rows,
@@ -1005,7 +1005,7 @@ buttons' order and sentence case (section 3, *Text casing*). Built on the phase 
   result of a SAVE into an empty slot, UNDO) stays in the header.
 - **Forms.** One primitive set, `draw_gauge`, chosen from a value's range alone (`cell_gauge`: the descriptor's
   min, max and kind, never per parameter): a bar from the left (min 0), a bar from the centre (min < 0 < max: PAN,
-  FILT, TRANSPOSE, the ENV DEST amounts, a drum TUNE), a row of segments with the current one lit (a list of up to
+  FILT, TRANSPOSE, ENV 1 MOD's depths, the slots' amounts, a drum TUNE), a row of segments with the current one lit (a list of up to
   12), a tick on a line (a longer list: an engine, a kit, a slot), a pill (on / off). On the cards under the number
   (4 px), on the list rows under each cell (2 px), on the mixer's strips (PAN and FILTER from the centre, the three
   sends, FX a pill lit while on), on PROJECT (the slots; a MEMORY row with the section log's USED % and MORE) and
@@ -1080,7 +1080,7 @@ about 6 KB [E: the two numbers added, not built together] before phases 2..4.
 | Bars instead of rings | the ruling allows "a bar or a 270-degree ring": bars, because Felucca's rings need its anti-aliased renderer (phase 5) | `draw_gauge` |
 | The number on the list rows | the same Terminus S as before ("the number small" has no smaller face in this build); the form is a 2 px bar under it | the font of phase 5 |
 | What stays text | names (a preset, the mixer's SOUND row, a palette's name has its segments too), actions (YES), read-outs with no range (LIMIT > GR); the clock has a bar to 240 MHz, the CPU load to 100 % | the `cell_gauge` callers |
-| SOUND's graphs | the pages with a graph in the core (ENV, ENV2, LFO, FX, SCL, PATTERN, the drum lane); none for VOICE, ARP, EDIT, SLICER, the ENV DEST rows; the list shortened to three rows under a graph | `has_graph` |
+| SOUND's graphs | the pages with a graph in the core (ENV, ENV2, LFO, FX, SCL, PATTERN, the drum lane); none for VOICE, ARP, EDIT, SLICER, the ENV 1 MOD rows; the list shortened to three rows under a graph | `has_graph` |
 | PATTERN and the drum lane's graphs | this UI's own (SLOOP's `graph_steps` and `graph_dsnd` read its UI's cursor and lane state) | port them when STEP (phase 2) needs a cursor |
 | PROJECT's MEMORY row | USED (% of the section log, amber over 90 %) and MORE (sections that still fit), counted twice a second at most; only with the section log | `prj_mem` |
 | The mixer's strips | the fader and meter 44 px (were 60), under them PAN, REV DLY CHO, FX, FILTER (when built); the drum column's PAN and sends empty (per sound) | `draw_strip_forms`, `METER_H` |
@@ -1412,7 +1412,7 @@ pictures, `op_preset.c` a preset with its engine, all in SIZE_FILES):
   ENV is what it was (the envelopes' rows; no layer). The page tables and the algorithm's maths are copied from
   `ui/sloop/ui_fm6.c`; nothing there is called.
 - **Graphs on every row of a family** [D]: SOUND's row without a graph of its own shows the nearest row of its family
-  that has one (above, then below): LFO DEST the LFO's wave, ENV DEST and ENV2 DEST their envelopes
+  that has one (above, then below): LFO DEST the LFO's wave, ENV 1 MOD and ENV2 DEST their envelopes
   (`snd_graph_page`).
 - **A preset with its engine** [D]: the SOUND row's picture is the preset before, the one playing (white) and the one
   after, each with its engine's name and colour chip (a user preset: its record's engine); PRESETS on the mixer's
@@ -2514,7 +2514,7 @@ entered one stays 400 ms, so an LFO crossing it does not make the cards blink.
 | A drum lane's value (SOUND, SOUND 2, ENV, STEP's LANE page, the mixer's lane rows) | What a hit now plays: the patch, the lane's motion and locks in force, its LFO now. The hit's own formula: drums/lane_play.c `dl_play_ofs`, which `dl_play_hit` now calls too (one code, no drift; drums_mix untouched). On a synthesised kit DECAY, CLICK, BEND and DRIVE are the absolute value the sound gets (`de_synth` on the kit's own sound: kit + offset, 0..127, BEND 0..96), always shown: DRIVE -5 on a sound whose drive is 67 shows -7 % big (the offset, as stored) with the actual bar at 57 of 127 (45 %). TUNE, SNAP, CUT, LEVEL and every sampled, user-sample and X0X sound: the offset a hit plays, shown when it differs (motion, a lock, the LFO) |
 | A synth part's cutoff and shape cards (the engine's: ANALOG CUT, TRIO CUT and DUTY, GRAIN TONE and POS, FM6 MOD, VOICE BUZZ, PHASE DPTH, LOFI / SAMPLE / SLICE TONE or CUT, PHYS BRIT; `EFFV_DEST`) | The card's value + the part's cutoff (shape) modulation now, as track_render computes it: the LFO now (`lfo_val` x `lfo_fade`), the envelope of the newest active voice (`v->env`), the accent; with the macros as they play (`mac_effective`) |
 | Any synth value a macro moves (FELUCCA_MACROS) | `mac_effective` |
-| LFO DEST and ENV DEST's FLT and SHP | The destination card's actual value, on its scale (an engine without such a card: what the source adds, on -64..63), shown while the amount is not 0 |
+| LFO DEST's FLT and SHP, ENV 1 MOD's | The destination card's actual value, on its scale (an engine without such a card: what the source adds, on -64..63), shown while the amount is not 0 |
 | ... PIT | The pitch now from the LFO and the pitch envelope, in 1/16 semitones on +-12 |
 | ... AMP (LFO) | The newest voice's level now (`env_out`: envelope, velocity, the LFO's dip), 0..127 |
 | ... RES PAN LVL ATK DEC E1..E8 CHO DLY REV INS1 INS2 (either LFO's AMT A / AMT B) | The value as the render has it now: its authored value moved by every slot on it in turn (LFO's two, then LFO 2's) from the LFOs' values now, the same `lo_move` as voice.c `lfo_over_in` (v x AMT over half the range at full, clamped), on the value's own range (PAN -64..63, LVL ATK DEC 0..127, E1..E8 and RES the engine's `edit[]` range; INS1 / INS2 the amount of the insert in the slot, its own range: none when the slot is empty). The DST cards of INS1 / INS2 are named by the type the selected track's slot holds, as INSERTS names it (`FILT`, `DST`, `COMP`, `CHRS` ...; an empty slot `S1 --` / `S2 --`; params.c `lt_text`, both UIs); the help line stays "What LFO moves (slot A)". XRATE / XAMT: no second bar |
@@ -2989,7 +2989,7 @@ in three forms, looked up when drawn; what the cells, rows and help lines key on
 engines, tools/param_help.json), so SLOOP's UI and the web editor are unchanged.
 - **Titles** (`nm_title`): a row's name in the list is the header's title, sentence case, at most 9 characters, chosen so
   that it fits whole with its n/N next to the widest badge of its screen ("2 DIGITAL", "4 ACCENT"); the header keeps
-  bar.beat (the user's ruling). Renamed: ENV DEST *ENV to*, ENV2 DEST *ENV2 to*, LFO DEST *LFO to*, LFO 2 *LFO2*, LFO2 DEST
+  bar.beat (the user's ruling). Renamed: ENV 1 MOD *ENV mod* (ENV DEST *ENV to* until 2026-10-16), ENV2 DEST *ENV2 to*, LFO DEST *LFO to*, LFO 2 *LFO2*, LFO2 DEST
   *LFO2 to*, INSERTS *Insert* (as the mixer's set), SCL *Scale*, FLT 2 *Filter 2*, DR INSERT *DR ins*, BUS SENDS *Bus send*,
   CMP *Comp*, MASTER's RET DELAY / RET REV *Delay* / *Reverb*, FM6's OPn LEVEL *OPn out*, OPn RATES *OPn rate*, OPn LEVELS
   *OPn level*, OPn KEY SCA *OPn scale*, OPn CURVES *OPn curve*, PIT RATES / LVLS *Pit rate* / *Pit level*; the rest in

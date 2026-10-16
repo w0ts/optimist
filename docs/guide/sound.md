@@ -77,44 +77,79 @@ UNI). RATE below its free range is a tempo-synced value: 4BAR, 2BAR, 1BAR, 1/2, 
 
 ### ENV and ENV 2
 
-**ENV** is the track's ADSR: ATK, DEC, SUS, REL. **ENV 2** (ATK2, DEC2, SUS2, REL2) is a second ADSR of its own,
-restarted by each note; REL2 at 0 takes DEC2's time. ENV 2 runs on every engine, and only while one of its slots acts.
-It exists in builds that have the ANALOG engine.
+**ENV** (ENV 1) is the engine's own envelope, the track's ADSR: ATK, DEC, SUS, REL. It always shapes the amplitude
+(there is no AMP knob for it). **ENV 2** (ATK2, DEC2, SUS2, REL2) is a second ADSR of its own, restarted by each note;
+REL2 at 0 takes DEC2's time. ENV 2 runs on every engine, and only while one of its slots acts. It exists in builds that
+have the ANALOG engine.
+
+### ENV 1 MOD: four depth knobs made for each engine
+
+**ENV 1 MOD** (on the Optimist UI: *ENV mod*) has no destination pickers: its four knobs are fixed for the engine, each
+a depth from -64 to 63 (0: nothing), named after what it moves. FLT, SHP and PIT move the voice's filter, shape and
+pitch (PIT: up to about 31.5 semitones at full); the others move one of the engine's EDIT values for each voice as ENV
+runs. An engine whose EDIT values already shape its own envelope (ACID, CZ, FM6, PHASE's DCW) shows those values here
+too: turning them is turning the EDIT value.
+
+| Engine | Card 1 | Card 2 | Card 3 | Card 4 |
+|---|---|---|---|---|
+| ANALOG (SUPER) | FLT | PIT | SHP (the pulse width) | RES |
+| DIGITAL | IDX (the FM index) | PIT | FB | MDEC |
+| PHASE | ENV (its EDIT ENV: the DCW envelope) | PIT | DTN | SUB |
+| LOFI | TONE | PIT | DUTY | SWP |
+| SAMPLE | CUT | PIT | BITS | DRV |
+| VOICE | VOWL | PIT | BUZZ | Q |
+| TRIO | FLT | PIT | PW | RES |
+| WHEEL | PIT | DRV | CLICK | TOP |
+| GRAIN | TONE | PIT | POS | DENS |
+| FM6 | M.TIM (its EDIT value) | C.TIM (its EDIT value) | MOD | PIT |
+| SLICE | TONE | PIT | DCAY | PTCH |
+| PHYS | BRIT | PIT | DAMP | EXC |
+| ACID | ENV | DEC | ACC | SLD (the 303's own EDIT values) |
+| CZ | DCW | W.TIM | A.TIM (its EDIT values) | PIT |
+| JUNO | FLT (the VCF ENV depth) | PIT | PW | RES |
+| NOISE | FREQ | PIT | COLR | RES |
+
+WHEEL's DRV, CLICK and TOP are the organ's (read once a block), so ENV moves them from the track's newest voice. Every
+card can be locked on a step and recorded as motion. The drum track's ENV page (CLICK, DECAY, BEND, LEVEL, per drum
+sound) is unchanged.
 
 ### Destinations: two free slots on one shared list
 
-Each of LFO, LFO 2, ENV and ENV 2 has a second page with two free destinations: **DEST A** with **AMT A**, and
-**DEST B** with **AMT B** (the pages LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; on SLOOP's UI the cards read DST A and
-DST B). All four read **one shared list of destinations** (`firmware/src/core/core.h`, LT_*):
+LFO, LFO 2 and ENV 2 each have a second page with two free destinations: **DEST A** with **AMT A**, and **DEST B** with
+**AMT B** (the pages LFO DEST, LFO2 DEST, ENV2 DEST; on SLOOP's UI the cards read DST A and DST B). All three read
+**one shared list of destinations** (`firmware/src/core/core.h`, LT_*):
 
-- PIT, FLT, SHP, AMP: pitch, filter, shape (the engine's SHP value), amplitude;
+- PIT, FLT, SHP, AMP: pitch, filter, shape (the engine's SHP value), amplitude (on ENV 2 or an LFO: on top of ENV 1's);
 - RES (the engine's resonance), PAN, LVL (the track's level), ATK DEC SUS REL, ATK2 DEC2 SUS2 REL2, and E1 to E8, the
   engine's own EDIT values, named by the engine;
 - CHO, DLY, REV (the track's sends) and INS1, INS2 (the amount of the insert in slot S1 or S2; the LFO list names the
   insert type the slot holds);
-- the rate and amount of the LFOs and envelopes themselves (L1 RT, L1 AMT, L2 RT, L2 AMT, and the envelopes' amounts):
-  this is **modulation of modulation**. An envelope or an LFO can move another LFO's rate. Nothing feeds back into a
-  runaway: every move starts from the authored value, from the modulators' values of the block before.
+- the rate and amount of the LFOs and envelopes themselves (L1 RT, L1 AMT, L2 RT, L2 AMT, E1 AMT: ENV 1's FLT and SHP
+  depths, with ENV 2 also its PIT; E2 AMT: ENV 2's amounts): this is **modulation of modulation**. Nothing feeds back
+  into a runaway: every move starts from the authored value, from the modulators' values of the block before.
 
 An LFO moves the value for the block; an envelope moves it for each voice as that voice renders. An envelope on a track
 value (PAN, LVL, the sends, the inserts, an LFO's rate or amount) follows the track's newest voice.
 
 Defaults and rules worth knowing:
 
-- **The amplitude is ENV slot A on AMP at 127** on a new track, on INIT, in the presets and in old projects. With no
-  AMP route in ENV's slots, the voice plays at full level while ENV runs, then ends in a short ramp. ENV 2 alone on AMP:
-  the voice lives until ENV 2 dies away.
+- **ENV 2's DEST A is FLT at 0** on a new sound, on INIT and on every factory preset that does not use ENV 2: raise AMT A
+  and the filter follows ENV 2. Engines without a filter take their nearest: WHEEL TOP, FM6 SHP (MOD), CZ DCW (E2).
+  On ACID, FLT is the 303's CUT and RES its RESO.
 - **DROP** is the old fixed pitch drop that ENV DEST PIT gave: a fast fall from each note's start. It is its own value
   (VOICE 2, card 4, on the Optimist UI; VOICE 3 on SLOOP's UI), no longer a destination.
 - A project, a section or a user preset made with the old fixed destinations (FLT, SHP, PIT, AMP depths) loads with the
-  same sound: the heavier of two conflicting depths is kept, and old motion and locks on those values play onto the slots.
+  same sound. One made with ENV DEST's two free slots (2026-10-14 to 16) loads onto ENV 1 MOD: FLT, SHP and PIT become
+  their depths, AMP is ENV 1 itself; any other destination moves to ENV 2 when ENV 2 is free (ENV's ATK DEC SUS REL
+  copied into ENV 2's), else it is dropped and TOOLS > MISS names it ("ENV DEST T1").
 - The accent's filter kick (velocity above 110) still uses ENV.
 
 ### What is stored
 
-The slots are stored with the project, in the project's modulation record, written only when a slot is not at its
-default. User presets store them in the bank UPB3 (216-byte records; the older banks UPB2 and UPB1 are read and
-converted).
+ENV 1's FLT and SHP depths are stored in the track's values, as before 2026-10-14. Its PIT and moves and the slots of
+LFO, LFO 2 and ENV 2 are stored with the project, in the project's modulation record, written only when one is not at
+its default. User presets store them in the bank UPB3 (216-byte records, UP_VER 4; the older records and banks UPB2 and
+UPB1 are read and converted).
 
 ## Presets, favorites, the user bank
 
