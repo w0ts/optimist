@@ -102,16 +102,16 @@ too: turning them is turning the EDIT value.
 | WHEEL | PIT | DRV | CLICK | TOP |
 | GRAIN | TONE | PIT | POS | DENS |
 | FM6 | M.TIM (its EDIT value) | C.TIM (its EDIT value) | MOD | PIT |
-| SLICE | TONE | PIT | DCAY | START |
+| SLICE | TONE | PIT | DCAY | PTCH |
 | PHYS | BRIT | PIT | DAMP | EXC |
 | ACID | ENV | DEC | ACC | SLD (the 303's own EDIT values) |
 | CZ | DCW | W.TIM | A.TIM (its EDIT values) | PIT |
 | JUNO | FLT (the VCF ENV depth) | PIT | PW | RES |
 | NOISE | FREQ | PIT | COLR | RES |
 
-WHEEL's DRV, CLICK and TOP are the organ's (read once a block), so ENV moves them from the track's newest voice. SLICE's
-START is read when a note starts, when ENV is still at 0: it does not move while a note plays. The drum track's ENV page
-(CLICK, DECAY, BEND, LEVEL, per drum sound) is unchanged.
+WHEEL's DRV, CLICK and TOP are the organ's (read once a block), so ENV moves them from the track's newest voice. Every
+card can be locked on a step and recorded as motion. The drum track's ENV page (CLICK, DECAY, BEND, LEVEL, per drum
+sound) is unchanged.
 
 ### Destinations: two free slots on one shared list
 

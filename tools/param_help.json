@@ -14,7 +14,7 @@
       "VOWL": "ENV 1 to the vowel", "BUZZ": "ENV 1 to the buzz", "Q": "ENV 1 to the formant Q",
       "PW": "ENV 1 to the pulse width", "CLICK": "ENV 1 to the key click", "TOP": "ENV 1 to the top bars",
       "POS": "ENV 1 to the grain position", "DENS": "ENV 1 to the grain density", "MOD": "ENV 1 to the FM6 mod levels",
-      "DCAY": "ENV 1 to the slice decay", "START": "ENV 1 to the slice start", "BRIT": "ENV 1 to the brightness",
+      "DCAY": "ENV 1 to the slice decay", "PTCH": "ENV 1 to the slice pitch", "BRIT": "ENV 1 to the brightness",
       "DAMP": "ENV 1 to the damping", "EXC": "ENV 1 to the exciter", "VCF": "ENV 1 to the VCF (Juno)",
       "FREQ": "ENV 1 to the noise frequency", "COLR": "ENV 1 to the noise colour",
       "DCW": "Its envelope to the DCW", "M.TIM": "Modulator envelope times", "C.TIM": "Carrier envelope times",

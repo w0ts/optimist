@@ -8,7 +8,7 @@
  *
  *   place  the step | AUTO_ONLY
  *   param  AUTO_NGATE0 + k (0x78 .. 0x7B, note slot k): stored ids past every build's track values (auto.c
- *          MOT_TAIL_END, 79) and below the drum lanes' (0x7C..), so neither a track's value nor a lane's on any track
+ *          MOT_TAIL_END, 83) and below the drum lanes' (0x7C..), so neither a track's value nor a lane's on any track
  *   value  ngate[k], 1 .. 127
  *
  * Unfolded (ngate -> events) where the working tracks are captured into a project buffer or a stage (project.c

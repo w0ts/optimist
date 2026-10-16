@@ -204,7 +204,11 @@ envelope depth); an LFO or ENV 2 reaches them through FLT and RES.
 
 ### Findings for the user
 
-* **SLICE's START card does nothing:** START is read once, at the note-on, when ENV 1 is 0. It is kept as approved;
-  PTCH (E3, read each block) is the one other EDIT value SLICE reads while a voice plays; a replacement is the user's call.
+* **SLICE's START card did nothing** (START is read once, at the note-on, when ENV 1 is 0). The user's ruling: card 4 is
+  PTCH (E3, read each block), heard in env1_test with SLICE's BREAK in the headers.
+* **Locks and motion** (the user's ruling): ENV 1's PIT and its three moves are lockable and recorded as motion, stored
+  as tail ids P_ENG_END + 15 .. + 18 (seq/auto.c MOT_TAIL; an older build keeps such events and plays none). FLT and SHP
+  are lockable as their own values again (they were LFO-slot events of before only in 2026-10-14 .. 16).
+* Old DIGITAL / PHASE FLT and SHP depths keep playing as built (the user's ruling).
 * WHEEL, FM6, CZ, PHASE, DIGITAL have no filter; ACID has its own (now driven by FLT / RES); ACID and CZ have their
   own amplitude envelopes that the shared AMP path does not drive; see the table above.
