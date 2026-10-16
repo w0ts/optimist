@@ -70,8 +70,6 @@ def source_ref():
 
 
 BUILDER_FILES = ("index.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
-EDITOR_INSTALLER_LINK = '<a class="dim inst" href="../installer/" data-t="installer"></a>'
-EDITOR_BUILDER_LINK = '<a class="dim inst" href="../builder/">Firmware builder</a>'
 
 
 INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
@@ -129,14 +127,8 @@ def styled(html, app, page):
 
 
 def editor_page():
-    """editor.html with a link to the builder after its installer link (the site only: web/editor.html is the editor's
-    own file); said on stderr when the editor no longer has that link"""
-    html = (HERE / "editor.html").read_text(encoding="utf-8")
-    if html.count(EDITOR_INSTALLER_LINK) != 1:
-        print("make_site: the editor's installer link moved: no builder link in the editor (update make_site.py)",
-              file=sys.stderr)
-        return html
-    return html.replace(EDITOR_INSTALLER_LINK, EDITOR_INSTALLER_LINK + "\n    " + EDITOR_BUILDER_LINK)
+    """web/editor.html as it is: its Install and Build tabs load the modules from beside it (editor_modules)"""
+    return (HERE / "editor.html").read_text(encoding="utf-8")
 
 
 def site_commit():

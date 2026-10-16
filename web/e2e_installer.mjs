@@ -285,6 +285,16 @@ ok(host.radios === 3 && host.descs.includes("A second flavour, for the test.") &
 ok(JSON.stringify(host.navs) === JSON.stringify(["build", "about"]) && host.url === "/webapp/host.html" && /Drum machine/.test(host.second) && host.empty && !host.busy,
   "mounted: Build and About go to the host (onNavigate), the second flavour loads, unmount() empties it");
 
+/* ---- the site's editor page: its Install and Build tabs load the modules beside it (make_site.py editor_modules) */
+const opI = await open("/webapp/editor/#install", 1440, "dark");
+const edI = await run(`const until = async (f, ms = 8000) => { const t = Date.now(); while (Date.now() - t < ms) { const v = f(); if (v) return v; await new Promise((r) => setTimeout(r, 100)); } return null; };
+  const h = await until(() => document.querySelector("#install-host .oi")); return { host: !!h, note: (document.getElementById("install-note") || {}).textContent || "", radios: document.querySelectorAll("#install-host .oi-radio").length };`);
+ok(opI.kind === "ok" && edI.host && edI.radios >= 1, `editor page: the Install tab mounts the installer from ./installer/ with the site's packages (${edI.radios} flavours${edI.note ? ", " + edI.note : ""})`);
+const opB = await open("/webapp/editor/#build", 1440, "dark");
+const edB = await run(`const until = async (f, ms = 8000) => { const t = Date.now(); while (Date.now() - t < ms) { const v = f(); if (v) return v; await new Promise((r) => setTimeout(r, 100)); } return null; };
+  const h = await until(() => document.getElementById("build-host") && document.getElementById("build-host").children.length); return { kids: h || 0, note: (document.getElementById("build-note") || {}).textContent || "" };`);
+ok(opB.kind === "ok" && edB.kids > 0 && !/not found|missing|unavailable/i.test(edB.note), `editor page: the Build tab mounts the builder from ./builder/ (${edB.kids} blocks${edB.note ? ", " + edB.note : ""})`);
+
 const errs = events.filter((e) => e.method === "Runtime.exceptionThrown");
 ok(!errs.length, `no uncaught error in the pages${errs.length ? ": " + JSON.stringify(errs[0].params).slice(0, 300) : ""}`);
 const real = events.filter((e) => e.method === "Page.downloadWillBegin");

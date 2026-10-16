@@ -665,6 +665,31 @@ for n, cfg, real in _built:
 if not _have:
     print("  note: drift: no real build from this source in build/exact-sizes.json (optimist.py test makes them; "
           "--python / --no-build do not): the estimate is not held against today's firmware")
+# 3. monotonic (the user, 2026-10-16: "removing a feature INCREASES the flash figure"): in a shipped profile (and the
+#    defaults) switching an item off, with the dependants that must go with it (core._drop), never raises the estimated
+#    flash, RAM or pool. The causes it found: a margin per changed item (ANCHOR_MARGIN) that a 40 B item did not
+#    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
+#    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
+_mono_bad = []
+if costs:
+    for _pn in ("synth", "user-default", None):
+        _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
+        _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
+        for _k, _it in items.items():
+            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)):
+                continue
+            _v = C._off_value(_mcfg, _k)
+            _t = C._drop(_mcfg, _k, _v) if _v is not None and _mcfg[_k] else None
+            if _t is None:
+                continue
+            _b1 = C.budget(_t, costs, use_exact=False)["total"]
+            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool") if _b1[r] > _b0[r]}
+            if _up:
+                _mono_bad.append(f"{_pn or 'defaults'}: {_k}=0 {_up}")
+for _line in _mono_bad:
+    print(f"  not monotonic: {_line}")
+check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
+      "in synth, user-default and the defaults", not _mono_bad)
 # ---- the Reserve items (RESERVE_UNDO_KB, RESERVE_FLASH_KB): headroom kept, nothing in the image
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)

@@ -536,6 +536,15 @@ def nearest_anchor(cfg, costs, exclude=(), extra=()):
     return best
 
 
+def _grown(cfg, acfg, costs):
+    """the items whose change from the anchor's configuration to cfg adds flash (the margin counts these only: an
+    item switched OFF never raises the estimate, 2026-10-16: a margin per changed item made switching a 40 B feature off
+    show 216 B MORE flash, and a user saw the figure grow as he removed features)"""
+    ic, ia = additive(cfg, costs)[1], additive(acfg, costs)[1]
+    ec, ea = effective(cfg), effective(acfg)
+    return sum(1 for k in ec if ec[k] != ea[k] and ic.get(k, {}).get("flash", 0) - ia.get(k, {}).get("flash", 0) > 0)
+
+
 def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
     """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool,
     "anchor": name, "distance": items} (None without costs): the total is exact, the sizes of this configuration's
@@ -555,7 +564,8 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
     elif ref:
         name, acfg, real, dist = ref
         at, _, _ = additive(acfg, costs)
-        total = {r: real[r] + total[r] - at[r] + ANCHOR_MARGIN[r] * dist for r in REGIONS}
+        grown = _grown(cfg, acfg, costs)
+        total = {r: real[r] + total[r] - at[r] + ANCHOR_MARGIN[r] * grown for r in REGIONS}
     return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact),
             "anchor": ref[0] if ref else None, "distance": ref[3] if ref else None}
 
