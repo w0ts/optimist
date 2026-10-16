@@ -91,10 +91,10 @@ ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELU
       "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE"}
 check("web editor items: the twelve ED_* exist, options of OTA, on by default, one flag each",
       all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
-check("... the shipped profiles set them only where the slot asks: x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
+check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
+      {"user-default": ["ED_SCOPE=0"], "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
 _fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
