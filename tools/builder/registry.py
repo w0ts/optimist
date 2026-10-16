@@ -499,9 +499,8 @@ _add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, defa
           "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
           "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
      symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
-# the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 341: a placeholder until
-# the integrator reserves it
-_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 341, default=1,
+# the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
+_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
      desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
           "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
           "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
