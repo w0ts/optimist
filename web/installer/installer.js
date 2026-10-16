@@ -220,7 +220,7 @@ export function mountInstaller(container, opts = {}) {
   el.found = h("p.oi-found", { role: "status", "aria-live": "polite" }, TEXT.unchecked);
   el.help = h("ul.oi-help", { hidden: true }, TEXT.notfoundHelp.map((t) => h("li", {}, t)));
   el.browser = h("p.o-msg.err.oi-browser", { hidden: true, role: "alert" });
-  const step1 = card(1, TEXT.s1, "--t1",
+  const step1 = card(1, TEXT.s1,
     h("p", {}, TEXT.connectHow),
     el.browser,
     h("div.oi-row", {}, el.find, el.found),
@@ -233,7 +233,7 @@ export function mountInstaller(container, opts = {}) {
   el.stockRow = choiceRow("stock", TEXT.stockTitle, TEXT.stockNote, "FM-1_015");
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
-  const step2 = card(2, TEXT.s2, "--t2",
+  const step2 = card(2, TEXT.s2,
     h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), radios, fileRow, el.stockRow),
     el.pkginfo,
     h("p.o-dim", {}, TEXT.buildOwn, link("build", TEXT.buildLink)));
@@ -247,14 +247,14 @@ export function mountInstaller(container, opts = {}) {
   el.ok = h("div.o-msg.ok.oi-ok", { hidden: true });
   el.log = h("pre.oi-log");
   el.stockWarn = h("p.o-msg.warn", { hidden: true }, TEXT.stockNote);
-  const step3 = card(3, TEXT.s3, "--t3",
+  const step3 = card(3, TEXT.s3,
     h("p", {}, TEXT.keep), el.stockWarn, el.go, el.phases, el.bar, el.status, el.err, el.ok,
     h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
 
   /* ---- 4 When something goes wrong */
   el.stockFile = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.stockFile, onchange: () => loadStock() });
   el.stockMsg = h("p.oi-stockmsg", { role: "status", "aria-live": "polite" });
-  const step4 = card(4, TEXT.s4, "--t4",
+  const step4 = card(4, TEXT.s4,
     h("dl.oi-rescue", {},
       h("dt", {}, TEXT.r1h), h("dd", {}, TEXT.r1),
       h("dt", {}, TEXT.r2h), h("dd", {}, TEXT.r2),
@@ -273,9 +273,9 @@ export function mountInstaller(container, opts = {}) {
       h("p.o-dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
   container.replaceChildren(root);
 
-  function card(n, title, colour, ...body) {
+  function card(n, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
     const hid = `oi-s${n}`;
-    return h("section.o-panel.oi-step", { style: `--c: var(${colour})`, "aria-labelledby": hid },
+    return h("section.o-panel.oi-step", { "aria-labelledby": hid },
       h("div.o-panel-h", {}, h("h2.oi-h", { id: hid }, h("span.oi-num", { "aria-hidden": "true" }, String(n)), h("span", {}, title))),
       h("div.o-panel-b", {}, ...body));
   }

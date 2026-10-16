@@ -134,8 +134,6 @@
   .dgrid button.on.l1 { opacity: .3; }
   .dgrid button.on.l2 { opacity: .6; }
   .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
-  .dgrid button.now { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .dgrid .hd.now { color: var(--fg); font-weight: 700; }
   .dgrid .hd.bar { color: var(--fg); }
   .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
   /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
@@ -191,7 +189,6 @@
   button.pill[data-st=ok] { color: var(--ok); } button.pill[data-st=warn] { color: var(--warn); }
   .flash { outline: 2px solid var(--accent); outline-offset: 3px; transition: outline-color .6s; }
   .tp { display: inline-flex; gap: 6px; align-items: center; }
-  .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
   .tp input { width: 4.5em; }
   .strip { background: var(--panel); align-items: stretch; }
   .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px;
@@ -219,7 +216,6 @@
   button.ib span { font-size: 11px; }
   .tabs .si, h2 .si { width: 15px; height: 15px; vertical-align: -2px; margin-right: .3em; }
   .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  #play .si { fill: currentColor; }
   .strip .row2 { align-items: center; }
   .strip .fx button.tog { width: auto; padding: 1px 8px; }
   .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
@@ -244,24 +240,8 @@
   .ov i.beat { opacity: .7; }
   .ov i.on { background: var(--eng, var(--fg)); opacity: 1; }
   .strip .ov i.on { background: var(--fg); }
-  .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
-  /* the meters (v9 STREAM): green, amber above -6 dB, red at clip; the hold line; a tick at 0 dBFS (-60..+6 dB) */
-  .meter { position: relative; overflow: hidden; }   /* (its size and place: the strip's meter slot, #mixer .strip .meter) */
-  .meter i.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
-  .meter[data-st=warn] i.bar { background: var(--warn); }
-  .meter[data-st=err] i.bar { background: var(--err); }
-  .meter b.hold { position: absolute; left: 0; right: 0; height: 2px; bottom: 0; background: var(--ok); }
-  .meter b.hold[data-st=warn] { background: var(--warn); }
-  .meter b.hold[data-st=err] { background: var(--err); }
-  .meter u.zero { position: absolute; left: 0; right: 0; height: 1px; bottom: 90.9%; background: var(--fg); opacity: .35; }
-  /* the master's gain reduction (grEl): from the top, the COMP's share neutral, the LIMIT's amber */
-  .gr { position: relative; overflow: hidden; width: 6px; border: 1px solid var(--line); background: var(--bg); flex: none; }
-  .gr[hidden] { display: none; }
-  .gr i { position: absolute; left: 0; right: 0; top: 0; height: 0; }
-  .gr i.c { background: var(--dim); }
-  .gr i.l { background: var(--warn); }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
@@ -290,15 +270,6 @@
   .kbd .keys button.down { background: var(--accent, var(--fg)); color: var(--bg); }
   .kbd label { display: inline-flex; align-items: center; gap: 6px; }
   /* the transport REC, as the device's REC LED: off, waiting (blinks), count-in, recording (solid red), a free take */
-  #recbtn { min-width: 44px; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
-  #recbtn::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--dim); vertical-align: middle; }
-  #recbtn[data-rec="wait"]::before { background: var(--err); animation: recblink 1s steps(2, start) infinite; }
-  #recbtn[data-rec="count"]::before { background: var(--warn); animation: recblink .5s steps(2, start) infinite; }
-  #recbtn[data-rec="rec"]::before { background: var(--err); }
-  #recbtn[data-rec="take"]::before { background: var(--err); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--err); }
-  #recbtn[data-rec="rec"], #recbtn[data-rec="take"] { color: var(--err); }
-  @keyframes recblink { 50% { opacity: .15; } }
-  @media (prefers-reduced-motion: reduce) { #recbtn::before { animation: none !important; } }
   .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
   /* Live-like strips: no numbers under the knobs (the value is the tooltip), the fader the bottom-most big control, MUTE (an activator in the track's colour showing its number / letter)
      and SOLO under it */
@@ -428,11 +399,6 @@
   .knob[data-st=err] .va, .knob[data-st=err] .pt { stroke: var(--err); }
   /* GLO > MACRO moves the value (cmd 65): the knob shows what plays, in the notice colour with an M, and a second mark on the
      arc where it plays; the value arc and pointer stay where the knob edits */
-  .knob .ef { display: none; fill: var(--warn); }
-  .knob[data-mac] .ef { display: block; }
-  .knob[data-mac] .kv { color: var(--warn); }
-  .knob[data-mac] .kv::after { content: " M"; font-size: 9px; font-weight: bold; vertical-align: top; }
-  .row .v[data-mac], .strip .v.lv[data-mac] { color: var(--warn); }
   .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
   .rtype { display: block; margin: 0 0 8px; }   /* the Reverb popup's TYPE (two or more algorithms built) */
   .knobs + .knobs { margin-top: 6px; }
@@ -473,7 +439,6 @@
   #mixer .strip .fx { height: 180px; box-sizing: border-box; align-content: start; align-self: stretch; }
   #mixer .strip .fx .knob.na { opacity: .3; pointer-events: none; }
   #mixer .strip .fm { height: 150px; align-self: stretch; align-items: stretch; justify-content: center; gap: 6px; }
-  #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
   #mixer .strip .lv { text-align: center; line-height: 16px; }
   #mixer .strip .row2 { height: 32px; align-self: stretch; }
   /* the master: on the left its head, DUST / DUCK / FILT and the meter (+ GR) level with the faders; on the right the FX
@@ -611,7 +576,6 @@
   .pill[data-st=warn] { background: none; color: var(--warn); }
   .pill[data-st=err] { background: none; color: var(--err); }
   button.pill[data-st=ok], button.pill[data-st=warn] { background: var(--s2); }
-  .tp #play[aria-pressed=true] { background: var(--ok); color: var(--on); border: 0; }
   table.snaps td.nm { font-weight: 400; }
   th { color: var(--dim); text-transform: lowercase; }
   .row.pushed .v { font-weight: 400; color: var(--trk); }
@@ -662,8 +626,6 @@
   .dgrid button.on.l1 { opacity: .3; }
   .dgrid button.on.l2 { opacity: .6; }
   .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
-  .dgrid button.now { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .dgrid .hd.now { color: var(--fg); font-weight: 700; }
   .dgrid .hd.bar { color: var(--fg); }
   .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
   /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
@@ -719,7 +681,6 @@
   button.pill[data-st=ok] { color: var(--ok); } button.pill[data-st=warn] { color: var(--warn); }
   .flash { outline: 2px solid var(--accent); outline-offset: 3px; transition: outline-color .6s; }
   .tp { display: inline-flex; gap: 6px; align-items: center; }
-  .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
   .tp input { width: 4.5em; }
   .strip { background: var(--panel); align-items: stretch; }
   .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px;
@@ -747,7 +708,6 @@
   button.ib span { font-size: 11px; }
   .tabs .si, h2 .si { width: 15px; height: 15px; vertical-align: -2px; margin-right: .3em; }
   .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  #play .si { fill: currentColor; }
   .strip .row2 { align-items: center; }
   .strip .fx button.tog { width: auto; padding: 1px 8px; }
   .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
@@ -772,24 +732,8 @@
   .ov i.beat { opacity: .7; }
   .ov i.on { background: var(--eng, var(--fg)); opacity: 1; }
   .strip .ov i.on { background: var(--fg); }
-  .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
-  /* the meters (v9 STREAM): green, amber above -6 dB, red at clip; the hold line; a tick at 0 dBFS (-60..+6 dB) */
-  .meter { position: relative; overflow: hidden; }   /* (its size and place: the strip's meter slot, #mixer .strip .meter) */
-  .meter i.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
-  .meter[data-st=warn] i.bar { background: var(--warn); }
-  .meter[data-st=err] i.bar { background: var(--err); }
-  .meter b.hold { position: absolute; left: 0; right: 0; height: 2px; bottom: 0; background: var(--ok); }
-  .meter b.hold[data-st=warn] { background: var(--warn); }
-  .meter b.hold[data-st=err] { background: var(--err); }
-  .meter u.zero { position: absolute; left: 0; right: 0; height: 1px; bottom: 90.9%; background: var(--fg); opacity: .35; }
-  /* the master's gain reduction (grEl): from the top, the COMP's share neutral, the LIMIT's amber */
-  .gr { position: relative; overflow: hidden; width: 6px; border: 1px solid var(--line); background: var(--bg); flex: none; }
-  .gr[hidden] { display: none; }
-  .gr i { position: absolute; left: 0; right: 0; top: 0; height: 0; }
-  .gr i.c { background: var(--dim); }
-  .gr i.l { background: var(--warn); }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
@@ -818,15 +762,6 @@
   .kbd .keys button.down { background: var(--accent, var(--fg)); color: var(--bg); }
   .kbd label { display: inline-flex; align-items: center; gap: 6px; }
   /* the transport REC, as the device's REC LED: off, waiting (blinks), count-in, recording (solid red), a free take */
-  #recbtn { min-width: 44px; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
-  #recbtn::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--dim); vertical-align: middle; }
-  #recbtn[data-rec="wait"]::before { background: var(--err); animation: recblink 1s steps(2, start) infinite; }
-  #recbtn[data-rec="count"]::before { background: var(--warn); animation: recblink .5s steps(2, start) infinite; }
-  #recbtn[data-rec="rec"]::before { background: var(--err); }
-  #recbtn[data-rec="take"]::before { background: var(--err); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--err); }
-  #recbtn[data-rec="rec"], #recbtn[data-rec="take"] { color: var(--err); }
-  @keyframes recblink { 50% { opacity: .15; } }
-  @media (prefers-reduced-motion: reduce) { #recbtn::before { animation: none !important; } }
   .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
   /* Live-like strips: no numbers under the knobs (the value is the tooltip), the fader the bottom-most big control, MUTE (an activator in the track's colour showing its number / letter)
      and SOLO under it */
@@ -956,11 +891,6 @@
   .knob[data-st=err] .va, .knob[data-st=err] .pt { stroke: var(--err); }
   /* GLO > MACRO moves the value (cmd 65): the knob shows what plays, in the notice colour with an M, and a second mark on the
      arc where it plays; the value arc and pointer stay where the knob edits */
-  .knob .ef { display: none; fill: var(--warn); }
-  .knob[data-mac] .ef { display: block; }
-  .knob[data-mac] .kv { color: var(--warn); }
-  .knob[data-mac] .kv::after { content: " M"; font-size: 9px; font-weight: bold; vertical-align: top; }
-  .row .v[data-mac], .strip .v.lv[data-mac] { color: var(--warn); }
   .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
   .rtype { display: block; margin: 0 0 8px; }   /* the Reverb popup's TYPE (two or more algorithms built) */
   .knobs + .knobs { margin-top: 6px; }
@@ -1001,7 +931,6 @@
   #mixer .strip .fx { height: 180px; box-sizing: border-box; align-content: start; align-self: stretch; }
   #mixer .strip .fx .knob.na { opacity: .3; pointer-events: none; }
   #mixer .strip .fm { height: 150px; align-self: stretch; align-items: stretch; justify-content: center; gap: 6px; }
-  #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
   #mixer .strip .lv { text-align: center; line-height: 16px; }
   #mixer .strip .row2 { height: 32px; align-self: stretch; }
   /* the master: on the left its head, DUST / DUCK / FILT and the meter (+ GR) level with the faders; on the right the FX
@@ -1139,7 +1068,6 @@
   .pill[data-st=warn] { background: none; color: var(--warn); }
   .pill[data-st=err] { background: none; color: var(--err); }
   button.pill[data-st=ok], button.pill[data-st=warn] { background: var(--s2); }
-  .tp #play[aria-pressed=true] { background: var(--ok); color: var(--on); border: 0; }
   table.snaps td.nm { font-weight: 400; }
   th { color: var(--dim); text-transform: lowercase; }
   .row.pushed .v { font-weight: 400; color: var(--trk); }
@@ -1188,7 +1116,6 @@
   .knob .kl { font-size: 16px; color: var(--c, var(--dim)); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .knob .kv { font-size: 16px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .knob:focus-visible svg { outline: 1px solid var(--c, var(--fg)); }
-  .knob[data-mac] .kv::after { font-size: 16px; vertical-align: baseline; }
   .pk { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: none; padding: 0 4px; }
   .pk .kl { font-size: 16px; color: var(--c, var(--dim)); text-transform: uppercase; }
   .pk select { max-width: 100%; width: 100%; color: var(--c, var(--fg)); background-color: var(--s2); border-color: var(--line); height: 28px; }
@@ -1218,7 +1145,6 @@
   .strip .ov i { height: 8px; background: var(--s2); opacity: 1; }
   .strip .ov i.beat { background: var(--s3); opacity: 1; }
   .strip .ov i.on, .strip .ov i.on.beat { background: var(--tc); }
-  .strip .ov i.now { outline: 2px solid var(--fg); }
   .strip .lanes .ln { font-size: 16px; line-height: 16px; border: 0; border-left: 4px solid var(--kc, var(--s3)); background: var(--s1); color: var(--fg2); border-radius: 0; }
   .strip .lanes .ln.lsel { background: var(--kc, var(--tc)); color: #000; outline: 0; }
   .strip .fx { border-top: 1px solid var(--line); }
@@ -1235,7 +1161,6 @@
   .strip .knob { --knob-value: var(--tc); }
   .strip.master .fxg { border-radius: 0; border: 1px solid var(--line); background: var(--s1); }
   .strip.master .fxg button.ib, .strip.master .fxg button.ib:hover { border: 0; border-radius: 0; }
-  .meter, .gr, #mixer .strip .meter { border-radius: 0; }
   #mixer > .strip:not(.nar) { flex-basis: 150px; min-width: 132px; } #mixer > .strip.master:not(.alone) { flex-basis: 380px; min-width: 380px; }
   #mixer .strip { grid-template-rows: [head] 28px [inst] 46px [nav] 28px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; }
   #mixer .strip .snd { height: 40px; }
@@ -1291,7 +1216,6 @@
   .tiles button.on .n, .tiles button.on .x { color: var(--on); }
   .tiles button.acc { box-shadow: inset 0 3px var(--fg); }
   .tiles button.tie { background: repeating-linear-gradient(-45deg, var(--s2) 0 6px, var(--s3) 6px 8px); }
-  .tiles button.now { outline: 2px solid var(--fg); outline-offset: 1px; }
   .tiles button.sel { box-shadow: inset 0 0 0 2px var(--fg); }
   .dgrid { gap: 2px; }
   .dgrid .ln { font-size: 16px; color: var(--fg2); }
@@ -1303,8 +1227,7 @@
   .dgrid button.on.l1 { background: color-mix(in srgb, var(--kc, var(--t4)) 35%, var(--s2)); }
   .dgrid button.on.l2 { background: color-mix(in srgb, var(--kc, var(--t4)) 65%, var(--s2)); }
   .dgrid button.on.l3 { background: var(--fg); box-shadow: none; }
-  .dgrid button.now { outline: 2px solid var(--fg); }
-  .dgrid .hd.now, .dgrid .hd.bar { color: var(--fg); font-weight: 400; }
+  .dgrid .hd.bar { color: var(--fg); font-weight: 400; }
 
   @media (max-width: 860px) {
     .menubar { position: static; padding: 8px 16px; }
@@ -1500,7 +1423,7 @@
   .tiles button.auto { background: var(--mk-auto); color: #000; } .tiles button.auto::after { background: #000; outline-color: var(--mk-auto); }
   .dgrid button.lk, .dgrid button.on.lk, .dgrid button.on.l1.lk, .dgrid button.on.l2.lk, .dgrid button.on.l3.lk { background: var(--mk-auto); color: #000; box-shadow: inset 0 0 0 2px #000; }
   #mixer .strip .ov i.auto { background: var(--mk-auto); }
-  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not(.navh:first-of-type) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install and Build do not) */
+  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=mixer]):not(.navh:first-of-type) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install and Build do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
 </style>
 </head>
 <body>
@@ -1538,12 +1461,6 @@
         <div class="tbar">
       <span id="mock" class="dim" hidden data-t="mock"></span>
       <span id="status"></span>
-      <span class="tp" id="tp" hidden>
-        <button id="play" class="ib tog" aria-pressed="false"></button>
-        <button id="stop" class="ib tog"></button>
-        <button id="recbtn" class="ib tog rec" data-rec="off" aria-pressed="false" hidden>REC</button>
-        <span id="section" class="dim"></span>
-      </span>
       <span class="tp" id="undotp" hidden>
         <button type="button" id="undobtn" class="ib" disabled aria-label="Undo" title="Undo (Ctrl / Cmd + Z)">&#8630;</button>
         <button type="button" id="redobtn" class="ib" disabled aria-label="Redo" title="Redo (Ctrl / Cmd + Shift + Z, Ctrl + Y)">&#8631;</button>
@@ -1886,7 +1803,8 @@ function patDrumRaw(d) {
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG, CMD.FX_PUSH]);
 /* WATCH bits: 1 on, 2 TRACK_CHANGED (v4), 4 every track's changes coalesced (v9), 8 the status stream (v9) */
-const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15, ENDS: 16 };   /* ENDS (v12): STEPS pushes with the notes' own ends */
+const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15, ENDS: 16, EDIT: 7 };   /* ENDS (v12): STEPS pushes with the notes' own ends; EDIT: what
+   the editor asks for, every push but the status stream (an editor, not a remote DAW: no meters, no playhead) */
 const PARAMS_GLOBAL = 127;                         /* a PARAMS entry's "where" for a global G_* */
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
@@ -4276,34 +4194,14 @@ async function auditionPatch(rq, info, pt, opt = {}) {
 
 /* WATCH on, asking for everything (TRACK_CHANGED, v9's pushes and stream): false when the firmware does not know it (older
    than protocol v2), else the bits it granted: 1, 3 with TRACK_PARAM / TRACK_CHANGED (v4), 15 with v9 (every track's
-   changes pushed, the status stream: no polling). ask: the bits to ask for (15) */
-async function startWatch(rq, ask = WATCH.ALL) {
+   changes pushed, the status stream: no polling). ask: the bits to ask for (7: no stream) */
+async function startWatch(rq, ask = WATCH.EDIT) {
   try { const on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & (WATCH.ALL | WATCH.ENDS) : false; }
   catch (e) { if (e.message === "closed") throw e; return false; }
 }
 /* what a WATCH reply means: {watch, v4, v9, stream} */
 const watchCaps = (on) => ({ watch: on || false, v4: !!(on & WATCH.V4), v9: !!(on & WATCH.V9), stream: !!(on & WATCH.STREAM),
   ends: !!(on & WATCH.ENDS) });
-
-/* ------------------------------------------------------------ meters (v9) --- */
-/* The device sends each meter's largest peak since its last STREAM frame (no peak is lost between two frames, at 25 Hz
-   at most and only while something changes); the editor draws the ballistics, so the device keeps no meter state and
-   the look is the editor's to choose: an instant rise, a fall of METER.FALL dB/s, a peak hold line for METER.HOLD ms
-   that then falls too. Scale: the peak 8192 = 0 dBFS (a track: before the master volume; the master: the output) */
-const METER = { MIN: -60, MAX: 6, FALL: 24, HOLD: 1500, WARN: -6, CLIP: -0.5 };
-const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
-/* one meter, dt ms later, with in (dB, -Infinity: no new peak) arrived: {db, hold, holdAt} at now (ms) */
-function meterStep(m, inDb, dt, now) {
-  const fall = (METER.FALL * dt) / 1000;
-  const db = Math.max(METER.MIN, Math.max(Number.isFinite(inDb) ? inDb : -Infinity, m.db - fall));
-  let hold = m.hold, holdAt = m.holdAt;
-  if (db >= hold) { hold = db; holdAt = now; }
-  else if (now - holdAt > METER.HOLD) hold = Math.max(db, hold - fall);
-  return { db, hold, holdAt };
-}
-/* the colour language: green, amber above -6 dB, red at clip (0 dBFS) */
-const meterState = (db) => (db >= METER.CLIP ? "err" : db > METER.WARN ? "warn" : "ok");
-const meterFrac = (db) => Math.max(0, Math.min(1, (db - METER.MIN) / (METER.MAX - METER.MIN)));
 
 /* ------------------------------------------------------------ mixer (v3) --- */
 /* The TRACKS page in the editor: TRACK (engine, preset, level, mute of all four) and TRACK_DUMP
@@ -4754,7 +4652,6 @@ const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return spb >=
    page that holds a step (the playhead), the steps a page shows */
 const DRUM_PAGE = 16;
 const drumPages = (len) => Math.max(1, Math.ceil(len / DRUM_PAGE));
-const drumPageOf = (step, len) => Math.min(drumPages(len) - 1, Math.max(0, Math.floor(step / DRUM_PAGE)));
 const drumPageRange = (page, len) => { const from = Math.min(page, drumPages(len) - 1) * DRUM_PAGE; return { from, to: Math.min(len, from + DRUM_PAGE) }; };
 
 const STEPX = { MICRO: 1, FILLS: 2, PLOCK: 4 }, STEPX_BITS = [177, 178, 179];
@@ -4816,7 +4713,7 @@ const navKey = (st, key) => (key === "Escape" && st.pop ? navClose(st) : st);
 const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: null } : st);
 /* the click depth of a popup from the mixer: 1 when its opener is on a strip of the mixer */
 const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
-/* The keyboard on the mixer (no Ctrl / Cmd / Alt; Space = play / stop and Escape = close are the page's own). One key per
+/* The keyboard on the mixer (no Ctrl / Cmd / Alt; Escape = close is the page's own). One key per
    popup of the SELECTED track (on: synth part, drum track, any track, the master, the page); the same key again closes it.
    <- / -> select the previous / next track (stop at the ends). On the drum track 1-9 0 SELECT its sounds 1-10 (the strip's
    send row follows); the selected sound's digit again, or Enter, opens it; in its popup a digit goes to that sound, its own
@@ -6753,8 +6650,8 @@ const TEXT = {
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabInstall: "Install", tabBuild: "Build", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
-  tabMixer: "Editor", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
-  keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
+  tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
+  keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", pattern: "Pattern", patterns: "Patterns", scene: "Scene", scenes: "Scenes",
   patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its steps (a stored pattern that does not play too: it is written back as you edit); drag: copy; Delete: clear",
@@ -6776,7 +6673,7 @@ const TEXT = {
   styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
   noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-  macPlays: "plays", macRow: "macro",
+  macRow: "macro",
   fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry",
   fxSndMode: "The selected sound's FX (its sends and inserts)", fxBusMode: "The drum bus's FX (all the drums together)", fxSlotsHelp: "The effect on each FX knob (one of each: loading one held elsewhere swaps the two)", fxCmpHelp: "The compressor inserts' settings (every track's, the drum bus's and the drum sounds')", fxEmpty: "Empty FX slot", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
   dlSound: "Sound", dlSends: "The sound's sends (REV 4: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
@@ -6803,7 +6700,7 @@ const TEXT = {
   confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
   layout: "(The firmware has a different parameter count; showing a plain list.)",
   ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
-  live: "● Live", liveV9: "● Live (v9: changes pushed, meters)", polling: "○ Polling (older firmware)",
+  live: "● Live", liveV9: "● Live (v9: changes pushed)", polling: "○ Polling (older firmware)",
   library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
   sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
   name: "Name", tagsCol: "Tags", date: "Changed",
@@ -6860,7 +6757,7 @@ const TEXT = {
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
   clips: "clips",
   popScale: "Scale", laneModeN: "sounds at a time (the drum sounds are shown in blocks of this size)", laneBlockPrev: "Previous block of sounds ( [ )", laneBlockNext: "Next block of sounds ( ] )", laneBlocks: "Blocks of drum sounds", laneBlock: "Sounds", scaleNone: "This track has no scale or arpeggiator pages.", arpTip: "Arpeggiator on / off (the ARP page: Scale panel)",
-  recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "STOP THE SONG FIRST",
+
   retMuteTip: "Mute of a return (the firmware has no return mute: SOLO op 7)",
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
   soloTip: "Solo (set on the device with GLO + the track key; the editor's solo comes with protocol v14)",
@@ -6899,9 +6796,9 @@ const TEXT = {
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
-  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5. A pattern longer than 16 steps shows one page of 16 at a time (Page 1, 2, ..); Follow turns the page with the playhead, as on the device.",
+  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5. A pattern longer than 16 steps shows one page of 16 at a time (Page 1, 2, ..).",
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
-  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page", drumFollow: "Follow",
+  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
   mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment).",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
@@ -6954,7 +6851,7 @@ function sayK(k, arg = "") {
 function applyText() {
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
   if (lastKey) sayK(lastKey, lastArg);
-  for (const [id, k, key] of [["play", "play", " "], ["stop", "stop", ""], ["helpbtn", "help", keyFor("help")]]) { $(id).title = withKey(t(k), key); $(id).setAttribute("aria-label", $(id).title); }
+  for (const [id, k, key] of [["helpbtn", "help", keyFor("help")]]) { $(id).title = withKey(t(k), key); $(id).setAttribute("aria-label", $(id).title); }
   $("libq").placeholder = t("libSearch");
   renderLive();
   renderLib();
@@ -6964,8 +6861,6 @@ function applyText() {
   renderPanels();
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
-$("play").append(svgIcon("play"));
-$("stop").append(svgIcon("stop"));
 $("helpbtn").addEventListener("click", () => openPop("help", 0));
 
 /* ------------------------------------------------------- screens and popups --- */
@@ -7210,7 +7105,6 @@ let busy = 0;          /* multi-request operations in progress: no polling */
 let dragging = null;   /* key of the slider being dragged */
 let wantConnected = false;
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
-const macKnobs = new Set();   /* the knobs a macro can move (knob(): o.eff), redrawn when what plays changes */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
 let lastDump = 0;      /* Date.now() of the last DUMP */
@@ -7355,7 +7249,6 @@ function disconnect(reasonKey = "disconnected") {
   renderBank();
   renderFm6();
   renderCz();
-  renderTransport();
   $("version").textContent = "";
   sayK(reasonKey);
 }
@@ -7440,8 +7333,7 @@ async function load(d) {
     if (d.info.ntrk) for (let i = 0; i < d.info.ntrk; i++) { sayK("steploading", `${t("track")} ${i + 1}`); await readOverview(i); }   /* the strips' step overviews */
     /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
     const rqd = (r, o) => d.link.request(r, o);
-    Object.assign(d, watchCaps(await startWatch(rqd, WATCH.ALL | WATCH.ENDS)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything, the stream */
-    if (d.stream) { d.statusOk = true; renderTransport(); if (d.mix) { mixCtl.length = 0; renderMixer(); } }   /* (the stream carries STATUS; the meters) */
+    Object.assign(d, watchCaps(await startWatch(rqd, WATCH.EDIT | WATCH.ENDS)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything */
     if (d.watch) {
       sayK("readingBank");
       try { d.bank = await bank.list((r, o) => d.link.request(r, { ...o, quiet: true })); }
@@ -7685,7 +7577,7 @@ function paramKnob(s, id, title) {
   const k = key(s, id);
   const text = (v) => { const [txt, unit] = fmtValue(d, v); return fm6VoiceText(s, id, v) ?? (unit ? `${txt} ${unit}` : txt); };
   const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d, title), min: d.min, max: d.max, def: d.def, value: s ? dev.dump.g[id] : dev.dump.p[id], fmt: text,
-    eff: () => (s ? macG(id) : macP(dev.sel, id)), set: (v, final) => userSet(s, id, v, final) });
+    set: (v, final) => userSet(s, id, v, final) });
   /* (ctl's input: the knob's value; out: its value text) */
   const input = { tagName: "KNOB", get value() { return String(kb.v); }, set value(v) { kb.value(+v, true); } };
   const out = { set textContent(x) { /* the knob draws its own text */ } };
@@ -7753,14 +7645,6 @@ function showValue(k, v, force) {
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
   c.out.textContent = fm6VoiceText(c.scope, c.id, v) ?? (unit ? `${txt} ${unit}` : txt);
-  if (c.out.dataset) {                           /* GLO > MACRO: what plays, when a macro moves it (a slider; knobs draw it themselves) */
-    const e = dev ? (c.scope ? macG(c.id) : macP(dev.sel, c.id)) : null;
-    if (e != null && e !== v) {
-      const [et, eu] = fmtValue(c.desc, e);
-      c.out.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`;
-      c.out.dataset.mac = "1";
-    } else delete c.out.dataset.mac;
-  }
   if (c.desc.label === "SYNC" && c.desc.names && c.desc.names[v] === "AUTO" && dev && dev.dump) {   /* AUTO: the clock followed now (global CLK) */
     const i = dev.gdesc.findIndex((d) => d && d.label === "CLK");
     if (i >= 0) c.out.textContent = "AUTO:" + (["INT", "USB", "TRS"][dev.dump.g[i]] ?? "?");
@@ -8055,9 +7939,8 @@ function drawRoll() {
   const len = stepLen(), c = rollColors(), { spb, bar } = rollGrid(divName()), dpr = window.devicePixelRatio || 1;
   const steps = roll.drag && roll.drag.preview ? roll.drag.preview : SQ.steps;
   const notes = rollNotes(steps, len), w = roll.w, cell = roll.cell;
-  const play = !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
-  drawTiles(steps, len, play);
-  /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour), the playhead */
+  drawTiles(steps, len);
+  /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour) */
   {
     const g = roll.el.grid.getContext("2d"), H = (RG.HI - RG.LO + 1) * RG.ROW;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -8075,7 +7958,6 @@ function drawRoll() {
       g.fillStyle = s % bar === 0 ? c.fg : c.line; g.fillRect(Math.round(rollX(s)), 0, 1, H);
     }
     g.globalAlpha = 1;
-    if (play >= 0 && play < len) { g.globalAlpha = 0.18; g.fillStyle = c.accent; g.fillRect(rollX(play), 0, cell, H); g.globalAlpha = 1; }
     const autoSteps = dev && dev.sa ? saMarkSet(dev.sel) : null;          /* steps with locks / motion: the device's automation colour */
     for (const n of notes) {
       const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = Math.max(3, Math.round(n.span * cell) - 2), h = RG.ROW - 2;
@@ -8098,7 +7980,6 @@ function drawRoll() {
     for (let s = 0; s < len; s++) {
       const x = rollX(s), st = steps[s];
       if (s % spb === 0) { g.fillStyle = s % bar === 0 ? c.fg : c.dim; g.fillText(String(s + 1), x + 2, RG.NUM / 2); }
-      if (s === play) { g.fillStyle = c.accent; g.fillRect(x, RG.NUM - 3, cell, 3); }
       if (s === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x + 1, 1, cell - 2, H - 2); }
       if (rollIsNote(st)) {
         for (const [bit, row] of [[1, 0], [2, 1]]) {
@@ -8126,7 +8007,7 @@ function drawRoll() {
 }
 /* the steps as the device's tiles (16 a page): the number, the note (+ for a chord), lit for a note, striped while a note is held, a bar on top for ACC */
 const TILES = 16;
-function drawTiles(steps, len, play) {
+function drawTiles(steps, len) {
   const { tiles, pages } = roll.el, np = Math.max(1, Math.ceil(len / TILES));
   if (roll.sel >= 0 && roll.sel !== roll.tileSel) roll.page = Math.floor(roll.sel / TILES);
   roll.tileSel = roll.sel;
@@ -8144,7 +8025,7 @@ function drawTiles(steps, len, play) {
   for (let i = 0; i < to - from; i++) {
     const s = from + i, st = steps[s], b = tiles.children[i], note = rollIsNote(st);
     b.dataset.s = String(s);
-    b.className = ["tile", note && "on", held.has(s) && "tie", note && st.flags & 1 && "acc", s % spb === 0 && "beat", s === roll.sel && "sel", s === play && "now"].filter(Boolean).join(" ");
+    b.className = ["tile", note && "on", held.has(s) && "tie", note && st.flags & 1 && "acc", s % spb === 0 && "beat", s === roll.sel && "sel"].filter(Boolean).join(" ");
     b.firstChild.textContent = String(s + 1) + (note && st.flags & 2 ? "~" : "");
     b.lastChild.textContent = note ? noteName(st.notes[0]) + (st.n > 1 ? "+" : "") : "";
     b.title = `${t("rollStep")} ${s + 1}${note ? ": " + st.notes.slice(0, st.n).map(noteName).join(" ") : ""}`;
@@ -8488,17 +8369,11 @@ async function writeStepObj(i) {
     if (!roll.drag) { drawRoll(); rollPanel(); }
   } catch (err) { report(err); }
 }
-/* the playhead (STATUS, every ~150 ms) */
-function rollPlayhead() {
-  if (!dev || !nav.pop || nav.pop.id !== "sequence") return;
-  if (drumGrid() && SQ.dstepsOk) drumPlayhead();
-  else if (roll.el && !roll.drag) drawRoll();
-}
 /* ---- v5: the drum track's 16 lanes. A click puts a hit with the level / roll chosen above, or takes it
    away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
    and one queued with the latest lanes (Link coalesces by key). */
 const paint = { lvl: 0, rat: 0 };
-const drumView = { page: 0, follow: true };   /* the grid shows one page of 16 steps; FOLLOW: the playhead's, while playing */
+const drumView = { page: 0 };   /* the grid shows one page of 16 steps */
 function renderDrumBar() {
   const box = $("drumbar");
   const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
@@ -8510,17 +8385,15 @@ function renderDrumBar() {
     box.replaceChildren(el("label", {}, t("kit") + " ", kit), el("span", { class: "dim" }, t("hitLevel")),
       seg(t("hitLevel"), LV_ORDER, (v) => LV_NAMES[v], "lvl"),
       el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"),
-      el("span", { class: "dim", id: "drumpagelab" }, t("drumPage")), el("span", { class: "seg", id: "drumpages", role: "group", "aria-label": t("drumPage") }),
-      el("label", { id: "drumfollow" }, el("input", { type: "checkbox", checked: "", onchange: (e) => { drumView.follow = e.target.checked; renderDrums(); } }), " " + t("drumFollow")));
+      el("span", { class: "dim", id: "drumpagelab" }, t("drumPage")), el("span", { class: "seg", id: "drumpages", role: "group", "aria-label": t("drumPage") }));
   }
   {
     const len = stepLen(), n = drumPages(len), pg = $("drumpages");
     if (drumView.page >= n) drumView.page = n - 1;
-    $("drumpagelab").hidden = pg.hidden = $("drumfollow").hidden = n < 2;
+    $("drumpagelab").hidden = pg.hidden = n < 2;
     if (pg.children.length !== n) pg.replaceChildren(...Array.from({ length: n }, (_, i) => el("button", { type: "button", "data-pg": i,
-      onclick: () => { drumView.page = i; drumView.follow = false; $("drumfollow").firstChild.checked = false; renderDrums(); } }, String(i + 1))));
+      onclick: () => { drumView.page = i; renderDrums(); } }, String(i + 1))));
     for (const b of pg.children) b.setAttribute("aria-pressed", +b.dataset.pg === drumView.page ? "true" : "false");
-    $("drumfollow").firstChild.checked = drumView.follow;
   }
   const kit = $("drumkit");
   const names = kd && kd.fmt === F.ENUM && kd.names.length ? kd.names : null;
@@ -8542,8 +8415,6 @@ const laneColor = (l) => (l === 16 ? "" : dev && dev.dl ? kindColor(KIND_ATTR[la
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
-  const play0 = !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
-  if (drumView.follow && play0 >= 0) drumView.page = drumPageOf(play0, len);
   drumView.page = Math.min(drumView.page, drumPages(len) - 1);
   const nl = accOn() ? 17 : 16, shape = `${len}:${spb}:${drumView.page}:${nl}`;
   if (box.dataset.shape !== shape) {
@@ -8582,16 +8453,7 @@ function renderDrums() {
     b.title = `${i + 1} ${laneName(l)}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
     b.setAttribute("aria-label", b.title);
   }
-  drumPlayhead();
   saSoon();
-}
-function drumPlayhead() {
-  const box = $("drumgrid"), play = dev && !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
-  if (box.dataset.play === String(play)) return;
-  if (drumView.follow && play >= 0 && drumPageOf(play, stepLen()) !== drumView.page) { renderDrums(); return; }   /* the next page */
-  box.dataset.play = String(play);
-  for (const e of box.querySelectorAll(".now")) e.classList.remove("now");
-  if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
 }
 function drumClick(i, l, shift) {
   if (!dev || !SQ.dsteps[i]) return;
@@ -8927,8 +8789,8 @@ function knobArc(a0, a1) {
 function knob(o) {
   const NS = "http://www.w3.org/2000/svg", sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = sv("svg", { viewBox: "0 0 40 40", "aria-hidden": "true" });
-  const va = sv("path", { class: "va" }), pt = sv("line", { class: "pt" }), ef = sv("circle", { class: "ef", r: 2.4 });
-  svg.append(sv("path", { class: "tr", d: knobArc(-KNOB_A, KNOB_A) }), va, pt, ef);
+  const va = sv("path", { class: "va" }), pt = sv("line", { class: "pt" });
+  svg.append(sv("path", { class: "tr", d: knobArc(-KNOB_A, KNOB_A) }), va, pt);
   const kv = el("span", { class: "kv" });
   const box = el("div", { class: "knob", role: "slider", tabindex: 0, "aria-label": o.aria || o.label,
     "aria-valuemin": o.min, "aria-valuemax": o.max, title: o.title || o.label }, svg, el("span", { class: "kl", text: o.label }), kv);
@@ -8940,26 +8802,15 @@ function knob(o) {
     va.setAttribute("d", knobArc(z, a));
     pt.setAttribute("x1", (20 + 6 * Math.sin(a)).toFixed(2)); pt.setAttribute("y1", (20 - 6 * Math.cos(a)).toFixed(2));
     pt.setAttribute("x2", (20 + 14 * Math.sin(a)).toFixed(2)); pt.setAttribute("y2", (20 - 14 * Math.cos(a)).toFixed(2));
-    let txt = o.fmt ? o.fmt(k.v) : String(k.v);
-    const e = o.eff ? o.eff() : null;                  /* GLO > MACRO: the value that plays (cmd 65), when a macro moves it */
-    const mac = e != null && e !== k.v && !k.busy;     /* (while it is turned: the authored one) */
-    if (e != null && e !== k.v) {
-      const ea = -KNOB_A + 2 * KNOB_A * (Math.max(o.min, Math.min(o.max, e)) - o.min) / ((o.max - o.min) || 1);
-      ef.setAttribute("cx", (20 + 15 * Math.sin(ea)).toFixed(2)); ef.setAttribute("cy", (20 - 15 * Math.cos(ea)).toFixed(2));
-    }
-    if (e != null && e !== k.v) box.dataset.mac = "1"; else delete box.dataset.mac;
-    const plays = e != null && e !== k.v ? (o.fmt ? o.fmt(e) : String(e)) : null;
-    kv.textContent = mac ? plays : txt;
-    if (plays != null) txt = `${txt} \u2192 ${t("macPlays")} ${plays}`;
+    const txt = o.fmt ? o.fmt(k.v) : String(k.v);
+    kv.textContent = txt;
     box.title = o.help || `${o.title || o.label}: ${txt}`;   /* the help line (tools/param_help.json), else the value */
-    if (plays != null && o.help) box.title += ` · ${txt}`;   /* (a macro moves it: what plays, after the line) */
     if (o.tip) box.title = `${o.title || o.label}: ${txt}${o.help ? ` \u00b7 ${o.help}` : ""}`;   /* (a strip knob shows no number: the value leads its tooltip) */
     box.dataset.st = o.hot ? o.hot(k.v) || "" : "";   /* amber / red: a value that may distort */
     box.setAttribute("aria-valuenow", k.v);
     box.setAttribute("aria-valuetext", txt);
   };
   k.draw = draw;
-  if (o.eff) macKnobs.add(k);
   const put = (v, final) => {
     v = Math.max(o.min, Math.min(o.max, Math.round(v)));
     k.at = performance.now();
@@ -9138,7 +8989,7 @@ function kitLane(pane) {
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? sendOrder([
-    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"), eff: () => macDrev(snd(dev.dl.lanes[l]).rev),
+    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"),
       get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
@@ -9305,7 +9156,7 @@ function renderDrumSound() {
   const lv = dev.gdesc[gDrLvl()] || { min: 0, max: 127, def: 100 }, pn = dev.pdesc[pPan()] || { min: -64, max: 63, def: 0, fmt: F.BIPCT };
   const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
   dsk.knobs = [
-    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv), eff: () => macG(gDrLvl()),
+    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
       set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
     [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, help: phText("page", "DRUM KIT", "pan"), min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
       set: (v, f) => userSet(0, pPan(), v, f) })],
@@ -11393,7 +11244,7 @@ function faderRow(o) {
   const out = el("span", { class: "v lv" });
   let drag = false;
   const show = (v) => { out.textContent = o.fmt(v); inp.title = `${o.label}: ${out.textContent}`; };
-  const f = { out, inp, el: el("div", { class: "fm" }, inp, meterIdle(`${t("meter")} ${o.label}`)),
+  const f = { out, inp, el: el("div", { class: "fm" }, inp),
     value: (v) => { if (!drag) { inp.value = String(v); show(v); } }, disable: (d) => { inp.disabled = !!d; } };
   inp.addEventListener("pointerdown", () => { drag = true; });
   inp.addEventListener("input", () => { show(+inp.value); o.set(+inp.value, false); });
@@ -11864,37 +11715,6 @@ async function soloRefresh() {
   if (!dev || !dev.info.solo || !dev.link.idle) return;
   try { soloShow(parse[CMD.SOLO](await rq(req.soloGet(), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { if (e.message === "closed") throw e; }
 }
-/* the transport REC: the device's one global record (not a per-track arm). The state is polled twice a second (the device pushes nothing of it); TOGGLE is the REC key */
-const REC_STATE = (st) => (st & 4 ? "count" : st & 8 ? "take" : st & 1 ? "rec" : st & 2 ? "wait" : "off");
-function recShow(r) {
-  if (!dev) return;
-  dev.recSt = r;
-  const b = $("recbtn"), k = REC_STATE(r.state);
-  b.dataset.rec = k;
-  b.setAttribute("aria-pressed", k === "off" ? "false" : "true");
-  const nm = { off: t("recOff"), wait: t("recWait"), count: t("recCount"), rec: t("recOn"), take: t("recTake") }[k];
-  const tip = `${t("recTip")}: ${nm}${r.state ? ` (${t("track")} ${r.track + 1})` : ""}`;
-  b.title = tip;
-  b.setAttribute("aria-label", tip);
-}
-async function recRefresh() {
-  const b = $("recbtn");
-  b.hidden = !(dev && dev.dump && dev.info && dev.info.rec);
-  if (b.hidden || !dev.link.idle || document.hidden) return;
-  try { recShow(parse[CMD.REC](await rq(req.recGet(), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { if (e.message === "closed") throw e; }
-}
-$("recbtn").addEventListener("click", async () => {
-  if (!dev || !dev.info.rec) return;
-  const d = dev;
-  try {
-    const r = parse[CMD.REC](await rq(req.recToggle()));
-    if (d !== dev) return;
-    if (r.rc === 1) sayK("recRefused");
-    recShow(r);
-    setTimeout(recRefresh, 200);                     /* (a free take closes at the next audio block: read again) */
-  } catch (e) { report(e); }
-});
-setInterval(recRefresh, 500);
 /* the keyboard: the selected track plays through the device's note input. A held key is a NOTE ON until its OFF; a PING every 1.2 s keeps the device from ending it (3 s of silence ends every held note) */
 const kbd = { on: false, keys: false, oct: 4, vel: 100, held: new Map(), timer: 0 };
 const KBD_MAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16 };
@@ -12039,22 +11859,22 @@ function patHover(s) {
   patUi.cols.slice(0, 4).forEach((bs, k) => bs && bs.forEach((b, j) => b.classList.toggle("ref", !!L && s >= 0 && L.scenes[s][k] === j)));
 }
 function patRender() {
-  const L = patUi.list, sec = dev && dev.status ? dev.status.section : -1;
+  const L = patUi.list;
   if (!L || !L.len) return;
   patUi.cols.slice(0, 4).forEach((bs, k) => bs && bs.forEach((b, s) => { const v = patSlotView(L, k, s); b.className = `pslot ${v.cls}`; b.textContent = v.text; }));
-  if (patUi.cols[4]) patUi.cols[4].forEach((b, s) => { b.className = `pslot scn${L.scenes[s].some((x) => x !== PAT.NONE) ? " used" : ""}${s === sec ? " on" : ""}`; });
+  if (patUi.cols[4]) patUi.cols[4].forEach((b, s) => { b.className = `pslot scn${L.scenes[s].some((x) => x !== PAT.NONE) ? " used" : ""}`; });
 }
-/* the list, twice a second while the mixer shows (and at once after an action) */
+/* the list, every 2 s while the mixer shows (and at once after an action) */
 async function patPoll(now) {
   const d = dev;
-  if (!d || !d.info || !d.info.pat || tab !== "mixer" || document.hidden || (!now && (!d.link.idle || performance.now() - patUi.last < 500))) return;
+  if (!d || !d.info || !d.info.pat || tab !== "mixer" || document.hidden || (!now && (!d.link.idle || performance.now() - patUi.last < 2000))) return;
   patUi.last = performance.now();
   try {
     const L = parse[CMD.PAT_LIST](await rq(req.patList(0), { key: "patpoll" }));
     if (d === dev) { patUi.list = L; patRender(); }
   } catch (e) { if (now) report(e); }
 }
-setInterval(patPoll, 250);
+setInterval(patPoll, 1000);
 /* a button's tooltip and aria-label end with its key: "Sound (Track 1) · I" */
 const withKey = (label, k) => (k ? `${label} \u00b7 ${keyLabel(k)}` : label);
 const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, withKey(`${label} (${t("track")} ${track + 1})`, keyFor(id, lane || 0)), () => openPop(id, track, lane),
@@ -12070,7 +11890,7 @@ function buildStrip(i) {
   fader.addEventListener("change", () => setLevel(i, +fader.value));
   fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
   const pan = knob({ tip: true, label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
-    fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), eff: () => macP(i, pPan()), set: (v, final) => setPan(i, v, final) });
+    fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
     num: el("span", { class: "num", text: String(i + 1) }),
@@ -12082,7 +11902,6 @@ function buildStrip(i) {
     mute: el("button", { type: "button", class: "tog act mute", id: `strip-${i + 1}-mute`, "aria-pressed": "false", title: `${t("mute")} ${i + 1}`, "aria-label": `${t("mute")} ${i + 1}`,
       onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, String(i + 1)),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
-    meter: meterEl(i, `${t("meter")} ${i + 1}`),        /* (the level data: the v9 push stream) */
   };
   /* the editors: one click each */
   /* (the kit and the Sound editor open from the instrument widget above) */
@@ -12112,7 +11931,7 @@ function buildStrip(i) {
     tools: el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seq: seqBtn, ov: c.ov,
     pan: pan.el, sends: c.fx,
     level: levelBlock({ mute: c.mute, solo: c.solo, ...(dlanOn() ? { seq: c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
-      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ") } : {}) }, el("div", { class: "fm" }, fader, c.meter)) });
+      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ") } : {}) }, el("div", { class: "fm" }, fader)) });
   if (c.lanes) {                                      /* (no FXP: the 16 sounds' buttons take the instrument and slot rows) */
     const rows = c.strip.querySelectorAll(":scope > .srow");
     const r = (n) => [...rows].find((x) => x.dataset.row === n);
@@ -12134,7 +11953,7 @@ function fxBlock(i, c) {
     c.fxl = el("span", { class: "note lsel", "aria-live": "polite" });
     c.fxk = FX_LABELS.map((l, j) => {
       if (j) return knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: DL.LV_MAX,
-        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]], eff: j === 3 ? () => macDrev(laneSnd(kl.sel).rev) : null,
+        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]],
         set: (v, final) => setLaneSend(kl.sel, id[j], v, final) });
       const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
       k.el.classList.add("na", "dst");
@@ -12149,7 +11968,7 @@ function fxBlock(i, c) {
       if (id == null) return naKnob(labels[j], `${t("track")} ${i + 1} ${labels[j]}`);
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
       return knob({ tip: true, label: fxpOn() && j ? "ABC"[j - 1] : labels[j], aria: `${t("track")} ${i + 1} ${labels[j]}${j ? ` (${t("retStrip")} ${"ABC"[j - 1]})` : ""}`, title: j ? `${labels[j]} \u00b7 ${t("retStrip")} ${"ABC"[j - 1]}` : undefined, help: phText("page", "FX", labels[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
-        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: labels[j] === "DST" ? (v) => (v > 100 ? "warn" : "") : null, eff: () => macP(i, id),
+        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: labels[j] === "DST" ? (v) => (v > 100 ? "warn" : "") : null,
         set: (v, final) => setFx(i, j, v, final) });
     });
   } else return box();
@@ -12180,12 +11999,12 @@ function drumFxBlock(i, c, box) {
       if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
       return knob({ tip: true, label: fxpOn() && j ? "ABC"[j - 1] : l, aria: `DRUMS BUS ${l}`, help: phText("page", "FX", l), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
-        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), eff: () => macP(i, id), set: (v, final) => setFx(i, j, v, final) });
+        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), set: (v, final) => setFx(i, j, v, final) });
     }
     const send = f === "rev" || f === "dly" || f === "cho";
     if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return hard(naKnob(l, `${laneName(kl.sel)} ${l}`));
     return knob({ label: l, aria: `${laneName(kl.sel)} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("fxSndMode")}`, min: 0, max: send ? DL.LV_MAX : 127,
-      def: f === "rev" ? DL.REV_DEF : 0, value: laneFxVal(kl.sel, f), eff: f === "rev" ? () => macDrev(laneSnd(kl.sel).rev) : null,
+      def: f === "rev" ? DL.REV_DEF : 0, value: laneFxVal(kl.sel, f),
       set: (v, final) => (send ? setLaneSend(kl.sel, f, v, final) : setLaneIns(kl.sel, f, v)) });
   });
   const mode = (m, txt, help) => el("button", { type: "button", class: "tog fxm", "data-fxmode": m, title: t(help), "aria-pressed": drumFxMode === m ? "true" : "false",
@@ -12287,11 +12106,6 @@ function updateStrip(i) {
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
   c.fader.title = `${t("level")}: ${c.lvOut.textContent}`;
-  {   /* GLO > MACRO: ENERGY moves the drums' level (GLO > DRUMS LVL); the readout says what plays */
-    const e = drum ? macG(gDrLvl()) : null;
-    if (e != null && e !== x.level) { const [et, eu] = fmtValue(c.lvDesc, e); c.lvOut.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`; c.lvOut.dataset.mac = "1"; }
-    else delete c.lvOut.dataset.mac;
-  }
   { const ab = c.strip.querySelector(".arpb"); if (ab) ab.setAttribute("aria-pressed", arpOn(x) ? "true" : "false"); }
   c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
   c.strip.classList.toggle("muted", !!x.mute || !x.level);
@@ -12310,15 +12124,14 @@ function updateStrip(i) {
   if (dev.dlMix) dlMixShow();
   if (drum) updateLaneStrips();
 }
-/* the step overview: a cell per step of the pattern (a hit: filled), the playing step lit */
+/* the step overview: a cell per step of the pattern (a hit: filled) */
 function drawOverview(i) {
   const c = mixCtl[i], o = dev && dev.ov && dev.ov[i];
   if (!c) return;
   if (!o) { c.ov.replaceChildren(); return; }
   if (c.ov.children.length !== o.on.length) c.ov.replaceChildren(...o.on.map(() => el("i")));
-  const play = dev.status && dev.status.playing && dev.status.tracks[i] ? dev.status.tracks[i].step : -1;
   const am = dev.sa && dev.sa[i] ? saMarkSet(i) : null;
-  [...c.ov.children].forEach((e, k) => { e.className = (o.on[k] ? "on" : "") + (am && am.has(k) ? " auto" : "") + (k === play ? " now" : "") + (k % 4 === 0 ? " beat" : ""); });
+  [...c.ov.children].forEach((e, k) => { e.className = (o.on[k] ? "on" : "") + (am && am.has(k) ? " auto" : "") + (k % 4 === 0 ? " beat" : ""); });
 }
 /* one step of a track's overview changed (STEP_CHANGED, an edit) */
 function ovSet(i, k, on) { const o = dev && dev.ov && dev.ov[i]; if (o && k < o.on.length) { o.on[k] = on; drawOverview(i); } }
@@ -12350,7 +12163,7 @@ const inMixer = (id) => { const d = dev.gdesc[id], l = d && d.label; return !!l 
 function masterKnob(id, l, aria, help) {
   const d = dev.gdesc[id];
   const k = knob({ tip: true, label: l, aria: aria, help: help, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
-    eff: () => macG(id), set: (v, final) => userSet(1, id, v, final) });
+    set: (v, final) => userSet(1, id, v, final) });
   masterCtl.knobs.push([id, k]);
   return k.el;
 }
@@ -12370,12 +12183,12 @@ function buildMaster() {
   const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
-  /* the master's rows are the template's: its inserts in the slot rows, its meter (+ GR) beside nothing but the level row's place, DUST DUCK FILT where the sends are.
+  /* the master's rows are the template's: its inserts in the slot rows, an empty level row, DUST DUCK FILT where the sends are.
      With FXP nothing stands beside it (the compressor is the slot's [dyn v], the returns A B C are strips of their own, Song is in the transport bar). */
   masterCtl.strip = stripShell({ class: "strip master", role: "group", "aria-label": "MASTER" }, [], {
     clips: patColumn(-1)[0] || null,
     head, ...stripSlotRows(FXP.MST, "strip-master"),
-    tools: el("div", { class: "col" }, sendsGrid(bus, "mk")), level: levelBlock({}, el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl())) },
+    tools: el("div", { class: "col" }, sendsGrid(bus, "mk")), level: levelBlock({}, el("div", { class: "fm" })) },
   fxpOn() ? [] : [el("div", { class: "fxs mx", role: "group", "aria-label": "FX" }, ...fx)], { mid: true, narrow: fxpOn() });
   masterCtl.strip.classList.toggle("alone", fxpOn());
   return masterCtl.strip;
@@ -12582,7 +12395,7 @@ function liveCtl(s, id) {
     return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel);
   }
   const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d), min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "),
-    eff: () => (s ? macG(id) : macP(dev.sel, id)), set: (x, final) => userSet(s, id, x, final) });
+    set: (x, final) => userSet(s, id, x, final) });
   list.push({ knob: kb });
   return kb.el;
 }
@@ -12696,7 +12509,7 @@ function helpKeys() {
     row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
     one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
     row([...LANE_KEYS, keyFor("lane", 16)], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("fxcomp", t("popComp")), one("help", t("help")),
-    row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
+    row([KEYS.find((k) => k.screen).key], t("tabSettings")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
 }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
 function dynSave() {
@@ -12762,115 +12575,11 @@ function revTypeCtl() {
   return el("label", { class: "rtype" }, el("span", { text: t("revType") }), " ", sel);
 }
 
-/* ---------------------------------------------------- the transport (STATUS 53) --- */
-/* PLAY / STOP, the section, the steps playing (the strips' overviews, the piano roll's playhead). Polled about every 150 ms
-   while the mixer shows and the link is free; a firmware without STATUS: no PLAY / STOP, no playhead. No meters (the
-   user: they could not be made to work); the reply's peak bytes are 0 */
-async function pollStatus() {
-  const d = dev;
-  if (!d || !d.dump || d.statusOk === false || d.stream || busy || !d.link.idle || document.hidden || tab !== "mixer") return;   /* (v9: the stream) */
-  if (pollStatus.run) return;
-  pollStatus.run = true;
-  try {
-    const r = await d.link.request(req.status(), { timeout: 300, retries: 0, quiet: true, key: "status" }).catch((e) => {
-      if (e.message === "closed") throw e;
-      return null;
-    });
-    if (d !== dev) return;
-    if (!r) { if (d.statusOk == null) { d.statusOk = false; renderTransport(); } return; }
-    d.statusOk = true;
-    d.status = parse[CMD.STATUS](r);
-    renderTransport();
-    d.status.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });   /* the playing step on each strip */
-    rollPlayhead();                                                           /* .. and in the open Sequence popup */
-  } catch (e) { /* closed */ } finally { pollStatus.run = false; }
-}
-setInterval(pollStatus, 150);
-
-/* ------------------------------------------------ GLO > MACRO: what plays (MACRO 65) --- */
-/* The device's performance macros (COLOR MOTION SPACE ENERGY) move parameters only inside the audio ISR: the knobs show the
-   authored values. A build with the macros answers MACRO (the table and the arithmetic are the firmware's, nothing is copied
-   here): per track the parameters that play other than authored, the globals, and the drum lanes' REV send's scaling. The
-   knobs then show what plays (the notice colour, an M, a mark on the arc) and the value they edit stays the authored one.
-   Polled while the editor is up (the selected track, every track on the mixer): one short request a track; a firmware
-   without it does not answer, and nothing shows. */
-const macOf = (tr) => (dev && dev.mac && dev.mac[tr]) || null;
-const macP = (tr, id) => { const m = macOf(tr); return m && m.p.has(id) ? m.p.get(id) : null; };     /* a track's P_id as it plays, or null */
-const macG = (id) => { const m = dev && dev.macG; return m && m.g.has(id) ? m.g.get(id) : null; };   /* a global's G_id */
-/* a drum lane's REV level (0..31, a send of 4v + v / 8 in a synth track's steps) as it plays: the nearest level */
-function macDrev(v) {
-  const m = dev && dev.macG;
-  if (!m || !m.rev) return null;
-  const lvl = (x) => 4 * x + (x >> 3), g = Math.max(0, Math.min(127, Math.trunc(lvl(v) * m.rev.sc / 64) + m.rev.add));
-  let best = 0;
-  for (let x = 1; x <= DL.LV_MAX; x++) if (Math.abs(lvl(x) - g) < Math.abs(lvl(best) - g)) best = x;
-  return best;
-}
-function macRedraw() {
-  for (const k of macKnobs) { if (!k.el.isConnected) macKnobs.delete(k); else if (!k.busy) k.draw(); }
-  for (const [k, c] of ctl) if (c.out && c.desc && c.input.type === "range" && dev && dev.dump) showValue(k, c.scope ? dev.dump.g[c.id] : dev.dump.p[c.id], false);
-  if (dev && dev.mix) for (let i = 0; i < dev.mix.ntrk; i++) updateStrip(i);
-}
-async function macroPoll() {
-  const d = dev;
-  if (!d || !d.dump || !d.info || !d.info.ntrk || d.macOk === false || busy || dragging || document.hidden || !d.link.idle) return;
-  if (macroPoll.run) return;
-  macroPoll.run = true;
-  try {
-    const tracks = tab === "mixer" ? [...Array(d.info.ntrk).keys()] : [d.sel];
-    let changed = false;
-    for (const tr of tracks) {
-      const r = await d.link.request(req.macro(tr), { timeout: 300, retries: 0, quiet: true, key: "macro:" + tr }).catch((e) => {
-        if (e.message === "closed") throw e;
-        return null;
-      });
-      if (d !== dev) return;
-      if (!r) { if (d.macOk == null) d.macOk = false; return; }
-      d.macOk = true;
-      const m = parse[CMD.MACRO](r), was = d.mac && d.mac[tr];
-      const sig = (x) => (x ? JSON.stringify([x.pos, [...x.p], [...x.g], x.rev]) : "");
-      if (sig(was) !== sig(m)) changed = true;
-      (d.mac || (d.mac = {}))[tr] = m;
-      d.macG = m;
-    }
-    if (changed) macRedraw();
-  } catch (e) { /* closed */ } finally { macroPoll.run = false; }
-}
-setInterval(macroPoll, 500);
-function renderTransport() {
-  const d = dev, ok = !!d && d.statusOk === true && !!d.status;   /* (v9: shown from the first STREAM frame) */
-  $("tp").hidden = !ok;
-  if (!ok) return;
-  const s = d.status;
-  $("play").setAttribute("aria-pressed", s.playing ? "true" : "false");
-  const bi = d.gdesc.findIndex((x) => x && x.label === "BPM");
-  if (bi >= 0 && document.activeElement !== $("bpm") && !touched(key(1, bi))) $("bpm").value = String(s.bpm);
-  $("section").textContent = s.section >= 0 ? `${t("section")} ${String.fromCharCode(65 + s.section)}` : "";
-  $("live").dataset.st = d.watch ? "ok" : "warn";
-}
-async function transport(opn) {
-  if (!dev) return;
-  try { await rq(req.status(opn), { timeout: 400, retries: 0 }); } catch (e) { report(e); }
-  pollStatus();                                     /* (v9: nothing to do, the stream follows within 40 ms) */
-}
-$("play").addEventListener("click", () => transport(1));
-$("stop").addEventListener("click", () => transport(2));
-/* Space: play / stop, as on the device's PLAY and the emulator; not while typing in a field */
+/* no transport: PLAY / STOP, REC, the section and the playhead are the device's (an editor, not a remote DAW) */
+/* a field that takes typed keys (the editor's own shortcuts stay out of it) */
 function spaceIsTyping(el) {
   return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 }
-let spaceTook = false;
-document.addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || e.ctrlKey || e.metaKey || e.altKey || spaceIsTyping(e.target) ||
-      (e.target && e.target.dataset && e.target.dataset.ownSpace)) return;
-  e.preventDefault();                                        /* no page scroll, no focused button pressed */
-  spaceTook = true;
-  if (e.repeat || !dev || !dev.status) return;
-  transport(dev.status.playing ? 2 : 1);
-}, true);
-document.addEventListener("keyup", (e) => {                  /* (a focused button would also fire on keyup) */
-  if (e.code === "Space" && spaceTook) { e.preventDefault(); spaceTook = false; }
-}, true);
 /* the mixer's keys (KEYS, keyPlan): a track with <- / ->, an editor popup per key; the same key again closes it. Not while typing,
    not on the tabs (their own arrows), a slider or knob (its arrows) or the chop canvas; a control that took the key keeps it */
 let selWant = null;                                          /* (the track a held arrow is heading for) */
@@ -12932,8 +12641,8 @@ $("syncbtn").addEventListener("click", () => {
    from TIPS by id / screen where it helps, else its own words. Filled where missing (a control that set its own, e.g. a
    parameter's help line, keeps it), on every change of the page (a MutationObserver) */
 const TIPS = {
-  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play / stop (as the FM-1's PLAY) · Space",
-  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn · H", popx: "Close (Esc)", bpm: "Tempo (BPM)",
+  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1",
+  helpbtn: "Help: the mixer and how the knobs turn · H", popx: "Close (Esc)", bpm: "Tempo (BPM)",
   init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
   savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
   reloadsteps: "Read the steps from the FM-1 again", clearseq: "Clear every step of this track",
@@ -13022,8 +12731,6 @@ function onPush(f) {
     } else if (f.cmd === CMD.STEP_CHANGED) {
       const { index } = parse[CMD.STEP_CHANGED](f.a);
       if (index < d.info.nstep) refreshStep(index);
-    } else if (f.cmd === CMD.STREAM) {              /* v9: the transport, the steps playing, the meters */
-      onStream(parse[CMD.STREAM](f.a, d.info));
     } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
       fxpPing();                                    /* (an insert's amount is a track parameter: an open FX popup follows) */
       for (const c of parse[CMD.PARAMS](f.a)) {
@@ -13129,110 +12836,6 @@ function onSong(sg) {
   if (d.snaps != null && d.snaps !== sg.snaps && tab === "snapshots") snRefresh().catch(report);
   d.snaps = sg.snaps;
 }
-/* v9: a STREAM frame: as a STATUS reply (transport bar, the playing steps), plus the meters */
-function onStream(s) {
-  const d = dev, was = d.status;
-  d.statusOk = true;
-  d.status = s;
-  renderTransport();
-  if (!was || was.playing !== s.playing || s.playing || s.tracks.some((x, i) => (was.tracks[i] || {}).step !== x.step))
-    s.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });
-  rollPlayhead();
-  s.tracks.forEach((x, i) => meterIn(i, x.peak));
-  meterIn("master", s.master);
-  grIn(s.gr);
-}
-/* ---- the master's gain reduction (STREAM block 0x47, firmware master_comp.c): a bar from the top, 0..GR.MAX dB; the COMP's
-   share neutral, the LIMIT's amber below it. Shown from the first frame that carries the block (a firmware without
-   MASTER_COMP sends none: the slot stays hidden). A rise is instant, a fall GR.FALL dB/s (as the meters: the device keeps no
-   state, each frame is the largest since the one before) */
-const GR = { MAX: 20, FALL: 30 };
-const grState = { el: null, comp: 0, limit: 0, t: 0, raf: 0 };
-function grEl() {
-  const e = el("div", { class: "gr", role: "meter", "aria-label": t("grMeter"), "aria-valuemin": 0, "aria-valuemax": GR.MAX,
-    "aria-valuenow": 0, title: t("grMeter"), hidden: true }, el("i", { class: "c" }), el("i", { class: "l" }));
-  grState.el = e;
-  grDraw();
-  return e;
-}
-const grFrac = (db) => Math.max(0, Math.min(1, db / GR.MAX));
-function grDraw() {
-  const e = grState.el;
-  if (!e) return;
-  const c = grFrac(grState.comp), l = Math.min(1 - c, grFrac(grState.limit));
-  e.children[0].style.height = `${(c * 100).toFixed(1)}%`;
-  e.children[1].style.top = `${(c * 100).toFixed(1)}%`;
-  e.children[1].style.height = `${(l * 100).toFixed(1)}%`;
-  e.setAttribute("aria-valuenow", (grState.comp + grState.limit).toFixed(1));
-  e.title = `${t("grMeter")}: COMP ${grState.comp.toFixed(1)} dB, LIMIT ${grState.limit.toFixed(1)} dB`;
-}
-/* a frame's GR (null: none in this frame) */
-function grIn(g) {
-  if (!g || !grState.el) return;
-  grState.el.hidden = false;
-  grState.comp = Math.max(grState.comp, g.comp);
-  grState.limit = Math.max(grState.limit, g.limit);
-  grDraw();
-  if (!grState.raf) { grState.t = performance.now(); grState.raf = requestAnimationFrame(grFrame); }
-}
-function grFrame(now) {
-  const fall = (GR.FALL * Math.min(100, Math.max(0, now - grState.t))) / 1000;
-  grState.raf = 0;
-  grState.t = now;
-  grState.comp = Math.max(0, grState.comp - fall);
-  grState.limit = Math.max(0, grState.limit - fall);
-  grDraw();
-  if (grState.comp > 0 || grState.limit > 0) grState.raf = requestAnimationFrame(grFrame);
-}
-/* ---- the meters: the peaks in (any time), drawn each animation frame while one shows something */
-const meters = new Map();                           /* track i or "master" -> {db, hold, holdAt, in, el} */
-function meterEl(k, label) {
-  const live = !!dev && !!dev.stream;              /* (no stream, v8 firmware: the slot stays empty) */
-  const e = el("div", { class: "meter", "data-meter": String(k), ...(live ? { role: "meter", "aria-label": label, "aria-valuemin": METER.MIN,
-    "aria-valuemax": METER.MAX, "data-st": "ok", "data-live": "" } : { "aria-hidden": "true" }) },
-    ...(live ? [el("i", { class: "bar" }), el("b", { class: "hold" }), el("u", { class: "zero" })] : []));
-  if (!live) return e;
-  const m = meters.get(k) || { db: METER.MIN, hold: METER.MIN, holdAt: 0, in: -Infinity };
-  m.el = e;
-  meters.set(k, m);
-  meterDraw(m);
-  return e;
-}
-/* a meter with no level stream behind it (a drum sound's, a return's, the USB input's: the v9 stream carries the tracks and the master): the SAME component, idle */
-function meterIdle(label) {
-  return el("div", { class: "meter idle", role: "meter", "aria-label": label, "aria-valuemin": METER.MIN, "aria-valuemax": METER.MAX, "aria-valuenow": METER.MIN, "data-st": "ok", "data-live": "" },
-    el("i", { class: "bar" }), el("b", { class: "hold", hidden: "" }), el("u", { class: "zero" }));
-}
-function meterIn(k, pk) {
-  const m = meters.get(k);
-  if (!m) return;
-  m.in = Math.max(m.in, peakDb(pk));
-  meterRun();
-}
-function meterDraw(m) {
-  if (!m.el || !m.el.firstChild) return;
-  m.el.firstChild.style.height = `${(meterFrac(m.db) * 100).toFixed(1)}%`;
-  m.el.children[1].style.bottom = `${(meterFrac(m.hold) * 100).toFixed(1)}%`;
-  m.el.children[1].hidden = m.hold <= METER.MIN;
-  m.el.dataset.st = meterState(m.db);
-  m.el.children[1].dataset.st = meterState(m.hold);
-  m.el.setAttribute("aria-valuenow", Math.round(m.db));
-}
-let meterT = 0, meterRAF = 0;
-function meterRun() { if (!meterRAF) { meterT = performance.now(); meterRAF = requestAnimationFrame(meterFrame); } }
-function meterFrame(now) {
-  meterRAF = 0;
-  const dt = Math.min(100, Math.max(0, now - meterT));
-  meterT = now;
-  let more = false;
-  for (const m of meters.values()) {
-    Object.assign(m, meterStep(m, m.in, dt, now));
-    m.in = -Infinity;
-    meterDraw(m);
-    more ||= m.db > METER.MIN || m.hold > METER.MIN;
-  }
-  if (more) meterRAF = requestAnimationFrame(meterFrame);   /* (all at the floor: no frames until a peak comes) */
-}
 function blink(k) {
   const c = ctl.get(k);
   if (!c || !c.row) return;
@@ -13271,6 +12874,7 @@ async function op(fn) {
 }
 function renderLive() {
   $("live").textContent = !dev || !dev.dump ? "" : t(dev.watch ? (dev.v9 ? "liveV9" : "live") : "polling");
+  $("live").dataset.st = dev && dev.watch ? "ok" : "warn";
 }
 
 /* keep-alive: PING when nothing else went out for ~1 s; after a longer gap (hidden tab, a long flash
@@ -13284,9 +12888,9 @@ async function keepAlive() {
     if (keepAlive.run) return;
     keepAlive.run = true;
     try {
-      const on = await startWatch((r, o) => d.link.request(r, o), WATCH.ALL | WATCH.ENDS);
+      const on = await startWatch((r, o) => d.link.request(r, o), WATCH.EDIT | WATCH.ENDS);
       rewatch = false;                              /* (this WATCH itself may have flagged the gap) */
-      if (on) { const had = d.stream; Object.assign(d, watchCaps(on)); if (d.stream !== had && d.mix) { mixCtl.length = 0; renderMixer(); } needReload = true; maybeReload(); }
+      if (on) { Object.assign(d, watchCaps(on)); needReload = true; maybeReload(); }
       else if (d === dev) { d.watch = false; renderLive(); }
     } catch (e) { /* closed */ } finally { keepAlive.run = false; }
   } else if (gap > 850 && d.link.idle) {

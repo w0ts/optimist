@@ -4,8 +4,8 @@
 // Not part of `make test` (it needs Chrome). Run from the repo root:
 //   node web/e2e_daw.mjs [--shots DIR]
 //   node web/e2e_daw.mjs --emu http://127.0.0.1:8765 [--shots DIR]   the same editor against the emulator's web-MIDI bridge
-//     (fm1-ui FIRMWARE --ui web): protocol v9 live: the meters move while a pattern plays and fall to silence after STOP,
-//     nothing is polled, a parameter of a track that is not selected appears without polling (needs the bridge's
+//     (fm1-ui FIRMWARE --ui web): protocol v9 live: pushes without the status stream (an editor: no meters, no playhead),
+//     nothing is polled but PLAY / STOP every 2 s, a parameter of a track that is not selected appears without polling (needs the bridge's
 //     /__fm1/turn knob route; without it that check is skipped), the device's v9 cost (SYNC_STATS) and reply latency.
 // CHROME=path overrides the browser (default: Google Chrome / Chromium in their usual places).
 import { spawn } from "node:child_process";
@@ -100,7 +100,7 @@ if (EMU) {
   await send("Page.navigate", { url: `${EMU}/editor.html?e2e=1#mixer` });
   const conn = await run(`${U} return (await until(() => D() && D().dump && document.querySelectorAll("#mixer .strip").length === 5
     && !/Reading|reading/.test($("#status").textContent), 240000)) && { v9: D().v9, stream: D().stream, live: $("#live").textContent, meters: document.querySelectorAll("#mixer .meter").length };`);
-  ok(conn && conn.v9 && conn.stream && conn.meters === 5 && /v9/.test(conn.live), `emu: connected with protocol v9 (pushes + stream), a meter on each strip and the master (${JSON.stringify(conn)})`);
+  ok(conn && conn.v9 && !conn.stream && conn.meters === 0 && /v9/.test(conn.live), `emu: connected with protocol v9 (pushes, no stream), no meters (${JSON.stringify(conn)})`);
   /* what the page sends and receives from now on */
   await run(`const dev = window.fm1E2E.dev(); window.__sent = []; window.__push = []; const s = dev.link.sendRaw.bind(dev.link); dev.link.sendRaw = (f) => { window.__sent.push([Date.now(), f[4]]); return s(f); };
     const p = dev.link.onPush; dev.link.onPush = (f) => { window.__push.push([Date.now(), f.cmd, Array.from(f.a)]); return p(f); }; return true;`);
@@ -111,27 +111,22 @@ if (EMU) {
   await stats(true);
   const pingIdle = [];
   for (let k = 0; k < 15; k++) { const t0 = performance.now(); await brq(25); pingIdle.push(performance.now() - t0); await sleep(50); }
-  await run(`${U} $("#play").click(); return true;`);
+  await brq(53, [1]);                               /* (the second client plays: the editor has no transport) */
   await sleep(1500);
-  const lv = await run(`${U} const seen = {}; for (let k = 0; k < 40; k++) { document.querySelectorAll("#mixer .meter").forEach((m, i) => { seen[i] = Math.max(seen[i] ?? -99, +m.getAttribute("aria-valuenow")); }); await sleep(50); }
-    return { seen, st: [...document.querySelectorAll("#mixer .meter")].map((m) => m.dataset.st), playing: D().status && D().status.playing };`);
-  await shot("emu-v9-meters-playing");
+  const lv = await run(`return { tp: !!document.querySelector("#play, #stop, #recbtn"), status: !!D().status };`);
+  await shot("emu-v9-playing");
   const pingBusy = [];
   for (let k = 0; k < 15; k++) { const t0 = performance.now(); await brq(25); pingBusy.push(performance.now() - t0); await sleep(50); }
   const sPlay = await stats(false);
   let sBusy = null;
   const pingSweep = [];
-  ok(lv && lv.playing && lv.seen[0] > -30 && lv.seen[3] > -30 && lv.seen[4] > -40 && lv.seen[1] <= -59,
-    `emu: playing: the meters of track 1, the drums and the master move, a silent track stays at the floor (${JSON.stringify(lv)})`);
-  await run(`${U} $("#stop").click(); return true;`);
-  await sleep(6000);                                 /* (the release and the reverb's tail, then the 24 dB/s fall) */
-  const off = await run(`return [...document.querySelectorAll("#mixer .meter")].map((m) => +m.getAttribute("aria-valuenow") <= -59 && m.querySelector("b.hold").hidden);`);
-  await shot("emu-v9-meters-stopped");
-  ok(Array.isArray(off) && off.every(Boolean), `emu: after STOP every meter falls to silence, holds gone (${JSON.stringify(off)})`);
+  ok(lv && !lv.tp && !lv.status, `emu: playing: no transport in the editor, no STATUS read (${JSON.stringify(lv)})`);
+  await brq(53, [2]);
+  await sleep(1000);
   const pol = await run(`const t0 = window.__sent[0] ? window.__sent[0][0] : Date.now(), c = {}; window.__sent.forEach(([, k]) => { c[k] = (c[k] || 0) + 1; });
     return { c, pushes: window.__push.reduce((o, [, k]) => (o[k] = (o[k] || 0) + 1, o), {}), ms: Date.now() - t0 };`);
-  ok(pol && !(pol.c[4]) && (pol.c[53] || 0) <= 2 && !(pol.c[37]) && !(pol.c[27]) && !(pol.c[29]) && (pol.pushes[58] || 0) > 50,
-    `emu: no polling: no DUMP / TRACK / TRACK_DUMP / lane reads, STATUS only for PLAY / STOP, the stream carries the rest (${JSON.stringify(pol)})`);
+  ok(pol && !(pol.c[4]) && !(pol.c[53]) && !(pol.c[37]) && !(pol.c[27]) && !(pol.c[29]) && !(pol.c[65]) && !(pol.pushes[58]),
+    `emu: no polling: no DUMP / TRACK / TRACK_DUMP / lane / MACRO reads, no STATUS, no STREAM frame (${JSON.stringify(pol)})`);
   /* a parameter of a track that is not selected, changed on the device: the second client selects track 2 (the editor's
      view keeps track 1), KNOB 4 on the home page moves the selected track's level: pushed, on strip 2, nothing asked */
   const turnOk = await fetch(`${EMU}/__fm1/turn?e=0&d=0`).then((r) => r.ok, () => false);
@@ -153,7 +148,7 @@ if (EMU) {
   /* a busy moment: the song plays and three knobs sweep (BPM, SWING, the level: 3 x ~30 detents a second) for 3 s;
      what v9 pushes, what it costs, and a reply's round trip meanwhile */
   if (await fetch(`${EMU}/__fm1/turn?e=0&d=0`).then((r) => r.ok, () => false)) {
-    await run(`${U} $("#play").click(); return true;`);
+    await brq(53, [1]);
     await sleep(800);
     await stats(true);
     const t0 = Date.now();
@@ -163,12 +158,12 @@ if (EMU) {
     while (Date.now() - t0 < 3000) { const p0 = performance.now(); await brq(25); pingSweep.push(performance.now() - p0); await sleep(100); }
     await sweeping;
     sBusy = { ...(await stats(false)), ms: Date.now() - t0 };
-    await run(`${U} $("#stop").click(); return true;`);
+    await brq(53, [2]);
   }
   const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-  console.log(`emu: v9 cost while playing (SYNC_STATS): ${JSON.stringify(sPlay)}; PING round trip median idle ${med(pingIdle).toFixed(1)} ms, streaming ${med(pingBusy).toFixed(1)} ms`);
+  console.log(`emu: v9 cost while playing (SYNC_STATS): ${JSON.stringify(sPlay)}; PING round trip median idle ${med(pingIdle).toFixed(1)} ms, playing ${med(pingBusy).toFixed(1)} ms`);
   if (sBusy) console.log(`emu: playing + 3 knob sweeps for ${sBusy.ms} ms: ${JSON.stringify(sBusy)}; v9 pushes ${Math.round(sBusy.bytes * 1000 / sBusy.ms)} B/s, scan ${(sBusy.sumUs / Math.max(1, sBusy.scans)).toFixed(1)} us mean / ${sBusy.maxUs} us max (${(sBusy.sumUs / sBusy.ms / 10).toFixed(2)} % of the time); PING median ${med(pingSweep).toFixed(1)} ms, max ${Math.max(...pingSweep).toFixed(1)} ms`);
-  ok(sPlay && sPlay.stream > 0 && med(pingBusy) < med(pingIdle) + 15, "emu: a reply is not held up by the stream (PING round trip while streaming ~ idle)");
+  ok(sPlay && !sPlay.stream && med(pingBusy) < med(pingIdle) + 15, "emu: no stream while playing; a PING round trip while playing ~ idle");
   bws.close();
   { const d = dlCheck(); ok(d.fresh.length === 0, `e2e: no file reached ~/Downloads during the run${d.fresh.length ? " (new: " + d.fresh.join(", ") + ")" : ""}${d.mine.length ? "; downloads made (kept out of ~/Downloads): " + d.mine.join(", ") : ""}`); }
   ws.close();
@@ -198,8 +193,8 @@ if (process.argv.includes("--readme-shots")) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
-  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "build,install" && !shown($("#tp")) && !shown($("#disconnect"))
-  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, only the Build and Install tabs, no transport)");
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "build,install,mixer" && !document.querySelector("#tp, #play") && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer; the Build, Install and Editor tabs; no transport)");
 await shot("editor-disconnected");
 /* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
 const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
@@ -226,7 +221,7 @@ ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl
   const c = bpmCtl(); $("#popx").click(); await sleep(200);
   return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
 /* the strips share the same rows: every row starts at the same y on every strip (tracks and master), the four sends and the pan
-   knob are on every track strip, the fader and its meter side by side, no slider but the fader */
+   knob are on every track strip, no meter, no slider but the fader */
 const layoutRes = await run(`${U} const strips = [...document.querySelectorAll("#mixer .strip")], trk = strips.slice(0, 4), top = (s, q) => { const e = s.querySelector(q); return e ? Math.round(e.getBoundingClientRect().top) : null; };
   const rows = { head: ".shead", name: ".snd", group: ".pops", seq: ".seqb", ov: ".ov", sends: ".fx", fader: ".fm", level: ".lv", bottom: ".row2" };
   const bad = Object.entries(rows).filter(([, q]) => new Set(trk.map((s) => top(s, q))).size !== 1).map(([k]) => k);
@@ -235,11 +230,11 @@ const layoutRes = await run(`${U} const strips = [...document.querySelectorAll("
   const sends = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => k.querySelector(".kl").textContent + "@" + Math.round(k.getBoundingClientRect().left - s.getBoundingClientRect().left)).join());
   const sendOk = new Set(sends).size === 1 && sends[0].split(",").map((x) => x.split("@")[0]).join() === "DST,CHO,DLY,REV";
   const fmt = trk.map((s, i) => [...s.querySelectorAll(".fx .knob")].map((k) => (i === 3 ? /^\\d+$|^--$/ : /%$|^--$/).test(k.querySelector(".kv").textContent.trim())).every(Boolean));
-  const meters = trk.map((s) => { const f = s.querySelector(".fader").getBoundingClientRect(), m = s.querySelector(".meter").getBoundingClientRect(); return m.left >= f.right && Math.abs(m.top - f.top) < 4 && Math.abs(m.height - f.height) < 4; });
+  const meters = strips.map((s) => !s.querySelector(".meter, .gr"));
   const sl = trk.map((s) => s.querySelectorAll("input[type=range]").length);
   const panKnob = trk.every((s) => [...s.querySelectorAll(".srow[data-row=pan] > .knob")].some((e) => e.getAttribute("role") === "slider" && /Pan/i.test(e.getAttribute("aria-label"))));
   return JSON.stringify({ bad, pan: new Set(panTop).size === 1, masterBad, sendOk, fmt: fmt.every(Boolean), meters: meters.every(Boolean), sliders: sl.join(), panKnob });`);
-ok(layoutRes === '{"bad":[],"pan":true,"masterBad":[],"sendOk":true,"fmt":true,"meters":true,"sliders":"1,1,1,1","panKnob":true}', "e2e: strips share the rows (same y), DST CHO DLY REV on every track, pan is a knob, fader + meter side by side " + (layoutRes && layoutRes.length < 400 ? layoutRes : ""));
+ok(layoutRes === '{"bad":[],"pan":true,"masterBad":[],"sendOk":true,"fmt":true,"meters":true,"sliders":"1,1,1,1","panKnob":true}', "e2e: strips share the rows (same y), DST CHO DLY REV on every track, pan is a knob, no meters " + (layoutRes && layoutRes.length < 400 ? layoutRes : ""));
 await shot("mixer-layout");
 /* the drum strip: a click selects a sound (highlighted, no popup; the send row shows its CHO DLY REV, named), a double click opens it;
    turning the row's REV writes that sound's REV on the device (the mock's lanes, DRUM_LANE v2); the other strips' rows stay aligned */
@@ -349,7 +344,7 @@ ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "
     ['#mixer .strip[data-track="0"] [data-pop=loadpreset]', " \u00b7 L"], ['#mixer .strip[data-track="0"] [data-pop=savepreset]', " \u00b7 P"],
     ['#mixer .strip[data-track="3"] [data-pop=kit]', " \u00b7 K"], ['#mixer .strip[data-track="3"] [data-pop=kitstore]', " \u00b7 U"],
     ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="0"]', " \u00b7 1"], ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="9"]', " \u00b7 0"],
-    ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#mixer .strip.master [data-pop=fxcomp]", " \u00b7 O"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
+    ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#mixer .strip.master [data-pop=fxcomp]", " \u00b7 O"], ["#helpbtn", " \u00b7 H"]];
   const bad = ends.filter(([q, e]) => !t(q).endsWith(e) || document.querySelector(q).getAttribute("aria-label") !== t(q)).map(([q]) => q);
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
@@ -450,13 +445,9 @@ const v14Res = await run(`${U} try {
   r.note = (mock.state.noteLog || []).length;
   key.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); await sleep(300);
   $("#kbdbtn").click(); await sleep(300); r.closed = $("#kbd").hidden;
-  /* the transport REC (the device's global record): the button follows the device's states, a click toggles it (the key), a device-side change shows within a second */
-  const rb = $("#recbtn"); r.recShown = !rb.hidden && rb.dataset.rec === "off";
-  rb.click(); await until(() => rb.dataset.rec === "wait", 4000); r.recWait = rb.dataset.rec + ":" + mock.state.recState + ":" + rb.getAttribute("aria-pressed");
-  mock.sim.recSet(1); await until(() => rb.dataset.rec === "rec", 4000); r.recOn = rb.dataset.rec;
-  rb.click(); await until(() => rb.dataset.rec === "off", 4000); r.recOff = rb.dataset.rec + ":" + mock.state.recState;
+  r.noRec = !document.querySelector("#recbtn");
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(v14Res && v14Res.shown && v14Res.canUndo && v14Res.before === 1 && v14Res.undone && v14Res.redone && v14Res.keyUndo && v14Res.soloEnabled && v14Res.solo === 2 && v14Res.soloOn && v14Res.keys === 14 && v14Res.note === 1 && v14Res.closed && v14Res.recShown && v14Res.recWait === "wait:2:true" && v14Res.recOn === "rec" && v14Res.recOff === "off:0",
+ok(v14Res && v14Res.shown && v14Res.canUndo && v14Res.before === 1 && v14Res.undone && v14Res.redone && v14Res.keyUndo && v14Res.soloEnabled && v14Res.solo === 2 && v14Res.soloOn && v14Res.keys === 14 && v14Res.note === 1 && v14Res.closed && v14Res.noRec,
   `e2e v14 (mock): undo / redo buttons and Ctrl / Cmd + Z undo the device's own history, a strip's SOLO, the keyboard plays a note (${JSON.stringify(v14Res)})`);
 await run(`document.querySelector("#popx").click();`);
 /* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
@@ -1243,39 +1234,17 @@ const v13Probe = async (off) => {
   ok(noScope && !noScope.err && noScope.deviceTab && /SOUND/.test(noScope.screens) && !/SCOPE/.test(noScope.screens) && !noScope.stars && !noScope.dlan,
     `e2e v13 optional: no ED_SCOPE, ED_FAVS, ED_DLAN: Device screens without the SCOPE screen, no stars, no lane mix (${JSON.stringify(noScope)})`);
 }
-/* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
-   polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&e2e=1#mixer` });
-await sleep(1500);
-const mv = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().stream, 120000)) return null;
-  const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; $("#play").click(); await sleep(1200);
-  const up = [...document.querySelectorAll("#mixer .meter")].map((e) => +e.getAttribute("aria-valuenow"));
-  const cols = [...document.querySelectorAll("#mixer .meter")].map((e) => e.dataset.st);
-  $("#stop").click(); await sleep(4000);
-  const down = [...document.querySelectorAll("#mixer .meter")].map((e) => +e.getAttribute("aria-valuenow"));
-  return { up, cols, down, polls: (m.statusReqs | 0) - q0, n: document.querySelectorAll("#mixer .meter").length };`);
-ok(mv && mv.n === 5 && mv.up.filter((x) => x > -20).length >= 4 && mv.down.every((x) => x <= -59) && mv.polls === 2,
-  `e2e v9 (mock): meters on 4 strips + master rise while playing, fall to the floor after STOP; STATUS asked only for PLAY / STOP (${JSON.stringify(mv)})`);
-await shot("v9-mock-meters");
-/* the master COMP's GR meter (v9 mock): hidden until a STREAM frame carries the GR block; THRS set and playing, the mock
-   reports reduction: the bar shows (neutral, from the top) titled with both values; THRS OFF and stopped it falls to 0 */
-const grRes = await run(`${U} const g = document.querySelector("#mixer .strip.master .fm .gr");
-  if (!g) return "no gr"; try {
-  const m = window.fm1Test.mock.state; m.g[32] = -18; $("#play").click();   /* (THRS on the mock device) */
-  const up = await until(() => !g.hidden && parseFloat(g.children[0].style.height) > 0, 8000);
-  const look = up && getComputedStyle(g.children[0]).backgroundColor !== getComputedStyle(g.children[1]).backgroundColor
-    && /COMP .* dB, LIMIT .* dB/.test(g.title) && g.getAttribute("role") === "meter" && g.getBoundingClientRect().height > 40;
-  m.g[32] = 0; $("#stop").click();
-  const down = await until(() => parseFloat(g.children[0].style.height) === 0, 8000);
-  return JSON.stringify({ up, look, down }); } catch (e) { return "err " + e.message; }`);
-ok(grRes === '{"up":true,"look":true,"down":true}', "e2e v9 (mock): the master's GR meter shows the COMP's reduction (THRS set, playing), falls to 0 (" + JSON.stringify(grRes) + ")");
-await shot("v9-mock-gr");
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&v9=0&e2e=1#mixer` });
-await sleep(1500);
-const m8 = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().watch, 120000)) return null;
-  const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; await sleep(1500);
-  return { meters: document.querySelectorAll("#mixer .meter[data-live]").length, polls: (m.statusReqs | 0) - q0, v9: D().v9, live: $("#live").textContent };`);
-ok(m8 && m8.meters === 0 && m8.polls >= 5 && !m8.v9 && !/v9/.test(m8.live), `e2e v8 fallback (mock ?v9=0): no meters, STATUS polled about every 150 ms (${JSON.stringify(m8)})`);
+/* protocol v9 and v8 (the mock): an editor, not a remote DAW: no transport (PLAY / STOP / REC), no STATUS read, no stream, no meters, no playhead */
+for (const v9 of [1, 0]) {
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&v9=${v9}&e2e=1#mixer` });
+  await sleep(1500);
+  const mv = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().watch, 120000)) return null;
+    const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; await sleep(3000);
+    return { v9: D().v9, stream: D().stream, tp: document.querySelectorAll("#play, #stop, #recbtn, #section").length, polls: (m.statusReqs | 0) - q0,
+      meters: document.querySelectorAll("#mixer .meter, #mixer .gr").length, now: document.querySelectorAll("#mixer .now").length };`);
+  ok(mv && mv.v9 === !!v9 && !mv.stream && mv.tp === 0 && mv.polls === 0 && mv.meters === 0 && mv.now === 0,
+    `e2e ${v9 ? "v9" : "v8"} (mock): no transport, no STATUS read, no stream, no meters, no playhead (${JSON.stringify(mv)})`);
+}
 /* a firmware without snapshots (?snap=0: the mock does not answer SN_LIST): no Snapshots tab */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&snap=0#mixer` });
 await sleep(1500);

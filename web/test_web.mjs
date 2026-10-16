@@ -43,8 +43,8 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl26ToFun5, sl24BankRecords, sl24ReadFile, sl24ImportObject, sl24Send, sl24ReadBank, sl24IntoUserBank, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
-   WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   WATCH, watchCaps, PARAMS_GLOBAL,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
    FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
@@ -1606,9 +1606,7 @@ async function editorMacro() {
   ok(r === null, "macro: a build without the macros does not answer (the editor shows the authored values)");
   o.done();
   ok(ev.timeouts === 0, "macro: no timeouts on the macro build");
-  ok(html.includes("function macroPoll(") && html.includes("eff: () => macP(i, pPan())") && html.includes("data-mac") && html.includes('t("macPlays")') &&
-     /\.knob\[data-mac\] \.kv/.test(html) && (html.match(/eff: /g) || []).length >= 8,
-    "macro: the knobs (Sound, mixer pan and sends, master, drum level and REV) show what plays, marked");
+  ok(!html.includes("macroPoll") && !html.includes("data-mac") && !/eff: /.test(html), "macro: not polled; the knobs show the authored values");
 }
 
 /* ------------------------------------------ the DAW layout: colours, themes, flat navigation, STATUS --- */
@@ -1672,8 +1670,7 @@ async function editorDaw() {
   ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
     && s1.tracks.every((x) => x.step >= 0 && x.step < 64 && x.peak === 0) && !s2.playing && C.STATUS === 53,
     "daw: STATUS (53): stopped, PLAY: playing with a step per track (peak bytes 0), STOP");
-  ok((html.match(/meterEl\(/g) || []).length === 3 && /#mixer \.strip \.meter \{/.test(html) && /"data-meter": String\(k\)/.test(html),
-    "daw: a meter beside every fader (track strips and master), in the strip's meter slot; its data: the v9 stream");
+  ok(!/meterEl\(|meterIdle\(|grEl\(|\.meter \{|"data-meter"/.test(html), "daw: no level meters (an editor, not a remote DAW)");
   done();
   const o = attachMock({ status: false });
   E.parse[C.INFO](await o.rq(E.req.info()));
@@ -1701,10 +1698,20 @@ async function editorV9() {
     ok(on === 3 && caps.watch === 3 && caps.v4 && !caps.v9 && !caps.stream, "v9: a v8 firmware answers WATCH 15 with 3 (the editor keeps polling)");
     done();
   }
-  /* v9: WATCH 15 -> 15; the stream drives the transport, steps and meters; nothing polled */
+  {   /* the editor's own WATCH (WATCH.EDIT): every push, no status stream (no meters, no playhead: the device's UI comes first) */
+    const { rq, ev, done } = attachMock({});
+    E.parse[C.INFO](await rq(E.req.info()));
+    const on = await E.startWatch(rq), caps = E.watchCaps(on);
+    await rq(E.req.status(1));
+    await sleep(200);
+    ok(on === 7 && caps.v4 && caps.v9 && !caps.stream && !ev.pushes.some((f) => f.cmd === C.STREAM), "v9: the editor asks WATCH 7: pushes, no STREAM frame even while playing");
+    await rq(E.req.status(2));
+    done();
+  }
+  /* v9 protocol: WATCH 15 -> 15; the stream carries the transport, steps and meters (the editor does not ask for it) */
   const { m, rq, ev, sent, done } = attachMock({});
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  const on = await E.startWatch(rq), caps = E.watchCaps(on);
+  const on = await E.startWatch(rq, E.WATCH.ALL), caps = E.watchCaps(on);
   ok(on === 15 && caps.v4 && caps.v9 && caps.stream, "v9: WATCH 15 -> 15 (v4, v9 pushes, the stream)");
   await sleep(120);
   const st0 = ev.pushes.filter((f) => f.cmd === C.STREAM).map((f) => E.parse[C.STREAM](f.a, info));
@@ -1764,24 +1771,13 @@ async function editorV9() {
   ok(tf.sel === 1 && tf.tracks[0].engine === 2 && tf.tracks[0].preset === 3 && tf.tracks[1].mute === 1 && tf.tracks[2].armed === 1 && tf.tracks[3].engine === 10 && tf.solo === 2,
     "v9: TRACKS has TRACK's shape (engines, presets, levels, mutes, arms, solo)");
   done();
-  /* the meters: dBFS (8192 = 0), an instant rise, a fall of 24 dB/s, a hold of 1.5 s that then falls, the colours */
-  let mt = { db: E.METER.MIN, hold: E.METER.MIN, holdAt: 0 };
-  mt = E.meterStep(mt, E.peakDb(8192), 40, 1000);
-  const up = mt.db;
-  mt = E.meterStep(mt, -Infinity, 500, 1500);
-  const fell = mt.db, held = mt.hold;
-  mt = E.meterStep(mt, -Infinity, 2000, 3500);
-  ok(Math.abs(up) < 1e-9 && Math.abs(fell - -12) < 1e-9 && Math.abs(held) < 1e-9 && mt.db === E.METER.MIN && mt.hold < 0 && mt.hold > E.METER.MIN,
-    "v9 meters: rise at once, fall 24 dB/s, the hold stays 1.5 s then falls");
-  for (let k = 0; k < 200; k++) mt = E.meterStep(mt, -Infinity, 40, 3500 + 40 * k);
-  ok(mt.db === E.METER.MIN && mt.hold === E.METER.MIN, "v9 meters: silence: down to the floor (-60 dB)");
-  ok(E.meterState(E.peakDb(8192)) === "err" && E.meterState(E.peakDb(5000)) === "warn" && E.meterState(E.peakDb(4000)) === "ok" && E.meterState(-Infinity) === "ok"
-    && Math.round(E.peakDb(4096)) === -6 && E.meterFrac(6) === 1 && E.meterFrac(-60) === 0 && E.meterFrac(-100) === 0,
-    "v9 meters: green, amber above -6 dB, red at clip (0 dBFS); -60..+6 dB on the bar");
   /* the editor: the stream / pushes replace the polls, which stay for older firmware */
-  ok(/d\.statusOk === false \|\| d\.stream \|\|/.test(html) && /!d\.dl \|\| d\.v9 \|\|/.test(html) && /if \(dev\.v9\) return;\s+\/\* v9: every change is pushed/.test(html)
-    && /meterEl\(i, /.test(html) && /meterEl\("master", /.test(html) && /CMD\.STREAM\) \{/.test(html),
-    "v9 editor: STATUS, kit and DUMP polling skipped with v9 (kept for v8); meters on the strips and the master");
+  ok(E.WATCH.EDIT === (E.WATCH.ON | E.WATCH.V4 | E.WATCH.V9) && !(E.WATCH.EDIT & E.WATCH.STREAM) && /startWatch\(rqd, WATCH\.EDIT \| WATCH\.ENDS\)/.test(html)
+    && /startWatch\(\(r, o\) => d\.link\.request\(r, o\), WATCH\.EDIT \| WATCH\.ENDS\)/.test(html) && !/startWatch\([^\n]*WATCH\.ALL/.test(html),
+    "editor, not a remote DAW: WATCH asks for every push but the status stream (no meters, no playhead)");
+  ok(/!d\.dl \|\| d\.v9 \|\|/.test(html) && /if \(dev\.v9\) return;\s+\/\* v9: every change is pushed/.test(html) && !/pollStatus|renderTransport|id="play"|id="recbtn"/.test(html)
+    && !/class: "meter"|meterEl\(|grEl\(|rollPlayhead|function macroPoll\(/.test(html),
+    "v9 editor: kit and DUMP polling skipped with v9; no transport (PLAY / STOP / REC), no meters, GR, playhead or macro poll");
 }
 
 async function editorDrums() {
@@ -2599,8 +2595,8 @@ async function editorPianoRoll() {
   ok(E.rollChanged(empty, E.rollAdd(empty, L, 5, 40).steps, L).join() === "5" && E.rollGrid("1/16").bar === 16 && E.rollGrid("8T").spb === 3
     && E.rollGrid("1/8").bar === 8, "roll: the steps an edit changed; the bar / beat grid of DIV");
 ok(E.DRUM_PAGE === 16 && E.drumPages(1) === 1 && E.drumPages(16) === 1 && E.drumPages(17) === 2 && E.drumPages(64) === 4
-  && E.drumPageOf(0, 64) === 0 && E.drumPageOf(15, 64) === 0 && E.drumPageOf(16, 64) === 1 && E.drumPageOf(63, 64) === 3 && E.drumPageOf(40, 20) === 1,
-  "drum grid: pages of 16 steps cover the pattern; the page of the playhead");
+,
+  "drum grid: pages of 16 steps cover the pattern");
 {
   const r = E.drumPageRange(1, 20), r0 = E.drumPageRange(0, 64), r3 = E.drumPageRange(9, 64);
   ok(r.from === 16 && r.to === 20 && r0.from === 0 && r0.to === 16 && r3.from === 48 && r3.to === 64,
@@ -2848,7 +2844,7 @@ async function reverbType() {
     plate.types === null && plate.rt === null && old.info.reverb === null && old.rt === null,
     "reverb TYPE: one algorithm built (ROOM, or PLATE alone) or an older firmware: no selector");
   /* the popup: dynFx(fxreverb) adds revTypeCtl, which is there only with dev.rtype (readReverbType at connect) */
-  const dyn = html.slice(html.indexOf("function dynFx("), html.indexOf("/* ---------------------------------------------------- the transport"));
+  const dyn = html.slice(html.indexOf("function dynFx("), html.indexOf("/* no transport: PLAY / STOP, REC"));
   ok(/const type = id === "fxreverb" \? revTypeCtl\(\) : null/.test(dyn) && /const r = dev && dev\.rtype;\s+if \(!r\) return null;/.test(dyn) &&
     /d\.rtype = await readReverbType\(/.test(html) && E.revName("SPRNG") === "SPRING",
     "reverb TYPE: the Reverb popup shows it only when the device has two or more (dev.rtype)");
@@ -2962,17 +2958,17 @@ function editorKeys() {
   ok(/spaceIsTyping\(tg\)/.test(h) && /closest\("#tabs"\)/.test(h) && /closest\("\[role=slider\]"\)/.test(h) && /ownSpace/.test(h) && /e\.defaultPrevented/.test(h)
     && /selectTrack\(plan\.track/.test(h) && /closePop\(\)/.test(h) && /openPop\(plan\.id, plan\.track, plan\.lane\)/.test(h),
     "keys: ignored while typing and on the tabs / sliders / chop canvas; <- / -> call selectTrack (as the title bar), a key opens / closes the popup");
-  ok(/e\.code !== "Space"/.test(html) && /addEventListener\("cancel", \(e\) => \{ e\.preventDefault\(\); closePop\(\); \}\)/.test(html)
-    && /\$\("tabs"\)\.addEventListener\("keydown"/.test(html), "keys: Space (play / stop), Escape (close) and the tabs' arrows are still there");
+  ok(!/e\.code !== "Space"/.test(html) && /addEventListener\("cancel", \(e\) => \{ e\.preventDefault\(\); closePop\(\); \}\)/.test(html)
+    && /\$\("tabs"\)\.addEventListener\("keydown"/.test(html), "keys: no Space (no transport); Escape (close) and the tabs' arrows are still there");
   /* shortcuts everywhere: the tooltips end with the key; the help lists them all, from the same table */
   const strip = html.slice(html.indexOf("function buildStrip("), html.indexOf("function fxBlock("));
   ok(/const withKey = /.test(html) && /iconBtn\(id, withKey\(/.test(html) && /b\.title = withKey\(/.test(html) && /iconBtn\(f\.icon, withKey\(/.test(html)
     && /showTab\("settings"\)/.test(html) && /\$\(id\)\.title = withKey\(t\(k\), key\)/.test(html) && /seqBtn/.test(strip),
-    "keys: every strip button's tooltip and aria-label end with its key (Sound (Track 1) · I), as PLAY's · Space");
+    "keys: every strip button's tooltip and aria-label end with its key (Sound (Track 1) · I)");
   const help = html.slice(html.indexOf("function helpKeys()"), html.indexOf("/* the track's sound into a user preset slot"));
   ok(/\.\.\.LANE_KEYS/.test(help) && ["sound", "sequence", "loadpreset", "savepreset", "kit", "kitstore", "fxdelay", "fxreverb", "fxchorus", "help"].every((id) => help.includes(`one("${id}"`))
-    && /ArrowLeft", "ArrowRight"/.test(help) && /k\.screen/.test(help) && /row\(\[" "\]/.test(help) && /row\(\["Escape"\]/.test(help) && /keysTitle/.test(help),
-    "keys: the help has a Keyboard shortcuts section: <- ->, every element key, 1-0, Space, Esc");
+    && /ArrowLeft", "ArrowRight"/.test(help) && /k\.screen/.test(help) && !/row\(\[" "\]/.test(help) && /row\(\["Escape"\]/.test(help) && /keysTitle/.test(help),
+    "keys: the help has a Keyboard shortcuts section: <- ->, every element key, 1-0, Esc (no Space: no transport)");
   {   /* the mixer's order and the group's fold state (the DOM: web/e2e_daw.mjs) */
     const rm = html.slice(html.indexOf("function renderMixer()"), html.indexOf("/* ---- the per-track patterns"));
     const sl = html.slice(html.indexOf("function syncLaneStrips()"), html.indexOf("/* what the member strips show"));
@@ -3284,8 +3280,8 @@ async function installerModule() {
   const page = readFileSync(join(HERE, "installer", "index.html"), "utf8"), css = readFileSync(join(HERE, "installer", "installer.css"), "utf8");
   ok(["/*OPTIMIST-CSS*/", "<!--OPTIMIST-HEADER-->", "/*INSTALLER*/", "/*META*/"].every((m) => page.split(m).length === 2) && /mountInstaller\(document\.getElementById\("installer"\), site\)/.test(page),
     "installer page: a thin wrapper (the shared style and header, the module, the site's packages)");
-  ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && /var\(--on-track\)/.test(css) && !/\.tile|\.tiles/.test(css + page),
-    "installer style: colours only from the shared tokens (no colour of its own), no SLOOP tiles");
+  ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && !/var\(--(on-track|t[1-4]|trk)\)/.test(css) && !/--t[1-4]/.test(readFileSync(join(HERE, "installer", "installer.js"), "utf8")) && !/\.tile|\.tiles/.test(css + page),
+    "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
   const mod = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
   ok(/export function mountInstaller\(container, opts = \{\}\)/.test(mod) && !/innerHTML/.test(mod) && !/confirm\(/.test(mod) && /showModal\(\)/.test(mod),
     "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");

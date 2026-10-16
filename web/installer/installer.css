@@ -19,7 +19,7 @@
 .oi-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
 .oi-step .o-panel-h { justify-content: flex-start; }
 .oi-h { display: flex; align-items: center; gap: var(--sp-2); }
-.oi-num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; padding: 0 4px; background: var(--c); color: var(--on-track);
+.oi-num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; padding: 0 4px; background: var(--s3); color: var(--fg);
           font-variant-numeric: tabular-nums; }
 .oi-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3); }
 .oi-row:last-child { margin-bottom: 0; }
@@ -35,7 +35,7 @@
 /* 2 Choose: a list of choices, the title, the identity, a line of description */
 .oi-choices { margin: 0 0 var(--sp-3); padding: 0; min-width: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .oi-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); align-items: start; padding: var(--sp-2) var(--sp-3); background: var(--surface-1); }
-.oi-choice:has(.oi-radio:checked) { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--c, var(--accent)); }
+.oi-choice:has(.oi-radio:checked) { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--fg); }
 .oi-choice label { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-2); min-width: 0; }
 .oi-choice label b { font-weight: 400; color: var(--text); }
 .oi-desc { flex-basis: 100%; }
@@ -88,3 +88,4 @@
   .oi-row > .o-btn { flex: 1 1 auto; }
 }
 @media (pointer: coarse) { .oi-radio { width: 22px; height: 22px; } }
+.oi-step { --c: var(--s3); }   /* (the card head's underline: neutral, no track colour) */
