@@ -1151,7 +1151,6 @@
   .keyhelp kbd { font-size: 16px; border-radius: 0; background: var(--s2); border: 0; }
 
   .titlebar { display: flex; align-items: flex-end; gap: 16px; min-height: 32px; }
-  #pagetitle { font-size: 32px; line-height: 32px; color: var(--trk); text-transform: uppercase; white-space: nowrap; flex: none; }
   #status { margin-left: auto; color: var(--dim); text-align: right; min-height: 20px; overflow-wrap: anywhere; max-width: 70%; }
   .tbar { border: 0; padding: 12px 0 0; gap: 8px 16px; }
   .tbar .tp { gap: 6px; }
@@ -1474,6 +1473,12 @@
   #mixer .strip .srow[data-row="pan"] .knob, #mixer .strip .srow[data-row="tools"] .col > .knob { flex-direction: row; align-items: center; justify-content: center; gap: 6px; width: auto; min-width: 0; }
   #mixer .strip .srow[data-row="pan"] .knob .kl, #mixer .strip .srow[data-row="tools"] .col > .knob .kl { font-size: 13px; }
   #mixer .strip .fx .knob .kl, #mixer .strip .srow[data-row="pan"] .knob .kl, #mixer .strip .srow[data-row="tools"] .col > .knob .kl { display: inline-block; min-width: 3ch; text-align: left; }
+  /* no page title row: the active tab of the menu bar is the title; a page's explanation sits behind a small (i) */
+  .menubar .brand { margin-left: 0; }
+  .menubar > a.brand { margin-right: -8px; }
+  .pghelp { margin: 8px 0 4px; } .pghelp > summary { display: inline-block; list-style: none; cursor: pointer; width: 20px; height: 20px; line-height: 18px; text-align: center; border: 1px solid var(--line); border-radius: 50%; color: var(--dim); font-size: 13px; }
+  .pghelp > summary::-webkit-details-marker { display: none; } .pghelp[open] > summary { color: var(--fg); border-color: var(--fg); } .pghelp > p { margin: 6px 0 0; max-width: 90ch; }
+  .top { padding-top: 6px; }
 </style>
 </head>
 <body>
@@ -1481,7 +1486,7 @@
 <!-- the side bar: the pages in groups (play, the selected track's editors, the FX buses, the screens, the system), and the device.
      Every editor is still a popup (NAV); a side button opens it for the selected track. -->
 <div class="menubar" id="side">
-  <b class="brand" title="Optimist Editor">Optimist</b>
+  <a class="brand" href="../installer/" title="Optimist firmware installer" aria-label="Optimist firmware installer" style="color:inherit;flex:none;display:flex;align-items:center"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/><rect x="40" y="124" width="10" height="25"/><path d="M96 111L95 131L103 138L106 120Z"/><rect x="12.5" y="49" width="5" height="65"/></svg></a><b class="brand" title="Optimist Editor">Optimist</b>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
@@ -1507,9 +1512,9 @@
 <main class="main">
   <!-- the top: the page, the status line, the transport and the four tracks (one click selects the track the editors act on) -->
   <header class="top" id="transport">
-    <div class="titlebar"><a class="brand" href="../installer/" title="Optimist firmware installer" aria-label="Optimist firmware installer" style="color:inherit;margin-right:10px;flex:none"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/><rect x="40" y="124" width="10" height="25"/><path d="M96 111L95 131L103 138L106 120Z"/><rect x="12.5" y="49" width="5" height="65"/></svg></a><h1 id="pagetitle"></h1><div id="status"></div></div>
-    <div class="tbar">
+        <div class="tbar">
       <span id="mock" class="dim" hidden data-t="mock"></span>
+      <span id="status"></span>
       <span class="tp" id="tp" hidden>
         <button id="play" class="ib tog" aria-pressed="false"></button>
         <button id="stop" class="ib tog"></button>
@@ -1580,7 +1585,6 @@
   <section class="panel" id="p-library" data-tab="library" hidden>
     <div class="libcols" id="libsec">
       <div id="libpane">
-        <h2 data-t="library" data-ic="symbol_books"></h2>
         <div class="bar">
           <input type="search" id="libq" spellcheck="false">
           <select id="libeng"></select>
@@ -1687,8 +1691,7 @@
   <section class="panel pp" id="p-dyn" data-pop="dyn" hidden></section>
 
   <section class="panel" id="p-projects" data-tab="projects" data-dev hidden>
-    <h2 data-t="projects" data-ic="symbol_folder"></h2>
-    <p class="dim" data-t="projHelp"></p>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
     <div class="slots" id="slots"></div>
     <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
     <p class="dim" data-t="bkHelp"></p>
@@ -1698,14 +1701,13 @@
 
   <!-- snapshots: their own screen, one click from the transport bar (shown when the firmware has them: commands 54..57) -->
   <section class="panel" id="p-snapshots" data-tab="snapshots" data-dev hidden>
-    <h2 id="snap-head" data-t="snTitle" data-si="snapshot"></h2>
-    <p class="dim" data-t="snHelp"></p>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="snHelp"></p></details>
     <div id="snaps"></div>
     <progress id="snprog" max="1" value="0" hidden></progress>
   </section>
 
   <section class="panel" id="p-device" data-tab="device" data-dev hidden>
-    <p class="dim" data-t="scsHelp"></p>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="scsHelp"></p></details>
     <div class="scbar" id="scbar"></div>
     <canvas id="scscope" width="944" height="180" hidden role="img" aria-label="Oscilloscope"></canvas>
     <div class="scrows" id="scrows"></div>
@@ -7022,7 +7024,6 @@ const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapsho
 function renderPanels() {
   const want = tab;
   const tb = $("tabs").querySelector(`button[data-tab="${want}"]`);
-  $("pagetitle").textContent = tb ? t(tb.dataset.t) : "";
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
@@ -8668,8 +8669,7 @@ function renderSamples() {
       onclick: () => smpUseOn(i, P.slot) }, `${t("track")} ${i + 1}`)));
     u.where = el("p", { class: "dim" });
     box.replaceChildren(el("div", { class: "card" },
-      el("h2", { ic: "symbol_waves", text: t("samples") }),
-      el("p", { class: "dim", text: t("smpIntro") }),
+      el("details", { class: "pghelp" }, el("summary", { title: "About this page", "aria-label": "About this page", text: "i" }), el("p", { class: "dim", text: t("smpIntro") })),
       step(1, t("smpStep1"), u.slots, el("div", { class: "bar" }, u.erase), u.slotNote),
       step(2, t("smpStep2"), u.modes, u.modeHelp, u.filesPane, u.chopPane),
       step(3, t("smpStep3"), el("div", { class: "bar" }, el("span", { class: "dim", text: t("smpName") }), u.name, u.send, u.prog),
@@ -9485,7 +9485,7 @@ function kpBuild() {
   }
   const step = (n, title, ...kids) => el("section", { class: "kstep" }, el("h3", {}, el("span", { class: "num", text: String(n) }), title), ...kids);
   const card = el("div", { class: "card kpage" },
-    el("h2", { ic: "symbol_audio", text: t("kitPage") }), el("p", { class: "dim", text: t("kpHelp") }),
+    el("details", { class: "pghelp" }, el("summary", { title: "About this page", "aria-label": "About this page", text: "i" }), el("p", { class: "dim", text: t("kpHelp") })),
     step(1, t("kpStep1"), el("p", { class: "dim", text: t("kpStep1Help") }),
       el("div", { class: "bar" }, u.add, u.file, u.clear, u.meter, u.meterTxt), grid,
       el("div", { class: "bar" }, u.fit, el("span", { class: "dim", text: t("kpFitHelp") }))),
