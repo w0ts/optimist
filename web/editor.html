@@ -1488,6 +1488,13 @@
   #mixer .strip select, #mixer .strip option, #mixer .strip .lpn select.lname { font-size: 12px; }
   #mixer .strip button.fold, #mixer .strip button.lmode { font-size: 12px; }
   #mixer .strip .lblk .row2 button, #mixer .strip.nar .lblk .row2 button { font-size: 12px; }
+  /* the MUTE chip: ON = the strip's colour, MUTED = greyed out (no colour, dim text), on every strip kind */
+  #mixer .strip button.act[aria-pressed="true"] { background: color-mix(in srgb, var(--dim) 28%, var(--bg)); color: var(--dim); border-color: var(--line); filter: none; }
+  /* the drum head's size choice 1 4 8 16 right beside the fold arrow; the block chips on its nav row */
+  #mixer .strip .seg.lmode { display: inline-flex; flex: none; gap: 0; } #mixer .strip .seg.lmode button { width: auto; min-width: 20px; height: 24px; padding: 0 2px; font-size: 12px; border: 1px solid var(--line); background: transparent; color: inherit; border-radius: 0; font-weight: 400; }
+  #mixer .strip .seg.lmode button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
+  #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
 </style>
 </head>
 <body>
@@ -4831,9 +4838,9 @@ function keyPlan(st, ev) {
   const open = st.nav.pop, lane = st.lane | 0;
   const lm = st.lm;
   if ((k === "ArrowLeft" || k === "ArrowRight") && !open && isDrum && lm && lm.mode !== "collapsed") {   /* the drum track's sounds are its members */
-    const seq = lm.mode === "one" ? lm.ids : lm.shown, at = seq.indexOf(lane);
+    const seq = lm.ids, at = seq.indexOf(lane);
     if (k === "ArrowRight") {
-      if (!lm.focus) return seq.length ? { pick: true, focus: true, track: drum, lane: lm.mode === "one" ? lane : seq[0] } : null;
+      if (!lm.focus) return seq.length ? { pick: true, focus: true, track: drum, lane: lm.mode === "all" ? seq[0] : lane } : null;
       return at >= 0 && at < seq.length - 1 ? { pick: true, focus: true, track: drum, lane: seq[at + 1] } : null;
     }
     if (lm.focus) return at > 0 ? { pick: true, focus: true, track: drum, lane: seq[at - 1] } : { unfocus: true, track: drum };
@@ -6818,7 +6825,7 @@ const TEXT = {
   kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
   clips: "clips",
-  popScale: "Scale", scaleNone: "This track has no scale or arpeggiator pages.", arpTip: "Arpeggiator on / off (the ARP page: Scale panel)",
+  popScale: "Scale", laneModeN: "sounds at a time (the drum sounds are shown in blocks of this size)", laneBlockPrev: "Previous block of sounds ( [ )", laneBlockNext: "Next block of sounds ( ] )", laneBlocks: "Blocks of drum sounds", laneBlock: "Sounds", scaleNone: "This track has no scale or arpeggiator pages.", arpTip: "Arpeggiator on / off (the ARP page: Scale panel)",
   recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "STOP THE SONG FIRST",
   retMuteTip: "Mute of a return (the firmware has no return mute: SOLO op 7)",
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
@@ -11340,13 +11347,14 @@ function mixToSound(i) {
    or one sound at a time with a previous / next; kept per browser */
 const laneCtl = [];                  /* the member strips shown: {l, strip, head, ...} */
 const MIXLANES_KEY = "fm1.mixLanes";
-const mixLanes = { mode: "collapsed", exp: "all", lane: 0, focus: false };   /* mode: collapsed | one | all; exp: the mode a fold opens; focus: a member strip is the active strip */
+const mixLanes = { mode: "collapsed", exp: "all", lane: 0, focus: false };   /* mode: collapsed | one | four | eight | all (the sounds shown at a time: 1, 4, 8, 16); exp: the mode a fold opens; focus: a member strip is the active strip */
+const LANE_MODES = { one: 1, four: 4, eight: 8, all: 16 }, LANE_MODE_OF = { 1: "one", 4: "four", 8: "eight", 16: "all" };
 (function mixLanesLoad() {
   try {
     const j = JSON.parse(localStorage.getItem(MIXLANES_KEY) || "null");
     if (!j) return;
-    if (["collapsed", "one", "all"].includes(j.mode)) mixLanes.mode = j.mode;
-    if (["one", "all"].includes(j.exp)) mixLanes.exp = j.exp;
+    if (["collapsed", "one", "four", "eight", "all"].includes(j.mode)) mixLanes.mode = j.mode;
+    if (["one", "four", "eight", "all"].includes(j.exp)) mixLanes.exp = j.exp;
     if (Number.isInteger(j.lane) && j.lane >= 0 && j.lane <= 16) { mixLanes.lane = j.lane; kl.acc = j.lane === 16; if (!kl.acc) kl.sel = j.lane; }   /* (the picked sound is the editor's: it starts where it was left) */
   } catch (e) { /* no storage here: the defaults */ }
 })();
@@ -11356,10 +11364,17 @@ function mixLanesSave() {
 const accOn = () => !!dev && !!dev.dlMix && !!dev.dlMix.acc;                     /* the ACCENT lane (lane 16) exists on this build */
 const laneIds = () => (dev && dev.dl ? [...Array.from({ length: 16 }, (_, l) => l), ...(accOn() ? [16] : [])] : []);
 const laneCur = () => (kl.acc ? 16 : kl.sel);                                  /* the picked lane of the whole device */
+/* the sounds are shown in BLOCKS of the mode's size, block-aligned: 1 (lane 1, 2, 3 ... 16, then the ACCENT lane as its own step), 4 (1-4, 5-8, 9-12, 13-16), 8 (1-8, 9-16),
+   16 (all); in 4, 8 and 16 the ACCENT lane is the extra strip of the LAST block. The window is the block of the picked sound (so a pick anywhere moves it) */
+const laneSize = () => LANE_MODES[mixLanes.mode] || LANE_MODES[mixLanes.exp] || 16;
+const laneBlockOf = (l, size) => (l === 16 ? (size === 1 ? 16 : 16 / size - 1) : Math.floor(l / size));
+const laneBlockCount = (size) => (size === 1 ? 16 + (accOn() ? 1 : 0) : 16 / size);
+const laneBlockLanes = (b, size) => (size === 1 ? [b] : [...Array.from({ length: size }, (_, k) => b * size + k), ...(b === 16 / size - 1 && accOn() ? [16] : [])]);
 function shownLanes() {
   const ids = laneIds();
   if (!ids.length || mixLanes.mode === "collapsed") return [];
-  return mixLanes.mode === "all" ? ids : [ids.includes(laneCur()) ? laneCur() : ids[0]];
+  const size = laneSize();
+  return laneBlockLanes(laneBlockOf(ids.includes(laneCur()) ? laneCur() : ids[0], size), size).filter((l) => ids.includes(l));
 }
 function setLaneMode(mode) {
   mixLanes.mode = mode;
@@ -11368,7 +11383,7 @@ function setLaneMode(mode) {
   syncLaneStrips();
 }
 const foldLanes = () => setLaneMode(mixLanes.mode === "collapsed" ? mixLanes.exp : "collapsed");
-const toggleLaneMode = () => setLaneMode(mixLanes.mode === "one" ? "all" : "one");
+const setLaneSizeMode = (n) => setLaneMode(LANE_MODE_OF[n] || "all");
 /* a member strip's title bar: the drum track is selected, this sound is the picked one */
 function laneSelect(l) {
   const drum = dev.mix.ntrk - 1;
@@ -11376,9 +11391,19 @@ function laneSelect(l) {
   if (dev.sel !== drum) selectTrack(drum);
   pickLane(l);
 }
-function laneStep(d) {
-  const ids = laneIds(), at = ids.indexOf(mixLanes.lane), to = ids[Math.max(0, Math.min(ids.length - 1, at + d))];
-  if (to != null) laneSelect(to);
+function laneStep(d) {                               /* previous / next BLOCK (one sound in mode 1, 4 in mode 4, 8 in mode 8); the block's first sound is picked */
+  if (!laneIds().length) return;
+  const size = laneSize(), b = Math.max(0, Math.min(laneBlockCount(size) - 1, laneBlockOf(laneCur(), size) + d)), first = laneBlockLanes(b, size)[0];
+  if (first != null) laneSelect(first);
+}
+/* the windowed modes' navigation on the drum strip's nav row: previous | a chip a block (the first sound's number, the current one lit) | next */
+function laneBlockNav(size) {
+  const n = laneBlockCount(size), cur = laneBlockOf(laneCur(), size);
+  const range = (b) => { const ls = laneBlockLanes(b, size); return `${ls[0] + 1}-${ls[ls.length - 1] === 16 ? "16+DA" : ls[ls.length - 1] + 1}`; };
+  return [el("button", { type: "button", class: "ib", "data-bprev": "", disabled: cur === 0, title: t("laneBlockPrev"), "aria-label": t("laneBlockPrev"), onclick: () => laneStep(-1) }, "\u25c2"),
+    el("div", { class: "bchips", role: "group", "aria-label": t("laneBlocks") }, ...Array.from({ length: n }, (_, b) => el("button", { type: "button", "data-block": String(b), "aria-pressed": b === cur ? "true" : "false",
+      title: `${t("laneBlock")} ${range(b)}`, "aria-label": `${t("laneBlock")} ${range(b)}`, onclick: () => laneSelect(laneBlockLanes(b, size)[0]) }, String(laneBlockLanes(b, size)[0] + 1)))),
+    el("button", { type: "button", class: "ib", "data-bnext": "", disabled: cur >= n - 1, title: t("laneBlockNext"), "aria-label": t("laneBlockNext"), onclick: () => laneStep(1) }, "\u25b8")];
 }
 function setLaneOfs(l, i, v) {
   if (!dev || !dev.dl) return;
@@ -11462,7 +11487,7 @@ function buildLaneStrip(l) {
   rows.level = levelBlock(laneBtns, laneLevel || el("div", { class: "fm" }));
   if (dev.info.tools && !acc) rows.tools = el("div", { class: "lo" }, iconBtn("tools", withKey(`${t("popTools")}: ${laneTag(l)}`, keyFor("tools")), () => { pickLane(l); if (dev.sel !== drum) selectTrack(drum, () => openPop("tools", drum)); else openPop("tools", drum); },
     { "data-pop": "tools", "data-l": l, id: `strip-lane${l + 1}-tools` }));
-  c.strip = stripShell({ class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, [], rows, [], { narrow: true });
+  c.strip = stripShell({ class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, [], rows, [], { narrow: laneSize() >= 8 });
   return c;
 }
 /* the member strips again (a fold, the one sound changed): right after the drum strip, in the device's lane order */
@@ -11480,8 +11505,13 @@ function syncLaneStrips() {
     dc.fold.textContent = open ? "\u25b6" : "\u25bc";   /* (a plain triangle: right = open, the sounds shown to its right; down = folded) */
     dc.fold.title = dc.fold.ariaLabel = t(open ? "laneFoldOn" : "laneFoldOff");
     dc.fold.setAttribute("aria-expanded", open ? "true" : "false");
-    dc.lmode.textContent = mixLanes.exp === "one" ? "1" : "ALL";
-    dc.lmode.setAttribute("aria-pressed", mixLanes.mode === "one" ? "true" : "false");
+    for (const b of dc.lmode.children) b.setAttribute("aria-pressed", open && laneSize() === +b.dataset.lmode ? "true" : "false");
+    const nr = dc.strip.querySelector(':scope > .srow[data-row="nav"]');
+    if (nr && !dc.lanes) {                           /* (the block navigation: in the windowed modes, on the drum strip's free nav row) */
+      const size = laneSize(), nav = open && size > 1 && size < 16 && has ? laneBlockNav(size) : [el("span", { class: "ph", "aria-hidden": "true" })];
+      nr.replaceChildren(...nav);
+      if (nav.length > 1) nr.removeAttribute("data-blank"); else nr.setAttribute("data-blank", "");
+    }
   }
   dc.strip.dataset.lanes = mixLanes.mode;
   updateLaneStrips();
@@ -11935,7 +11965,8 @@ function buildStrip(i) {
   if (!drum && hasArp()) pops.push(el("button", { type: "button", class: "tog arpb", id: `strip-${i + 1}-arp`, "aria-pressed": "false", title: t("arpTip"), "aria-label": `${t("arpTip")} ${i + 1}`, onclick: () => setArp(i) }, "ARP"));   /* v13: the pattern tools (ICONS.tools) */
   if (drum) {                                        /* the group's fold triangle, and "one sound at a time / all" (the member strips: syncLaneStrips) */
     c.fold = el("button", { type: "button", class: "ib fold", "data-fold": "", title: t("laneFold"), "aria-label": t("laneFold"), "aria-expanded": "false", onclick: foldLanes }, "\u25bc");
-    c.lmode = el("button", { type: "button", class: "ib lmode", "data-lmode": "", title: t("laneMode"), "aria-label": t("laneMode"), "aria-pressed": "false", onclick: toggleLaneMode }, "ALL");
+    c.lmode = el("span", { class: "seg lmode", role: "group", "aria-label": t("laneMode"), title: t("laneMode") }, ...[1, 4, 8, 16].map((n) => el("button", { type: "button", class: "ib", "data-lmode": String(n), "aria-pressed": "false",
+      title: `${n} ${t("laneModeN")}`, "aria-label": `${n} ${t("laneModeN")}`, onclick: () => setLaneSizeMode(n) }, String(n))));
   }
   const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
   seqBtn.append(el("span", { text: t("popSeq") }));
@@ -12321,7 +12352,7 @@ function pickLane(l) {
   mixLanes.lane = laneCur();
   mixLanesSave();
   if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1);
-  if (mixLanes.mode === "one") syncLaneStrips();
+  if (mixLanes.mode !== "collapsed" && mixLanes.mode !== "all" && shownLanes().join() !== laneCtl.map((c) => c.l).join()) syncLaneStrips();   /* (the window follows the pick) */
   if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = laneCur(); $("poptitle").textContent = popTitle("lane", nav.pop.track, laneCur()); renderKit(); }
 }
 /* a send of the selected sound from the strip: written to that lane live (DRUM_LANE v2, one in flight, the latest queued) */
@@ -12720,6 +12751,7 @@ document.addEventListener("keydown", (e) => {
   if (e.defaultPrevented || spaceIsTyping(tg) || !dev || !dev.dump || !hasTracks()) return;
   if (tg && tg.closest && (tg.closest("#tabs") || tg.closest("[role=slider]") || (tg.dataset && tg.dataset.ownSpace))) return;
   if (e.key === "Enter" && tg && tg.closest && tg.closest("button, a, input, select, textarea, summary")) return;   /* (its own Enter) */
+  if ((e.key === "[" || e.key === "]") && !e.ctrlKey && !e.metaKey && !e.altKey && !nav.pop && mixLanes.mode !== "collapsed" && laneIds().length) { e.preventDefault(); laneStep(e.key === "]" ? 1 : -1); return; }   /* previous / next block of sounds */
   const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, lane: laneCur(),
     lm: { mode: mixLanes.mode, focus: mixLanes.focus, ids: laneIds(), shown: shownLanes() } }, e);
   if (!plan) return;

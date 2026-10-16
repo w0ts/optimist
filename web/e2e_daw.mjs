@@ -9,13 +9,25 @@
 //     /__fm1/turn knob route; without it that check is skipped), the device's v9 cost (SYNC_STATS) and reply latency.
 // CHROME=path overrides the browser (default: Google Chrome / Chromium in their usual places).
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
+
+/* downloads never reach ~/Downloads: Chrome saves them under the repo's work area, and the run asserts ~/Downloads got nothing new */
+const DL_HOME = join(homedir(), "Downloads"), DL_DIR = join(homedir(), "GitHub", "optimist-work", "e2e-downloads", String(process.pid));
+const dlList = () => { try { return readdirSync(DL_HOME); } catch (e) { return []; } };
+const dlBefore = new Set(dlList()), dlSeen = [];   /* dlSeen: the names of the downloads this run made (Browser.downloadWillBegin) */
+mkdirSync(DL_DIR, { recursive: true });
+const dlCheck = () => {
+  const fresh = dlList().filter((f) => !dlBefore.has(f) && dlSeen.some((n) => f === n || f.startsWith(n.replace(/\.[^.]*$/, "")) ));   /* (only a file named like one of THIS run's downloads: another process or the user may add files too) */
+  const mine = readdirSync(DL_DIR);
+  rmSync(DL_DIR, { recursive: true, force: true });
+  return { fresh, mine };
+};
 const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
 const EMU = process.argv.includes("--emu") ? process.argv[process.argv.indexOf("--emu") + 1].replace(/\/+$/, "") : null;
 const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome",
@@ -52,7 +64,7 @@ const ws = new WebSocket(tab.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener("open", r));
 let id = 0;
 const pending = new Map();
-ws.addEventListener("message", (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
+ws.addEventListener("message", (e) => { const m = JSON.parse(e.data); if (m.method === "Browser.downloadWillBegin") dlSeen.push(m.params.suggestedFilename); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 const run = async (expr) => { const x = (await send("Runtime.evaluate", { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true })).result; return x.exceptionDetails ? { err: x.exceptionDetails.exception ? x.exceptionDetails.exception.description : x.exceptionDetails.text } : x.result.value; };
 const key = async (k) => { await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code: k, windowsVirtualKeyCode: k === "Escape" ? 27 : 0 });
@@ -63,6 +75,7 @@ const shot = async (name) => {
   writeFileSync(join(shots, name + ".png"), Buffer.from(s.result.data, "base64"));
 };
 await send("Page.enable");
+await send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: DL_DIR, eventsEnabled: true });
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
 const U = `const D = () => (window.fm1E2E ? window.fm1E2E.dev() : null); const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (f, ms = 60000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) return false; await sleep(100); } return true; };
@@ -157,6 +170,7 @@ if (EMU) {
   if (sBusy) console.log(`emu: playing + 3 knob sweeps for ${sBusy.ms} ms: ${JSON.stringify(sBusy)}; v9 pushes ${Math.round(sBusy.bytes * 1000 / sBusy.ms)} B/s, scan ${(sBusy.sumUs / Math.max(1, sBusy.scans)).toFixed(1)} us mean / ${sBusy.maxUs} us max (${(sBusy.sumUs / sBusy.ms / 10).toFixed(2)} % of the time); PING median ${med(pingSweep).toFixed(1)} ms, max ${Math.max(...pingSweep).toFixed(1)} ms`);
   ok(sPlay && sPlay.stream > 0 && med(pingBusy) < med(pingIdle) + 15, "emu: a reply is not held up by the stream (PING round trip while streaming ~ idle)");
   bws.close();
+  { const d = dlCheck(); ok(d.fresh.length === 0, `e2e: no file reached ~/Downloads during the run${d.fresh.length ? " (new: " + d.fresh.join(", ") + ")" : ""}${d.mine.length ? "; downloads made (kept out of ~/Downloads): " + d.mine.join(", ") : ""}`); }
   ws.close();
   proc.kill();
   server.close();
@@ -818,6 +832,8 @@ const fxpRes = await run(`${U} try {
   r.panLow = mock.sim.dlanVal(0, 2, 0) < 0;
   document.querySelector('#mixer .strip[data-track="1"] .sq').click(); await sleep(500);
   r.sq = document.querySelector('#mixer .strip[data-track="1"] .sq').getAttribute("aria-pressed") + ":" + document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sqm");
+  r.sqDev = mock.sim.dlanVal(2, 1, 0);                       /* SEQ MUTE: 1 = the sequence is muted (firmware seq_mute.c): the button is pressed and lit, the device value 1 */
+  r.sqLit = getComputedStyle(document.querySelector('#mixer .strip[data-track="1"] .sq')).backgroundColor !== getComputedStyle(document.querySelector('#mixer .strip[data-track="2"] .sq')).backgroundColor;
   mock.sim.dlanSet(0, 2, 1, 0); await sleep(800);
   r.unmuted = !document.querySelector('#mixer > .strip.sub[data-lane="2"]').classList.contains("lmuted");
   document.querySelector('#mixer .strip[data-track="3"] [data-fold]').click(); await sleep(400);   /* (folded again: the next tests start from the default) */
@@ -851,7 +867,7 @@ ok(fxpRes && /^1:head,inst,nav,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.
   && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
-  && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^LFO:8$/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
+  && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^LFO:8$/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.sqDev === 1 && fxpRes.sqLit && fxpRes.unmuted
   && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|AC|AB" && fxpRes.wlane > 50 && fxpRes.wlane < 75
   && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
@@ -903,16 +919,25 @@ const sizeRes = await run(`${U} try {
   const w = (e) => Math.round(e.querySelector("svg").getBoundingClientRect().width);
   r.knobs = [0, 1, 2].map((n) => w(st(n).querySelector(".srow[data-row=pan] .knob")) + ":" + [...st(n).querySelectorAll(".srow[data-row=sends] .knob")].map(w).filter((x) => x > 0).join("/")).join("|");
   const fb = st(3).querySelector("[data-fold]"), wasOpen = fb.getAttribute("aria-expanded") === "true"; if (!wasOpen) { fb.click(); await sleep(500); }
-  const h = st(3).querySelector(".srow[data-row=head]"), hr = h.getBoundingClientRect(), lm = h.querySelector("[data-lmode]").getBoundingClientRect(), fo = h.querySelector("[data-fold]").getBoundingClientRect(), hd = h.querySelector(".shead").getBoundingClientRect();
+  const h = st(3).querySelector(".srow[data-row=head]"), hr = h.getBoundingClientRect(), lm = h.querySelector(".seg.lmode").getBoundingClientRect(), fo = h.querySelector("[data-fold]").getBoundingClientRect(), hd = h.querySelector(".shead").getBoundingClientRect();
   r.head = (lm.left >= hd.right - 1) + ":" + (Math.abs(fo.left - lm.right) <= 6) + ":" + (hr.right - fo.right <= 8);
   if (!wasOpen) { st(3).querySelector("[data-fold]").click(); await sleep(400); }
   r.panLbl = [...document.querySelectorAll("#mixer > .strip")].map((x) => x.querySelector(".srow[data-row=pan] .knob, .srow[data-row=tools] .col > .knob")).filter((k) => k && k.offsetParent).every((k) => k.querySelector(".kl").getBoundingClientRect().left >= k.querySelector("svg").getBoundingClientRect().right - 1);
   const sizes = new Set(); for (const e of document.querySelectorAll("#mixer .strip *")) { if (e.offsetParent === null || ![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue; sizes.add(getComputedStyle(e).fontSize); }
   r.fonts = [...sizes].sort().join();
+  /* the MUTE chip: coloured while on, grey while muted (every strip kind) */
+  const rgb = (c) => (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number), spread = (c) => { const v = rgb(c); return Math.max(...v) - Math.min(...v); };
+  r.chips = [];
+  for (const id of ["strip-1-mute", "strip-ret-a-mute", "strip-usb-mute"]) {
+    const b = document.getElementById(id); if (!b || b.getAttribute("aria-disabled") === "true") { r.chips.push(id + ":missing"); continue; }
+    const on = getComputedStyle(b).backgroundColor; b.click(); await until(() => b.getAttribute("aria-pressed") === "true", 4000); await sleep(200);
+    const off = getComputedStyle(b).backgroundColor, sp = spread(off); b.click(); await until(() => b.getAttribute("aria-pressed") === "false", 4000); await sleep(200);
+    r.chips.push(id + ":" + (off !== on && sp <= 20 && getComputedStyle(b).backgroundColor === on ? "ok" : "bad " + on + " > " + off));
+  }
   const sr = st(0).querySelector(".srow[data-row=sends]"), last = [...sr.querySelectorAll(".knob")].pop();
   r.fit = last.getBoundingClientRect().bottom <= sr.getBoundingClientRect().bottom + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(sizeRes && /^44:/.test(sizeRes.knobs) && sizeRes.knobs.split("|").every((x) => { const a = x.split(/[:\/]/); return a.length >= 4 && a.every((v) => v === a[0]); }) && sizeRes.head === "true:true:true" && sizeRes.fit && sizeRes.panLbl && sizeRes.fonts.split(",").every((x) => [12, 14, 16].includes(parseFloat(x))),
+ok(sizeRes && /^44:/.test(sizeRes.knobs) && sizeRes.knobs.split("|").every((x) => { const a = x.split(/[:\/]/); return a.length >= 4 && a.every((v) => v === a[0]); }) && sizeRes.head === "true:true:true" && sizeRes.fit && sizeRes.panLbl && sizeRes.chips.every((x) => /:ok$/.test(x)) && sizeRes.fonts.split(",").every((x) => [12, 14, 16].includes(parseFloat(x))),
   `e2e: the send knobs are the pan knob's size; strip text only at Terminus crisp 12 / 14 / 16 px (none smaller than 12); the pan label sits right of its knob like the send labels; the drum head keeps 1|ALL right beside the fold arrow at its right end (${JSON.stringify(sizeRes)})`);
 /* the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP), its sounds as member strips right after it (folded by default,
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
@@ -926,7 +951,7 @@ await sleep(1500);
 const ORD = `const order = () => [...document.querySelectorAll("#mixer > .strip")].map((s) => s.dataset.track != null ? "T" + (+s.dataset.track + 1) : s.dataset.lane != null ? "L" + s.dataset.lane
   : s.dataset.ret != null ? (s.dataset.ret === "usb" ? "USB" : "ABC"[+s.dataset.ret]) : s.classList.contains("master") ? "MASTER" : "?").join();
   const stored = () => { try { return JSON.parse(localStorage.getItem("${MIXKEY}")); } catch (e) { return null; } };
-  const fold = () => $('#mixer .strip[data-track="3"] [data-fold]'), lmode = () => $('#mixer .strip[data-track="3"] [data-lmode]');
+  const fold = () => $('#mixer .strip[data-track="3"] [data-fold]'), lmode = (n) => $('#mixer .strip[data-track="3"] [data-lmode="' + n + '"]');
   const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await sleep(350); };
   const subSel = () => [...document.querySelectorAll("#mixer > .strip.sub.sel")].map((s) => s.dataset.lane).join();`;
 const L17 = Array.from({ length: 17 }, (_, l) => "L" + l).join();
@@ -938,8 +963,8 @@ const ordRes = await run(`${U} ${ORD} try {
   fold().click(); await sleep(500);
   r.order1 = order(); r.exp1 = fold().getAttribute("aria-expanded"); r.stored1 = (stored() || {}).mode;
   r.sub = document.querySelectorAll('#mixer > .strip.sub').length; r.tint = getComputedStyle(document.querySelector("#mixer > .strip.sub")).backgroundColor;
-  lmode().click(); await sleep(500);
-  r.order2 = order(); r.stored2 = (stored() || {}).mode; r.pressed = lmode().getAttribute("aria-pressed");
+  lmode(1).click(); await sleep(500);
+  r.order2 = order(); r.stored2 = (stored() || {}).mode; r.pressed = lmode(1).getAttribute("aria-pressed");
   document.querySelector('#mixer > .strip.sub [data-lstep="1"]').click(); await sleep(600);
   r.order3 = order(); r.sel3 = D().sel; r.stored3 = (stored() || {}).lane; r.on3 = subSel();
   return r; } catch (e) { return { err: String(e.stack) }; }`);
@@ -953,10 +978,40 @@ await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&
 await sleep(1500);
 const memRes = await run(`${U} ${ORD} try {
   if (!await until(() => document.querySelectorAll("#mixer > .strip").length === 10 && D() && D().dlMix && D().watch, 120000)) return { err: "no mixer", n: document.querySelectorAll("#mixer > .strip").length };
-  return { order: order(), pressed: lmode().getAttribute("aria-pressed"), exp: fold().getAttribute("aria-expanded") }; } catch (e) { return { err: String(e.stack) }; }`);
+  return { order: order(), pressed: lmode(1).getAttribute("aria-pressed"), exp: fold().getAttribute("aria-expanded") }; } catch (e) { return { err: String(e.stack) }; }`);
 ok(memRes && memRes.order === ordRes.order3 && memRes.pressed === "true" && memRes.exp === "true", `e2e mixer group: a reload keeps one sound at a time and which sound (${JSON.stringify(memRes)})`);
+/* the lane view modes 1 / 4 / 8 / 16: how many strips, which width class, block-aligned windows, prev / next / chips / [ ] jump a BLOCK, a pick elsewhere moves the window, persisted */
+const blkRes = await run(`${U} ${ORD} try {
+  const r = {}, lanes = () => [...document.querySelectorAll("#mixer > .strip.sub")].map((x) => +x.dataset.lane), w = (e) => Math.round(e.getBoundingClientRect().width);
+  const t1w = w($('#mixer .strip[data-track="0"]')), head = $('#mixer .strip[data-track="3"] .shead');
+  r.ctl = [...document.querySelectorAll('#mixer .strip[data-track="3"] [data-lmode]')].map((b) => b.textContent).join();
+  const mode = async (n) => { lmode(n).click(); await sleep(500); };
+  r.w = [];
+  for (const n of [1, 4, 8, 16]) { await mode(n); const ls = [...document.querySelectorAll("#mixer > .strip.sub")]; r.w.push(n + ":" + ls.length + ":" + (ls.every((x) => Math.abs(w(x) - t1w) <= 3) ? "wide" : ls.every((x) => w(x) < t1w - 20) ? "narrow" : "mixed") + ":" + lmode(n).getAttribute("aria-pressed")); }
+  r.over = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  await mode(4); head.click(); await sleep(600);
+  const nr = () => $('#mixer .strip[data-track="3"] .srow[data-row=nav]');
+  r.a4 = lanes().join();
+  r.chips4 = [...nr().querySelectorAll("[data-block]")].map((b) => b.textContent).join() + ":" + nr().querySelector('[data-block][aria-pressed="true"]').dataset.block;
+  nr().querySelector("[data-bnext]").click(); await sleep(600); r.n4 = lanes().join();
+  nr().querySelector('[data-block="3"]').click(); await sleep(600); r.c4 = lanes().join();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "[", bubbles: true })); await sleep(600); r.k4 = lanes().join();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true })); await sleep(600); r.k4b = lanes().join();
+  nr().querySelector("[data-bprev]").click(); await sleep(400); nr().querySelector("[data-bprev]").click(); await sleep(400); nr().querySelector("[data-bprev]").click(); await sleep(600); r.p4 = lanes().join() + ":" + (nr().querySelector("[data-bprev]").disabled ? "dis" : "en");
+  await key("a"); r.acc4 = lanes().join();                                  /* a pick elsewhere (the ACCENT lane) moves the window to its block */
+  const st = JSON.parse(localStorage.getItem("${MIXKEY}")); r.st = st.mode + ":" + st.lane;
+  await mode(8); r.a8 = lanes().join();
+  nr().querySelector("[data-bprev]").click(); await sleep(600); r.p8 = lanes().join();
+  await mode(1); r.a1 = lanes().join(); document.querySelector('#mixer > .strip.sub [data-lstep="1"]').click(); await sleep(500); r.n1 = lanes().join();
+  await mode(16); r.a16 = lanes().length + ":" + (!nr().querySelector("[data-bnext]") ? "nonav" : "nav");
+  await mode(4); await sleep(300);
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(blkRes && blkRes.ctl === "1,4,8,16" && blkRes.w.join() === "1:1:wide:true,4:4:wide:true,8:8:narrow:true,16:17:narrow:true" && blkRes.a4 === "0,1,2,3" && blkRes.chips4 === "1,5,9,13:0"
+  && blkRes.n4 === "4,5,6,7" && blkRes.c4 === "12,13,14,15,16" && blkRes.k4 === "8,9,10,11" && blkRes.k4b === "12,13,14,15,16" && blkRes.p4 === "0,1,2,3:dis" && blkRes.acc4 === "12,13,14,15,16" && blkRes.st === "four:16"
+  && blkRes.a8 === "8,9,10,11,12,13,14,15,16" && blkRes.p8 === "0,1,2,3,4,5,6,7" && blkRes.a1.split(",").length === 1 && blkRes.a16 === "17:nonav" && blkRes.n1 !== blkRes.a1,
+  `e2e lane view modes: 1 / 4 / 8 / 16 (wide strips in 1 and 4, narrow in 8 and 16), block-aligned windows, prev / next / chips / [ ] jump a block, a pick elsewhere moves the window, kept per browser (${JSON.stringify(blkRes)})`);
 const keyRes = await run(`${U} ${ORD} try {
-  lmode().click(); await sleep(500);                                 /* all sounds */
+  lmode(16).click(); await sleep(500);                                 /* all sounds */
   $('#mixer .strip[data-track="3"] .shead').click(); await sleep(700);
   const r = { all: order().split(",").length };
   await key("ArrowRight"); r.k1 = subSel() + "|" + D().sel;
@@ -992,7 +1047,7 @@ for (const mode of ["light", "dark"]) {
   for (const [name, w, set] of [["collapsed", 2000, "collapsed"], ["one", 2000, "one"], ["all", 3200, "all"]]) {
     await send("Emulation.setDeviceMetricsOverride", { width: w, height: 1000, deviceScaleFactor: 1, mobile: false });
     await run(`${U} ${ORD} const want = "${set}"; let g = 0; while ((stored() || {}).mode !== want && g++ < 4) { if (want === "collapsed") { if (fold().getAttribute("aria-expanded") === "true") fold().click(); }
-      else if (fold().getAttribute("aria-expanded") !== "true") fold().click(); else if ((want === "one") !== (lmode().getAttribute("aria-pressed") === "true")) lmode().click(); await sleep(500); }`);
+      else if (fold().getAttribute("aria-expanded") !== "true") fold().click(); else if (lmode(want === "one" ? 1 : 16).getAttribute("aria-pressed") !== "true") lmode(want === "one" ? 1 : 16).click(); await sleep(500); }`);
     await run(`window.scrollTo(0, 0); document.querySelector("#mixer").scrollTo(0, 0);`);
     await sleep(400);
     await shot(`mixer-${name}-${mode}`);
@@ -1207,6 +1262,7 @@ for (const [rev, want] of [[15, "ROOM,PLATE,FDN8,SPRING"], [1, ""]]) {
     `e2e: the Reverb popup, ${want ? "four algorithms built: TYPE lists them, a change reaches the device" : "one built: no TYPE"} (${JSON.stringify(rt)})`);
   if (want) await shot("reverb-type");
 }
+{ const d = dlCheck(); ok(d.fresh.length === 0, `e2e: no file reached ~/Downloads during the run${d.fresh.length ? " (new: " + d.fresh.join(", ") + ")" : ""}${d.mine.length ? "; downloads made (kept out of ~/Downloads): " + d.mine.join(", ") : ""}`); }
 ws.close();
 proc.kill();
 server.close();

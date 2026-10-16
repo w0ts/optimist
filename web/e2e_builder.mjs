@@ -9,13 +9,26 @@
 // PYODIDE_DIR=path: a local copy of the Pyodide release instead of the CDN (the same version, logic.js PYODIDE_VERSION;
 // e.g. the npm package pyodide@VERSION), served by this test at /pyodide/. CHROME=path overrides the browser.
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PYODIDE_VERSION } from "./builder/logic.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
+
+/* downloads never reach ~/Downloads: Chrome saves them under the repo's work area, and the run asserts ~/Downloads got nothing new */
+const DL_HOME = join(homedir(), "Downloads"), DL_DIR = join(homedir(), "GitHub", "optimist-work", "e2e-downloads", String(process.pid));
+const dlList = () => { try { return readdirSync(DL_HOME); } catch (e) { return []; } };
+const dlBefore = new Set(dlList());
+mkdirSync(DL_DIR, { recursive: true });
+const dlCheck = () => {
+  const fresh = dlList().filter((f) => !dlBefore.has(f) && /\.(json|fwsc|config|syx|wav|zip|mid|txt|bin|cfg|fw|sf2|pkg|csv|ota|optimist-backup|optimist-snap)$/i.test(f));   /* (the types the editor and builder export; the user's own files are not ours) */
+  const mine = readdirSync(DL_DIR);
+  rmSync(DL_DIR, { recursive: true, force: true });
+  return { fresh, mine };
+};
 const ROOT = join(HERE, "..");
 const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
 const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome",
@@ -116,6 +129,7 @@ const metrics = (width, height, mobile) => send("Emulation.setDeviceMetricsOverr
 const scheme = (s) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: s }] });
 
 await send("Page.enable");
+await send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: DL_DIR });
 await send("Network.enable");
 await send("Runtime.enable");
 await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
@@ -332,6 +346,7 @@ ok(ph2.sw <= ph2.cw, `390 px phone, dark: no sideways scroll (${ph2.sw} <= ${ph2
 const errs = events.filter((e) => e.method === "Runtime.exceptionThrown");
 ok(!errs.length, `no uncaught error in the page${errs.length ? ": " + JSON.stringify(errs[0].params).slice(0, 300) : ""}`);
 
+{ const d = dlCheck(); ok(d.fresh.length === 0, `no file reached ~/Downloads during the run${d.fresh.length ? " (new: " + d.fresh.join(", ") + ")" : ""}`); }
 console.log(failed ? `${failed} FAILED` : "all ok");
 closeAll();
 process.exit(failed ? 1 : 0);
