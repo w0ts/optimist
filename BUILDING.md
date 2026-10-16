@@ -78,7 +78,7 @@ The pieces, should you want to set them up by hand:
   `sdk/` in this repo (git-ignored; `AC79_SDK` elsewhere; an existing `~/fw-AC79_AIoT_SDK` is still found) and checks their SHA-256.
 - **Python packages**: `tools/requirements.txt` (Textual for the menu, Pillow for the generated font and
   icons), in `tools/builder/venv` (`BUILDER_VENV` elsewhere).
-- **BLE build** (builder item `BLE`, EXPERIMENTAL): nothing extra. The radio's start-up tables, captured from the
+- **BLE build** (builder item `BLE`): nothing extra. The radio's start-up tables, captured from the
   stock V15 firmware, are in the tree (`firmware/hal/ble_rf_tables_v15.h`) and the build uses them. Optionally, your
   own copy of V15 (`FM-1.fwsc`, SHA-256 `db1642b2…`, the one `tools/fm1_rescue.py` checks) as `FM1_STOCK_FWSC=/path/to/FM-1.fwsc`
   (or `firmwares/FM-1.fwsc`) and the emulator's `diagnose` (`FM1_BLE_DIAGNOSE`, or `FM1_EMU` default
@@ -386,7 +386,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_FM6_KEYS` | 1 | the FM6 operator editor on the black keys (ENV held); 0 = without it (voices edited by SysEx only), ~5.7 KB less flash |
 | `FELUCCA_UNDO_HISTORY` | 1 | undo / redo with many levels (`firmware/src/seq/undo.c`): a history of the steps each change touched, in a ring the linker sizes from the memory nothing else uses (`app.ld` `_undo_*`: the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`; build.py prints its size and refuses < 1 KiB); ~1.9 KB of flash. 0 = the single level of SLOOP 2.x |
 | `FELUCCA_UNDO_CAP` | 0 | the undo history's ring at most this many bytes (0 = all the memory left over) |
-| `FELUCCA_DUAL` | 0 | EXPERIMENTAL second core (`docs/DUAL-CORE.md`, emulator only): 1 = CPU1 starts and counts, 2 = CPU1 renders parts 2 and 3 (`DUAL_PARTS`); `FELUCCA_DUAL_IDLE` (1) lets CPU1 sleep between jobs, 0 spins in RAM (through `tools/optimist.py build`: `OPTIMIST_DUAL_IDLE=0`, the builder strips `FELUCCA_*`); `FELUCCA_BENCH` 1..3 = the emulator load scenarios |
+| `FELUCCA_DUAL` | 0 | The second core (`docs/DUAL-CORE.md`): 1 = CPU1 starts and counts, 2 = CPU1 renders parts 2 and 3 (`DUAL_PARTS`); `FELUCCA_DUAL_IDLE` (1) lets CPU1 sleep between jobs, 0 spins in RAM (through `tools/optimist.py build`: `OPTIMIST_DUAL_IDLE=0`, the builder strips `FELUCCA_*`); `FELUCCA_BENCH` 1..3 = the emulator load scenarios |
 | `FELUCCA_DLY_LEN` | 65536 | the delay line in samples, a power of two (2 bytes each, in the pool): 65536 = 1.49 s (a 1/4 note down to 40 BPM); 32768 = 0.74 s (1/4 down to 81 BPM) and 64 KiB more pool. Longer delay times are cut to the line |
 | `FELUCCA_SAMPLES_SKIP` | (empty) | built-in sample sets left out, comma-separated set names (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH; not PERC): a reduced build that fits the flash slot. The sets after a skipped one, and USR1..3, move down a number (projects that name a set see another one), and the skipped set's presets fall back to the first SAMPLE preset. Not for release builds: `docs/MEMORY-BUDGET.md` |
 | `FELUCCA_KNOB_ACCEL` | 1 | knobs turned fast step 2 / 3 / 5 / 8 a detent (16 on the tempo; at most 3 on ranges under 100), never on lists or ranges of 24 or less (`knob_accel.h`, from X0X); 0 = one step a detent |
@@ -406,16 +406,16 @@ Backported features (defaults in `firmware/src/core/backports.h`; source, licenc
 | `FELUCCA_QNT_SEQ` | 0 | SCL > QNT SEQ: the sequenced notes snap to the scale as they play, after Felucca 1.0.1; +288 B flash |
 | `FELUCCA_SPRING` | 0 | FX > REVERB > TYPE: ROOM or a spring reverb, after Felucca 1.0; +1.8 KB flash, +2.0 KB RAM (both reverb loops run from main RAM, 944 B of RAMTEXT freed) |
 | `FELUCCA_BASSPLUS` | 0 | MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker's bass as harmonics), after Felucca 1.0; +244 B flash, +288 B RAM |
-| `FELUCCA_BRIGHT` | 0 | EXPERIMENTAL, keep off: MENU > BRIGHT 1..8, the backlight by PWM, after X0X. On X0X a low level froze a real FM-1 and the saved level froze it again at every boot (X0X issue #2, c6f2bf6); here the screen always boots at full and never goes below 4/16, untested on hardware; +304 B flash |
+| `FELUCCA_BRIGHT` | 0 | MENU > BRIGHT 1..8, the backlight by PWM, after X0X. On X0X a low level froze a real FM-1 and the saved level froze it again at every boot (X0X issue #2, c6f2bf6); here the screen always boots at full and never goes below 4/16; +304 B flash |
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
-| `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
+| `FELUCCA_ENG_ACID` | 0 | The ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
 | `FELUCCA_ENG_NOISE` | 0 | the NOISE engine (engine 15), `eng_noise.c` of hugelton/Felucca-Engines (Leo Kuroshita, Hügelton Instruments; **MIT**, the file keeps its header): ANLG / DUST / LFSR / META sources, white to brown colour, a low-pass to band-pass filter with key tracking, drift and crush; 4 presets, 8 EDIT values; +3.0 KB flash, no RAM (measured: two builds of user-default) |
 | `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.9 KB flash, +3.1 KB RAM (everything-that-fits: +7.3 KB, +3.2 KB, +32 B RAM code); on in everything-that-fits |
 | `FELUCCA_ENG_JUNO` | 0 | the JUNO engine (engine 14), the Juno-106 voice of fm-106 (PatttF; a port of Ultramaster KR-106, GPL-3.0): DCO, 4-pole OTA ladder, VCA curve, 4-position HPF; 6 voices; 8 patches of our own (no Roland factory patches), 8 EDIT values |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |
 | `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.6 KB flash, +152 B RAMTEXT |
-| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
+| `FELUCCA_GLIDE` | 0 | X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
 | `FELUCCA_SL24_SAFE` | 1 | Started on flash SLOOP 2.4 (8d3823f) wrote: nothing Optimist cannot read is erased or written over (the project slots and autosave, 2.4's FM6 bank at 0xE5000, a USR3 / USR4 sample longer than ours); 2.4's slots show as SLOOP 2.4; 2.4's settings word and user presets read right (tests/sl24_safety_test.c); +708 B flash, +96 B RAM |
 | `FELUCCA_SL24_XSTEP` | 0 | SLOOP 2.4's step extras (stepx.h: nudge, 24 locks a track, fill conditions, 2.4's layout) kept with every project: a store per project buffer, a section log record of their own (ids 88..104) beside each section and the autosave (tests/stepx_store_test.c); +1.6 KB flash, +864 B RAM, +4.2 KB pool |
 

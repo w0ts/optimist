@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Charles Vestal (X0X: charlesvestal/fm1-x0x 80b7d40; dsp/bass303.c, seq/tb3po.c) */
-/* ACID (FELUCCA_ENG_ACID, backports.h): EXPERIMENTAL. X0X's TB-303 voice as an engine of its own, engine number 12,
+/* ACID (FELUCCA_ENG_ACID, backports.h): X0X's TB-303 voice as an engine of its own, engine number 12,
  * monophonic, one per synth part, with X0X's TB-3PO line generator. Ported from X0X by Charles Vestal (GPL-3.0):
  *   - the voice: acid/bass303.c as X0X has it (Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303;
  *     Soft / RAT drive after schwung-303 and dm-Rat), float, in its own translation unit (acid/acid_dsp.c,

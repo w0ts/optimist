@@ -4,7 +4,7 @@ How to write, edit and shape a pattern on Optimist: the steps and the STEP page,
 
 This is the user's guide for the sequencer. The manual [OPTIMIST.md](../../OPTIMIST.md) is the reference for the whole instrument (it describes SLOOP's way of playing in detail), [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md) and [SNAPSHOTS.md](../SNAPSHOTS.md) hold the design, and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md) holds every decision of the Optimist UI.
 
-Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the default) and the Optimist UI (EXPERIMENTAL: lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
+Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the default) and the Optimist UI (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
 
 **SHIFT and SHIFT2 on the Optimist UI.** SHIFT is OCT- held, SHIFT2 is OCT+ held. OCT- and OCT+ change the octave when they are let go, and only if nothing else was used while they were held.
 

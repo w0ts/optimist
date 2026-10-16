@@ -1,6 +1,6 @@
 # The Optimist UI: controls, pages and read-outs
 
-This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). It is still EXPERIMENTAL. What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
+This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
 
 ## The controls
 
@@ -159,7 +159,7 @@ These counters exist to find the cause of an occasional glitch while the compute
 
 ## Connections
 
-- **BLE MIDI** (experimental; our own Bluetooth stack): SYSTEM > BLUETOOTH above. The manual's note on it is the paragraph "HOME double tap > SYSTEM menu > BLUETOOTH" in [OPTIMIST.md](../../OPTIMIST.md) (written for the SLOOP UI), and the stack is in [docs/BLE-STACK.md](../BLE-STACK.md).
+- **BLE MIDI** (our own Bluetooth stack): SYSTEM > BLUETOOTH above. The manual's note on it is the paragraph "HOME double tap > SYSTEM menu > BLUETOOTH" in [OPTIMIST.md](../../OPTIMIST.md) (written for the SLOOP UI), and the stack is in [docs/BLE-STACK.md](../BLE-STACK.md).
 - **USB** carries MIDI, and in a USB audio build the computer's audio: [OPTIMIST.md, USB audio](../../OPTIMIST.md#usb-audio-experimental). The USB port item of the builder chooses console, USB audio or MIDI only.
 - **TRS MIDI** in and out, **MIDI clock in and out**, sync: [OPTIMIST.md, MIDI clock and sync](../../OPTIMIST.md#midi-clock-and-sync) and GLOBAL's MIDI page above.
 

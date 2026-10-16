@@ -29,7 +29,7 @@ engine gives them (ANALOG shows OSC and FLT, for example).
 | FM6 | `ENG_FM6` | Six-operator FM that plays DX7 voices as Dexed does; its own operator editor (ENV on an FM6 track) and DX7 SysEx | EDIT 1: VOICE MOD M.TIM C.TIM; EDIT 2: ENGINE |
 | SLICE | `ENG_SLICE` | A break slicer: cuts a loop into 4, 8, 16 or 32 slices (or one per hit) and plays them from the keys or the sequencer | SLCE: SRC DIV START PTCH; PLAY: MODE REV DCAY TONE |
 | PHYS | `ENG_PHYS` | Physical models: modal, string, membrane and sympathetic strings | MODEL, then STRC BRIT DAMP POS and ACC BOW EXC |
-| ACID | `ENG_ACID` | A TB-303-style bass voice, monophonic; experimental | EDIT 1: CUT RESO ENV DEC; EDIT 2: ACC WAVE DRV SLD; ACID GEN: DENS ACC SLD GEN |
+| ACID | `ENG_ACID` | A TB-303-style bass voice, monophonic | EDIT 1: CUT RESO ENV DEC; EDIT 2: ACC WAVE DRV SLD; ACID GEN: DENS ACC SLD GEN |
 | CZ | `ENG_CZ` | Casio CZ-1 style tones: two lines with 8-step envelopes | EDIT 1: TONE DCW W.TIM DTN; EDIT 2: A.TIM LINE MOD VIB |
 | JUNO | `ENG_JUNO` | The Juno-106 voice: DCO with saw, pulse, sub and noise, a 4-pole ladder filter, a 4-position high-pass | EDIT 1: WAVE PW SUB NOIS; EDIT 2: CUT RES KEY HPF |
 | NOISE | `ENG_NOISE` | White, pink and brown noise, crackle, a shift register and metal tones through a resonant filter | EDIT 1: MODE COLR FREQ RES; EDIT 2: TRK DENS DRFT CRSH |

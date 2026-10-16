@@ -16,7 +16,7 @@
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
  *   FELUCCA_ENG_ACID  the ACID engine (303 voice + generator)          X0X (charlesvestal/fm1-x0x 80b7d40;
- *                                                                      Open303 parts MIT) EXPERIMENTAL
+ *                                                                      Open303 parts MIT)
  *   FELUCCA_ENG_CZ    the CZ engine (CZ-1 tones, 2 lines x 3 envelopes) Melodee 0.11 (keremimo/melodee v0.11;
  *                                                                      uPD933 parts BSD-3-Clause)
  * Felucca 1.0.2 / 1.0.3 small options (default off):
@@ -44,7 +44,7 @@
 #define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
 #endif
 #ifndef FELUCCA_BRIGHT
-#define FELUCCA_BRIGHT 1         /* MENU > BRIGHT: the backlight, 1..8. EXPERIMENTAL: froze an FM-1 on X0X before the PA2 fix (bright.c); boots full */
+#define FELUCCA_BRIGHT 1         /* MENU > BRIGHT: the backlight, 1..8. Froze an FM-1 on X0X before the PA2 fix (bright.c); boots full */
 #endif
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */
@@ -56,7 +56,7 @@
 #define FELUCCA_ENG_PHYS 0       /* the PHYS engine (engine 11): 51.5 KB of pool */
 #endif
 #ifndef FELUCCA_ENG_ACID
-#define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived */
 #endif
 #ifndef FELUCCA_ENG_CZ
 #define FELUCCA_ENG_CZ 0         /* the CZ engine (engine 13), from Melodee 0.11 */

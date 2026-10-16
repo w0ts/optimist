@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The second core (CPU1). EXPERIMENTAL, emulator-validated only: docs/DUAL-CORE.md.
+/* The second core (CPU1): docs/DUAL-CORE.md.
  *
  * FELUCCA_DUAL 1  stage 1: CPU1 starts and counts in RAM (shown on the screen); no audio work.
  * FELUCCA_DUAL 2  CPU1 renders some of the block's jobs (a synth part: mix_part, its engine, DIST, SLICER,
@@ -539,7 +539,7 @@ static void dual_supply_apply(void)
             dual.supply_err = (uint8_t)fm1_lvr_stock();      /* (stock: the 2.6 V low-voltage detector after the rails) */
     } else if (dualcfg.rails || DUAL_BOOST_NOW) {
         uint32_t t = dualcfg.rails ? dualcfg.rails : fm1_boost_level(FM1_BOOST_LEVELS - 1u);
-        dual.supply = (uint8_t)(fm1_supply_to(t >> 4, t & 15u) | 0x80u);   /* EXPERIMENTAL (hal/fm1_supply.h) */
+        dual.supply = (uint8_t)(fm1_supply_to(t >> 4, t & 15u) | 0x80u);   /* (hal/fm1_supply.h) */
     } else {
         return;
     }

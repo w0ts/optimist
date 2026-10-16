@@ -1,5 +1,5 @@
 {
-  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/core/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry warning: true and a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; ...'.",
+  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/core/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). ...'.",
   "base": {
     "flash": 571328,
     "ram": 92480,
@@ -173,7 +173,7 @@
     },
     {
       "switch": "FELUCCA_BRIGHT",
-      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight), EXPERIMENTAL",
+      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
       "default": 1,
       "group": "ui",
       "source": {
@@ -197,10 +197,9 @@
         "project_bytes": 0
       },
       "storage": "a slot appended to the settings record (persist_t.bright), always written 0 (= full) and never applied at boot; a build without the switch reads its own record length",
-      "limits": "UNTESTED ON HARDWARE here (emulator only: PA2 toggles at the duty). It froze a real FM-1 on X0X: BRIGHTNESS 1 (duty 1/16) hung the unit, and the saved level hung it again at every boot until reflashed (X0X issue #2, 2026-10-06; X0X removed it in c6f2bf6; root cause found later: PA2 is also the /OE of the key matrix's 595s, so with the backlight line high nothing reads (Felucca 1.1.5.1, 213df5a). Here the 10 kHz tick drives PA2 low before the matrix scan, so every scan sees the 595s enabled; not yet tried on hardware) [R]. Here: every boot starts at full and the level is never saved (always 0 = full), and the lowest step is 4/16, not 1/16",
-      "notice": "EXPERIMENTAL, untested on a real FM-1 here: this backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
-      "experimental": true,
-      "warning": true
+      "limits": "It froze a real FM-1 on X0X: BRIGHTNESS 1 (duty 1/16) hung the unit, and the saved level hung it again at every boot until reflashed (X0X issue #2, 2026-10-06; X0X removed it in c6f2bf6; root cause found later: PA2 is also the /OE of the key matrix's 595s, so with the backlight line high nothing reads (Felucca 1.1.5.1, 213df5a). Here the 10 kHz tick drives PA2 low before the matrix scan, so every scan sees the 595s enabled) [R]. Here: every boot starts at full and the level is never saved (always 0 = full), and the lowest step is 4/16, not 1/16",
+      "notice": "This backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
+      "warning": false
     },
     {
       "switch": "FELUCCA_MOTION",
@@ -297,9 +296,9 @@
         "project_bytes": 0
       },
       "storage": "engine byte 12; its 8 EDIT values are the 303's pots; ACID GEN settings are not saved",
-      "limits": "EXPERIMENTAL: the first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R], not tried here on hardware; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
-      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~14.7 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
-      "warning": true
+      "limits": "The first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R]; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Float DSP, ~14.7 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
+      "warning": false
     },
     {
       "switch": "FELUCCA_ENG_NOISE",
@@ -493,8 +492,8 @@
       },
       "storage": "none",
       "limits": "fixed point: one one-pole step a block, ramped linearly across the block (X0X: per sample, float); our drum lanes have no pan of their own (the drum track pan glides); the lanes sends move in 0.7 ms steps (block-stepped); a part that falls silent settles at once. Sound change: only while a gain moves; settled renders are bit-exact (goldens unchanged with the switch on)",
-      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; fixed-point glides of the mixer gains, host- and emulator-tested only.",
-      "warning": true
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Fixed-point glides of the mixer gains.",
+      "warning": false
     },
     {
       "switch": "FELUCCA_BPM_LOCK",
