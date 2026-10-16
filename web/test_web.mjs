@@ -2797,7 +2797,7 @@ async function masterStrip() {
     && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")) && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "../tools/build.py"), "utf8"))
     && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
     "look: Terminus inlined (SIL OFL 1.1, TERMINUS-LICENSE.txt in the site and the package), credited to SLOOP 2.4");
-  ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && ["navPlay", "navLib", "navSys"].every((k) => html.includes(`data-t="${k}"`)) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
+  ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 3 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
     "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, the four track colours");
   /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */

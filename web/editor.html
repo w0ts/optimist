@@ -456,7 +456,7 @@
      the master strip's scene launch column goes in the same rows) */
   #mixer .strip .shead { height: 28px; box-sizing: border-box; }
   #mixer.pat { --clip-h: 286px; }
-  #mixer.fxp { --sends-h: 134px; }
+  #mixer.fxp { --sends-h: 156px; }
   #mixer .clipcol { display: flex; flex-direction: column; gap: 2px; width: 100%; }
   #mixer .clipcol > .kl { font-size: 10px; color: var(--dim); text-transform: uppercase; }
   #mixer .pslots { display: grid; grid-template-rows: repeat(16, 16px); gap: 2px; align-self: stretch; }
@@ -984,7 +984,7 @@
      the master strip's scene launch column goes in the same rows) */
   #mixer .strip .shead { height: 28px; box-sizing: border-box; }
   #mixer.pat { --clip-h: 286px; }
-  #mixer.fxp { --sends-h: 134px; }
+  #mixer.fxp { --sends-h: 156px; }
   #mixer .clipcol { display: flex; flex-direction: column; gap: 2px; width: 100%; }
   #mixer .clipcol > .kl { font-size: 10px; color: var(--dim); text-transform: uppercase; }
   #mixer .pslots { display: grid; grid-template-rows: repeat(16, 16px); gap: 2px; align-self: stretch; }
@@ -1196,7 +1196,6 @@
   .pk select { max-width: 100%; width: 100%; color: var(--c, var(--fg)); background-color: var(--s2); border-color: var(--line); height: 28px; }
   .group .knobs .row { grid-column: 1 / -1; }
   .row { grid-template-columns: 56px 1fr 80px; }
-  .strip .fx .knob, .strip .fxk .knob { --knob-size: 36px; }
 
   /* the strips: black, the track colour on the head and the selection */
   .mixer { gap: 12px; }
@@ -1459,6 +1458,18 @@
   dialog#about { width: min(720px, 94vw); max-height: 90vh; padding: 0; border: 1px solid var(--s3, var(--fg)); background: var(--bg); color: var(--fg); }
   dialog#about::backdrop { background: rgba(0, 0, 0, .55); }
   dialog#about .aboutbody { padding: 12px 16px 16px; overflow: auto; } dialog#about .credits { font-size: 14px; line-height: 20px; color: var(--dim); } dialog#about .credits a { color: var(--fg); }
+  /* ---- packing: the Sound / Sequence popups' cards are as big as their content and fill the width (no empty column); knob size unchanged ---- */
+  dialog#pop { width: min(1500px, 96vw); }
+  #groups.groups, #seqgroups.groups { display: block; columns: 330px; column-gap: 8px; }
+  #groups .group, #seqgroups .group { margin: 0 0 8px; padding: 8px 10px 2px; break-inside: avoid; }
+  #groups .group .knobs, #seqgroups .group .knobs { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px 0; margin: 2px 0 4px; }
+  #groups .group h3, #seqgroups .group h3 { margin: 6px 0 4px; padding-top: 6px; }
+  #p-sound #ctlhelp { margin: 6px 0; font-size: 14px; line-height: 18px; }
+  /* the menu bar: no group titles, only a separator between the groups */
+  .menubar .tabs .navh { width: 1px; height: 20px; margin: 0 10px; padding: 0; border: 0; background: var(--line); font-size: 0; flex: none; }
+  .menubar .tabs .navh:first-child { display: none; }
+  #mixer .strip button.lmode { width: auto; min-width: 30px; padding: 0 2px; }
+  #mixer { --sends-h: 204px; } #mixer.fxp { --sends-h: 156px; }
 </style>
 </head>
 <body>
@@ -1468,15 +1479,15 @@
 <div class="menubar" id="side">
   <b class="brand" title="Optimist Editor">Optimist</b>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
-    <span class="navh" data-t="navPlay"></span>
+    <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
-    <span class="navh" data-t="navLib"></span>
+    <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
     <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
     <button role="tab" data-tab="drumkit" data-t="kitPage" data-ic="symbol_audio" hidden></button>
     <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
     <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
-    <span class="navh" data-t="navSys"></span>
+    <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" hidden></button>
     <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
     <button type="button" id="helpbtn" data-pop="help" data-t="help"></button>
@@ -6784,7 +6795,7 @@ const TEXT = {
   fxpSoundHelp: "This drum sound's own two slots, before the drum bus: the sound's amount of each effect.",
   popMstInsHelp: "The master's two insert slots, after the returns and before the master level.",
   popRetHelp: "The three returns. A return holds a send effect (chorus, delay, reverb: the tracks' CHO DLY REV sends feed it) or any other effect, 100% wet on that send. RET is its level into the master. A type another return holds swaps with it.",
-  rollTiles: "Steps", navPlay: "play", navTrack: "track", navFx: "fx buses", navLib: "library", navSys: "system",
+  rollTiles: "Steps",
   undoNothing: "Nothing to undo", redoNothing: "Nothing to redo", kbdKeys: "Keys", kbdOct: "Octave", kbdVel: "Velocity", kbdComputer: "Computer keys (A S D F G H J K, W E T Y U: Z X octave)",
   kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
@@ -7483,7 +7494,7 @@ function buildGroups() {
       const items = ids.map((id) => (knobs ? paramKnob(s, id, title) : paramRow(s, id, title))).filter(Boolean);
       if (!items.length) continue;
       const tt = g.engine && !dev.pages && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
-      if (g.pages.length > 1 || (knobs && !g.flat && (tt || title) !== g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
+      if ((g.pages.length > 1 || (knobs && !g.flat && (tt || title) !== g.t)) && !(eng === 0 && (tt || title) === g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
       if (knobs) div.append(el("div", { class: "knobs" }, ...items)); else div.append(...items);
       eng++;
     }
@@ -11923,7 +11934,7 @@ function buildStrip(i) {
   const ins = stripInsert(i, c.snd);
   c.strip = stripShell({ class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" }, [], {
     clips: patColumn(i)[0] || null,
-    head: drum ? [c.lmode, c.head, c.fold] : c.head, nav: c.lanes ? c.snd : null, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
+    head: drum ? [c.head, c.lmode, c.fold] : c.head, nav: c.lanes ? c.snd : null, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
     tools: el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seq: seqBtn, ov: c.ov,
     pan: pan.el, sends: c.fx,
     level: levelBlock({ mute: c.mute, solo: c.solo, ...(dlanOn() ? { seq: c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,

@@ -466,7 +466,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   try {
   const head = (i) => $('#mixer .strip[data-track="' + i + '"] .shead');
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
-  r.groups = $$(".menubar .navh").map((e) => e.textContent).join(",");
+  r.groups = $$(".menubar .navh").map((e) => e.textContent.trim()).join("") + ":" + $$(".menubar .navh").filter((e) => e.offsetParent).length;
   r.font = getComputedStyle(document.body).fontFamily.includes("SLOOP Terminus") && document.fonts.check("16px 'SLOOP Terminus'");
   r.tabs = !!$("#toptracks") + ":" + $$(".menubar button[data-go]").length;
   r.tracks = $$("#mixer .strip[data-track] .shead").length;
@@ -479,7 +479,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === "play,library,system" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
+ok(lookRes && lookRes.groups === ":2" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
   `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects, the track colour follows), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
@@ -567,7 +567,7 @@ const soundFx = await run(`${U} document.querySelector('#mixer .strip[data-track
   const all = [...document.querySelectorAll("#popbody h3")].map((e) => e.textContent.trim());
   $("#popx").click(); await sleep(200);
   return JSON.stringify({ heads, labels: labels.join(), glob: all.filter((h) => h === "DLY" || h === "REV/CHO") });`);
-ok(soundFx === '{"heads":["FX","SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
+ok(soundFx === '{"heads":["SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
   "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx ? JSON.stringify(soundFx).slice(0, 400) : ""));
 /* narrow: the master strip never makes the page scroll sideways */
 await send("Emulation.setDeviceMetricsOverride", { width: 420, height: 1000, deviceScaleFactor: 1, mobile: false }); await run(`await new Promise((r) => setTimeout(r, 300));`);
@@ -897,6 +897,20 @@ const aboutRes = await run(`${U} try {
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(aboutRes && aboutRes.bar && aboutRes.mainLeft < 60 && aboutRes.noFooter === 0 && aboutRes.open && aboutRes.names === "" && /hugelton\.com/.test(aboutRes.links) && /LICENSING\.md/.test(aboutRes.links) && /FUKIAI-LICENSE/.test(aboutRes.links) && aboutRes.closed,
   `e2e: the pages are a menu bar on top (no side column), the About dialog holds the credits, licences and links, no footer (${JSON.stringify(aboutRes)})`);
+/* the send knobs are as big as the pan knob (no shrinking); the drum head: [chip + name ..... 1|ALL ▶] with the toggle right beside the arrow */
+const sizeRes = await run(`${U} try {
+  const r = {}, st = (n) => document.querySelector('#mixer .strip[data-track="' + n + '"]');
+  const w = (e) => Math.round(e.querySelector("svg").getBoundingClientRect().width);
+  r.knobs = [0, 1, 2].map((n) => w(st(n).querySelector(".srow[data-row=pan] .knob")) + ":" + [...st(n).querySelectorAll(".srow[data-row=sends] .knob")].map(w).filter((x) => x > 0).join("/")).join("|");
+  const fb = st(3).querySelector("[data-fold]"), wasOpen = fb.getAttribute("aria-expanded") === "true"; if (!wasOpen) { fb.click(); await sleep(500); }
+  const h = st(3).querySelector(".srow[data-row=head]"), hr = h.getBoundingClientRect(), lm = h.querySelector("[data-lmode]").getBoundingClientRect(), fo = h.querySelector("[data-fold]").getBoundingClientRect(), hd = h.querySelector(".shead").getBoundingClientRect();
+  r.head = (lm.left >= hd.right - 1) + ":" + (Math.abs(fo.left - lm.right) <= 6) + ":" + (hr.right - fo.right <= 8);
+  if (!wasOpen) { st(3).querySelector("[data-fold]").click(); await sleep(400); }
+  const sr = st(0).querySelector(".srow[data-row=sends]"), last = [...sr.querySelectorAll(".knob")].pop();
+  r.fit = last.getBoundingClientRect().bottom <= sr.getBoundingClientRect().bottom + 1;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(sizeRes && /^44:/.test(sizeRes.knobs) && sizeRes.knobs.split("|").every((x) => { const a = x.split(/[:\/]/); return a.length >= 4 && a.every((v) => v === a[0]); }) && sizeRes.head === "true:true:true" && sizeRes.fit,
+  `e2e: the send knobs are the pan knob's size; the drum head keeps 1|ALL right beside the fold arrow at its right end (${JSON.stringify(sizeRes)})`);
 /* the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP), its sounds as member strips right after it (folded by default,
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
 const MIXKEY = "fm1.mixLanes";
