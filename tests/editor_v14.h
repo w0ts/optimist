@@ -309,8 +309,10 @@ static void v14_steplane(void)
         r = stl_call(4, 0, 127, 5, 99, 0);
         check(r && ed_out[6] == 1, "STEPLANE LOCK of a value past the list: rc 1");
         stl_call(4, 0, 127, 5, 0, d0->max);
+#if FELUCCA_ED_UNDO                                       /* (without the UNDO command nothing takes the level back) */
         (void)v14_call(ed_undo, ED_UNDO, (const uint8_t[]){1}, 1);
         check(!lock_get(t, 5, id0, &v), "STEPLANE: the lock written is an undo level (UNDO removes it)");
+#endif
     }
     /* the extras, level and ratchet */
     ok = 1;
