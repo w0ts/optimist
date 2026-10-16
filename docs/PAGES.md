@@ -1,7 +1,7 @@
 # The web site on GitHub Pages
 
 URL once published: <https://w0ts.github.io/optimist/> (the root redirects to the installer; the editor is at
-`webapp/editor/`). Every link in the site is relative, so it works under the `/optimist/` base path.
+`webapp/editor/`, the builder at `webapp/builder/`). Every link in the site is relative, so it works under the `/optimist/` base path.
 
 ## What is published
 
@@ -9,6 +9,9 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 
 - `webapp/installer/`: the web installer (Chrome or Edge, Web MIDI), with the firmware package choice.
 - `webapp/editor/`: the web editor.
+- `webapp/builder/`: the web firmware builder (docs/BUILDER-WEB.md): the builder of `make builder` run in the browser
+  by Pyodide, its data exported fresh by `tools/export_builder_web.py`, `build-info.json` the commit for the cloud key.
+  `python3 web/make_site.py --builder OUT` makes only this part.
 - `firmware/optimist-<version>-<id>.fwsc`: one package per flavour; the installer checks the download against the
   SHA-256 written into its page.
 - `icon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-*.png`, `manifest.webmanifest`: the dinghy icon
@@ -20,7 +23,7 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 `web/flavours.json` lists the firmware packages: `id` (lowercase, becomes part of the file name), `title` and
 `description` (shown by the installer; with more than one entry it shows a choice), `profile` (the
 `config/profiles/` profile CI builds) and `file` (a glob, relative to the repository, of the package that profile
-produces: `dist/optimist-*-<profile>.fwsc`). To add a flavour, add an entry. CI builds every listed profile and
+produces: `dist/optimist-*-<profile>.fwsc`). An optional `"default": true` marks the flavour the web builder opens with (without one: the first). To add a flavour, add an entry. CI builds every listed profile and
 publishes whatever the manifest lists. `python3 web/make_site.py --profiles` prints the profiles;
 `python3 web/make_site.py --flavours web/flavours.json <version> <out>` builds the site from packages already in `dist/`.
 

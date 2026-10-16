@@ -7,7 +7,9 @@
   firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
-  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
+  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder
+  webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
+                              build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
   src/                        not touched
 
@@ -15,6 +17,7 @@
   web/make_site.py --flavours web/flavours.json X.Y OUT_DIR    the packages the manifest lists (each "file" is a glob,
                                                                relative to the repository; the newest match is used)
   web/make_site.py --profiles                                  the manifest's profiles, one per line (CI builds them)
+  web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
 
 The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
 after the install.
@@ -62,6 +65,61 @@ def source_ref():
     return ref if re.fullmatch(r"[A-Za-z0-9._-]+", ref) else ""
 
 
+BUILDER_FILES = ("index.html", "logic.js", "ui.js", "py-worker.js")
+EDITOR_INSTALLER_LINK = '<a class="dim inst" href="../installer/" data-t="installer"></a>'
+EDITOR_BUILDER_LINK = '<a class="dim inst" href="../builder/">Firmware builder</a>'
+
+
+def logo_svg():
+    """an Optimist logo, inline (assets/logo/optimist-logo.svg; none: the name alone)"""
+    logo = HERE.parent / "assets" / "logo" / "optimist-logo.svg"
+    return logo.read_text(encoding="utf-8") if logo.exists() else ""
+
+
+def editor_page():
+    """editor.html with a link to the builder after its installer link (the site only: web/editor.html is the editor's
+    own file); said on stderr when the editor no longer has that link"""
+    html = (HERE / "editor.html").read_text(encoding="utf-8")
+    if html.count(EDITOR_INSTALLER_LINK) != 1:
+        print("make_site: the editor's installer link moved: no builder link in the editor (update make_site.py)",
+              file=sys.stderr)
+        return html
+    return html.replace(EDITOR_INSTALLER_LINK, EDITOR_INSTALLER_LINK + "\n    " + EDITOR_BUILDER_LINK)
+
+
+def site_commit():
+    """the full commit the site is made from, for the builder's cloud key: None when the tracked files differ from it
+    (the key would name a source nobody can fetch) or there is no git"""
+    def git(*args):
+        try:
+            p = subprocess.run(["git", "-C", str(HERE.parent), *args], capture_output=True, text=True)
+        except OSError:
+            return None
+        return p.stdout.strip() if p.returncode == 0 else None
+    sha, dirty = git("rev-parse", "HEAD"), git("status", "--porcelain", "--untracked-files=no")
+    return sha if sha and re.fullmatch(r"[0-9a-f]{40}", sha) and dirty == "" else None
+
+
+def builder_site(out):
+    """webapp/builder/: the web builder (web/builder/, docs/BUILDER-WEB.md), its data exported fresh from this source
+    (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key)"""
+    dst = Path(out) / "webapp" / "builder"
+    (dst / "data").mkdir(parents=True, exist_ok=True)
+    for f in BUILDER_FILES:
+        text = (HERE / "builder" / f).read_text(encoding="utf-8")
+        if f == "index.html":
+            if text.count("<!--LOGO-->") != 1:
+                raise SystemExit("web/builder/index.html must contain <!--LOGO--> once; update make_site.py")
+            text = text.replace("<!--LOGO-->", logo_svg())
+        (dst / f).write_text(text, encoding="utf-8")
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import export_builder_web
+    export_builder_web.write(dst / "data")
+    commit = site_commit()
+    (dst / "build-info.json").write_text(json.dumps({"commit": commit} if commit else {}) + "\n", encoding="utf-8")
+    return dst
+
+
 def flavours_of(manifest):
     """the manifest's entries as [{id, title, description, profile, pkg}], pkg the newest file matching its "file" glob"""
     out = []
@@ -105,8 +163,7 @@ def main(pkg, version, out, flavours=None):
         raise SystemExit("index_pkg.html must contain <!--SRCREF--> once; update make_site.py")
     html = html.replace("<!--SRCREF-->", f"/tree/{ref}" if ref else "")
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
-    logo = HERE.parent / "assets" / "logo" / "optimist-logo.svg"  # an Optimist logo, inline (none yet: the name)
-    html = html.replace("<!--LOGO-->", logo.read_text(encoding="utf-8") if logo.exists() else "")
+    html = html.replace("<!--LOGO-->", logo_svg())
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
@@ -121,7 +178,8 @@ def main(pkg, version, out, flavours=None):
     (inst / "index.html").write_text(html, encoding="utf-8")
     for src, name in files:
         shutil.copy(src, fw / name)
-    shutil.copy(HERE / "editor.html", ed / "index.html")
+    (ed / "index.html").write_text(editor_page(), encoding="utf-8")
+    builder_site(out)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
@@ -142,12 +200,17 @@ def main(pkg, version, out, flavours=None):
         '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">'
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
         '<a href="webapp/installer/">Optimist installer</a>\n', encoding="utf-8")
-    print(f"site: {out}: webapp/installer, webapp/editor, " + ", ".join(f"firmware/{n}" for _, n in files))
+    print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
 
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if a != "--studio-guide"]
-    if args[:1] == ["--profiles"]:
+    if args[:1] == ["--builder"] and len(args) == 2:
+        Path(args[1]).mkdir(parents=True, exist_ok=True)
+        for f in ICONS:                             # (the page's icon links: ../../icon.svg ...)
+            shutil.copy(HERE.parent / "assets" / "logo" / f, Path(args[1]) / f)
+        print(f"builder: {builder_site(args[1])}")
+    elif args[:1] == ["--profiles"]:
         print("\n".join(f["profile"] for f in json.loads((HERE / "flavours.json").read_text(encoding="utf-8"))["flavours"]))
     elif args[:1] == ["--flavours"] and len(args) == 4:
         main(None, args[2], args[3], flavours_of(args[1]))
