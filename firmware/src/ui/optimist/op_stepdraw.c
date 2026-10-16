@@ -5,6 +5,7 @@
  *                    chip and two-letter code (LANE_CODE, as the mixer), the selected lane's white
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
+ * A step with automation (a lock or motion event, op_step_auto) is drawn in the automation colour (C_AUTO) instead of its lane's or the track's.
  * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; under the
  * grid the events of the automation store (seq/auto.h; FELUCCA_AUTO: a dot under each step with one, in the lane's or
  * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
@@ -31,6 +32,11 @@ static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};
     return col_shade(c, SH[lvl_rank(lv)]);
+}
+static uint16_t lvl_acol(uint32_t lv)                   /* ... a step with automation: the automation colour, its level 5/8 .. full */
+{
+    static const uint8_t SH[4] = {5, 6, 7, 8};
+    return col_shade(C_AUTO, SH[lvl_rank(lv)]);
 }
 static void sg_notches(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rat)   /* ratchet x2..x4: 1..3 cuts in the cell */
 {
@@ -75,7 +81,8 @@ static void sg_drums(const track_t *t)
             int32_t x = SG_X + (int32_t)w * SG_CW;
             if (idx >= len || !dstep_has(d, l))
                 continue;
-            cv_rect(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
+            cv_rect(x, y, SG_CW - 2, lh - 1,
+                    op_step_auto(t, idx, l) ? lvl_acol(dstep_lvl(d, l)) : lvl_col(c, dstep_lvl(d, l)));   /* (automated: its own colour) */
             sg_notches(x, y, SG_CW - 2, lh - 1, dstep_rat(d, l));
         }
     }
@@ -231,7 +238,8 @@ static void sg_roll(const track_t *t)
             continue;
         for (i = 0; i < s->n && i < 4u; i++) {
             int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
-            uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : lvl_col(c, (s->lvl >> (2u * i)) & 3u);
+            uint32_t lv = (s->lvl >> (2u * i)) & 3u;
+            uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
             if (nt < rg.lo || nt > rg.hi)
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */

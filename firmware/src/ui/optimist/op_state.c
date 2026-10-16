@@ -115,6 +115,25 @@ static const char *lane_name(uint32_t l) { return l == DRUM_ACC ? DACC_NAME : LA
 static const char *lane_short(uint32_t l) { return l == DRUM_ACC ? DACC_SHORT : LANE_SHORT[l % DRUM_LANES]; }
 static const char *lane_code(uint32_t l) { return l == DRUM_ACC ? DACC_CODE : LANE_CODE[l % DRUM_LANES]; }
 static uint16_t op_lane_col(uint32_t l) { return l == DRUM_ACC ? C_HI : lane_col(l); }   /* (the accent: the bright tone, no kit kind) */
+/* does step `step` carry automation (a p-lock or motion event of the sound; the step extras NUDGE / FILL / CHANCE / COND are not)? On a
+ * drum track a lane's event marks that lane's cell only (lane 16: the ACCENT lane, the track's own events only; 0xFF: any lane, the drum row of the mixer), a track's event every cell of the step */
+static uint32_t op_step_auto(const track_t *t, uint32_t step, uint32_t lane)
+{
+#if FELUCCA_AUTO
+    const auto_list_t *l = AL(t);
+    uint32_t i;
+    for (i = 0; i < l->n; i++) {
+        const auto_ev_t *e = &l->ev[i];
+        if ((e->place & AUTO_STEP) != (step & AUTO_STEP) || AUTO_PSEUDO(e->param))
+            continue;
+        if (!AUTO_IS_LANE(e->param) || AUTO_LANE_L(e->param) == lane || lane == 0xFFu)
+            return 1;
+    }
+#else
+    (void)t, (void)step, (void)lane;
+#endif
+    return 0;
+}
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within
