@@ -12,8 +12,8 @@ Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "Th
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 Commands 94..101 and `INFO` tags `57`..`5E` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
 Each of the eight is a builder item (`ED_FXP` 94 / tag 57, `ED_DLAN` 95 / 58, `ED_SCRN` 96 / 59, `ED_SONG` 97 / 5A, `ED_TOOLS` 98 / 5B, `ED_SCRS` 99 / 5C, `ED_FAVS` 100 / 5D, `ED_SCOPE` 101 / 5E; docs/BUILDER.md): a build that leaves one out sends no INFO tag for it and does not answer its command, so an editor offers a command only when its tag is in INFO (web/editor.html hides the pop-up, tab, button or settings that need it and keeps the rest; its mock serves any subset, `?off=dlan,scope`). The commands that read the Optimist UI (96, 98, 99, 101) are built only with it (UI=1), and 100 only with the favorites.
-Commands 102..105 and `INFO` tags `5F`..`62` (undo and redo, notes played from the editor, track and drum-lane solo, a drum lane's step with the device's own list of lockable values) form protocol v14 (below, "v14: undo" .. "v14: step lanes"); the protocol byte stays.
-Each of the four is a builder item (`ED_UNDO` 102 / tag 5F, `ED_NOTE` 103 / 60, `ED_SOLO` 104 / 61, `ED_STEPLANE` 105 / 62; docs/BUILDER.md), on by default, and a build that leaves one out sends no INFO tag for it and does not answer its command (an editor offers a command only when its tag is in INFO, as for v13).
+Commands 102..105, 107 and `INFO` tags `5F`..`63` (undo and redo, notes played from the editor, track, drum-lane, USB input and return solo and mute, a drum lane's step with the device's own list of lockable values, the REC key) form protocol v14 (below, "v14: undo" .. "v14: REC"); the protocol byte stays (command 106 is not used).
+Each of the five is a builder item (`ED_UNDO` 102 / tag 5F, `ED_NOTE` 103 / 60, `ED_SOLO` 104 / 61, `ED_STEPLANE` 105 / 62, `ED_REC` 107 / 63; docs/BUILDER.md), on by default, and a build that leaves one out sends no INFO tag for it and does not answer its command (an editor offers a command only when its tag is in INFO, as for v13).
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -1129,9 +1129,12 @@ loop; one reader: the audio interrupt; no interrupt is masked), so nothing in th
 | 3 LANE SOLO | lane (0..15), on | the state (after) |
 | 4 LANE MUTE | lane (0..15), on | the state (after) |
 | 5 USB SOLO (v3) | 0, on | the state (after) |
+| 7 RET MUTE (v4) | ret (0..2 = return A B C), on | the state (after) |
 
-`on`: 0 off, 1 on, 2 toggle (what the panel key does). The second argument of op 5 is ignored (send 0). Every reply: `op, rc, solo, mute, silent, lsolo0, lsolo1, lsolo2, lmute0, lmute1, lmute2, usb`: `rc` 0 done; the track masks (bit n = track n, 0..3): `solo`, `mute`, `silent` (the tracks not heard now:
+`on`: 0 off, 1 on, 2 toggle (what the panel key does). The second argument of op 5 is ignored (send 0). Every reply: `op, rc, solo, mute, silent, lsolo0, lsolo1, lsolo2, lmute0, lmute1, lmute2, usb, ret`: `rc` 0 done; the track masks (bit n = track n, 0..3): `solo`, `mute`, `silent` (the tracks not heard now:
 muted, or something else soloed; the drum track counts as soloed while one of its lanes is); the lane masks as 3 x 7 bits (lane 0..6, 7..13, 14..15). `usb` (v3, the 12th arg; an older reader stops at 11): bit 0 the USB input soloed, bit 1 muted, bit 2 silent (muted, or something else soloed); 0 in a build without the USB input (op 5: no reply there). The TRACKS push (62) carries the track solo and mute bits as ever; a solo set on the device for a lane or the USB input is not pushed (read SOLO 0 after a TRACKS push, or poll it). A bad op, track, lane or on: no reply.
+
+**RET MUTE (op 7, v4).** `7, ret, on`: the mute of a return, the device's own (the mixer's MASTER row: SHIFT2 held and the return's knob; the card is drawn struck through). `ret` 0..2 = return A B C. A muted return puts silence into the master: its level is gated at the output of the audio render and **its bus keeps running** (the chorus, delay or reverb, or the effect the return holds, go on, so a tail is there when it is unmuted; nothing is cleared, unlike a RET level of 0, which stops the bus), and what it sends on to the returns on its right is silent too (its sends leave after its level). The mute belongs to the return's line, as its RET level does, and is stored with it: the FX record's `FXRET_TLV` (0x41) grows from 3 to 4 bytes, the fourth the lines' mute bits (bit n = line n: CHO DLY REV), written also when every level is at unity but one is muted. A project saved before (a 3 byte TLV, or none) loads every return unmuted; an older firmware reads the first 3 bytes. Not pushed: read SOLO 0 after a device-side change, as for a lane. Turning a muted return's RET level on the device unmutes it, as a track's volume knob does. A `ret` with nothing in that return (an empty slot), `ret` > 2 or `on` > 2: no reply. The returns have no SOLO.
 
 ## v14: step lanes (command 105 STEPLANE; INFO tag 62)
 
@@ -1174,6 +1177,24 @@ An event of `LOCK_SET` / `AUTO_SET` on the same step is the same event: the edit
 
 `tests/steplane_table.json` is the golden of the list for a synth track and for the drum track (lane 127, a lane, the ACCENT lane) of the host test's build (`tests/editor_sync_test.c`, `STEPLANE_WRITE=1` rewrites it); `tools/gen_fxp_table.py` copies it into
 web/editor.html (`STEPLANE_TABLE`: data only, the mock device does not answer the command).
+
+## v14: REC (command 107 REC; INFO tag 63)
+
+`firmware/src/io/editor/ed_rec.c`. The device's REC key for the transport bar, and its state: the same state machine as the panel's REC (`seq.c`: `rec_wait`, `ci_on`, `ft_on`, `song.rec`), whichever UI is built. **There is no per-track record arm**: the device has one global REC, and what it records is the selected track (`TRACK` 27 changes that; `track` below says which). `STATUS` (53) flags bit 1 stays as it was (`song.rec != 0`, recording now): the waiting, the count-in and the free take are only here. `INFO` tag `63 len 02 version flags` (version 1; `flags` bit 0: the count-in exists in this build, the REC MODES' `FELUCCA_REC_MODES`; without it bit 2 of `state` is never set).
+
+| op | Request args | Reply args |
+|---|---|---|
+| 0 GET | - | the state |
+| 1 TOGGLE | - | the state (after) |
+
+Every reply: `op, rc, state, track`. `state` (bits, not exclusive):
+bit 0 **recording** (`song.rec`: the selected track records into its pattern, quantised, overdub; the REC LED is on),
+bit 1 **waiting for the start** (`rec_wait`: REC was pressed while stopped, the REC LED blinks; the first note played on the selected track starts the loop (a project with notes) or the free take (an empty project, REC MODE FREE); PLAY starts it too; with START = COUNT, PLAY starts the count-in. Also set during the count-in),
+bit 2 **count-in** (`ci_on`: PLAY pressed while waiting with START = COUNT: one bar of 4 clicks, then the loop and the recording start; PLAY again goes back to waiting),
+bit 3 **free take** (`ft_on`: the first note of an empty project started a take with no tempo and no grid; REC on a downbeat closes it, its length sets the tempo; PLAY drops it).
+`state` 0: REC is off. `track` 0..3: the track that records, will record (bit 1) or takes the free take (bit 3); 127 when `state` is 0. `rc`: 0 done; 1 refused (TOGGLE while a song plays: the panel says "STOP THE SONG FIRST"; nothing changed); 2 nothing done (TOGGLE within 0.3 s of a free take's end: the panel ignores that press too).
+
+**TOGGLE is the REC key's plain press** (`op_rec` of the Optimist UI, `rec_toggle` of SLOOP's; the SONG screen's own meanings of REC are the UI's and are not reached): a free take running: it is closed (at the next audio block, about 1 ms: bit 3 may still be set in this reply, send GET again); recording, waiting or counting in: off (`song.rec` and the wait cleared, a count-in ends); stopped and idle: waiting (bit 1), the transport stays stopped; playing and idle: recording starts now (bit 0). A device-side change is not pushed (`STATUS` bit 1 and the stream follow only the recording): the editor polls GET about twice a second while its transport bar is up. A bad op or a short request: no reply.
 
 ## Notes for the editor
 
