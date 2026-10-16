@@ -35,7 +35,7 @@ const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
-   UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, remapParams, lfoSlotsFromDepths, patternFromSteps, stepsFromPattern, upName,
+   UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, remapParams, lfoSlotsFromDepths, patternFromSteps, stepsFromPattern, upName, GEN_TYPES,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
@@ -1341,7 +1341,7 @@ async function editorFxp() {
   ok(/function dynSong\(/.test(html) && /songcSave\(\)/.test(html), "songc: the Song popup (parts, mode, save)");
   /* v13 TOOLS (cmd 98, ed_tools.c): the pattern tools and EUCLID */
   const TL = E.parse[C.TOOLS], et = readFileSync(join(HERE, "../firmware/src/io/editor/ed_tools.c"), "utf8");
-  ok(C.TOOLS === 98 && /ED_TOOLS = 98/.test(et) && /ed_b\(0x5B\)/.test(et) && info.tools && info.tools.v === 1, "tools: command 98, tag 0x5B == ed_tools.c");
+  ok(C.TOOLS === 98 && /ED_TOOLS = 98/.test(et) && /ed_b\(0x5B\)/.test(et) && info.tools && info.tools.v === 2 && /ed_b\(0x5B\);\s*ed_b\(1\);\s*ed_b\(2\)/.test(et), "tools: command 98, tag 0x5B version 2 == ed_tools.c");
   let tl = TL(await rq(E.req.toolsGet()));
   ok(tl.rc === 0 && tl.hits === 4 && tl.steps <= tl.len && tl.on === 0, "tools: op 0: EUCLID's values (4 hits), the generator off");
   tl = TL(await rq(E.req.toolsRun(0, 127, 0)));
@@ -1352,6 +1352,17 @@ async function editorFxp() {
   ok(tl.on === 1 && TL(await rq(E.req.toolsRun(0, 127, 0))).rc === 2, "tools: EUCLID ON; a tool while it is on: rc 2");
   tl = TL(await rq(E.req.toolsEu(0, 3)));
   ok(tl.hits === 3 && TL(await rq(E.req.toolsEuOff(true))).on === 0, "tools: HITS 3; OFF (keep)");
+  tl = TL(await rq(E.req.toolsGenType(1)));
+  ok(tl.gen && tl.gen.type === 1 && tl.hits === 50 && tl.steps === 1 && tl.rot === 0, "tools v2: op 6: RANDOM at its defaults (DENSITY 50, SEED 1, ACCENT 0)");
+  tl = TL(await rq(E.req.toolsGenVal(0, 80)));
+  ok(tl.gen.p[0] === 80 && TL(await rq(E.req.toolsGenMode(2))).gen.mode === 2, "tools v2: op 7 DENSITY 80, op 8 MASK");
+  tl = TL(await rq(E.req.toolsGenOn(1, 127)));
+  ok(tl.gen.on === 1 && tl.on === 0 && TL(await rq(E.req.toolsRun(0, 127, 0))).rc === 2 && TL(await rq(E.req.toolsGenOn(0, 127))).gen.on === 0,
+    "tools v2: op 9 RANDOM ON (the EUCLID flag stays 0; a tool: rc 2), OFF");
+  tl = TL(await rq(E.req.toolsGenType(0)));
+  ok(tl.gen.type === 0 && tl.hits === 4, "tools v2: back to EUCLID at its defaults");
+  ok(/GEN_TYPES\[GT_N\] = \{\s*\{"EUCLID", \{\{"HITS", 0, 64, 4[^]*"RANDOM", \{\{"DENSITY", 0, 100, 50[^]*"PULSE", \{\{"EVERY", 1, 16, 4/.test(readFileSync(join(HERE, "../firmware/src/seq/gen.c"), "utf8"))
+    && E.GEN_TYPES && E.GEN_TYPES.map((g) => g.name).join() === "EUCLID,RANDOM,PULSE", "tools v2: the editor's GEN_TYPES == gen.c's");
   ok(/function dynTools\(/.test(html) && /toolsEuOn\(lane\(\)\)/.test(html), "tools: the Tools popup (verbs, scope on the drum track, EUCLID)");
   /* a device-side change: the editor is told (FX_PUSH, v9) */
   await E.startWatch(rq);

@@ -859,16 +859,20 @@ const fxpRes = await run(`${U} try {
   $("#popx").click(); await sleep(200);
   window.confirm = () => true;
   document.querySelector('#mixer .strip[data-track="0"] [data-pop=tools]').click();
-  await until(() => pop().open && pop().dataset.pop === "tools" && document.querySelector('#pop [data-tool="0"]') && document.querySelector('#pop [data-tool="hits"]'), 10000); await sleep(300);
+  await until(() => pop().open && pop().dataset.pop === "tools" && document.querySelector('#pop [data-tool="0"]') && document.querySelector('#pop [data-tool="gen0"]'), 10000); await sleep(300);
   document.querySelector('#pop [data-tool="0"]').click(); await sleep(500);
   r.tool1 = document.querySelector("#pop .toolmsg").textContent;
-  document.querySelector('#pop [data-tool="euon"]').click(); await sleep(500);
-  r.euOn = !document.querySelector('#pop [data-tool="keep"]').hidden;
-  for (let q = 0; q < 2; q++) document.querySelector('#pop [data-tool="hits"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  document.querySelector('#pop [data-tool="genon"]').click(); await sleep(500);
+  r.euOn = !document.querySelector('#pop [data-tool="genwrite"]').hidden;
+  for (let q = 0; q < 2; q++) document.querySelector('#pop [data-tool="gen0"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
   await sleep(500);
-  r.hits = document.querySelector('#pop [data-tool="hits"]').getAttribute("aria-valuenow");
-  document.querySelector('#pop [data-tool="restore"]').click(); await sleep(500);
-  r.euOff = document.querySelector('#pop [data-tool="keep"]').hidden;
+  r.hits = document.querySelector('#pop [data-tool="gen0"]').getAttribute("aria-valuenow");
+  document.querySelector('#pop [data-tool="genon"]').click(); await sleep(500);
+  r.euOff = document.querySelector('#pop [data-tool="genwrite"]').hidden;
+  const gty = document.querySelector('#pop [data-tool="gentype"]');
+  gty.value = "2"; gty.dispatchEvent(new Event("change", { bubbles: true })); await sleep(500);
+  r.pulse = (document.querySelector('#pop [data-tool="gen0"]').getAttribute("aria-label") || document.querySelector('#pop [data-tool="gen0"]').textContent) + ":"
+    + document.querySelector('#pop [data-tool="gen2"]').getAttribute("aria-valuenow");
   $("#popx").click(); await sleep(200);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
   r.key = pop().open && pop().dataset.pop;
@@ -880,7 +884,7 @@ ok(fxpRes && /^1:head,inst,nav,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
   && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^LFO:8$/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.sqDev === 1 && fxpRes.sqLit && fxpRes.unmuted
   && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|AC|AB" && fxpRes.wlane > 50 && fxpRes.wlane < 75
-  && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
+  && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff && fxpRes.pulse === "PULSE EVERY:2",
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");
 /* the scale chip in the header (the selected track's root and scale), its panel (SCL and ARP pages, no cards of the Sound popup), the strips' ARP button */

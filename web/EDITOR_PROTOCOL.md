@@ -1015,6 +1015,14 @@ the exact note lengths) move as on the device, one undo level each, and the edit
 | 3 | lane (127: as it is): EUCLID ON, the generator writes the pattern |
 | 4 | EUCLID OFF, the generated steps kept |
 | 5 | EUCLID OFF, the pattern as it was given back |
+| 6 | (v2) type (0 EUCLID, 1 RANDOM, 2 PULSE): the slot's generator; another type has its values at their defaults |
+| 7 | (v2) k (0..2), value: the generator's value k (EUCLID HITS STEPS ROT, RANDOM DENSITY SEED ACCENT, PULSE EVERY OFFSET RATCHET), fitted to its range |
+| 8 | (v2) mode (0 REPLACE, 1 ADD, 2 MASK) |
+| 9 | (v2) on (0 / 1), lane (127: as it is): the generator ON / OFF, the pattern untouched (OFF with what plays written into the pattern: op 4) |
+
+`INFO` tag `5B` version 2 adds ops 6..9 and three bytes after the two strings of every reply: the slot's generator type, mode and on (any type;
+the `on` byte before the strings stays EUCLID's). hits, steps, rot are the generator's three values whatever its type. An editor that reads only
+version 1's reply ignores the three bytes.
 
 ## v13: the device's screens (command 99 SCRS; INFO tag 5C)
 
