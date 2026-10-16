@@ -946,7 +946,7 @@
     "ramtext": 420
    }
   },
-  "DUAL_BOOST": {
+  "STOCK_SUPPLY": {
    "1": {
     "flash": 152,
     "ram": 0,
@@ -3205,7 +3205,7 @@
    "pool": 4,
    "ramtext": 92
   },
-  "UI=1,DUAL_BOOST=1": {
+  "UI=1,STOCK_SUPPLY=1": {
    "flash": 8,
    "ram": 0,
    "pool": 0,
