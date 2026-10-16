@@ -2521,6 +2521,7 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_lamp.h"                       /* 2026-10-16: the lamp under PLAY, green playing, red recording */
 #include "ui_optimist_btnled.h"                    /* 2026-10-13: every button's LED against what its tap and hold do, screens x track kinds */
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
@@ -2550,8 +2551,11 @@ int main(int argc, char **argv)
         uint32_t i;
         for (i = 0; i < 5u * 16u; i++)
             FM1_KEYMAP[i / 16u][i % 16u] = -1;
-        for (i = 0; i < 41u; i++)
-            FM1_KEYMAP[1u + i / 16u][i % 16u] = (int8_t)i;
+        static const int8_t REAL[4][11] = {                 /* (hal/fm1_input.h's table: the keyless LED sites are where they are: PLAY's green) */
+            {5, 11, 4, 10, 3, 9, 2, 8, -1, -1, -1}, {34, 35, 36, 37, 38, 40, 39, 13, 7, 6, 12},
+            {23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33}, {0, 1, 15, 14, 17, 16, 19, 18, 20, 21, 22}};
+        for (i = 0; i < 44u; i++)
+            FM1_KEYMAP[1u + i / 11u][i % 11u] = REAL[i / 11u][i % 11u];
     }
     host_tracks_init();
 #if FELUCCA_PATTERNS
@@ -2651,6 +2655,7 @@ int main(int argc, char **argv)
     step_pitch_tests();
     led_tests();
     btnled_tests();
+    lamp_tests();
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();

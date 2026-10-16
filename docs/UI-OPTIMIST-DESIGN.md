@@ -3255,3 +3255,22 @@ to be split in two pages with easier-to-read text" (three pages are fine).
 - Code: system/overload.h (the ISR's two stores a half, the per-second maxima rings for CPU0 and CPU1, the MIDI loss counters),
   op_project.c (the cells, info_cell's pages), op_gldraw.c (the pages drawn whole), op_global.c (KNOB 2, SHIFT + YES), op_draw.c
   (the rule). Tests: ui_optimist_core.h overload_tests, glo / glwalk / glstyle updated. The guard's side: docs/CPU-GUARD.md "Spikes".
+
+## 21. The transport LEDs (feat/play-led, 2026-10-16)
+
+The user (2026-10-16): "there IS a green led below the play button ... i think we should put green in play mode and red in record mode."
+
+**What the hardware has.** The LED matrix is 4 LED lines (PA5..PA8) x 11 columns, one single-colour LED per site; 41 sites carry a key (FM1_KEYMAP) and three have none (row PA5, columns 8, 9, 10). **PLAY has a second LED, green, at the keyless site PA5 column 8** (row bit 1): found on a unit by MAKU (okumurari2/maku, `firmware/src/ui_input.c` `LED_PLAY_GREEN`, "found on the hardware at column 8, row PA9 (bit 1)"; it lights it green while playing and on each count-in beat) and drawn by the FM-1 emulator simonjohansson/fm1-emulator (`fm1-panel.c`, `docs/architecture.md`: "PLAY's extra green LED sits at column 8, row 1, where no key does"; REC's LED is red). Measured here: stock V15 lights that site at idle (about 20 %, like the buttons' glow). The LEDs are not RGB or bi-colour: a colour is a site. REC's own LED is the red one, so red needs no new site. SMK-37's PLAY (a different device) has green and red; not the FM-1. Not found: any firmware driving a red lamp under PLAY; columns 9 and 10 stay dark in stock. The web search found nothing on the FM-1's LEDs.
+
+**States** (`lamp_on`, op_input.c; one bit in `ui_leds`; the PLAY button's own light and REC's are unchanged):
+
+| State | Green (PLAY's second LED) | Red (REC's LED) |
+|---|---|---|
+| stopped | dark | half lit |
+| playing | **steady** (no blink: the PLAY button's own light flashes the beat) | half lit |
+| REC armed, stopped | dark | blinking |
+| count-in (START = COUNT) | a pulse on each of the four beats (as MAKU) | blinking |
+| recording (live, overdub) | dark | **full** |
+| free take | dark | full |
+
+Never both at once. SLOOP's UI (ui/sloop/ui_input.c) has its own `ui_leds` and is unchanged. The web editor does not render the LEDs and is unchanged. Tests: tests/ui_optimist_lamp.h (every state, and PLAY / REC taps). The legend is in docs/guide/interface.md. Credits: LICENSING.md.

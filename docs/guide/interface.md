@@ -50,6 +50,10 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 
 A button's LED glows only where the button does something. The button of the page you are on is lit fully; a button that would do something now is lit dimly (half lit); a button that would do nothing is dark. So LFO is dark on the drum track, OCT- and OCT+ are dark where they have no job, and SAVE is dark on a STEP line that has no YES action. GLO is full on GLOBAL and SYSTEM and dim elsewhere.
 
+### The transport LEDs
+
+PLAY has a second LED, green, with no key of its own; REC's LED is red. Playing: the green LED is on, steady. Recording (live, or a free take): REC is lit full (red) and the green is out. REC armed and waiting for the first note: REC blinks, green dark. The count-in clicks the green on each beat. Stopped: green dark. The PLAY button's own light still flashes on the beat.
+
 ## The mixer
 
 The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2, T3, DR, the drum track's 16 lanes plus the ACCENT lane, and, in a USB audio build, a USB IN row after them. ALGORITHM walks the rows; the panel shows the selected row's group (MASTER alone, the four tracks, the lanes). Each row has its meter and its sequence. SELECT pages the knob sets of the row; the same order on every row:
