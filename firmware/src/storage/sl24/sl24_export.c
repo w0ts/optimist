@@ -248,19 +248,19 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
                                                          * slots: the project's modulation record, else its words */
         int16_t s[4], mv[P_COUNT];
         int32_t spill;
-        const uint8_t *mb = mrec_parts_of(q);
+        uint32_t mtag = 0;
+        const uint8_t *mb = mrec_parts_of(q, &mtag);
 #if FELUCCA_LFO2
         int16_t x[NPART][L2_NV];
         (void)l2_unpack(q, x);
 #endif
         if (mb) {
             memcpy(mv, v, sizeof mv);
-            mrec_part_vals(mb, k, mv);
+            (void)mrec_part_vals(mb, k, mv, mtag);
             memcpy(s, &mv[P_L1DA], sizeof s);
 #if FELUCCA_LFO2
             memcpy(x[k], &mv[P_L2RATE], sizeof x[k]);
 #endif
-            (void)env_store(mv);                        /* (ENV DEST's slots as 2.4's FLT SHP depths) */
             sl24_w16(o + 2u * P_ED_FLT, mv[P_ED_FLT]);
             sl24_w16(o + 2u * P_ED_SHP, mv[P_ED_SHP]);
         } else {

@@ -91,7 +91,7 @@ static void t_params(void)
     check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -5 = 1/4, AMT -128 = -100 %, 64 = +50 %");
     ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -10, -3) == -10;
     check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent)");
-    check(P_L2RATE > P_E7 && P_N1DA == P_L2AB + 1 && P_VOICES > P_N1DA && P_COUNT == P_VOICES + 1 && P_COUNT < 128, "ids: after P_E7, before the envelopes' slots and VOICES (no id before moves)");
+    check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_COUNT == P_VOICES + 1 && P_COUNT < 128, "ids: after P_E7, before ENV 1 MOD's values, ENV2's slots and VOICES (no id before moves)");
 }
 
 /* one tick of part k's LFO 2 at phase ph (the step: LFO_INC[0] at RATE 0) -> its block's offsets */

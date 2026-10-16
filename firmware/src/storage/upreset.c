@@ -25,8 +25,12 @@
 #define UP_PMAX 84u                              /* room for P_COUNT to grow (UP_VER 3: P_ENG_END values, the slots) */
 #define UP_PMAX2 72u                             /* the records of UPB1 / UPB2 banks (UP_VER 1, 2) */
 #define UP_USED 0xA5u
-#define UP_VER 3u                                /* (2026-10-14) every value in its own word, in P_* order, then the
-                                                  * envelopes' slots UP_NSLOT (P_N1DA ..): nothing packed */
+#define UP_VER 4u                                /* (2026-10-16) every value in its own word, in P_* order, then
+                                                  * UP_NSLOT more (P_E1PIT ..: ENV 1 MOD's PIT and moves, ENV2's
+                                                  * slots): nothing packed */
+#define UP_VER3 3u                               /* (2026-10-14 .. 16, read) the same, P_E1PIT .. P_E1Z ENV DEST's
+                                                  * slots (folded: env_store.h env1_fold), ENV's FLT SHP words 0 */
+#define UP_VER_OK(v) ((v) == UP_VER || (v) == UP_VER3)
 #define UP_NSLOT 8u
 #if FELUCCA_ANALOG2
 #define UP_VER2 2u                               /* ENV2's extras packed (UPB2, read only) */
@@ -46,7 +50,7 @@
 #define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
 #define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
 #endif
-#define UP_BANK_MAGIC 0x33425055u                /* "UPB3" (2026-10-14): records of UP_VER 3, UP_PMAX words */
+#define UP_BANK_MAGIC 0x33425055u                /* "UPB3" (2026-10-14): records of UP_VER 3 and 4, UP_PMAX words */
 #if FELUCCA_ANALOG2
 #define UP_BANK_MAGIC_V2 0x32425055u             /* "UPB2": today's engine numbers (FM6 9, SLICE 10); read, written UPB3 */
 #define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
@@ -105,7 +109,7 @@ static int up_valid(const up_rec_t *r)
 {
     if (r->used != UP_USED || r->engine >= ENG_UID_N || !r->name[0] || r->np < 8u)
         return 0;
-    if (r->ver == UP_VER)
+    if (UP_VER_OK(r->ver))
         return r->np + UP_NSLOT <= UP_PMAX;
 #if FELUCCA_ANALOG2
     if (r->ver == UP_VER2)
@@ -124,8 +128,8 @@ static uint32_t up_engine_slot(uint32_t k)
 #endif
 
 #include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
-#include "../core/env_store.h"                     /* (ENV DEST, ENV2 DEST: env_store, env_load) */
-/* values v (today's P_* order, P_COUNT) -> record r's p[] and np (UP_VER 3): P_LEVEL .. P_E7 each in its word, the
+#include "../core/env_store.h"                     /* (ENV 1 MOD, ENV2 DEST: env1_fold, env_store, env_load) */
+/* values v (today's P_* order, P_COUNT) -> record r's p[] and np (UP_VER 4): P_LEVEL .. P_E7 each in its word, the
  * envelopes' slots after them. Values in the words of the depths of before (LFO DEST's slots are in their own ids:
  * kept; ENV DEST FLT SHP, ENV2's amounts, which today's values hold at 0) that are not 0 come from outside (the editor,
  * a file of before): read as those depths (env_load), then 0 */
@@ -134,19 +138,17 @@ static void up_vals_put(up_rec_t *r, const int16_t *v0)
     int16_t v[P_COUNT];
     uint32_t i;
     memcpy(v, v0, sizeof v);
-    if (v[P_ED_FLT] || v[P_ED_SHP]
 #if FELUCCA_ANALOG2
-        || v[P_A2FENV] || v[P_A2EPIT] || v[P_A2ESHP] || v[P_A2EOS2] || v[P_A2ESDT]
-#endif
-    )
+    if (v[P_A2FENV] || v[P_A2EPIT] || v[P_A2ESHP] || v[P_A2EOS2] || v[P_A2ESDT])
         (void)env_load(v);
+#endif
     r->ver = UP_VER;
     r->np = P_ENG_END;
     memset(r->p, 0, sizeof r->p);
     for (i = 0; i < P_ENG_END; i++)
         r->p[i] = v[i];
-    for (i = 0; i <= P_NLAST - P_N1DA; i++)
-        r->p[P_ENG_END + i] = v[P_N1DA + i];
+    for (i = 0; i <= P_NLAST - P_E1PIT; i++)
+        r->p[P_ENG_END + i] = v[P_E1PIT + i];
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
@@ -254,14 +256,14 @@ static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
         return;
     }
 #endif
-    if (r->ver == UP_VER) {                      /* UP_VER 3: the values by count (the last 8 P_E0 ..), the slots */
+    if (UP_VER_OK(r->ver)) {                     /* UP_VER 3, 4: the values by count (the last 8 P_E0 ..), the slots */
         nc = r->np - 8u;
         for (i = 0; i < P_E0; i++)
             out[i] = i < nc ? r->p[i] : def[i];
         for (i = 0; i < 8u; i++)
             out[P_E0 + i] = r->p[nc + i];
-        for (i = 0; i <= P_NLAST - P_N1DA; i++)
-            out[P_N1DA + i] = r->p[r->np + i];
+        for (i = 0; i <= P_NLAST - P_E1PIT; i++)
+            out[P_E1PIT + i] = r->p[r->np + i];
         return;
     }
 #if FELUCCA_ANALOG2
@@ -299,18 +301,22 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
     int32_t spill;
     uint32_t k;
     up_params_st(r, out, def);
-    if (r->ver == UP_VER) {                            /* (UP_VER 3: the slots as they are, inside their ranges) */
+    if (UP_VER_OK(r->ver)) {                           /* (UP_VER 3, 4: the slots as they are, inside their ranges) */
         for (k = 0; k < 2u; k++)
             if ((uint32_t)out[P_L1DA + 2u * k] >= LT_NB)
                 out[P_L1DA + 2u * k] = LT_OFF, out[P_L1DA + 2u * k + 1u] = 0;
-        for (k = 0; k <= P_NLAST - P_N1DA; k += 2u)
-            if ((uint32_t)out[P_N1DA + k] >= LT_NB)
-                out[P_N1DA + k] = LT_OFF, out[P_N1DA + k + 1u] = 0;
+        if (r->ver == UP_VER3)                         /* (ENV DEST's slots of 2026-10-14 .. 16 onto ENV 1 MOD) */
+            (void)env1_fold(out);
+#if FELUCCA_ANALOG2
+        for (k = 0; k <= P_NLAST - P_N2DA; k += 2u)
+            if ((uint32_t)out[P_N2DA + k] >= LT_NB)
+                out[P_N2DA + k] = LT_OFF, out[P_N2DA + k + 1u] = 0;
+#endif
         return;
     }
     memcpy(w, &out[P_LEG_PIT], sizeof w);              /* (a record of before: the depths, SLOOP's too) */
     (void)lfo1_load(w, &out[P_L1DA], &spill);
-    (void)env_load(out);                               /* ENV DEST, ENV2 DEST's slots (env_store.h) */
+    (void)env_load(out);                               /* ENV2 DEST's slots (env_store.h); ENV 1's depths as they are */
 }
 
 static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */
@@ -520,7 +526,7 @@ static int up_put_v1(uint32_t k, const up_rec_t *r, int *rc)
         return 0;
     if (!r) {
         memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec2_t));
-    } else if (r->ver != UP_VER) {
+    } else if (!UP_VER_OK(r->ver)) {
         up_rec_to2(&f->r[k % UP_PER_BANK], r);          /* (a record of before: as it was) */
     } else {                                            /* ours in that bank's layout, UP_VER 2: its values, the slots as */
         int16_t v[P_COUNT], def[P_COUNT];               /* the depths they are (as far as they go) */

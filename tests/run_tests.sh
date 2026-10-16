@@ -40,6 +40,8 @@ BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCC
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_EQ3=1"
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
+# ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
+ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
 
 # ---- the units (see the top): nu started, np printed; unit N's files $JD/N.out, .rc (its exit status, written last
@@ -387,10 +389,10 @@ job; ( jobin
     run "LFO 2 left out: a project with it loads (the drum track's slots back to their defaults), MISS names it" "$OUT/lfo2_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots: the depths of before exactly (sound, projects, user presets byte for byte), the tagged layout, values moved for the block (PAN LVL ATK DEC RES E1..E8), L1RT L1AMT L2RT L2AMT bounded, macros, old locks" "$OUT/lfo_slots_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 -o "$OUT/env_dest_test" tests/env_dest_test.c -lm
-    run "ENV DEST / ENV2 DEST's two slots: ENV on AMP by default, nothing wired (no AMP: full while ENV runs; ENV2 alone on AMP keeps the voice), the plain path and env_post the same, values per voice (E5, DEC) and the part's (PAN), mod of mod bounded" "$OUT/env_dest_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/env_dest_test0" tests/env_dest_test.c -lm
-    run "ENV DEST / ENV2 DEST's slots without LFO 2" "$OUT/env_dest_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LFO2=1 $ENV1_ENG -o "$OUT/env1_test" tests/env1_test.c -lm
+    run "ENV 1 MOD: every engine's four cards (paths, moves, part moves, aliases), at 0 the default's render, each heard, the amplitude wired, the plain path and env_post the same, PIT +-31.5 st, E1 AMT bounded, ENV DEST's slots of before folded (FLT SHP PIT moves, the rest to a free ENV2), ENV2's default DEST A per engine" "$OUT/env1_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $ENV1_ENG -o "$OUT/env1_test0" tests/env1_test.c -lm
+    run "ENV 1 MOD without LFO 2" "$OUT/env1_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm

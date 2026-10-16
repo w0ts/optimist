@@ -124,17 +124,13 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
         m->cut += (env * 24) >> 7;
     m->shp = lm.m[2];
     m->pit = lm.m[0] + ((penv * effv_p(k, P_ED_PIT) * 3) >> 7);
-    for (j = 0; j < 4; j++) {                           /* ENV DEST's, ENV2 DEST's slots on the voices (voice.c env_plan) */
+    m->cut += (env * effv_p(k, P_ED_FLT)) >> 7;       /* ENV 1 MOD's depths on the voices (voice.c track_render, env_plan) */
+    m->shp += (env * effv_p(k, P_ED_SHP)) >> 7;
+    m->pit += (((env * 2 * effv_p(k, P_E1PIT)) >> 8) >> 5) << 8;
 #if FELUCCA_ANALOG2
-        uint32_t f = j < 2 ? P_N1DA : P_N2DA;
-        int32_t e = j < 2 ? env : v ? (v->env2 & ((1 << 25) - 1)) >> 9 : 0;
-#else
-        uint32_t f = P_N1DA;
-        int32_t e = env;
-        if (j >= 2)
-            break;
-#endif
-        int32_t d = t->p[f + 2u * (uint32_t)(j & 1)], a = effv_p(k, f + 2u * (uint32_t)(j & 1) + 1u);
+    for (j = 0; j < 2; j++) {                           /* ENV2 DEST's slots on the voices (voice.c env_plan) */
+        int32_t e = v ? (v->env2 & ((1 << 25) - 1)) >> 9 : 0;
+        int32_t d = t->p[P_N2DA + 2u * (uint32_t)j], a = effv_p(k, P_N2AA + 2u * (uint32_t)j);
         if (d == LT_FLT)
             m->cut += (e * a) >> 8;
         else if (d == LT_SHP)
@@ -142,6 +138,7 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
         else if (d == LT_PIT)
             m->pit += (((e * a) >> 8) >> 5) << 8;
     }
+#endif
 }
 /* each engine's (by UID) EDIT value its render adds the cutoff (low 4 bits) and the shape (high 4 bits) to, as (p[P_E0 +
  * n] << 8) + m->cutoff (the engines' render, grep m->cutoff / m->shape); 0xF none (DIGITAL and CZ fold both into one
@@ -220,7 +217,7 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         effv_at(k, (int32_t)id, (int32_t)id == dc ? m.cut : m.shp, val, mn, mx);
         return 1;
     }
-    if (id == P_L1AA || id == P_L1AB || id == P_N1AA || id == P_N1AB
+    if (id == P_L1AA || id == P_L1AB
 #if FELUCCA_LFO2
         || id == P_L2AA || id == P_L2AB
 #endif

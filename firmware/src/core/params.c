@@ -85,7 +85,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_DEC] = PD("DEC", F_TIME, 0, 127, 70),
     [P_SUS] = PD("SUS", F_PCT, 0, 127, 90),
     [P_REL] = PD("REL", F_TIME, 0, 127, 60),
-    [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),    /* (ENV DEST FLT SHP: the stored form of ENV's slots, env_store.h) */
+    [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),    /* ENV 1 MOD's FLT and SHP depths (env1_cards.h; voice.c: env x d >> 7) */
     [P_ED_PIT] = PD("DROP", F_BIPCT, -64, 63, 0),   /* the pitch drop: a fast fall from each note's start (voice.c penv) */
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
@@ -193,12 +193,12 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
-    [P_N1DA] = {"DST A", F_ENUM, 0, LT_NB - 1, LT_AMP, N_LT, 0},   /* ENV DEST: two slots (core.h LT_*), A on AMP */
-    [P_N1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 127),
-    [P_N1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
-    [P_N1AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+    [P_E1PIT] = PD("PIT", F_BIPCT, -64, 63, 0),     /* ENV 1 MOD (env1_cards.h): its PIT depth, +-31.5 st at full */
+    [P_E1X] = PD("MOVE1", F_BIPCT, -64, 63, 0),     /*   its moves of an EDIT value (named per engine: E1_LBL) */
+    [P_E1Y] = PD("MOVE2", F_BIPCT, -64, 63, 0),
+    [P_E1Z] = PD("MOVE3", F_BIPCT, -64, 63, 0),
 #if FELUCCA_ANALOG2
-    [P_N2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* ENV2 DEST: two slots */
+    [P_N2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* ENV2 DEST: two slots (a new sound, INIT, a preset: A on the engine's FLT at 0, env2_dest_def) */
     [P_N2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_N2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_N2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
@@ -206,17 +206,30 @@ static const param_desc_t TP[P_COUNT] = {
     [P_VOICES] = PD("VOICES", F_INT, 0, NPOLY, 0),         /* POLY / UNISON voice count (voice.c trk_nvoice); 0 = the engine's max (track_desc: 1..max shown) */
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
-#include "env_store.h"                                /* ENV DEST's, ENV2 DEST's slots <-> the depths of before */
+#include "env_store.h"                                /* ENV2 DEST's slots <-> the depths of before; ENV DEST's fold;
+                                                       * ENV 1 MOD's cards (env1_cards.h) */
+/* ENV 1 MOD's cards (env1_cards.h) as the page shows them, the selected part's engine's: an alias the engine's EDIT
+ * value itself; a depth -64..63 named as the EDIT value it moves or FLT PIT SHP (in the pool, made when asked) */
+static param_desc_t e1_rd[4] IN_POOL;
+static __attribute__((noinline)) const param_desc_t *e1_card_desc(uint32_t e, uint32_t k)
+{
+    const param_desc_t *ed = ENGINES[e]->edit;
+    param_desc_t *d = &e1_rd[k & 3u];
+    uint32_t l = ENV1_CARDS[e].l[k & 3u], c = ENV1_CARDS[e].c[k & 3u];
+    if (E1K_KIND(c) == 0x50u)
+        return &ed[E1K_ARG(c)];
+    d->fmt = F_BIPCT, d->min = -64, d->max = 63;
+    d->label = l < 8u ? ed[l].label : l == E1L_FLT ? "FLT" : l == E1L_PIT ? "PIT" : "SHP";
+    return d;
+}
 /* An automation event (a motion, a lock) on a depth of before: LFO DEST's PIT FLT SHP AMP (P_LEG_PIT .. P_LEG_AMP, stored
- * before LFO DEST had slots, or SLOOP 2.4's), ENV DEST's FLT SHP (P_ED_FLT P_ED_SHP), ENV2's FLT PIT SHP OSC2 SDTN
- * (P_A2FENV, P_A2EPIT ..; before 2026-10-14). leg_first: the slots it went to (P_L1DA, P_N1DA, P_N2DA; P_COUNT: not such
- * an id), *d its DEST */
+ * before LFO DEST had slots, or SLOOP 2.4's), ENV2's FLT PIT SHP OSC2 SDTN (P_A2FENV, P_A2EPIT ..; before 2026-10-14).
+ * ENV DEST's FLT SHP (P_ED_FLT P_ED_SHP) are ENV 1 MOD's depths again (2026-10-16): an event on them is their own.
+ * leg_first: the slots it went to (P_L1DA, P_N2DA; P_COUNT: not such an id), *d its DEST */
 static uint32_t leg_first(uint32_t id, uint32_t *d)
 {
     if (id >= P_LEG_PIT && id <= P_LEG_AMP)
         return *d = LT_PIT + (id - P_LEG_PIT), P_L1DA;
-    if (id == P_ED_FLT || id == P_ED_SHP)
-        return *d = id == P_ED_FLT ? LT_FLT : LT_SHP, P_N1DA;
 #if FELUCCA_ANALOG2
     if (id == P_A2FENV)
         return *d = LT_FLT, P_N2DA;
@@ -232,7 +245,7 @@ static uint32_t leg_first(uint32_t id, uint32_t *d)
  * P_COUNT none), as the depth of before acted there; none: P_COUNT (not played). *dest: the destination */
 static uint32_t lfo_leg_ev(const track_t *t, uint32_t id, int32_t *v, uint32_t *taken, uint32_t *did, uint32_t *dest)
 {
-    uint32_t d, k, f = leg_first(id, &d), sh = f == P_L1DA ? 0u : f == P_N1DA ? 2u : 4u;
+    uint32_t d, k, f = leg_first(id, &d), sh = f == P_L1DA ? 0u : 4u;
     *did = P_COUNT;
     *dest = d;
     if (f >= P_COUNT)
@@ -684,7 +697,9 @@ typedef struct {
 
 static const page_t PAGES[] = {
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
-    {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_N1DA, P_N1AA, P_N1DB, P_N1AB}},   /* DEST A, AMT A, DEST B, AMT B (as LFO DEST) */
+    /* ENV 1 MOD (2026-10-16, env1_cards.h): ENV 1's four depth knobs, made per engine (page_id: the engine's cards; an
+     * alias card the engine's own EDIT value); the amplitude always wired. ENV DEST (two free slots) until then */
+    {"ENV 1 MOD", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_E1PIT, P_ED_SHP, P_E1X}},
 #if FELUCCA_ANALOG2
     {"ENV2", FAM_ENV, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},   /* every engine since 2026-10-14 */
     {"ENV2 DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_N2DA, P_N2AA, P_N2DB, P_N2AB}},
@@ -834,6 +849,7 @@ static const page_t PAGES[] = {
  *              default slots REV DLY CHO); the Optimist UI's SENDS: card k return R(k+1)'s send (fxs_card, blank for an
  *              empty return: one order on every screen); its drum track: its send levels
  *   BUS SENDS  (the Optimist UI's drum track) the drum bus's own sends, in the same order */
+#define PG_E1(pg) ((pg)->scope == SC_TRACK && (pg)->id[1] == P_E1PIT)   /* the ENV 1 MOD page */
 static uint32_t page_id(const page_t *pg, uint32_t k)
 {
     k &= 3u;
@@ -855,6 +871,9 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
     if (pg->graph == GR_FX)
         return k ? fxs_send_amt(k - 1u) : ins_amt(song.sel, 0);
 #endif
+    if (PG_E1(pg)) {                                    /* ENV 1 MOD: the engine's four cards (env1_cards.h) */
+        return env1_id(TSEL->eng_req, k);
+    }
     return pg->scope == SC_DSND && pg->id[0] == 16u ? fxs_lane_id(k) : pg->id[k];   /* (SOUND 3: in the slots' order) */
 }
 
@@ -1105,5 +1124,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     }
     if (id == P_CHOR || id == P_DLY || id == P_REV)    /* a send: named by its line's return (fx-pool: PHSR ...) */
         return fxs_send_d(id);
+    if (PG_E1(pg))                                      /* ENV 1 MOD: the engine's card, by its name */
+        return e1_card_desc(TSEL->eng_req, slot);
     return track_desc(TSEL, id);
 }

@@ -207,12 +207,11 @@ static void pj_from_p(int16_t *d, const int16_t *p)
     for (k = 0; k < 8u; k++)
         d[PJ_E0 + k] = p[P_E0 + k];
 }
-/* a part's stored values s: the words of the depths of before at 0 (LFO DEST's, ENV DEST FLT SHP, ENV2's FLT; the
- * slots are the modulation record's, dlfo_rec.c) */
+/* a part's stored values s: the words of the depths of before at 0 (LFO DEST's, ENV2's FLT; the slots are the
+ * modulation record's, dlfo_rec.c). ENV 1 MOD's FLT SHP are depths in their words (2026-10-16) */
 static void pj_mods_zero(int16_t *s)
 {
     s[P_LEG_PIT] = s[P_LEG_FLT] = s[P_LEG_SHP] = s[P_LEG_AMP] = 0;
-    s[P_ED_FLT] = s[P_ED_SHP] = 0;
 #if FELUCCA_ANALOG2
     s[P_A2FENV] = 0;
 #endif
@@ -672,7 +671,7 @@ static void l2_slots_def(int16_t *v)
 }
 #if FELUCCA_LFO2
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
-               P_L2AB == P_L2RATE + 7 && P_N1DA == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1,
+               P_L2AB == P_L2RATE + 7 && P_E1PIT == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1,
                "LFO 2's values: in a row (the projects of before: l2_get)");
 #if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
 /* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default (AMT B: lfo1_store's
@@ -1123,7 +1122,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
     fxr_apply_store(p, all);                            /* its FX slots (fx_rec.c; the layout with a load only; none:
                                                          * after the tracks, which the layout of an older one reads) */
-    dlr_apply_store(p);                                 /* its drum lanes' LFOs (dlfo_rec.c; none: every LFO off) */
+    dlr_apply_store(p);                                 /* its drum lanes' LFOs, the parts' modulation (dlfo_rec.c; none:
+                                                         * every LFO off) */
     MISS_BUMP();                                        /* the main loop says what this build lacks (miss.c) */
 }
 

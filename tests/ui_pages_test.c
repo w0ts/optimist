@@ -1176,7 +1176,7 @@ int main(int argc, char **argv)
                     tap(B_ENV);
                 frames(2);
                 n = ov_rows(idx, &act, &pg, &npg);
-                check(n == 4u && npg == 1u && PAGES[idx[0]].id[0] == P_ATK && PAGES[idx[1]].id[0] == P_N1DA &&
+                check(n == 4u && npg == 1u && PAGES[idx[0]].id[0] == P_ATK && PAGES[idx[1]].id[0] == P_ED_FLT &&
                       PAGES[idx[2]].graph == GR_ENV2 && PAGES[idx[3]].id[0] == P_N2DA,
                       "ANALOG track, ENV: ENV1, ENV1 DEST, ENV2, ENV2 DEST (one PAGE)");
                 ov_foot_label(fl);

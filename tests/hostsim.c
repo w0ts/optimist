@@ -159,7 +159,10 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
     }
     preset_extras(t->p, p);
     analog2_extras(t->p, ENGINES[e], pi % ENGINES[e]->npresets);
-    (void)env_load(t->p);                        /* (the depths of the tables -> the envelopes' slots, as apply_preset_to) */
+    for (i = P_E1PIT; i <= P_E1Z; i++)            /* (ENV 1 MOD: PIT and the moves at 0; ENV2: the depths of the tables -> its slots, its */
+        t->p[i] = 0;                             /* DEST A the engine's default: as apply_preset_to) */
+    (void)env_load(t->p);
+    env2_dest_def(t->p, e);
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {

@@ -10,6 +10,8 @@
  * Built by tests/run_tests.sh on several configurations (the defaults, every engine and kit, sample headers with
  * sets left out) and by tests/builder_test.py on random builder configurations (tools/builder/verify.py
  * preset_cover). One line per source:  cover: <NAME> <built> <in its table> <loadable> [INIT]
+ *   - INIT and every preset of every engine: ENV 1 MOD's PIT and moves at 0, ENV2's DEST A the engine's default (the
+ *     filter, or its nearest: env1_cards.h) when ENV2 is not used (2026-10-16)
  *   preset_cover_test [DIR]   DIR: the PRESETS page and TRACKS with each INIT loaded (presets-init-*.ppm) */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
@@ -238,6 +240,23 @@ int main(int argc, char **argv)
         source(DRUM_KIT_NAMES[k], drum_kit_built(k), 1u, (uint32_t)drum_kit_built(k), 0);
     source("KIT LIST", 1, DRUM_KITS, kits_built(0, DRUM_KITS), 0);
     source("POWER-ON", 1, 1u, (uint32_t)drum_kit_built(DRUM_DEFAULT_KIT), 0);
+    for (e = 0; e < NENGINES; e++) {                  /* ENV 1 MOD and ENV2 on INIT and every preset (model.c apply_preset_to) */
+        uint32_t pi, ok = 1;
+        for (pi = 0; pi <= ENGINES[e]->npresets; pi++) {
+            track_t *t = &trk[0];
+            t->eng_req = (uint8_t)e;
+            apply_preset_to(t, pi < ENGINES[e]->npresets ? pi : PRESET_INIT);
+            ok &= !t->p[P_E1PIT] && !t->p[P_E1X] && !t->p[P_E1Y] && !t->p[P_E1Z];
+#if FELUCCA_ANALOG2
+            ok &= t->p[P_N2AA] != 0 || t->p[P_N2DA] == (int16_t)env2_def_dest(e);   /* (ENV2 unused: DEST A the engine's) */
+            ok &= pi < ENGINES[e]->npresets || (!t->p[P_N2AA] && !t->p[P_N2AB]);   /* (INIT: ENV2 at 0) */
+#endif
+        }
+        if (!ok) {
+            printf("env: %s: ENV 1's PIT / moves not 0, or ENV2's DEST A not the engine's default (INIT, a preset)\n", ENG_UID_NAME[eng_uid(e)]);
+            bad++;
+        }
+    }
     printf(bad ? "PRESET COVER FAILED (%d)\n" : "preset cover: every source of this build has a preset (or INIT) / kit\n", bad);
     return bad != 0;
 }
