@@ -909,7 +909,9 @@ device's own, as `DESC`), so an editor draws a slot from the reply and names no 
 the tag does not answer 94.
 
 Owners: 0..3 tracks T1 T2 T3 DR, 4 the master, 5 the USB input (slots 0 1, and slot 2: its own values VOLUME PAN MUTE FX ON
-REV DLY CHO), 6..8 the returns R1 R2 R3 (one slot each), 9..24 the drum sounds (lanes 0..15; slots 0 1: the types a voice
+REV DLY CHO), 6..8 the returns A B C (slot 0 its type; slot 1, 2026-10-16, its sends to the returns to its right, type 0
+always: A's two, labelled B and C, B's one, C, C's none; with the builder item RET_FB each return's two others, A: B C, B: A C,
+C: A B, in that order), 9..24 the drum sounds (lanes 0..15; slots 0 1: the types a voice
 can hold, its slot's amount only). A type id is the v10 one (`FXT`): 0 empty, 1 DIST, 2 CHO, 3 DLY, 4 REV, 5 DYN, 6 FILT, 7
 FOLD, 8 FUZZ, 9 PHSR, 10 FLNG, 11 FRMT, 12 WIDE, 13 CHRS, 14 ECHO, 15 GATER, 16 DUST, 17 JUNO, 18 EQ3; never reused.
 
@@ -923,10 +925,14 @@ FOLD, 8 FUZZ, 9 PHSR, 10 FLNG, 11 FRMT, 12 WIDE, 13 CHRS, 14 ECHO, 15 GATER, 16 
 
 A bad owner (or USB without the USB input), slot or op: no reply. The parameters of a slot are in the device's order. A
 return's first parameter is its line's RET level (the `CRET DRET RRET` global of the line, 0..127 127 unity); a return that
-holds a send type has that one only (its own parameters are the global DLY / REV / CHO pages). A track's DYN THRS is
+holds a send type has that one only (its own parameters are the global DLY / REV / CHO pages). A return's slot 1 holds its
+**sends to the returns to its right** (A -> B, A -> C, B -> C; 0..127 as a track's send, 0 by default, F_PCT), named by
+the return each goes to: listed whatever the two returns hold (one to an empty return is kept, unheard); op 1 on it loads
+nothing. Left to right only: the device renders the returns A, B, C in that order, so no send comes back (no feedback).
+The table's `return.sends` lists each return's (A, B, C). A track's DYN THRS is
 `P_TCOMP`, its RATIO .. CEIL the track's own settings; the master's DYN is the `COMP` and `LIMIT` globals. The FX push (87)
 goes out too when any setting here moved on the device that no other push covers (EQ bands, DYN's settings, the lanes'
-slots, the returns' amounts, the USB input). The parameters' values that are track `P_*` or global `G_*` also arrive in the
+slots, the returns' amounts and sends, the USB input). The parameters' values that are track `P_*` or global `G_*` also arrive in the
 v9 `PARAMS` push. The editor's own writes are not echoed.
 
 `tests/fxp_table.json` is the golden table of every owner kind, type and parameter (label, format, range, default, names)

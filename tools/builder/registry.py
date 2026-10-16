@@ -499,6 +499,16 @@ _add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, defa
           "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
           "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
      symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
+# the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 341: a placeholder until
+# the integrator reserves it
+_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 341, default=1,
+     desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
+          "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
+          "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
+          "to -12 dBFS and soft-clipped, at a quarter of the gain of a send to the right, so no loop runs away. "
+          "Without it a return sends only to its right (A to B and C, B to C). About 1.2 KB of RAM; nothing runs "
+          "while every such send is 0.",
+     symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
 _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),

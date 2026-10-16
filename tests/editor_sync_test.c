@@ -143,6 +143,20 @@ static void fxp_json(FILE *f)
             }
             fprintf(f, "]");
         }
+        if (FXP_IS_RET(ow)) {                           /* (2026-10-16) each return's slot 1: its sends, A B C */
+            uint32_t r;
+            fprintf(f, ", \"sends\": [");
+            for (r = 0; r < 3u; r++) {
+                fprintf(f, "%s[", r ? ", " : "");
+                for (i = 0; i < fxp_n(FXP_RET0 + r, 1); i++) {
+                    int16_t *vp;
+                    fprintf(f, "%s", i ? ", " : "");
+                    fxp_json_desc(f, fxp_loc(FXP_RET0 + r, 1, i, &vp));
+                }
+                fprintf(f, "]");
+            }
+            fprintf(f, "]");
+        }
         fprintf(f, "}");
         fxp_set_type(ow, sl, FXT_NONE);
     }
@@ -380,7 +394,7 @@ int main(void)
                         uint32_t ok = 1;
                         if (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u))
                             continue;
-                        if (!(ow == FXP_USB && sl == 2u))
+                        if (!(ow == FXP_USB && sl == 2u) && !(FXP_IS_RET(ow) && sl == 1u))
                             fxp_set_type(ow, sl, t), ok = fxp_type(ow, sl) == t, tried++;
                         for (i = 0; i < fxp_n(ow, sl); i++) {
                             int16_t *vp;
@@ -400,6 +414,27 @@ int main(void)
             ut_defaults();
 #endif
             memset(dins_amt, 0, sizeof dins_amt);
+            ed9_known_fx();
+        }
+        {   /* the sends between the returns (2026-10-16): each return's slot 1, A: B C, B: C, C: none; named by the target */
+            static const uint8_t LA[] = {0, FXP_RET0}, LC[] = {0, FXP_RET0 + 2}, DA1[] = {2, FXP_RET0, 1, 1}, TA[] = {1, FXP_RET0, 1, FXT_DIST};
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LA, sizeof LA);
+            check(r && ed_out[7] == 2u && ed_out[10] == FXT_NONE && ed_out[11] == 2u, "v13 FXP op 0: return A has two slots, slot 1 (its sends) two parameters");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LC, sizeof LC);
+            check(r && ed_out[7] == 2u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DA1, sizeof DA1);
+            check(r && ed_out[9] == F_PCT && ed_n > 12u && !memcmp(ed_out + 5u + 4u + 1u + 6u, "C", 1), "v13 FXP op 2: A's second send, a level, named C");
+            q[0] = 4, q[1] = FXP_RET0, q[2] = 1, q[3] = 1, q[4] = (uint8_t)((300 + 8192) & 127), q[5] = (uint8_t)((300 + 8192) >> 7);
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
+            check(r && rs_amt[RS_AC] == 127 && rs_amt[RS_AB] == 0, "v13 FXP op 4: A -> C set (clamped to 127), A -> B kept");
+            ed_begin(ED_FXP); r = ed_fxp(ED_FXP, TA, sizeof TA);
+            check(r && fxs_slot[1] == FXT_REV, "v13 FXP op 1 on a return's slot 1: no type loads (its sends)");
+            ed9_known_fx();
+            n0 = nf;
+            rs_amt[RS_BC] = 40;
+            run_ms(ED9_WIN);
+            check(count(ED_FX_PUSH, n0) == 1, "v13 FXP: a send between the returns moved on the device: the FX push goes out");
+            rs_amt[RS_AC] = rs_amt[RS_BC] = 0;
             ed9_known_fx();
         }
 #if FELUCCA_INS_EQ3
@@ -425,8 +460,8 @@ int main(void)
         {
             static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
-            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 5u + 1u && ed_out[ed_n - 1u] == fxs_line[2],
-                  "v13 FXP op 1: EQ3 into B: its line's RET and the six; the reply ends with the return's send line");
+            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 2u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
+                  "v13 FXP op 1: EQ3 into B: its line's RET and the six; its slot 1 its sends (B -> C; RET_FB: B -> A too); the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
             check(r && eq3_v[NTRK + 2u + fxs_line[2]][3] == 10, "v13 FXP op 4: a return's EQ3 FREQ L (the owner of its line)");

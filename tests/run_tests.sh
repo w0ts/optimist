@@ -561,6 +561,12 @@ job; ( jobin
     run "FX returns holding any type (fx-pool): lines, a send pinned to its own, swaps, the send through the type 100 % wet times RET, the pool on a return, RET_TLV" "$OUT/fx_rt_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_rsend_test" tests/fx_rsend_test.c -lm
+    run "the sends between the returns: A -> B, A -> C, B -> C rendered in the order A B C whatever lines they own (chain gains 2x 3x 4x), after RET, ramped, a bus woken, every send 0: no chain, RSND_TLV, an old project at 0" "$OUT/fx_rsend_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_CPU_GUARD=1 -o "$OUT/fx_rsend_ifx_test" tests/fx_rsend_test.c -lm
+    run "... every further insert built, the CPU guard on" "$OUT/fx_rsend_ifx_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_returns_test" tests/fx_returns_test.c -lm
     run "FX returns: CHO / DLY / REV RET at one half halve the wet, at 0 silent with the bus not run (its line cleared, no old tail back), the FX record, PROJECT SAVE / LOAD" "$OUT/fx_returns_test"
 ) >"$U.out" 2>&1 & jobbg
