@@ -1484,7 +1484,8 @@ async function editorStepx() {
   ok(E.stepxBuilt(E.parse[C.BUILD](await o.rq(E.req.build()))) === null && await o.rq(E.req.microGet(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null) === null,
     "stepx: a build without them: BUILD has no bits, the commands do not answer (the editor shows no step detail)");
   o.done();
-  ok(html.includes("function stepxDraw(") && html.includes('id="stepx"') && html.includes("d.stepx = stepxBuilt("), "stepx: the step detail panel, shown only when the build has the features");
+  ok(html.includes("async function saRender(") && html.includes('id="stepx"') && html.includes("d.autoOk = ") && html.includes("d.stepx = stepxBuilt(") && /function saLockables\(/.test(html),
+    "step automation: the panel (chance, condition, nudge, fill, locks from the device's Sound pages, a drum sound's locks) shown when the device answers AUTO_GET");
 }
 
 /* ------------------------------------------ GLO > MACRO: what plays (cmd 65, ed_macro.c) --- */

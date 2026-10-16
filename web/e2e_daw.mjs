@@ -395,15 +395,24 @@ ok(rollOk, "e2e: piano roll: a note drawn 3 steps long (TIEs), another put and t
 /* the step detail (SLOOP 2.4's nudge, fill, locks) for the picked step: written to the mock's step extras */
 await mouse("mousePressed", rollPos.a[0], rollPos.a[1], 8); await mouse("mouseReleased", rollPos.a[0], rollPos.a[1], 8);
 await sleep(600);
-const sxRes = await run(`${U} const x = $("#stepx"); if (!await until(() => !x.hidden && x.querySelector("select"), 8000)) return { hidden: x.hidden };
-  const n = x.querySelector("input.num"); n.value = "7"; n.dispatchEvent(new Event("change")); await sleep(400);
-  x.querySelector("select").value = "2"; x.querySelector("select").dispatchEvent(new Event("change")); await sleep(400);
-  const add = x.querySelector(".sxlocks select"); add.value = "3"; x.querySelector(".sxlocks .bar button").click(); await sleep(500);
-  const sx = window.fm1Test.mock.state.tracks[0].sx, rows = x.querySelectorAll(".sxlocks tr").length, nl = sx.locks.length, p3 = sx.locks[0] && sx.locks[0].param;
-  x.querySelector(".sxlocks tr button").click(); await sleep(500);
-  const after = window.fm1Test.mock.state.tracks[0].sx.locks.length;
-  return { pass: sx.micro[0] === 7 && sx.fill[0] === 2 && nl === 1 && p3 === 3 && rows === 1 && after === 0, m: sx.micro[0], f: sx.fill[0], l: sx.locks.length, rows, after };`);
-ok(sxRes && sxRes.pass, `e2e: step detail: nudge 7, fill 'no fill', a parameter lock added and removed, all on the device (${JSON.stringify(sxRes)})`);
+const sxRes = await run(`${U} const x = $("#stepx"); if (!await until(() => !x.hidden && $("#sa-chance"), 8000)) return { hidden: x.hidden };
+  const set = async (id, v) => { const e = $(id); e.value = String(v); e.dispatchEvent(new Event("input")); e.dispatchEvent(new Event("change")); await sleep(500); };
+  const mock = window.fm1Test.mock, ev = () => (mock.state.tracks[0].auto || { ev: [] }).ev, step = +$("#sa-step").value - 1;
+  const at = (param) => { const e = ev().find((q) => q.place === (step | 0x40) && q.param === param); return e ? e.v : null; };
+  await set("#sa-chance", 50); await set("#sa-cond", 3); await set("#sa-nudge", 7); await set("#sa-fill", 2);
+  const extras = [at(0xFF), at(0xFC), at(0xFD), at(0xFE)].join();
+  const add = $("#sa-add"), groups = [...add.querySelectorAll("optgroup")].map((g) => g.label);
+  const forbidden = [...add.querySelectorAll("option")].map((o) => o.textContent).filter((l) => ["VCE", "GLMOD", "PRIO", "ALLOC", "MUTE", "LEN", "DIV", "SWG"].includes(l));
+  const labels = [...add.querySelectorAll("option")].map((o) => o.parentNode.label + "/" + o.textContent), dup = labels.length !== new Set(labels).size;
+  add.value = add.querySelector("option").value; $("#sa-addgo").click(); await sleep(600);
+  const rows = x.querySelectorAll("tr[data-param]").length, marked = document.querySelectorAll("#roll .tile.auto").length;
+  const lock = ev().filter((q) => q.place === (step | 0x40) && q.param < 0xFC).length;
+  x.querySelector("tr[data-param] button").click(); await sleep(500);
+  const after = ev().filter((q) => q.place === (step | 0x40) && q.param < 0xFC).length;
+  await set("#sa-chance", 100); await set("#sa-cond", 0); await set("#sa-nudge", 0); await set("#sa-fill", 0);
+  const gone = ev().filter((q) => q.place === (step | 0x40)).length;
+  return { pass: extras === "50,3,7,2" && groups.length > 3 && !forbidden.length && !dup && rows === 1 && lock === 1 && marked >= 1 && after === 0 && gone === 0, extras, groups: groups.length, forbidden, dup, rows, lock, marked, after, gone };`);
+ok(sxRes && sxRes.pass, `e2e: step automation: chance, condition, nudge, fill and a lock (from the device's Sound pages: no VCE / MUTE / LEN ..., no duplicate label) written to the store, marked on the tile, removed; defaults delete the events (${JSON.stringify(sxRes)})`);
 await shot("step-detail");
 await run(`document.querySelector("#popx").click();`);
 /* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */

@@ -288,6 +288,7 @@
   .strip .fxo.compact .fxslot .fxt { flex: 1 1 auto; min-width: 0; margin: 0; }
   .strip .fxo.compact select { width: 100%; max-width: none; min-width: 0; font-size: 12px; padding: 2px 16px 2px 4px; }
   .strip .fxo.inst { margin-bottom: 4px; }
+  .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
   .strip .fxnote { font-size: 10px; margin: 0; line-height: 1.2; }
   .strip.sub .fxo.compact { margin: 2px 0; }
   .strip .fxo:not(.compact) .fxslot > .fxt { display: inline-block; width: calc(100% - 34px); vertical-align: bottom; }
@@ -779,6 +780,15 @@
   }
   /* the step detail (SLOOP 2.4's nudge, fill, locks) under the piano roll */
   dialog#pop { margin-top: 5vh; }   /* (top-aligned: a panel that appears in a popup, as the step detail, does not move the page under the pointer) */
+  .tiles button.auto::after { content: ""; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; background: var(--fg); outline: 1px solid var(--bg); transform: rotate(45deg); }
+  .tiles button { position: relative; }
+  .dgrid .hd { cursor: pointer; }
+  .dgrid .hd.auto { text-decoration: underline; text-decoration-thickness: 2px; font-weight: 700; }
+  .dgrid button.lk { box-shadow: inset 0 0 0 2px var(--accent, var(--fg)); }
+  .dgrid button.selst { outline: 2px dashed var(--fg); outline-offset: -3px; }
+  .saextras label, .stepx .bar label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .stepx .bar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  .saextras { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin: 6px 0; }
   .stepx { margin: 8px 0; padding-top: 6px; border-top: 1px solid var(--line); }
   .stepx .sxrow { display: block; margin: 4px 0; }
   .stepx input.num { width: 4.5em; }
@@ -895,6 +905,7 @@
     <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
     <button type="button" id="helpbtn" data-pop="help" data-t="help"></button>
   </nav>
+  <p class="dim sidenote" id="sidenote" role="note" hidden></p>
   <div class="devcard">
     <span class="devline"><span id="live" class="pill"></span></span>
     <span id="version" class="dim"></span>
@@ -954,10 +965,10 @@
       <p class="bar"><button id="reloadsteps" data-t="reload" data-ic="control_arrow_loop"></button>
         <button id="clearseq" data-t="clearSeq" data-ic="symbol_trash"></button>
         <span class="dim" id="noteshelp"></span></p>
+      <div class="stepx" id="stepx" hidden></div>
       <div class="bar" id="drumbar" hidden></div>
       <div class="dgrid" id="drumgrid" hidden></div>
       <div class="roll" id="roll"></div>
-      <div class="stepx" id="stepx" hidden></div>
     </div>
   </section>
 
@@ -6046,8 +6057,13 @@ const TEXT = {
   popMstInsHelp: "The master's two insert slots, after the returns and before the master level.",
   popRetHelp: "The three returns. A return holds a send effect (chorus, delay, reverb: the tracks' CHO DLY REV sends feed it) or any other effect, 100% wet on that send. RET is its level into the master. A type another return holds swaps with it.",
   rollTiles: "Steps", navPlay: "play", navTrack: "track", navFx: "fx buses", navLib: "library", navSys: "system",
+  sideMissing: "This firmware has no", sideMissingHelp: "These editor features need a builder item (ED_*) or the Optimist UI (UI=1) in the firmware's build; the editor says so instead of hiding them. Build with them on, or update the firmware.",
   fxpOpen: "Open", instrument: "Instrument", fxpMissingShort: "No slot editing: this firmware has no FX slot command (ED_FXP off, or an older build)",
   fxpMissing: "This firmware has no slot editing (the builder item ED_FXP is off, or the build is older than protocol v13): the insert effects cannot be chosen from the editor. The sends and the master controls still work.",
+  saTitle: "Step automation", saChance: "Chance", saChanceTip: "How often the step plays, 0..100 % (the device's EXTRA page: steps of 5)", saCond: "Condition",
+  saCondTip: "Play the step on some passes only: 1:2 = the first of every 2 passes, 2:3 = the second of every 3 ... (the device's COND)", saNone: "always", saMotion: "motion", saExtras: "extras",
+  saFull: "The event list is full (128 events a pattern, 24 locks): remove one first", saRefused: "The device does not take that value on this step",
+  saNoHit: "This drum sound has no hit on this step: a lock would never be heard (the device's rule). Put a hit there first.",
   stepxTitle: "extras", nudge: "Nudge", nudgeTip: "Micro timing: this step plays earlier (-) or later (+), in 1/64 of a step (-32..31)",
   nudgeBack: "Earlier by 1/64", nudgeFwd: "Later by 1/64", nudgeZero: "No nudge", fillCond: "Fill", fillNormal: "normal", fillOnly: "fill only", fillNone: "no fill",
   fillTip: "When the step plays: always, only while a fill is on (GLO + 9 / 10 on the device), or never during a fill",
@@ -6521,6 +6537,9 @@ async function load(d) {
     d.stepx = null;                                   /* SLOOP 2.4's step extras: which the build has (BUILD bits 177..179; no reply: none) */
     try { d.stepx = stepxBuilt(parse[CMD.BUILD](await d.link.request(req.build(), { timeout: 400, retries: 0, quiet: true }))); }
     catch (e) { if (e.message === "closed") throw e; }
+    d.autoOk = false;                                 /* the automation store (v11, AUTO_GET 92): chance, condition, nudge, fill, locks, a drum lane's locks; no reply: none */
+    try { d.autoOk = !!parse[CMD.AUTO_GET](await d.link.request(req.autoGet(0, 0), { timeout: 400, retries: 0, quiet: true })); }
+    catch (e) { if (e.message === "closed") throw e; }
     try { d.bk = await bkListAll((r, o) => d.link.request(r, o), { timeout: 400, retries: 0, quiet: true }); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(1, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
@@ -6628,8 +6647,19 @@ function renderTrackbar() {
   document.documentElement.dataset.sel = String(hasTracks() ? Math.min(3, dev.sel || 0) : 0);
   renderSideGo();
 }
+/* what this firmware does not have, said (never hidden silently): each editor feature that needs a builder item or the Optimist UI */
+function sideNote() {
+  const n = $("sidenote");
+  if (!n) return;
+  const i = dev && dev.info, miss = i ? [[i.fxp, "FX slot editing (ED_FXP)"], [i.tools, "Tools (ED_TOOLS, Optimist UI)"], [i.scrs, "Device screens (ED_SCRS, Optimist UI)"], [i.scrn, "device settings lines (ED_SCRN, Optimist UI)"],
+    [i.songc, "Song chain (ED_SONG)"], [i.fav, "favorites (ED_FAVS)"], [i.dlan, "drum sound mix (ED_DLAN)"], [i.scope, "scope (ED_SCOPE, Optimist UI)"], [dev.autoOk, "step automation (the store: motion / chance / conditions)"]].filter(([on]) => !on).map(([, name]) => name) : [];
+  n.hidden = !miss.length;
+  n.textContent = miss.length ? `${t("sideMissing")}: ${miss.join(", ")}.` : "";
+  n.title = t("sideMissingHelp");
+}
 /* the side bar's editor buttons: the ones for the selected track's kind (a synth: Sound, Load, Save; the drums: Kit, User kits), Sequence for both */
 function renderSideGo() {
+  sideNote();
   const drum = hasTracks() && dev.sel === dev.info.ntrk - 1;
   for (const b of $("tabs").querySelectorAll("button[data-go]")) {
     const f = b.dataset.for;
@@ -7234,6 +7264,7 @@ function drawTiles(steps, len, play) {
     b.setAttribute("aria-label", b.title);
     b.setAttribute("aria-pressed", s === roll.sel ? "true" : "false");
   }
+  saApplyMarks();
 }
 /* a tile: a note picks it (its panel opens); an empty one gets a note at the last picked pitch (C4), as a tile on the device */
 function tileClick(e) {
@@ -7321,82 +7352,185 @@ function rollVelAt(e) {
   rollPanel();
 }
 /* the picked step: each note (name, level, ratchet, remove) and the step's velocity, accent and slide */
-/* ------------------------------------------- step detail: SLOOP 2.4's micro nudge, fill state, parameter locks (72..77) --- */
-let stepxTimer = 0;
-const stepxSoon = () => { clearTimeout(stepxTimer); stepxTimer = setTimeout(stepxRender, 0); };
-async function stepxLoad(tr) {
-  const f = dev.stepx, o = dev.sx || (dev.sx = {}), x = o[tr] || (o[tr] = {});
-  if (f.micro && !x.micro) x.micro = parse[CMD.MICRO_GET](await rq(req.microGet(tr))).nudge;
-  if (f.fills && !x.fill) x.fill = parse[CMD.FILL_GET](await rq(req.fillGet(tr))).fill;
-  if (f.plock && !x.locks) x.locks = parse[CMD.LOCK_GET](await rq(req.lockGet(tr))).locks;
-  return x;
+/* ------------------------------------------- step automation: CHANCE, COND, NUDGE, FILL and the locks of a step (the automation store: AUTO_GET / AUTO_SET) --- */
+/* For the step picked in the Sequence popup (a synth step, or a drum step and a picked drum sound): the step's extras, the locks (the device's own value pages: the
+   Sound pages of the track, a drum sound's TUNE .. LEVEL, never a value the device does not lock) and the motion on it; the steps that have any are marked in the
+   step tiles / the drum grid. A drum sound's lock needs its hit on the step (the device's rule, D4). Writes go through AUTO_SET as the device's own store keeps them. */
+const SA_COND = ["", "1:2", "2:2", "1:3", "2:3", "3:3", "1:4", "2:4", "3:4", "4:4"];
+const SA_FORBID = new Set(["VCE", "VOICES", "GLMOD", "PRIO", "ALLOC", "MUTE", "LEN", "DIV", "SWG"]);   /* (the values the device never locks: auto_base.c auto_param) */
+const sa = { step: 0, lane: 0, msgTimer: 0, seq: 0 };
+const saPlace = (step, only) => (step & AUTO.STEP) | (only ? AUTO.ONLY : 0);
+const saLaneId = (l, v) => AUTO.LANE0 + (((l & 15) << 3) | (v & 7));
+const saFind = (ev, place, param) => ev.find((e) => e.place === place && e.param === param);
+/* a drum sound's value descriptors (auto_lane.c DLA_DESC) */
+const saLaneDesc = (v) => ({ label: DL.DE[v], fmt: v === 0 || v === 4 ? F.SEMI : v === 7 ? F.INT : F.BIPCT, min: DL.MIN[v], max: DL.MAX[v], def: 0, unit: v === 7 ? "dB" : "" });
+async function saLoad(tr, force) {
+  const o = dev.sa || (dev.sa = {});
+  const age = dev.saT && dev.saT[tr] ? performance.now() - dev.saT[tr] : 1e9;
+  if (o[tr] && !force && age < 1500) return o[tr];
+  const ev = [];
+  for (let first = 0, n = 1; first < n;) {
+    const r = parse[CMD.AUTO_GET](await rq(req.autoGet(tr, first)));
+    n = r.n;
+    if (!r.events.length) break;
+    ev.push(...r.events);
+    first += r.events.length;
+  }
+  o[tr] = ev;
+  (dev.saT || (dev.saT = {}))[tr] = performance.now();
+  return ev;
 }
-function stepxRender() {
+function saSay(msg) {
+  const m = $("samsg");
+  if (!m) return;
+  m.textContent = msg;
+  clearTimeout(sa.msgTimer);
+  if (msg) sa.msgTimer = setTimeout(() => { m.textContent = ""; }, 4000);
+}
+/* write (v: a number) or delete (v: null) the event (place, param) of a track; the list read again; -> rc */
+async function saWrite(tr, place, param, v) {
+  const d = dev;
+  const r = parse[CMD.AUTO_SET](await rq(req.autoSet(tr, v == null ? AUTO.OP.DEL : AUTO.OP.SET, place, param, v)));
+  if (r.rc) saSay(r.rc === 2 ? t("saFull") : t("saRefused"));
+  if (d !== dev) return r.rc;
+  await saLoad(tr, true);
+  saApplyMarks();
+  return r.rc;
+}
+/* the steps of a track with any event (a lock, a hold, a pseudo-parameter) */
+function saMarkSet(tr) {
+  const ev = dev && dev.sa && dev.sa[tr];
+  if (!ev) return new Map();
+  const m = new Map();
+  for (const e of ev) { const k = m.get(e.step) || { lock: 0, hold: 0, extra: 0, lanes: new Set() }; if (e.param >= AUTO.COND) k.extra++; else if (e.only) k.lock++; else k.hold++; const ln = autoLane(e.param); if (ln) k.lanes.add(ln.lane); m.set(e.step, k); }
+  return m;
+}
+const saMarkTitle = (k) => [k.lock && `${k.lock} ${t("locks")}`, k.hold && `${k.hold} ${t("saMotion")}`, k.extra && `${k.extra} ${t("saExtras")}`].filter(Boolean).join(", ");
+function saApplyMarks() {
+  if (!dev || !dev.sa) return;
+  const tr = dev.sel, m = saMarkSet(tr), drum = drumGrid() && SQ.dstepsOk;
+  for (const b of document.querySelectorAll("#roll .tile[data-s]")) {
+    const k = m.get(+b.dataset.s);
+    b.classList.toggle("auto", !!k);
+    b.dataset.auto = k ? saMarkTitle(k) : "";
+    if (k && !b.title.includes(saMarkTitle(k))) b.title += ` · ${saMarkTitle(k)}`;
+  }
+  if (drum) {
+    for (const h of document.querySelectorAll("#drumgrid .hd[data-h]")) { const k = m.get(+h.dataset.h); h.classList.toggle("auto", !!k); h.title = k ? saMarkTitle(k) : ""; }
+    for (const c of document.querySelectorAll("#drumgrid button[data-i]")) { const k = m.get(+c.dataset.i); c.classList.toggle("lk", !!k && k.lanes.has(+c.dataset.l)); c.classList.toggle("selst", +c.dataset.i === sa.step && +c.dataset.l === sa.lane); }
+  }
+}
+/* the values the device lets this step lock: [{group, id, desc}] (a drum sound: its TUNE .. LEVEL the sound shows; a synth track: its Sound pages' values) */
+function saLockables(tr, lane) {
+  const out = [], seen = new Set();
+  if (drumTrack(tr)) {
+    if (lane < 16 && dev.dl) { const sh = laneShow(lane); for (let v = 0; v < DL.DE.length; v++) if ((sh.mask >> v) & 1) out.push({ group: laneName(lane), id: saLaneId(lane, v), desc: saLaneDesc(v) }); }
+    return out;
+  }
+  const add = (group, id) => {
+    const d = dev.pdesc[id];
+    if (!visible(d) || seen.has(id) || SA_FORBID.has(d.label) || id === pFxoff()) return;
+    seen.add(id);
+    out.push({ group, id, desc: d });
+  };
+  if (dev.pages && dev.pages.length) {
+    for (const g of soundLayout(dev.pages, dev.titles[dev.dump.engine] || [])) for (const [title, , ids] of g.pages) if (!/DEST$/.test(title)) for (const id of ids) add(title, id);
+  } else for (let id = 0; id < dev.info.pcount; id++) add("", id);
+  return out;
+}
+/* the locks of a drum sound on a step (its hit removed) */
+async function saDropLane(tr, step, lane) {
+  try {
+    const ev = await saLoad(tr);
+    for (const e of ev.filter((x) => x.step === step && x.only && (autoLane(x.param) || {}).lane === lane)) await saWrite(tr, e.place, e.param, null);
+    saSoon();
+  } catch (e) { report(e); }
+}
+let saTimer = 0;
+const saSoon = () => { clearTimeout(saTimer); saTimer = setTimeout(saRender, 0); };
+async function saRender() {
   const box = $("stepx");
   if (!box) return;
-  const s = roll.sel, tr = dev && dev.sel;
-  if (!dev || !dev.stepx || slotEd || s < 0 || $("roll").hidden || !rollIsNote(SQ.steps[s])) { box.hidden = true; return; }
+  const tr = dev && dev.sel, seq = ++sa.seq;
+  if (!dev || !dev.autoOk || slotEd || !hasTracks() || $("p-sequencer").hidden) { box.hidden = true; return; }
+  const len = stepLen(), drum = drumTrack(tr);
+  if (roll.sel >= 0 && !drum && roll.sel !== sa.rollSel) sa.step = roll.sel;
+  sa.rollSel = roll.sel;
+  sa.step = Math.max(0, Math.min(len - 1, sa.step | 0));
+  sa.lane = Math.max(0, Math.min(15, sa.lane | 0));
   box.hidden = false;
-  op(async () => {
-    const x = await stepxLoad(tr);
-    if (roll.sel === s && dev.sel === tr) stepxDraw(box, tr, s, x);
-  });
-}
-function stepxDraw(box, tr, s, x) {
-  const f = dev.stepx, parts = [el("h3", { text: `${t("rollStep")} ${s + 1}: ${t("stepxTitle")}` })];
-  const put = (fn) => op(async () => { await fn(); stepxDraw(box, tr, s, x); });
-  if (f.micro) {
-    const n = x.micro[s] | 0;
-    const num = el("input", { type: "number", min: -32, max: 31, value: n, class: "num", "aria-label": t("nudge"), title: t("nudgeTip") });
-    const set = (v) => put(async () => { x.micro[s] = parse[CMD.MICRO_SET](await rq(req.microSet(tr, s, v))).nudge; });
-    num.addEventListener("change", () => set(+num.value || 0));
-    parts.push(el("label", { class: "sxrow" }, t("nudge") + " ", num, el("span", { class: "dim", text: " /64" }),
-      el("button", { type: "button", title: t("nudgeBack"), onclick: () => set(n - 1) }, "\u2212"),
-      el("button", { type: "button", title: t("nudgeFwd"), onclick: () => set(n + 1) }, "+"),
-      el("button", { type: "button", title: t("nudgeZero"), onclick: () => set(0), disabled: n === 0 }, "0")));
+  let ev;
+  try { ev = await saLoad(tr); } catch (e) { report(e); return; }
+  if (seq !== sa.seq || !dev) return;
+  const step = sa.step, lane = drum ? sa.lane : 127, place = saPlace(step, true);
+  const hit = !drum || !!(SQ.dsteps[step] && ((SQ.dsteps[step].on >> lane) & 1));
+  const put = (param, v) => op(async () => { await saWrite(tr, place, param, v); saRender(); });
+  /* the step and (drum) the sound */
+  const num = el("input", { type: "number", min: 1, max: len, value: step + 1, class: "num", id: "sa-step", "aria-label": t("rollStep"), title: t("rollStep") });
+  num.addEventListener("change", () => { sa.step = (+num.value || 1) - 1; saRender(); saApplyMarks(); });
+  const pick = [el("label", {}, `${t("rollStep")} `, num)];
+  if (drum) {
+    const ls = el("select", { id: "sa-lane", "aria-label": t("laneStrip"), title: t("laneStrip") }, ...DRUM_LANES.map((_, l) => el("option", { value: l, text: laneName(l) })));
+    ls.value = String(lane);
+    ls.addEventListener("change", () => { sa.lane = +ls.value; saRender(); saApplyMarks(); });
+    pick.push(el("label", {}, `${t("laneStrip")} `, ls));
   }
-  if (f.fills) {
-    const sel = el("select", { "aria-label": t("fillCond"), title: t("fillTip") },
-      ...[0, 1, 2].map((v) => el("option", { value: v, text: t(["fillNormal", "fillOnly", "fillNone"][v]), selected: (x.fill[s] | 0) === v })));
-    sel.addEventListener("change", () => put(async () => { x.fill[s] = parse[CMD.FILL_SET](await rq(req.fillSet(tr, s, +sel.value))).fill; }));
-    parts.push(el("label", { class: "sxrow" }, t("fillCond") + " ", sel));
-  }
-  if (f.plock) parts.push(stepxLocks(tr, s, x, put));
-  box.replaceChildren(...parts);
-}
-function stepxLocks(tr, s, x, put) {
-  const mine = x.locks.filter((l) => l.step === s), rows = mine.map((l) => {
-    const d = dev.pdesc[l.param];
-    if (!d) return el("tr", {}, el("td", { text: `P${l.param}` }), el("td", { class: "dim", text: String(l.v) }), el("td"));
-    const [txt, unit] = fmtValue(d, l.v);
-    const set = (v) => put(async () => { const r = parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, l.param, v))); if (!r.rc) { sayK("lockFull"); return; } l.v = r.v; });
-    const num = el("input", { type: "number", min: d.min, max: d.max, value: l.v, class: "num", "aria-label": `${d.label} ${t("locks")}`, title: d.label });
-    num.addEventListener("change", () => set(+num.value));
-    const del = el("button", { type: "button", title: `${t("lockRemove")} ${d.label}`, onclick: () => put(async () => {
-      parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, l.param, null)));
-      x.locks.splice(x.locks.indexOf(l), 1);
-    }) }, "\u00d7");
-    return el("tr", { "data-param": l.param }, el("td", { text: d.label }), el("td", {}, num), el("td", { class: "dim", text: unit ? `${txt} ${unit}` : txt }), el("td", {}, del));
+  /* the extras: CHANCE, COND, NUDGE, FILL */
+  const x = (param, none) => { const e = saFind(ev, place, param); return e ? e.v : none; };
+  const chance = el("input", { type: "range", min: 0, max: 100, step: 5, value: x(AUTO.CHANCE, 100), id: "sa-chance", "aria-label": t("saChance"), title: t("saChanceTip") });
+  const chv = el("span", { class: "dim", text: `${chance.value} %` });
+  chance.addEventListener("input", () => { chv.textContent = `${chance.value} %`; });
+  chance.addEventListener("change", () => put(AUTO.CHANCE, +chance.value >= 100 ? null : +chance.value));
+  const cond = el("select", { id: "sa-cond", "aria-label": t("saCond"), title: t("saCondTip") }, ...SA_COND.map((c, i) => el("option", { value: i, text: c || t("saNone") })));
+  cond.value = String(x(AUTO.COND, 0));
+  cond.addEventListener("change", () => put(AUTO.COND, +cond.value ? +cond.value : null));
+  const nv = x(AUTO.NUDGE, 0);
+  const nud = el("input", { type: "number", min: -32, max: 31, value: nv, class: "num", id: "sa-nudge", "aria-label": t("nudge"), title: t("nudgeTip") });
+  const setN = (v) => put(AUTO.NUDGE, Math.max(-32, Math.min(31, v | 0)) || null);
+  nud.addEventListener("change", () => setN(+nud.value));
+  const fill = el("select", { id: "sa-fill", "aria-label": t("fillCond"), title: t("fillTip") }, ...[0, 1, 2].map((v) => el("option", { value: v, text: t(["fillNormal", "fillOnly", "fillNone"][v]) })));
+  fill.value = String(x(AUTO.FILL, 0));
+  fill.addEventListener("change", () => put(AUTO.FILL, +fill.value || null));
+  const extras = el("div", { class: "saextras" },
+    el("label", {}, `${t("saChance")} `, chance, chv), el("label", {}, `${t("saCond")} `, cond),
+    el("label", {}, `${t("nudge")} `, nud, el("span", { class: "dim", text: " /64" }),
+      el("button", { type: "button", title: t("nudgeBack"), onclick: () => setN(+nud.value - 1) }, "−"), el("button", { type: "button", title: t("nudgeFwd"), onclick: () => setN(+nud.value + 1) }, "+"),
+      el("button", { type: "button", title: t("nudgeZero"), onclick: () => setN(0), disabled: !nv }, "0")),
+    el("label", {}, `${t("fillCond")} `, fill));
+  /* the locks and the motion of this step (this sound's, on the drum track) */
+  const mine = (e) => e.step === step && e.param < AUTO.COND && (drum ? (autoLane(e.param) || {}).lane === lane : !autoLane(e.param) && e.param < 0x78);
+  const items = saLockables(tr, lane), byId = new Map(items.map((i) => [i.id, i]));
+  const rows = ev.filter(mine).map((e) => {
+    const it = byId.get(e.param), d = it ? it.desc : null, lock = e.only;
+    const label = d ? d.label : `#${e.param}`;
+    const [txt, unit] = d ? fmtValue(d, e.v) : [String(e.v), ""];
+    const inp = el("input", { type: "number", min: d ? d.min : -128, max: d ? d.max : 127, value: e.v, class: "num", "aria-label": `${label} ${t(lock ? "locks" : "saMotion")}`, title: label });
+    inp.addEventListener("change", () => op(async () => { await saWrite(tr, e.place, e.param, +inp.value); saRender(); }));
+    const del = el("button", { type: "button", title: `${t("lockRemove")} ${label}`, onclick: () => op(async () => { await saWrite(tr, e.place, e.param, null); saRender(); }) }, "×");
+    return el("tr", { "data-param": e.param, "data-kind": lock ? "lock" : "hold" }, el("td", { text: lock ? "" : t("saMotion") }), el("td", { text: it && it.group && it.group !== label ? `${it.group} ${label}` : label }), el("td", {}, inp), el("td", { class: "dim", text: unit ? `${txt} ${unit}` : txt }), el("td", {}, del));
   });
-  const taken = new Set(mine.map((l) => l.param));
-  const add = el("select", { "aria-label": t("lockAdd"), title: t("lockAdd") }, ...Array.from({ length: dev.info.pcount }, (_, i) => i)
-    .filter((i) => visible(dev.pdesc[i]) && !taken.has(i)).map((i) => el("option", { value: i, text: dev.pdesc[i].label })));
-  const go = el("button", { type: "button", title: t("lockAdd"), onclick: () => {
-    const id = +add.value;
-    put(async () => {
-      const r = parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, id, dev.dump.p[id] | 0)));
-      if (!r.rc) { sayK("lockFull"); return; }
-      x.locks.push({ step: s, param: id, v: r.v });
-    });
+  const taken = new Set(ev.filter((e) => e.step === step && e.only).map((e) => e.param));
+  const groups = new Map();
+  for (const it of items) if (!taken.has(it.id)) (groups.get(it.group) || groups.set(it.group, []).get(it.group)).push(it);
+  const add = el("select", { id: "sa-add", "aria-label": t("lockAdd"), title: t("lockAdd"), disabled: !hit || !groups.size },
+    ...[...groups].map(([g, list]) => el("optgroup", { label: g }, ...list.map((it) => el("option", { value: it.id, text: it.desc.label })))));
+  const go = el("button", { type: "button", id: "sa-addgo", title: t("lockAdd"), disabled: !hit || !groups.size, onclick: () => {
+    const id = +add.value, it = byId.get(id);
+    if (!it) return;
+    const v0 = drum ? 0 : dev.dump.p[id] | 0;
+    put(id, Math.max(it.desc.min, Math.min(it.desc.max, v0)));
   } }, "+ " + t("lockAdd"));
-  const others = [...new Set(x.locks.filter((l) => l.step !== s).map((l) => l.step + 1))].sort((a, b) => a - b);
-  return el("div", { class: "sxlocks" }, el("b", { text: `${t("locks")} (${x.locks.length}/24)` }),
-    rows.length ? el("table", {}, ...rows) : el("span", { class: "dim", text: " " + t("lockNone") }),
-    el("div", { class: "bar" }, add, go),
-    others.length ? el("p", { class: "dim", text: `${t("lockOn")}: ${others.join(", ")}` }) : "");
+  const nolock = !hit ? el("p", { class: "dim", id: "sa-nohit", text: t("saNoHit") }) : "";
+  const n = ev.length;
+  box.replaceChildren(el("h3", { text: `${t("saTitle")} · ${t("rollStep")} ${step + 1}${drum ? ` · ${laneName(lane)}` : ""}` }),
+    el("div", { class: "bar" }, ...pick), extras,
+    el("div", { class: "sxlocks" }, el("b", { text: `${t("locks")} (${n}/${AUTO.MAX})` }),
+      rows.length ? el("table", {}, ...rows) : el("span", { class: "dim", text: " " + t("lockNone") }), el("div", { class: "bar" }, add, go), nolock),
+    el("p", { class: "dim", id: "samsg", role: "status", "aria-live": "polite" }));
+  saApplyMarks();
 }
 function rollPanel() {
-  stepxSoon();
+  saSoon();
   const p = roll.el && roll.el.panel;
   if (!p) return;
   const s0 = roll.sel, st = s0 >= 0 ? SQ.steps[s0] : null;
@@ -7508,7 +7642,8 @@ function renderDrums() {
     {
       const b0 = drumPageRange(drumView.page, len).from;
       kids.push(el("span", { class: "hd" }));
-      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
+      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "", title: i < len ? `${t("rollStep")} ${i + 1}` : "",
+        onclick: i < len ? () => { sa.step = i; saSoon(); saApplyMarks(); } : null }));
       for (let l = 0; l < nl; l++) {
         kids.push(el("span", { class: "ln", "data-ln": l }));
         for (let i = b0; i < b0 + cols; i++) {
@@ -7536,6 +7671,7 @@ function renderDrums() {
     b.setAttribute("aria-label", b.title);
   }
   drumPlayhead();
+  saSoon();
 }
 function drumPlayhead() {
   const box = $("drumgrid"), play = dev && !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
@@ -7547,6 +7683,7 @@ function drumPlayhead() {
 }
 function drumClick(i, l, shift) {
   if (!dev || !SQ.dsteps[i]) return;
+  sa.step = i; sa.lane = l;                          /* (the step and the sound the automation panel follows) */
   const d = { ...SQ.dsteps[i], lvl: SQ.dsteps[i].lvl.slice(), rat: SQ.dsteps[i].rat.slice() };
   const on = (d.on >> l) & 1;
   if (on && shift) d.lvl[l] = LV_ORDER[(LV_ORDER.indexOf(d.lvl[l]) + 1) % 4];   /* louder, then GHOST again */
@@ -7555,6 +7692,7 @@ function drumClick(i, l, shift) {
   SQ.dsteps[i] = d;
   SQ.steps[i] = drumAsStep(d);
   stepEdit.set(i, performance.now());
+  if (on && !((d.on >> l) & 1)) saDropLane(dev.sel, i, l);   /* (its hit gone: the sound's locks there go too, the device's rule D4) */
   renderDrums();
   if (slotEd) slotSave();
   else writeDrum(i);
@@ -9778,7 +9916,28 @@ function scsCard(r, rowName, k, c0) {
   let inp = null, sw = null;
   const turn = async (mode, steps) => {
     scs.edit = performance.now();
-    try { const rw = parse[CMD.SCRS](await rq(req.scrsTurn(...scsCtx(), r, k, mode, steps), { key: `scs:turn:${r}:${k}:${mode}` })); scsShowRow(r, rw); scsAgain(); } catch (e) { report(e); }
+    try { const rw = parse[CMD.SCRS](await rq(req.scrsTurn(...scsCtx(), r, k, mode, steps), { key: `scs:turn:${r}:${k}:${mode}` })); scsShowRow(r, rw); scsAgain(); return rw; } catch (e) { report(e); }
+    return null;
+  };
+  /* a slider's absolute value: the device turns by ITS step (a unit of the card: CHANCE 5 %, a time, a dB), not by a gauge unit; so turn once, measure what one step is
+     in gauge units, then turn by the rest, and look again (the device's own value is what the card shows) */
+  let unit = 1, chasing = false, want = null;
+  const turnTo = async (target) => {
+    want = target;
+    if (chasing) return;
+    chasing = true;
+    try {
+      for (let n = 0; n < 5 && want != null; n++) {
+        const goal = want, g0 = c.gv, delta = goal - g0;
+        if (!delta) { want = null; break; }
+        const steps = Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta) / unit));
+        const rw = await turn(1, steps);
+        const g1 = rw ? rw.cells[k].gv : g0;
+        if (g1 === g0) { want = want === goal ? null : want; break; }   /* (at its end: no further) */
+        unit = Math.abs(g1 - g0) / Math.abs(steps);
+        if (want === goal && Math.abs(goal - g1) < unit) want = null;
+      }
+    } finally { chasing = false; want = null; }
   };
   const ask = async () => {
     try {
@@ -9815,7 +9974,7 @@ function scsCard(r, rowName, k, c0) {
       ctl.append(sw);
     } else if ((c.gk === 1 || c.gk === 2) && c.gmax > c.gmin) {   /* a bar: a slider over the gauge */
       inp = el("input", { type: "range", min: c.gmin, max: c.gmax, step: 1, value: c.gv, "aria-label": c.label });
-      inp.addEventListener("input", () => { const d = +inp.value - c.gv; if (d) { c = { ...c, gv: +inp.value }; turn(1, d); } });
+      inp.addEventListener("input", () => { turnTo(+inp.value); });
       ctl.append(inp);
     } else {                                           /* a list the device names as it steps: a stepper */
       ctl.append(el("button", { type: "button", class: "ib", "aria-label": `${c.label} -`, onclick: () => turn(1, -1) }, "◀"),

@@ -1070,6 +1070,13 @@ The SCOPE screen's cards (the source's LEVEL PAN FX DRIVE, the master's FILT THR
 
 ## Notes for the editor
 
+- **Step automation in the editor** (Sequence popup): one panel for a step of the track shown (a drum step: and the picked drum sound), written through `AUTO_GET` / `AUTO_SET`
+  (92, 93) only: CHANCE, COND, NUDGE and FILL are the step-only pseudo-parameter events (0xFF, 0xFC, 0xFD, 0xFE) and a default (chance 100, none, 0, normal) deletes its
+  event; a lock is the step-only event of a P id (the values the Sound pages show; never VCE GLMOD PRIO ALLOC MUTE LEN DIV SWG nor a DEST slot) or of a drum sound's value
+  (`AUTO_LANE(lane, value)`). The editor keeps the device's drum rule itself: no lock without the lane's hit on the step, and a hit it removes takes the sound's locks of that
+  step with it (`AUTO_SET` itself takes a lane lock without a hit). The list read again after every write: the device's list is the one truth. The v14 STEPLANE (105) lists the
+  device's own lockable values; the editor will use it when the firmware builds it.
+
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.
   The device holds only one incoming SysEx frame.
 - **Following the device.** With v9 firmware, `WATCH 15` and `PING`: every change is pushed, nothing is polled. With v2..v8
