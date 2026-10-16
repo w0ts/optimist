@@ -1369,7 +1369,7 @@ async function editorFxp() {
       if (k !== "return" && ty.params.length && !idx.length) bad.push(`${k}/${name}: no main knob`);
       if (idx.length > 3 || idx.some((i) => !ty.params[i])) bad.push(`${k}/${name}: bad main knobs`);
     }
-    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "name", "inst", "clips", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level"])
+    ok(!bad.length && js(ui.STRIP_ROWS) === js(["head", "inst", "nav", "clips", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level"])
       && Object.values(ui.BUS_MAIN).every(([id, labels]) => E.MASTER_FX.find((f) => f.id === id).labels.includes(labels[0]) && labels.every((l) => E.MASTER_FX.find((f) => f.id === id).labels.includes(l))),
       "fxp: every effect type has 1..3 main knobs (the descriptors' first parameters, FXP_MAIN's labels; a bus: its own globals); every strip kind is built by stripShell with the same rows" + (bad.length ? " " + bad.join("; ") : ""));
     const shell = html.slice(html.indexOf("function stripShell("), html.indexOf("const fxpSlotsOf"));

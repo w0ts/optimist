@@ -449,7 +449,7 @@
   /* every strip (tracks and master) shares the same rows (--slot-rows: room for rows above the head), top to bottom, at the same heights (as Ableton's session mixer):
      head, sound name, instrument group, Sequence, step overview, content (the drum lanes; the master's FX), sends (DST CHO DLY REV +
      FX / DRY), pan knob, fader + meter, level readout, REC / SOLO / mute */
-  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: [head] 28px [name] 34px [inst] 32px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; row-gap: 6px; align-items: center; align-content: start; }
+  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: [head] 28px [inst] 46px [nav] 28px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; row-gap: 6px; align-items: center; align-content: start; }
   #mixer .strip > * { min-width: 0; }
   #mixer .strip > .knob { justify-self: center; }
   #mixer .strip .fx button.tog { min-height: 24px; }
@@ -488,7 +488,7 @@
   .mixer > .strip.master.alone { flex: 0 1 150px; min-width: 132px; max-width: 160px; }
   #mixer .strip.master .mx { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-self: start; gap: 6px; }
   /* the one strip template: every kind (track, drum sound, USB input, return, master) has the same rows (STRIP_ROWS), a blank .ph where the device has nothing */
-  #mixer .strip > .srow[data-row="head"] { grid-row: head; } #mixer .strip > .srow[data-row="name"] { grid-row: name; } #mixer .strip > .srow[data-row="inst"] { grid-row: inst; }
+  #mixer .strip > .srow[data-row="head"] { grid-row: head; } #mixer .strip > .srow[data-row="inst"] { grid-row: inst; } #mixer .strip > .srow[data-row="nav"] { grid-row: nav; }
   #mixer .strip > .srow[data-row="clips"] { grid-row: clips; align-items: flex-start; } #mixer .strip > .srow[data-row="slot1"] { grid-row: slot1; } #mixer .strip > .srow[data-row="slot2"] { grid-row: slot2; } #mixer .strip > .srow[data-row="tools"] { grid-row: tools; }
   #mixer .strip > .srow[data-row="seq"] { grid-row: seq; } #mixer .strip > .srow[data-row="ov"] { grid-row: ov; } #mixer .strip > .srow[data-row="pan"] { grid-row: pan; }
   #mixer .strip > .srow[data-row="sends"] { grid-row: sends; } #mixer .strip > .srow[data-row="level"] { grid-row: level; }
@@ -735,7 +735,7 @@
   .strip.master .fxg button.ib, .strip.master .fxg button.ib:hover { border: 0; border-radius: 0; }
   .meter, .gr, #mixer .strip .meter { border-radius: 0; }
   #mixer > .strip:not(.nar) { flex-basis: 150px; min-width: 132px; } #mixer > .strip.master:not(.alone) { flex-basis: 380px; min-width: 380px; }
-  #mixer .strip { grid-template-rows: [head] 28px [name] 40px [inst] 32px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; }
+  #mixer .strip { grid-template-rows: [head] 28px [inst] 46px [nav] 28px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; }
   #mixer .strip .snd { height: 40px; }
   #mixer .strip .fx { height: 220px; }
   #mixer .strip .lanes .ln { padding: 0 1px 0 4px; }
@@ -933,15 +933,28 @@
   #mixer .strip .lblk .row2 button { flex: 0 0 auto; }
   #mixer .strip .lblk .fm { height: 100%; align-self: stretch; }
   /* a muted row, the Optimist grammar: its name struck through, its pan, sends and fader dimmed (a track: MUTE; a drum sound: its lane mute) */
-  #mixer .strip.muted .shead .eng, #mixer .strip.lmuted .shead .eng, #mixer .strip.muted .srow[data-row="name"], #mixer .strip.lmuted .srow[data-row="name"] .lname { text-decoration: line-through; }
+  #mixer .strip.muted .shead .eng, #mixer .strip.lmuted .shead .eng, #mixer .strip.muted .srow[data-row="inst"] .fxname, #mixer .strip.lmuted .srow[data-row="inst"] .fxname { text-decoration: line-through; }
   #mixer .strip.muted .srow[data-row="pan"], #mixer .strip.muted .srow[data-row="sends"], #mixer .strip.lmuted .srow[data-row="pan"], #mixer .strip.lmuted .srow[data-row="sends"],
   #mixer .strip.muted .lblk .fm, #mixer .strip.lmuted .lblk .fm { opacity: .35; }
   #mixer .strip .lblk .fm .fader { height: 100%; }
+  #mixer .strip .lblk .row2 button { font-size: 13px; writing-mode: horizontal-tb; direction: ltr; transform: none; text-transform: none; }
+  #mixer .strip .lblk .row2 .ph { flex: 0 0 28px; height: 28px; }
+  /* the instrument widget's two lines: the instrument over the preset / sound name */
+  .slotw .fxname.two { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; line-height: 1.15; padding: 1px 6px; min-height: 40px; }
+  .slotw .fxname.two .l1 { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slotw .fxname.two .l2 { font-size: 11px; color: var(--dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* the selected strip: a tint of its track's colour over the whole strip (no word) */
+  #mixer .strip.sel { background: color-mix(in srgb, var(--eng, var(--tc, var(--accent))) 12%, var(--bg)); }
+  /* the fold: a plain triangle in the head's colour (right: open, down: folded), the one-or-all toggle to its left */
+  #mixer .strip button.fold { border: 0; border-radius: 0; background: transparent; color: inherit; width: 22px; min-width: 22px; height: 28px; font-size: 14px; }
+  #mixer .strip button.fold[aria-expanded="true"] { background: transparent; color: inherit; }
+  #mixer .strip button.lmode { width: 28px; min-width: 28px; height: 28px; font-size: 11px; border: 0; background: transparent; color: inherit; font-weight: 700; }
   #mixer .strip .shead .eng { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #mixer .strip button.fold, #mixer .strip button.lmode { width: 24px; min-width: 24px; height: 24px; font-size: 12px; }
   #mixer .strip.nar .lblk .row2 { flex-basis: 30px; }
   #mixer .strip.nar .lblk .row2 button { width: 30px; padding: 0; font-size: 11px; }
   #mixer .strip.nar .srow[data-row="level"] .fm .fader { width: 22px; }
+  #mixer .strip .srow[data-row="nav"] { overflow: hidden; min-width: 0; } #mixer .strip .lpn { gap: 2px; } #mixer .strip .lpn button { width: 22px; min-width: 22px; flex: none; } #mixer .strip .lpn select.lname { flex: 1 1 0; width: 0; min-width: 0; padding: 2px 0; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -6260,7 +6273,7 @@ const TEXT = {
   kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
   clips: "clips",
-  recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "Stop the song first (the device refuses REC while a song plays)",
+  recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "STOP THE SONG FIRST",
   retMuteTip: "Mute of a return (the firmware has no return mute: SOLO op 7)",
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
   soloTip: "Solo (set on the device with GLO + the track key; the editor's solo comes with protocol v14)",
@@ -10504,9 +10517,12 @@ function fxpControl(ow, sl, ty, i, d, v) {
 /* THE SLOT WIDGET, the same everywhere: ONE control that reads `[ delay v ]`. The name part (id <base>-open) opens the plugin's panel (the instrument's
    editor); the small v part (id <base>-type, a list of the types) chooses the type; an empty slot reads `[ -- v ]` and its name part opens the chooser. */
 function splitSlot(base, sel, nameText, label, onOpen) {
-  const name = el("button", { type: "button", class: "fxname", id: `${base}-open`, title: label, "aria-label": label }, nameText || "\u2014");
+  const two = nameText && typeof nameText === "object";        /* {l1: the instrument's text, l2: an element with the preset / sound name}: two lines in one button */
+  const name = el("button", { type: "button", class: `fxname${two ? " two" : ""}`, id: `${base}-open`, title: label, "aria-label": label },
+    ...(two ? [el("span", { class: "l1", text: nameText.l1 || "\u2014" }), nameText.l2] : [nameText || "\u2014"]));
   sel.id = `${base}-type`;
   sel.classList.add("fxtype");
+  if (two) nameText = nameText.l1 || "-";
   name.addEventListener("click", () => { if (nameText && onOpen) onOpen(); else if (sel.showPicker) { try { sel.showPicker(); } catch (e) { sel.focus(); } } else sel.focus(); });
   return el("div", { class: "slotw", "data-base": base }, name, sel);
 }
@@ -10603,7 +10619,7 @@ function dynFxSlot() {
    across the strips. Ids: strip-<n>-inst-type / -inst-open (n = 1..4 the track: a synth's engine, the drum track's kit), strip-<n>-slot<k>-type / -open
    (k = 1, 2), strip-lane<n>-slot<k>-..., strip-usb-slot<k>-..., strip-ret-a / -b / -c-slot1-..., strip-master-slot<k>-...: exactly ONE type list and ONE
    open button a slot (a send return holding CHO / DLY / REV opens that bus's own panel, any other slot its parameters). */
-const STRIP_ROWS = ["head", "name", "inst", "clips", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level"];   /* (clips: the pattern / scene cells, below the title and the sound name; 0 high when the firmware has no patterns) */
+const STRIP_ROWS = ["head", "inst", "nav", "clips", "slot1", "slot2", "tools", "seq", "ov", "pan", "sends", "level"];   /* (clips: the pattern / scene cells, below the title and the sound name; 0 high when the firmware has no patterns) */
 function stripShell(attrs, pre, rows, extra = [], o = {}) {
   /* o.narrow: a narrow strip (the drum sounds, the returns, the USB input: about half a track's width); o.mid: its controls are one column in the tools row, which spans down to the level block */
   if (o.narrow) attrs = { ...attrs, class: `${attrs.class} nar`, "data-narrow": "" };
@@ -10614,7 +10630,10 @@ function stripShell(attrs, pre, rows, extra = [], o = {}) {
   return el("div", attrs, ...pre, ...kids, ...extra);
 }
 /* the level block, as Live's bottom of a strip: the buttons (MUTE, SOLO, SEQ MUTE) stacked on the left, the fader and its meter on the right */
-const levelBlock = (btns, fm) => el("div", { class: "lblk" }, el("div", { class: "row2" }, ...btns), fm);
+const levelBlock = (b = {}, fm) => {
+  const slot = (x) => x || el("span", { class: "ph", "aria-hidden": "true" });
+  return el("div", { class: "lblk" }, el("div", { class: "row2" }, slot(b.mute), slot(b.solo), slot(b.seq)), fm);
+};
 const fxpSlotsOf = (ow) => (ow >= FXP.RET0 && ow < FXP.LANE0 ? 1 : 2);   /* (the USB input has a third, its own values: its controls are the strip's) */
 /* an owner's slot rows: one compact card a slot (a list and an open button), registered with the strip cards the pushes refresh; with no FXP in the
    firmware a visible note (never silence) -> {slot1, slot2} */
@@ -10630,7 +10649,7 @@ function stripSlotRows(ow, ids, o = {}) {
   return out;
 }
 /* a synth track's instrument (the drum track's kit) on its strip: the list and a button for its editor */
-function stripInst(i) {
+function stripInst(i, snd) {
   const n = i + 1, drum = drumTrack(i);
   const sel = el("select", { id: `strip-${n}-inst-type`, "aria-label": `${t("track")} ${n} ${drum ? t("kitNow") : t("instrument")}`, title: drum ? t("kitNow") : t("instrument"), "data-inst": i });
   const x = dev.mix && dev.mix.tracks[i];
@@ -10647,7 +10666,7 @@ function stripInst(i) {
   }
   const pop = drum ? "kit" : "sound";
   const nameText = drum ? (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "") : (dev.info.engines[x ? x.engine : 0] || "");
-  const w = splitSlot(`strip-${n}-inst`, sel, nameText, withKey(`${t(drum ? "popKit" : "popSound")} (${t("track")} ${n})`, keyFor(pop, 0)), () => openPop(pop, i));
+  const w = splitSlot(`strip-${n}-inst`, sel, snd ? { l1: nameText, l2: snd } : nameText, withKey(`${t(drum ? "popKit" : "popSound")} (${t("track")} ${n})`, keyFor(pop, 0)), () => openPop(pop, i));
   w.firstChild.dataset.pop = pop;
   return el("div", { class: "fxo compact inst" }, w);
 }
@@ -10697,8 +10716,8 @@ function fxpGroup(ow, sl) {
 /* a strip's four send places DST CHO / DLY REV: what the kind has, a hidden placeholder knob elsewhere */
 const sendsGrid = (items, cls = "") => el("div", { class: `fx ${cls}`.trim(), role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, ...items);
 /* a track strip's inserts and instrument -> the rows' parts */
-function stripInsert(i) {
-  return { inst: stripInst(i), ...stripSlotRows(i, `strip-${i + 1}`) };
+function stripInsert(i, snd) {
+  return { inst: stripInst(i, snd), ...stripSlotRows(i, `strip-${i + 1}`) };
 }
 /* the Sound view's values of the selected track (and the drum level, a global) -> the strips */
 function mixFromDump() {
@@ -10796,25 +10815,27 @@ function buildLaneStrip(l) {
   c.num = el("span", { class: "num", text: laneTag(l) });
   c.eng = el("span", { class: "eng", text: laneShort(l) });
   c.head = el("button", { type: "button", class: "shead", "data-lane-select": l, onclick: () => laneSelect(l) }, c.num, c.eng);
+  c.head.title = `${laneTag(l)} ${nm}`;
   const nav1 = mixLanes.mode === "one";
-  if (nav1) {                                        /* the one visible lane strip carries the selector: previous / next and the list of the sounds */
+  /* one-lane mode: a small centred prev | list | next BELOW the instrument widget (the strip carries the selector, not T4's head) */
+  let lnav = null;
+  if (nav1) {
     c.name = el("select", { class: "lname", id: "strip-lane-select", "aria-label": t("laneStrip"), title: t("laneStrip") }, ...laneIds().map((x) => el("option", { value: x, text: `${laneTag(x)} ${laneName(x)}` })));
     c.name.value = String(l);
     c.name.addEventListener("change", () => laneSelect(+c.name.value));
-  } else c.name = el("span", { class: "lname", text: nm });
-  const lnav = el("div", { class: "lnav", role: "group", "aria-label": t("laneStrip") }, c.name);
-  const lpn = nav1 ? el("div", { class: "lpn", role: "group", "aria-label": t("laneStrip") }, step(-1, "\u25c2", "lanePrev"), step(1, "\u25b8", "laneNext")) : null;
+    lnav = el("div", { class: "lpn", role: "group", "aria-label": t("laneStrip") }, step(-1, "\u25c2", "lanePrev"), c.name, step(1, "\u25b8", "laneNext"));
+  }
   const tog = (txt, label, i) => (c[txt] = el("button", { type: "button", class: `tog${txt === "M" ? " act mute" : txt === "S" ? " sol" : ""}`, ...(txt === "M" ? { id: `strip-lane${l + 1}-mute` } : txt === "S" ? { id: `strip-lane${l + 1}-solo` } : {}),
     "aria-pressed": "false", title: label, "aria-label": `${nm} ${label}`,
     onclick: () => dlanPut(0, l, i, ((dev.dlMix && (acc ? dev.dlMix.acc : dev.dlMix.lanes[l])) || [])[i] ? 0 : 1) }, txt === "M" ? String(l + 1) : txt));
-  const rows = { head: c.head, name: lnav, inst: lpn };
-  let laneLevel = null, laneBtns = [];
+  const rows = { head: c.head, nav: lnav };
+  let laneLevel = null, laneBtns = {};
   if (acc) {
     if (dl) {
       c.amt = knob({ tip: true, label: "ACCENT", aria: `${nm} ACCENT`, help: t("accNoSound"), min: LANE_ACC_DESC.min, max: LANE_ACC_DESC.max, def: LANE_ACC_DESC.def, value: 0,
         fmt: (v) => fmtValue(LANE_ACC_DESC, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, 16, 1, v) });
       laneLevel = c.amt.el;
-      laneBtns = [tog("SEQ", t("seqMute"), 0)];
+      laneBtns = { seq: tog("SEQ", t("seqMute"), 0) };
     }
   } else {
     const fmtL = (v) => `${sgn(v)} dB`;
@@ -10837,11 +10858,28 @@ function buildLaneStrip(l) {
       so.forEach((e, n) => { const kl = e.querySelector(".kl"); if (kl) kl.textContent = "ABC"[n]; });
       rows.sends = sendsGrid(so);
     }
-    if (dl) laneBtns = [tog("M", t("mute"), 1), tog("S", t("solo"), 2), tog("SEQ", t("seqMute"), 3)];
+    if (dl) laneBtns = { mute: tog("M", t("mute"), 1), solo: tog("S", t("solo"), 2), seq: tog("SEQ", t("seqMute"), 3) };
+    if (dev.dl && dev.dl.lanes[l]) {                  /* the sound's instrument: a kit (the kit's sound for this position) or any single source, the device's own list (SOURCE); the open part opens the sound's popup */
+      const ln = dev.dl.lanes[l], sel = srcSelect(ln.src, { disabled: dlBusy, "aria-label": `${laneTag(l)} ${t("kitSource")}`, title: t("kitSource"), "data-lane-src": l });
+      const usr = (x) => x >= DL.USR && x < DL.KIT0;
+      sel.addEventListener("change", () => op(async () => {
+        const src = +sel.value, cur = dev.dl.lanes[l];
+        dev.dl.lanes[l] = { ...cur, src, ...(usr(src) && !usr(cur.src) ? { hit: 0, start: 0, len: 1024 } : {}) };
+        await laneSend(l, true);
+        updateLaneStrips();
+        if (nav.pop && nav.pop.id === "lane") renderKit();
+      }));
+      c.laneSnd = el("span", { class: "l2", text: nm });
+      const w = splitSlot(`strip-lane${l + 1}-inst`, sel, { l1: srcName(ln.src), l2: c.laneSnd }, `${t("drumKit")}: ${nm}`, () => { pickLane(l); openPop("lane", drum, l); });
+      w.firstChild.dataset.pop = "lane";
+      rows.inst = el("div", { class: "fxo compact inst" }, w);
+      c.instSel = sel;
+    }
     if (fxpOn()) Object.assign(rows, stripSlotRows(FXP.LANE0 + l, `strip-lane${l + 1}`));
   }
   rows.level = levelBlock(laneBtns, laneLevel || el("div", { class: "fm" }));
-  rows.tools = el("div", { class: "lo" }, iconBtn("kit", withKey(`${t("drumKit")}: ${nm}`, keyFor("lane", l)), () => { pickLane(l); openPop("lane", drum, l); }, { "data-pop": "lane", "data-l": l }));
+  if (dev.info.tools && !acc) rows.tools = el("div", { class: "lo" }, iconBtn("tools", withKey(`${t("popTools")}: ${laneTag(l)}`, keyFor("tools")), () => { pickLane(l); if (dev.sel !== drum) selectTrack(drum, () => openPop("tools", drum)); else openPop("tools", drum); },
+    { "data-pop": "tools", "data-l": l, id: `strip-lane${l + 1}-tools` }));
   c.strip = stripShell({ class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, [], rows, [], { narrow: true });
   return c;
 }
@@ -10857,7 +10895,7 @@ function syncLaneStrips() {
   if (dc.fold) {
     dc.fold.hidden = !has;
     dc.lmode.hidden = !has || !open;                 /* (the one-or-all option shows while the group is open) */
-    dc.fold.textContent = open ? "\u25b8" : "\u25be";   /* (right-pointing: open, the sounds shown to its right; down: folded) */
+    dc.fold.textContent = open ? "\u25b6" : "\u25bc";   /* (a plain triangle: right = open, the sounds shown to its right; down = folded) */
     dc.fold.title = dc.fold.ariaLabel = t(open ? "laneFoldOn" : "laneFoldOff");
     dc.fold.setAttribute("aria-expanded", open ? "true" : "false");
     dc.lmode.textContent = mixLanes.exp === "one" ? "1" : "ALL";
@@ -10889,6 +10927,7 @@ function updateLaneStrips() {
       c.head.style.setProperty("--eng", col);
       c.head.style.setProperty("--engfg", textOn(col));
       c.lvl.value(ln.ofs[7], false);
+      if (c.instSel && document.activeElement !== c.instSel) { c.instSel.value = String(ln.src); const l1 = c.strip.querySelector(".fxname .l1"); if (l1) l1.textContent = srcName(ln.src); }
       for (const [f, k] of c.snd) k.value(laneSnd(l)[f], false);
     }
     if (x) {
@@ -10959,7 +10998,7 @@ function buildSendStrip(ow) {
   const label = usb ? t("usbStrip") : `${t("retStrip")} ${L}`, ids = usb ? "strip-usb" : `strip-ret-${L.toLowerCase()}`;
   const ty = !usb && dev.fxpRet && dev.fxpRet[r] ? dev.fxpRet[r].type : 0;
   const head = el("div", { class: "shead" }, el("span", { class: "num", text: usb ? "U" : L }), el("span", { class: "eng", text: usb ? "USB IN" : ty ? retName(r + 1) : "--" }));
-  const rows = { head, name: el("div", { class: "snd rname", text: usb ? "USB IN" : ty ? FXT_NAMES[ty] || "" : "" }), ...stripSlotRows(ow, ids, usb ? {} : { after: retAfter }) };
+  const rows = { head, ...stripSlotRows(ow, ids, usb ? {} : { after: retAfter }) };
   if (usb) {                                          /* the input's own values, slot 2: VOLUME PAN MUTE FX ON REV DLY CHO. USB IN is a TRACK: the same rows and width as T1..T3 */
     const V = FXP_TABLE.usb.values, g = fxpGroup(FXP.USB, 2), vol = g.fader(0, V[0], "VOLUME");
     vol.inp.id = "strip-usb-fader";
@@ -10973,9 +11012,8 @@ function buildSendStrip(ow) {
     const solo = el("button", { type: "button", class: "tog sol", id: "strip-usb-solo", "aria-pressed": "false", ...(canSolo ? {} : { "aria-disabled": "true" }), title: canSolo ? `${t("solo")} USB` : t("soloUsbTip"),
       "aria-label": `${t("solo")} USB`, onclick: () => soloUsb() }, "S");
     if (canSolo) soloRefresh();
-    rows.pan = g.knob(1, V[1], "PAN");
-    rows.sends = sendsGrid(sk.map((x) => x[1]));
-    rows.level = levelBlock([mute, solo], vol.el);
+    rows.tools = el("div", { class: "col" }, g.knob(1, V[1], "PAN"), sendsGrid(sk.map((x) => x[1])));   /* (narrow, one column: PAN, then the sends) */
+    rows.level = levelBlock({ mute, solo }, vol.el);
     dev.stripFx.push(g);
     g.load().catch(report);
   } else {                                            /* a return: its RET level, the effect's main knobs, its sends to the other returns: one column */
@@ -10986,13 +11024,13 @@ function buildSendStrip(ow) {
     const canMute = !!(dev.info.solo && dev.info.solo.ret);
     const mute = el("button", { type: "button", class: "tog act mute", id: `strip-ret-${L.toLowerCase()}-mute`, "aria-pressed": "false", ...(canMute ? {} : { "aria-disabled": "true" }),
       title: canMute ? `${t("mute")} ${L}` : t("retMuteTip"), "aria-label": `${t("mute")} ${L}`, onclick: () => retMute(r) }, L);
-    rows.level = levelBlock([mute], f.el);
+    rows.level = levelBlock({ mute }, f.el);
     if (canMute) soloRefresh();
     dev.stripFx.push(g);
     retSendKnobs(ow, sb);
     g.load().catch(report);
   }
-  return stripShell({ class: usb ? "strip usb" : "strip ret", role: "group", "aria-label": label, "data-ret": usb ? "usb" : r }, [], rows, [], usb ? {} : { narrow: true, mid: true });   /* (a return is edited on its own strip only) */
+  return stripShell({ class: usb ? "strip usb" : "strip ret", role: "group", "aria-label": label, "data-ret": usb ? "usb" : r }, [], rows, [], { narrow: true, mid: true });   /* (a return is edited on its own strip only) */
 }
 function buildSendStrips() {
   if (!fxpOn()) return [];
@@ -11298,7 +11336,7 @@ function buildStrip(i) {
     lvDesc, pDesc, fader, pan,
     num: el("span", { class: "num", text: String(i + 1) }),
     eng: el("span", { class: "eng" }),
-    snd: el("div", { class: "snd" }),
+    snd: el("span", { class: "l2" }),
     solo: el("button", { type: "button", class: "tog sol", id: `strip-${i + 1}-solo`, "aria-pressed": "false", ...(dev.info.solo ? {} : { "aria-disabled": "true" }), title: dev.info.solo ? `${t("solo")} ${i + 1}` : t("soloTip"),
       "aria-label": `${t("solo")} ${i + 1}`, onclick: () => (dev.info.solo ? soloTrack(i) : null) }, "S"),
     lvOut: el("span", { class: "v lv" }),
@@ -11306,7 +11344,6 @@ function buildStrip(i) {
       onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, String(i + 1)),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
     meter: meterEl(i, `${t("meter")} ${i + 1}`),        /* (the level data: the v9 push stream) */
-    selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
   /* (the kit and the Sound editor open from the instrument widget above) */
@@ -11314,7 +11351,7 @@ function buildStrip(i) {
     : [popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i)];
   if (dev.info.tools) pops.push(popBtn("tools", "ui_knob", t("popTools"), i));   /* v13: the pattern tools (ICONS.tools) */
   if (drum) {                                        /* the group's fold triangle, and "one sound at a time / all" (the member strips: syncLaneStrips) */
-    c.fold = el("button", { type: "button", class: "ib fold", "data-fold": "", title: t("laneFold"), "aria-label": t("laneFold"), "aria-expanded": "false", onclick: foldLanes }, "\u25be");
+    c.fold = el("button", { type: "button", class: "ib fold", "data-fold": "", title: t("laneFold"), "aria-label": t("laneFold"), "aria-expanded": "false", onclick: foldLanes }, "\u25bc");
     c.lmode = el("button", { type: "button", class: "ib lmode", "data-lmode": "", title: t("laneMode"), "aria-label": t("laneMode"), "aria-pressed": "false", onclick: toggleLaneMode }, "ALL");
   }
   const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
@@ -11326,15 +11363,15 @@ function buildStrip(i) {
       laneShort(l)))) : null;   /* (with FXP the lane sub-strips are the selector: prev / next and the list on the one visible lane strip) */
   c.fx = fxBlock(i, c);
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
-  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => { mixLanes.focus = false; selWant = null; selectTrack(i); updateLaneStrips(); } }, c.num, c.eng, c.selm);
-  const ins = stripInsert(i);
+  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => { mixLanes.focus = false; selWant = null; selectTrack(i); updateLaneStrips(); } }, c.num, c.eng);
+  const ins = stripInsert(i, c.snd);
   c.strip = stripShell({ class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" }, [], {
     clips: patColumn(i)[0] || null,
-    head: drum ? [c.head, c.fold, c.lmode] : c.head, name: c.snd, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
+    head: drum ? [c.lmode, c.head, c.fold] : c.head, nav: c.lanes ? c.snd : null, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
     tools: el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seq: seqBtn, ov: c.ov,
     pan: pan.el, sends: c.fx,
-    level: levelBlock([c.mute, c.solo, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
-      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ")] : [])], el("div", { class: "fm" }, fader, c.meter)) });
+    level: levelBlock({ mute: c.mute, solo: c.solo, ...(dlanOn() ? { seq: c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
+      onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ") } : {}) }, el("div", { class: "fm" }, fader, c.meter)) });
   if (c.lanes) {                                      /* (no FXP: the 16 sounds' buttons take the instrument and slot rows) */
     const rows = c.strip.querySelectorAll(":scope > .srow");
     const r = (n) => [...rows].find((x) => x.dataset.row === n);
@@ -11503,7 +11540,8 @@ function updateStrip(i) {
     }
   }
   const inst = c.strip.querySelector("[data-inst]");
-  if (inst && !drum && document.activeElement !== inst) { inst.value = String(x.engine); const nb = c.strip.querySelector(`#strip-${i + 1}-inst-open`); if (nb) nb.textContent = dev.info.engines[x.engine] || "\u2014"; }
+  if (inst && !drum && document.activeElement !== inst) { inst.value = String(x.engine); const l1 = c.strip.querySelector(`#strip-${i + 1}-inst-open .l1`); if (l1) l1.textContent = dev.info.engines[x.engine] || "\u2014"; }
+  if (inst && drum && document.activeElement !== inst) { inst.value = String(x.e0); const l1 = c.strip.querySelector(`#strip-${i + 1}-inst-open .l1`); if (l1 && inst.selectedOptions[0]) l1.textContent = inst.selectedOptions[0].textContent; }
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
@@ -11593,9 +11631,9 @@ function buildMaster() {
      With FXP nothing stands beside it (the compressor is the slot's [dyn v], the returns A B C are strips of their own, Song is in the transport bar). */
   masterCtl.strip = stripShell({ class: "strip master", role: "group", "aria-label": "MASTER" }, [], {
     clips: patColumn(-1)[0] || null,
-    head, name: el("div", { class: "snd rname", text: "MASTER" }), ...stripSlotRows(FXP.MST, "strip-master"),
-    tools: el("div", { class: "col" }, sendsGrid(bus, "mk")), level: levelBlock([], el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl())) },
-  fxpOn() ? [] : [el("div", { class: "fxs mx", role: "group", "aria-label": "FX" }, ...fx)], { mid: true });
+    head, ...stripSlotRows(FXP.MST, "strip-master"),
+    tools: el("div", { class: "col" }, sendsGrid(bus, "mk")), level: levelBlock({}, el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl())) },
+  fxpOn() ? [] : [el("div", { class: "fxs mx", role: "group", "aria-label": "FX" }, ...fx)], { mid: true, narrow: fxpOn() });
   masterCtl.strip.classList.toggle("alone", fxpOn());
   return masterCtl.strip;
 }

@@ -732,7 +732,7 @@ const fxpRes = await run(`${U} try {
   r.rows = new Set(strips.map(rowsOf)).size + ":" + rowsOf(strips[0]);
   /* the rows line up: the same top on every strip, for every row */
   const tops = (q) => new Set(strips.filter((s) => !s.classList.contains("sub")).map((s) => Math.round(s.querySelector(q).getBoundingClientRect().top))).size;
-  r.aligned = ["head", "inst", "slot1", "slot2", "level"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join();
+  r.aligned = ["head", "inst", "slot1", "slot2", "level"].filter((n) => tops(".srow[data-row=" + n + "]") !== 1).join() + (tops(".lblk .row2 > :first-child") === 1 ? "" : "mute");
   /* the slot widget: one name part (the open button) and one list a slot, the ids of the convention; no visible duplicate opener anywhere */
   r.widgets = strips.map((s) => [...s.querySelectorAll(".slotw")].map((w) => w.querySelectorAll("button.fxname").length + "" + w.querySelectorAll("select.fxtype").length).join("")).join("|");
   r.ids = ["strip-1-inst-type", "strip-1-inst-open", "strip-1-slot1-type", "strip-1-slot1-open", "strip-1-slot2-type", "strip-4-inst-type", "strip-4-slot2-open", "strip-usb-slot1-type", "strip-usb-slot2-open",
@@ -784,7 +784,7 @@ const fxpRes = await run(`${U} try {
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   /* the USB input's values are on its strip: VOLUME in the level row, PAN, REV DLY CHO, MUTE and FX */
   r.usb = [...document.querySelectorAll("#mixer .strip.usb .knob .kl")].map((e) => e.textContent.trim()).join() + ":" + document.querySelectorAll("#mixer .strip.usb input.fader").length + ":" + document.querySelectorAll("#mixer .strip.usb .row2 button").length;
-  const pan = document.querySelector("#mixer .strip.usb .srow[data-row=pan] .knob"); for (let q = 0; q < 3; q++) pan.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  const pan = document.querySelector("#mixer .strip.usb .srow[data-row=tools] .knob"); for (let q = 0; q < 3; q++) pan.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
   await sleep(500);
   /* the drum bus (T4): its own sends, never a sound's; the sounds are strips of their own */
   r.t4 = [...document.querySelectorAll('#mixer .strip[data-track="3"] .fx .knob .kl')].map((e) => e.textContent.trim()).join() + ":" + document.querySelectorAll('#mixer .strip[data-track="3"] .fxmodes, #mixer .strip[data-track="3"] .lanes').length;
@@ -798,7 +798,7 @@ const fxpRes = await run(`${U} try {
     const acc = n === 16, mute = acc ? null : btns[0], sq = btns[btns.length - 1], one = async (b, ix) => {
       b.click(); await sleep(250);
       const on = b.getAttribute("aria-pressed") === "true" && mock.sim.dlanVal(0, n, ix) === 1;
-      const look = ix !== 1 || (st.classList.contains("lmuted") && getComputedStyle(st.querySelector(".srow[data-row=name] .lname")).textDecorationLine.includes("line-through") && +getComputedStyle(st.querySelector(".lblk .fm")).opacity < 1);
+      const look = ix !== 1 || (st.classList.contains("lmuted") && getComputedStyle(st.querySelector(".srow[data-row=head] .eng")).textDecorationLine.includes("line-through") && +getComputedStyle(st.querySelector(".lblk .fm")).opacity < 1);
       b.click(); await sleep(250);
       return on && look && b.getAttribute("aria-pressed") === "false" && mock.sim.dlanVal(0, n, ix) === 0 ? 1 : 0;
     };
@@ -844,7 +844,7 @@ const fxpRes = await run(`${U} try {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); await sleep(500);
   r.key = pop().open && pop().dataset.pop;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(fxpRes && /^1:head,name,inst,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
+ok(fxpRes && /^1:head,inst,nav,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
   && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "A,B,C" && fxpRes.retMute0 && fxpRes.retMute === "2:true" && fxpRes.retMuteOff === 0
   && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
