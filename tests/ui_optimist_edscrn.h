@@ -179,7 +179,41 @@ static void edtools_tests(void)
         (void)was;
         check(ok, "TOOLS op 3 / 2 / 4 / 5: EUCLID ON leaves the pattern, HITS 3 turns it, OFF keeps the 3 hits as steps, OFF (5) writes nothing");
     }
-    q[0] = 9;
+    {   /* v2: the slot's generator of any type (ops 6..9; the reply ends with type, mode, on after the two strings) */
+        gen_t g0 = gen[gen_slot(song.sel % NTRK, lane_selected()) % GEN_NSLOT];
+        uint8_t was[8];
+        for (i = 0; i < 8u; i++)
+            was[i] = t->step[i].time;
+        q[0] = 6, q[1] = GT_PULSE;                      /* PULSE at its defaults (EVERY 4, OFFSET 0, RATCHET 2) */
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 2);
+        ok = r && ed_out[10] == 4u && ed_out[11] == 0u && ed_out[12] == 2u && ed_out[16] == GT_PULSE && ed_out[18] == 0u;
+        q[0] = 7, q[1] = 1, q[2] = 9;                   /* OFFSET 9: fitted under EVERY (9 % 4 = 1) */
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 3);
+        ok &= r && ed_out[11] == 1u;
+        q[0] = 8, q[1] = GM_ADD;
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 2);
+        ok &= r && ed_out[17] == GM_ADD;
+        q[0] = 9, q[1] = 1, q[2] = 127;                 /* ON: the EUCLID flag stays 0, the slot's on 1, the pattern untouched */
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 3);
+        ok &= r && ed_out[13] == 0u && ed_out[18] == 1u && ng_cur()->on && ng_cur()->type == GT_PULSE;
+        for (i = 0; i < 8u; i++)
+            ok &= t->step[i].time == was[i];
+        q[0] = 9, q[1] = 0;
+        ed_begin(ED_TOOLS);
+        r = ed_tools(ED_TOOLS, q, 2);
+        ok &= r && ed_out[18] == 0u && !ng_cur()->on;
+        q[0] = 6, q[1] = GT_N;                          /* a type the build has not: no reply */
+        ed_begin(ED_TOOLS);
+        ok &= !ed_tools(ED_TOOLS, q, 2);
+        gen[gen_slot(song.sel % NTRK, lane_selected()) % GEN_NSLOT] = g0;
+        gen_sync();
+        check(ok, "TOOLS v2 op 6..9: PULSE at its defaults, OFFSET fitted, MODE ADD, ON / OFF (the pattern untouched), a bad type no reply");
+    }
+    q[0] = 10;
     ed_begin(ED_TOOLS);
     check(!ed_tools(ED_TOOLS, q, 1), "TOOLS: an unknown op: no reply");
     reset_ui();
