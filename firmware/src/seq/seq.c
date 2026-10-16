@@ -656,6 +656,11 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
     if (over)
         carry = (uint32_t)rec_carry(t, idx, abs, (int)later);   /* POLY: they go on through this one's step */
+    if (over && !carry && ENGINES[t->engine]->legato) {   /* played over a held note: live it slid (ACID's legato), */
+        step_t *prev = &t->step[TRK_IDX(t, t->rh_start_abs + t->rh_ties, len)];   /* so the step before slides into this */
+        if (prev->time != ST_REST && prev != &t->step[idx])
+            prev->flags |= SF_SLIDE;
+    }
 #if FELUCCA_PLOCK
     if (over && !carry)
         rec_len_end(t, 0, 0, 1);                    /* a held note cut by this one: joins it */
