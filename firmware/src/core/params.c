@@ -728,7 +728,7 @@ static const page_t PAGES[] = {
     {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
 #endif
 #if FELUCCA_UI == 1
-    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: R1 R2 R3's); DR: its levels */
+    {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: A B C's); DR: its levels */
     {"BUS SENDS", FAM_FX, SC_TRACK, GR_BUS, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* DR only: the drum bus's own sends */
 #endif
 #if FELUCCA_TRK_FILT
@@ -740,7 +740,7 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
-    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the type on each master return R1 R2 R3 (fx_slots.c; last of FX) */
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {1, 2, 3, 0xFF}},   /* the type on each master return A B C (fx_slots.c; last of FX) */
     {"RET AMT", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_RAMT, FXS_ID_RAMT + 1, FXS_ID_RAMT + 2, 0xFF}},   /* (fx-pool) a return's
                                                      * other type's amount; page_shown: while one holds one */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},

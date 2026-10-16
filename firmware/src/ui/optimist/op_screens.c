@@ -364,7 +364,7 @@ static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)
  * DUST and DYN are insert types now), INS DYN 1 INS DYN 2 (DYN's settings, while a master slot holds it: the compressor
  * THRS RATIO ATK REL, then GAIN CEIL and the reduction), DUCK (the kick ducking the parts: MASTER's page without its
  * DUST and FILT, now insert amounts), RETURNS RET REV RET DELAY (the return levels, then the effects they return, REV
- * first as R1: fx_slots.c FXS_ORDER; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
+ * first as A: fx_slots.c FXS_ORDER; REVERB's TYPE is RETURNS' fourth card), SLOTS, MACRO. PAGES keeps SLOOP's
  * order and titles (its UI draws them: ui/sloop/ui_draw.c); the order and names shown are this table's (FX_ORDER, a
  * title each; RETURNS, which PAGES has no page for, is fx_ix's FX_RET). TUNE, whose page (PAGES' GLOBAL) is gone, is
  * GLOBAL's Tempo list's fourth line (op_global.c; it sat on LIMIT's free card until fx-rework) */
@@ -375,7 +375,7 @@ static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"REV/CHO", "RET
 static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MASTER", "RETURNS", "REV/CHO",
                                        "REVERB", "DLY", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
-/* RETURNS: R1 R2 R3's return levels (the one order, fx_slots.c fxs_card: fx_ret_sync writes the ids; an empty return:
+/* RETURNS: A B C's return levels (the one order, fx_slots.c fxs_card: fx_ret_sync writes the ids; an empty return:
  * none), REVERB's TYPE the fourth */
 static page_t FX_RET = {"RETURNS", FAM_FX, SC_GLOBAL, GR_NONE, {G_RRET, G_DRET, G_CRET, 0xFF}};
 static void fx_ret_sync(void)

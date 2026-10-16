@@ -33,7 +33,7 @@ CONCEPTS = [
     ("effects", "DYN: compressor and limiter in one", [r"\bDYN\b", r"(?i)limiter", r"\bCEIL\b", r"\bRATIO\b"]),
     ("effects", "insert slots S1 / S2 on tracks, master, drum sounds", [r"\bS1\b", r"\bS2\b", r"(?i)insert slot"]),
     ("effects", "master insert slots", [r"(?i)master.{0,60}insert|insert.{0,60}master"]),
-    ("effects", "three master returns R1 R2 R3", [r"\bR1\b", r"\bR2\b", r"\bR3\b"]),
+    ("effects", "three master returns A B C", [r"(?i)returns?\*{0,2}\W+(buses\W+)?A, B and C\b"]),
     ("effects", "sends row REV DLY CHO and PAN", [r"\bREV\b", r"\bDLY\b", r"\bCHO\b", r"\bSENDS\b"]),
     ("effects", "USB audio in as a mixer track (USB IN)", [r"USB IN", r"(?i)track"]),
     ("effects", "DUCK sidechain", [r"\bDUCK\b"]),

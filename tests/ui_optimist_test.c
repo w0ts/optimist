@@ -342,7 +342,7 @@ static int forms_draw(void)
     return 1;
 }
 #if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
-/* fx-pool (2026-10-15): a return holding another type (PHSR on R1: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
+/* fx-pool (2026-10-15): a return holding another type (PHSR on A: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
  * EQ3 (a return's RET EQ3 rows, a track's EQ3 and EQ3 FREQ rows): the rows exist, their cards are drawn (opt-fxpool-*.ppm) */
 static int fx_row_of(const char *t)                   /* the master FX screen's row titled t, -1 none */
 {
@@ -366,21 +366,21 @@ static void fxpool_tests(void)
     const uint8_t s[2] = {FXT_EQ3, FXT_NONE};
     cell_t c;
     reset_ui();
-    fxs_load(3, FXT_PHSR);                              /* (R3: CHO's line 0) */
+    fxs_load(3, FXT_PHSR);                              /* (C: CHO's line 0) */
     fxs_load(1, FXT_EQ3);
-    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R1: REV's line 2) */
+    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (A: REV's line 2) */
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
     check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on R1, PHSR on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
+          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on A, PHSR on C: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
     r = fx_row_of("RETURNS");
     ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
     fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (R3, line 0) named PHSR RT (the return's type)");
+    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (C, line 0) named PHSR RT (the return's type)");
     ins_put(0, s);
     song.sel = 0;
     go_home();

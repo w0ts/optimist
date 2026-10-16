@@ -98,9 +98,9 @@ The master has two insert slots, S1 and S2, after the returns and PUNCH and befo
 - A new project: S1 FILT (amount 0, bypassed), S2 DYN.
 - An old project (saved before the master had slots) converts: the master effects it used take the slots, and when all three of DUST, FILT and DYN were in use, DYN and DUST win and FILT is dropped. PUNCH now runs before the master inserts (it ran between DUST and the DJ filter), which only differs when DUST and a punch effect are used together.
 
-### The three returns: R1, R2, R3
+### The three returns: A, B, C
 
-The send buses (reverb, delay, chorus) come back into the mix through three **returns**, R1, R2 and R3. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
+The send buses (reverb, delay, chorus) come back into the mix through three **returns**, A, B and C. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
 
 The return levels are on `RETURNS` (Optimist UI) with the cards in the order REV, DLY, CHO: 0..127, 127 unity (the values RRET, DRET, CRET). The effects the returns carry have their own pages: the delay `DLY` / `RET DELAY` (TIME, FDBK 0..120, COLR, MIX; the defaults are FDBK 60, COLR 70, MIX 90), the reverb `REV/CHO` / `RET REV` (SIZE, DAMP, then the chorus's CRT and CDP), and `REVERB` / `RET TYPE`, the reverb algorithm.
 

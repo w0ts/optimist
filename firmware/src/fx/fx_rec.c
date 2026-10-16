@@ -42,7 +42,7 @@
  * the input) GATER's PATTERN RATE SHAPE and JUNO CHORUS's MODE (an UT_TLV of 11, before: their defaults); only when not
  * every one is the default (unity, centre, no slot), in builds with USB audio (others skip it). A load's (`all`) */
 #define UT_TLV 0x48u
-/* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns R1 R2 R3 (fx_slots.c rt_tlv: each slot's type, line and amount), only
+/* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns A B C (fx_slots.c rt_tlv: each slot's type, line and amount), only
  * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
 #define RET_TLV 0x4Au
 #define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */

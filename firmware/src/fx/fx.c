@@ -2197,7 +2197,7 @@ static HOT2 __attribute__((noinline)) void mst_run(int32_t *l, int32_t *r, uint3
 }
 
 /* ---- a stereo owner's insert of any type (fx-pool 2026-10-15; was the USB input's ut_ins): the USB input track and the
- * returns R1 R2 R3 (rt_run). Its own DIST (a side each), FILTER, DYN (a compressor with the default RATIO ATK REL and AUTO
+ * returns A B C (rt_run). Its own DIST (a side each), FILTER, DYN (a compressor with the default RATIO ATK REL and AUTO
  * make-up, no CEIL), DUST; the further types on L and R (insfx.c ifx_st: i0 the owner's index, the pool's instances for the
  * limited ones). a: the amount (0: it lets go) */
 typedef struct {
@@ -2261,7 +2261,7 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
 #endif
 #define STO_IDLE(i0) ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_DUST) | STO_AWAKE(i0)) & RT_OK)
 
-/* ---- the returns R1 R2 R3 holding a type that is not a send (fx_slots.c fxs_rty, fx-pool): each on its line's send (mono,
+/* ---- the returns A B C holding a type that is not a send (fx_slots.c fxs_rty, fx-pool): each on its line's send (mono,
  * into L and R), its slot's amount, out times the line's return level into the mix, 100 % wet. The line's own send bus then
  * hears silence (its send zeroed here). A type gone from a return: its states let go on silence for RT_TAIL blocks */
 #define RT_TAIL 64u                                     /* blocks (46 ms): every insert here is at rest by then */

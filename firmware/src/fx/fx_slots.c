@@ -88,7 +88,7 @@ static const uint8_t FXT_AMT[FXT_N] = {
 #endif
 };
 /* THE send order (2026-10-15, the user: "match the order between master return and the send"): REV DLY CHO. The
- * returns R1 R2 R3 hold them by default, FX > SLOTS lists them so, and every screen shows the sends and the returns in the
+ * returns A B C hold them by default, FX > SLOTS lists them so, and every screen shows the sends and the returns in the
  * returns' order (fxs_card: card k is return R(k+1), whatever it holds), so a send's card sits on its return's knob */
 #define FXS_ORDER FXT_REV, FXT_DLY, FXT_CHO
 static const uint8_t FXS_ORD[3] = {FXS_ORDER};
@@ -97,7 +97,7 @@ static const uint8_t FXS_ORD[3] = {FXS_ORDER};
 static const uint8_t FXS_OLD[FX_NSLOT] = {FXT_DIST, FXS_ORDER};
 static const uint8_t FXS_DEF[FX_NSLOT] = {FXT_NONE, FXS_ORDER};
 static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXS_ORDER};   /* (an id this build lacks: kept, unheard) */
-/* ---- the returns R1 R2 R3 (fx-pool 2026-10-15: "any effect type ... AND a return-bus slot"). Three send LINES, the buses
+/* ---- the returns A B C (fx-pool 2026-10-15: "any effect type ... AND a return-bus slot"). Three send LINES, the buses
  * every track's sends feed (fx.c send_c send_d send_r: a track's P_CHOR, P_DLY, P_REV, the drum lanes' and the USB input's
  * sends), named by the send type that owns each: line 0 CHO, 1 DLY, 2 REV. Each return slot (1..3) holds a type and owns one
  * line (fxs_line). A send type (CHO DLY REV: the shared chorus line, the long delay, the reverb tank, each one buffer) is
@@ -109,7 +109,7 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXS_ORDER};   /* (an id this buil
  * (the chorus, the delay, the reverb) then hears silence */
 #define RT_OK (FXT_BUILT & FXT_INSERT & ~FXT_BIT(FXT_GATE))
 /* the audio's owner indexes (fx.c, insfx.c: a state a part, then the stereo owners' L, R): the parts 0 .. NPART - 1, the
- * drum bus, the master, the USB input, the returns R1 R2 R3 */
+ * drum bus, the master, the USB input, the returns A B C */
 #define IFX_BUS NPART
 #define IFX_MST (NPART + 2u)
 #define IFX_UT (NPART + 4u)
@@ -134,7 +134,7 @@ static uint8_t fxs_line[FX_NSLOT] = {0xFF, FXS_LN(FXT_REV), FXS_LN(FXT_DLY), FXS
                                                         * none; FXS_DEF's) */
 static int16_t fxs_ramt[FX_NSLOT];                     /* a return's amount (a type not a send) */
 static volatile uint8_t fxs_rty[3] = {FXT_NONE, FXT_NONE, FXT_NONE};
-static volatile uint8_t fxs_rsl[3] = {3, 2, 1};       /* (line j's slot: FXS_DEF's, CHO in R3, DLY R2, REV R1) */
+static volatile uint8_t fxs_rsl[3] = {3, 2, 1};       /* (line j's slot: FXS_DEF's, CHO in C, DLY B, REV A) */
 static uint8_t fxs_lm[3] = {31, 31, 31};
 #define FXS_HAS(x) (fxs_live >> (x) & 1u)
 #define FXS_ON(x) (fxs_lnl >> FXS_LN(x) & 1u)
@@ -206,7 +206,7 @@ static void fxs_fix(void)
 
 /* a layout s (the record's header, the SLOTS page of before, the editor) into the master slots: sends only (an insert id:
  * empty, its place is the tracks' now: fx_rec.c ins_map; a return's other type comes from the record's RET_TLV, rt_untlv);
- * a type a second time leaves its slot empty. The master has 3 return buses (fx-rework 2026-10-14): R1 R2 R3 are slots
+ * a type a second time leaves its slot empty. The master has 3 return buses (fx-rework 2026-10-14): A B C are slots
  * 1..3, slot 0 stays empty (the stored layout keeps its 4 places, so every project of before reads as it was); a send an
  * old layout holds in slot 0 takes the first empty return (3 sends, one instance each: there is always one) */
 static void fxs_set(const uint8_t *s)
@@ -1036,15 +1036,15 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
     (void)t, (void)a, (void)n, (void)all, (void)k;
 }
 
-/* FX > SLOTS: R1 R2 R3, each an enum of ---- (empty), the sends built and (fx-pool) every other type a return may hold */
+/* FX > SLOTS: A B C, each an enum of ---- (empty), the sends built and (fx-pool) every other type a return may hold */
 #define FXS_NLIST FXT_N
 static const char *fxs_names[FXS_NLIST];
 static uint8_t fxs_list[FXS_NLIST];
 static int16_t fxs_v[FX_NSLOT];
-static param_desc_t FXS_DESC[FX_NSLOT] = {   /* (slot 0: no return since fx-rework; R1 R2 R3 the master's returns) */
-    {"S1", F_ENUM, 0, 0, 0, fxs_names, 0}, {"R1", F_ENUM, 0, 0, 0, fxs_names, 0},
-    {"R2", F_ENUM, 0, 0, 0, fxs_names, 0}, {"R3", F_ENUM, 0, 0, 0, fxs_names, 0}};
-#define FXS_ID_RAMT 24u                                /* 24, 25, 26: R1 R2 R3's amount (a return holding another type) */
+static param_desc_t FXS_DESC[FX_NSLOT] = {   /* (slot 0: no return since fx-rework; A B C the master's returns) */
+    {"S1", F_ENUM, 0, 0, 0, fxs_names, 0}, {"A", F_ENUM, 0, 0, 0, fxs_names, 0},
+    {"B", F_ENUM, 0, 0, 0, fxs_names, 0}, {"C", F_ENUM, 0, 0, 0, fxs_names, 0}};
+#define FXS_ID_RAMT 24u                                /* 24, 25, 26: A B C's amount (a return holding another type) */
 static int rt_any(void)                                /* a return holds a type that is not a send */
 {
     return fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE;

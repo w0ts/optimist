@@ -2,7 +2,7 @@
 /* Editor protocol v13: every effect slot of the firmware, and its parameters, by owner (fx/fx_slots.c; included by editor.c
  * before ed_fxs.c; web/EDITOR_PROTOCOL.md "v13: FX owners"). INFO tag 0x57 = this command is here.
  * An OWNER is where a slot lives: 0..3 the tracks T1 T2 T3 DR (two insert slots S1 S2 each), 4 the master (S1 S2), 5 the
- * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns R1 R2 R3 (one slot
+ * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C (one slot
  * each: a send type CHO DLY REV, or any other type the return may hold), 9..24 the drum sounds (lanes 0..15, S1 S2: the
  * types a voice can hold). A slot holds a TYPE id (FXT_*: 0 empty) and the type has parameters (a count and a descriptor
  * each, the device's own: DYN THRS RATIO ATK REL GAIN CEIL, EQ3 LO MID HI ON FREQ L FREQ H, GATER DEPTH PAT RATE SHAPE,

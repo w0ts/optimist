@@ -1312,7 +1312,7 @@ int main(int argc, char **argv)
               "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, INSERTS next");
         encs[panel.enc[EN_K2]] = 5; frames(2);
         check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
-              "... KNOB 2 (R1: REV) edits the drum track's own REV send");
+              "... KNOB 2 (A: REV) edits the drum track's own REV send");
         TDRUM->p[P_REV] = r0;
     }
     tap(B_FX); frames(2);

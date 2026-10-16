@@ -271,7 +271,7 @@ int main(void)
     /* v10 FX_PUSH (ed_fxs.c): the slots, the COMP settings or a drum sound's insert changed on the device: one frame, the
      * FX (86) reply's bytes with op 0; the editor's own FX writes are known (no push) */
     n0 = nf;
-    fxs_load(1, FXT_CHO);                              /* (FX > SLOTS: CHO into R1 swaps with REV) */
+    fxs_load(1, FXT_CHO);                              /* (FX > SLOTS: CHO into A swaps with REV) */
     run_ms(ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_NONE &&
           fr[nf - 1][7] == FXT_CHO && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_REV,
@@ -313,7 +313,7 @@ int main(void)
         check(r1 && fxs_slot[0] == FXT_NONE && fxs_slot[1] == FXT_REV && fxs_slot[2] == FXT_DLY && fxs_slot[3] == FXT_NONE &&
               ed_out[5] == 1u && ed_out[6] == FXT_NONE && ed_out[7] == FXT_REV && ed_n == 6u + ED_FX_N,
               "v10 FX op 1: the layout as fxs_set takes it (a type twice: its later slot empty; an unknown id: empty; slot 0's "
-              "send onto the first empty return, R1), the state replied");
+              "send onto the first empty return, A), the state replied");
         ed_begin(ED_FX); r2 = ed_fxs(ED_FX, IN, sizeof IN); ed9_known_fx();
         ed_begin(ED_FX); r3 = ed_fxs(ED_FX, BAD, sizeof BAD);
         ed_begin(ED_FX); r4 = ed_fxs(ED_FX, OP, sizeof OP);
@@ -425,7 +425,7 @@ int main(void)
             static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
             check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 5u + 1u && ed_out[ed_n - 1u] == fxs_line[2],
-                  "v13 FXP op 1: EQ3 into R2: its line's RET and the six; the reply ends with the return's send line");
+                  "v13 FXP op 1: EQ3 into B: its line's RET and the six; the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
             check(r && eq3_v[NTRK + 2u + fxs_line[2]][3] == 10, "v13 FXP op 4: a return's EQ3 FREQ L (the owner of its line)");
