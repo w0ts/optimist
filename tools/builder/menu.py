@@ -40,25 +40,24 @@ BAR_W = 34
 OVER_W = 20     # cells for the overflow, past the capacity mark
 
 
-def over_unit(over):
-    """bytes per overflow cell: 1 KiB, or coarser so that the overflow fits OVER_W cells"""
-    unit = 1024
-    while over > unit * OVER_W:
-        unit *= 2
-    return unit
+def over_cells(over, cap):
+    """the overflow's red cells at the bar's own scale (cap / BAR_W bytes a cell, so 10 KB over is a tenth of
+    100 KB over), at least one; -> (cells, clipped): more than OVER_W cells are drawn as OVER_W, clipped"""
+    unit = cap / BAR_W if cap else 1
+    cells = max(1, -(-over // max(1, int(unit))))
+    return min(cells, OVER_W), cells > OVER_W
 
 
 def bar(region, used, cap, over):
     t = Text(f"{region.upper():8s}", style="bold")
-    if over > 0:     # full up to the capacity mark, then one red cell per unit over it
-        unit = over_unit(over)
-        cells = max(1, -(-over // unit))
+    if over > 0:     # full up to the capacity mark, then the overflow at the same bytes per cell
+        cells, clipped = over_cells(over, cap)
         t.append(" " * BAR_W, style="black on yellow")
         t.append("┃", style="bold white")
-        t.append("█" * cells, style="bold red")
+        t.append("█" * (cells - clipped) + ("»" if clipped else ""), style="bold red")
         t.append(" " * (OVER_W - cells))
         t.append(f" OVER by {over:,} B", style="bold red")
-        t.append(f"  ({used:,} / {cap:,}; one red cell = {unit // 1024} KB)", style="dim")
+        t.append(f"  ({used:,} / {cap:,}; one cell = {cap / BAR_W / 1024:,.1f} KB)", style="dim")
         return t
     frac = used / cap if cap else 0
     fill = min(BAR_W, int(round(frac * BAR_W)))

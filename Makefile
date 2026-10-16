@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs gate emu-check
+.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs costs-all gate emu-check
 
 PY ?= python3
 PROFILE ?= synth
@@ -28,6 +28,8 @@ help:
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
 	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
 	@echo "make costs                     measure what tools/builder/costs.json lacks (new items); run after merging a batch"
+	@echo "make costs-all                 measure every item again (flash, RAM, pool, RAMTEXT; ~15 min) for the terminal and"
+	@echo "                              the web builder (tools/builder/costs.json, web/builder/data/); commit both"
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
 	@echo "                              tests, a final user-default build (EMU=1: then emu-check); docs/INTEGRATION.md"
 	@echo "make emu-check [PKG=file.fwsc] [ONLY=fx,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
@@ -84,8 +86,14 @@ else
 	$(PY) tools/optimist.py build --profile $(PROFILE) && $(PY) tools/optimist.py test --no-build
 endif
 
-costs:
+costs: sdk
 	$(PY) tools/optimist.py costs
+	$(PY) tools/export_builder_web.py
+
+# (every item, pair, group and check configuration again: what --missing keeps when an item's code changed)
+costs-all: sdk
+	$(PY) tools/builder/measure_costs.py
+	$(PY) tools/export_builder_web.py
 
 # (the integrator's routine: docs/INTEGRATION.md; tools/gate.py --help)
 gate: sdk
