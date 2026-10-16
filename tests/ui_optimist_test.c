@@ -2468,6 +2468,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
+#include "ui_optimist_solo.h"                       /* 2026-10-16: solo on every mixer row but the returns, MASTER and ACCENT */
 #include "ui_optimist_strike.h"                     /* 2026-10-15: a muted track struck through (mixer, header, volume card) */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, SHIFT held + a key on the mixer */
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
@@ -2646,6 +2647,7 @@ int main(int argc, char **argv)
     colours_tests();
     algo_tests();
     mute_tests();
+    solo_tests();
     strike_tests();
     smute_tests();
     pagemem_tests();

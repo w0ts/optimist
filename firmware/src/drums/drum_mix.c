@@ -5,7 +5,8 @@
  *          block, never per sample. The SLICER's mono path (slicer.c) pans the drum track as one: no lane pan there.
  *   MUTE   a muted lane is not heard: its hits are not started (drum_on) and a voice of it still sounding stops,
  *          declicked (drums_mix: the voice's last value fades with the tail). An X0X channel already ringing rings out.
- *   SOLO   any lane soloed: only the soloed lanes are heard (a soloed lane also muted stays muted).
+ *   SOLO   any lane soloed: only the soloed lanes are heard (a soloed lane also muted stays muted). The drum track stays heard
+ *          and every other track and the USB input is silent (song.solo SOLO_LANE: one solo set, core.h trk_silent).
  * The click's wood block (notes 76 / 77) has no lane: index DRUM_LANES, always heard, at the centre.
  * Kept in the FX record (fx_rec.c: a TLV of its own, DLM_TLV, like drum_sends.c dins_amt): project_t is full and the
  * drum record (dlrec_t) is keyed by its exact bytes. A project from before has no TLV: every lane at the centre,
@@ -23,6 +24,16 @@ static uint32_t dlm_heard_mask(uint32_t mute, uint32_t solo)
     return (m & ~mute & 0xFFFFu) | 1u << DRUM_LANES;
 }
 static void dlm_update(void) { dlm_heard = dlm_heard_mask(dlm_mute, dlm_solo); }
+static __attribute__((noinline)) void dlm_solo_sync(void)   /* song.solo's SOLO_LANE: the drum track counts as soloed while a lane is (core.h trk_silent) */
+{
+    song.solo = (uint8_t)((song.solo & ~SOLO_LANE) | (dlm_solo ? SOLO_LANE : 0u));
+}
+static void dlm_solo_clear(void)                /* a new project: no lane soloed */
+{
+    dlm_solo = 0;
+    dlm_update();
+    dlm_solo_sync();
+}
 static void dlm_set_mute(uint32_t l, int on)
 {
     dlm_mute = (uint16_t)(on ? dlm_mute | 1u << (l & 15u) : dlm_mute & ~(1u << (l & 15u)));
@@ -32,6 +43,7 @@ static void dlm_set_solo(uint32_t l, int on)
 {
     dlm_solo = (uint16_t)(on ? dlm_solo | 1u << (l & 15u) : dlm_solo & ~(1u << (l & 15u)));
     dlm_update();
+    dlm_solo_sync();
 }
 static void dlm_set_pan(uint32_t l, int32_t p) { dlm_pan[l & 15u] = (int8_t)clamp(p, -64, 63); }
 static int dlm_muted(uint32_t l) { return (dlm_mute >> (l & 15u)) & 1u; }
@@ -74,6 +86,7 @@ static void dlm_none(void)                      /* a project without the TLV: ce
     memset(dlm_pan, 0, sizeof dlm_pan);
     dlm_mute = dlm_solo = 0;
     dlm_update();
+    dlm_solo_sync();
 }
 static void dlm_untlv(const uint8_t *a, uint32_t n)   /* (a shorter one: as none) */
 {
@@ -86,4 +99,5 @@ static void dlm_untlv(const uint8_t *a, uint32_t n)   /* (a shorter one: as none
     dlm_mute = (uint16_t)(a[DRUM_LANES] | a[DRUM_LANES + 1u] << 8);
     dlm_solo = (uint16_t)(a[DRUM_LANES + 2u] | a[DRUM_LANES + 3u] << 8);
     dlm_update();
+    dlm_solo_sync();
 }

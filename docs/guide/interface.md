@@ -37,6 +37,7 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 ### SHIFT2 is OCT+ held
 
 - **SHIFT2 + the volume knob on the mixer** (a track's VOLUME, the drum track's VOLUME, a lane's LEVEL, the ACCENT amount, the USB IN row's VOLUME): toggles that row's mute, once for each hold. There is no MUTE card. Turning a muted row's volume card unmutes it.
+- **SHIFT + SHIFT2 (OCT- and OCT+ both held) + the volume knob on the mixer** (a track, the drum track, a lane, USB IN; not the ACCENT lane, the returns or MASTER): toggles that row's **solo**, once for each hold. SHIFT + the knob alone resets the value, SHIFT2 + the knob alone mutes. The tracks also solo with GLO + keys 5-8.
 - **SHIFT2 + PRESETS:** marks the sound playing a **favorite** (turn right) or not (left). SHIFT2 + SELECT browses only the favorites (right) or every sound (left); the toast says FAVORITES ONLY or ALL SOUNDS. Synth tracks only; not on STEP, MASTER, GLOBAL or SYSTEM, and not while a question is asked. It needs the `FAVORITES` builder item.
 - **SHIFT2 + ITEM on PROJECT > USER:** marks that user preset slot a favorite.
 
@@ -61,9 +62,9 @@ The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2
 - **Mix:** a track VOLUME and PAN; the drum track VOLUME; a lane LEVEL, CUT, DRIVE; the ACCENT lane its ACCENT amount (a velocity).
 - **Inserts:** the row's two insert slots, S1 TYPE and amount, S2 TYPE and amount (see [effects.md](effects.md)). MASTER: its two slots, then THRS, RATIO, GAIN, CEIL while DYN is in a slot.
 - **Sends:** REV, DLY, CHO (blank where no slot holds that send) and card 4 PAN, on synth tracks, the drum track and the drum lanes. MASTER shows the returns, one card for each send a master slot holds (REV RET, DLY RET, CHO RET), and DUCK where built.
-- The USB IN row: VOLUME, PAN, FX ON, its two insert slots, REV, DLY, CHO; its mute is SHIFT2 on VOLUME.
+- The USB IN row: VOLUME, PAN, FX ON, its two insert slots, REV, DLY, CHO; its mute is SHIFT2 on VOLUME, its solo SHIFT + SHIFT2 on VOLUME.
 
-A muted track or lane is **struck through**: a 1 px line (2 in the large face) through its mixer row name, the header badge on its pages ("2 DIGITAL") and its volume card's label and value. Unmuted, nothing is drawn. The sequencer mute (SHIFT + a key) is a different mute from the volume mute (SHIFT2) and is saved with the project. On MASTER the keys are silent. PRESETS on a row changes that row's sound.
+A muted track or lane is **struck through**: a 1 px line (2 in the large face) through its mixer row name, the header badge on its pages ("2 DIGITAL") and its volume card's label and value. Unmuted, nothing is drawn. The sequencer mute (SHIFT + a key) is a different mute from the volume mute (SHIFT2) and is saved with the project. A soloed row shows an S in its mixer row (a lane's code turns green). Solo is one set across the tracks, the drum lanes and USB IN: whatever is not soloed is silent while anything is; a soloed lane keeps the drum track heard and only that lane plays in it; the returns and MASTER are never silenced. On MASTER the keys are silent. PRESETS on a row changes that row's sound.
 
 ## The tempo page: PLAY held
 

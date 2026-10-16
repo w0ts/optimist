@@ -75,10 +75,12 @@ typedef struct {
     int32_t tpan, lpan;                                 /* the drum track's PAN, every lane's PAN */
     uint16_t mute, solo;
     int mute_at;                                        /* > 0: the kick muted after that many blocks (else -1) */
+    uint8_t sosolo, tmute;                              /* song.solo's bits set from the start (core.h SOLO_*), the drum track's P_MUTE */
 } rq_t;
 typedef struct {
     uint64_t h;
     uint64_t el, er;                                    /* |L| and |R| summed */
+    uint64_t tail;                                      /* |L| + |R| from block 24 on (after any mute / solo fade) */
     int32_t pk[DRUM_LANES];                             /* the lanes' meters at the end */
     uint32_t kick_before, kick_after;                   /* kick voices sounding before / after the block of mute_at */
 } rs_t;
@@ -112,7 +114,10 @@ static rs_t render(const rq_t *q)
         for (l = 0; l < DRUM_LANES; l++)
             dlm_set_pan(l, q->lpan);
         dlm_mute = q->mute, dlm_solo = q->solo;
+        song.solo = q->sosolo;
+        TDRUM->p[P_MUTE] = q->tmute;
         dlm_update();
+        dlm_solo_sync();
         transport_req = 1;
         for (b = 0; b < 2u * FS / CTL; b++) {
             if (q->mute_at > 0 && b == (uint32_t)q->mute_at) {
@@ -126,6 +131,8 @@ static rs_t render(const rq_t *q)
                     res.kick_after += drums.v[i].active && dlm_lane(drums.v[i].note) == L_KICK;
             for (i = 0; i < 2u * CTL; i++) {
                 res.h = (res.h ^ (uint32_t)o[i]) * 1099511628211ull;
+                if (b >= 24u)
+                    res.tail += (uint64_t)(o[i] < 0 ? -o[i] : o[i]);
                 if (i & 1u)
                     res.er += (uint64_t)(o[i] < 0 ? -o[i] : o[i]);
                 else
@@ -194,8 +201,90 @@ static void t_mix_kit(uint32_t kit, const char *name)
     snprintf(w, sizeof w, "%s: the kick muted while it sounds: its voice stops within the block", name);
     check(w, r1.kick_before > 0u && r1.kick_after == 0u);
 }
+/* ---- the one solo set (core.h trk_silent, fx.c ut_silent): tracks, lanes and the USB input; the returns and the master are never silenced */
+static void t_solo_set(void)
+{
+    uint32_t i;
+    song.solo = 0;
+    TDRUM->p[P_MUTE] = 0;
+    for (i = 0; i < NTRK; i++)
+        trk[i].p[P_MUTE] = 0;
+    dlm_solo_clear();
+    check("solo: nothing soloed: no track silent", !trk_silent(&trk[0]) && !trk_silent(TDRUM) && !song.solo);
+    song.solo = 1u << 1;
+    check("solo: T2 soloed: T1 and the drum track silent, T2 heard", trk_silent(&trk[0]) && !trk_silent(&trk[1]) && trk_silent(TDRUM));
+    song.solo = 0;
+    dlm_set_solo(5, 1);
+    check("solo: a lane soloed: the drum track heard, every other track silent",
+          dlm_solo && !trk_silent(TDRUM) && trk_silent(&trk[0]) && trk_silent(&trk[2]));
+    check("solo: ... a lane soloed also muted: its track stays heard (the lane itself silent)", (dlm_set_mute(5, 1), !trk_silent(TDRUM) && !dlm_lane_heard(5)));
+    dlm_set_mute(5, 0);
+    song.solo |= 1u << 0;
+    check("solo: ... T1 soloed too: T1 and the drum track heard, T2 and T3 silent", !trk_silent(&trk[0]) && !trk_silent(TDRUM) && trk_silent(&trk[1]));
+    dlm_set_solo(5, 0);
+    check("solo: the last lane unsoloed: the drum track silent again, T1 still soloed alone", !dlm_solo && trk_silent(TDRUM) && !trk_silent(&trk[0]));
+    song.solo = 0;
+    TDRUM->p[P_MUTE] = 1;
+    song.solo = 1u << TRK_DRUM;
+    check("solo: the drum track soloed and muted: silent (a mute wins)", trk_silent(TDRUM));
+    TDRUM->p[P_MUTE] = 0;
+    song.solo = SOLO_USB;
+    check("solo: the USB input soloed: every track silent, a bit that is not a track's", trk_silent(&trk[0]) && trk_silent(TDRUM));
+#if FELUCCA_USB_AUDIO
+    check("solo: ... the USB input heard", !ut_silent());
+    song.solo = 1u << 0;
+    check("solo: T1 soloed: the USB input silent", ut_silent());
+    dlm_set_solo(2, 1);
+    check("solo: a lane soloed: the USB input silent", ut_silent());
+    dlm_set_solo(2, 0);
+    song.solo = SOLO_USB;
+    ut.v[UTV_MUTE] = 1;
+    check("solo: the USB input soloed and muted: silent", ut_silent());
+    ut.v[UTV_MUTE] = 0;
+    song.solo = 0;
+    check("solo: nothing soloed: the USB input heard", !ut_silent());
+#endif
+    song.solo = 0;
+    dlm_solo_clear();
+    check("solo: dlm_solo_clear: no lane soloed", !dlm_solo && !song.solo && dlm_heard == 0x1FFFFu);
+}
+/* the render: the drum track under the solo set (a silent drum track fades out in 8 blocks: the tail is after it) */
+static void t_solo_mix(uint32_t kit, const char *name)
+{
+    char w[128];
+    rq_t q = rq(kit), a;
+    rs_t full = render(&q), r1, r2;
+    a = q, a.sosolo = 1u << 0;
+    r1 = render(&a);
+    snprintf(w, sizeof w, "%s solo: T1 soloed: the drum track silent after its fade", name);
+    check(w, full.tail > 0u && r1.tail * 100u < full.tail);
+    a = q, a.sosolo = SOLO_USB;
+    r1 = render(&a);
+    snprintf(w, sizeof w, "%s solo: the USB input soloed: the drum track silent", name);
+    check(w, r1.tail * 100u < full.tail);
+    a = q, a.sosolo = 1u << TRK_DRUM;
+    r1 = render(&a);
+    snprintf(w, sizeof w, "%s solo: the drum track soloed: the bar as it was, sample for sample", name);
+    check(w, r1.h == full.h);
+    a = q, a.sosolo = 1u << TRK_DRUM, a.tmute = 1;
+    r1 = render(&a);
+    snprintf(w, sizeof w, "%s solo: the drum track soloed and muted: silent", name);
+    check(w, r1.tail * 100u < full.tail);
+    a = q, a.solo = 1u << L_SNARE, a.sosolo = 1u << 0;
+    r1 = render(&a);
+    a = q, a.solo = 1u << L_SNARE;
+    r2 = render(&a);
+    snprintf(w, sizeof w, "%s solo: T1 and the snare soloed: the snare alone, sample for sample (the drum track heard)", name);
+    check(w, r1.h == r2.h && r1.tail > 0u);
+    a = q, a.solo = 1u << L_SNARE, a.sosolo = SOLO_USB;
+    r1 = render(&a);
+    snprintf(w, sizeof w, "%s solo: the USB input and the snare soloed: the snare alone too", name);
+    check(w, r1.h == r2.h);
+}
 static void t_mix(void)
 {
+    if (drum_kit_built(0))
+        t_solo_mix(0, "sampled kit");
     if (drum_kit_built(0))
         t_mix_kit(0, "sampled kit");
     if (FELUCCA_DRUM_SYNTH)
@@ -296,6 +385,7 @@ static void t_stores(void)
 int main(void)
 {
     t_heard();
+    t_solo_set();
     t_mix();
     t_record();
     t_stores();

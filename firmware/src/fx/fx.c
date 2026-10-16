@@ -2602,11 +2602,17 @@ static int32_t ut_g = 32767, ut_lv = 4096, ut_snd[3];   /* the mute gain, the le
 static volatile int32_t ut_pk;                          /* its peak since the mixer took it (op_mixdraw.c), after its level */
 static volatile uint8_t ut_live;                        /* frames came in the last block (the mixer: "no stream") */
 #define ut_ins(t, a, l, r, n) sto_ins(&ut_sto, IFX_UT, t, a, l, r, n)
+/* silent: MUTE, or something else is soloed and not the USB input (core.h trk_silent: one solo set) */
+AINL int ut_silent(void)
+{
+    uint32_t s = song.solo;
+    return ut.v[UTV_MUTE] || (s && !(s & SOLO_USB));
+}
 /* the USB input into the mix (mix_block, dual.c mix_block_dual: after the parts, before mix_finish) */
 static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
 {
     uint32_t i, s, t, m, got = FAR(ua_take)(ut_l, ut_r, n), on = ut.v[UTV_FXON] != 0;
-    int32_t g1 = ut.v[UTV_MUTE] ? 0 : 32767, lv1 = LEVEL_Q12[clamp(ut.v[UTV_LVL], 0, 127)], gl, gr, to[3], mx = 0, xmax, pk = ut_pk;
+    int32_t g1 = ut_silent() ? 0 : 32767, lv1 = LEVEL_Q12[clamp(ut.v[UTV_LVL], 0, 127)], gl, gr, to[3], mx = 0, xmax, pk = ut_pk;
     ut_live = (uint8_t)got;
     if (!got) {
         if (ut.slot[0] == FXT_NONE && ut.slot[1] == FXT_NONE)

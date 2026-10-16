@@ -425,6 +425,7 @@ static void project_new(void)
         if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
             song.g[i] = GP[i].def;
     song.solo = 0;
+    dlm_solo_clear();                                   /* (the lanes' solo too: drums/drum_mix.c) */
     song.octave = 0;
 #if BP_SET_ANY
     bps_defaults();                                       /* (bp_set.c) */

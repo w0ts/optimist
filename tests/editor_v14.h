@@ -201,6 +201,11 @@ static void v14_note(void)
     v14_stable();
 }
 #endif
+#if FELUCCA_USB_AUDIO
+#define FELUCCA_USB_AUDIO_V 1
+#else
+#define FELUCCA_USB_AUDIO_V 0
+#endif
 #if FELUCCA_ED_SOLO
 static void v14_solo(void)
 {
@@ -238,9 +243,36 @@ static void v14_solo(void)
     q[0] = 3, q[1] = 16;
     check(!v14_call(ed_solo, ED_SOLO, q, 3), "SOLO 3 on lane 16: no reply");
     q[0] = 1, q[1] = 0, q[2] = 3;
-    check(!v14_call(ed_solo, ED_SOLO, q, 3) && !v14_call(ed_solo, ED_SOLO, q, 2) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5}, 1), "SOLO: on 3, a short request, an unknown op: no reply");
+    check(!v14_call(ed_solo, ED_SOLO, q, 3) && !v14_call(ed_solo, ED_SOLO, q, 2) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){7}, 1), "SOLO: on 3, a short request, an unknown op: no reply");
     ed_begin(1); ed_solo_info();
-    check(ed_n == 9u && ed_out[5] == 0x61u, "ED_SOLO on: INFO carries tag 0x61");
+    check(ed_n == 9u && ed_out[5] == 0x61u && ed_out[7] == 3u, "ED_SOLO on: INFO carries tag 0x61, version 3");
+    song.solo = 0;
+    dlm_solo_clear();
+    q[0] = 3, q[1] = 4, q[2] = 1;
+    r = v14_call(ed_solo, ED_SOLO, q, 3);
+    check(r && ed_out[9] == 7 && ed_out[16] == (FELUCCA_USB_AUDIO_V ? 4 : 0) && !trk_silent(TDRUM), "SOLO v3: a lane soloed: the drum track counts as soloed (silent mask: T1 T2 T3), the USB input silent (usb bit 2)");
+    q[2] = 0;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+#if FELUCCA_USB_AUDIO
+    q[0] = 5, q[1] = 0, q[2] = 1;
+    r = v14_call(ed_solo, ED_SOLO, q, 3);
+    check(r && ed_out[16] == 1 && song.solo == SOLO_USB && ed_out[9] == 15 && trk_silent(&trk[0]), "SOLO 5: the USB input soloed: usb bit 0, every track silent, the USB input heard");
+    q[2] = 2;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+    check(song.solo == 0 && !ut_silent(), "SOLO 5 toggle (2): off again");
+    q[0] = 5, q[2] = 1;
+    (void)v14_call(ed_solo, ED_SOLO, q, 3);
+    ut.v[UTV_MUTE] = 1;
+    r = v14_call(ed_solo, ED_SOLO, (const uint8_t[]){0}, 1);
+    check(r && ed_out[16] == 7, "SOLO 0: the USB input soloed and muted (its FXP value): usb bits 0 1 2, a mute wins");
+    ut.v[UTV_MUTE] = 0;
+    song.solo = 0;
+    check(!v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5, 0, 3}, 3) && !v14_call(ed_solo, ED_SOLO, (const uint8_t[]){6, 0, 1}, 3), "SOLO 5 with on 3, an op 6: no reply");
+    ed_begin(1); ed_solo_info();
+    check(ed_out[8] == 1u, "ED_SOLO: INFO flags bit 0, the USB input is here");
+#else
+    check(!v14_call(ed_solo, ED_SOLO, (const uint8_t[]){5, 0, 1}, 3), "SOLO 5 without the USB input: no reply");
+#endif
     song.solo = 0;
 }
 #endif
