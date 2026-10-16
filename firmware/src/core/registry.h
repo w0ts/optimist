@@ -449,6 +449,18 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_ED_SCOPE
 #define FELUCCA_ED_SCOPE 1                    /* web editor protocol v13: the oscilloscope's trace (cmd 101, tag 0x5E; the Optimist UI) (io/editor/ed_*.c) */
 #endif
+#ifndef FELUCCA_ED_UNDO
+#define FELUCCA_ED_UNDO 1                    /* web editor protocol v14: undo and redo (cmd 102, tag 0x5F) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_NOTE
+#define FELUCCA_ED_NOTE 1                    /* web editor protocol v14: notes played from the editor (cmd 103, tag 0x60) (io/editor/ed_*.c, seq/ednote.c) */
+#endif
+#ifndef FELUCCA_ED_SOLO
+#define FELUCCA_ED_SOLO 1                    /* web editor protocol v14: track and lane solo and mute (cmd 104, tag 0x61) (io/editor/ed_*.c) */
+#endif
+#ifndef FELUCCA_ED_STEPLANE
+#define FELUCCA_ED_STEPLANE 1                /* web editor protocol v14: a step in a drum lane's context, its lockable values (cmd 105, tag 0x62; the automation store) (io/editor/ed_*.c) */
+#endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
 #endif

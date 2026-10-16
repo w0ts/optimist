@@ -95,6 +95,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #if FELUCCA_MACROS
 #include "ed_macro.c"          /* cmd 65: what the performance macros make of the values (macro.c) */
 #endif
+#include "ed_undo.c"           /* v14: cmd 102 undo and redo, INFO tag 0x5F; ed_undo_edit marks the editor's own step writes */
 #if FELUCCA_AUTO
 #include "ed_stepx.c"          /* cmds 92, 93 (v11): the automation store; 72..77: SLOOP 2.4's step extras on it */
 #endif
@@ -195,6 +196,9 @@ static void ed_shadow(void)                              /* the editor is in syn
     ed_w.sel = song.sel;
     sync_reload = 0;
 }
+#include "ed_steplane.c"     /* v14: cmd 105 a step in a drum lane's context and its lockable values, INFO tag 0x62 */
+#include "ed_solo.c"          /* v14: cmd 104 track and lane solo and mute, INFO tag 0x61 */
+#include "ed_note.c"          /* v14: cmd 103 notes played from the editor, INFO tag 0x60 */
 #include "ed_scope.c"        /* v13: cmd 101 the oscilloscope's trace, INFO tag 0x5E */
 #include "ed_fav.c"           /* v13: cmd 100 the favorites, INFO tag 0x5D */
 #include "ed_scrs.c"          /* v13: cmd 99 the Optimist UI's screens as rows of cards, INFO tag 0x5C */
@@ -408,6 +412,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(PAT_N);
         ed_b(SEC_IDS);
 #endif
+        ed_undo_info();                 /* tag 0x5F: undo and redo (v14, ed_undo.c) */
+        ed_note_info();                 /* tag 0x60: notes (v14, ed_note.c) */
+        ed_solo_info();                 /* tag 0x61: solo and mute (v14, ed_solo.c) */
+        ed_steplane_info();             /* tag 0x62: a step in a lane's context (v14, ed_steplane.c) */
         ed_fx_info();                   /* tag 0x56: the FX slots' types (v10, ed_fxs.c) */
         ed_fxp_info();                  /* tag 0x57: the slots by owner (v13, ed_fxp.c) */
         ed_scope_info();                /* tag 0x5E: the scope (v13, ed_scope.c; the Optimist UI) */
@@ -487,6 +495,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (na < 1u || a[0] >= NSTEP)
             return;
         if (cmd == ED_STEP_SET && na >= 9u) {
+            ed_undo_edit(TSEL);
             fm1_irq_off();
             ed_step_in(TSEL, a[0], a + 1, na - 1u);
             fm1_irq_on();
@@ -635,6 +644,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (na < 2u || a[0] >= NTRK || a[1] >= NSTEP)
             return;
         if (na >= 10u) {
+            ed_undo_edit(&trk[a[0]]);
             fm1_irq_off();
             ed_step_in(&trk[a[0]], a[1], a + 2, na - 2u);
             fm1_irq_on();
@@ -655,6 +665,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             return;
         d = &TDRUM->dstep[a[0]];
         if (na >= 14u) {
+            ed_undo_edit(TDRUM);
             fm1_irq_off();
             ed_dstep_in(d, a);                              /* (ed_steps.c: the 16 lanes and the ACCENT lane) */
             fm1_irq_on();
@@ -707,7 +718,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
             break;
 #endif
-        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na) || ed_dlan(cmd, a, na) || ed_scrn(cmd, a, na) || ed_songc(cmd, a, na) || ed_tools(cmd, a, na) || ed_scrs(cmd, a, na) || ed_fav(cmd, a, na) || ed_scope(cmd, a, na)) {   /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
+        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na) || ed_dlan(cmd, a, na) || ed_scrn(cmd, a, na) || ed_songc(cmd, a, na) || ed_tools(cmd, a, na) || ed_scrs(cmd, a, na) || ed_fav(cmd, a, na) || ed_scope(cmd, a, na) || ed_undo(cmd, a, na) || ed_note(cmd, a, na) || ed_solo(cmd, a, na) || ed_steplane(cmd, a, na)) {   /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
             ed9_known_fx();                                /* (the editor's own writes: no FX push) */
             ui.force = 1;
             break;
@@ -729,6 +740,7 @@ static void ed_service(void)
 {
     const uint8_t *p;
     uint32_t n;
+    ed_note_tick();                                        /* v14: the editor's notes due, the quiet host's end (ed_note.c) */
     ed_sync();                                             /* v2 pushes (while watched) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
