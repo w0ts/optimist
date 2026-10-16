@@ -1,0 +1,90 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+   The installer's layout (web/installer/installer.js), scoped to .oi. Colours, type and spacing only from the shared
+   tokens of web/style/optimist.css (docs/WEB-STYLE.md): no colour of its own, so it takes the editor's look wherever it is
+   mounted, light or dark. The cards are the shared .o-panel; each step's number is in its track colour (1-4), as the
+   editor's drum kit page numbers its steps. */
+
+.oi { max-width: 720px; margin: 0 auto; }
+.oi [hidden] { display: none !important; }   /* (a hidden message stays gone whatever its display) */
+.oi p { margin: 0 0 var(--sp-3); }
+.oi p:last-child { margin-bottom: 0; }
+.oi a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.oi a:hover { color: var(--accent); }
+
+.oi-intro { margin: 0 0 var(--sp-4); }
+.oi-title { margin: 0 0 var(--sp-2); font-size: var(--fs-6); font-weight: 400; line-height: 1.15; color: var(--text); }
+.oi-what { max-width: 680px; color: var(--text); }
+
+/* the steps: one column of cards */
+.oi-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
+.oi-step .o-panel-h { justify-content: flex-start; }
+.oi-h { display: flex; align-items: center; gap: var(--sp-2); }
+.oi-num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; padding: 0 4px; background: var(--c); color: var(--on-track);
+          font-variant-numeric: tabular-nums; }
+.oi-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3); }
+.oi-row:last-child { margin-bottom: 0; }
+.oi-row > p { margin: 0; }
+
+/* what the page says: plain, coloured only when it is a result */
+[data-kind="ok"].oi-found, [data-kind="ok"].oi-pkg, [data-kind="ok"].oi-stockmsg { color: var(--ok); }
+[data-kind="err"].oi-found, [data-kind="err"].oi-pkg, [data-kind="err"].oi-stockmsg { color: var(--err); }
+.oi-help { margin: 0; padding-left: 1.2em; color: var(--text); }
+.oi-help li { margin: 0 0 var(--sp-1); }
+.oi-browser { margin: 0 0 var(--sp-3); }
+
+/* 2 Choose: a list of choices, the title, the identity, a line of description */
+.oi-choices { margin: 0 0 var(--sp-3); padding: 0; min-width: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.oi-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); align-items: start; padding: var(--sp-2) var(--sp-3); background: var(--surface-1); }
+.oi-choice:has(.oi-radio:checked) { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--c, var(--accent)); }
+.oi-choice label { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-2); min-width: 0; }
+.oi-choice label b { font-weight: 400; color: var(--text); }
+.oi-desc { flex-basis: 100%; }
+.oi-choice > .oi-file { grid-column: 2; }
+.oi-radio { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.oi-file { max-width: 100%; font: inherit; color: var(--text-dim); }
+.oi-file::file-selector-button { font: inherit; color: var(--text); background: var(--surface-2); border: 0; border-radius: var(--r); padding: 4px 12px;
+                                 margin-right: var(--sp-2); cursor: pointer; }
+.oi-file::file-selector-button:hover { background: var(--surface-3); }
+.oi-pkg { overflow-wrap: anywhere; }
+
+/* 3 Install: the button, the four phases, the bar, the result */
+.oi-go { width: 100%; margin: 0 0 var(--sp-3); }
+.oi .oi-go:disabled { background: var(--surface-2); border-color: var(--surface-2); color: var(--text-mute); }   /* (plainly off: nothing to install yet, or writing) */
+.oi-phases { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); counter-reset: oi-ph; }
+.oi-phases li { counter-increment: oi-ph; color: var(--text-dim); padding-top: var(--sp-1); border-top: 3px solid var(--surface-3); min-width: 0; overflow-wrap: anywhere; }
+.oi-phases li::before { content: counter(oi-ph) " "; color: var(--text-mute); }
+.oi-phases li[data-st="on"] { color: var(--text); border-top-color: var(--accent); }
+.oi-phases li[data-st="done"] { color: var(--text); border-top-color: var(--ok); }
+.oi-phases li[data-st="done"]::before { content: "✓ "; color: var(--ok); }
+.oi-phases li[data-st="fail"] { color: var(--err); border-top-color: var(--err); }
+.oi-phases li[data-st="fail"]::before { content: "✗ "; color: var(--err); }
+.oi-bar { margin: 0 0 var(--sp-2); }
+.oi-status { min-height: 20px; font-variant-numeric: tabular-nums; }
+.oi-err, .oi-ok { margin: 0 0 var(--sp-3); align-items: center; flex-wrap: wrap; }
+.oi-logbox { margin-top: var(--sp-3); }
+.oi-log { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-dim); font-family: var(--font-mono); font-size: var(--fs-1); }
+.oi-log:empty::before { content: "—"; }
+
+/* 4 When something goes wrong */
+.oi-rescue { margin: 0 0 var(--sp-3); }
+.oi-rescue dt { color: var(--text); text-transform: uppercase; margin: var(--sp-3) 0 var(--sp-1); }
+.oi-rescue dt:first-child { margin-top: 0; }
+.oi-rescue dd { margin: 0; color: var(--text); }
+.oi-stockfield { margin: var(--sp-2) 0 var(--sp-1); }
+
+/* the package's version, identity and checksum, small; the links */
+.oi-foot { margin-top: var(--sp-5); padding-top: var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-1); }
+.oi-foot p { margin: 0 0 var(--sp-1); }
+.oi-meta:empty { display: none; }
+.oi-sha { font-family: var(--font-mono); font-size: var(--fs-1); overflow-wrap: anywhere; word-break: break-all; }
+
+/* the question before an install */
+.oi-ask { margin: auto; }
+.oi-ask::backdrop { background: color-mix(in srgb, var(--surface-0) 70%, transparent); }
+.oi-ask .oi-row { margin-top: var(--sp-3); }
+
+@media (max-width: 520px) {
+  .oi-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oi-row > .o-btn { flex: 1 1 auto; }
+}
+@media (pointer: coarse) { .oi-radio { width: 22px; height: 22px; } }

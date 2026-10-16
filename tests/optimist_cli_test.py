@@ -397,7 +397,13 @@ with tempfile.TemporaryDirectory() as d:
         page = (site / "webapp/installer/index.html").read_text(encoding="utf-8")
         check("notices: the site root carries LICENSE, LICENSING.md and every LICENSES/ text", all((site / n).is_file() for n in NOTICES))
         check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
-              'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
+              '"source": "v9.9-test"' in page and 'REPO = "https://github.com/w0ts/optimist"' in page and "/tree/${source}" in page
+              and "hugelton/Felucca" not in page)
+        check("installer: the standalone page inlines the module (fm1ota.js, fm1pkg.js, its CSS); the module and site.json shipped for the one-page app",
+              "mountInstaller(document.getElementById" in page and "class Updater" in page and "function productOf" in page and "const BUNDLED_CSS = \"" in page
+              and "export function mountInstaller" in (site / "webapp/installer/installer.js").read_text(encoding="utf-8")
+              and json.loads((site / "webapp/installer/site.json").read_text(encoding="utf-8"))["source"] == "v9.9-test"
+              and "/*INSTALLER*/" not in page and "/*META*/" not in page and not (site / "webapp/installer/mock_fm1.js").exists())
         man = Path(d) / "flavours.json"
         shutil.copy(fwsc, Path(d) / "a.fwsc")
         shutil.copy(fwsc, Path(d) / "b.fwsc")
@@ -408,7 +414,7 @@ with tempfile.TemporaryDirectory() as d:
         page2 = (Path(d) / "site2" / "webapp/installer/index.html").read_text(encoding="utf-8")
         check("flavours: every manifest entry is published under firmware/ and listed in the installer page",
               all((Path(d) / "site2/firmware" / f"optimist-9.9-test-{i}.fwsc").is_file() for i in ("one", "two"))
-              and '"title": "One"' in page2 and '"title": "Two"' in page2 and 'id="pkgsel"' in page2)
+              and '"title": "One"' in page2 and '"title": "Two"' in page2 and '"description": "d2"' in page2)
         check("icon: the site ships the icon files and every page links one relatively",
               all((site / n).is_file() for n in ms.ICONS) and 'href="../../icon.svg"' in page and
               'href="../../icon.svg"' in (site / "webapp/editor/index.html").read_text(encoding="utf-8") and

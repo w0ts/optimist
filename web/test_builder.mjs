@@ -162,8 +162,8 @@ ok(page.includes("<!--OPTIMIST-HEADER-->") && page.includes("/*OPTIMIST-CSS*/") 
 const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8");
 ok(/@media \(prefers-color-scheme: light\)/.test(css) && ["--surface-0", "--surface-3", "--text-dim", "--accent", "--ok", "--warn", "--err", "--t1", "--t4"].every((t) => css.includes(t + ":"))
   && !/data-theme/.test(css), "style: the tokens, light / dark from the system (no switch)");
-const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-ok(/href="\.\.\/builder\/" data-t="builder"/.test(inst) && /builder: "Builder/.test(inst) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
+const inst = readFileSync(join(HERE, "installer", "index.html"), "utf8"), instJs = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
+ok(/build: "\.\.\/builder\/"/.test(instJs) && /link\("build", TEXT\.buildLink\)/.test(instJs) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
   "installer: the shared header and style, links to the builder");
 const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps([make_site.shared_header(a) for a in ('installer', 'editor', 'builder')]))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
