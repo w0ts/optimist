@@ -879,6 +879,9 @@
   #mixer > .strip.sect::before { content: ""; position: absolute; left: -11px; top: 0; bottom: 0; width: 2px; background: var(--dim); opacity: .6; }
   /* the drum sounds' strips: the same template, compact (about 65 % of a track strip: stripShell's compact flag) */
   #mixer > .strip.sub.cmp { flex: 0 1 124px; min-width: 112px; }
+  #mixer > .strip.sub.cmp .lnav { gap: 2px; }
+  #mixer > .strip.sub.cmp .lnav button.ib { width: 22px; min-width: 22px; padding: 0; }
+  #mixer > .strip.sub.cmp .lnav select.lname { min-width: 0; flex: 1 1 0; padding: 2px 2px; }
   #mixer > .strip.sub.cmp .knob svg { width: 32px; height: 32px; }
   #mixer > .strip.sub.cmp .lb button { font-size: 11px; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; }
   #mixer > .strip.sub.cmp .slotw .fxname { font-size: 11px; padding: 2px 4px; }
@@ -952,8 +955,8 @@
         <span id="section" class="dim"></span>
       </span>
       <span class="tp" id="undotp" hidden>
-        <button type="button" id="undobtn" class="ib" disabled aria-label="Undo" title="Undo (Ctrl / Cmd + Z)">\u21b6</button>
-        <button type="button" id="redobtn" class="ib" disabled aria-label="Redo" title="Redo (Ctrl / Cmd + Shift + Z, Ctrl + Y)">\u21b7</button>
+        <button type="button" id="undobtn" class="ib" disabled aria-label="Undo" title="Undo (Ctrl / Cmd + Z)">&#8630;</button>
+        <button type="button" id="redobtn" class="ib" disabled aria-label="Redo" title="Redo (Ctrl / Cmd + Shift + Z, Ctrl + Y)">&#8631;</button>
       </span>
       <button type="button" id="kbdbtn" class="pill" aria-pressed="false" aria-label="Play notes" title="Play notes on the selected track" hidden>keys</button>
       <button type="button" id="songbtn" class="pill" data-pop="song" data-t="popSong" aria-label="Song" title="Song" hidden></button>
@@ -2279,6 +2282,25 @@ const parse = {
     o.lmute = l3();
     return o;
   },
+  /* v14 STEPLANE (ed_steplane.c): op 0 LIST -> {n, np}; op 1 DESC -> {i, kind, id, page, cell, title, desc} (nothing after i: no such value); the others a step's state */
+  [CMD.STEPLANE](a) {
+    const r = new Reader(a), o = { op: r.b() };
+    if (o.op === 0) { o.track = r.b(); o.lane = r.b(); o.n = r.b(); o.np = r.b(); return o; }
+    if (o.op === 1) {
+      o.track = r.b(); o.lane = r.b(); o.i = r.b();
+      if (r.i >= a.length) return o;
+      o.kind = r.b(); o.id = r.b(); o.page = r.b(); o.cell = r.b(); o.title = r.s();
+      const fmt = r.b(), min = r.v(), max = r.v(), def = r.v(), label = r.s(), unit = r.s(), names = [];
+      while (fmt === F.ENUM && r.i < a.length) names.push(r.s());
+      o.desc = { label, fmt, min, max, def, unit, ...(fmt === F.ENUM ? { names } : {}) };
+      return o;
+    }
+    o.rc = r.b(); o.track = r.b(); o.lane = r.b(); o.step = r.b(); o.flags = r.b(); o.level = r.b(); o.ratchet = r.b(); o.chance = r.b(); o.cond = r.b(); o.nudge = r.b() - 64; o.fill = r.b();
+    const n = r.b();
+    o.locks = [];
+    for (let k = 0; k < n && r.i + 4 <= a.length; k++) o.locks.push({ i: r.b(), kind: r.b(), v: r.v() });
+    return o;
+  },
   [CMD.FXP](a) {
     const r = new Reader(a), op = r.b(), ow = r.b();
     if (op === 0 || op === 1) {
@@ -2534,6 +2556,7 @@ const req = {
      (lane, kind 0 DIST / 1 COMP, amount) */
   fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
   /* v13 FXP (ed_fxp.c): owner = 0..3 tracks, 4 master, 5 USB input, 6..8 returns, 9..24 drum sounds */
+  stepLane: (op, tr, lane, ...rest) => [CMD.STEPLANE, [op & 0x7F, tr & 0x7F, lane & 0x7F, ...rest]],   /* 0 LIST, 1 DESC i, 2 STEP step, 3 SET step field v14, 4 LOCK step i v14, 5 UNLOCK step i, 6 KIND step i */
   undo: (op) => [CMD.UNDO, [op & 0x7F]],                       /* 0 GET, 1 UNDO, 2 REDO */
   noteOn: (tr, note, vel, dur) => [CMD.NOTE, [0, tr & 0x7F, note & 0x7F, vel & 0x7F, ...(dur ? [dur & 0x7F] : [])]],
   noteOff: (tr, note) => [CMD.NOTE, [1, tr & 0x7F, note & 0x7F]],
@@ -2627,6 +2650,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SONGC: case CMD.TOOLS: return true;
     case CMD.SCOPE: return a[0] === args[0];
     case CMD.UNDO: return a[0] === args[0];
+    case CMD.STEPLANE: return a[0] === args[0] && (args[0] === 0 ? a[1] === args[1] && a[2] === args[2] : args[0] === 1 ? a[1] === args[1] && a[2] === args[2] && a[3] === args[3] : a[2] === args[1] && a[3] === args[2]);
     case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
     case CMD.SOLO: return a[0] === args[0];
     case CMD.FAVS: return a[0] === args[0] && (args[0] === 0 || args[0] === 3 || a[1] === args[1]) && (args[0] !== 2 || a[2] === args[2]);
@@ -6207,7 +6231,7 @@ const TEXT = {
   smpSendTo: "Send to USR{n}", smpPlayOn: "Play this slot on:",
   smpWhere: "On the FM-1: a synth track, engine SAMPLE, SET = USR{n} (KNOB 1 on the EDIT page). The buttons above set it for you.",
   smpNoEngine: "This firmware cannot be set from here: choose SAMPLE and SET = USR on the track.", smpPlaying: "Track",
-  kitPage: "Drum kit", kitPageNone: "This firmware has no drum lanes or no user sample slots.",
+  kitPage: "Kit builder", kitPageNone: "This firmware has no drum lanes or no user sample slots.",
   kpHelp: "Build the drum track's kit from your own sounds: one per pad (the 16 drum lanes). Three steps: put sounds on the pads, choose the sample slot, send. A pad you leave empty keeps the sound its lane has now.",
   kpStep1: "Sounds on the pads", kpStep1Help: "Drop a WAV on a pad, or choose several files: they are sorted onto the pads by name (kick, bd, snare, hh, open, crash...). Click a wave to hear it. Pitch and gain are the lane's TUNE and LEVEL on the device (they change live after a send); length cuts the sound (it also saves room in the slot).",
   kpAdd: "Add sounds...", kpClear: "Clear all", kpFit: "Fit the slot", kpFitHelp: "Shortens the longest pads until everything fits.",
@@ -7577,6 +7601,23 @@ async function saDropLane(tr, step, lane) {
     saSoon();
   } catch (e) { report(e); }
 }
+/* the values the DEVICE lets this step lock, through STEPLANE LIST / DESC (its own lock pages: lock_pg_ok / lock_param), cached per track, lane, engine and kit; null: no such command */
+async function saDeviceItems(tr, lane) {
+  if (!dev || !dev.info.steplane) return null;
+  const key = `${tr}/${drumTrack(tr) ? lane : 127}/${dev.dump ? dev.dump.engine : 0}/${dev.dump && dev.info.pe0 != null ? dev.dump.p[dev.info.pe0] : 0}`, c = dev.slItems || (dev.slItems = new Map());
+  if (c.has(key)) return c.get(key);
+  const d = dev, ln = drumTrack(tr) ? lane : 127, out = [];
+  try {
+    const l = parse[CMD.STEPLANE](await rq(req.stepLane(0, tr, ln), { quiet: true }));
+    for (let i = 0; i < l.n; i++) {
+      const r = parse[CMD.STEPLANE](await rq(req.stepLane(1, tr, ln, i), { quiet: true }));
+      if (!r.desc) continue;
+      out.push({ group: r.title, id: r.kind === 1 ? saLaneId(ln, r.id) : r.id, kind: r.kind, desc: r.desc, page: r.page, cell: r.cell });
+    }
+  } catch (e) { if (e.message === "closed") throw e; return null; }
+  if (d === dev) c.set(key, out);
+  return out;
+}
 let saTimer = 0;
 const saSoon = () => { clearTimeout(saTimer); saTimer = setTimeout(saRender, 0); };
 async function saRender() {
@@ -7630,7 +7671,13 @@ async function saRender() {
     el("label", {}, `${t("fillCond")} `, fill));
   /* the locks and the motion of this step (this sound's, on the drum track) */
   const mine = (e) => e.step === step && e.param < AUTO.COND && (drum ? (autoLane(e.param) || {}).lane === lane : !autoLane(e.param) && e.param < 0x78);
-  const items = saLockables(tr, lane), byId = new Map(items.map((i) => [i.id, i]));
+  let devItems = null;                               /* (the device's own list, read once in the background; until then the Sound pages' list) */
+  if (dev.info.steplane) {
+    const key = `${tr}/${drum ? lane : 127}/${dev.dump ? dev.dump.engine : 0}/${dev.dump && dev.info.pe0 != null ? dev.dump.p[dev.info.pe0] : 0}`;
+    devItems = dev.slItems && dev.slItems.get(key) || null;
+    if (!devItems && !sa.slBusy) { sa.slBusy = true; saDeviceItems(tr, lane).then(() => { sa.slBusy = false; saSoon(); }, (e) => { sa.slBusy = false; report(e); }); }
+  }
+  const items = devItems || saLockables(tr, lane), byId = new Map(items.map((i) => [i.id, i]));
   const rows = ev.filter(mine).map((e) => {
     const it = byId.get(e.param), d = it ? it.desc : null, lock = e.only;
     const label = d ? d.label : `#${e.param}`;
