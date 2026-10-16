@@ -233,10 +233,10 @@ modifies, with no screen needed. Everything in the table exists in the core toda
 the user preset and kit stores, undo, the FX bypass, INIT SOUND) and only gains a gesture. Snapshots stay on their
 PROJECT row.
 
-### 2.1.1 The two shifts' language, one mute, the clears on REC (2026-10-16) [P]
+### 2.1.1 The two shifts' language, one mute, the clears on REC (2026-10-16) [D]
 
-Decided (2026-10-16, the review of guide/shortcuts.md; unbuilt, it lands on top of the 10 drum lanes on the black
-keys). Where it differs from the table above or from section 2, this wins.
+Decided and built (2026-10-16, the review of guide/shortcuts.md, on top of the 10 drum lanes on the black keys; the
+gestures one by one: guide/shortcuts.md). Where it differs from the table above or from section 2, this wins.
 
 - **The shifts speak one language, as the OCT buttons sit: OCT- down, OCT+ up.** **SHIFT (OCT-) is off, less,
   remove**: mute, clear, a value back to its default, a ghost hit, the panic (SHIFT + PLAY), INIT, a return muted
@@ -249,10 +249,14 @@ keys). Where it differs from the table above or from section 2, this wins.
 - **The keys under the shifts**: black key n is drum lane n, the last upper key ACCENT, white keys 1-4 T1, T2, T3,
   DR. **SHIFT + a key: its sequencer mute; SHIFT2 + a key: selects it.** STEP is the exception: its white keys are
   steps (SHIFT / SHIFT2 + a white step key: a ghost / hard hit there, the only place; no ghost / hard from a held OCT
-  while playing), the track there is ALGORITHM's.
+  while playing), the track there is ALGORITHM's. Not on the pages with no track (keys_none: GLOBAL, SYSTEM, PROJECT,
+  SCOPE, SONG, MASTER) nor in a layer, whose keys are its own.
 - **One mute: the sequencer mute** (the steps stop, the tails ring). The audio mute and SHIFT2 + the volume knob go;
-  the mixer's MUTE card and the GLO layer's keys 1-4 are the same sequencer mute. **No solo** anywhere (SHIFT + SHIFT2 +
-  the volume knob, GLO keys 5-8, the editor's SOLO state go).
+  **SHIFT + the volume knob** is the row's mute on the mixer (as SHIFT + a RET card's knob is a return's; the USB
+  input, which has no sequencer, keeps its own mute there), and the GLO layer's keys 1-4 are the same mute. A sound
+  mute an older project or the SLOOP UI left (P_MUTE, a lane's drum_mix.c mute) shows as muted and the toggle clears
+  it. **No solo** in this UI (SHIFT + SHIFT2 + the volume knob, GLO keys 5-8 go; a project's lane solo is not loaded,
+  drum_mix.c dlm_untlv). The web editor's SOLO / MUTE command (104) is the next step: it still offers both.
 - **Every clear of recorded material is on REC**: REC held, the ring closed, the track (a lane picked: the lane);
   **REC held + a knob turned: that parameter's motion and p-locks** (a lane picked: the lane's; the first turn undoes
   REC's press and cancels the ring, so the track is never cleared; SHIFT + SHIFT2 + a knob goes); **SHIFT + REC held,
@@ -260,9 +264,12 @@ keys). Where it differs from the table above or from section 2, this wins.
   step's lock: step held + SHIFT + the knob, as today. A drum step on every lane: step held + HOME (SEQ + a step key
   goes); SEQ + keys is only the synth's step entry.
 - **Undo: SAVE then HOME; redo: HOME then SAVE.** SHIFT then SAVE and EDIT + OCT- / OCT+ go.
-- **SONG: SAVE tapped on PROJECT** (SAVE tapped: PROJECT, again SONG, again PROJECT, as GLO toggles GLOBAL and
-  SYSTEM); SAVE + SELECT goes.
-- **Scenes join the LFO layer**: black key 10 turns its white keys to the 16 scenes; a key launches it, SAVE + a key
+- **SONG: SAVE held on PROJECT** (let go past the hold time with nothing else used; on SONG the same goes back to
+  PROJECT). SAVE tapped on PROJECT keeps running its operation on ITEM (the user, 2026-10-16, over "SAVE tapped
+  twice", which would have collided with it). SAVE + SELECT goes. SAVE held and let go elsewhere does nothing (no
+  YES), as when it was the scenes' layer.
+- **Scenes join the LFO layer**: black key 10 turns its white keys to the 16 scenes (until black 10 again or the
+  layer goes; two or more launched in one hold: a chain, QCHAIN); a key launches it, SAVE + a key
   stores the loop into it, SHIFT + a key clears it, the verbs of the patterns. SAVE held + keys (the scene layer)
   and SAVE + REC + a key go. **SONG's PATTERNS row takes the LFO layer's keys exactly** (black 9 then a key
   duplicates; its REC duplicate goes).

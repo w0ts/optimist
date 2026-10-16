@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, 2026-10-16: the returns' MUTE on the mixer's MASTER row (SHIFT2 = OCT+ held, + the RETURNS card's knob, once per hold; the card struck
+/* tests/ui_optimist_test.c, 2026-10-16: the returns' MUTE on the mixer's MASTER row (SHIFT = OCT- held, + the RETURNS card's knob, once per hold; the card struck
  * through; a turned level unmutes it; fx.c fx_rmute) and the editor's two commands on the Optimist UI: SOLO op 7 (the same bits the gesture sets) and REC
  * (cmd 107: TOGGLE is the panel's REC press: the arm it makes is disarmed by the REC key, the key's arm by TOGGLE). Included after ui_optimist_edv14.h and
  * ui_optimist_solo.h. */
@@ -36,16 +36,16 @@ static void retmute_tests(void)
     }
     ln = (uint32_t)(m.id - G_CRET) % 3u, bit = 1u << ln;
     lv = song.g[m.id];
-    press(B_OCTUP);
+    press(B_OCTDN);
     turn(EN_K1 + k, 1);
     turn(EN_K1 + k, 1);
-    release(B_OCTUP);
-    check(fx_rmute == bit && song.g[m.id] == lv, "retmute: SHIFT2 + a RETURNS knob: that line's return muted (once per hold, two turns), its level kept");
+    release(B_OCTDN);
+    check(fx_rmute == bit && song.g[m.id] == lv, "retmute: SHIFT + a RETURNS knob: that line's return muted (once per hold, two turns), its level kept");
     mix_cell(MXR_MASTER, k, &c);
     check(c.strike, "retmute: the muted return's card is struck through");
-    press(B_OCTUP);
+    press(B_OCTDN);
     turn(EN_K1 + k, 1);
-    release(B_OCTUP);
+    release(B_OCTDN);
     check(fx_rmute == 0, "retmute: ... the next hold: unmuted");
     fx_rmute = bit;
     song.g[m.id] = 100;

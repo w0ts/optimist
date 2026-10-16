@@ -78,6 +78,17 @@ static void edstl_golden(void)
     char *a = malloc(1u << 20), *b = malloc(1u << 20);
     long na, nb = -1;
     uint32_t x, i, n, np;
+    fm1_irq_off();
+    set_engine_of(&trk[0], 1);                          /* (T1 as the table was made: engine 1, its first preset; not
+                                                         * whatever an earlier test left) */
+    apply_preset_to(&trk[0], 0);
+    fm1_irq_on();
+    {                                                   /* (and the inserts as then: T2 DIST + COMP, DR - + DUST) */
+        uint8_t v2[INS_N] = {FXT_DIST, FXT_COMP}, vd[INS_N] = {FXT_NONE, FXT_DUST};
+        ins_put(1, v2);
+        ins_put(TRK_DRUM, vd);
+    }
+    frames(2);
     fprintf(f, "{\"ctx\": [\n");
     for (x = 0; x < sizeof CX / sizeof CX[0]; x++) {
         uint32_t track = CX[x][0], lane = CX[x][1];

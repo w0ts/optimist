@@ -41,6 +41,9 @@ static void c2_master_tests(void)
           "MASTER page: the REV return's meter fills, DLY's and CHO's stay empty");
     ppm("opt-cards2-master-rev");
     /* the tap: each bus's return seen apart (fx_buses, one block at a time, the sends set by hand) */
+    for (i = 0; i < 6000u; i++)                         /* (the buses drained first: an earlier test's tails, the sequencer mute
+                                                         * lets them ring, 2026-10-16) */
+        fx_buses(zero, zero, zero, wl, wr, CTL);
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
     for (i = 0; i < CTL; i++)
         in[i] = (i & 8u) ? 9000 : -9000;
@@ -114,6 +117,8 @@ static void c2_roll_tests(void)
     tap(B_OCTDN);
     roll_range(TSEL);
     check(rg.lo == lo0 && song.octave == 0, "... back on T1 at octave 0: its fit again");
+    pen_n = 0, last_note = 60;                          /* (the pick: C4, as on a fresh start; earlier tests move it) */
+    track_defaults_steps(&trk[2]);                      /* (T3 empty, whatever an earlier test left in it) */
     song.sel = 2;                                       /* an EMPTY pattern: the view is around the pick, which the octave moved too (the roll moved 2 octaves a tap) */
     frames(2);
     roll_range(TSEL);
@@ -136,10 +141,10 @@ static void c2_roll_tests(void)
     frames(2);
     turn(EN_PRESET, 1);                                 /* PRESETS: the window, the octave and view not moved */
     check(song.octave == 0 && st.follow == 0, "PRESETS: the window (FOLLOW off), the octave and view not moved");
-    press(B_OCTDN);
+    press(B_OCTUP);
     turn(EN_PRESET, 1);
-    release(B_OCTDN);
-    check(st.follow == 1 && song.octave == 0, "OCT- (SHIFT) + PRESETS: FOLLOW again");
+    release(B_OCTUP);
+    check(st.follow == 1 && song.octave == 0, "OCT+ (SHIFT2) + PRESETS: FOLLOW again, no octave");
     song.octave = 0;
     press(B_OCTUP);
     check(song.octave == 0, "OCT+ pressed: the octave changes when it is let go, not at the press");

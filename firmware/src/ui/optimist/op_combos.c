@@ -1,24 +1,25 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The two held buttons with a button (docs/UI-OPTIMIST-DESIGN.md section 2.1, phase 4): SAVE held + a button saves
- * what it owns, SHIFT (OCT- held) + a button clears it or, on a layer's button, locks the layer open:
- *   SAVE + SEQ    the working pattern into its slot (asked over a used one)   SHIFT + SEQ   its locks, nudges, fills
- *                                                                                           and motion (asked)
- *   SAVE + ENV LFO EDIT FX SCL ARP   the sound as a user preset (the first free slot); the drum track: its 16
- *                 lanes as a user kit                                         SHIFT + FX EDIT ARP SCL GLO LFO: the
- *                                                                             layer locked; SHIFT + ENV: INIT (asked)
- *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       SHIFT + REC   a SONG scene row: the scene
- *                                                                             cleared (asked); else nothing (the
- *                                                                             track: the REC ring)
+/* The held buttons with a button (docs/UI-OPTIMIST-DESIGN.md sections 2.1, 2.1.1): SAVE held + a button saves what it
+ * owns, SHIFT (OCT- held: off, less) + a button clears it, SHIFT2 (OCT+ held: on, more) + a layer's button locks the
+ * layer open (in either order):
+ *   SAVE + SEQ    the working pattern into its slot (asked over a used one)
+ *   SAVE + ENV LFO EDIT FX SCL ARP   the sound as a user preset (the first free slot); the drum track: its 10
+ *                 lanes as a user kit                                         SHIFT + ENV: INIT (asked)
+ *                                                                             SHIFT2 + FX EDIT ARP SCL GLO LFO (ENV on
+ *                                                                             FM6): the layer locked open
+ *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       SHIFT + REC   held, the ring closed: the
+ *                                                                             track's motion and locks (a lane picked:
+ *                                                                             the lane's; the notes stay); a SONG scene
+ *                                                                             row: the scene cleared (asked)
  *   SAVE + PLAY   the song from its start                                     SHIFT + PLAY  stop, every voice off
- *   SAVE then HOME: undo                                                      SHIFT then SAVE: redo
+ *   SAVE then HOME: undo                                                      HOME then SAVE: redo
  *                                                                             both OCT: track <-> MASTER (op_walk.c)
- * The layer lock wins where the two meet (SHIFT + a layer's button). SAVE then HOME stays undo, so the SAVE layer
- * (scenes) is not locked open. The undo and redo act when one of the two is let go, so that SAVE + SHIFT + a scene
- * key clears the scene and undoes nothing. */
+ * The undo and redo act when one of the two is let go (a key or a knob meanwhile: nothing). */
 #if DL_UI && FELUCCA_DRUM_KITS
 #define OP_UKITS 16u                    /* drum_kits.c UK_N */
 #endif
 static void op_undo(int redo);                          /* op_input.c */
+static void rec_motion_ring(void);                      /* op_input.c: SHIFT + REC, the motion ring */
 static void op_play(void);
 static void name_user_free(void);                       /* op_name.c */
 
@@ -62,32 +63,31 @@ static void op_panic(void)                              /* SHIFT + PLAY: stop, e
     fm1_irq_on();
     ui_message("ALL SOUND OFF");
 }
-static int8_t xtr_lane = -1;                            /* SHIFT + SEQ: the drum lane its question clears, -1 the track */
+/* the track k's motion and locks (lane >= 0: that drum lane's), one undo level; the notes, their levels and recorded
+ * lengths stay (SHIFT + REC's ring, op_input.c rec_held) */
+static void op_clear_motion(uint32_t k, int32_t lane)
+{
+    track_t *t = &trk[k % NTRK];
+#if FELUCCA_AUTO
+    undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the automation comes back, seq/undo.c) */
+    fm1_irq_off();
+    (void)auto_clear_where(t, -1, lane);                /* (motion and locks; the whole track: nudges, fills, chance too) */
+    fm1_irq_on();
+#endif
+    sync_reload = 1;
+    ui_say(lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(k), " LOCKS CLEARED");
+    (void)t;
+}
 /* the confirmed actions of this file (op_layers.c op_act) */
 static void op_act_more(uint32_t a, uint32_t k)
 {
-    track_t *t = &trk[k % NTRK];
     if (a == OA_INIT) {
         if (k == song.sel)
             op_global_go(G_INITSND);                    /* (the engine's defaults: the edits go) */
         return;
     }
-    if (a == OA_DISCARD) {
+    if (a == OA_DISCARD)
         ed_run(k);                                      /* "Discard T2 edits?" YES: the change asked for (op_edits.c) */
-        return;
-    }
-    if (a != OA_EXTRAS)
-        return;
-#if FELUCCA_AUTO
-    undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the automation comes back, seq/undo.c) */
-    fm1_irq_off();
-    (void)auto_clear_where(t, -1, xtr_lane);            /* (motion and locks; the whole track: nudges, fills, chance too;
-                                                         * the notes, their levels and recorded lengths stay) */
-    fm1_irq_on();
-#endif
-    sync_reload = 1;
-    ui_say(xtr_lane >= 0 ? lane_name((uint32_t)xtr_lane) : trk_tag(k), " LOCKS CLEARED");
-    (void)t;
 }
 
 static uint32_t op_combo_bit(uint32_t b) { return 1u << panel.btn[b]; }
@@ -106,49 +106,37 @@ static int shift_combo(uint32_t b)
     if (dev_home_combo())
         return 1;
 #endif
-#if FELUCCA_PATTERNS
-    if (l == LY_PAT) {                                  /* LFO: SHIFT + it locks the patterns layer only if no slot is cleared with
-                                                         * it (SHIFT + n clears, the user 2026-10-13): decided when one is let go */
-        lay.hlock = 1;
-        lay.pclr = 0;
-        return 1;
-    }
-#endif
-    if (l != LY_PLAY && l != LY_SONG) {                 /* a layer's button: locked open (the lock wins) */
-        lay_lock(l);
-        return 1;
-    }
+    if (l != LY_PLAY && b != B_ENV)
+        return 1;                                       /* (a layer's button: nothing; SHIFT2 locks it) */
     switch (b) {
     case B_SAVE:
-        if (info_clear())                               /* (SYSTEM's INFO page: DROPS cleared, op_global.c) */
-            return 1;
-        lay.chord = 2;                                  /* SHIFT then SAVE: redo, when one of them is let go */
-        return 1;
+        return info_clear();                            /* (SYSTEM's INFO page: DROPS cleared, op_global.c; elsewhere nothing) */
     case B_ENV:
         if (!is_drum(TSEL) && snd_edited(song.sel))      /* (asked over edits; none: done at once, op_edits.c) */
             op_arm(ARM_OP, OA_INIT, song.sel, "INIT", trk_tag(song.sel), 1);
         else if (!is_drum(TSEL))
             op_global_go(G_INITSND);
         return 1;
-    case B_SEQ: {                                       /* the track's motion and locks, or the picked drum lane's */
-        char a[18];
-        xtr_lane = is_drum(TSEL) && lane_picked() ? (int8_t)lane_selected() : -1;
-        str_cpy(a, xtr_lane >= 0 ? lane_name((uint32_t)xtr_lane) : trk_tag(song.sel), sizeof a);
-        str_cpy(a + str_len(a), " LOCKS", sizeof a - str_len(a));
-        op_arm(ARM_OP, OA_EXTRAS, song.sel, "CLEAR", a, 1);   /* ("Clear T1 locks?", "Clear SNARE locks?") */
-        return 1;
-    }
     case B_PLAY:
         op_panic();
         tp.pend = 0;
         return 1;
     case B_REC:
-        song_rec(1);                                    /* (a SONG scene row: that scene cleared; nowhere else: nothing, the
-                                                         * track is cleared by the REC ring alone, the user 2026-10-13) */
+        if (!song_rec(1))                               /* (a SONG scene row: that scene cleared, asked) */
+            rec_motion_ring();                          /* else held, the ring closed: the motion and locks (op_input.c) */
         return 1;
     default:
         return 0;
     }
+}
+/* SHIFT2 (OCT+ held) + button b: a layer's button locks its layer open (the shifts' language: on). 1 taken */
+static int shift2_combo(uint32_t b)
+{
+    uint32_t l = lay_btn_layer(b);
+    if (l == LY_PLAY)
+        return 0;
+    lay_lock(l);
+    return 1;
 }
 /* SAVE held + button b: 1 taken */
 static int save_combo(uint32_t b)
@@ -170,8 +158,7 @@ static int save_combo(uint32_t b)
         save_sound();
         return 1;
     case B_REC:
-        lay.rec_pend = 1;                               /* tapped: SONG REC (at its release); held + a key: store */
-        lay.rec_used = 0;
+        lay.rec_pend = 1;                               /* SONG REC (at its release) */
         return 1;
     case B_PLAY:
         song_play();
@@ -186,7 +173,7 @@ static int save_combo(uint32_t b)
 static int op_combo(uint32_t b, uint32_t held)
 {
     uint32_t others = held & ~op_combo_bit(b), l;
-    if (b != B_SAVE && b != B_HOME && b != B_OCTDN)
+    if (b != B_SAVE && b != B_HOME)
         lay.chord = 0;                                  /* (another button: no undo / redo) */
     if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP) {
         lay_unlock();                                   /* locked: any other button lets it go, and does only that */
@@ -195,27 +182,28 @@ static int op_combo(uint32_t b, uint32_t held)
     }
     if (ui.scr == SCR_STEP && st.held)
         return 0;                                       /* (a step held: SAVE its fill, a page button its locks) */
-    if (b == B_OCTDN && lay.held != LY_PLAY && lay.held != LY_SONG && lay.held != LY_FX && lay.held != LY_ERASE
-        && lay.held != LY_OPS) {                        /* a layer held, SHIFT: locked open (FX, EDIT, ENV: their OCT- / OCT+ keep their own jobs) */
-        l = lay.held;
-#if FELUCCA_PATTERNS
-        if (l == LY_PAT) {                              /* (the patterns: SHIFT + n clears a slot; locked when let go unused) */
-            lay.hlock = 1;
-            lay.pclr = 0;
-            op_eat(op_combo_bit(B_OCTDN) | op_combo_bit(LAYER_BTN[l]));
-            return 1;
-        }
-#endif
+    if (b == B_OCTUP && lay.held != LY_PLAY && lay.held != LY_OPS && lay.held != LY_ROLL && FIF(FELUCCA_PATTERNS)(lay.held != LY_PAT &&) 1) {
+        l = lay.held;                                   /* a layer held, then SHIFT2: locked open (ENV on FM6, ARP, LFO: their OCT+
+                                                         * keeps its job, the next page, a hard roll, launch now: SHIFT2 first) */
         lay_lock(l);
-        op_eat(op_combo_bit(B_OCTDN) | op_combo_bit(LAYER_BTN[l]));
+        op_eat(op_combo_bit(B_OCTUP) | op_combo_bit(LAYER_BTN[l]));
         return 1;
     }
     if (op_shift(others) && shift_combo(b)) {
         op_eat(op_combo_bit(b) | op_combo_bit(B_OCTDN));
         return 1;
     }
+    if (op_shift2(others) && shift2_combo(b)) {
+        op_eat(op_combo_bit(b) | op_combo_bit(B_OCTUP));
+        return 1;
+    }
     if ((others & op_combo_bit(B_SAVE)) && !op_armed() && save_combo(b)) {
         op_eat(op_combo_bit(b) | op_combo_bit(B_SAVE));
+        return 1;
+    }
+    if (b == B_SAVE && (others & op_combo_bit(B_HOME)) && !op_armed()) {
+        lay.chord = 2;                                  /* HOME then SAVE: redo, when one of them is let go */
+        op_eat(op_combo_bit(B_SAVE) | op_combo_bit(B_HOME));
         return 1;
     }
     return 0;
@@ -223,21 +211,13 @@ static int op_combo(uint32_t b, uint32_t held)
 /* buttons let go (op_input.c): the undo / redo chord, SAVE + REC's SONG REC, PLAY's tap and the TEMPO page */
 static void op_released(uint32_t rel)
 {
-#if FELUCCA_PATTERNS
-    if (lay.hlock && (rel & (op_combo_bit(B_OCTDN) | op_combo_bit(B_LFO)))) {
-        if (!lay.pclr)
-            lay_lock(LY_PAT);                           /* SHIFT + LFO with no slot cleared: the layer locked open */
-        lay.hlock = 0;
-    }
-#endif
-    if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME) | op_combo_bit(B_OCTDN)))) {
+    if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME)))) {
         op_undo(lay.chord == 2u);
         lay.chord = 0;
     }
     if (lay.rec_pend && (rel & op_combo_bit(B_REC))) {
         lay.rec_pend = 0;
-        if (!lay.rec_used)
-            song_rec_toggle();
+        song_rec_toggle();
     }
     if (rel & op_combo_bit(B_PLAY)) {
         if (tp.pend)

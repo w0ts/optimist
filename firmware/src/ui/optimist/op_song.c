@@ -377,22 +377,10 @@ static int song_rec(uint32_t home)
         song_refresh(1);
         return 1;
     }
-#if FELUCCA_PATTERNS
-    if (kind == SG_PAT && !home) {
-        uint32_t t = song.sel % NTRK, s = pat_free(t);
-        char nm[8];
-        pat_name(nm, t, s);
-        if (s >= PAT_N)
-            ui_message("NO FREE PATTERN");
-        else if (!pat_store_slot(t, s))
-            ui_say("DUPLICATE ", nm);
-        return 1;
-    }
-#endif
-    return 0;
+    return 0;                                           /* (the PATTERNS row: the LFO layer's keys, black 9 duplicates) */
 }
-/* SAVE held + SELECT turned (the scenes layer, op_layers.c lay_knobs; the user's choice of section 11.3's shortcut):
- * the SONG screen, its cursor on the scene playing (none: scene A); on SONG already, SELECT moves its cursor */
+/* SAVE held on PROJECT (op_input.c save_hold, the user 2026-10-16): the SONG screen, its cursor on the scene playing
+ * (none: scene A); on SONG already, SELECT moves its cursor (s) */
 static void song_shortcut(int32_t s)
 {
     if (ui.scr == SCR_SONG) {

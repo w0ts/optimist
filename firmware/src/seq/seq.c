@@ -2022,6 +2022,9 @@ static void key_down(uint32_t k)
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
         uint32_t lane = kb_drum_lane(k), lvl = key_lvl();
 #if FELUCCA_UI == 1
+        if (layer != LY_ROLL)
+            lvl = LV_NORM;                            /* (the Optimist UI: OCT- / OCT+ held are SHIFT / SHIFT2, mute and select;
+                                                       * a ghost or hard hit is entered on STEP; the ARP layer keeps its rolls') */
         if (punch_key(k) >= 0 && layer == LY_PLAY) {  /* the Optimist UI: a white key is a step on every page (the user, */
             kb_kind[k] = KS_UI;                       /* 2026-10-16: "while in drum mode they are always the step seq"): */
             kb_nt[k][0] = (uint8_t)LY_STEP;           /* the UI's (op_step.c step_key), as STEP's */

@@ -11,6 +11,7 @@ static void lamp_idle(void)
     reset_ui();
     song.playing = 0;
     transport_req = 0;
+    arrangement_enabled = 0;                            /* (LOOP: an earlier test's SAVE on SONG's MODE row may leave SONG on) */
     rec_wait = 0;
     song.rec = 0;
     ft_on = 0;

@@ -18,6 +18,7 @@ static void core_row_tests(void)
         check(dual_mode == DUALM_AUTO, "2ND CORE: a misread's self-disable is not kept in the setting (the next boot starts CPU1 again)");
         dual_c1_q8 = 128u;
         dual.why = DUAL_UP;
+        info_mode = 0;                                  /* (the NOW measure: an earlier test may have turned INFO's KNOB 2) */
         sys_info_cell(2, &c);
         check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK, "2ND CORE ON: the CPU1 load, 50 %, green (under 60)");
         dual_c1_q8 = DUAL_C1_OFF;

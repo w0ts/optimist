@@ -28,12 +28,12 @@ static void acc_key_tests(void)
     acc_pick();
     drums.hits = 0;
     aud_lanes = 0;
-    press(B_OCTDN);
+    press(B_OCTUP);
     kdown(DACC_KEY);
     kup(DACC_KEY);
-    release(B_OCTDN);
+    release(B_OCTUP);
     check(lane_selected() == DRUM_ACC && ui.lane == 1u && lane_picked() && drums.hits == 0u && aud_lanes == 0u,
-          "SOUND, SHIFT held + the last upper key: the ACCENT lane picked, silent");
+          "SOUND, SHIFT2 held + the last upper key: the ACCENT lane picked, silent");
     check(!strcmp(head_engine(), "ACCENT"), "... the header's badge: ACCENT");
     lane_select(3);
     for (i = 0; i < 4u; i++)
@@ -47,21 +47,21 @@ static void acc_key_tests(void)
     lane_select(3);
     op_enter(SCR_STEP);
     frames(2);
-    press(B_OCTDN);
+    press(B_OCTUP);
     kdown(DACC_KEY);
     kup(DACC_KEY);
-    release(B_OCTDN);
+    release(B_OCTUP);
     check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
-          "STEP, SHIFT held + the last upper key: the ACCENT lane picked, silent");
+          "STEP, SHIFT2 held + the last upper key: the ACCENT lane picked, silent");
     for (i = 0; i < DRUM_LANES; i++) {                  /* a lane's black key picks its lane, the last upper key only the accent */
         lane_select(DRUM_ACC);
-        press(B_OCTDN);
+        press(B_OCTUP);
         kdown(key_of_lane(i));
         kup(key_of_lane(i));
-        release(B_OCTDN);
+        release(B_OCTUP);
         ok &= lane_selected() == i;
     }
-    check(ok, "... a lane's black key picks its sound");
+    check(ok, "... SHIFT2 + a lane's black key picks its sound");
     lane_select(3);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     dstep_set(&TDRUM->dstep[0], DRUM_ACC, LV_NORM, 0);
@@ -239,11 +239,10 @@ static void acc_step_tests(void)
     lane_select(DRUM_ACC);
     key(WK(5));
     check(dstep_has(&t->dstep[5], 2) && dstep_has(&t->dstep[5], DRUM_ACC), "a step with a hit and an accent: both");
-    press(B_SEQ);
     kdown(WK(5));
+    tap(B_HOME);
     kup(WK(5));
-    release(B_SEQ);
-    check(!dstep_lanes(&t->dstep[5]), "SEQ + the step: the whole step cleared, the accent too");
+    check(!dstep_lanes(&t->dstep[5]), "the step held + HOME: the whole step cleared, the accent too");
     key(WK(6));
     kdown(WK(6));
     frames(HOLD_FRAMES);
@@ -383,26 +382,23 @@ static void acc_walk_tests(void)
     TDRUM->p[P_DACC] = DACC_DEF;
     turn(EN_K1, 4);
     check(TDRUM->p[P_DACC] > DACC_DEF, "... KNOB 1 (the amount) turns it");
-    press(B_OCTDN);
-    turn(EN_K1, 1);
-    release(B_OCTDN);
-    check(TDRUM->p[P_DACC] == DACC_DEF, "... SHIFT + KNOB 1: back to 27");
+    TDRUM->p[P_DACC] = DACC_DEF;
     turn(EN_K3, 3);
     turn(EN_K4, 3);
     check(TDRUM->p[P_DACC] == DACC_DEF, "... the empty cards: inert");
     smute_lane = 0;
-    press(B_OCTUP);
+    press(B_OCTDN);
     turn(EN_K1, 1);
-    release(B_OCTUP);
+    release(B_OCTDN);
     check(smute_lane_on(DRUM_ACC) && !smute_lane_on(0) && !dlm_muted(0) && TDRUM->p[P_DACC] == DACC_DEF,
-          "SHIFT2 + KNOB 1 on the ACCENT card: the ACCENT lane's sequencer mute on, the amount kept");
+          "SHIFT + KNOB 1 on the ACCENT card: the ACCENT lane's sequencer mute on (the one mute), the amount kept");
     frames(130);                                        /* (the help line, over the foot a while after a turn, gone) */
     ui.force = 1;
     frames(2);
-    check(px_in(6, mx_row_y(MXR_ACC) + 2u, 30, 12, C_GRAY), "... the row drawn muted (its code grey)");
-    press(B_OCTUP);
+    check(px_in(6, mx_row_y(MXR_ACC) + 2u, 30, 12, C_WARN), "... the row drawn muted (its code in the M badge's colour)");
+    press(B_OCTDN);
     turn(EN_K1, 1);
-    release(B_OCTUP);
+    release(B_OCTDN);
     check(!smute_lane_on(DRUM_ACC), "... and off (the next hold)");
     smute_lane = 0;
     TDRUM->p[P_DACC] = DACC_DEF;

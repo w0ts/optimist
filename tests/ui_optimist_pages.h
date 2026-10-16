@@ -116,13 +116,23 @@ static void pages_nav_tests(void)
     check(snd_page(ui.row[SCR_SOUND]) && snd_page(ui.row[SCR_SOUND])->fam == FAM_EDIT, "D7: EDIT again: the edit pages");
     tap(B_ENV);
     check(snd_fam == SND_FM6 || snd_page(0) != 0, "D7: the other families have no SOUND row");
-    /* D8 */
+    /* D8 (2026-10-16: SAVE is no layer; the scenes are the LFO layer's black 10, SONG is SAVE held on PROJECT) */
     reset_ui();
     press(B_SAVE);
     frames(HOLD_FRAMES);
-    check(lay.shown == LY_SONG && strstr(lay_sub, "Select: song") && text_w(&FONT_S, lay_sub) <= 232,
-          "D8: SAVE held: the SCENES layer says Select: song (and it fits)");
+    check(lay.shown == LY_PLAY, "D8: SAVE held: no layer, no map");
     release(B_SAVE);
+#if FELUCCA_PATTERNS
+    reset_ui();
+    press(B_LFO);
+    frames(HOLD_FRAMES);
+    key(key_of_lane(9));
+    frames(2);
+    check(lay.shown == LY_PAT && lay.pmod == 10u && !strncmp(lay_sub, "Scenes", 6) && text_w(&FONT_S, lay_sub) <= 232,
+          "D8: LFO held, black 10: the scenes, the line under them says so (and it fits)");
+    key(key_of_lane(9));
+    release(B_LFO);
+#endif
     reset_ui();
     /* P25 */
     song.sel = TRK_DRUM;
@@ -417,14 +427,16 @@ static void keys_global_tests(void)
             release(B_PLAY);
             reset_ui();
         }
-        /* a layer from a no-track page: SAVE held on GLOBAL shows the scenes, the key is the layer's */
+        /* a layer from a no-track page: LFO held on GLOBAL shows the patterns, the key is the layer's */
         tap(B_GLO);
         frames(2);
-        hold_layer(B_SAVE);
+#if FELUCCA_PATTERNS
+        hold_layer(B_LFO);
         kdown(WK(1));
-        check(kb_kind[WK(1)] == KS_UI && lay.shown == LY_SONG, "GLOBAL, SAVE held + a key: the scene (the layer's key)");
+        check(kb_kind[WK(1)] == KS_UI && lay.shown == LY_PAT, "GLOBAL, LFO held + a key: a pattern (the layer's key)");
         kup(WK(1));
-        let_go(B_SAVE);
+        let_go(B_LFO);
+#endif
         hold_layer(B_FX);
         kdown(WK(2));
         check(kb_kind[WK(2)] == KS_FX, "GLOBAL, FX held + a key: the punch-in");
@@ -528,36 +540,44 @@ static void pages_keys_tests(void)
 #endif
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
-    trk[1].p[P_MUTE] = 1;
-    song.solo = 1u << 2;
+    smute_set_trk(1, 1);
     hold_layer(B_GLO);
 #if FELUCCA_FILLS
-    keys_are(kw(1) | kw(6), kws(0, 9) | kw(15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8,
-             "D10: GLO layer: mute solo fill bar tap and the black 1-4 dim, T2 muted and T3 soloed full");
+    keys_are(kw(1), kws(0, 3) | kw(8) | kw(9) | kw(15) | 1u << 1 | 1u << 3 | 1u << 5 | 1u << 8,
+             "D10: GLO layer: mute fill bar tap and the black 1-4 dim, T2 muted full (no solo)");
     trk[0].p[P_FXOFF] = 1;
     frames(2);
     check(key_led(1) == 2u && key_led(3) == 1u, "D10: GLO layer: T1's FX off, its black key full");
 #else
-    keys_are(kw(1) | kw(6), kws(0, 11) | kw(15), "D10: GLO layer: mute solo FX tap dim, T2 muted and T3 soloed full");
+    keys_are(kw(1), kws(0, 3) | kws(8, 11) | kw(15), "D10: GLO layer: mute FX tap dim, T2 muted full (no solo)");
     trk[0].p[P_FXOFF] = 1;
     frames(2);
     check(key_led(white_key(8)) == 2u, "D10: GLO layer: T1's FX off, its key full");
 #endif
     for (k = 0; k < 4u; k++)
         trk[k].p[P_FXOFF] = fxoff[k];
-    trk[1].p[P_MUTE] = 0;
-    song.solo = 0;
+    smute_set_trk(1, 0);
     let_go(B_GLO);
     hold_layer(B_SCL);
     for (k = 0; k < 27u; k++)
         root |= (uint32_t)((53u + k) % 12u == (uint32_t)trk[0].p[P_ROOT] % 12u) << k;
     keys_are(root, (1u << 27) - 1u, "D10: SCL layer: every key dim, the song's root full");
     let_go(B_SCL);
+#if FELUCCA_PATTERNS
     live_sec = 0;
-    hold_layer(B_SAVE);
-    keys_are(arrangement_clock.running ? 0u : kw(0), kws(0, LAY_NSCN - 1u), "D10: SAVE layer: the scenes dim, the playing one full");
-    let_go(B_SAVE);
+    hold_layer(B_LFO);
+    key(key_of_lane(9));                                /* (black 10: the scenes) */
+    {
+        uint32_t f, d;
+        frames(2);
+        keys_lit(&f, &d);
+        check((f & kws(0, 15)) == (arrangement_clock.running ? 0u : kw(0)) && ((f | d) & kws(0, 15)) == kws(0, LAY_NSCN - 1u),
+              "D10: LFO layer, black 10: the scenes dim, the playing one full");
+    }
+    key(key_of_lane(9));
+    let_go(B_LFO);
     live_sec = -1;
+#endif
     hold_layer(B_EDIT);
     keys_are(0, 0, "D10: EDIT layer (ERASE): a play surface, dark");
     let_go(B_EDIT);

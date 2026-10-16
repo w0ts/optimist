@@ -97,7 +97,12 @@ static void dlm_untlv(const uint8_t *a, uint32_t n)   /* (a shorter one: as none
     for (l = 0; l < DRUM_LANES; l++)
         dlm_set_pan(l, (int8_t)a[l]);
     dlm_mute = (uint16_t)((a[DRUM_LANES] | a[DRUM_LANES + 1u] << 8) & DRUM_LMASK);
+#if FELUCCA_UI == 1
+    dlm_solo = 0;                               /* (the Optimist UI has no solo, 2026-10-16: a project's lane solo would silence
+                                                 * the other lanes with nothing to undo it) */
+#else
     dlm_solo = (uint16_t)((a[DRUM_LANES + 2u] | a[DRUM_LANES + 3u] << 8) & DRUM_LMASK);
+#endif
     dlm_update();
     dlm_solo_sync();
 }

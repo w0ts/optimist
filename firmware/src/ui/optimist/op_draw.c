@@ -1014,13 +1014,15 @@ static void draw_ring(void)
     }
     str_cpy(b, "Clear ", sizeof b);
     str_cpy(b + 6, rh.lane >= 0 ? lane_name((uint32_t)rh.lane) : trk_tag(rh.trk), sizeof b - 6u);   /* (a lane: "Clear SNARE") */
+    if (rh.motion)
+        str_cpy(b + str_len(b), " locks", sizeof b - str_len(b));   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
     cv_text(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, &FONT_S, b, tc);
     cv_text(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
     cv_blit(0, OP_PY);
 }
 static void draw_overlay(uint32_t ov)
 {
-    uint32_t sig = ov == 3u ? hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1))
+    uint32_t sig = ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
                  : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])

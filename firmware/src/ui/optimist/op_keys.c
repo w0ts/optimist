@@ -6,20 +6,20 @@
  * (op_laydraw.c tiles_fill):
  *   FM6 layer (ENV held)  its 10 black keys dim; the target edited and the voice mode full (op_fm6.c)
  *   FX layer              the 16 white keys dim (punch-in); the latched effect full
- *   GLO layer (MIX)       mute 1-4, solo 5-8, fill 9, bar 10, tap 16 and the black 1-4 (FX on / off) dim; muted,
- *                         soloed, a fill playing or armed, bypassed full
+ *   GLO layer (MIX)       mute 1-4, fill 9, bar 10, tap 16 and the black 1-4 (FX on / off) dim; muted, a fill
+ *                         playing or armed, bypassed full
  *   SCL layer (KEY)       all 27 keys dim; the song's root full
- *   SAVE layer (SCENES)   the scenes dim; the playing one full, the queued one blinking (SONG's PATTERNS row: the
- *                         slots SAVE + n stores into)
- *   LFO layer (PATTERNS)  the 16 patterns dim, the playing one full, the queued one blinking; the 10 black keys dim,
- *                         the selected track's and the modifier held full
+ *   LFO layer (PATTERNS)  the 16 patterns dim, the playing one full, the queued one blinking (black 10: the scenes, the
+ *                         playing one full, the queued one blinking); the black keys with a job dim, the selected
+ *                         track's and black 10 while the scenes are up full
  *   TEMPO (PLAY held)     the white keys tap: dim
  *   PROJECT               the cursor row's slots (PROJECT, SNAPSHOT, USER): used full, free dim, the selected one blinking
  *   STEP                  set steps full, the playhead blinking, empty steps inside LEN dim, past LEN dark
- *   SONG's PATTERNS row   the selected track's patterns, as the LFO layer's white keys
+ *   SONG's PATTERNS row   as the LFO layer
  *   NAME                  every key with a job dim, the key cycling its letters full
- *   the mixer, SHIFT held  the lanes' black keys, the first 4 white keys and the last upper key dim (the sequencer mutes:
- *                         lanes, T1 T2 T3 DR, ACCENT), the muted full
+ *   SHIFT / SHIFT2 held   the lanes' black keys, the first 4 white keys and the last upper key dim (lanes, T1 T2 T3 DR,
+ *                         ACCENT: op_input.c shift_keys), the muted (SHIFT) or the selected (SHIFT2) full; every page
+ *                         but a layer's (STEP: its white keys stay its steps)
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
@@ -34,12 +34,10 @@ static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << white_key((ui
 static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX layer (op_layers.c glo_key) */
 {
     uint32_t i;
-    *d = keys_white(8) | key_w(15);
+    *d = keys_white(4) | key_w(15);
     for (i = 0; i < 4u; i++) {
-        if (trk[i].p[P_MUTE])
+        if (mx_muted(MXR_T1 + i))
             *f |= key_w((int32_t)i);
-        if ((song.solo >> i) & 1u)
-            *f |= key_w(4 + (int32_t)i);
     }
 #if FELUCCA_FILLS
     {
@@ -60,7 +58,7 @@ static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX lay
     }
 #endif
 }
-static void keys_scenes(uint32_t *f, uint32_t *d, uint32_t blink)   /* SAVE held: the scenes */
+static void keys_scenes(uint32_t *f, uint32_t *d, uint32_t blink)   /* LFO held, black 10: the scenes */
 {
     uint32_t i;
     *d = keys_white(LAY_NSCN);
@@ -75,10 +73,13 @@ static void keys_pat_white(uint32_t *f, uint32_t *d, uint32_t blink)   /* the se
     *d |= keys_white(PAT_N);
     *f |= (pat_cur[sel] < PAT_N ? key_w(pat_cur[sel]) : 0u) | (pat_req[sel] < PAT_N && blink ? key_w(pat_req[sel]) : 0u);
 }
-static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held: the patterns, the black keys' jobs */
+static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held: the patterns (black 10: the scenes), the black keys' jobs */
 {
     uint32_t k, b;
-    keys_pat_white(f, d, blink);
+    if (lay.pmod == 10u)
+        keys_scenes(f, d, blink);
+    else
+        keys_pat_white(f, d, blink);
     for (k = 0; k < 27u; k++) {
         b = pat_black(k);
         if (b < 1u || b > 10u || (b >= 6u && b <= 8u))
@@ -100,11 +101,30 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     }
     return m;
 }
-/* SHIFT held on the mixer, past the hold time: the sequencer mutes (seq_mute.c): the 16 drum keys and the 4 black keys
- * dim, the muted full */
-static int keys_muting(uint32_t held)
+/* SHIFT or SHIFT2 held alone (op_input.c shift_keys), past the hold time: the keys they name dim, the muted (SHIFT) or
+ * the selected (SHIFT2) full */
+static int keys_shifted(uint32_t held)
 {
-    return mute_mod(held) && fm1_ms - op_t0[panel.btn[B_OCTDN] % 14u] >= op_hold_ms();
+    uint32_t b = mute_mod(held) ? B_OCTDN : sel_mod(held) ? B_OCTUP : NB;
+    return b != NB && fm1_ms - op_t0[panel.btn[b] % 14u] >= op_hold_ms();
+}
+static void keys_shift_lit(uint32_t *f, uint32_t *d)
+{
+    uint32_t k, mute = (uint32_t)mute_mod(fm1_in.buttons);
+    for (k = 0; k < 27u; k++) {
+        int32_t id = smute_key(k);
+        uint32_t on;
+        if (id < 0 || shift_step_key(k))
+            continue;
+        *d |= 1u << k;
+        if (mute)
+            on = mx_muted(mx_row_of_smute(id));
+        else if (id == SMUTE_ACC || id < SMUTE_T0)      /* (a lane: the drum track's, picked) */
+            on = is_drum(TSEL) && ui.lane && lane_selected() == (id == SMUTE_ACC ? DRUM_ACC : (uint32_t)id);
+        else
+            on = song.sel == (uint32_t)(id - SMUTE_T0);
+        *f |= on << k;
+    }
 }
 /* the keys' full (*f) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
 static void keys_lit(uint32_t *f, uint32_t *d)
@@ -138,15 +158,6 @@ static void keys_lit(uint32_t *f, uint32_t *d)
             if ((53u + k) % 12u == (uint32_t)trk[0].p[P_ROOT] % 12u)
                 *f |= 1u << k;
         return;
-    case LY_SONG:
-#if FELUCCA_PATTERNS
-        if (song_on_pat_row()) {
-            keys_pat_white(f, d, blink);                /* (SONG's PATTERNS row: SAVE + n stores into slot n) */
-            return;
-        }
-#endif
-        keys_scenes(f, d, blink);
-        return;
 #if FELUCCA_PATTERNS
     case LY_PAT:
         keys_pat(f, d, blink);
@@ -156,6 +167,14 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         break;
     default:
         return;                                         /* (ERASE, REPEAT: play surfaces, dark) */
+    }
+    if (keys_shifted(fm1_in.buttons)) {
+        if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons)) {
+            *f = step_leds(blink) & keys_white(16);     /* (STEP: its white keys stay its steps) */
+            *d = step_dim();
+        }
+        keys_shift_lit(f, d);
+        return;
     }
     if (ui.scr == SCR_PROJECT) {
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
@@ -171,18 +190,12 @@ static void keys_lit(uint32_t *f, uint32_t *d)
     }
 #if FELUCCA_PATTERNS
     if (song_on_pat_row()) {
-        keys_pat_white(f, d, blink);                    /* (the keys launch the selected track's patterns) */
+        keys_pat(f, d, blink);                          /* (the LFO layer's keys: the patterns, black 10 the scenes) */
         return;
     }
 #endif
     if (keys_none())
         return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SONG, SCOPE: no track, the keys do nothing: dark) */
-    if (keys_muting(fm1_in.buttons)) {
-        for (k = 0; k < 27u; k++)
-            *d |= smute_key(k) >= 0 ? 1u << k : 0u;     /* (the lanes' keys, the tracks', the ACCENT lane's) */
-        *f = smute_keys_lit();
-        return;
-    }
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
         const track_t *t = TSEL;                        /* the white keys its steps, as on STEP (they are steps on every page) */
         uint32_t len = trk_len(t), at = t->seq_idx % len;

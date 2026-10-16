@@ -13,7 +13,7 @@
  *              marked 1..4 at their left: KNOB k edits line k. A knob turned makes its line the cursor
  *   SELECT     a page a detent within the screen, stopping at its ends; the cursor on the page's first line
  *   KNOB k     line k of the page: edits it and makes it the cursor (the help line shows it)
- *   ALGORITHM  the track walk, as on every screen (op_walk.c); never the cursor
+ *   ALGORITHM  the cursor, a line a detent across the pages (glo_walk; the user, 2026-10-14: the one exception to ALGORITHM being the track)
  *   GLO        tapped: GLOBAL from any other screen; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its cursor line
  *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
  *              YES; a read-out: nothing. Never the track or its sound here

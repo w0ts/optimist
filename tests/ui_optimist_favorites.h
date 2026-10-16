@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Favorites in the Optimist UI (FELUCCA_FAVORITES; docs/UI-OPTIMIST-DESIGN.md section 37), included by ui_optimist_test.c
  * after WK / kdown / kup. Favorites live where presets are picked (the user, 2026-10-14: "we have a preset button, that is
- * enough"): no SOUND / FAVS row on EDIT.
- *   SHIFT2 (OCT+ held) + PRESETS   marks the sound playing (right) or clears it (left): a set, not a toggle; a toast
+ * enough"): no SOUND / FAVS row on EDIT. SAVE + PRESETS since 2026-10-16 (saved into the favorites; SHIFT2 + PRESETS is
+ * the next instrument).
+ *   SAVE held + PRESETS            marks the sound playing (right) or clears it (left): a set, not a toggle; a toast
  *                                  "FAV + NAME" / "FAV - NAME"; saved later (settings_later), never on a detent
  *   SHIFT2 + SELECT                browses only the marked sounds (right, "FAVORITES ONLY") or every sound (left)
- *   PRESETS / SHIFT + PRESETS      then walk only the marked sounds; from a sound not marked the first step goes to the
+ *   PRESETS / SHIFT2 + PRESETS     then walk only the marked sounds; from a sound not marked the first step goes to the
  *                                  first / last marked; none marked: "NO FAVORITES", the sound stays
  *   the toast of a PRESETS turn    puts a star after a favorite's name; PROJECT > USER: SHIFT2 + the ITEM knob marks the slot
  * The drum track has no mark. The marks are the store of core/favorites.c, shared with SLOOP's UI (tests/favorites_ui.c). */
@@ -44,6 +45,13 @@ static void fv_shift2_turn(uint32_t enc, int32_t s)     /* SHIFT2 (OCT+ held) + 
     fm1_in.buttons &= ~BT(B_OCTUP);
     frame();
 }
+static void fv_save_turn(uint32_t enc, int32_t s)       /* SAVE held + a knob (the favorite: saved into the favorites) */
+{
+    fm1_in.buttons |= BT(B_SAVE);
+    turn(enc, s);
+    fm1_in.buttons &= ~BT(B_SAVE);
+    frame();
+}
 static void favorites_tests(void)
 {
     uint32_t i, all, total, mark[3], idx[3] = {9, 41, 77};
@@ -55,14 +63,14 @@ static void favorites_tests(void)
     check(strcmp(nm, "FAVS") != 0 && strcmp(nm, "SOUND") != 0, "... no row of that name");
     settings_later = 0;
     ui.msg[0] = 0;
-    fv_shift2_turn(EN_PRESET, 1);
-    check(fav_count() == 1u && op_fav_here(), "SHIFT2 + PRESETS right: the sound is a favorite");
+    fv_save_turn(EN_PRESET, 1);
+    check(fav_count() == 1u && op_fav_here(), "SAVE + PRESETS right: the sound is a favorite");
     check(settings_later == 1u, "... saved later (settings_later), not at once");
     check(!strncmp(ui.msg, "FAV + ", 6), "... the toast says it");
-    fv_shift2_turn(EN_PRESET, 1);
+    fv_save_turn(EN_PRESET, 1);
     check(fav_count() == 1u, "... right again: still one (a set, not a toggle)");
-    fv_shift2_turn(EN_PRESET, -1);
-    check(fav_count() == 0u && !op_fav_here() && !strncmp(ui.msg, "FAV - ", 6), "SHIFT2 + PRESETS left: cleared, \"FAV - NAME\"");
+    fv_save_turn(EN_PRESET, -1);
+    check(fav_count() == 0u && !op_fav_here() && !strncmp(ui.msg, "FAV - ", 6), "SAVE + PRESETS left: cleared, \"FAV - NAME\"");
 
     /* three sounds marked, in the list's order */
     fav_list = 0;
@@ -76,9 +84,9 @@ static void favorites_tests(void)
             idx[i]++;                                   /* (a factory sound: the engines' own collections, NATIVE_BANKS, have no mark) */
         op_preset_go(idx[i]);
         mark[i] = fv_here();
-        fv_shift2_turn(EN_PRESET, 1);
+        fv_save_turn(EN_PRESET, 1);
     }
-    check(fav_count() == 3u, "three sounds marked, by SHIFT2 + PRESETS");
+    check(fav_count() == 3u, "three sounds marked, by SAVE + PRESETS");
     ui.msg[0] = 0;
     fv_shift2_turn(EN_SELECT, 1);
     preset_pos(&total);
@@ -94,8 +102,8 @@ static void favorites_tests(void)
     check(fv_here() == mark[1], "... one on: the second");
     turn(EN_PRESET, -2);
     check(fv_here() == mark[2], "... two back: the last");
-    fv_shift_turn(EN_PRESET, 1);
-    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT + PRESETS (the next instrument): one of the favorites");
+    fv_shift2_turn(EN_PRESET, 1);
+    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT2 + PRESETS (the next instrument): one of the favorites");
     fav_list = 0;
     op_preset_go(60);
     fav_list = 1;
@@ -109,8 +117,8 @@ static void favorites_tests(void)
     fav_list = 0;
     op_preset_go(60);
     fav_list = 1;
-    fv_shift_turn(EN_PRESET, 1);
-    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT + PRESETS from a sound not marked: a favorite");
+    fv_shift2_turn(EN_PRESET, 1);
+    check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT2 + PRESETS (the next instrument) from a sound not marked: a favorite");
     fv_shift2_turn(EN_SELECT, -1);
     preset_pos(&total);
     check(fav_list == 0u && total == all, "SHIFT2 + SELECT left: every sound, the whole list is back");
@@ -125,8 +133,8 @@ static void favorites_tests(void)
         turn(EN_PRESET, 1);
         check(total == 0u && fv_here() == here, "no favorites, LIST FAV: the sound stays");
         check(!strcmp(ui.msg, "NO FAVORITES"), "... NO FAVORITES says so");
-        fv_shift_turn(EN_PRESET, 1);
-        check(fv_here() == here, "... SHIFT + PRESETS too");
+        fv_shift2_turn(EN_PRESET, 1);
+        check(fv_here() == here, "... SHIFT2 + PRESETS (the next instrument) too");
     }
     fav_list = 0;
 
@@ -135,14 +143,14 @@ static void favorites_tests(void)
     trk[0].user = 1;
     check(user_of(TSEL) == 0u, "a user preset loaded");
     if (up_used(0)) {
-        fv_shift2_turn(EN_PRESET, 1);
-        check(fav_user_has(0) && !fav_count(), "SHIFT2 + PRESETS marks it by its slot (no factory place used)");
+        fv_save_turn(EN_PRESET, 1);
+        check(fav_user_has(0) && !fav_count(), "SAVE + PRESETS marks it by its slot (no factory place used)");
         fv_shift2_turn(EN_SELECT, 1);
         preset_pos(&total);
         check(total == 1u && fv_at(0) == ((uint32_t)NENGINES << 16 | 0u), "LIST FAV: the user preset is the list");
         fav_list = 0;
-        fv_shift2_turn(EN_PRESET, -1);
-        check(!fav_user_has(0), "SHIFT2 + PRESETS left clears it");
+        fv_save_turn(EN_PRESET, -1);
+        check(!fav_user_has(0), "SAVE + PRESETS left clears it");
     }
     trk[0].user = 0;
     memset(&fav, 0, sizeof fav);
@@ -168,8 +176,8 @@ static void favorites_tests(void)
         ;
     if (i < NTRK) {
         fv_open(i);
-        fv_shift2_turn(EN_PRESET, 1);
-        check(fav_count() == 0u && !fav_user_has(0), "the drum track: SHIFT2 + PRESETS marks nothing");
+        fv_save_turn(EN_PRESET, 1);
+        check(fav_count() == 0u && !fav_user_has(0), "the drum track: SAVE + PRESETS marks nothing");
     }
     memset(&fav, 0, sizeof fav);
     fav_list = 0;

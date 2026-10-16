@@ -110,16 +110,23 @@ static void un_drum_keys_tests(void)                    /* #13: the drum track's
     lane_select(0);
     op_enter(SCR_SOUND);
     frame();
-    press(B_OCTDN);
+    press(B_OCTUP);
     for (i = 0; i < 5u; i++) {
         lane_select(0);
         kdown(BLACK[i]);
         kup(BLACK[i]);
-        ok2 &= lane_selected() == lane_of_key(BLACK[i]);
+        ok2 &= lane_selected() == lane_of_key(BLACK[i]) && !smute_lane;
     }
-    release(B_OCTDN);
+    release(B_OCTUP);
+    press(B_OCTDN);
     lane_select(0);
-    check(ok2, "SHIFT held + a black key off the mixer: its lane picked as without SHIFT");
+    kdown(BLACK[1]);
+    kup(BLACK[1]);
+    release(B_OCTDN);
+    ok2 &= lane_selected() == 0u && smute_lane_on(lane_of_key(BLACK[1]));
+    smute_lane = 0;
+    lane_select(0);
+    check(ok2, "off the mixer: SHIFT2 + a black key picks its lane (as without), SHIFT + it mutes the lane, no pick");
     press(B_OCTDN);
     kdown(WK(5));
     kup(WK(5));

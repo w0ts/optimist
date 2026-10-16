@@ -410,12 +410,12 @@ static void mixer_sets_tests(void)
         check(ui.scr == SCR_HOME && lane_selected() != 4u && smute_lane_on(4),
               "SHIFT held long + a key: the lane's sequencer muted (the pick is not here), no SYSTEM");
         smute_lane = 0;
-        press(B_OCTDN);
+        press(B_OCTUP);
         frames(HOLD_FRAMES);
         press(B_GLO);
         release(B_GLO);
-        release(B_OCTDN);
-        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "SHIFT held long + a layer button: the layer locks, no SYSTEM");
+        release(B_OCTUP);
+        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "SHIFT2 held long + a layer button: the layer locks, no SYSTEM");
         tap(B_SEQ);
         song.sel = 0;
         reset_ui();

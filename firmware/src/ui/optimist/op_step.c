@@ -187,8 +187,8 @@ static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
 }
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
-    if (is_drum(t)) {                                   /* (OCT+ held: a hard hit; OCT- is SHIFT) */
-        uint32_t lv = fm1_in.buttons & dyn_bit[0] ? LV_GHOST : fm1_in.buttons & dyn_bit[1] ? LV_HARD : LV_NORM;
+    if (is_drum(t)) {                                   /* (SHIFT held: a ghost hit, SHIFT2 a hard one: the shifts' less / more) */
+        uint32_t lv = fm1_in.buttons & (1u << panel.btn[B_OCTDN]) ? LV_GHOST : fm1_in.buttons & (1u << panel.btn[B_OCTUP]) ? LV_HARD : LV_NORM;
         dstep_set(&t->dstep[idx], lane_selected(), lv, 0);
     } else {
         step_t *s = &t->step[idx];
@@ -363,14 +363,6 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         fm1_irq_on();
         sync_reload = 1;
         ui_message(n ? "LOCKS CLEARED" : "NO LOCKS");
-        return;
-    }
-    if (is_drum(t) && (held & (1u << panel.btn[B_SEQ]))) {   /* the drum track's SEQ + the step: cleared, everything of it */
-        undo_mark(t, st.sess);
-        fm1_irq_off();
-        step_wipe(t, idx, 1);
-        fm1_irq_on();
-        sync_reload = 1;
         return;
     }
     if (!st.held) {

@@ -292,10 +292,10 @@ static void seqtools_tests(void)
             n += tl_gate(&t->step[i]);
         check(n == 1u && tl_gate(&t->step[3]) && gen[0].on && (gen_trk & 1u),
               "... SAVE then HOME: one undo brings back both, the pattern as it was and the generator ON");
-        press(B_OCTDN);                                 /* redo (OCT- held, SAVE: op_combos.c) */
+        press(B_HOME);                                  /* redo (HOME then SAVE: op_combos.c) */
         press(B_SAVE);
         release(B_SAVE);
-        release(B_OCTDN);
+        release(B_HOME);
         for (i = 0, ok = 1; i < 16u; i++)
             ok &= !memcmp(&t->step[i], &w[i], sizeof w[i]);
         check(ok && !gen[0].on, "... redo: written again, the generator OFF again");

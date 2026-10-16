@@ -147,20 +147,26 @@ static void algo_every_tests(void)
     ok &= al_walk(1) == MXR_LANE0 + 3u && ui.row[SCR_STEP] == STP_PAT && lane_selected() == 3u;
     ok &= al_walk(-4) == MXR_DR && ui.row[SCR_STEP] == STP_PAT && !lane_picked();
     check(ok, "STEP, the drum view: the walk into the lanes and back to DR; the page stays (SELECT's), the lane is previewed");
-    /* SHIFT + a key: a lane straight away, on any page */
+    /* SHIFT2 + a lane's key: that lane straight away, from any track, on any page (the shifts' language: pick) */
     reset_ui();
     song.sel = 0;
     op_enter(SCR_SOUND);
-    song.sel = TRK_DRUM;
     frame();
-    fm1_in.buttons |= BT(B_OCTDN);
+    fm1_in.buttons |= BT(B_OCTUP);
     frame();
     kdown(key_of_lane(5));
     kup(key_of_lane(5));
-    fm1_in.buttons &= ~BT(B_OCTDN);
+    fm1_in.buttons &= ~BT(B_OCTUP);
     frame();
-    ok = lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
-    check(ok, "SHIFT + a drum key on SOUND: that lane selected, the walk on from it");
+    ok = song.sel == TRK_DRUM && lane_picked() && lane_selected() == 5u && al_walk(1) == MXR_LANE0 + 6u && al_walk(-7) == MXR_DR;
+    check(ok, "SHIFT2 + a lane's key on SOUND, T1 selected: the drum track and that lane selected, the walk on from it");
+    fm1_in.buttons |= BT(B_OCTUP);
+    frame();
+    kdown(WK(1));
+    kup(WK(1));
+    fm1_in.buttons &= ~BT(B_OCTUP);
+    frame();
+    check(song.sel == 1u && song.octave == 0 && !smute_trk, "SHIFT2 + white key 2: T2 selected, nothing muted, no octave");
     song.sel = 0;
     reset_ui();
 }
@@ -229,18 +235,18 @@ static void algo_presets_tests(void)
     dl.src[2] = src[2];
     snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     k0 = ls_kind(ls_cur(2, n));
-    fm1_in.buttons |= BT(B_OCTDN);
+    fm1_in.buttons |= BT(B_OCTUP);
     frame();
     turn(EN_PRESET, 1);
-    fm1_in.buttons &= ~BT(B_OCTDN);
+    fm1_in.buttons &= ~BT(B_OCTUP);
     frames(2);
     ppm("opt-algo-lane-kind");
     k1 = ls_kind(ls_cur(2, n));
     ok = k1 != k0 && dl.src[2] != DL_KIT && drum_kit_pos() == kit;
     for (i = 0; i < ls_cur(2, n); i++)
         ok &= !ls_ok(i) || ls_kind(i) != k1;           /* (the kind's first sound) */
-    check(ok, "SHIFT + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
-    check(ui.scr == SCR_SOUND, "... HOME let go: no NO (the screen stays)");
+    check(ok, "SHIFT2 + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
+    check(ui.scr == SCR_SOUND && song.octave == 0, "... OCT+ let go: no octave (the screen stays)");
     /* the mixer's lane rows: the same */
     memset(&dl, 0, sizeof dl);
     dl.src[4] = (uint8_t)dsnd_idx_src(al_first_own(4));

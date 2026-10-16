@@ -6,23 +6,24 @@
  *   FX    the 16 punch-in effects               KNOB  FILTER DUST DUCK (TRK_FILT: the track's FILTER)
  *   ARP   note repeat on the keys               KNOB  RATE
  *   SCL   a key: the key of the song             KNOB  CHORD SCALE KEYS TRANSPOSE
- *   GLO   1-4 mute, 5-8 solo, 9-12 FX on / off (FILLS: 9 a fill held, 10 the next bar, FX on the black keys 1-4),
- *         16 tap tempo                           KNOB  the four levels
- *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE; OCT- / OCT+ undo / redo
- *   LFO   the patterns (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's pattern n at
- *         its end (OCT- held: the next bar, OCT+ held: now), the black keys 1-4 the track, 5 stop, 9 duplicate, 10 + n a
- *         scene; LFO held, then SAVE + n stores the working pattern into slot n (asked over a used one), SHIFT + n clears
- *         it (asked); COPY = launch the source, then SAVE + the target; its cards show each track's pattern. KNOB: none,
- *         LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen under it, fine (LEN by one)
- *   SAVE  1-16 scene A-P at the next bar (stopped: loaded; an 8-section build 1-8), REC tapped SONG REC, REC held +
- *         n store the loop into n, SHIFT held + n clear n, PLAY the song from the start, two taps or more held a
- *         quick chain (QCHAIN)
- * Lock a layer: SHIFT + its button in either order (the layer held then SHIFT, or SHIFT held then the button): it
- * stays with the button let go; any button but PLAY, REC and OCT lets it go (and does only that). The logic of the
+ *   GLO   1-4 mute (the sequencer's, op_mixer.c), 9-12 FX on / off (FILLS: 9 a fill held, 10 the next bar, FX on
+ *         the black keys 1-4), 16 tap tempo      KNOB  the four levels
+ *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE (undo: SAVE then HOME)
+ *   LFO   the patterns and the scenes (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's
+ *         pattern n at its end (OCT+ held: now; OCT- held is SHIFT, the clear), SAVE + n stores the working pattern into slot n
+ *         (asked over a used one), SHIFT + n clears it (asked); the black keys 1-4 the track, 5 stop, 9 duplicate, 10
+ *         the scenes (the user, 2026-10-16): the white keys are scenes A-P until black 10 again or the layer goes, the
+ *         same verbs: n launches scene n at the next bar (stopped: loaded; two or more in one hold: a chain, QCHAIN),
+ *         SAVE + n stores the loop into it, SHIFT + n clears it. SONG's PATTERNS row has these keys too. Its cards show
+ *         each track's pattern. KNOB: none, LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen
+ *         under it, fine (LEN by one)
+ * Lock a layer: SHIFT2 + its button in either order (the layer held then SHIFT2, or SHIFT2 held then the button; ENV on
+ * FM6, ARP and LFO: SHIFT2 first, their OCT+ has a job): it stays with the button let go; any button but PLAY, REC and
+ * OCT lets it go (and does only that). SAVE is no layer (2026-10-16): SAVE + REC is SONG REC, SAVE + PLAY the song. The logic of the
  * keys and knobs is SLOOP's (ui/sloop/ui_layers.c, ui_pat.c), copied: nothing in ui/sloop is called. */
 #define LAY_SHOW_MS op_hold_ms()        /* a layer shows after this (a click does not flash it: SYSTEM HOLD, op_state.c) */
 #define LAY_TAP_MS (op_hold_ms() + OP_TAP_GAP)   /* a page button held longer is no tap (the map was looked at) */
-static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, B_GLO, B_SAVE, OP_FM6 ? B_ENV : NB,
+static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, B_GLO, NB, OP_FM6 ? B_ENV : NB,
                                             FIF(FELUCCA_PATTERNS)(B_LFO)};   /* (ENV: on an FM6 track only) */
 #if FELUCCA_PATTERNS
 static void pat_launch(uint32_t k, uint32_t s, uint32_t when);   /* storage/sections/pat.c, later in the unit */
@@ -60,18 +61,17 @@ static struct {
     uint8_t quiet;                      /* a combination took its button (SAVE + FX: a save): no map */
     uint8_t hot;                        /* the layer's hot knob (the last one turned) */
     uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) waiting for a release */
-    uint8_t rec_pend, rec_used;         /* REC pressed in the SAVE layer: SONG REC at its release, unless it stored */
+    uint8_t rec_pend;                   /* SAVE + REC: SONG REC at REC's release */
     uint8_t song_go;                    /* SAVE + PLAY while playing: stopped, the song starts once stopped */
     uint32_t t0;                        /* the held layer's press */
     uint8_t tap_n;                      /* tap tempo: the taps counted, their times */
     uint32_t tap_ms[4];
 #if FELUCCA_PATTERNS
-    uint8_t pmod;                       /* LFO: the black key held (10 scene), 0 none */
-    uint8_t hlock, pclr;                /* SHIFT + LFO pressed: the lock waits for the release, a cleared slot cancels it */
+    uint8_t pmod;                       /* LFO: 10 the white keys are the scenes (black 10 toggles), 0 the patterns */
     uint32_t pchg_ms, pchg;             /* the patterns changed since their source ("*"), twice a second */
 #endif
 #if FELUCCA_QCHAIN
-    uint8_t chain[CHAIN_MAX], chain_n;  /* the scene keys tapped in this SAVE hold */
+    uint8_t chain[CHAIN_MAX], chain_n;  /* the scene keys tapped in this LFO hold */
 #endif
 } lay = {.lock = LY_PLAY, .shown = LY_PLAY, .held = LY_PLAY};
 /* the cards 2x2 (op_state.c): everywhere but the mixer, whose rows want the height ("but not in mixer !", the user,
@@ -250,10 +250,8 @@ static int32_t black_index(uint32_t k)                  /* black keys 1..4 (F#, 
 #endif
 static void glo_key(uint32_t k, int32_t w)
 {
-    if (w >= 0 && w < 4) {
-        trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
-    } else if (w >= 4 && w < 8) {
-        song.solo ^= (uint8_t)(1u << (w - 4));
+    if (w >= 0 && w < 4) {                              /* T1..DR: the sequencer mute, the one mute (2026-10-16; no solo) */
+        ui_say(trk_tag((uint32_t)w), mx_mute_flip(MXR_T1 + (uint32_t)w) ? " MUTE" : " ON");
 #if FELUCCA_FILLS
     } else if (w == 8) {
         fill_held = 1;                                  /* a fill while held (SLOOP 2.4) */
@@ -298,7 +296,7 @@ static void scene_launch(uint32_t s)                    /* playing: at the next 
         ui_say("EMPTY ", b);
     } else if (song.playing) {
 #if FELUCCA_QCHAIN
-        if (lay.chain_n) {                              /* SAVE still held, a second tap or more: the chain grows */
+        if (lay.chain_n) {                              /* the scenes still up, a second tap or more: the chain grows */
             if (lay.chain_n < CHAIN_MAX)
                 lay.chain[lay.chain_n++] = (uint8_t)s;
             return;
@@ -306,8 +304,10 @@ static void scene_launch(uint32_t s)                    /* playing: at the next 
         fm1_irq_off();
         chain_n = 0;                                    /* the first tap: as ever, and any chain stops */
         fm1_irq_on();
-        if (lay_is(LY_SONG))
-            lay.chain[lay.chain_n++] = (uint8_t)s;
+#if FELUCCA_PATTERNS
+        if (lay_is(LY_PAT))
+            lay.chain[lay.chain_n++] = (uint8_t)s;      /* (the LFO layer's scenes: the taps of the hold may chain) */
+#endif
 #endif
 #if SEC_LOGGED
         if (!section_cue(s)) {                          /* (staged now: the ISR plays it on the next bar) */
@@ -328,7 +328,8 @@ static void scene_launch(uint32_t s)                    /* playing: at the next 
     }
 }
 #if FELUCCA_QCHAIN
-/* SAVE let go: two or more scene taps while it was held play as a chain (SLOOP 2.4 chain_release, as ui_layers.c) */
+/* the scenes let go (LFO, or black 10 again): two or more scene taps while they were up play as a chain (SLOOP 2.4
+ * chain_release, as ui_layers.c) */
 static void chain_release(void)
 {
     uint32_t i, n = lay.chain_n < CHAIN_MAX ? lay.chain_n : CHAIN_MAX;
@@ -364,7 +365,7 @@ static void scene_store_now(uint32_t s)
     }
     ui.force = 1;
 }
-static void scene_store(uint32_t s)                     /* REC + a scene: asked over a used one */
+static void scene_store(uint32_t s)                     /* SAVE + a scene: asked over a used one */
 {
     char b[8];
     scene_tag(b, s);
@@ -431,22 +432,6 @@ static void song_play(void)                             /* SAVE + PLAY: the song
         transport_req = 1;
     }
     ui_message("SONG");
-}
-static void save_key(uint32_t k, int32_t w)
-{
-    uint32_t h = fm1_in.buttons;
-    (void)k;
-    if (w < 0 || w >= LAY_NSCN)
-        return;
-    if (h & (1u << panel.btn[B_REC])) {                 /* REC held + n: the loop into n */
-        lay.rec_used = 1;
-        scene_store((uint32_t)w);
-    } else if (op_shift(h)) {                           /* SHIFT held + n: clear n */
-        lay.chord = 0;
-        scene_clear_ask((uint32_t)w);
-    } else {
-        scene_launch((uint32_t)w);
-    }
 }
 
 /* ---- LFO: the patterns (ui/sloop/ui_pat.c, copied; its "AGAIN" confirm is this UI's modal) */
@@ -523,8 +508,14 @@ static void pat_layer_key(uint32_t k, int32_t w)
         ui_message(song.playing ? "STOP AT END" : "STOPPED");
         return;
     }
-    if (b == 10u) {                                     /* a modifier: the next white key launches a scene */
-        lay.pmod = (uint8_t)b;
+    if (b == 10u) {                                     /* the scenes: the white keys are scenes A-P until black 10 again */
+        lay.pmod = (uint8_t)(lay.pmod == 10u ? 0u : 10u);
+#if FELUCCA_QCHAIN
+        if (!lay.pmod)
+            chain_release();
+#endif
+        ui_message(lay.pmod ? "SCENES" : "PATTERNS");
+        ui.force = 1;
         return;
     }
     if (b >= 6u && b <= 8u)
@@ -540,20 +531,22 @@ static void pat_layer_key(uint32_t k, int32_t w)
     }
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
-    if (op_shift(fm1_in.buttons)) {                     /* SHIFT + n: clear slot n (asked) */
-        lay.pclr = 1;
-        pat_clear_ask(t, (uint32_t)w);
-    } else if (lay.pmod == 10u) {
-        if (w < LAY_NSCN)
+    if (lay.pmod == 10u) {                              /* the scenes: n launches, SAVE + n stores the loop, SHIFT + n clears */
+        if (w >= LAY_NSCN)
+            return;
+        if (fm1_in.buttons & (1u << panel.btn[B_SAVE]))
+            scene_store((uint32_t)w);
+        else if (op_shift(fm1_in.buttons))
+            scene_clear_ask((uint32_t)w);
+        else
             scene_launch((uint32_t)w);
+    } else if (fm1_in.buttons & (1u << panel.btn[B_SAVE])) {   /* SAVE + n: the working pattern into slot n (asked) */
+        pat_store_ask(t, (uint32_t)w);
+    } else if (op_shift(fm1_in.buttons)) {              /* SHIFT + n: clear slot n (asked) */
+        pat_clear_ask(t, (uint32_t)w);
     } else {
         pat_launch_key(t, (uint32_t)w);
     }
-}
-static void pat_layer_up(uint32_t k)
-{
-    if (pat_black(k) == lay.pmod)
-        lay.pmod = 0;
 }
 static void pat_knob(uint32_t k, int32_t s)             /* track k's next / previous stored pattern, at its end */
 {
@@ -608,10 +601,6 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k);
     if (!down) {
-#if FELUCCA_PATTERNS
-        if (layer == LY_PAT)
-            pat_layer_up(k);
-#endif
 #if FELUCCA_FILLS
         if (layer == LY_MIX && w == 8)
             fill_held = 0;                              /* GLO + key 9 let go: the fill ends */
@@ -619,7 +608,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     lay.used = 1;
-    lay.chord = 0;                                      /* (SAVE + SHIFT + a key: a clear, not an undo) */
+    lay.chord = 0;                                      /* (a key: no undo / redo) */
     switch (layer) {
     case LY_SCALE:
         scl_key(k);
@@ -634,24 +623,9 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
     case LY_OPS:
         fm6_lay_key(k);                                 /* a black key: what to edit (the white keys play) */
         break;
-    case LY_SONG:
-#if FELUCCA_PATTERNS
-        if (song_on_pat_row() || lay_is(LY_PAT)) {      /* SONG's PATTERNS row, the patterns layer (LFO held, SAVE then pressed): SAVE + n stores into slot n */
-            if (w >= 0 && w < (int32_t)PAT_N)
-                pat_store_ask(song.sel % NTRK, (uint32_t)w);
-            break;
-        }
-#endif
-        save_key(k, w);
-        break;
 #if FELUCCA_PATTERNS
     case LY_PAT:
-        if (song_on_pat_row() && op_shift(fm1_in.buttons)) {                     /* SHIFT + n: clear slot n */
-            if (w >= 0 && w < (int32_t)PAT_N)
-                pat_clear_ask(song.sel % NTRK, (uint32_t)w);
-            break;
-        }
-        pat_layer_key(k, w);                            /* (the layer: SHIFT + n clears slot n too) */
+        pat_layer_key(k, w);                            /* (the LFO layer, SONG's PATTERNS row: the same keys) */
         break;
 #endif
     default:
@@ -783,9 +757,7 @@ static int lay_knobs(void)
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {
         turned = 1;
-        if (lay_is(LY_SONG))
-            song_shortcut(s);                           /* SAVE held + SELECT: the SONG screen (op_song.c) */
-        else if (lay_is(LY_OPS))
+        if (lay_is(LY_OPS))
             fm6_lay_select(s);                          /* ENV held on FM6: its pages (section 2's paging rule) */
     }
     return 1 + (int)turned;
@@ -803,18 +775,7 @@ static void lay_frame(uint32_t held)
             h = l;
             break;
         }
-    if (h == LY_SONG && (op_armed() || song_on_pat_row()))
-        h = LY_PLAY;                                    /* (SAVE over a question: its YES; on PATTERNS: a slot's store) */
-#if FELUCCA_PATTERNS
-    if (h == LY_SONG && (held & (1u << panel.btn[B_LFO])))
-        h = LY_PAT;                                     /* (LFO held, then SAVE: the patterns' map stays, SAVE + n stores) */
-#endif
     if (h != lay.held) {
-        if (lay.held == LY_SONG) {
-#if FELUCCA_QCHAIN
-            chain_release();                            /* SAVE let go: the scene taps of the hold */
-#endif
-        }
         if (h != LY_PLAY) {
             lay.t0 = fm1_ms;
             lay.used = 0;
@@ -828,6 +789,14 @@ static void lay_frame(uint32_t held)
             lay.quiet = 0;
         lay.held = (uint8_t)h;
     }
+#if FELUCCA_PATTERNS
+    if (lay.pmod && !lay_is(LY_PAT) && !song_on_pat_row()) {
+        lay.pmod = 0;                                   /* (the LFO layer let go: its keys are the patterns again) */
+#if FELUCCA_QCHAIN
+        chain_release();                                /* (the scene taps of the hold: a chain) */
+#endif
+    }
+#endif
     punch.hold = (uint8_t)lay_is(LY_FX);
     l = lay_now();
     if (l == LY_PLAY || (lay.lock == LY_PLAY && (lay.quiet || (!lay.used && fm1_ms - lay.t0 < LAY_SHOW_MS))))

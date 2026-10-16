@@ -126,10 +126,10 @@ static void rk_discard(uint32_t role, int home, const char *what)
     h0 = rk_state();
     id0 = snd_id(song.sel);
     if (home)
-        press(B_OCTDN);
+        press(B_OCTUP);
     turn(role, 1);
     if (home)
-        release(B_OCTDN);
+        release(B_OCTUP);
     str_cpy(q, "DISCARD ", sizeof q);
     str_cpy(q + 8, trk_tag(song.sel), sizeof q - 8u);
     str_cpy(q + 10, " EDITS?", sizeof q - 10u);
@@ -139,20 +139,20 @@ static void rk_discard(uint32_t role, int home, const char *what)
     }
     rk_after(what, h0);                                 /* (HOME: the edited sound kept) */
     if (home)
-        press(B_OCTDN);
+        press(B_OCTUP);
     turn(role, 1);
     if (home)
-        release(B_OCTDN);
+        release(B_OCTUP);
     tap(B_SAVE);                                        /* YES: the change */
     if (op_armed() || snd_id(song.sel) == id0 && snd_sig(song.sel) == edt.sig[song.sel] && rk_state() == h0) {
         printf("  risk: %s: YES did not change the sound\n", what);
         rk_ok = 0;
     }
     if (home)
-        press(B_OCTDN);
+        press(B_OCTUP);
     turn(role, 1);                                      /* unedited now: no question */
     if (home)
-        release(B_OCTDN);
+        release(B_OCTUP);
     if (op_armed()) {
         printf("  risk: %s: asked again over an unedited sound\n", what);
         rk_ok = 0;
@@ -173,7 +173,7 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
     turn(EN_PRESET, 1);
     check(!op_armed() && (TSEL->preset != pre || TSEL->eng_req != eng), "an unedited sound: PRESETS browses, nothing asked");
     rk_discard(EN_PRESET, 0, "PRESETS over edits");
-    rk_discard(EN_PRESET, 1, "SHIFT + PRESETS (the engine) over edits");
+    rk_discard(EN_PRESET, 1, "SHIFT2 + PRESETS (the engine) over edits");
     op_enter(SCR_PROJECT);                              /* (INIT's home: PROJECT > USER, the SOUND row is gone) */
     rk_at(SCR_PROJECT, "USER", "INIT");
     ui.msg[0] = 0;
@@ -261,7 +261,7 @@ static void risk_tests(void)
 #endif
     rk_edit();
     rk_combo(B_ENV, "SHIFT + ENV: INIT");
-    rk_combo(B_SEQ, "SHIFT + SEQ: the locks");
+    /* (SHIFT + SEQ asks nothing since 2026-10-16: the motion and locks are SHIFT + REC's ring, its own confirmation) */
 #if FELUCCA_ARRANGER
     {                                                   /* SONG REC over a stored song of parts */
         uint32_t h0;

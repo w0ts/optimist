@@ -257,6 +257,8 @@ static void reset_ui(void)
     fm1_in.notes = 0;
     op_disarm();
     ui.msg_t = 0;
+    smute_trk = 0;                                      /* (nothing muted: SHIFT + a key mutes since 2026-10-16) */
+    smute_lane = 0;
     memset(snd_mem, 0, sizeof snd_mem);                 /* (a power-on's page memory: SOUND's, the held step's, STEP's row) */
     memset(hp_mem, 0, sizeof hp_mem);
     ui.row[SCR_STEP] = 0;
@@ -732,28 +734,36 @@ static void confirm_tests(void)
     release(B_SAVE);
     check(trk[0].step[0].n == 1 && ui.scr == SCR_HOME && ui.arm_scr == ARM_NONE && !strncmp(ui.msg, "UNDO", 4),
           "SAVE then HOME: undo (the step back), no YES, no NO");
+    press(B_HOME);
+    press(B_SAVE);
+    release(B_SAVE);
+    release(B_HOME);
+    check(trk[0].step[0].n == 0 && ui.scr == SCR_HOME && ui.arm_scr == ARM_NONE && !strncmp(ui.msg, "REDO", 4),
+          "HOME then SAVE: redo, no YES, no NO");
     press(B_OCTDN);
     press(B_SAVE);
     release(B_SAVE);
     release(B_OCTDN);
-    check(trk[0].step[0].n == 0 && ui.scr == SCR_HOME && !strncmp(ui.msg, "REDO", 4), "HOME then SAVE: redo");
+    check(trk[0].step[0].n == 0 && strncmp(ui.msg, "UNDO", 4), "SHIFT then SAVE: no redo, no undo any more (2026-10-16)");
     press(B_EDIT);
     press(B_OCTDN);
     release(B_OCTDN);
     release(B_EDIT);
-    check(trk[0].step[0].n == 1 && song.octave == 0, "EDIT + OCT-: undo too (the octave stays)");
+    check(trk[0].step[0].n == 0, "EDIT + OCT-: no undo any more (SAVE then HOME is the one)");
+    song.octave = 0;
+    press(B_SAVE);
+    press(B_HOME);
+    release(B_HOME);
+    release(B_SAVE);
+    check(trk[0].step[0].n == 1, "... SAVE then HOME: the step back");
     press(B_OCTDN);
     press(B_REC);
+    frames(2);
+    check(rh.ring && rh.motion && !song.rec && !op_armed(), "SHIFT + REC: the motion ring at once, nothing asked, no recording");
     release(B_REC);
     release(B_OCTDN);
-    tap(B_HOME);
-    check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 1, "asked, NO: let go, nothing cleared");
-    press(B_OCTDN);
-    press(B_REC);
-    release(B_REC);
-    release(B_OCTDN);
-    frames(OP_ARM_MS / 16u + 2u);
-    check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 1, "asked, 3 s: let go");
+    frames(2);
+    check(!rh.ring && trk[0].step[0].n == 1, "... let go before it closed: nothing cleared");
     check(!strcmp(PRJ_NAME[PR_A24], "SLOOP"), "PROJECT: SLOOP 2.4 .. 2.6's autosave row named SLOOP");
     op_enter(SCR_PROJECT);
     ui.row[SCR_PROJECT] = 0;
@@ -975,22 +985,29 @@ static void step_keys_tests(void)
     key(BK(5));
     check(lane_selected() == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP && dstep_has(&t->dstep[5], 2),
           "drums: a black key: its lane picked, no step cleared, the white keys still steps");
-    press(B_SEQ);
-    key(WK(5));
-    release(B_SEQ);
+    kdown(WK(5));
+    tap(B_HOME);
+    kup(WK(5));
     check(lane_selected() == 5 && !dstep_mask(&t->dstep[5]) && ui.scr == SCR_STEP && ly_lock == LY_STEP && !st.play,
-          "drums: SEQ held + a key: the step cleared, no lane picked; SEQ let go, no page turned");
+          "drums: a step held + HOME: the step cleared, no lane picked, STEP stays");
     {
         uint32_t lanes_before = lane_selected();
         dstep_set(&t->dstep[6], 1, LV_NORM, 0);
         lane_select(2);
-        press(B_SEQ);
-        key(WK(6));
-        release(B_SEQ);
+        kdown(WK(6));
+        tap(B_HOME);
+        kup(WK(6));
         check(lane_selected() == 2u && !dstep_lanes(&t->dstep[6]) && lanes_before == 5u,
-              "drums: SEQ + a key clears the whole step (any lane's hit) and picks no lane");
+              "drums: a step held + HOME clears the whole step (any lane's hit) and picks no lane");
         lane_select(5);
     }
+    dstep_set(&t->dstep[7], 1, LV_NORM, 0);
+    press(B_SEQ);
+    key(WK(7));
+    release(B_SEQ);
+    check(dstep_has(&t->dstep[7], 1), "drums: SEQ + a step clears nothing any more (2026-10-16: step held + HOME)");
+    dstep_clr(&t->dstep[7], 1);
+    dstep_clr(&t->dstep[7], 5);                         /* (the tap set the picked lane's hit) */
     key(WK(4));
     check(dstep_has(&t->dstep[4], 5), "drums: the next tapped step takes the pick");
     kdown(WK(4));
@@ -1021,12 +1038,11 @@ static void step_keys_tests(void)
     check(dstep_has(&t->dstep[4], 5) && dstep_lvl(&t->dstep[4], 5) == LV_GHOST && ui.scr == SCR_STEP,
           "a step held (a hard hit), let go as a tap: the cycle's next, ghost, STEP stays");
     key(WK(4));
-    fm1_in.buttons |= BT(B_SEQ);
+    kdown(WK(4));
+    tap(B_HOME);
+    kup(WK(4));
     frame();
-    key(WK(4));
-    fm1_in.buttons &= ~BT(B_SEQ);
-    frame();
-    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP && ui.row[SCR_STEP] == 0, "drums: SEQ held + a step: cleared (no NO, no page turned)");
+    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP && ui.row[SCR_STEP] == 0, "drums: a step held + HOME: cleared (no NO, no page turned)");
     key(WK(4));
     fm1_in.buttons |= BT(B_OCTDN);
     frame();
@@ -1035,10 +1051,10 @@ static void step_keys_tests(void)
     frame();
     check(dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "drums: SHIFT held + a key: the step stays (the key picks), no clear");
     lane_select(5);
-    press(B_SEQ);
-    key(WK(4));
-    release(B_SEQ);                                     /* (cleared again, as the following tests expect) */
-    check(!dstep_mask(&t->dstep[4]), "drums: ... SEQ + the key clears it");
+    kdown(WK(4));
+    tap(B_HOME);
+    kup(WK(4));                                         /* (cleared again, as the following tests expect) */
+    check(!dstep_mask(&t->dstep[4]), "drums: ... a step held + HOME clears it");
     seq_long();
     check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
     key(BK(7));
@@ -1076,9 +1092,13 @@ static void step_keys_tests(void)
         turn(EN_PRESET, 1);
         check(st.page == 2, "the window stops at LEN");
         press(B_OCTDN);
-        turn(EN_PRESET, 1);
+        turn(EN_PRESET, -1);
         release(B_OCTDN);
-        check(st.follow && ui.scr == SCR_STEP && st.page == 2, "OCT- (SHIFT) + PRESETS: FOLLOW again (the window not scrolled)");
+        check(!st.follow && ui.scr == SCR_STEP && st.page == 2, "OCT- (SHIFT) + PRESETS: nothing (the window not scrolled)");
+        press(B_OCTUP);
+        turn(EN_PRESET, 1);
+        release(B_OCTUP);
+        check(st.follow && ui.scr == SCR_STEP && st.page == 2, "OCT+ (SHIFT2) + PRESETS: FOLLOW again (the window not scrolled)");
         tap(B_PLAY);
         frames(2);
         {
@@ -1096,10 +1116,7 @@ static void step_keys_tests(void)
     t->p[P_SLEN] = 16;
     track_defaults_steps(t);
     /* a question: the keys do nothing */
-    press(B_OCTDN);
-    press(B_SEQ);
-    release(B_SEQ);
-    release(B_OCTDN);
+    op_arm(ARM_OP, OA_INIT, song.sel, "INIT", trk_tag(song.sel), 1);
     key(WK(2));
     check(op_armed() && !dstep_mask(&t->dstep[2]), "a question asked: the step keys do nothing");
     tap(B_HOME);
@@ -1113,11 +1130,11 @@ static void seq_never_song_tests(void)
 {
     uint32_t i, song_seen = 0;
     reset_ui();
+    op_enter(SCR_PROJECT);
     press(B_SAVE);
     frames(HOLD_FRAMES);
-    turn(EN_SELECT, 1);
     release(B_SAVE);
-    check(ui.scr == SCR_SONG, "SEQ vs SONG: the SONG screen visited (SAVE held + SELECT)");
+    check(ui.scr == SCR_SONG, "SEQ vs SONG: the SONG screen visited (SAVE held on PROJECT)");
     reset_ui();
     tap(B_SEQ);
     check(ui.scr == SCR_STEP, "SEQ tapped after SONG was visited: STEP, not SONG (SLOOP #33 is the SLOOP UI's)");
@@ -1396,14 +1413,13 @@ static void layer_tests(void)
     ppm("opt-layer-scl");
     release(B_SCL);
     trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 0;
-    /* GLO: mute, solo, FX or fills, tap tempo, the levels */
+    /* GLO: mute (the sequencer's), FX or fills, tap tempo, the levels; no solo */
     press(B_GLO);
     key(WK(0));
-    check(trk[0].p[P_MUTE] == 1, "GLO + key 1: T1 muted");
+    check(smute_trk_on(0) && !trk[0].p[P_MUTE], "GLO + key 1: T1 muted (the sequencer mute, the one mute)");
     key(WK(0));
     key(WK(5));
-    check(trk[0].p[P_MUTE] == 0 && song.solo == 2u, "GLO + key 1 again: heard; key 6: T2 solo");
-    key(WK(5));
+    check(!smute_trk_on(0) && song.solo == 0u && !smute_trk, "GLO + key 1 again: heard; key 6: nothing (no solo)");
 #if FELUCCA_FILLS
     kdown(WK(8));
     check(fill_held == 1, "GLO + key 9 held: a fill (FILLS)");
@@ -1432,7 +1448,7 @@ static void layer_tests(void)
     frames(2);
     check(ui.scr == SCR_HOME, "GLO let go after use: no FX screen");
     song.g[G_BPM] = 120;
-    /* EDIT: SHIFT LENGTH TRANSPOSE, erase on the keys, OCT- undo */
+    /* EDIT: SHIFT LENGTH TRANSPOSE, erase on the keys (undo: SAVE then HOME) */
     track_defaults_steps(t);
     t->step[0].time = ST_NOTE, t->step[0].n = 1, t->step[0].note[0] = 60;
     press(B_EDIT);
@@ -1449,14 +1465,18 @@ static void layer_tests(void)
     frame();
     ppm("opt-layer-edit");
     release(B_EDIT);
-    hold2(B_EDIT, B_OCTDN);
-    check(t->p[P_SLEN] == 16 && t->step[0].note[0] == 60 && !step_on(&t->step[1]), "EDIT + OCT-: the hold's edits undone (one level)");
+    hold2(B_SAVE, B_HOME);
+    check(t->p[P_SLEN] == 16 && t->step[0].note[0] == 60 && !step_on(&t->step[1]), "SAVE then HOME: the EDIT hold's edits undone (one level)");
+    song.octave = 0;
     track_defaults_steps(t);
-    /* lock a layer: the layer held then SHIFT, or SHIFT held then the layer's button */
+    /* lock a layer: the layer held then SHIFT2, or SHIFT2 held then the layer's button (the shifts' language: on) */
     hold2(B_OCTDN, B_FX);
     frames(2);
+    check(lay.lock == LY_PLAY, "SHIFT held, FX pressed: no lock (SHIFT is off, SHIFT2 locks)");
+    hold2(B_OCTUP, B_FX);
+    frames(2);
     check(lay.lock == LY_FX && lay.shown == LY_FX && ui.scr == SCR_HOME && ly_lock == LY_FX,
-          "SHIFT held, FX pressed: FX locked open (no NO), the ISR's layer too");
+          "SHIFT2 held, FX pressed: FX locked open (no NO), the ISR's layer too");
     kdown(WK(3));
     check(punch.req == 3, "locked: the keys are still the effects");
     kup(WK(3));
@@ -1467,11 +1487,11 @@ static void layer_tests(void)
     check(lay.lock == LY_FX, "OCT does not let it go");
     tap(B_SEQ);
     check(lay.lock == LY_PLAY && ui.scr == SCR_HOME && ly_lock == LY_PLAY, "any other button lets it go, and does only that");
-    hold2(B_OCTDN, B_GLO);
+    hold2(B_GLO, B_OCTUP);
     frames(2);
-    check(lay.lock == LY_MIX && lay.shown == LY_MIX && ui.scr == SCR_HOME, "SHIFT held, GLO pressed: the mix layer locked");
+    check(lay.lock == LY_MIX && lay.shown == LY_MIX && ui.scr == SCR_HOME, "GLO held, SHIFT2 pressed: the mix layer locked");
     key(WK(1));
-    check(trk[1].p[P_MUTE] == 1, "locked GLO: key 2 mutes T2");
+    check(smute_trk_on(1), "locked GLO: key 2 mutes T2");
     key(WK(1));
     tap(B_ENV);
     check(lay.lock == LY_PLAY && ui.scr == SCR_HOME, "ENV lets it go (no SOUND rows)");
@@ -1503,12 +1523,15 @@ static void layer_tests(void)
     check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
     tap(B_SAVE);
     check(!pat_has(0, 1), "... YES: cleared");
-    press(B_OCTDN);                                     /* SHIFT tapped with LFO held and no key: the lock, as before */
+    press(B_OCTDN);                                     /* SHIFT tapped with LFO held and no key: no lock (SHIFT2 locks) */
     release(B_OCTDN);
     frames(2);
-    check(lay.lock == LY_PAT, "LFO held + SHIFT tapped (no key): the patterns layer locked open, as before");
+    check(lay.lock == LY_PLAY, "LFO held + SHIFT tapped: no lock (2026-10-16: SHIFT2 locks a layer)");
     release(B_LFO);
     frames(2);
+    hold2(B_OCTUP, B_LFO);                              /* SHIFT2 held, then LFO: locked (LFO's OCT+ is launch now, so SHIFT2 first) */
+    frames(2);
+    check(lay.lock == LY_PAT, "SHIFT2 held + LFO: the patterns layer locked open");
     tap(B_ENV);
     frames(2);
     check(lay.lock == LY_PLAY, "... any button lets it go");
@@ -1529,11 +1552,14 @@ static void layer_tests(void)
     track_defaults_steps(t);
 #endif
     {   /* every layer's title and footer lines fit; a scene's and a note's letter keep their capital */
-        static const uint8_t L[] = {LY_FX, LY_ERASE, LY_ROLL, LY_SCALE, LY_MIX, LY_SONG FIF(FELUCCA_PATTERNS)(, LY_PAT)};
+        static const uint8_t L[] = {LY_FX, LY_ERASE, LY_ROLL, LY_SCALE, LY_MIX FIF(FELUCCA_PATTERNS)(, LY_PAT, LY_PAT)};
         uint32_t i, bad = 0;
         char h[40], kk[40], b[32];
         for (i = 0; i < sizeof L; i++) {
             lay.shown = L[i];
+#if FELUCCA_PATTERNS
+            lay.pmod = (uint8_t)(i + 1u == sizeof L ? 10u : 0u);   /* (the last: the LFO layer's scenes) */
+#endif
             lay.lock = i & 1u ? L[i] : LY_PLAY;
             h[0] = 0;
             tiles_fill(lay_tl, kk, 32);                 /* (the state line under the tiles) */
@@ -1544,6 +1570,9 @@ static void layer_tests(void)
             }
         }
         lay.shown = lay.lock = LY_PLAY;
+#if FELUCCA_PATTERNS
+        lay.pmod = 0;
+#endif
         check(!bad, "every layer's title and its state line under the tiles fit (232 px)");
         check(!strcmp(op_case(b, "SCENE B", sizeof b), "Scene B") && !strcmp(op_case(h, "KEY C#", sizeof h), "Key C#"),
               "sentence case keeps a scene's letter and a note (Scene B, Key C#)");
@@ -1566,38 +1595,49 @@ static void save_layer_tests(void)
 #endif
     press(B_SAVE);
     frames(HOLD_FRAMES);
-    check(lay.shown == LY_SONG, "SAVE held: the scenes' map");
-    ui.force = 1;
-    frame();
-    ppm("opt-layer-save");
-    work_mark();                                        /* (the work as stored: no question, op_edits.c) */
-    key(WK(1));
-    check(live_sec == 1 && !strcmp(ui.msg, "LOADED B"), "SAVE + key 2, stopped: scene B loaded");
-    key(WK(2));
-    check(!strcmp(ui.msg, "EMPTY C"), "SAVE + key 3: C is empty, said");
-    press(B_REC);
-    key(WK(1));
-    release(B_REC);
-    check(op_armed() && ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "STORE SCENE B?") && srec == 0,
-          "SAVE + REC held + key 2: store the loop into B, asked (used); no SONG REC");
+    check(lay.shown == LY_PLAY, "SAVE held: no layer any more (2026-10-16: the scenes are the LFO layer's)");
     release(B_SAVE);
     frames(2);
+    reset_ui();
+#if FELUCCA_PATTERNS
+    press(B_LFO);
+    frames(HOLD_FRAMES);
+    key(BK(9));                                         /* black 10: the white keys are the scenes */
+    check(lay.shown == LY_PAT && lay.pmod == 10u && !strcmp(ui.msg, "SCENES"), "LFO + black 10: the scenes");
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-scenes");
+    work_mark();                                        /* (the work as stored: no question, op_edits.c) */
+    key(WK(1));
+    check(live_sec == 1 && !strcmp(ui.msg, "LOADED B"), "the scenes + key 2, stopped: scene B loaded");
+    key(WK(2));
+    check(!strcmp(ui.msg, "EMPTY C"), "the scenes + key 3: C is empty, said");
+    press(B_SAVE);
+    key(WK(1));
+    release(B_SAVE);
+    check(op_armed() && ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "STORE SCENE B?") && srec == 0,
+          "the scenes, SAVE + key 2: store the loop into B, asked (used); no SONG REC");
     tap(B_SAVE);
     check(!op_armed() && (saves || project_used(1)), "... YES: stored");
+    press(B_OCTDN);
+    key(WK(0));
+    release(B_OCTDN);
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE A?") && strncmp(ui.msg, "UNDO", 4) && strncmp(ui.msg, "NOTHING", 7),
+          "the scenes, SHIFT + key 1: clear A, asked; no undo");
+    tap(B_HOME);
+    key(BK(9));
+    check(lay.pmod == 0u && !strcmp(ui.msg, "PATTERNS"), "black 10 again: the patterns");
+    key(BK(9));
+    release(B_LFO);
+    frames(2);
+    check(lay.pmod == 0u, "LFO let go: the patterns again next time");
+#endif
     press(B_SAVE);
     tap(B_REC);
     check(srec == 1, "SAVE + REC tapped: SONG REC armed");
     tap(B_REC);
     release(B_SAVE);
     check(srec == 0, "... again: off");
-    press(B_SAVE);
-    press(B_OCTDN);
-    key(WK(0));
-    release(B_OCTDN);
-    release(B_SAVE);
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE A?") && strncmp(ui.msg, "UNDO", 4) && strncmp(ui.msg, "NOTHING", 7),
-          "SAVE + SHIFT held + key 1: clear A, asked; no undo");
-    tap(B_HOME);
     arrangement.count = 2;                              /* (a song of A and B: both stored) */
     arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1, arrangement.entry[0].bars = arrangement.entry[1].bars = 4;
     hold2(B_SAVE, B_PLAY);
@@ -1740,7 +1780,8 @@ static void combo_tests(void)
     }
 #endif
     hold2(B_OCTDN, B_SEQ);
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 LOCKS?"), "SHIFT + SEQ: the pattern's locks, nudges, fills, motion (asked)");
+    check(!op_armed(), "SHIFT + SEQ: no question any more (2026-10-16: SHIFT + REC)");
+    op_enter(SCR_HOME);
 #if FELUCCA_MICRO
     step_micro_set(&trk[0], 5, 7);
 #endif
@@ -1750,8 +1791,14 @@ static void combo_tests(void)
     (void)lock_set(&trk[0], 4, P_ATK, 50);
     fm1_irq_on();
 #endif
-    tap(B_SAVE);
-    check(!op_armed() && !strcmp(ui.msg, "T1 LOCKS CLEARED"), "... YES: cleared, the notes stay");
+    press(B_OCTDN);
+    press(B_REC);
+    frames(RH_CLEAR_MS / 16u + 3u);
+    release(B_REC);
+    release(B_OCTDN);
+    frames(2);
+    check(!op_armed() && !song.rec && !strcmp(ui.msg, "T1 LOCKS CLEARED"),
+          "SHIFT + REC held, the ring closed: the pattern's locks, nudges, fills, motion cleared, the notes stay");
 #if FELUCCA_MICRO
     check(step_micro(&trk[0], 5) == 0, "... the nudge gone");
 #endif
@@ -1761,7 +1808,7 @@ static void combo_tests(void)
         check(lock_get(&trk[0], 3, P_SGATE, &g) && g == 100 && !lock_get(&trk[0], 4, P_ATK, &g),
               "... the locks gone, the recorded note length (its GATE lock) kept");
     }
-    {                                                   /* SHIFT + SHIFT2 + a knob: one parameter's, the whole track */
+    {                                                   /* a knob's parameter (REC held + the knob): the whole track */
         cell_t c;
         int32_t g;
         fm1_irq_off();
@@ -1771,14 +1818,11 @@ static void combo_tests(void)
         fm1_irq_on();
         cell_param(&c, &TP[P_ATK], &trk[0].p[P_ATK]);
         ui.scr = SCR_SOUND;
-        kac_done = 0;
         check(knob_auto_clear(0, 0, &c) && !lock_get(&trk[0], 2, P_ATK, &g) && !lock_get(&trk[0], 6, P_ATK, &g) &&
               lock_get(&trk[0], 6, P_DEC, &g) && lock_get(&trk[0], 3, P_SGATE, &g) && strstr(ui.msg, "CLEARED"),
-              "SHIFT + SHIFT2 + a knob: that parameter's locks on every step go, the others and the note lengths stay");
-        check(knob_auto_clear(0, 0, &c) && lock_get(&trk[0], 6, P_DEC, &g), "... once a knob a hold");
-        kac_done = 0;
-        check(knob_auto_clear(0, 0, &c) && strstr(ui.msg, "NO LOCKS"), "... none left: said so, nothing changes");
-        kac_done = 0;
+              "a knob's clear: that parameter's locks on every step go, the others and the note lengths stay");
+        check(knob_auto_clear(0, 0, &c) && strstr(ui.msg, "NO LOCKS") && lock_get(&trk[0], 6, P_DEC, &g),
+              "... none left: said so, nothing changes");
         {                                               /* REC held + a knob: the same clear; REC's press undone, no ring */
             uint32_t b0 = fm1_in.buttons, r0 = song.rec;
             fm1_irq_off();
@@ -1803,18 +1847,16 @@ static void combo_tests(void)
         ui.scr = SCR_HOME;
     }
 #if DLA_ON
-    {                                                   /* SHIFT + SEQ with a drum lane picked: that lane's only */
+    {                                                   /* SHIFT + REC's ring with a drum lane picked: that lane's only */
         int32_t x;
         fm1_irq_off();
         (void)auto_put(AL(TDRUM), 4u | AUTO_ONLY, AUTO_LANE(2, 1), 10);
         (void)auto_put(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), 11);
         fm1_irq_on();
-        xtr_lane = 2;
-        op_act_more(OA_EXTRAS, TRK_DRUM);
+        op_clear_motion(TRK_DRUM, 2);
         check(!auto_get(AL(TDRUM), 4u | AUTO_ONLY, AUTO_LANE(2, 1), &x) && auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x) &&
-              !strcmp(ui.msg, "CLAP LOCKS CLEARED"), "SHIFT + SEQ, a lane picked: its locks go, the other lanes' stay");
-        xtr_lane = -1;
-        op_act_more(OA_EXTRAS, TRK_DRUM);
+              !strcmp(ui.msg, "CLAP LOCKS CLEARED"), "SHIFT + REC's ring, a lane picked: its locks go, the other lanes' stay");
+        op_clear_motion(TRK_DRUM, -1);
         check(!auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x), "... no lane picked: the whole drum track's");
     }
 #endif
@@ -1921,11 +1963,11 @@ static void song_tests(void)
     frames(20);
     go_home();
     frame();
+    op_enter(SCR_PROJECT);
     press(B_SAVE);
     frames(HOLD_FRAMES);
-    turn(EN_SELECT, 1);
     release(B_SAVE);
-    check(ui.scr == SCR_SONG, "SAVE held + SELECT: the SONG screen");
+    check(ui.scr == SCR_SONG, "SAVE held on PROJECT: the SONG screen");
     n = song_rows();
     check(n == LAY_NSCN + (FELUCCA_PATTERNS ? 1u : 0u) + 1u + arrangement.count,
           "SONG: the scenes, PATTERNS, MODE, then the chain's parts");
@@ -1982,7 +2024,9 @@ static void song_tests(void)
         tap(B_SAVE);
         check(!pat_has(0, 5), "... YES: cleared");
         tap(B_REC);
-        check(!strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, REC: the working copy into the first free slot");
+        check(strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, REC: no duplicate any more (2026-10-16: the LFO layer's keys)");
+        key(key_of_lane(8));                            /* (black 9: DUPLICATE, as in the LFO layer) */
+        check(!strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, black 9: the working copy into the first free slot");
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
         frame();
         press(B_OCTDN);
@@ -2102,17 +2146,24 @@ static void shortcut_tests(void)
     press(B_SAVE);
     frames(HOLD_FRAMES);
     turn(EN_SELECT, 1);
+    release(B_SAVE);
+    frames(2);
+    check(ui.scr != SCR_SONG, "SAVE held + SELECT: no SONG shortcut any more (2026-10-16)");
+    op_enter(SCR_PROJECT);
+    press(B_SAVE);
+    frames(HOLD_FRAMES);
     armed = op_armed();
     release(B_SAVE);
     frames(2);
-    check(ui.scr == SCR_SONG && !armed && !op_armed(), "SAVE held + SELECT: the SONG screen (SAVE let go is no YES)");
-    {
-        uint32_t r = ui.row[SCR_SONG];
-        press(B_SAVE);
-        turn(EN_SELECT, 1);
-        release(B_SAVE);
-        check(ui.scr == SCR_SONG && ui.row[SCR_SONG] == r + 1u, "... on SONG: SAVE + SELECT moves its cursor");
-    }
+    check(ui.scr == SCR_SONG && !armed && !op_armed(), "SAVE held on PROJECT: the SONG screen (no operation run, nothing asked)");
+    press(B_SAVE);
+    frames(HOLD_FRAMES);
+    release(B_SAVE);
+    frames(2);
+    check(ui.scr == SCR_PROJECT && !op_armed(), "... SAVE held on SONG: PROJECT again");
+    tap(B_SAVE);
+    check(ui.scr == SCR_PROJECT && op_armed(), "... SAVE tapped on PROJECT: its operation, asked (as before)");
+    tap(B_HOME);
     reset_ui();
 }
 static void undo_extras_tests(void)
@@ -2150,18 +2201,19 @@ static void undo_extras_tests(void)
         release(B_SAVE);
         check(had && !AL(t)->n && step_on(&t->step[5]),
               "undo: the step's nudge, fill and lock go back, the step stays (its own level)");
-        press(B_OCTDN);
+        press(B_HOME);
         press(B_SAVE);
         release(B_SAVE);
-        release(B_OCTDN);
-        check(!memcmp(AL(t), &after, sizeof after), "redo: the nudge, fill and lock again, byte for byte");
+        release(B_HOME);
+        check(!memcmp(AL(t), &after, sizeof after), "redo (HOME then SAVE): the nudge, fill and lock again, byte for byte");
     }
-    press(B_OCTDN);                                      /* SHIFT + SEQ: the extras cleared, asked; undone too */
-    press(B_SEQ);
-    release(B_SEQ);
+    press(B_OCTDN);                                      /* SHIFT + REC held, the ring closed: the extras cleared; undone too */
+    press(B_REC);
+    frames(RH_CLEAR_MS / 16u + 3u);
+    release(B_REC);
     release(B_OCTDN);
-    tap(B_SAVE);
-    check(!AL(t)->n, "SHIFT + SEQ, YES: the extras cleared");
+    frames(2);
+    check(!AL(t)->n && !song.rec, "SHIFT + REC, the ring closed: the extras cleared");
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
@@ -2502,7 +2554,7 @@ static void preset_engine_tests(void)
           "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
     turn(EN_PRESET, -1);
     reset_ui();
-    {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12) */
+    {   /* the list by instrument; SHIFT2 held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 since 2026-10-16) */
         uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
         for (i = 1; i < NBANK; i++)
             if (preset_at(i, &k) < preset_at(i - 1u, &k))
@@ -2514,24 +2566,24 @@ static void preset_engine_tests(void)
         for (i = 0; i < NENGINES; i++)
             if (eng_built(i))
                 ne++;
-        press(B_OCTDN);
+        press(B_OCTUP);
         turn(EN_PRESET, 1);
         e1 = TSEL->eng_req;
         cur = preset_pos(&total);
         check(e1 != e0 && (cur == 0u || preset_at(cur - 1u, &k) != e1),
-              "SHIFT held + PRESETS: the next instrument, its first sound");
+              "SHIFT2 held + PRESETS: the next instrument, its first sound");
         turn(EN_PRESET, -1);
         back = TSEL->eng_req;
-        release(B_OCTDN);
-        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; HOME let go: nothing else (no NO, no SYSTEM)");
-        press(B_OCTDN);
+        release(B_OCTUP);
+        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT+ let go: nothing else (no octave, no SYSTEM)");
+        press(B_OCTUP);
         for (i = 0; i < ne + 1u && ok; i++) {
             uint32_t was = TSEL->eng_req;
             turn(EN_PRESET, 1);
             if (ne > 1u && TSEL->eng_req == was)
                 ok = 0;
         }
-        release(B_OCTDN);
+        release(B_OCTUP);
         check(ok, "... every turn a new instrument, round the list");
         reset_ui();
     }
@@ -2589,7 +2641,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
-#include "ui_optimist_solo.h"                       /* 2026-10-16: solo on every mixer row but the returns, MASTER and ACCENT */
+#include "ui_optimist_solo.h"                       /* 2026-10-16: no solo (the mixer, GLO, a project's lane solo) */
 #include "ui_optimist_retmute.h"                   /* 2026-10-16: a return's mute on MASTER, the editor's SOLO op 7 and REC */
 #include "ui_optimist_strike.h"                     /* 2026-10-15: a muted track struck through (mixer, header, volume card) */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, SHIFT held + a key on the mixer */
