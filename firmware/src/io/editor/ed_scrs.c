@@ -181,7 +181,8 @@ static int ed_scrs(uint32_t cmd, const uint8_t *a, uint32_t na)
     } else if (op == 3u) {
         rc = (uint32_t)SCREENS[s].yes(r, k, a[7] != 0u) != 0u;
     }
-    ui.force = 1;
+    if (op >= 2u)                                       /* (a read draws nothing: ui.force would clear the panel to black) */
+        ui.force = 1;
     ed_b(op), ed_b(s), ed_b(vr);
     if (op == 3u)
         ed_b(rc);

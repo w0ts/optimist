@@ -12,6 +12,7 @@ static void ed_known(uint32_t k, uint32_t id) { ed9_known_p(k, id); }
 #include "../firmware/src/io/editor/ed_rec.c"
 #include "../firmware/src/io/editor/ed_note.c"
 #include "../firmware/src/io/editor/ed_steplane.c"
+#include "../firmware/src/io/editor/ed_reads.h"
 
 static uint32_t v14_call(int (*fn)(uint32_t, const uint8_t *, uint32_t), uint32_t cmd, const uint8_t *q, uint32_t n)
 {
@@ -518,8 +519,23 @@ static void v14_rec(void)                               /* cmd 107: the REC key 
     song.rec = 0, rec_wait = 0;
 }
 #endif
+static void v14_reads(void)                             /* ed_reads.h: a read asks for no ui.force (the panel flashed while the editor polled) */
+{
+    const uint8_t o0[] = {0}, o1[] = {1}, o2[] = {2}, o3[] = {3}, o4[] = {4};
+    check(ed_reads(ED_UNDO, o0, 1) && !ed_reads(ED_UNDO, o1, 1) && !ed_reads(ED_UNDO, o2, 1)
+          && ed_reads(ED_SOLO, o0, 1) && !ed_reads(ED_SOLO, o1, 1) && ed_reads(ED_REC, o0, 1) && !ed_reads(ED_REC, o1, 1)
+          && ed_reads(ED_FX, o0, 1) && !ed_reads(ED_FX, o1, 1) && ed_reads(ED_SONGC, o0, 1) && !ed_reads(ED_SONGC, o1, 1),
+          "reads: UNDO SOLO REC FX SONG op 0 read, their other ops write");
+    check(ed_reads(ED_FXP, o0, 1) && !ed_reads(ED_FXP, o1, 1) && ed_reads(ED_FXP, o2, 1) && ed_reads(ED_FXP, o3, 1) && !ed_reads(ED_FXP, o4, 1)
+          && ed_reads(ED_DLAN, o0, 1) && ed_reads(ED_DLAN, o2, 1) && ed_reads(ED_DLAN, o3, 1) && !ed_reads(ED_DLAN, o4, 1)
+          && ed_reads(ED_FAV, o1, 1) && !ed_reads(ED_FAV, o2, 1) && ed_reads(ED_STEPLANE, o2, 1) && !ed_reads(ED_STEPLANE, o3, 1),
+          "reads: FXP DLAN ops 0 2 3, FAV 0 1, STEPLANE 0..2 read; the rest write");
+    check(!ed_reads(ED_NOTE, o0, 1) && !ed_reads(ED_NOTE, o1, 1) && !ed_reads(ED_UNDO, o0, 0) && !ed_reads(5u, o0, 1),
+          "reads: NOTE always plays (a write); an empty request or another command: not a read");
+}
 static void v14_tests(void)
 {
+    v14_reads();
 #if FELUCCA_ED_UNDO
     v14_undo();
 #else

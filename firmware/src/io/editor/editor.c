@@ -210,6 +210,7 @@ static void ed_shadow(void)                              /* the editor is in syn
 #include "ed_fxp.c"           /* v13: cmd 94 every effect slot and its parameters by owner, INFO tag 0x57 */
 #include "ed_fxs.c"           /* v10: cmd 86 the FX slots, 87 their push, INFO tag 0x56 */
 #include "ed_sync9.c"         /* v9: every track's changes, coalesced (PARAMS, STEPS, LANE, TRACKS, SONG pushes) */
+#include "ed_reads.h"          /* which ops of cmds 86..107 only read (no ui.force for them) */
 /* the editor's own sound load on the selected track (PRESET, SET of G_ENGSEL): the editor re-reads DUMP after
  * the reply, so the shadow takes the load (engine, preset, the parameters it changed) and no RELOAD echoes back
  * (INFO tag 53 01 bit 1). A RELOAD already due before it (a load or selection on the device) still goes out.
@@ -722,7 +723,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
 #endif
         if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na) || ed_dlan(cmd, a, na) || ed_scrn(cmd, a, na) || ed_songc(cmd, a, na) || ed_tools(cmd, a, na) || ed_scrs(cmd, a, na) || ed_fav(cmd, a, na) || ed_scope(cmd, a, na) || ed_undo(cmd, a, na) || ed_note(cmd, a, na) || ed_solo(cmd, a, na) || ed_rec(cmd, a, na) || ed_steplane(cmd, a, na)) {   /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
             ed9_known_fx();                                /* (the editor's own writes: no FX push) */
-            ui.force = 1;
+            if (!ed_reads(cmd, a, na))                     /* (a read changes nothing: ui.force clears the screen to black, */
+                ui.force = 1;                              /*  and the editor reads often: the panel flashed) */
             break;
         }
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
