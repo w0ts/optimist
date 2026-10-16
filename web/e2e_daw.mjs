@@ -435,8 +435,13 @@ const v14Res = await run(`${U} try {
   r.note = (mock.state.noteLog || []).length;
   key.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); await sleep(300);
   $("#kbdbtn").click(); await sleep(300); r.closed = $("#kbd").hidden;
+  /* the transport REC (the device's global record): the button follows the device's states, a click toggles it (the key), a device-side change shows within a second */
+  const rb = $("#recbtn"); r.recShown = !rb.hidden && rb.dataset.rec === "off";
+  rb.click(); await until(() => rb.dataset.rec === "wait", 4000); r.recWait = rb.dataset.rec + ":" + mock.state.recState + ":" + rb.getAttribute("aria-pressed");
+  mock.sim.recSet(1); await until(() => rb.dataset.rec === "rec", 4000); r.recOn = rb.dataset.rec;
+  rb.click(); await until(() => rb.dataset.rec === "off", 4000); r.recOff = rb.dataset.rec + ":" + mock.state.recState;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(v14Res && v14Res.shown && v14Res.canUndo && v14Res.before === 1 && v14Res.undone && v14Res.redone && v14Res.keyUndo && v14Res.soloEnabled && v14Res.solo === 2 && v14Res.soloOn && v14Res.keys === 14 && v14Res.note === 1 && v14Res.closed,
+ok(v14Res && v14Res.shown && v14Res.canUndo && v14Res.before === 1 && v14Res.undone && v14Res.redone && v14Res.keyUndo && v14Res.soloEnabled && v14Res.solo === 2 && v14Res.soloOn && v14Res.keys === 14 && v14Res.note === 1 && v14Res.closed && v14Res.recShown && v14Res.recWait === "wait:2:true" && v14Res.recOn === "rec" && v14Res.recOff === "off:0",
   `e2e v14 (mock): undo / redo buttons and Ctrl / Cmd + Z undo the device's own history, a strip's SOLO, the keyboard plays a note (${JSON.stringify(v14Res)})`);
 await run(`document.querySelector("#popx").click();`);
 /* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
@@ -735,6 +740,10 @@ const fxpRes = await run(`${U} try {
   r.dupOpen = ["fxins", "fxmst", "fxret", "fxusb"].filter((p) => document.querySelector("[data-pop=" + p + "]")).join() + "|" + document.querySelectorAll("#mixer .fxopen").length + "|" + document.querySelectorAll("#mixer .strip.ret .fxxo, #mixer [data-bus]").length;
   r.names = ["strip-1-slot1-open", "strip-ret-a-slot1-open", "strip-ret-b-slot1-open", "strip-ret-c-slot1-open"].map((id) => $1(id).textContent.trim()).join();
   r.heads = [...document.querySelectorAll("#mixer .strip.ret .shead .num")].map((x) => x.textContent).join();
+  /* a return's MUTE (SOLO op 7): the device-side mask and the strip; USB IN and the tracks keep their own */
+  const rm = $1("strip-ret-b-mute"); r.retMute0 = !!rm && !rm.hasAttribute("aria-disabled") && !$1("strip-ret-b-solo");
+  rm.click(); await until(() => rm.getAttribute("aria-pressed") === "true", 4000); r.retMute = (mock.state.retMute & 2) + ":" + rm.closest(".strip").classList.contains("muted");
+  rm.click(); await until(() => rm.getAttribute("aria-pressed") === "false", 4000); r.retMuteOff = mock.state.retMute;
   /* the master has no return on it (no bus knob sets, no RET) */
   r.master = ["fxdelay", "fxreverb", "fxchorus"].filter((f) => document.querySelector("#mixer .strip.master [data-pop=" + f + "], #mixer .strip.master [data-fx=" + f + "]")).join() + "|" + [...document.querySelectorAll("#mixer .strip.master .knob .kl")].map((k) => k.textContent.trim()).join();
   /* Live-like strips: the fader the bottom-most big control with MUTE (an activator showing the number) and SOLO under it; no number under a knob (a tooltip), no FX toggle;
@@ -836,7 +845,7 @@ const fxpRes = await run(`${U} try {
   r.key = pop().open && pop().dataset.pop;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(fxpRes && /^1:head,name,inst,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.test(fxpRes.rows) && fxpRes.aligned === "" && fxpRes.ids === ""
-  && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "A,B,C"
+  && fxpRes.widgets.split("|").every((w) => /^(11)*$/.test(w)) && /^\|\d+\|0$/.test(fxpRes.dupOpen) && fxpRes.heads === "A,B,C" && fxpRes.retMute0 && fxpRes.retMute === "2:true" && fxpRes.retMuteOff === 0
   && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide

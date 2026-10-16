@@ -1421,7 +1421,7 @@ async function editorPages() {
 async function editorV14() {
   const C = E.CMD;
   ok(C.UNDO === 102 && C.NOTE === 103 && C.SOLO === 104 && C.STEPLANE === 105, "v14: commands 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE");
-  const { m, rq, done } = attachMock({ v14: true, store: true });
+  const { m, rq, done } = attachMock({ v14: true, store: true, fxp: true });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   ok(info.undo && info.undo.many && info.note && info.note.quiet === 3 && info.solo, "v14: INFO tags 5F (undo, many levels), 60 (notes, quiet 3 s), 61 (solo)");
   let u = E.parse[C.UNDO](await rq(E.req.undo(0)));
@@ -1459,6 +1459,29 @@ async function editorV14() {
   ok(so.mute === 1 && so.solo === 4 && so.silent === 11, "solo: TRACK MUTE track 1");
   so = E.parse[C.SOLO](await rq(E.req.soloOp(1, 2, 0)));
   ok(so.solo === 0 && so.silent === 1, "solo: TRACK SOLO off: only the muted one is silent");
+  /* REC (cmd 107, INFO tag 63): the device's one global record, no per-track arm */
+  ok(C.REC === 107 && info.rec && info.rec.countIn, "rec: command 107, INFO tag 63 (count-in exists)");
+  let rc = E.parse[C.REC](await rq(E.req.recGet()));
+  ok(rc.rc === 0 && rc.state === 0 && rc.track === 127, "rec: GET: off, no track");
+  rc = E.parse[C.REC](await rq(E.req.recToggle()));
+  ok(rc.state === 2 && rc.track === 0, "rec: TOGGLE: waiting for the start (the REC LED blinks), on the selected track");
+  m.sim.recSet(1);
+  rc = E.parse[C.REC](await rq(E.req.recGet()));
+  ok(rc.state === 1, "rec: a device-side change (recording) is read back");
+  rc = E.parse[C.REC](await rq(E.req.recToggle()));
+  ok(rc.state === 0 && rc.track === 127, "rec: TOGGLE while recording: off");
+  /* RET MUTE (SOLO op 7, v4: the 13th reply arg) and USB SOLO (op 5, v3: the 12th) */
+  info.solo && ok(info.solo.ret && info.solo.usb, "solo: INFO tag 61 version 4: USB IN present, the return mute built");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(7, 1, 2)));
+  ok(so.ret === 2 && so.usb === 0, "solo: RET MUTE B (toggle): the 13th arg has bit 1");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(7, 0, 1)));
+  ok(so.ret === 3, "solo: RET MUTE A on: A and B muted");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(7, 1, 0)));
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(7, 0, 0)));
+  ok(so.ret === 0 && await rq(E.req.soloOp(7, 5, 1), { timeout: 60, retries: 0, quiet: true }).then(() => false, () => true), "solo: RET MUTE off; a bad return: no reply");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(5, 0, 1)));
+  ok(so.usb & 1, "solo: USB SOLO on: the 12th arg bit 0");
+  so = E.parse[C.SOLO](await rq(E.req.soloOp(5, 0, 0)));
   ok(html.includes("function undoDo(") && html.includes('id="undobtn"') && /Ctrl \/ Cmd \+ Z/.test(html) && html.includes("function kbdDown(") && html.includes("function soloTrack(") && /id: `strip-\$\{i \+ 1\}-solo`/.test(html),
     "v14: the editor has undo / redo buttons and Ctrl / Cmd + Z, the keyboard (clickable and the computer's keys) and the strips' SOLO");
   done();

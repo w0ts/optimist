@@ -293,6 +293,16 @@
   .kbd .keys .pad { flex: 1 1 0; height: 100%; }
   .kbd .keys button.down { background: var(--accent, var(--fg)); color: var(--bg); }
   .kbd label { display: inline-flex; align-items: center; gap: 6px; }
+  /* the transport REC, as the device's REC LED: off, waiting (blinks), count-in, recording (solid red), a free take */
+  #recbtn { min-width: 44px; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+  #recbtn::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--dim); vertical-align: middle; }
+  #recbtn[data-rec="wait"]::before { background: var(--err); animation: recblink 1s steps(2, start) infinite; }
+  #recbtn[data-rec="count"]::before { background: var(--warn); animation: recblink .5s steps(2, start) infinite; }
+  #recbtn[data-rec="rec"]::before { background: var(--err); }
+  #recbtn[data-rec="take"]::before { background: var(--err); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--err); }
+  #recbtn[data-rec="rec"], #recbtn[data-rec="take"] { color: var(--err); }
+  @keyframes recblink { 50% { opacity: .15; } }
+  @media (prefers-reduced-motion: reduce) { #recbtn::before { animation: none !important; } }
   .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
   /* Live-like strips: no numbers under the knobs (the value is the tooltip), the fader the bottom-most big control, MUTE (an activator in the track's colour showing its number / letter)
      and SOLO under it */
@@ -971,6 +981,7 @@
       <span class="tp" id="tp" hidden>
         <button id="play" class="ib tog" aria-pressed="false"></button>
         <button id="stop" class="ib tog"></button>
+        <button id="recbtn" class="ib tog rec" data-rec="off" aria-pressed="false" hidden>REC</button>
         <span id="section" class="dim"></span>
       </span>
       <span class="tp" id="undotp" hidden>
@@ -1210,7 +1221,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   SL24_PUT: 90, SL24_BANK: 91,   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
   FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
-  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105 };   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, REC: 107 };   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -2029,7 +2040,8 @@ const parse = {
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
       if (id === 0x60 && n >= 2 && a[r.i] >= 1) o.note = { quiet: a[r.i + 1] };   /* 60: version, the silence after which held notes end (s) */
-      if (id === 0x61 && n >= 1 && a[r.i] >= 1) o.solo = { v: a[r.i], usb: n >= 2 && !!(a[r.i + 1] & 1) };   /* 61: version, flags (version 3: bit 0 the build has USB IN: SOLO ops 5 / 6) */
+      if (id === 0x63 && n >= 2 && a[r.i] >= 1) o.rec = { countIn: !!(a[r.i + 1] & 1) };   /* 63: version, flags (bit 0: the count-in exists): REC, the device's global record */
+      if (id === 0x61 && n >= 1 && a[r.i] >= 1) o.solo = { v: a[r.i], usb: n >= 2 && !!(a[r.i + 1] & 1), ret: n >= 2 && !!(a[r.i + 1] & 2) };   /* 61: version, flags (version 3: bit 0 the build has USB IN: SOLO ops 5 / 6) */
       if (id === 0x62 && n >= 3 && a[r.i] >= 1) o.steplane = { optimist: !!(a[r.i + 1] & 1), locks: !!(a[r.i + 1] & 2), laneLocks: !!(a[r.i + 1] & 4), hold: !!(a[r.i + 1] & 8),
         chance: !!(a[r.i + 2] & 1), cond: !!(a[r.i + 2] & 2), nudge: !!(a[r.i + 2] & 4), fill: !!(a[r.i + 2] & 8) };   /* 62: version, a, b */
       if (id === 0x57 && n >= 3 && a[r.i] >= 1) o.fxp = { usb: !!(a[r.i + 1] & 1), owners: a[r.i + 2] };   /* 57: version, flags (bit 0 USB input), owners */
@@ -2299,6 +2311,7 @@ const parse = {
     o.lsolo = l3();
     o.lmute = l3();
     o.usb = r.i < a.length ? r.b() : 0;                /* (a 12th byte, version 3: the USB input's bit 0 soloed, bit 1 muted, bit 2 silent) */
+    o.ret = r.i < a.length ? r.b() : 0;                /* (a 13th byte, version 4: bit n = return A B C muted) */
     return o;
   },
   /* v14 STEPLANE (ed_steplane.c): op 0 LIST -> {n, np}; op 1 DESC -> {i, kind, id, page, cell, title, desc} (nothing after i: no such value); the others a step's state */
@@ -2320,6 +2333,8 @@ const parse = {
     for (let k = 0; k < n && r.i + 4 <= a.length; k++) o.locks.push({ i: r.b(), kind: r.b(), v: r.v() });
     return o;
   },
+  /* v14 REC (ed_rec.c): op, rc, state (bit 0 recording, 1 waiting for the start, 2 count-in, 3 free take; 0 off), track (127 none) */
+  [CMD.REC](a) { const r = new Reader(a); return { op: r.b(), rc: r.b(), state: r.b(), track: r.b() }; },
   [CMD.FXP](a) {
     const r = new Reader(a), op = r.b(), ow = r.b();
     if (op === 0 || op === 1) {
@@ -2580,6 +2595,8 @@ const req = {
   noteOn: (tr, note, vel, dur) => [CMD.NOTE, [0, tr & 0x7F, note & 0x7F, vel & 0x7F, ...(dur ? [dur & 0x7F] : [])]],
   noteOff: (tr, note) => [CMD.NOTE, [1, tr & 0x7F, note & 0x7F]],
   noteAll: (tr) => [CMD.NOTE, [2, tr & 0x7F]],
+  recGet: () => [CMD.REC, [0]],
+  recToggle: () => [CMD.REC, [1]],
   soloGet: () => [CMD.SOLO, [0]],
   soloOp: (op, n, on) => [CMD.SOLO, [op & 0x7F, n & 0x7F, on & 0x7F]],      /* 1 TRACK SOLO, 2 TRACK MUTE, 3 LANE SOLO, 4 LANE MUTE; on 0 / 1 / 2 toggle */
   fxpGet: (ow) => [CMD.FXP, [0, ow & 0x7F]],
@@ -2668,7 +2685,7 @@ function replyMatches(cmd, args, a) {
     case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SONGC: case CMD.TOOLS: return true;
     case CMD.SCOPE: return a[0] === args[0];
-    case CMD.UNDO: return a[0] === args[0];
+    case CMD.UNDO: case CMD.REC: return a[0] === args[0];
     case CMD.STEPLANE: return a[0] === args[0] && (args[0] === 0 ? a[1] === args[1] && a[2] === args[2] : args[0] === 1 ? a[1] === args[1] && a[2] === args[2] && a[3] === args[3] : a[2] === args[1] && a[3] === args[2]);
     case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
     case CMD.SOLO: return a[0] === args[0];
@@ -4529,7 +4546,7 @@ function makeMockDevice(opt = {}) {
     step: Array.from({ length: NSTEP }, () => ({ n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 })),
     dstep: i === TRK_DRUM ? Array.from({ length: NSTEP }, emptyDrum) : null });
   const st = {
-    tracks: [0, 1, 2, 3].map(newTrack), sel: 0, rec: 0, solo: 0,
+    tracks: [0, 1, 2, 3].map(newTrack), sel: 0, rec: 0, solo: 0, recState: 0, retMute: 0,
     g: GP.map((d) => d.def),
     rtype: [0, 0, 0, 0, 0, 1, 2, 3, 10, 0, 0],       /* REVERB > TYPE (opt.rev, scope 9 id 0); the MIDI settings (opt.midi) at 5..10 */
     slots: [null, null, null, null],
@@ -4902,7 +4919,7 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
-        if (v5 && opt.v14) { b(0x5F); b(2); b(1); b(1); b(0x60); b(2); b(1); b(3); b(0x61); b(2); b(3); b(m13.usb ? 1 : 0); }   /* tags: undo (many levels), notes, solo (ed_undo.c, ed_note.c, ed_solo.c) */
+        if (v5 && opt.v14) { b(0x5F); b(2); b(1); b(1); b(0x60); b(2); b(1); b(3); b(0x61); b(2); b(4); b((m13.usb ? 1 : 0) | 2); b(0x63); b(2); b(1); b(1); }   /* tags: undo (many levels), notes, solo (ed_undo.c, ed_note.c, ed_solo.c) */
         if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(m13.usb ? 1 : 0); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
         if (v5 && m13.dlan) { b(0x58); b(2); b(1); b(3); }   /* tag: the lanes' mix, LFOs and mutes (ed_dlan.c) */
         if (v5 && m13.scrn) { b(0x59); b(2); b(1); b(2); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
@@ -5253,6 +5270,13 @@ function makeMockDevice(opt = {}) {
         b(a[0]); b(rc); b(d & 127); b(d >> 7); b(all & 127); b(all >> 7); b(un.track); b(d ? 1 : 0); b(un.redo.length ? 1 : 0);
         break;
       }
+      case CMD.REC: {                                 /* the device's global REC: 0 GET, 1 TOGGLE (the REC key); st.recState bits: 1 recording, 2 waiting (the REC LED blinks), 4 count-in, 8 free take */
+        if (!opt.v14 || a.length < 1 || a[0] > 1) return null;
+        let rc = 0;
+        if (a[0] === 1) { if (st.playing && st.recState === 0 && opt.recRefuse) rc = 1; else st.recState = st.recState ? 0 : 2; }
+        b(a[0]); b(rc); b(st.recState & 15); b(st.recState ? st.sel : 127);
+        break;
+      }
       case CMD.NOTE: {
         if (!opt.v14 || a.length < 2 || a[0] > 2 || (a[1] > 3 && !(a[0] === 2 && a[1] === 127)) || (a[0] < 2 && a.length < 3)) return null;
         if (a[0] === 0) { if (a.length < 4 || !a[3]) return null; if (a[1] !== TRK_DRUM) held.add(a[1] * 128 + a[2]); (st.noteLog || (st.noteLog = [])).push([a[1], a[2], a[3]]); }
@@ -5262,7 +5286,7 @@ function makeMockDevice(opt = {}) {
         break;
       }
       case CMD.SOLO: {
-        if (!opt.v14 || a.length < 1 || a[0] > 5 || (a[0] > 0 && a.length < 3)) return null;
+        if (!opt.v14 || a.length < 1 || a[0] > 7 || (a[0] > 0 && a.length < 3)) return null;
         const bit = (n) => 1 << n;
         if (a[0] === 5 && !m13.usb) return null;
         if (a[0] === 1 || a[0] === 2) {
@@ -5271,10 +5295,12 @@ function makeMockDevice(opt = {}) {
           const on = a[2] === 2 ? !((a[0] === 1 ? st.solo : maskOf(0)) & bit(n)) : !!a[2];
           if (a[0] === 1) st.solo = on ? st.solo | bit(n) : st.solo & ~bit(n); else st.tracks[n].p[40] = on ? 1 : 0;
         } else if (a[0] === 5) st.usbSolo = a[2] === 2 ? !st.usbSolo : !!a[2];
+        else if (a[0] === 7) { if (a[1] > 2) return null; const on = a[2] === 2 ? !((st.retMute || 0) & (1 << a[1])) : !!a[2]; st.retMute = on ? (st.retMute || 0) | (1 << a[1]) : (st.retMute || 0) & ~(1 << a[1]); }
         const mute = maskOf(0), solo = st.solo & 15, silent = solo || st.usbSolo ? ~solo & 15 : mute;
         b(a[0]); b(0); b(solo); b(mute); b(silent); for (let k = 0; k < 6; k++) b(0);
         const um = fxm && m13.usb ? (fxm.get(FXP.USB, 2, 2) ? 2 : 0) : 0;
         b((st.usbSolo ? 1 : 0) | um | (st.usbSolo || !solo ? 0 : 4));
+        b((st.retMute || 0) & 7);
         break;
       }
       case CMD.SCOPE: {
@@ -5963,6 +5989,7 @@ function makeMockDevice(opt = {}) {
     fxpType(ow, sl, ty) { fxm.setType(ow, sl, ty); if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return fxm.slots[ow].slice(); },
     fxIns(l, kind, v) { (kind ? st.fx.comp : st.fx.dist)[l] = v; if (st.v9) { const o = []; fxOut((x) => o.push(x & 0x7F), 0); push(CMD.FX_PUSH, o); } return v; },
     /* REC on TRACKS: arm / disarm live recording of a track (no push: the editor reads TRACK) */
+    recSet(bits) { st.recState = bits; },
     arm(i = st.sel) { st.rec ^= 1 << i; return (st.rec >> i) & 1; },
     step(i = Math.floor(Math.random() * 16)) {
       const x = st.step[i];
@@ -6233,6 +6260,8 @@ const TEXT = {
   kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
   clips: "clips",
+  recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "Stop the song first (the device refuses REC while a song plays)",
+  retMuteTip: "Mute of a return (the firmware has no return mute: SOLO op 7)",
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
   soloTip: "Solo (set on the device with GLO + the track key; the editor's solo comes with protocol v14)",
   sideMissing: "This firmware has no", sideMissingHelp: "These editor features need a builder item (ED_*) or the Optimist UI (UI=1) in the firmware's build; the editor says so instead of hiding them. Build with them on, or update the firmware.",
@@ -6825,7 +6854,7 @@ function sideNote() {
   const n = $("sidenote");
   if (!n) return;
   const i = dev && dev.info, miss = i ? [[i.fxp, "FX slot editing (ED_FXP)"], [i.tools, "Tools (ED_TOOLS, Optimist UI)"], [i.scrs, "Device screens (ED_SCRS, Optimist UI)"], [i.scrn, "device settings lines (ED_SCRN, Optimist UI)"],
-    [i.songc, "Song chain (ED_SONG)"], [i.fav, "favorites (ED_FAVS)"], [i.dlan, "drum sound mix (ED_DLAN)"], [i.scope, "scope (ED_SCOPE, Optimist UI)"], [dev.autoOk, "step automation (the store: motion / chance / conditions)"]].filter(([on]) => !on).map(([, name]) => name) : [];
+    [i.songc, "Song chain (ED_SONG)"], [i.fav, "favorites (ED_FAVS)"], [i.dlan, "drum sound mix (ED_DLAN)"], [i.scope, "scope (ED_SCOPE, Optimist UI)"], [i.rec, "the transport REC (command 107)"], [dev.autoOk, "step automation (the store: motion / chance / conditions)"]].filter(([on]) => !on).map(([, name]) => name) : [];
   n.hidden = !miss.length;
   n.textContent = miss.length ? `${t("sideMissing")}: ${miss.join(", ")}.` : "";
   n.title = t("sideMissingHelp");
@@ -10954,7 +10983,11 @@ function buildSendStrip(ow) {
     f.inp.id = `strip-ret-${L.toLowerCase()}-fader`;
     const ks = retMainKnobs(ow, ty, g), sb = sendsGrid([]);
     rows.tools = el("div", { class: "col" }, ...(ks.length ? [el("div", { class: "fx mainks" }, ...ks)] : []), sb);
-    rows.level = levelBlock([], f.el);
+    const canMute = !!(dev.info.solo && dev.info.solo.ret);
+    const mute = el("button", { type: "button", class: "tog act mute", id: `strip-ret-${L.toLowerCase()}-mute`, "aria-pressed": "false", ...(canMute ? {} : { "aria-disabled": "true" }),
+      title: canMute ? `${t("mute")} ${L}` : t("retMuteTip"), "aria-label": `${t("mute")} ${L}`, onclick: () => retMute(r) }, L);
+    rows.level = levelBlock([mute], f.el);
+    if (canMute) soloRefresh();
     dev.stripFx.push(g);
     retSendKnobs(ow, sb);
     g.load().catch(report);
@@ -11000,7 +11033,7 @@ async function undoDo(op) {
 $("undobtn").addEventListener("click", () => undoDo(1));
 $("redobtn").addEventListener("click", () => undoDo(2));
 setInterval(undoRefresh, 1500);
-setInterval(() => { if (dev && dev.info && dev.info.solo && dev.info.solo.usb && !document.hidden) soloRefresh(); }, 2000);   /* (no push when a lane's or USB IN's solo changes: read SOLO GET) */
+setInterval(() => { if (dev && dev.info && dev.info.solo && (dev.info.solo.usb || dev.info.solo.ret) && !document.hidden) soloRefresh(); }, 2000);   /* (no push when a lane's or USB IN's solo changes: read SOLO GET) */
 document.addEventListener("keydown", (e) => {          /* Ctrl / Cmd + Z, + Shift + Z or Ctrl + Y: not while typing in a field (its own undo) */
   if (!(e.ctrlKey || e.metaKey) || e.altKey || !undoOn() || spaceIsTyping(e.target)) return;
   const k = e.key.toLowerCase();
@@ -11031,14 +11064,60 @@ async function soloUsb() {
 function soloShow(r) {
   if (!dev) return;
   dev.usbSolo = !!(r.usb & 1);
+  dev.retMute = r.ret | 0;
+  for (let k = 0; k < 3; k++) {
+    const b = document.getElementById(`strip-ret-${"abc"[k]}-mute`), muted = !!((r.ret >> k) & 1);
+    if (b) { b.setAttribute("aria-pressed", muted ? "true" : "false"); b.closest(".strip").classList.toggle("muted", muted); }
+  }
   if (dev.mix) { dev.mix.solo = r.solo; for (let k = 0; k < dev.mix.ntrk; k++) updateStrip(k); }
   const b = $("strip-usb-solo");
   if (b) { b.classList.toggle("on", dev.usbSolo); b.setAttribute("aria-pressed", dev.usbSolo ? "true" : "false"); }
+}
+/* a return's MUTE (SOLO op 7): its level is gated at the master, its bus keeps running; no solo on the returns */
+async function retMute(k) {
+  if (!dev || !dev.info.solo || !dev.info.solo.ret) return;
+  const d = dev;
+  try {
+    const r = parse[CMD.SOLO](await rq(req.soloOp(7, k, 2)));
+    if (d !== dev) return;
+    soloShow(r);
+  } catch (e) { report(e); }
 }
 async function soloRefresh() {
   if (!dev || !dev.info.solo || !dev.link.idle) return;
   try { soloShow(parse[CMD.SOLO](await rq(req.soloGet(), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { if (e.message === "closed") throw e; }
 }
+/* the transport REC: the device's one global record (not a per-track arm). The state is polled twice a second (the device pushes nothing of it); TOGGLE is the REC key */
+const REC_STATE = (st) => (st & 4 ? "count" : st & 8 ? "take" : st & 1 ? "rec" : st & 2 ? "wait" : "off");
+function recShow(r) {
+  if (!dev) return;
+  dev.recSt = r;
+  const b = $("recbtn"), k = REC_STATE(r.state);
+  b.dataset.rec = k;
+  b.setAttribute("aria-pressed", k === "off" ? "false" : "true");
+  const nm = { off: t("recOff"), wait: t("recWait"), count: t("recCount"), rec: t("recOn"), take: t("recTake") }[k];
+  const tip = `${t("recTip")}: ${nm}${r.state ? ` (${t("track")} ${r.track + 1})` : ""}`;
+  b.title = tip;
+  b.setAttribute("aria-label", tip);
+}
+async function recRefresh() {
+  const b = $("recbtn");
+  b.hidden = !(dev && dev.dump && dev.info && dev.info.rec);
+  if (b.hidden || !dev.link.idle || document.hidden) return;
+  try { recShow(parse[CMD.REC](await rq(req.recGet(), { timeout: 400, retries: 0, quiet: true }))); } catch (e) { if (e.message === "closed") throw e; }
+}
+$("recbtn").addEventListener("click", async () => {
+  if (!dev || !dev.info.rec) return;
+  const d = dev;
+  try {
+    const r = parse[CMD.REC](await rq(req.recToggle()));
+    if (d !== dev) return;
+    if (r.rc === 1) sayK("recRefused");
+    recShow(r);
+    setTimeout(recRefresh, 200);                     /* (a free take closes at the next audio block: read again) */
+  } catch (e) { report(e); }
+});
+setInterval(recRefresh, 500);
 /* the keyboard: the selected track plays through the device's note input. A held key is a NOTE ON until its OFF; a PING every 1.2 s keeps the device from ending it (3 s of silence ends every held note) */
 const kbd = { on: false, keys: false, oct: 4, vel: 100, held: new Map(), timer: 0 };
 const KBD_MAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16 };
