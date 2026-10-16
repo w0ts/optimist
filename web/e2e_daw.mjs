@@ -466,9 +466,9 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   try {
   const head = (i) => $('#mixer .strip[data-track="' + i + '"] .shead');
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
-  r.groups = $$(".side .navh").map((e) => e.textContent).join(",");
+  r.groups = $$(".menubar .navh").map((e) => e.textContent).join(",");
   r.font = getComputedStyle(document.body).fontFamily.includes("SLOOP Terminus") && document.fonts.check("16px 'SLOOP Terminus'");
-  r.tabs = !!$("#toptracks") + ":" + $$(".side button[data-go]").length;
+  r.tabs = !!$("#toptracks") + ":" + $$(".menubar button[data-go]").length;
   r.tracks = $$("#mixer .strip[data-track] .shead").length;
   head(2).click(); await until(() => head(2).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
   r.sel = $$("#mixer .strip[data-track]").findIndex((s) => s.classList.contains("sel")); r.trk = getComputedStyle(document.documentElement).getPropertyValue("--trk").trim();
@@ -879,6 +879,24 @@ const sclRes = await run(`${U} try {
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(sclRes && /\S/.test(sclRes.chip) && sclRes.arp0 === "false" && sclRes.arp1 && sclRes.arpOther && sclRes.arpOff === 0 && sclRes.noDrumArp && /SCL/.test(sclRes.panel) && /ARP/.test(sclRes.panel) && sclRes.sound === "",
   `e2e: the scale chip opens the scale panel (SCL, ARP), the strips' ARP button toggles the track's arpeggiator (the selected track and another), no SCL / ARP cards in the Sound popup (${JSON.stringify(sclRes)})`);
+/* the menu bar on top (one row of pages, no side column), the About dialog (credits; no footer on the page) */
+const aboutRes = await run(`${U} try {
+  const r = {}, bar = document.getElementById("side"), tabs = [...bar.querySelectorAll("button[data-tab]")].filter((b) => b.offsetParent);
+  const br = bar.getBoundingClientRect();
+  r.bar = br.top === 0 && br.left === 0 && br.width >= window.innerWidth - 20 && br.height < 120 && tabs.length >= 4 && new Set(tabs.map((b) => Math.round(b.getBoundingClientRect().top))).size <= 2;
+  r.mainLeft = Math.round(document.querySelector("main.main").getBoundingClientRect().left);
+  r.noFooter = document.querySelectorAll("footer").length;
+  document.getElementById("aboutbtn").click(); await sleep(300);
+  const d = document.getElementById("about");
+  r.open = d.open;
+  const txt = d.textContent;
+  r.names = ["Leo Kuroshita", "Kerem Kilic", "Charles Vestal", "Zakaria Chowdhury", "zednaked", "PatttF", "Kayrock", "Fukiai", "LICENSING.md", "GPL-3.0", "Chrome or Edge", "M-VAVE"].filter((n) => !txt.includes(n)).join();
+  r.links = [...d.querySelectorAll("a")].map((a) => a.getAttribute("href")).join();
+  document.getElementById("aboutx").click(); await sleep(200);
+  r.closed = !d.open;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(aboutRes && aboutRes.bar && aboutRes.mainLeft < 60 && aboutRes.noFooter === 0 && aboutRes.open && aboutRes.names === "" && /hugelton\.com/.test(aboutRes.links) && /LICENSING\.md/.test(aboutRes.links) && /FUKIAI-LICENSE/.test(aboutRes.links) && aboutRes.closed,
+  `e2e: the pages are a menu bar on top (no side column), the About dialog holds the credits, licences and links, no footer (${JSON.stringify(aboutRes)})`);
 /* the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP), its sounds as member strips right after it (folded by default,
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
 const MIXKEY = "fm1.mixLanes";

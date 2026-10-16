@@ -81,7 +81,6 @@
   .chop .chip.on input { accent-color: var(--bg); }
   .chop input.len { width: 160px; }
   .chop .selrow[hidden] { display: none; }
-  footer { margin-top: 24px; font-size: 9.5px; line-height: 1.35; color: var(--dim); }
   .row.pushed .v { font-weight: 600; }
   /* librarian: local library and the device's user bank side by side, stacked on a phone */
   .libcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 8px 24px; margin-top: 6px; }
@@ -112,7 +111,7 @@
     select.wave option::checkmark { display: none; }
   }
   /* tabs: a wrapping row of plain buttons, the open one inverted; header stays at the top on wide screens */
-  .top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 4px 0 0; }
+  .top { position: sticky; top: var(--menubar-h, 46px); z-index: 5; background: var(--bg); padding: 4px 0 0; }
   @media (max-width: 600px) { .top { position: static; } }
   .tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--fg); margin: 6px 0 0; }
   .tabs button { background: none; color: var(--dim); padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; white-space: nowrap; }
@@ -623,25 +622,534 @@
   kbd { border-radius: 0; }
   .keyhelp kbd { font-size: 16px; border-radius: 0; background: var(--s2); border: 0; }
 
-  /* ---- the frame: side bar, main ---- */
+  /* ---- the frame: menu bar on top, main below ---- */
   main.main { max-width: none; margin: 0; padding: 0 32px 32px; min-width: 0; }
-  .app { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
-  .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 16px; padding: 20px 12px; border-right: 1px solid var(--line); overflow-y: auto; }
-  .side .brand { font-size: 32px; line-height: 32px; font-weight: 400; color: var(--fg); text-transform: uppercase; padding: 0 4px; }
-  .side .tabs { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 2px; border: 0; margin: 0; }
-  .side .tabs .navh { color: var(--mute); margin: 14px 0 4px 12px; text-transform: lowercase; }
-  .side .tabs .navh:first-child { margin-top: 0; }
-  .side .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 12px; border: 0; border-left: 4px solid transparent; border-bottom: 0;
-                       width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; }
-  .side .tabs button:hover { color: var(--fg); background: var(--s1); }
-  .side .tabs button[aria-selected="true"] { color: var(--fg); background: var(--s2); border-left-color: var(--trk); }
-  .side .tabs button[data-go][aria-pressed="true"] { color: var(--fg); background: var(--s2); }
-  .devcard { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .app { display: block; min-height: 100vh; }
+  .menubar { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; padding: 6px 32px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .menubar .brand { font-size: 24px; line-height: 28px; font-weight: 400; color: var(--fg); text-transform: uppercase; }
+  .menubar .tabs { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px; border: 0; margin: 0; min-width: 0; flex: 1 1 auto; }
+  .menubar .tabs .navh { color: var(--mute); margin: 0 4px 0 12px; padding-left: 12px; border-left: 1px solid var(--line); text-transform: lowercase; white-space: nowrap; }
+  .menubar .tabs .navh:first-child { margin-left: 0; padding-left: 0; border-left: 0; }
+  .menubar .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 10px; border: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .menubar .tabs button:hover { color: var(--fg); background: var(--s1); }
+  .menubar .tabs button[aria-selected="true"] { color: var(--fg); background: var(--s2); border-bottom-color: var(--trk); }
+  .menubar .tabs button[data-go][aria-pressed="true"] { color: var(--fg); background: var(--s2); }
+  .menubar .sidenote { flex: 1 0 100%; margin: 0; }
+  .devcard { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-left: auto; }
   .devcard .devline { display: flex; align-items: center; gap: 8px; }
-  .devcard #version { overflow-wrap: anywhere; color: var(--fg2); }
-  .devcard button { width: 100%; }
-  .devcard .inst { font-size: 16px; }
-  .top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 20px 0 12px; border-bottom: 1px solid var(--line); }
+  .devcard #version { color: var(--fg2); }
+  .devcard .inst { font-size: 14px; }
+  .top { position: sticky; top: var(--menubar-h, 46px); z-index: 5; background: var(--bg); padding: 4px 0 0; }
+  @media (max-width: 600px) { .top { position: static; } }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--fg); margin: 6px 0 0; }
+  .tabs button { background: none; color: var(--dim); padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; white-space: nowrap; }
+  .tabs button:hover { color: var(--fg); }
+  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+  .trackbar { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; flex-wrap: wrap; }
+  .seg button, button.tog { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 1px 10px; }
+  .seg button + button { border-left: 0; }
+  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  .panel { margin: 12px 0; }
+  .hint { margin: 16px 0; color: var(--dim); }
+  /* v5: the drum track as 16 lanes x LEN steps; a hit's level by its shade, its ratchet as a number */
+  .dgrid { display: grid; gap: 1px; margin: 6px 0 12px; overflow-x: auto; }
+  .dgrid .ln { font-size: 10px; color: var(--dim); white-space: nowrap; padding-right: 6px; align-self: center; }
+  .dgrid .hd { font-size: 9px; color: var(--dim); }
+  .dgrid .gap { grid-column: 1 / -1; height: 8px; }
+  .dgrid button { background: var(--bg); color: var(--bg); border: 1px solid var(--line); padding: 0; min-width: 16px; height: 18px;
+                  font-size: 9px; line-height: 1; font-weight: 700; }
+  .dgrid button.beat { border-left-color: var(--dim); }
+  .dgrid button.bar { border-left-color: var(--fg); }
+  .dgrid button.on { background: var(--kc, var(--fg)); border-color: var(--kc, var(--fg)); color: #000; opacity: .85; }
+  .dgrid button.on.l1 { opacity: .3; }
+  .dgrid button.on.l2 { opacity: .6; }
+  .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+  .dgrid button.now { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dgrid .hd.now { color: var(--fg); font-weight: 700; }
+  .dgrid .hd.bar { color: var(--fg); }
+  .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
+  /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
+  .roll { margin: 6px 0 12px; }
+  .roll canvas { display: block; touch-action: none; }
+  .roll .rhead, .roll .rvel { margin-left: 1px; cursor: pointer; }
+  .roll .rscroll { height: 340px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); }
+  .roll .rgrid { cursor: crosshair; outline: none; }
+  .roll .rgrid:focus-visible { outline: 1px solid var(--fg); }
+  .roll .rpanel { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 0; min-height: 30px; }
+  .roll .rnote { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); padding: 2px 6px; }
+  .roll .rnote button { padding: 0 6px; }
+  .roll input.num { width: 4.2em; }
+  .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
+  .strip .solo.on { visibility: visible; }
+  /* mixer: four channel strips as on the device's TRACKS page */
+  /* (the master, last: two columns, its head / bus knobs / meter, then its FX groups two by two: wider, never taller) */
+  .mixer { display: flex; align-items: stretch; gap: 8px; margin: 6px 0; overflow-x: auto; }
+  .mixer > .strip { flex: 1 1 150px; min-width: 150px; }
+  .mixer > .strip.master { flex: 1.6 1 340px; min-width: 340px; }
+  .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+  .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+  .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
+  .strip .snd { font-size: 11px; line-height: 1.3; width: 100%; text-align: center; overflow-wrap: anywhere; min-height: 2.6em; }
+  .strip input.fader { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 150px; }
+  .strip .v { font-size: 11px; white-space: nowrap; }
+  .strip .pan { width: 100%; }
+  .strip.muted .fader, .strip.muted .lv { opacity: .35; }
+  .strip button { width: 100%; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sysinfo th { padding-right: 16px; }
+  [hidden] { display: none !important; }
+  /* not connected: the connect card only (html[data-conn=off], renderPanels) */
+  html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
+  html[data-conn=off] #hint { display: none !important; }
+  html:not([data-conn=off]) #connectcard { display: none; }
+  .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
+  .connectcard .clogo { font-size: 34px; letter-spacing: .02em; margin: 0 0 18px; }
+  .connectcard #cstatus { min-height: 1.4em; }
+  .connectcard #cstatus[data-st=err] { color: var(--err); }
+  .connectcard #cstatus[data-st=warn] { color: var(--warn); }
+  /* ---- the DAW layout: transport bar, mixer strips, popups (colours: var(--eng) = the engine's / kind's, set by script) */
+  body { background: var(--bg); }
+  .tbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--fg); }
+  .tbar .brand { font-size: 16px; }
+  .tbar .tabs { border: 0; margin: 0; }
+  .tbar .inst { font-size: 11px; }
+  .pill { font-size: 12px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); }
+  .pill:empty { display: none; }
+  .pill[data-st=ok] { border-color: var(--ok); color: var(--ok); }
+  .pill[data-st=warn] { border-color: var(--warn); color: var(--warn); }
+  .pill[data-st=err] { border-color: var(--err); color: var(--err); }
+  button.pill { background: none; color: var(--fg); cursor: pointer; }
+  button.pill[data-st=ok] { color: var(--ok); } button.pill[data-st=warn] { color: var(--warn); }
+  .flash { outline: 2px solid var(--accent); outline-offset: 3px; transition: outline-color .6s; }
+  .tp { display: inline-flex; gap: 6px; align-items: center; }
+  .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+  .tp input { width: 4.5em; }
+  .strip { background: var(--panel); align-items: stretch; }
+  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px;
+                  width: 100%; min-height: 30px; border: 0; text-align: left; cursor: pointer; font: inherit; }
+  .strip button.shead { white-space: nowrap; }
+  .strip .shead:hover { filter: brightness(1.08); }
+  .strip .shead:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .strip .shead .num { font-size: 16px; font-weight: 700; padding: 0 4px; }
+  .strip .shead .selm { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .06em; visibility: hidden; }
+  .strip.sel .shead .selm { visibility: visible; }
+  .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+  /* row 1: the strip's editors in ONE bordered group (synth: Sound, Load, Save; drums: Kit, User kits); row 2: Sequence */
+  .strip .pops { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(32px, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--bg); }
+  .strip .pops button.ib { width: auto; border: 0; border-radius: 0; background: transparent; }
+  .strip .pops button.ib + button.ib { border-left: 1px solid var(--line); }
+  .strip .pops button.ib:hover { background: var(--panel); }
+  .keyhelp td { padding: 2px 10px 2px 0; vertical-align: top; }
+  .keyhelp kbd { font: inherit; font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); }
+  .strip button.ib.seqb { width: 100%; justify-content: flex-start; padding: 0 8px; gap: 6px; }
+  button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+              background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  button.ib:hover { border-color: var(--fg); }
+  button.ib[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button.ib span { font-size: 11px; }
+  .tabs .si, h2 .si { width: 15px; height: 15px; vertical-align: -2px; margin-right: .3em; }
+  .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #play .si { fill: currentColor; }
+  .strip .row2 { align-items: center; }
+  .strip .fx button.tog { width: auto; padding: 1px 8px; }
+  .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
+  .strip .lanes .ln { font-size: 8.5px; padding: 3px 1px; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+                      border-left: 4px solid var(--kc, var(--line)); text-align: left; overflow: hidden; text-overflow: ellipsis; }
+  .strip .lanes .ln.ed { font-weight: 700; }
+  .strip .lanes .ln.lsel { background: var(--kc, var(--accent)); color: var(--bg); outline: 2px solid var(--fg); outline-offset: -1px; }
+  /* the drum strip: the selected sound's name in the greyed DST slot, where its value would be (no row of its own: the rows stay
+     aligned with the synth strips') */
+  #mixer .strip .fx .note.lsel { grid-row: 1; grid-column: 1; align-self: end; justify-self: stretch; z-index: 1; font-size: 10px; line-height: 14px;
+                                 overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--fg); font-weight: 700; background: var(--panel, var(--bg)); }
+  #mixer .strip .fx .knob.na.dst { grid-row: 1; grid-column: 1; }
+  /* v10: the drum strip's SOUND (the selected sound's name) | BUS switch and FX / DRY, one row under its four knobs */
+  .strip .fx .fxmodes { grid-column: 1 / -1; display: flex; gap: 2px; justify-content: center; min-width: 0; }
+  #mixer .strip .fx .fxmodes button.tog { flex: 1 1 0; min-width: 0; min-height: 24px; padding: 1px 3px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strip .fx .fxmodes button.fxm[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  .strip.master .fxslots .fxk, .strip.master .fxcmp .fxk { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .strip.master .fxslots .pk, .strip.master .fxcmp .pk { min-width: 0; max-width: none; }
+  .strip.master .fxslots select, .strip.master .fxcmp select { width: 100%; max-width: none; font-size: 12px; padding: 2px 16px 2px 4px; background-position: right 2px center; }
+  .ov { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 1px; cursor: pointer; min-height: 6px; }
+  .ov i { height: 6px; background: var(--line); opacity: .45; }
+  .ov i.beat { opacity: .7; }
+  .ov i.on { background: var(--eng, var(--fg)); opacity: 1; }
+  .strip .ov i.on { background: var(--fg); }
+  .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
+  .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
+  .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
+  /* the meters (v9 STREAM): green, amber above -6 dB, red at clip; the hold line; a tick at 0 dBFS (-60..+6 dB) */
+  .meter { position: relative; overflow: hidden; }   /* (its size and place: the strip's meter slot, #mixer .strip .meter) */
+  .meter i.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
+  .meter[data-st=warn] i.bar { background: var(--warn); }
+  .meter[data-st=err] i.bar { background: var(--err); }
+  .meter b.hold { position: absolute; left: 0; right: 0; height: 2px; bottom: 0; background: var(--ok); }
+  .meter b.hold[data-st=warn] { background: var(--warn); }
+  .meter b.hold[data-st=err] { background: var(--err); }
+  .meter u.zero { position: absolute; left: 0; right: 0; height: 1px; bottom: 90.9%; background: var(--fg); opacity: .35; }
+  /* the master's gain reduction (grEl): from the top, the COMP's share neutral, the LIMIT's amber */
+  .gr { position: relative; overflow: hidden; width: 6px; border: 1px solid var(--line); background: var(--bg); flex: none; }
+  .gr[hidden] { display: none; }
+  .gr i { position: absolute; left: 0; right: 0; top: 0; height: 0; }
+  .gr i.c { background: var(--dim); }
+  .gr i.l { background: var(--warn); }
+  .strip .knob { align-self: center; }
+  .strip.master .mk { justify-content: center; }
+  .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+  .strip.master .fxk { display: grid; grid-template-columns: repeat(2, auto); gap: 2px 4px; justify-content: center; }
+  /* v13: the FX owners' cards (FXP): a card per owner, its slots side by side, each a type list and the type's knobs */
+  .fxo-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+  .fxslot { border: 1px solid var(--line); padding: 6px 8px; min-width: 0; }
+  .fxslot .fxt { margin-bottom: 6px; max-width: none; }
+  .fxslot .fxt select { max-width: none; }
+  .fxslot .fxe { display: block; font-size: 11px; margin: 4px 0; }
+  .fxslot .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+  .fxslot[data-type="0"] .knobs { display: none; }
+  /* a strip's inserts: a list and an open button a slot (strip-<n>-slot<k>-type / -open), the instrument the same (strip-<n>-inst-type / -open) */
+  .strip .fxo.compact { width: 100%; min-width: 0; border: 0; padding: 0; margin: 0; background: none; }
+  .strip .fxo.compact .fxo-slots { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .strip .fxo.compact .fxslot { display: flex; gap: 3px; align-items: flex-end; border: 0; padding: 0; }
+  .strip .fxo.compact .fxslot .fxt { flex: 1 1 auto; min-width: 0; margin: 0; }
+  .strip .fxo.compact select { width: 100%; max-width: none; min-width: 0; font-size: 12px; padding: 2px 16px 2px 4px; }
+  .strip .fxo.inst { margin-bottom: 4px; }
+  .kbd { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--s1, var(--bg)); }
+  .kbd .keys { display: flex; position: relative; height: 54px; flex: 1 1 420px; min-width: 300px; max-width: 760px; }
+  .kbd .keys button { border: 1px solid var(--line); background: var(--bg); color: var(--dim); padding: 0; min-width: 0; font-size: 9px; }
+  .kbd .keys .wk { flex: 1 1 0; height: 100%; align-self: flex-end; }
+  .kbd .keys .bk { position: absolute; top: 0; height: 60%; width: 4%; background: var(--fg); color: var(--bg); z-index: 1; transform: translateX(-50%); }
+  .kbd .keys .pad { flex: 1 1 0; height: 100%; }
+  .kbd .keys button.down { background: var(--accent, var(--fg)); color: var(--bg); }
+  .kbd label { display: inline-flex; align-items: center; gap: 6px; }
+  /* the transport REC, as the device's REC LED: off, waiting (blinks), count-in, recording (solid red), a free take */
+  #recbtn { min-width: 44px; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+  #recbtn::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--dim); vertical-align: middle; }
+  #recbtn[data-rec="wait"]::before { background: var(--err); animation: recblink 1s steps(2, start) infinite; }
+  #recbtn[data-rec="count"]::before { background: var(--warn); animation: recblink .5s steps(2, start) infinite; }
+  #recbtn[data-rec="rec"]::before { background: var(--err); }
+  #recbtn[data-rec="take"]::before { background: var(--err); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--err); }
+  #recbtn[data-rec="rec"], #recbtn[data-rec="take"] { color: var(--err); }
+  @keyframes recblink { 50% { opacity: .15; } }
+  @media (prefers-reduced-motion: reduce) { #recbtn::before { animation: none !important; } }
+  .sidenote { font-size: 11px; margin: 8px 0 4px; line-height: 1.3; }
+  /* Live-like strips: no numbers under the knobs (the value is the tooltip), the fader the bottom-most big control, MUTE (an activator in the track's colour showing its number / letter)
+     and SOLO under it */
+  .strip .knob .kv { display: none; }
+  #mixer .strip .fx { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; padding: 0 0 0 4px; border-top: 0; height: auto; width: 100%; }
+  #mixer .strip .fx .knob { flex-direction: row; align-items: center; gap: 6px; width: auto; min-width: 0; }
+  #mixer .strip .fx .knob .kl { font-size: 11px; }
+  #mixer .strip .lblk { display: flex; gap: 2px; width: 100%; height: 100%; align-items: stretch; }
+  #mixer .strip .lblk .row2 { display: flex; flex-direction: column; gap: 4px; justify-content: flex-end; flex: 0 0 34px; }
+  #mixer .strip .lblk .row2 button { width: 34px; min-height: 28px; }
+  #mixer .strip .lblk .fm { flex: 1 1 auto; height: 100%; }
+  /* widths: a track strip as before; the drum sounds, the returns and the USB input narrow (about half); the master as wide as a track */
+  #mixer > .strip { flex: 0 1 150px; min-width: 132px; max-width: 160px; }
+  #mixer > .strip.nar { flex: 0 1 96px; min-width: 84px; max-width: 104px; }
+  #mixer > .strip.nar .pk, #mixer > .strip.nar .slotw { min-width: 0; }
+  .strip .fx .knob[hidden] { display: none; }
+  .strip .row2 { display: flex; gap: 4px; align-items: center; justify-content: center; }
+  .strip .row2 button { min-width: 28px; min-height: 28px; padding: 0 4px; }
+  .strip button.act { background: var(--eng, var(--tc, var(--fg))); color: var(--engfg, var(--bg)); border: 1px solid var(--eng, var(--tc, var(--fg))); font-weight: 700; }
+  .strip button.act[aria-pressed="true"] { background: var(--s2, var(--bg)); color: var(--dim); border-color: var(--line); }
+  .strip button.sol[aria-pressed="true"], .strip button.sol.on { background: var(--warn, #d93); color: var(--bg); }
+  .strip .fm .fader { align-self: stretch; }
+  .devpage .tog.sw { min-width: 5em; }
+  .devpage .tog.sw[aria-pressed="true"] { background: var(--s2); color: var(--fg); font-weight: 700; box-shadow: inset 0 -2px var(--fg); }
+  .strip .fxnote { font-size: 10px; margin: 0; line-height: 1.2; }
+  .strip.sub .fxo.compact { margin: 2px 0; }
+  .strip .fxo:not(.compact) .fxslot > .fxt { display: inline-block; width: calc(100% - 34px); vertical-align: bottom; }
+  .strip .fxo:not(.compact) .fxslot > .fxopen { display: inline-block; vertical-align: bottom; margin-left: 4px; }
+  #mixer .strip.master .fxs .fxo.compact { grid-column: 1 / -1; }
+  .strip .fxo.compact .kl { font-size: 10px; }
+  /* the slot widget: [ name v ] */
+  .slotw { display: flex; align-items: stretch; width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--s2, var(--bg)); }
+  .slotw .fxname { flex: 1 1 auto; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 26px; }
+  .slotw select.fxtype { flex: 0 0 22px; width: 22px; min-width: 22px; max-width: 22px; padding: 0; border: 0; border-left: 1px solid var(--line); background: transparent; color: transparent;
+    -webkit-appearance: none; appearance: none; cursor: pointer; background-image: linear-gradient(45deg, transparent 50%, var(--fg) 50%), linear-gradient(135deg, var(--fg) 50%, transparent 50%);
+    background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%; background-size: 4px 4px; background-repeat: no-repeat; }
+  .slotw select.fxtype option { color: var(--fg); background: var(--bg); }
+  .slotw:focus-within { outline: 2px solid var(--accent, var(--fg)); outline-offset: -2px; }
+  .fxslot > button.ib { width: auto; padding: 2px 8px; margin-top: 6px; }
+  .fxlp { margin-bottom: 8px; }
+  .dlan { margin: 8px 0; }
+  .devpage .sl { display: grid; grid-template-columns: 9em 1fr auto; align-items: center; gap: 6px; padding: 2px 0; }
+  .devpage .sl .sln { color: var(--dim); font-size: 12px; }
+  .devpage .sl .slv { text-align: right; min-width: 5em; }
+  .devpage .sl[data-state="1"] .slv { color: var(--warn, #e7c15b); }
+  .devpage .sl[data-state="2"] .slv { color: var(--err, #e5484d); }
+  .devpage .sl[data-kind="3"] { grid-template-columns: 1fr; }
+  .devpage .sl .slc { display: flex; gap: 4px; align-items: center; min-width: 0; }
+  .devpage .sl .slc button.ib { width: 28px; height: 24px; }
+  .devpage .sl .slc button.act { flex: 1; }
+  .devpage .sl .slc button.sw { min-width: 44px; height: 22px; }
+  .devpage .sl input[type=range] { width: 100%; }
+  /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
+  .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
+  #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
+  .scrows { display: flex; flex-direction: column; gap: 6px; }
+  .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
+  .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
+  .scn { margin: 0 0 4px; font-size: 13px; color: var(--dim); font-weight: 600; letter-spacing: .04em; }
+  .scf { margin: 12px 0 2px; font-size: 13px; letter-spacing: .06em; }
+  .sccards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 10px; }
+  .scc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .scc.empty { visibility: hidden; }
+  .scc .scl { color: var(--dim); font-size: 13px; }
+  .scc .scv { font-variant-numeric: tabular-nums; }
+  .scc .scctl { display: flex; gap: 4px; align-items: center; min-width: 0; }
+  .scc input[type=range] { width: 100%; }
+  .scc button.ib { width: 28px; height: 24px; }
+  .scc button.act { flex: 1; }
+  .scc[data-state="1"] .scv { color: var(--warn, #e7c15b); }
+  .scc[data-state="2"] .scv { color: var(--err, #e5484d); }
+  .scc.dim { opacity: .5; }
+  .scc.dr .scl::after { content: " DR"; }
+  .scc.strike .scv { text-decoration: line-through; }
+  .scc.asking button { outline: 2px solid var(--warn, #e7c15b); }
+  .scrow .scyes { margin-top: 6px; }
+  @media (max-width: 640px) { .sccards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .strip .row2 .sq { width: auto; min-width: 30px; font-size: 10px; padding: 0 4px; }
+  .strip.sqm .ov { opacity: .45; }
+  .lanes .ln.lm { opacity: .4; text-decoration: line-through; }
+  .lanes .ln.ls { outline: 1px solid var(--accent); }
+  .fxo + .fxo, .fxlane { margin-top: 8px; }
+  .fx button.fxi { width: auto; min-width: 28px; }
+  .strip.master .fxg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
+  .strip.master .fxg button.ib { width: 32px; height: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
+  .strip.master .fxg button.ib:hover { background: var(--panel); }
+  dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
+  dialog#pop::backdrop { background: rgba(0, 0, 0, .45); }
+  .pophead { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 6px 10px; background: var(--panel);
+             border-bottom: 1px solid var(--line); }
+  .pophead h2 { border: 0; margin: 0; flex: 1; font-size: 15px; }
+  .pophead .trackbar { border: 0; padding: 0; }
+  .popx { font-size: 20px; line-height: 1; padding: 2px 10px; }
+  #popbody { padding: 8px 12px 14px; }
+  #popbody .panel { margin: 0; }
+  #popbody .stitle { display: none; }
+  .panel.loading { opacity: .5; }
+  .pgroup { margin: 0 0 10px; }
+  .pgroup .ehead { background: var(--eng); color: var(--engfg); padding: 2px 6px; border: 0; }
+  .plist { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+  .plist .pr { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-left: 4px solid var(--kc, var(--eng, var(--line))); }
+  .plist .pr.cur { background: var(--fg); color: var(--bg); }
+  .plist .pw { display: inline-flex; }
+  .plist .pw .fv { padding: 0 4px; border-left: 4px solid var(--kc, var(--eng, var(--line))); background: var(--bg); color: var(--fg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-right: 0; }
+  .plist .pw .fv + .pr { border-left: 0; }
+  .plist .pw[data-fav="1"] .fv { color: var(--accent); }
+  .favlist .pw:not([data-fav="1"]) { display: none; }
+  .favlist .pgroup.nofav { display: none; }
+  .favbar { display: flex; gap: 8px; align-items: center; }
+  table.dlanes input.num { width: 4.2em; }
+  table.dlanes td, table.dlanes th { padding: 1px 4px; white-space: nowrap; }
+  table.dlanes select { max-width: 9em; }
+  table.ukits tr.cur td { font-weight: bold; }
+  /* knobs: drag up / down, the wheel, the arrow keys; the value under the knob */
+  .knob { display: inline-flex; flex-direction: column; align-items: center; width: 54px; gap: 1px; cursor: ns-resize; user-select: none;
+          touch-action: none; outline: none; }
+  :root { --knob-size: 40px; --knob-track: var(--line); --knob-value: var(--fg); --knob-pointer: var(--fg); --knob-stroke: 3; }
+  .knob svg { width: var(--knob-size); height: var(--knob-size); display: block; }
+  .knob .tr { fill: none; stroke: var(--knob-track); stroke-width: var(--knob-stroke); }
+  .knob .va { fill: none; stroke: var(--knob-value); stroke-width: var(--knob-stroke); }
+  .knob .pt { stroke: var(--knob-pointer); stroke-width: 2; stroke-linecap: round; }
+  .knob .kl { font-size: 10px; color: var(--dim); white-space: nowrap; }
+  .knob .kv { font-size: 11px; white-space: nowrap; }
+  .knob:focus-visible svg { outline: 1px solid var(--fg); outline-offset: 1px; }
+  .knob.off { opacity: .3; pointer-events: none; }
+  .knob[data-st=warn] .va, .knob[data-st=warn] .pt { stroke: var(--warn); }
+  .knob[data-st=err] .va, .knob[data-st=err] .pt { stroke: var(--err); }
+  /* GLO > MACRO moves the value (cmd 65): the knob shows what plays, in the notice colour with an M, and a second mark on the
+     arc where it plays; the value arc and pointer stay where the knob edits */
+  .knob .ef { display: none; fill: var(--warn); }
+  .knob[data-mac] .ef { display: block; }
+  .knob[data-mac] .kv { color: var(--warn); }
+  .knob[data-mac] .kv::after { content: " M"; font-size: 9px; font-weight: bold; vertical-align: top; }
+  .row .v[data-mac], .strip .v.lv[data-mac] { color: var(--warn); }
+  .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
+  .rtype { display: block; margin: 0 0 8px; }   /* the Reverb popup's TYPE (two or more algorithms built) */
+  .knobs + .knobs { margin-top: 6px; }
+  /* the Mix tab's sends: four knobs a strip (the drum track: its REV) */
+  .strip .fx { display: grid; grid-template-columns: repeat(2, 54px); justify-content: center; gap: 4px 0; border-top: 1px solid var(--line);
+               padding-top: 6px; width: 100%; }
+  .strip .fx .note { grid-column: 1 / -1; font-size: 10px; color: var(--dim); text-align: center; }
+  .strip .fx button { grid-column: 1 / -1; }
+  .strip.dry .fx .knob { opacity: .4; }
+  /* every strip (tracks and master) shares the same rows (--slot-rows: room for rows above the head), top to bottom, at the same heights (as Ableton's session mixer):
+     head, sound name, instrument group, Sequence, step overview, content (the drum lanes; the master's FX), sends (DST CHO DLY REV +
+     FX / DRY), pan knob, fader + meter, level readout, REC / SOLO / mute */
+  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: [head] 28px [inst] 46px [nav] 28px [clips] var(--clip-h, 0px) [slot1] 32px [slot2] 32px [tools] 34px [seq] 32px [ov] 8px [pan] 62px [sends] var(--sends-h, 172px) [level] 190px [end]; row-gap: 6px; align-items: center; align-content: start; }
+  #mixer .strip > * { min-width: 0; }
+  #mixer .strip > .knob { justify-self: center; }
+  #mixer .strip .fx button.tog { min-height: 24px; }
+  /* (the per-track pattern slots, later: set --slot-rows on #mixer to the slot rows' heights and put one child per strip first;
+     the master strip's scene launch column goes in the same rows) */
+  #mixer .strip .shead { height: 28px; box-sizing: border-box; }
+  #mixer.pat { --clip-h: 286px; }
+  #mixer.fxp { --sends-h: 134px; }
+  #mixer .clipcol { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+  #mixer .clipcol > .kl { font-size: 10px; color: var(--dim); text-transform: uppercase; }
+  #mixer .pslots { display: grid; grid-template-rows: repeat(16, 16px); gap: 2px; align-self: stretch; }
+  #mixer .pslot { min-height: 0; height: 16px; padding: 0 4px; font-size: 10px; line-height: 14px; text-align: right; border: 1px solid var(--line);
+    background: var(--bg); color: var(--dim); }
+  #mixer .pslot.used { background: var(--s2); color: var(--fg); box-shadow: inset 3px 0 var(--eng, var(--tc)); }
+  #mixer .pslot.on { background: var(--ok, #3c3); color: var(--on); }
+  #mixer .pslot.q { background: var(--warn, #d93); color: var(--on); }
+  #mixer .pslot.ref { outline: 2px solid var(--fg); outline-offset: -2px; }
+  #mixer .pslot.scn { text-align: center; font-weight: 700; }
+  #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
+  #mixer .strip .pops { height: 34px; box-sizing: border-box; align-self: stretch; }
+  #mixer .strip .ov { height: 8px; min-height: 0; align-self: stretch; }
+  #mixer .strip .content { height: 100px; align-self: stretch; overflow: hidden; }
+  #mixer .strip .lanes { height: 100px; grid-template-rows: repeat(4, 1fr); }
+  #mixer .strip .lanes .ln { padding: 0 1px; }
+  #mixer .strip .fx { height: 180px; box-sizing: border-box; align-content: start; align-self: stretch; }
+  #mixer .strip .fx .knob.na { opacity: .3; pointer-events: none; }
+  #mixer .strip .fm { height: 150px; align-self: stretch; align-items: stretch; justify-content: center; gap: 6px; }
+  #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
+  #mixer .strip .lv { text-align: center; line-height: 16px; }
+  #mixer .strip .row2 { height: 32px; align-self: stretch; }
+  /* the master: on the left its head, DUST / DUCK / FILT and the meter (+ GR) level with the faders; on the right the FX
+     groups in a 2 x 2 grid over every row (the strip grows wider, never taller; the meters never under an FX) */
+  #mixer .strip.master { grid-template-columns: 112px minmax(0, 1fr); column-gap: 8px; }
+  #mixer .strip.master > .srow, #mixer .strip.master > .shead { grid-column: 1; }
+  #mixer .strip.master.alone { grid-template-columns: minmax(0, 1fr); }
+  .mixer > .strip.master.alone { flex: 0 1 150px; min-width: 132px; max-width: 160px; }
+  #mixer .strip.master .mx { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-self: start; gap: 6px; }
+  /* the one strip template: every kind (track, drum sound, USB input, return, master) has the same rows (STRIP_ROWS), a blank .ph where the device has nothing */
+  #mixer .strip > .srow[data-row="head"] { grid-row: head; } #mixer .strip > .srow[data-row="inst"] { grid-row: inst; } #mixer .strip > .srow[data-row="nav"] { grid-row: nav; }
+  #mixer .strip > .srow[data-row="clips"] { grid-row: clips; align-items: flex-start; } #mixer .strip > .srow[data-row="slot1"] { grid-row: slot1; } #mixer .strip > .srow[data-row="slot2"] { grid-row: slot2; } #mixer .strip > .srow[data-row="tools"] { grid-row: tools; }
+  #mixer .strip > .srow[data-row="seq"] { grid-row: seq; } #mixer .strip > .srow[data-row="ov"] { grid-row: ov; } #mixer .strip > .srow[data-row="pan"] { grid-row: pan; }
+  #mixer .strip > .srow[data-row="sends"] { grid-row: sends; } #mixer .strip > .srow[data-row="level"] { grid-row: level; }
+  #mixer .strip > .srow.mid { grid-row: tools / level; align-items: flex-start; }
+  #mixer .strip .col { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 100%; }
+  #mixer .strip > .srow { display: flex; align-items: center; justify-content: center; min-width: 0; align-self: stretch; }
+  #mixer .strip > .srow > * { min-width: 0; }
+  #mixer .strip > .srow[data-row="head"] > .shead { flex: 1; }
+  #mixer .strip > .srow[data-row="level"] > .fm { flex: 1; }
+  #mixer .strip > .srow > .fx, #mixer .strip > .srow > .fxo, #mixer .strip > .srow > .pops, #mixer .strip > .srow > .snd, #mixer .strip > .srow > .row2, #mixer .strip > .srow > .ov { flex: 1; }
+  #mixer .strip .ph { display: block; flex: 1; }
+  #mixer .strip > .srow > .fm .fader { align-self: stretch; }
+  #mixer .strip .fx .knob.ph { visibility: hidden; }
+  #mixer > .strip.sub .lnav { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 24px; flex: 1; }
+  /* the kit editor: 16 lanes, then the selected lane's source, sound and sends */
+  .kitbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0 10px; }
+  .klanes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin: 0 0 10px; }
+  @media (max-width: 600px) { .klanes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .klanes button { background: var(--bg); color: var(--fg); border: 1px solid var(--line); padding: 3px 4px; text-align: left; min-width: 0;
+                   display: flex; flex-direction: column; gap: 1px; font-size: 11px; line-height: 1.2; }
+  .klanes button .k { font-size: 9px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .klanes button .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .klanes button.ed .n::after { content: " \2022"; }
+  .klanes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .klanes button[aria-pressed="true"] .k { color: inherit; opacity: .7; }
+  .klane { border: 1px solid var(--line); padding: 8px; display: grid; gap: 8px; }
+  .klane .hd { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .klane .hd b { font-size: 15px; min-width: 80px; }
+  .klane .hd select { max-width: 16em; }
+  .klane h3 { margin: 0 0 2px; }
+  .klane .usr { display: grid; grid-template-columns: 46px 1fr 60px; gap: 4px 8px; align-items: center; max-width: 420px; }
+  #dlanes { margin-top: 12px; }
+  /* the Sound tab: the track and its sound; enums beside the knobs; the drum track's panel */
+  .stitle { font-size: 15px; border-bottom: 0; margin: 0 0 8px; }
+  .pk { display: inline-flex; flex-direction: column; gap: 2px; min-width: 54px; max-width: 120px; }
+  .pk select { max-width: 120px; }
+  .pk .kl { font-size: 10px; color: var(--dim); }
+  .groups .group .knobs { margin: 2px 0 6px; }
+  button.big { padding: 6px 14px; font-size: 14px; }
+  #drumsound select { max-width: 18em; }
+  .strip .snd[data-tag]::after { content: " " attr(data-tag); font-size: 9px; color: var(--dim); }
+  .tag { font-size: 9px; border: 1px solid var(--line); padding: 0 3px; color: var(--dim); }
+  /* ====================================================================================================================
+     SLOOP 2.4 look: the FM-1's screen on a big display. Black, the four track colours, the device's Terminus pixel font
+     (16 px and 32 px only, so every pixel stays sharp), the pages in a side bar, the tracks on top, the parameters as rows
+     of four coloured knobs, the steps as the device's tiles. This block overrides the rules above; the layout of the
+     strips, the popups and every command are the editor's own (protocol v9). The colours follow the system: this dark set, and
+     a light set under prefers-color-scheme: light (no switch; the page restyles live). The surfaces below are mixed from --bg and --fg.
+     Look and ideas from the SLOOP 2.4 web editor, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0.
+     ==================================================================================================================== */
+  :root {
+    --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
+    --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
+    --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
+    --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
+    --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
+    --font: "SLOOP Terminus", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    --knob-size: 44px; --knob-track: var(--s3); --knob-value: var(--trk); --knob-pointer: var(--fg); --knob-stroke: 4;
+    --on: #000;   /* text on a track-coloured or status-coloured fill (a kind / engine colour is mid-tone: black reads on it in both modes) */
+    --mute: var(--s3);   /* the quietest text: headings of the side bar, idle REC, disabled buttons, the footer */
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
+      --ok: #11682b; --warn: #825000; --err: #a82229;
+      --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+      --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
+      --mute: var(--dim);
+      --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
+      color-scheme: light;
+    }
+  }
+  html:root[data-sel="1"] { --trk: var(--t2); } html:root[data-sel="2"] { --trk: var(--t3); } html:root[data-sel="3"] { --trk: var(--t4); }
+  html { background: var(--bg); }
+  body { font: 16px/20px var(--font); -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed; color: var(--fg2); }
+  ::selection { background: var(--trk); color: var(--on); }
+  h1, h2, h3 { font-weight: 400; font-size: 16px; line-height: 20px; }
+  h2 { border: 0; padding: 0; margin: 0 0 10px; color: var(--fg); text-transform: uppercase; }
+  h3 { color: var(--dim); text-transform: uppercase; margin: 10px 0 4px; }
+  .dim { color: var(--dim); }
+  .ic { -webkit-font-smoothing: antialiased; margin-right: .4em; }
+
+  /* ---- controls ---- */
+  button { background: var(--s2); color: var(--fg); padding: 6px 12px; text-transform: lowercase; }
+  button:hover:not(:disabled) { background: var(--s3); }
+  button:disabled { opacity: 1; color: var(--mute); background: var(--s1); }
+  button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--trk); outline-offset: 1px; }
+  button.big { font-size: 16px; padding: 8px 16px; background: var(--trk); color: var(--on); }
+  select, input[type=text], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
+  select { appearance: none; padding-right: 22px; cursor: pointer;
+           background: var(--bg) linear-gradient(45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 9px) 55% / 5px 5px,
+                       linear-gradient(-45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 4px) 55% / 5px 5px; }
+  select[size], select[multiple] { background: var(--bg); padding: 0; }
+  select option { background: var(--bg); color: var(--fg); }
+  select[size] option { padding: 2px 8px; }
+  select[size] option:checked { background: var(--trk) linear-gradient(0deg, var(--trk), var(--trk)); color: var(--on); }
+  input::placeholder { color: var(--mute); }
+  input[type=checkbox] { appearance: none; width: 16px; height: 16px; border: 1px solid var(--dim); background: var(--bg); vertical-align: -3px; cursor: pointer;
+                         display: inline-grid; place-content: center; }
+  input[type=checkbox]:checked { background: var(--trk); border-color: var(--trk); }
+  input[type=checkbox]:checked::after { content: ""; width: 8px; height: 8px; background: var(--on); }
+  input[type=range] { appearance: none; -webkit-appearance: none; height: 16px; background: transparent; accent-color: var(--trk); }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--s3); }
+  input[type=range]::-moz-range-track { height: 4px; background: var(--s3); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 6px; height: 14px; margin-top: -5px; background: var(--fg); border: 0; border-radius: 0; }
+  input[type=range]::-moz-range-thumb { width: 6px; height: 14px; background: var(--fg); border: 0; border-radius: 0; }
+  input[type=range]:disabled { opacity: .3; }
+  progress { appearance: none; -webkit-appearance: none; height: 6px; border: 0; background: var(--s3); vertical-align: middle; accent-color: var(--trk); }
+  progress::-webkit-progress-bar { background: var(--s3); }
+  progress::-webkit-progress-value { background: var(--trk); }
+  progress::-moz-progress-bar { background: var(--trk); }
+  .seg button, button.tog { background: var(--s2); color: var(--dim); border: 0; padding: 4px 12px; }
+  .seg { gap: 2px; }
+  .seg button + button { border-left: 0; }
+  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
+  button.ib { background: var(--s2); color: var(--fg); border: 0; }
+  button.ib:hover { background: var(--s3); border: 0; }
+  button.ib[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
+  button.ib span { font-size: 16px; }
+  .pill { font-size: 16px; border-radius: 0; border: 0; padding: 0 6px; background: var(--s2); color: var(--dim); }
+  button.pill { background: var(--s2); color: var(--fg); }
+  .pill[data-st=ok] { background: none; color: var(--ok); padding-left: 0; }
+  .pill[data-st=warn] { background: none; color: var(--warn); }
+  .pill[data-st=err] { background: none; color: var(--err); }
+  button.pill[data-st=ok], button.pill[data-st=warn] { background: var(--s2); }
+  .tp #play[aria-pressed=true] { background: var(--ok); color: var(--on); border: 0; }
+  table.snaps td.nm { font-weight: 400; }
+  th { color: var(--dim); text-transform: lowercase; }
+  .row.pushed .v { font-weight: 400; color: var(--trk); }
+  .tag { border-radius: 0; font-size: 16px; }
+  kbd { border-radius: 0; }
+  .keyhelp kbd { font-size: 16px; border-radius: 0; background: var(--s2); border: 0; }
+
   .titlebar { display: flex; align-items: flex-end; gap: 16px; min-height: 32px; }
   #pagetitle { font-size: 32px; line-height: 32px; color: var(--trk); text-transform: uppercase; white-space: nowrap; flex: none; }
   #status { margin-left: auto; color: var(--dim); text-align: right; min-height: 20px; overflow-wrap: anywhere; max-width: 70%; }
@@ -659,10 +1167,7 @@
   #trackbtns button[aria-pressed="true"] { background: var(--c); color: var(--on); }
   .panel { margin: 0; padding-top: 20px; }
   .hint { margin: 32px 0; }
-  footer { font-size: 16px; line-height: 20px; margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--mute); }
-  footer a { color: var(--dim); }
-  html[data-conn=off] .app { grid-template-columns: minmax(0, 1fr); }
-  html[data-conn=off] .side, html[data-conn=off] .titlebar { display: none !important; }
+  html[data-conn=off] .menubar, html[data-conn=off] .titlebar { display: none !important; }
   .connectcard .clogo { font-size: 32px; line-height: 32px; font-weight: 400; text-transform: uppercase; color: var(--trk); }
   .connectcard #cstatus[data-st=err] { color: var(--err); }
   .connectcard #cstatus[data-st=warn] { color: var(--warn); }
@@ -805,14 +1310,9 @@
   .dgrid .hd.now, .dgrid .hd.bar { color: var(--fg); font-weight: 400; }
 
   @media (max-width: 860px) {
-    .app { grid-template-columns: minmax(0, 1fr); }
-    .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
-    .side .tabs { flex-direction: row; flex-wrap: wrap; order: 3; width: 100%; }
-    .side .tabs .navh { display: none; }
-    .side .tabs button { width: auto; border-left: 0; border-bottom: 3px solid transparent; }
-    .side .tabs button[aria-selected="true"] { border-bottom-color: var(--trk); }
-    .devcard { margin: 0 0 0 auto; padding: 0; border: 0; flex-direction: row; flex-wrap: wrap; align-items: center; }
-    .devcard button { width: auto; }
+    .menubar { position: static; padding: 8px 16px; }
+    .menubar .tabs { flex-basis: 100%; order: 3; }
+    .menubar .tabs .navh { display: none; }
     main.main { padding: 0 16px 24px; }
     .top { position: static; }
     .knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -956,13 +1456,16 @@
   #mixer .strip.nar .srow[data-row="level"] .fm .fader { width: 22px; }
   #mixer .strip .srow[data-row="nav"] { overflow: hidden; min-width: 0; } #mixer .strip .lpn { gap: 2px; } #mixer .strip .lpn button { width: 22px; min-width: 22px; flex: none; } #mixer .strip .lpn select.lname { flex: 1 1 0; width: 0; min-width: 0; padding: 2px 0; font-size: 11px; }
   #sclbtn { font-variant-numeric: tabular-nums; } #mixer .strip .pops .arpb { width: auto; min-width: 34px; height: 34px; padding: 0 4px; font-size: 12px; }
+  dialog#about { width: min(720px, 94vw); max-height: 90vh; padding: 0; border: 1px solid var(--s3, var(--fg)); background: var(--bg); color: var(--fg); }
+  dialog#about::backdrop { background: rgba(0, 0, 0, .55); }
+  dialog#about .aboutbody { padding: 12px 16px 16px; overflow: auto; } dialog#about .credits { font-size: 14px; line-height: 20px; color: var(--dim); } dialog#about .credits a { color: var(--fg); }
 </style>
 </head>
 <body>
 <div class="app" id="app">
 <!-- the side bar: the pages in groups (play, the selected track's editors, the FX buses, the screens, the system), and the device.
      Every editor is still a popup (NAV); a side button opens it for the selected track. -->
-<aside class="side" id="side">
+<div class="menubar" id="side">
   <b class="brand" title="Optimist Editor">Optimist</b>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
     <span class="navh" data-t="navPlay"></span>
@@ -985,7 +1488,7 @@
     <button id="disconnect" data-t="disconnect" data-ic="port_usb_c"></button>
     <a class="dim inst" href="../installer/" data-t="installer"></a>
   </div>
-</aside>
+</div>
 <main class="main">
   <!-- the top: the page, the status line, the transport and the four tracks (one click selects the track the editors act on) -->
   <header class="top" id="transport">
@@ -1006,6 +1509,7 @@
       <button type="button" id="sclbtn" class="pill" data-pop="scale" aria-label="Scale" title="Scale of the selected track (root, scale, quantize, chord): opens the scale panel" hidden></button>
       <button type="button" id="songbtn" class="pill" data-pop="song" data-t="popSong" aria-label="Song" title="Song" hidden></button>
       <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
+      <button type="button" id="aboutbtn" class="pill" data-t="aboutBtn" aria-haspopup="dialog" aria-label="About" title="About, credits and licences"></button>
       <button type="button" id="syncbtn" class="pill sync" title="MIDI clock (Settings)" aria-label="MIDI clock (Settings)" hidden></button>
     </div>
   </header>
@@ -1207,11 +1711,19 @@
       <button type="button" id="popx" class="popx" aria-label="Close (Esc)" title="Close (Esc)">&times;</button></div>
     <div id="popbody"></div>
   </dialog>
+  <dialog id="about" aria-labelledby="abouttitle">
+    <div class="pophead"><h2 id="abouttitle" data-t="aboutTitle"></h2>
+      <button type="button" id="aboutx" class="popx" aria-label="Close (Esc)" title="Close (Esc)">&times;</button></div>
+    <div class="aboutbody">
+      <p class="aboutver"><b>Optimist</b> <span id="aboutver" class="dim"></span></p>
+      <p class="credits">Optimist, based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee: Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>; FM6, CZ and USB audio by Kerem Kilic (Melodee); parts from X0X by Charles Vestal, Flowstate by Zakaria Chowdhury, Jangada by zednaked, fm-106 by PatttF (after Ultramaster KR-106 by Kayrock Screenprinting) and others: <a href="https://github.com/w0ts/optimist/blob/main/LICENSING.md" target="_blank" rel="noopener">LICENSING.md</a>. GPL-3.0.<br>
+    <span data-t="foot"></span> M-VAVE and FM-1 are trademarks of their respective owners; Roland, Yamaha and Casio names only say what an engine models. Not affiliated with any of them.<br>
+    <a href="FUKIAI-LICENSE.txt" data-t="iconsCredit"></a></p>
+    </div>
+  </dialog>
   <div id="pophome" hidden></div>
 
-  <footer>Optimist, based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee: Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>; FM6, CZ and USB audio by Kerem Kilic (Melodee); parts from X0X by Charles Vestal, Flowstate by Zakaria Chowdhury, Jangada by zednaked, fm-106 by PatttF (after Ultramaster KR-106 by Kayrock Screenprinting) and others: <a href="https://github.com/w0ts/optimist/blob/main/LICENSING.md" target="_blank" rel="noopener">LICENSING.md</a>. GPL-3.0.<br>
-    <span data-t="foot"></span> M-VAVE and FM-1 are trademarks of their respective owners; Roland, Yamaha and Casio names only say what an engine models. Not affiliated with any of them.<br>
-    <a href="FUKIAI-LICENSE.txt" data-t="iconsCredit"></a></footer>
+
 </main>
 </div>
 <script>
@@ -6154,6 +6666,7 @@ const TEXT = {
   rollRemove: "Remove", rollVelTip: "Velocity of the step's notes (1..127)", rollAccTip: "Accent on this step", rollSlideTip: "Slide into the next step",
   rollLen: "Length (steps)", rollStep: "Step",
   notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
+  aboutBtn: "about", aboutTitle: "About Optimist",
   foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
   nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
   denied: "MIDI (SysEx) access was not allowed. Allow MIDI for this page (the icon in the address bar), then press Connect.",
@@ -6478,6 +6991,14 @@ function popTitle(id, track, lane = 0) {
   }
 }
 $("songbtn").addEventListener("click", () => openPop("song", 0));
+$("aboutbtn").addEventListener("click", () => { $("about").showModal(); $("aboutx").focus(); });   /* (a native modal dialog: Escape closes it, the focus stays inside it) */
+$("aboutx").addEventListener("click", () => $("about").close());
+{   /* the sticky transport bar sits under the menu bar, whatever height it wraps to */
+  const mbh = () => document.documentElement.style.setProperty("--menubar-h", `${$("side").offsetHeight}px`);
+  mbh();
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(mbh).observe($("side")); else window.addEventListener("resize", mbh);
+}
+$("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $("about").close(); });
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
@@ -6737,6 +7258,7 @@ async function load(d) {
     /* the first frame after opening the port can be lost: a few tries */
     d.info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: 500, retries: 3 }));
     $("version").textContent = d.info.version;
+    $("aboutver").textContent = d.info.version;
     const total = d.info.pcount + d.info.gcount;
     for (let i = 0; i < d.info.pcount; i++) { sayK("reading", `${i + 1}/${total}`); d.pdesc[i] = await getDescOrNull(0, i); }
     for (let i = 0; i < d.info.gcount; i++) { sayK("reading", `${d.info.pcount + i + 1}/${total}`); d.gdesc[i] = await getDescOrNull(1, i); }
