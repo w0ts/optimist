@@ -605,9 +605,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     else if (m.kind == MI_MINST) {                      /* MASTER's slot TYPE: as a track's */
         if (s != OP_RESET)
             mst_load(m.id, mst_list[(uint32_t)param_step(d, *vp, s) % MST_NLIST]);
-    } else if (m.kind == MI_INST) {                       /* a slot's TYPE: the other slot's swaps them (no reset) */
+    } else if (m.kind == MI_INST) {                       /* a slot's TYPE: skips the other slot's type and the unavailable (no reset) */
         if (s != OP_RESET)
-            ins_load(mx_trk_of(r), m.id, ins_list[(uint32_t)param_step(d, *vp, s) % INS_NLIST]);
+            ins_load(mx_trk_of(r), m.id,
+                     ins_list[(uint32_t)ins_skip(mx_trk_of(r), m.id, *vp, param_step(d, *vp, s)) % INS_NLIST]);
     } else if (m.kind == MI_LANE && (m.id == 21u || m.id == 22u)) {   /* a lane slot's TYPE: no reset (as a track's) */
         if (s != OP_RESET)
             mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
