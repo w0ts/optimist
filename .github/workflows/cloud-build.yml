@@ -1,0 +1,228 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Cloud builds (docs/CLOUD-BUILD.md): the web builder's "Build in the cloud" opens an issue from the cloud-build form
+# (.github/ISSUE_TEMPLATE/cloud-build.yml) with a commit and a .config. This reads it (tools/cloud_build.py, from the
+# default branch: the issue body is untrusted text and never reaches a shell line), checks it with that commit's own
+# builder (`optimist.py cloud-key --strict`), builds it unless the same cloud key was built before, attaches the
+# package to the "cloud-builds" pre-release (<stem>.fwsc + <stem>-ui.zip, named by the key) and answers in the issue.
+#
+# Only a commit on a branch of this repository is built (maintainers push those), with the toolchain downloaded on
+# the runner as in build.yml. The token is given only to the steps that call gh, never to code of the requested
+# commit; the build job is read-only and only restores the toolchain cache (never saves it: release.yml and pages.yml
+# share that key). Actions are pinned to commit SHAs. One author: at most MAX_PER_DAY requests in 24 hours.
+name: cloud-build
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions: {}
+
+concurrency:
+  group: cloud-build-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  GH_REPO: ${{ github.repository }}
+  ISSUE: ${{ github.event.issue.number }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  REPO: ${{ github.repository }}
+  MAX_PER_DAY: "5"
+
+jobs:
+  request:
+    # (the form's label, or its first heading: the label can reach the issue after the "opened" event)
+    if: contains(github.event.issue.labels.*.name, 'cloud-build') || startsWith(github.event.issue.body, '### Commit')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      commit: ${{ steps.request.outputs.commit }}
+      key: ${{ steps.verdict.outputs.key }}
+      stem: ${{ steps.verdict.outputs.stem }}
+      name: ${{ steps.verdict.outputs.name }}
+      cached: ${{ steps.cache.outputs.cached }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0                       # every branch, to check the requested commit is on one
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Not too many requests from one author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          n="$(gh api -X GET search/issues -f q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since" --jq .total_count)"
+          if [ "$n" -gt "$MAX_PER_DAY" ]; then
+            mkdir -p work
+            printf 'You have sent %s cloud builds in the last 24 hours; the limit is %s a day. Please send this one again tomorrow.\n' "$n" "$MAX_PER_DAY" > work/reply.md
+            exit 1
+          fi
+      - name: Read the request
+        id: request
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: python3 tools/cloud_build.py request --out work
+      - name: Check the configuration with that commit's builder
+        env:
+          COMMIT: ${{ steps.request.outputs.commit }}
+        run: |
+          git worktree add --detach work/src "$COMMIT"
+          python3 work/src/tools/optimist.py cloud-key work/request.config --commit "$COMMIT" --strict --json > work/eval.json 2> work/eval.err || true
+      - name: The verdict
+        id: verdict
+        run: python3 tools/cloud_build.py verdict work
+      - name: Built before?
+        id: cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STEM: ${{ steps.verdict.outputs.stem }}
+        run: |
+          if gh release view cloud-builds --json assets --jq '.assets[].name' 2>/dev/null | grep -qxF "$STEM.fwsc"; then
+            echo "cached=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cached=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: request
+          path: work/request.config
+          if-no-files-found: error
+      - name: Say it is building
+        if: steps.cache.outputs.cached == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.request.outputs.commit }}
+          KEY: ${{ steps.verdict.outputs.key }}
+          NAME: ${{ steps.verdict.outputs.name }}
+        run: |
+          python3 tools/cloud_build.py reply building work
+          gh issue comment "$ISSUE" --body-file work/reply.md
+      - name: Refused
+        if: failure() && hashFiles('work/reply.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "$ISSUE" --body-file work/reply.md
+          gh issue close "$ISSUE" --reason "not planned"
+      - name: Not read (a step of the workflow failed, not the request)
+        if: failure() && hashFiles('work/reply.md') == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/cloud_build.py reply error work
+          gh issue comment "$ISSUE" --body-file work/reply.md
+
+  build:
+    needs: request
+    if: needs.request.outputs.cached == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.request.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: request
+          path: work
+      - name: Restore the toolchain and the SDK files (never saved from here)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.jieli
+            sdk
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup (toolchain, SDK files, Python packages)
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Build and package
+        env:
+          STEM: ${{ needs.request.outputs.stem }}
+        run: |
+          python tools/optimist.py package --config work/request.config --out dist --summary dist/summary.json
+          mkdir out
+          mv dist/optimist-*-ui.zip "out/$STEM-ui.zip"
+          mv dist/optimist-*.fwsc "out/$STEM.fwsc"
+          cp dist/summary.json out/summary.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: firmware
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    needs: [request, build]
+    if: always() && needs.request.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      COMMIT: ${{ needs.request.outputs.commit }}
+      KEY: ${{ needs.request.outputs.key }}
+      STEM: ${{ needs.request.outputs.stem }}
+      CACHED: ${{ needs.request.outputs.cached }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.build.result == 'success'
+        with:
+          name: firmware
+          path: out
+      - name: Attach to the cloud-builds pre-release (a copy already there, from an identical request, is kept)
+        if: needs.build.result == 'success'
+        run: |
+          gh release view cloud-builds >/dev/null 2>&1 || gh release create cloud-builds --prerelease --latest=false --title "Cloud builds" --notes "Firmware built from the web builder's configurations (docs/CLOUD-BUILD.md). Each file is named by its configuration's cloud key; the issue that asked for it has the details." || gh release view cloud-builds >/dev/null
+          have="$(gh release view cloud-builds --json assets --jq '.assets[].name')"
+          for f in "out/$STEM.fwsc" "out/$STEM-ui.zip"; do
+            grep -qxF "$(basename "$f")" <<< "$have" || gh release upload cloud-builds "$f"
+          done
+      - name: The checksum of the published package
+        id: sum
+        run: |
+          gh release download cloud-builds --pattern "$STEM.fwsc" --dir check
+          echo "sha256=$(sha256sum "check/$STEM.fwsc" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Answer and close
+        env:
+          SUMMARY_FILE: out/summary.json
+          SHA256: ${{ steps.sum.outputs.sha256 }}
+        run: |
+          python3 tools/cloud_build.py reply "done" work
+          gh issue comment "$ISSUE" --body-file work/reply.md
+          gh issue close "$ISSUE" --reason completed
+
+  failed:
+    needs: [request, build, publish]
+    # (a failed or timed-out build, a failed upload or answer; not a run cancelled by a reopen)
+    if: ${{ !cancelled() && needs.request.result == 'success' && needs.publish.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Say it failed (the issue stays open)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/cloud_build.py reply failed work
+          gh issue comment "$ISSUE" --body-file work/reply.md

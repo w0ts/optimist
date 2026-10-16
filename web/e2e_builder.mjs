@@ -218,9 +218,20 @@ ok(!keyBad.length, `tools/optimist.py cloud-key --json on the page's .config: th
 const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.view && B.state.name.toLowerCase() === "${DFLT}".toLowerCase());
   const ev = B.state.view.eval;
   return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
-    note: $("#buildnote").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
-ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && ui.build && /Cloud builds are not live yet/.test(ui.note) && !ui.dl,
-  "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build disabled with its note, Download on");
+    note: $("#buildmsg").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
+ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /GitHub issue/.test(ui.note) && !ui.dl,
+  "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build in the cloud on with its note, Download on");
+/* Build in the cloud: a key built before is offered at once (the release API, stubbed), else the issue form opens */
+const cb = await run(`${U} const realFetch = window.fetch, opened = []; const realOpen = window.open; window.open = (u) => { opened.push(u); return {}; };
+  const ev = B.state.view.eval; let hit = false;
+  window.fetch = (u, o) => String(u).startsWith("https://api.github.com/") ? Promise.resolve(new Response(JSON.stringify({ assets: hit ? [{ name: "optimist-" + (B.state.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom") + "-" + ev.key.slice(0, 16) + ".fwsc", browser_download_url: "https://example.invalid/x.fwsc" }] : [] }), { status: 200 })) : realFetch(u, o);
+  $("#build").click(); await until(() => opened.length === 1);
+  const issue = new URL(opened[0]);
+  hit = true; $("#build").click(); await until(() => $("#buildmsg").querySelector("a[href='https://example.invalid/x.fwsc']"));
+  window.fetch = realFetch; window.open = realOpen;
+  return { path: issue.pathname, template: issue.searchParams.get("template"), commit: issue.searchParams.get("commit"), config: issue.searchParams.get("config"), dump: B.state.view.dump, opened: opened.length };`);
+ok(cb.path.endsWith("/issues/new") && cb.template === "cloud-build.yml" && cb.commit === SHA && cb.config === cb.dump && cb.opened === 1,
+  "Build in the cloud: the issue form with the commit and the .config; a key built before gives its download instead");
 const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
   await until(() => B.state.values.ENG_FM6 === (was ? 0 : 1) && B.state.view.eval.config.ENG_FM6 === (was ? 0 : 1));
   const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;

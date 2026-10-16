@@ -126,6 +126,24 @@ export const firmwareName = (name) => String(name || "").replace(/[^A-Za-z0-9 +.
 /** a commit the cloud key can take (core.cloud_key: a full lower-case hex SHA), else null */
 export const commitOf = (info) => (info && typeof info.commit === "string" && /^([0-9a-f]{40}|[0-9a-f]{64})$/.test(info.commit) ? info.commit : null);
 
+/** the GitHub repository cloud builds are asked of (build-info.json "repo", which the site's workflow writes) */
+export const DEFAULT_REPO = "w0ts/optimist";
+export const repoOf = (info) => (info && typeof info.repo === "string" && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(info.repo) ? info.repo : DEFAULT_REPO);
+
+/** a cloud build's release assets: <stem>.fwsc and <stem>-ui.zip (tools/cloud_build.py asset_stem says the same) */
+export const CLOUD_RELEASE = "cloud-builds";
+export function assetStem(name, key) {
+  const s = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "");
+  return `optimist-${s || "custom"}-${key.slice(0, 16)}`;
+}
+
+/** the new-issue URL of the cloud-build form (.github/ISSUE_TEMPLATE/cloud-build.yml) filled with the commit (empty:
+    the latest) and the .config text */
+export function cloudIssueUrl(repo, commit, text, name) {
+  const q = new URLSearchParams({ template: "cloud-build.yml", title: `Cloud build: ${firmwareName(name) || "custom"}`, commit: commit || "", config: text });
+  return `https://github.com/${repo}/issues/new?${q}`;
+}
+
 /** the presets: the flavours first (each its profile), then every shipped profile */
 export function presets(prof) {
   const byName = Object.fromEntries((prof.profiles || []).map((p) => [p.name, p]));

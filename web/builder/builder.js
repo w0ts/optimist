@@ -6,7 +6,7 @@
 // messages and the details are the menu's (tools/builder/menu.py); every rule runs in Python (py-worker.js ->
 // tools/builder/web_api.py). docs/BUILDER-WEB.md.
 import {
-  PYODIDE_VERSION, REGIONS, SORTS, barModel, fmtK, built, commitOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  CLOUD_RELEASE, PYODIDE_VERSION, REGIONS, SORTS, assetStem, barModel, fmtK, built, cloudIssueUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, treeOf,
 } from "./logic.js";
 
@@ -49,12 +49,13 @@ const TEMPLATE = `
         <div class="o-panel-b">
           <div class="row2">
             <button type="button" id="download" class="primary" disabled>Download .config</button>
-            <button type="button" id="build" disabled aria-describedby="buildnote">Build in the cloud</button>
+            <button type="button" id="build" disabled aria-describedby="buildmsg">Build in the cloud</button>
           </div>
           <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key">-</code></p>
           <p class="o-small o-dim" id="keynote"></p>
+          <p class="o-small" id="buildmsg" role="status"></p>
           <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
-            <p id="buildnote" class="o-small o-dim">Cloud builds are not live yet. Build it yourself from a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
+            <p id="buildnote" class="o-small o-dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
           </details>
           <details class="o-details" id="import">
             <summary>Load a .config file (or paste one)</summary>
@@ -134,7 +135,7 @@ const saveFolds = () => { try { localStorage.setItem(FOLDS, JSON.stringify([...S
 
 const S = {
   reg: null, prof: null, presets: [], values: {}, name: "", room: null, sel: null, filter: "", sortBy: null,
-  stages: [], collapsed: loadFolds(), proposals: null, rejected: new Set(), preview: null, fitOpen: false, pseq: 0, view: null, info: {}, commit: null, ready: false, seq: 0, shown: 0, fit: null,
+  stages: [], collapsed: loadFolds(), proposals: null, rejected: new Set(), preview: null, fitOpen: false, pseq: 0, view: null, info: {}, commit: null, repo: null, building: false, ready: false, seq: 0, shown: 0, fit: null,
 };
 
 /* ---- Python (the worker) */
@@ -448,6 +449,10 @@ function renderResult() {
   $("canon").textContent = ev.canonical || "";
   $("dump").textContent = S.view.dump;
   $("download").disabled = !S.ready;
+  const cloud = buildState(ev);
+  $("build").disabled = !cloud.ok;
+  $("build").title = cloud.why;
+  if (!S.building) $("buildmsg").textContent = cloud.ok ? "Build in the cloud opens a GitHub issue with this configuration (a GitHub account is needed); a workflow builds it and answers there with the download link." : cloud.why;
   $("download").title = ev.errors.length ? "This configuration has errors: a build refuses it (download it anyway to fix it in the menu)" : "";
 }
 
@@ -457,6 +462,49 @@ async function copyKey() {
   if (!key) return;
   try { await navigator.clipboard.writeText(key); toast(`Copied the ${ev.key ? "cloud key" : "configuration hash"}`, "ok"); }
   catch (e) { toast(`${ev.key ? "Cloud key" : "Configuration hash"}: ${key}`); }   // (no clipboard here: shown instead)
+}
+
+/* ---- cloud builds (docs/CLOUD-BUILD.md): a build of the same key already made is offered at once, else the issue form */
+function buildState(ev) {
+  if (!S.ready) return { ok: false, why: "" };
+  if (ev.errors.length) return { ok: false, why: "This configuration has errors: fix them before a cloud build." };
+  return { ok: true, why: "" };
+}
+
+/** the release asset of this key, when it was built before (the public API: no login, 60 calls an hour) -> URL or null */
+async function builtBefore(stem) {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${S.repo}/releases/tags/${CLOUD_RELEASE}`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const a = ((await r.json()).assets || []).find((x) => x.name === `${stem}.fwsc`);
+    return a ? a.browser_download_url : null;
+  } catch (e) { return null; }   // (offline, rate-limited: ask for a build instead)
+}
+
+async function cloudBuild() {
+  const ev = S.view && S.view.eval;
+  if (!ev || !buildState(ev).ok) return;
+  S.building = true;
+  $("build").disabled = true;
+  const msg = $("buildmsg");
+  try {
+    if (ev.key) {
+      msg.textContent = "Looking for a build of this configuration…";
+      const url = await builtBefore(assetStem(S.name, ev.key));
+      if (url) {
+        msg.replaceChildren("Built before: ", el("a", { href: url, text: url.split("/").pop() }), " (install it with the installer: A .fwsc of yours).");
+        return;
+      }
+    }
+    const issue = cloudIssueUrl(S.repo, S.commit, S.view.dump, S.name);
+    const w = window.open(issue, "_blank");   // (not "noopener": with it the call returns null, opened or blocked alike)
+    if (w) w.opener = null;
+    msg.replaceChildren(w ? "Opened the request on GitHub: press Submit new issue there; the answer comes in that issue in a few minutes. " : "Open the request on GitHub: ",
+      el("a", { href: issue, target: "_blank", rel: "noopener", text: w ? "(the link again)" : "the request" }));
+  } finally {
+    S.building = false;
+    $("build").disabled = !buildState(ev).ok;
+  }
 }
 
 function download() {
@@ -565,6 +613,7 @@ function wire() {
   $("expand").addEventListener("click", () => { S.collapsed.clear(); saveFolds(); renderTree(); });
   $("collapse").addEventListener("click", () => { for (const it of S.reg.items) if (it.children.length) S.collapsed.add(it.key); saveFolds(); renderTree(); });
   $("download").addEventListener("click", download);
+  $("build").addEventListener("click", cloudBuild);
   $("reset").addEventListener("click", () => choosePreset(S.default.id));
   $("propsclose").addEventListener("click", () => { S.fitOpen = false; S.preview = null; renderProposals(); renderBars(); });
   $("keychip").addEventListener("click", copyKey);
@@ -604,6 +653,7 @@ async function start() {
   S.reg = indexRegistry(desc);
   S.prof = prof;
   S.commit = commitOf(info);
+  S.repo = repoOf(info);
   S.presets = presets(prof);
   S.values = defaults(S.reg);
   const sel = $("bpreset");

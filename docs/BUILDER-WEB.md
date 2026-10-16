@@ -59,8 +59,10 @@ of that code.
 - **The configuration hash, the canonical form and the cloud key:** the key is `core.cloud_key`. It needs the full
   commit, which `web/make_site.py` writes to `build-info.json`. A site built from a modified tree has no commit, and the
   page then says the key will be computed at build time.
-- **Build in the cloud:** this button is disabled for now ("Cloud builds are not live yet"). The cloud-build workflow
-  is a later step.
+- **Build in the cloud:** offers the download of a build of the same cloud key made before, else opens the
+  cloud-build issue form filled in with the site's commit and the `.config`; a workflow builds it and answers in the issue
+  (docs/CLOUD-BUILD.md). It is off while the configuration has errors. `build-info.json`'s `repo` names the repository
+  (the site's workflow writes it; default `w0ts/optimist`).
 
 The page needs no storage. It keeps the last configuration in `localStorage` when it can, offered as a preset, and works without it.
 Light and dark follow the system. It works on a phone (16 px gutters, no sideways scroll). Its look is the shared web
@@ -140,6 +142,5 @@ fails while the data is stale. `make_site.py` exports fresh data into the site e
 
 ## Not yet
 
-- Cloud builds (the issue-form workflow and the build cache: optimist-work `cloudbuild/DESIGN.md`).
 - The menu's own actions: build, flash, the emulator, saving and publishing profiles.
 - Exact sizes: there is no real build in a browser, so the page always shows the estimate.

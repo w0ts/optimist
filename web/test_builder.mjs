@@ -129,6 +129,12 @@ ok(ps[0].kind === "flavour" && ps.filter((p) => p.kind === "profile").length ===
     && L.defaultPreset(prof).kind === "flavour", "default preset: the flavour marked default, else the first flavour, else the first profile");
 }
 ok(L.fileName("user default") === "user-default.config" && L.fileName("../x") === "x.config" && L.fileName("") === "optimist.config" && L.firmwareName("a<b>c d+e.f_g-h12345678") === "abc d+e.f_g-h123", "names: the file's, the firmware's (16 characters)");
+ok(L.repoOf({ repo: "me/optimist" }) === "me/optimist" && L.repoOf({ repo: "x/y?z" }) === L.DEFAULT_REPO && L.repoOf(null) === L.DEFAULT_REPO
+  && new URL(L.cloudIssueUrl("me/o", SHA, "A=1\n", "p<a>d")).searchParams.get("config") === "A=1\n"
+  && new URL(L.cloudIssueUrl("me/o", null, "", "pad")).searchParams.get("commit") === ""
+  && new URL(L.cloudIssueUrl("me/o", SHA, "", "p<a>d")).searchParams.get("title") === "Cloud build: pad"
+  && L.cloudIssueUrl("me/o", SHA, "", "").startsWith("https://github.com/me/o/issues/new?template=cloud-build.yml&"),
+  "cloud build: the repository from build-info, the issue form's URL (commit, configuration, title)");
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN
   && /^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v\d+\.\d+\.\d+\/full\/$/.test(L.PYODIDE_CDN), "Pyodide: the pinned CDN version; a test may only point at this site");
@@ -165,8 +171,8 @@ ok(m2.errors.length === 2 && m2.errors.filter((e) => e.kind === "over").length =
 ok(L.hasInfo(reg1.byKey.A) && !L.hasInfo(reg1.byKey.B) && L.hasInfo({ notice: "n" }) && L.hasInfo({ provenance_line: "p" }), "notices: an (i) on the items with notes");
 const shell = readFileSync(join(HERE, "builder", "index.html"), "utf8"), mod = readFileSync(join(HERE, "builder", "builder.js"), "utf8"), bcss = readFileSync(join(HERE, "builder", "builder.css"), "utf8");
 const page = shell + mod;
-ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/") && /Cloud builds are not live yet/.test(page) && /id="gauges"/.test(page) && /mountBuilder/.test(shell + readFileSync(join(HERE, "builder", "ui.js"), "utf8"))
-  && /\.ob-root #bside \{ position: sticky/.test(bcss) && !/localStorage/.test(shell), "page: the shared header and style, the sticky card column, the build note");
+ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/") && /id="build"/.test(page) && /cloudIssueUrl\(S\.repo, S\.commit, S\.view\.dump, S\.name\)/.test(page) && !/not live yet/.test(page) && /id="gauges"/.test(page) && /mountBuilder/.test(shell + readFileSync(join(HERE, "builder", "ui.js"), "utf8"))
+  && /\.ob-root #bside \{ position: sticky/.test(bcss) && !/localStorage/.test(shell), "page: the shared header and style, the sticky card column, Build in the cloud (the issue form)");
 ok(/export function mountBuilder\(container, opts = \{\}\)/.test(mod) && /activate\(\)/.test(mod) && /deactivate\(\)/.test(mod) && /destroy\(\)/.test(mod)
   && !/document\.getElementById|document\.body|document\.querySelector\(/.test(mod) && !/^\s*(body|html|:root)\b/m.test(bcss) && bcss.split("\n").filter((l) => /\{/.test(l) && !/^\s*(\/\*|@media|\})/.test(l) && !/^\s*\.ob-root/.test(l)).length === 0,
   "module: mountBuilder(container, opts) with activate / deactivate / destroy; no document-level lookup or body write; every CSS rule under .ob-root");

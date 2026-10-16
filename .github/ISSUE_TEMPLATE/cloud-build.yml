@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# A cloud build request: the web builder's "Build in the cloud" button opens this form filled in (docs/CLOUD-BUILD.md).
+# .github/workflows/cloud-build.yml builds it and answers in the issue. The field ids (commit, config) are the
+# query parameters the builder fills; their labels are the headings tools/cloud_build.py reads.
+name: Cloud build
+description: Build a firmware from a web builder configuration (the builder fills this in)
+title: "Cloud build"
+labels: ["cloud-build"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Send this as it is: a workflow builds the firmware and answers here with the download links (a few minutes;
+        a configuration built before answers at once). Edits to the issue after it is sent are not read.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: The source to build (a full commit SHA of this repository). Empty = the latest.
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: The builder configuration (.config, KEY=value lines).
+      render: text
+    validations:
+      required: true

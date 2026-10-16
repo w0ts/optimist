@@ -139,7 +139,7 @@ t_ble_emu() { python3 tests/ble_emu_test.py; }
 t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
 t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; return $r; }
-t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; return $r; }
+t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; return $r; }
 early t_ble_emu
 early t_ble_central
 command -v node >/dev/null 2>&1 && early t_web

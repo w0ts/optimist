@@ -163,7 +163,8 @@ def builder_site(out, dst=None):
     import export_builder_web
     export_builder_web.write(dst / "data")
     commit = site_commit()
-    (dst / "build-info.json").write_text(json.dumps({"commit": commit} if commit else {}) + "\n", encoding="utf-8")
+    info = dict({"commit": commit} if commit else {}, repo=os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist")
+    (dst / "build-info.json").write_text(json.dumps(info) + "\n", encoding="utf-8")
     return dst
 
 
