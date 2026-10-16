@@ -494,6 +494,7 @@ static int32_t held_note(void)                          /* the note being edited
     s = &TSEL->step[i];
     return step_on(s) ? s->note[s->n > 1u ? (st.nsel < s->n ? st.nsel : s->n - 1u) : 0u] : -1;
 }
+static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s);   /* op_stepdraw.c: FOLD's next row */
 static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
 {
     step_t *x = &t->step[idx];
@@ -501,7 +502,7 @@ static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
     if (!step_on(x))
         return;
     k = x->n > 1u ? (st.nsel < x->n ? st.nsel : x->n - 1u) : 0u;
-    x->note[k] = (uint8_t)clamp((int32_t)x->note[k] + s, 0, 127);
+    x->note[k] = (uint8_t)clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
 }
 static void held_pitch(int32_t s)                       /* ALGORITHM on a held synth step: the selected note (the only one) up / down */
 {

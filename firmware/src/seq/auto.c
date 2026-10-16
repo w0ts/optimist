@@ -410,6 +410,60 @@ static void auto_only_clear(track_t *t)
     (void)auto_drop_kind(AL(t), AUTO_ONLYS);
     auto_touch(trk_index(t));
 }
+/* does auto_clear_where(sid, lane) take event e? The step-only GATE locks never: they are the recorded notes' lengths
+ * (seq.c rec_gate_set) */
+static int auto_clear_hit(const auto_ev_t *e, int32_t sid, int32_t lane)
+{
+    uint32_t p = e->param;
+    if ((e->place & AUTO_ONLY) && p == mot_sid(P_SGATE))
+        return 0;
+    if (sid >= 0)
+        return p == (uint32_t)sid;
+    if (lane >= 0)
+        return (AUTO_IS_LANE(p) && AUTO_LANE_L(p) == (uint32_t)lane) || (lane == (int32_t)DRUM_ACC && p == mot_sid(P_DACC));
+    return 1;
+}
+/* how many events of track t auto_clear_where would take (the main loop) */
+static uint32_t auto_count_where(const track_t *t, int32_t sid, int32_t lane)
+{
+    const auto_list_t *l = AL(t);
+    uint32_t i, k = 0;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++)
+        k += (uint32_t)auto_clear_hit(&l->ev[i], sid, lane);
+    return k;
+}
+/* track t's motion and locks cleared, the notes kept (the Optimist UI's SHIFT + SEQ, SHIFT + SHIFT2 + a knob): every
+ * event (sid < 0, lane < 0: the nudges, fills, chances and conditions too), one parameter's (sid: a stored id,
+ * mot_sid, or AUTO_LANE(l, v)) or one drum lane's (lane: its values', with DRUM_ACC the ACCENT amount's too), the
+ * recorded notes' lengths always kept (auto_clear_hit). What the motion set goes back to the patch (motion_restore;
+ * the events left set theirs again at their steps). Callers hold the IRQ off. -> how many went */
+static uint32_t auto_clear_where(track_t *t, int32_t sid, int32_t lane)
+{
+    auto_list_t *l = AL(t);
+    uint32_t i, n = 0, k = 0, holds = 0;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++) {
+        const auto_ev_t *e = &l->ev[i];
+        if (auto_clear_hit(e, sid, lane)) {
+            k++;
+            continue;
+        }
+        holds += !(e->place & AUTO_ONLY);
+        l->ev[n++] = *e;
+    }
+    l->n = (uint8_t)n;
+    if (k) {
+#if FELUCCA_MOTION || FELUCCA_PLOCK
+        motion_restore(t);
+#endif
+#if FELUCCA_MOTION
+        if (!holds)
+            auto_w.on &= (uint8_t)~(1u << trk_index(t));
+#endif
+        auto_touch(trk_index(t));
+    }
+    (void)holds;
+    return k;
+}
 /* the event of (step idx, our id) changes kind (the Optimist UI's YES with a step held and a cell hot): a step-only
  * event becomes a hold event (FELUCCA_MOTION, a recordable value; its PLAY bit on), a hold event a step-only one
  * (FELUCCA_PLOCK, a lockable value); one of each there: the step-only one goes, the hold one takes its value. -> 1

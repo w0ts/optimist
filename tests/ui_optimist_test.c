@@ -1743,10 +1743,59 @@ static void combo_tests(void)
 #if FELUCCA_MICRO
     step_micro_set(&trk[0], 5, 7);
 #endif
+#if FELUCCA_PLOCK
+    fm1_irq_off();
+    (void)lock_set(&trk[0], 3, P_SGATE, 100);           /* (a recorded note's length: seq.c rec_gate_set) */
+    (void)lock_set(&trk[0], 4, P_ATK, 50);
+    fm1_irq_on();
+#endif
     tap(B_SAVE);
-    check(!op_armed() && !strcmp(ui.msg, "T1 EXTRAS CLEARED"), "... YES: cleared, the notes stay");
+    check(!op_armed() && !strcmp(ui.msg, "T1 LOCKS CLEARED"), "... YES: cleared, the notes stay");
 #if FELUCCA_MICRO
     check(step_micro(&trk[0], 5) == 0, "... the nudge gone");
+#endif
+#if FELUCCA_PLOCK
+    {
+        int32_t g;
+        check(lock_get(&trk[0], 3, P_SGATE, &g) && g == 100 && !lock_get(&trk[0], 4, P_ATK, &g),
+              "... the locks gone, the recorded note length (its GATE lock) kept");
+    }
+    {                                                   /* SHIFT + SHIFT2 + a knob: one parameter's, the whole track */
+        cell_t c;
+        int32_t g;
+        fm1_irq_off();
+        (void)lock_set(&trk[0], 2, P_ATK, 40);
+        (void)lock_set(&trk[0], 6, P_ATK, 41);
+        (void)lock_set(&trk[0], 6, P_DEC, 42);
+        fm1_irq_on();
+        cell_param(&c, &TP[P_ATK], &trk[0].p[P_ATK]);
+        ui.scr = SCR_SOUND;
+        kac_done = 0;
+        check(knob_auto_clear(0, 0, &c) && !lock_get(&trk[0], 2, P_ATK, &g) && !lock_get(&trk[0], 6, P_ATK, &g) &&
+              lock_get(&trk[0], 6, P_DEC, &g) && lock_get(&trk[0], 3, P_SGATE, &g) && strstr(ui.msg, "CLEARED"),
+              "SHIFT + SHIFT2 + a knob: that parameter's locks on every step go, the others and the note lengths stay");
+        check(knob_auto_clear(0, 0, &c) && lock_get(&trk[0], 6, P_DEC, &g), "... once a knob a hold");
+        kac_done = 0;
+        check(knob_auto_clear(0, 0, &c) && strstr(ui.msg, "NO LOCKS"), "... none left: said so, nothing changes");
+        kac_done = 0;
+        ui.scr = SCR_HOME;
+    }
+#if DLA_ON
+    {                                                   /* SHIFT + SEQ with a drum lane picked: that lane's only */
+        int32_t x;
+        fm1_irq_off();
+        (void)auto_put(AL(TDRUM), 4u | AUTO_ONLY, AUTO_LANE(2, 1), 10);
+        (void)auto_put(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), 11);
+        fm1_irq_on();
+        xtr_lane = 2;
+        op_act_more(OA_EXTRAS, TRK_DRUM);
+        check(!auto_get(AL(TDRUM), 4u | AUTO_ONLY, AUTO_LANE(2, 1), &x) && auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x) &&
+              !strcmp(ui.msg, "SNARE LOCKS CLEARED"), "SHIFT + SEQ, a lane picked: its locks go, the other lanes' stay");
+        xtr_lane = -1;
+        op_act_more(OA_EXTRAS, TRK_DRUM);
+        check(!auto_get(AL(TDRUM), 5u | AUTO_ONLY, AUTO_LANE(3, 1), &x), "... no lane picked: the whole drum track's");
+    }
+#endif
 #endif
     trk[0].p[P_ATK] = (int16_t)(trk[0].p[P_ATK] + 1);   /* (an edit: INIT asks over edits only, op_edits.c) */
     hold2(B_OCTDN, B_ENV);
@@ -1758,6 +1807,58 @@ static void combo_tests(void)
     hold2(B_OCTDN, B_OCTUP);
     check(song.octave == 2 && !master_sel() && ui.scr == SCR_HOME, "both OCT again: back on the track, no NO");
     song.octave = 0;
+    {                                                   /* FOLD: both OCT tapped on a synth track's STEP */
+        track_t *ft = &trk[0];
+        int32_t n, gaps = 0;
+        int16_t root0 = trk[0].p[P_ROOT];
+        uint32_t i;
+        song.sel = 0;
+        for (i = 0; i < NSTEP; i++)
+            ft->step[i].time = ST_REST, ft->step[i].n = 0;
+        ft->step[0].time = ST_NOTE, ft->step[0].n = 1, ft->step[0].note[0] = 60;
+        ft->step[5].time = ST_NOTE, ft->step[5].n = 1, ft->step[5].note[0] = 67;
+        trk[0].p[P_SCALE] = 0;
+        op_enter(SCR_STEP);
+        frame();
+        hold2(B_OCTDN, B_OCTUP);
+        check(roll_fold && ui.scr == SCR_STEP && !master_sel() && !strcmp(ui.msg, "FOLD: NOTES"),
+              "both OCT tapped on STEP (a synth track): FOLD on, no MASTER");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-fold");
+        roll_range(ft);
+        for (n = 61; n < 67; n++)
+            gaps += RV(n);
+        check(RV(60) && RV(67) && !gaps, "... the roll: the pattern's notes' rows only (C4, G4; not the pick's)");
+        st.nsel = 0;
+        held_pitch_one(ft, 0, 1);
+        check(ft->step[0].note[0] == 67, "... ALGORITHM on a held note, folded: the next row up (C4 to G4, not C#4)");
+        held_pitch_one(ft, 0, 1);
+        check(ft->step[0].note[0] == 68, "... past the top row: one semitone");
+        held_pitch_one(ft, 0, -2);
+        check(ft->step[0].note[0] == 66, "... two detents down: G4's row, then a semitone (C4's row went with the only C4)");
+        ft->step[0].note[0] = 60;
+        trk[0].p[P_SCALE] = 1, trk[0].p[P_ROOT] = 0;      /* (MAJ, root C) */
+        ui.force = 1;
+        frame();
+        ppm("opt-step-fold-scale");
+        roll_range(ft);
+        check(RV(62) && RV(64) && RV(65) && !RV(61) && !RV(63),
+              "... a scale set: the scale's rows over the pattern's span");
+        trk[0].p[P_SCALE] = 0, trk[0].p[P_ROOT] = root0;
+        press(B_OCTDN);
+        press(B_OCTUP);
+        frames(FOLD_TAP_MS / 16u + 2u);
+        release(B_OCTUP);
+        release(B_OCTDN);
+        check(roll_fold && !master_sel() && ui.scr == SCR_STEP, "... held too long: no toggle (and no MASTER on STEP)");
+        hold2(B_OCTDN, B_OCTUP);
+        roll_range(ft);
+        check(!roll_fold && !strcmp(ui.msg, "FOLD OFF") && RV(61) && RV(66), "... tapped again: FOLD off, every row");
+        ft->step[0].time = ft->step[5].time = ST_REST;
+        op_enter(SCR_HOME);
+        frame();
+    }
     tap(B_PLAY);
     frames(2);
     hold2(B_OCTDN, B_PLAY);

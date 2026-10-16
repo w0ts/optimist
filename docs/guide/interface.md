@@ -28,7 +28,7 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 - **SHIFT + PRESETS:** changes the instrument (an engine on a synth track, the next or previous kind on a lane that is not on a kit). On STEP it makes the window follow the playhead again.
 - **SHIFT + a key on the mixer:** toggles the sequencer mute of what the key names: the 16 white keys the 16 drum lanes, the black keys F#, G#, A#, C# the tracks T1, T2, T3, DR, the last upper key the ACCENT lane. A sequencer-muted track or lane plays no steps; keys you play yourself still sound.
 - **SHIFT + a step (STEP):** clears that step's p-locks. The notes, nudge, fill, chance and recorded motion stay.
-- **SHIFT + SEQ:** asks to clear the selected track's locks, nudges, fills and motion ("Clear T1 locks?").
+- **SHIFT + SEQ:** asks to clear the selected track's motion and p-locks, with its nudges, fills and chance ("Clear T1 locks?"); with a drum lane picked, only that lane's motion and locks ("Clear SNARE locks?"). The notes, their levels and their recorded lengths stay.
 - **SHIFT + ENV:** INIT of the selected synth track's sound (asked when it has edits). On an FM6 track ENV is a layer button and the next rule applies.
 - **SHIFT + a layer button** (FX, EDIT, ARP, SCL, GLO, LFO): locks that layer open; any other button lets it go. The layer's own button held, then SHIFT, does the same, except for FX and EDIT (and ENV on FM6), whose OCT- and OCT+ keep their own jobs.
 - **SHIFT + PLAY:** stop, every voice off (ALL SOUND OFF).
@@ -37,6 +37,7 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 ### SHIFT2 is OCT+ held
 
 - **SHIFT2 + the volume knob on the mixer** (a track's VOLUME, the drum track's VOLUME, a lane's LEVEL, the ACCENT amount, the USB IN row's VOLUME): toggles that row's mute, once for each hold. There is no MUTE card. Turning a muted row's volume card unmutes it.
+- **SHIFT + SHIFT2 (OCT- and OCT+ both held) + a knob:** clears that parameter's motion and p-locks on every step of the track (a drum lane's value: that lane's); the value itself, the notes and their lengths stay. One undo level; the toast names it ("ATTACK CLEARED", or "ATTACK: NO LOCKS"). Not on the mixer's volume cards (solo, next line), and with a step held SHIFT + the knob clears that step's only.
 - **SHIFT + SHIFT2 (OCT- and OCT+ both held) + the volume knob on the mixer** (a track, the drum track, a lane, USB IN; not the ACCENT lane, the returns or MASTER): toggles that row's **solo**, once for each hold. SHIFT + the knob alone resets the value, SHIFT2 + the knob alone mutes. The tracks also solo with GLO + keys 5-8.
 - **SHIFT2 + PRESETS:** marks the sound playing a **favorite** (turn right) or not (left). SHIFT2 + SELECT browses only the favorites (right) or every sound (left); the toast says FAVORITES ONLY or ALL SOUNDS. Synth tracks only; not on STEP, MASTER, GLOBAL or SYSTEM, and not while a question is asked. It needs the `FAVORITES` builder item.
 - **SHIFT2 + ITEM on PROJECT > USER:** marks that user preset slot a favorite.
@@ -44,7 +45,7 @@ SHIFT replaces the old HOME-held gestures. Everything below needs OCT- held firs
 ### OCT-, OCT+ and both OCT
 
 - **The octave.** OCT- or OCT+ tapped (let go with nothing else used meanwhile) changes the keyboard octave by one, between -3 and +3, with the toast "OCTAVE: n". It acts on release, so holding either is a SHIFT, not an octave change. On STEP the piano roll follows the octave. On the drum track a tap does nothing; OCT- is the lane pick's SHIFT, and OCT+ held makes a hard hit.
-- **both OCT** together, tapped and let go with nothing else used: the track and MASTER toggle (back to the track you came from). Not on NAME, under a question, in a layer, or on pages with no track (GLOBAL, SYSTEM, PROJECT, SONG).
+- **both OCT** together, tapped and let go with nothing else used: the track and MASTER toggle (back to the track you came from). Not on NAME, under a question, in a layer, or on pages with no track (GLOBAL, SYSTEM, PROJECT, SONG). On a synth track's STEP a quick tap (let go within 400 ms) toggles **FOLD** instead: the piano roll shows only the rows of the notes the pattern plays, or the scale's notes when a scale is set (toast FOLD: NOTES, FOLD: SCALE, FOLD OFF). Folded, ALGORITHM on a held note moves it to the next row shown, up or down (one semitone past the top or bottom row).
 - On PROJECT, a tap is the previous or next bank (below). On a held step, OCT- / OCT+ move the step's notes an octave (synth tracks). On the tempo page and GLOBAL's Tempo lines they nudge the clock. With EDIT held they are undo and redo.
 
 ### The LED rule

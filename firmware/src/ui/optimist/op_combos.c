@@ -62,6 +62,7 @@ static void op_panic(void)                              /* SHIFT + PLAY: stop, e
     fm1_irq_on();
     ui_message("ALL SOUND OFF");
 }
+static int8_t xtr_lane = -1;                            /* SHIFT + SEQ: the drum lane its question clears, -1 the track */
 /* the confirmed actions of this file (op_layers.c op_act) */
 static void op_act_more(uint32_t a, uint32_t k)
 {
@@ -80,14 +81,12 @@ static void op_act_more(uint32_t a, uint32_t k)
 #if FELUCCA_AUTO
     undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the automation comes back, seq/undo.c) */
     fm1_irq_off();
-    auto_only_clear(t);                                 /* (locks, nudges, fill conditions, chance) */
+    (void)auto_clear_where(t, -1, xtr_lane);            /* (motion and locks; the whole track: nudges, fills, chance too;
+                                                         * the notes, their levels and recorded lengths stay) */
     fm1_irq_on();
 #endif
-#if FELUCCA_MOTION
-    motion_clear(t);                                    /* (its recorded motion; the patch comes back) */
-#endif
     sync_reload = 1;
-    ui_say(trk_tag(k), " EXTRAS CLEARED");
+    ui_say(xtr_lane >= 0 ? lane_name((uint32_t)xtr_lane) : trk_tag(k), " LOCKS CLEARED");
     (void)t;
 }
 
@@ -131,11 +130,12 @@ static int shift_combo(uint32_t b)
         else if (!is_drum(TSEL))
             op_global_go(G_INITSND);
         return 1;
-    case B_SEQ: {
-        char a[10];
-        str_cpy(a, trk_tag(song.sel), sizeof a);
-        str_cpy(a + 2, " LOCKS", sizeof a - 2);
-        op_arm(ARM_OP, OA_EXTRAS, song.sel, "CLEAR", a, 1);   /* ("Clear T1 locks?") */
+    case B_SEQ: {                                       /* the track's motion and locks, or the picked drum lane's */
+        char a[18];
+        xtr_lane = is_drum(TSEL) && lane_picked() ? (int8_t)lane_selected() : -1;
+        str_cpy(a, xtr_lane >= 0 ? lane_name((uint32_t)xtr_lane) : trk_tag(song.sel), sizeof a);
+        str_cpy(a + str_len(a), " LOCKS", sizeof a - str_len(a));
+        op_arm(ARM_OP, OA_EXTRAS, song.sel, "CLEAR", a, 1);   /* ("Clear T1 locks?", "Clear SNARE locks?") */
         return 1;
     }
     case B_PLAY:

@@ -137,8 +137,52 @@ static int32_t sg_ph = -1;              /* the roll's playhead column as painted
 #define RR(x, y, w, h, c) cv_rect((x)-sg_ox, y, w, h, c)
 static int is_black(int32_t n) { return (0x54Au >> (n % 12)) & 1; }   /* C# D# F# G# A# */
 static struct {
-    int32_t lo, hi, rh;
+    int32_t lo, hi, rh, n;              /* the lowest and highest note shown, a row's height, the rows */
+    int8_t row[128];                    /* each note's row from the bottom, -1 not shown (folded away or out of view) */
 } rg;
+static uint8_t roll_fold;               /* FOLD (both OCT tapped on a synth track's STEP, op_input.c): only the rows of the
+                                         * pattern's notes, or the scale's when one is set (the user, 2026-10-16) */
+#define RV(nt) ((nt) >= 0 && (nt) <= 127 && rg.row[(nt) & 127] >= 0)   /* note nt has a row */
+#define FOLD_MAX 51                     /* (4 px a row at least, as the unfolded roll's 51 semitones) */
+static int roll_scale_has(int32_t n)    /* the song's scale (trk[0]'s, op_layers.c) holds note n */
+{
+    uint32_t root = (uint32_t)clamp(trk[0].p[P_ROOT], 0, 11);
+    return (SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)] >> (((uint32_t)n + 12u - root) % 12u)) & 1u;
+}
+/* FOLD's rows: every note the pattern plays (all its steps), with a scale set the scale's notes from the pattern's
+ * lowest to its highest (an octave at least) too, and the edited note; an empty pattern the pick's; at most FOLD_MAX,
+ * the lowest kept */
+static void roll_fold_rows(const track_t *t, int32_t a, int32_t b)
+{
+    uint32_t i, j, len = trk_len(t), on[4] = {0, 0, 0, 0};
+    int32_t n, k = 0, h = held_note();
+    for (i = 0; i < len && i < NSTEP; i++) {
+        const step_t *s = &SGS(t)[i];
+        for (j = 0; step_on(s) && j < s->n && j < 4u; j++)
+            on[s->note[j] >> 5] |= 1u << (s->note[j] & 31u);
+    }
+    for (n = a; trk[0].p[P_SCALE] && n <= b; n++)       /* (a scale set: its notes over the pattern's span) */
+        if (roll_scale_has(n))
+            on[n >> 5] |= 1u << (n & 31);
+    if (h >= 0)
+        on[h >> 5] |= 1u << (h & 31);
+    for (i = 0; !(on[0] | on[1] | on[2] | on[3]) && i < (pen_n ? (uint32_t)pen_n : 1u) && i < 4u; i++)
+        on[(pick_note(i) >> 5) & 3u] |= 1u << (pick_note(i) & 31u);   /* (an empty pattern: the pick's rows) */
+    for (n = 0; n < 128; n++)
+        rg.row[n] = -1;
+    rg.lo = -1;
+    for (n = 0; n < 128 && k < FOLD_MAX; n++)
+        if ((on[n >> 5] >> (n & 31)) & 1u) {
+            rg.row[n] = (int8_t)k++;
+            rg.lo = rg.lo < 0 ? n : rg.lo;
+            rg.hi = n;
+        }
+    rg.n = k ? k : 1;
+    rg.lo = rg.lo < 0 ? 0 : rg.lo;
+    rg.hi = k ? rg.hi : 0;
+    rg.rh = SG_H / rg.n;
+    rg.rh = rg.rh > 16 ? 16 : rg.rh;
+}
 /* the rows: the pattern's notes (every page alike), 13 semitones at least, the pick's around an empty one; the rows as
  * tall as fit (16 px at most), then as many more as the height holds, half above, half below */
 static void roll_range(const track_t *t)
@@ -154,6 +198,12 @@ static void roll_range(const track_t *t)
     }
     if (a > b)                                          /* (an empty pattern: around the pick) */
         a = b = (int32_t)pick_base();           /* (the view adds the octave below: the pick's own octave shift would count twice) */
+    if (roll_fold) {                                    /* FOLD: the pattern's (and the scale's) rows only, no OCT view */
+        for (b = b - a < 11 ? a + 11 : b; b > 127; a--, b--)
+            ;
+        roll_fold_rows(t, a < 0 ? 0 : a, b);
+        return;
+    }
     while (b - a < 12)
         a > 0 ? a-- : 0, b < 127 ? b++ : 0;
     if (b - a > 50)                                     /* (4 px a row at least: the lowest notes kept) */
@@ -179,8 +229,27 @@ static void roll_range(const track_t *t)
         rg.hi -= rg.lo - ex, rg.lo = ex;
     else if (ex > rg.hi)
         rg.lo += ex - rg.hi, rg.hi = ex;
+    rg.n = rg.hi - rg.lo + 1;
+    for (ex = 0; ex < 128; ex++)
+        rg.row[ex] = (int8_t)(ex >= rg.lo && ex <= rg.hi ? ex - rg.lo : -1);
 }
-#define NY(nt) (SG_TOP + sg_dy + (rg.hi - (nt)) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
+/* ALGORITHM on a held synth step (op_step.c held_pitch_one): note moved s detents. Folded, a detent is the next folded
+ * row up / down (the user, 2026-10-16), one semitone past the top or bottom row; unfolded, a semitone */
+static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s)
+{
+    int32_t d = s > 0 ? 1 : -1, n;
+    if (!roll_fold)
+        return note + s;
+    sg_prep(t);
+    roll_range(t);
+    for (; s; s -= d) {
+        for (n = note + d; n >= 0 && n <= 127 && !RV(n); n += d)
+            ;
+        note = n >= 0 && n <= 127 ? n : note + d;
+    }
+    return note;
+}
+#define NY(nt) (SG_TOP + sg_dy + (rg.n - 1 - rg.row[(nt) & 127]) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
 {
     uint32_t k, len = trk_len(t);
@@ -218,15 +287,19 @@ static void roll_names(uint64_t used)
     int32_t n, last = -100;
     if (rg.rh >= 11) {
         for (n = rg.lo; n <= rg.hi; n++)
-            roll_label(n, n % 12 == 0 ? C_HI : ((used >> (n - rg.lo)) & 1u) ? C_AMB : is_black(n) ? C_DIM : C_GRAY);
+            if (RV(n))
+                roll_label(n, n % 12 == 0 ? C_HI : ((used >> rg.row[n]) & 1u) ? C_AMB : is_black(n) ? C_DIM : C_GRAY);
         return;
     }
     for (n = rg.hi; n >= rg.lo; n--) {
-        int32_t y = NY(n), c = n % 12 == 0, near = 0, m;
-        if (!c && !((used >> (n - rg.lo)) & 1u))
+        int32_t y, c = n % 12 == 0, near = 0, m;
+        if (!RV(n))
+            continue;
+        y = NY(n);
+        if (!c && !((used >> rg.row[n]) & 1u))
             continue;
         for (m = n - 1; !c && m >= rg.lo && m > n - 12; m--)   /* (a C just under it keeps its place) */
-            near |= m % 12 == 0 && NY(m) - y < 11;
+            near |= RV(m) && m % 12 == 0 && NY(m) - y < 11;
         if (y - last < 11 || near)
             continue;
         roll_label(n, c ? C_HI : C_AMB);
@@ -235,17 +308,21 @@ static void roll_names(uint64_t used)
 }
 static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octaves, the beats; the gutter's keys */
 {
-    int32_t n, w, ye = SG_TOP + sg_dy + (rg.hi - rg.lo + 1) * rg.rh, xe;
+    int32_t n, w, ye = SG_TOP + sg_dy + rg.n * rg.rh, xe, below;
     uint32_t end = len > st.page * 16u ? len - st.page * 16u : 0u;
     (void)t;
     end = end > 16u ? 16u : end;
     xe = RL_X + (int32_t)end * RL_CW - 1;               /* (the gap right of the last step within LEN) */
-    for (n = rg.lo; n <= rg.hi; n++) {
-        int32_t y = NY(n);
+    for (n = rg.lo, below = -1; n <= rg.hi; n++) {
+        int32_t y;
+        if (!RV(n))
+            continue;
+        y = NY(n);
         if (is_black(n))
             RR(0, y, xe, rg.rh, col_shade(C_LINE, 2u));  /* (a tint, the gutter's name on it: the line colour at 2/8) */
-        if (n % 12 == 0)
-            RR(0, y + rg.rh - 1, xe, 1, C_LINE);           /* the octave: ruled under its C */
+        if (n % 12 == 0 || (below >= 0 && below / 12 != n / 12))
+            RR(0, y + rg.rh - 1, xe, 1, C_LINE);           /* the octave: ruled under its C (folded: under its lowest row) */
+        below = n;
     }
     for (w = 0; w < (int32_t)end; w++) {
         int32_t x = RL_X + w * RL_CW;
@@ -266,7 +343,7 @@ static void sg_roll(const track_t *t)
     roll_range(t);
     m = rg.rh >= 6 ? 1 : 0;
     h = rg.rh >= 6 ? rg.rh - 2 : rg.rh - 1;
-    ye = SG_TOP + sg_dy + (rg.hi - rg.lo + 1) * rg.rh;
+    ye = SG_TOP + sg_dy + rg.n * rg.rh;
     roll_ground(t, len);
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w, tie;
@@ -280,7 +357,7 @@ static void sg_roll(const track_t *t)
         if (sg_st && !step_on(s) && !tie && step_on(&t->step[idx % NSTEP])) {   /* (silenced by a generator: a dim stub) */
             const step_t *q = &t->step[idx % NSTEP];
             for (i = 0; i < q->n && i < 4u; i++)
-                if (q->note[i] >= rg.lo && q->note[i] <= rg.hi)
+                if (RV(q->note[i]))
                     RR(x, NY(q->note[i]) + rg.rh / 2, RL_CW - 1, 1, col_shade(c, 2u));
             continue;
         }
@@ -292,7 +369,7 @@ static void sg_roll(const track_t *t)
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
             if (!tie && held_note_sel(idx) == (int)i)
                 nc = C_NOTE;                            /* (the note SELECT picked on a held step of several: its own colour) */
-            if (nt < rg.lo || nt > rg.hi)
+            if (!RV(nt))
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
                 if (tie)
@@ -300,7 +377,7 @@ static void sg_roll(const track_t *t)
                 cw = (RL_CW - 1) * g / 128;
                 cw = cw < 2 ? 2 : cw;
             }
-            used |= (uint64_t)1u << (nt - rg.lo);
+            used |= (uint64_t)1u << rg.row[nt];
             if (tie || roll_carried(t, s, idx, i)) {    /* (a tie, a note carried on: the bar on, over the gap) */
                 RR(x - 1, y + m, cw + 1, h, nc);
                 continue;
@@ -321,7 +398,7 @@ static void sg_roll(const track_t *t)
                                                          * mark at the gutter's edge on its rows (the audit's #17: no
                                                          * longer in the header) */
         int32_t nt = (int32_t)pick_note(i);
-        if (nt >= rg.lo && nt <= rg.hi)
+        if (RV(nt))
             RR(0, NY(nt) + m, 2, h, C_WHITE);
     }
     for (w = 0; w < 16u; w++) {                         /* the steps held: framed white */
@@ -397,7 +474,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
             h = hu(h, op_lane_col(i));
     else
         h = hu(hu(hu(hu(hu(h, pick_note(0)), pick_note(1)), pick_note(2) * 128u + pick_note(3)), pen_n),
-               (uint32_t)(song.octave + 16) + song.sel * 64u);   /* (the roll's view: OCT; the pick's marks) */
+               (uint32_t)(song.octave + 16) + song.sel * 64u + roll_fold * 4096u);   /* (the roll's view: OCT, FOLD; the pick's marks) */
     return hu(hu(h, settings.palette), (uint32_t)(sg_dy + 512));
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
@@ -473,7 +550,7 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
     if (want && !is_drum(TSEL) && held_note() >= 0) {   /* the roll: the edited note a row clear of the cards and of the step's lines */
         int32_t nt = held_note();
         roll_range(TSEL);
-        y = SG_TOP + (rg.hi - nt) * rg.rh;
+        y = SG_TOP + (rg.n - 1 - rg.row[nt & 127]) * rg.rh;
         if (y < top + rg.rh)
             return top + rg.rh - y;
         return y + 2 * rg.rh > lim ? lim - 2 * rg.rh - y : 0;

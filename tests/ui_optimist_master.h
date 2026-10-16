@@ -75,9 +75,9 @@ static void oct_master_tests(void)
     tap(B_SEQ);
     frames(2);
     both_oct();
-    check(master_sel(), "both OCT on STEP: MASTER");
+    check(!master_sel() && roll_fold && ui.scr == SCR_STEP, "both OCT on a synth track's STEP: FOLD, not MASTER (2026-10-16)");
     both_oct();
-    check(ui.scr == SCR_STEP && song.sel == 1, "... and back on STEP, T2");
+    check(ui.scr == SCR_STEP && song.sel == 1 && !roll_fold, "... again: FOLD off, still STEP, T2");
     song.sel = 2;
     op_enter(SCR_HOME);
     ui.row[SCR_HOME] = MXR_T1 + 2u;

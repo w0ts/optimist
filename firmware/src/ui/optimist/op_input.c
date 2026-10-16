@@ -85,6 +85,9 @@ static int oct_master_ok(void)
 }
 static void oct_master_toggle(void);                    /* op_walk.c */
 static uint8_t oct_both;                                /* both OCT are down and nothing else was used: the toggle when they are let go */
+static uint32_t oct_both_t;                             /* (when both went down: FOLD wants a quick tap) */
+#define FOLD_TAP_MS 400u                                /* both OCT let go within this on a synth track's STEP: FOLD on / off */
+static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && !st.held && !op_armed() && !name_on(); }
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
@@ -469,7 +472,8 @@ static void op_press(uint32_t b, uint32_t held)
                 held_octave(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(b);
         } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: the track <-> MASTER toggle when let go */
-            oct_both = (uint8_t)oct_master_ok();
+            oct_both = (uint8_t)(oct_fold_here() || oct_master_ok());
+            oct_both_t = fm1_ms;
             op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
@@ -578,6 +582,50 @@ static int op_presets_turn(void)
     }
     return 1;
 }
+/* SHIFT + SHIFT2 (OCT- and OCT+ held) + a knob: the parameter of card c (row, knob k), its motion and locks over the
+ * whole track (a drum lane's value: that lane's; the recorded notes' lengths and levels stay), one undo level, once a
+ * knob a hold. 0: not taken (the mixer's volume cards: solo, op_mixer.c; STEP with a step held: that step's, SHIFT) */
+static uint8_t kac_done;                                /* the knobs done in this hold (bit k; cleared with OCT+ let go) */
+static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
+{
+#if FELUCCA_AUTO
+    track_t *t = 0;
+    int32_t sid = -1;
+    uint32_t i, n;
+    mitem_t m;
+    if ((ui.scr == SCR_HOME && mx_item(row % MXR_N, k, &m) && mx_is_vol(&m)) || (ui.scr == SCR_STEP && st.held))
+        return 0;                                       /* (a step held: SHIFT + the knob, that step's only) */
+    if ((kac_done >> k) & 1u)
+        return 1;
+    kac_done |= (uint8_t)(1u << k);
+    for (i = 0; i < NTRK && c->vp; i++)
+        if (c->vp >= trk[i].p && c->vp < trk[i].p + P_COUNT)
+            t = &trk[i], sid = (int32_t)mot_sid((uint32_t)(c->vp - trk[i].p));
+#if DLA_ON
+    if (c->vp >= dsv && c->vp < dsv + DE_N)             /* (a lane's value: the cards show dsv, op_effval.c's lane) */
+        t = TDRUM, sid = (int32_t)AUTO_LANE(effv_lane_l(), (uint32_t)(c->vp - dsv));
+#endif
+    if (!t) {
+        ui_message("NOT AUTOMATABLE");
+        return 1;
+    }
+    if (!auto_count_where(t, sid, -1)) {
+        ui_say(c->label ? c->label : "", ": NO LOCKS");
+        return 1;
+    }
+    undo_mark(t, (undo_sess += 4u) | 3u);
+    fm1_irq_off();
+    n = auto_clear_where(t, sid, -1);
+    fm1_irq_on();
+    sync_reload = 1;
+    ui_say(c->label ? c->label : "", " CLEARED");
+    (void)n;
+    return 1;
+#else
+    (void)row, (void)k, (void)c;
+    return 0;
+#endif
+}
 static void op_knobs(uint32_t shift)
 {
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
@@ -638,6 +686,8 @@ static void op_knobs(uint32_t shift)
         gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
         HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
+        if (c.kind == CK_VAL && shift && op_shift2(fm1_in.buttons) && knob_auto_clear(row, k, &c))
+            continue;                                   /* SHIFT + SHIFT2: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL)
             SCR->turn(row, k, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
     }
@@ -697,7 +747,7 @@ static void ui_input(void)
             op_press(panel_btn_of(id), held | pressed);
         }
     if (!op_shift2(held))
-        mx_s2_done = 0;                                 /* (SHIFT2 + the volume card's knob: one mute toggle a hold) */
+        mx_s2_done = 0, kac_done = 0;                                 /* (SHIFT2 + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
     rec_held(held);                                     /* REC held: the ring, the track cleared */
@@ -740,8 +790,15 @@ static void ui_input(void)
     op_released((op_held | pressed) & ~held);           /* the chords, SAVE + REC, PLAY (op_combos.c) */
     if (oct_both && !(held & (BIT(B_OCTDN) | BIT(B_OCTUP)))) {   /* both OCT let go, nothing else used: track <-> MASTER */
         oct_both = 0;
-        if (oct_master_ok())
+        if (oct_fold_here()) {                          /* (a synth track's STEP: FOLD, a quick tap only; the user, 2026-10-16) */
+            if (fm1_ms - oct_both_t < FOLD_TAP_MS) {
+                roll_fold ^= 1u;
+                ui_message(!roll_fold ? "FOLD OFF" : trk[0].p[P_SCALE] ? "FOLD: SCALE" : "FOLD: NOTES");
+                ui.force = 1;
+            }
+        } else if (oct_master_ok()) {
             oct_master_toggle();
+        }
     }
     op_held = held;
     for (id = 0; id < 14u; id++)
