@@ -141,11 +141,20 @@ static void t_table(void)
     check("the same octets as a public address: another device", n == 3u && t.e[idx[2]].addr_rand == 0u);
     n = 0;
     n += ad_midi(ad, 0x07);
-    n += ad_name(ad + n, 0x09, "FM-1 A1B2");
     mk(0x40, 0x0D, ad, n);
     ble_scan_add(&t, pdu, plen, 0x0700, 180);
+    n = ad_name(ad, 0x09, "Optimist A1B2");     /* (the name in the SCAN_RSP, as ours: the two do not fit one 31-octet payload) */
+    mk(0x44, 0x0D, ad, n);
+    ble_scan_add(&t, pdu, plen, 0x0700, 181);
     n = listed(&t, idx);
-    check("another FM-1 (\"FM-1 \" name): KIND FM-1", n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1));
+    check("another FM-1 (\"Optimist \" name): KIND FM-1", n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1) &&
+          !strcmp(t.e[idx[3]].name, "Optimist A1B2"));
+    n = ad_name(ad, 0x09, "FM-1 A1B2");
+    mk(0x44, 0x0D, ad, n);
+    ble_scan_add(&t, pdu, plen, 0x0700, 182);
+    n = listed(&t, idx);
+    check("the same device under the name of the builds before the rename (\"FM-1 \"): still KIND FM-1",
+          n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1));
     {
         static const uint8_t utf[] = {'C', 'a', 'f', 0xC3, 0xA9, ' ', 0xE2, 0x82, 0xAC, ' ', 'L', 'o', 'n', 'g',
                                       'e', 'r', ' ', 'N', 'a', 'm', 'e'};

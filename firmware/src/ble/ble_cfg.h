@@ -13,9 +13,11 @@
 
 /* ---- GAP */
 #ifndef BLE_DEVICE_NAME
-#define BLE_DEVICE_NAME "FM-1"           /* the advertised name and GAP Device Name: "FM-1 XXXX", XXXX the last four hex
+#define BLE_DEVICE_NAME "Optimist"       /* the advertised name and GAP Device Name: "Optimist XXXX", XXXX the last four hex
                                           * digits of the device address (BLE_NAME_HEX; docs/BLE-DEVICES-DESIGN.md §3.4;
-                                          * stock V15's was "FM-1_BLE"); at most 24 characters */
+                                          * stock V15's was "FM-1_BLE", Optimist's before 2026-10-16 "FM-1 XXXX"; at most 24 characters; not "Optimist (Felucca)" as the
+                                          * USB name: a scanned device's name is kept to BLE_NAME_MAX = 16 characters, which would cut the XXXX; the
+                                          * editors match /felucca|optimist/i) */
 #endif
 #ifndef BLE_NAME_HEX
 #define BLE_NAME_HEX 1                   /* 1: " XXXX" after BLE_DEVICE_NAME; 0: the name as it is */

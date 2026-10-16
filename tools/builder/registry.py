@@ -776,7 +776,7 @@ _add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's
      tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
-     desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
+     desc="Experimental: BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
           "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
           "The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed "
