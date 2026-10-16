@@ -112,7 +112,8 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
-- **BLUETOOTH:** BLE, OFF, ON, LINK (connected) or NO CAL (the radio has no stored trims and never starts). SAVE on it opens the list of BLE devices.
+- **Bluetooth:** BLUETOOTH ON / OFF (NO CAL: the radio has no stored trims and never starts); STATE (OFF, STARTING, ADVERTISING, SCANNING, CONNECTING, SEARCHING, PAIRING, CONNECTED, FAILED); DEVICE (who the link is with: the device's name, HOST for a computer or phone that connected to the FM-1, NONE); MIDI (IN / OUT lit while messages pass).
+- **Devices:** DEVICES (SAVE: SCAN, the list of BLE devices: NONE, LAST, the devices nearby with signal bars; SAVE connects, asked first; HOME back); RECONNECT (OFF, or the last device's name: reconnect to it by itself); LAST DEVICE FORGET (asks first).
 - **CALIBRATE:** PANEL (runs the panel calibration, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) CH1 to CH4, the source of each of the four capture channels sent to the computer: the main mix (L, R or sums), T1 to T3, DRUMS, the drum bus, a drum lane tap (DR1 to DR16) or OFF.
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address.

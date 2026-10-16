@@ -2598,7 +2598,7 @@ line's section and the page n/N within the screen ("Tempo 1/5", "Screen 2/4").
 | Screen | Sections and lines (what this build has) |
 |---|---|
 | GLOBAL | Tempo: BPM, NUDGE, SWING. Rec: MODE, LENGTH, START, CLICK, QUANT (REC 2's). MIDI (one page, 4 lines; 3 without CLK OUT): CLK IN, CLK OUT, MIDI IN, MIDI OUT. Channels: TRK 1, TRK 2, TRK 3, DRUMS |
-| SYSTEM | CPU: CLOCK, LOAD. Screen: COLOR, BRIGHT, KNOB COLORS. Lights: LIGHTS, KEYS. Audio: LOWCUT. USB: SERIAL. Bluetooth: BLE. Calibrate: PANEL, HOLD. About: VERSION |
+| SYSTEM | CPU: CLOCK, LOAD. Screen: COLOR, BRIGHT, KNOB COLORS. Lights: LIGHTS, KEYS. Audio: LOWCUT. USB: SERIAL. Bluetooth: BLUETOOTH, STATE, DEVICE, MIDI. Devices: DEVICES, RECONNECT, LAST DEVICE (section 39). Calibrate: PANEL, HOLD. About: VERSION |
 
 A line is a cell of the rows the screens had (TEMPO's `tp_*`, SYSTEM's `sys_*` over the `SYS` table), called through
 their functions: each value still lives in one place and keeps its format; a cell this build lacks is no line. KNOB
@@ -3274,3 +3274,32 @@ The user (2026-10-16): "there IS a green led below the play button ... i think w
 | free take | dark | full |
 
 Never both at once. SLOOP's UI (ui/sloop/ui_input.c) has its own `ui_leds` and is unchanged. The web editor does not render the LEDs and is unchanged. Tests: tests/ui_optimist_lamp.h (every state, and PLAY / REC taps). The legend is in docs/guide/interface.md. Credits: LICENSING.md.
+
+## 39. Bluetooth and Devices pages (feat/ble-ui, 2026-10-16)
+
+The user (2026-10-16): "we still don't have a BLE UI to connect ... you are still supposed to implement it in optimist",
+"it is more a matter of wiring/adapting what we have". What was there: one SYSTEM line, BLE ON / OFF; the devices list
+(op_project.c dev_*) opened only by YES on it, which nothing said (no DEVICES line; the Synth profile has no help line),
+while every other on / off line toggles on YES. Now two pages of plain lines, read from io/midi/ble_devices.c (no new
+radio setting):
+
+| Page | Line | What it is |
+|---|---|---|
+| Bluetooth | BLUETOOTH | ON / OFF (NO CAL in amber); the knob, or YES, as every on / off line (YES no longer opens the list) |
+| | STATE | read-out, ble_dev_status in words: OFF, STARTING (ON, the radio not started yet), ADVERTISING, SCANNING (the list open), CONNECTING, SEARCHING (for LAST), PAIRING, CONNECTED (green), FAILED (red, kept until the user acts), NO CAL (amber) |
+| | DEVICE | read-out: the device of the link (connecting, pairing, connected, searched for): its name as advertised; HOST when a computer or phone connected to the FM-1 (its name is not known); NONE |
+| | MIDI | read-out: IN / OUT / IN OUT for 0.3 s after a message passes over Bluetooth (midi_ble.c's ring counts), else -- ; green while lit |
+| Devices | DEVICES | action SCAN: YES opens the list (unchanged: NONE, LAST, nearby with signal bars; its header now says Devices) |
+| | RECONNECT | the list's NONE / LAST as a line: OFF, or LAST's name; right LAST, left NONE, YES the other (ble_dev_pick: the same as picking the row); no LAST: NO LAST DEVICE. BLE_CENTRAL builds |
+| | LAST DEVICE | action FORGET (alarm colour): asks "Forget <name>?", YES forgets it (ble_dev_forget); none: NO LAST DEVICE. BLE_CENTRAL builds |
+
+STATE, DEVICE and MIDI draw their value in the large face (FONT_L) when it fits beside the name, else the list's small
+face (the user's complaint about small text on INFO); a cell's `big` flag (op_cells.c) asks for it (op_gldraw.c). In the
+list, LAST is tagged PAIRED when its keys are kept (BLE_DEV_BONDED). The two pages follow SYSTEM's page rules (section 20):
+"Bluetooth" and "Devices" are two sections; with USB SERIAL (CDC) the Connections join no longer fits one page, so USB
+stands alone. GL_MAXL is sized from the build (SYSTEM's lines, at least 24: Synth 24), and the MIDI line's counters share the devices list's drawing state (bdp), so the pages cost no main RAM. The editor's SCRN command hands the new
+lines out as it does every SYSTEM line (descriptor-driven; YES on DEVICES from the editor opens the list on the device,
+where SCRN then answers nothing until it closes, as before). Tests: tests/ui_optimist_ble.h ble_page_tests (the lines, their
+order and pages, every state, MIDI activity and its timeout, RECONNECT both ways and without LAST, FORGET asked, HOME no,
+YES yes, none left), ble_sys_walk (SYSTEM page by page drawn, opt-ble-sys-*), and the tests that opened the list from the
+BLE line now open it from DEVICES (glo, glstyle, pages, glwalk).
