@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" rx="40" fill="#16161a"/>
 <svg x="30" y="30" width="140" height="140" viewBox="-20 1 150 150" fill="#e8e8ec">
-<mask id="op-sail"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="6.5"><circle cx="52" cy="46" r="11"/></g><rect x="46.5" y="47" width="11" height="40" fill="#000"/></mask>
+<mask id="op-sail"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="3.6"><circle cx="46" cy="62" r="6.2"/></g><rect x="44.2" y="63" width="3.6" height="17" fill="#000"/></mask>
 <path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail)"/>
-<path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/>
-<rect x="40" y="124" width="10" height="25"/>
-<path d="M96 111L95 131L103 138L106 120Z"/>
-<rect x="12.5" y="49" width="5" height="65"/>
+<path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/>
+<rect x="40" y="126" width="9" height="23"/>
+<path d="M102 113L101 133L107 139L109 121Z"/>
+<rect x="12.5" y="49" width="5" height="64"/>
 </svg></svg>

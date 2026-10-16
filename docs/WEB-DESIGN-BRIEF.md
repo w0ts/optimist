@@ -69,4 +69,4 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
 
 ## README screenshots
 
-The pictures in the README (`assets/screens/editor-mixer-light.webp` and `editor-mixer-dark.webp`, the mixer of the editor against its mock device at 1440x1000, scale 2) are generated, not edited. After a look change in `web/editor.html`, regenerate them (needs Chrome, see `CHROME=path`): `node web/e2e_daw.mjs --readme-shots assets/screens`. The README picks the light or the dark one with `<picture>` and `prefers-color-scheme`.
+The picture in the README (`assets/screens/editor-mixer.webp`, the mixer of the editor against its mock device) is a screenshot of the current editor, supplied by the project owner; replace it with a fresh one after a look change in `web/editor.html`. (`node web/e2e_daw.mjs --readme-shots DIR` still renders light and dark variants for review, but the README no longer uses them.)

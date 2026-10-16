@@ -51,12 +51,15 @@ Briefly; the manual [OPTIMIST.md](OPTIMIST.md) is the reference and the user gui
 - **Web editor** (Chrome or Edge): every parameter, the drum grid, mixer, preset library, sample upload and backup.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screens/editor-mixer-dark.webp">
-    <source media="(prefers-color-scheme: light)" srcset="assets/screens/editor-mixer-light.webp">
-    <img src="assets/screens/editor-mixer-light.webp" alt="Optimist web editor: the mixer with four tracks (three synths and the drum track), their send knobs and faders, and the master with its effects" width="760">
-  </picture>
-  <br><em>The web editor's mixer, shown here with its built-in demo device. Its colours follow your system's light or dark setting.</em>
+  <img src="assets/screens/editor-mixer.webp" alt="Optimist web editor: the mixer with three synth tracks and the drum track with its lanes, their pan and send knobs, faders and sequence strips" width="640">
+  <br><em>The web editor's mixer, shown here with its built-in demo device.</em>
+</p>
+
+<p align="center">
+  <img src="assets/screens/device-mixer.webp" alt="The FM-1's screen: the mixer with the tracks T1 to T3 and the drum track playing" width="280">
+  <img src="assets/screens/device-drums.webp" alt="The FM-1's screen: the drum track's sixteen lanes with their steps" width="280">
+  <img src="assets/screens/device-master.webp" alt="The FM-1's screen: the master page with its level meter and the three effect returns" width="280">
+  <br><em>On the FM-1 itself, with a song playing (captured from the emulator): the main mixer, the drum track and the master.</em>
 </p>
 
 ## Requirements

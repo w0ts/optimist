@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" fill="#1a1a1f">
 <style>@media (prefers-color-scheme: dark) { svg { fill: #e8e8ec; } }</style>
 <path d="M15 49L53 4L89 102H15Z"/>
-<path d="M3 114L102 110L95 121L75 125L30 126L7 122Z"/>
-<rect x="40" y="124" width="10" height="25"/>
-<path d="M96 111L95 131L103 138L106 120Z"/>
-<rect x="12.5" y="49" width="5" height="65"/>
+<path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/>
+<rect x="40" y="126" width="9" height="23"/>
+<path d="M102 113L101 133L107 139L109 121Z"/>
+<rect x="12.5" y="49" width="5" height="64"/>
 </svg>
