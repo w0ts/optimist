@@ -141,7 +141,7 @@ The first SYSTEM pages are read-outs, text only; no knob does anything there. Th
 | Line | Meaning |
 |---|---|
 | LAST RESET | How the boot before this one ended: POWER ON, CRASH (CRASH1: CPU1 named), WDT, SOFT, KEY or LOW V, then how long it ran, and a crash address or the step it was in. Debug builds only. |
-| FLASH IRQS OFF | The longest time interrupts were off for a flash operation, in microseconds (amber when longer than an audio half). |
+| FLASH IRQS OFF | The longest time interrupts were off for a flash operation, in microseconds, and which one held it (erase, write or read; amber when longer than an audio half). A sector erase runs in windows of about 1 ms (the flash chip pauses it between them), so the audio keeps playing. |
 | CPU1 JOBS DONE / RE-WAKES | Jobs joined (thousands) / times CPU0 woke CPU1 again for a job it had not picked up (amber when not 0). Builds with two cores. |
 | CPU1 LAST STOP | `--`: CPU1 never stopped. Otherwise when and where: `W` the job was never picked up; `J<n>` it was in job n (1 to 4 a part, 5 the drums, 6 the reverb, 0 none begun); `IDLE` no job was posted (a boot check, a flash operation). The time is since CPU1 started (milliseconds under 10 s, then seconds). |
 | CPU1 GOT TO / HEARTBEAT | How far CPU1 got: NONE, MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE. |

@@ -13,6 +13,9 @@
 #include <stdint.h>
 #include "fm1_xip.h"
 
+#ifndef FL_ERASE_ONE_WINDOW
+#define FL_ERASE_ONE_WINDOW 0                     /* 1: fl_erase4k_ram, the whole erase in one window (the loader) */
+#endif
 #define RAMFN  __attribute__((section(".ram_text"), noinline, used))
 #define RAMINL static inline __attribute__((always_inline))
 
@@ -153,6 +156,7 @@ static RAMFN uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
     return v;
 }
 
+#if FL_ERASE_ONE_WINDOW                          /* the update loader (firmware/loader): the whole erase in one window */
 static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
 {
     fl_saved_t s; int rc;
@@ -169,6 +173,30 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
     fl_exit(&s);
     return rc;
 }
+#else
+/* the app: a sector erase in short windows (fm1_flash_slice.h, fl_erase4k_sliced below) */
+#define FLS_INL     RAMINL
+#define FLS_NOW()   T4_CNT
+#define FLS_SR1()   fl_rdsr(0x05)
+#define FLS_SR2()   fl_rdsr(0x35)
+#define FLS_ERASE(off) do { fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1); } while (0)
+#define FLS_CMD(c)  do { fl_cs(0); fl_tx((uint8_t)(c)); fl_cs(1); } while (0)
+#define FLS_INVAL(off) fl_inval(off, 4096u)
+#define FLS_GAP()   do { uint32_t g0 = T4_CNT; while (T4_CNT - g0 < 20u * 24u) ; } while (0)   /* 20 us, IRQs on */
+#define FLS_WINDOW_FN fl_erase_window
+#include "fm1_flash_slice.h"
+
+static RAMFN int fl_erase_window_ram(uint32_t off, uint32_t op, fls_job_t *j)
+{
+    fl_saved_t s; int rc;
+    if (FL_SDK_SYS(off, 0x1000u) || (off & 0xFFFu))   /* (the SDK's sectors: never; FL_RANGE_OK: fl_erase4k_sliced, XIP side) */
+        return -1;
+    if (fl_enter(&s)) return -2;
+    rc = fls_window(off, op, j);
+    fl_exit(&s);
+    return rc;
+}
+#endif
 
 static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint32_t *took_us)
 {
@@ -215,24 +243,29 @@ static void fl_plain_window_init(void)
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 
-static volatile uint8_t fm1_flash_reading;       /* 1 while a read runs (st_read): the hooks below tell it from a write */
+enum { FM1_FLOP_OTHER = 0, FM1_FLOP_READ = 1, FM1_FLOP_WRITE = 2, FM1_FLOP_ERASE = 3 };
+/* the operation running, FM1_FLOP_*: READ while a read runs (st_read: the hooks below tell it from a write), WRITE
+ * (fl_write), ERASE (fl_erase_window), OTHER (0: the boot's JEDEC read) */
+static volatile uint8_t fm1_flash_reading;
 #ifndef FM1_FLASH_ENTER                         /* a check with IRQs off before every flash operation */
 #define FM1_FLASH_ENTER() ((void)0)               /* (the dual-core build: CPU1 off the flash, src/dual.c) */
 #endif
 #ifndef FM1_FLASH_LEAVE                         /* after it, before the interrupts are on again (dual.c: CPU1 resumed) */
 #define FM1_FLASH_LEAVE() ((void)0)
 #endif
-#if defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO
+#if (defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO) || (defined(FELUCCA_CDC) && FELUCCA_CDC)   /* (CDC: the console test image) */
 /* USB audio builds: the longest interrupts-off window a flash operation held (TIMER4 ticks, SYSTEM > INFO). The
  * window's start is the token irq_save returns (the callers pass it back unchanged). */
 #include "fm1_time.h"
-static uint32_t fm1_irqoff_max;
+static uint32_t fm1_irqoff_max;                   /* bits 0-27 the ticks, 28-29 the operation (FM1_FLOP_*) that held it */
+#define FM1_IRQOFF_TICKS(v) ((v) & 0x0FFFFFFFu)
+#define FM1_IRQOFF_KIND(v)  ((v) >> 28)
 static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); FM1_FLASH_ENTER(); return fm1_ticks(); }
 static inline void irq_restore(uint32_t f)
 {
     uint32_t d = fm1_ticks() - f;
-    if (d > fm1_irqoff_max)
-        fm1_irqoff_max = d;
+    if (d > FM1_IRQOFF_TICKS(fm1_irqoff_max))     /* (no byte of its own for the kind: the RAM is full) */
+        fm1_irqoff_max = (d > 0x0FFFFFFFu ? 0x0FFFFFFFu : d) | (uint32_t)fm1_flash_reading << 28;
     FM1_FLASH_LEAVE();
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
@@ -241,6 +274,7 @@ static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); FM
 static inline void irq_restore(uint32_t f) { (void)f; FM1_FLASH_LEAVE(); __asm__ volatile("csync\n\tsti" ::: "memory"); }
 #endif
 
+#if FL_ERASE_ONE_WINDOW
 static int fl_erase4k(uint32_t off, uint32_t *took_us)
 {
     uint32_t f = irq_save();
@@ -248,10 +282,72 @@ static int fl_erase4k(uint32_t off, uint32_t *took_us)
     irq_restore(f);
     return rc;
 }
+#else
+/* ---- the app's sector erase in short windows (fm1_flash_slice.h): suspended every FLS_SLICE_US, the interrupts on
+ * between ---- */
+static int fl_erase_window(uint32_t off, uint32_t op, fls_job_t *j)
+{
+    uint32_t f, t;
+    int rc;
+    fm1_flash_reading = FM1_FLOP_ERASE;
+    f = irq_save();                               /* (each window: CPU1 parked and resumed, as for each page program) */
+    t = T4_CNT;
+    j->windows++;
+    rc = FL_FAR(fl_erase_window_ram)(off, op, j);
+    j->took_us += (T4_CNT - t) / 24u;
+    irq_restore(f);
+    fm1_flash_reading = 0;
+    return rc;
+}
+/* through the XIP plain window (fl_plain_window_init): the sector reads all 0xFF */
+static int fl_blank_xip(uint32_t off)
+{
+    const volatile uint32_t *p = (const volatile uint32_t *)FL_XIP(off);
+    uint32_t i;
+    for (i = 0; i < 1024u; i++)
+        if (p[i] != 0xFFFFFFFFu)
+            return 0;
+    return 1;
+}
+/* the erase, in windows of FLS_SLICE_US. quiet / quiet_n: the audio buffer, silenced only if a window must hold the
+ * rest of the erase (a part that does not suspend). An erase that went through a suspend is read back blank when the
+ * plain window is on (else, or not blank: erased again in one window, as before) */
+#if defined(FELUCCA_CDC) && FELUCCA_CDC              /* the console test image's counters (console.c flash_erase_*) */
+static uint16_t fl_erase_windows_max;
+static uint8_t fl_erase_held, fl_erase_nosus, fl_erase_redo;   /* (saturating) */
+#define FL_ESTAT(x) (x)
+#else
+#define FL_ESTAT(x) ((void)0)                     /* (a product build: no RAM for them) */
+#endif
+static int fl_erase4k_sliced(uint32_t off, uint32_t *took_us, int32_t *audio, uint32_t quiet_n)
+{
+    volatile int32_t *quiet = audio;              /* (the DMA reads it: stores never dropped or merged) */
+    fls_job_t j = { FLS_SLICE_US, quiet, quiet_n, 0, 0, 0, 0 };
+    int rc;
+    if (!FL_RANGE_OK(off, 0x1000u) || FL_SDK_SYS(off, 0x1000u) || (off & 0xFFFu))
+        return -1;                                /* (checked here: the .ram_text room is tight) */
+    rc = fls_erase(off, &j);
+    FL_ESTAT(fl_erase_windows_max = j.windows > fl_erase_windows_max && j.windows <= 0xFFFFu ? (uint16_t)j.windows
+                                                                                             : fl_erase_windows_max);
+    FL_ESTAT(fl_erase_held += fl_erase_held < 0xFFu && j.held);
+    FL_ESTAT(fl_erase_nosus += fl_erase_nosus < 0xFFu && j.nosus);
+    if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= 0x93000u && fl_blank_xip(off))) {
+        fls_job_t k = { 0, quiet, quiet_n, 0, 0, 0, 0 };
+        FL_ESTAT(fl_erase_redo += fl_erase_redo < 0xFFu);
+        rc = fl_erase_window(off, FLS_RESUME, &k);   /* (an erase still suspended: ended first; a part idle ignores it) */
+        if (rc >= 0)
+            rc = fls_erase(off, &k);              /* (then once more in one window, as before) */
+        j.took_us += k.took_us;
+    }
+    *took_us = j.took_us;
+    return rc;
+}
+#endif
 
 static int fl_write(uint32_t off, const uint8_t *src_ram, uint32_t n)
 {
     uint32_t took;
+    fm1_flash_reading = FM1_FLOP_WRITE;
     while (n) {
         uint32_t chunk = 256u - (off & 0xFFu);
         int rc;
@@ -260,9 +356,10 @@ static int fl_write(uint32_t off, const uint8_t *src_ram, uint32_t n)
         f = irq_save();
         rc = FL_FAR(fl_prog_ram)(off, src_ram, chunk, &took);
         irq_restore(f);
-        if (rc) return rc;
+        if (rc) { fm1_flash_reading = 0; return rc; }
         off += chunk; src_ram += chunk; n -= chunk;
     }
+    fm1_flash_reading = 0;
     return 0;
 }
 

@@ -798,7 +798,8 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
     sys_it_cell(sys_item(r, k), c);
 }
-static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object) */
+static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object;
+                                                         * bits 0-27 the ticks, 28-29 the operation: 1 read, 2 write, 3 erase) */
 static void info_num(cell_t *c, uint32_t v, const char *unit)   /* a read-out's value: v (capped at 9999999) and its unit */
 {
     fmt_int(c->val, (int32_t)(v > 9999999u ? 9999999u : v));
@@ -1000,8 +1001,11 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
         cell_clear(c);
         c->kind = CK_RO;
         c->label = "FLASH IRQS OFF";
-        info_num(c, fm1_irqoff_max / 24u, " us");
-        c->col = fm1_irqoff_max / 24u > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
+        {
+            uint32_t us = (fm1_irqoff_max & 0x0FFFFFFFu) / 24u, k = fm1_irqoff_max >> 28;
+            info_num(c, us, k == 3u ? " us erase" : k == 2u ? " us write" : k == 1u ? " us read" : " us");
+            c->col = us > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
+        }
         return;
     }
 #if FELUCCA_STOCK_SUPPLY

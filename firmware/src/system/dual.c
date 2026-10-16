@@ -737,7 +737,7 @@ static __attribute__((noinline)) void dual_flash_enter(void)   /* (one copy, not
 {
     if (dual.up && (fm1_dual_mb.done != fm1_dual_mb.req || fm1_dual_mb.fault))
         dual_down(fm1_dual_mb.fault ? DUAL_FAULT : DUAL_FLASH, 0);
-    if (dual.up && DUAL_FPAUSE_NOW != 0u && !dual_fp_on && !fm1_flash_reading) {   /* (stock: around writes / erases) */
+    if (dual.up && DUAL_FPAUSE_NOW != 0u && !dual_fp_on && fm1_flash_reading != FM1_FLOP_READ) {   /* (stock: around writes / erases) */
         uint32_t t0 = fm1_ticks();
         if (DUAL_FPAUSE_NOW == 2u) {               /* stock (V15 0x01C02536): CPU1 asked to park in RAM first (SOFT4 there,
                                                     * CACHE_CON bit 14, its ack), the ack awaited (200 us) */
