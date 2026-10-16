@@ -369,7 +369,7 @@ const tipMiss = await run(`${U} ${TIPSCAN} const miss = new Set(), add = (r) => 
     const s = $("#mixer").children[strip];
     const b = lane != null ? s.querySelector('[data-pop=lane][data-l="' + lane + '"]') : s.querySelector("[data-pop=" + pid + "]");
     if (!b) { miss.add("no opener " + pid); continue; }
-    if (lane != null) b.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); else b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(500);
+    if (lane != null) b.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); else b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(1200);   /* (the step automation panel fills after its own read) */
     add($("#pop")); $("#popx").click(); await sleep(200); }
   $("#helpbtn").click(); await sleep(300); add($("#pop")); $("#popx").click(); await sleep(200);
   return [...miss];`);
@@ -584,6 +584,16 @@ const soundFx = await run(`${U} document.querySelector('#mixer .strip[data-track
   return JSON.stringify({ heads, labels: labels.join(), glob: all.filter((h) => h === "DLY" || h === "REV/CHO") });`);
 ok(soundFx === '{"heads":["SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
   "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx ? JSON.stringify(soundFx).slice(0, 400) : ""));
+/* an engine change in the Sound popup: its title and the strip's instrument widget follow (QA C4), the pages are the new engine's */
+const engRes = await run(`${U} try {
+  const r = {}; document.querySelector('#mixer .strip[data-track="0"] [data-pop=sound]').click();
+  await until(() => $("#pop").open && $("#pop").dataset.pop === "sound" && document.querySelector("#popbody .group"), 8000); await sleep(300);
+  const sel = document.getElementById("engine"), go = async (name) => { sel.value = [...sel.options].find((o) => o.textContent === name).value; sel.dispatchEvent(new Event("change")); return until(() => new RegExp(name).test($("#poptitle").textContent) && [...document.querySelectorAll("#groups .group > h2")].some((h) => h.textContent.includes(name)), 30000); };
+  r.lofi = await go("LOFI"); r.widget = (document.querySelector("#strip-1-inst-open .l1") || {}).textContent;
+  r.back = await go("ANALOG");
+  $("#popx").click(); await sleep(300);
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(engRes && engRes.lofi && /LOFI/i.test(engRes.widget) && engRes.back, `e2e: an engine change: the popup's title and pages and the strip's widget follow (${JSON.stringify(engRes)})`);
 /* narrow: the master strip never makes the page scroll sideways */
 await send("Emulation.setDeviceMetricsOverride", { width: 420, height: 1000, deviceScaleFactor: 1, mobile: false }); await run(`await new Promise((r) => setTimeout(r, 300));`);
 const narrowOk = await run(`const m = document.querySelector("#mixer .strip.master"); m.scrollIntoView(); return document.documentElement.scrollWidth <= window.innerWidth + 1 && m.querySelectorAll(".fxg").length === 4;`);

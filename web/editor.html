@@ -7562,6 +7562,7 @@ function updateBrowser() {
   $("init").disabled = drum;
   $("factlib").disabled = drum;
   $("drumsound").hidden = !drum;
+  { const x = dev.mix && dev.mix.tracks[dev.sel]; if (x && !drum && (x.engine !== e || x.preset !== dev.dump.preset)) { x.engine = e; x.preset = dev.dump.preset; if (mixCtl.length === dev.mix.ntrk) updateStrip(dev.sel); } }   /* (an engine / preset change: the strip and the title follow) */
   if (nav.pop && (nav.pop.id === "sound" || nav.pop.id === "sequence")) { nav.pop.track = dev.sel; $("poptitle").textContent = popTitle(nav.pop.id, dev.sel); }
   soundTitle();
   if (drum) renderDrumSound();
@@ -7580,6 +7581,12 @@ function updateBrowser() {
 
 function visible(d) { return d && d.max > d.min && d.label !== "-"; }
 
+/* the device's PATTERN page of an Optimist UI build lists DIV and SWG only: LEN (the steps) and the pattern GATE are on the device's other screens; the editor shows all four (D5) */
+function patternIds(p, ids) {
+  if (p.fam !== FAM.SEQ || p.scope !== 0 || !/PATTERN/i.test(p.title)) return ids;
+  const gate = dev.pdesc.findIndex((d, k) => d && d.label === "GATE" && k > 24 && k < dev.info.pe0);
+  return [...new Set([pSlen(), ...ids, ...(gate >= 0 ? [gate] : [])])];
+}
 function buildGroups() {
   ctl.clear();
   dev.built = dev.dump.engine;
@@ -7616,7 +7623,7 @@ function buildGroups() {
   } else if (dev.pages && dev.pages.length) {
     /* another firmware layout: its PATTERN and global pages from the device */
     for (const p of dev.pages.filter((x) => x.shown && ((x.fam === FAM.SEQ && x.scope === 0) || (x.fam === FAM.GLO && x.scope === 1)))) {
-      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127 && !inMixer(i))]] }, true);
+      const d = group({ t: p.title, pages: [[p.title, p.scope, patternIds(p, p.ids.filter((i) => i !== 127 && !inMixer(i)))]] }, true);
       if (d) groups[p.fam === FAM.SEQ ? "seqgroups" : "setgroups"].push(d);
     }
   }
