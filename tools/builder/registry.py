@@ -747,7 +747,7 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
 X = Y
 JANGADA = Provenance("Jangada (zednaked/jangada)", "zednaked", "GPL-3.0-only", "07cce38",
                      "https://github.com/zednaked/jangada")
-_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default=0,
+_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default=2,
      choices=((0, "off"), (2, "on")), target_only=True, provenance=x0x("47f8e4c"),
      notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
             "the next job, with a matching check word, and is held at the first one it refuses.",

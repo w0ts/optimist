@@ -3195,7 +3195,7 @@
     "label": "second CPU core renders parts 2-3",
     "group": "System",
     "bit": 58,
-    "default": 0,
+    "default": 2,
     "parent": null,
     "desc": "The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core (the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
     "experimental": false,
