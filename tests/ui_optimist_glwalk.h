@@ -111,6 +111,12 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
         ok &= strcmp(v, "YES") != 0 && glw_still(LINE_KNOB(i)) && glw_still(EN_PRESET) && !op_armed();
         ui.msg[0] = 0;
         tap(B_SAVE);
+#if FELUCCA_BLE
+        if (dev_listing()) {                            /* (DEVICES: YES opens the devices list; HOME back) */
+            tap(B_HOME);
+            ui.msg[0] = 'L';
+        }
+#endif
         ok &= op_armed() || ui.msg[0];                  /* (YES runs it) */
         if (op_armed())
             tap(B_HOME);                                /* (the question: cancelled) */
@@ -152,7 +158,7 @@ static void glw_factory_tests(void)
             glw_line(scr, i, &c, v);
             if (c.kind != CK_VAL || c.d)
                 continue;                               /* (a descriptor's line: its default, glw_walk_line) */
-            if (!strcmp(c.label, "BLE")) {             /* never reset: a live connection stays */
+            if (!strcmp(c.label, "BLUETOOTH") || !strcmp(c.label, "RECONNECT")) {   /* never reset: a live connection stays */
 #if FELUCCA_BLE
                 uint8_t was = ble_on;
                 ble_on = 1;
@@ -365,8 +371,8 @@ static void glwalk_tests(void)
         }
     i = line_named(SCR_SYSTEM, "PANEL");
     glw_line(SCR_SYSTEM, i, &c, v);
-    check(ok && acts == 1u && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
-          "no GLOBAL / SYSTEM line draws YES; the one action (Calibrate's PANEL) draws CALIBRATE");
+    check(ok && acts == 1u + (FELUCCA_BLE ? 1u + (BLE_CENTRAL && ble_store_has_last(&ble_store) ? 1u : 0u) : 0u) && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
+          "no GLOBAL / SYSTEM line draws YES; the actions (Calibrate's PANEL; with BLE DEVICES and LAST DEVICE) draw their verb");
     glw_factory_tests();
     glw_sync_long_tests();
     glw_midi_long_tests();

@@ -218,9 +218,9 @@ static int gls_joined(void)
     return (int)ok;
 }
 #if FELUCCA_BLE
-static int gls_ble_enter(void)                          /* YES on BLE, from the joined page, opens the devices */
+static int gls_ble_enter(void)                          /* YES on DEVICES opens the devices list */
 {
-    uint32_t i = line_named(SCR_SYSTEM, "BLE"), ok;
+    uint32_t i = line_named(SCR_SYSTEM, "DEVICES"), ok;
     line_at(SCR_SYSTEM, i);
     frame();
     tap(B_SAVE);

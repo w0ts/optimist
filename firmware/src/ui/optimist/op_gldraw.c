@@ -63,8 +63,15 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     by = gl_by(y);
     cv_text(6, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
     cut(b, v, 13);
-    x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(&FONT_S, b);   /* (a unit right after the number: "90BPM", style guide 5) */
-    cv_text(x, ty, &FONT_S, b, ink);
+    {
+        const felucca_font_t *f = &FONT_S;              /* a read-out to read from afar (Bluetooth's STATE, DEVICE, MIDI): the large
+                                                         * face when it fits beside the name (the user: small text is hard to read) */
+        int32_t fy = ty;
+        if (c->big && !uw && !tog && 6 + text_w(&FONT_S, c->label) + 12 + text_w(font_big(), b) <= 236)
+            f = font_big(), fy = ty - ((int32_t)font_big()->h - (int32_t)FONT_S.h) / 2;
+        x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
+        cv_text(x, fy, f, b, ink);
+    }
     if (uw)
         cv_text(236 - uw, ty, &FONT_S, c->unit, on ? lc : C_DIM);
     if (tog)
