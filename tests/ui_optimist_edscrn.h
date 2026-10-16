@@ -55,14 +55,57 @@ static void scl_parse(const uint8_t *a, uint32_t p, scl_t *o)
     }
     scl_str(a, p, o->obj, sizeof o->obj);
 }
-static void scl_json(FILE *f, uint32_t s, uint32_t i, const scl_t *c0, int first)
+/* the entries of a list / switch line (gauge kinds 3, 4, 5: few entries, many entries, two): what the device draws at each position, found by turning the line
+ * through the screen's own function from its first entry to its last and back to where it was ("vals": [value text, unit] a position); the web editor's mock shows
+ * them as the device would when its arrows are clicked */
+static uint32_t scl_vals(uint32_t s, uint32_t i, const scl_t *c, char (*val)[16], char (*unit)[10], uint32_t max)
+{
+    uint8_t q[6];
+    uint32_t n = 0;
+    int32_t g, here = c->gv;
+    scl_t t;
+    if (c->kind != 1u || c->gk < 3u || c->gk > 5u || c->gmax <= c->gmin)
+        return 0;
+    for (g = c->gmin; g <= c->gmax && n < max; g++) {
+        int32_t d = g - here;
+        if (d) {
+            q[0] = 2, q[1] = (uint8_t)s, q[2] = (uint8_t)i, q[3] = 1, q[4] = (uint8_t)((d + 8192) & 127), q[5] = (uint8_t)((d + 8192) >> 7);
+            ed_begin(ED_SCRN);
+            ed_scrn(ED_SCRN, q, 6);
+        } else {                                         /* (a turn of 0 steps may still toggle a switch: read the line) */
+            q[0] = 1, q[1] = (uint8_t)s, q[2] = (uint8_t)i;
+            ed_begin(ED_SCRN);
+            ed_scrn(ED_SCRN, q, 3);
+        }
+        scl_parse(ed_out, 8, &t);
+        strcpy(val[n], t.val), strcpy(unit[n], t.unit);
+        here = t.gv;
+        n++;
+    }
+    if (c->gv != here) {                                 /* (put back) */
+        int32_t d = c->gv - here;
+        q[0] = 2, q[1] = (uint8_t)s, q[2] = (uint8_t)i, q[3] = 1, q[4] = (uint8_t)((d + 8192) & 127), q[5] = (uint8_t)((d + 8192) >> 7);
+        ed_begin(ED_SCRN);
+        ed_scrn(ED_SCRN, q, 6);
+    }
+    return n;
+}
+static void scl_json(FILE *f, uint32_t s, uint32_t i, const scl_t *c0, int first, uint32_t nv, char (*vv)[16], char (*vu)[10])
 {
     scl_t cc = *c0;                                     /* (the build's date and time are not the golden's: BUILD's text is fixed here) */
     const scl_t *c = &cc;
     if (!strcmp(c->label, "BUILD"))
         strcpy(cc.val, "<date>"), strcpy(cc.unit, "<time>");
-    fprintf(f, "%s   {\"s\":%u,\"i\":%u,\"page\":%u,\"title\":\"%s\",\"sect\":\"%s\",\"kind\":%u,\"label\":\"%s\",\"val\":\"%s\",\"unit\":\"%s\",\"state\":%u,\"danger\":%u,\"gk\":%u,\"gmin\":%d,\"gmax\":%d,\"gv\":%d,\"byd\":%u,\"fmt\":%u,\"dmin\":%d,\"dmax\":%d,\"ddef\":%d,\"obj\":\"%s\"}",
+    fprintf(f, "%s   {\"s\":%u,\"i\":%u,\"page\":%u,\"title\":\"%s\",\"sect\":\"%s\",\"kind\":%u,\"label\":\"%s\",\"val\":\"%s\",\"unit\":\"%s\",\"state\":%u,\"danger\":%u,\"gk\":%u,\"gmin\":%d,\"gmax\":%d,\"gv\":%d,\"byd\":%u,\"fmt\":%u,\"dmin\":%d,\"dmax\":%d,\"ddef\":%d,\"obj\":\"%s\"",
             first ? "" : ",\n", s, i, c->page, c->title, c->sect, c->kind, c->label, c->val, c->unit, c->state, c->danger, c->gk, c->gmin, c->gmax, c->gv, c->byd, c->fmt, c->dmin, c->dmax, c->ddef, c->obj);
+    if (nv) {
+        uint32_t k;
+        fprintf(f, ",\"vals\":[");
+        for (k = 0; k < nv; k++)
+            fprintf(f, "%s[\"%s\",\"%s\"]", k ? "," : "", vv[k], vu[k]);
+        fprintf(f, "]");
+    }
+    fprintf(f, "}");
 }
 #if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
 /* TOOLS (ed_tools.c): the tools and EUCLID through the device's own functions */
@@ -220,7 +263,11 @@ static void edscrn_tests(void)
                 ed_begin(ED_SCRN);
                 ed_scrn(ED_SCRN, q, 3);
                 scl_parse(ed_out, 8, &c);
-                scl_json(f, s, i, &c, first);
+                {
+                    char vv[24][16], vu[24][10];
+                    uint32_t nv = scl_vals(s, i, &c, vv, vu, 24u);
+                    scl_json(f, s, i, &c, first, nv, vv, vu);
+                }
                 first = 0;
             }
         fprintf(f, "\n]}\n");

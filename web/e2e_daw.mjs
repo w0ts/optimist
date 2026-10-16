@@ -946,14 +946,27 @@ const scrRes = await run(`${U} try {
   const sl = row(0, 0).querySelector("input[type=range]"); sl.value = String(+sl.value + 10); sl.dispatchEvent(new Event("input", { bubbles: true }));
   await until(() => row(0, 0).querySelector(".slv").textContent !== r.bpm0, 8000);
   r.bpm1 = row(0, 0).querySelector(".slv").textContent;
-  const up = row(0, 5).querySelector("button[aria-label$='+']"); const v0 = row(0, 5).querySelector(".slv").textContent; up.click(); await sleep(400);
+  const up = row(0, 5).querySelector("button[aria-label$='+']"), dn = row(0, 5).querySelector("button[aria-label$='-']"); const v0 = row(0, 5).querySelector(".slv").textContent;
+  /* a stepper: the arrows step the device's list (LENGTH 1 bar, 2 bar, 4 bar) and the line shows the entry the device draws; clamped at the ends */
+  up.click(); await until(() => row(0, 5).querySelector(".slv").textContent !== v0, 4000); const v1 = row(0, 5).querySelector(".slv").textContent;
+  up.click(); await sleep(500); const v2 = row(0, 5).querySelector(".slv").textContent; up.click(); await sleep(500); const v3 = row(0, 5).querySelector(".slv").textContent;
+  dn.click(); await sleep(500); dn.click(); await sleep(500); const v4 = row(0, 5).querySelector(".slv").textContent;
+  r.steps = [v0, v1, v2, v3, v4].join("|");
+  /* a switch: its button names the entry (no blank box) and toggles it; a channel stepper; a slider with a device step of its own (BRIGHT 1..8) */
+  const sw = row(0, 10).querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
+  sw.click(); await sleep(400);
+  const ch = row(0, 12), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;
+  const br = row(1, 3).querySelector("input[type=range]"); br.value = "3"; br.dispatchEvent(new Event("input", { bubbles: true })); await sleep(1500); r.bright = row(1, 3).querySelector(".slv").textContent;
+  r.blank = [...document.querySelectorAll("#devscr .sl")].filter((x) => !(x.querySelector(".slv") && x.querySelector(".slv").textContent.trim()) && !(x.querySelector("button") && x.querySelector("button").textContent.trim())).length;
+  window.confirm = () => true; const act = row(1, 9).querySelector("button"); act.click(); await sleep(500); r.act = !!act && act.textContent;
   r.stepper = !!up && row(0, 5).dataset.kind === "1";
   r.kinds = [1, 2, 3].map((k) => document.querySelectorAll('#devscr .sl[data-kind="' + k + '"]').length).join();
   r.help = !!row(0, 0).querySelector(".sln").title;
   r.saved = await until(() => mock.state && true, 100) && await new Promise((res) => setTimeout(res, 2200)) === undefined;
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide,
+ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide
+  && scrRes.steps === "1 bar|2 bar|4 bar|4 bar|1 bar" && /^OFF>ON:true$/.test(scrRes.sw) && /^5>6$/.test(scrRes.chan) && scrRes.bright === "3" && scrRes.blank === 0 && scrRes.act === "CALIBRATE",
   `e2e v13 SCRN (mock ?fxp=1): Settings lists GLOBAL and SYSTEM as the device's lines; a slider turns BPM, steppers and switches, help from the device's texts (${JSON.stringify(scrRes)})`);
 await shot("settings-device-lines");
 /* v13 SCRS (the mock with ?fxp=1): the Device screens page lists the device's screens; SOUND shows the pages in the device's order grouped by family, a card turns, a drum lane
