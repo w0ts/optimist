@@ -60,6 +60,9 @@ static void op_clear_track(uint32_t i)                  /* the REC ring and TOOL
     t->nheld = 0;                                       /* and the latched arp chord */
     t->arp_phys = 0;
     fm1_irq_on();
+#if FELUCCA_MOTION
+    motion_clear(t);                                    /* (its recorded motion: the hold events, the patch back; the mark above keeps the list for undo) */
+#endif
     ui_say(trk_tag(i), " CLEARED");
     ui.force = 1;
 }

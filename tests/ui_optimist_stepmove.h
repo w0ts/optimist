@@ -312,10 +312,22 @@ static void lane_clear_tests(void)
     frame();
     trk[1].step[0].time = ST_NOTE, trk[1].step[0].n = 1, trk[1].step[0].note[0] = 60;
     ui.lane = 1;
+#if FELUCCA_MOTION
+    AL(&trk[1])->n = 0;
+    (void)auto_put(AL(&trk[1]), 4, mot_sid(0), 9);       /* a recorded motion event */
+#endif
     rh_hold_ms(700 + 1300 + 100);
     release(B_REC);
     frames(2);
     check(trk[1].step[0].n == 0 && !strcmp(ui.msg, "T2 CLEARED"), "lane clear: a synth track: cleared whole, as before");
+#if FELUCCA_MOTION
+    {
+        int32_t v;
+        check(!auto_get(AL(&trk[1]), 4, mot_sid(0), &v), "REC held: the track's recorded motion goes too");
+        sm_undo();
+        check(auto_get(AL(&trk[1]), 4, mot_sid(0), &v) && v == 9 && trk[1].step[0].n == 1, "REC held: undo brings the steps and the motion back");
+    }
+#endif
     ui.lane = 0;
     song.sel = 0;
     reset_ui();
