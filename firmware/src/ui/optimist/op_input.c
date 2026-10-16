@@ -678,6 +678,9 @@ static void op_knobs(uint32_t shift)
         turned = 1;
         if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
             continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
+        if (ui.scr == SCR_STEP && !ui.cards_t && !st.held)
+            continue;                                   /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
+                                                         * brings them; else they are free for the grid) */
         step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)
