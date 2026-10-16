@@ -140,8 +140,7 @@ def fx_group(key, parent=None):
     return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
 
 
-GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "MIDI & USB", "UI", "System",
-          "Experimental"]
+GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "MIDI & USB", "UI", "System"]
 
 _ITEMS = []
 
@@ -289,21 +288,21 @@ _add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash
 #  never reuse the bit)
 X0X_DRUMS_NOTICE = ("Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by "
                     "Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). "
-                    "Experimental in Optimist: float DSP, emulator-tested only.")
-_add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, default=0, experimental=True,
+                    "Float DSP.")
+_add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are "
           "samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash "
-          "(see its cymbal option) and uses floating point; emulator-tested only. A build without it plays the "
+          "(see its cymbal option) and uses floating point. A build without it plays the "
           "synthesised 909 for it and keeps the kit")
 _add("X909_CYM", "FELUCCA_X909_CYM", "X0X 909: ride and crash sample quality", D, 87, parent="DRUM_X0X909",
      choices=((1, "8-bit (93 KB, 42 dB)"), (2, "6-bit (70 KB, 30 dB)"), (0, "off")),
      desc="8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 "
           "(screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
-_add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0, experimental=True,
+_add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, "
-          "HC and the claves (note 75). About 30 KB of flash and uses floating point; emulator-tested only. A build "
+          "HC and the claves (note 75). About 30 KB of flash and uses floating point. A build "
           "without it plays the synthesised 808 for it and keeps the kit")
 
 _add("DRUM_ACCENT", "FELUCCA_DRUM_ACCENT", "drum ACCENT lane (909 style)", D, 340,
@@ -610,8 +609,7 @@ _add("MIDI_NOTEOUT", "FELUCCA_MIDI_OUT", "MIDI note out of the sequencer (HOME m
 # ---- UI
 U = "UI"
 _add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U, 251, default=0,
-     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (EXPERIMENTAL, phase 1)")),
-     experimental=True,
+     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (phase 1)")),
      desc="Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages "
           "opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, "
           "the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), "
@@ -745,23 +743,23 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)
 # (bit 51, SPLASH, retired 2026-10-15: the dinghy boot logo is always built; never reuse the bit)
 
-# ---- experimental
-X = "Experimental"
+# ---- the second core
+X = Y
 JANGADA = Provenance("Jangada (zednaked/jangada)", "zednaked", "GPL-3.0-only", "07cce38",
                      "https://github.com/zednaked/jangada")
-_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)", X, 58, default=0, experimental=True,
+_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default=0,
      choices=((0, "off"), (2, "on")), target_only=True, provenance=x0x("47f8e4c"),
      notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
             "the next job, with a matching check word, and is held at the first one it refuses.",
-     desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
+     desc="The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
           "flash, 1.9 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
           "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
           "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
      tested="emulator-tested; one user's FM-1 runs it")
 _add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
-     X, 62, default=1, parent="DUAL", experimental=True, target_only=True, provenance=MELODEE_SUPPLY,
-     notice="EXPERIMENTAL, at your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
+     X, 62, default=1, parent="DUAL", target_only=True, provenance=MELODEE_SUPPLY,
+     notice="At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
             "leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the "
             "AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the "
             "effect on heat and battery life has not been measured.",
@@ -774,9 +772,9 @@ _add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's
           "crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock "
           "sequence itself is still being measured.",
      tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
-_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
-     experimental=True, target_only=True,
-     desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
+_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0,
+     target_only=True,
+     desc="BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
           "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
           "The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed "
@@ -786,25 +784,25 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X,
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
-_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 253, default=0,
+_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", M, 253, default=0,
      parent="BLE", target_only=True,
-     desc="Experimental, for finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
+     desc="For finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
           "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
           "protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the "
           "console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; "
           "bletrim and blevm stay, and so does the boot breadcrumb.",
      symbols=("con_blell",))
-_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", X, 254, default=0,
+_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", M, 254, default=0,
      parent="BLE", target_only=True,
-     desc="Experimental: LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
+     desc="LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
           "bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. "
           "The FM-1 hands out its identity and takes the other side's (its IRK and identity address, kept until "
           "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet "
           "tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
      symbols=("bsmp",), tested="host and emulator only")
-_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", X, 255,
+_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", M, 255,
      default=0, parent="BLE", target_only=True,
-     desc="Experimental: HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
+     desc="HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
           "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
           "a central (pairing with Just Works when it asks, as Apple's devices do), MIDI both ways; it becomes the "

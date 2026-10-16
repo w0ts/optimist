@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FM-1 second core (CPU1) bring-up and the shared mailbox. EXPERIMENTAL: validated
- * in the emulator only, never on a device (docs/DUAL-CORE.md).
+/* FM-1 second core (CPU1) bring-up and the shared mailbox (docs/DUAL-CORE.md).
  *
  * Start sequence: the one the stock M-VAVE application uses (its code at XIP
  * 0x02059a2e, disassembled with the vendor objdump):

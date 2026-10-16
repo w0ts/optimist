@@ -59,7 +59,7 @@
 #define FELUCCA_ENG_PHYS 0                 /* PHYS (from Felucca 1.0: eng_phys.c, backports.h) */
 #endif
 #ifndef FELUCCA_ENG_ACID
-#define FELUCCA_ENG_ACID 0                 /* ACID (from X0X: eng_acid.c, backports.h), EXPERIMENTAL */
+#define FELUCCA_ENG_ACID 0                 /* ACID (from X0X: eng_acid.c, backports.h) */
 #endif
 #ifndef FELUCCA_ENG_CZ
 #define FELUCCA_ENG_CZ 0                   /* CZ (from Melodee 0.11: eng_cz.c, cz_native.c, backports.h) */

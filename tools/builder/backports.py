@@ -12,7 +12,7 @@ import registry as R
 
 SRC = Path(__file__).resolve().parents[2] / "tools" / "backports.json"
 GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX_ANY, "drums": "Drums", "midi": "MIDI & USB",
-         "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "Experimental"}
+         "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "System"}
 LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
@@ -63,7 +63,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                         "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
     "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level "
                       "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
-                      "of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: "
+                      "of flash; X0X reports it working on a real FM-1. Off: "
                       "always full brightness.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
@@ -80,8 +80,8 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                         "heaviest preset take about 17 % of the audio budget at 312 MHz (at 96 MHz that was too much "
                         "and voices were shed).",
     "FELUCCA_ENG_ACID": "X0X's TB-303-style bass voice (one monophonic voice per part, engine 12) with the TB-3PO line "
-                        "generator. Experimental: floating-point DSP (about 14.4 KB of flash, 1.7 KB of RAM) that ran on "
-                        "a real FM-1 in X0X but has not been tried here; no pitch bend or TUNE on the 303; 4 presets.",
+                        "generator. Floating-point DSP (about 14.4 KB of flash, 1.7 KB of RAM) that ran on "
+                        "a real FM-1 in X0X; no pitch bend or TUNE on the 303; 4 presets.",
     "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
                       "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
                       "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
@@ -266,7 +266,7 @@ def load(path=SRC):
                             commit=src.get("commit", ""), url=src.get("repo", ""))
         notice = e.get("notice", "") if (x0x or e.get("warning")) else ""   # (provenance shows for the rest)
         if x0x and not notice:
-            notice = f"Ported from X0X by Charles Vestal (GPL-3.0). Experimental in this firmware."
+            notice = f"Ported from X0X by Charles Vestal (GPL-3.0)."
         if (e.get("warning") or x0x) and notice and not notice.upper().startswith(("WARNING", "NOTICE")):
             notice = ("WARNING: " if e.get("warning") else "") + notice
         bit = BITS.get(sw, NEXT_FREE + extra.index(sw) if sw in extra else NEXT_FREE)

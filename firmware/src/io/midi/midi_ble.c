@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* BLE MIDI (FELUCCA_BLE, EXPERIMENTAL; route C, our own stack in ../../ble/, docs/BLE-STACK.md) into and out of the
+/* BLE MIDI (FELUCCA_BLE; route C, our own stack in ../../ble/, docs/BLE-STACK.md) into and out of the
  * MIDI router, the way USB and TRS MIDI do it (usb.c, midi_uart.c):
  *   in   the stack decodes a central's BLE-MIDI writes, in the BLE interrupts, into USB-MIDI event packets. They wait
  *        in ble_in_q (one producer: the BLE interrupts) until the TIMER5 tick moves them into midi_in_q, whose

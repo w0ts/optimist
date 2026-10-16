@@ -3,7 +3,7 @@
 /* SLOOP (based on FELUCCA): one compilation unit (the HAL is header-only). Order matters. */
 #include <stdint.h>
 #ifndef FELUCCA_DUAL
-#define FELUCCA_DUAL 0           /* EXPERIMENTAL second core (dual.c, docs/DUAL-CORE.md): 0 off, 1 stage 1
+#define FELUCCA_DUAL 0           /* The second core (dual.c, docs/DUAL-CORE.md): 0 off, 1 stage 1
                                   * (CPU1 counts, nothing else), 2 CPU1 renders parts 2 and 3 */
 #endif
 #ifndef FELUCCA_BENCH
@@ -90,7 +90,7 @@ static void dual_flash_leave(void);
 #include "io/midi/midi_uart.c"
 #endif
 #ifndef FELUCCA_BLE
-#define FELUCCA_BLE 0            /* EXPERIMENTAL BLE MIDI, route C: our own stack (ble/, docs/BLE-STACK.md) and its WL82
+#define FELUCCA_BLE 0            /* BLE MIDI, route C: our own stack (ble/, docs/BLE-STACK.md) and its WL82
                                   * baseband driver (ble/ble_hw_wl82.c, hal/fm1_ble.h): host- and emulator-tested, and
                                   * run on an FM-1 with macOS (Audio MIDI Setup) */
 #endif

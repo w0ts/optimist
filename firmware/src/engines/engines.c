@@ -32,7 +32,7 @@
 #include "phys/eng_phys.c"                    /* PHYS (from Felucca 1.0; DaisySP / Rings parts MIT): engine 11 */
 #endif
 #if FELUCCA_ENG_ACID
-#include "acid/eng_acid.c"                    /* ACID (from X0X; Open303 parts MIT): engine 12, EXPERIMENTAL */
+#include "acid/eng_acid.c"                    /* ACID (from X0X; Open303 parts MIT): engine 12 */
 #endif
 #if FELUCCA_ENG_NOISE && !FELUCCA_ANALOG2
 #error "the NOISE engine takes its engine number (15) from the ANALOG 2 build"
