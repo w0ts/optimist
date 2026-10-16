@@ -52,7 +52,7 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
 #define E1C_FM6 E1C(E1K_AL(2), P_E0 + 2, 2, E1K_AL(3), P_E0 + 3, 3, \
     E1K_SHP, P_ED_SHP, 1, E1K_PIT, P_E1PIT, E1L_PIT, LT_SHP)   /* (no filter: MOD) */
 #define E1C_SLICE E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
-    E1K_MV(6), P_E1X + 0, 6, E1K_MV(2), P_E1X + 1, 2, LT_FLT)
+    E1K_MV(6), P_E1X + 0, 6, E1K_MV(3), P_E1X + 1, 3, LT_FLT)   /* (PTCH: START is read at the note-on only) */
 #define E1C_PHYS E1C(E1K_FLT, P_ED_FLT, 2, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_MV(3), P_E1X + 0, 3, E1K_MV(7), P_E1X + 1, 7, LT_FLT)
 #define E1C_ACID E1C(E1K_AL(2), P_E0 + 2, 2, E1K_AL(3), P_E0 + 3, 3, \

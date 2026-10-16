@@ -393,6 +393,10 @@ job; ( jobin
     run "ENV 1 MOD: every engine's four cards (paths, moves, part moves, aliases), at 0 the default's render, each heard, the amplitude wired, the plain path and env_post the same, PIT +-31.5 st, E1 AMT bounded, ENV DEST's slots of before folded (FLT SHP PIT moves, the rest to a free ENV2), ENV2's default DEST A per engine" "$OUT/env1_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $ENV1_ENG -o "$OUT/env1_test0" tests/env1_test.c -lm
     run "ENV 1 MOD without LFO 2" "$OUT/env1_test0"
+    rm -rf "$OUT/gen-env1-slice" && mkdir -p "$OUT/gen-env1-slice" && cp "$HGEN"/*.h "$OUT/gen-env1-slice/"   # (SLICE's BREAK: its cards heard)
+    FELUCCA_SLICE=1 FELUCCA_SAMPLES_SKIP= python3 tools/gen_samples.py "$OUT/gen-env1-slice/felucca_samples.h" >/dev/null
+    $CC -O2 -w -I"$OUT/gen-env1-slice" -Ifirmware/src $ENV1_ENG -o "$OUT/env1_test_slc" tests/env1_test.c -lm
+    run "ENV 1 MOD with SLICE's BREAK in the headers: SLICE's four cards (TONE PIT DCAY PTCH) heard" "$OUT/env1_test_slc"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lfo_slots_test0" tests/lfo_slots_test.c -lm
     run "LFO DEST's two slots without LFO 2 and the macros" "$OUT/lfo_slots_test0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_LFO2=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
