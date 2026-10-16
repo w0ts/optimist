@@ -848,6 +848,9 @@ static void sys_rst_cell(cell_t *c)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
 #define INFO_N INFO_BASE                                /* INFO's lines */
+#ifndef FELUCCA_STOCK_SUPPLY
+#define FELUCCA_STOCK_SUPPLY 0                          /* (system/supply.c's: the host tests include this file alone) */
+#endif
 #define INFO_SUP ((uint32_t)FELUCCA_STOCK_SUPPLY)       /* the SUPPLY line (STOCK_SUPPLY builds) */
 #define INFO_DIAG (INFO_RST + 1u + INFO_SUP + INFO_C1)  /* INTERNALS' lines */
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
