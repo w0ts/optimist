@@ -181,6 +181,10 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
+    $CC -o "$OUT/flash_slice_test" tests/flash_slice_test.c
+    run "sector erase in 1 ms interrupts-off windows (suspend 75h / resume 7Ah; parts that ignore the suspend, show no SUS bit, suspend late or lose progress)" "$OUT/flash_slice_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -o "$OUT/storage_test" tests/storage_test.c
     run "flash storage (A/B, torn writes; SLOOP 2.3's checks: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test"
 ) >"$U.out" 2>&1 & jobbg

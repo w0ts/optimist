@@ -169,7 +169,7 @@ static int st_read(uint32_t off, void *dst, uint32_t n)   /* 256-byte IRQ-off wi
     while (n) {
         uint32_t k = n > 256u ? 256u : n, f;
         int rc;
-        fm1_flash_reading = 1;                   /* (a read: CPU1 not parked for it, as stock parks it for writes only) */
+        fm1_flash_reading = FM1_FLOP_READ;       /* (a read: CPU1 not parked for it, as stock parks it for writes only) */
         f = irq_save();
         rc = FL_FAR(fl_read_ram)(off, d, k);
         irq_restore(f);
@@ -182,22 +182,13 @@ static int st_read(uint32_t off, void *dst, uint32_t n)   /* 256-byte IRQ-off wi
     }
     return 0;
 }
-static void audio_silence(void)                 /* IRQs off: the DMA would loop stale audio (buzz) */
-{
-    uint32_t i;
-    for (i = 0; i < sizeof abuf / sizeof abuf[0]; i++)
-        abuf[i] = 0;
-}
-/* a sector erase with the audio silenced inside the same interrupts-off window (silenced before it, the
- * audio interrupt could render a fresh half that the DMA then loops for the whole erase: a buzz) */
+/* a sector erase in windows of FLS_SLICE_US (hal/fm1_flash_slice.h: suspended between them, the audio interrupt on), so
+ * the audio keeps playing. Only a window that holds the rest of the erase (a part that does not suspend) silences the
+ * audio inside it (silenced before it, the audio interrupt could render a fresh half that the DMA then loops for the
+ * whole erase: a buzz) */
 static int fl_erase4k_quiet(uint32_t off, uint32_t *took)
 {
-    uint32_t f = irq_save();
-    int rc;
-    audio_silence();
-    rc = FL_FAR(fl_erase4k_ram)(off, took);
-    irq_restore(f);
-    return rc;
+    return fl_erase4k_sliced(off, took, abuf, sizeof abuf / sizeof abuf[0]);
 }
 static int st_erase(uint32_t off)
 {

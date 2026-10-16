@@ -19,6 +19,7 @@
 /* the loader may write the app area and erase update records; never the head, nor the SDK's own sectors
  * (fm1_flash.h refuses FL_SDK_SYS: 0xE7000..0xE9FFF, the stock SDK VM and BTIF among them, and key_mac) */
 #define FL_RANGE_OK(off, n) (FL_IN(off, n, 0x4000u, 0x93000u) || FL_IN(off, n, 0x93000u, 0xFC000u))
+#define FL_ERASE_ONE_WINDOW 1          /* (fm1_flash.h: no erase suspend here; the app erases in short windows) */
 #include "fm1_flash.h"
 #include "../src/system/libc.c"
 #include "../src/io/usb/usb.c"

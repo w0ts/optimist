@@ -3245,7 +3245,7 @@ to be split in two pages with easier-to-read text" (three pages are fine).
 - **SHIFT + YES on INFO** clears what the page shows: DROPS, UNDERRUNS, the MAX, the voices shed (display baselines; the
   counters go on, the console reads them since boot). On INFO it takes the place of the redo chord.
 - **The header's rule** (its bottom line, 2 px) turns red for ~1 s after a drop-out and amber after another underrun, on every page.
-- **INTERNALS** (2/n): LAST RESET, FLASH IRQS OFF (the longest interrupts-off window of a flash operation; amber past an audio half),
+- **INTERNALS** (2/n): LAST RESET, FLASH IRQS OFF (the longest interrupts-off window of a flash operation and its kind, erase / write / read; amber past an audio half; a sector erase runs in ~1 ms windows, hal/fm1_flash_slice.h),
   and in DUAL builds CPU1 JOBS DONE, CPU1 RE-WAKES, CPU1 LAST STOP (NEVER | `<t> IDLE` | `<t> NOT TAKEN` | `<t> IN JOB n`, unit the
   job's index), CPU1 GOT TO (how far it got), CPU1 HEARTBEAT (unit: its wakes), CPU1 FAULT (NONE, or the code and the pc).
 - **USB STATS** (3/n, USB audio builds): USB UNDERRUNS, USB OVERRUNS, MISSED FRAMES, BAD PACKETS, PACKETS IN, RATE ASKED (Hz, the
