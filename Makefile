@@ -4,7 +4,7 @@
 .PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs gate emu-check
 
 PY ?= python3
-PROFILE ?= user-default
+PROFILE ?= synth
 FW ?=
 CPU ?=
 IMAGES ?= firmwares
@@ -20,7 +20,7 @@ help:
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
 	@echo "make share     PROFILE=name    move one of my profiles (config/my-profiles) to config/profiles"
-	@echo "make delete    PROFILE=name    delete a profile (mine first, else the shipped one; never user-default)"
+	@echo "make delete    PROFILE=name    delete a profile (mine first, else the shipped one; never synth or user-default)"
 	@echo "make web      [PORT=8766]       build the local site from build/felucca.fwsc (run make build first), serve the installer and the web editor on 127.0.0.1, open the editor (Chrome or Edge for Web MIDI)"
 	@echo "make emu     [FW=name] [CPU=96|own] [FRESH=1] run a firmware in the emulator (asks when FW is empty);"
 	@echo "                              its saved flash is kept between runs (emulator/state/), FRESH=1 starts without it"

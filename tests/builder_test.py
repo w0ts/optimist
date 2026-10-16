@@ -275,8 +275,20 @@ import tempfile  # noqa: E402
 from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 
 pub = C.published_profiles()
-check(f"published profiles ({', '.join(pub)}): shipped ones, user-default among them",
-      "user-default" in pub and set(pub) <= set(C.profile_names()))
+check(f"published profiles ({', '.join(pub)}): shipped ones, synth and user-default among them",
+      {"synth", "user-default"} <= set(pub) and set(pub) <= set(C.profile_names()))
+# the default profile is Synth (the maintainer's own build); user-default stays the generic reference profile
+_syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
+_syn_errs, _, _ = C.validate(_syn)
+check("the default profile is synth (configure, optimist.py), user-default the reference profile (tests, gate)",
+      C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
+      O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
+_ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
+check("the default profile validates, with the full web editor (every ED_* item at its default, PARAM_HELP off)",
+      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items()))
+_syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
+check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
+      _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
 out = io.StringIO()
 with redirect_stdout(out):
     rc = C.main(["--published"])
@@ -333,14 +345,15 @@ with tempfile.TemporaryDirectory() as tmp:
           "gone" not in C.my_profile_names() and "a" not in C.profile_names())
     (C.PROFILES / "user-default.config").write_text("ICONS=0\n")
     refused = []
-    for n in ("user-default", "nope"):
+    (C.PROFILES / "synth.config").write_text("ICONS=0\n")
+    for n in ("synth", "user-default", "nope"):
         try:
             C.delete_profile(n)
             refused.append(False)
         except C.ConfigError:
             refused.append(True)
-    check("... never user-default (make's and the CLI's default), nor a name with no profile",
-          all(refused) and "user-default" in C.profile_names())
+    check("... never synth (make's and the CLI's default) or user-default (the reference profile), nor a name with no profile",
+          all(refused) and {"synth", "user-default"} <= set(C.profile_names()))
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
