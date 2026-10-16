@@ -15,6 +15,7 @@ The key (docs: optimist-work cloudbuild DESIGN.md, "Cache key and normalization"
 sha256("optimist-cloud/1\\n" + commit + "\\n" + canonical), canonical the sorted KEY=value lines of what the image
 is built with (an option of an item left out at its default, the reserve items dropped, the retired items at the
 value the image is still built as)."""
+import functools
 import hashlib
 import re
 import sys
@@ -296,9 +297,14 @@ def item_delta_alone(costs, key, value):
     return {r: d.get(r, 0) + t[r] for r in REGIONS}
 
 
+@functools.lru_cache(maxsize=None)
+def _pair_conds(name):
+    return tuple((k, int(v)) for k, v in (c.split("=") for c in name.split(",")))
+
+
 def pair_conds(name):
     """a costs.json "pairs" key ("MOTION=1,SECTIONS=4") -> [(key, value)]"""
-    return [(k, int(v)) for k, v in (c.split("=") for c in name.split(","))]
+    return list(_pair_conds(name))
 
 
 def built_parent(cfg, key):
@@ -312,7 +318,7 @@ def pair_delta(cfg, costs):
     less each one's delta; and the groups, group_delta), per region"""
     out = group_delta(cfg, costs)
     for name, d in (costs or {}).get("pairs", {}).items():
-        conds = pair_conds(name)
+        conds = _pair_conds(name)
         if all(k in cfg and cfg[k] == v and built_parent(cfg, k) for k, v in conds):   # (an option of an item that is off is not in the build)
             for r in REGIONS:
                 out[r] += d.get(r, 0)
@@ -464,16 +470,24 @@ def distance(a, b):
     return sum(1 for k in ea if ea[k] != eb[k])
 
 
+_ANCHOR_MEMO = {}          # (proposals() fills it for one costs while it runs: the anchors do not change within it)
+
+
 def anchors(costs, exclude=(), extra=()):
     """-> [(name, cfg, real sizes)] the configurations whose real build is known: the defaults (costs.json "base"),
     the check configurations measured with the deltas (costs.json "checks", each with the configuration it was built
     as) and extra, more of them (configure.py: the real builds made from this very source, build/exact-sizes.json);
     exclude: names left out (tests/builder_test.py: a check configuration is estimated without its own build)"""
+    memo = _ANCHOR_MEMO.get(id(costs)) if not exclude and not extra else None
+    if memo is not None:
+        return list(memo)
     out = [("defaults", defaults(), costs["base"])] if "defaults" not in exclude else []
     for n, e in sorted(costs.get("checks", {}).items()):
         acfg = anchor_cfg(e)
         if n not in exclude and e.get("sizes") and acfg:
             out.append((n, acfg, e["sizes"]))
+    if not exclude and not extra and id(costs) in _ANCHOR_MEMO:
+        _ANCHOR_MEMO[id(costs)] = out
     return out + list(extra)
 
 
@@ -645,8 +659,8 @@ def over_any(cfg, costs, margin=FIT_MARGIN, budget_fn=budget):
     return {r: o + margin[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + margin[r] > 0}
 
 
-def fit(cfg, costs, keep=(), order=FIT_ORDER, budget_fn=budget):
-    """-> (cfg that fits by the estimate, [changes]); keep: keys never touched. None if nothing more to drop"""
+def _fit_run(cfg, costs, keep, order, budget_fn):
+    """-> (cfg after walking the order, [changes], fits): the fixed order of least loss as far as it gets"""
     cfg, changes = dict(cfg), []
     for k, v in order:
         over = over_any(cfg, costs, budget_fn=budget_fn)
@@ -661,7 +675,169 @@ def fit(cfg, costs, keep=(), order=FIT_ORDER, budget_fn=budget):
             continue
         cfg = trial
         changes.append(f"{k}={v}")
-    return (cfg, changes) if not over_any(cfg, costs, budget_fn=budget_fn) else (None, changes)
+    return cfg, changes, not over_any(cfg, costs, budget_fn=budget_fn)
+
+
+def fit(cfg, costs, keep=(), order=FIT_ORDER, budget_fn=budget):
+    """-> (cfg that fits by the estimate, [changes]); keep: keys never touched. None if nothing more to drop"""
+    out, changes, ok = _fit_run(cfg, costs, keep, order, budget_fn)
+    return (out, changes) if ok else (None, changes)
+
+
+# ---- proposals: several ways to fit, each with what it changes, what is lost and the result (the web builder's panel;
+# the terminal builder can offer the same). Deterministic; every one is made by the same rules as fit()
+PROPOSAL_MAX = 4
+
+
+def _off_value(cfg, key):
+    """what switching the item off means (a choice: its smallest value that is not 0, else 0), None: nothing to drop"""
+    it = R.ITEMS[key]
+    alt = 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
+    return None if alt == cfg[key] else alt
+
+
+def _new_errors(before, after):
+    old = validate(before)[0]
+    return [e for e in validate(after)[0] if e not in old]
+
+
+def _drop(cfg, key, value):
+    """-> cfg with the item at `value` and what its dependants need (a validate() error the drop causes names items
+    that were on: they go too, at most 3, never a synth engine), or None when that is not possible"""
+    trial = dict(cfg, **{key: value})
+    for _ in range(3):
+        errs = _new_errors(cfg, trial)
+        if not errs:
+            return trial
+        more = [k for e in errs for k in e.keys if k != key and trial.get(k) and R.ITEMS[k].group != "Synth engines"
+                and not R.ITEMS[k].no_image]
+        if not more:
+            return None
+        for k in sorted(set(more)):
+            trial[k] = 0
+    return None if _new_errors(cfg, trial) else trial
+
+
+def _changes(before, after):
+    """-> [{key, label, from, to, desc}] in registry order: the items that differ (children of a dropped parent
+    are not listed: they follow it)"""
+    out = []
+    for k, it in R.ITEMS.items():
+        if before[k] != after[k]:
+            if it.parent and not built(after, it.parent) and before[it.parent] != after[it.parent]:
+                continue
+            out.append({"key": k, "label": it.label, "from": before[k], "to": after[k],
+                        "desc": it.off_warning or it.desc, "reserve": it.no_image})
+    return out
+
+
+def _shown_over(cfg, costs, budget_fn):
+    """a region is over its limit as the gauges show it (the estimate, without the fit margin)"""
+    return any(o > 0 for _, _, o in fits(budget_fn(cfg, costs)["total"], cfg).values())
+
+
+def _outcome(cfg, costs, budget_fn):
+    b = budget_fn(cfg, costs)["total"]
+    return {"after": {r: {"used": u, "capacity": c, "over": o} for r, (u, c, o) in fits(b, cfg).items()},
+            "fits": not _shown_over(cfg, costs, budget_fn)}
+
+
+def _greedy(cfg, costs, keep, budget_fn):
+    """drop built items of the others, the ones that save most in the overflowing regions first, until it fits
+    (the savings are those of the configuration it starts from: an estimate, the fit is checked each time)"""
+    cfg = dict(cfg)
+    sav = {k: v for k, v in savings_of(cfg, costs).items() if built(cfg, k)}
+    for _ in range(40):
+        over = over_any(cfg, costs, budget_fn=budget_fn)
+        if not over:
+            break
+        best = None
+        for k in sorted(sav):
+            it = R.ITEMS[k]
+            if k in keep or it.group == "Reserve" or it.no_image or not built(cfg, k):
+                continue
+            gain = sum(min(sav[k][r], over[r]) for r in over)
+            if gain > 0 and (best is None or gain > best[0]):
+                best = (gain, k)
+        if best is None:
+            break
+        t = _drop(cfg, best[1], _off_value(cfg, best[1]))
+        if t is None:
+            keep = set(keep) | {best[1]}
+            continue
+        cfg = t
+    return cfg
+
+
+def proposals(cfg, costs, budget_fn=budget, limit=PROPOSAL_MAX):
+    """-> [{id, title, text, values, changes, after, fits}]: up to `limit` ways to make the configuration fit by the
+    estimate, best first; [] when it already fits. changes: what is switched off or lowered ({key, label, from, to,
+    desc}, desc: what the user loses); after: {region: {used, capacity, over}}; fits: no gauge is over its limit.
+    When nothing fits, the ones that come closest are still returned (fits False).
+    The ways: "least" (fit(): the fixed order of least loss), "single" (the one item whose removal alone fits, the
+    cheapest two), "reserves" (the reserves lowered to 0 first, then the least loss), "engines" / "fx" (keep every
+    synth engine / every FX, drop from the others)"""
+    _ANCHOR_MEMO[id(costs)] = None
+    try:
+        return _proposals(cfg, costs, _memo_budget(budget_fn), limit)
+    finally:
+        _ANCHOR_MEMO.pop(id(costs), None)
+
+
+def _memo_budget(budget_fn):
+    seen = {}
+
+    def memo(cfg, costs, **kw):
+        key = tuple(sorted(cfg.items()))
+        if key not in seen:
+            seen[key] = budget_fn(cfg, costs, **kw)
+        return seen[key]
+    return memo
+
+
+def _proposals(cfg, costs, budget_fn, limit):
+    if not _shown_over(cfg, costs, budget_fn):
+        return []
+    over0 = over_any(cfg, costs, budget_fn=budget_fn)
+    made = []
+
+    def add(pid, title, text, new):
+        if new is None or new == cfg or any(new == m["values"] for m in made):
+            return
+        made.append({"id": pid, "title": title, "text": text, "values": new, "changes": _changes(cfg, new),
+                     **_outcome(new, costs, budget_fn)})
+
+    walked, _, _ = _fit_run(cfg, costs, (), FIT_ORDER, budget_fn)
+    add("least", "Least loss (the builder's order)", "The fixed order of least loss: what costs the least to give up goes first.", walked)
+    sav = savings_of(cfg, costs)
+    singles = []
+    for k in sorted(sav):                                   # (only items that save about what is over: then check it)
+        it = R.ITEMS[k]
+        if it.group == "Reserve" or it.no_image or any(sav[k][r] < over0[r] * 0.5 for r in over0):
+            continue
+        t = _drop(cfg, k, _off_value(cfg, k))
+        if t is not None and not over_any(t, costs, budget_fn=budget_fn):
+            singles.append((sum(sav[k].values()), k, t))
+    for i, (_, k, t) in enumerate(sorted(singles)[:2]):
+        add(f"single-{k}", f"Drop only {R.ITEMS[k].label}", "One item alone makes it fit; nothing else changes.", t)
+    res = dict(cfg)
+    for k in ("RESERVE_FLASH_KB", "RESERVE_UNDO_KB"):
+        if k in res and res[k]:
+            res[k] = 0
+    if res != cfg:
+        add("reserves", "Free the reserves first", "Lower the kept headroom to 0, then the order of least loss.",
+            _fit_run(res, costs, (), FIT_ORDER, budget_fn)[0])
+    engines = {k for k, it in R.ITEMS.items() if it.group == "Synth engines"}
+    fx = {k for k, it in R.ITEMS.items() if it.group.startswith("FX")}
+    for pid, title, keep in (("engines", "Keep my synth engines, drop the extras", engines), ("fx", "Keep my effects, drop the rest", fx)):
+        add(pid, title, "Everything in that group stays; the others give way, the biggest savings first.",
+            _greedy(_fit_run(cfg, costs, keep, FIT_ORDER, budget_fn)[0], costs, keep, budget_fn))
+    fitting = [m for m in made if m["fits"]]
+    if fitting:
+        made = fitting + [m for m in made if not m["fits"]]
+    else:
+        made.sort(key=lambda m: sum(max(0, d["over"]) for d in m["after"].values()))
+    return made[:limit]
 
 
 # ---- the canonical form and the cache key (cloud builds)

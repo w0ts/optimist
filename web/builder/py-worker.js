@@ -69,7 +69,7 @@ function call(fn, args) {
   return JSON.parse(py.runPython(`json.dumps((lambda f, a: f(*a))(getattr(web_api, _fn), json.loads(_args)))`));
 }
 
-const ALLOWED = new Set(["registry_view", "view", "toggle", "item_info", "fit_view", "parse_text"]);
+const ALLOWED = new Set(["registry_view", "view", "toggle", "item_info", "fit_view", "proposals_view", "parse_text"]);
 
 self.onmessage = async (e) => {
   const m = e.data || {};

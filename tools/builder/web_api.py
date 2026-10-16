@@ -10,6 +10,7 @@ was exported with (tools/export_builder_web.py).
   toggle(values, key, value, room)   set one item as the menu's space does, BLE making room (room.py) as there
   item_info(key)                     the details panel: each value's cost alone, the pairs that name the item
   fit_view(values)                   core.fit: what the fixed order of least loss would change to fit
+  proposals_view(values)             core.proposals: several ways to fit, each with its changes and its result
   parse_text(text)                   a .config file read as the CLI reads it (warnings, errors)
 
 The budget is the estimate only (core.budget without real builds' sizes: there is no build/ in a browser), as
@@ -135,6 +136,11 @@ def fit_view(values):
     "changes": ["KEY=value"]}"""
     cfg, changes = K.fit(_cfg(values), COSTS)
     return {"values": cfg, "changes": changes}
+
+
+def proposals_view(values):
+    """-> core.proposals: up to 4 ways to fit ([] when it fits), each {id, title, text, values, changes, after, fits}"""
+    return K.proposals(_cfg(values), COSTS)
 
 
 def parse_text(text):

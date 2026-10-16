@@ -101,6 +101,42 @@ for n in C.profile_names():
     if ev["key"] != K.cloud_key(cfg, SHA) or ev["canonical"] != K.canonical(cfg):
         check(f"evaluate: profile {n}: its key and canonical form", False)
 
+# ---- proposals (core.proposals): several ways to fit, each with its changes and its result
+def everything_on():
+    cfg = C.defaults()
+    for k, it in R.ITEMS.items():
+        if k not in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB"):
+            cfg[k] = max(c[0] for c in it.choices) if it.is_choice else 1
+    return cfg
+
+
+tight = dict(C.defaults(), ENG_PHYS=1, RESERVE_FLASH_KB=200)
+with contextlib.redirect_stderr(io.StringIO()):
+    fitting = C.load_profile("synth")[0]
+check("proposals: a configuration that fits has none", K.fits(K.budget(fitting, costs)["total"], fitting) and not any(o > 0 for _, _, o in K.fits(K.budget(fitting, costs)["total"], fitting).values()) and K.proposals(fitting, costs) == [])
+with contextlib.redirect_stderr(io.StringIO()):
+    P1, P2 = K.proposals(tight, costs), K.proposals(everything_on(), costs)
+    P1b = K.proposals(tight, costs)
+check("proposals: over budget: 1 to 4 of them, the same twice (deterministic), JSON-serialisable",
+      P1 and len(P1) <= K.PROPOSAL_MAX and P2 and P1 == P1b and json.loads(json.dumps(P1)) == P1)
+check("proposals: each one's values are the configuration with exactly its changes, no error it did not have, "
+      "its 'fits' is no gauge over",
+      all(p["fits"] == (not any(o > 0 for _, _, o in K.fits(K.budget(p["values"], costs)["total"], p["values"]).values())) and not [e for e in K.validate(p["values"])[0]
+          if e not in K.validate(tight)[0]] and {c["key"] for c in p["changes"]} <= {k for k in R.ITEMS if p["values"][k] != tight[k]}
+          for p in P1))
+least = next((p for p in P1 if p["id"] == "least"), None)
+fitted, _ = K.fit(tight, costs)
+check("proposals: 'least loss' is core.fit's result (the CLI's) when that fits", fitted is None or (least and least["values"] == fitted))
+check("proposals: fitting ones come first; when none fits the closest are shown (fits False)",
+      [p["fits"] for p in P1] == sorted((p["fits"] for p in P1), reverse=True) and P2 and any(not p["fits"] for p in P2) == (not any(p["fits"] for p in P2)) or any(p["fits"] for p in P2))
+check("proposals: the reserves proposal lowers RESERVE_FLASH_KB first",
+      any(p["id"] == "reserves" and p["changes"][0]["key"] == "RESERVE_FLASH_KB" and p["values"]["RESERVE_FLASH_KB"] == 0 for p in P1))
+check("proposals: 'keep my engines' leaves every built engine as it was",
+      all(p["values"][k] == base[k] for base, ps in ((tight, P1), (everything_on(), P2)) for p in ps if p["id"] == "engines"
+          for k, it in R.ITEMS.items() if it.group == "Synth engines"))
+check("proposals: a dropped item's dependants are changed with it (none left with a new error)",
+      all(not [e for e in K.validate(p["values"])[0] if e not in K.validate(everything_on())[0]] for p in P2))
+
 # ---- the JSON API
 ev = K.evaluate({"config": {"ENG_FM6": 1, "MIDI_CLKOUT": 1}, "commit": SHA, "costs": costs})
 check("evaluate: JSON in, JSON out, the merged key warned about, the budget and the fit",
