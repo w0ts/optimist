@@ -247,7 +247,7 @@ const dlEarly = events.filter((e) => e.method === "Page.downloadWillBegin").leng
 const dl = await run(`${U} let got = null; const orig = URL.createObjectURL; URL.createObjectURL = (b) => { got = b; return orig(b); };
   $("#download").click(); await until(() => got, 3000); URL.createObjectURL = orig; return { text: await got.text(), name: document.querySelector("a[download]") ? document.querySelector("a[download]").download : "gone" };`);
 await sleep(1500);
-const dlFiles = readdirSync(DL);
+const dlFiles = readdirSync(DL_DIR);
 ok(dlEarly === 0 && events.filter((e) => e.method === "Page.downloadWillBegin").length === 1 && dlFiles.length === 1 && /\.config$/.test(dlFiles[0]),
   `downloads: none before the click (load, presets, edits); the click makes exactly one, ${dlFiles[0] || "-"}, into the test's own folder`);
 const reparsed = JSON.parse(py(["tests/builder_web_ref.py"], JSON.stringify({ texts: [dl.text] }))).texts[0];

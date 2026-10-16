@@ -330,7 +330,7 @@ BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=
 # measured 2026-10-11 on user-default with the whole BLE set: flash 560,596 of 581,564 B, 20,968 B free
 BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0",
                  "ENG_GRAIN=0", "ENG_TRIO=0", "ENG_DRAWBAR=0", "ENG_DIGITAL=0", "ENG_PHASE=0",
-                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0")
+                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0")
 
 
 def ble_test_configs():
@@ -342,7 +342,7 @@ def ble_test_configs():
             return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
     return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_FXP=0", "ED_SCRS=0"]))]
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_FXP=0", "ED_SCRS=0", "ED_TOOLS=0", "ED_SONG=0", "ED_SOLO=0", "ED_REC=0", "ED_UNDO=0", "DUAL=0"]))]
 
 
 def prepare_tests():
