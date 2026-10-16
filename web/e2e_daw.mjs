@@ -907,11 +907,13 @@ const sizeRes = await run(`${U} try {
   r.head = (lm.left >= hd.right - 1) + ":" + (Math.abs(fo.left - lm.right) <= 6) + ":" + (hr.right - fo.right <= 8);
   if (!wasOpen) { st(3).querySelector("[data-fold]").click(); await sleep(400); }
   r.panLbl = [...document.querySelectorAll("#mixer > .strip")].map((x) => x.querySelector(".srow[data-row=pan] .knob, .srow[data-row=tools] .col > .knob")).filter((k) => k && k.offsetParent).every((k) => k.querySelector(".kl").getBoundingClientRect().left >= k.querySelector("svg").getBoundingClientRect().right - 1);
+  const sizes = new Set(); for (const e of document.querySelectorAll("#mixer .strip *")) { if (e.offsetParent === null || ![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue; sizes.add(getComputedStyle(e).fontSize); }
+  r.fonts = [...sizes].sort().join();
   const sr = st(0).querySelector(".srow[data-row=sends]"), last = [...sr.querySelectorAll(".knob")].pop();
   r.fit = last.getBoundingClientRect().bottom <= sr.getBoundingClientRect().bottom + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(sizeRes && /^44:/.test(sizeRes.knobs) && sizeRes.knobs.split("|").every((x) => { const a = x.split(/[:\/]/); return a.length >= 4 && a.every((v) => v === a[0]); }) && sizeRes.head === "true:true:true" && sizeRes.fit && sizeRes.panLbl,
-  `e2e: the send knobs are the pan knob's size; the pan label sits right of its knob like the send labels; the drum head keeps 1|ALL right beside the fold arrow at its right end (${JSON.stringify(sizeRes)})`);
+ok(sizeRes && /^44:/.test(sizeRes.knobs) && sizeRes.knobs.split("|").every((x) => { const a = x.split(/[:\/]/); return a.length >= 4 && a.every((v) => v === a[0]); }) && sizeRes.head === "true:true:true" && sizeRes.fit && sizeRes.panLbl && sizeRes.fonts.split(",").every((x) => [12, 14, 16].includes(parseFloat(x))),
+  `e2e: the send knobs are the pan knob's size; strip text only at Terminus crisp 12 / 14 / 16 px (none smaller than 12); the pan label sits right of its knob like the send labels; the drum head keeps 1|ALL right beside the fold arrow at its right end (${JSON.stringify(sizeRes)})`);
 /* the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP), its sounds as member strips right after it (folded by default,
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
 const MIXKEY = "fm1.mixLanes";

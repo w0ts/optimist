@@ -1479,6 +1479,15 @@
   .pghelp { margin: 8px 0 4px; } .pghelp > summary { display: inline-block; list-style: none; cursor: pointer; width: 20px; height: 20px; line-height: 18px; text-align: center; border: 1px solid var(--line); border-radius: 50%; color: var(--dim); font-size: 13px; }
   .pghelp > summary::-webkit-details-marker { display: none; } .pghelp[open] > summary { color: var(--fg); border-color: var(--fg); } .pghelp > p { margin: 6px 0 0; max-width: 90ch; }
   .top { padding-top: 6px; }
+  /* legibility: Terminus is crisp at 12 / 14 / 16 px only; no strip text is smaller than 12 px or at a fractional size */
+  #mixer .strip { font-size: 14px; }
+  #mixer .strip .l1 { font-size: 14px; } #mixer .strip .l2 { font-size: 12px; } #mixer .strip .fxname { font-size: 12px; }
+  #mixer .strip .shead .eng, #mixer .strip .shead .num { font-size: 14px; }
+  #mixer .strip .tog, #mixer .strip button.mute, #mixer .strip button.sol, #mixer .strip button.sq, #mixer .strip .arpb, #mixer .strip .lblk button { font-size: 12px; }
+  #mixer .strip .knob .kl, #mixer .strip .fx .knob .kl, #mixer .strip .srow[data-row="pan"] .knob .kl, #mixer .strip .srow[data-row="tools"] .col > .knob .kl { font-size: 14px; }
+  #mixer .strip select, #mixer .strip option, #mixer .strip .lpn select.lname { font-size: 12px; }
+  #mixer .strip button.fold, #mixer .strip button.lmode { font-size: 12px; }
+  #mixer .strip .lblk .row2 button, #mixer .strip.nar .lblk .row2 button { font-size: 12px; }
 </style>
 </head>
 <body>
