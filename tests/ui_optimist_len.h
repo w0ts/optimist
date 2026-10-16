@@ -25,7 +25,8 @@ static void len_tests(void)
         }
         ui.row[SCR_STEP] = (uint8_t)r;
         frame();
-        check(ui.scr == SCR_STEP && r < n, "LEN: STEP's PATTERN row, KNOB 1");
+        cards_up();
+        check(ui.scr == SCR_STEP && r < n && ui.row[SCR_STEP] == r && ui.cards_t, "LEN: STEP's PATTERN row, KNOB 1 (the cards up)");
     }
     len_set_turn(16, EN_K1, 1);
     ok = t->p[P_SLEN] == 32;

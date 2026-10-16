@@ -248,6 +248,7 @@ static void s35_pages_tests(void)
         check(SCR->rows() < 2u || (p[0] && s35_pos_is(1u, SCR->rows())), "#17: STEP, nothing shown over the grid: the page's name and n/N (Pattern 1/N)");
     }
     n = SCR->rows();
+    cards_up();                                         /* (the cards down: SEQ only brings them back) */
     tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */
     head_title(SCR_STEP, ui.row[SCR_STEP], t, sizeof t);
     SCR->name(ui.row[SCR_STEP], nm);

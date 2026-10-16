@@ -278,6 +278,9 @@ static void edscrs_tests(void)
         char *a = malloc(1u << 20), *b = malloc(1u << 20);
         long na, nb = -1;
         uint32_t x, r, k;
+        for (x = 0; x < NTRK; x++)                             /* (PATTERN's LEN DIV SWING GATE at their defaults, whichever test ran before) */
+            for (k = P_SLEN; k <= P_SGATE; k++)
+                trk[x].p[k] = TP[k].def;
         fprintf(f, "{\"ctx\": [\n");
         for (x = 0; x < sizeof CX / sizeof CX[0]; x++) {
             uint32_t rows, keep = trk[0].eng_req;

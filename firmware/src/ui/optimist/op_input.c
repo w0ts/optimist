@@ -687,6 +687,8 @@ static void op_knobs(uint32_t shift)
     if (!favsel && (s = panel_enc(EN_SELECT)) != 0) {   /* the cursor: a row a detent, stopping at the ends */
         if (glo_cycle())
             glo_step(s);                                /* (GLOBAL, SYSTEM: their pages of 4 lines, op_global.c) */
+        else if (step_cards_down())
+            step_cards_show();                          /* (STEP, the cards down: they come back, the page kept) */
         else
             op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
@@ -709,9 +711,10 @@ static void op_knobs(uint32_t shift)
         turned = 1;
         if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
             continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
-        if (ui.scr == SCR_STEP && !ui.cards_t && !st.held)
+        if (step_cards_down() && !fm1_in.buttons)
             continue;                                   /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
-                                                         * brings them; else they are free for the grid) */
+                                                         * brings them, or with a button held: LFO + KNOB 1 LEN by one;
+                                                         * else they are free for the grid) */
         step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)

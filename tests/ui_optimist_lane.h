@@ -109,6 +109,7 @@ static void step_pages_tests(void)
     step_cell(0, 0, &c);
     check(ui.scr == SCR_STEP && ui.row[SCR_STEP] == 0 && c.d == &TP[P_SLEN], "a synth track's STEP opens on PATTERN: LEN first");
     n = SCR->rows();
+    cards_up();                                         /* (the cards down: SEQ only brings them back) */
     for (r = 1; r < n; r++)
         tap(B_SEQ);
     check(ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (the tools), the last with none");

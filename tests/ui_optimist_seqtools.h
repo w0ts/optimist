@@ -12,6 +12,12 @@ static void stt_undo(void)                              /* SAVE then HOME (op_co
     release(B_HOME);
     release(B_SAVE);
 }
+static void kturn(uint32_t role, int32_t s)             /* a knob turned with STEP's cards up (SEQ brings them, the page kept) */
+{
+    if (!op_armed())
+        cards_up();
+    turn(role, s);
+}
 static void stt_open(uint32_t k, uint32_t page)         /* track k on STEP, page 0 TOOLS / 1 EUCLID */
 {
     reset_ui();
@@ -33,7 +39,7 @@ static void stt_do(uint32_t card)                       /* TOOLS' one card: its 
     if (!n)
         n = TS_N;                                       /* (a turn that lands on the same tool still picks the card) */
     while (n--)
-        turn(EN_K1, 1);                                 /* (a detent at a time: no acceleration) */
+        kturn(EN_K1, 1);                                 /* (a detent at a time: no acceleration) */
     tap(B_SAVE);
     if (op_armed())                                     /* (REVERSE, RANDOM, COOK ask first, the user 2026-10-13) */
         tap(B_SAVE);
@@ -190,7 +196,7 @@ static void seqtools_tests(void)
         check(t->p[P_SLEN] == 16 && t->step[12].ngate[0] == 64 && v == 9,
               "LENGTH x2 (DOUBLE): 16 steps, the copy whole (its own ends, its locks)");
     }
-    turn(EN_K1, 1);                                     /* (DOUBLE -> HALF) */
+    kturn(EN_K1, 1);                                     /* (DOUBLE -> HALF) */
     stt_yes();
     check(t->p[P_SLEN] == 8 && t->step[12].note[0] == 64, "LENGTH 1/2 (HALF): 8 steps, the steps past it kept");
 #if FELUCCA_PLOCK
@@ -204,7 +210,7 @@ static void seqtools_tests(void)
             (void)lock_set(t, i, P_E0, 1);
     }
     n = AL(t)->n;
-    turn(EN_K1, -1);                                    /* (HALF -> DOUBLE) */
+    kturn(EN_K1, -1);                                    /* (HALF -> DOUBLE) */
     stt_yes();
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
@@ -218,12 +224,12 @@ static void seqtools_tests(void)
     t->p[P_SLEN] = 16;
     stt_note(&t->step[3], 62, 0, 0);
     gen_reset_all();
-    turn(EN_K2, 1);                                     /* (OFF: a value only) */
+    kturn(EN_K2, 1);                                     /* (OFF: a value only) */
     for (i = 0, n = 0; i < 16u; i++)
         n += tl_gate(&t->step[i]);
     check(n == 1u && !gen[0].on && gen[0].p[0] == 5u && !gen_trk, "GEN OFF: HITS is a value, nothing plays but the pattern");
     stt_open(0, 2);
-    turn(EN_K1, 1);                                     /* ON */
+    kturn(EN_K1, 1);                                     /* ON */
     {
         step_t w[NSTEP];
         gen_render(t, w, ~0u);
@@ -232,8 +238,8 @@ static void seqtools_tests(void)
         check(n == 1u && m == 5u && tl_gate(&w[0]) && w[0].note[0] == 60u && gen[0].on && (gen_trk & 1u),
               "GEN ON: HITS 5 of 16 played (the root's note), the pattern untouched");
         stt_open(0, 1);
-        turn(EN_K2, -2);
-        turn(EN_K4, 2);
+        kturn(EN_K2, -2);
+        kturn(EN_K4, 2);
         gen_render(t, w, ~0u);
         for (i = 0, n = 0, ok = 1; i < 16u; i++) {
             gen_ev_t e;
@@ -244,26 +250,26 @@ static void seqtools_tests(void)
         frame();
         ppm("opt-gen-euclid-t1");                       /* (the generated notes outlined, the pattern's silenced one a stub) */
         stt_open(0, 2);
-        turn(EN_K1, -1);                                /* OFF: no question, nothing written */
+        kturn(EN_K1, -1);                                /* OFF: no question, nothing written */
         for (i = 0, n = 0; i < 16u; i++)
             n += tl_gate(&t->step[i]);
         check(!op_armed() && !gen[0].on && n == 1u, "... OFF: no question, the pattern as it was");
-        turn(EN_K1, 1);
-        turn(EN_K2, 1);                                 /* MODE: ADD */
+        kturn(EN_K1, 1);
+        kturn(EN_K2, 1);                                 /* MODE: ADD */
         gen_render(t, w, ~0u);
         for (i = 0, n = 0; i < 16u; i++)
             n += tl_gate(&w[i]);
         check(gen[0].mode == GM_ADD && n == 4u && tl_gate(&w[3]) && w[3].note[0] == 62u, "MODE ADD: the 3 hits and the pattern's note");
         frame();
         ppm("opt-gen-out-add");
-        turn(EN_K2, 1);                                 /* MODE: MASK (step 4 is no hit: nothing) */
+        kturn(EN_K2, 1);                                 /* MODE: MASK (step 4 is no hit: nothing) */
         gen_render(t, w, ~0u);
         for (i = 0, n = 0; i < 16u; i++)
             n += tl_gate(&w[i]);
         check(gen[0].mode == GM_MASK && n == 0u, "MODE MASK: the pattern only where it hits (none here)");
-        turn(EN_K2, -2);                                /* REPLACE */
+        kturn(EN_K2, -2);                                /* REPLACE */
         gen_render(t, w, ~0u);
-        turn(EN_K3, 1);                                 /* (picks WRITE) */
+        kturn(EN_K3, 1);                                 /* (picks WRITE) */
         tap(B_SAVE);
         check(op_armed() && !strcmp(ui.arm_verb, "WRITE?") && !tl_gate(&t->step[2]), "WRITE: asks \"Write T1?\", nothing written yet");
         tap(B_HOME);
@@ -299,7 +305,7 @@ static void seqtools_tests(void)
             uint32_t j;
             for (j = 0; j < 4u; j++)
                 tl_cell(2, j, &on[j]);
-            turn(EN_K1, -1);
+            kturn(EN_K1, -1);
             for (j = 0, ok = !gen[0].on; j < 4u; j++) {
                 tl_cell(2, j, &off[j]);
                 ok &= j == 2u ? on[j].kind == CK_ACT && off[j].kind == CK_NONE && !off[j].label
@@ -315,9 +321,9 @@ static void seqtools_tests(void)
                   "WRITE with the generator off: no card (YES there says so, asks nothing)");
         }
         stt_open(1, 2);
-        turn(EN_K1, 1);
+        kturn(EN_K1, 1);
         stt_open(0, 2);
-        turn(EN_K1, 1);
+        kturn(EN_K1, 1);
         check(gen[0].on && gen[1].on && (gen_trk & 3u) == 3u, "a generator on T1 and on T2 at once");
         gen_reset_all();
     }
@@ -327,7 +333,7 @@ static void seqtools_tests(void)
     t = &trk[0];
     stt_chains(t);
     for (i = TS_N - tl.sel; i; i--)
-        turn(EN_K1, 1);                                 /* (round to REVERSE) */
+        kturn(EN_K1, 1);                                 /* (round to REVERSE) */
     tap(B_SAVE);
     check(op_armed() && !strcmp(ui.arm_verb, "REVERSE?") && tl_gate(&t->step[0]), "TOOLS: SAVE asks \"Reverse T1?\", nothing done yet");
     tap(B_HOME);
@@ -361,7 +367,7 @@ static void seqtools_tests(void)
     ui.lane = 1;
     lane_select(9);
     gen_reset_all();
-    turn(EN_K1, 1);
+    kturn(EN_K1, 1);
     {
         step_t w[NSTEP];
         uint32_t m;
@@ -375,7 +381,7 @@ static void seqtools_tests(void)
               "GEN on a lane: 4 of 16 played in LOW TOM, stored nothing, the other lanes as they were");
         frame();
         ppm("opt-gen-out-lane");
-        turn(EN_K3, 1);
+        kturn(EN_K3, 1);
         stt_yes();                                      /* WRITE, YES */
         for (i = 0, n = 0; i < 16u; i++)
             n += (uint32_t)dstep_has(&t->dstep[i], 9);
@@ -397,7 +403,7 @@ static void seqtools_tests(void)
     (void)lock_set(t, 4, P_PAN, 7);
 #endif
     press(B_EDIT);
-    turn(EN_K1, 1);
+    kturn(EN_K1, 1);
     release(B_EDIT);
     {
         int32_t v = 7;
@@ -429,13 +435,13 @@ static void cond_card_tests(void)
     turn(EN_SELECT, 1);                                 /* the EXTRA page */
     step_cell(0, EX_N - 1u, &c);
     check(c.label && !strcmp(c.label, "COND") && !strcmp(c.val, "-"), "COND: the held step's EXTRA page, KNOB 4, none: -");
-    turn(EN_K1 + EX_N - 1u, 2);
+    kturn(EN_K1 + EX_N - 1u, 2);
     step_cell(0, EX_N - 1u, &c);
     check(step_cond(t, 2) == 2u && !strcmp(c.val, "2:2"), "... turned: 1:2, 2:2 (an event of the step)");
-    turn(EN_K1 + EX_N - 1u, 20);
+    kturn(EN_K1 + EX_N - 1u, 20);
     check(step_cond(t, 2) == AUTO_NCOND, "... stops at 4:4");
     fm1_in.buttons |= BT(B_OCTDN);
-    turn(EN_K1 + EX_N - 1u, 1);
+    kturn(EN_K1 + EX_N - 1u, 1);
     fm1_in.buttons &= ~BT(B_OCTDN);
     check(!step_cond(t, 2), "... SHIFT + KNOB 4: cleared");
     kup(WK(2));
@@ -448,7 +454,7 @@ static void cond_card_tests(void)
             stt_open(TRK_DRUM, pg);
             lane_select(14);
             ui.lane = 1;
-            turn(EN_K1, 1);
+            kturn(EN_K1, 1);
             frame();
             ppm(pg ? "gen-lane" : "tools-lane");
         }

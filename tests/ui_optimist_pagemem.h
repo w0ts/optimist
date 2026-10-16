@@ -116,6 +116,7 @@ static void pm_step_tests(void)
         tap(B_SEQ);
         frames(2);
         check(ui.scr == SCR_STEP && ui.row[SCR_STEP] == 0u, d ? "page memory, STEP on DR: opens on PATTERN" : "page memory, STEP on T1: opens on PATTERN");
+        cards_up();                                     /* (the cards down: SELECT only brings them back) */
         turn(EN_SELECT, 1);
         r = ui.row[SCR_STEP];
         check(r == (SCR->rows() > 1u ? 1u : 0u), d ? "... SELECT: the next page (the lane's)" : "... SELECT: the next page");

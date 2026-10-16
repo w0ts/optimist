@@ -1413,10 +1413,16 @@ static int step_knobs(void)                             /* a step held: SELECT i
 static void op_row_pick(uint32_t r);                    /* op_input.c */
 /* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, past the last the first (section 2's
  * paging rule); held alone past HOLD (long), the keys between steps and playing */
+/* STEP with its cards down (no step held): the knobs are the grid's, a SEQ tap or a SELECT turn only brings the cards back */
+static int step_cards_down(void) { return ui.scr == SCR_STEP && !ui.cards_t && !st.held; }
 static void step_seq_tap(uint32_t lng)
 {
     if (ui.scr != SCR_STEP) {
         op_enter(SCR_STEP);
+        return;
+    }
+    if (!lng && step_cards_down()) {
+        step_cards_show();                              /* (the cards back, the page kept) */
         return;
     }
     if (!lng) {

@@ -49,7 +49,8 @@ static uint32_t bk_hash(void)                           /* (the song's bytes: a 
 static uint32_t bk_sig(void)
 {
     return (ui.scr | (uint32_t)snd_fam << 4 | (uint32_t)ui.row[ui.scr] << 12 | (uint32_t)ui.arm_scr << 20 | (uint32_t)(st.held != 0) << 28) ^
-           bk_hash() ^ (uint32_t)(ui.toast_t != 0) << 27 ^ (uint32_t)ui.overlay << 25 ^ (uint32_t)op_armed() << 24 ^ (uint32_t)ui.lane << 23;
+           bk_hash() ^ (uint32_t)(ui.toast_t != 0) << 27 ^ (uint32_t)ui.overlay << 25 ^ (uint32_t)op_armed() << 24 ^ (uint32_t)ui.lane << 23 ^
+           (uint32_t)(ui.cards_t != 0) << 22;          /* (STEP: SEQ with the cards down brings them back, the page kept) */
 }
 static int bk_step_one(uint32_t scr) { return scr == SCR_STEP && SCR->rows() < 2u; }
 static void btnled_tests(void)

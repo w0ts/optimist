@@ -31,9 +31,19 @@ static void step_cards_tests(void)
         sc_open_drums();
         check(ui.scr == SCR_STEP && ui.cards_t == 0u && sc_grid_up(), "STEP overlay: idle, the grid alone");
         check(SP_Y == 25 && SG_TOP + SG_H <= SP_H && px_in(2, SP_Y + SG_TOP, 6, SG_LH - 1, lane_col(0)), "STEP overlay: the panel starts under the header and runs to the foot");
+        {
+            uint32_t rw = ui.row[SCR_STEP];
+            turn(EN_K1, 1);
+            check(ui.cards_t == 0u && sc_grid_up(), "STEP overlay: a knob turned with the cards down: no cards, nothing edited");
+            tap(B_SEQ);
+            check(ui.cards_t > 0u && ui.row[SCR_STEP] == rw && sc_cards_up(), "STEP overlay: SEQ tapped: the cards back, the page kept");
+            frames(OP_CARDS_FRAMES + 5u);
+            turn(EN_SELECT, 1);
+            check(ui.cards_t > 0u && ui.row[SCR_STEP] == rw, "STEP overlay: SELECT turned with the cards down: the cards back, the page kept");
+        }
         turn(EN_K1, 1);
         check(ui.cards_t > 0u && sc_cards_up(),
-              "STEP overlay: a knob turned, the cards over the grid");
+              "STEP overlay: a knob turned under the cards, the cards stay over the grid");
         frames(OP_CARDS_FRAMES - 10u);
         check(ui.cards_t > 0u && !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE), "... still there before the timeout");
         turn(EN_K2, 1);                                 /* an edit restarts the timer */
@@ -44,8 +54,13 @@ static void step_cards_tests(void)
         check(px_in(2, SP_Y + SG_LY(DRUM_LANES - 1u), 6, SG_LY(DRUM_LANES) - SG_LY(DRUM_LANES - 1u) - 1, lane_col(DRUM_LANES - 1u)) &&
               px_in(0, SP_Y + SG_LY(DRUM_LANES - 1u), 240, 1, C_BLACK) && SP_Y + SG_PH_Y + 4 == OP_FOOT_Y && SG_LY(DRUM_LANES) + 2 <= SG_MK_Y, "STEP overlay: the lanes run to the foot (the last lane's row, the marks, the playhead's strip over the help band)");
         /* a page change: SEQ tapped to the next STEP page */
-        tap(B_SEQ);
-        check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
+        {
+            uint32_t rw = ui.row[SCR_STEP];
+            tap(B_SEQ);
+            check(ui.cards_t > 0u && ui.row[SCR_STEP] == rw, "STEP overlay: SEQ tapped, the cards down: the cards back, the page kept");
+            tap(B_SEQ);
+            check(ui.cards_t > 0u && (step_rows() < 2u || ui.row[SCR_STEP] != rw), "STEP overlay: SEQ tapped again, the cards up: the next page");
+        }
         frames(OP_CARDS_FRAMES + 5u);
         check(ui.cards_t == 0u && !card0_up(), "... and they go");
         /* another drum lane, whichever way: no overlay (the user, 2026-10-10: "and NOT when switching drum lane"; the
@@ -133,7 +148,10 @@ static void step_cards_tests(void)
         frames(3);
         check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, idle: the roll alone");
         turn(EN_K1, 1);
-        check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, a knob turned: the cards");
+        check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, a knob turned with the cards down: none");
+        tap(B_SEQ);
+        turn(EN_K1, 1);
+        check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, SEQ then a knob turned: the cards");
         frames(OP_CARDS_FRAMES + 5u);
         check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, gone: the roll whole");
     }

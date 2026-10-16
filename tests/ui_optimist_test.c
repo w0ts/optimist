@@ -246,6 +246,8 @@ static void turn(uint32_t role, int32_t s)
     frame();
 }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
+static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) tap(B_SEQ); }   /* STEP: SEQ brings the
+                                                         * cards back (the page kept), the knobs edit only under them */
 static int fails;
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
