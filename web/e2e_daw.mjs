@@ -852,7 +852,7 @@ ok(fxpRes && /^1:head,inst,nav,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
   && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^LFO:8$/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
-  && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|C|" && fxpRes.wlane > 50 && fxpRes.wlane < 75
+  && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|AC|AB" && fxpRes.wlane > 50 && fxpRes.wlane < 75
   && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");

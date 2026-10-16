@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* LFO 2 (FELUCCA_LFO2: core.h P_L2RATE .. P_L2AB, voice.c lfo2_tick, project.c l2_pack). Run by tests/run_tests.sh with
- * LFO2=1 (everything below) and LFO2=0 (a project that has LFO 2 loads in a build without it):
+/* LFO 2 (core.h P_L2RATE .. P_L2AB, voice.c lfo2_tick, project.c l2_pack). Run by tests/run_tests.sh:
  *   params    ranges, defaults, names; RATE turns as LFO's (a fast turn down stops at 0, below 0 a note value a detent)
  *   off       every slot OFF or at 0: nothing computed (the phase waits, the block's offsets none); a part renders as
  *             with LFO 2 at its defaults
@@ -15,7 +14,6 @@
  *             default (a project without it: byte for byte as before); the macros' slot (P_LEG_FLT) untouched; a
  *             project from before (no tag) loads with LFO 2 at its defaults and the drum track's own slots; a song
  *             section (apply, not all) brings its LFO 2 too; LFO 2 with one DEST (L2_TAG_V1) loads, its AMT x 2
- *   LFO2=0    a project with LFO 2: the drum track's slots back to their defaults, l2_miss names the parts it acts on
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -48,7 +46,6 @@ static void init(void)
 static project_t q, q2;
 static int32_t o_[2 * CTL];
 
-#if FELUCCA_LFO2
 static void t_params(void)
 {
     static const char *const D[5] = {"OFF", "PIT", "FLT", "SHP", "AMP"};
@@ -298,7 +295,6 @@ static void t_render(void)
     check(render(f_amp, 300) != base && render(f_pit, 300) != base && render(f_amp, 300) == render(f_amp, 300),
           "render: on AMP, on PIT: heard (and the same twice: no rng())");
 }
-#endif
 
 /* the parts' LFO 2 values -> their packed form in q (project.c), the round trip */
 static void t_project(void)
@@ -314,12 +310,9 @@ static void t_project(void)
     init();
     proj_apply(&q, &tdl, 1);
     ok = TDRUM->p[P_LRATE] == 77 && TDRUM->p[P_LWAVE] == 2 && TDRUM->p[P_LEG_PIT] == 5 && TDRUM->p[P_LEG_FLT] == 33;
-#if FELUCCA_LFO2
     for (k = 0; k < NPART; k++)
         ok &= trk[k].p[P_L2RATE] == 60 && !trk[k].p[P_L2DA] && !trk[k].p[P_L2AA] && !trk[k].p[P_L2DB] && !trk[k].p[P_L2AB];
-#endif
     check(ok, "project: a project without LFO 2 (or from before) loads with LFO 2 at its defaults, the drum's slots kept");
-#if FELUCCA_LFO2
     {
         static const int16_t V[NPART][L2_NV] = {{-10, 4, 1, 1, LT_AMP, -128, LT_PAN, 127}, {127, 0, 0, 1, LT_PIT, 126, 0, 0},
                                                  {0, 3, 1, 0, LT_SHP, -1, LT_L2AMT, -77}};   /* (a DEST past 31) */
@@ -372,45 +365,17 @@ static void t_project(void)
                   trk[0].p[P_L2DA] == LT_FLT && trk[0].p[P_L2AA] == -80 && !trk[0].p[P_L2DB],
               "project: LFO 2 of one DEST (L2_TAG_V1) loads: slot A, its AMT x 2 (the same sound)");
     }
-#else
-    {   /* a project saved with LFO 2 on parts 1 and 3 (the packed form: project.c l2_pack), in a build without it */
-        init();
-        proj_capture(&q, &tdl);
-        q.t[TRK_DRUM].p[P_LRATE] = (int16_t)L2_TAG;
-        q.t[TRK_DRUM].p[L2_W0[0]] = (int16_t)(60u | 40u << 8), q.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)(LT_FLT << 5);
-        q.t[TRK_DRUM].p[L2_W0[1]] = (int16_t)60, q.t[TRK_DRUM].p[L2_W1[1]] = (int16_t)(LT_PIT << 5);   /* (AMT 0) */
-        q.t[TRK_DRUM].p[L2_W0[2]] = (int16_t)(60u | 0x7Fu << 8), q.t[TRK_DRUM].p[L2_W1[2]] = (int16_t)(LT_AMP << 5 | 1u << 3);
-        q.sum = proj_sum(&q);
-        proj_apply(&q, &tdl, 1);
-        ok = TDRUM->p[P_LRATE] == TP[P_LRATE].def && TDRUM->p[P_LWAVE] == 0 && TDRUM->p[P_LPHASE] == 0 &&
-             TDRUM->p[P_LFADE] == 0 && TDRUM->p[P_LEG_PIT] == 0 && TDRUM->p[P_LEG_SHP] == 0 && TDRUM->p[P_LEG_AMP] == 0;
-        check(ok, "LFO2=0: a project with LFO 2: the drum track's LFO slots back to their defaults");
-        check(l2_miss == 5u, "LFO2=0: l2_miss: parts 1 and 3 (AMT not 0), not part 2 (AMT 0): TOOLS > MISS says LFO 2");
-        q.t[TRK_DRUM].p[P_LRATE] = (int16_t)L2_TAG_V1;  /* (one DEST: FLT << 3, AMT 20 << 8) */
-        q.t[TRK_DRUM].p[L2_W1[0]] = (int16_t)(LT_FLT << 3), q.t[TRK_DRUM].p[L2_W0[0]] = (int16_t)(60u | 20u << 8);
-        q.t[TRK_DRUM].p[L2_W1[2]] = q.t[TRK_DRUM].p[L2_W0[1]] = q.t[TRK_DRUM].p[L2_W0[2]] = 0;
-        q.sum = proj_sum(&q);
-        proj_apply(&q, &tdl, 1);
-        check(l2_miss == 1u, "LFO2=0: LFO 2 of one DEST (L2_TAG_V1): part 1 missing");
-        q.t[TRK_DRUM].p[P_LRATE] = 60;
-        q.sum = proj_sum(&q);
-        proj_apply(&q, &tdl, 1);
-        check(l2_miss == 0u, "LFO2=0: a project without the tag: nothing missing");
-    }
-#endif
     (void)k;
 }
 
 int main(void)
 {
-#if FELUCCA_LFO2
     t_params();
     t_off_rate();
     t_maths();
     t_trig();
     t_render();
-#endif
     t_project();
-    printf("lfo2_test (LFO2=%d): %d failed\n", FELUCCA_LFO2, fails);
+    printf("lfo2_test: %d failed\n", fails);
     return fails;
 }

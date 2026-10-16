@@ -49,7 +49,7 @@
    {"id": 17, "params": [{"label":"JUNO","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"MODE","fmt":8,"min":0,"max":2,"def":0,"unit":"","names":["I","II","I+II"]}]},
    {"id": 18, "params": [{"label":"LO","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"MID","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"HI","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"ON","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}, {"label":"FREQ L","fmt":0,"min":0,"max":60,"def":32,"unit":"Hz"}, {"label":"FREQ H","fmt":0,"min":0,"max":60,"def":28,"unit":"Hz"}]}
   ], "values": [{"label":"VOLUME","fmt":6,"min":0,"max":127,"def":112,"unit":""}, {"label":"PAN","fmt":2,"min":-64,"max":63,"def":0,"unit":""}, {"label":"MUTE","fmt":8,"min":0,"max":1,"def":0,"unit":"","names":["OFF","ON"]}, {"label":"FX ON","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}, {"label":"REV","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"DLY","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"CHO","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
- "return": {"slots": 1, "types": [
+ "return": {"slots": 2, "types": [
    {"id": 1, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}, {"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 2, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}]},
    {"id": 3, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}]},
@@ -67,7 +67,7 @@
    {"id": 16, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}, {"label":"DUST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 17, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}, {"label":"JUNO","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 18, "params": [{"label":"RET","fmt":1,"min":0,"max":127,"def":127,"unit":""}, {"label":"LO","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"MID","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"HI","fmt":0,"min":-31,"max":6,"def":0,"unit":"dB"}, {"label":"ON","fmt":8,"min":0,"max":1,"def":1,"unit":"","names":["OFF","ON"]}, {"label":"FREQ L","fmt":0,"min":0,"max":60,"def":32,"unit":"Hz"}, {"label":"FREQ H","fmt":0,"min":0,"max":60,"def":28,"unit":"Hz"}]}
-  ]},
+  ], "sends": [[{"label":"B","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"C","fmt":1,"min":0,"max":127,"def":0,"unit":""}], [{"label":"A","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"C","fmt":1,"min":0,"max":127,"def":0,"unit":""}], [{"label":"A","fmt":1,"min":0,"max":127,"def":0,"unit":""}, {"label":"B","fmt":1,"min":0,"max":127,"def":0,"unit":""}]]},
  "lane": {"slots": 2, "types": [
    {"id": 1, "params": [{"label":"DST","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},
    {"id": 5, "params": [{"label":"DYN","fmt":1,"min":0,"max":127,"def":0,"unit":""}]},

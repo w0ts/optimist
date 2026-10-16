@@ -305,7 +305,7 @@ static void forms_of(uint32_t scr)
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
                    (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
-                                                                 !strcmp(c.label, "BUILD") || !strcmp(c.label, "CHIP") ||
+                                                                 !strcmp(c.label, "BUILD") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
                     c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */
@@ -342,7 +342,7 @@ static int forms_draw(void)
     return 1;
 }
 #if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
-/* fx-pool (2026-10-15): a return holding another type (PHSR on R1: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
+/* fx-pool (2026-10-15): a return holding another type (PHSR on A: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
  * EQ3 (a return's RET EQ3 rows, a track's EQ3 and EQ3 FREQ rows): the rows exist, their cards are drawn (opt-fxpool-*.ppm) */
 static int fx_row_of(const char *t)                   /* the master FX screen's row titled t, -1 none */
 {
@@ -366,21 +366,21 @@ static void fxpool_tests(void)
     const uint8_t s[2] = {FXT_EQ3, FXT_NONE};
     cell_t c;
     reset_ui();
-    fxs_load(3, FXT_PHSR);                              /* (R3: CHO's line 0) */
+    fxs_load(3, FXT_PHSR);                              /* (C: CHO's line 0) */
     fxs_load(1, FXT_EQ3);
-    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (R1: REV's line 2) */
+    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (A: REV's line 2) */
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
     check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on R1, PHSR on R3: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
+          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on A, PHSR on C: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
     ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
     r = fx_row_of("RETURNS");
     ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
     fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (R3, line 0) named PHSR RT (the return's type)");
+    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (C, line 0) named PHSR RT (the return's type)");
     ins_put(0, s);
     song.sel = 0;
     go_home();
@@ -2459,6 +2459,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_glpages.h"                    /* 2026-10-13: GLOBAL / SYSTEM in logical pages (op_global.c GL_GROUPS) */
 #include "ui_optimist_edscrn.h"                     /* the editor's SCRN (cmd 96): GLOBAL and SYSTEM as the UI's lines */
 #include "ui_optimist_edscrs.h"                     /* the editor's SCRS (cmd 99): the other screens as rows of cards */
+#include "ui_optimist_edv14.h"                      /* the editor's STEPLANE (cmd 105): a step in a lane's context, the device's lockable list */
 #include "ui_optimist_glstyle.h"                    /* 2026-10-14: the look of the lists (title, full-width bars, toggles, joined pages, INFO, About) */
 #include "ui_optimist_curline.h"                    /* 2026-10-14: the cursor row: the line's colour at full strength, white text */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
@@ -2521,6 +2522,7 @@ static void led_tests(void)
     song.sel = 0;
     reset_ui();
 }
+#include "ui_optimist_lamp.h"                       /* 2026-10-16: the lamp under PLAY, green playing, red recording */
 #include "ui_optimist_btnled.h"                    /* 2026-10-13: every button's LED against what its tap and hold do, screens x track kinds */
 #include "ui_optimist_pages.h"                      /* 2026-10-12: the page organisation (D1..D11) */
 #include "ui_optimist_laneui.h"                     /* 2026-10-12: the drum lanes' gestures (REC, a held step's locks, the lane's LFO) */
@@ -2529,7 +2531,7 @@ static void led_tests(void)
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
-#include "ui_optimist_lfo2.h"                      /* LFO 2 (LFO2): the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
+#include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -2550,8 +2552,11 @@ int main(int argc, char **argv)
         uint32_t i;
         for (i = 0; i < 5u * 16u; i++)
             FM1_KEYMAP[i / 16u][i % 16u] = -1;
-        for (i = 0; i < 41u; i++)
-            FM1_KEYMAP[1u + i / 16u][i % 16u] = (int8_t)i;
+        static const int8_t REAL[4][11] = {                 /* (hal/fm1_input.h's table: the keyless LED sites are where they are: PLAY's green) */
+            {5, 11, 4, 10, 3, 9, 2, 8, -1, -1, -1}, {34, 35, 36, 37, 38, 40, 39, 13, 7, 6, 12},
+            {23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33}, {0, 1, 15, 14, 17, 16, 19, 18, 20, 21, 22}};
+        for (i = 0; i < 44u; i++)
+            FM1_KEYMAP[1u + i / 11u][i % 11u] = REAL[i / 11u][i % 11u];
     }
     host_tracks_init();
 #if FELUCCA_PATTERNS
@@ -2630,6 +2635,7 @@ int main(int argc, char **argv)
     glpages_tests();
     edscrn_tests();
     edscrs_tests();
+    edv14_tests();
     glstyle_tests();
     curline_tests();
     help_tests();
@@ -2651,6 +2657,7 @@ int main(int argc, char **argv)
     step_pitch_tests();
     led_tests();
     btnled_tests();
+    lamp_tests();
     pages_nav_tests();
     pages_master_tests();
     pages_keys_tests();
@@ -2666,11 +2673,7 @@ int main(int argc, char **argv)
 #if FELUCCA_INS_GATER
     gater_ui_tests();
 #endif
-#if FELUCCA_LFO2
     lfo2ui_tests();
-#else
-    lfo2ui_off_tests();
-#endif
 #if FELUCCA_PLOCK
     plock_audit_tests();
 #endif

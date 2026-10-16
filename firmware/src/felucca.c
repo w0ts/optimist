@@ -11,7 +11,9 @@
 #endif
 #if FELUCCA_DUAL
 static void dual_flash_enter(void);
+static void dual_flash_leave(void);
 #define FM1_FLASH_ENTER() dual_flash_enter()
+#define FM1_FLASH_LEAVE() dual_flash_leave()
 #endif
 #include "fm1_time.h"
 #include "fm1_clock.h"
@@ -27,9 +29,13 @@ static void dual_flash_enter(void);
 #include "felucca_tables.h"
 #if FELUCCA_DUAL
 #ifndef FELUCCA_DUAL_IDLE
-#define FELUCCA_DUAL_IDLE 1      /* CPU1 asleep between jobs (2 only; system/dual.c) */
+#define FELUCCA_DUAL_IDLE 0      /* 1: CPU1 asleep between jobs (2 only; system/dual.c). 0 since 2026-10-15: the wake never
+                                  * reached CPU1 on the FM-1 (A); the spin in RAM is the one that ran there (B9a, BLUETOOTH OFF) */
 #endif
-#if FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE
+#ifndef FELUCCA_DUALCFG
+#define FELUCCA_DUALCFG 0        /* 1: the switchable test image (OPTIMIST_DUALCFG; the console's dualcfg, system/dual.c) */
+#endif
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE && !FELUCCA_DUALCFG
 #define FM1_DUAL_NO_SPIN 1       /* (hal/fm1_dual.h: no RAM spin loop, CPU1 sleeps) */
 #endif
 #include "fm1_dual.h"
@@ -55,6 +61,7 @@ static void dual_flash_enter(void);
 #if FELUCCA_BENCH
 #include "system/bench.c"           /* fixed scenarios for measurements (emulator) */
 #endif
+#include "system/supply.c"          /* the FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY) */
 #include "system/dual.c"            /* the second core (FELUCCA_DUAL) */
 #ifndef FELUCCA_OTA
 #define FELUCCA_OTA 1            /* M-UPGRADE update entry; needs FELUCCA_FLASH */
@@ -160,9 +167,13 @@ static int st_read(uint32_t off, void *dst, uint32_t n)   /* 256-byte IRQ-off wi
 {
     uint8_t *d = dst;
     while (n) {
-        uint32_t k = n > 256u ? 256u : n, f = irq_save();
-        int rc = FL_FAR(fl_read_ram)(off, d, k);
+        uint32_t k = n > 256u ? 256u : n, f;
+        int rc;
+        fm1_flash_reading = 1;                   /* (a read: CPU1 not parked for it, as stock parks it for writes only) */
+        f = irq_save();
+        rc = FL_FAR(fl_read_ram)(off, d, k);
         irq_restore(f);
+        fm1_flash_reading = 0;
         if (rc)
             return rc;
         off += k;

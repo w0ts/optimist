@@ -278,3 +278,4 @@ src/engines/juno/juno_dsp.h:juno_run:(1+(energy>>2)) | energy is a max of a peak
 src/engines/juno/juno_dsp.h:juno_res_at:(uint32_t)r->fb | FB_SCALE_T, a table of fm-106's FB_SCALE (5161..17203; gen_juno_tables.py): >= 5161
 
 src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total
+src/fx/fx.c:__attribute__:e | the return feedback send's limiter: the divide (RS_FBT << 15) / e is the true arm of "e > RS_FBT", so e is above the threshold, never 0 (div_audit reads rs_fb_level's function as __attribute__)

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The returns R1 R2 R3 holding any type (fx-pool 2026-10-15; fx_slots.c fxs_fix / fxs_load / rt_tlv, fx.c rt_run): the
+/* The returns A B C holding any type (fx-pool 2026-10-15; fx_slots.c fxs_fix / fxs_load / rt_tlv, fx.c rt_run): the
  * three send lines (CHO DLY REV) each owned by a return slot, a send type pinned to its own line, another type on the line
  * its slot had:
- *   layout   the default: no other type, every line live; PHSR into R1 (CHO's): on line 0, CHO no longer heard but its line
- *            is (the tracks' CHO sends feed PHSR), its amount the full-wet point, the send cards named PHSR; REV into R1
+ *   layout   the default: no other type, every line live; PHSR into A (CHO's): on line 0, CHO no longer heard but its line
+ *            is (the tracks' CHO sends feed PHSR), its amount the full-wet point, the send cards named PHSR; REV into A
  *            swaps it with PHSR, each keeping its line; GATER refused
  *   audio    the line's send through the type, out to L and R, times the line's RET (0: nothing), its send bus fed
  *            silence; nothing sent: nothing out; removed: its tail ends, then nothing runs
@@ -53,15 +53,15 @@ int main(void)
     int32_t peak;
     host_tracks_init();
     fxs_set(FXS_DEF);
-    check("default: R1 R2 R3 = REV DLY CHO (the one order) on lines 2 1 0, no other type, every built line live",
+    check("default: A B C = REV DLY CHO (the one order) on lines 2 1 0, no other type, every built line live",
           fxs_line[1] == 2 && fxs_line[2] == 1 && fxs_line[3] == 0 && !rt_any() && FXS_ON(FXT_CHO) == FELUCCA_FX_CHORUS &&
           FXS_ON(FXT_REV) == FELUCCA_FX_REVERB);
     check("... nothing to keep: no FX record", fxr_encode(b) == 0u);
     fxs_load(3, FXT_PHSR);
-    check("PHSR into R3: on line 0 (CHO's), CHO not heard, its line is; amount 64 (full wet)",
+    check("PHSR into C: on line 0 (CHO's), CHO not heard, its line is; amount 64 (full wet)",
           fxs_slot[3] == FXT_PHSR && fxs_line[3] == 0 && fxs_rty[0] == FXT_PHSR && !FXS_HAS(FXT_CHO) && FXS_ON(FXT_CHO) &&
           fxs_ramt[3] == 64 && rt_amt(0) == 64);
-    check("... the tracks' CHO send card (card 3: R3's) is named PHSR; the others keep theirs",
+    check("... the tracks' CHO send card (card 3: C's) is named PHSR; the others keep theirs",
           !strcmp(fxs_send_d(P_CHOR)->label, "PHSR") && fxs_send_d(P_DLY) == &TP[P_DLY] && fxs_send(2) == FXT_CHO &&
           fxs_card(2) == FXT_CHO && fxs_card(0) == FXT_REV);
     fxs_load(2, FXT_GATE);
@@ -82,12 +82,12 @@ int main(void)
     check("CHO RET (line 0's return) at 0: nothing out", !any(mix_l));
     song.g[G_CRET] = 127;
     fxs_load(3, FXT_REV);
-    check("REV into R3: swaps with PHSR, each keeps its line (REV 2, PHSR 0); the cards follow (R1 PHSR's CHO line)",
+    check("REV into C: swaps with PHSR, each keeps its line (REV 2, PHSR 0); the cards follow (A PHSR's CHO line)",
           fxs_slot[3] == FXT_REV && fxs_line[3] == 2 && fxs_slot[1] == FXT_PHSR && fxs_line[1] == 0 &&
           fxs_rty[0] == FXT_PHSR && fxs_rty[2] == FXT_NONE && fxs_card(0) == FXT_CHO && fxs_card(2) == FXT_REV);
     fxs_load(2, FXT_FLNG);
     fxi_poll();
-    check("FLNG into R2 (line 1): the pool's instance, owner R2's line", fxs_rty[1] == FXT_FLNG &&
+    check("FLNG into B (line 1): the pool's instance, owner B's line", fxs_rty[1] == FXT_FLNG &&
           fxi_ostate(FXI_RT0 + 1u, FXT_FLNG) == FXI_OK && ifx_lim_at(FXT_FLNG, IFX_RT(1)) != FXI_NONE);
     for (i = 0; i < 20u; i++)
         blk(1, 40000, i);

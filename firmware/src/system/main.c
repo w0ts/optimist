@@ -7,6 +7,10 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], 
 extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _pi_load[], _pz_start[];
 
 
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL && !defined(FM1_DUAL_SNAP_BLE)
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s) { (void)s; }   /* (no BLE in this build: hal/fm1_dual.h) */
+#endif
+
 void fm1_timer5_irq(void)
 {
     static uint32_t sub;
@@ -61,12 +65,36 @@ void fm1_timer5_irq(void)
             fm1_ms++;
         }
         felucca_dbg.alive_ms = fm1_ms;          /* (kept by a reset: SYSTEM > INFO LAST RESET's time) */
+#if FELUCCA_DUAL >= 2
+        felucca_dbg.where = (felucca_dbg.where & ~1u) | dual_in_join;
+#endif
+        if (felucca_dbg.loop_ms) {               /* (the main loop's gap: a starved one is a watchdog reset to come) */
+            uint32_t g = fm1_ms - felucca_dbg.loop_ms;
+            if (g > felucca_dbg.loop_gap_max)
+                felucca_dbg.loop_gap_max = g;
+#if FELUCCA_DUAL >= 2
+            if (g >= DUAL_STARVE_MS && !felucca_dbg.starve_ms) {
+                felucca_dbg.starve_ms = fm1_ms;
+                dual_starve_req = 1;            /* (the audio render takes CPU1 down at its next block: dual.c) */
+            }
+#endif
+        }
 #if FELUCCA_DUAL
         felucca_dbg.c1 = fm1_dual_mb.stage;
 #endif
     }
 }
 extern void isr_timer5(void);
+extern void isr_timer5_ram(void);                 /* (fm1_isr.S: the same entry in RAM, dualcfg isr ram) */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+#define TIMER5_ISR (dualcfg.isrram ? isr_timer5_ram : isr_timer5)
+#elif FELUCCA_DUAL
+#define TIMER5_ISR isr_timer5_ram                 /* (second-core builds: the entry from RAM, B20..B25 on the FM-1: every wild
+                                                   * PC so far was the TIMER5 stub fetched from the flash with a bit wrong) */
+#else
+#define TIMER5_ISR isr_timer5
+#endif
+
 
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
@@ -74,7 +102,11 @@ static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 
      * MIDI rings are single-producer / single-consumer). Below it, a tick waited for the render
      * and the column it had lit stayed on longer: the LEDs shimmered, beating against the audio
      * blocks (1378 / s against the 909 / s scan) */
-    fm1_timer5_start(isr_timer5, 4);
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    fm1_timer5_start(TIMER5_ISR, dualcfg.flat ? 3 : 4);   /* (dualcfg nest off: no interrupt nests in another) */
+#else
+    fm1_timer5_start(TIMER5_ISR, 4);
+#endif
 }
 
 static void hexs(char *b, uint32_t v)
@@ -186,6 +218,9 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.crash_seen = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;   /* (an older crash) */
     }
     felucca_dbg.boots++;
+#if FELUCCA_DUAL
+    fm1_dual_bootno = felucca_dbg.boots;
+#endif
     felucca_dbg.max_us = 0;
     felucca_dbg.prev_stage = felucca_dbg.stage;     /* a WDT reset leaves the last breadcrumb here: a main-loop
                                                      * stage (1..9) or the start-up step it stopped in (BOOT_STAGE) */
@@ -197,6 +232,21 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.boot_pending = bootguard.pending;
     felucca_dbg.prev_alive_ms = felucca_dbg.alive_ms;
     felucca_dbg.prev_c1 = felucca_dbg.c1;
+    felucca_dbg.prev_loop_gap_max = felucca_dbg.loop_gap_max;
+    fm1_astage_prev = fm1_astage;
+    fm1_aloop_prev = fm1_aloop;
+    fm1_astage = fm1_aloop = 0;
+    felucca_dbg.prev_starve_ms = felucca_dbg.starve_ms;
+    felucca_dbg.prev_where = felucca_dbg.where;
+    felucca_dbg.prev_in_audio = felucca_dbg.in_audio;
+    felucca_dbg.prev_cpu_q8 = felucca_dbg.cpu_q8;
+    felucca_dbg.prev_late = felucca_dbg.late;
+    felucca_dbg.prev_pk_all = felucca_dbg.pk_all;
+    felucca_dbg.prev_pk_5s = felucca_dbg.pk_5s;
+    felucca_dbg.prev_pk1_5s = felucca_dbg.pk1_5s;
+    felucca_dbg.prev_drops = felucca_dbg.drops;
+    felucca_dbg.pk_all = felucca_dbg.pk_5s = felucca_dbg.pk1_5s = felucca_dbg.drops = 0;
+    felucca_dbg.loop_ms = felucca_dbg.loop_gap_max = felucca_dbg.starve_ms = felucca_dbg.where = 0;
     felucca_dbg.alive_ms = felucca_dbg.c1 = 0;
     {
         uint32_t n = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;
@@ -208,7 +258,18 @@ static BOOT_ORDER void fm1_main(void)
     fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
 #endif
     BOOT_STAGE(PERSIST);
+#if FELUCCA_STOCK_SUPPLY && !FELUCCA_DUALCFG
+    supply_boot();                                      /* the FM-1's own rails first, IRQs off, before CPU1, the audio and
+                                                         * the BLE radio (supply.c; the console test image: dualcfg) */
+#endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dualcfg_defaults(&dualcfg);                         /* (the settings record's dualcfg replaces them: project.c) */
+#endif
     persist_boot();
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dual_supply_early();                                /* `dualcfg supply early on`: the rails now (dual.c), before the
+                                                         * LCD, the audio and the BLE radio's start-up program */
+#endif
     BOOT_STAGE(STORES);
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
 #if CZ_NUSER
@@ -244,10 +305,22 @@ static BOOT_ORDER void fm1_main(void)
                                                          * waits 50 ms) and before the vectors are locked */
     fm1_guard_enable(FM1_GUARD_BUS | FM1_GUARD_PC);
 #endif
+#if FELUCCA_DUAL && FELUCCA_BLE
+    if (DUAL_STOCK_NOW) {                               /* stock's order: the radio before the audio, IRQs still off (no audio
+                                                         * interrupt, no TIMER5, no render during the RF program; stock V15:
+                                                         * RF at 39 ms, ALNK at 466.6 ms; dual.c) */
+        BOOT_STAGE(BLE);
+        ble_midi_init();
+        dual_stock_after_ble();
+    }
+#endif
     master_pot(&knob, 0);                               /* the knob as it stands, before the first block (#137; the */
     master_pot(&knob, 0);                               /* first conversion after the pin setup: read again) */
     kb_boot_hold = 1;                                   /* #137: no notes from the keys before the UI (seq.c) */
     BOOT_STAGE(AUDIO);
+#if FELUCCA_DUAL
+    dual_audio_t4 = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u;
+#endif
     audio_init();
     BOOT_STAGE(USB);
     usb_start();
@@ -256,6 +329,9 @@ static BOOT_ORDER void fm1_main(void)
 #endif
 #if FELUCCA_BLE
     BOOT_STAGE(BLE);
+#if FELUCCA_DUAL
+    if (!DUAL_STOCK_NOW)
+#endif
     ble_midi_init();                                    /* the radio, then advertising from boot, as stock
                                                          * (midi_ble.c): after the audio and USB are set up, its
                                                          * IRQs (45, 29 at priority 2, below the audio) on with the
@@ -285,6 +361,19 @@ static BOOT_ORDER void fm1_main(void)
     for (;;) {
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
+        felucca_dbg.loop_ms = m ? m : 1u;
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+        {   /* RAM read errors on CPU0 (hal/fm1_dual.h), and TIMER5's vector word read back */
+            static uint32_t fi;
+            fi = fm1_flip_check(0u, fi, 64u);
+            uint32_t vw = fm1_vec_word(FM1_IRQ_TIMER5);
+            if (vw != (uint32_t)(uintptr_t)TIMER5_ISR) {
+                if (!fm1_vec_flips)
+                    fm1_vec_got = vw;
+                fm1_vec_flips++;
+            }
+        }
+#endif
         usb_retry(fm1_ms);
         if ((uint32_t)(m - healthy_since) >= 30000u && bootguard.pending) {
             bootguard_clear(&bootguard);     /* 30 s of this boot, even if TIMER4 survived reset */
@@ -370,6 +459,26 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_CDC
         cdc_task();
 #endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG && FELUCCA_CDC
+        if (con_reboot_req) {                           /* the console's `reboot` (the second-core test image) */
+            fm1_dual_halt();
+            fm1_audio_stop();
+#if FELUCCA_ARRANGER
+            persist_flush_now();
+#endif
+            fm1_delay_ms(20);
+            usb_detach();
+            fm1_delay_ms(30);
+            bootguard.pending = 0;                      /* intentional reset: not a failed boot */
+            if (con_reboot_req == 2) {                  /* `wdtreset`: the watchdog resets (p3_rst bit 2), not the soft reset */
+                fm1_irq_off();
+                fm1_wdt_arm(0x0A);                     /* the shortest timeout; nothing feeds it from here */
+                for (;;)
+                    ;
+            }
+            fm1_reboot();
+        }
+#endif
         felucca_dbg.ui_frames++;
         felucca_dbg.page = ui.page;
         felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
@@ -384,6 +493,9 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_BLE
         ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
         ble_devices_poll();                             /* the scan's reports into the DEVICES list (ble_devices.c) */
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+        ble_defer_poll();                               /* `dualcfg bledelay`: the radio after CPU1 (midi_ble.c) */
+#endif
 #endif
 #if BP23_SET
         settings_poll();                                /* a setting changed from a page or the editor (project.c) */

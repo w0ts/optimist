@@ -2,10 +2,10 @@
   "flavours": [
     {
       "id": "default",
-      "title": "Optimist",
-      "description": "The default build: four tracks, the synth engines, the drum kits and the effects.",
-      "profile": "user-default",
-      "file": "dist/optimist-*-user-default.fwsc"
+      "title": "Synth",
+      "description": "Optimist Synth, the default build: the synth engines (X0X, ACID, JUNO, PHYS, NOISE), the dual core, the Optimist UI, Bluetooth MIDI, USB audio and the full web editor.",
+      "profile": "synth",
+      "file": "dist/optimist-*-synth.fwsc"
     }
   ]
 }

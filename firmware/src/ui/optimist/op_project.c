@@ -258,7 +258,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_CHIP, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS };
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -336,7 +336,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                                                          * allow to select the source for each of the 4 channels"; ua_tap.h; after BLUETOOTH: USB + BLUETOOTH stay one page) */
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
-    {"ABOUT", {SI_ABOUT, SI_BUILD, SI_CHIP, SI_REPO}},
+    {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
@@ -597,12 +597,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         str_cpy(c->val, __DATE__, sizeof c->val);
         c->unit = __TIME__;
         break;
-    case SI_CHIP:
-        c->label = "CHIP";
-        c->kind = CK_RO;
-        str_cpy(c->val, "AC791N", sizeof c->val);
-        c->unit = DUAL_LOAD ? "2 cores" : "1 core";
-        break;
     case SI_REPO:                                       /* the source, as text: the link right-aligned in the unit */
         c->label = " ";                                 /* (blank: the link takes the line's width, the label must not be empty for the help) */
         c->kind = CK_RO;
@@ -769,7 +763,7 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
     }
     case 3:                                             /* how far CPU1 got: MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE */
         c->label = "CPU1 GOT TO";
-        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS), sizeof c->val);
+        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS_NOW), sizeof c->val);
         c->col = fm1_dual_mb.stage < C1S_DONE ? C_WARN : 0;
         break;
     case 4:                                             /* its beat: returns from idle (or spin passes / 256), its wake handler's entries */
@@ -848,7 +842,11 @@ static void sys_rst_cell(cell_t *c)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
 #define INFO_N INFO_BASE                                /* INFO's lines */
-#define INFO_DIAG (INFO_RST + 1u + INFO_C1)             /* INTERNALS' lines */
+#ifndef FELUCCA_STOCK_SUPPLY
+#define FELUCCA_STOCK_SUPPLY 0                          /* (system/supply.c's: the host tests include this file alone) */
+#endif
+#define INFO_SUP ((uint32_t)FELUCCA_STOCK_SUPPLY)       /* the SUPPLY line (STOCK_SUPPLY builds) */
+#define INFO_DIAG (INFO_RST + 1u + INFO_SUP + INFO_C1)  /* INTERNALS' lines */
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
     static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_DROPS, SI_XRUN,
@@ -875,8 +873,35 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
         c->col = fm1_irqoff_max / 24u > OVL_HALF_US ? C_WARN : 0;   /* (longer than an audio half: a drop-out) */
         return;
     }
+#if FELUCCA_STOCK_SUPPLY
+    if (i == INFO_RST + 1u) {                           /* the rails after the stock start-up (supply.c): core, then RF */
+        uint32_t mv;
+        cell_clear(c);
+        c->kind = CK_RO;
+        c->label = "SUPPLY";
+        if (supply.err) {
+            str_cpy(c->val, "NOT RAISED", sizeof c->val);   /* (the read-back was wrong: one core, 2ND CORE OFF SUPPLY) */
+            c->unit = "";
+            c->col = C_WARN;
+            return;
+        }
+        for (mv = 0; mv < 2u; mv++) {               /* "1.38 V 1.60" V: the core rail, then the 1.4 V (RF) rail */
+            uint32_t v = mv ? supply_vdc14_mv(supply.now >> 4) : supply_sysvdd_mv(supply.now), n = str_len(c->val);
+            char *b = c->val + n;
+            if (mv)
+                str_cpy(b, " V ", sizeof c->val - n), b += 3;
+            b[0] = (char)('0' + v / 1000u);
+            b[1] = '.';
+            b[2] = (char)('0' + v / 100u % 10u);
+            b[3] = (char)('0' + v / 10u % 10u);
+            b[4] = 0;
+        }
+        c->unit = supply_on_dcdc(supply.regs) ? "V DC-DC" : "V LDO";
+        return;
+    }
+#endif
 #if INFO_C1
-    sys_c1_cell(i - INFO_RST - 1u, c);
+    sys_c1_cell(i - INFO_RST - 1u - INFO_SUP, c);
 #endif
 }
 /* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */

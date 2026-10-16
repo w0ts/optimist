@@ -19,7 +19,7 @@
 #if INS_LIM
 /* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14), 3 FLNG (2026-10-15, fx-pool: its 2 x 256
  * sample lines were one copy per owner, 5.3 KB; now a builder count). The owners of an instance (fxi.c, FXI_O*): the tracks
- * 0 .. NTRK - 1, the master (its insert slots), the USB input track, the returns R1 R2 R3 (fx_slots.c rt_slot) */
+ * 0 .. NTRK - 1, the master (its insert slots), the USB input track, the returns A B C (fx_slots.c rt_slot) */
 #define FXI_NL 4u                                       /* (the tables hold every type; a type not built: a count of 0) */
 #define FXI_J(t) ((t) == FXT_CHRS ? 0u : (t) == FXT_ECHO ? 1u : (t) == FXT_JUNO ? 2u : 3u)   /* (a limited type t's index) */
 static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHRS, FXT_ECHO, FXT_JUNO, FXT_FLNG};
@@ -48,7 +48,7 @@ static volatile uint8_t fxi_at[FXI_NK][FXI_NL] = {
     {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
     {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE},
     {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}, {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}};
-_Static_assert(NTRK == 4u && FXI_NK == 9u, "fxi_at: T1 T2 T3 DR, the master, the USB input, R1 R2 R3");
+_Static_assert(NTRK == 4u && FXI_NK == 9u, "fxi_at: T1 T2 T3 DR, the master, the USB input, A B C");
 /* the audio's index k of an owner (insfx.c: a part, the drum bus IFX_BUS, IFX_MST, IFX_UT, IFX_RT(j)) -> the owner */
 #define fxi_own_of(k) ifx_owner(k)                      /* (fx_slots.c: the same numbering) */
 AINL uint32_t fxi_aix(uint32_t o)                       /* an owner -> the audio's index (its L for a stereo one) */

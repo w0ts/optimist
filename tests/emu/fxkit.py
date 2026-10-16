@@ -29,7 +29,7 @@ RET_OTHER = tuple(t for t in INSERT if t != 15)  # (fx-pool: the types a return 
 TRK_DEF = [FXT["DIST"], FXT["FILT"]]             # (every track's slots at the start: S1 DIST, S2 FILTER, amounts 0)
 SEND_ORDER = [FXT["REV"], FXT["DLY"], FXT["CHO"]]   # (fx_slots.c FXS_ORDER: the one order of the sends and returns)
 MASTER_DEF = [0] + SEND_ORDER                    # (the master slots: ---- REV DLY CHO; slot 0 takes no send since
-#                                                  fx-rework: the master's 3 returns R1 R2 R3 are slots 1..3, KNOB1..KNOB3)
+#                                                  fx-rework: the master's 3 returns A B C are slots 1..3, KNOB1..KNOB3)
 
 
 def on(facts, t):

@@ -144,7 +144,7 @@ def _ui_pairs():
 
 def parent_on(p):
     """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
-    value that builds it when the default leaves it out (DUAL's 0: DUAL_BOOST measured 0 B under it)"""
+    value that builds it when the default leaves it out (DUAL's 0: STOCK_SUPPLY measured 0 B under it)"""
     if not p.is_choice:
         return 1
     return p.default if p.default else next(v for v, _ in p.choices if v)

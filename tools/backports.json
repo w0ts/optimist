@@ -468,7 +468,7 @@
       "switch": "FELUCCA_GLIDE",
       "title": "Part level, pan and sends, MASTER, the drum track level / pan / lane sends glide over ~10 ms (no zipper)",
       "default": 0,
-      "group": "fx",
+      "group": "system",
       "source": {
         "repo": "https://github.com/charlesvestal/fm1-x0x",
         "commit": "49b1fc8 (X0X 0.10.1-beta)",

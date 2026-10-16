@@ -2,8 +2,9 @@
 /* Editor protocol v13: every effect slot of the firmware, and its parameters, by owner (fx/fx_slots.c; included by editor.c
  * before ed_fxs.c; web/EDITOR_PROTOCOL.md "v13: FX owners"). INFO tag 0x57 = this command is here.
  * An OWNER is where a slot lives: 0..3 the tracks T1 T2 T3 DR (two insert slots S1 S2 each), 4 the master (S1 S2), 5 the
- * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns R1 R2 R3 (one slot
- * each: a send type CHO DLY REV, or any other type the return may hold), 9..24 the drum sounds (lanes 0..15, S1 S2: the
+ * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C (slot 0: a send
+ * type CHO DLY REV, or any other type the return may hold; slot 1, 2026-10-16: its sends to the returns to its right, named
+ * "B" "C": A two, B one, C none; fx_slots.c rs_amt), 9..24 the drum sounds (lanes 0..15, S1 S2: the
  * types a voice can hold). A slot holds a TYPE id (FXT_*: 0 empty) and the type has parameters (a count and a descriptor
  * each, the device's own: DYN THRS RATIO ATK REL GAIN CEIL, EQ3 LO MID HI ON FREQ L FREQ H, GATER DEPTH PAT RATE SHAPE,
  * JUNO MIX MODE; every other insert one amount), so an editor draws any slot from what the device says and names no type.
@@ -32,7 +33,8 @@ _Static_assert(NTRK == 4, "the owners: T1 T2 T3 DR, then the master, the USB inp
 #define FXP_USB_ON 0u
 #endif
 
-static uint32_t fxp_slots(uint32_t ow) { return ow == FXP_USB ? 3u : ow >= FXP_RET0 && ow < FXP_LANE0 ? 1u : 2u; }
+static uint32_t fxp_slots(uint32_t ow) { return ow == FXP_USB ? 3u : 2u; }   /* (a return: its type, its sends) */
+#define FXP_IS_RET(ow) ((ow) >= FXP_RET0 && (ow) < FXP_LANE0)
 static int fxp_owner(uint32_t ow) { return ow < FXP_NOWN && (ow != FXP_USB || FXP_USB_ON); }
 
 static uint32_t fxp_type(uint32_t ow, uint32_t sl)
@@ -49,7 +51,7 @@ static uint32_t fxp_type(uint32_t ow, uint32_t sl)
 #endif
     }
     if (ow < FXP_LANE0)
-        return fxs_slot[1u + (ow - FXP_RET0) % 3u];
+        return sl ? (uint32_t)FXT_NONE : fxs_slot[1u + (ow - FXP_RET0) % 3u];   /* (slot 1: its sends) */
     return lin_slot[(ow - FXP_LANE0) % DRUM_LANES][sl & 1u];
 }
 /* the types an owner may hold (the built ones; FXT_NONE always) */
@@ -109,6 +111,16 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
         }
 #endif
         return 0;
+    }
+    if (FXP_IS_RET(ow) && sl == 1u) {                   /* a return's sends to its right (A: B C, B: C), named by the return
+                                                        * each goes to; listed whatever the returns hold (an empty one's: 0,
+                                                        * unheard) */
+        static const char *const RN[FX_NSLOT] = {"", "A", "B", "C"};
+        uint32_t k = rs_of(1u + (ow - FXP_RET0), i);
+        if (k >= RS_N)
+            return 0;
+        *vp = &rs_amt[k];
+        return fxp_named(&TP[P_REV], RN[RS_DST[k] % FX_NSLOT]);
     }
     if (t == FXT_NONE || t >= FXT_N || !(FXT_BUILT >> t & 1u))
         return 0;
@@ -244,7 +256,8 @@ static void fxp_put(uint32_t ow, uint32_t sl, uint32_t i, int32_t v)
 }
 static void fxp_set_type(uint32_t ow, uint32_t sl, uint32_t t)
 {
-    if (t >= FXT_N || (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u)) || sl >= fxp_slots(ow) || (ow == FXP_USB && sl == 2u))
+    if (t >= FXT_N || (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u)) || sl >= fxp_slots(ow) || (ow == FXP_USB && sl == 2u) ||
+        (FXP_IS_RET(ow) && sl == 1u))
         return;
     if (ow < NTRK)
         ins_load(ow, sl, t);
@@ -305,6 +318,8 @@ static uint32_t ed_fxp_sig(uint32_t h)
         FXP_H(mst_amt[k]);
     for (k = 1; k < FX_NSLOT; k++)
         FXP_H(fxs_ramt[k] + 256 * fxs_line[k]);
+    for (k = 0; k < RS_N; k++)
+        FXP_H(rs_amt[k]);
     p = &lin_slot[0][0];
     for (k = 0; k < DRUM_LANES * INS_N; k++)
         FXP_H(p[k]);

@@ -106,7 +106,7 @@ def slot_takes_insert(fx):
     point (DIST, COMP, FILT) -> True. The default layout again after"""
     fx.slots_page()
     seen = set(fx.slots())
-    for k in range(1, 4):                            # (the returns R1..R3: slot 0 has no knob)
+    for k in range(1, 4):                            # (the returns A..C: slot 0 has no knob)
         for d in (1, -1):
             for _ in range(5):
                 fx.step(k, d)

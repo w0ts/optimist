@@ -98,11 +98,19 @@ The master has two insert slots, S1 and S2, after the returns and PUNCH and befo
 - A new project: S1 FILT (amount 0, bypassed), S2 DYN.
 - An old project (saved before the master had slots) converts: the master effects it used take the slots, and when all three of DUST, FILT and DYN were in use, DYN and DUST win and FILT is dropped. PUNCH now runs before the master inserts (it ran between DUST and the DJ filter), which only differs when DUST and a punch effect are used together.
 
-### The three returns: R1, R2, R3
+### The three returns: A, B, C
 
-The send buses (reverb, delay, chorus) come back into the mix through three **returns**, R1, R2 and R3. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
+The send buses (reverb, delay, chorus) come back into the mix through three **returns**, A, B and C. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
 
 The return levels are on `RETURNS` (Optimist UI) with the cards in the order REV, DLY, CHO: 0..127, 127 unity (the values RRET, DRET, CRET). The effects the returns carry have their own pages: the delay `DLY` / `RET DELAY` (TIME, FDBK 0..120, COLR, MIX; the defaults are FDBK 60, COLR 70, MIX 90), the reverb `REV/CHO` / `RET REV` (SIZE, DAMP, then the chorus's CRT and CDP), and `REVERB` / `RET TYPE`, the reverb algorithm.
+
+### Sends between the returns
+
+A return can send to the returns to its right: **A to B and C, B to C** (C sends to none). A's delay can feed B's reverb, say, or A's reverb C's chorus. A send takes what its return gives back to the mix (after its return level, mono) and adds it to the input of the return it goes to, 0..127 like a track's send (127 is unity), 0 by default. The returns are always worked out in the order A, B, C, so a return hears this block's output of the ones to its left and nothing can come back from the right: no feedback, no added latency (the reverb on the second core is one block late as it is heard, and its send is that same output). The sends belong to the positions, not to the effects: swapping two returns' types keeps A's send to B as it was. With every send at 0 nothing of it runs.
+
+**Feedback sends** (builder item `RET_FB`, on by default): a return also sends to the returns on its **left**, B to A, C to A and C to B, so every return sends to the other two and the effects can feed each other in a loop (a delay into a reverb and back into the delay). Such a send cannot be heard in the same block (A has already been worked out when B runs), so it takes its return's output of the block before: the loop goes round once every 32 samples (0.73 ms). For safety it runs at a quarter of a forward send's gain (127 is 0.25), any DC is filtered out of it, and it is held under -12 dBFS (a limiter) and soft-clipped, so a loop can sing but never climbs without end: with every send at 127 and a resonant delay a loop settles at that level, and it dies away when the sends come down. A reverb near its freeze (SIZE 127) or a delay at FDBK 120 already sustain on their own.
+
+In the Optimist UI they are on the mixer's MASTER row, after the returns: `A SENDS` (cards 2 and 3: the sends to B and C, named by what B and C hold; card 1, A itself, and card 4 are blank) and `B SENDS` (card 3: the send to C); with the feedback sends `B SENDS` has A's card too (card 1) and `C SENDS` comes after it (cards 1 and 2: to A and B). The cards follow the track sends' layout (card k is return k). A return that holds nothing has no set and no card. The sends are saved with the project (its FX record, TLV 0x4B: three bytes, six with the feedback sends, written only when one is not 0; a build without them skips the last three); a project from before loads with every send at 0. The web editor reaches them as each return's second slot (editor protocol, command 94).
 
 **Reverb algorithms** (builder: one box each, at least one): ROOM, PLATE, FDN8 (long and lush), SPRING and VTINY (Airwindows VerbTiny). With two or more built, `REVERB` > TYPE picks one. The manual's "Reverb algorithms" section describes each.
 
@@ -132,4 +140,6 @@ In the Optimist UI the track's sends are on `SENDS`: REV, DLY, CHO (the slots a 
 - JUNO cannot go in the USB audio in track's slots.
 - FLNG, WIDE, CHRS, ECHO, GATER and JUNO cannot go in a drum sound's slots; they run on the track or the drum bus.
 - The master's returns are three; there is no fourth send bus.
+- Without the builder item `RET_FB` a return cannot send to a return on its left (B to A, C to A or B): the returns render in one order, A, B, C. With it, those sends are a block late (32 samples) by design.
+- A return's sends are not lockable to a step and cannot be recorded as motion.
 - No effect has a tap tempo or its own clock: GATER follows the transport, the delay time is a note value.

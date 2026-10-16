@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The second core's guards (FELUCCA_DUAL): the request check and the boot canary (hal/fm1_dual_guard.h), the 2ND CORE
  * setting and its self-disable (src/system/dual_mode.h), and the supply boost's register steps (hal/fm1_supply.h,
- * FELUCCA_DUAL_BOOST) against a fake P33. Host only: no core, no register. */
+ * FELUCCA_STOCK_SUPPLY: the stock start-up's order, values, read-back, timeouts, the 2.6 V detector) against a fake P33. Host
+ * only: no core, no register. */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +14,9 @@
 static uint8_t p33[256];
 static struct { uint8_t reg, val; } p33_log[64];
 static unsigned p33_n, p33_stuck;                  /* p33_stuck: a register that ignores writes (bounded loop) */
+static uint32_t fake_timeouts;                     /* fm1_p33_timeouts' stand-in: */
+static unsigned timeout_at = ~0u;                  /* the write (0-based) that times out */
+#define FM1_P33_TIMEOUTS() fake_timeouts
 static uint32_t delay_total;
 static uint8_t fm1_p33_read(uint32_t a) { return p33[a & 0xFFu]; }
 static void fm1_p33_write(uint32_t a, uint8_t d)
@@ -21,6 +25,8 @@ static void fm1_p33_write(uint32_t a, uint8_t d)
         p33_log[p33_n].reg = (uint8_t)a;
         p33_log[p33_n].val = d;
     }
+    if (p33_n == timeout_at)
+        fake_timeouts++;
     p33_n++;
     if (!p33_stuck)
         p33[a & 0xFFu] = d;
@@ -132,7 +138,17 @@ static void test_mode(void)
     CHECK(dual_boot_why(DUALM_OFF, 2) == DUAL_SETOFF, "OFF wins over the crash (no message)");
     CHECK(dual_park(DUAL_UP, 1) == DUAL_PARKED && dual_park(DUAL_UP, 0) == DUAL_UP, "parked: CPU1 is never started unless built with OPTIMIST_DUAL_PARK=0");
     CHECK(dual_park(DUAL_SETOFF, 1) == DUAL_SETOFF && dual_park(DUAL_EARLY, 1) == DUAL_EARLY, "parking does not hide the setting or an early crash");
-    CHECK(!dual_why_parks(DUAL_PARKED) && !strcmp(dual_why_name(DUAL_PARKED), "PARKED") && FELUCCA_DUAL_PARK == 1, "PARKED is its own reason (not a failure), parked by default");
+    CHECK(!dual_why_parks(DUAL_PARKED) && !strcmp(dual_why_name(DUAL_PARKED), "PARKED") && FELUCCA_DUAL_PARK == 0,
+          "PARKED is its own reason (not a failure), no longer the default (the BLUETOOTH rule)");
+    CHECK(dual_ble_rule(DUAL_UP, 1, 1) == DUAL_BLE && dual_ble_rule(DUAL_UP, 1, 0) == DUAL_UP &&
+              dual_ble_rule(DUAL_UP, 0, 1) == DUAL_UP && dual_ble_rule(DUAL_SETOFF, 1, 1) == DUAL_SETOFF,
+          "BLUETOOTH ON keeps CPU1 off in a BLE build only, and does not hide the setting");
+    CHECK(!dual_why_parks(DUAL_BLE) && !strcmp(dual_why_name(DUAL_BLE), "BLUETOOTH"), "BLUETOOTH is its own reason");
+    CHECK(dual_supply_why(DUAL_UP, 0) == DUAL_UP && dual_supply_why(DUAL_UP, 4) == DUAL_SUPPLY &&
+              dual_supply_why(DUAL_PARKED, 2) == DUAL_SUPPLY && dual_supply_why(DUAL_PARKED, 0) == DUAL_PARKED &&
+              dual_supply_why(DUAL_SETOFF, 1) == DUAL_SETOFF && dual_supply_why(DUAL_EARLY, 1) == DUAL_EARLY,
+          "a wrong supply read-back keeps CPU1 off (SUPPLY), over PARKED, not over the setting or AFTER CRASH");
+    CHECK(!dual_why_parks(DUAL_SUPPLY) && !strcmp(dual_why_name(DUAL_SUPPLY), "SUPPLY"), "SUPPLY is its own reason");
     /* the settings word: 0 (a record without the bits) is AUTO; the other bits are kept */
     CHECK(dual_mode_in(0u) == DUALM_AUTO, "no bits: AUTO");
     CHECK(dual_mode_in(3u << 27) == DUALM_AUTO, "an unknown value: AUTO");
@@ -199,6 +215,103 @@ static void test_supply(void)
     fm1_supply_boost();
     p33_stuck = 0;
     CHECK(p33_n <= 8u + 16u, "a stuck register ends the loop (%u writes)", p33_n);
+    /* B24: the levels' ladder and fm1_supply_to (0: a rail left as it is) */
+    CHECK(fm1_boost_level(0) == 0u, "level 0: nothing");
+    CHECK(fm1_boost_level(1) == 0x40u && fm1_boost_level(2) == 0x50u, "levels 1, 2: VDC14 4, 5 only");
+    CHECK(fm1_boost_level(3) == 0x5Cu && fm1_boost_level(6) == 0x5Fu, "levels 3..6: VDC14 5, SYSVDD 12..15");
+    CHECK(fm1_boost_level(6) == (FM1_VDC14_BOOST << 4 | FM1_SYSVDD_BOOST), "level 6 = the boost");
+    for (i = 1; i < FM1_BOOST_LEVELS; i++)
+        CHECK((fm1_boost_level(i) >> 4) >= (fm1_boost_level(i - 1u) >> 4) &&
+              (fm1_boost_level(i) & 15u) >= (fm1_boost_level(i - 1u) & 15u), "level %u raises no rail less than %u", i, i - 1u);
+    p33[FM1_P3_VDC14] = 0x18u | 3u;
+    p33[FM1_P3_SYSVDD] = 11u;
+    p33_n = 0;
+    was = fm1_supply_to(4u, 0u);
+    CHECK(was == 0x3Bu && p33[FM1_P3_VDC14] == (0x18u | 4u) && p33[FM1_P3_SYSVDD] == 11u && p33_n == 1u,
+          "VDC14 to 4 only, SYSVDD left (%02x %02x, %u writes)", p33[FM1_P3_VDC14], p33[FM1_P3_SYSVDD], p33_n);
+    CHECK(fm1_supply_now() == 0x4Bu, "read back 4 / 11");
+    p33_n = 0;
+    fm1_supply_to(0u, 13u);
+    CHECK(p33[FM1_P3_VDC14] == (0x18u | 4u) && p33[FM1_P3_SYSVDD] == 13u && p33_n == 2u, "SYSVDD to 13 only (%u writes)", p33_n);
+    p33_n = 0;
+    fm1_supply_to(3u, 11u);
+    CHECK(p33_n == 0u && fm1_supply_now() == 0x4Du, "never lowered (%u writes)", p33_n);
+}
+
+/* the stock supply start-up (fm1_supply_stock): order, final values, read-back failures, a timeout stops it */
+static void spl_state(void)
+{
+    memset(p33, 0, sizeof p33);
+    p33[0x00] = 0x04u;                             /* LDO13 on, DCDC13 off: the SPL's */
+    p33[0x05] = 0x34u;                             /* VDDIOW 3, VDDIOM 4 */
+    p33[0x06] = 0x03u;                             /* VDC14 3 (1.40 V) */
+    p33[0x09] = 11u;                               /* SYSVDD 11 (1.26 V) */
+    p33[0x16] = 0x3Fu;
+    p33[0x17] = 0x20u;
+    p33_n = 0;
+    fake_timeouts = 0;
+    timeout_at = ~0u;
+    p33_stuck = 0;
+}
+static void test_supply_stock(void)
+{
+    unsigned i, ldo_on = 99, dcdc_on = 99, ldo_off = 99, last_vdc = 0, first_sys = 99, last = 0;
+    uint32_t e;
+    spl_state();
+    e = fm1_supply_stock();
+    CHECK(e == 0u, "from the SPL's state: read-back right (%x)", (unsigned)e);
+    CHECK((p33[0x00] & 0x0Cu) == 0x08u && (p33[0x00] & 0x80u), "DC-DC on, LDO off, RC_250k on (%02x)", p33[0x00]);
+    CHECK(p33[0x01] == 0x20u && p33[0x05] == 0x74u && p33[0x07] == 0xA5u && p33[0x08] == 0x96u, "CON1 / 5 / 7 / 8 as stock");
+    CHECK(p33[0x06] == 0x0Fu && p33[0x09] == 0x1Fu, "VDC14 7 with VD14_HD 1, SYSVDD 15 with its HD bit (%02x %02x)",
+          p33[0x06], p33[0x09]);
+    CHECK((p33[0x16] & 0x3Fu) == 0u && !(p33[0x17] & 0x20u) && (p33[0x02] & 0x40u), "ANA_KEEP, VLD_KEEP, VDDOK_DIS as stock");
+    for (i = 0; i < p33_n && i < 64u; i++) {
+        uint8_t g = p33_log[i].reg, v = p33_log[i].val;
+        if (g == 0x00u && (v & 0x04u) && ldo_on == 99u)
+            ldo_on = i;
+        if (g == 0x00u && (v & 0x08u) && dcdc_on == 99u)
+            dcdc_on = i;
+        if (g == 0x00u && !(v & 0x04u) && (v & 0x08u) && ldo_off == 99u)
+            ldo_off = i;
+        if (g == 0x06u)
+            last_vdc = i;
+        if (g == 0x09u && (v & 15u) != 11u && first_sys == 99u)
+            first_sys = i;
+        if (g == 0x05u)
+            CHECK((v & 7u) == 4u, "VDDIOM never below 3.2 V (write %u: %02x)", i, v);
+        last = i;
+    }
+    CHECK(ldo_on < dcdc_on && dcdc_on < ldo_off, "LDO13 on, then DCDC13 on, then LDO13 off (%u %u %u)", ldo_on, dcdc_on, ldo_off);
+    CHECK(last_vdc < first_sys && p33_log[last].reg == 0x09u, "VDC14 raised before SYSVDD, SYSVDD last");
+    CHECK(p33_n <= 64u, "bounded (%u writes)", p33_n);
+    /* already at stock (a warm start): nothing lowered, still right */
+    p33_n = 0;
+    e = fm1_supply_stock();
+    CHECK(e == 0u && p33[0x06] == 0x0Fu && p33[0x09] == 0x1Fu, "a second run: still right, nothing lowered");
+    /* a register that does not take writes: the read-back says so */
+    spl_state();
+    p33_stuck = 1;
+    e = fm1_supply_stock();
+    CHECK((e & FM1_SUP_MODE) && (e & FM1_SUP_LEVEL), "writes not taken: mode and level wrong (%x)", (unsigned)e);
+    /* a P33 timeout at the second write: stops there */
+    spl_state();
+    timeout_at = 1u;
+    e = fm1_supply_stock();
+    CHECK(e == FM1_SUP_TIMEOUT && p33_n == 2u, "a timeout stops the sequence (%x, %u writes)", (unsigned)e, p33_n);
+    CHECK(p33[0x06] == 0x03u && p33[0x09] == 11u, "no level raised after a timeout");
+    /* a timeout late (in the levels): reported */
+    spl_state();
+    timeout_at = 12u;
+    e = fm1_supply_stock();
+    CHECK(e & FM1_SUP_TIMEOUT, "a late timeout reported (%x)", (unsigned)e);
+    /* the low-voltage detector: 2.6 V, on; a register that does not take it: reported */
+    spl_state();
+    p33[0x11] = 0x80u;
+    CHECK(fm1_lvr_stock() == 0u && p33[0x11] == 0x79u, "VLVD 2.6 V on (%02x)", p33[0x11]);
+    spl_state();
+    p33_stuck = 1;
+    CHECK(fm1_lvr_stock() == FM1_SUP_LVR, "VLVD not taken: FM1_SUP_LVR");
+    spl_state();
 }
 
 /* SYSTEM > INFO's CPU1 lines (dual_mode.h): the stop record's text on every path, the stages, the short numbers */
@@ -258,6 +371,7 @@ int main(void)
     test_canary();
     test_mode();
     test_supply();
+    test_supply_stock();
     if (fails) {
         printf("dual_guard_test: %d FAILED\n", fails);
         return 1;

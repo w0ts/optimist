@@ -902,6 +902,19 @@ D8_TICK float bank_tick(d8_bank_t *b)
  * its next wrap, where 8W8 draws its jitter; the draws are made in bank_tick's order (by sample, then square; the
  * drift's six before the squares of its sample), so every square gets the same numbers on the same samples. The
  * squares' parts are summed per sample in bank_tick's order: the same bus. pair: the CB pair, (o5 + o6) / 2. */
+#ifndef LOOP_GUARD                                  /* (built as its own unit, X0X's FPU flags: core.h's guard, the same record) */
+#if (defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG) || !defined(__PI32V2__)   /* (the host tests keep them: recstress) */
+extern volatile uint32_t fm1_aloop;
+#define LOOP_GUARD(id, cnt, max)                                                                                       \
+    if (++(cnt) > (max)) {                                                                                             \
+        if (!fm1_aloop)                                                                                                \
+            fm1_aloop = (id);                                                                                          \
+        break;                                                                                                         \
+    }
+#else
+#define LOOP_GUARD(id, cnt, max) (void)(cnt);    /* (the console test image only: core.h) */
+#endif
+#endif
 #define BANK_NONE 0x7FFF
 typedef struct { float c[6][CHUNK]; float sq[2][CHUNK]; } d8_bank_buf_t;
 
@@ -913,7 +926,9 @@ static int bank_run(d8_bank_t *b, int i, int from, int lim, d8_bank_buf_t *w)
     uint32_t ph = b->ph[i];
     float *c = w->c[i], *sq = i >= 4 ? w->sq[i - 4] : 0;
     int k = from, ev = BANK_NONE, pend = (b->pend_wrap >> i) & 1u;
+    uint32_t guard = 0;
     while (k < lim) {
+        LOOP_GUARD(0x92, guard, 4096u)
         const uint32_t old = ph;
         uint32_t pd;
         ph = old + dt;
@@ -936,7 +951,9 @@ static int bank_run(d8_bank_t *b, int i, int from, int lim, d8_bank_buf_t *w)
              * (k_bank_inc x 0.25), 1 + drift and 1 + jm1 near 1 */
             const uint32_t e = ph < BANK_DUTY ? BANK_DUTY : 0u;
             const float s = ph < BANK_DUTY ? 2.5f : -2.5f;
-            uint32_t r = (e - dt - ph - 1u) / dt + 1u;
+            uint32_t r = dt ? (e - dt - ph - 1u) / dt + 1u : (uint32_t)(lim - k);   /* (dt 0: a bank never set up,
+                                                             * inc 0: a divide by zero gives a wrong r, maybe 0, and the
+                                                             * loop never ends; as a flat run to the block's end instead) */
             int j;
             if (r > (uint32_t)(lim - k))
                 r = (uint32_t)(lim - k);
@@ -961,9 +978,11 @@ static void bank_block(d8_bank_t *b, float *bus, float *pair, int n)
         sd = 0;
     if (sd >= n)
         sd = BANK_NONE;                           /* no drift step in this block */
+    uint32_t guard = 0;
     for (i = 0; i < 6; i++)
         ev[i] = bank_run(b, i, 0, sd < n ? sd : n, &w);
     for (;;) {
+        LOOP_GUARD(0x93, guard, 4096u)
         int j = -1;
         for (i = 0; i < 6; i++)                   /* the earliest jitter due (by sample, then square) */
             if (ev[i] != BANK_NONE && (j < 0 || ev[i] < ev[j]))

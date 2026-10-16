@@ -41,6 +41,10 @@ typedef struct {
     uint32_t ua_mark;                              /* PERSIST_UA_MARK: they are set (else, or another build's layout: the
                                                     * defaults, T1 T2 T3 DRUMS) */
 #endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dualcfg_t dualcfg;                             /* the second-core test image only (system/dual.c, the console's dualcfg):
+                                                    * after everything; a normal build reads it as a longer record's tail */
+#endif
 } persist_t;
 #define PERSIST_UA_MARK 0x32524155u                /* "UAR2": the list without -3 / -6 dB (ua_tap.h) */
 #define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */

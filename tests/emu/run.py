@@ -10,6 +10,14 @@ of SLOOP's UI (FELUCCA_UI 0); a build of the Optimist UI (FELUCCA_UI 1) runs boo
 and timing only (its gestures differ). Each check prints PASS / FAIL lines and works in OUT/<check>/ (default build/emu-check/: its package copy,
 flash state, WAVs and screens). Exit 1 on any FAIL (a check that stops on an error counts as one).
 
+A DUAL build whose second core starts (FELUCCA_DUAL, not parked) is refused (exit 2): the emulator's timing model does
+not represent the chip's dual-core timing (2026-10-16: a DUAL build with stock's flash park showed one late half at 96 MHz
+in the boot's burst of flash writes, none at 192 MHz, none on the FM-1), so the gate runs a DUAL profile single core:
+its build with OPTIMIST_DUAL_PARK=1 (CPU1 never started). The second core itself is verified by the host tests (the
+supply sequence, the order, the read-back, the fallback), the BLE emulator tests (tests/dual_stockorder_emu_test.py,
+tests/dual_ble_rule_emu_test.py), tests/emu_boot_check.py and the hardware matrix / soak (docs/DUAL-CORE.md 3.6).
+EMU_DUAL=1 runs the checks on it anyway (for a look, not a gate).
+
 --jobs N: the checks run N at a time, each in a process of its own (its emulator, its OUT/<check>/ with its flash
 state and scratch files), its lines buffered and printed whole in the list's order (default: every check at once,
 --jobs 1: one after the other in this process). `timing` (late halves at 48 / 96 / 192 MHz) runs alone, after the
@@ -46,6 +54,20 @@ CHECKS = {
 
 
 ALONE = ("timing",)     # (timing-sensitive: run by itself once the others are done, never beside another emulator)
+
+
+def cpu1_starts(fw):
+    """1: a DUAL build whose CPU1 starts (fm1_c1_stack is 16 bytes in a parked one), from the ELF beside the package"""
+    import shutil
+    nm = shutil.which("nm") or shutil.which("llvm-nm")
+    if not nm:
+        return False
+    p = subprocess.run([nm, "-S", str(fw.with_suffix(".elf"))], capture_output=True, text=True)
+    for line in p.stdout.splitlines():
+        f = line.split()
+        if len(f) == 4 and f[3] == "fm1_c1_stack":
+            return int(f[1], 16) > 64
+    return False
 
 
 def run_one(n, fw, out, mhz):
@@ -137,6 +159,10 @@ def main(argv=None):
     fw = Path(a.firmware).resolve()
     if not fw.exists() or not fw.with_suffix(".elf").exists():
         print(f"emu-check: no {fw} with its ELF beside it (make build first)", file=sys.stderr)
+        return 2
+    if cpu1_starts(fw) and os.environ.get("EMU_DUAL") != "1":
+        print(f"emu-check: {fw} is a DUAL build whose second core starts: the emulator gate runs DUAL profiles single "
+              "core (build it with OPTIMIST_DUAL_PARK=1; EMU_DUAL=1 to run anyway; tests/emu/run.py --help)", file=sys.stderr)
         return 2
     ui = fwfacts.Facts(fw).ui
     names = [n.strip() for n in a.only.split(",")] if a.only else list(CHECKS)

@@ -33,6 +33,20 @@ def peeks(out):
             for m in re.finditer(r"^\s*(\S+) @ 0x[0-9a-f]+: ([\d ]+)$", out, re.M)}
 
 
+def parked(elf):
+    """1: a DUAL build whose CPU1 is never started (FELUCCA_DUAL_PARK: fm1_c1_stack is 16 bytes), the emulator gate's
+    single-core build of a DUAL profile (tests/emu/run.py)"""
+    import shutil
+    nm = shutil.which("nm") or shutil.which("llvm-nm")
+    if not nm:
+        return False
+    for line in subprocess.run([nm, "-S", elf], capture_output=True, text=True).stdout.splitlines():
+        f = line.split()
+        if len(f) == 4 and f[3] == "fm1_c1_stack":
+            return int(f[1], 16) <= 64
+    return False
+
+
 def run(pc, fw, secs, mhz, dual):
     st = tempfile.mkdtemp(prefix="emu-boot-")
     try:
@@ -75,7 +89,7 @@ def main():
     elf = fw[:-5] + ".elf"
     if not os.path.exists(elf):
         sys.exit(f"no ELF next to the package: {elf}")
-    dual = b"\0fm1_dual_mb\0" in open(elf, "rb").read()
+    dual = b"\0fm1_dual_mb\0" in open(elf, "rb").read() and not parked(elf)   # (a parked DUAL build: one core)
     pc = play_check()
     bad = 0
     for mhz in clocks:

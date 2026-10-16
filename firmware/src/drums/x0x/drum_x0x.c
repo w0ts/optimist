@@ -305,6 +305,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
             continue;
         }
         g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
+        ASTAGE0(0xA0 + ch);                         /* (the x0x channel rendering: core.h) */
         dsend_of(xc.note[ch], &r, &d, &c);
         ln = dlm_lane(xc.note[ch]);                 /* (its lane: its pan, its meter; drum_mix.c) */
         if (!xc.cut[ch] && r == r0 && !d && !c && !dlm_pan[ln]) {

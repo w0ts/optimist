@@ -49,14 +49,16 @@ RETIRED = {
     "DLY_HALVE": "a delay time longer than the line always halves, on the beat (retired 2026-10-14: X0X 892a3b5, unchanged in X0X 1.0.6)",
     "UA_RESAMPLE": "the USB audio choice of USB_MODE always resamples the capture to the host's clock (retired 2026-10-15; "
                    "USB_MODE=2 now means USB audio + MIDI, resampled)",
+    "LFO2": "LFO 2, a second LFO on each synth track, is always built (retired 2026-10-16: no off; any old LFO2 value is ignored)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
 
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
-# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile.
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1}   # (each was its default in every profile)
+# value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
+# counted ON (the image every build is now; a build that had it off is a different image).
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
@@ -85,6 +87,8 @@ MELODEE_FM6 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem Kilic", "GPL-3.0-only", "670193c",
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
+MELODEE_SUPPLY = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "7a51700",
+                            MELODEE_URL)   # (its port of the stock V15 supply start-up, hal/fm1_power.h, 1.3.6)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
@@ -122,7 +126,7 @@ class Item:
 
 
 # The FX in two groups (2026-10-13): those every track (and slot) can run at once, their state small and sized for every
-# track (CPU the only limit), and those that run once (the master, the send buses) or as many times as the build gives
+# track (CPU the only limit), and those that run once (the master, the chorus, delay and reverb) or as many times as the build gives
 # them instances (the insert copies of the chorus and a short delay: a pool line each; fx/insfx/fxi.c hands them out).
 # The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
 FX_ANY = "FX: any number (each track its own)"
@@ -249,15 +253,7 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "
           "RAM; off by default.", provenance=FELUCCA)
-_add("LFO2", "FELUCCA_LFO2", "LFO 2 (a second LFO on each synth track)", E, 91, default=0,
-     desc="A second LFO on tracks 1-3: RATE (free, or synced to the tempo as LFO's: 4BAR .. 1/32), WAVE (SIN TRI SAW "
-          "SQR S&H), TRIG (NOTE: restarts when a phrase starts; FREE: runs on), POL (BI, or UNI: one way only) and two "
-          "destinations as LFO DEST's (DEST A + AMT A, DEST B + AMT B: PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8, the "
-          "sends CHO DLY REV, the inserts' amounts INS1 INS2, and XRATE XAMT: LFO's RATE and amounts, either way round). It adds to LFO (AMP: multiplies). Saved with the "
-          "project (no format change: an older build plays it without, and says LFO 2 is missing), kept when the sound "
-          "changes; a SLOOP 2.6 project whose LFO is TRIG FREE or POL UNI imports onto it. Pages LFO 2 and LFO2 DEST. "
-          "About 1-3 KB of flash, 0.2 KB of RAM, 0.2 KB of RAMTEXT; off (every slot OFF or at 0) it costs no CPU; on, "
-          "well under 1 % of an 8-voice part.")
+# (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums
 D = "Drums"
@@ -341,17 +337,17 @@ F = "FX"
 _add("FX_DIST", "FELUCCA_FX_DIST", "DIST (per-track drive)", F, 35,
      desc="A distortion on each synth track: low cut, drive from 1x to 8x into an asymmetric soft clip, and a tone "
           "filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear.")
-_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus send bus", F, 36,
+_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus", F, 36,
      desc="The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO "
           "sends and the chorus settings disappear.")
-_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay send bus", F, 37,
+_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay", F, 37,
      desc="The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full "
           "length: shorten it with the length option, or leave it out.")
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
           "halved until it fits, so it stays on the beat; shorter lines suit fast tempos only.")
-_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
+_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
@@ -499,6 +495,15 @@ _add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, defa
           "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
           "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
      symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
+# the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
+_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
+     desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
+          "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
+          "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
+          "to -12 dBFS and soft-clipped, at a quarter of the gain of a send to the right, so no loop runs away. "
+          "Without it a return sends only to its right (A to B and C, B to C). About 1.2 KB of RAM; nothing runs "
+          "while every such send is 0.",
+     symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
 _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),
@@ -710,6 +715,14 @@ _add("ED_FAVS", "FELUCCA_ED_FAVS", "web editor: favorites (cmd 100)", Y, 156, pa
      desc="the web editor's stars in Load preset and its favorites-only list (cmd 100 FAVS, INFO tag 0x5D). Needs the favorites (FAVORITES). Off: no stars in the editor. About 1.0 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 _add("ED_SCOPE", "FELUCCA_ED_SCOPE", "web editor: the oscilloscope (cmd 101)", Y, 157, parent="OTA",
      desc="the web editor's Device screens > SCOPE: the device's own trace of the master or a track (cmd 101 SCOPE, INFO tag 0x5E). Needs the Optimist UI (UI=1). Off: no scope in the editor. About 0.6 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_UNDO", "FELUCCA_ED_UNDO", "web editor: undo and redo (cmd 102)", Y, 158, parent="OTA",
+     desc="the web editor's UNDO and REDO of the patterns through the device's own undo history (cmd 102 UNDO, INFO tag 0x5F); with it built the editor's own step, lock, nudge, fill and chance writes are undo levels, as a panel step key's are (writes to one track within 800 ms are one level). Off: no undo in the editor. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_NOTE", "FELUCCA_ED_NOTE", "web editor: play notes from the editor (cmd 103)", Y, 159, parent="OTA",
+     desc="the web editor's keyboard: a note on / off for a track through the device's own note input (the arp, the chord layout, the voice budget, REC and MIDI OUT KEYS apply), a ring to the audio interrupt of its own, at most 8 notes held, and an automatic note off after 3 s without a request from the host, on a USB reset, or after a given length (cmd 103 NOTE, INFO tag 0x60). Off: the editor cannot play notes. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_SOLO", "FELUCCA_ED_SOLO", "web editor: track and lane solo and mute (cmd 104)", Y, 165, parent="OTA",
+     desc="the web editor's track and drum-lane SOLO and MUTE through the device's own masks (cmd 104 SOLO, INFO tag 0x61): the same state GLO + key 1..8 and the lane rows set. Off: the strip's SOLO stays a label. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+_add("ED_STEPLANE", "FELUCCA_ED_STEPLANE", "web editor: a step in a drum lane, its lockable values (cmd 105)", Y, 166, parent="OTA",
+     desc="the web editor's held step in a track and drum-lane context: level, ratchet, chance, condition, nudge, fill, and the device's own list of lockable values (the Optimist UI's lock pages, a drum lane's TUNE .. LEVEL) with the locks and hold events on the step (cmd 105 STEPLANE, INFO tag 0x62). Needs the automation store. Off: the editor lists raw parameter ids and has no lane context. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
@@ -746,15 +759,21 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
           "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
           "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
      tested="emulator-tested; one user's FM-1 runs it")
-_add("DUAL_BOOST", "FELUCCA_DUAL_BOOST", "raise the core supply for the second core (EXPERIMENTAL, at your own risk)", X,
-     62, default=0, parent="DUAL", experimental=True, target_only=True, provenance=JANGADA,
-     notice="At your own risk: raises the chip's supply above JieLi's own profile (VDC14 to 1.50 V, SYSVDD to 1.38 V; "
-            "the chip's absolute limits are not public). Ported from Jangada (GPL-3.0), measured on one FM-1 only.",
-     desc="Experimental, for an FM-1 whose second core misreads RAM (CPU1 OFF MISREAD): before the second core starts, "
-          "VDC14 is raised to 5 (1.50 V) and then SYSVDD to 15 (1.38 V), a step at a time, never lowered (the boot "
-          "loader leaves 1.40 V and 1.26 V). On Jangada's FM-1 the second core then ran 15 minutes and 1.23 M blocks "
-          "with no misread, where it failed within seconds at the boot loader's supply. Not tried on an Optimist build.",
-     tested="not tested: Jangada's measurement on one FM-1")
+_add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
+     X, 62, default=1, parent="DUAL", experimental=True, target_only=True, provenance=MELODEE_SUPPLY,
+     notice="EXPERIMENTAL, at your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
+            "leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the "
+            "AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the "
+            "effect on heat and battery life has not been measured.",
+     desc="At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE "
+          "firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), "
+          "then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V "
+          "and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and "
+          "the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it "
+          "replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores "
+          "crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock "
+          "sequence itself is still being measured.",
+     tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "

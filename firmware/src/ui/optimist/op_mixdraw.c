@@ -153,7 +153,7 @@ static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
     }
 }
-/* the MASTER page's return lines, top down: R1 R2 R3, those holding something (fx_slots.c fxs_card, the one order; ret:
+/* the MASTER page's return lines, top down: A B C, those holding something (fx_slots.c fxs_card, the one order; ret:
  * each one's line, fx.c fx_ret_pk's index) */
 static uint32_t mx_rets(uint8_t *ret)
 {

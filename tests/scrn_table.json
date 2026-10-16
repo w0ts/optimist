@@ -28,7 +28,6 @@
    {"s":1,"i":10,"page":5,"title":"Calibrate","sect":"CALIBRATE","kind":1,"label":"HOLD","val":"350","unit":"ms","state":0,"danger":0,"gk":3,"gmin":0,"gmax":2,"gv":1,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["250","ms"],["350","ms"],["500","ms"]]},
    {"s":1,"i":11,"page":6,"title":"About","sect":"ABOUT","kind":2,"label":"VERSION","val":"0.1","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
    {"s":1,"i":12,"page":6,"title":"About","sect":"ABOUT","kind":2,"label":"BUILD","val":"<date>","unit":"<time>","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":13,"page":6,"title":"About","sect":"ABOUT","kind":2,"label":"CHIP","val":"AC791N","unit":"1 core","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":14,"page":6,"title":"About","sect":"ABOUT","kind":2,"label":" ","val":"","unit":"github.c","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":15,"page":7,"title":"Credits","sect":"CREDITS","kind":2,"label":"CREDITS","val":"","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""}
+   {"s":1,"i":13,"page":6,"title":"About","sect":"ABOUT","kind":2,"label":" ","val":"","unit":"github.c","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
+   {"s":1,"i":14,"page":7,"title":"Credits","sect":"CREDITS","kind":2,"label":"CREDITS","val":"","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""}
 ]}

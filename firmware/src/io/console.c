@@ -5,6 +5,7 @@
  * The baud rate is ignored. Nothing here writes memory or flash; `uboot`
  * does what the SysEx soft key does. */
 #define CON_LINE 64u
+#include "console_parse.h"                   /* con_word, con_num, con_run_parse (host-tested: tests/console_parse_test.c) */
 
 static struct {
     char line[CON_LINE];
@@ -66,44 +67,6 @@ static void con_kx(const char *k, uint32_t v)
     con_puts(" 0x");
     con_hex(v, 8);
     con_puts("\r\n");
-}
-
-static uint32_t con_num(const char **p, int *ok)        /* decimal or 0x hex */
-{
-    const char *s = *p;
-    uint32_t v = 0, base = 10, d, n = 0;
-    while (*s == ' ')
-        s++;
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
-        s += 2, base = 16;
-    for (;; s++, n++) {
-        char c = *s;
-        if (c >= '0' && c <= '9')
-            d = (uint32_t)(c - '0');
-        else if (base == 16 && c >= 'a' && c <= 'f')
-            d = (uint32_t)(c - 'a' + 10);
-        else if (base == 16 && c >= 'A' && c <= 'F')
-            d = (uint32_t)(c - 'A' + 10);
-        else
-            break;
-        v = v * base + d;
-    }
-    *ok = n > 0;
-    *p = s;
-    return v;
-}
-
-static int con_word(const char **p, const char *w)       /* match a whole word */
-{
-    const char *s = *p;
-    while (*s == ' ')
-        s++;
-    while (*w && *s == *w)
-        s++, w++;
-    if (*w || (*s && *s != ' '))
-        return 0;
-    *p = s;
-    return 1;
 }
 
 static void con_memr(const char *p)
@@ -388,6 +351,45 @@ static void con_clock_regs(void)
     con_puts("\r\n");
 }
 
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+/* the core rails (hal/fm1_supply.h): as found before CPU1's start, right after the raise, and now (status and boot) */
+static void con_supply(void)
+{
+    uint32_t ie = fm1_icfg() & 0x200u, r, g;
+    fm1_irq_off();                                      /* (P33 access: not reentrant) */
+    r = fm1_supply_now();
+    g = fm1_supply_regs();
+    if (ie)
+        fm1_irq_on();
+    con_kx("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the raise (0x3B: 3, 11; 0: none) */
+    con_kx("cpu1_supply_set", dual.supply_set);         /* read back right after it */
+    con_kx("cpu1_supply_err", dual.supply_err);         /* dcdc: 1 P33 timeout, 2 regulator bits, 4 a level (0: right) */
+    con_kx("cpu1_supply_regs", dual.supply_regs);       /* P3_ANA_CON0 | CON5 << 8 | CON6 << 16 | CON9 << 24 after it */
+    con_kx("rails_now", r);                             /* VDC14 << 4 | SYSVDD as they are */
+    con_kx("p33_regs_now", g);                          /* CON0 bit 2 LDO13, bit 3 DCDC13 (the 1.4 V rail's regulator) */
+    con_kv("p33_timeouts", (int32_t)fm1_p33_timeouts);
+    con_kv("cpu1_supply_ms", (int32_t)dual.supply_ms);  /* TIMER4 ms when the rails were raised (0: not this boot) */
+    con_kv("t4_cpu1_start_ms", (int32_t)dual_start_t4 - 1);   /* TIMER4 ms (-1: not): CPU1 started, */
+    con_kv("t4_audio_init_ms", (int32_t)dual_audio_t4 - 1);   /* audio_init, */
+    con_kv("t4_cpu1_job1_ms", (int32_t)dual_job1_t4 - 1);     /* CPU1's first job posted */
+    {
+        uint32_t ie = fm1_icfg() & 0x200u, v;
+        fm1_irq_off();
+        v = fm1_p33_read(FM1_P3_VLVD);
+        if (ie)
+            fm1_irq_on();
+        con_kx("p33_vlvd", v);                          /* P3_VLVD_CON (stockorder: 0x79, 2.6 V on) */
+    }
+    con_kv("cpu1_parked", dual.parked);
+#if FELUCCA_BLE && FELUCCA_DUAL >= 2
+    con_kv("cpu1_ok_ms", (int32_t)dual_ok_t4 - 1);      /* TIMER4 ms when CPU1 was first seen working (-1: not) */
+    con_kv("ble_ms_radio", (int32_t)ble_ms_radio - 1);  /* TIMER4 ms when the radio's start-up program began (-1: not) */
+    con_kv("ble_ms_running", (int32_t)ble_ms_running - 1);   /* .. when BLUETOOTH ran (advertising) */
+    con_kv("ble_deferred", ble_deferred);
+#endif
+}
+#endif
+
 static void con_status(void)
 {
     const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
@@ -411,6 +413,19 @@ static void con_status(void)
     con_kv("cpu_guard_rev_gain_pct", (int32_t)(cg.gain[CG_L_REVERB] * 100u / 256u));
 #endif
     con_kv("audio_late", (int32_t)felucca_dbg.late);
+    con_kx("audio_halves", felucca_dbg.halves);        /* (hex, wraps: the logger takes the differences) */
+    con_kx("audio_us_sum", felucca_dbg.us_sum);         /* the halves' render us summed: d(sum) / d(halves) = the mean */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    {   /* corex2's per-core counters (the SDK's cpu_effic_calc: IF / RD / WR stalls?, TL clocks), low words, hex */
+        static const char *const K[8] = {"c0_if", "c0_rd", "c0_wr", "c0_tl", "c1_if", "c1_rd", "c1_wr", "c1_tl"};
+        uint32_t i;
+        for (i = 0; i < 8u; i++)
+            con_kx(K[i], fm1_pcnt(i));
+    }
+#endif
+    con_kv("audio_max_pct", (int32_t)felucca_dbg.pk_all);   /* system/overload.h: INFO's MAX, % of a half */
+    con_kv("audio_max5_pct", (int32_t)felucca_dbg.pk_5s);   /* INFO's MAX 5S */
+    con_kv("cpu1_max5_pct", (int32_t)felucca_dbg.pk1_5s);   /* CPU1's jobs, MAX 5S */
 #if FELUCCA_FX_REVERB
     con_kv("rev_state", (int32_t)rgd.st);               /* (fx.c RG_*: 0 on, 1 fading out, 2 clearing, 3 off) */
     con_kv("rev_live", (int32_t)rev_live);
@@ -426,6 +441,39 @@ static void con_status(void)
     con_kv("cpu1_canary", (int32_t)fm1_dual_mb.canary); /* 1 + canary words read wrong at boot (1: none) */
     con_kv("cpu1_rewakes", (int32_t)dual.rewakes);      /* wakes sent again for a job not picked up (dual.c dual_join) */
     con_kv("cpu1_posts", (int32_t)dual.posts);          /* jobs posted */
+    con_kv("cpu1_fpause_n", (int32_t)dual_fp_n);        /* flash operations CPU1 was parked / paused for (dual.c) */
+    con_kv("cpu1_fpause_nostop", (int32_t)dual_fp_nostop);   /* ... whose stopped bit never showed (200 us) */
+    con_kv("cpu1_fpause_noack", (int32_t)dual_fp_noack);     /* stock's park: CPU1 never said parked (200 us) */
+    con_kv("cpu1_park_to", (int32_t)fm1_dual_mb.park_to);    /* ... CPU1's waits for the cache idle that ran out */
+#if FELUCCA_DUALCFG
+    con_kx("isr_timer5_at", fm1_vec_word(FM1_IRQ_TIMER5));   /* the TIMER5 entry attached (RAM 0x01C..., XIP 0x020...) */
+#endif
+#if FELUCCA_DUALCFG
+    {   /* RAM read errors (hal/fm1_dual.h fm1_flip): per core, the count, the words read, the first one's address and XOR */
+        uint32_t c;
+        static const char *const K[2][4] = {{"flip0_n", "flip0_checks", "flip0_addr", "flip0_xor"},
+                                            {"flip1_n", "flip1_checks", "flip1_addr", "flip1_xor"}};
+        for (c = 0; c < 2u; c++) {
+            con_kv(K[c][0], (int32_t)fm1_flip[c].n);
+            con_kv(K[c][1], (int32_t)fm1_flip[c].checks);
+            con_kx(K[c][2], fm1_flip[c].addr);
+            con_kx(K[c][3], fm1_flip[c].got ^ fm1_flip[c].want);
+        }
+        con_kv("vec_flips", (int32_t)fm1_vec_flips);    /* TIMER5's vector read back wrong (main loop) */
+        con_kx("vec_got", fm1_vec_got);
+    }
+    {
+        uint32_t i, m = 0;
+        for (i = 0; i < 8u; i++)                        /* the last 8 masks, oldest first, a hex digit each (bit 0..2 a */
+            m = m << 4 | (dual.mring[(dual.posts + i) & 7u] & 15u);   /* part, 3 the drums) */
+        con_kx("cpu1_masks", m);
+        for (i = 0; i < DUAL_JOBS && i < DUAL_JOBS_MAX; i++) {
+            static const char *const K[DUAL_JOBS_MAX] = {"cpu1_first_j0", "cpu1_first_j1", "cpu1_first_j2", "cpu1_first_j3",
+                                                         "cpu1_first_j4", "cpu1_first_j5", "cpu1_first_j6", "cpu1_first_j7"};
+            con_kv(K[i], (int32_t)dual.first_post[i]);  /* 1 + the post CPU1 first got job i (3 = NPART: the drums) */
+        }
+    }
+#endif
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);   /* how far CPU1 got (dual_mode.h C1S_*) */
     con_kv("cpu1_beat", (int32_t)fm1_dual_mb.count);    /* its spin loops / returns from idle */
     con_kv("cpu1_wakes", (int32_t)fm1_dual_mb.wakes);   /* its wake handler's entries (asleep) */
@@ -453,11 +501,17 @@ static void con_status(void)
     con_kx("cpu1_exc_c1etm2", fm1_dual_exc.c1etm[2]);
     con_kx("cpu1_exc_c1etm3", fm1_dual_exc.c1etm[3]);
     con_kx("cpu1_c1con", fm1_dual_c1con());
-    con_kv("cpu1_stack_irq_used", (int32_t)fm1_dual_stack_used(0));   /* bytes of 5120 (sp / ssp: the wake's) */
-    con_kv("cpu1_stack_main_used", (int32_t)fm1_dual_stack_used(1));  /* bytes of 5120 (usp: its C code, spin jobs) */                   /* (what it reads back now) */
-#if FELUCCA_DUAL_BOOST
-    con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
+    con_kv("cpu1_stack_small_used", (int32_t)fm1_dual_stack_used(0));  /* bytes of 1024 (the idle one: sp spinning, usp asleep) */
+    con_kv("cpu1_stack_big_used", (int32_t)fm1_dual_stack_used(1));    /* bytes of 5120 (the jobs' one) */                   /* (what it reads back now) */
+#if FELUCCA_DUALCFG
+    con_supply();
 #endif
+#endif
+#if FELUCCA_STOCK_SUPPLY && !FELUCCA_DUALCFG
+    con_kx("supply_was", supply.was);                   /* VDC14 << 4 | SYSVDD as the boot loader left them (0x3B: 3, 11) */
+    con_kx("supply_now", supply.now);                   /* after the stock start-up (0x7F: 7, 15) */
+    con_kx("supply_err", supply.err);                   /* 0: read back right; 1 P33 timeout, 2 regulator bits, 4 a level, 8 VLVD */
+    con_kx("supply_regs", supply.regs);                 /* P3_ANA_CON0 | CON5 << 8 | CON6 << 16 | CON9 << 24 (CON0 bit 3: DC-DC) */
 #endif
     con_kv("track", (int32_t)song.sel + 1);
     con_kv("batt_raw", song.batt_raw);
@@ -512,10 +566,50 @@ static void con_dbg(void)
 #endif
 }
 
+#if FELUCCA_DUAL
+/* the last exception's CPU1 state and bus master (hal/fm1_dual.h fm1_dual_snap; the crash report's or a hold's) */
+static void con_snap(void)
+{
+    static const char *const R[16] = {"c1_r0", "c1_r1", "c1_r2", "c1_r3", "c1_r4", "c1_r5", "c1_r6", "c1_r7", "c1_r8",
+                                      "c1_r9", "c1_r10", "c1_r11", "c1_r12", "c1_r13", "c1_r14", "c1_r15"};
+    uint32_t i;
+    if (fm1_c1_snap.magic != FM1_C1_SNAP_MAGIC) {
+        con_puts("no cpu1 snapshot\r\n");
+        return;
+    }
+    con_kx("snap_dbg", fm1_c1_snap.dbg);                 /* DBG_MSG: 4 axi_rd_inv 5 axi_wr_inv 16..18 c1_if/rd/wr_bus_inv 19..21 c0_ */
+    con_kx("snap_axi_rd_id", fm1_c1_snap.axi_rd_id);     /* the bus master of an axi_rd_inv */
+    con_kx("snap_axi_wr_id", fm1_c1_snap.axi_wr_id);
+    con_kx("snap_c1_wr_window", fm1_c1_snap.c1_wr_num);   /* bit 3: CPU0's RAM code, bit 4: its stacks / .noinit / vectors */
+    con_kx("c1_pc", fm1_c1_snap.pcrs);                   /* where CPU1 was (PCRS) */
+    con_kx("c1_reti", fm1_c1_snap.reti);
+    con_kx("c1_rets", fm1_c1_snap.rets);
+    con_kx("c1_psr", fm1_c1_snap.psr);
+    con_kx("c1_icfg", fm1_c1_snap.icfg);
+    con_kx("c1_usp", fm1_c1_snap.usp);
+    con_kx("c1_ssp", fm1_c1_snap.ssp);
+    con_kx("c1_sp", fm1_c1_snap.sp);
+    con_kx("c1_emu", fm1_c1_snap.emu);
+    for (i = 0; i < 16u; i++)
+        con_kx(R[i], fm1_c1_snap.r[i]);
+    con_kx("snap_ble_step", fm1_c1_snap.ble[0]);         /* 0xB1 SS GG RR: BLUETOOTH ON step, rf ops / 256, rf_init group */
+    con_kv("snap_ble_irqs", (int32_t)fm1_c1_snap.ble[1]);   /* BLE interrupts taken since ON */
+    con_kv("snap_ble_op", (int32_t)fm1_c1_snap.ble[2]);  /* rf_init's op, its index in the group, the last register */
+    con_kv("snap_ble_gop", (int32_t)fm1_c1_snap.ble[3]); /* access begun (hal/fm1_ble_rf.h) */
+    con_kx("snap_ble_addr", fm1_c1_snap.ble[4]);
+    con_kv("snap_ms", (int32_t)(fm1_c1_snap.ticks / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 then, ms */
+    con_kv("snap_boot", (int32_t)fm1_c1_snap.boot);     /* the boot it is from (status boots: this one) */
+    con_kv("now_ms", (int32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)));
+}
+#endif
+
 static void con_crash(void)
 {
     if (fm1_crash.magic != FM1_CRASH_MAGIC) {
         con_puts("no crash record\r\n");
+#if FELUCCA_DUAL
+        con_snap();                                     /* (a hold of CPU1 leaves one without a crash) */
+#endif
         return;
     }
     con_kv("count", (int32_t)fm1_crash.count);
@@ -533,10 +627,16 @@ static void con_crash(void)
     con_kx("psr", fm1_crash.psr);
     con_kv("uptime_ms", (int32_t)fm1_crash.uptime_ms);
     con_kv("early", (int32_t)fm1_crash.early);
+#if FELUCCA_DUAL
+    con_snap();
+#endif
 }
 
 /* how this boot started and how the one before ended (2026-10-15, the CPU1 investigation: tools fm1_console.py boot,
  * todo1014/dualidle/cpu1_log.py): the reset source, the boot guard as found, the breadcrumbs the reset kept */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+static void con_dualcfg_show(void);
+#endif
 static void con_boot(void)
 {
     con_kx("p3_rst", fm1_boot.p3_rst);                  /* bit0 power-on, 1 VDDIO low, 2 WDT, 3 VCM, 4 long press, 5 1.2 V, 6 soft */
@@ -551,12 +651,241 @@ static void con_boot(void)
     con_kv("prev_frames", (int32_t)felucca_dbg.prev_frames);
     con_kv("prev_c1_stage", (int32_t)felucca_dbg.prev_c1);   /* CPU1's stage then (dual_mode.h C1S_*) */
     con_kv("prev_crash", (int32_t)felucca_dbg.crash_new);   /* 1: it ended in the crash report (crash) */
+    con_kv("prev_loop_gap_max_ms", (int32_t)felucca_dbg.prev_loop_gap_max);   /* the main loop's longest gap then */
+    con_kv("prev_starve_ms", (int32_t)felucca_dbg.prev_starve_ms);   /* when it starved (no pass for 1.5 s), 0: never */
+    con_kx("prev_where", felucca_dbg.prev_where);       /* bit 0 in dual_join, bit 1 in the audio render (then) */
+    con_kv("prev_in_audio", (int32_t)felucca_dbg.prev_in_audio);
+    con_kv("prev_cpu_pct", (int32_t)(felucca_dbg.prev_cpu_q8 * 100u / 256u));   /* (smoothed: jumpy, not the load) */
+    con_kv("prev_audio_max_pct", (int32_t)felucca_dbg.prev_pk_all);   /* the longest half since that boot, % of a half */
+    con_kv("prev_audio_max5_pct", (int32_t)felucca_dbg.prev_pk_5s);  /* the longest of its last ~5 s */
+    con_kv("prev_cpu1_max5_pct", (int32_t)felucca_dbg.prev_pk1_5s);  /* CPU1's jobs' longest half, its last ~5 s */
+    con_kv("prev_drops", (int32_t)felucca_dbg.prev_drops);  /* late halves then (INFO's DROPS) */
+    con_kv("prev_late", (int32_t)felucca_dbg.prev_late);
+    con_kv("loop_gap_max_ms", (int32_t)felucca_dbg.loop_gap_max);   /* this boot so far */
+    con_kx("prev_audio_stage", fm1_astage_prev);        /* core.h ASTAGE: where the audio interrupt was (0x7F: out of it) */
+    con_kx("prev_loop_id", fm1_aloop_prev);             /* core.h LOOP_GUARD: a loop that hit its bound (0: none) */
+    con_kx("loop_id", fm1_aloop);                       /* (this boot so far) */
     con_kv("ms", (int32_t)fm1_ms);
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
+    con_kv("cpu1_start_ms", (int32_t)(dual.t_start / (1000u * FM1_TICKS_PER_US)));   /* TIMER4 ms: CPU1 started */
+    con_kv("early_crashes", (int32_t)felucca_dbg.boot_failed);   /* bootguard.failed as this boot found it (AFTER CRASH) */
+#if FELUCCA_DUALCFG
+    con_kv("afterhold", (int32_t)!dualcfg.noafter);    /* 1: a boot after an early crash keeps CPU1 off (dualcfg afterhold) */
+    con_supply();
+#else
+    /* the start-up order (stock's: rails, CPU1, the radio, the audio, CPU1's first job), TIMER4 ms (-1: not) */
+    con_kv("t4_cpu1_start_ms", (int32_t)dual_start_t4 - 1);
+#if FELUCCA_BLE
+    con_kv("ble_ms_radio", (int32_t)ble_ms_radio - 1);
+    con_kv("ble_ms_running", (int32_t)ble_ms_running - 1);
+#endif
+    con_kv("t4_audio_init_ms", (int32_t)dual_audio_t4 - 1);
+    con_kv("t4_cpu1_job1_ms", (int32_t)dual_job1_t4 - 1);
+    con_kv("cpu1_fpause_n", (int32_t)dual_fp_n);        /* flash operations CPU1 was parked and paused for (stock's) */
+    con_kv("cpu1_fpause_noack", (int32_t)dual_fp_noack);
+#if FELUCCA_STOCK_SUPPLY
+    con_kx("supply_now", supply.now);
+    con_kx("supply_err", supply.err);
+    con_kx("supply_regs", supply.regs);
+#endif
+#endif
+#if FELUCCA_DUALCFG
+    con_dualcfg_show();
+#endif
+#endif
+#if FELUCCA_BLE && BLE_HW_WL82
+    {
+        static const char *const K[14] = {"ble_ms_none", "ble_ms_set_on", "ble_ms_stack_init", "ble_ms_rf_init",
+                                          "ble_ms_bb_init", "ble_ms_started", "ble_ms_enable", "ble_ms_link_stop",
+                                          "ble_ms_link_open", "ble_ms_adv_prog", "ble_ms_adv_started", "ble_ms_irqs_on",
+                                          "ble_ms_running", "ble_ms_set_off"};
+        uint32_t i;
+        for (i = 1; i < 14u; i++)
+            con_kv(K[i], (int32_t)fm1_ble_step_at[i] - 1);   /* TIMER4 ms the step was first reached (-1: never) */
+    }
 #endif
 }
+
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+static uint8_t con_reboot_req;                          /* `reboot`: main.c resets, as an intentional reset */
+/* the second-core test image (system/dual.c dualcfg): `dualcfg show | reset | start boot|after|never | late MS |
+ * park on|off | idle sleep|spin | hold MS | poll N | boost on|off | ble on|off | policy ble-exclusive|none`. Saved with the settings record at once,
+ * applied at the next boot (`reboot`, or a power-on) */
+static void con_dualcfg_show(void)
+{
+    static const char *const ST[3] = {"boot", "after", "never"};
+    con_puts("dualcfg start ");
+    con_puts(ST[dualcfg.start % 3u]);
+    con_kv("\r\ndualcfg late", dualcfg.late_ms);
+    con_kv("dualcfg park", dualcfg.park);
+    con_puts(dualcfg.sleep ? "dualcfg idle sleep\r\n" : "dualcfg idle spin\r\n");
+    con_kv("dualcfg hold", dualcfg.hold_ms);
+    con_kv("dualcfg poll", (int32_t)dualcfg.poll);
+    con_kv("dualcfg boost", dualcfg.boost & 1u);
+    con_puts(dualcfg.boost & 2u ? "dualcfg dcdc on\r\n" : "dualcfg dcdc off\r\n");
+    con_puts(dualcfg.early ? "dualcfg supply early on\r\n" : "dualcfg supply early off\r\n");
+    con_kv("dualcfg rfquiet", dualcfg.rfquiet);
+    con_kv("dualcfg release", dualcfg.rel_ms);
+    con_kv("dualcfg bledelay", dualcfg.ble_delay);
+    con_kv("dualcfg stockorder", dualcfg.stockorder);
+    con_kv("dualcfg ble", dualcfg.ble);
+    con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
+    con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
+    con_kv("dualcfg c1guard", dualcfg.c1guard);
+    con_puts(dualcfg.insoff ? "dualcfg ins off\r\n" : "dualcfg ins on\r\n");
+    con_kx("dualcfg jobs", dualcfg.jobs ? dualcfg.jobs : 0xFFu);
+    con_puts(dualcfg.isrram ? "dualcfg isr ram\r\n" : "dualcfg isr xip\r\n");
+    con_kv("dualcfg fpause", dualcfg.fpause);
+    con_puts(dualcfg.noafter ? "dualcfg afterhold off\r\n" : "dualcfg afterhold on\r\n");
+    con_puts(dualcfg.spinv == FM1_SPIN_XIP ? "dualcfg spin xip\r\n" : dualcfg.spinv == FM1_SPIN_NOPS ? "dualcfg spin nops\r\n"
+                                                                                                  : "dualcfg spin ram\r\n");
+    con_kv("dualcfg pcnt", dualcfg.pcnt);
+    con_kx("dualcfg rails", dualcfg.rails);           /* VDC14 << 4 | SYSVDD targets (0: none) */
+    con_puts("(the next boot; this boot: ");
+    con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
+    con_puts(")\r\n");
+}
+static int con_onoff(const char **p, uint8_t *v)
+{
+    if (con_word(p, "on"))
+        *v = 1;
+    else if (con_word(p, "off"))
+        *v = 0;
+    else
+        return 0;
+    return 1;
+}
+static void con_dualcfg(const char *p)
+{
+    dualcfg_t c = dualcfg;
+    int ok = 1, n;
+    uint32_t v;
+    if (!*p || con_word(&p, "show")) {
+        con_dualcfg_show();
+        return;
+    }
+    if (con_word(&p, "reset"))
+        dualcfg_defaults(&c);
+    else if (con_word(&p, "start"))
+        ok = con_word(&p, "boot") ? (c.start = DCS_BOOT, 1) : con_word(&p, "after") ? (c.start = DCS_AFTER, 1)
+           : con_word(&p, "never") ? (c.start = DCS_NEVER, 1) : 0;
+    else if (con_word(&p, "idle"))
+        ok = con_word(&p, "sleep") ? (c.sleep = 1, 1) : con_word(&p, "spin") ? (c.sleep = 0, 1) : 0;
+    else if (con_word(&p, "park"))
+        ok = con_onoff(&p, &c.park);
+    else if (con_word(&p, "boost")) {                  /* off | on (= jangada: 5 / 15) | stock (7 / 15, the fields only) */
+        uint8_t on;
+        if (con_word(&p, "stock"))
+            ok = 1, c.boost = (uint8_t)(c.boost & 2u), c.rails = 0x7Fu;
+        else if (con_word(&p, "jangada"))
+            ok = 1, c.boost = (uint8_t)((c.boost & 2u) | 1u), c.rails = 0;
+        else if ((ok = con_onoff(&p, &on)) != 0)
+            c.boost = on ? (uint8_t)((c.boost & 2u) | 1u) : 0u, c.rails = 0;   /* (off: no rail raised, no dcdc) */
+    } else if (con_word(&p, "supply")) {               /* supply early on|off: the rails raised right after the settings load */
+        ok = con_word(&p, "early") && con_onoff(&p, &c.early);
+    } else if (con_word(&p, "rfquiet")) {
+        ok = con_onoff(&p, &c.rfquiet);
+    } else if (con_word(&p, "release")) {              /* release MS: a parked CPU1 started MS after the radio program */
+        v = con_num(&p, &n);
+        ok = n && v <= 30000u;
+        if (ok)
+            c.rel_ms = (uint16_t)v;
+    } else if (con_word(&p, "bledelay")) {             /* bledelay MS: the BLE radio MS after CPU1 is up (0: as before) */
+        v = con_num(&p, &n);
+        ok = n && v <= 30000u;
+        if (ok)
+            c.ble_delay = (uint16_t)v;
+    } else if (con_word(&p, "dcdc")) {                 /* on: the stock supply start-up (hal/fm1_supply.h), read back */
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.boost = (uint8_t)((c.boost & 1u) | (on ? 2u : 0u));
+    }
+    else if (con_word(&p, "ble"))
+        ok = con_onoff(&p, &c.ble);
+    else if (con_word(&p, "isr"))
+        ok = con_word(&p, "ram") ? (c.isrram = 1, 1) : con_word(&p, "xip") ? (c.isrram = 0, 1) : 0;
+    else if (con_word(&p, "fpause"))                   /* on: C1_CON pause; stock: CPU1 parked in RAM first, then paused */
+        ok = con_word(&p, "stock") ? (c.fpause = 2u, 1) : con_onoff(&p, &c.fpause);
+    else if (con_word(&p, "stockorder"))
+        ok = con_onoff(&p, &c.stockorder);
+    else if (con_word(&p, "spin"))
+        ok = con_word(&p, "ram") ? (c.spinv = FM1_SPIN_RAM, 1) : con_word(&p, "xip") ? (c.spinv = FM1_SPIN_XIP, 1)
+           : con_word(&p, "nops") ? (c.spinv = FM1_SPIN_NOPS, 1) : 0;
+    else if (con_word(&p, "boostlvl")) {
+        v = con_num(&p, &n);
+        ok = n && v < FM1_BOOST_LEVELS;
+        if (ok)
+            c.rails = (uint8_t)fm1_boost_level(v), c.boost &= 2u;
+    } else if (con_word(&p, "rails")) {             /* rails V S: VDC14 0 or 3..7, SYSVDD 0 or 11..15 (0: left) */
+        uint32_t s;
+        int n2;
+        v = con_num(&p, &n);
+        s = con_num(&p, &n2);
+        ok = n && n2 && (v == 0u || (v >= 3u && v <= 7u)) && (s == 0u || (s >= 11u && s <= 15u));
+        if (ok)
+            c.rails = (uint8_t)(v << 4 | s), c.boost &= 2u;
+    } else if (con_word(&p, "pcnt"))
+        ok = con_onoff(&p, &c.pcnt);
+    else if (con_word(&p, "afterhold")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.noafter = (uint8_t)!on;
+    }
+    else if (con_word(&p, "jobs")) {
+        v = con_num(&p, &n);
+        ok = n && v >= 1u && v <= 0xFFu;                /* (0x80: none, CPU1 runs with no job: no job has bit 7) */
+        if (ok)
+            c.jobs = (uint8_t)v;
+    } else if (con_word(&p, "c1guard"))
+        ok = con_onoff(&p, &c.c1guard);
+    else if (con_word(&p, "ins")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.insoff = (uint8_t)!on;
+    }
+    else if (con_word(&p, "nest")) {
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.flat = (uint8_t)!on;
+    } else if (con_word(&p, "policy"))
+        ok = con_word(&p, "ble-exclusive") ? (c.policy = 1, 1) : con_word(&p, "none") ? (c.policy = 0, 1) : 0;
+    else if (con_word(&p, "late")) {
+        v = con_num(&p, &n);
+        ok = n && v <= 60000u;
+        if (ok)
+            c.late_ms = (uint16_t)v;
+    } else if (con_word(&p, "hold")) {
+        v = con_num(&p, &n);
+        ok = n && v <= 60000u;
+        if (ok)
+            c.hold_ms = (uint16_t)v;
+    } else if (con_word(&p, "poll")) {
+        v = con_num(&p, &n);
+        ok = n && v >= 1u && v <= 1000000u;
+        if (ok)
+            c.poll = v;
+    } else
+        ok = 0;
+    if (!ok) {
+        con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
+                 " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
+                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off | boostlvl 0..6 | rails V S"
+                 " | boost stock|jangada | dcdc on|off | supply early on|off | rfquiet on|off | release MS"
+                 " | bledelay MS | fpause stock | stockorder on|off\r\n");
+        return;
+    }
+    c.magic = DUALCFG_MAGIC;
+    dualcfg = c;
+    settings_save();                                    /* (kept with the settings, applied at the next boot) */
+    con_dualcfg_show();
+}
+#endif
 
 static void con_params(void)
 {
@@ -610,10 +939,19 @@ static void con_tabbench(void)
     con_puts(")\r\n");
 }
 
+#include "console_run.c"                              /* play pause rec proj heavy wdtreset (scripted tests) */
+
 static void con_exec(const char *p)
 {
+    if (con_run(p))
+        return;
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  boot  params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
+        con_puts("play  pause  stop  rec on|off  proj load N  heavy [NOTES]  wdtreset  "
+                 "status  dbg  crash  boot  "
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+                 "dualcfg  reboot  "
+#endif
+                 "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -629,6 +967,14 @@ static void con_exec(const char *p)
         con_crash();
     else if (con_word(&p, "boot"))
         con_boot();
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    else if (con_word(&p, "dualcfg"))
+        con_dualcfg(p);
+    else if (con_word(&p, "reboot")) {
+        con_puts("rebooting\r\n");
+        con_reboot_req = 1;                            /* (main loop: an intentional reset, not a failed boot) */
+    }
+#endif
     else if (con_word(&p, "params"))
         con_params();
     else if (con_word(&p, "tabbench"))

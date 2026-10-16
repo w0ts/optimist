@@ -616,7 +616,7 @@ static int proj_import(project_t *q, const void *b, int n)
  *   AMT B   in the part's own LFO DEST words (lfo1_store's spill: their tagged layout then)
  * L2_TAG_V1 (feat/lfo2, one slot: AMT 7 bits at its old scale, x 2 now; WAVE 3 | DEST << 3 (3) | TRIG << 6 | POL << 7)
  * is read. Without a tag (every project before; one saved without a LFO 2 on) the slots are the drum track's own. Every
- * build reads the tags: a build without LFO2 gives the slots back their defaults (TOOLS > MISS: LFO 2, miss.c) */
+ * build reads the tags */
 #define L2_TAG 0x4D00u                                   /* (out of the RATE slot's range, -10..127) */
 #define LT_N_V1 25                                       /* (LT_N of then: OFF .. XAMT) */
 #define L2_TAG_V1 0x4C00u                                /* (LFO 2 with one DEST, 2026-10-13) */
@@ -651,17 +651,6 @@ static void l2_get(const project_t *p, uint32_t k, int16_t *v)
         if (v[j] >= LT_NB || v[j] >= LT_N_V1)
             v[j] = LT_OFF, v[j + 1u] = 0;
 }
-/* the parts whose LFO 2 acts in p (a slot not OFF, its AMT not 0): a bit each */
-static uint32_t l2_live(const project_t *p)
-{
-    uint32_t k, m = 0;
-    int16_t v[L2_NV];
-    for (k = 0; l2_tagged(p) && k < NPART; k++) {
-        l2_get(p, k, v);
-        m |= (uint32_t)((v[4] && v[5]) || (v[6] && v[7])) << k;
-    }
-    return m;
-}
 /* a project's drum track values v (P_COUNT) whose LFO slots held LFO 2: their defaults */
 static void l2_slots_def(int16_t *v)
 {
@@ -670,7 +659,6 @@ static void l2_slots_def(int16_t *v)
     for (k = 0; k < NPART; k++)
         v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = 0;
 }
-#if FELUCCA_LFO2
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
                P_L2AB == P_L2RATE + 7 && P_N1DA == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1,
                "LFO 2's values: in a row (the projects of before: l2_get)");
@@ -703,7 +691,6 @@ static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
         l2_get(p, k, x[k]);
     return l2_tagged(p);
 }
-#endif
 #if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
 #include "sl24/sl24_fm6.c"         /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
 #endif
@@ -1007,13 +994,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     int16_t px[NTRK][3];
     int pxt = px_unpack(p, px);                         /* SLOOP 2.4's track values (px_pack) */
 #endif
-#if FELUCCA_LFO2
     int16_t l2[NPART][L2_NV];
     int l2t = l2_unpack(p, l2);                         /* the parts' LFO 2 (l2_pack) */
-#else
-    int l2t = l2_tagged(p);                             /* (LFO 2's, not played here: miss.c) */
-    l2_miss = (uint8_t)l2_live(p);
-#endif
 #if FELUCCA_AUTO
     auto_apply_store(p);                                /* its automation, if it is this project's (auto_proj.c) */
 #endif
@@ -1066,10 +1048,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             (void)lfo1_load(&s->p[P_LEG_PIT], &v[P_L1DA], &spill);
             (void)env_load(v);                          /* ENV DEST's, ENV2 DEST's (env_store.h) */
         }
-#if FELUCCA_LFO2
         if (k < NPART)
             memcpy(&v[P_L2RATE], l2[k], sizeof l2[k]);
-#endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     k == TRK_DRUM && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
@@ -1536,6 +1516,10 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_USB_AUDIO
             persist_ua_load(&p);                   /* SYSTEM > USB AUDIO: the capture channels' sources */
 #endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+            if (p.dualcfg.magic == DUALCFG_MAGIC)
+                dualcfg = p.dualcfg;               /* (else the defaults: dualcfg_boot) */
+#endif
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
@@ -1636,6 +1620,9 @@ static void settings_save(void)
 #endif
 #if FELUCCA_USB_AUDIO
     persist_ua_save(&p);
+#endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    p.dualcfg = dualcfg;
 #endif
 #if FELUCCA_BLE
     memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);

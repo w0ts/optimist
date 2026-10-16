@@ -150,8 +150,11 @@ The SDK rule (`init.c:276`) is kept by construction: **CPU1 executes XIP code on
 (`.ram_text`, no calls, no constants; the build's "no calls in .ram_text" check holds). Flash
 operations run in the main loop with IRQs off, so they can never overlap a job. `irq_save()` (every
 flash operation) calls `dual_flash_enter()`, which checks that CPU1 is idle and halts it if not (it
-cannot happen unless the protocol is broken). The stock hardware pause (bit 2 / bit 4) is not used: its
-semantics are inferred; it stays a fallback option.
+cannot happen unless the protocol is broken). Since 2026-10-16 every flash write or erase (not the reads,
+`fm1_flash_reading`) also parks CPU1 as stock V15 does (its 0x01C02536, BOOST-RESEARCH.md 7.3): CPU0 sets
+`fm1_dual_mb.park`, CPU1 in its RAM loop waits for the cache idle (CACHE_CON bit 14, bounded), answers
+`parked` and spins in RAM; CPU0 waits 200 us at most for that, then pauses it in hardware (C1_CON bit 2, the
+stopped bit 4), writes, resumes it (bit 3) and clears `park` (counters `cpu1_fpause_n / _noack / _nostop`).
 
 ### 3.4 Failure behaviour (never brick, never hang)
 - Boot: no hello within 50 ms -> CPU1 back into reset (C1_CON bit 1), single core for this boot.
@@ -187,11 +190,57 @@ Optimist used to run any job whose `req != done`. Now (`hal/fm1_dual_guard.h`, a
   30 s (`bootguard.failed`) stays on one core (`AFTER CRASH`). With `DUAL_MODE_MENU 1` (set when a menu
   can switch it back) AUTO turns itself OFF after a misread, canary, timeout or fault, saved once stopped;
   without that menu the self-disable lasts the session.
-- **Supply BOOST** (`FELUCCA_DUAL_BOOST`, builder `DUAL_BOOST`, default off, EXPERIMENTAL, at the owner's
-  risk; `hal/fm1_supply.h`): before CPU1 starts, VDC14 (P3_ANA_CON6 [2:0]) to 5 = 1.50 V, then SYSVDD
-  (P3_ANA_CON9 [3:0]) to 15 = 1.38 V, one step a 100 us, never lowered (AC79 SDK `wl82/asm/p33.h`; levels
-  and order from Jangada 07cce38 `fm1_core_supply`). Not tried on an Optimist build.
-- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_supply_was` (BOOST). Emulator fallbacks:
+- **STOCK SUPPLY** (`FELUCCA_STOCK_SUPPLY`, builder `STOCK_SUPPLY`, on by default in builds with the second
+  core, EXPERIMENTAL; `system/supply.c`, `hal/fm1_supply.h`; replaces the earlier `DUAL_BOOST`): at the top of
+  the boot (IRQs off, before CPU1, the audio and the BLE radio) the rails are set as the stock M-VAVE
+  application sets them (V15 `app_core` 0x02004F90..0x0200509A; the sequence as Melodee 1.3.6 ports it,
+  7a51700): LDO13 on, DCDC13 on, LDO13 off (the 1.4 V rail onto the DC-DC); P3_ANA_CON1 = 0x20, CON5 = 0x74
+  (VDDIOM / VDDIOW 3.2 V, written once: stock passes through 2.8 V), CON6 VD14_HD_SEL 1, CON7 = 0xA5, CON8 =
+  0x96 (the DC-DC's bias, duty, oscillator, current sense), CON9 bit 4; VDC14 (CON6 [2:0]) up to 7 = 1.60 V a
+  step every 100 us; CON0 bit 7, P3_ANA_KEEP [5:0] cleared, CON2 bit 6, P3_VLD_KEEP bit 5 cleared; SYSVDD (CON9
+  [3:0]) up to 15 = 1.38 V last; never lowered; the PLL is never written. Read back: DC-DC on and LDO off,
+  VDC14 7, SYSVDD 15, VDDIOM 4, no P33 timeout; else CPU1 is not started (`2ND CORE OFF SUPPLY`,
+  `dual_supply_why`) and the rails stay where the sequence stopped. SYSTEM > INTERNALS: `SUPPLY 1.38 V 1.60 V
+  DC-DC` (or `NOT RAISED`). Why: every custom firmware runs at the boot loader's 1.26 V / 1.40 V on the LDO;
+  stock runs 1.38 / 1.60 V on the DC-DC at the same 360 MHz. On the test unit (test/overnight B23, 2026-10-16)
+  configurations that crashed CPU0 within 17-61 s at the boot loader's rails survived 3 x 180 s with 1.50 V /
+  1.38 V (Jangada's levels), the real dual core too (~228 k CPU1 jobs a run); the stock sequence itself is
+  under test (B24 `dcdc on`). Risks: above the AC79 datasheet's table, absolute limits not public, unit to unit
+  variation, heat and battery effect not measured; the misread / canary / AFTER CRASH fallbacks stay.
+- The 2.6 V low-voltage detector (P3_VLVD_CON 0x11 = 0x78, then |= 1: VLVD_SEL 7, VLVD_EN, as stock's `app_core`
+  after its rails) follows the rails and is read back with them (FM1_SUP_LVR).
+
+### 3.6 Stock V15's start-up order (2026-10-16: the normal behaviour of DUAL builds)
+Reverse-engineered from the unmodified V15 (BOOST-RESEARCH.md 7; disassembly + MMIO trace in the emulator; the
+timeline's ms are the emulator's) and measured on the FM-1 as the console test image B25 (`dualcfg stockorder on`,
+test/overnight bd9f1868): with BLUETOOTH ON and the heavy saved song, 3 runs x 180 s each of the replay, of the
+same with the XIP entries and of the same with the plain pause, all with CPU1 up (~248 k jobs a run), audio
+peak 73 %, no flips; before it every BLE + dual boot crashed within 2-60 s. Each step and why:
+1. **The rails first** (supply.c `supply_boot`, top of `fm1_main`, IRQs off): stock raises them at 36.6 ms,
+   before its RF program (39 ms). At the boot loader's 1.26 V / 1.40 V on the LDO, CPU1 merely spinning crashed
+   CPU0 within 17-61 s (B22s); the radio's start-up crashed even single-core JieLi stacks at 1.40 V (fm1-radio).
+2. **CPU1 at `dual_boot`, in its RAM spin loop** (no job yet): stock starts CPU1 at 1.94 ms and leaves it polling a
+   RAM byte through the whole radio bring-up. `DUAL_DEFER` (CPU1 after the radio) is gone from product builds.
+3. **The BLE radio before `audio_init`**, IRQs still off (main.c): stock's RF program runs 39-253 ms with no audio
+   I/O (ALNK starts at 466.6 ms) and no CPU1 job; ours runs before the audio interrupt, TIMER5 and any render exist.
+4. **CPU1's jobs from BLE running + 400 ms** (`dual_stock_after_ble`, `dual.hold_at`, TIMER4 ms): stock's first
+   CPU1 job is ~436 ms after its BLE IRQs are on.
+5. **Flash writes park CPU1** (3.3), as stock's 106 pauses in its first second.
+6. **TIMER5 / ALNK0 entries from RAM** (`isr_timer5_ram`, `isr_alnk0_ram`, fm1_isr.S): every wild PC before was the
+   TIMER5 stub fetched from XIP with a bit wrong. (B25: no difference measured against the XIP stubs.)
+7. **No BLUETOOTH rule**: CPU1 runs with BLE on. A BLUETOOTH ON at runtime (the radio started while the audio runs,
+   which stock never does) holds CPU1 for the radio's program and starts it again after (`dual_radio_hold` /
+   `_release`; emulator: no late half; not measured on the FM-1 yet).
+The fallbacks stay: a wrong supply read-back (SUPPLY), a misread, a wrong canary, a timeout, a fault, AFTER CRASH ->
+one core. The sleep variant (`FELUCCA_DUAL_IDLE=1`) did not start under this order on the FM-1 (TIMEOUT): spin only.
+Emulator gate: the emulator's timing model does not represent the chip's dual-core timing (at 96 MHz one late half
+showed between 5 and 15 s, in the boot's burst of 23 flash writes, with the park; the park's own wait measured 27 TIMER4
+ticks (~1 us), the erase's IRQs-off window 192,916 ticks (8 ms) at that emulated clock; none at 192 MHz, none on the
+FM-1). So `tests/emu/run.py` refuses a DUAL build whose CPU1 starts: a DUAL profile's gate build is made with
+`OPTIMIST_DUAL_PARK=1` (single core). The second core is verified by the host tests, the BLE emulator tests
+(dual_stockorder_emu_test, dual_ble_rule_emu_test), emu_boot_check and the hardware matrix / soak.
+
+- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `supply_was`, `supply_now`, `supply_err`, `supply_regs` (STOCK_SUPPLY). Emulator fallbacks:
   `DUAL_FAILTEST=4` (a wrong check word at job 3000 -> MISREAD), `5` (a wrong canary -> CANARY).
 
 Also fixed on the way (default build too): DX7 phase sums (`phase += freq`, `phase + in[i]`) relied on
@@ -372,6 +421,15 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
   guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
   CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
+- **2026-10-15 evening, the rule shipped (dropped 2026-10-16, 3.6):** with the BLE radio started, CPU1 running faulted on every boot of this FM-1
+  (random exception types, during and after the radio's start-up program); with BLUETOOTH OFF it ran clean (B9a: 42,952
+  jobs in 33 s). The user's ruling: the second core runs only while BLUETOOTH is OFF (`dual_ble_rule`, dual_mode.h):
+  started from the main loop after boot only if BLUETOOTH is OFF; switching it ON stops CPU1 first (`dual_radio_hold`:
+  between two audio blocks, `DUAL_BLE`), never restarted until the next boot; INFO "2ND CORE OFF BLUETOOTH". Builds without
+  BLE start CPU1 at boot as before. `FELUCCA_DUAL_IDLE` defaults to 0 (the spin: the wake never reached CPU1 on the FM-1).
+  A join is bounded to two blocks (1.45 ms; it was a half for each of 8 blocks), and a main loop with no pass for 1.5 s
+  takes CPU1 down (`DUAL_OVERLOAD`): a watchdog reset at main-loop stage 2 (B9a, CPU1 running, a heavy edit) is the case.
+  Test image: `OPTIMIST_DUALCFG=1` (the console's `dualcfg`, `reboot`); emulator: tests/dual_ble_rule_emu_test.py.
 - **CPU1's stack, since 2026-10-15:** 10 KiB, sp = ssp at +5120 (the wake interrupt's), usp at +10240 (CPU1's C code,
   and a spinning build's jobs): 5 KiB each. The layout below gave usp only the lowest 2 KiB; the spinning builds (B..B4)
   rendered their jobs there and an ACID part (2,948 B static) ran through the bottom into `part_mem`, just below in
@@ -431,7 +489,7 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
 
 - **Boot order (build check):** CPU1 may start only after the UBOOT hold and the boot guard, never on the recovery path. A DUAL build keeps `boot_hold`, `bootguard_begin`, `fm1_main`, `recovery_main`, `dual_boot` and `fm1_dual_start` out of line (`BOOT_ORDER`, noinline, +192 B), and `tools/build.py boot_order()` reads their call graph: the start only through `dual_boot` <- `fm1_main` <- `fm1_cstart`, which calls `boot_hold` and `bootguard_begin` first, and `recovery_main` cannot reach it.
 
-## Parked by default (2026-10-15)
+## Parked by default (2026-10-15; superseded the same evening by the BLUETOOTH rule, then by stock's order, 3.6)
 
 Until the hardware tests settle the second core (the FM-1's power-on crash while CPU1 rendered jobs), a DUAL build never starts CPU1:
 `dual.why` is `DUAL_PARKED`, SYSTEM > INFO reads "2ND CORE OFF PARKED", and no render job ever runs on CPU1. A hardware test build that

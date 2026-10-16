@@ -26,7 +26,7 @@
  * only (its sends' accumulators, the drum sounds' own sends, pass them by, as every bus insert at QUALITY). */
 #if INS_FX
 #define IFX_NI (NPART + 12u)                            /* the instances: the parts, the drum bus's L, R, the master's L, R,
-                                                         * the USB input's L, R (fx-rework stage 3), the returns R1 R2 R3's
+                                                         * the USB input's L, R (fx-rework stage 3), the returns A B C's
                                                          * L, R (fx-pool 2026-10-15: IFX_RT) */
 #define IFX_AW_UT (NTRK + 1u)                           /* ifx_awake's entry for the USB input */
 #define IFX_AW_MST NTRK                                 /* ifx_awake's entry for the master */
@@ -450,7 +450,7 @@ AINL int ifx_has(uint32_t ty, uint32_t k)
  * ECHO: not running) and changes nothing more after it, so a type in no slot whose bit is clear is not called at all
  * (fx.c ins_part, dbus_run; ifx_quiet_part): a type built and in no slot costs nothing a block. Set by any call with an
  * amount or a wet share, cleared by the call at 0 from rest and by ifx_quiet_part's rest */
-#define IFX_AW_RT0 (NTRK + 2u)                          /* ifx_awake's entries for the returns R1 R2 R3 */
+#define IFX_AW_RT0 (NTRK + 2u)                          /* ifx_awake's entries for the returns A B C */
 static uint32_t ifx_awake[NTRK + 5];                    /* (the tracks', the master's: IFX_AW_MST, the USB input's, the returns') */
 AINL uint32_t ifx_aw(uint32_t k)                        /* the audio's index k -> its ifx_awake entry */
 {

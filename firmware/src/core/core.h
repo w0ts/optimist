@@ -225,15 +225,13 @@ enum {                          /* per-track parameters */
      * preset; the FX record keeps them (fx_slots.c fxs_tlv, EQ3's TLV) */
     P_TEQ,
 #endif
-#if FELUCCA_LFO2
-    /* LFO 2 (builder item LFO2; voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
+    /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
      * it at phase 0; FREE: never), POL (BI -1..+1, UNI 0..+1: SLOOP 2.6's P_LTRIG P_LPOL), and two slots as LFO's
      * (DEST A + AMT A, DEST B + AMT B: LT_*). Off (every slot OFF or at 0): nothing computed. The parts' only (the
      * drum track has its lanes' LFOs). Not part of a sound nor of a user preset (param_kept, as the track FILTER); a
      * project keeps them packed in the drum track's LFO slots (project.c l2_pack), no format change */
     P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL, P_L2DA, P_L2AA, P_L2DB, P_L2AB,
-#endif
     /* ENV DEST and ENV2 DEST (2026-10-14): each envelope's two slots, as LFO DEST's (DEST A + AMT A, DEST B + AMT B, the
      * shared list LT_*; voice.c env_plan). Nothing is wired: ENV's slot A is AMP 127 by default (a new sound, INIT, a
      * project or a preset of before), so every sound plays as it did. Part of a sound (model.c param_kept); stored in
@@ -265,7 +263,7 @@ enum {                          /* per-track parameters */
  *                    as it renders, env_vmove), +- half its range at full (an envelope: 0 .. its range)
  *   CHO DLY REV      the part's sends, INS1 INS2 the amount of the insert in its slot S1 / S2 (fx_slots.c ins_amt), as
  *                    the values above (an envelope: the part's newest voice's)
- *   L1RT L1AMT       LFO's RATE (its free rates only) and its two amounts (x 0..2); L2RT L2AMT LFO 2's (with LFO2);
+ *   L1RT L1AMT       LFO's RATE (its free rates only) and its two amounts (x 0..2); L2RT L2AMT LFO 2's;
  *   EN1AMT EN2AMT    ENV's, ENV2's two amounts (x 0..2)
  * Mod of mod: every move starts from the authored value each block (or voice), from the modulators' values of the block
  * before, so nothing feeds back into a runaway, whatever the order (voice.c: the order). New destinations: one line in
@@ -275,7 +273,7 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
        LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_CHO, LT_DLY, LT_REV, LT_INS1, LT_INS2,
        LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
        LT_L2RT, LT_L2AMT, LT_N };
-#define LT_NB (FELUCCA_LFO2 ? LT_N : LT_L2RT)  /* the destinations of this build (L2RT L2AMT: with LFO 2) */
+#define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
 /* ENV's summed AMT on FLT (its slots; ENV DEST FLT d of before is AMT 2 d): for an engine that models the envelope's
  * cutoff depth itself (eng_juno.c) */
 #define ENV1_FLT_AMT(p) (((p)[P_N1DA] == LT_FLT ? (p)[P_N1AA] : 0) + ((p)[P_N1DB] == LT_FLT ? (p)[P_N1AB] : 0))
@@ -342,10 +340,6 @@ static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the aud
 #define MISS_BUMP() (miss_gen++)
 #else
 #define MISS_BUMP() ((void)0)
-#endif
-#if !FELUCCA_LFO2
-static uint8_t l2_miss;         /* the parts whose LFO 2 acts in the project last applied (project.c l2_live): not played
-                                 * in a build without LFO2 (miss.c) */
 #endif
 /* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
  * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then the internal tempo */
@@ -734,6 +728,43 @@ AINL void a2x_from_dst(int16_t *x, int16_t *amt, int32_t d)
 #endif
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+/* where the audio interrupt is (2026-10-15: two watchdog resets with CPU0 inside the audio render, the main loop and TIMER5
+ * stopped: TIMER5 does not preempt the audio render on the FM-1): a plain store at each section (ASTAGE, the codes in
+ * docs/DUAL-CORE.md / console `boot`), kept by the reset (main.c copies it to fm1_astage_prev). LOOP_GUARD: a loop whose
+ * end depends on state other code writes stops after MAX passes and notes ID (fm1_aloop, the first one; main.c keeps
+ * it as fm1_aloop_prev): a hang there turns into a bounded block and a record */
+volatile uint32_t fm1_astage __attribute__((section(".noinit")));
+volatile uint32_t fm1_aloop __attribute__((section(".noinit")));
+static uint32_t fm1_astage_prev, fm1_aloop_prev;
+#if !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
+/* (the markers are read by the console test image's `boot` (prev_audio_stage): elsewhere no code, no flash, no RAM text) */
+#define ASTAGE(s) ((void)0)
+#define ASTAGE0(s) ((void)0)
+#else
+#define ASTAGE(s) (fm1_astage = (s))
+#endif
+/* (code either core may run: only CPU0 writes the marker; CPU1 must not write .noinit, its write limits there) */
+#if !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
+#elif defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__)
+#define ASTAGE0(s)                                                                                                     \
+    do {                                                                                                               \
+        if (!fm1_cnum())                                                                                               \
+            fm1_astage = (s);                                                                                          \
+    } while (0)
+#else
+#define ASTAGE0(s) ASTAGE(s)
+#endif
+#if (defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG) || !defined(__PI32V2__)   /* (the host tests keep them: recstress) */
+#define LOOP_GUARD(id, cnt, max)                                                                                       \
+    if (++(cnt) > (max)) {                                                                                             \
+        if (!fm1_aloop)                                                                                                \
+            fm1_aloop = (id);                                                                                          \
+        break;                                                                                                         \
+    }
+#else
+#define LOOP_GUARD(id, cnt, max) (void)(cnt);    /* (B18's hang probes: the console test image only, as the stage markers;
+                                                  * no code in a product build: tests/target_budget.txt) */
+#endif
 static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "../system/bootguard.h"

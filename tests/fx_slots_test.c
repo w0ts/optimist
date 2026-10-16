@@ -88,7 +88,7 @@ static int ins_dflt(void) { return !memcmp(ins_slot, INS_D, sizeof INS_D); }
 static void t_layout(void)
 {
     check("the default: ---- REV DLY CHO (the one order), the three sends heard, SENDS' ids P_REV P_DLY P_CHOR in slot "
-          "order, the cards R1 R2 R3 REV DLY CHO",
+          "order, the cards A B C REV DLY CHO",
           is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && fxs_live == FXS_LIVE_DEF && fxs_amt(0) == 0xFFu &&
           fxs_send_amt(0) == P_REV && fxs_send_amt(1) == P_DLY && fxs_send_amt(2) == P_CHOR && fxs_send_amt(3) == 0xFFu &&
           fxs_card(0) == FXT_REV && fxs_card(1) == FXT_DLY && fxs_card(2) == FXT_CHO && fxs_card(3) == FXT_NONE &&
@@ -107,19 +107,19 @@ static void t_layout(void)
     fxs_load(0, FXT_REV);
     check("the master's 3 returns (fx-rework): slot 0 takes no send", is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO));
     fxs_load(1, FXT_CHO);
-    check("... CHO into R1 swaps with R3 (nothing lost), the SENDS cards follow the returns (CHO DLY REV)",
+    check("... CHO into A swaps with C (nothing lost), the SENDS cards follow the returns (CHO DLY REV)",
           is_layout(FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV) && fxs_send_amt(0) == P_CHOR && fxs_send_amt(2) == P_REV &&
           fxs_card(0) == FXT_CHO && fxs_card(2) == FXT_REV);
     fxs_load(3, FXT_NONE);
-    check("... R3 emptied: its card blank, the others in place", fxs_card(0) == FXT_CHO && fxs_card(1) == FXT_DLY &&
+    check("... C emptied: its card blank, the others in place", fxs_card(0) == FXT_CHO && fxs_card(1) == FXT_DLY &&
           fxs_card(2) == FXT_NONE && !FXS_ON(FXT_REV));
     layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_CHO);
-    check("... a layout's send in slot 0: into the first empty return (REV on R1)",
+    check("... a layout's send in slot 0: into the first empty return (REV on A)",
           is_layout(FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO) && FXS_ON(FXT_REV));
     {   /* FX > SLOTS lists ---- and the sends in the one order first */
         int16_t *v;
         const param_desc_t *d = fxs_desc(1, &v);
-        check("FX > SLOTS: ---- REV DLY CHO first, R1's value REV", d && fxs_list[0] == FXT_NONE && fxs_list[1] == FXT_REV &&
+        check("FX > SLOTS: ---- REV DLY CHO first, A's value REV", d && fxs_list[0] == FXT_NONE && fxs_list[1] == FXT_REV &&
               fxs_list[2] == FXT_DLY && fxs_list[3] == FXT_CHO && *v == 1);
     }
     fxs_set(FXS_DEF);
@@ -773,7 +773,7 @@ static void t_map(void)
     {   /* the whole path: an old record (no flag, no TLV 0x42) loads the mapped slots and the sends */
         uint8_t o[FXR_HEAD] = {1, 0, FXT_REV, FXT_DIST, FXT_NONE, FXT_CHO};
         k = (uint32_t)fxr_decode(o, sizeof o, 1);
-        check("an old record (REV DIST ---- CHO): the master's returns REV ---- CHO (slot 0's REV on R1), every track's S1 DIST", k &&
+        check("an old record (REV DIST ---- CHO): the master's returns REV ---- CHO (slot 0's REV on A), every track's S1 DIST", k &&
               is_layout(FXT_NONE, FXT_REV, FXT_NONE, FXT_CHO) && ins_dflt() && !ins_drop);
     }
     fxs_set(FXS_DEF);

@@ -78,7 +78,7 @@ git clone https://github.com/w0ts/optimist.git
 cd optimist
 make setup      # check the prerequisites; fetch the SDK files, the toolchain or its image, the builder's venv
 make builder    # the firmware builder: pick features, see the flash and RAM budget, build
-make build      # build the default profile without the menu: build/optimist-<version>-dev-<commit>.fwsc
+make build      # build the default profile (Synth) without the menu: build/optimist-<version>-dev-<commit>.fwsc
 ```
 
 Without `make` (and on Windows): `python tools/optimist.py setup | builder | build | package | emu | test | web` (`--help` lists all). `make flash` installs the last build on a connected FM-1 over USB-MIDI (it shows both identities and asks first; needs `make setup` once for mido and python-rtmidi; also `f` in the builder menu). `make package PROFILE=drum-machine` writes the `.fwsc` and its `-ui.zip` into `firmwares/`. Details: [BUILDING.md](BUILDING.md); the builder and the profiles: [docs/BUILDER.md](docs/BUILDER.md).

@@ -33,7 +33,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/sloop/ui_input.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_store.c", "io/editor/editor.c",
               "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_cz.c", "storage/nbank.c",
-              "io/console.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
+              "io/console.c", "io/console_run.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
@@ -43,7 +43,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
               "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
-              "io/editor/ed_fav.c", "io/editor/ed_scope.c",
+              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
@@ -59,7 +59,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
-OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
+OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/sloop/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
@@ -86,7 +86,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
-               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c"]
+               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
                "engines/acid/bass303.c")
