@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 651208,
-  "ram": 82092,
-  "pool": 358500,
-  "ramtext": 34628
+  "flash": 655536,
+  "ram": 86080,
+  "pool": 364724,
+  "ramtext": 35456
  },
  "deltas": {
   "RESERVE_UNDO_KB": {
@@ -939,11 +939,11 @@
    }
   },
   "DUAL": {
-   "2": {
-    "flash": 3024,
-    "ram": 3760,
-    "pool": 6140,
-    "ramtext": 420
+   "0": {
+    "flash": -2496,
+    "ram": -3892,
+    "pool": -6144,
+    "ramtext": -736
    }
   },
   "STOCK_SUPPLY": {
@@ -1427,9 +1427,17 @@
     "pool": -384,
     "ramtext": -32
    }
+  },
+  "ED_REC": {
+   "0": {
+    "flash": -576,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-16 14:04",
+ "measured": "2026-10-16 14:47",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -3788,84 +3796,6 @@
    "ram": 640,
    "pool": -4,
    "ramtext": -236
-  }
- },
- "groups": {
-  "AUTO": {
-   "members": [
-    "MOTION",
-    "SL24_XSTEP",
-    "CHANCE",
-    "COND"
-   ],
-   "shared": {
-    "flash": 9560,
-    "ram": -269,
-    "pool": 384,
-    "ramtext": 11
-   }
-  },
-  "AUTO|UI=1": {
-   "members": [
-    "MOTION",
-    "SL24_XSTEP",
-    "CHANCE",
-    "COND"
-   ],
-   "when": {
-    "UI": 1
-   },
-   "shared": {
-    "flash": 9352,
-    "ram": -365,
-    "pool": 384,
-    "ramtext": 0
-   }
-  },
-  "INS_FX": {
-   "members": [
-    "INS_FOLD",
-    "INS_FUZZ",
-    "INS_PHASER",
-    "INS_FLANGER",
-    "INS_FORMANT",
-    "INS_WIDTH",
-    "INS_CHORUS",
-    "INS_DELAY",
-    "INS_GATER",
-    "INS_JCHORUS",
-    "INS_EQ3"
-   ],
-   "shared": {
-    "flash": 1465,
-    "ram": 830,
-    "pool": 96,
-    "ramtext": -16
-   }
-  },
-  "INS_FX|UI=1": {
-   "members": [
-    "INS_FOLD",
-    "INS_FUZZ",
-    "INS_PHASER",
-    "INS_FLANGER",
-    "INS_FORMANT",
-    "INS_WIDTH",
-    "INS_CHORUS",
-    "INS_DELAY",
-    "INS_GATER",
-    "INS_JCHORUS",
-    "INS_EQ3"
-   ],
-   "when": {
-    "UI": 1
-   },
-   "shared": {
-    "flash": 2409,
-    "ram": 1046,
-    "pool": 96,
-    "ramtext": 33
-   }
   }
  }
 }
