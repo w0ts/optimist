@@ -27,13 +27,15 @@ enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
 
 /* why CPU1 is not taking jobs (dual.up 0); DUAL_UP while it runs */
 enum { DUAL_UP, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH, DUAL_MISREAD, DUAL_CANARY, DUAL_EARLY, DUAL_SETOFF,
-       DUAL_PARKED, DUAL_BLE, DUAL_OVERLOAD, DUAL_WHY_N };
+       DUAL_PARKED, DUAL_BLE, DUAL_OVERLOAD, DUAL_SUPPLY, DUAL_WHY_N };   /* SUPPLY: the supply start-up's read-back
+                                                    * was wrong (hal/fm1_supply.h): CPU1 never started */
 
 /* the reason's name, as the screens show it ("" for DUAL_UP; a value out of range reads as DUAL_UP's) */
 static inline const char *dual_why_name(uint32_t why)
 {
     static const char *const DUAL_WHY_TXT[DUAL_WHY_N] = {"", "NO START", "TIMEOUT", "FAULT", "FLASH", "MISREAD", "CANARY",
-                                                         "AFTER CRASH", "SETTING", "PARKED", "BLUETOOTH", "OVERLOAD"};
+                                                         "AFTER CRASH", "SETTING", "PARKED", "BLUETOOTH", "OVERLOAD",
+                                                         "SUPPLY"};
     return DUAL_WHY_TXT[why % DUAL_WHY_N];
 }
 

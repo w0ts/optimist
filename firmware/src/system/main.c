@@ -259,6 +259,10 @@ static BOOT_ORDER void fm1_main(void)
     dualcfg_defaults(&dualcfg);                         /* (the settings record's dualcfg replaces them: project.c) */
 #endif
     persist_boot();
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dual_supply_early();                                /* `dualcfg supply early on`: the rails now (dual.c), before the
+                                                         * LCD, the audio and the BLE radio's start-up program */
+#endif
     BOOT_STAGE(STORES);
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
 #if CZ_NUSER
@@ -467,6 +471,9 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_BLE
         ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
         ble_devices_poll();                             /* the scan's reports into the DEVICES list (ble_devices.c) */
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+        ble_defer_poll();                               /* `dualcfg bledelay`: the radio after CPU1 (midi_ble.c) */
+#endif
 #endif
 #if BP23_SET
         settings_poll();                                /* a setting changed from a page or the editor (project.c) */

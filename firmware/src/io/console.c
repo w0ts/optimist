@@ -351,6 +351,34 @@ static void con_clock_regs(void)
     con_puts("\r\n");
 }
 
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+/* the core rails (hal/fm1_supply.h): as found before CPU1's start, right after the raise, and now (status and boot) */
+static void con_supply(void)
+{
+    uint32_t ie = fm1_icfg() & 0x200u, r, g;
+    fm1_irq_off();                                      /* (P33 access: not reentrant) */
+    r = fm1_supply_now();
+    g = fm1_supply_regs();
+    if (ie)
+        fm1_irq_on();
+    con_kx("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the raise (0x3B: 3, 11; 0: none) */
+    con_kx("cpu1_supply_set", dual.supply_set);         /* read back right after it */
+    con_kx("cpu1_supply_err", dual.supply_err);         /* dcdc: 1 P33 timeout, 2 regulator bits, 4 a level (0: right) */
+    con_kx("cpu1_supply_regs", dual.supply_regs);       /* P3_ANA_CON0 | CON5 << 8 | CON6 << 16 | CON9 << 24 after it */
+    con_kx("rails_now", r);                             /* VDC14 << 4 | SYSVDD as they are */
+    con_kx("p33_regs_now", g);                          /* CON0 bit 2 LDO13, bit 3 DCDC13 (the 1.4 V rail's regulator) */
+    con_kv("p33_timeouts", (int32_t)fm1_p33_timeouts);
+    con_kv("cpu1_supply_ms", (int32_t)dual.supply_ms);  /* TIMER4 ms when the rails were raised (0: not this boot) */
+    con_kv("cpu1_parked", dual.parked);
+#if FELUCCA_BLE && FELUCCA_DUAL >= 2
+    con_kv("cpu1_ok_ms", (int32_t)dual_ok_t4 - 1);      /* TIMER4 ms when CPU1 was first seen working (-1: not) */
+    con_kv("ble_ms_radio", (int32_t)ble_ms_radio - 1);  /* TIMER4 ms when the radio's start-up program began (-1: not) */
+    con_kv("ble_ms_running", (int32_t)ble_ms_running - 1);   /* .. when BLUETOOTH ran (advertising) */
+    con_kv("ble_deferred", ble_deferred);
+#endif
+}
+#endif
+
 static void con_status(void)
 {
     const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
@@ -462,19 +490,11 @@ static void con_status(void)
     con_kx("cpu1_c1con", fm1_dual_c1con());
     con_kv("cpu1_stack_small_used", (int32_t)fm1_dual_stack_used(0));  /* bytes of 1024 (the idle one: sp spinning, usp asleep) */
     con_kv("cpu1_stack_big_used", (int32_t)fm1_dual_stack_used(1));    /* bytes of 5120 (the jobs' one) */                   /* (what it reads back now) */
-#if FELUCCA_DUAL_BOOST
+#if FELUCCA_DUAL_BOOST && !FELUCCA_DUALCFG
     con_kv("cpu1_supply_was", dual.supply);             /* VDC14 << 4 | SYSVDD before the boost (0x3B: 3, 11) */
-#if FELUCCA_DUALCFG
-    con_kx("cpu1_supply_set", dual.supply_set);         /* read back right after it */
-    {
-        uint32_t ie = fm1_icfg() & 0x200u, r;
-        fm1_irq_off();                                  /* (P33 access: not reentrant) */
-        r = fm1_supply_now();
-        if (ie)
-            fm1_irq_on();
-        con_kx("rails_now", r);                         /* VDC14 << 4 | SYSVDD as they are */
-    }
 #endif
+#if FELUCCA_DUALCFG
+    con_supply();
 #endif
 #endif
     con_kv("track", (int32_t)song.sel + 1);
@@ -637,6 +657,7 @@ static void con_boot(void)
     con_kv("early_crashes", (int32_t)felucca_dbg.boot_failed);   /* bootguard.failed as this boot found it (AFTER CRASH) */
 #if FELUCCA_DUALCFG
     con_kv("afterhold", (int32_t)!dualcfg.noafter);    /* 1: a boot after an early crash keeps CPU1 off (dualcfg afterhold) */
+    con_supply();
 #endif
 #if FELUCCA_DUALCFG
     con_dualcfg_show();
@@ -670,7 +691,12 @@ static void con_dualcfg_show(void)
     con_puts(dualcfg.sleep ? "dualcfg idle sleep\r\n" : "dualcfg idle spin\r\n");
     con_kv("dualcfg hold", dualcfg.hold_ms);
     con_kv("dualcfg poll", (int32_t)dualcfg.poll);
-    con_kv("dualcfg boost", dualcfg.boost);
+    con_kv("dualcfg boost", dualcfg.boost & 1u);
+    con_puts(dualcfg.boost & 2u ? "dualcfg dcdc on\r\n" : "dualcfg dcdc off\r\n");
+    con_puts(dualcfg.early ? "dualcfg supply early on\r\n" : "dualcfg supply early off\r\n");
+    con_kv("dualcfg rfquiet", dualcfg.rfquiet);
+    con_kv("dualcfg release", dualcfg.rel_ms);
+    con_kv("dualcfg bledelay", dualcfg.ble_delay);
     con_kv("dualcfg ble", dualcfg.ble);
     con_puts(dualcfg.policy ? "dualcfg policy ble-exclusive\r\n" : "dualcfg policy none\r\n");
     con_puts(dualcfg.flat ? "dualcfg nest off\r\n" : "dualcfg nest on\r\n");
@@ -716,10 +742,33 @@ static void con_dualcfg(const char *p)
         ok = con_word(&p, "sleep") ? (c.sleep = 1, 1) : con_word(&p, "spin") ? (c.sleep = 0, 1) : 0;
     else if (con_word(&p, "park"))
         ok = con_onoff(&p, &c.park);
-    else if (con_word(&p, "boost")) {
-        ok = con_onoff(&p, &c.boost);
+    else if (con_word(&p, "boost")) {                  /* off | on (= jangada: 5 / 15) | stock (7 / 15, the fields only) */
+        uint8_t on;
+        if (con_word(&p, "stock"))
+            ok = 1, c.boost = (uint8_t)(c.boost & 2u), c.rails = 0x7Fu;
+        else if (con_word(&p, "jangada"))
+            ok = 1, c.boost = (uint8_t)((c.boost & 2u) | 1u), c.rails = 0;
+        else if ((ok = con_onoff(&p, &on)) != 0)
+            c.boost = on ? (uint8_t)((c.boost & 2u) | 1u) : 0u, c.rails = 0;   /* (off: no rail raised, no dcdc) */
+    } else if (con_word(&p, "supply")) {               /* supply early on|off: the rails raised right after the settings load */
+        ok = con_word(&p, "early") && con_onoff(&p, &c.early);
+    } else if (con_word(&p, "rfquiet")) {
+        ok = con_onoff(&p, &c.rfquiet);
+    } else if (con_word(&p, "release")) {              /* release MS: a parked CPU1 started MS after the radio program */
+        v = con_num(&p, &n);
+        ok = n && v <= 30000u;
         if (ok)
-            c.rails = 0;                                /* (boost on: 5 / 15; off: no rail raised) */
+            c.rel_ms = (uint16_t)v;
+    } else if (con_word(&p, "bledelay")) {             /* bledelay MS: the BLE radio MS after CPU1 is up (0: as before) */
+        v = con_num(&p, &n);
+        ok = n && v <= 30000u;
+        if (ok)
+            c.ble_delay = (uint16_t)v;
+    } else if (con_word(&p, "dcdc")) {                 /* on: the stock supply start-up (hal/fm1_supply.h), read back */
+        uint8_t on;
+        ok = con_onoff(&p, &on);
+        if (ok)
+            c.boost = (uint8_t)((c.boost & 1u) | (on ? 2u : 0u));
     }
     else if (con_word(&p, "ble"))
         ok = con_onoff(&p, &c.ble);
@@ -734,7 +783,7 @@ static void con_dualcfg(const char *p)
         v = con_num(&p, &n);
         ok = n && v < FM1_BOOST_LEVELS;
         if (ok)
-            c.rails = (uint8_t)fm1_boost_level(v), c.boost = 0;
+            c.rails = (uint8_t)fm1_boost_level(v), c.boost &= 2u;
     } else if (con_word(&p, "rails")) {             /* rails V S: VDC14 0 or 3..7, SYSVDD 0 or 11..15 (0: left) */
         uint32_t s;
         int n2;
@@ -742,7 +791,7 @@ static void con_dualcfg(const char *p)
         s = con_num(&p, &n2);
         ok = n && n2 && (v == 0u || (v >= 3u && v <= 7u)) && (s == 0u || (s >= 11u && s <= 15u));
         if (ok)
-            c.rails = (uint8_t)(v << 4 | s), c.boost = 0;
+            c.rails = (uint8_t)(v << 4 | s), c.boost &= 2u;
     } else if (con_word(&p, "pcnt"))
         ok = con_onoff(&p, &c.pcnt);
     else if (con_word(&p, "afterhold")) {
@@ -791,7 +840,9 @@ static void con_dualcfg(const char *p)
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
                  " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
-                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off | boostlvl 0..6 | rails V S\r\n");
+                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off | boostlvl 0..6 | rails V S"
+                 " | boost stock|jangada | dcdc on|off | supply early on|off | rfquiet on|off | release MS"
+                 " | bledelay MS\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

@@ -124,7 +124,7 @@ static inline __attribute__((always_inline)) uint32_t fm1_flip_check(uint32_t c,
 /* CPU1 between jobs, from RAM: publish `done`, then wait for a request it may run (fm1_dual_take; a bad one is noted
  * and waited past, in RAM). Gentle on the shared RAM (2026-10-15: the first spinning build on the FM-1 was followed by
  * a boot AFTER CRASH, cause not known): one read of req a pass, then FM1_DUAL_SPIN_NOPS no-ops (no bus access, about
- * 0.1 us at 314 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
+ * 0.1 us at 360 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
  * COUNT != 0: count the beat. Returns the new request; *ARG its argument, read once */
 #ifndef FM1_DUAL_SPIN_NOPS
 #define FM1_DUAL_SPIN_NOPS 32u                            /* (a test build sets more: OPTIMIST_DUAL_SPIN_NOPS) */

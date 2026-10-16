@@ -238,13 +238,17 @@ def build_app():
         flags.append("-DFELUCCA_DUALCFG=1")
         for k, d in (("OPTIMIST_DUALCFG_START", "DUALCFG_DEF_START"), ("OPTIMIST_DUALCFG_SLEEP", "DUALCFG_DEF_SLEEP"),
                      ("OPTIMIST_DUALCFG_ISRRAM", "DUALCFG_DEF_ISRRAM"), ("OPTIMIST_DUALCFG_FPAUSE", "DUALCFG_DEF_FPAUSE"),
-                     ("OPTIMIST_DUALCFG_SPIN", "DUALCFG_DEF_SPIN")):
+                     ("OPTIMIST_DUALCFG_SPIN", "DUALCFG_DEF_SPIN"), ("OPTIMIST_DUALCFG_BOOST", "DUALCFG_DEF_BOOST"),
+                     ("OPTIMIST_DUALCFG_EARLY", "DUALCFG_DEF_EARLY"), ("OPTIMIST_DUALCFG_POLICY", "DUALCFG_DEF_POLICY")):
             v = os.environ.get(k)               # (its defaults, for the emulator: the console is not there)
             if v in ("0", "1", "2"):
                 flags.append(f"-D{d}={v}")
         v = os.environ.get("OPTIMIST_DUALCFG_RAILS")   # (VDC14 << 4 | SYSVDD targets before CPU1 starts, e.g. 0x5F)
         if v and re.fullmatch(r"0x[0-7][0-9a-fA-F]", v):
             flags.append(f"-DDUALCFG_DEF_RAILS={v}u")
+        v = os.environ.get("OPTIMIST_DUALCFG_BLEDELAY")   # (ms: the BLE radio after CPU1, the emulator's test)
+        if v and v.isdigit() and int(v) <= 30000:
+            flags.append(f"-DDUALCFG_DEF_BLEDELAY={v}u")
         v = os.environ.get("OPTIMIST_DUALCFG_JOBS")   # (what CPU1 may render, 1..255; 128: none, its heartbeat only)
         if v and v.isdigit() and 1 <= int(v) <= 255:
             flags.append(f"-DDUALCFG_DEF_JOBS={v}u")
