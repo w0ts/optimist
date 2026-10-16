@@ -42,7 +42,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const server = createServer((q, r) => {
   const f = join(HERE, decodeURIComponent(q.url.split("?")[0]).replace(/^\/+/, "") || "editor.html");
   if (!f.startsWith(HERE) || !existsSync(f)) { r.writeHead(404); r.end(); return; }
-  r.writeHead(200, { "Content-Type": f.endsWith(".html") ? "text/html" : "application/octet-stream" });
+  r.writeHead(200, { "Content-Type": f.endsWith(".html") ? "text/html" : f.endsWith(".js") ? "text/javascript" : f.endsWith(".css") ? "text/css" : f.endsWith(".json") ? "application/json" : "application/octet-stream" });
   r.end(readFileSync(f));
 }).listen(0, "127.0.0.1");
 await new Promise((r) => server.on("listening", r));
@@ -198,8 +198,8 @@ if (process.argv.includes("--readme-shots")) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
-  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
-  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, no tabs, no transport)");
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "install,build" && !shown($("#tp")) && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, only the Install and Build tabs, no transport)");
 await shot("editor-disconnected");
 /* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
 const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
@@ -420,12 +420,13 @@ const sxRes = await run(`${U} const x = $("#stepx"); if (!await until(() => !x.h
   const labels = [...add.querySelectorAll("option")].map((o) => o.parentNode.label + "/" + o.textContent), dup = labels.length !== new Set(labels).size;
   add.value = add.querySelector("option").value; $("#sa-addgo").click(); await sleep(600);
   const rows = x.querySelectorAll("tr[data-param]").length, marked = document.querySelectorAll("#roll .tile.auto").length;
+  const autoBg = getComputedStyle(document.querySelector("#roll .tile.auto")).backgroundColor;   /* the device's automation colour #ffec80 */
   const lock = ev().filter((q) => q.place === (step | 0x40) && q.param < 0xFC).length;
   x.querySelector("tr[data-param] button").click(); await sleep(500);
   const after = ev().filter((q) => q.place === (step | 0x40) && q.param < 0xFC).length;
   await set("#sa-chance", 100); await set("#sa-cond", 0); await set("#sa-nudge", 0); await set("#sa-fill", 0);
   const gone = ev().filter((q) => q.place === (step | 0x40)).length;
-  return { pass: extras === "50,3,7,2" && groups.length > 3 && !forbidden.length && !dup && rows === 1 && lock === 1 && marked >= 1 && after === 0 && gone === 0, extras, groups: groups.length, forbidden, dup, rows, lock, marked, after, gone };`);
+  return { pass: extras === "50,3,7,2" && groups.length > 3 && !forbidden.length && !dup && rows === 1 && lock === 1 && marked >= 1 && autoBg === "rgb(255, 236, 128)" && after === 0 && gone === 0, extras, groups: groups.length, forbidden, dup, rows, lock, marked, autoBg, after, gone };`);
 ok(sxRes && sxRes.pass, `e2e: step automation: chance, condition, nudge, fill and a lock (from the device's Sound pages: no VCE / MUTE / LEN ..., no duplicate label) written to the store, marked on the tile, removed; defaults delete the events (${JSON.stringify(sxRes)})`);
 await shot("step-detail");
 /* v14 (the mock's undo, notes, solo): the step automation just written is undone / redone from the header and with Ctrl + Z, SOLO of a strip, the keyboard plays a note */
@@ -493,7 +494,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === ":2" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
+ok(lookRes && lookRes.groups === ":3" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
   `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects, the track colour follows), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
@@ -913,6 +914,24 @@ const aboutRes = await run(`${U} try {
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(aboutRes && aboutRes.bar && aboutRes.mainLeft < 60 && aboutRes.noFooter === 0 && aboutRes.open && aboutRes.names === "" && /hugelton\.com/.test(aboutRes.links) && /LICENSING\.md/.test(aboutRes.links) && /FUKIAI-LICENSE/.test(aboutRes.links) && aboutRes.closed,
   `e2e: the pages are a menu bar on top (no side column), the About dialog holds the credits, licences and links, no footer (${JSON.stringify(aboutRes)})`);
+/* the one-page app: Install and Build tabs before the mixer, hash routing, modules loaded on first use, the editor's device released while Install is shown and restored after, no leaving while writing */
+const appRes = await run(`${U} try {
+  const r = {}, tab = (n) => document.querySelector('#tabs [data-tab="' + n + '"]');
+  r.order = [...document.querySelectorAll("#tabs button[data-tab]")].filter((b) => !b.hidden).map((b) => b.dataset.tab).slice(0, 4).join();
+  r.lazy = window.fm1E2E.app().install === null;
+  tab("install").click(); await until(() => document.getElementById("install-host").children.length > 0, 20000);
+  r.hash = location.hash; r.app = document.documentElement.dataset.app; r.released = !D();
+  r.shown = !document.getElementById("p-install").hidden && getComputedStyle(document.getElementById("p-install")).display !== "none" && getComputedStyle(document.getElementById("transport")).display === "none";
+  r.mod = /Install Optimist/.test(document.getElementById("install-host").textContent);
+  const A = window.fm1E2E.app(), real = A.install.handle; A.install.handle = { busy: true, activate() {}, deactivate() {} };   /* (writing the firmware) */
+  tab("mixer").click(); await sleep(400); r.stayed = location.hash === "#install" && !document.getElementById("p-install").hidden;
+  A.install.handle = real;
+  tab("build").click(); await sleep(1500); r.build = location.hash + ":" + (document.getElementById("build-host").children.length > 0 || /not available|module/.test(document.getElementById("build-note").textContent));
+  tab("install").click(); await sleep(500);
+  tab("mixer").click(); await until(() => !!D() && !!D().dump && document.querySelectorAll("#mixer > .strip").length >= 9, 30000); r.back = location.hash + ":" + !!D();
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(appRes && /^install,build,mixer/.test(appRes.order) && appRes.lazy && appRes.hash === "#install" && appRes.app === "install" && appRes.released && appRes.shown && appRes.mod && appRes.stayed && /^#build:true$/.test(appRes.build) && appRes.back === "#mixer:true",
+  `e2e one-page app: Install and Build tabs first, lazy modules, #install / #build routing, the device released while Install is shown and restored, no leaving while the installer writes (${JSON.stringify(appRes)})`);
 /* the send knobs are as big as the pan knob (no shrinking); the drum head: [chip + name ..... 1|ALL ▶] with the toggle right beside the arrow */
 const sizeRes = await run(`${U} try {
   const r = {}, st = (n) => document.querySelector('#mixer .strip[data-track="' + n + '"]');
@@ -929,10 +948,11 @@ const sizeRes = await run(`${U} try {
   const rgb = (c) => (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number), spread = (c) => { const v = rgb(c); return Math.max(...v) - Math.min(...v); };
   r.chips = [];
   for (const id of ["strip-1-mute", "strip-ret-a-mute", "strip-usb-mute"]) {
-    const b = document.getElementById(id); if (!b || b.getAttribute("aria-disabled") === "true") { r.chips.push(id + ":missing"); continue; }
-    const on = getComputedStyle(b).backgroundColor; b.click(); await until(() => b.getAttribute("aria-pressed") === "true", 4000); await sleep(200);
-    const off = getComputedStyle(b).backgroundColor, sp = spread(off); b.click(); await until(() => b.getAttribute("aria-pressed") === "false", 4000); await sleep(200);
-    r.chips.push(id + ":" + (off !== on && sp <= 20 && getComputedStyle(b).backgroundColor === on ? "ok" : "bad " + on + " > " + off));
+    const g = () => document.getElementById(id), b0 = g(); if (!b0 || b0.getAttribute("aria-disabled") === "true") { r.chips.push(id + ":missing"); continue; }
+    await sleep(600);
+    const on = getComputedStyle(g()).backgroundColor; g().click(); await until(() => g() && g().getAttribute("aria-pressed") === "true", 4000); await sleep(300);
+    const off = getComputedStyle(g()).backgroundColor, sp = spread(off); g().click(); await until(() => g() && g().getAttribute("aria-pressed") === "false", 4000); await sleep(300);
+    r.chips.push(id + ":" + (off !== on && sp <= 20 && getComputedStyle(g()).backgroundColor === on ? "ok" : "bad " + on + " > " + off));
   }
   const sr = st(0).querySelector(".srow[data-row=sends]"), last = [...sr.querySelectorAll(".knob")].pop();
   r.fit = last.getBoundingClientRect().bottom <= sr.getBoundingClientRect().bottom + 1;

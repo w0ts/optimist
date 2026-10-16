@@ -1166,7 +1166,9 @@
   #trackbtns button[aria-pressed="true"] { background: var(--c); color: var(--on); }
   .panel { margin: 0; padding-top: 20px; }
   .hint { margin: 32px 0; }
-  html[data-conn=off] .menubar, html[data-conn=off] .titlebar { display: none !important; }
+  html[data-conn=off] .titlebar { display: none !important; }
+  html[data-app] #transport { display: none; } html[data-conn=off][data-app] #connectcard { display: none; } html[data-conn=off][data-app] .panel.appview:not([hidden]) { display: block !important; }
+  .appview { padding-top: 12px; } .appview .appnote { margin: 0 0 8px; }
   .connectcard .clogo { font-size: 32px; line-height: 32px; font-weight: 400; text-transform: uppercase; color: var(--trk); }
   .connectcard #cstatus[data-st=err] { color: var(--err); }
   .connectcard #cstatus[data-st=warn] { color: var(--warn); }
@@ -1495,6 +1497,13 @@
   #mixer .strip .seg.lmode button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
   #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
   #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
+  html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .o-num { margin-right: 8px; }
+  /* automated steps (p-locks, motion) in the device's COL_MK_AUTO: the tiles, the drum cells, the strips' overview */
+  :root { --mk-auto: #ffec80; }
+  .tiles button.auto { background: var(--mk-auto); color: #000; } .tiles button.auto::after { background: #000; outline-color: var(--mk-auto); }
+  .dgrid button.lk, .dgrid button.on.lk, .dgrid button.on.l1.lk, .dgrid button.on.l2.lk, .dgrid button.on.l3.lk { background: var(--mk-auto); color: #000; box-shadow: inset 0 0 0 2px #000; }
+  #mixer .strip .ov i.auto { background: var(--mk-auto); }
+  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not(.navh:first-of-type) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install and Build do not) */
 </style>
 </head>
 <body>
@@ -1502,8 +1511,10 @@
 <!-- the side bar: the pages in groups (play, the selected track's editors, the FX buses, the screens, the system), and the device.
      Every editor is still a popup (NAV); a side button opens it for the selected track. -->
 <div class="menubar" id="side">
-  <a class="brand" href="../installer/" title="Optimist firmware installer" aria-label="Optimist firmware installer" style="color:inherit;flex:none;display:flex;align-items:center"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="3.6"><circle cx="46" cy="62" r="6.2"/></g><rect x="44.2" y="63" width="3.6" height="17" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/><rect x="40" y="126" width="9" height="23"/><path d="M102 113L101 133L107 139L109 121Z"/><rect x="12.5" y="49" width="5" height="64"/></svg></a><b class="brand" title="Optimist Editor">Optimist</b>
+  <a class="brand" href="#mixer" title="Optimist editor" aria-label="Optimist editor" style="color:inherit;flex:none;display:flex;align-items:center"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="3.6"><circle cx="46" cy="62" r="6.2"/></g><rect x="44.2" y="63" width="3.6" height="17" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/><rect x="40" y="126" width="9" height="23"/><path d="M102 113L101 133L107 139L109 121Z"/><rect x="12.5" y="49" width="5" height="64"/></svg></a><b class="brand" title="Optimist Editor">Optimist</b>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
+    <button role="tab" data-tab="install" data-t="tabInstall" data-ic="port_usb_c"></button>
+    <button role="tab" data-tab="build" data-t="tabBuild" data-ic="ui_knob"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
@@ -1522,7 +1533,6 @@
     <span class="devline"><span id="live" class="pill"></span></span>
     <span id="version" class="dim"></span>
     <button id="disconnect" data-t="disconnect" data-ic="port_usb_c"></button>
-    <a class="dim inst" href="../installer/" data-t="installer"></a>
   </div>
 </div>
 <main class="main">
@@ -1557,7 +1567,7 @@
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
-    <p><a class="dim" href="../installer/" data-t="installerLink"></a></p>
+    <p><a class="dim" href="#install" data-t="installerLink"></a></p>
   </section>
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
@@ -1592,6 +1602,10 @@
       <div class="roll" id="roll"></div>
     </div>
   </section>
+
+  <!-- the Install and Build tabs: the installer and the builder as modules, created on first use (appShow) -->
+  <section class="panel appview o-host" id="p-install" data-tab="install" hidden><div class="appnote dim" id="install-note" role="status"></div><div id="install-host"></div></section>
+  <section class="panel appview o-host" id="p-build" data-tab="build" hidden><div class="appnote dim" id="build-note" role="status"></div><div id="build-host"></div></section>
 
   <section class="panel" id="p-mixer" data-tab="mixer" data-dev hidden>
     <div class="mixer" id="mixer"></div>
@@ -6719,6 +6733,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+  tabInstall: "Install", tabBuild: "Build", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Mixer", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
@@ -6939,7 +6954,8 @@ $("helpbtn").addEventListener("click", () => openPop("help", 0));
    is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, a drum lane, the kit,
    the kit store, the FX buses (Delay, Reverb, Chorus). One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
    last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
-const TABS = SCREENS;
+const APPS = ["install", "build"];                 /* the installer and the builder: modules shipped next to this page, loaded on first use */
+const TABS = [...SCREENS, ...APPS];
 const TAB_KEY = "felucca-editor-tab";
 const OLD_TABS = { sound: "sound", sequencer: "sequence", drums: "lane", tracks: null };
 let pendingPop = null;                           /* an old #tab: its popup, once connected */
@@ -6953,14 +6969,74 @@ let tab = (() => {
 })();
 let nav = { screen: tab, pop: null };
 const hasTracks = () => !!dev && !!dev.info && !!dev.info.ntrk;
+/* ---- the one-page app: Install and Build are modules (web/installer/installer.js, web/builder/builder.js), imported on first use so that Pyodide and the
+   installer's logic load only on demand. They are styled by the shared tokens (web/style/optimist.css), scoped to their panel and bridged to this page's own look.
+   The installer needs the MIDI port to itself: the editor's device connection is released while that tab is shown and restored on leaving. */
+const appState = { install: null, build: null, resume: false, style: null };
+const appBusy = () => !!(appState.install && appState.install.handle && appState.install.handle.busy);
+const APP_BRIDGE = `.o-host { --surface-0: var(--bg); --surface-1: var(--s1); --surface-2: var(--s2); --surface-3: var(--s3); --line-strong: var(--s3); --text: var(--fg); --text-dim: var(--dim); --text-mute: var(--mute);
+  --accent: var(--trk); --accent-hi: var(--trk); --on-accent: var(--on); --on-track: var(--on); --font-ui: var(--font); --font-mono: var(--font);
+  --fs-1: 12px; --fs-2: 12px; --fs-3: 14px; --fs-4: 14px; --fs-5: 16px; --fs-6: 16px; --r: 0; font: 14px/18px var(--font); color: var(--fg2); }`;
+async function appStyle() {              /* the shared style, once: its tokens scoped to .o-host (they would overwrite this page's own), then the bridge */
+  if (appState.style) return appState.style;
+  appState.style = (async () => {
+    const r = await fetch(new URL("style/optimist.css", location.href)).catch(() => null);
+    const css = r && r.ok ? await r.text() : "";
+    const scoped = css.replace(/:root\b/g, ".o-host").replace(/:where\(body\)/g, ".o-host").replace(/:where\(html\)[^}]*}/g, "").replace(/(^|\n):focus-visible\s*{[^}]*}/, "$1")
+      .replace(/--(?:line|ok|warn|err|t1|t2|t3|t4)\s*:\s*[^;]+;/g, "");
+    document.head.append(Object.assign(document.createElement("style"), { id: "o-host-style", textContent: `${scoped}\n${APP_BRIDGE}` }));
+    return !!css;
+  })();
+  return appState.style;
+}
+async function appMount(name, a) {
+  const note = $(`${name}-note`), host = $(`${name}-host`);
+  note.textContent = t("appLoading");
+  try {
+    await appStyle();
+    if (name === "install") {
+      const [mod, site] = await Promise.all([import("./installer/installer.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
+      a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }),
+        onNavigate: (where) => (where === "about" ? $("about").showModal() : showTab({ build: "build", editor: "mixer", backup: "projects" }[where] || "mixer")) });
+      note.textContent = site ? "" : t("appNoSite");
+    } else {
+      const mod = await import("./builder/builder.js");
+      a.handle = mod.mountBuilder(host, { onNavigate: (where) => showTab({ editor: "mixer", install: "install" }[where] || "mixer") });
+      note.textContent = "";
+    }
+  } catch (e) {
+    note.textContent = `${t(name === "install" ? "appInstallMissing" : "appBuildMissing")} (${e && e.message ? e.message : e})`;
+    a.failed = true;
+  }
+}
+function appShow(name) {
+  let a = appState[name];
+  if (!a) { a = appState[name] = { handle: null, failed: false, mounting: null }; a.mounting = appMount(name, a); }
+  else if (a.failed) { a.failed = false; a.mounting = appMount(name, a); }
+  Promise.resolve(a.mounting).then(() => { if (a.handle && a.handle.activate && tab === name) a.handle.activate(); });
+}
+function appSwitch(prev, name) {
+  if (prev === name) return;
+  if (APPS.includes(prev) && appState[prev] && appState[prev].handle && appState[prev].handle.deactivate) appState[prev].handle.deactivate();
+  if (name === "install" && prev !== "install") {          /* the installer needs the port: release the device, keep the wish to come back */
+    appState.resume = !!dev || wantConnected;
+    wantConnected = false;
+    if (dev) disconnect();
+  } else if (prev === "install" && name !== "install" && appState.resume) {
+    appState.resume = false;
+    if (QS.get("connect") !== "0" || MOCK) connect();
+  }
+}
 function showTab(name) {
   if (name in OLD_TABS) { const p = OLD_TABS[name]; name = "mixer"; if (p && dev && dev.dump) setTimeout(() => openPop(p, p === "lane" ? drumIndex() : dev.sel, kl.sel), 0); }
   if (!TABS.includes(name)) name = "mixer";
+  if (appBusy() && name !== tab) { sayK("appBusy"); if (location.hash !== "#" + tab) history.replaceState(null, "", location.pathname + location.search + "#" + tab); return; }   /* (writing the firmware: stay) */
   closePop();
   const prev = tab;
   tab = name;
-  nav = navScreen(nav, name);
-  try { localStorage.setItem(TAB_KEY, name); } catch (e) { /* no storage */ }
+  nav = APPS.includes(name) ? nav : navScreen(nav, name);
+  appSwitch(prev, name);
+  if (!APPS.includes(name)) { try { localStorage.setItem(TAB_KEY, name); } catch (e) { /* no storage */ } }
   if (location.hash !== "#" + name) history.replaceState(null, "", location.pathname + location.search + "#" + name);
   renderPanels();
   if (name === "mixer" && prev !== "mixer" && hasTracks() && dev.dump) op(readMixer);
@@ -7052,11 +7128,13 @@ function renderPanels() {
     b.tabIndex = on ? 0 : -1;
   }
   const ready = !!dev && !!dev.dump;
-  document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only */
+  document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only (the Install and Build tabs need no device) */
+  if (APPS.includes(want)) document.documentElement.dataset.app = want; else delete document.documentElement.dataset.app;
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = p.dataset.tab === want;
     let show = mine && (!("dev" in p.dataset) || ready);
+    if (mine && APPS.includes(want)) appShow(want);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
     if (show && want === "drumkit" && !hasKitPage()) { show = false; hint = "kitPageNone"; }
@@ -7972,10 +8050,11 @@ function drawRoll() {
     }
     g.globalAlpha = 1;
     if (play >= 0 && play < len) { g.globalAlpha = 0.18; g.fillStyle = c.accent; g.fillRect(rollX(play), 0, cell, H); g.globalAlpha = 1; }
+    const autoSteps = dev && dev.sa ? saMarkSet(dev.sel) : null;          /* steps with locks / motion: the device's automation colour */
     for (const n of notes) {
       const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = Math.max(3, Math.round(n.span * cell) - 2), h = RG.ROW - 2;
       g.globalAlpha = [1, 0.45, 0.7, 1][n.lvl];
-      g.fillStyle = c.eng; g.fillRect(x, y, nw, h);
+      g.fillStyle = autoSteps && autoSteps.has(n.step) ? AUTO_MARK : c.eng; g.fillRect(x, y, nw, h);
       g.globalAlpha = 1;
       if (n.lvl === 3 || n.acc) { g.strokeStyle = c.fg; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, nw - 1, h - 1); }
       if (n.step === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x, y, nw, h); }
@@ -8188,6 +8267,7 @@ function saMarkSet(tr) {
   return m;
 }
 const saMarkTitle = (k) => [k.lock && `${k.lock} ${t("locks")}`, k.hold && `${k.hold} ${t("saMotion")}`, k.extra && `${k.extra} ${t("saExtras")}`].filter(Boolean).join(", ");
+const AUTO_MARK = "#ffec80";                         /* the device's COL_MK_AUTO (tools/colors.json, group marks): an automated (p-locked / motion) step */
 function saApplyMarks() {
   if (!dev || !dev.sa) return;
   const tr = dev.sel, m = saMarkSet(tr), drum = drumGrid() && SQ.dstepsOk;
@@ -8201,6 +8281,7 @@ function saApplyMarks() {
     for (const h of document.querySelectorAll("#drumgrid .hd[data-h]")) { const k = m.get(+h.dataset.h); h.classList.toggle("auto", !!k); h.title = k ? saMarkTitle(k) : ""; }
     for (const c of document.querySelectorAll("#drumgrid button[data-i]")) { const k = m.get(+c.dataset.i); c.classList.toggle("lk", !!k && k.lanes.has(+c.dataset.l)); c.classList.toggle("selst", +c.dataset.i === sa.step && +c.dataset.l === sa.lane); }
   }
+  if (typeof drawRoll === "function" && $("roll") && !drum) { try { drawRoll(); } catch (e) { /* (not drawn yet) */ } }   /* (the roll's notes of automated steps) */
 }
 /* the values the device lets this step lock: [{group, id, desc}] (a drum sound: its TUNE .. LEVEL the sound shows; a synth track: its Sound pages' values) */
 function saLockables(tr, lane) {
@@ -12190,7 +12271,8 @@ function drawOverview(i) {
   if (!o) { c.ov.replaceChildren(); return; }
   if (c.ov.children.length !== o.on.length) c.ov.replaceChildren(...o.on.map(() => el("i")));
   const play = dev.status && dev.status.playing && dev.status.tracks[i] ? dev.status.tracks[i].step : -1;
-  [...c.ov.children].forEach((e, k) => { e.className = (o.on[k] ? "on" : "") + (k === play ? " now" : "") + (k % 4 === 0 ? " beat" : ""); });
+  const am = dev.sa && dev.sa[i] ? saMarkSet(i) : null;
+  [...c.ov.children].forEach((e, k) => { e.className = (o.on[k] ? "on" : "") + (am && am.has(k) ? " auto" : "") + (k === play ? " now" : "") + (k % 4 === 0 ? " beat" : ""); });
 }
 /* one step of a track's overview changed (STEP_CHANGED, an edit) */
 function ovSet(i, k, on) { const o = dev && dev.ov && dev.ov[i]; if (o && k < o.on.length) { o.on[k] = on; drawOverview(i); } }
@@ -13971,8 +14053,8 @@ applyText();
 tipAll();
 showTab(tab);
 libInit();
-if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */
-if (QS.get("e2e") === "1") window.fm1E2E = { dev: () => dev };   /* (?e2e=1: web/e2e_daw.mjs looks at the link) */
+if (QS.get("connect") !== "0" && !APPS.includes(tab)) connect();          /* auto-connect on load (?connect=0: wait for the button) */
+if (QS.get("e2e") === "1") window.fm1E2E = { dev: () => dev, app: () => appState };   /* (?e2e=1: web/e2e_daw.mjs looks at the link) */
 else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
 })();
 </script>
