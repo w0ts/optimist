@@ -157,7 +157,9 @@
   .strip .solo.on { visibility: visible; }
   /* mixer: four channel strips as on the device's TRACKS page */
   /* (the master, last: two columns, its head / bus knobs / meter, then its FX groups two by two: wider, never taller) */
-  .mixer { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(340px, 1.6fr); gap: 8px; margin: 6px 0; overflow-x: auto; }
+  .mixer { display: flex; align-items: stretch; gap: 8px; margin: 6px 0; overflow-x: auto; }
+  .mixer > .strip { flex: 1 1 150px; min-width: 150px; }
+  .mixer > .strip.master { flex: 1.6 1 340px; min-width: 340px; }
   .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
   .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
   .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
@@ -662,7 +664,7 @@
   .strip.master .fxg { border-radius: 0; border: 1px solid var(--line); background: var(--s1); }
   .strip.master .fxg button.ib, .strip.master .fxg button.ib:hover { border: 0; border-radius: 0; }
   .meter, .gr, #mixer .strip .meter { border-radius: 0; }
-  #mixer { grid-template-columns: repeat(4, minmax(176px, 1fr)) minmax(380px, 1.6fr); }
+  #mixer > .strip { flex-basis: 176px; min-width: 176px; } #mixer > .strip.master { flex-basis: 380px; min-width: 380px; }
   #mixer .strip { grid-template-rows: var(--slot-rows,) 28px 40px 34px 32px 8px 100px 220px 62px 150px 20px 32px; }
   #mixer .strip .snd { height: 40px; }
   #mixer .strip .fx { height: 220px; }
@@ -747,7 +749,7 @@
     .knobs > :nth-child(4n + 1), .knobs > :nth-child(4n + 2), .knobs > :nth-child(4n + 3), .knobs > :nth-child(4n + 4) { --c: var(--t1); }
     .knobs > :nth-child(2n) { --c: var(--t2); }
     .tiles { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-    #mixer { grid-template-columns: repeat(4, minmax(176px, 1fr)) minmax(380px, 1.6fr); }
+    #mixer > .strip { flex-basis: 176px; min-width: 176px; } #mixer > .strip.master { flex-basis: 380px; min-width: 380px; }
   }
   /* the step detail (SLOOP 2.4's nudge, fill, locks) under the piano roll */
   dialog#pop { margin-top: 5vh; }   /* (top-aligned: a panel that appears in a popup, as the step detail, does not move the page under the pointer) */
@@ -812,6 +814,35 @@
   .pad .row3 .val { color: var(--fg); text-align: right; white-space: nowrap; }
   .pad .acts { display: flex; gap: 4px; }
   @media (max-width: 860px) { .pads { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* the mixer as Ableton Live's session mixer: T4 is a GROUP (a fold triangle; its sounds are member strips, tinted from the group), the
+     USB input and the three RETURNS sit after all the tracks behind a divider, MASTER last behind another */
+  #mixer > .strip.sect { position: relative; margin-left: 10px; }
+  #mixer > .strip.sect::before { content: ""; position: absolute; left: -11px; top: 0; bottom: 0; width: 2px; background: var(--dim); opacity: .6; }
+  #mixer > .strip.sub { flex: 0 1 140px; min-width: 132px; display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px;
+    --tc: var(--t4); background: color-mix(in srgb, var(--t4) 9%, var(--bg)); border-left: 4px solid var(--t4); }
+  #mixer > .strip.sub .shead { height: 28px; box-sizing: border-box; background: color-mix(in srgb, var(--eng, var(--t4)) 35%, var(--bg)); }
+  #mixer > .strip.sub .lnav { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 24px; }
+  #mixer > .strip.sub .lnav .lname { flex: 1; text-align: center; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #mixer > .strip.sub .lnav button.ib { width: 28px; flex: none; }
+  #mixer > .strip.sub .lk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 0; justify-items: center; }
+  #mixer > .strip.sub .lb { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 0 4px; }
+  #mixer > .strip.sub .lb button, #mixer > .strip.sub .lo button { width: auto; min-height: 24px; }
+  #mixer > .strip.sub .lo { display: flex; gap: 2px; padding: 0 4px; justify-content: center; }
+  #mixer > .strip.sub.lmuted .lk { opacity: .45; }
+  .strip button.fold { font-size: 14px; }
+  #mixer > .strip.ret { flex: 0 1 156px; min-width: 156px; display: flex; flex-direction: column; gap: 6px; --tc: var(--dim); }
+  #mixer > .strip.ret .shead { height: 28px; box-sizing: border-box; --eng: var(--line); }
+  #mixer > .strip.ret .retopen { display: flex; justify-content: center; padding: 2px 4px; }
+  #mixer > .strip.ret .fxo { border: 0; padding: 0 4px; }
+  #mixer > .strip.ret .fxo > h3 { display: none; }
+  #mixer > .strip.ret, #mixer > .strip.sub { align-items: stretch; align-content: start; }
+  #mixer > .strip.ret .fxo { min-width: 0; width: auto; max-width: 100%; box-sizing: border-box; overflow: hidden; }
+  #mixer > .strip.ret .fxslot, #mixer > .strip.ret .fxslot .knobs, #mixer > .strip.ret .pk { min-width: 0; max-width: 100%; }
+  #mixer > .strip.ret select { width: 100%; max-width: 100%; min-width: 0; }
+  #mixer > .strip.ret .fxslot .knobs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: center; }
+  #mixer > .strip.ret button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strip .pops button[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -4045,10 +4076,10 @@ const NAV = {
   fxcomp: { strip: "master", opener: "[data-pop=fxcomp]" },
   fxins: { strip: "any", opener: "[data-pop=fxins]", fxp: true },      /* v13: the track's inserts (the drum track: its bus and the selected sound's) */
   fxmst: { strip: "master", opener: "[data-pop=fxmst]", fxp: true },   /* the master's two inserts */
-  fxret: { strip: "master", opener: "[data-pop=fxret]", fxp: true },   /* the three returns */
+  fxret: { strip: "ret", opener: "[data-pop=fxret]", fxp: true },   /* the three returns */
   tools: { strip: "any", opener: "[data-pop=tools]", tools: true },   /* v13: the pattern tools (REVERSE RANDOM COOK LENGTH) and EUCLID of the selected track */
   song: { strip: "master", opener: "[data-pop=song]", songc: true },   /* v13: the song chain: the parts (scene, bars) and LOOP / SONG */
-  fxusb: { strip: "master", opener: "[data-pop=fxusb]", fxp: true, usb: true },   /* the USB input: its values and two inserts (a build with USB audio) */
+  fxusb: { strip: "usb", opener: "[data-pop=fxusb]", fxp: true, usb: true },   /* the USB input: its values and two inserts (a build with USB audio) */
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
 const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
@@ -4067,7 +4098,7 @@ const KEYS = [
   { key: "i", id: "sound", on: "synth" }, { key: "q", id: "sequence", on: "track" },
   { key: "l", id: "loadpreset", on: "synth" }, { key: "p", id: "savepreset", on: "synth" },
   { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
-  ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
+  ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })), { key: "a", id: "lane", lane: 16, on: "drums" },   /* (16: the ACCENT lane) */
   { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" }, { key: "o", id: "fxcomp", on: "page" },
   { key: "f", id: "fxins", on: "track" }, { key: "m", id: "fxmst", on: "page" }, { key: "e", id: "fxret", on: "page" }, { key: "b", id: "fxusb", on: "page" }, { key: "s", id: "song", on: "page" }, { key: "t", id: "tools", on: "track" },
   { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
@@ -4102,6 +4133,15 @@ function keyPlan(st, ev) {
   if (ev.ctrlKey || ev.metaKey || ev.altKey || !st.nav || st.nav.screen !== "mixer" || !st.ntrk) return null;
   const drum = st.ntrk - 1, isDrum = st.sel === drum, k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
   const open = st.nav.pop, lane = st.lane | 0;
+  const lm = st.lm;
+  if ((k === "ArrowLeft" || k === "ArrowRight") && !open && isDrum && lm && lm.mode !== "collapsed") {   /* the drum track's sounds are its members */
+    const seq = lm.mode === "one" ? lm.ids : lm.shown, at = seq.indexOf(lane);
+    if (k === "ArrowRight") {
+      if (!lm.focus) return seq.length ? { pick: true, focus: true, track: drum, lane: lm.mode === "one" ? lane : seq[0] } : null;
+      return at >= 0 && at < seq.length - 1 ? { pick: true, focus: true, track: drum, lane: seq[at + 1] } : null;
+    }
+    if (lm.focus) return at > 0 ? { pick: true, focus: true, track: drum, lane: seq[at - 1] } : { unfocus: true, track: drum };
+  }
   if ((k === "ArrowLeft" || k === "ArrowRight") && !open) {
     const to = Math.max(0, Math.min(st.ntrk - 1, st.sel + (k === "ArrowRight" ? 1 : -1)));
     return to === st.sel ? null : { select: true, track: to };
@@ -4162,7 +4202,7 @@ function makeMockDevice(opt = {}) {
   /* the v13 commands a firmware may leave out (the builder's ED_* items): opt.fxp / opt.scrn switch their groups on (the old way: FXP + DLAN, the other six), and
      opt.dlan, opt.scrn, opt.songc, opt.tools, opt.scrs, opt.fav, opt.scope = false switch one off, so the editor is tested with any subset */
   const has = (k, grp) => (opt[k] === undefined ? !!opt[grp] : !!opt[k]);
-  const m13 = { fxp: has("fxp", "fxp"), dlan: has("dlan", "fxp"), scrn: has("scrn", "scrn"), songc: has("songc", "scrn"), tools: has("tools", "scrn"), scrs: has("scrs", "scrn"), fav: has("fav", "scrn"), scope: has("scope", "scrn") };
+  const m13 = { fxp: has("fxp", "fxp"), dlan: has("dlan", "fxp"), scrn: has("scrn", "scrn"), songc: has("songc", "scrn"), tools: has("tools", "scrn"), scrs: has("scrs", "scrn"), fav: has("fav", "scrn"), scope: has("scope", "scrn"), usb: has("usb", "fxp"), accent: has("accent", "fxp") };
   const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NSDIV = [...NDIV, "1/2", "1BAR", "2BAR"], NDLY = [...NDIV, "1/8D", "1/16D"], NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
   const E = (label, names, def) => D(label, F.ENUM, 0, names.length - 1, def, names);
@@ -4493,7 +4533,9 @@ function makeMockDevice(opt = {}) {
   /* v13 DLAN (ed_dlan.c; opt.dlan, with opt.fxp): the lanes' PAN MUTE SOLO SEQ MUTE, their LFOs, the tracks' sequencer mutes */
   const dln = !m13.dlan ? null : (() => {
     const T = FXP_TABLE.dlane, vals = new Map();
-    const params = (g, l) => (g === 0 ? (l < 16 ? T.mix : []) : g === 1 ? (l < 16 ? T.lfo : []) : g === 2 && l < 4 ? T.track : []);
+    /* the ACCENT lane (lane 16, ed_dlan.c; core.h DACC_MAX / DACC_DEF): SEQ MUTE and its amount; only a build that has the lane */
+    const ACC = [T.mix[3], { def: 27, fmt: 0, label: "ACCENT", max: 127, min: 0, unit: "" }];
+    const params = (g, l) => (g === 0 ? (l < 16 ? T.mix : l === 16 && m13.accent ? ACC : []) : g === 1 ? (l < 16 ? T.lfo : []) : g === 2 && l < 4 ? T.track : []);
     const key = (g, l, i) => `${g}/${l}/${i}`;
     const get = (g, l, i) => (vals.has(key(g, l, i)) ? vals.get(key(g, l, i)) : params(g, l)[i].def);
     const put = (g, l, i, v) => { const d = params(g, l)[i]; vals.set(key(g, l, i), clamp(v, d.min, d.max)); };
@@ -4711,7 +4753,7 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
-        if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(1); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
+        if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(m13.usb ? 1 : 0); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
         if (v5 && m13.dlan) { b(0x58); b(2); b(1); b(3); }   /* tag: the lanes' mix, LFOs and mutes (ed_dlan.c) */
         if (v5 && m13.scrn) { b(0x59); b(2); b(1); b(2); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
         if (v5 && m13.songc) { b(0x5A); b(1); b(1); }   /* tag: the song chain (ed_song.c) */
@@ -5991,7 +6033,8 @@ const TEXT = {
   scsSource: "Source", scsPages: "Pages", scsStep: "Held step", scsStepHelp: "Hold a step: its cards as the device shows them (STEP, EXTRA, the lock pages)", scsAll: "All pages", scsOpenLane: "Device pages", scsScreen: "Screen", scsNone: "This firmware has no device screens (they come with the Optimist UI).",
   scsHelp: "The screens of the FM-1 as it draws them, row for row: the same pages, names, units, ranges and questions. A bar is a slider, a list steps, a double-click is the default; an action asks first, as the device does.",
   devScreens: "On the device: GLOBAL and SYSTEM", devScreensHelp: "The Optimist UI's own lines, as it draws them: the same names, order and units. A change is saved to flash a moment after the last one.", popTools: "Tools", popToolsHelp: "The device's pattern tools on this track (the drum track: the whole kit or one sound): REVERSE, RANDOM, COOK, LENGTH x2 or 1/2, each one undo level on the device; EUCLID spreads HITS over STEPS, turned by ROT, and writes it over the pattern while it is on (Keep leaves the steps, Restore gives the pattern back).", toolScope: "Scope", toolKit: "the whole kit", toolKeep: "keep the steps", toolRestore: "restore the pattern", toolGenOn: "EUCLID is on: keep or restore first", toolAnother: "another generator is on", popSong: "Song", popSongHelp: "The order the scenes play in: each part a scene and a number of bars; LOOP plays the current scene round, SONG the chain. Edited while stopped; Save puts the chain into flash. The scenes and patterns themselves: Sequence.", songMode: "Mode", songSave: "Save", songPart: "Part", songScene: "Scene", songBars: "Bars", songInsert: "insert", songDelete: "delete", songPlaying: "The transport plays: stop it to edit the chain", songRc1: "Stop first (the transport plays, or SONG REC is on)", songRc2: "The song is full", songRc3: "One part is left", songRc4: "Not accepted", popUsb: "USB input", popUsbHelp: "The computer's audio (USB playback) mixed as a track after the drums: its level, pan, mute, FX on and sends, and its two insert slots.", popIns: "Inserts", popMstIns: "Master inserts", popRet: "Returns", fxpType: "type", fxpReturn: "Return", fxpValues: "values", fxpBus: "bus settings", fxpEmpty: "empty: pick an effect",
-  fxpSound: "Drum sound", fxpBusDrums: "Drum bus", fxpTypeHelp: "The effect in this slot (one of each: a type the other slot holds swaps with it)",
+  fxpSound: "Drum sound", accNoSound: "The accent lane has no sound: its steps raise every hit of the step", laneFold: "Show or hide the drum sounds (the group)", laneMode: "Show one sound at a time / all sounds",
+  lanePrev: "Previous sound", laneNext: "Next sound", laneStrip: "Drum sound", retStrip: "Return", usbStrip: "USB input", fxpBusDrums: "Drum bus", fxpTypeHelp: "The effect in this slot (one of each: a type the other slot holds swaps with it)",
   popInsHelp: "The track's two insert slots, S1 then S2 (in series, after the slicer). Every knob is the device's own; a type keeps its settings while it is out of a slot.",
   fxpSoundHelp: "This drum sound's own two slots, before the drum bus: the sound's amount of each effect.",
   popMstInsHelp: "The master's two insert slots, after the returns and before the master level.",
@@ -6150,7 +6193,7 @@ async function openPop(id, track = 0, lane = 0) {
     p.classList.remove("loading");
     if (!nav.pop || nav.pop.id !== id) return;
   }
-  if (id === "lane") { kl.sel = lane; renderKit(); if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1); }
+  if (id === "lane") { kl.acc = lane === 16 && accOn(); if (!kl.acc) kl.sel = lane & 15; mixLanes.lane = laneCur(); renderKit(); if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1); }
   else if (id === "kitstore") renderKit();
   else if (id === "sequence") renderSteps();
   else if (!POP_PANEL[id]) buildDyn(id, track, p);
@@ -6179,7 +6222,7 @@ function popTitle(id, track, lane = 0) {
     case "sequence": return `${t("popSeq")} · ${tr} · ${what}${slotEd ? ` · ${t("pattern")} ${slotEd.s + 1}` : ""}`;
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
-    case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
+    case "lane": return `${t("drumKit")} · ${laneName(lane)}`;
     case "tools": return `${t("popTools")} · ${tr} · ${what}`;
     case "fxins": return `${t("popIns")} · ${drumTrack(track) ? t("fxpBusDrums") : tr}`;
     default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", fxmst: "popMstIns", fxret: "popRet", fxusb: "popUsb", song: "popSong", help: "help" }[id] || "help");
@@ -6250,7 +6293,7 @@ const MOCK = QS.get("mock") === "1";
    those builder items (ED_FXP ED_DLAN ED_SCRN ED_SONG ED_TOOLS ED_SCRS ED_FAVS ED_SCOPE): fxp dlan scrn songc tools scrs fav scope */
 function mockV13(qs) {
   const fx = qs.get("fxp") === "1", ui = fx || qs.get("scrn") === "1", off = new Set((qs.get("off") || "").split(",").filter(Boolean));
-  const on = { fxp: fx, dlan: fx, scrn: ui, songc: ui, tools: ui, scrs: ui, fav: ui, scope: ui };
+  const on = { fxp: fx, dlan: fx, scrn: ui, songc: ui, tools: ui, scrs: ui, fav: ui, scope: ui, usb: fx, accent: fx };
   return Object.fromEntries(Object.entries(on).map(([k, v]) => [k, v && !off.has(k)]));
 }
 $("mock").hidden = !MOCK;
@@ -7441,14 +7484,14 @@ function renderDrumBar() {
 /* the drum grid: 16 lanes (their names and what plays them, in its kind's colour), the steps up to LEN in rows of 16 with
    the beat / bar marks of DIV; a hit's level by its shade (GHOST, SOFT, NORM, HARD framed), its ratchet as a number; the
    step playing lit (STATUS) */
-const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.lanes[l], kitSources(), dev.dlKit | 0)]) : "");
+const laneColor = (l) => (l === 16 ? "" : dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.lanes[l], kitSources(), dev.dlKit | 0)]) : "");
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
   const play0 = !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   if (drumView.follow && play0 >= 0) drumView.page = drumPageOf(play0, len);
   drumView.page = Math.min(drumView.page, drumPages(len) - 1);
-  const shape = `${len}:${spb}:${drumView.page}`;
+  const nl = accOn() ? 17 : 16, shape = `${len}:${spb}:${drumView.page}:${nl}`;
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
     const cols = Math.min(DRUM_PAGE, len);
@@ -7458,7 +7501,7 @@ function renderDrums() {
       const b0 = drumPageRange(drumView.page, len).from;
       kids.push(el("span", { class: "hd" }));
       for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
-      for (let l = 0; l < 16; l++) {
+      for (let l = 0; l < nl; l++) {
         kids.push(el("span", { class: "ln", "data-ln": l }));
         for (let i = b0; i < b0 + cols; i++) {
           if (i >= len) { kids.push(el("span")); continue; }
@@ -7901,7 +7944,7 @@ function knob(o) {
    KIT 1..16, reset; then hits into USR1..3 and the user kit bank (load, store, erase, export / import a kit file). */
 const dlDraft = { files: [], slot: 0, first: 0, name: "HITS" };
 let dlBusy = false;
-const kl = { sel: 0, start: "", save: 0, knobs: [], lastPoll: 0, edit: 0 };   /* the selected sound; the kit bar's choices */
+const kl = { sel: 0, acc: false, start: "", save: 0, knobs: [], lastPoll: 0, edit: 0 };   /* (acc: the ACCENT lane, lane 16, is the picked one; sel stays a sound) */   /* the selected sound; the kit bar's choices */
 const usrCapData = (k) => (dev && dev.smp && dev.smp.caps ? dev.smp.caps[k] * 1024 : SMP.SLOT_SIZE) - SMP.DATA_OFF;
 const kitNamesNow = () => dev.kitNames || DRUM_KIT_NAMES;
 const kitSources = () => dev.dsrc || srcFallback(kitNamesNow(), kitNamesNow().length > 39);
@@ -7910,7 +7953,7 @@ const srcName = (src) => { const s = kitSources().find((x) => x.src === src); re
 /* a lane's name: the device's (DRUM_SHOW), else the editor's list (DRUM_LANES) */
 /* on the strip's small buttons: CLOSED HAT -> C.HAT */
 const laneShort = (l) => laneName(l).replace(/^(CLOSED|OPEN|PEDAL) /, (m, w) => w[0] + ".");
-const laneName = (l) => (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANES[l][1];
+const laneName = (l) => (l === 16 ? "ACCENT" : (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANES[l][1]);   /* (16: the ACCENT lane, core.h DRUM_ACC) */
 const styleKey = (s) => "sty" + s[0].toUpperCase() + s.slice(1);
 const gDrCh = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "CH"); return i >= 0 ? i : 24; };
 const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] | 0, !!dev.mix && dev.sel === dev.mix.ntrk - 1) : -1);
@@ -8009,7 +8052,16 @@ function kitTiles(box) {
   }
 }
 const sgn = (v) => (v > 0 ? "+" + v : String(v));
+/* the ACCENT lane (core.h DRUM_ACC, lane 16): no sound; the mix group of it (SEQ MUTE, the amount) from the device's own descriptors */
+function kitAccent(pane) {
+  kl.knobs = [];
+  kl.reset = null;
+  const card = dlanCard(0, 16, laneName(16));
+  pane.replaceChildren(el("div", { class: "hd" }, el("b", { text: laneName(16) }), el("span", { class: "dim", text: t("accNoSound") })), card.el);
+  if (nav.pop && nav.pop.id === "lane") { dev.fxpCards = [card]; card.load(true).catch(report); }
+}
 function kitLane(pane) {
+  if (kl.acc) { kitAccent(pane); return; }
   const l = kl.sel, ln = dev.dl.lanes[l], sh = laneShow(l), usr = ln.src >= DL.USR && ln.src < DL.KIT0;
   const kind = laneKind(ln, kitSources(), dev.dlKit | 0), ch = auditionCh();
   const sel = srcSelect(ln.src, { disabled: dlBusy });
@@ -9907,7 +9959,7 @@ setInterval(() => {
 }, 4000);
 /* ------------------------------------------------- v13: the drum lanes' mix, LFOs and the sequencer mutes (DLAN, cmd 95) --- */
 /* A lane's PAN MUTE SOLO SEQ MUTE, its LFO (RATE WAVE PHS FADE, two DEST / AMT slots), a track's sequencer mute: the device's own descriptors
-   (ed_dlan.c). dev.dlMix = {lanes: 16 x [pan, mute, solo, seq mute], trk: 4 x seq mute}, what the strips' lane buttons and SEQ buttons show */
+   (ed_dlan.c). dev.dlMix = {lanes: 16 x [pan, mute, solo, seq mute], trk: 4 x seq mute, acc: [seq mute, amount] or null}, what the strips' lane buttons and SEQ buttons show */
 const dlanOn = () => !!dev && !!dev.info && !!dev.info.dlan;
 const dlanKey = (g, l, i) => `dlan:${g}/${l}/${i}`;
 async function readDlMix() {
@@ -9916,8 +9968,14 @@ async function readDlMix() {
   const lanes = [], trk = [];
   for (let l = 0; l < 16; l++) lanes.push(parse[CMD.DLAN](await rq(req.dlanVals(0, l))).vals);
   for (let k = 0; k < 4; k++) trk.push(parse[CMD.DLAN](await rq(req.dlanVals(2, k))).vals[0]);
+  /* the ACCENT lane (lane 16): a build without it does not answer (asked once: after that, a late answer never takes it away) */
+  let acc = null;
+  if (d.dlAcc !== false) {
+    acc = await rq(req.dlanVals(0, 16), { timeout: d.dlAcc ? 1500 : 400, retries: d.dlAcc ? 2 : 0, quiet: true }).then((r) => parse[CMD.DLAN](r).vals, () => (d.dlMix && d.dlMix.acc) || null);
+    if (d.dlAcc === undefined) d.dlAcc = !!acc;
+  }
   if (d !== dev) return;
-  d.dlMix = { lanes, trk };
+  d.dlMix = { lanes, trk, acc };
 }
 /* what the strips show of it: the lane buttons (muted, soloed), the SEQ buttons */
 function dlMixShow() {
@@ -9932,13 +9990,14 @@ function dlMixShow() {
       b.classList.toggle("lm", !!x[1] || (soloAny && !x[2])); b.classList.toggle("ls", !!x[2]);
     }
   }
+  updateLaneStrips();
 }
 async function dlanPut(g, l, i, v) {
   fxpEdit.set(`dlan:${g}/${l}/${i}`, performance.now());
   try {
     const r = parse[CMD.DLAN](await rq(req.dlanSet(g, l, i, v), { key: dlanKey(g, l, i) }));
     if (dev && dev.dlMix) {
-      if (g === 0 && l < 16) dev.dlMix.lanes[l][i] = r.value; else if (g === 2) dev.dlMix.trk[l] = r.value;
+      if (g === 0 && l < 16) dev.dlMix.lanes[l][i] = r.value; else if (g === 0 && l === 16 && dev.dlMix.acc) dev.dlMix.acc[i] = r.value; else if (g === 2) dev.dlMix.trk[l] = r.value;
       dlMixShow();
     }
   } catch (e) { report(e); }
@@ -9975,7 +10034,7 @@ function dlanCard(g, l, title) {
     if (rebuild || n !== c.n || !c.ctl.length) {
       c.n = n; c.ctl = [];
       for (let i = 0; i < n; i++) {
-        const key = `${g}/${i}`;
+        const key = `${g}${l === 16 ? "a" : ""}/${i}`;
         let desc = (d.dlanDesc || (d.dlanDesc = new Map())).get(key);
         if (!desc) { desc = parse[CMD.DLAN](await rq(req.dlanDesc(g, l, i))).desc; if (desc) d.dlanDesc.set(key, desc); }
         c.ctl.push(dlanControl(g, l, i, desc, vals[i]));
@@ -10081,13 +10140,13 @@ const fxpOpen = (cards) => { if (dev) dev.fxpCards = cards; for (const c of card
 /* the device moved something (a push): what is open reads again, once the pushes settle */
 let fxpTimer = 0;
 function fxpPing() {
-  if (!dev || !dev.fxpCards || fxpTimer) return;
+  if (!dev || !(dev.fxpCards || (dev.stripFx && dev.stripFx.length)) || fxpTimer) return;
   fxpTimer = setTimeout(async () => {
     fxpTimer = 0;
     const d = dev;
-    if (!d || !d.fxpCards) return;
+    if (!d) return;
     if (!d.link.idle) { fxpPing(); return; }           /* (the link is busy: again in a moment) */
-    for (const c of d.fxpCards) if (c.el.isConnected) await c.load(false).catch(report);
+    for (const c of [...(d.fxpCards || []), ...(d.stripFx || [])]) if (c.el.isConnected) await c.load(false).catch(report);
   }, 400);
 }
 /* the track's inserts: T1..T3 (the drum track: its bus, and the selected sound's two slots, the sound picked in a list) */
@@ -10173,14 +10232,192 @@ function mixToSound(i) {
    its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset (projects
    are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: the bus knobs, a button + knob per FX. Under them the step
    overview (the playing step lit, STATUS), the level fader, pan, the FX sends and FX on / dry, mute. */
+/* ---- the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP; its sounds are member strips below it when it is
+   unfolded), the USB input (a build with USB audio), the returns R1 R2 R3 and MASTER last. Folded (the default), unfolded to every sound,
+   or one sound at a time with a previous / next; kept per browser */
+const laneCtl = [];                  /* the member strips shown: {l, strip, head, ...} */
+const MIXLANES_KEY = "fm1.mixLanes";
+const mixLanes = { mode: "collapsed", exp: "all", lane: 0, focus: false };   /* mode: collapsed | one | all; exp: the mode a fold opens; focus: a member strip is the active strip */
+(function mixLanesLoad() {
+  try {
+    const j = JSON.parse(localStorage.getItem(MIXLANES_KEY) || "null");
+    if (!j) return;
+    if (["collapsed", "one", "all"].includes(j.mode)) mixLanes.mode = j.mode;
+    if (["one", "all"].includes(j.exp)) mixLanes.exp = j.exp;
+    if (Number.isInteger(j.lane) && j.lane >= 0 && j.lane <= 16) { mixLanes.lane = j.lane; kl.acc = j.lane === 16; if (!kl.acc) kl.sel = j.lane; }   /* (the picked sound is the editor's: it starts where it was left) */
+  } catch (e) { /* no storage here: the defaults */ }
+})();
+function mixLanesSave() {
+  try { localStorage.setItem(MIXLANES_KEY, JSON.stringify({ mode: mixLanes.mode, exp: mixLanes.exp, lane: mixLanes.lane })); } catch (e) { /* storage blocked: kept for this page only */ }
+}
+const accOn = () => !!dev && !!dev.dlMix && !!dev.dlMix.acc;                     /* the ACCENT lane (lane 16) exists on this build */
+const laneIds = () => (dev && dev.dl ? [...Array.from({ length: 16 }, (_, l) => l), ...(accOn() ? [16] : [])] : []);
+const laneCur = () => (kl.acc ? 16 : kl.sel);                                  /* the picked lane of the whole device */
+function shownLanes() {
+  const ids = laneIds();
+  if (!ids.length || mixLanes.mode === "collapsed") return [];
+  return mixLanes.mode === "all" ? ids : [ids.includes(laneCur()) ? laneCur() : ids[0]];
+}
+function setLaneMode(mode) {
+  mixLanes.mode = mode;
+  if (mode === "collapsed") mixLanes.focus = false; else mixLanes.exp = mode;
+  mixLanesSave();
+  syncLaneStrips();
+}
+const foldLanes = () => setLaneMode(mixLanes.mode === "collapsed" ? mixLanes.exp : "collapsed");
+const toggleLaneMode = () => setLaneMode(mixLanes.mode === "one" ? "all" : "one");
+/* a member strip's title bar: the drum track is selected, this sound is the picked one */
+function laneSelect(l) {
+  const drum = dev.mix.ntrk - 1;
+  mixLanes.focus = true;
+  if (dev.sel !== drum) selectTrack(drum);
+  pickLane(l);
+}
+function laneStep(d) {
+  const ids = laneIds(), at = ids.indexOf(mixLanes.lane), to = ids[Math.max(0, Math.min(ids.length - 1, at + d))];
+  if (to != null) laneSelect(to);
+}
+function setLaneOfs(l, i, v) {
+  if (!dev || !dev.dl) return;
+  const ln = dev.dl.lanes[l];
+  dev.dl.lanes[l] = { ...ln, ofs: ln.ofs.map((x, k) => (k === i ? v : x)) };
+  if (nav.pop && nav.pop.id === "lane" && !kl.acc && kl.sel === l) for (const [get, k] of kl.knobs) k.value(get(dev.dl.lanes[l]));
+  laneSend(l, false).catch(report);
+}
+const LANE_ACC_DESC = { fmt: F.INT, min: 0, max: 127, def: 27 };                 /* (core.h DACC_MAX / DACC_DEF; the lane popup reads the device's own) */
+/* one member strip: the sound's LEVEL, PAN, sends and the buttons of its mix (MUTE SOLO SEQ), its inserts and its popup; the ACCENT lane: SEQ and its amount */
+function buildLaneStrip(l) {
+  const drum = dev.mix.ntrk - 1, acc = l === 16, nm = laneName(l), c = { l, acc, snd: [] }, dl = dlanOn();
+  const step = (d, glyph, key) => el("button", { type: "button", class: "ib", "data-lstep": d, title: t(key), "aria-label": t(key), onclick: () => laneStep(d) }, glyph);
+  c.num = el("span", { class: "num", text: acc ? "A" : String(l + 1) });
+  c.eng = el("span", { class: "eng", text: laneShort(l) });
+  c.head = el("button", { type: "button", class: "shead", "data-lane-select": l, onclick: () => laneSelect(l) }, c.num, c.eng);
+  c.name = el("span", { class: "lname", text: nm });
+  const nav1 = mixLanes.mode === "one";
+  const kids = [c.head, el("div", { class: "lnav", role: "group", "aria-label": t("laneStrip") }, ...(nav1 ? [step(-1, "◂", "lanePrev")] : []), c.name, ...(nav1 ? [step(1, "▸", "laneNext")] : []))];
+  const ks = [];
+  const tog = (txt, label, i) => (c[txt] = el("button", { type: "button", class: "tog", "aria-pressed": "false", title: label, "aria-label": `${nm} ${label}`,
+    onclick: () => dlanPut(0, l, i, ((dev.dlMix && (acc ? dev.dlMix.acc : dev.dlMix.lanes[l])) || [])[i] ? 0 : 1) }, txt));
+  if (acc) {
+    if (dl) {
+      c.amt = knob({ label: "ACCENT", aria: `${nm} ACCENT`, help: t("accNoSound"), min: LANE_ACC_DESC.min, max: LANE_ACC_DESC.max, def: LANE_ACC_DESC.def, value: 0,
+        fmt: (v) => fmtValue(LANE_ACC_DESC, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, 16, 1, v) });
+      ks.push(c.amt.el);
+      kids.push(el("div", { class: "lk" }, ...ks), el("div", { class: "lb" }, tog("SEQ", t("seqMute"), 0)));
+    }
+  } else {
+    c.lvl = knob({ label: "LEVEL", aria: `${nm} LEVEL`, help: phText("page", "SOUND 2", "LEVEL"), min: DL.MIN[7], max: DL.MAX[7], def: 0, value: 0, fmt: (v) => `${sgn(v)} dB`, set: (v) => setLaneOfs(l, 7, v) });
+    ks.push(c.lvl.el);
+    if (dl) {
+      const pd = FXP_TABLE.dlane.mix[0];
+      c.pan = knob({ label: "PAN", aria: `${nm} PAN`, help: dlanHelp(0, pd), min: pd.min, max: pd.max, def: pd.def, value: 0, fmt: (v) => fmtValue(pd, v).filter(Boolean).join(" "), set: (v) => dlanPut(0, l, 0, v) });
+      ks.push(c.pan.el);
+    }
+    if (dev.dlV2) {
+      const sk = ["rev", "dly", "cho"].map((f) => {
+        const k = knob({ label: f.toUpperCase(), aria: `${nm} ${f.toUpperCase()}`, help: phText("page", "SOUND 3", f.toUpperCase()), min: 0, max: DL.LV_MAX, def: f === "rev" ? DL.REV_DEF : 0,
+          value: 0, set: (v, final) => setLaneSend(l, f, v, final) });
+        c.snd.push([f, k]);
+        return k.el;
+      });
+      ks.push(...sendOrder(sk));
+    }
+    kids.push(el("div", { class: "lk" }, ...ks));
+    if (dl) kids.push(el("div", { class: "lb" }, tog("M", t("mute"), 1), tog("S", t("solo"), 2), tog("SEQ", t("seqMute"), 3)));
+  }
+  const open = [iconBtn("kit", withKey(`${t("drumKit")}: ${nm}`, keyFor("lane", l)), () => { pickLane(l); openPop("lane", drum, l); }, { "data-pop": "lane", "data-l": l })];
+  if (fxpOn() && !acc) open.push(iconBtn("inserts", withKey(`${t("popIns")}: ${nm}`, keyFor("fxins")), () => { pickLane(l); openPop("fxins", drum); }, { "data-pop": "fxins", "data-l": l, class: "ib fxi" }));
+  kids.push(el("div", { class: "lo" }, ...open));
+  c.strip = el("div", { class: "strip sub", role: "group", "aria-label": `${t("laneStrip")} ${nm}`, "data-lane": l }, ...kids);
+  return c;
+}
+/* the member strips again (a fold, the one sound changed): right after the drum strip, in the device's lane order */
+function syncLaneStrips() {
+  const box = $("mixer"), dc = dev && dev.mix ? mixCtl[dev.mix.ntrk - 1] : null;
+  for (const e of box.querySelectorAll(":scope > .strip.sub")) e.remove();
+  laneCtl.length = 0;
+  if (!dc) return;
+  let prev = dc.strip;
+  for (const l of shownLanes()) { const c = buildLaneStrip(l); laneCtl.push(c); prev.after(c.strip); prev = c.strip; }
+  const has = laneIds().length > 0, open = mixLanes.mode !== "collapsed";
+  if (dc.fold) {
+    dc.fold.hidden = dc.lmode.hidden = !has;
+    dc.fold.textContent = open ? "▾" : "▸";
+    dc.fold.setAttribute("aria-expanded", open ? "true" : "false");
+    dc.lmode.textContent = mixLanes.exp === "one" ? "1" : "ALL";
+    dc.lmode.setAttribute("aria-pressed", mixLanes.mode === "one" ? "true" : "false");
+  }
+  dc.strip.dataset.lanes = mixLanes.mode;
+  updateLaneStrips();
+}
+/* what the member strips show: the sound's LEVEL, sends, PAN, the mix buttons, the picked one outlined */
+function updateLaneStrips() {
+  if (!dev || !dev.mix || !laneCtl.length) return;
+  const cur = laneCur(), drumSel = dev.sel === dev.mix.ntrk - 1, m = dev.dlMix, list = dev.dl ? kitSources() : [];
+  for (const c of laneCtl) {
+    const l = c.l, on = mixLanes.focus && drumSel && l === cur;
+    c.strip.classList.toggle("sel", on);
+    c.head.setAttribute("aria-pressed", on ? "true" : "false");
+    const x = m && (c.acc ? m.acc : m.lanes[l]);
+    if (c.acc) {
+      c.head.style.setProperty("--eng", "var(--fg)");
+      c.head.style.setProperty("--engfg", "var(--bg)");
+      if (x && c.amt) c.amt.value(x[1], false);
+      if (x) c.SEQ.setAttribute("aria-pressed", x[0] ? "true" : "false");
+      c.strip.classList.toggle("lmuted", !!(x && x[0]));
+      continue;
+    }
+    const ln = dev.dl && dev.dl.lanes[l];
+    if (ln) {
+      const col = kindColor(KIND_ATTR[laneKind(ln, list, dev.dlKit | 0)]);
+      c.head.style.setProperty("--eng", col);
+      c.head.style.setProperty("--engfg", textOn(col));
+      c.lvl.value(ln.ofs[7], false);
+      for (const [f, k] of c.snd) k.value(laneSnd(l)[f], false);
+    }
+    if (x) {
+      if (c.pan) c.pan.value(x[0], false);
+      c.M.setAttribute("aria-pressed", x[1] ? "true" : "false");
+      c.S.setAttribute("aria-pressed", x[2] ? "true" : "false");
+      c.SEQ.setAttribute("aria-pressed", x[3] ? "true" : "false");
+      c.strip.classList.toggle("lmuted", !!x[1] || (m.lanes.some((y) => y[2]) && !x[2]));
+    }
+  }
+}
+/* the USB input and the three returns: a strip each with the device's own slots (FXP), after every track and before MASTER */
+function retAfter() {
+  if (!dev) return;
+  mixCtl.length = 0;
+  dev.mix = null;
+  return readMixer();
+}
+function buildSendStrip(ow) {
+  const usb = ow === FXP.USB, r = ow - FXP.RET0, id = usb ? "fxusb" : "fxret", label = usb ? t("usbStrip") : `${t("retStrip")} ${r + 1}`;
+  const card = fxpCard(ow, label, usb ? {} : { after: retAfter });
+  dev.stripFx.push(card);
+  card.load(true).catch(report);
+  const type = usb ? "USB IN" : dev.fxpRet && dev.fxpRet[r] && dev.fxpRet[r].type ? retName(r + 1) : "--";
+  const head = el("div", { class: "shead" }, el("span", { class: "num", text: usb ? "U" : `R${r + 1}` }), el("span", { class: "eng", text: type }));
+  const open = iconBtn(usb ? "fxusb" : "returns", withKey(t(usb ? "popUsb" : "popRet"), keyFor(id)), () => openPop(id, 0), { "data-pop": id });
+  return el("div", { class: `strip ret${usb ? " usb" : ""}`, role: "group", "aria-label": label, "data-ret": usb ? "usb" : r }, head, el("div", { class: "retopen" }, open), card.el);
+}
+function buildSendStrips() {
+  if (!fxpOn()) return [];
+  return [...(dev.info.fxp.usb ? [FXP.USB] : []), ...[0, 1, 2].map((r) => FXP.RET0 + r)].map(buildSendStrip);
+}
 function renderMixer() {
   const box = $("mixer");
-  if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; return; }
+  if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; laneCtl.length = 0; return; }
   const m = dev.mix;
   if (mixCtl.length !== m.ntrk) {
     mixCtl.length = 0;
+    dev.stripFx = [];
     box.classList.toggle("pat", !!dev.info.pat);
-    box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), buildMaster());
+    const sends = buildSendStrips(), master = buildMaster();
+    if (sends.length) { sends[0].classList.add("sect"); master.classList.add("sect"); }
+    box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), ...sends, master);
+    if (kl.acc && !accOn()) kl.acc = false;           /* (a build without the ACCENT lane) */
+    syncLaneStrips();
     patRender();
   }
   m.tracks.forEach((_, i) => updateStrip(i));
@@ -10296,6 +10533,11 @@ function buildStrip(i) {
     : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i),
       popBtn("savepreset", "port_disk", t("popSave"), i)];
   if (dev.info.tools) pops.push(popBtn("tools", "ui_knob", t("popTools"), i));   /* v13: the pattern tools (ICONS.tools) */
+  if (drum) {                                        /* the group's fold triangle, and "one sound at a time / all" (the member strips: syncLaneStrips) */
+    c.fold = el("button", { type: "button", class: "ib fold", "data-fold": "", title: t("laneFold"), "aria-label": t("laneFold"), "aria-expanded": "false", onclick: foldLanes }, "\u25b8");
+    c.lmode = el("button", { type: "button", class: "ib lmode", "data-lmode": "", title: t("laneMode"), "aria-label": t("laneMode"), "aria-pressed": "false", onclick: toggleLaneMode }, "ALL");
+    pops.push(c.fold, c.lmode);
+  }
   const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
   seqBtn.append(el("span", { text: t("popSeq") }));
   /* the drum track: its 16 sounds (coloured by what plays); a click selects one (the send row shows its sends), a double click
@@ -10305,7 +10547,7 @@ function buildStrip(i) {
       laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
-  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
+  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => { mixLanes.focus = false; selWant = null; selectTrack(i); updateLaneStrips(); } }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     ...patColumn(i), c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
     el("div", { class: "content" }, ...(c.lanes ? [c.lanes] : [])), c.fx, pan.el, el("div", { class: "fm" }, fader, c.meter), c.lvOut,
@@ -10469,8 +10711,8 @@ function updateStrip(i) {
       b.classList.toggle("ed", laneEdited(ln));
       b.title = withKey(`${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]}) \u2014 ${t("laneSelHelp")}`, l < 10 ? LANE_KEYS[l] : "");
       b.setAttribute("aria-label", b.title);
-      b.classList.toggle("lsel", l === kl.sel);
-      b.setAttribute("aria-pressed", l === kl.sel ? "true" : "false");
+      b.classList.toggle("lsel", l === kl.sel && !kl.acc);
+      b.setAttribute("aria-pressed", l === kl.sel && !kl.acc ? "true" : "false");
     }
   }
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
@@ -10497,6 +10739,7 @@ function updateStrip(i) {
   }
   drawOverview(i);
   if (dev.dlMix) dlMixShow();
+  if (drum) updateLaneStrips();
 }
 /* the step overview: a cell per step of the pattern (a hit: filled), the playing step lit */
 function drawOverview(i) {
@@ -10578,7 +10821,7 @@ function fxSlotGroups() {
     iconBtn(id, withKey(t(key), keyFor(id)), () => openPop(id, 0), { "data-pop": id }), el("span", { class: "kl", text: short }));
   const song = dev.info.songc ? [g("song", "popSong", "SONG")] : [];   /* (v13 SONGC: its own command, built with or without the FX owners' slots) */
   if (fxpOn()) {                                     /* v13: the owners' slots (FXP): the master's inserts and the returns, in popups */
-    return [g("fxmst", "popMstIns", "INS"), g("fxret", "popRet", "RET"), ...(dev.info.fxp.usb ? [g("fxusb", "popUsb", "USB")] : []), ...song];
+    return [g("fxmst", "popMstIns", "INS"), ...song];   /* (the returns and the USB input have strips of their own, before MASTER) */
   }
   const types = [{ id: FXT.NONE }, ...dev.info.fxs.types];
   const name = (x) => (x.id === FXT.NONE ? FXT_NAMES[0] : (x.amt != null && dev.pdesc[x.amt] && dev.pdesc[x.amt].label) || FXT_NAMES[x.id] || String(x.id));
@@ -10657,9 +10900,14 @@ function laneSendsShown(l) {
 }
 /* a drum sound selected (its button, its key): highlighted, its sends on the strip; an open kit editor follows */
 function pickLane(l) {
-  kl.sel = l & 15;
+  if (l === 16 && !accOn()) return;
+  kl.acc = l === 16;
+  if (!kl.acc) kl.sel = l & 15;
+  mixLanes.lane = laneCur();
+  mixLanesSave();
   if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1);
-  if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = kl.sel; $("poptitle").textContent = popTitle("lane", nav.pop.track, kl.sel); renderKit(); }
+  if (mixLanes.mode === "one") syncLaneStrips();
+  if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = laneCur(); $("poptitle").textContent = popTitle("lane", nav.pop.track, laneCur()); renderKit(); }
 }
 /* a send of the selected sound from the strip: written to that lane live (DRUM_LANE v2, one in flight, the latest queued) */
 function setLaneSend(l, f, v, final) {
@@ -10873,7 +11121,7 @@ function helpKeys() {
   return el("section", { class: "keyhelp", "aria-label": t("keysTitle") }, el("h3", { text: t("keysTitle") }), el("table", {},
     row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
     one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
-    row([...LANE_KEYS], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("fxcomp", t("popComp")), one("help", t("help")),
+    row([...LANE_KEYS, keyFor("lane", 16)], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("fxcomp", t("popComp")), one("help", t("help")),
     row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
 }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
@@ -11057,11 +11305,13 @@ document.addEventListener("keydown", (e) => {
   if (e.defaultPrevented || spaceIsTyping(tg) || !dev || !dev.dump || !hasTracks()) return;
   if (tg && tg.closest && (tg.closest("#tabs") || tg.closest("[role=slider]") || (tg.dataset && tg.dataset.ownSpace))) return;
   if (e.key === "Enter" && tg && tg.closest && tg.closest("button, a, input, select, textarea, summary")) return;   /* (its own Enter) */
-  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, lane: kl.sel }, e);
+  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, lane: laneCur(),
+    lm: { mode: mixLanes.mode, focus: mixLanes.focus, ids: laneIds(), shown: shownLanes() } }, e);
   if (!plan) return;
   e.preventDefault();
-  if (plan.select) { selWant = plan.track; selectTrack(plan.track, () => { if (selWant === plan.track) selWant = null; }); }
-  else if (plan.pick) pickLane(plan.lane);
+  if (plan.select) { mixLanes.focus = false; selWant = plan.track; selectTrack(plan.track, () => { if (selWant === plan.track) selWant = null; }); }
+  else if (plan.unfocus) { mixLanes.focus = false; updateLaneStrips(); }
+  else if (plan.pick) { if (plan.focus) mixLanes.focus = true; pickLane(plan.lane); }
   else if (plan.close) closePop();
   else if (plan.screen) showTab(plan.screen);
   else if (!e.repeat) openPop(plan.id, plan.track, plan.lane);

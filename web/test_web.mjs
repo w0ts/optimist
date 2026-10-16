@@ -1236,6 +1236,19 @@ async function editorFxp() {
     && D(await rq(E.req.dlanSet(2, 2, 0, 1))).value === 1 && D(await rq(E.req.dlanVals(2, 2))).vals[0] === 1, "dlan: SET clamps (PAN), MUTE, a track's sequencer mute");
   ok(await rq(E.req.dlanGet(0, 17), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.dlanGet(3, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
     "dlan: a lane / group past the table: no reply");
+  {   /* the ACCENT lane (lane 16, ed_dlan.c): SEQ MUTE and its amount; the editor reads it as a lane of the drum group */
+    const acc = await dl(0, 16), core = readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"), prm = readFileSync(join(HERE, "../firmware/src/core/params.c"), "utf8");
+    ok(acc.n === 2 && js(acc.o.map((d) => d.label)) === js(["SEQ MUTE", "ACCENT"]) && acc.o[1].min === 0 && acc.o[1].max === 127 && acc.o[1].def === 27 && js(acc.vals) === js([0, 27])
+      && /define DRUM_ACC 16u/.test(core) && /define DACC_MAX 127/.test(core) && /define DACC_DEF 27/.test(core) && /"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF/.test(prm)
+      && /if \(l == DRUM_ACC\)\s*return i \? &DRUM_ACC_DESC : &DLN_SQ;/.test(ed),
+      "dlan: the ACCENT lane (16): SEQ MUTE and ACCENT 0..127 (def 27), the firmware's descriptors (core.h DACC_*, params.c)");
+    ok(D(await rq(E.req.dlanSet(0, 16, 1, 300))).value === 127 && D(await rq(E.req.dlanSet(0, 16, 0, 1))).value === 1 && js(D(await rq(E.req.dlanVals(0, 16))).vals) === js([1, 127]),
+      "dlan: the ACCENT lane's amount clamps, its SEQ MUTE sets, read back");
+    const none = attachMock({ fxs: true, fxp: true, accent: false });
+    ok(await none.rq(E.req.dlanGet(0, 16), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && (await none.rq(E.req.dlanGet(0, 15))).length > 0,
+      "dlan: a build without the ACCENT lane does not answer lane 16 (the other lanes do)");
+    none.done();
+  }
   /* v13 SCRN (cmd 96, ed_scrn.c): GLOBAL and SYSTEM as the Optimist UI's lines (the mock serves tests/scrn_table.json, the firmware host test's) */
   const SC = E.parse[C.SCRN], es = readFileSync(join(HERE, "../firmware/src/io/editor/ed_scrn.c"), "utf8");
   const scrnGold = JSON.parse(readFileSync(join(HERE, "../tests/scrn_table.json"), "utf8"));
@@ -1529,7 +1542,7 @@ async function editorDaw() {
     flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
     st = E.navClose(st);
   }
-  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || ((id === "fxret" || id === "fxusb") && /function buildSendStrip\(/.test(html) && /iconBtn\(usb \? "fxusb" : "returns"/.test(html)));
   ok(flat && openers && ids.length === 18 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
@@ -2413,7 +2426,7 @@ async function editorUiPass() {
     && /if \(!visible\(d\) \|\| \(s === 1 && G_SKIP\.has\(d\.label\)\)\) return null;\n  const k = key\(s, id\), v =/.test(html),
     "ui: BPM only in the transport bar (not the master strip, Settings, popups)");
   /* a strip's title bar selects its track (no separate Select button); projects are global (no per-track Project button) */
-  ok(/c\.head = el\("button", \{ type: "button", class: "shead", "data-select": i, onclick: \(\) => selectTrack\(i\) \}/.test(html)
+  ok(/c\.head = el\("button", \{ type: "button", class: "shead", "data-select": i, onclick: \(\) => \{ mixLanes\.focus = false; selWant = null; selectTrack\(i\); updateLaneStrips\(\); \} \}/.test(html)
     && !/selb/.test(html) && /c\.head\.setAttribute\("aria-pressed", sel/.test(html), "ui: clicking a strip's title bar selects the track (the Select button gone)");
   ok(!/popBtn\("project"/.test(html) && !("project" in E.NAV) && !/dynProject/.test(html) && /data-tab="projects"/.test(html),
     "ui: no per-track Project button (projects: the Projects screen)");
@@ -2775,7 +2788,7 @@ function editorKeys() {
       "drum strip: a sound's button selects it on a click (no popup), opens it on a double click");
     ok(/setLaneSend\(kl\.sel, id\[j\], v, final\)/.test(fx) && /\["rev", "cho", "dly", "rev"\]/.test(fx) && /classList\.add\("na", "dst"\)/.test(fx)
       && /laneSend\(l, false\)/.test(set) && /ln\.snd = \{ \.\.\.\(ln\.snd \|\| emptySnd\(\)\), \[f\]: v \}/.test(set) && /laneSendsShow\(c\)/.test(html)
-      && /c\.fxl\.textContent = laneName\(kl\.sel\)/.test(html) && /classList\.toggle\("lsel", l === kl\.sel\)/.test(html),
+      && /c\.fxl\.textContent = laneName\(kl\.sel\)/.test(html) && /classList\.toggle\("lsel", l === kl\.sel && !kl\.acc\)/.test(html),
       "drum strip: its send row is the selected sound's CHO DLY REV (DST greyed), named; a turn writes that lane (DRUM_LANE v2)");
   }
   const K = E.KEYS, keys = K.map((k) => k.key);
@@ -2817,6 +2830,21 @@ function editorKeys() {
     && P(st(3, pp("lane", 2)), ev("4")) === '{"pick":true,"track":3,"lane":3}' && P(st(3, pp("kit")), ev("4")) === "null"
     && P(st(1, pp("help")), ev("h")) === '{"close":true}' && P(st(1, pp("sound")), ev(",")) === "null",
     "keys: the same key again closes its popup (a lane: its own digit; another digit: that sound in it), another key does nothing while a popup is open");
+  {   /* the drum track as a group: its sounds are member strips; <- / -> walk them (Ableton Live's group), A = the ACCENT lane */
+    const ids = Array.from({ length: 17 }, (_, l) => l), lm = (mode, focus, extra = {}) => ({ mode, focus, ids, shown: mode === "all" ? ids : mode === "one" ? [extra.at ?? 0] : [] });
+    const L = (s, k, mode, focus, lane = 0, extra = {}) => P({ ...st(3, null, { lane }), lm: lm(mode, focus, extra), ...s }, ev(k));
+    ok(L({}, "ArrowRight", "collapsed", false) === "null" && L({}, "ArrowLeft", "collapsed", false) === '{"select":true,"track":2}',
+      "keys (group): folded, <- / -> are the tracks' (T4 stops at the right end; < goes to T3)");
+    ok(L({}, "ArrowRight", "all", false) === '{"pick":true,"focus":true,"track":3,"lane":0}' && L({}, "ArrowRight", "all", true, 4) === '{"pick":true,"focus":true,"track":3,"lane":5}'
+      && L({}, "ArrowRight", "all", true, 16) === "null" && L({}, "ArrowLeft", "all", true, 4) === '{"pick":true,"focus":true,"track":3,"lane":3}'
+      && L({}, "ArrowLeft", "all", true, 0) === '{"unfocus":true,"track":3}' && L({}, "ArrowLeft", "all", false) === '{"select":true,"track":2}',
+      "keys (group): unfolded, -> enters the first member sound and walks them to the ACCENT lane, <- walks back, out of the first onto the group, then T3");
+    ok(L({}, "ArrowRight", "one", false, 6, { at: 6 }) === '{"pick":true,"focus":true,"track":3,"lane":6}' && L({}, "ArrowRight", "one", true, 6, { at: 6 }) === '{"pick":true,"focus":true,"track":3,"lane":7}'
+      && L({}, "ArrowLeft", "one", true, 6, { at: 6 }) === '{"pick":true,"focus":true,"track":3,"lane":5}' && L({}, "ArrowRight", "one", true, 16, { at: 16 }) === "null",
+      "keys (group): one sound at a time, -> / <- step the shown sound (previous / next), never past the ACCENT lane");
+    ok(P(st(3), ev("a")) === '{"pick":true,"track":3,"lane":16}' && P(st(3, null, { lane: 16 }), ev("a")) === '{"open":true,"id":"lane","track":3,"lane":16}' && P(st(1), ev("a")) === "null"
+      && E.keyFor("lane", 16) === "a", "keys: A picks the ACCENT lane (lane 16) on the drum track, again opens its popup; nothing on a synth track");
+  }
   ok(["ctrlKey", "metaKey", "altKey"].every((m) => ["i", "q", "ArrowRight", ","].every((k) => P(st(1), ev(k, { [m]: true })) === "null")),
     "keys: nothing with Ctrl / Cmd / Alt (the browser's shortcuts stay)");
   /* the page: typing, tabs, sliders, the chop canvas keep their keys; ours is one listener; Escape and Space stay the page's */
@@ -2835,6 +2863,16 @@ function editorKeys() {
   ok(/\.\.\.LANE_KEYS/.test(help) && ["sound", "sequence", "loadpreset", "savepreset", "kit", "kitstore", "fxdelay", "fxreverb", "fxchorus", "help"].every((id) => help.includes(`one("${id}"`))
     && /ArrowLeft", "ArrowRight"/.test(help) && /k\.screen/.test(help) && /row\(\[" "\]/.test(help) && /row\(\["Escape"\]/.test(help) && /keysTitle/.test(help),
     "keys: the help has a Keyboard shortcuts section: <- ->, every element key, 1-0, Space, Esc");
+  {   /* the mixer's order and the group's fold state (the DOM: web/e2e_daw.mjs) */
+    const rm = html.slice(html.indexOf("function renderMixer()"), html.indexOf("/* ---- the per-track patterns"));
+    const sl = html.slice(html.indexOf("function syncLaneStrips()"), html.indexOf("/* what the member strips show"));
+    ok(/box\.replaceChildren\(\.\.\.m\.tracks\.map\(\(_, i\) => buildStrip\(i\)\), \.\.\.sends, master\);/.test(rm) && /syncLaneStrips\(\);/.test(rm)
+      && /prev\.after\(c\.strip\)/.test(sl) && /\[\.\.\.\(dev\.info\.fxp\.usb \? \[FXP\.USB\] : \[\]\), \.\.\.\[0, 1, 2\]\.map\(\(r\) => FXP\.RET0 \+ r\)\]/.test(html),
+      "mixer order: T1 T2 T3 T4, the drum sounds right after T4, USB IN, R1 R2 R3, MASTER (the device's order: op_mixer.c, the USB input after the drum track)");
+    const sv = html.slice(html.indexOf("const MIXLANES_KEY"), html.indexOf("const accOn ="));
+    ok(/mode: "collapsed"/.test(sv) && /try \{[^}]*localStorage\.getItem\(MIXLANES_KEY\)[\s\S]*?\} catch/.test(sv) && /try \{ localStorage\.setItem\(MIXLANES_KEY[\s\S]*?\} catch/.test(sv),
+      "mixer group: folded by default; fold / mode / sound kept per browser in localStorage, every access in try / catch");
+  }
   /* the layout: row 1 the group (Sound, Load, Save | Kit, User kits), row 2 Sequence */
   ok(/const pops = drum \? \[popBtn\("kit"[^\]]*popBtn\("kitstore"[^\]]*\]\s*: \[popBtn\("sound"[^\]]*popBtn\("loadpreset"[^\]]*popBtn\("savepreset"/.test(strip)
     && /el\("div", \{ class: "pops"[^\n]*\.\.\.pops\), seqBtn,/.test(strip) && /\.strip \.pops \{[^}]*border: 1px solid/.test(html),
