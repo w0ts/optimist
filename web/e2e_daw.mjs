@@ -482,7 +482,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   const head = (i) => $('#mixer .strip[data-track="' + i + '"] .shead');
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000); await sleep(300);
   r.groups = $$(".menubar .navh").map((e) => e.textContent.trim()).join("") + ":" + $$(".menubar .navh").filter((e) => e.offsetParent).length;
-  r.font = getComputedStyle(document.body).fontFamily.includes("JetBrains Mono") && document.fonts.check("16px 'JetBrains Mono'");
+  r.font = getComputedStyle(document.body).fontFamily.includes("system-ui") || getComputedStyle(document.body).fontFamily.includes("sans-serif");
   r.tabs = !!$("#toptracks") + ":" + $$(".menubar button[data-go]").length;
   r.tracks = $$("#mixer .strip[data-track] .shead").length;
   head(2).click(); await until(() => head(2).getAttribute("aria-pressed") === "true", 8000); await sleep(300);

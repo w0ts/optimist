@@ -99,7 +99,10 @@ def logo_svg():
 
 STYLE_MARK = "/*OPTIMIST-CSS*/"                    # where a page takes web/style/optimist.css (docs/WEB-STYLE.md)
 HEADER_MARK = "<!--OPTIMIST-HEADER-->"             # where a page takes the shared header
-APPS = (("installer", "Installer"), ("editor", "Editor"), ("builder", "Builder"))
+APPS = (("builder", "Builder"), ("installer", "Installer"), ("editor", "Editor"))
+EDITOR_ICON = ('<svg class="o-ic" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">'
+               '<rect x="2" y="1" width="1.5" height="12"/><rect x="6.2" y="1" width="1.5" height="12"/><rect x="10.5" y="1" width="1.5" height="12"/>'
+               '<rect x="0.5" y="8" width="4.5" height="2.5"/><rect x="4.7" y="3" width="4.5" height="2.5"/><rect x="9" y="6" width="4.5" height="2.5"/></svg>')
 
 
 def shared_css():
@@ -113,7 +116,7 @@ def shared_header(app):
     """the header of the three apps, the editor's menu bar: the dinghy and OPTIMIST (to the site's root), the apps as
     tabs with a separator between them (the current one aria-current)"""
     links = '<span class="o-sep" role="separator" aria-orientation="vertical"></span>'.join(
-        f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{t}</a>" for a, t in APPS)
+        f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>" for a, t in APPS)
     return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
             f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}</nav></header>')
 

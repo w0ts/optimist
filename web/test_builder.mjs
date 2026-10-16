@@ -180,10 +180,10 @@ const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "imp
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
 
-ok(hdr.every((h) => !/o-tracks/.test(h) && /<b>Optimist<\/b>/.test(h) && /o-sep/.test(h)) && !/o-tracks|2fc1ae/.test(css) && /--trk: var\(--t1\)/.test(css) && /"SLOOP Terminus"/.test(css) && !/border-bottom-color/.test(css.match(/\.o-nav a\[aria-current[^}]*\}/)[0]),
-  "header: the editor's menu bar (OPTIMIST, tabs, separators), no four-colour stripe, the active tab by its background; the editor's tokens and Terminus");
+ok(hdr.every((h) => !/o-tracks/.test(h) && /<b>Optimist<\/b>/.test(h) && /o-sep/.test(h)) && !/o-tracks|2fc1ae/.test(css) && /--trk: var\(--t1\)/.test(css) && /--font-ui: system-ui/.test(css) && !/border-bottom-color/.test(css.match(/\.o-nav a\[aria-current[^}]*\}/)[0]),
+  "header: the editor's menu bar (OPTIMIST, tabs, separators), no four-colour stripe, the active tab by its background; the editor's tokens and the system's sans-serif");
 const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps(make_site.shared_css()))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
-ok(/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(siteCss), "style: the site's CSS has Terminus inlined");
+ok(/--font-ui: system-ui/.test(siteCss) && !/data:font/.test(siteCss), "style: the site's CSS uses the system's sans-serif, no font data");
 
 console.log(failed ? `${failed} FAILED` : "all ok");
 process.exit(failed ? 1 : 0);

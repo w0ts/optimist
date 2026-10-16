@@ -2700,7 +2700,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 10 && js(tabs.slice(0, 2)) === js(["install", "build"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 10 && js(tabs.slice(0, 2)) === js(["build", "install"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
@@ -2797,9 +2797,8 @@ async function masterStrip() {
     "theme: no selector or toggle anywhere (the editor follows prefers-color-scheme, live)");
   /* the editor look: JetBrains Mono inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
   const lic = existsSync(join(HERE, "JETBRAINSMONO-LICENSE.txt")) ? readFileSync(join(HERE, "JETBRAINSMONO-LICENSE.txt"), "utf8") : "";
-  ok((html.match(/@font-face \{ font-family: "JetBrains Mono"; font-weight: \d+; font-style: normal; font-display: block; src: url\(data:font\/woff2;base64,[A-Za-z0-9+\/=]{20000,}\)/g) || []).length === 3 && /SIL OPEN FONT LICENSE Version 1\.1/.test(lic) && /JetBrains/.test(lic)
-    && /JETBRAINSMONO-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")),
-    "look: JetBrains Mono inlined (SIL OFL 1.1, JETBRAINSMONO-LICENSE.txt in the site and the package)");
+  ok(!/@font-face \{ font-family: "(JetBrains Mono|SLOOP Terminus)"/.test(html) && /--font: system-ui/.test(html),
+    "look: the editor's text is the system's own sans-serif (no font data inlined)");
   ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 3 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
     "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, the four track colours");

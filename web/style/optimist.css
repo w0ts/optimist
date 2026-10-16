@@ -8,7 +8,6 @@
    from --bg and --fg. Terminus 8x16 by Dimitar Toshkov Zhekov (SIL OFL 1.1, TERMINUS-LICENSE.txt); the look, SLOOP 2.4
    by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Light and dark follow the system (no switch). */
 
-@font-face { font-family: "SLOOP Terminus"; src: url("terminus.ttf") format("truetype"); font-display: block; }
 
 :root {
   /* the editor's: --bg the page, --fg the text, --panel a raised surface, --dim secondary text, --line separators */
@@ -31,10 +30,10 @@
   --focus: var(--trk);
   --shadow: none;
 
-  --font-ui: "SLOOP Terminus", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
-  --font-mono: var(--font-ui);
-  /* Terminus is drawn at 16 px (and 32 px): every text size is one of the two, so the pixels stay sharp */
-  --fs-1: 16px; --fs-2: 16px; --fs-3: 16px; --fs-4: 16px; --fs-5: 16px; --fs-6: 32px;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* the system's own sans-serif at readable sizes */
+  --fs-1: 13px; --fs-2: 14px; --fs-3: 14px; --fs-4: 16px; --fs-5: 18px; --fs-6: 24px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
   --r: 0; --ctl-h: 30px; --bar-h: 3px; --head-h: 41px;
   color-scheme: dark;
@@ -82,6 +81,7 @@
 .o-nav a { display: inline-flex; align-items: center; padding: 4px 10px; color: var(--dim); text-decoration: none; text-transform: lowercase; white-space: nowrap;
            }
 .o-nav a:hover { color: var(--fg); background: var(--s1); }
+.o-nav .o-ic { margin-right: 6px; flex: none; }
 .o-nav a[aria-current="page"] { color: var(--fg); background: var(--s2); }
 .o-nav .o-sep { width: 1px; height: 20px; margin: 0 10px; background: var(--line); flex: none; }
 .o-nav .o-sep:first-child { display: none; }
