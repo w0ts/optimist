@@ -164,9 +164,6 @@
   .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
   .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
   .strip .snd { font-size: 11px; line-height: 1.3; width: 100%; text-align: center; overflow-wrap: anywhere; min-height: 2.6em; }
-  .strip .rec { font-size: 11px; color: var(--dim); }
-  .strip .rec.on { color: var(--fg); font-weight: 600; }
-  .strip .rec:not(.on) .ic { visibility: hidden; }
   .strip input.fader { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 150px; }
   .strip .v { font-size: 11px; white-space: nowrap; }
   .strip .pan { width: 100%; }
@@ -303,8 +300,7 @@
   #mixer .strip .fx { grid-template-columns: repeat(3, minmax(0, 1fr)); justify-content: stretch; gap: 2px 0; padding-top: 0; border-top: 0; height: auto; }
   .strip .fx .knob[hidden] { display: none; }
   .strip .row2 { display: flex; gap: 4px; align-items: center; justify-content: center; }
-  .strip .row2 .rec { font-size: 0; gap: 0; }
-  .strip .row2 button, .strip .row2 .rec { min-width: 28px; min-height: 28px; padding: 0 4px; }
+  .strip .row2 button { min-width: 28px; min-height: 28px; padding: 0 4px; }
   .strip button.act { background: var(--eng, var(--tc, var(--fg))); color: var(--engfg, var(--bg)); border: 1px solid var(--eng, var(--tc, var(--fg))); font-weight: 700; }
   .strip button.act[aria-pressed="true"] { background: var(--s2, var(--bg)); color: var(--dim); border-color: var(--line); }
   .strip button.sol[aria-pressed="true"], .strip button.sol.on { background: var(--warn, #d93); color: var(--bg); }
@@ -682,8 +678,6 @@
   .strip .shead .selm { font-size: 16px; font-weight: 400; letter-spacing: 0; color: var(--tc); }
   .strip.master .shead .num { background: var(--fg); }
   .strip .snd { font-size: 16px; line-height: 20px; color: var(--fg); }
-  .strip .rec { font-size: 16px; color: var(--mute); text-transform: lowercase; }
-  .strip .rec.on { font-weight: 400; color: var(--on); background: var(--err); padding: 0 6px; }
   .strip .solo { font-size: 16px; font-weight: 400; }
   .strip .solo.on { color: var(--bg); background: var(--fg); padding: 0 6px; }
   .strip .v, .strip .lv { font-size: 16px; color: var(--fg); }
@@ -11145,7 +11139,6 @@ function buildStrip(i) {
     num: el("span", { class: "num", text: String(i + 1) }),
     eng: el("span", { class: "eng" }),
     snd: el("div", { class: "snd" }),
-    rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
     solo: el("button", { type: "button", class: "tog sol", id: `strip-${i + 1}-solo`, "aria-pressed": "false", ...(dev.info.solo ? {} : { "aria-disabled": "true" }), title: dev.info.solo ? `${t("solo")} ${i + 1}` : t("soloTip"),
       "aria-label": `${t("solo")} ${i + 1}`, onclick: () => (dev.info.solo ? soloTrack(i) : null) }, "S"),
     lvOut: el("span", { class: "v lv" }),
@@ -11180,7 +11173,7 @@ function buildStrip(i) {
     head: c.head, name: c.snd, inst: c.lanes || ins.inst, slot1: c.lanes ? null : ins.slot1, slot2: c.lanes ? null : ins.slot2,
     tools: el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seq: seqBtn, ov: c.ov,
     pan: pan.el, sends: c.fx, level: el("div", { class: "fm" }, fader, c.meter),
-    btns: el("div", { class: "row2" }, c.mute, c.solo, c.rec, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
+    btns: el("div", { class: "row2" }, c.mute, c.solo, ...(dlanOn() ? [c.sq = el("button", { type: "button", class: "tog sq", "aria-pressed": "false", title: t("seqMuteHelp"), "aria-label": `${t("seqMute")} ${i + 1}`,
       onclick: () => dlanPut(2, i, 0, dev.dlMix && dev.dlMix.trk[i] ? 0 : 1) }, "SEQ")] : [])) });
   if (c.lanes) {                                      /* (no FXP: the 16 sounds' buttons take the instrument and slot rows) */
     const rows = c.strip.querySelectorAll(":scope > .srow");
@@ -11363,7 +11356,6 @@ function updateStrip(i) {
   c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
   c.strip.classList.toggle("muted", !!x.mute || !x.level);
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
-  c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
   if (c.fxk && drum && c.fxmode) drumFxShow(c);
   else if (c.fxk && drum) laneSendsShow(c);
