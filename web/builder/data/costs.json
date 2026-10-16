@@ -1429,7 +1429,7 @@
    }
   }
  },
- "measured": "2026-10-16 09:01",
+ "measured": "2026-10-16 10:12",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1513,7 +1513,7 @@
    }
   },
   "synth": {
-   "hash": "4e614692",
+   "hash": "24051633",
    "cfg": {
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
@@ -1549,13 +1549,13 @@
     "INS_EQ3": 1,
     "INS_FLANGER": 2,
     "INS_GATER": 1,
-    "CHORDPLUS": 1,
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "MACROS": 1,
     "ENERGY": 1,
     "USB_MODE": 2,
     "UI": 1,
+    "ED_FAVS": 0,
     "ED_SCOPE": 0,
     "CPU_GUARD": 1,
     "DUAL": 2,
@@ -1567,7 +1567,6 @@
     "MOTION": 1,
     "ENG_PHYS": 1,
     "ENG_ACID": 1,
-    "ENG_NOISE": 1,
     "ENG_JUNO": 1,
     "REC_MODES": 1,
     "GLIDE": 1,
@@ -1585,12 +1584,12 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "32874c63",
+   "built_hash": "4bdde0e2",
    "sizes": {
-    "flash": 581484,
-    "ram": 98268,
+    "flash": 576124,
+    "ram": 98060,
     "pool": 325776,
-    "ramtext": 32124
+    "ramtext": 32084
    }
   },
   "user-default": {
@@ -1737,7 +1736,7 @@
    },
    "built_hash": "43002cc7",
    "sizes": {
-    "flash": 562156,
+    "flash": 562076,
     "ram": 89784,
     "pool": 315288,
     "ramtext": 27848
@@ -1961,7 +1960,7 @@
    }
   },
   "synth~": {
-   "hash": "692543e2",
+   "hash": "3dbb83b7",
    "cfg": {
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
@@ -1997,7 +1996,6 @@
     "INS_EQ3": 1,
     "INS_FLANGER": 2,
     "INS_GATER": 1,
-    "CHORDPLUS": 1,
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "MACROS": 1,
@@ -2006,6 +2004,7 @@
     "MIDI_NOTEOUT": 0,
     "UI": 1,
     "ED_SCRN": 0,
+    "ED_FAVS": 0,
     "ED_SCOPE": 0,
     "CPU_GUARD": 1,
     "DUAL": 2,
@@ -2018,7 +2017,6 @@
     "MOTION": 1,
     "ENG_PHYS": 1,
     "ENG_ACID": 1,
-    "ENG_NOISE": 1,
     "ENG_JUNO": 1,
     "REC_MODES": 1,
     "GLIDE": 1,
@@ -2035,12 +2033,12 @@
     "BIGVALS": 0,
     "SEQTOOLS": 1
    },
-   "built_hash": "6aeb03db",
+   "built_hash": "7672c73e",
    "sizes": {
-    "flash": 579392,
-    "ram": 98204,
+    "flash": 575380,
+    "ram": 98028,
     "pool": 325776,
-    "ramtext": 32044
+    "ramtext": 32092
    }
   },
   "user-default~": {
@@ -2190,7 +2188,7 @@
    },
    "built_hash": "2b9ec26e",
    "sizes": {
-    "flash": 543208,
+    "flash": 543112,
     "ram": 89192,
     "pool": 315288,
     "ramtext": 27732
