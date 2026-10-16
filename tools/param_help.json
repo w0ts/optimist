@@ -5,9 +5,21 @@
       "ATK": "Attack time", "DEC": "Decay time", "SUS": "Sustain level", "REL": "Release time",
       "CLICK": {"text": "Drum click (attack)", "if": "DL_ANY"}, "DECAY": {"text": "Drum decay", "if": "DL_ANY"},
       "BEND": {"text": "Pitch drop after the hit", "if": "DL_ANY"}, "LEVEL": {"text": "Drum level (dB)", "if": "DL_ANY"}}},
-    {"kind": "page", "ctx": "ENV DEST", "params": {
-      "DST A": "What ENV moves (slot A)", "AMT A": "How much ENV moves A", "DST B": "What ENV moves (slot B)",
-      "AMT B": "How much ENV moves B"}},
+    {"kind": "page", "ctx": "ENV 1 MOD", "params": {
+      "FLT": "ENV 1 to the filter cutoff", "PIT": "ENV 1 to the pitch", "SHP": "ENV 1 to the wave shape",
+      "RES": "ENV 1 to the resonance", "IDX": "ENV 1 to the FM index", "FB": "ENV 1 to the FM feedback",
+      "MDEC": "ENV 1 to the index decay", "DTN": "ENV 1 to the detune", "SUB": "ENV 1 to the sub level",
+      "TONE": "ENV 1 to the tone", "DUTY": "ENV 1 to the pulse duty", "SWP": "ENV 1 to the pitch sweep",
+      "CUT": "ENV 1 to the cutoff", "BITS": "ENV 1 to the bit depth", "DRV": "ENV 1 to the drive",
+      "VOWL": "ENV 1 to the vowel", "BUZZ": "ENV 1 to the buzz", "Q": "ENV 1 to the formant Q",
+      "PW": "ENV 1 to the pulse width", "CLICK": "ENV 1 to the key click", "TOP": "ENV 1 to the top bars",
+      "POS": "ENV 1 to the grain position", "DENS": "ENV 1 to the grain density", "MOD": "ENV 1 to the FM6 mod levels",
+      "DCAY": "ENV 1 to the slice decay", "START": "ENV 1 to the slice start", "BRIT": "ENV 1 to the brightness",
+      "DAMP": "ENV 1 to the damping", "EXC": "ENV 1 to the exciter", "VCF": "ENV 1 to the VCF (Juno)",
+      "FREQ": "ENV 1 to the noise frequency", "COLR": "ENV 1 to the noise colour",
+      "DCW": "Its envelope to the DCW", "M.TIM": "Modulator envelope times", "C.TIM": "Carrier envelope times",
+      "ENV": "303 filter envelope amount", "DEC": "303 filter envelope decay", "ACC": "303 accent amount",
+      "W.TIM": "DCW envelope times", "A.TIM": "Level envelope times"}},
     {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2", "params": {
       "ATK2": "Env 2 attack", "DEC2": "Env 2 decay", "SUS2": "Env 2 sustain", "REL2": "Env 2 release (0: as decay)"}},
     {"kind": "page", "ctx": "ENV2 DEST", "if": "FELUCCA_ANALOG2", "params": {
