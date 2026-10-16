@@ -1119,9 +1119,7 @@ loop; one reader: the audio interrupt; no interrupt is masked), so nothing in th
 
 ## v14: solo and mute (command 104 SOLO; INFO tag 61)
 
-`firmware/src/io/editor/ed_solo.c`. The device's own grammar, no state of its own: a track's SOLO is the bit of `song.solo` that GLO + key 5..8 toggles (the others are silent: `trk_silent`); a track's MUTE is `P_MUTE`, as GLO + key 1..4 and
-`TRACK_MIX` (28) set it; a drum lane's SOLO and MUTE are `drum_mix.c`'s masks (`dlm_set_solo`, `dlm_set_mute`; a soloed lane that is also muted stays silent, any lane soloed silences the others), the same values DLAN (95) group 0
-edits. `INFO` tag `61 len 02 version flags` (version 1; `flags` 0).
+`firmware/src/io/editor/ed_solo.c`. The device's own grammar, no state of its own. **One solo set** across the four tracks, the 16 drum lanes and the USB input: while anything is soloed, every item of those three groups that is not soloed is silent. The returns A B C and the master are never silenced. A soloed lane keeps the drum track heard and only that lane (and the click) sounds in it; every other track and the USB input is silent; a soloed lane that is also muted stays silent. The drum track soloed as a track (GLO + key 8) plays all its lanes unless a lane is soloed too. A track's SOLO is the bit of `song.solo` that GLO + key 5..8 toggles (`trk_silent`); a track's MUTE is `P_MUTE`, as GLO + key 1..4 and `TRACK_MIX` (28) set it; a drum lane's SOLO and MUTE are `drum_mix.c`'s masks (`dlm_set_solo`, `dlm_set_mute`), the same values DLAN (95) group 0 edits; the USB input's SOLO is `SOLO_USB` of `song.solo`, its MUTE is its own MUTE value (`ut.v[UTV_MUTE]`, the mixer's USB row, FX `UT_DESC`). Solo is not saved with a project, except the lanes' mask (it rides in the FX record's lane TLV, as before). `INFO` tag `61 len 02 version flags` (version 3; `flags` bit 0: the build has the USB input, ops 5 and 6 answer).
 
 | op | Request args | Reply args |
 |---|---|---|
@@ -1130,9 +1128,11 @@ edits. `INFO` tag `61 len 02 version flags` (version 1; `flags` 0).
 | 2 TRACK MUTE | track, on | the state (after) |
 | 3 LANE SOLO | lane (0..15), on | the state (after) |
 | 4 LANE MUTE | lane (0..15), on | the state (after) |
+| 5 USB SOLO (v3) | 0, on | the state (after) |
+| 6 USB MUTE (v3) | 0, on | the state (after) |
 
-`on`: 0 off, 1 on, 2 toggle (what the panel key does). Every reply: `op, rc, solo, mute, silent, lsolo0, lsolo1, lsolo2, lmute0, lmute1, lmute2`: `rc` 0 done; the track masks (bit n = track n, 0..3): `solo`, `mute`, `silent` (the tracks not heard now:
-muted, or another track soloed); the lane masks as 3 x 7 bits (lane 0..6, 7..13, 14..15). The TRACKS push (62) carries the solo and mute bits as ever. A bad op, track, lane or on: no reply.
+`on`: 0 off, 1 on, 2 toggle (what the panel key does). The second argument of ops 5 and 6 is ignored (send 0). Every reply: `op, rc, solo, mute, silent, lsolo0, lsolo1, lsolo2, lmute0, lmute1, lmute2, usb`: `rc` 0 done; the track masks (bit n = track n, 0..3): `solo`, `mute`, `silent` (the tracks not heard now:
+muted, or something else soloed; the drum track counts as soloed while one of its lanes is); the lane masks as 3 x 7 bits (lane 0..6, 7..13, 14..15). `usb` (v3, the 12th arg; an older reader stops at 11): bit 0 the USB input soloed, bit 1 muted, bit 2 silent (muted, or something else soloed); 0 in a build without the USB input (ops 5 and 6: no reply there). The TRACKS push (62) carries the track solo and mute bits as ever; since v3 it is also pushed when the lane or USB solo changes on the device (its own bytes unchanged: read SOLO 0 for the rest). A bad op, track, lane or on: no reply.
 
 ## v14: step lanes (command 105 STEPLANE; INFO tag 62)
 
