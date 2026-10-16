@@ -762,6 +762,24 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
     if (q != 0xFF && on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
+/* PLAY's second LED, green: a matrix site with no key (row PA5 = row bit 1, column 8; FM1_KEYMAP -1). Found on a unit by MAKU
+ * (okumurari2/maku, GPL-3.0-only, firmware/src/ui_input.c LED_PLAY_GREEN: "found on the hardware at column 8, row PA9 (bit 1)")
+ * and drawn by simonjohansson/fm1-emulator (fm1-panel.c); stock V15 lights it too (measured here in the emulator). It is a single
+ * green LED. RED is REC's own LED (red on the unit), which already shows the take: lit while recording, blinking while armed.
+ * So the transport reads: GREEN = playing (steady), RED = recording (REC), both never together: a take that records puts the
+ * green out. The count-in clicks the green on each beat (as MAKU does). Stopped: dark. */
+#define OP_LAMP_COL 8u
+#define OP_LAMP_ROW 1u
+static uint32_t lamp_on(void)                           /* the green lamp under PLAY */
+{
+    if (song.rec != 0u || ft_on)
+        return 0;                                       /* (recording: REC's red alone) */
+#if FELUCCA_REC_MODES
+    if (ci_on)                                          /* (the count-in: a pulse on each beat of the bar) */
+        return ci_u % BEAT_U < BEAT_U / 4u;
+#endif
+    return song.playing != 0u && !rec_wait;
+}
 static int play_led(void)                               /* PLAY flashes on every beat, as heard */
 {
     uint32_t p = clk_pos, lat = HALF_FRAMES * 3u / 2u * (uint32_t)song.g[G_BPM];
@@ -936,6 +954,8 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0 && ((avail >> B_OCTDN) & 1u));   /* (the octave shown only where it works) */
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0 && ((avail >> B_OCTUP) & 1u));
     }
+    if (lamp_on())
+        nl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* PLAY's green LED (REC's red is its own button) */
     keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
     for (c = 0; c < 27u; c++) {
         led_put(nl, 14u + c, (int)((kf >> c) & 1u));
