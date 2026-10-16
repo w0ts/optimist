@@ -374,6 +374,16 @@ static void con_status(void)
     con_kv("cpu_guard_rev_gain_pct", (int32_t)(cg.gain[CG_L_REVERB] * 100u / 256u));
 #endif
     con_kv("audio_late", (int32_t)felucca_dbg.late);
+    con_kx("audio_halves", felucca_dbg.halves);        /* (hex, wraps: the logger takes the differences) */
+    con_kx("audio_us_sum", felucca_dbg.us_sum);         /* the halves' render us summed: d(sum) / d(halves) = the mean */
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    {   /* corex2's per-core counters (the SDK's cpu_effic_calc: IF / RD / WR stalls?, TL clocks), low words, hex */
+        static const char *const K[8] = {"c0_if", "c0_rd", "c0_wr", "c0_tl", "c1_if", "c1_rd", "c1_wr", "c1_tl"};
+        uint32_t i;
+        for (i = 0; i < 8u; i++)
+            con_kx(K[i], fm1_pcnt(i));
+    }
+#endif
     con_kv("audio_max_pct", (int32_t)felucca_dbg.pk_all);   /* system/overload.h: INFO's MAX, % of a half */
     con_kv("audio_max5_pct", (int32_t)felucca_dbg.pk_5s);   /* INFO's MAX 5S */
     con_kv("cpu1_max5_pct", (int32_t)felucca_dbg.pk1_5s);   /* CPU1's jobs, MAX 5S */
@@ -659,6 +669,9 @@ static void con_dualcfg_show(void)
     con_puts(dualcfg.isrram ? "dualcfg isr ram\r\n" : "dualcfg isr xip\r\n");
     con_kv("dualcfg fpause", dualcfg.fpause);
     con_puts(dualcfg.noafter ? "dualcfg afterhold off\r\n" : "dualcfg afterhold on\r\n");
+    con_puts(dualcfg.spinv == FM1_SPIN_XIP ? "dualcfg spin xip\r\n" : dualcfg.spinv == FM1_SPIN_NOPS ? "dualcfg spin nops\r\n"
+                                                                                                  : "dualcfg spin ram\r\n");
+    con_kv("dualcfg pcnt", dualcfg.pcnt);
     con_puts("(the next boot; this boot: ");
     con_puts(DUAL_SLEEPS_NOW ? "sleep" : "spin");
     con_puts(")\r\n");
@@ -699,6 +712,11 @@ static void con_dualcfg(const char *p)
         ok = con_word(&p, "ram") ? (c.isrram = 1, 1) : con_word(&p, "xip") ? (c.isrram = 0, 1) : 0;
     else if (con_word(&p, "fpause"))
         ok = con_onoff(&p, &c.fpause);
+    else if (con_word(&p, "spin"))
+        ok = con_word(&p, "ram") ? (c.spinv = FM1_SPIN_RAM, 1) : con_word(&p, "xip") ? (c.spinv = FM1_SPIN_XIP, 1)
+           : con_word(&p, "nops") ? (c.spinv = FM1_SPIN_NOPS, 1) : 0;
+    else if (con_word(&p, "pcnt"))
+        ok = con_onoff(&p, &c.pcnt);
     else if (con_word(&p, "afterhold")) {
         uint8_t on;
         ok = con_onoff(&p, &on);
@@ -745,7 +763,7 @@ static void con_dualcfg(const char *p)
     if (!ok) {
         con_puts("? dualcfg show | reset | start boot|after|never | late MS | park on|off | idle sleep|spin | hold MS"
                  " | poll N | boost on|off | ble on|off | policy ble-exclusive|none | nest on|off | c1guard on|off | ins on|off | jobs MASK"
-                 " | isr ram|xip | fpause on|off | afterhold on|off\r\n");
+                 " | isr ram|xip | fpause on|off | afterhold on|off | spin ram|xip|nops | pcnt on|off\r\n");
         return;
     }
     c.magic = DUALCFG_MAGIC;

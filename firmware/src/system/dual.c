@@ -60,7 +60,9 @@ typedef struct {
                                                     * operation, resumed after (dual_flash_enter / _leave) */
     uint8_t noafter;                               /* 1 (`dualcfg afterhold off`): a boot after an early crash starts CPU1
                                                     * all the same (bootguard.failed ignored for it): the test matrix */
-    uint8_t pad2[3];
+    uint8_t spinv;                                 /* B23 `dualcfg spin ram|xip|nops`: CPU1's spin loop (hal/fm1_dual.h FM1_SPIN_*) */
+    uint8_t pcnt;                                  /* 1: corex2 DBG_CON |= 0x707 at the start (the SDK's cpu_effic_init) */
+    uint8_t pad2[1];
 } dualcfg_t;
 #define DUALCFG_MAGIC 0x44434647u                  /* "DCFG" */
 #ifndef DUALCFG_DEF_START
@@ -74,6 +76,9 @@ typedef struct {
 #endif
 #ifndef DUALCFG_DEF_FPAUSE
 #define DUALCFG_DEF_FPAUSE 0
+#endif
+#ifndef DUALCFG_DEF_SPIN
+#define DUALCFG_DEF_SPIN 0                         /* (FM1_SPIN_RAM; 1 xip, 2 nops: OPTIMIST_DUALCFG_SPIN, the emulator) */
 #endif
 #ifndef DUALCFG_DEF_JOBS
 #define DUALCFG_DEF_JOBS 0xFFu                     /* (0x80: no job, CPU1 up with its heartbeat only) */
@@ -90,6 +95,7 @@ static void dualcfg_defaults(dualcfg_t *c)
     c->ble = 1;
     c->policy = 1;
     c->jobs = DUALCFG_DEF_JOBS;
+    c->spinv = DUALCFG_DEF_SPIN;
     c->isrram = DUALCFG_DEF_ISRRAM;
     c->fpause = DUALCFG_DEF_FPAUSE;
     c->c1guard = 0;                                /* (off by default: the emulator has no windows 3..7; `dualcfg c1guard on`) */
@@ -392,7 +398,16 @@ void C1_MAIN fm1_cpu1_main(void)
 #endif
 #if DUAL_SPIN_CODE
     fm1_dual_mb.stage = C1S_LOOP;
+#if FELUCCA_DUALCFG
+    if (fm1_dual_spinv == FM1_SPIN_NOPS)
+        fm1_dual_nops_ram();                       /* (never returns: no data access, B23 `dualcfg spin nops`) */
+#endif
     for (;;) {
+#if FELUCCA_DUALCFG
+        if (fm1_dual_spinv == FM1_SPIN_XIP)
+            seq = FAR(fm1_dual_idle_xip)(seq, 1u, DUAL_ALLOWED, &arg);   /* (the same loop from the flash) */
+        else
+#endif
         seq = fm1_dual_idle_ram(seq, 1u, DUAL_ALLOWED, &arg);   /* (RAM to RAM: a request it may run, its beat counted) */
 #if FELUCCA_DUAL >= 2
         fm1_dual_mb.took = seq;                    /* (as the wake handler: CPU1 STOP's W / J) */
@@ -490,6 +505,11 @@ static __attribute__((noinline)) void dual_boot(void)
 #endif
 #if FELUCCA_DUALCFG
     fm1_dual_poll = dualcfg.poll ? dualcfg.poll : 1u;
+#if DUAL_SPIN_CODE
+    fm1_dual_spinv = dualcfg.spinv;
+#endif
+    if (dualcfg.pcnt)
+        fm1_pcnt_enable();                         /* (hal/fm1_dual.h: the SDK's cpu_effic_init) */
 #endif
     dual.t_start = fm1_ticks();
     dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US, DUAL_SLEEPS_NOW);

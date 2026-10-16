@@ -28,6 +28,7 @@ struct felucca_dbg {
     /* the audio's peaks (system/overload.h, the INFO's MAX 5S / MAX), % of a half (over 100: late), each half: kept by a reset */
     uint32_t pk_all, pk_5s, pk1_5s, drops;
     uint32_t prev_pk_all, prev_pk_5s, prev_pk1_5s, prev_drops;
+    uint32_t us_sum;                      /* every half's render us added (wraps; the console: the mean between two polls) */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 
@@ -190,6 +191,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         if (late)
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */
         felucca_dbg.halves++;
+        felucca_dbg.us_sum += us;
         felucca_dbg.last_us = us;
         if (us > felucca_dbg.max_us)
             felucca_dbg.max_us = us;

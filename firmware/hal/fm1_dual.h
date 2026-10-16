@@ -132,7 +132,30 @@ static inline __attribute__((always_inline)) uint32_t fm1_flip_check(uint32_t c,
 static volatile uint32_t fm1_dual_poll = FM1_DUAL_SPIN_NOPS;   /* (the console's dualcfg poll: set before the start) */
 #define FM1_DUAL_BEAT_EVERY 256u
 #ifndef FM1_DUAL_NO_SPIN                                  /* (CPU1 asleep between jobs: no spin loop in RAM) */
+static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_t done, uint32_t count, uint32_t allowed,
+                                                                         uint32_t *arg);
 RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
+{
+    return fm1_dual_idle_body(done, count, allowed, arg);
+}
+#if FELUCCA_DUALCFG
+/* B23 test image, `dualcfg spin` (2026-10-16: CPU1 merely spinning, no job, crashed CPU0; asleep it did not):
+ * FM1_SPIN_RAM the loop above; FM1_SPIN_XIP the same loop fetched from the flash (.text, through the shared cache);
+ * FM1_SPIN_NOPS no-ops only in RAM, no data access at all (no beat, no ping answer, no job ever taken: jobs 0x80) */
+enum { FM1_SPIN_RAM, FM1_SPIN_XIP, FM1_SPIN_NOPS };
+static volatile uint8_t fm1_dual_spinv;                    /* (set before the start, as fm1_dual_poll) */
+static __attribute__((noinline, used)) uint32_t fm1_dual_idle_xip(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
+{
+    return fm1_dual_idle_body(done, count, allowed, arg);
+}
+RAMFN static void fm1_dual_nops_ram(void)
+{
+    for (;;)
+        __asm__ volatile("nop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop");
+}
+#endif
+static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_t done, uint32_t count, uint32_t allowed,
+                                                                         uint32_t *arg)
 {
     fm1_dual_mb_t *mb = &fm1_dual_mb;
     uint32_t r, a = 0, n = 0, k;
@@ -513,6 +536,12 @@ __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
 extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
+/* corex2's per-core counters (AC79 SDK cpu/wl82/debug.c cpu_effic_init / _calc, under #if 0 there): C0_IF_UACNTL ..
+ * C1_TL_CKCNTL, the low words, I = 0..7 (c0 if, rd, wr, tl, c1 if, rd, wr, tl); what IF / RD / WR count is not documented
+ * (the SDK prints them as % of TL, the clocks). fm1_pcnt_enable: DBG_CON |= 0x707 as cpu_effic_init ("if_inv_en of_inv_en
+ * ex_inv_en", meaning not known: off unless `dualcfg pcnt on`) */
+static inline uint32_t fm1_pcnt(uint32_t i) { return *(volatile uint32_t *)(0x1EEE200u + 8u * (i & 7u)); }
+static inline void fm1_pcnt_enable(void) { *(volatile uint32_t *)0x1EEE344u |= 0x707u; }
 static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
 /* CPU1 paused (1: the pause request, bit 2) or resumed (0: bit 3), as the stock firmware's flash exclusion (the emulator's
  * model, fm1-emulator SMP.md): the run bit kept, reset (bit 1) never touched */
