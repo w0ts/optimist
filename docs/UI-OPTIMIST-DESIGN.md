@@ -231,6 +231,44 @@ modifies, with no screen needed. Everything in the table exists in the core toda
 the user preset and kit stores, undo, the FX bypass, INIT SOUND) and only gains a gesture. Snapshots stay on their
 PROJECT row.
 
+### 2.1.1 The two shifts' language, one mute, the clears on REC (2026-10-16) [P]
+
+Decided (2026-10-16, the review of guide/shortcuts.md; unbuilt, it lands on top of the 10 drum lanes on the black
+keys). Where it differs from the table above or from section 2, this wins.
+
+- **The shifts speak one language, as the OCT buttons sit: OCT- down, OCT+ up.** **SHIFT (OCT-) is off, less,
+  remove**: mute, clear, a value back to its default, a ghost hit, the panic (SHIFT + PLAY), INIT, a return muted
+  (SHIFT + a RET card's knob; was SHIFT2). **SHIFT2 (OCT+) is pick, on, more**: select, a hard hit, launch now,
+  favorites browsing, **a layer locked open (SHIFT2 + the layer's button; was SHIFT, revises the table above)**,
+  STEP's window following the playhead again (SHIFT2 + PRESETS; was SHIFT), the next / previous instrument or kind
+  (SHIFT2 + PRESETS; was SHIFT). SHIFT + PRESETS is then free.
+- **Favorite on / off: SAVE + PRESETS** (right a favorite, left not): saving the sound into the favorites (was
+  SHIFT2 + PRESETS).
+- **The keys under the shifts**: black key n is drum lane n, the last upper key ACCENT, white keys 1-4 T1, T2, T3,
+  DR. **SHIFT + a key: its sequencer mute; SHIFT2 + a key: selects it.** STEP is the exception: its white keys are
+  steps (SHIFT / SHIFT2 + a white step key: a ghost / hard hit there, the only place; no ghost / hard from a held OCT
+  while playing), the track there is ALGORITHM's.
+- **One mute: the sequencer mute** (the steps stop, the tails ring). The audio mute and SHIFT2 + the volume knob go;
+  the mixer's MUTE card and the GLO layer's keys 1-4 are the same sequencer mute. **No solo** anywhere (SHIFT + SHIFT2 +
+  the volume knob, GLO keys 5-8, the editor's SOLO state go).
+- **Every clear of recorded material is on REC**: REC held, the ring closed, the track (a lane picked: the lane);
+  **REC held + a knob turned: that parameter's motion and p-locks** (a lane picked: the lane's; the first turn undoes
+  REC's press and cancels the ring, so the track is never cleared; SHIFT + SHIFT2 + a knob goes); **SHIFT + REC held,
+  the ring closed: the track's (the lane's) motion and p-locks, the notes stay** (SHIFT + SEQ, YES goes). A held
+  step's lock: step held + SHIFT + the knob, as today. A drum step on every lane: step held + HOME (SEQ + a step key
+  goes); SEQ + keys is only the synth's step entry.
+- **Undo: SAVE then HOME; redo: HOME then SAVE.** SHIFT then SAVE and EDIT + OCT- / OCT+ go.
+- **SONG: SAVE tapped on PROJECT** (SAVE tapped: PROJECT, again SONG, again PROJECT, as GLO toggles GLOBAL and
+  SYSTEM); SAVE + SELECT goes.
+- **Scenes join the LFO layer**: black key 10 turns its white keys to the 16 scenes; a key launches it, SAVE + a key
+  stores the loop into it, SHIFT + a key clears it, the verbs of the patterns. SAVE held + keys (the scene layer)
+  and SAVE + REC + a key go. **SONG's PATTERNS row takes the LFO layer's keys exactly** (black 9 then a key
+  duplicates; its REC duplicate goes).
+- ALGORITHM on GLOBAL and SYSTEM stays the cursor, a line a detent (2026-10-14).
+- On STEP with a note picked by the free knobs (the drum-lanes session's note picker), SAVE held alone and HOME held
+  alone are its mute and delete: they act when let go, past the hold time, with nothing else used, so that SAVE then
+  HOME and HOME then SAVE stay undo and redo.
+
 ## 3. The look [D]: Felucca's
 
 Felucca 1.0's screen structure carries the grammar as it is:
