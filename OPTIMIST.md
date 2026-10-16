@@ -712,8 +712,8 @@ RES, FB, DUTY, CLICK ...; ACID, CZ and FM6 show the EDIT values of their own env
 pages). All three read **one shared list** of destinations: the engine's own values (named by the engine), the track's
 level, pan and sends, the S1 and S2 insert amounts (the LFO list names the insert type the slot holds), and the rate (RT)
 and amount (AMT) of the LFOs and envelopes, so an envelope or an LFO can move another LFO. ENV2's DEST A is the filter
-at 0 on a new sound, INIT and the presets that do not use ENV2 (WHEEL TOP, FM6 MOD, ACID CUT, CZ DCW where there is no
-filter). ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave
+at 0 on a new sound, INIT and the presets that do not use ENV2 (WHEEL TOP, FM6 MOD, CZ DCW where there is no filter;
+on ACID, FLT is the 303's CUT and RES its RESO). ENV2 runs on every engine, and only while one of its slots acts. The old fixed pitch drop that ENV DEST PIT gave
 is its own value, **DROP** (VOICE 2 on the Optimist UI, VOICE 3 on SLOOP's). Projects, presets, motion and p-locks of
 before keep their sound: the old ENV FLT and SHP depths are ENV 1 MOD's again; ENV DEST's two free slots (2026-10-14 to
 16) fold onto it (another destination moves to ENV2 when it is free, else TOOLS > MISS says "ENV DEST T1"). User presets

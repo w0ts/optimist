@@ -163,7 +163,8 @@ Where the build differs from §1 to §6:
   and ENV 2's default DEST A. Kinds: FLT SHP PIT (paths), a move (`env_vmove`, per voice), a **part move** (WHEEL: its
   DRV CLICK TOP are read once a block in `drawbar_block`, so ENV 1 moves them for the block from the part's newest
   voice, as an ENV 2 slot on PAN), an alias. A card's name is the engine's EDIT value it moves (its own label) or FLT,
-  PIT, SHP; an alias shows the EDIT value itself (PHASE's alias of E3 is named ENV there, as on EDIT).
+  PIT, SHP; an alias shows the EDIT value itself (PHASE's alias of E3 is named ENV there, as on EDIT). ACID's cards: ENV DEC ACC SLD (§7's CUT moved to the
+  shared FLT destination, below).
 * **Labels on the page.** JUNO's FLT card is named FLT (not VCF ENV); TRIO's and ANALOG's are FLT; the others take
   the EDIT value they drive (DIGITAL IDX, LOFI TONE, SAMPLE CUT, VOICE VOWL, GRAIN TONE, SLICE TONE, PHYS BRIT, NOISE
   FREQ). The descriptors are made when the page asks (four in the pool, `params.c e1_card_desc`): no flash table of
@@ -182,23 +183,28 @@ Where the build differs from §1 to §6:
 ### ENV 2's default destination
 
 ENV 2's DEST A is FLT on a new sound, on INIT and on every factory preset that does not use ENV 2, at AMT 0: the
-filter is one turn away. ENV 2's DEST B stays OFF. Engines without a filter path take the nearest:
+filter is one turn away. ENV 2's DEST B stays OFF. Checked in each engine's render (not only the mod path):
 
-| Engine | ENV 1: a filter card? | an amplitude path? | ENV 2's default DEST A |
+| Engine | its filter | its amplitude | ENV 2's default DEST A |
 |---|---|---|---|
-| WHEEL | no (organ: no filter) | yes (wired) | TOP (E4, the top bars) |
-| FM6 | no (DX7 operators) | its own op EGs (fm6_amp) | SHP (MOD, the modulator levels) |
-| ACID | no path at all (the 303 ignores the voice paths) | the 303's own VEG | E1 (CUT, its cutoff) |
-| CZ | no (DCW is its "filter") | its own DCA (cz_amp) | E2 (DCW) |
-| PHASE | no FLT card (DCW alias; FLT drives DCW depth) | yes | FLT (it drives the DCW depth) |
-| DIGITAL | IDX (the FLT path drives the FM index, not a filter) | yes | FLT (the index) |
+| ACID | **has its own** (the 303's CUT, RESO; ENV DEC ACC). The shared FLT destination now drives CUT and RES drives RESO (eng_acid.c, 2026-10-16) | its own VCA / VEG: the shared AMP path does not drive it (the ADSR only gates) | FLT (its CUT) |
+| CZ | has none (the DCW waveshaping, with its own DCW envelope, is its timbre control) | its own DCA envelope (cz_amp): the shared AMP path does not drive it | E2 (DCW) |
+| FM6 | has none (Dexed's DC blocker only) | its operators' EGs, and the shared amplitude on top (amp_at) | SHP (MOD, the modulator levels) |
+| WHEEL | has none (additive organ) | the shared amplitude (amp_at), the organ gate | TOP (E4, the top bars) |
+| PHASE | has none: the FLT path drives the DCW depth | the shared amplitude | FLT (the DCW depth) |
+| DIGITAL | has none: the FLT path drives the FM index | the shared amplitude | FLT (the index) |
 
-Every other engine has a real filter path (ANALOG, SUPER, LOFI TONE, SAMPLE CUT, VOICE VOWL formants, TRIO, GRAIN TONE,
-SLICE TONE, PHYS BRIT, JUNO VCF, NOISE FREQ) and the amplitude wired. Old files keep the destinations they stored.
+Every other engine has a filter the shared FLT path drives (ANALOG, SUPER, LOFI TONE, SAMPLE CUT, VOICE VOWL formants,
+TRIO, GRAIN TONE, SLICE TONE, PHYS BRIT, JUNO VCF, NOISE FREQ) and the shared amplitude. No filter was added to an
+engine that has none. Old files keep the destinations they stored.
+
+ACID's ENV 1 cards, in the 303's grammar: ENV (env mod), DEC (decay), ACC (accent), SLD (slide time): the four values
+of its own envelopes and glide (aliases of its EDIT values). CUT and RES stay EDIT's main filter controls (RES is not an
+envelope depth); an LFO or ENV 2 reaches them through FLT and RES.
 
 ### Findings for the user
 
 * **SLICE's START card does nothing:** START is read once, at the note-on, when ENV 1 is 0. It is kept as approved;
   PTCH (E3, read each block) is the one other EDIT value SLICE reads while a voice plays; a replacement is the user's call.
-* WHEEL, FM6, ACID, CZ have no real filter; ACID and CZ have no amplitude path of ENV 1 (their own envelopes end the
-  voice); see the table above.
+* WHEEL, FM6, CZ, PHASE, DIGITAL have no filter; ACID has its own (now driven by FLT / RES); ACID and CZ have their
+  own amplitude envelopes that the shared AMP path does not drive; see the table above.

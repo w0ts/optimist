@@ -85,11 +85,11 @@ static void t_cards(void)
         okf &= nflt == 1u || ENG_IS(ENGINES[e], DRAWBAR) || ENG_IS(ENGINES[e], FM6) || ENG_IS(ENGINES[e], ACID) ||
                ENG_IS(ENGINES[e], CZ) || ENG_IS(ENGINES[e], PHASE);
         oke &= env2_def_dest(e) == (ENG_IS(ENGINES[e], DRAWBAR) ? LT_E4 : ENG_IS(ENGINES[e], FM6) ? LT_SHP :
-                                    ENG_IS(ENGINES[e], ACID) ? LT_E1 : ENG_IS(ENGINES[e], CZ) ? LT_E2 : LT_FLT);
+                                    ENG_IS(ENGINES[e], CZ) ? LT_E2 : LT_FLT);
     }
     check(ok, "cards: every engine four cards, distinct ids, at most three moves, each move / alias a real EDIT value");
     check(okf, "cards: a FLT card on every engine with a filter path (not WHEEL FM6 ACID CZ PHASE)");
-    check(oke, "cards: ENV2's default DEST A the filter, WHEEL TOP, FM6 SHP (MOD), ACID CUT, CZ DCW");
+    check(oke, "cards: ENV2's default DEST A the filter, WHEEL TOP, FM6 SHP (MOD), CZ DCW (ACID: FLT, its CUT)");
 }
 
 static void t_default(void)
@@ -118,7 +118,9 @@ static void t_default(void)
 /* engine e, card k at depth d: the render of 120 blocks of a held note -> its hash; *same: the values after = before.
  * In a child process: every engine's running state (its part memory, a rotor, a chorus) as the parent has it, the
  * same start for each render */
-static int32_t wave_ = -1;                             /* (card_run: EDIT 1 set to it, -1 the preset's) */
+static int32_t wave_ = -1;
+static uint8_t xid_[2];                                /* (card_run: two more values set, id 0 = none) */
+static int16_t xv_[2];                             /* (card_run: EDIT 1 set to it, -1 the preset's) */
 static uint64_t card_run(uint32_t e, uint32_t pi, uint32_t k, int32_t d, uint32_t *same)
 {
     uint64_t r[2] = {0, 0};
@@ -130,10 +132,13 @@ static uint64_t card_run(uint32_t e, uint32_t pi, uint32_t k, int32_t d, uint32_
     if (!pid) {
         uint64_t h = H0;
         int16_t keep[P_COUNT];
-        uint32_t id = env1_id(e, k);
+        uint32_t id = env1_id(e, k), i;
         init(e, pi);
         if (wave_ >= 0)
             trk[0].p[P_E0] = (int16_t)wave_;
+        for (i = 0; i < 2u; i++)
+            if (xid_[i])
+                trk[0].p[xid_[i]] = xv_[i];
         if (d && id < P_COUNT && E1K_KIND(env1_card(e, k)) != 0x50u)
             trk[0].p[id] = (int16_t)d;
         trk[0].p[P_SUS] = 100, trk[0].p[P_DEC] = 60;
@@ -199,6 +204,26 @@ static void t_render(void)
     printf("     (not heard:%s)\n", bad[0] ? bad : " none");
     check(okh, "render: every path and move card heard at +-50 on every engine");
     check(okb, "render: the values after the render the authored ones (a move written back after each voice)");
+}
+
+/* ACID's own filter on the shared FLT destination (eng_acid.c: CUT), ENV2's default DEST A there (2026-10-16) */
+static void t_acid(void)
+{
+#if FELUCCA_ENG_ACID
+    uint32_t same, e = ENG_IX_ACID;
+    uint64_t h0 = card_run(e, 0, 0, 0, &same), h1, h2;
+    xid_[0] = P_L1DA, xv_[0] = LT_FLT, xid_[1] = P_L1AA, xv_[1] = 100;
+    h1 = card_run(e, 0, 0, 0, &same);
+    xid_[0] = P_L1DA, xv_[0] = LT_RES;
+    h2 = card_run(e, 0, 0, 0, &same);
+    check(h1 != h0 && h2 != h0 && h1 != h2, "acid: an LFO on FLT moves the 303's CUT, on RES its RESO");
+#if FELUCCA_ANALOG2
+    xid_[0] = P_N2AA, xv_[0] = 120, xid_[1] = P_A2FDEC, xv_[1] = 40;
+    h1 = card_run(e, 0, 0, 0, &same);
+    check(h1 != h0, "acid: ENV2 on its default DEST A (FLT: the 303's CUT) at 120: heard");
+#endif
+    xid_[0] = xid_[1] = 0;
+#endif
 }
 
 static void t_amp(void)
@@ -397,6 +422,7 @@ int main(void)
     t_cards();
     t_default();
     t_render();
+    t_acid();
     t_amp();
     t_plain();
     t_e1amt();

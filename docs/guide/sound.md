@@ -104,7 +104,7 @@ too: turning them is turning the EDIT value.
 | FM6 | M.TIM (its EDIT value) | C.TIM (its EDIT value) | MOD | PIT |
 | SLICE | TONE | PIT | DCAY | START |
 | PHYS | BRIT | PIT | DAMP | EXC |
-| ACID | ENV | DEC | ACC | CUT (the 303's own EDIT values) |
+| ACID | ENV | DEC | ACC | SLD (the 303's own EDIT values) |
 | CZ | DCW | W.TIM | A.TIM (its EDIT values) | PIT |
 | JUNO | FLT (the VCF ENV depth) | PIT | PW | RES |
 | NOISE | FREQ | PIT | COLR | RES |
@@ -134,8 +134,8 @@ value (PAN, LVL, the sends, the inserts, an LFO's rate or amount) follows the tr
 Defaults and rules worth knowing:
 
 - **ENV 2's DEST A is FLT at 0** on a new sound, on INIT and on every factory preset that does not use ENV 2: raise AMT A
-  and the filter follows ENV 2. Engines without a filter take their nearest: WHEEL TOP, FM6 SHP (MOD), ACID CUT (E1),
-  CZ DCW (E2).
+  and the filter follows ENV 2. Engines without a filter take their nearest: WHEEL TOP, FM6 SHP (MOD), CZ DCW (E2).
+  On ACID, FLT is the 303's CUT and RES its RESO.
 - **DROP** is the old fixed pitch drop that ENV DEST PIT gave: a fast fall from each note's start. It is its own value
   (VOICE 2, card 4, on the Optimist UI; VOICE 3 on SLOOP's UI), no longer a destination.
 - A project, a section or a user preset made with the old fixed destinations (FLT, SHP, PIT, AMP depths) loads with the

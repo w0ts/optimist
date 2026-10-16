@@ -18,7 +18,7 @@
       "DAMP": "ENV 1 to the damping", "EXC": "ENV 1 to the exciter", "VCF": "ENV 1 to the VCF (Juno)",
       "FREQ": "ENV 1 to the noise frequency", "COLR": "ENV 1 to the noise colour",
       "DCW": "Its envelope to the DCW", "M.TIM": "Modulator envelope times", "C.TIM": "Carrier envelope times",
-      "ENV": "303 filter envelope amount", "DEC": "303 filter envelope decay", "ACC": "303 accent amount",
+      "ENV": "303 filter envelope amount", "DEC": "303 filter envelope decay", "ACC": "303 accent amount", "SLD": "303 slide time",
       "W.TIM": "DCW envelope times", "A.TIM": "Level envelope times"}},
     {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2", "params": {
       "ATK2": "Env 2 attack", "DEC2": "Env 2 decay", "SUS2": "Env 2 sustain", "REL2": "Env 2 release (0: as decay)"}},
