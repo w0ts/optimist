@@ -1377,7 +1377,7 @@ async function editorFxp() {
     ok(/STRIP_ROWS\.map/.test(shell) && builders.every((b) => /stripShell\(/.test(b)) && !/data-go="fx(ins|mst|ret|usb)"|\bfx(ins|mst|ret|usb):|\[data-pop=fx(ins|mst|ret|usb)\]/.test(html),
       "strips: buildStrip, buildLaneStrip, buildSendStrip (USB IN, returns A B C) and buildMaster all go through stripShell; no separate inserts / returns popups");
   }
-  ok(/function dlanCard\(/.test(html) && /readDlMix\(\)/.test(html) && /dlanCard\(0, l, t\("dlMix"\)\)/.test(html), "dlan: the lane popup has the mix and LFO cards, the strips the lanes' mute / solo and the SEQ buttons");
+  ok(/function dlanCard\(/.test(html) && /readDlMix\(\)/.test(html) && /dlanCard\(0, l, t\("dlMix"\)\)/.test(html) && /dlanCard\(1, l, t\("dlLfo"\)\)/.test(html), "dlan: the lane popup has the LFO card, the strips the lanes' mix: pan, sends, mute, solo, SEQ");
   ok(/function dynFxSlot\(/.test(html) && !/function dynFxIns\(|function dynFxMst\(|function dynFxRet\(|function dynFxUsb\(/.test(html) && /fxpPing\(\);/.test(html) && /readFxpSlot\(rq, ow, sl, type, n, fxpDescs\(\)\)/.test(html),
     "fxp: the slot popup (opened from a strip's slot widget) reads the owner's slot and follows the device's pushes; no separate inserts / master / returns popups");
   done();
@@ -1634,7 +1634,7 @@ async function editorDaw() {
     st = E.navClose(st);
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
-  ok(flat && openers && ids.length === 15 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  ok(flat && openers && ids.length === 16 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),

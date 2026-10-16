@@ -955,6 +955,7 @@
   #mixer .strip.nar .lblk .row2 button { width: 30px; padding: 0; font-size: 11px; }
   #mixer .strip.nar .srow[data-row="level"] .fm .fader { width: 22px; }
   #mixer .strip .srow[data-row="nav"] { overflow: hidden; min-width: 0; } #mixer .strip .lpn { gap: 2px; } #mixer .strip .lpn button { width: 22px; min-width: 22px; flex: none; } #mixer .strip .lpn select.lname { flex: 1 1 0; width: 0; min-width: 0; padding: 2px 0; font-size: 11px; }
+  #sclbtn { font-variant-numeric: tabular-nums; } #mixer .strip .pops .arpb { width: auto; min-width: 34px; height: 34px; padding: 0 4px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -1002,6 +1003,7 @@
         <button type="button" id="redobtn" class="ib" disabled aria-label="Redo" title="Redo (Ctrl / Cmd + Shift + Z, Ctrl + Y)">&#8631;</button>
       </span>
       <button type="button" id="kbdbtn" class="pill" aria-pressed="false" aria-label="Play notes" title="Play notes on the selected track" hidden>keys</button>
+      <button type="button" id="sclbtn" class="pill" data-pop="scale" aria-label="Scale" title="Scale of the selected track (root, scale, quantize, chord): opens the scale panel" hidden></button>
       <button type="button" id="songbtn" class="pill" data-pop="song" data-t="popSong" aria-label="Song" title="Song" hidden></button>
       <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
       <button type="button" id="syncbtn" class="pill sync" title="MIDI clock (Settings)" aria-label="MIDI clock (Settings)" hidden></button>
@@ -4231,6 +4233,7 @@ const NAV = {
   fxcomp: { strip: "master", opener: "[data-pop=fxcomp]" },
   fxslot: { strip: "any", opener: "[data-pop=fxslot]", fxp: true },   /* v13: one slot's parameters, from the open button beside its type list on a strip */
   tools: { strip: "any", opener: "[data-pop=tools]", tools: true },   /* v13: the pattern tools (REVERSE RANDOM COOK LENGTH) and EUCLID of the selected track */
+  scale: { strip: "any", opener: "#sclbtn" },   /* the scale and arpeggiator pages of the selected track (the header chip) */
   song: { strip: "master", opener: "[data-pop=song]", songc: true },   /* v13: the song chain: the parts (scene, bars) and LOOP / SONG */
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
@@ -6273,6 +6276,7 @@ const TEXT = {
   kbdHelp: "Plays the selected track through the device's own note input (arp, chords, the engine's voices, REC all apply). The drum track: its 16 sounds.",
   laneFoldOn: "Fold the drum sounds (only the drum track stays)", laneFoldOff: "Unfold the drum sounds (their strips follow the drum track)",
   clips: "clips",
+  popScale: "Scale", scaleNone: "This track has no scale or arpeggiator pages.", arpTip: "Arpeggiator on / off (the ARP page: Scale panel)",
   recTip: "REC (the device's record key)", recOff: "off", recWait: "waiting for the start (the first note, or PLAY)", recCount: "count-in", recOn: "recording", recTake: "free take", recRefused: "STOP THE SONG FIRST",
   retMuteTip: "Mute of a return (the firmware has no return mute: SOLO op 7)",
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
@@ -6416,7 +6420,7 @@ const drumIndex = () => (dev && dev.mix ? dev.mix.ntrk - 1 : 3);
 /* the popup: its panel moved into the dialog (and home again when it closes) */
 const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", kitstore: "p-kitstore" };
 let popPanel = null;
-const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset", "tools"]);   /* (these act on the selected track: selected first) */
+const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset", "tools", "scale"]);   /* (these act on the selected track: selected first) */
 async function openPop(id, track = 0, lane = 0) {
   if (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn()) || (NAV[id].usb && !dev.info.fxp.usb) || (NAV[id].songc && !dev.info.songc) || (NAV[id].tools && !dev.info.tools)) return;
   closePop();
@@ -6468,6 +6472,7 @@ function popTitle(id, track, lane = 0) {
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane)}`;
     case "tools": return `${t("popTools")} · ${tr} · ${what}`;
+    case "scale": return `${t("popScale")} · ${tr} · ${what}`;
     case "fxslot": return `${t("popIns")} \u00b7 ${slotPick ? `${fxpName(slotPick.ow)} S${slotPick.sl + 1}` : ""}`;
     default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", song: "popSong", help: "help" }[id] || "help");
   }
@@ -6992,6 +6997,8 @@ function buildGroups() {
   }
   { const mg = midiSetGroup(); if (mg) groups.setgroups.push(mg); }   /* (the MIDI channels, OUT, IN) */
   if (scrnOn()) groups.setgroups = [];   /* (the device's own GLOBAL and SYSTEM lines below cover every one of these: GLOBAL, NOTE REPEAT, DRUMS, MIDI CLOCK, the MIDI channels; no second copy) */
+  dev.scaleGroups = groups.groups.filter((g) => /^(scl|arp)$/.test(g.dataset.fam));   /* (the header's scale panel and the strips' ARP button hold them) */
+  groups.groups = groups.groups.filter((g) => !dev.scaleGroups.includes(g));
   for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
   /* the tempo lives in the transport bar only: its input follows pushes / polling like any control */
   const bi = dev.gdesc.findIndex((d) => d && d.label === "BPM");
@@ -8490,16 +8497,12 @@ function kitLane(pane) {
       dev.dl.lanes[l] = emptyLane(); await laneSend(l, true); renderKit(); }) }, t("dlReset")))];
   if (usr || sh.usr) kids.push(el("div", {}, el("h3", { text: t("kitSample") }), usrRows(l)));
   if (sound.length) kids.push(el("div", {}, el("h3", { text: t("kitSound") }), el("div", { class: "knobs" }, ...sound)));
-  if (sends.length) kids.push(el("div", {}, el("h3", { text: t("kitSends") }), el("div", { class: "knobs" }, ...sends)));
+  if (sends.length && !fxpOn()) kids.push(el("div", {}, el("h3", { text: t("kitSends") }), el("div", { class: "knobs" }, ...sends)));   /* (with FXP the lane strips carry the sends, pan, mute and the slots) */
   const cards = [];
   if (dlanOn()) {                                    /* v13: the sound's place in the mix (PAN MUTE SOLO SEQ MUTE) and its own LFO */
-    cards.push(dlanCard(0, l, t("dlMix")), dlanCard(1, l, t("dlLfo")));
+    if (!fxpOn()) cards.push(dlanCard(0, l, t("dlMix")));
+    cards.push(dlanCard(1, l, t("dlLfo")));
     kids.push(...cards.map((c) => c.el));
-  }
-  if (fxpOn() && !sh.noIns) {                        /* v13: the sound's two insert slots (type + the amount), the device's SOUND 3 */
-    const c = fxpCard(FXP.LANE0 + l, t("popIns"));
-    kids.push(c.el);
-    cards.push(c);
   }
   if (cards.length && nav.pop && nav.pop.id === "lane") { dev.fxpCards = cards; for (const c of cards) c.load(true).catch(report); }   /* (only while the popup is the one open: another popup's cards are not replaced) */
   pane.replaceChildren(...kids);
@@ -9983,6 +9986,36 @@ function dynTools(track) {
 /* ------------------------------------------------------------------------ v13: the song chain (SONGC, cmd 97) --- */
 /* The order the scenes play in, as the Optimist UI's SONG screen has it: PART 1.. (a scene, a number of bars), LOOP or SONG; edited while the
    transport is stopped (the device says "STOP FIRST"); SAVE puts the chain into flash. The patterns and scenes themselves: the Sequence popup. */
+/* the scale panel: the selected track's SCL and ARP pages (they are no cards of the Sound popup) */
+function dynScale() {
+  const g = (dev && dev.scaleGroups) || [];
+  return g.length ? g : [el("p", { class: "dim", text: t("scaleNone") })];
+}
+const ARP_ID = 17, SCL_ROOT = 25, SCL_SCALE = 26;
+const arpLast = new Map();
+const arpOn = (x) => !!(x && x.p && x.p[ARP_ID]);
+const hasArp = () => !!dev && !!dev.pdesc && !!dev.pdesc[ARP_ID] && dev.pdesc[ARP_ID].label === "MODE";
+function sclChip() {
+  const b = $("sclbtn");
+  const ok = !!(dev && dev.dump && dev.pdesc && dev.pdesc[SCL_ROOT] && dev.pdesc[SCL_SCALE] && dev.pdesc[SCL_SCALE].label === "SCL" && !drumTrack(dev.sel));
+  b.hidden = !ok;
+  if (!ok) return;
+  const txt = (id) => { const [a, u] = fmtValue(dev.pdesc[id], dev.dump.p[id]); return u ? `${a} ${u}` : a; };
+  const v = `${txt(SCL_ROOT)} ${txt(SCL_SCALE)}`;
+  if (b.textContent !== v) b.textContent = v;
+}
+setInterval(() => { try { sclChip(); } catch (e) { /* (no device yet) */ } }, 500);
+$("sclbtn").addEventListener("click", () => openPop("scale", dev.sel));
+function setArp(i) {
+  if (!dev || !dev.mix || !hasArp()) return;
+  const x = dev.mix.tracks[i];
+  const cur = x.p ? x.p[ARP_ID] : 0, nv = cur ? 0 : arpLast.get(i) || 1;
+  if (cur) arpLast.set(i, cur);
+  if (x.p) x.p[ARP_ID] = nv;
+  updateStrip(i);
+  if (i === dev.sel) { userSet(0, ARP_ID, nv, true); return; }
+  mixer.setParam(rq, i, dev.sel, ARP_ID, nv, dev.v4, "arp:" + i).then((r) => { if (dev && dev.mix && dev.mix.tracks[i].p) { dev.mix.tracks[i].p[ARP_ID] = r; updateStrip(i); } }).catch(report);
+}
 function dynSong() {
   const box = el("div", { class: "song" }), msg = el("p", { class: "dim songmsg", "aria-live": "polite" });
   const say = (s) => { msg.textContent = s.rc ? t("songRc" + s.rc) : s.playing ? t("songPlaying") : ""; };
@@ -11349,7 +11382,8 @@ function buildStrip(i) {
   /* (the kit and the Sound editor open from the instrument widget above) */
   const pops = drum ? [...(fxpOn() ? [] : [popBtn("kit", "symbol_grid", t("popKit"), i)]), popBtn("kitstore", "port_disk", t("userKits"), i)]
     : [popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i)];
-  if (dev.info.tools) pops.push(popBtn("tools", "ui_knob", t("popTools"), i));   /* v13: the pattern tools (ICONS.tools) */
+  if (dev.info.tools) pops.push(popBtn("tools", "ui_knob", t("popTools"), i));
+  if (!drum && hasArp()) pops.push(el("button", { type: "button", class: "tog arpb", id: `strip-${i + 1}-arp`, "aria-pressed": "false", title: t("arpTip"), "aria-label": `${t("arpTip")} ${i + 1}`, onclick: () => setArp(i) }, "ARP"));   /* v13: the pattern tools (ICONS.tools) */
   if (drum) {                                        /* the group's fold triangle, and "one sound at a time / all" (the member strips: syncLaneStrips) */
     c.fold = el("button", { type: "button", class: "ib fold", "data-fold": "", title: t("laneFold"), "aria-label": t("laneFold"), "aria-expanded": "false", onclick: foldLanes }, "\u25bc");
     c.lmode = el("button", { type: "button", class: "ib lmode", "data-lmode": "", title: t("laneMode"), "aria-label": t("laneMode"), "aria-pressed": "false", onclick: toggleLaneMode }, "ALL");
@@ -11551,6 +11585,7 @@ function updateStrip(i) {
     if (e != null && e !== x.level) { const [et, eu] = fmtValue(c.lvDesc, e); c.lvOut.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`; c.lvOut.dataset.mac = "1"; }
     else delete c.lvOut.dataset.mac;
   }
+  { const ab = c.strip.querySelector(".arpb"); if (ab) ab.setAttribute("aria-pressed", arpOn(x) ? "true" : "false"); }
   c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
   c.strip.classList.toggle("muted", !!x.mute || !x.level);
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
@@ -11852,7 +11887,7 @@ function liveValue(k, v) {
 /* the popups that are not a panel of their own: Load preset, Save preset, Kit, the FX buses (Delay, Reverb, Chorus), Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), fxslot: dynFxSlot, song: dynSong, tools: dynTools, help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), fxslot: dynFxSlot, song: dynSong, tools: dynTools, scale: dynScale, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */

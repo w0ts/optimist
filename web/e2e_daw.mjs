@@ -338,7 +338,7 @@ ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "
     ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#mixer .strip.master [data-pop=fxcomp]", " \u00b7 O"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
   const bad = ends.filter(([q, e]) => !t(q).endsWith(e) || document.querySelector(q).getAttribute("aria-label") !== t(q)).map(([q]) => q);
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
-    return g.querySelectorAll("button").length === 2 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
+    return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
   const d = $('#mixer .strip[data-track="3"]'); const dg = d.querySelector(".pops");
   const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
   return JSON.stringify({ bad, lay, lay2 });`) === '{"bad":[],"lay":true,"lay2":true}', "e2e: tooltips end with their key; strip layout: group row (3 buttons; the drum group: Kit, User kits, fold, one-or-all), Sequence below");
@@ -568,7 +568,7 @@ const soundFx = await run(`${U} document.querySelector('#mixer .strip[data-track
   $("#popx").click(); await sleep(200);
   return JSON.stringify({ heads, labels: labels.join(), glob: all.filter((h) => h === "DLY" || h === "REV/CHO") });`);
 ok(soundFx === '{"heads":["FX","SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
-  "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx.length < 300 ? soundFx : ""));
+  "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx ? JSON.stringify(soundFx).slice(0, 400) : ""));
 /* narrow: the master strip never makes the page scroll sideways */
 await send("Emulation.setDeviceMetricsOverride", { width: 420, height: 1000, deviceScaleFactor: 1, mobile: false }); await run(`await new Promise((r) => setTimeout(r, 300));`);
 const narrowOk = await run(`const m = document.querySelector("#mixer .strip.master"); m.scrollIntoView(); return document.documentElement.scrollWidth <= window.innerWidth + 1 && m.querySelectorAll(".fxg").length === 4;`);
@@ -806,14 +806,16 @@ const fxpRes = await run(`${U} try {
   }
   r.lm = r.lm.join("");
   document.querySelector('#mixer > .strip.sub[data-lane="2"] [data-pop=lane]').click();
-  await until(() => pop().open && pop().dataset.pop === "lane" && document.querySelectorAll("#pop .dlan").length === 2, 10000); await sleep(500);
+  await until(() => pop().open && pop().dataset.pop === "lane" && document.querySelectorAll("#pop .dlan").length === 1, 10000); await sleep(500);
   r.laneCards = [...document.querySelectorAll("#pop .dlan, #pop .fxo")].map((c) => c.getAttribute("aria-label") + ":" + c.querySelectorAll(".knob, select").length).join("|");
-  const mute = document.querySelector('#pop select[data-dlan="0/1"]'); mute.value = "1"; mute.dispatchEvent(new Event("change")); await sleep(500);
-  const sl = document.querySelector('#pop .knob[data-dlan="0/0"]'); for (let q = 0; q < 3; q++) sl.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-  await sleep(500);
-  r.laneMuted = document.querySelector('#mixer > .strip.sub[data-lane="2"]').classList.contains("lmuted");
-  r.panLow = +document.querySelector('#pop .knob[data-dlan="0/0"]').getAttribute("aria-valuenow") < 0;
   $("#popx").click(); await sleep(200);
+  /* the lane's mix is on its strip: MUTE button, PAN knob */
+  const ls = document.querySelector('#mixer > .strip.sub[data-lane="2"]');
+  ls.querySelector(".lblk .row2 button").click(); await sleep(500);
+  const sl = ls.querySelector('.srow[data-row=pan] .knob'); for (let q = 0; q < 3; q++) sl.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  await sleep(500);
+  r.laneMuted = ls.classList.contains("lmuted");
+  r.panLow = mock.sim.dlanVal(0, 2, 0) < 0;
   document.querySelector('#mixer .strip[data-track="1"] .sq').click(); await sleep(500);
   r.sq = document.querySelector('#mixer .strip[data-track="1"] .sq').getAttribute("aria-pressed") + ":" + document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sqm");
   mock.sim.dlanSet(0, 2, 1, 0); await sleep(800);
@@ -849,11 +851,34 @@ ok(fxpRes && /^1:head,inst,nav,clips,slot1,slot2,tools,seq,ov,pan,sends,level$/.
   && fxpRes.master.split("|")[0] === "" && fxpRes.master.split("|")[1] === "DUST,DUCK,FILT"
   && /EQ3/i.test(fxpRes.t1) && /DYN/i.test(fxpRes.t1) && /^Inserts/.test(fxpRes.title) && /THRS,RATIO,ATK,REL,GAIN,CEIL:1/.test(fxpRes.open2)
   && fxpRes.retA.endsWith(":fxchorus") && /FLNG/i.test(fxpRes.retB) && fxpRes.busPop === "fxchorus" && fxpRes.strip === "--,A,B,C" && fxpRes.wide
-  && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^Mix:4\|LFO:8\|Inserts:/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
+  && fxpRes.t4.endsWith(":0") && fxpRes.lane === "17:1:0" && /^LFO:8$/.test(fxpRes.laneCards) && fxpRes.laneMuted && fxpRes.panLow && fxpRes.sq === "true:true" && fxpRes.unmuted
   && fxpRes.live === "|true,true,true,true|13" && fxpRes.nums === "0:1" && fxpRes.fxbtn === 0 && fxpRes.rec === 0 && fxpRes.lm === "11111111111111111" && fxpRes.side === "0:1" && fxpRes.rsends === "BC|C|" && fxpRes.wlane > 50 && fxpRes.wlane < 75
   && /VOLUME|^PAN/.test(fxpRes.usb) && fxpRes.song5 === "5:7" && fxpRes.song4 === "4:1" && fxpRes.tool1 === "T1 REVERSED" && fxpRes.euOn && fxpRes.hits === "2" && fxpRes.euOff,
   `e2e v13 FX owners (mock ?fxp=1): the one strip template (same rows, aligned), the slot widget [ name v ] with one open part and one list a slot (ids strip-<n>-slot<k>-type / -open), no duplicate openers, returns A B C with RET and main knobs, the master without returns, the drum bus and the sound strips (${JSON.stringify(fxpRes)})`);
 await shot("fxp-inserts");
+/* the scale chip in the header (the selected track's root and scale), its panel (SCL and ARP pages, no cards of the Sound popup), the strips' ARP button */
+const sclRes = await run(`${U} try {
+  const mock = window.fm1Test.mock, r = {}, $1 = (id) => document.getElementById(id);
+  const chip = $1("sclbtn"); await until(() => !chip.hidden && chip.textContent.trim().length > 0, 8000);
+  r.chip = chip.textContent.trim();
+  r.arp0 = $1("strip-1-arp").getAttribute("aria-pressed");
+  $1("strip-1-arp").click(); await until(() => $1("strip-1-arp").getAttribute("aria-pressed") === "true", 4000);
+  r.arp1 = await until(() => mock.state.tracks[0].p[17] > 0, 4000);
+  $1("strip-2-arp").click(); await until(() => $1("strip-2-arp").getAttribute("aria-pressed") === "true", 4000); await sleep(500);
+  r.arpOther = mock.state.tracks[1].p[17] > 0;
+  $1("strip-1-arp").click(); await until(() => $1("strip-1-arp").getAttribute("aria-pressed") === "false", 4000); await sleep(400);
+  r.arpOff = await until(() => mock.state.tracks[0].p[17] === 0, 4000) ? 0 : 1;
+  r.noDrumArp = !document.getElementById("strip-4-arp");
+  chip.click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "scale", 8000); await sleep(400);
+  r.panel = [...document.querySelectorAll("#pop .group h2")].map((h) => h.textContent.trim()).join();
+  $("#popx").click(); await sleep(200);
+  $1("strip-1-inst-open").click();
+  await until(() => $("#pop").open && $("#pop").dataset.pop === "sound", 8000); await sleep(400);
+  r.sound = [...document.querySelectorAll("#pop #groups .group h2")].map((h) => h.textContent.trim()).filter((x) => /^(SCL|ARP)$/.test(x)).join();
+  $("#popx").click(); await sleep(200);
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(sclRes && /\S/.test(sclRes.chip) && sclRes.arp0 === "false" && sclRes.arp1 && sclRes.arpOther && sclRes.arpOff === 0 && sclRes.noDrumArp && /SCL/.test(sclRes.panel) && /ARP/.test(sclRes.panel) && sclRes.sound === "",
+  `e2e: the scale chip opens the scale panel (SCL, ARP), the strips' ARP button toggles the track's arpeggiator (the selected track and another), no SCL / ARP cards in the Sound popup (${JSON.stringify(sclRes)})`);
 /* the mixer's order, as Ableton Live's session mixer: T1 T2 T3 T4 (the drum GROUP), its sounds as member strips right after it (folded by default,
    unfolded to all of them, or one at a time), USB IN, R1 R2 R3, MASTER last; the keys walk the members; the ACCENT lane is the 17th member */
 const MIXKEY = "fm1.mixLanes";
