@@ -109,7 +109,7 @@ check("web editor items: the twelve ED_* exist, options of OTA, on by default, o
 check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"synth": ["ED_SCOPE=0"], "user-default": ["ED_DLAN=0", "ED_FAVS=0", "ED_SCOPE=0", "ED_SONG=0"], "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
+      {"synth": ["ED_FAVS=0", "ED_SCOPE=0"], "user-default": ["ED_DLAN=0", "ED_FAVS=0", "ED_SCOPE=0", "ED_SONG=0"], "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
 _fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
@@ -300,9 +300,9 @@ check("the default profile is synth (configure, optimist.py), user-default the r
       C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
       O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
-check("the default profile validates, with the full web editor (every ED_* item at its default but the oscilloscope screen: ED_SCOPE=0 makes the build link, the user's standing approval 2026-10-16; PARAM_HELP off)",
-      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items() if k != "ED_SCOPE") and
-      _syn["ED_SCOPE"] == 0)
+check("the default profile validates, with the full web editor (every ED_* item at its default but the oscilloscope screen and the favorites command: ED_SCOPE=0 ED_FAVS=0 make room, the user's standing approval 2026-10-16; PARAM_HELP off)",
+      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items() if k not in ("ED_SCOPE", "ED_FAVS")) and
+      _syn["ED_SCOPE"] == 0 and _syn["ED_FAVS"] == 0)
 _syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
 check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
       _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
