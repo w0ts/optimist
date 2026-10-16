@@ -1470,6 +1470,10 @@
   .menubar .tabs .navh:first-child { display: none; }
   #mixer .strip button.lmode { width: auto; min-width: 30px; padding: 0 2px; }
   #mixer { --sends-h: 204px; } #mixer.fxp { --sends-h: 156px; }
+  /* the pan knob is laid out like the sends: the knob, its label to the right (small, the same size) */
+  #mixer .strip .srow[data-row="pan"] .knob, #mixer .strip .srow[data-row="tools"] .col > .knob { flex-direction: row; align-items: center; justify-content: center; gap: 6px; width: auto; min-width: 0; }
+  #mixer .strip .srow[data-row="pan"] .knob .kl, #mixer .strip .srow[data-row="tools"] .col > .knob .kl { font-size: 13px; }
+  #mixer .strip .fx .knob .kl, #mixer .strip .srow[data-row="pan"] .knob .kl, #mixer .strip .srow[data-row="tools"] .col > .knob .kl { display: inline-block; min-width: 3ch; text-align: left; }
 </style>
 </head>
 <body>
