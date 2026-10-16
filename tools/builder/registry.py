@@ -122,7 +122,7 @@ class Item:
 
 
 # The FX in two groups (2026-10-13): those every track (and slot) can run at once, their state small and sized for every
-# track (CPU the only limit), and those that run once (the master, the send buses) or as many times as the build gives
+# track (CPU the only limit), and those that run once (the master, the chorus, delay and reverb) or as many times as the build gives
 # them instances (the insert copies of the chorus and a short delay: a pool line each; fx/insfx/fxi.c hands them out).
 # The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
 FX_ANY = "FX: any number (each track its own)"
@@ -341,17 +341,17 @@ F = "FX"
 _add("FX_DIST", "FELUCCA_FX_DIST", "DIST (per-track drive)", F, 35,
      desc="A distortion on each synth track: low cut, drive from 1x to 8x into an asymmetric soft clip, and a tone "
           "filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear.")
-_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus send bus", F, 36,
+_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus", F, 36,
      desc="The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO "
           "sends and the chorus settings disappear.")
-_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay send bus", F, 37,
+_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay", F, 37,
      desc="The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full "
           "length: shorten it with the length option, or leave it out.")
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
           "halved until it fits, so it stays on the beat; shorter lines suit fast tempos only.")
-_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
+_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
