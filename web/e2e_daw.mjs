@@ -198,8 +198,8 @@ if (process.argv.includes("--readme-shots")) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
-  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "install,build" && !shown($("#tp")) && !shown($("#disconnect"))
-  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, only the Install and Build tabs, no transport)");
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "build,install" && !shown($("#tp")) && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, only the Build and Install tabs, no transport)");
 await shot("editor-disconnected");
 /* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
 const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
@@ -941,11 +941,14 @@ const appRes = await run(`${U} try {
   tab("mixer").click(); await sleep(400); r.stayed = location.hash === "#install" && !document.getElementById("p-install").hidden;
   A.install.handle = real;
   tab("build").click(); await sleep(1500); r.build = location.hash + ":" + (document.getElementById("build-host").children.length > 0 || /not available|module/.test(document.getElementById("build-note").textContent));
+  { const bs = document.querySelector("#build-host #bside");   /* (the right column stays in view while the list scrolls, inside the editor too) */
+    if (bs) { window.scrollTo(0, 2500); await sleep(300); r.sticky = Math.round(bs.getBoundingClientRect().top) + ":" + Math.round(window.scrollY); window.scrollTo(0, 0); } else r.sticky = "no #bside"; }
   tab("install").click(); await sleep(500);
   tab("mixer").click(); await until(() => !!D() && !!D().dump && document.querySelectorAll("#mixer > .strip").length >= 9, 30000); r.back = location.hash + ":" + !!D();
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(appRes && /^install,build,mixer/.test(appRes.order) && appRes.lazy && appRes.hash === "#install" && appRes.app === "install" && appRes.released && appRes.shown && appRes.mod && appRes.stayed && /^#build:true$/.test(appRes.build) && appRes.back === "#mixer:true",
-  `e2e one-page app: Install and Build tabs first, lazy modules, #install / #build routing, the device released while Install is shown and restored, no leaving while the installer writes (${JSON.stringify(appRes)})`);
+ok(appRes && /^build,install,mixer/.test(appRes.order) && appRes.lazy && appRes.hash === "#install" && appRes.app === "install" && appRes.released && appRes.shown && appRes.mod && appRes.stayed && /^#build:true$/.test(appRes.build) && appRes.back === "#mixer:true"
+  && /^\d+:[1-9]\d*$/.test(appRes.sticky) && +appRes.sticky.split(":")[0] <= 120,
+  `e2e one-page app: Build and Install tabs first, lazy modules, #install / #build routing, the device released while Install is shown and restored, no leaving while the installer writes (${JSON.stringify(appRes)})`);
 /* the send knobs are as big as the pan knob (no shrinking); the drum head: [chip + name ..... 1|ALL ▶] with the toggle right beside the arrow */
 const sizeRes = await run(`${U} try {
   const r = {}, st = (n) => document.querySelector('#mixer .strip[data-track="' + n + '"]');
