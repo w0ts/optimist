@@ -229,8 +229,10 @@ static uint32_t rec_size(uint32_t o)     /* the record starting at o, from its h
 }
 static void undo_drop_oldest(void)       /* the oldest level goes (with the records linked to it) */
 {
+    uint32_t guard = 0;
     do {
         uint32_t sz = rec_size(undo_h.head);
+        LOOP_GUARD(0x80, guard, 256u)
         undo_h.head = uwrap(undo_h.head + sz);
         undo_h.all_b -= sz;
         undo_h.done_b -= sz;
@@ -277,8 +279,13 @@ static void undo_commit(void)
         undo_forget();
         return;
     }
-    while (undo_h.size - undo_h.all_b < sz)
-        undo_drop_oldest();
+    {
+        uint32_t guard = 0;
+        while (undo_h.size - undo_h.all_b < sz) {
+            LOOP_GUARD(0x81, guard, 256u)
+            undo_drop_oldest();
+        }
+    }
     if (!undo_h.all_b)
         link = 0;                                       /* (what it linked to was forgotten) */
     o = undo_h.tail;

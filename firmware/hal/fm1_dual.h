@@ -45,7 +45,8 @@ typedef struct {
     volatile uint32_t arg;        /* CPU0: the job's argument (which parts) */
     volatile uint32_t ping;       /* CPU0: pong follows it while CPU1 waits (liveness) */
     volatile uint32_t check;      /* CPU0: FM1_DUAL_CHECK(req, arg), written before req (fm1_dual_guard.h) */
-    uint32_t pad0[12];
+    volatile uint32_t park;       /* CPU0: 1 while a flash operation wants CPU1 parked in RAM (B25 `fpause stock`) */
+    uint32_t pad0[11];
     volatile uint32_t done;       /* CPU1: the last job finished (= req: idle) */
     volatile uint32_t hello;      /* CPU1: FM1_DUAL_HELLO once it runs C code */
     volatile uint32_t count;      /* CPU1: its beat: spin loops (every FM1_DUAL_BEAT_EVERY), or returns from `idle` */
@@ -59,9 +60,13 @@ typedef struct {
     volatile uint32_t stage;      /* CPU1: how far it got, the furthest (dual_mode.h C1S_*: SYSTEM > INFO CPU1 HELLO) */
     volatile uint32_t wakes;      /* CPU1 asleep: its wake handler's entries */
     volatile uint32_t icfg;       /* CPU1: its icfg as it went to sleep (read back after sti), 0: never */
-    uint32_t pad1[3];
+    volatile uint32_t parked;     /* CPU1: 1 while parked for CPU0's flash operation (after the cache went idle) */
+    volatile uint32_t park_to;    /* CPU1: parks whose wait for the cache idle bit ran out */
+    uint32_t pad1[1];
 } fm1_dual_mb_t;
 #define FM1_DUAL_HELLO 0x43505531u                        /* "CPU1" */
+/* (2026-10-15, B10a: in a 256-byte block of its own in .pool, away from the BLE baseband RAM it had been next to: the
+ * fault stayed, so it is back in .bss) */
 static fm1_dual_mb_t fm1_dual_mb __attribute__((aligned(64)));
 static volatile uint32_t fm1_dual_canary[FM1_DUAL_CANARY_N];   /* CPU0 fills it before the start, CPU1 reads it */
 
@@ -75,15 +80,105 @@ static inline __attribute__((always_inline)) void fm1_dual_note_bad(uint32_t r, 
     fm1_dual_mb.bad++;
 }
 
+/* RAM read-error counters (the second-core test image, FELUCCA_DUALCFG; 2026-10-15: a bit-22 flip in TIMER5's vector as
+ * dispatched, Jangada's / X0X's bit-21 misreads on CPU1): each core reads back a pattern only it owns, a few words at a
+ * time (CPU0 each main-loop pass, CPU1 every FM1_DUAL_BEAT_EVERY spin passes), and counts what differs (the first
+ * address, the value read, the one written: their XOR is the flipped bits); a word read wrong is written again */
+#if FELUCCA_DUALCFG
+#define FM1_FLIP_N 512u
+static volatile uint32_t fm1_flip_pat[2][FM1_FLIP_N];
+typedef struct { volatile uint32_t n, checks, addr, got, want; } fm1_flip_t;
+static fm1_flip_t fm1_flip[2];                            /* [core]: written by that core only */
+static uint32_t fm1_vec_flips, fm1_vec_got;               /* TIMER5's vector read back wrong by CPU0's main loop (main.c) */
+static volatile uint8_t fm1_ins_bypass;                   /* dualcfg ins off: the parts', the drum lanes' and the drum bus's
+                                                           * inserts not run (fx.c, drums.c; a test of the hang) */
+static inline uint32_t fm1_vec_word(uint32_t n) { return FM1_VEC[n & 127u]; }   /* (main.c: a vector word read back) */
+static inline __attribute__((always_inline)) uint32_t fm1_flip_want(uint32_t c, uint32_t i)
+{
+    return (i * 0x9E3779B1u) ^ (c ? 0xA5A5A5A5u : 0x5A5A5A5Au);
+}
+static void fm1_flip_fill(void)
+{
+    uint32_t c, i;
+    for (c = 0; c < 2u; c++)
+        for (i = 0; i < FM1_FLIP_N; i++)
+            fm1_flip_pat[c][i] = fm1_flip_want(c, i);
+}
+static inline __attribute__((always_inline)) uint32_t fm1_flip_check(uint32_t c, uint32_t i, uint32_t k)
+{
+    fm1_flip_t *f = &fm1_flip[c];
+    for (; k; k--, i = (i + 1u) & (FM1_FLIP_N - 1u)) {
+        uint32_t v = fm1_flip_pat[c][i], w = fm1_flip_want(c, i);
+        if (v != w) {
+            if (!f->n) {
+                f->addr = (uint32_t)(uintptr_t)&fm1_flip_pat[c][i];
+                f->got = v;
+                f->want = w;
+            }
+            f->n++;
+            fm1_flip_pat[c][i] = w;
+        }
+        f->checks++;
+    }
+    return i;
+}
+#endif
+
 /* CPU1 between jobs, from RAM: publish `done`, then wait for a request it may run (fm1_dual_take; a bad one is noted
  * and waited past, in RAM). Gentle on the shared RAM (2026-10-15: the first spinning build on the FM-1 was followed by
  * a boot AFTER CRASH, cause not known): one read of req a pass, then FM1_DUAL_SPIN_NOPS no-ops (no bus access, about
- * 0.1 us at 314 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
+ * 0.1 us at 360 MHz); the beat and the ping answered every FM1_DUAL_BEAT_EVERY passes, no store in the other passes.
  * COUNT != 0: count the beat. Returns the new request; *ARG its argument, read once */
-#define FM1_DUAL_SPIN_NOPS 32u
+#ifndef FM1_DUAL_SPIN_NOPS
+#define FM1_DUAL_SPIN_NOPS 32u                            /* (a test build sets more: OPTIMIST_DUAL_SPIN_NOPS) */
+#endif
+static volatile uint32_t fm1_dual_poll = FM1_DUAL_SPIN_NOPS;   /* (the console's dualcfg poll: set before the start) */
 #define FM1_DUAL_BEAT_EVERY 256u
 #ifndef FM1_DUAL_NO_SPIN                                  /* (CPU1 asleep between jobs: no spin loop in RAM) */
+static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_t done, uint32_t count, uint32_t allowed,
+                                                                         uint32_t *arg);
 RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
+{
+    return fm1_dual_idle_body(done, count, allowed, arg);
+}
+#if FELUCCA_DUALCFG
+/* B23 test image, `dualcfg spin` (2026-10-16: CPU1 merely spinning, no job, crashed CPU0; asleep it did not):
+ * FM1_SPIN_RAM the loop above; FM1_SPIN_XIP the same loop fetched from the flash (.text, through the shared cache);
+ * FM1_SPIN_NOPS no-ops only in RAM, no data access at all (no beat, no ping answer, no job ever taken: jobs 0x80) */
+enum { FM1_SPIN_RAM, FM1_SPIN_XIP, FM1_SPIN_NOPS };
+static volatile uint8_t fm1_dual_spinv;                    /* (set before the start, as fm1_dual_poll) */
+static __attribute__((noinline, used)) uint32_t fm1_dual_idle_xip(uint32_t done, uint32_t count, uint32_t allowed, uint32_t *arg)
+{
+    return fm1_dual_idle_body(done, count, allowed, arg);
+}
+RAMFN static void fm1_dual_nops_ram(void)
+{
+    for (;;)
+        __asm__ volatile("nop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop");
+}
+#endif
+/* CPU1, B25 `fpause stock` (stock V15's SOFT4 handler 0x01C05F58, stockre §7.3): CPU0 asks (park), CPU1 waits for the
+ * cache idle (CACHE_CON bit 14, bounded), acks (parked) and spins in RAM until CPU0 lets go; CPU0 then pauses it in hardware
+ * (C1_CON bit 2) for the flash operation and resumes it after. Inlined into RAM code only */
+static inline __attribute__((always_inline)) void fm1_dual_park_check(void)
+{
+    fm1_dual_mb_t *mb = &fm1_dual_mb;
+    if (mb->park) {
+        uint32_t k = 100000u;
+        while (!(*(volatile uint32_t *)0x1EEE008u & 0x4000u) && --k)
+            ;
+        if (!k)
+            mb->park_to++;
+        mb->parked = 1u;
+        fl_csync();
+        while (mb->park)
+            ;
+        mb->parked = 0;
+        fl_csync();
+    }
+}
+static inline __attribute__((always_inline)) uint32_t fm1_dual_idle_body(uint32_t done, uint32_t count, uint32_t allowed,
+                                                                         uint32_t *arg)
 {
     fm1_dual_mb_t *mb = &fm1_dual_mb;
     uint32_t r, a = 0, n = 0, k;
@@ -91,6 +186,7 @@ RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t 
     mb->done = done;
     fl_csync();
     for (;;) {
+        fm1_dual_park_check();                            /* (a flash operation's park: stock's, dual.c dual_flash_enter) */
         r = mb->req;
         if (r != done) {
             fl_csync();                                   /* the request's data after `req` */
@@ -99,10 +195,16 @@ RAMFN static uint32_t fm1_dual_idle_ram(uint32_t done, uint32_t count, uint32_t 
                 break;
             fm1_dual_note_bad(r, done);
         }
-        for (k = 0; k < FM1_DUAL_SPIN_NOPS; k++)
+        for (k = fm1_dual_poll; k; k--)
             __asm__ volatile("nop");
         if (++n == FM1_DUAL_BEAT_EVERY) {
             n = 0;
+#if FELUCCA_DUALCFG
+            {
+                static uint32_t fi;                       /* (CPU1's place in its pattern) */
+                fi = fm1_flip_check(1u, fi, 16u);
+            }
+#endif
             if (mb->ping != mb->pong)
                 mb->pong = mb->ping;
             if (count)
@@ -126,9 +228,8 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
 /* CPU1's stacks and its entry: like the stock entry, set the stack pointers, put the C entry into reti, rti.
  * After the rti CPU1's C code runs on usp (the emulator's reading, and X0X's on the FM-1: "after rti the core runs on
  * this one: the render's"); an interrupt (the wake, asleep builds) on the sp value the rti left in ssp. So a spinning
- * build renders its jobs on usp, an asleep one in the wake interrupt on ssp / sp: each gets 5 KiB of its own
- * (FM1_C1_REGION), sp = ssp at the top of the first, usp at the top of the second, the deepest job (ACID, 2,948 B
- * static) with 2 KiB to spare.
+ * CPU1 renders its jobs on usp, an asleep one in the wake interrupt on ssp / sp: the busy one gets 5 KiB, the other 1 KiB
+ * of the 6 KiB (two entries, fm1_dual_start picks one), the deepest job (ACID, 2,948 B static) with 2 KiB to spare.
  * 2026-10-15 (B .. B4 on the FM-1): usp had only the lowest 2 KiB (+2048, sp +6144): the spinning builds rendered
  * their jobs there, an ACID part 2.9 KB deep, through the bottom of the stack into the top of part_mem (the parts'
  * engine state, just below in .pool), and CPU0, rendering from that state, crashed in its first blocks (B3: a bus
@@ -136,14 +237,15 @@ RAMFN static void fm1_dual_dead_ram(uint32_t vec)
  * tools/build.py cpu1_stack checks every DUAL build against CPU1_STACK_ROOM; fm1_dual_start fills both with
  * FM1_C1_MARK (the console's cpu1_stack_*: their depth) */
 #ifndef FELUCCA_DUAL_PARK                                /* (dual_mode.h: the same default) */
-#define FELUCCA_DUAL_PARK 1
+#define FELUCCA_DUAL_PARK 0
 #endif
 #if FELUCCA_DUAL_PARK
-#define FM1_C1_REGION 4u                                 /* words: CPU1 is parked (never started, dual_mode.h): the symbol stays, the 10 KiB do not */
+#define FM1_C1_SMALL 2u                                  /* words: CPU1 is parked (never started, dual_mode.h): the symbol stays */
+#define FM1_C1_STACK_WORDS 4u
 #else
-#define FM1_C1_REGION 1280u                              /* words: 5 KiB */
+#define FM1_C1_SMALL 256u                                /* words: the idle stack's 1 KiB, at the bottom */
+#define FM1_C1_STACK_WORDS 1536u                         /* 6 KiB (the pool has no more room in the mots build) */
 #endif
-#define FM1_C1_STACK_WORDS (2u * FM1_C1_REGION)           /* 10 KiB */
 #define FM1_C1_MARK 0x43314D4Bu                          /* "C1MK" (X0X's) */
 uint32_t fm1_c1_stack[FM1_C1_STACK_WORDS] __attribute__((section(".pool"), aligned(8), used));
 void fm1_cpu1_main(void);                                 /* the C entry (src/dual.c), never returns */
@@ -155,13 +257,24 @@ __asm__(".section .text.fm1_cpu1,\"ax\",@progbits\n"
         "\tcli\n"
         "\tr0 = 0\n"
         "\ticfg = r0\n"
-        "\tusp = fm1_c1_stack + 10240\n"
-        "\tssp = fm1_c1_stack + 5120\n"
-        "\tsp = fm1_c1_stack + 5120\n"
+        "\tusp = fm1_c1_stack + 6144\n"
+        "\tssp = fm1_c1_stack + 1024\n"
+        "\tsp = fm1_c1_stack + 1024\n"
+        "\treti = fm1_cpu1_main\n"
+        "\trti\n"
+        "\t.globl fm1_cpu1_entry_sleep\n"
+        "fm1_cpu1_entry_sleep:\n"              /* (asleep: the jobs in the wake interrupt, on ssp / sp) */
+        "\tcli\n"
+        "\tr0 = 0\n"
+        "\ticfg = r0\n"
+        "\tusp = fm1_c1_stack + 1024\n"
+        "\tssp = fm1_c1_stack + 6144\n"
+        "\tsp = fm1_c1_stack + 6144\n"
         "\treti = fm1_cpu1_main\n"
         "\trti\n"
         "\t.previous\n");
 extern void fm1_cpu1_entry(void);
+extern void fm1_cpu1_entry_sleep(void);
 
 /* CPU1, first thing in its C entry: its own EMU bank (CPU0's is at 0x1EEF0D0) as X0X and Melodee set it on the FM-1
  * (fm1-x0x hal/fm1_cpu1.h fm1_c1_main, keremimo/melodee hal/fm1_multicore.h, GPL-3.0): a stack limit over its 6 KiB
@@ -176,6 +289,7 @@ static void fm1_dual_c1_emu(void)
     *(volatile uint32_t *)0x1EEF2E0u = hi;
     *(volatile uint32_t *)0x1EEF2E4u = lo;
     *(volatile uint32_t *)0x1EEF2D0u = (*(volatile uint32_t *)0x1EEF2D0u & ~((1u << 2) | (0x1Fu << 16))) | (1u << 3);
+    *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* its branch trace on, from CPU1 too (ETM_CON) */
 }
 
 /* CPU1's interrupt bank (CPU0's at 0x1EEF100), all 32 words off: before every start, in every build (X0X, Melodee) */
@@ -206,6 +320,51 @@ static struct {
     uint32_t c1con;                                       /* C1_CON as read then (what it reads back: not known) */
     uint32_t c1etm[4];                                    /* CPU1's branch trace then (q32DSP(1)->ETM_PC0..3) */
 } fm1_dual_exc;
+
+/* CPU1's state at an exception, read by CPU0 (the AC79 SDK's cpu/wl82/debug.c does the same): CMD_PAUSE stops it,
+ * then q32DSP(1)'s read-only mirror of its registers (asm/csfr.h: DR00..15 at +0x00, RETI +0x40, RETS +0x4C, PSR
+ * +0x54, ICFG +0x6C, USP / SSP / SP +0x70..78, PCRS (where it runs) +0x7C, EMU_MSG +0xD4), and corex2's
+ * AXI_RD_INV_ID / AXI_WR_INV_ID (+0x370 / +0x374: which bus master made an "axi_rd_inv" / "axi_wr_inv", DBG_MSG bits
+ * 4 / 5, the SDK's names). Kept across the reset (the console's `crash`, `status`) */
+#define FM1_C1_SNAP_MAGIC 0x43315350u                     /* "C1SP" */
+typedef struct {
+    uint32_t magic, dbg, axi_rd_id, axi_wr_id, pcrs, reti, rets, psr, icfg, usp, ssp, sp, emu, r[16];
+    uint32_t ble[5];              /* the BLE breadcrumb then (hal/fm1_ble_rf.h fm1_ble_bc: now, irqs, op, gop, addr) */
+    uint32_t c1_wr_num;           /* C1_WR_LIMIT_ERR_NUM then: the write-limit window a CPU1 write hit (bit n: window n) */
+    uint32_t ticks;               /* TIMER4 then */
+    uint32_t boot;                /* felucca_dbg.boots then: which boot the snapshot is from (console: snap_boot) */
+} fm1_c1_snap_t;
+fm1_c1_snap_t fm1_c1_snap __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
+static uint32_t fm1_dual_bootno;                          /* main.c: felucca_dbg.boots of this boot (the snapshot's stamp) */
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s);          /* (hal/fm1_ble_rf.h in a BLE build, else system/main.c) */
+static void fm1_dual_snap(uint32_t dbg)
+{
+    volatile uint32_t *q = (volatile uint32_t *)0x1EEF200u;   /* q32DSP(1) */
+    uint32_t i;
+    fm1_c1_snap.dbg = dbg;
+    fm1_c1_snap.axi_rd_id = *(volatile uint32_t *)0x1EEE370u;
+    fm1_c1_snap.axi_wr_id = *(volatile uint32_t *)0x1EEE374u;
+    fm1_c1_snap.c1_wr_num = *(volatile uint32_t *)0x1EEE364u;
+    if (fm1_dual_on) {
+        q[0x26] = 0xFFFFFFFFu;                            /* CMD_PAUSE (debug.c putpchex) */
+        __asm__ volatile("csync" ::: "memory");
+    }
+    fm1_c1_snap.pcrs = q[0x1F];
+    fm1_c1_snap.reti = q[0x10];
+    fm1_c1_snap.rets = q[0x13];
+    fm1_c1_snap.psr = q[0x15];
+    fm1_c1_snap.icfg = q[0x1B];
+    fm1_c1_snap.usp = q[0x1C];
+    fm1_c1_snap.ssp = q[0x1D];
+    fm1_c1_snap.sp = q[0x1E];
+    fm1_c1_snap.emu = q[0x35];
+    for (i = 0; i < 16u; i++)
+        fm1_c1_snap.r[i] = q[i];
+    fm1_c1_snap.ticks = fm1_ticks();
+    fm1_c1_snap.boot = fm1_dual_bootno;
+    fm1_dual_snap_ble(&fm1_c1_snap);
+    fm1_c1_snap.magic = FM1_C1_SNAP_MAGIC;
+}
 static int fm1_dual_exc_c(const uint32_t *f)
 {
     uint32_t cpu = fm1_cnum(), dbg = FM1_DBG_MSG, was, vec = (f[19] - (uint32_t)(uintptr_t)fm1_fatal_stubs) / 6u - 1u;
@@ -227,6 +386,8 @@ static int fm1_dual_exc_c(const uint32_t *f)
     }
     if (!cpu && fm1_dual_exc.count >= 16u)
         return 0;                                         /* a hold that did not take */
+    if (!cpu)
+        fm1_dual_snap(dbg);                               /* (CPU1 paused, its registers read, before the hold) */
     {
         uint32_t i;
         fm1_dual_exc.c1con = FM1_C1_CON;
@@ -257,7 +418,7 @@ static int fm1_dual_exc_c(const uint32_t *f)
 
 /* start CPU1 and wait up to TIMEOUT_US for its hello; 1 = running. On a timeout CPU1 is put back
  * into reset (and stays there). Call with the vectors still writable (before fm1_guard_lock_top). */
-static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
+static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us, int sleeps)
 {
     uint32_t sys = FM1_SYSCLK1, t0;
     int ok;
@@ -276,7 +437,7 @@ static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
     fm1_dual_canary_fill(fm1_dual_canary);                /* (CPU1 reads it back before its hello) */
     fm1_dual_sync();
     *(volatile uint32_t *)0x1EEF3C0u |= 1u;               /* CPU1's branch trace on (its ETM_CON, as CPU0's: fm1_irq.h) */
-    FM1_C1_VEC = (uint32_t)(uintptr_t)fm1_cpu1_entry;
+    FM1_C1_VEC = (uint32_t)(uintptr_t)(sleeps ? fm1_cpu1_entry_sleep : fm1_cpu1_entry);
     FM1_SYSCLK1 = sys | 8u;
     FM1_C1_CON |= 8u;
     FM1_C1_CON &= ~2u;
@@ -399,16 +560,30 @@ __asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
 extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
+/* corex2's per-core counters (AC79 SDK cpu/wl82/debug.c cpu_effic_init / _calc, under #if 0 there): C0_IF_UACNTL ..
+ * C1_TL_CKCNTL, the low words, I = 0..7 (c0 if, rd, wr, tl, c1 if, rd, wr, tl); what IF / RD / WR count is not documented
+ * (the SDK prints them as % of TL, the clocks). fm1_pcnt_enable: DBG_CON |= 0x707 as cpu_effic_init ("if_inv_en of_inv_en
+ * ex_inv_en", meaning not known: off unless `dualcfg pcnt on`) */
+static inline uint32_t fm1_pcnt(uint32_t i) { return *(volatile uint32_t *)(0x1EEE200u + 8u * (i & 7u)); }
+static inline void fm1_pcnt_enable(void) { *(volatile uint32_t *)0x1EEE344u |= 0x707u; }
 static inline uint32_t fm1_dual_c1con(void) { return FM1_C1_CON; }   /* (the console: what it reads back) */
-/* bytes of CPU1's stack REGION (0: sp / ssp, the interrupt's; 1: usp, the C code's) ever used (the marks overwritten);
- * 0: never started */
+/* CPU1 paused (1: the pause request, bit 2) or resumed (0: bit 3), as the stock firmware's flash exclusion (the emulator's
+ * model, fm1-emulator SMP.md): the run bit kept, reset (bit 1) never touched */
+static inline void fm1_dual_pause(int on)
+{
+    uint32_t c = FM1_C1_CON;
+    FM1_C1_CON = on ? ((c & ~0x1Cu) | 4u) : ((c & ~0x14u) | 8u);
+    __asm__ volatile("csync" ::: "memory");
+}
+/* bytes of CPU1's stack REGION (0: the small one at the bottom, 1 KiB; 1: the big one above it, 5 KiB) ever used (the
+ * marks overwritten); 0: never started */
 static uint32_t fm1_dual_stack_used(uint32_t region)
 {
-    const uint32_t *b = fm1_c1_stack + region * FM1_C1_REGION;
-    uint32_t i = 0;
-    while (i < FM1_C1_REGION && b[i] == FM1_C1_MARK)
+    const uint32_t *b = fm1_c1_stack + (region ? FM1_C1_SMALL : 0u);
+    uint32_t n = region ? FM1_C1_STACK_WORDS - FM1_C1_SMALL : FM1_C1_SMALL, i = 0;
+    while (i < n && b[i] == FM1_C1_MARK)
         i++;
-    return (FM1_C1_REGION - i) * 4u;
+    return (n - i) * 4u;
 }
 static void fm1_dual_halt(void)
 {

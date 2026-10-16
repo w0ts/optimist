@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY, the builder's STOCK_SUPPLY, docs/DUAL-CORE.md 3.5): what the
- * stock M-VAVE application does to the rails as it starts, applied at the top of the boot (system/main.c, dual.c
- * supply_boot), before the second core and the BLE radio. EXPERIMENTAL; on by default in builds with the second core.
+/* The FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY, the builder's STOCK_SUPPLY, system/supply.c, docs/DUAL-CORE.md
+ * 3.5): what the stock M-VAVE application does to the rails as it starts (fm1_supply_stock, fm1_lvr_stock), applied at the
+ * top of the boot, before the second core and the BLE radio; the second-core test image's other levels (fm1_supply_to,
+ * the boost, the ladder: dualcfg). EXPERIMENTAL; on by default in builds with the second core.
  *
  * Registers (JieLi AC79 SDK, include_lib/driver/cpu/wl82/asm/p33.h), both P33 analog registers:
  *   P3_ANA_CON6 (0x06) bits [2:0] VDC14_VOL_SEL: 1.25 V + 50 mV a step (VDC14_VOL_SEL_125V = 0 .. _160V = 7);
@@ -130,4 +131,28 @@ static uint32_t fm1_supply_stock(void)
     if (FM1_P33_TIMEOUTS() != t0)
         err |= FM1_SUP_TIMEOUT;
     return err;
+}
+
+/* stock's low-voltage detector (app_core, stockre §7.2): P3_VLVD_CON = 0x78 (VLVD_SEL 7 = 2.6 V, the pending flag
+ * cleared), then |= 1 (VLVD_EN). -> 0, or FM1_SUP_LVR when it does not read back */
+#define FM1_P3_VLVD 0x11u
+#define FM1_SUP_LVR 8u
+static inline uint32_t fm1_lvr_stock(void)
+{
+    fm1_p33_write(FM1_P3_VLVD, 0x78u);
+    fm1_p33_rmw(FM1_P3_VLVD, 0x00u, 0x01u);
+    return (fm1_p33_read(FM1_P3_VLVD) & 0x39u) == 0x39u ? 0u : FM1_SUP_LVR;
+}
+
+/* B24 test image, `dualcfg boostlvl N`: a ladder up to the boost, VDC14 first (what mattered on Jangada's unit), a
+ * step of the smallest unit each: 0 nothing; 1 VDC14 4 (1.45 V); 2 VDC14 5 (1.50 V); 3..6 VDC14 5 and SYSVDD 12..15
+ * (1.29 .. 1.38 V); 6 = the boost. -> VDC14 << 4 | SYSVDD targets (0: leave) */
+#define FM1_BOOST_LEVELS 7u
+static inline uint32_t fm1_boost_level(uint32_t n)
+{
+    if (!n || n >= FM1_BOOST_LEVELS)
+        return n ? (FM1_VDC14_BOOST << 4 | FM1_SYSVDD_BOOST) : 0u;
+    if (n <= 2u)
+        return (3u + n) << 4;
+    return FM1_VDC14_BOOST << 4 | (9u + n);
 }

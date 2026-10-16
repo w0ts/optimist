@@ -293,6 +293,21 @@ static int ble_radio_start(void)
     return 1;
 }
 
+#if FELUCCA_DUAL >= 2
+static int dual_ble_busy(void) { return ble_on || ble_up; }   /* (system/dual.c: the BLUETOOTH rule) */
+#endif
+
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+static uint8_t ble_deferred;                    /* `dualcfg bledelay`: a radio start-up waits for dual_ble_gate */
+#endif
+#if FELUCCA_DUAL >= 2
+static uint32_t ble_ms_radio, ble_ms_running;   /* TIMER4 ms + 1 when the radio's start-up program began, when it ran (0: not):
+                                                 * the order against CPU1's (dual.c dual_start_t4, the console's boot) */
+#define BLE_MS(v) ((v) = (uint32_t)(fm1_ticks() / (1000u * FM1_TICKS_PER_US)) + 1u)
+#else
+#define BLE_MS(v) ((void)0)
+#endif
+
 static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
 {
     struct ble_rf_trims vm, use;
@@ -305,8 +320,31 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
 #if BLE_HW_WL82
     ble_hw_wl82_attach();                       /* the two vectors, masked: no BLE / RF register written */
 #endif
-    if (!ble_boot_radio(ble_on, bootguard.failed, ble_radio_ok()) || !ble_radio_start())
-        return;                                 /* OFF (the default); or the boot guard counts a failed start-up (a
+#if FELUCCA_DUALCFG
+    if (!dualcfg.ble)
+        return;                                 /* (dualcfg ble off: no radio start-up this boot, BLUETOOTH kept) */
+#endif
+    if (!ble_boot_radio(ble_on, bootguard.failed, ble_radio_ok()))
+        return;
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+    if (dualcfg.ble_delay) {
+        ble_deferred = 1;                       /* (ble_defer_poll starts it from the main loop, CPU1 first) */
+        return;
+    }
+#endif
+    {
+        int ok;
+#if FELUCCA_DUAL >= 2
+        dual_radio_hold();                            /* (CPU1 already started at boot: held while the program runs, dual.c) */
+#endif
+        BLE_MS(ble_ms_radio);
+        ok = ble_radio_start();
+#if FELUCCA_DUAL >= 2
+        dual_radio_release();
+#endif
+        if (!ok)
+            return;
+    }                                 /* OFF (the default); or the boot guard counts a failed start-up (a
                                                  * warm reset in a boot's first 30 s: the watchdog's, after a radio
                                                  * start-up that hung; system/bootguard.h), so this boot leaves the
                                                  * radio off, ON stays saved and the menu can switch it OFF; or no
@@ -316,6 +354,7 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
     BLE_STEP(IRQS_ON);
     fm1_ble_irqs_hold(0);
     BLE_STEP(RUNNING);
+    BLE_MS(ble_ms_running);
 }
 
 /* HOME > SYSTEM > BLUETOOTH (ui_menu.c), main loop. ON: advertise again. OFF: stop advertising, or ask a connected
@@ -329,8 +368,27 @@ static void ble_midi_set(uint8_t on)
     ble_on = on;
     if (on)
         BLE_STEP(SET_ON);
-    if (!ble_up && (!on || !ble_radio_start()))
-        return;                                 /* never started and OFF, or no stored trims: only the setting */
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+    if (!ble_up && on && !dual_ble_gate()) {
+        ble_deferred = 1;                       /* (CPU1 not up and working long enough yet: ble_defer_poll) */
+        return;
+    }
+#endif
+    if (!ble_up && on) {
+        int ok;
+#if FELUCCA_DUAL >= 2
+        dual_radio_hold();                            /* (CPU1 not running while the radio's start-up program runs: dual.c) */
+#endif
+        BLE_MS(ble_ms_radio);
+        ok = ble_radio_start();
+#if FELUCCA_DUAL >= 2
+        dual_radio_release();
+#endif
+        if (!ok)
+            return;                             /* no stored trims: only the setting */
+    }
+    if (!ble_up)
+        return;                                 /* never started and OFF: only the setting */
     fm1_ble_irqs_hold(1);
     BLE_STEP(ENABLE);
 #if BLE_CENTRAL
@@ -342,7 +400,26 @@ static void ble_midi_set(uint8_t on)
     BLE_STEP(IRQS_ON);
     fm1_ble_irqs_hold(0);
     if (on)
-        BLE_STEP(RUNNING);                      /* (the main loop after it: IRQS_ON -> RUNNING, then the count of */
+        BLE_STEP(RUNNING), BLE_MS(ble_ms_running);   /* (the main loop after it: IRQS_ON -> RUNNING, then the count of */
     else                                        /*  BLE interrupts, fm1_ble_crumb_irqs) */
         BLE_STEP(SET_OFF);
 }
+
+#if FELUCCA_DUAL >= 2 && FELUCCA_DUALCFG
+/* main loop: a deferred radio start-up (`dualcfg bledelay`), once dual_ble_gate opens; BLUETOOTH switched OFF meanwhile
+ * cancels it */
+static void ble_defer_poll(void)
+{
+    if (!ble_deferred)
+        return;
+    if (!ble_on) {
+        ble_deferred = 0;
+        return;
+    }
+    if (!dual_ble_gate())
+        return;
+    ble_deferred = 0;
+    ble_on = 0;                                 /* (ble_midi_set's ON: the same path as the menu's) */
+    ble_midi_set(1);
+}
+#endif

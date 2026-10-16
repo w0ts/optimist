@@ -215,8 +215,12 @@ static void fl_plain_window_init(void)
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 
+static volatile uint8_t fm1_flash_reading;       /* 1 while a read runs (st_read): the hooks below tell it from a write */
 #ifndef FM1_FLASH_ENTER                         /* a check with IRQs off before every flash operation */
 #define FM1_FLASH_ENTER() ((void)0)               /* (the dual-core build: CPU1 off the flash, src/dual.c) */
+#endif
+#ifndef FM1_FLASH_LEAVE                         /* after it, before the interrupts are on again (dual.c: CPU1 resumed) */
+#define FM1_FLASH_LEAVE() ((void)0)
 #endif
 #if defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO
 /* USB audio builds: the longest interrupts-off window a flash operation held (TIMER4 ticks, SYSTEM > INFO). The
@@ -229,11 +233,12 @@ static inline void irq_restore(uint32_t f)
     uint32_t d = fm1_ticks() - f;
     if (d > fm1_irqoff_max)
         fm1_irqoff_max = d;
+    FM1_FLASH_LEAVE();
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 #else
 static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); FM1_FLASH_ENTER(); return 0; }
-static inline void irq_restore(uint32_t f) { (void)f; __asm__ volatile("csync\n\tsti" ::: "memory"); }
+static inline void irq_restore(uint32_t f) { (void)f; FM1_FLASH_LEAVE(); __asm__ volatile("csync\n\tsti" ::: "memory"); }
 #endif
 
 static int fl_erase4k(uint32_t off, uint32_t *took_us)

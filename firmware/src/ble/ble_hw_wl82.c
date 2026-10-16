@@ -1188,7 +1188,11 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
  * controller until the radio starts. No BLE / RF register is touched. */
 static void ble_hw_wl82_attach(void)
 {
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    fm1_ble_irq_attach(dualcfg.flat ? 3u : BLE_HW_IRQ_PRIO);   /* (dualcfg nest off: at the audio's priority) */
+#else
     fm1_ble_irq_attach(BLE_HW_IRQ_PRIO);
+#endif
     fm1_ble_irqs_hold(1);
 }
 

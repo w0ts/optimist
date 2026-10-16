@@ -734,6 +734,34 @@ AINL void a2x_from_dst(int16_t *x, int16_t *amt, int32_t d)
 #endif
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+/* where the audio interrupt is (2026-10-15: two watchdog resets with CPU0 inside the audio render, the main loop and TIMER5
+ * stopped: TIMER5 does not preempt the audio render on the FM-1): a plain store at each section (ASTAGE, the codes in
+ * docs/DUAL-CORE.md / console `boot`), kept by the reset (main.c copies it to fm1_astage_prev). LOOP_GUARD: a loop whose
+ * end depends on state other code writes stops after MAX passes and notes ID (fm1_aloop, the first one; main.c keeps
+ * it as fm1_aloop_prev): a hang there turns into a bounded block and a record */
+volatile uint32_t fm1_astage __attribute__((section(".noinit")));
+volatile uint32_t fm1_aloop __attribute__((section(".noinit")));
+static uint32_t fm1_astage_prev, fm1_aloop_prev;
+#define ASTAGE(s) (fm1_astage = (s))
+/* (code either core may run: only CPU0 writes the marker; CPU1 must not write .noinit, its write limits there) */
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__) && !(defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG)
+#define ASTAGE0(s) ((void)0)                       /* (the drum job's fine markers: the console test image only, their RAM
+                                                    * text kept for the second core's code) */
+#elif defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2 && defined(__PI32V2__)
+#define ASTAGE0(s)                                                                                                     \
+    do {                                                                                                               \
+        if (!fm1_cnum())                                                                                               \
+            fm1_astage = (s);                                                                                          \
+    } while (0)
+#else
+#define ASTAGE0(s) ASTAGE(s)
+#endif
+#define LOOP_GUARD(id, cnt, max)                                                                                       \
+    if (++(cnt) > (max)) {                                                                                             \
+        if (!fm1_aloop)                                                                                                \
+            fm1_aloop = (id);                                                                                          \
+        break;                                                                                                         \
+    }
 static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "../system/bootguard.h"

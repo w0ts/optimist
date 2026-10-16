@@ -142,7 +142,7 @@ static void dist_gains(dist_t *s, int32_t d, const int32_t *b, uint32_t n, dist_
     e -= e >> 9;                                        /* the peak's release, ~0.37 s (blocks of 32; the attack: dist_run) */
     e = e > 4096 ? e : 4096;                            /* (a floor: near silence is not driven up to full scale; never 0: on) */
     s->env = e;
-    while ((e >> sh) >= 16384)
+    while (sh < 30 && (e >> sh) >= 16384)           /* (bounded: a shift past 31 is undefined, the loop could not end) */
         sh++;
     j = ((e >> sh) >> 10) - 4;                          /* the peak in steps of 1024 (4096 .. 16383): in and out alike, */
     mkg = MKG[h] + (((MKG[h + 1] - MKG[h]) * (q & 127)) >> 7);   /* (so the small-signal gain is exact) */
@@ -1697,8 +1697,14 @@ AINL int dins_busy(uint32_t k, uint32_t s)
     (void)st;
 }
 /* voice k playing note: do its inserts run this block? (on: the drums' FX) */
+#if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
+#define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
+#else
+#define FX_INS_BYPASS 0
+#endif
 static HOT2 __attribute__((noinline)) uint32_t dins_of(uint32_t k, uint32_t note, int32_t on)
 {
+    on = on && !FX_INS_BYPASS;                          /* (dualcfg ins off: the lanes' inserts fade to rest) */
     uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), a = 0, s;
     for (s = 0; s < INS_N; s++) {
         if (l < DRUM_LANES && dins_ty[k][s] != lin_slot[l][s])
@@ -1715,6 +1721,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
     dins_st_t *st = &dins_st[k][s];
     if (!a && !dins_busy(k, s))
         return;
+    ASTAGE0(0xF0 + ((s & 1u) << 3) + (t & 7u));        /* (a drum lane's insert: slot s, type t's low bits; core.h) */
     dins_now[k] |= FXT_BIT(t);
     switch (t) {
 #if FELUCCA_FX_DIST
@@ -1949,20 +1956,29 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
     const int16_t *p = TDRUM->p;
     int32_t on = fx_on(TDRUM), to[3];
     uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, m, nc = DBUS_NC();
+    ASTAGE0(0x98);
 #if DINS
     for (t = 0; t < NDRUM; t++)                         /* (the drums have rendered: the voices' inserts that ran) */
         dins_ran[t] = dins_now[t], dins_now[t] = 0;
 #endif
-    dbus_ins(s0, on && INS_ON(TRK_DRUM, s0), n, nc);   /* S1, S2 (an empty slot, a type not built: nothing) */
-    dbus_ins(s1, on && INS_ON(TRK_DRUM, s1), n, nc);
-    for (t = 0, m = INS_OUT(TRK_DRUM, s0, s1); m; t++, m >>= 1)   /* the inserts in no slot: at 0 (INS_OUT) */
-        if (m & 1u)
-            dbus_ins(t, 0, n, nc);
+    if (!FX_INS_BYPASS) {
+        ASTAGE0(0xC0 + (s0 & 0x1Fu));                   /* (the drum bus's insert type running: core.h) */
+        dbus_ins(s0, on && INS_ON(TRK_DRUM, s0), n, nc);   /* S1, S2 (an empty slot, a type not built: nothing) */
+        ASTAGE0(0xC0 + (s1 & 0x1Fu));
+        dbus_ins(s1, on && INS_ON(TRK_DRUM, s1), n, nc);
+        for (t = 0, m = INS_OUT(TRK_DRUM, s0, s1); m; t++, m >>= 1)   /* the inserts in no slot: at 0 (INS_OUT) */
+            if (m & 1u) {
+                ASTAGE0(0xE0 + (t & 0x1Fu));
+                dbus_ins(t, 0, n, nc);
+            }
+    }
+    ASTAGE0(0x99);
     to[0] = on && FXS_ON(FXT_CHO) ? p[P_CHOR] * 258 : 0;
     to[1] = on && FXS_ON(FXT_DLY) ? p[P_DLY] * 258 : 0;
     to[2] = on && FXS_ON(FXT_REV) ? p[P_REV] * 258 : 0;
     if (to[0] | to[1] | to[2] | dbus_snd[0] | dbus_snd[1] | dbus_snd[2])
         dbus_sends(to, n);
+    ASTAGE0(0x9A);
 #if FELUCCA_USB_AUDIO
     ua_dbus_tap(mix_l, mix_r, n);                       /* the drum bus for a USB channel that takes it (ua_tap.h) */
 #endif
@@ -2045,7 +2061,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
-        if (FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST)
+        if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)
             ins_part(t, b, n);                          /* its two insert slots, S1 then S2 (above) */
 #if FELUCCA_UI == 1
         if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */

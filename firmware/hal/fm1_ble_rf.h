@@ -111,11 +111,28 @@ static volatile struct {
     uint32_t op, gop, addr, prev_op, prev_gop, prev_addr;
     uint32_t stop, prev_stop;
 } fm1_ble_bc __attribute__((section(".noinit.ble")));
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL
+/* hal/fm1_dual.h fm1_dual_snap: where the BLE start-up / link was when an exception came (2026-10-15: CPU1 faults only
+ * in BLE builds) */
+#define FM1_DUAL_SNAP_BLE 1
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s)
+{
+    s->ble[0] = fm1_ble_bc.now;
+    s->ble[1] = fm1_ble_bc.irqs;
+    s->ble[2] = fm1_ble_bc.op;
+    s->ble[3] = fm1_ble_bc.gop;
+    s->ble[4] = fm1_ble_bc.addr;
+}
+#endif
 #define fm1_ble_crumb fm1_ble_bc.now
 #define fm1_ble_crumb_irqs fm1_ble_bc.irqs
+static uint32_t fm1_ble_step_at[16];         /* TIMER4 / 24000 (ms) when each step was first reached (0: not yet; the
+                                              * console's boot: against CPU1's start, 2026-10-15) */
 FM1_INLINE void fm1_ble_step(uint32_t step)
 {
     fm1_ble_crumb = 0xB1000000u | (step & 0xFFu) << 16 | (fm1_ble_crumb & 0xFFFFu);
+    if (!fm1_ble_step_at[step & 15u])
+        fm1_ble_step_at[step & 15u] = 1u + fm1_ticks() / (1000u * FM1_TICKS_PER_US);
 }
 static void fm1_ble_crumb_boot(void)       /* at boot (main.c): what the last run left, then from zero */
 {

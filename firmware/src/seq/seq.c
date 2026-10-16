@@ -2948,6 +2948,7 @@ static void events_block(uint32_t n)
     if (clk_nudge)                                    /* (the TEMPO page's nudge: an external clock overrides adv below) */
         adv = (uint32_t)((int32_t)adv + (((int32_t)adv * clk_nudge) >> 8));   /* (q8: 10 = 3.9 %, no divide) */
     undo_isr = 1;                                    /* (undo.c: the ISR's own marks switch no IRQ) */
+    ASTAGE(0x20);
     ev_map.on = 0;
     seq_out_check();                                  /* MIDI OUT back to KEYS, or a channel changed: they end */
     sync_select(SYNC_NOW());                          /* the clock followed: TRS, USB or none */
@@ -3062,8 +3063,13 @@ static void events_block(uint32_t n)
         t->armp = t->p[P_AMODE];
         t->aholdp = t->p[P_AHOLD];
     }
+    ASTAGE(0x21);
     keyboard_block();
+    ASTAGE(0x22);
+    {
+    uint32_t guard = 0;
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
+        LOOP_GUARD(0x22, guard, 2u * MQ)
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
         if (st == 0xF0u) {                            /* clock, transport, song position (clock_sync.c) */
@@ -3077,6 +3083,7 @@ static void events_block(uint32_t n)
             continue;                                 /* IN = CLOCK: no notes (the note offs still end what was held) */
         midi_event(st, ch, d1, d2);
     }
+    }
     ext = FELUCCA_MIDI_CLOCK && sy.src != 0u;         /* (a START may have chosen it) */
     if (ext) {
         uint32_t a = sync_follow(n);                  /* the clock where the external one will be when heard */
@@ -3084,19 +3091,28 @@ static void events_block(uint32_t n)
             adv = a;                                  /* (stopped: the arp and rolls at the tempo shown) */
     }
     clk_blk = adv;                                    /* (the synced LFOs this block: voice.c lfo_inc) */
-    for (i = 0; i < NTRK; i++)
+    for (i = 0; i < NTRK; i++) {
+        ASTAGE(0x30 + i);
         seq_tick(&trk[i], adv);
+    }
+    ASTAGE(0x24);
     click_tick();
+    ASTAGE(0x25);
     roll_block(adv);
-    for (i = 0; i < NPART; i++)
+    for (i = 0; i < NPART; i++) {
+        ASTAGE(0x40 + i);
         arp_tick(&trk[i], adv);
+    }
+    ASTAGE(0x27);
     clko_block(n, adv, ext);                          /* MIDI clock out: the ticks of this block, timed as heard */
     DLFO_BLOCK();                                     /* (the drum lanes' LFOs stopped: lane_play.c, no tick otherwise) */
     if (song.playing) {
         song.tick++;
         if (!ext) {
             clk_pos += adv;
+            uint32_t guard = 0;
             while (clk_pos >= BEAT_U) {
+                LOOP_GUARD(0x28, guard, 1000u)
                 clk_pos -= BEAT_U;
                 clk_beat++;
             }
@@ -3106,10 +3122,12 @@ static void events_block(uint32_t n)
 #endif
     }
 #if FELUCCA_CHORDPLUS
+    ASTAGE(0x29);
     ev_ofs = 0;
     strum_block(n);                                   /* (voice.c: the strummed notes due) */
 #endif
     ev_map.on = 0;
     ev_ofs = 0;
     undo_isr = 0;
+    ASTAGE(0x2F);
 }

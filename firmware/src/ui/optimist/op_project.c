@@ -769,7 +769,7 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
     }
     case 3:                                             /* how far CPU1 got: MAIN, HELLO, SLEEP / SPIN, WOKEN, TOOK JOB, JOB DONE */
         c->label = "CPU1 GOT TO";
-        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS), sizeof c->val);
+        str_cpy(v, dual_stage_name(fm1_dual_mb.stage, DUAL_SLEEPS_NOW), sizeof c->val);
         c->col = fm1_dual_mb.stage < C1S_DONE ? C_WARN : 0;
         break;
     case 4:                                             /* its beat: returns from idle (or spin passes / 256), its wake handler's entries */

@@ -1099,6 +1099,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PLOCK=1 -o "$OUT/hostsim_plock" tests/hostsim.c -lm
     run "recorded lengths as GATE locks (PLOCK): 0.9 / 1.4 / 1.8 steps, the GATE, pattern end, overdub, ratchet, legato, free take, undo" env RECLEN=1 "$OUT/hostsim_plock" 0 0 1 "$OUT/reclen.wav"
     mkdir -p "$OUT/tracks_pl"; run "TRACKS with PLOCK (the recording lengths as before)" env TRACKS="$OUT/tracks_pl" "$OUT/hostsim_plock" 0 0 1 "$OUT/tracks_pl.wav"
+    run "live recording under random keys (REC armed, chords, REC QUANTIZE, lengths, tempo, undo): no hang, no loop guard hit" env RECSTRESS=7 BLOCKS=100000 "$OUT/hostsim_plock" 0 0 1 "$OUT/recstress.wav"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -DFELUCCA_CHANCE=1 -o "$OUT/hostsim_sl24" tests/hostsim.c -lm
@@ -1379,6 +1380,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -o "$OUT/regress_cg" tests/regress.c -lm
     run "regression with the CPU guard built (FELUCCA_CPU_GUARD): the same golden renders (it acts only under overload)" "$OUT/regress_cg" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -o "$OUT/console_parse_test" tests/console_parse_test.c
+    run "console: the run-control commands parse (play pause stop rec proj load heavy wdtreset), others fall through" "$OUT/console_parse_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/dual_guard_test" tests/dual_guard_test.c
