@@ -178,6 +178,12 @@ static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 }
 static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4u); }
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
+/* n bytes at b are a stored form of sz bytes: its magic and size sz first, its sum (FNV-1a of the rest) last */
+static int proj_form_ok(const void *b, int n, uint32_t magic, uint32_t sz)
+{
+    const uint32_t *w = (const uint32_t *)b;
+    return n == (int)sz && w[0] == magic && w[1] == sz && w[sz / 4u - 1u] == proj_hash(b, sz - 4u);
+}
 /* the longest song-section record (sec_codec.c SEC_REC_MAX, the same in every build): the flags byte, a full motion
  * chunk (count, PLAY bits, 64 x 3 bytes), the raw project less its magic, size and sum, the drum record. proj_tmp
  * (and the tests' copies of it) receive one */
@@ -255,7 +261,7 @@ static void proj_va_fix(project_t *q, int8_t *dst)
 static int proj_from_va(project_t *q, const void *b, int n)
 {
     const project_t *a = (const project_t *)b;
-    if (n != (int)sizeof *q || a->magic != PROJ_MAGIC_VA || a->size != sizeof *q || a->sum != proj_sum(a))
+    if (!proj_form_ok(b, n, PROJ_MAGIC_VA, sizeof *q))
         return 0;
     memcpy(q, b, sizeof *q);
     proj_va.from = a->sum;
@@ -353,8 +359,7 @@ static void proj_from_v3_ok(project_t *q, const project_v3_t *v3)
 }
 static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
 {
-    if (n != (int)sizeof *v3 || v3->magic != PROJ_MAGIC_V3 || v3->size != sizeof *v3 ||
-        v3->sum != proj_hash(v3, sizeof *v3 - 4u))
+    if (!proj_form_ok(v3, n, PROJ_MAGIC_V3, sizeof *v3))
         return 0;
     proj_from_v3_ok(q, v3);
     return 1;
@@ -366,8 +371,7 @@ static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
 {
     project_v3_t *v3 = &proj_v3_tmp;
     uint32_t i;
-    if (n != (int)sizeof *v2 || v2->magic != PROJ_MAGIC_V2 || v2->size != sizeof *v2 ||
-        v2->sum != proj_hash(v2, sizeof *v2 - 4u))
+    if (!proj_form_ok(v2, n, PROJ_MAGIC_V2, sizeof *v2))
         return 0;
     memset(v3, 0, sizeof *v3);
     memcpy(v3->g, v2->g, sizeof v3->g);
@@ -384,8 +388,7 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
 {
     project_v3_t *v3 = &proj_v3_tmp;
     uint32_t i;
-    if (n != (int)sizeof *v1 || v1->magic != PROJ_MAGIC_V1 || v1->size != sizeof *v1 ||
-        v1->sum != proj_hash(v1, sizeof *v1 - 4u))
+    if (!proj_form_ok(v1, n, PROJ_MAGIC_V1, sizeof *v1))
         return 0;
     memset(v3, 0, sizeof *v3);
     memcpy(v3->g, v1->g, sizeof v3->g);
@@ -421,9 +424,7 @@ _Static_assert(PROJ_V7_N == 3632u && sizeof(project_t) == PROJ_V7_N + 8u && PROJ
                "FUN7 + the drum record's key; FUN8: FUN7 + the drum lanes");
 static int proj_from_v7(project_t *q, const void *b, int n)
 {
-    const uint8_t *c = (const uint8_t *)b;
-    if (n != (int)(PROJ_V7_N + 4u) || ((const uint32_t *)b)[0] != PROJ_MAGIC_V7 ||
-        ((const uint32_t *)b)[1] != PROJ_V7_N + 4u || *(const uint32_t *)(c + PROJ_V7_N) != proj_hash(b, PROJ_V7_N))
+    if (!proj_form_ok(b, n, PROJ_MAGIC_V7, PROJ_V7_N + 4u))
         return 0;
     memcpy(q, b, PROJ_V7_N);
     q->dl_hash = 0;
@@ -436,10 +437,7 @@ static int proj_from_v7(project_t *q, const void *b, int n)
  * feat/ui-overview2's, has format 8's layout: its ENV2 values in the drum track's slots are kept as they are) */
 static int proj_v8_ok(const void *b, int n)
 {
-    const uint8_t *c = (const uint8_t *)b;
-    return n == (int)PROJ_V8_N && (((const uint32_t *)b)[0] == PROJ_MAGIC_V8 || ((const uint32_t *)b)[0] == PROJ_MAGIC_V9) &&
-           ((const uint32_t *)b)[1] == PROJ_V8_N &&
-           *(const uint32_t *)(c + PROJ_V8_N - 4u) == proj_hash(b, PROJ_V8_N - 4u);
+    return proj_form_ok(b, n, PROJ_MAGIC_V8, PROJ_V8_N) || proj_form_ok(b, n, PROJ_MAGIC_V9, PROJ_V8_N);
 }
 static void proj_v8_dl(dlrec_t *d, const void *b)
 {
@@ -481,8 +479,7 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
     const uint8_t *c = (const uint8_t *)b;
     uint32_t ts = 2u * np + 2u + sizeof q->t[0].step, tr = 12u + sizeof q->g + NTRK * ts, i, k, nc = np - 8u;
     uint32_t sz = ((tr + nfm6 + 3u) & ~3u) + 4u;
-    if (n != (int)sz || ((const uint32_t *)b)[0] != magic || ((const uint32_t *)b)[1] != sz ||
-        *(const uint32_t *)(c + sz - 4u) != proj_hash(b, sz - 4u))
+    if (!proj_form_ok(b, n, magic, sz))
         return 0;
     memset(q, 0, sizeof *q);
     memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
@@ -521,8 +518,7 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
 static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
 {
     uint32_t i, k, nc = PROJ_NP_V4 - 8u;
-    if (n != (int)sizeof *v4 || v4->magic != PROJ_MAGIC_V4 || v4->size != sizeof *v4 ||
-        v4->sum != proj_hash(v4, sizeof *v4 - 4u))
+    if (!proj_form_ok(v4, n, PROJ_MAGIC_V4, sizeof *v4))
         return 0;
     memset(q, 0, sizeof *q);
     memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
@@ -550,8 +546,7 @@ static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
 /* a format 5 project (n bytes in *v5) -> slot q as format 6: no FM6 voices (the parts load their VOICE) */
 static int proj_from_v5(project_t *q, const project_v5_t *v5, int n)
 {
-    if (n != (int)sizeof *v5 || v5->magic != PROJ_MAGIC_V5 || v5->size != sizeof *v5 ||
-        v5->sum != proj_hash(v5, sizeof *v5 - 4u))
+    if (!proj_form_ok(v5, n, PROJ_MAGIC_V5, sizeof *v5))
         return 0;
     memset(q, 0, sizeof *q);
     memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
