@@ -4,7 +4,7 @@
 worktree of its own under build/symdiff-wt/, made with this checkout's sdk/ and venv), the difference of the symbol
 tables largest first, with the source file defining each symbol (tools/symdiff.py's reading).
 
-  python3 tools/symdiff_commits.py OLD NEW PROFILE|FILE.config [--top N]
+  python3 tools/symdiff_commits.py OLD NEW PROFILE|FILE.config [--top N] [--region flash|ram]
 """
 import argparse
 import os
@@ -56,16 +56,18 @@ def main(argv=None):
     ap.add_argument("new")
     ap.add_argument("config", help="a profile name or a .config file (read from NEW's tree)")
     ap.add_argument("--top", type=int, default=50)
+    ap.add_argument("--region", choices=("flash", "ram"), default="flash")
     a = ap.parse_args(argv)
     wts = [tree(a.old), tree(a.new)]
     p = Path(a.config)
     text = p.read_text() if p.is_file() else (wts[1] / "config" / "profiles" / f"{a.config}.config").read_text()
     with ThreadPoolExecutor(2) as ex:
         sa, sb = ex.map(lambda w: build(w, text), wts)
+    secs = S.FLASH if a.region == "flash" else S.RAM
     rows = []
     for n in set(sa) | set(sb):
-        x = sa[n][1] if n in sa and sa[n][0] in S.FLASH else 0
-        y = sb[n][1] if n in sb and sb[n][0] in S.FLASH else 0
+        x = sa[n][1] if n in sa and sa[n][0] in secs else 0
+        y = sb[n][1] if n in sb and sb[n][0] in secs else 0
         if x != y:
             rows.append((y - x, n, "new" if n not in sa else "gone" if n not in sb else ""))
     rows.sort(key=lambda r: -abs(r[0]))
@@ -73,7 +75,7 @@ def main(argv=None):
     for d, n, _ in rows:
         f = S.where(n)
         by_file[f] = by_file.get(f, 0) + d
-    print(f"{a.config}: {a.old} -> {a.new}: {sum(d for d, _, _ in rows):+,} B of flash in symbols ({len(rows)} symbols)\n")
+    print(f"{a.config}: {a.old} -> {a.new}: {sum(d for d, _, _ in rows):+,} B of {a.region} in symbols ({len(rows)} symbols)\n")
     print("by source file:")
     for f, d in sorted(by_file.items(), key=lambda x: -abs(x[1]))[:30]:
         print(f"  {d:+8,}  {f}")
