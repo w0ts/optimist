@@ -810,7 +810,8 @@ static uint32_t row_layout(const cell_t *c, rowl_t *L, int32_t end)
     return any;
 }
 #define LC_END(wide) ((wide) - 4)       /* a row's texts end here: the screen less a margin (the scroll bar's) */
-static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide, int32_t rh)
+/* (noinline: a call from list_paint, which is smaller without it inlined) */
+static __attribute__((noinline)) void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide, int32_t rh)
 {
     char nm[12], b[16];
     uint32_t k;

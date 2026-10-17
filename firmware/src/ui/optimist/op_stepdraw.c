@@ -78,7 +78,8 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
             cv_frame(x - 1, SG_TOP - 1, SG_CW, SG_H + 2, st.held ? C_WHITE : C_NOTE);
     }
 }
-static void sg_drums(const track_t *t)
+/* (noinline: a call from sg_paint, which is smaller without it inlined) */
+static __attribute__((noinline)) void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
     sg_prep(t);

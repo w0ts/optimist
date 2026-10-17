@@ -548,7 +548,8 @@ static uint32_t graph_sig(void)
         h = h * 31u + dlfo_get(lane_selected())->wave * 128u + dlfo_get(lane_selected())->phase;   /* (a lane's LFO wave) */
     return h;
 }
-static void draw_sound_graph(const page_t *pg)
+/* (noinline: a call from list_paint, which is smaller without it inlined) */
+static __attribute__((noinline)) void draw_sound_graph(const page_t *pg)
 {
     uint16_t col = trk_col(song.sel);
     switch (pg->graph) {
