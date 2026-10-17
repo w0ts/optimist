@@ -156,6 +156,7 @@ static void gl_info_draw(int32_t y0)
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
     int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, ty, fy, uw, x;
     char b[16], lv[14];
+    const char *nm;
     cell_t c;
     if (ph > cap)
         ph = cap;                                       /* (a short page: a list's pitch, from the top) */
@@ -167,14 +168,14 @@ static void gl_info_draw(int32_t y0)
         vc = c.col ? c.col : C_GRAY;
         ty = fy = y + (ph - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
-        nm_card(c.label, 0, b, sizeof b);
+        nm = nm_card(c.label, 0, b, sizeof b);
         cut(lv, c.val, 13);
-        if (ph >= GL_INFO_BIG && gl_big(b, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */
+        if (ph >= GL_INFO_BIG && gl_big(nm, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */
             f = font_big();
             fy = y + (ph - (int32_t)font_big()->h) / 2;
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
-        cv_text(6, ty, &FONT_S, b, f == &FONT_S ? C_GRAY : C_WHITE);
+        cv_text(6, ty, &FONT_S, nm, f == &FONT_S ? C_GRAY : C_WHITE);
         x = 236 - uw - text_w(f, lv);
         cv_text(x, fy, f, lv, vc);
         if (uw)

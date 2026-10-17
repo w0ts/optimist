@@ -2625,6 +2625,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
+#include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
@@ -2806,8 +2807,12 @@ int main(int argc, char **argv)
     knobcol_tests();
     clkout_tests();
     uasel_tests();
-    core_row_tests();
+#if FELUCCA_SYS_DEBUG
+    core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
     overload_tests();
+#else
+    sysdbg_off_tests();
+#endif
     hold_tests();
     lane_preview_tests();
     step_pages_tests();

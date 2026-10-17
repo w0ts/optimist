@@ -661,6 +661,13 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
           "always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About "
           "5.5 KB of flash (UI=1: 7.7 KB, its own lines too; the texts packed), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
+_add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
+     desc="The Optimist UI (UI=1): SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
+          "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "
+          "clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
+          "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
+          "(about 2.9 KB less flash, measured on a UI=1 USB-audio build). The red / amber mark on the header's rule after a "
+          "drop-out stays either way.")
 _add("CHORD_NAMES", "FELUCCA_CHORD_NAMES", "chord names on the STEP page", U, 160,
      desc="SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, "
           "E5, G7, Fmaj7, F#m7, Bm7b5. Other note sets stay a note and the count ('C4 +2'). About 0.3 KB of flash; "

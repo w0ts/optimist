@@ -355,7 +355,9 @@ static void glstyle_tests(void)
 #if FELUCCA_BLE
     check(gls_ble_enter(), "SYSTEM: YES on BLE from the joined USB + Bluetooth (Connections) page opens the devices");
 #endif
+#if FELUCCA_SYS_DEBUG
     check(gls_info_page(), "SYSTEM: INFO, the first page: the memory used / total as text read-outs, no bars");
+#endif
     check(gls_about_info(), "SYSTEM: About: version, build date and time, the chip, the repo link, on one page and fitting");
     check(gls_credits(), "SYSTEM: Credits, after About: the version, the upstreams by name, LICENSING.md for the rest, each line fitting");
     reset_ui();
