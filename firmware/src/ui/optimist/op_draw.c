@@ -524,11 +524,13 @@ static const char *card_unit(const cell_t *c, char *v, uint32_t n)
 /* a 1x4 card's label row (the mixer's, 57 px): the label from the left, the unit right-aligned left of the DR tag and the
  * lock mark; a label that cannot leave 3 px of air before the unit takes its narrow form (op_names.c NM_NARROW: LVL) */
 #define CARD_UX(x, uw, rw) ((x) + CARD_W - 1 - (uw) - (rw))   /* the unit's x (rw: the tag's and the mark's room) */
+#define DR_W 16                         /* "DR" in the small face (Terminus: 8 px a character, as head_finish counts) */
+static int32_t card_rw(const cell_t *c) { return (c->dr ? DR_W + 4 : 0) + (c->mark ? 10 : 0); }   /* the tag's and the mark's room */
 static const char *card_label_n(const cell_t *c, const char *u, char *b, uint32_t n, char *nb)
 {
     const char *lab = card_label(c, b, n);
-    int32_t uw = u[0] ? text_w(&FONT_S, u) : 0, rw = (c->dr ? text_w(&FONT_S, "DR") + 4 : 0) + (c->mark ? 10 : 0);
-    if (uw && 3 + text_w(&FONT_S, lab) + 4 > CARD_UX(0, uw, rw))
+    int32_t uw = u[0] ? text_w(&FONT_S, u) : 0;
+    if (uw && 3 + text_w(&FONT_S, lab) + 4 > CARD_UX(0, uw, card_rw(c)))
         lab = nm_narrow(lab, nb, 12);
     return lab;
 }
@@ -571,14 +573,13 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
     if (!c->label)
         return;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + w - 3 - text_w(&FONT_S, "DR"), 3, &FONT_S, "DR", C_GRAY);
+        cv_text(x + w - 3 - DR_W, 3, &FONT_S, "DR", C_GRAY);
     {
         const char *lab = card_label_n(c, u, b, sizeof b, nb);   /* (the names table's: in capitals, 6 at most) */
         text_st(x + (text_w(&FONT_S, lab) > w - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY), c->strike);
     }
     if (u[0])                                           /* the unit: the label row, right-aligned (never after the value) */
-        cv_text(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), (c->dr ? text_w(&FONT_S, "DR") + 4 : 0) + (c->mark ? 10 : 0)), 3, &FONT_S, u,
-                C_DIM);
+        cv_text(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), card_rw(c)), 3, &FONT_S, u, C_DIM);
     if (c->kind == CK_ACT) {
         cv_text(x + 3, 20, &FONT_S, cut(b, act_verb(c), (uint32_t)(w - 6) / 8u), act_col(c, hot));
         return;
@@ -602,7 +603,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     char b[16], v[16];
     const char *u = card_unit(c, v, sizeof v);          /* ("10ms": 10, its unit in the label row) */
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = u[0] ? text_w(&FONT_S, u) + 4 : 0;
-    int32_t dw = c->dr ? text_w(&FONT_S, "DR") + 4 : 0;   /* (the DR tag's room, top right) */
+    int32_t dw = c->dr ? DR_W + 4 : 0;                  /* (the DR tag's room, top right) */
     uint16_t vc = card_vc(k, c, hot);
     card_ground(x, y, BIG_W, BIG_H, c, hot, 1);
     if (c->mark)
@@ -611,7 +612,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         return;
     uw += dw;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + BIG_W - 3 - text_w(&FONT_S, "DR"), y + 2, &FONT_S, "DR", C_GRAY);
+        cv_text(x + BIG_W - 3 - DR_W, y + 2, &FONT_S, "DR", C_GRAY);
     {
         char l[16];
         text_st(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY), c->strike);
@@ -703,12 +704,13 @@ static void draw_cards(void)
 {
     static cell_t snap[4];                              /* the cells last drawn (STEP: what a step let go still shows) */
     cell_t c[4];
-    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), cards_2x2() + knob_colors * 2u);
+    const screen_t *s = SCR;
+    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), cards_2x2() + knob_colors * 2u), row = ui.row[ui.scr];
     for (k = 0; k < 4u; k++) {
         if (cards_snap_use && ui.scr == SCR_STEP) {     /* (the snapshot is STEP's only: elsewhere a page's own cells) */
             c[k] = snap[k];
         } else {
-            SCR->cell(ui.row[ui.scr], k, &c[k]);
+            s->cell(row, k, &c[k]);
             effv_take(k, &c[k]);                        /* (right after the cell: a lane value's dsv is the cell's) */
         }
         snap[k] = c[k];
@@ -813,6 +815,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
     uint32_t k;
     cell_t c[4];
     rowl_t L;
+    const screen_t *s = SCR;
     int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
         cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, text white */
@@ -820,12 +823,12 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
     if (ui.scr == SCR_SOUND)
         snd_title_row(i, nm);                           /* (the drum track's pages by what they hold, as the header) */
     else
-        SCR->name(i, nm);
+        s->name(i, nm);
     cv_text(LC_NAME_X, y + 1, &FONT_S, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
         cv_rect(70, y + 5, 7, 7, song_row_col(i));
     for (k = 0; k < 4u; k++)
-        SCR->cell(i, k, &c[k]);
+        s->cell(i, k, &c[k]);
     row_layout(c, &L, LC_END(wide));
     for (k = 0; k < 4u; k++) {
         int32_t x = L.x[k], gw = (k < 3u ? L.x[k + 1u] : LC_END(wide)) - x - 2;   /* (the form: to the next cell's place) */
@@ -882,7 +885,8 @@ static void list_paint(void)
 }
 static void draw_list(void)
 {
-    uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
+    const screen_t *s = SCR;
+    uint32_t n = s->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
     const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
     int32_t top = 0, rh = ROW_H;
@@ -924,16 +928,16 @@ static void draw_list(void)
         first = n > shown ? n - shown : 0u;
     sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(uintptr_t)gp);
     for (i = first; i < n && i < first + shown; i++) {
-        SCR->name(i, nm);
+        s->name(i, nm);
         sig = hs(sig, nm);
         for (k = 0; k < 4u; k++) {
-            SCR->cell(i, k, &c);
+            s->cell(i, k, &c);
             sig = hc(sig, &c);
         }
     }
     if (!shown && n) {                                  /* the picture alone: the values it reads, the cursor row's and its graph page's */
         for (k = 0; k < 4u; k++) {
-            SCR->cell(cur, k, &c);
+            s->cell(cur, k, &c);
             sig = hc(sig, &c);
             if (gp) {
                 page_cell(gp, k, &c);
