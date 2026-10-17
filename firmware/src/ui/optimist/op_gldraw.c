@@ -91,11 +91,11 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     const char *b;
     gl_lrow(c, y, &r);
     uw = r.uw, ty = r.ty, by = r.by, b = r.v;
-    cv_text(6, ty, &FONT_S, r.nm, on ? lc : C_WHITE);
+    cv_texts(6, ty, r.nm, on ? lc : C_WHITE);
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(r.f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
     cv_text(x, r.fy, r.f, b, ink);
     if (uw)
-        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? lc : C_DIM);
+        cv_texts(236 - uw, ty, c->unit, on ? lc : C_DIM);
     if (tog)
         gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, C_BLACK);
     else if (bar) {
@@ -146,8 +146,8 @@ static void gl_cred_draw(int32_t y0)
     char b[16];
     for (i = 0; i < CRED_N; i++) {
         ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
-        cv_text(6, ty, &FONT_S, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
-        cv_text(236 - text_w(&FONT_S, CRED[i][1]), ty, &FONT_S, CRED[i][1], i ? C_HI : C_WHITE);
+        cv_texts(6, ty, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
+        cv_texts(236 - text_w(&FONT_S, CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
     }
 }
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
@@ -175,11 +175,11 @@ static void gl_info_draw(int32_t y0)
             fy = y + (ph - (int32_t)font_big()->h) / 2;
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
-        cv_text(6, ty, &FONT_S, nm, f == &FONT_S ? C_GRAY : C_WHITE);
+        cv_texts(6, ty, nm, f == &FONT_S ? C_GRAY : C_WHITE);
         x = 236 - uw - text_w(f, lv);
         cv_text(x, fy, f, lv, vc);
         if (uw)
-            cv_text(236 - uw, ty, &FONT_S, c.unit, C_DIM);
+            cv_texts(236 - uw, ty, c.unit, C_DIM);
     }
 }
 static void gl_paint(void)

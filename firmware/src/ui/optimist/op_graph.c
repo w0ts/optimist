@@ -34,6 +34,13 @@
 #define CARD_W 57
 #define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
+/* text in the small face: the drawing files' most frequent call, its four arguments in registers (a call, never inlined:
+ * cv_text's fifth argument and the face at every call cost more); the end x */
+static __attribute__((noinline)) int32_t cv_texts(int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    return cv_text(x, y, &FONT_S, s, c);
+}
+static void cv_hline(int32_t y, uint16_t c) { cv_rect(0, y, 240, 1, c); }   /* a rule across the screen */
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
     const track_t *t = &trk[c % NTRK];
@@ -153,7 +160,7 @@ static void graph_adsr4(int32_t atk, int32_t dec, int32_t sus127, int32_t rel, u
         px = x3 + i;
         py = EGY(sus * e >> 15);
     }
-    cv_line(0, bot + 1, 239, bot + 1, C_LINE);
+    cv_hline(bot + 1, C_LINE);
 #undef EGY
 }
 static void graph_adsr(const page_t *pg, uint16_t col)
@@ -163,50 +170,30 @@ static void graph_adsr(const page_t *pg, uint16_t col)
         rel = page_frac(pg, 1, 127);
     graph_adsr4(page_frac(pg, 0, 127), page_frac(pg, 1, 127), page_frac(pg, 2, 127), rel, col);
 }
-/* the LFO as it runs: two cycles over the width from the core's own wave (core/voice.c lfo_wave), its phase as set;
- * S&H drawn as random steps (SLOOP's graph_lfo, copied) */
-static void graph_lfo(uint16_t col)
+/* the LFO as it runs: two cycles over the width from the core's own wave (core/lfo_slot.h lfo_shape, voice.c lfo_wave's),
+ * its phase as set; S&H drawn as random steps (SLOOP's graph_lfo, copied). two: LFO 2, from phase 0, POL UNI one way
+ * only (from the centre line up, lfo2_tick's (v + 1) / 2) */
+static void graph_lfo(uint16_t col, uint32_t two)
 {
-    track_t *t = TSEL;
+    const track_t *t = TSEL;
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
-    uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[P_LWAVE];
+    uint32_t ph = two ? 0u : (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[two ? P_L2WAVE : P_LWAVE];
 #if LANE_LFO_UI
-    const dlfo_t *dc = is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
+    const dlfo_t *dc = !two && is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
     if (dc)
         ph = (uint32_t)dc->phase << 25, w = dc->wave;
 #endif
     for (x = 0; x < 240; x++) {
-        int32_t y = mid - lfo_wave(t, ph + (uint32_t)x * (0xFFFFFFFFu / 120u)) * amp / 32768;
-#if LANE_LFO_UI
-        if (dc)
-            y = mid - lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0) * amp / 32768;
-#endif
-        if (w == 4)
-            y = mid - ((int32_t)((x / 20 * 2654435761u) >> 16) - 32768) * amp / 32768;
-        if (x)
-            cv_line(x - 1, py, x, y, col);
-        py = y;
-    }
-    cv_line(0, mid, 239, mid, C_LINE);
-}
-/* LFO 2 as it runs: two cycles of its WAVE from phase 0, POL UNI one way only (from the centre line up, lfo2_tick's
- * (v + 1) / 2); S&H as random steps, as LFO's */
-static void graph_lfo2(uint16_t col)
-{
-    const track_t *t = TSEL;
-    int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
-    uint32_t w = (uint32_t)t->p[P_L2WAVE];
-    for (x = 0; x < 240; x++) {
         int32_t v = w == 4u ? (int32_t)((uint32_t)(x / 20) * 2654435761u >> 16) - 32768
-                            : lfo_shape(w, (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
-        if (t->p[P_L2POL])
+                            : lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
+        if (two && t->p[P_L2POL])
             v = (v + 32768) >> 1;
         y = mid - v * amp / 32768;
         if (x)
             cv_line(x - 1, py, x, y, col);
         py = y;
     }
-    cv_line(0, mid, 239, mid, C_LINE);
+    cv_hline(mid, C_LINE);
 }
 /* a SOUND FX page's picture (SENDS, INSERTS, BUS SENDS, COMP, SLICER...): its own four values as needles (SLOOP's
  * graph_fx's look), read from the page's own cells, so the needles are the cards' values in the cards' order (the audit's
@@ -240,7 +227,7 @@ static void graph_fx(const page_t *pg, uint16_t c)
         cv_rect(x - 3, bot - h, 7, 1, nc);
         {
             const char *l = card_label(&e, b, sizeof b);
-            cv_text(x - text_w(&FONT_S, l) / 2, bot + 2, &FONT_S, l, C_GRAY);
+            cv_texts(x - text_w(&FONT_S, l) / 2, bot + 2, l, C_GRAY);
         }
     }
 }
@@ -312,7 +299,7 @@ static void graph_arp(uint16_t c)
         cv_rect(2, ARPY(nt[i % cnt] + 12u * (i / cnt)), 234, 1, C_LINE);
     for (b = 0; b < 4u; b++)                            /* the beats */
         cv_rect(2 + (int32_t)b * 59, bot + 1, 1, 3, C_LINE);
-    cv_line(0, bot + 1, 239, bot + 1, C_LINE);
+    cv_hline(bot + 1, C_LINE);
     for (i = 0; i < steps; i++) {
         uint32_t k = i + 1u, j, cyc = len > 1u ? 2u * len - 2u : 1u, h = k * 2654435761u;
         int32_t x = 2 + (int32_t)i * 236 / (int32_t)steps + ((i & 1u) ? late : 0);
@@ -381,9 +368,9 @@ static void graph_lane_of(int kit)
     }
     cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : lane_name(l), kit ? kit_col() : op_lane_col(l));
     if (GRAPH_H >= 58)
-        cv_text(4, 40 + ny - 6, &FONT_S, sub, C_GRAY);
+        cv_texts(4, 40 + ny - 6, sub, C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
-        cv_text(236 - text_w(&FONT_S, sub), 22, &FONT_S, sub, C_GRAY);
+        cv_texts(236 - text_w(&FONT_S, sub), 22, sub, C_GRAY);
 }
 static void graph_lane(void) { graph_lane_of(0); }
 /* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
@@ -395,16 +382,16 @@ static void graph_lane(void) { graph_lane_of(0); }
 static int32_t denv_tx;                                  /* the label row: where the source's tag starts (denv_time ends before it) */
 static void denv_head(uint32_t l, const char *right)
 {
-    cv_text(4, GR_TOP, &FONT_S, lane_name(l), op_lane_col(l));
+    cv_texts(4, GR_TOP, lane_name(l), op_lane_col(l));
     denv_tx = 236 - text_w(&FONT_S, right);
-    cv_text(denv_tx, GR_TOP, &FONT_S, right, C_GRAY);
+    cv_texts(denv_tx, GR_TOP, right, C_GRAY);
 }
 static void denv_time(uint32_t ms)                      /* the length, in the label row before the tag (the audit's #32: never on the baseline) */
 {
     char b[12];
     fmt_int(b, (int32_t)ms);
     str_cpy(b + str_len(b), "ms", 4);
-    cv_text(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, &FONT_S, b, C_GRAY);
+    cv_texts(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, b, C_GRAY);
 }
 #if DRUM_X0X
 static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
@@ -511,10 +498,10 @@ static void graph_denv(void)
     const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : kit < DRUM_SYNTH_END ? "SYN" : "X0X";
     int32_t y0 = GR_TOP + 16, h = GR_BOT - y0;
     uint16_t c = lane_col(l);
-    cv_line(0, GR_BOT + 1, 239, GR_BOT + 1, C_LINE);
+    cv_hline(GR_BOT + 1, C_LINE);
     denv_head(l, tg);
     if (!dsnd_has_env(l)) {
-        cv_text(4, y0 + (h > 14 ? (h - 14) / 2 : 0), &FONT_S, "No envelope: level only", C_GRAY);
+        cv_texts(4, y0 + (h > 14 ? (h - 14) / 2 : 0), "No envelope: level only", C_GRAY);
         return;
     }
     if (h < 8)
@@ -561,7 +548,8 @@ static uint32_t graph_sig(void)
         h = h * 31u + dlfo_get(lane_selected())->wave * 128u + dlfo_get(lane_selected())->phase;   /* (a lane's LFO wave) */
     return h;
 }
-static void draw_sound_graph(const page_t *pg)
+/* (noinline: a call from list_paint, which is smaller without it inlined) */
+static __attribute__((noinline)) void draw_sound_graph(const page_t *pg)
 {
     uint16_t col = trk_col(song.sel);
     switch (pg->graph) {
@@ -570,10 +558,8 @@ static void draw_sound_graph(const page_t *pg)
         graph_adsr(pg, col);
         break;
     case GR_LFO:
-        graph_lfo(col);
-        break;
     case GR_LFO2:
-        graph_lfo2(col);
+        graph_lfo(col, pg->graph == GR_LFO2);
         break;
     case GR_FX:
     case GR_INS:
@@ -665,8 +651,8 @@ static void draw_modal(void)
         cv_text(120 - text_w(fl, v) / 2, 12, fl, v, C_WHITE);
         cv_text(120 - text_w(ft, a) / 2, 50, ft, a, tc);
     }
-    cv_text(24, MODAL_H - 21, &FONT_S, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
-    cv_text(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, &FONT_S, "Save yes", C_WHITE);
+    cv_texts(24, MODAL_H - 21, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
+    cv_texts(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
     cv_blit(0, OP_PY);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
@@ -683,6 +669,6 @@ static void draw_toast(void)                             /* the result of a conf
     cv_begin((uint32_t)w, 36, C_BLACK);
     cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
     cv_rect(2, 2, w - 4, 32, OP_SURF);
-    cv_text(12, 10, &FONT_S, m, C_WHITE);
+    cv_texts(12, 10, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
 }

@@ -47,13 +47,6 @@ static void sg_prep(const track_t *t)
 #define SGS(t) ((t)->step)
 #define SGD(t) ((t)->dstep)
 #endif
-static void sg_outline(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a generated hit: its frame */
-{
-    cv_rect(x, y, w, 1, c);
-    cv_rect(x, y + h - 1, w, 1, c);
-    cv_rect(x, y, 1, h, c);
-    cv_rect(x + w - 1, y, 1, h, c);
-}
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};
@@ -80,22 +73,18 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
         if (!(w & 3u))                                  /* black ground, lines only: a beat's first column ruled at */
             cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left, every step within LEN a foot line */
         cv_rect(x, SG_TOP + SG_H - 1, SG_CW - 2, 1, C_LINE);
-        if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w)) {   /* (a held step white, the
+        if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w))   /* (a held step white, the
                                                          * note picker's in the pick's colour) */
-            uint16_t fc = st.held ? C_WHITE : C_NOTE;
-            cv_rect(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, SG_CW, 1, fc);
-            cv_rect(x - 1, SG_TOP + SG_H, SG_CW, 1, fc);
-            cv_rect(x - 1, SG_TOP, 1, SG_H, fc);
-            cv_rect(x + SG_CW - 2, SG_TOP, 1, SG_H, fc);
-        }
+            cv_frame(x - 1, SG_TOP - 1, SG_CW, SG_H + 2, st.held ? C_WHITE : C_NOTE);
     }
 }
-static void sg_drums(const track_t *t)
+/* (noinline: a call from sg_paint, which is smaller without it inlined) */
+static __attribute__((noinline)) void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
     sg_prep(t);
-    cv_rect(0, SG_LY(sel) - 1, 240, 1, C_DIM);          /* the selected lane's row: lined above and below */
-    cv_rect(0, SG_LY(sel + 1u) - 1, 240, 1, C_DIM);
+    cv_hline(SG_LY(sel) - 1, C_DIM);          /* the selected lane's row: lined above and below */
+    cv_hline(SG_LY(sel + 1u) - 1, C_DIM);
     sg_ground(t);
     for (l = 0; l < DRUM_UILANES; l++) {                /* (the 16 sounds, then the ACCENT lane's row) */
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
@@ -103,7 +92,7 @@ static void sg_drums(const track_t *t)
         if (y < SG_TOP || y + lh > SG_TOP + SG_H)
             continue;                                   /* (shifted out of the grid: sg_shift) */
         cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
-        cv_text(6, y + (lh - 11) / 2 - 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
+        cv_texts(6, y + (lh - 11) / 2 - 2, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &SGD(t)[idx % NSTEP];
@@ -116,13 +105,13 @@ static void sg_drums(const track_t *t)
                 continue;
             }
             if (!own) {                                 /* (a generator's hit: outlined) */
-                sg_outline(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
+                cv_frame(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
                 continue;
             }
 #if FELUCCA_AUTO
             if (step_muted(t, idx, l)) {                /* (a muted hit: kept, dim, an outline of its colour) */
                 cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(c, 2u));
-                sg_outline(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
+                cv_frame(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
                 continue;
             }
 #endif
@@ -151,7 +140,8 @@ static struct {
 } rg;
 static uint8_t roll_fold;               /* FOLD (both OCT tapped on a synth track's STEP, op_input.c): only the rows of the
                                          * pattern's notes, or the scale's when one is set (the user, 2026-10-16) */
-#define RV(nt) ((nt) >= 0 && (nt) <= 127 && rg.row[(nt) & 127] >= 0)   /* note nt has a row */
+static int roll_rv(int32_t nt) { return nt >= 0 && nt <= 127 && rg.row[nt & 127] >= 0; }   /* note nt has a row */
+#define RV(nt) roll_rv(nt)
 #define FOLD_MAX 51                     /* (4 px a row at least, as the unfolded roll's 51 semitones) */
 static int roll_scale_has(int32_t n)    /* the song's scale (trk[0]'s, op_layers.c) holds note n */
 {
@@ -279,7 +269,9 @@ static int roll_sel(const track_t *t, uint32_t *at, int32_t *nt, uint32_t *ext)
     *at = (uint32_t)i, *nt = s->note[k], *ext = (note_span(t, (uint32_t)i, k) + 127u) / 128u;
     return 1;
 }
-#define NY(nt) (SG_TOP + sg_dy + (rg.n - 1 - rg.row[(nt) & 127]) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
+static int32_t roll_ny(int32_t nt) { return SG_TOP + sg_dy + (rg.n - 1 - rg.row[nt & 127]) * rg.rh; }   /* note nt's row's y (sg_dy: the
+                                                         * roll moved so the edited note clears the cards) */
+#define NY(nt) roll_ny(nt)
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
 {
     uint32_t k, len = trk_len(t);
@@ -308,7 +300,7 @@ static void roll_label(int32_t n, uint16_t c)           /* a row's name, "C4" fo
         note_name(b, (uint32_t)n);
     else
         str_cpy(b, N_NOTE[n % 12], 3);
-    cv_text(2 - sg_ox, NY(n) + (rg.rh - 16) / 2, &FONT_S, b, c);
+    cv_texts(2 - sg_ox, NY(n) + (rg.rh - 16) / 2, b, c);
 }
 /* the gutter: every row named when the rows are tall enough (11 px), else the Cs, then the rows with a note in the
  * window where they do not touch a name above */
@@ -422,7 +414,7 @@ static void sg_roll(const track_t *t)
                 continue;
             }
             if (gn) {                                   /* (a generator's note: outlined) */
-                sg_outline(x - sg_ox, y + m, cw, h, nc);
+                cv_frame(x - sg_ox, y + m, cw, h, nc);
                 continue;
             }
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
@@ -449,15 +441,9 @@ static void sg_roll(const track_t *t)
         if (RV(nt))
             RR(0, NY(nt) + m, 2, h, C_WHITE);
     }
-    for (w = 0; w < 16u; w++) {                         /* the steps held: framed white */
-        int32_t x = RL_X + (int32_t)w * RL_CW;
-        if (!((st.held >> w) & 1u) || st.page * 16u + w >= len)
-            continue;
-        RR(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, RL_CW, 1, C_WHITE);
-        RR(x - 1, ye, RL_CW, 1, C_WHITE);
-        RR(x - 1, SG_TOP, 1, ye - SG_TOP, C_WHITE);
-        RR(x + RL_CW - 2, SG_TOP, 1, ye - SG_TOP, C_WHITE);
-    }
+    for (w = 0; w < 16u; w++)                           /* the steps held: framed white */
+        if (((st.held >> w) & 1u) && st.page * 16u + w < len)
+            cv_frame(RL_X + (int32_t)w * RL_CW - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_WHITE);
 }
 #undef NY
 static void roll_col(int32_t w)                         /* column w of the roll again, on a canvas of its own */
@@ -618,7 +604,8 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
     lh = SG_LY0(sel + 1u) - y;
     return y >= top && y + lh <= lim ? 0 : top - y;
 }
-static void step_frame(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void step_frame(void)
 {
     static uint8_t on, info, was_held;
     static uint32_t isig;
@@ -654,8 +641,8 @@ static void step_frame(void)
     if (inf && hs(hs(1u, sg_info[0]), sg_info[1]) != isig) {
         isig = hs(hs(1u, sg_info[0]), sg_info[1]);
         cv_begin(240, SG_INFO_H, C_BLACK);
-        cv_text(4, 2, &FONT_S, sg_info[0], C_HI);
-        cv_text(4, 2 + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
+        cv_texts(4, 2, sg_info[0], C_HI);
+        cv_texts(4, 2 + SG_INFO_DY, sg_info[1], C_GRAY);
         cv_blit(0, SP_Y + SG_INFO_Y);
         if (ui.toast_t)
             ui.sig[4] = 0;                              /* (a toast over it is drawn again) */

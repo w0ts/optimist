@@ -166,19 +166,19 @@ static void mx_paint_master(void)
     uint32_t i, n;
     uint8_t ret[3];
     char b[8];
-    cv_rect(0, OP_PH - 1, 240, 1, C_LINE);
+    cv_hline(OP_PH - 1, C_LINE);
     cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
     for (i = 0; i <= 10u; i++)                          /* the scale: lg 5 .. 15 (op_draw.c meter_h), 6 dB a tick */
         cv_rect(MXM_X + (int32_t)((i * 4u + 4u) * MXM_W / 44u) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
     for (i = 0; i < 4u; i++) {
         int32_t x = MXM_X + (int32_t)(((15u - (uint32_t)(-DB[i] / 6) - 5u) * 4u + 4u) * MXM_W / 44u);
         fmt_int(b, DB[i]);
-        cv_text(x - text_w(&FONT_S, b) + (i ? text_w(&FONT_S, b) / 2 : 0), MXM_VY + MXM_VH + 4, &FONT_S, b, C_DIM);
+        cv_texts(x - text_w(&FONT_S, b) + (i ? text_w(&FONT_S, b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
     }
-    cv_text(MXM_X, MXM_GY - 5, &FONT_S, "GR", C_DIM);
+    cv_texts(MXM_X, MXM_GY - 5, "GR", C_DIM);
     n = mx_rets(ret);
     for (i = 0; i < n; i++)                             /* (the type each return holds: a send's, or the other one's) */
-        cv_text(MXM_X, MXM_CY + (int32_t)i * MXM_CP, &FONT_S, fxs_line_name(ret[i]), C_HI);
+        cv_texts(MXM_X, MXM_CY + (int32_t)i * MXM_CP, fxs_line_name(ret[i]), C_HI);
     mx_vu_paint(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
     for (i = 0; i < n; i++)                             /* (a return's meter state: the row T1 + its line's, unseen here) */
         mx_vu_paint(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
@@ -191,35 +191,21 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     uint16_t c = mx_col(i);
     uint16_t cc = i >= MXR_LANE0 && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
     int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? 2 : MXL_TY;
+    uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
-    cv_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
-    if (mx_muted(i))                                    /* (a muted row: its name struck through, the user, 2026-10-15) */
-        strike_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
-    if (mx_is_usb(i)) {                                 /* the USB input: its name and whether it streams, its M badge */
+    text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
+    if (mx_is_usb(i) || i < MXR_LANE0) {                /* the USB input: its name and whether it streams; a channel: its engine
+                                                         * and preset; their M badge */
         uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
         mx_names(i, en, pr);
-        x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
-        if (mx_muted(i))
-            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
-        cv_text(x + 8, q.y + MXL_TY, &FONT_S, pr, pc);
-        if (mx_muted(i))
-            cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
-    } else if (i < MXR_LANE0) {                         /* a channel: its engine and preset, its M / S badge */
-        mx_names(i, en, pr);
-        x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
-        if (mx_muted(i))
-            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, b, c);
-        if (pr[0]) {
-            uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
-            cv_text(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc);
-            if (mx_muted(i))
-                strike_text(x + 8, q.y + MXL_TY, &FONT_S, b, pc);
-        }
-        if (mx_muted(i))                                /* (muted: the M badge, the steps grey) */
-            cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
+        x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c, mu);   /* ANALOG, in the row's colour ... (USB IN) */
+        if (pr[0])                                      /* (USB: "streaming" whole, never struck) */
+            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i));
+        if (mu)                                         /* (muted: the M badge, the steps grey) */
+            cv_texts(6, q.y + 18, "M", C_WARN);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
     if (q.vw)
@@ -352,9 +338,9 @@ static void mx_master_gr(void)
         b[0] = '-';
         fmt_int(b + 1, (int32_t)(q4 / 4u));
         str_cpy(b + str_len(b), " dB", sizeof b - str_len(b));
-        cv_text(0, 0, &FONT_S, b, C_WARN);
+        cv_texts(0, 0, b, C_WARN);
     } else if (FELUCCA_MASTER_COMP) {
-        cv_text(0, 0, &FONT_S, "off", C_DIM);
+        cv_texts(0, 0, "off", C_DIM);
     }
     cv_blit(MXM_GX, (uint32_t)(OP_PY + MXM_GY - 5));
 }
@@ -416,7 +402,8 @@ static void mx_steps(uint32_t r)
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
 }
-static void mx_draw(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void mx_draw(void)
 {
     uint32_t i, sig, trk_lv[NTRK], ret_lv[3], n;
     uint8_t ret[3];
@@ -434,10 +421,7 @@ static void mx_draw(void)
         }
         ui.sig[2] = sig;
         cv_tall(OP_PY, OH_BODY, C_BLACK, mx_paint);
-        memset(mxd.vu, 0xFF, sizeof mxd.vu);
-        memset(mxd.gr, 0xFF, sizeof mxd.gr);
-        memset(mxd.stp, 0, sizeof mxd.stp);
-        mxd.mgr = 0xFF;
+        mx_redraw();
     }
     if (ui.overlay == 2u)
         return;                                         /* (under a toast: the rows wait) */

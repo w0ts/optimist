@@ -132,22 +132,22 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
         if (nd[op].row < 0)
             continue;
         if (!boxed)                                     /* (no room for a box: the number alone, in its box's colour) */
-            cv_text(px[op] - 4, py[op] - 7, &FONT_S, n, box == C_BLACK ? (mute ? C_DIM : C_GRAY) : box);
+            cv_texts(px[op] - 4, py[op] - 7, n, box == C_BLACK ? (mute ? C_DIM : C_GRAY) : box);
         else if (box == C_BLACK)                        /* a modulator: outlined on black, brighter when it sounds */
             cv_frame(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, mute ? C_LINE : C_GRAY);
         else
             cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, box);
         if (boxed)                                      /* (its ink, rows 2..11, in the box's middle) */
-            cv_text(px[op] - 4, py[op] - 7, &FONT_S, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
+            cv_texts(px[op] - 4, py[op] - 7, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
     }
     str_cpy(b, "Alg ", sizeof b);                       /* "Alg 5", the feedback */
     fmt_int(b + 4, v[FV_ALG] + 1);
-    cv_text(4, y0 + 1, &FONT_S, b, C_GRAY);
+    cv_texts(4, y0 + 1, b, C_GRAY);
     if (big) {                                          /* (one line: "Car" in the carriers' colour, the feedback) */
         str_cpy(b, "Fb ", sizeof b);
         fmt_int(b + 3, v[FV_FB]);
-        cv_text(236 - text_w(&FONT_S, b) - 8 - text_w(&FONT_S, "Car"), y0 + 1, &FONT_S, "Car", ec);
-        cv_text(236 - text_w(&FONT_S, b), y0 + 1, &FONT_S, b, v[FV_FB] ? C_GRAY : C_DIM);
+        cv_texts(236 - text_w(&FONT_S, b) - 8 - text_w(&FONT_S, "Car"), y0 + 1, "Car", ec);
+        cv_texts(236 - text_w(&FONT_S, b), y0 + 1, b, v[FV_FB] ? C_GRAY : C_DIM);
     }
 }
 
@@ -178,9 +178,9 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
     uint16_t ec = trk_col(song.sel);
     fm6_name(nm, f6_ed());
     fm6_row_name(f6.row, pg);
-    cv_text(4, 0, &FONT_S, nm, C_WHITE);                /* the voice (its name as stored), the page (the names table's) */
+    cv_texts(4, 0, nm, C_WHITE);                /* the voice (its name as stored), the page (the names table's) */
     nm_title(pg, c, sizeof c);
-    cv_text(236 - text_w(&FONT_S, c), 0, &FONT_S, c, C_GRAY);
+    cv_texts(236 - text_w(&FONT_S, c), 0, c, C_GRAY);
     f6_alg_draw(F6_ALG_Y, F6_KEY_Y - F6_ALG_Y, 1);
     for (i = 0; i < 10u; i++) {
         uint32_t on = (KT[i] < 6u && kd == 0u && KT[i] == f6.target) || (KT[i] == FMT_PIT && kd == 1u) ||
@@ -188,7 +188,7 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
                       (KT[i] == FMT_POLY && voice == V_POLY);
         int32_t x = 6 + (int32_t)i * 21 + (int32_t)GROUP[i] * 6;
         cv_box(x, F6_KEY_Y, 19, F6_KEY_H, on ? C_WHITE : C_BLACK);
-        cv_text(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_KEY_Y + (F6_KEY_H - F6_INK) / 2 - 2, &FONT_S, KEYS[i], on ? C_BLACK : ec);
+        cv_texts(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_KEY_Y + (F6_KEY_H - F6_INK) / 2 - 2, KEYS[i], on ? C_BLACK : ec);
     }
 }
 static void fm6_lay_draw(void)
