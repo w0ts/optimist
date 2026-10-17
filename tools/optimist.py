@@ -325,12 +325,13 @@ BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=
 #  - the synth engines GRAIN, TRIO, DRAWBAR, DIGITAL, PHASE (the default patch plays none of them)
 #  - the SLOOP 2.4 project importer and its safety checks (SL24_IMPORT, SL24_SAFE)
 #  - the step conditions (COND, 11.4 KB: on in user-default since 2026-10-13 with SEQTOOLS; the full BLE set was 432 B
-#    over the slot after feat/lfo-slots; SEQTOOLS would give nothing here, it is UI=1 only and user-default is UI=0);
-#    tests/cond_test.c and the UI tests cover COND in their own builds
+#    over the slot after feat/lfo-slots); tests/cond_test.c and the UI tests cover COND in their own builds
+#  - STEP's tools and the note generators (SEQTOOLS, ~6 KB: user-default is UI=1 since 2026-10-17, so they are built
+#    there now; the BLE tests use no step tool, the UI tests cover them)
 # measured 2026-10-11 on user-default with the whole BLE set: flash 560,596 of 581,564 B, 20,968 B free
 BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0",
                  "ENG_GRAIN=0", "ENG_TRIO=0", "ENG_DRAWBAR=0", "ENG_DIGITAL=0", "ENG_PHASE=0",
-                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0")
+                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0", "SEQTOOLS=0")
 
 
 def ble_test_configs():
