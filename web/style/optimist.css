@@ -12,9 +12,10 @@
 :root {
   /* the editor's: --bg the page, --fg the text, --panel a raised surface, --dim secondary text, --line separators */
   --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c;
-  /* the four tracks (the editor's, the FM-1's): blue, green, yellow, orange; --trk the current one (the accent) */
-  --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
-  --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
+  /* one colour on every web page: the blue (--t1). The track names --t2..--t4 and --trk stay (the components use them) and are
+     that blue; an OK reads in it too. Only a warning (amber) and an error (red) have their own */
+  --t1: #287cff; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
+  --ok: var(--t1); --warn: #ffc618; --err: #ff4a50;
   --on: #000;   /* text on a track-coloured or status-coloured fill */
   --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
   --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
@@ -41,8 +42,8 @@
 @media (prefers-color-scheme: light) {   /* follows the system, live */
   :root {
     --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
-    --ok: #11682b; --warn: #825000; --err: #a82229;
-    --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+    --warn: #825000; --err: #a82229;
+    --t1: #1a52b8;
     --on: #fff;
     --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
     --mute: var(--dim);

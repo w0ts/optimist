@@ -1627,7 +1627,7 @@ async function editorDaw() {
   ok(all.concat(Object.values(E.COLORS.status)).every((c) => E.contrast(c, E.textOn(c)) >= 4.5), "daw: text on every engine / kind / status colour reads (contrast >= 4.5)");
   /* the colours follow the system (no switch): a dark set and a light set in the stylesheet, both readable (WCAG AA) */
   const darkCss = html.slice(html.indexOf("  :root {\n    --bg: #000;"), html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"));
-  const lightCss = html.slice(html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"), html.indexOf("  html:root[data-sel=\"1\"]"));
+  const lightCss = html.slice(html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"), html.indexOf("  html { background: var(--bg); }"));
   const tok = (css, n) => { const m = (css.match(new RegExp("--" + n + ": #([0-9a-fA-F]{3,6});")) || [])[1]; return m && "#" + (m.length === 3 ? [...m].map((d) => d + d).join("") : m); };
   const bad = [];
   for (const [mode, css] of [["dark", darkCss], ["light", lightCss]]) {
@@ -1635,7 +1635,7 @@ async function editorDaw() {
     if (!bg || !fg || !dim || !panel || !on) { bad.push(mode + ": a token is missing"); continue; }
     if (E.contrast(fg, bg) < 7 || E.contrast(fg, panel) < 7) bad.push(mode + " text");
     if (E.contrast(dim, bg) < 4.5 || E.contrast(dim, panel) < 4.5) bad.push(mode + " secondary text");
-    for (const n of ["t1", "t2", "t3", "t4", "ok", "warn", "err"]) {
+    for (const n of ["t1", "warn", "err"]) {   /* (one colour: --t2..--t4 and --ok are var(--t1)) */
       const c = tok(css, n);
       if (!c) { if (mode === "light") bad.push("light " + n + " missing"); continue; }
       if (E.contrast(c, on) < 4.5) bad.push(`${mode} ${n}: text on it ${E.contrast(c, on).toFixed(2)}`);
@@ -2810,8 +2810,8 @@ async function masterStrip() {
   ok(!/@font-face \{ font-family: "(JetBrains Mono|SLOOP Terminus)"/.test(html) && /--font: system-ui/.test(html),
     "look: the editor's text is the system's own sans-serif (no font data inlined)");
   ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 3 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
-    && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
-    "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, the four track colours");
+    && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(html) && !/data-sel="\d"\] \{ --trk/.test(html),
+    "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, one colour (the blue) for every track");
   /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
   ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/chopSend\(k\)\ \}, `USR/.test(html)
     && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
@@ -3285,6 +3285,8 @@ async function installerModule() {
     "installer page: a thin wrapper (the shared style and header, the module, the site's packages)");
   ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && !/var\(--(on-track|t[1-4]|trk)\)/.test(css) && !/--t[1-4]/.test(readFileSync(join(HERE, "installer", "installer.js"), "utf8")) && !/\.tile|\.tiles/.test(css + page),
     "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
+  ok(/--t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")) && /--ok: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")),
+    "web style: one colour on every page (the blue --t1): the track names and an OK are that blue");
   const mod = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
   ok(/export function mountInstaller\(container, opts = \{\}\)/.test(mod) && !/innerHTML/.test(mod) && !/confirm\(/.test(mod) && /showModal\(\)/.test(mod),
     "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");

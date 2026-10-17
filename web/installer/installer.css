@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
    The installer's layout (web/installer/installer.js), scoped to .oi. Colours, type and spacing only from the shared
    tokens of web/style/optimist.css (docs/WEB-STYLE.md): no colour of its own, so it takes the editor's look wherever it is
-   mounted, light or dark. The cards are the shared .o-panel; each step's number is in its track colour (1-4), as the
-   editor's drum kit page numbers its steps. */
+   mounted, light or dark. The cards are the shared .o-panel, numbered in neutral grey; the accent (the Install button, the
+   radios, the phase in progress) and an OK ("found", "done") are the pages' one colour, the blue. */
 
 .oi { max-width: 720px; margin: 0 auto; }
 .oi [hidden] { display: none !important; }   /* (a hidden message stays gone whatever its display) */

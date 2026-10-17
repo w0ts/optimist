@@ -502,8 +502,8 @@
      ==================================================================================================================== */
   :root {
     --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
-    --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
-    --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
+    --ok: var(--t1); --warn: #ffc618; --err: #ff4a50;   /* one colour: the blue (--t1); --t2..--t4 and an OK are that blue too */
+    --t1: #287cff; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
     --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
     --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -515,15 +515,14 @@
   @media (prefers-color-scheme: light) {
     :root {
       --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
-      --ok: #11682b; --warn: #825000; --err: #a82229;
-      --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+      --warn: #825000; --err: #a82229;
+      --t1: #1a52b8;
       --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
       --mute: var(--dim);
       --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
       color-scheme: light;
     }
   }
-  html:root[data-sel="1"] { --trk: var(--t2); } html:root[data-sel="2"] { --trk: var(--t3); } html:root[data-sel="3"] { --trk: var(--t4); }
   html { background: var(--bg); }
   body { font: 16px/20px var(--font); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; color: var(--fg2); }
   ::selection { background: var(--trk); color: var(--on); }
@@ -994,8 +993,8 @@
      ==================================================================================================================== */
   :root {
     --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
-    --ok: #1ecc70; --warn: #ffc618; --err: #ff4a50;
-    --t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a; --trk: var(--t1);
+    --ok: var(--t1); --warn: #ffc618; --err: #ff4a50;   /* one colour: the blue (--t1); --t2..--t4 and an OK are that blue too */
+    --t1: #287cff; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
     --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
     --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1007,15 +1006,14 @@
   @media (prefers-color-scheme: light) {
     :root {
       --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
-      --ok: #11682b; --warn: #825000; --err: #a82229;
-      --t1: #1a52b8; --t2: #11682b; --t3: #825000; --t4: #ab3207;
+      --warn: #825000; --err: #a82229;
+      --t1: #1a52b8;
       --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
       --mute: var(--dim);
       --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
       color-scheme: light;
     }
   }
-  html:root[data-sel="1"] { --trk: var(--t2); } html:root[data-sel="2"] { --trk: var(--t3); } html:root[data-sel="3"] { --trk: var(--t4); }
   html { background: var(--bg); }
   body { font: 16px/20px var(--font); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; color: var(--fg2); }
   ::selection { background: var(--trk); color: var(--on); }
@@ -6530,6 +6528,8 @@ class SetGate {
   clear() { this.m.clear(); }
 }
 /*PROTO-END*/
+/* one colour on the web pages: the blue (--t1) wherever an engine, a kit kind or a track had its own; COLORS (above) stays, the device's table */
+const UI_C = "var(--t1)", UI_ON = "var(--on)";
 
 /* ===================================================================== UI === */
 if (typeof document !== "undefined") (() => {
@@ -7936,7 +7936,7 @@ function rollColors() {
   const cs = getComputedStyle(document.documentElement), v = (n, d) => (cs.getPropertyValue(n) || d).trim() || d;
   const x = dev.mix && dev.mix.tracks[dev.sel], ename = x && x.engine < dev.info.nengines ? dev.info.engines[x.engine] : dev.info.engines[dev.dump.engine];
   return { bg: v("--bg", "#fff"), fg: v("--fg", "#000"), dim: v("--dim", "#666"), line: v("--line", "#ccc"), accent: v("--accent", "#000"),
-    eng: v("--trk", engineColor(ename || "")), engfg: textOn(v("--trk", engineColor(ename || ""))), warn: v("--warn", "#c98a12") };
+    eng: v("--t1", "#287cff"), engfg: v("--on", "#000"), warn: v("--warn", "#c98a12") };
 }
 function drawRoll() {
   if (!roll.el || !dev) return;
@@ -8415,7 +8415,7 @@ function renderDrumBar() {
 /* the drum grid: 16 lanes (their names and what plays them, in its kind's colour), the steps up to LEN in rows of 16 with
    the beat / bar marks of DIV; a hit's level by its shade (GHOST, SOFT, NORM, HARD framed), its ratchet as a number; the
    step playing lit (STATUS) */
-const laneColor = (l) => (l === 16 ? "" : dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.lanes[l], kitSources(), dev.dlKit | 0)]) : "");
+const laneColor = (l) => (l === 16 ? "" : UI_C);   /* (one colour: no kind colour per lane) */
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
@@ -11517,9 +11517,8 @@ function updateLaneStrips() {
     }
     const ln = dev.dl && dev.dl.lanes[l];
     if (ln) {
-      const col = kindColor(KIND_ATTR[laneKind(ln, list, dev.dlKit | 0)]);
-      c.head.style.setProperty("--eng", col);
-      c.head.style.setProperty("--engfg", textOn(col));
+      c.head.style.setProperty("--eng", UI_C);
+      c.head.style.setProperty("--engfg", UI_ON);
       c.lvl.value(ln.ofs[7], false);
       if (c.instSel && document.activeElement !== c.instSel) { c.instSel.value = String(ln.src); const l1 = c.strip.querySelector(".fxname .l1"); if (l1) l1.textContent = srcName(ln.src); }
       for (const [f, k] of c.snd) k.value(laneSnd(l)[f], false);
@@ -12081,9 +12080,8 @@ function updateStrip(i) {
   /* the head: the engine's colour (the drum track: its kit's kind) */
   const ename = drum ? "DRUMS" : dev.info.engines[x.engine] || "";
   const kd = drum ? (dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]) : null;
-  const col = drum ? kindColor(kd) : engineColor(ename);
-  c.head.style.setProperty("--eng", col);
-  c.head.style.setProperty("--engfg", textOn(col));
+  c.head.style.setProperty("--eng", UI_C);
+  c.head.style.setProperty("--engfg", UI_ON);
   c.eng.textContent = drum ? `DRUMS · ${KIND_TAG[kitKind(x.e0)]}` : ename;
   if (drum) { c.strip.dataset.kind = kd; delete c.strip.dataset.engine; } else c.strip.dataset.engine = ename.toLowerCase();
   const nm = drum ? (dev.dl && dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[x.e0] || "") : (dev.names[x.engine] || [])[x.preset] || "";
@@ -12095,7 +12093,7 @@ function updateStrip(i) {
       const l = +b.dataset.l, ln = dev.dl.lanes[l], k = laneKind(ln, list, dev.dlKit | 0);
       b.textContent = laneShort(l);
       b.dataset.kind = KIND_ATTR[k];
-      b.style.setProperty("--kc", kindColor(KIND_ATTR[k]));
+      b.style.setProperty("--kc", UI_C);
       b.classList.toggle("ed", laneEdited(ln));
       b.title = withKey(`${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]}) \u2014 ${t("laneSelHelp")}`, l < 10 ? LANE_KEYS[l] : "");
       b.setAttribute("aria-label", b.title);
@@ -12480,8 +12478,8 @@ function dynLoad() {
     const ps = dev.names[e] || [];
     if (!ps.length) return;
     const g = el("div", { class: "pgroup", "data-engine": name.toLowerCase() });
-    g.style.setProperty("--eng", engineColor(name));
-    g.style.setProperty("--engfg", textOn(engineColor(name)));
+    g.style.setProperty("--eng", UI_C);
+    g.style.setProperty("--engfg", UI_ON);
     g.append(el("h3", { class: "ehead", text: name }), el("div", { class: "plist" }, ...ps.map((n, p) => favSoundEl(e, p, {
       class: "pr" + (e === dev.dump.engine && p === dev.dump.preset ? " cur" : ""), onclick: (ev) => op(async () => {
         await choosePreset(e, p);
@@ -12496,7 +12494,7 @@ function dynLoad() {
     if (used.length) out.push(el("div", { class: "pgroup" }, el("h3", { text: t("bank") }), el("div", { class: "plist" }, ...used.map(([x, k]) => {
       const en = dev.info.engines[x.engine] || "";
       const w = favSoundEl(dev.info.engines.length, k, { class: "pr", "data-engine": en.toLowerCase(), onclick: () => bankLoad(k) }, `${slotName(k)} ${x.name}`);
-      w.style.setProperty("--kc", engineColor(en));
+      w.style.setProperty("--kc", UI_C);
       return w;
     }))));
   }
@@ -12542,13 +12540,13 @@ function dynKit() {
       const v = "f" + (s.src - DL.KIT0);
       const b = el("button", { type: "button", class: "pr" + (v === cur ? " cur" : ""), "data-kind": KIND_ATTR[s.kind], title: srcText(s),
         onclick: () => { chooseKit(v); closePop(); } }, s.name + (s.built ? "" : " *"));
-      b.style.setProperty("--kc", kindColor(KIND_ATTR[s.kind]));
+      b.style.setProperty("--kc", UI_C);
       return b;
     }))));
   const used = (dev.ukits || []).filter((u) => u.used);
   if (used.length) g.push(el("div", { class: "pgroup" }, el("h3", { text: t("grpUser") }), el("div", { class: "plist" }, ...used.map((u) => {
     const b = el("button", { type: "button", class: "pr" + ("u" + u.slot === cur ? " cur" : ""), "data-kind": "userkit", onclick: () => { chooseKit("u" + u.slot); closePop(); } }, kitName(u.slot));
-    b.style.setProperty("--kc", kindColor("userkit"));
+    b.style.setProperty("--kc", UI_C);
     return b;
   }))));
   return [el("p", { class: "dim", text: t("popKitHelp") }), ...g];

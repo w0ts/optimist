@@ -455,11 +455,11 @@ ok(await run(`${U} $("#mixer").children[3].querySelector("[data-pop=sequence]").
   if (!await until(() => $("#pop").open && shown($("#drumgrid")) && !/Reading|reading/.test($("#status").textContent), 20000)) return false;
   await sleep(300);
   const lanes = [...document.querySelectorAll("#drumgrid span[data-ln]")];
-  const coloured = lanes.length === 16 && lanes.every((n) => /#|rgb/.test(n.style.getPropertyValue("--kc")));
+  const coloured = lanes.length === 16 && lanes.every((n) => n.style.getPropertyValue("--kc") === "var(--t1)");
   const d0 = window.fm1Test.mock.state.tracks[3].dstep[1], was = (d0.on >> 2) & 1;
   document.querySelector('#drumgrid button[data-i="1"][data-l="2"]').click(); await sleep(500);
   const now = (window.fm1Test.mock.state.tracks[3].dstep[1].on >> 2) & 1;
-  return coloured && now !== was;`), "e2e: drum grid: 16 named lanes in their kind colours, a click puts / takes a hit on the device");
+  return coloured && now !== was;`), "e2e: drum grid: 16 named lanes in the one colour, a click puts / takes a hit on the device");
 await shot("drum-grid");
 await run(`document.querySelector("#popx").click();`);
 /* the help: one click from the transport bar, Escape back */
@@ -485,9 +485,9 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === ":3" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
+ok(lookRes && lookRes.groups === ":3" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
-  `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects, the track colour follows), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
+  `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects; one colour, the blue, whatever the track), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
 const smpRes = await run(`${U} window.confirm = () => true; const r = {};
   try {
