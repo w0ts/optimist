@@ -2746,6 +2746,8 @@ static void led_tests(void)
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
 
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
+#include "ui_optimist_lockaudit.h"
+
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -2772,6 +2774,10 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+#if FELUCCA_PLOCK
+    if (getenv("PLOCK_AUDIT"))                          /* (the p-lock / motion list, ui_optimist_lockaudit.h) */
+        return (int)lock_audit();
+#endif
     rows_tests();
 #if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
     fxpool_tests();
