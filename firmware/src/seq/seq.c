@@ -2234,18 +2234,33 @@ static void rec_follow(uint32_t sel)
 /* A wood block on every beat, louder on the first of the bar, from the drum kit's voices
  * (not recorded, not muted with the drum track; GLO > DRUMS LVL sets its level).
  * GLO > GLOBAL CLICK: OFF (0, default: LIVE needs none), REC = while a track records,
- * ON = while playing. */
+ * ON = while playing, AUTO = while nothing else plays (the user, 2026-10-17: "on only if nothing is playing, and then
+ * stop the click after the first loop if something is playing now"): decided as playing starts and each time the
+ * selected track's loop comes round (its step back to the start): every track empty, it clicks. */
 #define CLICK_REC 1
 #define CLICK_ON 2
+#define CLICK_AUTO 3
 static uint32_t click_last = SEQ_NONE;          /* the beat it last played */
+static uint32_t click_idx = SEQ_NONE;           /* AUTO: the selected track's step at the last block (SEQ_NONE: not playing) */
+static uint8_t click_auto;                      /* AUTO: clicking (project_empty when decided) */
 static void click_tick(void)
 {
     uint32_t mode = (uint32_t)song.g[G_CLOCK];
-    if (!song.playing || clk_beat == click_last)
+    if (!song.playing) {
+        click_idx = SEQ_NONE;
+        return;
+    }
+    if (mode == CLICK_AUTO) {
+        uint32_t idx = TSEL->seq_idx;
+        if (click_idx == SEQ_NONE || idx < click_idx)   /* (the start, or the loop came round) */
+            click_auto = (uint8_t)project_empty();
+        click_idx = idx;
+    }
+    if (clk_beat == click_last)
         return;
     click_last = clk_beat;
     ev_at(clk_pos);
-    if (mode == CLICK_ON || (mode == CLICK_REC && song.rec))
+    if (mode == CLICK_ON || (mode == CLICK_REC && song.rec) || (mode == CLICK_AUTO && click_auto))
         drum_on(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
 }
 
@@ -2387,6 +2402,7 @@ static void seq_reset_tracks(uint32_t pos)
     fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar: a section's bar 0) */
 #endif
     click_last = SEQ_NONE;
+    click_idx = SEQ_NONE;                          /* (CLICK AUTO: decided again from here) */
     song.tick = 0;
 #if FELUCCA_MOTION || FELUCCA_PLOCK
     motion_begin();                                /* (auto_base.c: every track from its patch) */
