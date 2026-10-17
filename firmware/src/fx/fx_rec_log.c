@@ -16,55 +16,69 @@ _Static_assert(FXR_ID_AUTO < SLG_IDS && SEC_IDS <= 16u, "the FX records' log ids
 static uint8_t fxr_rbuf[4u + FXR_MAX] __attribute__((section(".pool"), aligned(4)));
 _Static_assert(sizeof fxr_rbuf <= SEC_REC_MAX, "an FX record is never longer than a section record");
 
-/* the FX record of the project p (in its buffer's store) into the log as id; 0 ok, 1 MEM FULL, -1 flash */
-static int fxr_log_put(uint32_t id, uint32_t key, const project_t *p, int playing)
+/* A record of a section's beside its own (this FX record, the drum lanes' LFO record: dlfo_rec_log.c), the same way
+ * for both: its buffer (key first), the arena's index and the log's id of section 0, its store's two ways */
+typedef struct {
+    uint8_t *buf;
+    uint16_t size;                                     /* (sizeof buf) */
+    uint8_t pend0, id0;
+    uint32_t (*rec)(uint32_t key, const project_t *p, uint8_t *o);           /* fxr_rec */
+    void (*from)(const project_t *p, const uint8_t *r, uint32_t n, uint32_t key);   /* fxr_from_rec */
+} xrec_t;
+_Static_assert(SEC_PEND_DL + SEC_IDS <= 255u, "a record kind's arena index: a byte");
+/* the record of the project p (in its buffer's store) into the log as id; 0 ok, 1 MEM FULL, -1 flash */
+static int xrec_log_put(const xrec_t *k, uint32_t id, uint32_t key, const project_t *p, int playing)
 {
-    return slg_put(id, fxr_rbuf, fxr_rec(key, p, fxr_rbuf), playing);
+    return slg_put(id, k->buf, k->rec(key, p, k->buf), playing);
 }
 /* the log's record id for the project p just read (key): into p's store */
-static void fxr_log_get(uint32_t id, uint32_t key, const project_t *p)
+static void xrec_log_get(const xrec_t *k, uint32_t id, uint32_t key, const project_t *p)
 {
-    int n = slg_has(id) && slg.alen[id] <= sizeof fxr_rbuf ? slg_get(id, fxr_rbuf) : 0;   /* (a longer one: not ours) */
-    fxr_from_rec(p, fxr_rbuf, n > 0 ? (uint32_t)n : 0u, key);
+    int n = slg_has(id) && slg.alen[id] <= k->size ? slg_get(id, k->buf) : 0;   /* (a longer one: not ours) */
+    k->from(p, k->buf, n > 0 ? (uint32_t)n : 0u, key);
 }
-/* the FX record of section id (0..15; 16: the autosave's) as stored: the pending arena's, else the log's -> fxr_rbuf,
+/* the record of section id (0..15; 16: the autosave's) as stored: the pending arena's, else the log's -> its buffer,
  * its length (0 none) */
-static uint32_t fxr_sec_get(uint32_t id)
+static uint32_t xrec_sec_get(const xrec_t *k, uint32_t id)
 {
     uint32_t rl = 0;
-    if (id < SEC_IDS && sec_pend_has(SEC_PEND_FX + id)) {
-        rl = sec_pend.len[SEC_PEND_FX + id];
-        if (rl <= sizeof fxr_rbuf)
-            memcpy(fxr_rbuf, sec_pend.data + sec_pend.off[SEC_PEND_FX + id], rl);
+    if (id < SEC_IDS && sec_pend_has(k->pend0 + id)) {
+        rl = sec_pend.len[k->pend0 + id];
+        if (rl <= k->size)
+            memcpy(k->buf, sec_pend.data + sec_pend.off[k->pend0 + id], rl);
         else
             rl = 0;
-    } else if (flash_ok && slg_has(FXR_ID0 + id) && slg.alen[FXR_ID0 + id] <= sizeof fxr_rbuf) {
-        int g = slg_get(FXR_ID0 + id, fxr_rbuf);
+    } else if (flash_ok && slg_has(k->id0 + id) && slg.alen[k->id0 + id] <= k->size) {
+        int g = slg_get(k->id0 + id, k->buf);
         rl = g > 0 ? (uint32_t)g : 0u;
     }
     return rl;
 }
-/* section s was read into p from its record (key: the record's hash): its FX record into p's store */
-static void fxr_sec_read(uint32_t s, const project_t *p, uint32_t key)
+/* section s's record (n bytes in sec_rbuf, just put in the arena): its record beside it; 0 ok, 1 no room */
+static int xrec_pend(const xrec_t *k, uint32_t s, uint32_t n)
 {
-    fxr_from_rec(p, fxr_rbuf, fxr_sec_get(s), key);
-}
-/* section s's record (n bytes in sec_rbuf, just put in the arena): its FX record beside it; 0 ok, 1 no room */
-static int fxr_pend(uint32_t s, uint32_t n)
-{
-    uint32_t r = fxr_rec(proj_hash(sec_rbuf, n), &proj_tmp.cur, fxr_rbuf);
-    sec_pend_del(SEC_PEND_FX + s);
-    return r ? sec_pend_put(SEC_PEND_FX + s, fxr_rbuf, r) : 0;
+    uint32_t r = k->rec(proj_hash(sec_rbuf, n), &proj_tmp.cur, k->buf);
+    sec_pend_del(k->pend0 + s);
+    return r ? sec_pend_put(k->pend0 + s, k->buf, r) : 0;
 }
 /* a record for section id (0..16) as a snapshot or a backup gives it (key and all; n 0: none) into the log, its
  * pending one dropped: 0 ok, else not written */
-static int fxr_sec_put(uint32_t id, const uint8_t *r, uint32_t n)
+static int xrec_sec_put(const xrec_t *k, uint32_t id, const uint8_t *r, uint32_t n)
 {
     if (id < SEC_IDS)
-        sec_pend_del(SEC_PEND_FX + id);
-    if (n > sizeof fxr_rbuf || (n && n <= 4u))
+        sec_pend_del(k->pend0 + id);
+    if (n > k->size || (n && n <= 4u))
         return 1;
-    if (r != fxr_rbuf)
-        memcpy(fxr_rbuf, r, n);
-    return slg_put(FXR_ID0 + id, fxr_rbuf, n, 1);
+    if (r != k->buf)
+        memcpy(k->buf, r, n);
+    return slg_put(k->id0 + id, k->buf, n, 1);
 }
+
+static const xrec_t XR_FX = {fxr_rbuf, sizeof fxr_rbuf, SEC_PEND_FX, FXR_ID0, fxr_rec, fxr_from_rec};
+static int fxr_log_put(uint32_t id, uint32_t key, const project_t *p, int playing) { return xrec_log_put(&XR_FX, id, key, p, playing); }
+static void fxr_log_get(uint32_t id, uint32_t key, const project_t *p) { xrec_log_get(&XR_FX, id, key, p); }
+static uint32_t fxr_sec_get(uint32_t id) { return xrec_sec_get(&XR_FX, id); }   /* -> fxr_rbuf */
+/* section s was read into p from its record (key: the record's hash): its FX record into p's store */
+static void fxr_sec_read(uint32_t s, const project_t *p, uint32_t key) { fxr_from_rec(p, fxr_rbuf, fxr_sec_get(s), key); }
+static int fxr_pend(uint32_t s, uint32_t n) { return xrec_pend(&XR_FX, s, n); }
+static int fxr_sec_put(uint32_t id, const uint8_t *r, uint32_t n) { return xrec_sec_put(&XR_FX, id, r, n); }

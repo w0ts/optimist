@@ -15,55 +15,12 @@ _Static_assert(DLR_ID0 == FXR_ID_AUTO + 1u && DLR_ID_AUTO < SLG_IDS && SEC_IDS <
 static uint8_t dlr_rbuf[4u + DLR_MAX] __attribute__((section(".pool"), aligned(4)));
 _Static_assert(sizeof dlr_rbuf <= SEC_REC_MAX && sizeof dlr_rbuf <= 255u, "an LFO record: shorter than a section record, a byte's length");
 
-/* the LFO record of the project p (in its buffer's store) into the log as id; 0 ok, 1 MEM FULL, -1 flash */
-static int dlr_log_put(uint32_t id, uint32_t key, const project_t *p, int playing)
-{
-    return slg_put(id, dlr_rbuf, dlr_rec(key, p, dlr_rbuf), playing);
-}
-/* the log's record id for the project p just read (key): into p's store */
-static void dlr_log_get(uint32_t id, uint32_t key, const project_t *p)
-{
-    int n = slg_has(id) && slg.alen[id] <= sizeof dlr_rbuf ? slg_get(id, dlr_rbuf) : 0;   /* (a longer one: not ours) */
-    dlr_from_rec(p, dlr_rbuf, n > 0 ? (uint32_t)n : 0u, key);
-}
-/* the LFO record of section id (0..15; 16: the autosave's) as stored: the pending arena's, else the log's -> dlr_rbuf,
- * its length (0 none) */
-static uint32_t dlr_sec_get(uint32_t id)
-{
-    uint32_t rl = 0;
-    if (id < SEC_IDS && sec_pend_has(SEC_PEND_DL + id)) {
-        rl = sec_pend.len[SEC_PEND_DL + id];
-        if (rl <= sizeof dlr_rbuf)
-            memcpy(dlr_rbuf, sec_pend.data + sec_pend.off[SEC_PEND_DL + id], rl);
-        else
-            rl = 0;
-    } else if (flash_ok && slg_has(DLR_ID0 + id) && slg.alen[DLR_ID0 + id] <= sizeof dlr_rbuf) {
-        int g = slg_get(DLR_ID0 + id, dlr_rbuf);
-        rl = g > 0 ? (uint32_t)g : 0u;
-    }
-    return rl;
-}
+/* the log side: as the FX record's (fx_rec_log.c xrec_t) */
+static const xrec_t XR_DL = {dlr_rbuf, sizeof dlr_rbuf, SEC_PEND_DL, DLR_ID0, dlr_rec, dlr_from_rec};
+static int dlr_log_put(uint32_t id, uint32_t key, const project_t *p, int playing) { return xrec_log_put(&XR_DL, id, key, p, playing); }
+static void dlr_log_get(uint32_t id, uint32_t key, const project_t *p) { xrec_log_get(&XR_DL, id, key, p); }
+static uint32_t dlr_sec_get(uint32_t id) { return xrec_sec_get(&XR_DL, id); }   /* -> dlr_rbuf */
 /* section s was read into p from its record (key: the record's hash): its LFO record into p's store */
-static void dlr_sec_read(uint32_t s, const project_t *p, uint32_t key)
-{
-    dlr_from_rec(p, dlr_rbuf, dlr_sec_get(s), key);
-}
-/* section s's record (n bytes in sec_rbuf, just put in the arena): its LFO record beside it; 0 ok, 1 no room */
-static int dlr_pend(uint32_t s, uint32_t n)
-{
-    uint32_t r = dlr_rec(proj_hash(sec_rbuf, n), &proj_tmp.cur, dlr_rbuf);
-    sec_pend_del(SEC_PEND_DL + s);
-    return r ? sec_pend_put(SEC_PEND_DL + s, dlr_rbuf, r) : 0;
-}
-/* a record for section id (0..16) as a snapshot or a backup gives it (key and all; n 0: none) into the log, its pending
- * one dropped: 0 ok, else not written */
-static int dlr_sec_put(uint32_t id, const uint8_t *r, uint32_t n)
-{
-    if (id < SEC_IDS)
-        sec_pend_del(SEC_PEND_DL + id);
-    if (n > sizeof dlr_rbuf || (n && n <= 4u))
-        return 1;
-    if (r != dlr_rbuf)
-        memcpy(dlr_rbuf, r, n);
-    return slg_put(DLR_ID0 + id, dlr_rbuf, n, 1);
-}
+static void dlr_sec_read(uint32_t s, const project_t *p, uint32_t key) { dlr_from_rec(p, dlr_rbuf, dlr_sec_get(s), key); }
+static int dlr_pend(uint32_t s, uint32_t n) { return xrec_pend(&XR_DL, s, n); }
+static int dlr_sec_put(uint32_t id, const uint8_t *r, uint32_t n) { return xrec_sec_put(&XR_DL, id, r, n); }
