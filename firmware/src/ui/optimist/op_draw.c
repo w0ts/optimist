@@ -429,7 +429,7 @@ static __attribute__((noinline)) void draw_head(void)
 {
     head_t h;
     char c[32];
-    uint32_t sig, rec = song.rec || rec_wait || ft_on, drop, xr = info_xruns();
+    uint32_t sig, rec = song.rec || rec_wait || ft_on, drop, xr = info_xruns(), fl;
     int32_t tw, bx;
     uint16_t mk;
     if (xr != ovl.xrun_seen)                            /* (another underrun: USB audio, MIDI in; system/overload.h) */
@@ -443,7 +443,8 @@ static __attribute__((noinline)) void draw_head(void)
     sig = hu(sig, h.muted);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
-    if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
+    fl = tf.t && !ui.msg_t && !name_on() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
+    if (fl) {
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
     }
@@ -451,7 +452,7 @@ static __attribute__((noinline)) void draw_head(void)
         return;
     ui.sig[0] = sig;
     cv_begin(240, OH_HEAD, C_BLACK);
-    if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
+    if (fl) {
         draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */
     } else if (ui.msg_t) {
         cv_texts(4, 4, op_case(c, ui.msg, sizeof c), h.mc);   /* (sentence case: "T1 cleared") */
@@ -464,14 +465,13 @@ static __attribute__((noinline)) void draw_head(void)
         if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
             cv_texts(tw + 8, 4, h.pr, h.tc);
         cv_texts(bx, 4, h.bpm, C_HI);
-        if (h.r[0])
-            cv_texts(bx - 8 - text_w(&FONT_S, h.r), 4, h.r, song.playing ? C_OK : C_DIM);
+        bx -= 8 + text_w(&FONT_S, h.r);                 /* (the loop position's x, "" none) */
+        cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
         if (rec)
-            cv_rect(bx - 16 - text_w(&FONT_S, h.r), 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
+            cv_rect(bx - 8, 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }
-    cv_line(0, OH_HEAD - 1, 239, OH_HEAD - 1, drop ? mk : C_LINE);
-    if (drop)                                           /* a drop-out (red) or an underrun (amber) in the last second: the header's rule */
-        cv_line(0, OH_HEAD - 2, 239, OH_HEAD - 2, mk);
+    cv_rect(0, OH_HEAD - 1 - (drop != 0u), 240, 1 + (drop != 0u), drop ? mk : C_LINE);   /* (a drop-out (red) or an underrun
+                                                         * (amber) in the last second: the header's rule, 2 px) */
     cv_blit(0, OY_HEAD);
 }
 
@@ -875,7 +875,7 @@ static void list_paint(void)
         song_grid_draw(GRAPH_H);
 #endif
     if (lst.pic && lst.shown)
-        cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);   /* (the rule over the rows; the picture alone: none) */
+        cv_hline(GRAPH_H + 1, C_LINE);   /* (the rule over the rows; the picture alone: none) */
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.shown && lst.n > lst.shown) {               /* where the window is in the list */

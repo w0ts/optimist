@@ -82,8 +82,8 @@ static void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
     sg_prep(t);
-    cv_rect(0, SG_LY(sel) - 1, 240, 1, C_DIM);          /* the selected lane's row: lined above and below */
-    cv_rect(0, SG_LY(sel + 1u) - 1, 240, 1, C_DIM);
+    cv_hline(SG_LY(sel) - 1, C_DIM);          /* the selected lane's row: lined above and below */
+    cv_hline(SG_LY(sel + 1u) - 1, C_DIM);
     sg_ground(t);
     for (l = 0; l < DRUM_UILANES; l++) {                /* (the 16 sounds, then the ACCENT lane's row) */
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;
@@ -139,7 +139,8 @@ static struct {
 } rg;
 static uint8_t roll_fold;               /* FOLD (both OCT tapped on a synth track's STEP, op_input.c): only the rows of the
                                          * pattern's notes, or the scale's when one is set (the user, 2026-10-16) */
-#define RV(nt) ((nt) >= 0 && (nt) <= 127 && rg.row[(nt) & 127] >= 0)   /* note nt has a row */
+static int roll_rv(int32_t nt) { return nt >= 0 && nt <= 127 && rg.row[nt & 127] >= 0; }   /* note nt has a row */
+#define RV(nt) roll_rv(nt)
 #define FOLD_MAX 51                     /* (4 px a row at least, as the unfolded roll's 51 semitones) */
 static int roll_scale_has(int32_t n)    /* the song's scale (trk[0]'s, op_layers.c) holds note n */
 {
@@ -246,7 +247,9 @@ static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s)
     }
     return note;
 }
-#define NY(nt) (SG_TOP + sg_dy + (rg.n - 1 - rg.row[(nt) & 127]) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
+static int32_t roll_ny(int32_t nt) { return SG_TOP + sg_dy + (rg.n - 1 - rg.row[nt & 127]) * rg.rh; }   /* note nt's row's y (sg_dy: the
+                                                         * roll moved so the edited note clears the cards) */
+#define NY(nt) roll_ny(nt)
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
 {
     uint32_t k, len = trk_len(t);

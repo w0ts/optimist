@@ -40,6 +40,7 @@ static __attribute__((noinline)) int32_t cv_texts(int32_t x, int32_t y, const ch
 {
     return cv_text(x, y, &FONT_S, s, c);
 }
+static void cv_hline(int32_t y, uint16_t c) { cv_rect(0, y, 240, 1, c); }   /* a rule across the screen */
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
     const track_t *t = &trk[c % NTRK];
@@ -159,7 +160,7 @@ static void graph_adsr4(int32_t atk, int32_t dec, int32_t sus127, int32_t rel, u
         px = x3 + i;
         py = EGY(sus * e >> 15);
     }
-    cv_line(0, bot + 1, 239, bot + 1, C_LINE);
+    cv_hline(bot + 1, C_LINE);
 #undef EGY
 }
 static void graph_adsr(const page_t *pg, uint16_t col)
@@ -192,7 +193,7 @@ static void graph_lfo(uint16_t col, uint32_t two)
             cv_line(x - 1, py, x, y, col);
         py = y;
     }
-    cv_line(0, mid, 239, mid, C_LINE);
+    cv_hline(mid, C_LINE);
 }
 /* a SOUND FX page's picture (SENDS, INSERTS, BUS SENDS, COMP, SLICER...): its own four values as needles (SLOOP's
  * graph_fx's look), read from the page's own cells, so the needles are the cards' values in the cards' order (the audit's
@@ -298,7 +299,7 @@ static void graph_arp(uint16_t c)
         cv_rect(2, ARPY(nt[i % cnt] + 12u * (i / cnt)), 234, 1, C_LINE);
     for (b = 0; b < 4u; b++)                            /* the beats */
         cv_rect(2 + (int32_t)b * 59, bot + 1, 1, 3, C_LINE);
-    cv_line(0, bot + 1, 239, bot + 1, C_LINE);
+    cv_hline(bot + 1, C_LINE);
     for (i = 0; i < steps; i++) {
         uint32_t k = i + 1u, j, cyc = len > 1u ? 2u * len - 2u : 1u, h = k * 2654435761u;
         int32_t x = 2 + (int32_t)i * 236 / (int32_t)steps + ((i & 1u) ? late : 0);
@@ -497,7 +498,7 @@ static void graph_denv(void)
     const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : kit < DRUM_SYNTH_END ? "SYN" : "X0X";
     int32_t y0 = GR_TOP + 16, h = GR_BOT - y0;
     uint16_t c = lane_col(l);
-    cv_line(0, GR_BOT + 1, 239, GR_BOT + 1, C_LINE);
+    cv_hline(GR_BOT + 1, C_LINE);
     denv_head(l, tg);
     if (!dsnd_has_env(l)) {
         cv_texts(4, y0 + (h > 14 ? (h - 14) / 2 : 0), "No envelope: level only", C_GRAY);

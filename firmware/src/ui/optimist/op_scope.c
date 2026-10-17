@@ -115,9 +115,9 @@ static void scope_paint(void)                           /* the trace as computed
 {
     uint32_t i;
     int32_t mid = SC_H / 2, y0 = sc.y[0];
-    cv_rect(0, mid, 240, 1, C_LINE);                    /* the zero line, the quarters */
-    cv_rect(0, mid / 2, 240, 1, col_shade(C_LINE, 5u));
-    cv_rect(0, mid + mid / 2, 240, 1, col_shade(C_LINE, 5u));
+    cv_hline(mid, C_LINE);                    /* the zero line, the quarters */
+    cv_hline(mid / 2, col_shade(C_LINE, 5u));
+    cv_hline(mid + mid / 2, col_shade(C_LINE, 5u));
     for (i = 0; i < SC_N; i++) {                        /* the wave, joined point to point */
         int32_t y = sc.y[i];
         cv_rect(2 + (int32_t)i, y < y0 ? y : y0, 1, (y < y0 ? y0 - y : y - y0) + 1, sc.col);

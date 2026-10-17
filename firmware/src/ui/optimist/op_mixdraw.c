@@ -165,7 +165,7 @@ static void mx_paint_master(void)
     uint32_t i, n;
     uint8_t ret[3];
     char b[8];
-    cv_rect(0, OP_PH - 1, 240, 1, C_LINE);
+    cv_hline(OP_PH - 1, C_LINE);
     cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
     cv_texts(MXM_X, 2, "MASTER", C_WHITE);
     for (i = 0; i <= 10u; i++)                          /* the scale: lg 5 .. 15 (op_draw.c meter_h), 6 dB a tick */

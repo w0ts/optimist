@@ -143,7 +143,7 @@ static void hl_post(void)
         return;
     ui.sig[5] = sig;
     cv_begin(240, HL_H, C_BLACK);
-    cv_rect(0, 0, 240, 1, C_LINE);
+    cv_hline(0, C_LINE);
     if (off == 0xFFFFu)
         cv_texts(4, 2, "Oct- locks it", C_AMB);
     else if (off)

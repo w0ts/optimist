@@ -361,7 +361,7 @@ static void song_grid_draw(int32_t h)
         int32_t y = 2 + (int32_t)k * rh;
         uint16_t tc = trk_col(k);
         if (k == song.sel)
-            cv_rect(0, y - 2, 240, 1, C_DIM), cv_rect(0, y + rh - 2, 240, 1, C_DIM);   /* (the selected track, its keys launch: lined) */
+            cv_hline(y - 2, C_DIM), cv_hline(y + rh - 2, C_DIM);   /* (the selected track, its keys launch: lined) */
         cv_texts(3, y + (rh - 12) / 2, trk_tag(k), k == song.sel ? C_WHITE : tc);
         for (i = 0; i < PAT_N; i++) {
             int32_t x = 26 + (int32_t)i * 13;
