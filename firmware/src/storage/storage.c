@@ -208,27 +208,19 @@ static int st_body(uint32_t obj, uint32_t copy, const st_hdr_t *h)   /* payload 
  * is left in st_buf); *h gets its header. */
 static int st_current(uint32_t obj, st_hdr_t *h)
 {
-    st_hdr_t a, b;
-    int va = st_head(obj, 0, &a) == 0, vb = st_head(obj, 1, &b) == 0;
+    st_hdr_t c[2];
+    int v[2], i, f;
+    v[0] = st_head(obj, 0, &c[0]) == 0, v[1] = st_head(obj, 1, &c[1]) == 0;
 #if FELUCCA_SL24_SAFE
     if (obj == OBJ_SETTINGS)                          /* (SLOOP 2.5 / 2.6's record: not ours, never read as ours) */
-        va &= !(st_set_sl & 1u), vb &= !(st_set_sl & 2u);
+        v[0] &= !(st_set_sl & 1u), v[1] &= !(st_set_sl & 2u);
 #endif
-    if (vb && (!va || b.seq > a.seq)) {
-        if (st_body(obj, 1, &b) == 0) {
-            *h = b;
-            return 1;
+    f = v[1] && (!v[0] || c[1].seq > c[0].seq);       /* (the one tried first; the other when its payload fails) */
+    for (i = 0; i < 2; i++)
+        if (v[f ^ i] && st_body(obj, (uint32_t)(f ^ i), &c[f ^ i]) == 0) {
+            *h = c[f ^ i];
+            return f ^ i;
         }
-        vb = 0;
-    }
-    if (va && st_body(obj, 0, &a) == 0) {
-        *h = a;
-        return 0;
-    }
-    if (vb && st_body(obj, 1, &b) == 0) {
-        *h = b;
-        return 1;
-    }
     return -1;
 }
 

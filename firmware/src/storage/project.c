@@ -395,9 +395,10 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     proj_trk_v2_to_v3(&v3->t[0], &v1->t, 0);
     proj_from_v3_ok(q, v3);
     for (i = 1; i < NTRK; i++) {               /* the other tracks: their defaults, no steps */
+        const engine_t *e = ENGINES[trk_def_engine(i)];
         uint32_t k;
         for (k = 0; k < PJ_NP; k++)
-            q->t[i].p[k] = k >= PJ_E0 ? ENGINES[trk_def_engine(i)]->edit[k - PJ_E0].def : TP[k].def;
+            q->t[i].p[k] = k >= PJ_E0 ? e->edit[k - PJ_E0].def : TP[k].def;
         q->t[i].engine = (uint8_t)eng_uid(trk_def_engine(i));   /* (a UID) */
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
         memset(q->t[i].step, 0, sizeof q->t[i].step);
