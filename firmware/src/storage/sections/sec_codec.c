@@ -54,7 +54,7 @@ _Static_assert(SEC_REC_MAX == 1u + SEC_MOT_MAX + SEC_RAWT_N + (uint32_t)sizeof(d
 _Static_assert(__builtin_offsetof(project_t, g) == 8u && __builtin_offsetof(project_t, sum) == sizeof(project_t) - 4u,
                "raw with motion: magic, size first, sum last");
 _Static_assert(SEC_REC_MAX >= SEC_RAW_N, "the longest record");
-_Static_assert(PJ_NG <= 32u, "the globals' mask: 4 bytes (the G_* after PJ_NG live in rsv: project.c mc_pack)");
+_Static_assert(PJ_NG > 24u && PJ_NG <= 32u, "the globals' mask: 4 bytes (the G_* after PJ_NG live in rsv: project.c mc_pack)");
 #define SEC_TRK_MAX(sb) (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + (sb) * NSTEP)   /* one track, compressed */
 #define SEC_STEP_B_MAX 12u                            /* a codec B step: 2 mask bytes, its 10 bytes */
 #define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t))   /* FM6, the drum record */
@@ -64,7 +64,7 @@ _Static_assert(PJ_NG <= 32u, "the globals' mask: 4 bytes (the G_* after PJ_NG li
 #define PAT_REC_MAX (6u + 3u * 64u + NSTEP / 8u + 10u * NSTEP + STEPX_ENC_TRK_MAX)
 _Static_assert(PAT_REC_MAX <= SEC_REC_MAX && SCN_REC_MAX <= SEC_REC_MAX, "patterns and scenes: shorter than a section");
 
-static int16_t sec_base(uint32_t k) { return k < PJ_E0 ? TP[k].def : 0; }   /* a track's value k (PJ layout) */
+static int16_t sec_base(uint32_t k) { return k < PJ_E0 ? TP[k].def : 0; }   /* a track's value k (PJ layout: sec_vals_put) */
 static uint32_t sec_len(const proj_trk_t *t)                                  /* the steps kept: LEN */
 {
     int32_t n = t->p[P_SLEN];
@@ -85,6 +85,38 @@ static int sec_step_empty(const pstep_t *s, uint32_t trk)
 }
 static void sec_put16(uint8_t **o, int16_t v) { (*o)[0] = (uint8_t)v, (*o)[1] = (uint8_t)((uint16_t)v >> 8), *o += 2; }
 static int16_t sec_get16(const uint8_t **a) { int16_t v = (int16_t)((*a)[0] | (*a)[1] << 8); *a += 2; return v; }
+/* n values v against their baseline (value k < nd: d[k]'s default, past it 0) -> o: a bitmap of those that differ,
+ * then those values; -> past them (the globals, a track's values) */
+static uint8_t *sec_vals_put(uint8_t *o, const int16_t *v, uint32_t n, const param_desc_t *d, uint32_t nd)
+{
+    uint8_t *m = o;
+    uint32_t k;
+    o += (n + 7u) / 8u;
+    memset(m, 0, (n + 7u) / 8u);
+    for (k = 0; k < n; k++)
+        if (v[k] != (k < nd ? d[k].def : 0)) {
+            m[k >> 3] |= (uint8_t)(1u << (k & 7u));
+            sec_put16(&o, v[k]);
+        }
+    return o;
+}
+/* sec_vals_put's form at *a (e: the record's end) -> v; 0 cut short */
+static int sec_vals_get(const uint8_t **a, const uint8_t *e, int16_t *v, uint32_t n, const param_desc_t *d, uint32_t nd)
+{
+    const uint8_t *m = *a;
+    uint32_t k;
+    if ((uint32_t)(e - m) < (n + 7u) / 8u)
+        return 0;
+    *a += (n + 7u) / 8u;
+    for (k = 0; k < n; k++)
+        if ((m[k >> 3] >> (k & 7u)) & 1u) {
+            if ((uint32_t)(e - *a) < 2u)
+                return 0;
+            v[k] = sec_get16(a);
+        } else
+            v[k] = k < nd ? d[k].def : 0;
+    return 1;
+}
 
 /* codec B, one step (10 bytes s) -> o (0: only counted), -> its length: a mask of the non-zero bytes, then those
  * bytes. The mask's first byte has bytes 0..6 in bits 0..6 and bit 7 set when a second byte follows with bytes
@@ -202,15 +234,8 @@ static int sec_steps_get(proj_trk_t *t, uint32_t trk, const uint8_t **a, const u
 static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out, int nost)
 {
     uint8_t *o = out + 1;
-    uint32_t i, k, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2, b = (uint32_t)sec_use_b(p, nost);
-    uint8_t *m;
-    m = o, o += 4;                                    /* the globals */
-    memset(m, 0, 4);
-    for (k = 0; k < PJ_NG; k++)
-        if (p->g[k] != GP[k].def) {
-            m[k >> 3] |= (uint8_t)(1u << (k & 7u));
-            sec_put16(&o, p->g[k]);
-        }
+    uint32_t i, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2, b = (uint32_t)sec_use_b(p, nost);
+    o = sec_vals_put(o, p->g, PJ_NG, GP, PJ_NG);      /* the globals */
     *o++ = p->sel;
     memcpy(o, p->rsv, 3), o += 3;
     for (i = 0; i < NTRK; i++) {
@@ -219,13 +244,7 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out, int
             goto raw;                                 /* (it could only grow past the raw record: raw) */
         *o++ = t->engine;
         *o++ = t->preset;
-        m = o, o += (PJ_NP + 7u) / 8u;
-        memset(m, 0, (PJ_NP + 7u) / 8u);
-        for (k = 0; k < PJ_NP; k++)
-            if (t->p[k] != sec_base(k)) {
-                m[k >> 3] |= (uint8_t)(1u << (k & 7u));
-                sec_put16(&o, t->p[k]);
-            }
+        o = sec_vals_put(o, t->p, PJ_NP, TP, PJ_E0);   /* (the EDIT values against 0) */
         o = sec_steps_put(t, i, o, (int)b, nost);
     }
     if ((uint32_t)(o - out) + SEC_TAIL_MAX > SEC_RAW_N)
@@ -348,9 +367,9 @@ static uint32_t sec_encode_mig(const project_t *p, const dlrec_t *d, uint8_t *ou
  * section record */
 static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
 {
-    const uint8_t *e = a + n, *m, *ch = 0;
+    const uint8_t *e = a + n, *ch = 0;
     const int8_t *va = 0;
-    uint32_t i, k, f, c = 0;
+    uint32_t i, f, c = 0;
 #if FELUCCA_ANALOG2
     int8_t vad[NPART];
 #endif
@@ -397,33 +416,18 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
     p->size = sizeof *p;
     a += 1u + c;
 #define SEC_NEED(x) do { if ((uint32_t)(e - a) < (uint32_t)(x)) return 0; } while (0)
-    SEC_NEED(4);
-    m = a, a += 4;
-    for (k = 0; k < PJ_NG; k++) {
-        if ((m[k >> 3] >> (k & 7u)) & 1u) {
-            SEC_NEED(2);
-            p->g[k] = sec_get16(&a);
-        } else
-            p->g[k] = GP[k].def;
-    }
+    if (!sec_vals_get(&a, e, p->g, PJ_NG, GP, PJ_NG))
+        return 0;
     SEC_NEED(4);
     p->sel = *a++;
     memcpy(p->rsv, a, 3), a += 3;
     for (i = 0; i < NTRK; i++) {
         proj_trk_t *t = &p->t[i];
 
-        SEC_NEED(2 + (PJ_NP + 7u) / 8u);
+        SEC_NEED(2);
         t->engine = *a++;
         t->preset = *a++;
-        m = a, a += (PJ_NP + 7u) / 8u;
-        for (k = 0; k < PJ_NP; k++) {
-            if ((m[k >> 3] >> (k & 7u)) & 1u) {
-                SEC_NEED(2);
-                t->p[k] = sec_get16(&a);
-            } else
-                t->p[k] = sec_base(k);
-        }
-        if (!sec_steps_get(t, i, &a, e, (f & SEC_B) != 0))
+        if (!sec_vals_get(&a, e, t->p, PJ_NP, TP, PJ_E0) || !sec_steps_get(t, i, &a, e, (f & SEC_B) != 0))
             return 0;
     }
     SEC_NEED(1);
