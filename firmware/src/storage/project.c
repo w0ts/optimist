@@ -909,11 +909,13 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
-    for (i = 0; i < PJ_NG; i++)
-        p->g[i] = i == G_MIDI ? 0 : i == G_DRREV ? DRREV_MOVED : song.g[i];   /* (G_MIDI: a status, not saved; G_DRREV:
-                                                         * the lanes have their REV, drum_sends.c) */
+    _Static_assert(G_MIDI < PJ_NG && G_DRREV < PJ_NG && G_INFO < PJ_NG, "the globals a project keeps: G_MIDI, G_DRREV, G_INFO");
+    memcpy(p->g, song.g, sizeof p->g);
+    p->g[G_DRREV] = DRREV_MOVED;                        /* (the lanes have their REV, drum_sends.c) */
 #if FELUCCA_MIDI_CH
     p->g[G_MIDI] = midi_ch_pack();                      /* (G_MIDI's slot: the synth tracks' MIDI channels) */
+#else
+    p->g[G_MIDI] = 0;                                   /* (G_MIDI: a status, not saved) */
 #endif
     p->g[G_INFO] = RECQ_PACK();                         /* (G_INFO's slot, the CPU read-out: REC QUANTIZE) */
     p->sel = song.sel;
