@@ -213,9 +213,9 @@ static const uint8_t CFG_DESC[101] = {
     9, 0x24, 1, 0x00, 0x01, 9, 0, 1, 1,
     9, 4, 1, 0, 2, 1, 3, 0, 0,
     7, 0x24, 1, 0x00, 0x01, 0x41, 0x00,
-    6, 0x24, 2, 1, 1, 0,
-    6, 0x24, 2, 2, 2, 0,
-    9, 0x24, 3, 1, 3, 1, 2, 1, 0,
+    6, 0x24, 2, 1, 1, 2,                                /* the embedded jacks' iJack: string 2, so the ports carry */
+    6, 0x24, 2, 2, 2, 0,                                /* the product name rather than a name the host cached */
+    9, 0x24, 3, 1, 3, 1, 2, 1, 2,
     9, 0x24, 3, 2, 4, 1, 1, 1, 0,
     9, 5, 0x01, 2, 64, 0, 0, 0, 0,
     5, 0x25, 1, 1, 1,
@@ -268,7 +268,7 @@ static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, '
 #ifdef FELUCCA_LOADER
 static const uint8_t STR2[] = {32, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'U', 0, 'p', 0, 'd', 0, 'a', 0, 't', 0, 'e', 0};   /* (installers match /optimist|felucca|ota/) */
 #else
-/* "Optimist": the product name, which macOS shows for the MIDI device and its ports (the jack strings are 0); editors and tools
+/* "Optimist": the product name, which macOS shows for the MIDI device and its ports (the embedded jacks name it too); editors and tools
  * match /optimist|felucca/i (stock-era "Felucca" and the builds before 2026-10-16 "Optimist (Felucca)" still match too) */
 static const uint8_t STR2[] = {18, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0};
 #endif

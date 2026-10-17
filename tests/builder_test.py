@@ -101,12 +101,12 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
-# the web editor's v13 and v14 commands are thirteen builder items (ED_*): options of OTA (the editor), on by default, each its own flag and INFO tag
+# the web editor's v13 and v14 commands are thirteen builder items (ED_*): options of EDITOR (the editor), on by default, each its own flag and INFO tag
 ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
       "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",
       "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE", "ED_REC": "FELUCCA_ED_REC"}
-check("web editor items: the thirteen ED_* exist, options of OTA, on by default, one flag each",
-      all(k in R.ITEMS and R.ITEMS[k].parent == "OTA" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
+check("web editor items: the thirteen ED_* exist, options of EDITOR, on by default, one flag each",
+      all(k in R.ITEMS and R.ITEMS[k].parent == "EDITOR" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
 check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
@@ -117,8 +117,14 @@ _fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
 check("... ED_FXP=0 ED_SCOPE=0 switch only those two flags off", _fl["FELUCCA_ED_FXP"] == 0 and _fl["FELUCCA_ED_SCOPE"] == 0 and
       all(_fl[f] == 1 for k, f in ED.items() if k not in ("ED_FXP", "ED_SCOPE")))
 check("... the header carries them (-D from the generated config: FELUCCA_ED_FXP 0)", "#define FELUCCA_ED_FXP 0" in C.header(dict(C.defaults(), ED_FXP=0), "t"))
-_fl, _ = C.flags(dict(C.defaults(), OTA=0, ED_FXP=0))
-check("... with the editor (OTA) left out its options are ignored (their default, no effect)", _fl["FELUCCA_OTA"] == 0 and _fl["FELUCCA_ED_FXP"] == 1)
+_fl, _ = C.flags(dict(C.defaults(), EDITOR=0, ED_FXP=0))
+check("... with the editor (EDITOR) left out its options are ignored (their default, no effect)", _fl["FELUCCA_EDITOR"] == 0 and _fl["FELUCCA_ED_FXP"] == 1)
+# 2026-10-17: a build without the editor was a build without updates (one item, OTA): the FM-1 then answered no installer
+check("updates and the USB rescue are no builder item: no flag of any item is FELUCCA_OTA, so every build answers the installer",
+      all(it.flag != "FELUCCA_OTA" for it in R.ITEMS.values()) and "FELUCCA_OTA" not in C.flags(C.defaults())[0])
+_cfg, _ = C.parse("OTA=0\n")
+check("... an old .config's OTA=0 loads as EDITOR=0 (the editor out, updates kept), OTA=1 as EDITOR=1",
+      _cfg["EDITOR"] == 0 and C.parse("OTA=1\n")[0]["EDITOR"] == 1 and "OTA" not in _cfg)
 check("... the commands that read the Optimist UI cost nothing without it (NEEDS), ED_FAVS nothing without the favorites",
       all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
       C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and

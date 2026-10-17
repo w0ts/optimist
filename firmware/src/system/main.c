@@ -417,8 +417,10 @@ static BOOT_ORDER void fm1_main(void)
         meter_tap();                                    /* the level meters (meters.c) */
         fm6_service();                                  /* DX7 SysEx for FM6 (fm6_store.c) */
 #if FELUCCA_OTA
+#if FELUCCA_EDITOR
         ed_service();                                   /* web editor SysEx */
-#if FELUCCA_FLASH && FELUCCA_BACKUP
+#endif
+#if FELUCCA_EDITOR && FELUCCA_FLASH && FELUCCA_BACKUP
         if (bk.reboot && fm1_ms - bk.reboot_ms > 150u) { /* a restore done (ed_backup.c): its reply out, restart */
             fm1_audio_stop();
             lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -517,7 +519,7 @@ static BOOT_ORDER void fm1_main(void)
             ui_input();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
-#if FELUCCA_OTA
+#if FELUCCA_OTA && FELUCCA_EDITOR
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif
             /* Nothing to do until an interrupt: sleep. Every input arrives by one: TIMER5 (10 kHz)

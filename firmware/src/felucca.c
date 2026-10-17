@@ -64,7 +64,11 @@ static void dual_flash_leave(void);
 #include "system/supply.c"          /* the FM-1's own supply start-up (FELUCCA_STOCK_SUPPLY) */
 #include "system/dual.c"            /* the second core (FELUCCA_DUAL) */
 #ifndef FELUCCA_OTA
-#define FELUCCA_OTA 1            /* M-UPGRADE update entry; needs FELUCCA_FLASH */
+#define FELUCCA_OTA 1            /* M-UPGRADE update entry and USB rescue; needs FELUCCA_FLASH (not a builder item:
+                                  * a build without it cannot be updated but through UBOOT) */
+#endif
+#ifndef FELUCCA_EDITOR
+#define FELUCCA_EDITOR 1         /* the web editor's SysEx (editor.c); needs FELUCCA_OTA's SysEx plumbing */
 #endif
 #ifndef FELUCCA_OTA_DRYRUN
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
@@ -288,7 +292,7 @@ static void ota_commit(const uint8_t *parm)
     fm1_enter_update(parm);                             /* record into RAM, core reset (fm1_sys.h) */
 }
 #endif
-#if FELUCCA_OTA
+#if FELUCCA_OTA && FELUCCA_EDITOR
 #include "io/editor/editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_CDC

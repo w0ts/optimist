@@ -12,7 +12,7 @@
 #ifdef EDN_HOST                                     /* (the host stress test has no OTA plumbing: it drives the ring itself) */
 #define EDN_ON FELUCCA_ED_NOTE
 #else
-#define EDN_ON (FELUCCA_ED_NOTE && FELUCCA_OTA)
+#define EDN_ON (FELUCCA_ED_NOTE && FELUCCA_OTA && FELUCCA_EDITOR)
 #endif
 #if EDN_ON
 #define EDN_Q 16u
