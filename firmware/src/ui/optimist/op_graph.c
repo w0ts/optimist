@@ -163,43 +163,23 @@ static void graph_adsr(const page_t *pg, uint16_t col)
         rel = page_frac(pg, 1, 127);
     graph_adsr4(page_frac(pg, 0, 127), page_frac(pg, 1, 127), page_frac(pg, 2, 127), rel, col);
 }
-/* the LFO as it runs: two cycles over the width from the core's own wave (core/voice.c lfo_wave), its phase as set;
- * S&H drawn as random steps (SLOOP's graph_lfo, copied) */
-static void graph_lfo(uint16_t col)
+/* the LFO as it runs: two cycles over the width from the core's own wave (core/lfo_slot.h lfo_shape, voice.c lfo_wave's),
+ * its phase as set; S&H drawn as random steps (SLOOP's graph_lfo, copied). two: LFO 2, from phase 0, POL UNI one way
+ * only (from the centre line up, lfo2_tick's (v + 1) / 2) */
+static void graph_lfo(uint16_t col, uint32_t two)
 {
-    track_t *t = TSEL;
+    const track_t *t = TSEL;
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
-    uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[P_LWAVE];
+    uint32_t ph = two ? 0u : (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[two ? P_L2WAVE : P_LWAVE];
 #if LANE_LFO_UI
-    const dlfo_t *dc = is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
+    const dlfo_t *dc = !two && is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
     if (dc)
         ph = (uint32_t)dc->phase << 25, w = dc->wave;
 #endif
     for (x = 0; x < 240; x++) {
-        int32_t y = mid - lfo_wave(t, ph + (uint32_t)x * (0xFFFFFFFFu / 120u)) * amp / 32768;
-#if LANE_LFO_UI
-        if (dc)
-            y = mid - lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0) * amp / 32768;
-#endif
-        if (w == 4)
-            y = mid - ((int32_t)((x / 20 * 2654435761u) >> 16) - 32768) * amp / 32768;
-        if (x)
-            cv_line(x - 1, py, x, y, col);
-        py = y;
-    }
-    cv_line(0, mid, 239, mid, C_LINE);
-}
-/* LFO 2 as it runs: two cycles of its WAVE from phase 0, POL UNI one way only (from the centre line up, lfo2_tick's
- * (v + 1) / 2); S&H as random steps, as LFO's */
-static void graph_lfo2(uint16_t col)
-{
-    const track_t *t = TSEL;
-    int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
-    uint32_t w = (uint32_t)t->p[P_L2WAVE];
-    for (x = 0; x < 240; x++) {
         int32_t v = w == 4u ? (int32_t)((uint32_t)(x / 20) * 2654435761u >> 16) - 32768
-                            : lfo_shape(w, (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
-        if (t->p[P_L2POL])
+                            : lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
+        if (two && t->p[P_L2POL])
             v = (v + 32768) >> 1;
         y = mid - v * amp / 32768;
         if (x)
@@ -570,10 +550,8 @@ static void draw_sound_graph(const page_t *pg)
         graph_adsr(pg, col);
         break;
     case GR_LFO:
-        graph_lfo(col);
-        break;
     case GR_LFO2:
-        graph_lfo2(col);
+        graph_lfo(col, pg->graph == GR_LFO2);
         break;
     case GR_FX:
     case GR_INS:

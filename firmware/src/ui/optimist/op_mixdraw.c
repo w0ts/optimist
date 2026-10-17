@@ -434,10 +434,7 @@ static void mx_draw(void)
         }
         ui.sig[2] = sig;
         cv_tall(OP_PY, OH_BODY, C_BLACK, mx_paint);
-        memset(mxd.vu, 0xFF, sizeof mxd.vu);
-        memset(mxd.gr, 0xFF, sizeof mxd.gr);
-        memset(mxd.stp, 0, sizeof mxd.stp);
-        mxd.mgr = 0xFF;
+        mx_redraw();
     }
     if (ui.overlay == 2u)
         return;                                         /* (under a toast: the rows wait) */

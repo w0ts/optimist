@@ -47,13 +47,6 @@ static void sg_prep(const track_t *t)
 #define SGS(t) ((t)->step)
 #define SGD(t) ((t)->dstep)
 #endif
-static void sg_outline(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a generated hit: its frame */
-{
-    cv_rect(x, y, w, 1, c);
-    cv_rect(x, y + h - 1, w, 1, c);
-    cv_rect(x, y, 1, h, c);
-    cv_rect(x + w - 1, y, 1, h, c);
-}
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};
@@ -80,14 +73,9 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
         if (!(w & 3u))                                  /* black ground, lines only: a beat's first column ruled at */
             cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left, every step within LEN a foot line */
         cv_rect(x, SG_TOP + SG_H - 1, SG_CW - 2, 1, C_LINE);
-        if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w)) {   /* (a held step white, the
+        if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w))   /* (a held step white, the
                                                          * note picker's in the pick's colour) */
-            uint16_t fc = st.held ? C_WHITE : C_NOTE;
-            cv_rect(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, SG_CW, 1, fc);
-            cv_rect(x - 1, SG_TOP + SG_H, SG_CW, 1, fc);
-            cv_rect(x - 1, SG_TOP, 1, SG_H, fc);
-            cv_rect(x + SG_CW - 2, SG_TOP, 1, SG_H, fc);
-        }
+            cv_frame(x - 1, SG_TOP - 1, SG_CW, SG_H + 2, st.held ? C_WHITE : C_NOTE);
     }
 }
 static void sg_drums(const track_t *t)
@@ -116,13 +104,13 @@ static void sg_drums(const track_t *t)
                 continue;
             }
             if (!own) {                                 /* (a generator's hit: outlined) */
-                sg_outline(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
+                cv_frame(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
                 continue;
             }
 #if FELUCCA_AUTO
             if (step_muted(t, idx, l)) {                /* (a muted hit: kept, dim, an outline of its colour) */
                 cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(c, 2u));
-                sg_outline(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
+                cv_frame(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
                 continue;
             }
 #endif
@@ -396,7 +384,7 @@ static void sg_roll(const track_t *t)
                 continue;
             }
             if (gn) {                                   /* (a generator's note: outlined) */
-                sg_outline(x - sg_ox, y + m, cw, h, nc);
+                cv_frame(x - sg_ox, y + m, cw, h, nc);
                 continue;
             }
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
@@ -414,15 +402,9 @@ static void sg_roll(const track_t *t)
         if (RV(nt))
             RR(0, NY(nt) + m, 2, h, C_WHITE);
     }
-    for (w = 0; w < 16u; w++) {                         /* the steps held: framed white */
-        int32_t x = RL_X + (int32_t)w * RL_CW;
-        if (!((st.held >> w) & 1u) || st.page * 16u + w >= len)
-            continue;
-        RR(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, RL_CW, 1, C_WHITE);
-        RR(x - 1, ye, RL_CW, 1, C_WHITE);
-        RR(x - 1, SG_TOP, 1, ye - SG_TOP, C_WHITE);
-        RR(x + RL_CW - 2, SG_TOP, 1, ye - SG_TOP, C_WHITE);
-    }
+    for (w = 0; w < 16u; w++)                           /* the steps held: framed white */
+        if (((st.held >> w) & 1u) && st.page * 16u + w < len)
+            cv_frame(RL_X + (int32_t)w * RL_CW - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_WHITE);
 }
 #undef NY
 static void roll_col(int32_t w)                         /* column w of the roll again, on a canvas of its own */
