@@ -43,7 +43,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
               "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
-              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c",
+              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_rec.c", "io/editor/ed_steplane.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",

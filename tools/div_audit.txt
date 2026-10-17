@@ -145,6 +145,7 @@ src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
 src/ui/optimist/op_stepdraw.c:roll_range:(b-a+1) | widened to b - a >= 12 just before, so >= 13
 src/ui/optimist/op_stepdraw.c:roll_range:rg.rh | SG_H / at most 51 rows (b - a capped at 50) and SG_H is 204, so >= 4
+src/ui/optimist/op_stepdraw.c:roll_fold_rows:rg.n | set just before to k ? k : 1, so >= 1
 src/ui/optimist/op_stepdraw.c:roll_org:len | TLEN
 src/ui/optimist/op_stepdraw.c:step_strip:n | step_pages: (trk_len + 15) / 16 and trk_len >= 1, so >= 1
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"

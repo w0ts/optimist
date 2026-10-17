@@ -169,7 +169,7 @@ static void step_move_notes_tests(void)
     turn(EN_SELECT, 1);
     check(st.nsel == 1 && (hp_count() < 2u || st.hp == 1u), "step notes: SELECT past the last note pages the cards");
     turn(EN_SELECT, -1);
-    check(st.nsel == 1 && st.hp == 0u, "step notes: ... and back, the last note again");
+    check(st.hp == 0u && st.nsel == (hp_count() < 2u ? 0u : 1u), "step notes: ... and back, the last note again (one card page: nothing to page, the note before)");
     turn(EN_SELECT, -1);
     turn(EN_SELECT, -3);
     check(st.nsel == 0 && st.hp == 0u, "step notes: SELECT stops at the first note");
