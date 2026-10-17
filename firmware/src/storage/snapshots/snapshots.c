@@ -852,8 +852,10 @@ static int sn_ui_fits(void)
         t = fm1_ms | 1u;
         sn_work_capture();
         need = sizeof(sn_info_t) + 4u + sn_work_rec() + 4u + 4u + 2u * arrangement.count;
-        for (i = 0; i < SN_SECS; i++)
-            need += sn_sec_len(i) ? 4u + sn_sec_len(i) : 0u;
+        for (i = 0; i < SN_SECS; i++) {
+            uint32_t n = sn_sec_len(i);
+            need += n ? 4u + n : 0u;
+        }
     }
     return sn.up && sn_fits(need);
 }

@@ -103,6 +103,13 @@ static int sec_pend_put(uint32_t id, const uint8_t *r, uint32_t n)    /* 0 ok, 1
     return 0;
 }
 
+/* section s's records in the arena (its own, its FX and LFO records) dropped */
+static void sec_pend_drop(uint32_t s)
+{
+    sec_pend_del(SEC_PEND_DL + s);
+    sec_pend_del(SEC_PEND_FX + s);
+    sec_pend_del(s);
+}
 static int project_used(uint32_t s) { s %= SEC_IDS; return sec_pend_has(s) || slg_has(s); }
 static uint32_t sec_ready(void)
 {
@@ -323,9 +330,7 @@ static void project_save(uint32_t slot)
     if (!rc)                                           /* its drum lane LFO record (dlfo_rec_log.c) */
         rc = dlr_log_put(DLR_ID0 + s, key, &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc) {
-        sec_pend_del(SEC_PEND_DL + s);
-        sec_pend_del(SEC_PEND_FX + s);
-        sec_pend_del(s);
+        sec_pend_drop(s);
         sec_last_n = n;
         sec_gen++;
     }
@@ -390,26 +395,25 @@ static void section_load(uint32_t s)                   /* stopped: the section i
  * play them). -> 0 done, else said */
 static int sec_scene_clear(uint32_t s)
 {
+    static const uint8_t ID0[] = {
+#if FELUCCA_AUTO
+        SX_ID0,
+#endif
+        FXR_ID0, DLR_ID0, 0};                          /* (its extras, FX and LFO records, then its own: the log's order) */
+    uint32_t i;
     int rc = 0;
     s %= SEC_IDS;
     if (song.playing || transport_req) {
         ui_message("STOP FIRST");
         return 1;
     }
-    sec_pend_del(s);
-    sec_pend_del(SEC_PEND_FX + s);
-    sec_pend_del(SEC_PEND_DL + s);
+    sec_pend_drop(s);
 #if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + s);
-    if (slg_has(SX_ID0 + s))
-        rc = slg_put(SX_ID0 + s, sec_rbuf, 0, 0);
 #endif
-    if (!rc && slg_has(FXR_ID0 + s))
-        rc = slg_put(FXR_ID0 + s, sec_rbuf, 0, 0);
-    if (!rc && slg_has(DLR_ID0 + s))
-        rc = slg_put(DLR_ID0 + s, sec_rbuf, 0, 0);
-    if (!rc && slg_has(s))
-        rc = slg_put(s, sec_rbuf, 0, 0);
+    for (i = 0; !rc && i < sizeof ID0; i++)
+        if (slg_has(ID0[i] + s))
+            rc = slg_put(ID0[i] + s, sec_rbuf, 0, 0);
     if (rc) {
         ui_message("SAVE ERROR");
         return 1;
@@ -523,11 +527,8 @@ static void sections_write(void)                       /* the pending sections a
                     rc = sec_pend_log(FXR_ID0 + i, SEC_PEND_FX + i);
                 if (!rc)                               /* (its LFO record: the same) */
                     rc = sec_pend_log(DLR_ID0 + i, SEC_PEND_DL + i);
-                if (!rc) {
-                    sec_pend_del(SEC_PEND_DL + i);
-                    sec_pend_del(SEC_PEND_FX + i);
-                    sec_pend_del(i);
-                }
+                if (!rc)
+                    sec_pend_drop(i);
                 else if (rc == 1) {                    /* (the log filled meanwhile: kept in RAM, said once) */
                     ui_message("MEM FULL");
                     continue;
