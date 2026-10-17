@@ -56,6 +56,18 @@ _Static_assert(AUTO_NGATE0 + 4u == AUTO_LANE0, "the note ends: just below the dr
  * track ids, below the note ends: an older build keeps them and plays none (mot_id: P_COUNT, no lock) */
 #define AUTO_ACC 0x77u
 _Static_assert(AUTO_ACC + 1u == AUTO_NGATE0, "the ACCENT lane: just below the note ends' ids");
+/* a muted note (the STEP note picker, SAVE held: the user, 2026-10-17): step-only, value 1. AUTO_MUTE(l) drum lane l's hit
+ * of the step (l < 10), AUTO_SMUTE a synth step (all its notes). The note stays, drawn dim; the sequencer plays the step as
+ * a rest (a lane: no hit, no ratchet, no MIDI). Not a lock: the clears of locks and motion keep it (auto.c auto_clear_hit,
+ * op_step.c step_unlock); it goes with its note (a wipe, a step cleared). Past every build's stored track ids (auto.c
+ * MOT_TAIL_END), below the ACCENT lane's: an older build keeps them and plays none (mot_id: P_COUNT, no lock) */
+#define AUTO_MUTE0 0x6Cu
+#define AUTO_MUTE(l) (AUTO_MUTE0 + (uint32_t)(l))
+#define AUTO_SMUTE (AUTO_MUTE0 + 10u)
+#define AUTO_IS_MUTE(p) ((uint32_t)(p) - AUTO_MUTE0 <= 10u)
+_Static_assert(AUTO_SMUTE + 1u == AUTO_ACC, "the mutes: just below the ACCENT lane's id");
+/* an event of drum lane l's hit: one of its values (AUTO_LANE) or its mute; what moves with the hit */
+#define AUTO_LANE_EV(p, l) ((AUTO_IS_LANE(p) && AUTO_LANE_L(p) == (uint32_t)(l)) || ((uint32_t)(l) < 10u && (uint32_t)(p) == AUTO_MUTE(l)))
 #define AUTO_HOLDS 1u                    /* auto_drop_*: which kinds */
 #define AUTO_ONLYS 2u
 
@@ -216,6 +228,8 @@ static inline uint32_t auto_to_stepx(stepx_t *x, const auto_list_t *l)
             r |= AUTO_X_CHANCE;
         else if (e->param == AUTO_COND)
             r |= AUTO_X_COND;
+        else if (AUTO_IS_MUTE(e->param))
+            r |= AUTO_X_LOCKS;                       /* (a muted note: 2.4 has none, it plays there) */
         else if (m < NLOCK)
             x->lock[m].step = (uint8_t)s, x->lock[m].param = e->param, x->lock[m].val = e->value, m++;
         else

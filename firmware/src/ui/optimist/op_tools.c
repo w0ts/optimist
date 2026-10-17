@@ -66,7 +66,7 @@ static void tl_ev_move(track_t *t, uint32_t len, const uint8_t *to, int32_t lane
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP;
-        if (s >= len || (lane >= 0 && (!AUTO_IS_LANE(e->param) || AUTO_LANE_L(e->param) != (uint32_t)lane)))
+        if (s >= len || (lane >= 0 && !AUTO_LANE_EV(e->param, lane)))   /* (its values and its mute) */
             continue;
         e->place = (uint8_t)((e->place & ~AUTO_STEP) | (to[s] & AUTO_STEP));
     }
@@ -91,11 +91,13 @@ static void tl_unlock_from(track_t *t, uint32_t len, const step_t *was)
             (void)auto_step_clear(t, i, AUTO_ONLYS);
             continue;
         }
-#if DLA_ON
         for (l = 0; l < DRUM_LANES; l++)
-            if (dstep_has(&tl_was_d(was)[i], l) && !dstep_has(&t->dstep[i], l))
+            if (dstep_has(&tl_was_d(was)[i], l) && !dstep_has(&t->dstep[i], l)) {
+#if DLA_ON
                 (void)lane_step_drop(t, i, l);
 #endif
+                (void)step_mute_set(t, i, l, 0);        /* (the hit gone: its mute too) */
+            }
     }
     (void)l;
     auto_touch(trk_index(t));

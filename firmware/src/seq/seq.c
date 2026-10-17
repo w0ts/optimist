@@ -451,6 +451,9 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #include "ngate.h"            /* each note's own end: in the steps here, as events in the stored forms */
 #if FELUCCA_AUTO
 #include "auto.c"             /* the automation store: motion, locks, nudges, fills, chance (phase 3) */
+#else
+#define STEP_MUTED_SYN(t) 0   /* (no store: no muted note, auto.h AUTO_MUTE) */
+#define STEP_MUTED_LANES(t) 0u
 #endif
 #include "../drums/lane_play.c"   /* the drum lanes at the hit: their automation and LFOs (drum_edit.c dl_ofs_play) */
 
@@ -2673,7 +2676,8 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 /* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
 static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
-    uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t) & ~(uint32_t)smute_lane;   /* (a muted lane: no hit, no MIDI) */
+    uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t) & ~(uint32_t)smute_lane & ~STEP_MUTED_LANES(t);   /* (a muted lane, a muted
+                                                     * hit: no hit, no MIDI) */
     seq_out_track_off(t);                           /* the last step's hits end here */
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
@@ -2699,7 +2703,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             return;                                 /* (its chance said no: no hit at all) */
 #endif
         const dstep_t *s = EN_CUR(GEN_DPLAYING(t));     /* (a generator's step: as it fired, gen.c) */
-        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane;
+        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane & ~STEP_MUTED_LANES(t);
         for (i = 0; m; i++, m >>= 1) {
             uint32_t hits = 1u + dstep_rat(s, i), h, done;
             if (!(m & 1u) || hits == 1u)
@@ -2721,8 +2725,8 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 #if FELUCCA_QNT_SEQ
         step_t qs;                                  /* QNT SEQ: the notes as seq_step played them */
 #endif
-        if (s->time != ST_NOTE || !s->rat)
-            return;
+        if (s->time != ST_NOTE || !s->rat || STEP_MUTED_SYN(t))
+            return;                                 /* (a muted note: no further hit either) */
 #if FELUCCA_QNT_SEQ
         if (qseq_on(t)) {
             dup = qseq_step(t, s, &qs);
@@ -2882,7 +2886,10 @@ static void seq_tick(track_t *t, uint32_t adv)
                         if (s->note[i] == t->rskip[k])
                             skip |= 1u << i;
             t->rskip_n = 0;
-            seq_step(t, s, slen, skip);
+            if (STEP_MUTED_SYN(t))
+                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+            else
+                seq_step(t, s, slen, skip);
         }
     }
     if (t->seq_abs != SEQ_NONE)
@@ -2951,7 +2958,10 @@ static void seq_tick(track_t *t, uint32_t adv)
                         if (s->note[i] == t->rskip[k])
                             skip |= 1u << i;
             t->rskip_n = 0;
-            seq_step(t, s, slen, skip);
+            if (STEP_MUTED_SYN(t))
+                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+            else
+                seq_step(t, s, slen, skip);
         }
     }
     seq_ratchets(t, into, slen);

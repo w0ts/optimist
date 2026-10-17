@@ -2611,6 +2611,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards.h"                     /* the cards 2x2 but on the mixer, no CARDS setting */
 #include "ui_optimist_cardspic.h"                  /* under the cards: the picture alone, else the rows */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
+#include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
@@ -2785,6 +2786,7 @@ int main(int argc, char **argv)
     cards_tests();
     cards_pic_tests();
     step_cards_tests();
+    picker_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();

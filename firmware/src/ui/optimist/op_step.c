@@ -46,11 +46,17 @@ static struct {
     uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
     uint32_t t_key[16];                 /* fm1_ms when each step key went down (a tap: let go before op_hold_ms) */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
-} st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
+    uint8_t pk;                         /* the note picker: the step picked (KNOB 1, the cards down), PK_NONE none */
+    uint8_t pk_trk;                     /* ... on this track */
+    uint8_t latch;                      /* SAVE on a picked note: its step held as by a finger (its cards); HOME lets go */
+} st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
 #define LOCK_NONE 0xFFu
+#define PK_NONE 0xFFu
 static void hp_sync(void);
 static void hp_save(void);
 static void hp_reopen(void);
+static void pk_unlatch(void);
+static int pk_ok(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -83,6 +89,8 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
 {
     const track_t *t = TSEL;
     uint32_t n = step_pages(t);
+    if (st.latch && (ui.scr != SCR_STEP || !pk_ok()))
+        pk_unlatch();                                   /* (the picked note's cards: another track, lane or screen lets go) */
     if (st.follow && song.playing && !st.held)
         st.page = (uint8_t)((t->seq_idx % trk_len(t)) / 16u);
     if (st.page >= n)
@@ -101,6 +109,7 @@ static void step_reset(void)                            /* STEP entered or left:
     st.held = st.pend = st.fdown = 0;
     st.play = 0;
     st.lock_pg = LOCK_NONE, st.hp = 0;
+    st.pk = PK_NONE, st.latch = 0;                      /* (the picker starts with nothing picked) */
 }
 
 /* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last),
@@ -219,6 +228,9 @@ static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
 #if DLA_ON
             (void)lane_step_drop(t, idx, lane_selected());   /* (the lane's hit gone: its locks there, D4) */
 #endif
+#if FELUCCA_AUTO
+            (void)step_mute_set(t, idx, lane_selected(), 0);   /* (and its mute) */
+#endif
         }
         if (dstep_lanes(d))
             return;                                 /* (the ACCENT lane's hit is a hit of the step) */
@@ -278,8 +290,8 @@ static uint32_t step_unlock(track_t *t, uint32_t idx)
     uint32_t i, m = 0;
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         const auto_ev_t *e = &l->ev[i];
-        if ((e->place & AUTO_STEP) == idx && (e->place & AUTO_ONLY) && !AUTO_PSEUDO(e->param))
-            n++;
+        if ((e->place & AUTO_STEP) == idx && (e->place & AUTO_ONLY) && !AUTO_PSEUDO(e->param) && !AUTO_IS_MUTE(e->param))
+            n++;                                        /* (a muted note stays muted: the note's, not a lock) */
         else
             l->ev[m++] = *e;
     }
@@ -353,6 +365,8 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         ui_message("STOP THE SONG FIRST");
         return;
     }
+    if (st.latch)
+        pk_unlatch();                                   /* (a step key: the picked note's cards let go, the fingers' own) */
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
     if (op_shift(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
                                                          * step not hit yet: OCT- is its ghost hit, seq.c) */
@@ -577,6 +591,13 @@ static void dlane_swap(track_t *t, uint32_t a, uint32_t b, uint32_t l)   /* lane
         auto_touch(trk_index(t));
     }
 #endif
+#if FELUCCA_AUTO
+    if (l < DRUM_LANES) {                               /* (a muted hit stays muted where it goes) */
+        int mx = step_muted(t, a, l), my = step_muted(t, b, l);
+        if (mx != my)
+            (void)step_mute_set(t, a, l, (uint32_t)my), (void)step_mute_set(t, b, l, (uint32_t)mx);
+    }
+#endif
 }
 /* the steps the fingers hold, in the order they move (d > 0: the last first, so a held neighbour is not passed twice) */
 static uint32_t held_order(uint32_t len, int32_t d, uint8_t *w)
@@ -698,6 +719,10 @@ static int held_lane_one(track_t *t, uint32_t idx, uint32_t l, uint32_t l2)   /*
     lv = dstep_lvl(x, l), rt = dstep_rat(x, l);
     dstep_clr(x, l);
     dstep_set(x, l2, lv, rt);
+#if FELUCCA_AUTO
+    if (step_muted(t, idx, l))                          /* (a muted hit: muted on its new lane; the ACCENT lane has no mute) */
+        (void)step_mute_set(t, idx, l, 0), (void)step_mute_set(t, idx, l2, 1);
+#endif
 #if DLA_ON
     lane_events_move(t, idx, l, l2);
 #endif
@@ -774,6 +799,166 @@ static void edit_chance(track_t *t, uint32_t idx, int32_t s)
 static const char *const COND_NAME[AUTO_NCOND + 1u] = {"-", "1:2", "2:2", "1:3", "2:3", "3:3", "1:4", "2:4", "3:4", "4:4"};
 static void edit_cond(track_t *t, uint32_t idx, int32_t v) { (void)step_cond_set(t, idx, (uint32_t)v); }
 #endif
+/* ---- the note picker (the user, 2026-10-17): STEP with its cards down, nothing held. KNOB 1 picks a note (the drum
+ * track: a hit of the selected lane), KNOB 2 moves it a step (SHIFT held: its nudge), KNOB 3 its pitch (the drum track:
+ * its lane), KNOB 4 its length (the drum track: its level); SAVE its cards as if its step were held (the step, its
+ * extras, its p-locks; HOME lets go), SAVE held muted / not (seq/auto.h AUTO_MUTE), HOME held deleted. The edits are the
+ * held step's (held_*), run on the picked step; it is drawn framed (op_stepdraw.c) */
+static int pk_note(const track_t *t, uint32_t idx)       /* a note starts at idx (what KNOB 1 walks) */
+{
+    if (idx >= trk_len(t))
+        return 0;
+    return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
+}
+static int pk_ok(void) { return st.pk != PK_NONE && st.pk_trk == song.sel && pk_note(TSEL, st.pk); }
+static void pk_hold(uint32_t *sv)                       /* the picked step held as by a finger (sv: what was) */
+{
+    uint32_t w = st.pk % 16u;
+    sv[0] = st.held, sv[1] = st.fdown, sv[2] = st.pend, sv[3] = st.fabs[w];
+    st.page = (uint8_t)(st.pk / 16u);
+    st.held = st.fdown = (uint16_t)(1u << w);
+    st.pend = 0;
+    st.fabs[w] = st.pk;
+}
+static void pk_free(const uint32_t *sv)                 /* ... let go: the pick follows the step (a move), the window it */
+{
+    uint32_t w = st.pk % 16u;
+    st.pk = st.fabs[w];
+    st.held = (uint16_t)sv[0], st.fdown = (uint16_t)sv[1], st.pend = (uint16_t)sv[2], st.fabs[w] = (uint8_t)sv[3];
+    st.page = (uint8_t)(st.pk / 16u);
+    st.follow = 0;
+    ui.cards_t = 0;                                     /* (the held edits show the cards: the picker's are the grid) */
+    op_repaint();
+}
+static void pk_walk(int32_t s)                          /* KNOB 1: s notes on, stopping at the first / last */
+{
+    const track_t *t = TSEL;
+    int32_t len = (int32_t)trk_len(t), d = s > 0 ? 1 : -1, n = s > 0 ? s : -s, i, j;
+    if (st.pk != PK_NONE && st.pk_trk == song.sel && st.pk < (uint32_t)len)
+        i = st.pk;                                      /* (from the pick, picked or deleted) */
+    else
+        i = d > 0 ? (int32_t)st.page * 16 - 1 : (int32_t)st.page * 16 + 16;   /* (none: from the window's edge) */
+    while (n-- > 0) {
+        for (j = i + d; j >= 0 && j < len && !pk_note(t, (uint32_t)j); j += d)
+            ;
+        if (j < 0 || j >= len)
+            break;
+        i = j;
+    }
+    if (i < 0 || i >= len || !pk_note(t, (uint32_t)i)) {
+        ui_message(is_drum(t) ? "NO HITS ON THIS LANE" : "NO NOTES");
+        return;
+    }
+    if ((uint32_t)i != st.pk || st.pk_trk != song.sel)
+        st.sess = (undo_sess += 4u) | 3u;               /* (a note picked: its edits one undo level) */
+    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.nsel = 0;
+    st.page = (uint8_t)(i / 16), st.follow = 0;
+    op_repaint();
+}
+static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP with its cards down */
+{
+    uint32_t sv[4];
+    int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
+    if (k == 0u || !pk_ok()) {
+        if (k == 0u)
+            pk_walk(s);
+        else
+            ui_message("PICK A NOTE: KNOB 1");
+        return;
+    }
+    pk_hold(sv);
+    if (k == 1u && shift) {
+#if FELUCCA_MICRO
+        held_each(edit_nudge, clamp(s, -16, 16));       /* (SHIFT: the nudge, finer than a step) */
+#else
+        ui_message("NO NUDGE IN THIS BUILD");
+#endif
+    } else if (k == 1u) {
+        while (n-- > 0 && held_move(d))
+            ;
+    } else if (k == 2u && is_drum(TSEL)) {
+        while (n-- > 0 && held_lane(-d))                /* (right: the lane under it, as drawn) */
+            ;
+    } else if (k == 2u) {
+        held_each(held_pitch_one, clamp(s, -12, 12));
+    } else {
+        held_edit(is_drum(TSEL) ? 0u : 3u, s);          /* (drums: LEVEL; synths: LENGTH) */
+    }
+    pk_free(sv);
+}
+static int pk_save(void)                                /* SAVE tapped: the picked note's cards; 1 done */
+{
+    if (ui.scr != SCR_STEP || ui.cards_t || st.held || op_armed() || !pk_ok())
+        return 0;                                       /* (the cards up: SAVE is theirs, the tools' verb) */
+    st.page = (uint8_t)(st.pk / 16u);
+    st.held = st.fdown = (uint16_t)(1u << (st.pk % 16u));
+    st.fabs[st.pk % 16u] = st.pk;
+    st.pend = 0;
+    st.latch = 1;
+    st.t_down = fm1_ms - op_hold_ms();                  /* (held long: its cards up, as a held step's) */
+    st.nsel = 0;
+    hp_reopen();
+    step_cards_show();
+    return 1;
+}
+static void pk_unlatch(void)                            /* HOME tapped, a step key, STEP left: the picked note's cards go */
+{
+    uint32_t w;
+    if (!st.latch)
+        return;
+    for (w = 0; w < 16u; w++)
+        if ((st.held >> w) & 1u)
+            st.pk = st.fabs[w];                         /* (moved while held: the pick follows it) */
+    st.latch = 0;
+    hp_save();
+    st.held = st.fdown = st.pend = 0;
+    st.lock_pg = LOCK_NONE, st.hp = 0;
+    ui.cards_t = 0;
+    op_repaint();
+}
+static int pk_mute(void)                                /* SAVE held alone: the picked note muted / not; 1 done */
+{
+    track_t *t = TSEL;
+    uint32_t l = lane_selected();
+    if (ui.scr != SCR_STEP || !pk_ok())
+        return 0;
+#if FELUCCA_AUTO
+    if (is_drum(t) && l >= DRUM_LANES) {
+        ui_message("NO MUTE ON ACCENT");
+        return 1;
+    }
+    {
+        uint32_t on = !step_muted(t, st.pk, l);
+        int ok;
+        undo_mark(t, st.sess);
+        fm1_irq_off();
+        ok = step_mute_set(t, st.pk, l, on);
+        fm1_irq_on();
+        ui_message(!ok ? "PATTERN FULL" : on ? "NOTE MUTED" : "NOTE ON");
+    }
+#else
+    (void)t, (void)l;
+    ui_message("NO MUTE IN THIS BUILD");
+#endif
+    op_repaint();
+    return 1;
+}
+static int pk_delete(void)                              /* HOME held alone: the picked note deleted; 1 done */
+{
+    track_t *t = TSEL;
+    if (ui.scr != SCR_STEP || !pk_ok())
+        return 0;
+    if (st.latch)
+        pk_unlatch();
+    undo_mark(t, st.sess);
+    fm1_irq_off();
+    step_wipe(t, st.pk, 0);                             /* (the drum track: the lane's hit; a synth: the note and its ties) */
+    fm1_irq_on();
+    sync_reload = 1;
+    ui_message("NOTE DELETED");                         /* (the pick stays there: KNOB 1 goes on from it) */
+    op_repaint();
+    return 1;
+}
 #if FELUCCA_FILLS
 static void edit_fill(track_t *t, uint32_t idx, int32_t v) { step_fill_set(t, idx, (uint32_t)v); }
 static void held_fill(void)                             /* normal -> fill only -> no fill, the first step's next */

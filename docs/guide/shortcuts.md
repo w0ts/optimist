@@ -91,6 +91,14 @@ STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with 
 | PRESETS | no step held | scroll the 16-step window (stops following) |
 | SHIFT2 + PRESETS | no step held | follow the playhead again |
 | SELECT | no step held | the next card page |
+| SELECT turned or SEQ tapped, the cards down | STEP | the cards back, the page kept (once up: SELECT the rows, SEQ the next page) |
+| KNOB 1, the cards down | STEP | **the note picker:** the next / previous note (drums: hit of the selected lane), framed |
+| KNOB 2, a note picked | STEP | the note a step earlier / later (its locks and motion with it); SHIFT held: its nudge |
+| KNOB 3, a note picked | STEP | its pitch; drums: its lane (that lane selected) |
+| KNOB 4, a note picked | STEP | its length; drums: its level |
+| SAVE, a note picked | STEP, the cards down | the note's cards, as if its step were held (its extras, its p-lock pages); HOME: they go |
+| SAVE held alone, let go | STEP, a note picked | the note muted / on again: kept, dim, played as a rest (not the ACCENT lane) |
+| HOME held alone, let go | STEP, a note picked | the note deleted (HOME tapped: back HOME as ever) |
 | a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, LENGTH; drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
 | step held + a knob | STEP | that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared, see Clearing) |
 | step held + PRESETS | STEP | move the step in time (its locks and motion go with it) |

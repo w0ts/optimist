@@ -80,11 +80,13 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
         if (!(w & 3u))                                  /* black ground, lines only: a beat's first column ruled at */
             cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left, every step within LEN a foot line */
         cv_rect(x, SG_TOP + SG_H - 1, SG_CW - 2, 1, C_LINE);
-        if ((st.held >> w) & 1u) {
-            cv_rect(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, SG_CW, 1, C_WHITE);
-            cv_rect(x - 1, SG_TOP + SG_H, SG_CW, 1, C_WHITE);
-            cv_rect(x - 1, SG_TOP, 1, SG_H, C_WHITE);
-            cv_rect(x + SG_CW - 2, SG_TOP, 1, SG_H, C_WHITE);
+        if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w)) {   /* (a held step white, the
+                                                         * note picker's in the pick's colour) */
+            uint16_t fc = st.held ? C_WHITE : C_NOTE;
+            cv_rect(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, SG_CW, 1, fc);
+            cv_rect(x - 1, SG_TOP + SG_H, SG_CW, 1, fc);
+            cv_rect(x - 1, SG_TOP, 1, SG_H, fc);
+            cv_rect(x + SG_CW - 2, SG_TOP, 1, SG_H, fc);
         }
     }
 }
@@ -117,6 +119,13 @@ static void sg_drums(const track_t *t)
                 sg_outline(x, y, SG_CW - 2, lh - 1, lvl_col(c, dstep_lvl(d, l)));
                 continue;
             }
+#if FELUCCA_AUTO
+            if (step_muted(t, idx, l)) {                /* (a muted hit: kept, dim, an outline of its colour) */
+                cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(c, 2u));
+                sg_outline(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
+                continue;
+            }
+#endif
             cv_rect(x, y, SG_CW - 2, lh - 1,
                     op_step_auto(t, idx, l) ? lvl_acol(dstep_lvl(d, l)) : lvl_col(c, dstep_lvl(d, l)));   /* (automated: its own colour) */
             sg_notches(x, y, SG_CW - 2, lh - 1, dstep_rat(d, l));
@@ -369,6 +378,10 @@ static void sg_roll(const track_t *t)
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
             if (!tie && held_note_sel(idx) == (int)i)
                 nc = C_NOTE;                            /* (the note SELECT picked on a held step of several: its own colour) */
+#if FELUCCA_AUTO
+            if (!gn && step_muted(t, roll_org(t, idx), 0))
+                nc = col_shade(c, 2u);                  /* (a muted note: kept, dim; its ties too) */
+#endif
             if (!RV(nt))
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
@@ -475,6 +488,7 @@ static uint32_t step_sig(void)                          /* all the panel shows b
     else
         h = hu(hu(hu(hu(hu(h, pick_note(0)), pick_note(1)), pick_note(2) * 128u + pick_note(3)), pen_n),
                (uint32_t)(song.octave + 16) + song.sel * 64u + roll_fold * 4096u);   /* (the roll's view: OCT, FOLD; the pick's marks) */
+    h = hu(h, (uint32_t)st.pk + (pk_ok() ? 256u : 0u));   /* (the note picker's frame) */
     return hu(hu(h, settings.palette), (uint32_t)(sg_dy + 512));
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,

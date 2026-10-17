@@ -54,6 +54,7 @@ _Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
 _Static_assert(MOT_TAIL_END < AUTO_NUDGE, "the pseudo-parameters: past every stored id");
 _Static_assert(MOT_TAIL_END <= AUTO_NGATE0, "the note ends and the drum lanes' ids (auto.h): past every build's stored track ids");
 _Static_assert(MOT_TAIL_END <= AUTO_ACC, "the ACCENT lane's id (auto.h): past every build's stored track ids");
+_Static_assert(MOT_TAIL_END <= AUTO_MUTE0 && DRUM_LANES <= 10u, "the mutes' ids (auto.h): past every build's stored track ids, a lane each");
 /* each stored tail id's value in this build (P_COUNT: none here). LFO 2's values (P_L2RATE ..) have no stored id: none
  * maps to them (an event stored past 2.4's in a build without them is never LFO 2's) */
 static const uint8_t MOT_TAIL[MOT_NTAIL] = {
@@ -182,6 +183,12 @@ static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100
 #if SEQ_SKIP
 static uint8_t seq_skip[NTRK];           /* the step playing failed its condition or its fill: nothing of it sounds */
 #endif
+/* the step playing's muted notes (auto.h AUTO_MUTE; auto_step sets them, seq.c plays around them): a drum lane's bit
+ * (the drum track), AUTO_MUTED_SYN a synth step's (all its notes) */
+#define AUTO_MUTED_SYN 0x8000u
+static uint16_t auto_muted[NTRK];
+#define STEP_MUTED_SYN(t) ((auto_muted[trk_index(t) % NTRK] & AUTO_MUTED_SYN) != 0u)
+#define STEP_MUTED_LANES(t) ((uint32_t)auto_muted[trk_index(t) % NTRK] & ~AUTO_MUTED_SYN)
 #if FELUCCA_COND
 /* SPDX: the step conditions are Felucca 1.5.6's (hugelton/Felucca 9f6a885, seq.c seq_cond_miss / seq_enter, Leo
  * Kuroshita (@kurogedelic), Hügelton Instruments, GPL-3.0-only), here events of the store (auto.h AUTO_COND).
@@ -252,6 +259,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #if FELUCCA_CHANCE
     auto_ch[k] = 100;
 #endif
+    auto_muted[k] = 0;
 #if DLA_ON
     if (k == TRK_DRUM)
         dla_locks_off();                             /* (the last step's lane locks let go) */
@@ -260,6 +268,11 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         const auto_ev_t *e = &l->ev[i];
         if ((e->place & AUTO_STEP) != idx)
             continue;
+        if (AUTO_IS_MUTE(e->param)) {                /* (a muted note: before the lanes and mot_id, which have no such id) */
+            if ((e->place & AUTO_ONLY) && e->value)
+                auto_muted[k] |= (uint16_t)(e->param == AUTO_SMUTE ? AUTO_MUTED_SYN : 1u << (e->param - AUTO_MUTE0));
+            continue;
+        }
 #if DLA_ON
         if (AUTO_IS_LANE(e->param)) {                /* (a drum lane's value: before mot_id, which has no such id) */
             if (k == TRK_DRUM)
@@ -416,8 +429,8 @@ static void auto_only_clear(track_t *t)
 static int auto_clear_hit(const auto_ev_t *e, int32_t sid, int32_t lane)
 {
     uint32_t p = e->param;
-    if ((e->place & AUTO_ONLY) && p == mot_sid(P_SGATE))
-        return 0;
+    if ((e->place & AUTO_ONLY) && (p == mot_sid(P_SGATE) || AUTO_IS_MUTE(p)))
+        return 0;                                    /* (nor a muted note's mute: the note's, not a lock) */
     if (sid >= 0)
         return p == (uint32_t)sid;
     if (lane >= 0)
@@ -432,6 +445,29 @@ static uint32_t auto_count_where(const track_t *t, int32_t sid, int32_t lane)
     for (i = 0; i < l->n && i < AUTO_MAX; i++)
         k += (uint32_t)auto_clear_hit(&l->ev[i], sid, lane);
     return k;
+}
+/* a muted note (auto.h AUTO_MUTE): step idx's hit of drum lane l, or the synth step (l ignored); the main loop */
+static int step_muted(const track_t *t, uint32_t idx, uint32_t l)
+{
+    int32_t v;
+    uint32_t id = is_drum(t) ? AUTO_MUTE(l) : AUTO_SMUTE;
+    return (is_drum(t) ? l < DRUM_LANES : 1) && auto_get(AL(t), (idx % NSTEP) | AUTO_ONLY, id, &v) && v;
+}
+/* mute it (1) or not (0); -> 0 the list is full (the IRQ off) */
+static int step_mute_set(track_t *t, uint32_t idx, uint32_t l, uint32_t on)
+{
+    uint32_t id = is_drum(t) ? AUTO_MUTE(l) : AUTO_SMUTE, pl = (idx % NSTEP) | AUTO_ONLY;
+    int i;
+    if (is_drum(t) && l >= DRUM_LANES)
+        return 0;
+    if (on) {
+        if (auto_put(AL(t), pl, id, 1) < 0)
+            return 0;
+    } else if ((i = auto_find(AL(t), pl, id)) >= 0) {
+        auto_del(AL(t), (uint32_t)i);
+    }
+    auto_touch(trk_index(t));
+    return 1;
 }
 /* track t's motion and locks cleared, the notes kept (the Optimist UI's SHIFT + SEQ, SHIFT + SHIFT2 + a knob): every
  * event (sid < 0, lane < 0: the nudges, fills, chances and conditions too), one parameter's (sid: a stored id,

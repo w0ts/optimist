@@ -216,6 +216,8 @@ static void op_yes(void)
         held_yes();
         return;
     }
+    if (pk_save())
+        return;                                         /* (STEP, the cards down, a note picked: its cards, op_step.c) */
     if (!SCR->yes(ui.row[ui.scr], ui.hot, 0)) {         /* SAVE works on every page but SEQ (where it is "reverse", the user, 2026-10-14): where YES has
                                                          * nothing to do it opens PROJECT, as on the mixer (GLOBAL and SYSTEM too, 2026-10-15) */
         if (ui.scr == SCR_STEP)
@@ -238,6 +240,10 @@ static void op_no(void)
         return;
     }
 #endif
+    if (ui.scr == SCR_STEP && st.latch) {               /* the picked note's cards (SAVE): HOME lets them go, the note kept */
+        pk_unlatch();
+        return;
+    }
     if (ui.scr == SCR_STEP && st.held) {                /* a step held, HOME tapped: the step cleared */
         held_clear();
         return;
@@ -556,11 +562,16 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_SAVE && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()) {
         if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
             save_hold();                                /* SAVE held alone on PROJECT: SONG; on SONG: PROJECT */
+        else
+            (void)pk_mute();                            /* STEP, a note picked: muted / not (op_step.c; let go with nothing
+                                                         * else used: SAVE then HOME, the undo chord, is no tap) */
     }                                                   /* (held elsewhere: nothing, no YES, as when it was the scenes' layer) */
     else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
     else if (b == B_HOME) {
-        if (!(mx_quiet() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()))
+        if (fm1_ms - op_t0[id % 14u] >= op_hold_ms() && pk_delete())
+            ;                                           /* (held alone on STEP, a note picked: deleted, op_step.c) */
+        else if (!(mx_quiet() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()))
             op_no();                                    /* (held alone on the mixer: nothing) */
     } else if (b == B_OCTDN || b == B_OCTUP)
         oct_tap(b);                                     /* (a tap: let go with nothing used meanwhile) */
@@ -758,10 +769,12 @@ static void op_knobs(uint32_t shift)
         turned = 1;
         if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
             continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
-        if (step_cards_down() && !fm1_in.buttons)
-            continue;                                   /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
+        if (step_cards_down() && (!fm1_in.buttons || fm1_in.buttons == (1u << panel.btn[B_OCTDN]))) {
+            pk_knob(k, s, fm1_in.buttons != 0u);       /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
                                                          * brings them, or with a button held: LFO + KNOB 1 LEN by one;
-                                                         * else they are free for the grid) */
+                                                         * else they are the note picker's, SHIFT its finer move: op_step.c) */
+            continue;
+        }
         step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)
@@ -1005,8 +1018,8 @@ static int step_yes_any(void)                           /* STEP: would YES do so
 {
     int16_t *vp;
     const param_desc_t *d;
-    if (st.held || op_armed())
-        return 1;
+    if (st.held || op_armed() || (!ui.cards_t && pk_ok()))
+        return 1;                                       /* (the cards down, a note picked: SAVE its cards) */
 #if FELUCCA_SEQTOOLS
     if (stp_tl(ui.row[SCR_STEP]) >= 0)
         return stp_tl(ui.row[SCR_STEP]) == 0 || (stp_tl(ui.row[SCR_STEP]) == 2 && (ui.hot == 0u || (ui.hot == 2u && ng_cur()->on)));
