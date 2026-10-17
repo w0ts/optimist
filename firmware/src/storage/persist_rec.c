@@ -49,6 +49,12 @@ typedef struct {
 #define PERSIST_UA_MARK 0x32524155u                /* "UAR2": the list without -3 / -6 dB (ua_tap.h) */
 #define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
+#if FELUCCA_BLE
+#define PERSIST_BLE(f) ((int)__builtin_offsetof(persist_t, f))
+#define PERSIST_BLE_END (PERSIST_BLE(ble_dev) + (int)sizeof(((persist_t *)0)->ble_dev))   /* (the BLE fields: bytes, in a row) */
+_Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(ble_bond) == PERSIST_BLE(ble_rf) + BLE_RF_COPY_SIZE &&
+               PERSIST_BLE(ble_dev) == PERSIST_BLE(ble_bond) + BLE_BOND_SIZE, "the settings record's BLE fields in a row");
+#endif
 #if FELUCCA_BRIGHT || BP23_SET
 #define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
 #endif
@@ -63,75 +69,60 @@ typedef struct {
  * filled in and made whole), PERSIST_NO_VIEW for the one short form still read, else what n was (not read) */
 static int persist_upgrade(persist_t *pp, int n)
 {
-    persist_t p = *pp;
 #if FELUCCA_USB_AUDIO
-    if (n < (int)sizeof p)                         /* (first: a record from before the USB routing is whole without it) */
-        memset(p.ua_src, 0, sizeof p.ua_src), p.ua_mark = 0;
+    if (n < (int)sizeof *pp)                         /* (first: a record from before the USB routing is whole without it) */
+        memset(pp->ua_src, 0, sizeof pp->ua_src), pp->ua_mark = 0;
     if (n == (int)__builtin_offsetof(persist_t, ua_src))
-        n = (int)sizeof p;
+        n = (int)sizeof *pp;
 #endif
 #if FELUCCA_FAVORITES
-    if (n < (int)sizeof p)                         /* (st_load sets the first n bytes only) */
-        memset(&p.fav, 0, sizeof p.fav);
+    if (n < (int)sizeof *pp)                         /* (st_load sets the first n bytes only) */
+        memset(&pp->fav, 0, sizeof pp->fav);
     if (n == (int)__builtin_offsetof(persist_t, fav))
-        n = (int)sizeof p;                         /* a record from before the favorites: whole, none (it must not be taken */
+        n = (int)sizeof *pp;                         /* a record from before the favorites: whole, none (it must not be taken */
 #endif                                             /* for a shorter one below: that would drop the BLE fields or the word) */
 #if FELUCCA_BLE
-    if (n == (int)__builtin_offsetof(persist_t, ble_dev)) {   /* saved by a BLE build before the device store */
-        memset(p.ble_dev, 0, sizeof p.ble_dev);
-        n = (int)sizeof p;
+    if (n == PERSIST_BLE(ble_dev) || n == PERSIST_BLE(ble_bond) || n == PERSIST_BLE(ble_rf)) {   /* saved by a BLE build
+                                                    * before the device store, the bond or the trim copy: those 0 */
+        memset((uint8_t *)pp + n, 0, (uint32_t)(PERSIST_BLE_END - n));
+        n = (int)sizeof *pp;
     }
-    if (n == (int)__builtin_offsetof(persist_t, ble_bond)) {   /* saved by a BLE build before the bond */
-        memset(p.ble_bond, 0, sizeof p.ble_bond);
-        memset(p.ble_dev, 0, sizeof p.ble_dev);
-        n = (int)sizeof p;
-    }
-    if (n == (int)__builtin_offsetof(persist_t, ble_rf)) {   /* saved by a BLE build before the trim copy */
-        memset(p.ble_rf, 0, sizeof p.ble_rf);
-        memset(p.ble_bond, 0, sizeof p.ble_bond);
-        memset(p.ble_dev, 0, sizeof p.ble_dev);
-        n = (int)sizeof p;
-    }
-    if (n < (int)sizeof p) {                   /* saved by a build without BLE: no address yet, the rest ours */
-        memset(p.ble_addr, 0, sizeof p.ble_addr);
-        memset(p.ble_rf, 0, sizeof p.ble_rf);
-        memset(p.ble_bond, 0, sizeof p.ble_bond);
-        memset(p.ble_dev, 0, sizeof p.ble_dev);
-        if (n == (int)__builtin_offsetof(persist_t, ble_addr))
-            n = (int)sizeof p;
+    if (n < (int)sizeof *pp) {                   /* saved by a build without BLE: no address yet, the rest ours */
+        memset(pp->ble_addr, 0, (uint32_t)(PERSIST_BLE_END - PERSIST_BLE(ble_addr)));
+        if (n == PERSIST_BLE(ble_addr))
+            n = (int)sizeof *pp;
     }
 #endif
 #if BP23_SET
-    if (n < (int)sizeof p) {                   /* a shorter record (an older build, one with fewer switches) */
+    if (n < (int)sizeof *pp) {                   /* a shorter record (an older build, one with fewer switches) */
         if (n < PERSIST_NO_VIEW + 4)
-            p.view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
+            pp->view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
         if (n < PERSIST_NO_BRIGHT + 4)
-            p.bright = 0;                      /* saved without BRIGHT: full */
-        p.bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
+            pp->bright = 0;                      /* saved without BRIGHT: full */
+        pp->bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
 #if FELUCCA_SL24_SAFE
-        if (n == PERSIST_NO_VIEW + 4 && p.magic == PERSIST_MAGIC && p.view > 1u)
-            p.bp23 = sl_word_in(p.view);       /* SLOOP 2.3 / 2.4's record: their lights word, NOTES inverted (sl24_guard.c) */
+        if (n == PERSIST_NO_VIEW + 4 && pp->magic == PERSIST_MAGIC && pp->view > 1u)
+            pp->bp23 = sl_word_in(pp->view);       /* SLOOP 2.3 / 2.4's record: their lights word, NOTES inverted (sl24_guard.c) */
 #endif
-        if (n > PERSIST_NO_VIEW && p.magic == PERSIST_MAGIC)
-            n = (int)sizeof p;                 /* (the rest as ours) */
+        if (n > PERSIST_NO_VIEW && pp->magic == PERSIST_MAGIC)
+            n = (int)sizeof *pp;                 /* (the rest as ours) */
     }
 #if FELUCCA_SL24_SAFE
-    else if (p.bright == SL25_DSU_MAGIC && p.magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
-        p.bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
-        p.bp23 = p.view > 1u ? sl_word_in(p.view) : 0u;   /* word; the word as 2.4's record gives it */
+    else if (pp->bright == SL25_DSU_MAGIC && pp->magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
+        pp->bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
+        pp->bp23 = pp->view > 1u ? sl_word_in(pp->view) : 0u;   /* word; the word as 2.4's record gives it */
     }
 #endif
 #else
 #if FELUCCA_BRIGHT
-    if (n < (int)sizeof p)
-        p.bright = 0;                          /* saved without BRIGHT: full */
+    if (n < (int)sizeof *pp)
+        pp->bright = 0;                          /* saved without BRIGHT: full */
     if (n == PERSIST_NO_BRIGHT)
-        n = (int)sizeof p;                     /* (a build without it: the rest as ours) */
+        n = (int)sizeof *pp;                     /* (a build without it: the rest as ours) */
 #endif
-    if (n < (int)sizeof p)
-        p.view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
+    if (n < (int)sizeof *pp)
+        pp->view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
 #endif
-    *pp = p;
     return n;
 }
 
