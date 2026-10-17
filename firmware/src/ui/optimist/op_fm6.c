@@ -86,7 +86,7 @@ static struct {
     uint8_t picked;                                     /* the layer was used: let go, SOUND's FM6 rows */
 } f6 = {.row = F6_OP0, .sub = {F6_OP0, F6_PIT0, F6_GLO0}};
 
-static int fm6_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6); }
+static int fm6_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[tsel()->eng_req % NENGINES], FM6); }
 static int16_t *f6_ed(void) { return fm6_ed[song.sel % NPART]; }
 static uint32_t f6_kind(uint32_t r) { return r < F6_PIT0 ? 0u : r < F6_GLO0 ? 1u : 2u; }
 static const fm6k_page_t *f6_page(uint32_t r) { return r ? &FMK_PAGES[(r - 1u) % F6_NPG] : 0; }
@@ -165,7 +165,7 @@ static void fm6_cell(uint32_t r, uint32_t k, cell_t *c)
     if (!r) {                                           /* OPERATOR: OP, ALG, FDBK, VOICE */
         static const char *const L[3] = {"OP", "ALG", "FDBK"};
         if (k == 3u) {
-            cell_param(c, &TP[P_VOICE], &TSEL->p[P_VOICE]);
+            cell_param(c, &TP[P_VOICE], &tsel()->p[P_VOICE]);
             return;
         }
         c->label = L[k];
@@ -199,7 +199,7 @@ static void fm6_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         if (k == 0u)
             f6.target = (uint8_t)clamp((int32_t)f6.target + (s > 0 ? 1 : -1), 0, 5);
         else if (k == 3u)
-            val_turn(&TP[P_VOICE], &TSEL->p[P_VOICE], k, s, fine);
+            val_turn(&TP[P_VOICE], &tsel()->p[P_VOICE], k, s, fine);
         else
             fm6_set(f6_ed(), k == 1u ? FV_ALG : FV_FB, f6_ed()[k == 1u ? FV_ALG : FV_FB] + (s > 0 ? 1 : -1));
         return;
@@ -254,7 +254,7 @@ static void fm6_lay_key(uint32_t k)                     /* a black key: what to 
     if (t < 0 || !fm6_sel())
         return;
     if (t == FMT_MONO || t == FMT_POLY) {
-        TSEL->p[P_VOICE] = t == FMT_MONO ? V_MONO : V_POLY;
+        tsel()->p[P_VOICE] = t == FMT_MONO ? V_MONO : V_POLY;
         ui_message(t == FMT_MONO ? "MONO" : "POLY");
         return;
     }
@@ -290,7 +290,7 @@ static uint32_t fm6_keys_lit(void)                      /* the keys' lights with
 {
     static const uint8_t KEY[8] = {1, 3, 5, 8, 10, 13, 15, 17};
     uint32_t kd = f6_kind(f6.row), m = 1u << KEY[kd == 0u ? f6.target % 6u : kd == 1u ? 6u : 7u];
-    uint32_t v = (uint32_t)TSEL->p[P_VOICE];
+    uint32_t v = (uint32_t)tsel()->p[P_VOICE];
     m |= v == V_POLY ? 1u << FMT_POLY : v == V_MONO || v == V_LEGATO ? 1u << FMT_MONO : 0u;
     return m;
 }

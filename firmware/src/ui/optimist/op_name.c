@@ -61,14 +61,14 @@ static void name_open(uint32_t kind, uint32_t k)
     uint32_t l;
     b[0] = 0;
     if (kind == NK_USER) {
-        str_cpy(nm.ph, ENGINES[TSEL->eng_req % NENGINES]->name, 9);   /* as upreset.c up_store: "ANALOG 07" */
+        str_cpy(nm.ph, ENGINES[tsel()->eng_req % NENGINES]->name, 9);   /* as upreset.c up_store: "ANALOG 07" */
         l = str_len(nm.ph);
         nm.ph[l] = ' ';
         nm.ph[l + 1u] = (char)('0' + (k + 1u) / 10u);
         nm.ph[l + 2u] = (char)('0' + (k + 1u) % 10u);
         nm.ph[l + 3u] = 0;
-        if (user_of(TSEL) < UP_SLOTS)
-            up_name(user_of(TSEL), b);
+        if (user_of(tsel()) < UP_SLOTS)
+            up_name(user_of(tsel()), b);
     } else {
         str_cpy(nm.ph, "PROJECT ", sizeof nm.ph);
         fmt_int(nm.ph + 8, (int32_t)k + 1);

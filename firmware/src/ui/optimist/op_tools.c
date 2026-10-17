@@ -496,7 +496,7 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
 {
     gen_t g = *ng_cur();
     const gen_type_t *ty = &GEN_TYPES[g.type % GT_N];
-    uint32_t len = trk_len(TSEL);
+    uint32_t len = trk_len(tsel());
     ty->fit(&g, len);
     c->kind = CK_VAL;
     if (pg == 1u) {
@@ -529,7 +529,7 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
 {
     gen_t g;
     const gen_type_t *ty;
-    uint32_t len = trk_len(TSEL);
+    uint32_t len = trk_len(tsel());
     if (pg == 2u && k >= 2u)
         return;                                         /* (WRITE: a turn picks the card; the read-out) */
     fm1_irq_off();
@@ -556,7 +556,7 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
 static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRITE */
 {
     gen_t g = *ng_cur();
-    track_t *t = TSEL;
+    track_t *t = tsel();
     char a[12];
     if (k == 0u) {
         fm1_irq_off();                                  /* (read, toggled, written: one section, as ng_turn) */
@@ -714,7 +714,7 @@ static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t half, const cha
 /* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
 static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     int32_t lane = tl_lane();
     char b[24];
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *sa, *sb;

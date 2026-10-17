@@ -70,6 +70,7 @@ static struct {
 static int op_shift(uint32_t held) { return (int)((held >> panel.btn[B_OCTDN]) & 1u); }
 static int op_shift2(uint32_t held) { return (int)((held >> panel.btn[B_OCTUP]) & 1u); }
 static int btn_held(uint32_t b) { return (int)((fm1_in.buttons >> panel.btn[b]) & 1u); }   /* button b down now */
+static __attribute__((noinline)) track_t *tsel(void) { return TSEL; }   /* the selected track (a call: TSEL inlined is a multiply each time) */
 
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
  * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held

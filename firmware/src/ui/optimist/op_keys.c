@@ -86,7 +86,7 @@ static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held
 #endif
 static uint32_t step_dim(void)                          /* STEP, the keys steps: the window's empty steps inside LEN */
 {
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     uint32_t w, m = 0, len = trk_len(t);
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;

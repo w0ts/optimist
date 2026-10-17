@@ -87,7 +87,7 @@ static int step_keys(uint32_t held)
 /* ---- the window */
 static void step_tick(void)                             /* once a frame: FOLLOW, the window inside LEN */
 {
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     uint32_t n = step_pages(t);
     if (st.latch && (ui.scr != SCR_STEP || !pk_ok()))
         pk_unlatch();                                   /* (the picked note's cards: another track, lane or screen lets go) */
@@ -98,7 +98,7 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
 }
 static void step_scroll(int32_t d)                      /* SHIFT + OCT- / OCT+ */
 {
-    st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(TSEL) - 1);
+    st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(tsel()) - 1);
     st.follow = 0;
     ui.cards_t = 0;                                     /* (the grid is what is looked at: the cards go, the header names the window) */
 }
@@ -309,7 +309,7 @@ static uint32_t step_unlock(track_t *t, uint32_t idx)
 static void lane_pick_from(uint32_t l, int key);        /* op_input.c: the lane selected (its preview) */
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     int32_t w = punch_key(k);
     uint32_t idx, bit;
     if (w < 0 && down && is_drum(t) && lane_key(k)) {
@@ -392,11 +392,11 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
 static int32_t held_at(uint32_t w)                      /* the step white key w holds, within LEN; -1 none */
 {
     uint32_t idx = st.page * 16u + w;
-    return ((st.held >> w) & 1u) && idx < trk_len(TSEL) ? (int32_t)idx : -1;
+    return ((st.held >> w) & 1u) && idx < trk_len(tsel()) ? (int32_t)idx : -1;
 }
 static track_t *held_open(void)                         /* an edit of the steps held: one undo level, no tap when let go, IRQ off */
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     undo_mark(t, st.sess);
     st.pend &= (uint16_t)~st.held;
     fm1_irq_off();
@@ -510,7 +510,7 @@ static int held_note_sel(uint32_t idx)                  /* the held synth step i
     const step_t *s;
     if (is_drum(TSEL) || ui.scr != SCR_STEP || idx / 16u != st.page || !((st.held >> (idx % 16u)) & 1u))
         return -1;
-    s = &TSEL->step[idx % NSTEP];
+    s = &tsel()->step[idx % NSTEP];
     return step_on(s) && s->n > 1u ? (int)nsel_of(s) : -1;
 }
 static int32_t held_note(void)                          /* the note being edited on the first step held (synth), -1 none */
@@ -519,7 +519,7 @@ static int32_t held_note(void)                          /* the note being edited
     const step_t *s;
     if (i < 0 || is_drum(TSEL))
         return -1;
-    s = &TSEL->step[i];
+    s = &tsel()->step[i];
     return step_on(s) ? s->note[nsel_of(s)] : -1;
 }
 static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s);   /* op_stepdraw.c: FOLD's next row */
@@ -640,7 +640,7 @@ static const char *held_move_refused(const track_t *t, int32_t d, const uint8_t 
 }
 static int held_move(int32_t d)                         /* every step held one step left (-1) / right (+1); 1 moved */
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     uint8_t w[16];
     uint32_t k = held_order(trk_len(t), d, w), i, lo = 255u;
     const char *why;
@@ -731,7 +731,7 @@ static int held_lane_one(track_t *t, uint32_t idx, uint32_t l, uint32_t l2)   /*
 }
 static int held_lane(int32_t d)                         /* ALGORITHM on a held drum step: its hit one lane up (+1) / down (-1) as drawn; 1 moved */
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     uint32_t l = lane_selected(), l2, i, n = 0;
     uint8_t w[16];
     uint32_t k = held_order(trk_len(t), 1, w);
@@ -805,7 +805,7 @@ static int pk_note(const track_t *t, uint32_t idx)       /* a note starts at idx
         return 0;
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
 }
-static int pk_ok(void) { return st.pk != PK_NONE && st.pk_trk == song.sel && pk_note(TSEL, st.pk); }
+static int pk_ok(void) { return st.pk != PK_NONE && st.pk_trk == song.sel && pk_note(tsel(), st.pk); }
 static void pk_hold(uint32_t *sv)                       /* the picked step held as by a finger (sv: what was) */
 {
     uint32_t w = st.pk % 16u;
@@ -827,7 +827,7 @@ static void pk_free(const uint32_t *sv)                 /* ... let go: the pick 
 }
 static void pk_walk(int32_t s)                          /* KNOB 1: s notes on, stopping at the first / last */
 {
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     int32_t len = (int32_t)trk_len(t), d = s > 0 ? 1 : -1, n = s > 0 ? s : -s, i, j;
     if (st.pk != PK_NONE && st.pk_trk == song.sel && st.pk < (uint32_t)len)
         i = st.pk;                                      /* (from the pick, picked or deleted) */
@@ -913,7 +913,7 @@ static void pk_unlatch(void)                            /* HOME tapped, a step k
 }
 static int pk_mute(void)                                /* SAVE held alone: the picked note muted / not; 1 done */
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     uint32_t l = lane_selected();
     if (ui.scr != SCR_STEP || !pk_ok())
         return 0;
@@ -940,7 +940,7 @@ static int pk_mute(void)                                /* SAVE held alone: the 
 }
 static int pk_delete(void)                              /* HOME held alone: the picked note deleted; 1 done */
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     if (ui.scr != SCR_STEP || !pk_ok())
         return 0;
     if (st.latch)
@@ -963,7 +963,7 @@ static void held_fill(void)                             /* normal -> fill only -
     uint32_t v;
     if (i < 0)
         return;
-    v = (step_fill(TSEL, (uint32_t)i) + 1u) % 3u;
+    v = (step_fill(tsel(), (uint32_t)i) + 1u) % 3u;
     held_each(edit_fill, (int32_t)v);
     ui_message(MSG[v]);
 }
@@ -1018,19 +1018,19 @@ static int32_t lock_param(const page_t *pg, uint32_t k, const param_desc_t **d)
     if (pg->scope == SC_DSND)
         return page_id(pg, k) < DE_N ? (int32_t)(LOCK_LANE | page_id(pg, k)) : -1;
 #endif
-    if (vp < TSEL->p || vp >= TSEL->p + P_COUNT)
+    if (vp < tsel()->p || vp >= tsel()->p + P_COUNT)
         return -1;
-    return lock_ok(TSEL, (uint32_t)(vp - TSEL->p)) ? (int32_t)(vp - TSEL->p) : -1;
+    return lock_ok(tsel(), (uint32_t)(vp - tsel()->p)) ? (int32_t)(vp - tsel()->p) : -1;
 }
 /* the first step held's event of cell k: 1 step-only (a lock), 2 a hold event (motion), 0 none; its value into *v */
 static uint32_t lock_kind(uint32_t id, int32_t i, int32_t *v)
 {
 #if DLA_ON
     if (id & LOCK_LANE)
-        return lane_lock_get(TSEL, (uint32_t)i, lane_selected(), id & 7u, v) ? 1u :
-               lane_hold_get(TSEL, (uint32_t)i, lane_selected(), id & 7u, v) ? 2u : 0u;
+        return lane_lock_get(tsel(), (uint32_t)i, lane_selected(), id & 7u, v) ? 1u :
+               lane_hold_get(tsel(), (uint32_t)i, lane_selected(), id & 7u, v) ? 2u : 0u;
 #endif
-    return lock_get(TSEL, (uint32_t)i, id, v) ? 1u : hold_get(TSEL, (uint32_t)i, id, v) ? 2u : 0u;
+    return lock_get(tsel(), (uint32_t)i, id, v) ? 1u : hold_get(tsel(), (uint32_t)i, id, v) ? 2u : 0u;
 }
 /* the cell of lockable id (lock_param's) with descriptor d: the event of the first step held, else the track's value (a
  * lane's: its patch) */
@@ -1058,8 +1058,8 @@ static void lock_cell_id(int32_t id, const param_desc_t *d, cell_t *c)
 #endif
     {
         if (!q)
-            v = TSEL->p[id];
-        c->vp = &TSEL->p[id];
+            v = tsel()->p[id];
+        c->vp = &tsel()->p[id];
     }
     c->mark = (uint8_t)q;                               /* (op_draw.c: 1 a padlock, 2 a hold's arrow) */
     c->col = q == 1u ? C_WARN : q ? C_WARN : 0;
@@ -1313,7 +1313,7 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
     c->kind = CK_VAL;
 #if FELUCCA_CHANCE
     if (kd == 0) {
-        v = (int32_t)step_chance_of(TSEL, (uint32_t)i);
+        v = (int32_t)step_chance_of(tsel(), (uint32_t)i);
         c->label = "CHANCE";
         c->unit = "%";
         fmt_int(c->val, v);
@@ -1323,7 +1323,7 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
 #endif
 #if FELUCCA_MICRO
     if (kd == 1) {
-        v = step_micro(TSEL, (uint32_t)i);
+        v = step_micro(tsel(), (uint32_t)i);
         c->label = "NUDGE";
         fmt_int(c->val, v);
         cell_gauge(c, 0, -32, 31, v);
@@ -1332,14 +1332,14 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
 #endif
 #if FELUCCA_FILLS
     if (kd == 2) {
-        v = (int32_t)(step_fill(TSEL, (uint32_t)i) % 3u);
+        v = (int32_t)(step_fill(tsel(), (uint32_t)i) % 3u);
         cell_list(c, "FILL", FN[v], 2, v);
         return;
     }
 #endif
 #if FELUCCA_COND
     if (kd == 3) {
-        v = (int32_t)step_cond(TSEL, (uint32_t)i);
+        v = (int32_t)step_cond(tsel(), (uint32_t)i);
         cell_list(c, "COND", COND_NAME[v % (AUTO_NCOND + 1u)], AUTO_NCOND, v);
         return;
     }
@@ -1363,11 +1363,11 @@ static void extra_turn(uint32_t k, int32_t s)
 #endif
 #if FELUCCA_FILLS
     if (kd == 2)
-        held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(TSEL, (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
+        held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(tsel(), (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
 #endif
 #if FELUCCA_COND
     if (kd == 3)                                        /* (- 1:2 .. 4:4, stopping at both ends; SHIFT + the knob: -) */
-        held_each(edit_cond, s == OP_RESET ? 0 : clamp((int32_t)step_cond(TSEL, (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
+        held_each(edit_cond, s == OP_RESET ? 0 : clamp((int32_t)step_cond(tsel(), (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
 #endif
 }
 
@@ -1406,7 +1406,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
 {
     static const char *const LV_NAME[4] = {"GHOST", "SOFT", "NORM", "HARD"};
     static const char *const RT_NAME[4] = {"x1", "x2", "x3", "x4"};
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     int32_t i = held_first();
     uint32_t lv, rt;
     cell_clear(c);
@@ -1548,7 +1548,7 @@ static int step_knobs(void)                             /* a step held: SELECT i
         return 0;
     if ((s = panel_enc(EN_SELECT)) != 0) {
         turned = 1;
-        int32_t n = held_note_sel((uint32_t)held_first()) >= 0 ? (int32_t)TSEL->step[held_first()].n : 0;
+        int32_t n = held_note_sel((uint32_t)held_first()) >= 0 ? (int32_t)tsel()->step[held_first()].n : 0;
         int32_t v = (int32_t)(st.nsel < n ? st.nsel : n - 1) + s;
         if (n && st.hp == 0u && v < n) {                /* a step of several notes: SELECT picks the note ALGORITHM moves; past */
             st.nsel = (uint8_t)clamp(v, 0, n - 1);      /* the last one it pages the cards, back from them the last note again */
@@ -1619,14 +1619,14 @@ static void step_foot(char *h, char *k, uint32_t n)
         h[0] = 0;
 #if FELUCCA_MICRO
         str_cpy(h, "Nudge ", n);
-        if (step_micro(TSEL, (uint32_t)i) > 0)
+        if (step_micro(tsel(), (uint32_t)i) > 0)
             str_app(h, "+", n);
-        fmt_int(h + str_len(h), step_micro(TSEL, (uint32_t)i));
+        fmt_int(h + str_len(h), step_micro(tsel(), (uint32_t)i));
         str_app(h, "  ", n);
 #endif
 #if FELUCCA_CHANCE
         str_app(h, "Chance ", n);
-        fmt_int(h + str_len(h), (int32_t)step_chance_of(TSEL, (uint32_t)i));
+        fmt_int(h + str_len(h), (int32_t)step_chance_of(tsel(), (uint32_t)i));
         str_app(h, "%", n);
 #endif
         str_cpy(k, "Step ", n);
@@ -1634,13 +1634,13 @@ static void step_foot(char *h, char *k, uint32_t n)
 #if FELUCCA_FILLS
         {
             static const char *const F[3] = {"", "  Fill only", "  No fill"};
-            str_app(k, F[step_fill(TSEL, (uint32_t)i) % 3u], n);
+            str_app(k, F[step_fill(tsel(), (uint32_t)i) % 3u], n);
         }
 #endif
 #if FELUCCA_COND
-        if (step_cond(TSEL, (uint32_t)i)) {
+        if (step_cond(tsel(), (uint32_t)i)) {
             str_app(k, "  ", n);
-            str_app(k, COND_NAME[step_cond(TSEL, (uint32_t)i) % (AUTO_NCOND + 1u)], n);
+            str_app(k, COND_NAME[step_cond(tsel(), (uint32_t)i) % (AUTO_NCOND + 1u)], n);
         }
 #endif
         return;

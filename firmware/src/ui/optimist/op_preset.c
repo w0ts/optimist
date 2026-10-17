@@ -21,8 +21,8 @@ static uint32_t pre_entry_of(uint32_t e, uint32_t k, char *nm)
     }
 #if FELUCCA_NATIVE_BANKS
     if (e == NB_LIST) {                                 /* (the engine's own collection: the track's engine) */
-        nb_name(nb_kind(TSEL), k, nm);
-        return TSEL->eng_req % NENGINES;
+        nb_name(nb_kind(tsel()), k, nm);
+        return tsel()->eng_req % NENGINES;
     }
 #endif
     str_cpy(nm, preset_name(e, k), 14);
@@ -102,7 +102,7 @@ static uint32_t pre_sig(void)
 {
     uint32_t total, cur = preset_pos(&total);
     return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
-            (TSEL->eng_req * 64u + (uint32_t)user_of(TSEL) + settings.palette * 4096u)) * 31u +
+            (tsel()->eng_req * 64u + (uint32_t)user_of(tsel()) + settings.palette * 4096u)) * 31u +
 #if FELUCCA_FAVORITES
            (fav_count() * 131u + fav.user * 2654435761u + (uint32_t)fav_list * 40503u + (uint32_t)op_fav_here() * 7u) +
 #endif

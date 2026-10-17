@@ -219,7 +219,7 @@ static void fx_bypass_toggle(uint32_t i)
     track_t *t = &trk[i % NTRK];
     t->p[P_FXOFF] = (int16_t)!t->p[P_FXOFF];
     ui_say(trk_tag(i), fx_on(t) ? " FX ON" : " FX OFF");
-    if (t == TSEL)
+    if (t == tsel())
         sync_reload = 1;
 }
 #if FELUCCA_FILLS
@@ -623,7 +623,7 @@ static const uint8_t LAY_MASTER_G[4] = {G_FILT, G_DUST, G_DUCK, G_CTHR};   /* th
 /* the value of the layer's knob k: its descriptor and value (0: none) */
 static const param_desc_t *lay_desc(uint32_t l, uint32_t k, int16_t **vp)
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     *vp = 0;
     if (ui.master && lay_master_ok(l)) {
         if (k < 4u && g_built(LAY_MASTER_G[k])) {      /* (a value the build lacks, DUST: no card, #22) */
@@ -672,7 +672,7 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
     uint32_t l = lay_now(), i;
     int16_t *vp;
     const param_desc_t *d = lay_desc(l, k, &vp);
-    track_t *t = TSEL;
+    track_t *t = tsel();
     lay.used = 1;
     lay.chord = 0;
     lay.hot = (uint8_t)k;

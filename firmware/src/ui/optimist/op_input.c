@@ -972,7 +972,7 @@ static uint32_t keys_of(uint32_t m)                     /* the white keys of the
 /* the window's steps lit (a bit per step): those set (step_shown), the playhead's blinking; *in: those inside LEN */
 static uint32_t step_win(uint32_t blink, uint32_t *in)
 {
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     uint32_t m = 0, w, len = trk_len(t), at = t->seq_idx % len;
     *in = 0;
     for (w = 0; w < 16u; w++) {
@@ -986,7 +986,7 @@ static uint32_t step_win(uint32_t blink, uint32_t *in)
 }
 static uint32_t step_leds(uint32_t blink)
 {
-    const track_t *t = TSEL;
+    const track_t *t = tsel();
     uint32_t m = 0, in;
     if (!step_keys(fm1_in.buttons)) {
         m = fm1_in.notes;
