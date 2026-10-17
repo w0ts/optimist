@@ -295,6 +295,9 @@ for _pair, _with in _ui_pairs():
     PAIRS.append(_pair)
     if _with:
         PAIR_WITH[pair_name(_pair)] = _with
+# (after the UI pairs, which it contains: UI=1,ED_TOOLS=0 measures 0 B, the editor's TOOLS being built only with
+# SEQTOOLS too; with it the command is 1.8 KB, 2026-10-17)
+PAIRS.append({"UI": 1, "SEQTOOLS": 1, "ED_TOOLS": 0})
 
 
 def beyond(sizes, cfg, costs, name):

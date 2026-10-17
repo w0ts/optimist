@@ -187,15 +187,24 @@ def main(argv):
     held = sorted(n for n in want if n in keep and n in funcs)
     hit = set()
 
+    # a function built for size that -Os code calls (the main loop, the boot, USB) is noinline too: inlined there it is
+    # built at -Os as its caller (-2.1 KB of flash on the synth profile, -2.6 KB on user-default, 2026-10-17)
+    minsz = {n for n in want if n in funcs and n not in keep}
+    bound = set()
+    for n, (_, body) in funcs.items():
+        if n not in minsz:
+            bound.update(r for r in IR_REF.findall(body) if r in minsz)
+
     def mark(m):
         name = m.group(2)
         if name not in want or name in keep:
             return m.group(0)
         hit.add(name)
-        return m.group(1) + " minsize" + m.group(3)
+        return m.group(1) + (" minsize noinline" if name in bound else " minsize") + m.group(3)
     Path(dst).write_text(IR_DEF.sub(mark, ir))
     print(f"size: {len(hit)} main-loop functions built for size "
-          f"({len(held)} kept at -Os: the sound side reaches them; {len(want - set(funcs))} not in this build)")
+          f"({len(held)} kept at -Os: the sound side reaches them; {len(want - set(funcs))} not in this build; "
+          f"{len(bound & hit)} noinline: -Os code calls them)")
     if held:
         print("size: kept at -Os: " + " ".join(held))
     return 0
