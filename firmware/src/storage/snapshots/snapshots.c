@@ -348,117 +348,98 @@ static int sn_put_rec(sn_wr_t *w, uint32_t kind, uint32_t id, const uint8_t *p, 
     h[0] = (uint8_t)kind, h[1] = (uint8_t)id, h[2] = (uint8_t)n, h[3] = (uint8_t)(n >> 8);
     return sn_wr_put(w, h, 4) || (n && sn_wr_put(w, p, n));
 }
+/* the stream's records, counted (sn_recs without a writer: each one's length) then written: the work's five, five a
+ * section's, the song's */
+#define SN_RECS (5u + 5u * SN_SECS + 1u)
+typedef struct {
+    uint32_t total, nrec, secmask, at;
+    uint16_t len[SN_RECS];
+} sn_plan_t;
+/* record kind / id (n bytes at b, 0: none) of the stream: counted into pl (w 0: its length kept), else written when it
+ * is the length it was counted at; a TAIL is no record of the info's count. 0 ok */
+static int sn_emit(sn_wr_t *w, sn_plan_t *pl, uint32_t kind, uint32_t id, const uint8_t *b, uint32_t n)
+{
+    if (!w) {
+        pl->len[pl->at++] = (uint16_t)n;
+        if (n)
+            pl->total += 4u + n, pl->nrec += kind != SNR_TAIL;
+        return 0;
+    }
+    return n != pl->len[pl->at++] || (n && sn_put_rec(w, kind, id, b, n));
+}
+/* the records after the info, in their order: counted into pl (w 0; the sections stored -> pl->secmask), else written
+ * as they were counted; 0 ok */
+static int sn_recs(sn_wr_t *w, sn_plan_t *pl)
+{
+    uint32_t i, n = 0;
+    int rc;
+    pl->at = 0;
+    rc = sn_emit(w, pl, SNR_WORK, 0, SN_REC, sn_work_rec());
+    rc = rc || sn_emit(w, pl, SNR_TAIL, SN_TAIL_WORK, st_buf, sn_tail(&autosave_buf, st_buf));
+#if FELUCCA_AUTO
+    rc = rc || sn_emit(w, pl, SNR_XSTEP, SN_TAIL_WORK, sx_rbuf, sn_xs_work());
+#endif
+    rc = rc || sn_emit(w, pl, SNR_FXR, SN_TAIL_WORK, st_buf, sn_fx_work(st_buf));
+    rc = rc || sn_emit(w, pl, SNR_DLFO, SN_TAIL_WORK, st_buf, sn_dl_work(st_buf));
+    for (i = 0; !rc && i < SN_SECS; i++) {
+        if (w ? !((pl->secmask >> i) & 1u) : !(n = sn_sec_len(i)))
+            continue;
+        pl->secmask |= 1u << i;
+        pl->at = 5u + 5u * i;
+        rc = sn_emit(w, pl, SNR_SEC, i, SN_REC, w ? sn_sec_rec(i) : n);   /* (counted without reading it, where the
+                                                                         * log knows) */
+#if !SEC_LOGGED
+        rc = rc || sn_emit(w, pl, SNR_TAIL, i, st_buf, sn_tail(&proj_slot[i], st_buf));
+#endif
+#if FELUCCA_AUTO
+        rc = rc || sn_emit(w, pl, SNR_XSTEP, i, sx_rbuf, sn_xs_sec(i));
+#endif
+#if SEC_LOGGED
+        rc = rc || sn_emit(w, pl, SNR_FXR, i, fxr_rbuf, sn_fx_sec(i));
+        rc = rc || sn_emit(w, pl, SNR_DLFO, i, dlr_rbuf, sn_dl_sec(i));
+#endif
+    }
+#if SEC_LOGGED
+    for (i = SN_LOG0; !rc && i < SN_LOG1; i++)         /* (the patterns, their state) */
+        if ((n = sn_log_rec(i)) != 0) {
+            if (w)
+                rc = sn_put_rec(w, SNR_LOG, i, SN_REC, n);
+            else
+                pl->total += 4u + n, pl->nrec++;
+        }
+#endif
+    pl->at = SN_RECS - 1u;
+    return rc || sn_emit(w, pl, SNR_SONG, 0, SN_REC, sn_song(SN_REC));
+}
 /* the state now -> slot k (the work captured into autosave_buf first); name: 0 = made from the work. keep: the
  * slot's old version stays in flash (a load from it reads it after) */
 static int sn_write(uint32_t k, const char *name, int keep)
 {
     static sn_info_t in;
     sn_wr_t w;
-    uint16_t len[SN_SECS], tl[SN_SECS];
-    uint32_t i, n, total, nwork, nsong, nrec = 2, tw, fw, dw;
-    uint16_t fl[SN_SECS];                               /* (an FX record: up to 4 + FXR_MAX, past a byte since fx-rework) */
-    uint8_t dl[SN_SECS];
-#if FELUCCA_AUTO
-    uint16_t xl[SN_SECS];
-    uint32_t xw;
-#endif
+    sn_plan_t pl;
     int rc;
     memset(&in, 0, sizeof in);
-    memset(tl, 0, sizeof tl);
+    memset(&pl, 0, sizeof pl);
     sn_work_capture();
-    nwork = sn_work_rec();
+    (void)sn_work_rec();
     in.flags = (SN_REC[0] & SEC_MOT) ? 1u : 0u;        /* (the work carries motion) */
-    tw = sn_tail(&autosave_buf, st_buf);
-    nsong = 4u + 2u * (arrangement.count < ARR_STEPS ? arrangement.count : ARR_STEPS);   /* (sn_song: written last) */
-    total = sizeof in + 4u + nwork + (tw ? 4u + tw : 0u) + 4u + nsong;
-    memset(fl, 0, sizeof fl);
-    memset(dl, 0, sizeof dl);
-    if ((fw = sn_fx_work(st_buf)) != 0)
-        total += 4u + fw, nrec++;
-    if ((dw = sn_dl_work(st_buf)) != 0)
-        total += 4u + dw, nrec++;
-#if FELUCCA_AUTO
-    memset(xl, 0, sizeof xl);
-    if ((xw = sn_xs_work()) != 0)
-        total += 4u + xw, nrec++;
-#endif
-    for (i = 0; i < SN_SECS; i++)
-        if ((len[i] = (uint16_t)sn_sec_len(i)) != 0) {
-            total += 4u + len[i];
-            in.secmask |= 1u << i;
-            nrec++;
-#if !SEC_LOGGED
-            if ((tl[i] = (uint16_t)sn_tail(&proj_slot[i], st_buf)) != 0)
-                total += 4u + tl[i];
-#endif
-#if FELUCCA_AUTO
-            if ((xl[i] = (uint16_t)sn_xs_sec(i)) != 0)
-                total += 4u + xl[i], nrec++;
-#endif
-#if SEC_LOGGED
-            if ((fl[i] = (uint16_t)sn_fx_sec(i)) != 0)
-                total += 4u + fl[i], nrec++;
-            if ((dl[i] = (uint8_t)sn_dl_sec(i)) != 0)
-                total += 4u + dl[i], nrec++;
-#endif
-        }
-#if SEC_LOGGED
-    for (i = SN_LOG0; i < SN_LOG1; i++)                /* (the patterns, their state) */
-        if ((n = sn_log_rec(i)) != 0)
-            total += 4u + n, nrec++;
-#endif
+    pl.total = sizeof in;
+    (void)sn_recs(0, &pl);
+    in.secmask = pl.secmask;
     in.magic = SN_IMAGIC, in.ver = SN_VERSION, in.ilen = sizeof in;
     if (name && name[0])
         str_cpy(in.name, name, SN_NAME);
     else
         sn_auto_name(in.name, in.secmask);
-    in.pmagic = PROJ_MAGIC, in.cfg = SN_CFG, in.nsec = FELUCCA_SECTIONS, in.nrec = (uint8_t)nrec;
+    in.pmagic = PROJ_MAGIC, in.cfg = SN_CFG, in.nsec = FELUCCA_SECTIONS, in.nrec = (uint8_t)pl.nrec;
     in.bpm = (uint16_t)song.g[G_BPM];
     in.parts = arrangement.count;
     in.count = ++sn_count;
-    if ((rc = sn_wr_begin(&w, k, total)) != 0)
+    if ((rc = sn_wr_begin(&w, k, pl.total)) != 0)
         return rc == -2 ? SNE_FULL : rc == -3 ? SNE_ARGS : SNE_FLASH;
-    rc = sn_wr_put(&w, (const uint8_t *)&in, sizeof in);
-    if (!rc) {
-        n = sn_work_rec();                             /* (encoded again: the buffer held the others' sizes) */
-        rc = n != nwork || sn_put_rec(&w, SNR_WORK, 0, SN_REC, nwork);
-    }
-    if (!rc && tw)
-        rc = sn_tail(&autosave_buf, st_buf) != tw || sn_put_rec(&w, SNR_TAIL, SN_TAIL_WORK, st_buf, tw);
-#if FELUCCA_AUTO
-    if (!rc && xw)
-        rc = sn_xs_work() != xw || sn_put_rec(&w, SNR_XSTEP, SN_TAIL_WORK, sx_rbuf, xw);
-#endif
-    if (!rc && fw)
-        rc = sn_fx_work(st_buf) != fw || sn_put_rec(&w, SNR_FXR, SN_TAIL_WORK, st_buf, fw);
-    if (!rc && dw)
-        rc = sn_dl_work(st_buf) != dw || sn_put_rec(&w, SNR_DLFO, SN_TAIL_WORK, st_buf, dw);
-    for (i = 0; !rc && i < SN_SECS; i++)
-        if ((in.secmask >> i) & 1u) {
-            n = sn_sec_rec(i);
-            rc = n != len[i] || sn_put_rec(&w, SNR_SEC, i, SN_REC, n);
-#if !SEC_LOGGED
-            if (!rc && tl[i])
-                rc = sn_tail(&proj_slot[i], st_buf) != tl[i] || sn_put_rec(&w, SNR_TAIL, i, st_buf, tl[i]);
-#endif
-#if FELUCCA_AUTO
-            if (!rc && xl[i])
-                rc = sn_xs_sec(i) != xl[i] || sn_put_rec(&w, SNR_XSTEP, i, sx_rbuf, xl[i]);
-#endif
-#if SEC_LOGGED
-            if (!rc && fl[i])
-                rc = sn_fx_sec(i) != fl[i] || sn_put_rec(&w, SNR_FXR, i, fxr_rbuf, fl[i]);
-            if (!rc && dl[i])
-                rc = sn_dl_sec(i) != dl[i] || sn_put_rec(&w, SNR_DLFO, i, dlr_rbuf, dl[i]);
-#endif
-        }
-#if SEC_LOGGED
-    for (i = SN_LOG0; !rc && i < SN_LOG1; i++)
-        if ((n = sn_log_rec(i)) != 0)
-            rc = sn_put_rec(&w, SNR_LOG, i, SN_REC, n);
-#endif
-    if (!rc)
-        rc = sn_song(SN_REC) != nsong || sn_put_rec(&w, SNR_SONG, 0, SN_REC, nsong);
+    rc = sn_wr_put(&w, (const uint8_t *)&in, sizeof in) || sn_recs(&w, &pl);   /* (each encoded again: the buffers
+                                                                              * held the others) */
     if (rc) {
         sn_wr_release(&w);
         return SNE_FLASH;
