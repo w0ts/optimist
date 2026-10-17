@@ -21,6 +21,7 @@
  *                 4 not written: MEM FULL, the arena full, a clear while playing). The chunks wait in proj_tmp
  *                 (lent: a session left for 10 s is given back); the slot's launch waiting is read again
  * 85 stays free for a push of the tracks' patterns. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_PAT_LIST = 79, ED_PAT_LAUNCH, ED_SCENE, ED_PAT_OP, ED_PAT_READ, ED_PAT_WRITE };
 static struct { uint16_t total, got; uint8_t k, s, on; } pw;   /* PAT_WRITE: the record being received */
 
@@ -42,12 +43,9 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     switch (cmd) {
     case ED_PAT_LIST:
-        ed_b(a[0]);
-        ed_b(proj_tmp_busy() ? 0u : pat_changed());       /* (it captures into proj_tmp: a write holds it) */
+        ed_b2(a[0], proj_tmp_busy() ? 0u : pat_changed());       /* (it captures into proj_tmp: a write holds it) */
         for (k = 0; k < NTRK; k++) {
-            ed_b(ed7(pat_cur[k]));
-            ed_b(ed7(pat_req[k]));
-            ed_b(pat_when[k]);
+            ed_b3(ed7(pat_cur[k]), ed7(pat_req[k]), pat_when[k]);
         }
         if (a[0] == 0u) {
             uint8_t r[NTRK];
@@ -66,9 +64,7 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
             pat_launch(a[0], a[1] < PAT_N ? a[1] : PAT_NONE, a[2]);
             rc = 0;
         }
-        ed_b(a[0]);
-        ed_b(a[1]);
-        ed_b(rc);
+        ed_b3(a[0], a[1], rc);
         return 1;
     case ED_SCENE: {
         uint32_t s = na > 1u ? a[1] : 127u, g = sec_gen;
@@ -81,9 +77,7 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
                 project_save(s);
             rc = sec_gen == g ? 2u : 0u;
         }
-        ed_b(a[0]);
-        ed_b(s);
-        ed_b(rc);
+        ed_b3(a[0], s, rc);
         return 1;
     }
     case ED_PAT_OP: {
@@ -98,8 +92,7 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
             else if (op == 3u)
                 rc = (x = pat_free(t)) >= PAT_N || pat_store_slot(t, x) ? 2u : 0u;
         }
-        ed_b(op);
-        ed_b(rc);
+        ed_b2(op, rc);
         return 1;
     }
     case ED_PAT_READ:
@@ -107,12 +100,12 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint32_t o, n = 0, tot, w = cmd == ED_PAT_WRITE;
         if (na < 4u + 2u * w || a[0] >= NTRK || a[1] >= PAT_N)
             return 0;
-        o = a[2] | a[3] << 7;
+        o = ed_r32(a + 2, 2);
         if (!w) {
             tot = pat_get(a[0], a[1], sec_rbuf);
             n = o < tot ? tot - o : 0u;
         } else {
-            tot = a[4] | a[5] << 7;
+            tot = ed_r32(a + 4, 2);
             if (o == 0u && tot <= PAT_REC_MAX && ((pw.on && proj_tmp_lent) || !proj_tmp_busy())) {   /* a new record: proj_tmp is lent to it */
                 proj_tmp_lent = 1;
                 pw.total = (uint16_t)tot, pw.got = 0, pw.k = a[0], pw.s = a[1], pw.on = 1;
@@ -132,15 +125,11 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
                     pat_staged &= (uint8_t)~(1u << a[0]);       /* (a launch waiting for it: decoded again) */
             }
         }
-        ed_b(a[0]);
-        ed_b(a[1]);
-        ed_b(o);
-        ed_b(o >> 7);
+        ed_b4(a[0], a[1], o, o >> 7);
         if (w) {
             ed_b(rc);
         } else {
-            ed_b(tot);
-            ed_b(tot >> 7);
+            ed_b2(tot, tot >> 7);
             ed_pack7(sec_rbuf + o, n < 256u ? n : 256u);
         }
         return 1;
@@ -149,3 +138,4 @@ static int ed_pat(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     }
 }
+#define ED_PAT_FN ed_pat,                   /* (editor.c: its table of commands) */

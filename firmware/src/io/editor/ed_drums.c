@@ -12,6 +12,7 @@
  *   42 SMP_READ    slot, off (3 x 7 bit), n (2 x 7 bit, <= 256) -> slot, off, pack7 bytes of the slot's flash
  * Flash writes (40, 41 ops 1..3) are refused while the transport plays (an erase stops the audio).
  * Version 2 of 36, 37, 39, 40 (ed_dsend.c) carries the lanes' sends too. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ };
 
 static void ed_pack7(const uint8_t *p, uint32_t n)
@@ -21,8 +22,7 @@ static void ed_pack7(const uint8_t *p, uint32_t n)
         for (j = 0; j < k; j++)
             m |= (uint32_t)(p[j] >> 7) << j;
         ed_b(m);
-        for (j = 0; j < k; j++)
-            ed_b(p[j]);
+        ed_bs(p, k);
         p += k;
         n -= k;
     }
@@ -34,6 +34,20 @@ static void ed_lane_get(uint32_t l, uint8_t *b)
     memcpy(b, dl.ofs[l], DE_N);
     b[8] = dl.src[l];
     memcpy(b + 9, dl.ref[l], 3);
+}
+static void ed_lane_put(dlanes_t *n, uint32_t l, const uint8_t *b)   /* the same 12 bytes into lane l of *n */
+{
+    memcpy(n->ofs[l], b, DE_N);
+    n->src[l] = b[8];
+    memcpy(n->ref[l], b + 9, 3);
+}
+static void ed_dl_set(dlanes_t *n)                          /* *n checked, the working lanes */
+{
+    dl_fix(n);
+    fm1_irq_off();
+    dl = *n;
+    fm1_irq_on();
+    ui.force = 1;
 }
 /* the lanes and a user kit on the wire: the layout of the 16 fixed lanes (before 2026-10-16), DRUM_LSTORE lanes, the
  * lanes past DRUM_LANES zeros (read: ignored), so the editor's messages keep their sizes. The lanes' instruments are not
@@ -111,11 +125,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
                 if (ed_unpack7(a, na, w, sizeof w) != sizeof w)
                     return 0;
                 edw_dl_get(w, &n);
-                dl_fix(&n);
-                fm1_irq_off();
-                dl = n;
-                fm1_irq_on();
-                ui.force = 1;
+                ed_dl_set(&n);
             }
             edw_dl_put(&dl, w);
             ed_pack7(w, sizeof w);
@@ -129,14 +139,8 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
             dlanes_t n = dl;
             if (ed_unpack7(a + 1, na - 1u, b, sizeof b) != sizeof b)
                 return 0;
-            memcpy(n.ofs[a[0]], b, DE_N);
-            n.src[a[0]] = b[8];
-            memcpy(n.ref[a[0]], b + 9, 3);
-            dl_fix(&n);
-            fm1_irq_off();
-            dl = n;
-            fm1_irq_on();
-            ui.force = 1;
+            ed_lane_put(&n, a[0], b);
+            ed_dl_set(&n);
         }
         ed_b(a[0]);
         ed_lane_get(a[0], b);
@@ -147,14 +151,11 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint32_t off, n;
         if (na < 6u || a[0] >= SMP_USER_SLOTS || !flash_ok)
             return 0;
-        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
-        n = (uint32_t)a[4] | (uint32_t)a[5] << 7;
+        off = ed_r32(a + 1, 3);
+        n = ed_r32(a + 4, 2);
         if (n > 256u || off + n > SMP_USER_CAP(a[0]))
             n = off < SMP_USER_CAP(a[0]) ? (SMP_USER_CAP(a[0]) - off > 256u ? 256u : SMP_USER_CAP(a[0]) - off) : 0u;
-        ed_b(a[0]);
-        ed_b(off);
-        ed_b(off >> 7);
-        ed_b(off >> 14);
+        ed_b4(a[0], off, off >> 7, off >> 14);
         ed_pack7(smp_user_xip(a[0]) + off, n);
         return 1;
     }
@@ -173,8 +174,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
             return 0;
         uint8_t w[EDW_UK_N];
         memset(&k, 0, sizeof k);
-        ed_b(a[0]);
-        ed_b((uint32_t)ukit_get(a[0], &k));
+        ed_b2(a[0], (uint32_t)ukit_get(a[0], &k));
         edw_uk_put(&k, w);
         ed_pack7(w, sizeof w);
         return 1;
@@ -187,8 +187,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
             return 0;
         if (a[0] < UK_N && ed_unpack7(a + 1, na - 1u, w, sizeof w) == sizeof w && (edw_uk_get(w, &k), !k.used || uk_valid(&k)))
             rc = song.playing || transport_req ? 3u : ukit_put(a[0], k.used ? &k : 0) ? 2u : 0u;
-        ed_b(a[0]);
-        ed_b(rc);
+        ed_b2(a[0], rc);
         return 1;
     }
     case ED_UKIT_OP: {
@@ -206,9 +205,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
                 rc = ukit_store(a[0]) ? 2u : 0u;
             ui.force = 1;
         }
-        ed_b(a[0]);
-        ed_b(a[1]);
-        ed_b(rc);
+        ed_b3(a[0], a[1], rc);
         return 1;
     }
 #endif
@@ -218,3 +215,4 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
     (void)a, (void)na;
     return 0;
 }
+#define ED_DRUMS_FN ed_drums,               /* (editor.c: its table of commands) */

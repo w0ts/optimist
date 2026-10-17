@@ -13,6 +13,7 @@
  *              0..16383, 8192 = 0 dBFS; the editor draws the meters' fall and hold (web/EDITOR_PROTOCOL.md "v9"). Room
  *              to grow: tagged blocks (id, length, bytes) may follow the master's peak; editors skip ids they do not know
  *              (the per-track patterns' state comes as one, in the version after v9: docs/PATTERNS-DESIGN.md) */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_STATUS = 53, ED_STREAM = 58 };
 #define ED_STREAM_MS 40u                                /* 25 Hz */
 #define ED_STREAM_GR (FELUCCA_MASTER_COMP ? 4u : 0u)  /* the GR block: id ED_BLK_GR, length 2, COMP, LIMIT */
@@ -37,9 +38,7 @@ static void ed_status_out(int peaks)
 #endif
     for (c = 0; c < NTRK; c++) {
         uint32_t pk = peaks ? ed_pk14(mt.ed[c]) : 0u;
-        ed_b(song.playing && trk[c].seq_abs != SEQ_NONE ? trk[c].seq_idx & 0x7Fu : 127u);
-        ed_b(pk);
-        ed_b(pk >> 7);
+        ed_b3(song.playing && trk[c].seq_abs != SEQ_NONE ? trk[c].seq_idx : 127u, pk, pk >> 7);
     }
 }
 
@@ -52,6 +51,7 @@ static int ed_status(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_status_out(0);
     return 1;
 }
+#define ED_STATUS_FN ed_status,             /* (editor.c: its table of commands) */
 
 /* main loop, while the stream is on; room: a push of this size fits now (ed_sync9.c ed9_room); 1 = sent */
 static int ed_stream(uint32_t now, int room)
@@ -63,8 +63,7 @@ static int ed_stream(uint32_t now, int room)
     ed_begin(ED_STREAM);
     ed_status_out(1);
     pk = ed_pk14(mt.ed[NTRK] >> OUT_SHIFT);             /* the output: Q15 << OUT_SHIFT in abuf */
-    ed_b(pk);
-    ed_b(pk >> 7);
+    ed_b2(pk, pk >> 7);
 #if FELUCCA_MASTER_COMP
     ed_b(ED_BLK_GR);                                    /* a tagged block (older editors skip it): COMP, LIMIT */
     ed_b(2);

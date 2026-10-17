@@ -19,6 +19,7 @@
  *       op 5  a track's COMP settings: track 0..3, RATIO ATK REL
  *       op 6  the drum track's send levels: REV DLY CHO (0..127)
  *   87 FX_PUSH  (v9 push, WATCH bit 2) op 0 and the same state, when it changed on the device (ed_sync9.c ed9_fx) */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_FX = 86, ED_FX_PUSH = 87 };
 #define ED_FX_N (4u + 3u + 2u * DRUM_LSTORE + NTRK * INS_N + 3u * NTRK + 3u)   /* the state's bytes after the op (16 lanes: past DRUM_LANES 0) */
 
@@ -35,19 +36,17 @@ static void ed_fx_out(uint32_t op)
 {
     uint32_t k, l;
     ed_b(op);
-    for (k = 0; k < FX_NSLOT; k++)
-        ed_b(fxs_slot[k]);
+    ed_bs(fxs_slot, FX_NSLOT);
     for (k = 0; k < 3u; k++)
         ed_b(ed_cset(0, k));
     for (k = 0; k < 2u; k++)
         for (l = 0; l < DRUM_LSTORE; l++)
             ed_b(l < DRUM_LANES ? dins_amt[k][l] : 0u);
-    for (k = 0; k < NTRK * INS_N; k++)
-        ed_b(ins_slot[k / INS_N][k % INS_N]);
+    ed_bs(&ins_slot[0][0], NTRK * INS_N);
     for (k = 0; k < 3u * NTRK; k++)
         ed_b(ed_cset(k / 3u, k % 3u));
     for (k = 0; k < 3u; k++)
-        ed_b((uint32_t)dsend_kit[k] & 127u);
+        ed_b((uint32_t)dsend_kit[k]);
 }
 /* what ed_fx_out sends, as a signature (the v9 push compares it) */
 static uint32_t ed_fx_sig(void)
@@ -82,15 +81,10 @@ static void ed_fx_info(void)
     for (t = 1; t < FXT_N; t++)
         n += FXT_BUILT >> t & 1u;
     ed_b(0x56);
-    ed_b(2u + 4u * n);
-    ed_b(1);
-    ed_b(n);
+    ed_b3(2u + 4u * n, 1, n);
     for (t = 1; t < FXT_N; t++)
         if (FXT_BUILT >> t & 1u) {
-            ed_b(t);
-            ed_b(FXT_INSERT >> t & 1u);
-            ed_b(FXT_AMT[t] == 0xFFu ? 127u : FXT_AMT[t]);
-            ed_b(t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : ED_FX_LID[t]);
+            ed_b4(t, FXT_INSERT >> t & 1u, FXT_AMT[t] == 0xFFu ? 127u : FXT_AMT[t], t == FXT_DIST && !FELUCCA_FX_DIST ? 127u : ED_FX_LID[t]);
         }
 }
 
@@ -152,3 +146,4 @@ static int ed_fxs(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_fx_out(op);
     return 1;
 }
+#define ED_FXS_FN ed_fxs,                   /* (editor.c: its table of commands) */

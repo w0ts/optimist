@@ -10,6 +10,7 @@
  *       on: 0 off, 1 on, 2 toggle; usb: bit 0 soloed, bit 1 muted, bit 2 silent (0 without the USB input)
  *       reply (then `ret`, v4: bit n = return A B C muted): rc 0; solo, mute, silent: bit n = track n; lsolo, lmute: the lanes as 3 x 7 bits (0..6, 7..13, 14..15). A bad op, x or on: no reply.
  *       INFO tag 0x61: version 4, flags bit 0 = the USB input is here, bit 1 = the returns' mute (op 7, the reply's 13th arg). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #if FELUCCA_USB_AUDIO
 enum { ED_SOLO = 104, ED_SOLO_MAXOP = 5, ED_SOLO_RET_OP = 7 };
 #else
@@ -35,9 +36,7 @@ static void ed_solo_state(uint32_t op)
     }
     for (i = 0; i < 3u; i++)
         rm |= (uint32_t)((ed_solo_rline(i) < 3u) && (fx_rmute >> ed_solo_rline(i) & 1u)) << i;
-    ed_b(op), ed_b(0), ed_b(solo), ed_b(mute), ed_b(silent);
-    ed_b(ls & 127u), ed_b((ls >> 7) & 127u), ed_b(ls >> 14);
-    ed_b(lm & 127u), ed_b((lm >> 7) & 127u), ed_b(lm >> 14);
+    ed_b4(op, 0, solo, mute); ed_b4(silent, ls, ls >> 7, ls >> 14); ed_b3(lm, lm >> 7, lm >> 14);   /* (ed_b keeps 7 bits) */
 #if FELUCCA_USB_AUDIO
     ed_b((uint32_t)((song.solo & SOLO_USB) != 0u) | (uint32_t)(ut.v[UTV_MUTE] != 0) << 1 | (uint32_t)(ut_silent() != 0) << 2);
 #else
@@ -76,11 +75,10 @@ static int ed_solo(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_solo_state(op);
     return 1;
 }
+#define ED_SOLO_FN ed_solo,                 /* (editor.c: its table of commands) */
 static void ed_solo_info(void)
 {
-    ed_b(0x61);
-    ed_b(2);
-    ed_b(4);
+    ed_b3(0x61, 2, 4);
 #if FELUCCA_USB_AUDIO
     ed_b(1 | 2);
 #else
@@ -89,5 +87,6 @@ static void ed_solo_info(void)
 }
 #else
 static int ed_solo(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_SOLO_FN
 static void ed_solo_info(void) {}
 #endif

@@ -19,45 +19,29 @@
  * rc: snapshots.c SNE_*: 0 ok, 1 arguments, 2 full, 3 the transport plays, 4 no flash, 5 flash write failed,
  * 6 damaged, 7 busy, 8 empty, 9 still sounding, 10 not a snapshot this firmware loads, 11 a USR3 sample in the
  * area, 12 CRC (a chunk: send it again; the stream at commit), 13 out of order / no import open. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_SN_LIST = 54, ED_SN_OP, ED_SN_READ, ED_SN_WRITE };
-static void sn_w7(uint32_t v, uint32_t k) { while (k--) { ed_b(v); v >>= 7; } }
-static uint32_t sn_r7(const uint8_t *a, uint32_t k)
-{
-    uint32_t v = 0;
-    while (k--)
-        v |= (uint32_t)a[k] << (7u * k);
-    return v;
-}
+#define sn_w7 ed_b32                   /* (k 7-bit groups out and in: ed_reply.h's, one copy with the backup's) */
+#define sn_r7 ed_r32
 
 static void ed_sn_list(void)
 {
     uint32_t k;
     if (!sn.up && flash_ok)
         sn_scan();
-    ed_b(1);
-    ed_b(FELUCCA_SNAPSHOTS);
-    ed_b(SN_NSLOT);
-    ed_b(SN_SECTORS);
-    ed_b(sn.up ? sn_free_count() : 0u);
+    ed_b4(1, FELUCCA_SNAPSHOTS, SN_NSLOT, SN_SECTORS); ed_b(sn.up ? sn_free_count() : 0u);
     sn_w7(SN_PAY, 2);
     sn_w7(SN_MAX, 3);
     ed_b(flash_ok && (uint32_t)sn_ui_fits());
     for (k = 0; k < SN_NSLOT; k++) {
         sn_info_t in;
         int ok = sn_info(k, &in);
-        char nm[SN_NAME + 1u];
-        memcpy(nm, in.name, SN_NAME);
-        nm[SN_NAME] = 0;
-        ed_b(sn.slot[k].state == SN_EMPTY ? 0u : ok ? 1u : 2u);
-        ed_b(k < FELUCCA_SNAPSHOTS || k == SN_BAK);
+        ed_b2(sn.slot[k].state == SN_EMPTY ? 0u : ok ? 1u : 2u, k < FELUCCA_SNAPSHOTS || k == SN_BAK);
         sn_w7(ok ? sn.slot[k].total : 0u, 3);
-        ed_str(ok ? nm : "", SN_NAME);
+        ed_str(ok ? in.name : "", SN_NAME);            /* (SN_NAME at most: a full name has no 0) */
         sn_w7(in.bpm, 2);
         sn_w7(in.secmask, 3);
-        ed_b(in.parts);
-        ed_b(in.nsec);
-        ed_b(ok && (in.cfg != SN_CFG || in.pmagic != PROJ_MAGIC));
-        ed_b(in.flags & 1u);
+        ed_b4(in.parts, in.nsec, ok && (in.cfg != SN_CFG || in.pmagic != PROJ_MAGIC), in.flags & 1u);
     }
 }
 
@@ -86,10 +70,7 @@ static int ed_snap(uint32_t cmd, const uint8_t *a, uint32_t na)
         rc = k >= SN_NSLOT ? SNE_ARGS : a[0] == 0u ? (uint32_t)sn_save(k, nm) : a[0] == 1u ? (uint32_t)sn_load(k) :
              a[0] == 3u ? (uint32_t)sn_rename(k, nm) :
              !flash_ok ? SNE_NOFLASH : song.playing || transport_req ? SNE_PLAYING : (ed_snap_cancel(), sn_clear(k)) ? SNE_FLASH : SNE_OK;
-        ed_b(a[0]);
-        ed_b(k);
-        ed_b(rc);
-        ed_b(sn_note);
+        ed_b4(a[0], k, rc, sn_note);
         return 1;
     }
     case ED_SN_READ:
@@ -120,8 +101,7 @@ static int ed_snap(uint32_t cmd, const uint8_t *a, uint32_t na)
             off = sn_r7(a + 2, 3);
             n = ed_unpack7(a + 10, na - 10u, b, SN_CHUNK);
             rc = !n ? SNE_ARGS : st_crc32(b, n) != sn_r7(a + 5, 5) ? SNE_CRC : (uint32_t)sn_imp_data(k, off, b, n);
-            ed_b(1);
-            ed_b(k);
+            ed_b2(1, k);
             sn_w7(off, 3);
             ed_b(rc);
             return 1;
@@ -131,12 +111,11 @@ static int ed_snap(uint32_t cmd, const uint8_t *a, uint32_t na)
             ed_snap_cancel();
             rc = SNE_OK;
         }
-        ed_b(a[0]);
-        ed_b(k);
-        ed_b(rc);
+        ed_b3(a[0], k, rc);
         return 1;
     default:
         break;
     }
     return 0;
 }
+#define ED_SNAP_FN ed_snap,                 /* (editor.c: its table of commands) */

@@ -6,6 +6,7 @@
  *   102 UNDO  op -> op, rc, done lo, done hi, all lo, all hi, track, can_undo, can_redo
  *       op 0 the state, 1 undo, 2 redo; rc 0 done, 1 nothing to undo / redo (nothing moved); done / all: the levels applied / held, 2 x 7 bits;
  *       track: the last undo or redo's track (0..3). A bad op: no reply. INFO tag 0x5F: version 1, flags (bit 0: a history of many levels). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_UNDO = 102 };
 #if FELUCCA_ED_UNDO
 /* a write of the editor to track t's pattern is about to happen: mark it as a panel step key does. Writes to the same track within 800 ms are one
@@ -35,22 +36,17 @@ static int ed_undo(uint32_t cmd, const uint8_t *a, uint32_t na)
         }
     }
     undo_status(&n, &m, &tk);
-    ed_b(op), ed_b(rc);
-    ed_b(n & 127u), ed_b((n >> 7) & 127u);
-    ed_b(m & 127u), ed_b((m >> 7) & 127u);
-    ed_b(tk & 3u);
-    ed_b(undo_can(0) != 0), ed_b(undo_can(1) != 0);
+    ed_b4(op, rc, n, n >> 7); ed_b4(m, m >> 7, tk & 3u, undo_can(0) != 0);   /* (ed_b keeps 7 bits) */ ed_b(undo_can(1) != 0);
     return 1;
 }
+#define ED_UNDO_FN ed_undo,                 /* (editor.c: its table of commands) */
 static void ed_undo_info(void)
 {
-    ed_b(0x5F);
-    ed_b(2);
-    ed_b(1);
-    ed_b(FELUCCA_UNDO_HISTORY ? 1u : 0u);
+    ed_b4(0x5F, 2, 1, FELUCCA_UNDO_HISTORY ? 1u : 0u);
 }
 #else
 static void ed_undo_edit(const track_t *t) { (void)t; }
 static int ed_undo(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_UNDO_FN
 static void ed_undo_info(void) {}
 #endif

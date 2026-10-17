@@ -13,6 +13,8 @@
  *       op 3  group, lane            -> 3, group, lane, n, n x v14
  *       op 4  group, lane, i, v14    the value set (clamped) -> 4, group, lane, i, v14
  * A bad group, lane or op: no reply. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
+#include "ed_desc.h"          /* (DESC's body) */
 enum { ED_DLAN = 95 };
 #if FELUCCA_ED_DLAN                                      /* (the builder item ED_DLAN; off: no command 95, INFO has no tag 0x58) */
 enum { DLG_MIX, DLG_LFO, DLG_TRK, DLG_N };
@@ -80,9 +82,7 @@ static void dln_put(uint32_t g, uint32_t l, uint32_t i, int32_t v)
 static void ed_dlan_info(void)
 {
     ed_b(0x58);
-    ed_b(2);
-    ed_b(1);
-    ed_b(DLG_N);
+    ed_b3(2, 1, DLG_N);
 }
 /* what the lanes' mix, LFOs and the mutes keep that no other push covers (the FX push's signature) */
 static uint32_t ed_dlan_sig(uint32_t h)
@@ -105,11 +105,11 @@ static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     n = dln_n(g, l);
     if (op == 0u) {
-        ed_b(0), ed_b(g), ed_b(a[2]), ed_b(n);
+        ed_b4(0, g, a[2], n);
         return 1;
     }
     if (op == 3u) {
-        ed_b(3), ed_b(g), ed_b(a[2]), ed_b(n);
+        ed_b4(3, g, a[2], n);
         for (i = 0; i < n; i++)
             ed_v(dln_get(g, l, i));
         return 1;
@@ -119,30 +119,23 @@ static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na)
     i = a[3];
     d = dln_d(g, l, i);
     if (op == 2u) {
-        ed_b(2), ed_b(g), ed_b(a[2]), ed_b(i);
-        if (!d)
-            return 1;
-        ed_b(d->fmt);
-        ed_v(d->min);
-        ed_v(d->max);
-        ed_v(d->def);
-        ed_str(d->label, 8);
-        ed_str(d->unit, 8);
-        if (d->fmt == F_ENUM && d->names)
-            for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)
-                ed_str(d->names[i], 8);
+        ed_b4(2, g, a[2], i);
+        if (d)
+            ed_desc_body(d);
         return 1;
     }
     if (!d || na < 6u)
         return 0;
     dln_put(g, l, i, ed_rv(a + 4));
     ui.force = 1;
-    ed_b(4), ed_b(g), ed_b(a[2]), ed_b(i);
+    ed_b4(4, g, a[2], i);
     ed_v(dln_get(g, l, i));
     return 1;
 }
+#define ED_DLAN_FN ed_dlan,                 /* (editor.c: its table of commands) */
 #else
 static int ed_dlan(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_DLAN_FN
 static void ed_dlan_info(void) {}
 static uint32_t ed_dlan_sig(uint32_t h) { return h; }
 #endif

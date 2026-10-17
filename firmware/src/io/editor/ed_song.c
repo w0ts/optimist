@@ -13,21 +13,15 @@
  *       op 5  -          SAVE: the chain into flash
  *       every op answers op 0's reply; rc 0 done, 1 stop first (the transport plays), 2 full, 3 one part left, 4 bad argument
  * INFO tag 0x5A: version 1. A bad op: no reply. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_SONGC = 97 };
 #if FELUCCA_ARRANGER && FELUCCA_ED_SONG
 static void ed_songc_out(uint32_t rc)
 {
     uint32_t i;
-    ed_b(0);
-    ed_b(rc);
-    ed_b(arrangement_enabled != 0u);
-    ed_b(song.playing != 0u);
-    ed_b(ARR_SCENES);
-    ed_b(ARR_STEPS);
-    ed_b(arrangement.count);
+    ed_b4(0, rc, arrangement_enabled != 0u, song.playing != 0u); ed_b3(ARR_SCENES, ARR_STEPS, arrangement.count);
     for (i = 0; i < arrangement.count && i < ARR_STEPS; i++) {
-        ed_b(arrangement.entry[i].scene);
-        ed_b(arrangement.entry[i].bars);
+        ed_b2(arrangement.entry[i].scene, arrangement.entry[i].bars);
     }
 }
 static uint32_t ed_songc_part(uint32_t a, uint32_t ins)
@@ -82,13 +76,14 @@ static int ed_songc(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_songc_out(rc);
     return 1;
 }
+#define ED_SONGC_FN ed_songc,               /* (editor.c: its table of commands) */
 static void ed_songc_info(void)
 {
     ed_b(0x5A);
-    ed_b(1);
-    ed_b(1);
+    ed_b2(1, 1);
 }
 #else
 static int ed_songc(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_SONGC_FN
 static void ed_songc_info(void) {}
 #endif

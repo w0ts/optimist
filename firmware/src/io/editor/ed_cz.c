@@ -5,6 +5,7 @@
  *   66 CZ_BANK  0, slot                 -> 0, slot, rc, then (rc 0) 288 nibbles      rc 1: empty, or no such slot
  *               1, slot [, 288 nibbles] -> 1, slot, rc: written; no nibbles: erased  rc 1 arguments, 2 flash, 3 playing
  * The slots: 0..CZ_NUSER-1, the tracks play slot k as TONE U(k+1) (DESC of TONE: its last CZ_NUSER values). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_CZ_BANK = 66 };
 
 static int ed_cz(uint32_t cmd, const uint8_t *a, uint32_t na)
@@ -14,8 +15,7 @@ static int ed_cz(uint32_t cmd, const uint8_t *a, uint32_t na)
     uint32_t op = na ? a[0] : 127u, k = na > 1u ? a[1] : 127u, i, rc = 0;
     if (cmd != ED_CZ_BANK)
         return 0;
-    ed_b(op);
-    ed_b(k);
+    ed_b2(op, k);
     t = k < CZ_NUSER ? czb_tone(CZT_N + k) : 0;
     if (op > 1u || k >= CZ_NUSER || na != 2u + (op ? na > 2u : 0u) * 288u)
         rc = 1;
@@ -32,8 +32,8 @@ static int ed_cz(uint32_t cmd, const uint8_t *a, uint32_t na)
     }
     ed_b(rc);
     for (i = 0; !op && !rc && i < 144u; i++) {
-        ed_b(t[i] & 15u);
-        ed_b(t[i] >> 4);
+        ed_b2(t[i] & 15u, t[i] >> 4);
     }
     return 1;
 }
+#define ED_CZ_FN ed_cz,                     /* (editor.c: its table of commands) */
