@@ -71,7 +71,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #define GL_NBRI 0u
 #endif
 #if FELUCCA_USB_AUDIO
-#define GL_NUA 5u
+#define GL_NUA (1u + (uint32_t)UAS_N)                   /* (USB STATS, a line a source) */
 #else
 #define GL_NUA 0u
 #endif
@@ -92,7 +92,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #else
 #define GL_DEV 0
 #endif
-#define GL_MAXP 12u                                     /* the pages of a screen, at most (a page holds a row: 8 rows at most) */
+#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's four) */
 static struct {
     uint8_t ok, n[2], np[2];
     uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
@@ -123,10 +123,15 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
  * a short one leaves its page's last lines empty and their knobs do nothing. Only a section of more than 4 lines is split,
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
-static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's) */
+static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's; a SYS row
+                                                         * named as the one before it is that one's: USB AUDIO's four) */
 {
-    uint32_t u = e >> 2;
-    return s || u >= GL_SYS0 ? 8u + (s ? u : glo_sys(u)) : u == TPR_REC2 ? (uint32_t)TPR_REC : u;
+    uint32_t u = e >> 2, r;
+    if (!s && u < GL_SYS0)
+        return u == TPR_REC2 ? (uint32_t)TPR_REC : u;
+    for (r = s ? u : glo_sys(u); r && str_eq(SYS[r % NSYS].name, SYS[(r - 1u) % NSYS].name); r--)
+        ;
+    return 8u + r;
 }
 /* joined pages (the user, 2026-10-14: "Screen and Audio could be on one page", "USB and Bluetooth go together"): two
  * neighbouring sections of SYSTEM that fit one page together (4 lines at most) share it, the page titled by GL_JOIN's

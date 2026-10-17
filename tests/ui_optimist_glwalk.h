@@ -47,7 +47,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &dual_mode, 1);
 #endif
 #if FELUCCA_USB_AUDIO
-    h = glw_mix(h, ua_src, sizeof ua_src);
+    h = glw_mix(h, ua_dst, sizeof ua_dst);
 #endif
     return h;
 }
@@ -133,7 +133,9 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
     {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
-    {"CH1", "T1"}, {"CH2", "T2"}, {"CH3", "T3"}, {"CH4", "DRUMS"}};   /* (SYSTEM > USB AUDIO: the routing before the setting) */
+    {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
+    {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
+    {"DR9", "NONE"}, {"DR10", "NONE"}};                 /* (SYSTEM > USB AUDIO: the routing before the setting) */
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;

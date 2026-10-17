@@ -220,19 +220,31 @@ static void t_ua(void)
     fill(&p, 7);
     q = p;
     memset(p.ua_src, 0xA5, sizeof p.ua_src), p.ua_mark = 0xA5A5A5A5u;
+    memset(p.ua_dst, 0xA5, sizeof p.ua_dst), p.ua_mark3 = 0xA5A5A5A5u;
     r = persist_upgrade(&p, (int)offsetof(persist_t, ua_src));
     persist_ua_load(&p);
     check("USB AUDIO: a record from before it reads whole, the routing the default, the favorites kept",
           r == (int)sizeof p && ua_ident && !memcmp(&p.fav, &q.fav, sizeof p.fav) && p.bp23 == q.bp23);
+    /* a UAR2 record (each channel's source, 2026-10-15/16): read whole, converted to each source's channels */
+    fill(&p, 7);
+    p.ua_mark = PERSIST_UA_MARK;
+    p.ua_src[0] = 1, p.ua_src[1] = 2, p.ua_src[2] = 11 + 9, p.ua_src[3] = 7;   /* (MAIN L, MAIN R, DR10, DRUMS) */
+    memset(p.ua_dst, 0xA5, sizeof p.ua_dst), p.ua_mark3 = 0xA5A5A5A5u;
+    r = persist_upgrade(&p, (int)offsetof(persist_t, ua_dst));
+    persist_ua_load(&p);
+    check("USB AUDIO: a UAR2 record reads whole: MAIN L + R on 1, 2 -> MASTER on 1+2, DR10 on 3, DRUMS on 4, T1..T3 none",
+          r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
+          ua_dst[UAS_T1] == UAD_NONE && ua_dst[UAS_T3] == UAD_NONE && dlt_mask == 1u << (DRUM_LANES - 1u));
     p.ua_mark = PERSIST_UA_MARK1;
     p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 9, p.ua_src[3] = 13 + 10;   /* (M-6, B-3, DR10, out of range: 10 lanes) */
     persist_ua_load(&p);
-    check("USB AUDIO: a UAR1 record: -6 / -3 dB as L+R, a lane kept, out of range the default",
-          ua_src[0] == UAS_MAIN_S && ua_src[1] == UAS_DBUS_S && ua_src[2] == UAS_N - 1u && ua_src[3] == UAS_DRUMS);
+    check("USB AUDIO: a UAR1 record: the -6 dB master on 1 (its sum), the bus on 2, a lane kept, out of range none",
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
     persist_ua_save(&q);
     ua_route_default();
     persist_ua_load(&q);
-    check("USB AUDIO: saved as UAR2 and read back", q.ua_mark == PERSIST_UA_MARK && ua_src[0] == UAS_MAIN_S && ua_src[2] == UAS_N - 1u);
+    check("USB AUDIO: saved as UAR3 (UAR2's mark cleared) and read back", q.ua_mark3 == PERSIST_UA_MARK3 && !q.ua_mark &&
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_N - 1u] == UAD_3 && !ua_ident);
     ua_route_default();
 }
 #endif

@@ -295,6 +295,14 @@ static int rows_ok(uint32_t scr, char *why)
 }
 /* every value on a screen has a form (op_cells.c cell_gauge): only names, actions and read-outs with no range are text */
 static uint32_t forms_bad, forms_seen;                /* forms_seen: a bit per GK_* kind met */
+static uint32_t sys_item_of(uint32_t r, uint32_t k)    /* SYSTEM's cell k of the page of line r: its SI_* item */
+{
+    uint32_t i = gl_line(1, r, k), e;
+    if (GL_DEV || i >= gl_n(1))
+        return SI_NONE;
+    e = gl_ent(1, i);
+    return sys_item(e >> 2, e & 3u);
+}
 static void forms_of(uint32_t scr)
 {
     uint32_t r, k, n;
@@ -312,8 +320,8 @@ static void forms_of(uint32_t scr)
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "MIDI") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
-                   (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
-                    c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */
+                   (scr == SCR_SYSTEM && c.kind == CK_VAL && sys_item_of(r, k) >= SI_UAS0) ||   /* (USB AUDIO's channels: a list of
+                                                         * names, text only) */
                    (scr == SCR_SYSTEM && c.label && (!strcmp(c.label, "RECONNECT") || !strcmp(c.label, "LAST DEVICE"))) ||   /* (OFF / NONE or a device's name) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {

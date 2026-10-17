@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SYSTEM > USB AUDIO (io/usb/ua_tap.h, usb_audio_route.c): each capture channel's source through the real mixer.
- * Each source picks its samples (MAIN L / R the master output, T1..T3 and DRUMS the stems, DRUM BUS the drum bus,
- * DRn a lane's share of DRUMS), the mono sums at -3.0103 / -6.0206 dB (within 0.001 dB on a constant), OFF is silence,
- * the default routing is no routing (the stems' own buffer), a tapped lane leaves the mix as it was, the settings
- * record keeps the choice. */
+/* SYSTEM > USB AUDIO (io/usb/ua_tap.h, usb_audio_route.c): where each source goes among the four capture channels, through
+ * the real mixer. A source (MASTER the master output, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
+ * of DRUMS) goes to NONE, 1, 2, 1+2, 3, 4 or 3+4: a stereo source on a pair L then R, on one channel the mono sum (L + R) / 2
+ * (a floor); a mono source on a pair on both; sources on one channel add up; the default routing (T1 T2 T3 DRUMS on 1 2 3 4)
+ * is no routing (the stems' own buffer); a tapped lane leaves the mix as it was. The settings record: favorites_test.c. */
 #include <assert.h>
 #include <math.h>
 #include <sys/mman.h>
@@ -12,11 +12,17 @@
 #include "hostsim.c"
 #undef main
 
-static void set_route(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+/* every source NONE, then the pairs given (source, destination), then applied */
+static void set_route(uint32_t n, const uint8_t (*sd)[2])
 {
-    ua_src[0] = a, ua_src[1] = b, ua_src[2] = c, ua_src[3] = d;
+    uint32_t i;
+    for (i = 0; i < UAS_N; i++)
+        ua_dst[i] = UAD_NONE;
+    for (i = 0; i < n; i++)
+        ua_dst[sd[i][0]] = sd[i][1];
     ua_route_apply();
 }
+#define ROUTE(...) do { const uint8_t r_[][2] = {__VA_ARGS__}; set_route(sizeof r_ / sizeof r_[0], r_); } while (0)
 
 static void setup(void)
 {
@@ -50,25 +56,26 @@ static const int32_t *block(int32_t *out)
 static void test_sources(void)
 {
     int32_t out[CTL * 2];
-    uint64_t e[UA_CAP_CHANNELS] = {0};
+    uint64_t e[4] = {0};
     setup();
-    set_route(UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS);
+    ua_route_default();
     assert(ua_ident && !dlt_mask && !ua_dbus_on);
     for (uint32_t k = 0; k < NPART; k++) trk_note_on(&trk[k], 48 + 7 * k, 100);
     drum_on(36, 100);
     for (uint32_t b = 0; b < 64; b++)
         assert(block(out) == track_capture);              /* the default: the stems as they are, no copy */
-    set_route(UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_OFF);
+    ROUTE({UAS_MAIN, UAD_12}, {UAS_T1, UAD_3}, {UAS_T2, UAD_3});   /* MASTER L R on 1 2; T1 + T2 on 3; nothing on 4 */
+    assert(!ua_ident);
     for (uint32_t b = 0; b < 64; b++) {
         const int32_t *f = block(out);
         assert(f != track_capture);
         for (uint32_t i = 0; i < CTL; i++) {
-            const int32_t *x = f + i * UA_CAP_CHANNELS, l = out[2 * i], r = out[2 * i + 1];
-            assert(x[0] == l && x[1] == r && x[2] == (l + r) >> 1 && x[3] == 0);
-            e[0] += (int64_t)l * l;
+            const int32_t *x = f + i * UA_CAP_CHANNELS, *s = track_capture + i * NTRK, l = out[2 * i], r = out[2 * i + 1];
+            assert(x[0] == l && x[1] == r && x[2] == s[0] + s[1] && x[3] == 0);
+            e[0] += (int64_t)l * l, e[1] += (int64_t)s[1] * s[1];
         }
     }
-    assert(e[0]);
+    assert(e[0] && e[1]);
     {   /* the mapper on its own (another consumer: four mono buffers): the same samples as the capture's frames */
         int32_t m[UA_ROUTE_N][CTL], *const ch[UA_ROUTE_N] = {m[0], m[1], m[2], m[3]};
         const int32_t *f = block(out);
@@ -77,33 +84,41 @@ static void test_sources(void)
             for (uint32_t c = 0; c < UA_ROUTE_N; c++)
                 assert(m[c][i] == f[i * UA_CAP_CHANNELS + c]);
     }
-    set_route(UAS_DRUMS, UAS_T3, UAS_OFF, UAS_T1);        /* any stem on any channel; OFF silent */
+    ROUTE({UAS_T3, UAD_12}, {UAS_MAIN, UAD_3}, {UAS_DRUMS, UAD_4});   /* a mono stem on a pair: on both; the master on one: its sum */
     for (uint32_t b = 0; b < 64; b++) {
         const int32_t *f = block(out);
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS, *s = track_capture + i * NTRK;
-            assert(x[0] == s[TRK_DRUM] && x[1] == s[2] && x[2] == 0 && x[3] == s[0]);
-            e[1] += (int64_t)s[2] * s[2];
-            e[2] += (int64_t)s[0] * s[0];
+            assert(x[0] == s[2] && x[1] == s[2] && x[2] == (out[2 * i] + out[2 * i + 1]) >> 1 && x[3] == s[TRK_DRUM]);
+            e[2] += (int64_t)s[2] * s[2];
         }
     }
-    assert(e[1] && e[2]);
+    assert(e[2]);
+    ROUTE({UAS_MAIN, UAD_34}, {UAS_DRUMS, UAD_2});        /* the second pair; 1 silent */
+    for (uint32_t b = 0; b < 16; b++) {
+        const int32_t *f = block(out);
+        for (uint32_t i = 0; i < CTL; i++) {
+            const int32_t *x = f + i * UA_CAP_CHANNELS;
+            assert(x[0] == 0 && x[1] == track_capture[i * NTRK + TRK_DRUM] && x[2] == out[2 * i] && x[3] == out[2 * i + 1]);
+        }
+    }
 }
 
 /* DRn: the lane's share of DRUMS (the stem), the mix untouched (an X0X kit: its tapped lane leaves the shared sum, an
- * LSB of rounding at most); DRUM BUS: the bus, panned */
+ * LSB of rounding at most); two lanes on one channel add up; DRUM BUS: the bus, panned */
 static void test_lanes(uint32_t kit, int x0x, int ins)
 {
     int32_t (*refs)[CTL * 2] = mmap(0, 256u * sizeof *refs, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     int32_t out[CTL * 2];
     uint32_t la = lane_of_note(36), lb = lane_of_note(38), lc = 0, blocks = 0;
     uint64_t ea = 0, eb = 0, eo = 0;
+    (void)x0x;
     assert(la != lb && la < DRUM_LANES && lb < DRUM_LANES);
     while (lc == la || lc == lb)
         lc++;
     assert(refs != MAP_FAILED);
-    for (int pass = 0; pass < 2; pass++) {                /* pass 0: no tap, the reference mix; 1: tapped (each from */
-        int status;                                       /* the same state: a child each) */
+    for (int pass = 0; pass < 3; pass++) {                /* pass 0: no tap, the reference mix; 1: a lane a channel; 2: */
+        int status;                                       /* both lanes on 1+2 (each from the same state: a child each) */
         pid_t child = fork();
         assert(child >= 0);
         if (child) {
@@ -116,10 +131,12 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
 #if DINS
         dins_amt[0][la] = (uint8_t)(ins ? 100 : 0);       /* lane a's S1 (DIST): its voices through dins_post */
 #endif
-        if (pass)
-            set_route(UAS_DR1 + la, UAS_DR1 + lb, UAS_DR1 + lc, UAS_DRUMS);
+        if (pass == 1)
+            ROUTE({UAS_DR1 + la, UAD_1}, {UAS_DR1 + lb, UAD_2}, {UAS_DR1 + lc, UAD_3}, {UAS_DRUMS, UAD_4});
+        else if (pass == 2)
+            ROUTE({UAS_DR1 + la, UAD_12}, {UAS_DR1 + lb, UAD_12}, {UAS_DRUMS, UAD_34});
         else
-            set_route(UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS);
+            ua_route_default();
         assert(pass ? (dlt_mask >> la & 1u) && (dlt_mask >> lb & 1u) : !dlt_mask);
         for (uint32_t b = 0; b < 256; b++) {
             int32_t tail0;
@@ -141,11 +158,16 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
                 continue;                                 /* (the declick tail: in DRUMS, no lane's) */
             blocks++;
             for (uint32_t i = 0; i < CTL; i++) {
-                const int32_t *x = f + i * UA_CAP_CHANNELS;
-                assert(x[0] + x[1] == track_capture[i * NTRK + TRK_DRUM]);   /* (only the two lanes sound) */
-                assert(x[2] == 0);                         /* a lane with nothing: silence */
-                assert(x[3] == track_capture[i * NTRK + TRK_DRUM]);
-                ea += (int64_t)x[0] * x[0], eb += (int64_t)x[1] * x[1];
+                const int32_t *x = f + i * UA_CAP_CHANNELS, d = track_capture[i * NTRK + TRK_DRUM];
+                if (pass == 1) {
+                    assert(x[0] + x[1] == d);             /* (only the two lanes sound) */
+                    assert(x[2] == 0);                    /* a lane with nothing: silence */
+                    assert(x[3] == d);
+                    ea += (int64_t)x[0] * x[0], eb += (int64_t)x[1] * x[1];
+                } else {
+                    assert(x[0] == d && x[1] == d && x[2] == d && x[3] == d);   /* (the two lanes summed: the stem) */
+                    ea += (int64_t)x[0] * x[0], eb += (int64_t)x[0] * x[0];
+                }
                 eo += (int64_t)out[2 * i] * out[2 * i];
             }
         }
@@ -154,11 +176,11 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
         _exit(0);
     }
     munmap(refs, 256u * sizeof *refs);
-    /* the drum bus in stereo: the drum track hard left, nothing on the right */
+    /* the drum bus in stereo on 1+2: the drum track hard left, nothing on the right; the master's sum on 3 */
     setup();
     TDRUM->p[P_E0] = (int16_t)kit;
     trk[TRK_DRUM].p[P_PAN] = -64;
-    set_route(UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_MAIN_S);
+    ROUTE({UAS_DBUS, UAD_12}, {UAS_MAIN, UAD_3});
     assert(ua_dbus_on && !ua_ident);
     ea = eb = 0;
     for (uint32_t b = 0; b < 128; b++) {
@@ -167,38 +189,52 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS;
             assert(x[0] == ua_dbus[0][i] && x[1] == ua_dbus[1][i]);
-            assert(x[2] == (x[0] + x[1]) >> 1 && x[3] == (out[2 * i] + out[2 * i + 1]) >> 1);
+            assert(x[2] == (out[2 * i] + out[2 * i + 1]) >> 1 && x[3] == 0);
             ea += (int64_t)x[0] * x[0], eb += (int64_t)x[1] * x[1];
         }
     }
     assert(ea && eb * 1000u < ea);                        /* (hard left: the right side at least 30 dB down) */
+    ROUTE({UAS_DBUS, UAD_4});                             /* on one channel: its sum */
+    for (uint32_t b = 0; b < 16; b++) {
+        const int32_t *f = block(out);
+        for (uint32_t i = 0; i < CTL; i++)
+            assert(f[i * UA_CAP_CHANNELS + 3] == (ua_dbus[0][i] + ua_dbus[1][i]) >> 1 && f[i * UA_CAP_CHANNELS] == 0);
+    }
 }
 
 /* the choice and its names */
 static void test_setting(void)
 {
     char b[6];
-    set_route(UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS);
-    ua_src_step(0, -1);
-    assert(ua_src[0] == UAS_MAIN_S && !ua_ident);
-    ua_src_step(0, 1);
-    assert(ua_src[0] == UAS_T1 && ua_ident);
-    ua_src[3] = UAS_N - 1;
-    ua_src_step(3, 1);
-    assert(ua_src[3] == UAS_N - 1);                       /* a knob stops at the ends */
-    ua_src_step(3, 0);
-    assert(ua_src[3] == UAS_OFF);                          /* YES goes round */
-    ua_src[2] = 200;
+    ua_route_default();
+    assert(ua_ident && ua_dst[UAS_T1] == UAD_1 && ua_dst[UAS_T2] == UAD_2 && ua_dst[UAS_T3] == UAD_3 &&
+           ua_dst[UAS_DRUMS] == UAD_4 && ua_dst[UAS_MAIN] == UAD_NONE && ua_dst[UAS_N - 1u] == UAD_NONE);
+    ua_dst_step(UAS_T1, -1);
+    assert(ua_dst[UAS_T1] == UAD_NONE && !ua_ident);
+    ua_dst_step(UAS_T1, -1);
+    assert(ua_dst[UAS_T1] == UAD_NONE);                    /* a knob stops at the ends */
+    ua_dst_step(UAS_T1, 1);
+    assert(ua_dst[UAS_T1] == UAD_1 && ua_ident);
+    ua_dst[UAS_MAIN] = UAD_34;
+    ua_dst_step(UAS_MAIN, 1);
+    assert(ua_dst[UAS_MAIN] == UAD_34);
+    ua_dst_step(UAS_MAIN, 0);
+    assert(ua_dst[UAS_MAIN] == UAD_NONE && ua_ident);      /* YES goes round */
+    ua_dst[UAS_T3] = 200;
     ua_route_apply();
-    assert(ua_src[2] == UAS_T3);                           /* out of range: the default */
+    assert(ua_dst[UAS_T3] == UAD_3);                       /* out of range: the default */
     assert(!strcmp(ua_src_name(UAS_DR1, b), "DR1") && !strcmp(ua_src_name(UAS_N - 1, b), "DR10"));
     for (uint32_t v = 0; v < UAS_N; v++)
         assert(strlen(ua_src_name(v, b)) <= 13u);
-    assert(!strcmp(ua_src_name(UAS_MAIN_S, b), "MAIN L+R") && !strcmp(ua_src_name(UAS_DBUS_S, b), "DRUM BUS L+R"));
-    assert(UAS_N == 11u + DRUM_LANES);                     /* (OFF, 10 names, the lanes: no -3 / -6 dB entries) */
-    /* two channels on one lane: one tap */
-    set_route(UAS_DR1 + 4, UAS_DR1 + 4, UAS_OFF, UAS_DR1 + 9);
-    assert(dlt_mask == (1u << 4 | 1u << 9) && dlt_slot[4] == 0 && dlt_slot[9] == 1);
+    assert(!strcmp(ua_src_name(UAS_MAIN, b), "MASTER") && !strcmp(ua_src_name(UAS_DBUS, b), "DRUM BUS"));
+    assert(!strcmp(ua_dst_name(UAD_NONE), "NONE") && !strcmp(ua_dst_name(UAD_12), "1+2") && !strcmp(ua_dst_name(UAD_34), "3+4"));
+    assert(UAS_N == 6u + DRUM_LANES);                      /* (MASTER, T1..T3, DRUMS, DRUM BUS, the lanes) */
+    /* two lanes on one channel, one lane on a pair: their channels */
+    ua_route_default();
+    ua_dst[UAS_DR1 + 4] = UAD_1, ua_dst[UAS_DR1 + 9] = UAD_1, ua_dst[UAS_DR1 + 2] = UAD_34;
+    ua_route_apply();
+    assert(dlt_mask == (1u << 2 | 1u << 4 | 1u << 9) && dlt_chm[4] == 1u && dlt_chm[9] == 1u && dlt_chm[2] == 12u &&
+           ua_lane_ch == 13u);
     ua_route_default();
     assert(ua_ident && !dlt_mask);
 }
@@ -219,6 +255,6 @@ int main(void)
     test_lanes(DRUM_UID_X909, 1, 0);
     puts("(with the X0X 909)");
 #endif
-    puts("USB audio routing: MAIN L/R/sums, T1..T3, DRUMS, DRUM BUS, DR1..DR10 lane taps, OFF, defaults: OK");
+    puts("USB audio routing: each source (MASTER, T1..T3, DRUMS, DRUM BUS, DR1..DR10) to NONE 1 2 1+2 3 4 3+4, sums, defaults: OK");
     return 0;
 }

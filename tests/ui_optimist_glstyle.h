@@ -136,13 +136,18 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
             uint32_t f = gl_pfirst(s, p), e = gl_pfirst(s, p + 1u);
             for (i = f; i < e; i++) {
                 cell_t c;
-                int32_t ly = gl_y0() + (int32_t)(i - f) * gl_pitch(), y = OH_HEAD + ly, by = OH_HEAD + gl_by(ly);
+                int32_t ly = gl_y0() + (int32_t)(i - f) * gl_pitch(), y = OH_HEAD + ly, by = OH_HEAD + gl_by(ly), ty0 = gl_ty(ly, GL_BH);
                 uint32_t cur = i == f && e - f > 1u ? f + 1u : f, tog, bar, r, lit = 0;
                 if (i == cur || (s && (sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_INFO || sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_CREDITS)))
                     continue;
                 ui.row[scr] = (uint8_t)cur;
                 frame();
                 gl_cell(s, i, &c);
+                {
+                    gl_lrow_t lr;                       /* (the bar's row: under the value, in whichever face it is) */
+                    gl_lrow(&c, ly, &lr);
+                    by = OH_HEAD + lr.by, ty0 = lr.ty;
+                }
                 tog = gl_tog(&c);
                 bar = c.kind != CK_ACT && c.gk != GK_NONE && !tog;
                 for (r = 0; r < (uint32_t)GL_BH; r++) {
@@ -166,7 +171,7 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
                     ok &= lit == 0u;                    /* (no bar) */
                 }
                 if (tog) {                              /* the mark: a square at the right, outlined off, filled on */
-                    int32_t mx = 236 - GL_CK, my = OH_HEAD + gl_ty(ly, GL_BH) + ((int32_t)FONT_S.h - GL_CK) / 2;
+                    int32_t mx = 236 - GL_CK, my = OH_HEAD + ty0 + ((int32_t)FONT_S.h - GL_CK) / 2;
                     uint32_t on = c.gv > c.gmin;
                     ok &= screen[my * 240 + mx] != 0 && screen[(my + GL_CK - 1) * 240 + mx + GL_CK - 1] != 0;
                     ok &= (screen[(my + GL_CK / 2) * 240 + mx + GL_CK / 2] != 0) == (on != 0u);
