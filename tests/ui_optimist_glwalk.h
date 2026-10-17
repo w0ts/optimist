@@ -255,17 +255,17 @@ static void glw_sync_long_tests(void)
 static void glw_sync_long_tests(void) {}
 #endif
 #if FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
-/* MIDI OUT / IN in GLOBAL's list: the real options as words, Keys / Seq and Notes / Clock (there is no Both, Other or All:
- * bp_set.c has two options each, the settings word one bit each); the cards' text stays KEYS / SEQ, NOTES / CLOCK */
+/* MIDI OUT / IN in GLOBAL's list: the real options as words, Keys / Both / Seq (the user, 2026-10-17: the keys, both, the
+ * sequencer alone) and Notes / Clock; the cards' text stays KEYS / BOTH / SEQ, NOTES / CLOCK */
 static void glw_midi_long_tests(void)
 {
-    static const char *const OUT[2] = {"Keys", "Seq"}, *const IN[2] = {"Notes", "Clock"};
-    static const char *const OUTC[2] = {"KEYS", "SEQ"}, *const INC[2] = {"NOTES", "CLOCK"};
+    static const char *const OUT[3] = {"Keys", "Both", "Seq"}, *const IN[2] = {"Notes", "Clock"};
+    static const char *const OUTC[3] = {"KEYS", "BOTH", "SEQ"}, *const INC[2] = {"NOTES", "CLOCK"};
     uint32_t k, ok = 1, seen = 0;
     int16_t mo = bp_set[BPS_MOUT], mi = bp_set[BPS_MIN];
     cell_t c;
     char v[16];
-    for (k = 0; k < 2u; k++) {
+    for (k = 0; k < 3u; k++) {
 #if FELUCCA_MIDI_OUT
         bp_set[BPS_MOUT] = (int16_t)k;
         glw_line(SCR_GLOBAL, line_named(SCR_GLOBAL, "MIDI OUT"), &c, v);
@@ -273,7 +273,7 @@ static void glw_midi_long_tests(void)
         seen++;
 #endif
     }
-    check(ok && seen, "MIDI OUT: the GLOBAL list draws Keys / Seq, the cards KEYS / SEQ; no MIDI IN line");
+    check(ok && seen, "MIDI OUT: the GLOBAL list draws Keys / Both / Seq, the cards KEYS / BOTH / SEQ; no MIDI IN line");
     bp_set[BPS_MOUT] = mo;
     bp_set[BPS_MIN] = mi;
 }

@@ -338,7 +338,7 @@
       "CLK IN": {"text": "Clock in: Auto, Int, USB, TRS", "if": "FELUCCA_MIDI_CLOCK"},
       "CLK OUT": {"text": "Send MIDI clock out", "if": "FELUCCA_MIDI_CLKOUT"},
       "MIDI IN": {"text": "MIDI in: notes or clock", "if": "FELUCCA_MIDI_INCLK"},
-      "MIDI OUT": {"text": "MIDI out: the keys or the seq", "if": "FELUCCA_MIDI_OUT"}}},
+      "MIDI OUT": {"text": "MIDI out: keys, both or seq", "if": "FELUCCA_MIDI_OUT"}}},
     {"kind": "op", "ctx": "CHANNELS", "params": {
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},

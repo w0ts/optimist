@@ -577,8 +577,10 @@ static void menu_ui_tests(void)
     menu_open(MI_OUT);
     bp_set[BPS_MOUT] = 0;
     encs[MKNOB()] = 1; frames(2);
-    check(bp_set[BPS_MOUT] == 1, "menu: MIDI OUT right: SEQ");
-    encs[MKNOB()] = -1; frames(2);
+    check(bp_set[BPS_MOUT] == MOUT_BOTH, "menu: MIDI OUT right: BOTH (the keys and the sequencer, 2.4's SEQ)");
+    encs[MKNOB()] = 1; frames(2);
+    check(bp_set[BPS_MOUT] == MOUT_SEQ, "menu: MIDI OUT right again: SEQ (the sequencer alone)");
+    encs[MKNOB()] = -2; frames(2);
     check(bp_set[BPS_MOUT] == 0, "menu: MIDI OUT left: KEYS");
 #endif
 #if FELUCCA_MIDI_INCLK

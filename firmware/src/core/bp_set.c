@@ -7,7 +7,7 @@
  *   BPS_CH0..CH2, BPS_CHD  the MIDI channel of each synth track and of the drum track (FELUCCA_MIDI_CH, seq_midi.c):
  *              0 OFF, 1..16; per project (packed into the project's G_MIDI slot, project.c midi_ch_pack). The drum
  *              track's is the old GLO > DRUMS CH (song.g[G_DRCH], 0 = OFF), reached here through a pointer
- *   BPS_MOUT, BPS_MIN  MIDI OUT KEYS / SEQ (FELUCCA_MIDI_OUT), MIDI IN NOTES / CLOCK (FELUCCA_MIDI_INCLK): settings
+ *   BPS_MOUT, BPS_MIN  MIDI OUT KEYS / BOTH / SEQ (FELUCCA_MIDI_OUT), MIDI IN NOTES / CLOCK (FELUCCA_MIDI_INCLK): settings
  *              of the FM-1, not of a project (the settings word, project.c bp23_word); a NEW project leaves them
  *   BPS_GDENS..BPS_GGO  ACID GEN (FELUCCA_ENG_ACID, eng_acid.c): TB-3PO's density, accent and slide (%), GO;
  *                      not saved (TB-3PO's defaults at power-on and NEW) */
@@ -18,7 +18,10 @@ static int16_t bp_set[BPS_COUNT] = {[BPS_GDENS] = 70, [BPS_GACC] = 40, [BPS_GSLD
 static const char *const N_BPGO[] = {"--", "GO"};
 static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
                                     "16"};                                    /* a track's MIDI channel */
-static const char *const N_MOUT[] = {"KEYS", "SEQ"};                          /* MIDI OUT: what goes out */
+static const char *const N_MOUT[] = {"KEYS", "BOTH", "SEQ"};                  /* MIDI OUT: what goes out: the keys, the keys and
+                                                                               * the sequencer (SLOOP 2.4's SEQ, value 1), the
+                                                                               * sequencer alone (the user, 2026-10-17) */
+enum { MOUT_KEYS, MOUT_BOTH, MOUT_SEQ };
 static const char *const N_MIN[] = {"NOTES", "CLOCK"};                        /* MIDI IN: notes and clock, or the clock only */
 static const param_desc_t BPS_DESC[BPS_COUNT] = {
     [BPS_RTYPE] = PE("TYPE", N_RTYPE, 0),

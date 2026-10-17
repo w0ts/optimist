@@ -2876,7 +2876,7 @@ async function midiSettings() {
   o2.done();
   ok(info.midiSet && info.midiSet.mask === 7 && info.midiSet.scope === 9 && info.midiSet.id === 5 && list && list.length === 6 &&
     js(list.map((r) => r.label)) === js(["TRACK 1", "TRACK 2", "TRACK 3", "DRUMS", "MIDI OUT", "MIDI IN"]) &&
-    list[0].value === 1 && list[3].value === 10 && list[0].names.length === 17 && js(list[4].names) === js(["KEYS", "SEQ"]) &&
+    list[0].value === 1 && list[3].value === 10 && list[0].names.length === 17 && js(list[4].names) === js(["KEYS", "BOTH", "SEQ"]) &&
     after.v === 7 && after.get === 7 && old === null,
     "MIDI settings: INFO tag 54 (mask, scope 9, id 5), six rows by DESC / GET, a channel SET / GET; older firmware: none");
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
