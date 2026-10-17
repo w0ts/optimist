@@ -1561,7 +1561,7 @@ either (8,188 B over); nothing was left out of any configuration measured here: 
 | SHIFT + SEQ | its clear is one undo level (11.3: not in the history) | the `undo_mark` in `op_act_more` |
 | Where NAME opens | SAVE + a sound button, SAVE AS, PROJECT USER SAVE, PROJECT SAVE (log builds); not a kit (the drum track's SAVE + a button saves a user kit at once), not a snapshot | `name_user_free`, `name_user`, `name_project` |
 | NAME's grammar | SAVE done; HOME tapped delete, at the start cancel; SHIFT + a knob clears; Felucca's keys and multi-tap | `name_frame`, `nm_knob`, `nm_black` |
-| NAME while playing | SAVE refused (*STOP BEFORE SAVE*), the screen stays with the name typed (a flash erase stops the audio; `up_ui` refused it the same way) | `name_ok` |
+| NAME while playing | SAVE refused (*STOP BEFORE SAVE*), the screen stays with the name typed (a flash erase stops the audio; `up_ui` refused it the same way); HOME held (0.6 s) cancels, nothing written: the way out while an external clock plays (the user, 2026-10-17) | `name_ok`, `name_frame` |
 | An empty name | a user preset gets the automatic one (*DIGITAL 01*), a project none | `name_ok`, `up_store` |
 | A used project slot | the modal first, then NAME prefilled with its name | `prj_yes` |
 | Project names | the section log's record id 23, 16 x 12 B, stopped only; builds without the log save unnamed | `SEC_ID_NAMES`, `name_project` |
@@ -3276,7 +3276,7 @@ The last batch of the audit (optimist-work/visaudit/FINDINGS.md), by the style g
 - **PROJECT** (#43): TOOLS' *MISS* card is *MISSING* (the names table; its 2x2 card holds it), MEMORY's *MORE* is *FREE*.
 - **GLO tapped** (#45): section 4.11 now says what is built: GLO switches GLOBAL and SYSTEM (it said a tap walks the rows).
 - **The ARP picture** (#46): no text line (MODE and RATE are the cards'; the notes are the guide lines).
-- **NAME** (#49): its hints (*Save done  Home delete*) on the help line's place, the screen's last 18 rows (they were at the
+- **NAME** (#49): its hints (*Save  Home del  hold cancel*; at the name's start *Save done  Home cancel*) on the help line's place, the screen's last 18 rows (they were at the
   field's top); the field keeps its length (*9/12*).
 - **GLOBAL's REC LENGTH**: *1* with the unit *bar* (was the value *1 BAR*), style guide 5.
 - Already done by the earlier batches: #8 (D), #14 (the send order), #38 (an empty held step's NOTE is *-*), #48 (A's

@@ -799,6 +799,19 @@ static void confirm_tests(void)
 #if FELUCCA_PATTERNS
     tap(B_SAVE);
     check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
+    song.playing = 1;                                   /* (an external MIDI clock playing: no STOP here) */
+    tap(B_SAVE);
+    check(name_on() && !project_used(3), "NAME while playing: SAVE refused (STOP BEFORE SAVE), the screen stays");
+    press(B_HOME);
+    fm1_ms += NM_HOLD_MS + 10u;
+    frame();
+    check(!name_on() && !project_used(3), "... HOME held: NAME cancelled, nothing written (the user, 2026-10-17)");
+    release(B_HOME);
+    check(!name_on() && !project_used(3), "... and its release does nothing more");
+    song.playing = 0;
+    name_open(NK_PROJ, 3);                              /* (as the question would: the operation is LOAD again after the
+                                                         * cancel, the project slot 4 still empty) */
+    check(name_on() && nm.kind == NK_PROJ && !project_used(3), "... NAME open again for slot 4, nothing written yet");
     tap(B_SAVE);                                        /* (NAME's SAVE: the name kept, the project written) */
     saves = project_used(3);                            /* (the real log: slot 4 stored) */
     project_save(0);                                    /* (slot 1 used, for the question below) */

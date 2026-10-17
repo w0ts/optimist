@@ -5,6 +5,8 @@
  * gesture, its key map and its multi-tap typing; the grammar is this UI's:
  *   SAVE          done: the name is written with what it names (stopped: STOP BEFORE SAVE keeps the screen)
  *   HOME tapped   the character before the cursor deleted; with the cursor at the start: cancel, nothing written
+ *   HOME held     cancel, nothing written (the user, 2026-10-17: a save refused while an external clock plays, STOP BEFORE
+ *                 SAVE, left no way out but deleting every character)
  *   SHIFT + a knob the whole name cleared
  *   white keys    ABC: AB CD EF GH IJK LM NO PQ RS TU VW XYZ 123 456 789 0-. (phone style: the same key within
  *                 0.8 s the group's next character); 123: 1 2 3 4 5 6 7 8 9 0 - . _ / # + one tap each
@@ -21,6 +23,7 @@ enum { NK_NONE, NK_USER, NK_PROJ };
 #define NM_TAP_MS 800u                                 /* multi-tap: the next letter within this */
 #define NM_REP_MS 450u                                 /* a held arrow / DELETE repeats after this, */
 #define NM_RATE_MS 90u                                 /* .. every this */
+#define NM_HOLD_MS 600u                                /* HOME held this long: cancel */
 enum { NMK_LEFT, NMK_SPACE, NMK_RIGHT, NMK_DEL, NMK_MODE, NMK_NONE };
 static const char *const NM_ABC[16] = {"AB", "CD", "EF", "GH", "IJK", "LM", "NO", "PQ", "RS", "TU", "VW", "XYZ",
                                        "123", "456", "789", "0-."};
@@ -35,7 +38,7 @@ static struct {
     uint8_t tap;                                       /* .. that letter's index in its group */
     uint8_t rep;                                       /* the key (+ 1) of a held arrow / DELETE, 0 none */
     uint8_t home, home_used;                           /* HOME down; a knob turned meanwhile (no delete) */
-    uint32_t t, rep_t;                                 /* fm1_ms of the last tap; of the next repeat */
+    uint32_t t, rep_t, home_t;                         /* fm1_ms of the last tap; of the next repeat; HOME's press */
     char s[NM_LEN + 1u];
     char ph[NM_LEN + 1u];                              /* the automatic name ("ANALOG 07", "PROJECT 3") */
 } nm;
@@ -307,6 +310,13 @@ static void name_frame(uint32_t pressed, uint32_t held)
     if (pressed & hb) {
         nm.home = 1;
         nm.home_used = 0;
+        nm.home_t = fm1_ms;
+    }
+    if (nm.home && (held & hb) && !nm.home_used && fm1_ms - nm.home_t >= NM_HOLD_MS) {
+        nm.home = 0;                                    /* HOME held: cancel at once, nothing written (its release: nothing) */
+        name_close();
+        ui_message("NOT SAVED");
+        return;
     }
     if (nm.home && !(held & hb)) {                      /* HOME let go: delete, or at the start cancel */
         nm.home = 0;
@@ -445,7 +455,7 @@ static void name_draw_foot(void)
 {
     cv_begin(240, 18, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
-    cv_text(4, 2, &FONT_S, nm.cur ? "Save done  Home delete" : "Save done  Home cancel", C_AMB);
+    cv_text(4, 2, &FONT_S, nm.cur ? "Save  Home del  hold cancel" : "Save done  Home cancel", C_AMB);
     cv_blit(0, NM_FOOT_Y);
 }
 static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */
