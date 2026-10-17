@@ -8,20 +8,13 @@ _Static_assert(UA_ROUTE_N == UA_CAP_CHANNELS, "a capture channel a bit of a dest
 static int32_t ua_routed[CTL * UA_CAP_CHANNELS];
 
 /* the names (SYSTEM > USB AUDIO's lines: the source the name, its channels the value; at most 13 characters) */
-static const char *ua_src_name(uint32_t v, char *b)
+_Static_assert(DRUM_LANES <= 16, "a name for each drum lane");
+static const char *ua_src_name(uint32_t v)             /* (flash only: no RAM a name, the lines' labels point here) */
 {
-    static const char *const N[UAS_DR1] = {"MASTER", "T1", "T2", "T3", "DRUMS", "DRUM BUS"};
-    uint32_t l;
-    if (v < UAS_DR1)
-        return N[v];
-    l = v - UAS_DR1 + 1u;                               /* DR1..DR10 */
-    b[0] = 'D', b[1] = 'R';
-    if (l >= 10u) {
-        b[2] = '1', b[3] = (char)('0' + l - 10u), b[4] = 0;
-    } else {
-        b[2] = (char)('0' + l), b[3] = 0;
-    }
-    return b;
+    static const char *const N[UAS_DR1 + 16] = {"MASTER", "T1", "T2", "T3", "DRUMS", "DRUM BUS", "DR1", "DR2", "DR3", "DR4",
+                                                "DR5", "DR6", "DR7", "DR8", "DR9", "DR10", "DR11", "DR12", "DR13", "DR14",
+                                                "DR15", "DR16"};
+    return N[v < UAS_N ? v : 0u];
 }
 static const char *ua_dst_name(uint32_t d)
 {

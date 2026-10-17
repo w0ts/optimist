@@ -79,6 +79,11 @@ static void overlap_tests(void)
     turn(EN_K4, 1);
     check(ov_span(t, 3) == 2u && t->step[4].time == ST_TIE, "overlap: and up again to touch it: a plain TIE");
     tap(B_HOME);
+#if FELUCCA_AUTO
+    AL(t)->n = 0;                                       /* (its locks: none left for the tests after it) */
+    auto_touch(trk_index(t));
+#endif
+    track_defaults_steps(t);
     ui.lane = 0;
     song.sel = 0;
     reset_ui();

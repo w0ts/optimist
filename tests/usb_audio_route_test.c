@@ -205,7 +205,6 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
 /* the choice and its names */
 static void test_setting(void)
 {
-    char b[6];
     ua_route_default();
     assert(ua_ident && ua_dst[UAS_T1] == UAD_1 && ua_dst[UAS_T2] == UAD_2 && ua_dst[UAS_T3] == UAD_3 &&
            ua_dst[UAS_DRUMS] == UAD_4 && ua_dst[UAS_MAIN] == UAD_NONE && ua_dst[UAS_N - 1u] == UAD_NONE);
@@ -223,10 +222,10 @@ static void test_setting(void)
     ua_dst[UAS_T3] = 200;
     ua_route_apply();
     assert(ua_dst[UAS_T3] == UAD_3);                       /* out of range: the default */
-    assert(!strcmp(ua_src_name(UAS_DR1, b), "DR1") && !strcmp(ua_src_name(UAS_N - 1, b), "DR10"));
+    assert(!strcmp(ua_src_name(UAS_DR1), "DR1") && !strcmp(ua_src_name(UAS_N - 1), "DR10"));
     for (uint32_t v = 0; v < UAS_N; v++)
-        assert(strlen(ua_src_name(v, b)) <= 13u);
-    assert(!strcmp(ua_src_name(UAS_MAIN, b), "MASTER") && !strcmp(ua_src_name(UAS_DBUS, b), "DRUM BUS"));
+        assert(strlen(ua_src_name(v)) <= 13u);
+    assert(!strcmp(ua_src_name(UAS_MAIN), "MASTER") && !strcmp(ua_src_name(UAS_DBUS), "DRUM BUS"));
     assert(!strcmp(ua_dst_name(UAD_NONE), "NONE") && !strcmp(ua_dst_name(UAD_12), "1+2") && !strcmp(ua_dst_name(UAD_34), "3+4"));
     assert(UAS_N == 6u + DRUM_LANES);                      /* (MASTER, T1..T3, DRUMS, DRUM BUS, the lanes) */
     /* two lanes on one channel, one lane on a pair: their channels */

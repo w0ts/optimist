@@ -221,15 +221,12 @@ static uint32_t sl24_l2_out(const int16_t *l, const int16_t *l1, int32_t bpm, ui
     return lost;
 }
 /* global i of q as 2.4 keeps it: G_MIDI (our MIDI channels), G_VIEW (2.4's G_ROUTE) and G_INFO (our REC QUANTIZE) 0,
- * SYNC AUTO -> INT, the drum reverb our lanes took (DRREV_MOVED) -> 2.4's default 16, CLICK AUTO (ours, 2026-10-17) -> REC
- * (2.4 has OFF REC ON) */
+ * SYNC AUTO -> INT, the drum reverb our lanes took (DRREV_MOVED) -> 2.4's default 16 */
 static int32_t sl24_g_out(const project_t *q, uint32_t i)
 {
     int32_t v = q->g[i];
     if (i == G_MIDI || i == G_VIEW || i == G_INFO || (i == G_SYNC && (v < 0 || v > 2)))
         return 0;
-    if (i == G_CLOCK && v > 2)
-        return 1;
     return i == G_DRREV && v < 0 ? 16 : v;
 }
 

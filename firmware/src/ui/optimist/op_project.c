@@ -548,8 +548,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     c->kind = CK_VAL;
 #if FELUCCA_USB_AUDIO
     if (si_ua(it)) {                                    /* a source's channels: text only, no bar (the list walks it) */
-        static char nm[UAS_N][6];                       /* (the lanes' names, DR1..DR10: a buffer each, the label is a pointer) */
-        c->label = ua_src_name(it - SI_UAS0, nm[it - SI_UAS0]);
+        c->label = ua_src_name(it - SI_UAS0);
         str_cpy(c->val, ua_dst_name(ua_dst[it - SI_UAS0]), sizeof c->val);
         return;
     }
