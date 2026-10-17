@@ -232,6 +232,15 @@ static void up_bank_check(uint32_t b, const void *src, int len)
     memset(bk, 0, sizeof *bk);
 }
 
+/* a record's p[] by count -> out: values 0 .. n0 - 1 from p (those from nc on: def's), P_E0 .. P_E7 from p[e0] .. */
+static void up_by_count(int16_t *out, const int16_t *p, uint32_t nc, uint32_t n0, const int16_t *def, uint32_t e0)
+{
+    uint32_t i;
+    for (i = 0; i < n0; i++)
+        out[i] = i < nc ? p[i] : def[i];
+    for (i = 0; i < 8u; i++)
+        out[P_E0 + i] = p[e0 + i];
+}
 /* the record's values in today's P_* order (mapped by count, see above); def = the defaults. LFO DEST's four words
  * as stored (the depths of before, or the slots' tagged layout): up_params turns them into the slots */
 static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
@@ -243,10 +252,10 @@ static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
 #endif
 #if FELUCCA_SL24_SAFE
     if (UP_IS_SL(r)) {                          /* SLOOP 2.4 / 2.5 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM */
-        for (i = 0; i < P_E0; i++)              /* VLEAD (not a sound's here: their defaults), P_E0.. at 53; 2.6 (71): */
-            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];   /* its ten more (INSERT, FTYPE, ENV SYNC, LFO 2 TRIG POL: LOST */
-        for (i = 0; i < 8u; i++)                /* but an ANALOG's filter TYPE, as a 2.6 project's: sl26_ftype_in), */
-            out[P_E0 + i] = r->p[r->np - 8u + i];   /* P_E0.. at 63 */
+        up_by_count(out, r->p, UP_SL24_COMMON, P_E0, def, r->np - 8u);   /* VLEAD (not a sound's here: their defaults),
+                                                * P_E0.. at 53; 2.6 (71): its ten more (INSERT, FTYPE, ENV SYNC, LFO 2
+                                                * TRIG POL: LOST but an ANALOG's filter TYPE, as a 2.6 project's:
+                                                * sl26_ftype_in), P_E0.. at 63 */
         if (r->np == UP_NP_SL26)                /* (its LFO 2 SYNC n: our RATE -n; OFF: its free RATE, 0..49's) */
             out[P_LRATE] = (int16_t)LRATE_OF_SLOOP(r->p[UP_SL26_LSYNC], r->p[P_LRATE]);
 #if FELUCCA_ANALOG2
@@ -257,11 +266,7 @@ static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
     }
 #endif
     if (UP_VER_OK(r->ver)) {                     /* UP_VER 3, 4: the values by count (the last 8 P_E0 ..), the slots */
-        nc = r->np - 8u;
-        for (i = 0; i < P_E0; i++)
-            out[i] = i < nc ? r->p[i] : def[i];
-        for (i = 0; i < 8u; i++)
-            out[P_E0 + i] = r->p[nc + i];
+        up_by_count(out, r->p, nc, P_E0, def, nc);
         for (i = 0; i <= P_NLAST - P_E1PIT; i++)
             out[P_E1PIT + i] = r->p[r->np + i];
         return;
@@ -269,29 +274,20 @@ static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
 #if FELUCCA_ANALOG2
     if (r->ver != 1u) {                          /* UP_VER 2: the values, ENV2's extras packed, P_E0 .. */
         nc = r->np - 8u - A2X_N;
-        for (i = 0; i < P_A2ESUS; i++)
-            out[i] = i < nc ? r->p[i] : def[i];
+        up_by_count(out, r->p, nc, P_A2ESUS, def, nc + A2X_W);
         a2x_unpack(&out[P_A2ESUS], &r->p[nc]);
-        for (i = 0; i < 8u; i++)
-            out[P_E0 + i] = r->p[nc + A2X_W + i];
         return;
     }
     if (r->np == UP_NP_V1A2) {                   /* UP_VER 1 with SUS2 REL2 DST2: DST2's AMT2 -> its amount (clamped */
                                                  /* after, up_values: as AMT2 was) */
-        for (i = 0; i < P_A2ESUS; i++)
-            out[i] = r->p[i];
+        up_by_count(out, r->p, P_A2ESUS, P_A2ESUS, def, UP_NP_V1A2 - 8u);
         out[P_A2ESUS] = r->p[P_A2ESUS];
         out[P_A2EREL] = r->p[P_A2EREL];
         a2x_from_dst(&out[P_A2ESUS], &out[P_A2FENV], r->p[P_A2ESUS + 2u]);
-        for (i = 0; i < 8u; i++)
-            out[P_E0 + i] = r->p[UP_NP_V1A2 - 8u + i];
         return;
     }
 #endif
-    for (i = 0; i < P_E0; i++)
-        out[i] = i < nc ? r->p[i] : def[i];
-    for (i = 0; i < 8u; i++)
-        out[P_E0 + i] = r->p[nc + i];
+    up_by_count(out, r->p, nc, P_E0, def, nc);
 }
 /* the record's values in today's P_* order, LFO DEST's slots from their stored form (params.c lfo1_load: the depths of
  * a record of before, SLOOP's too, keep the two of the most weight) */
