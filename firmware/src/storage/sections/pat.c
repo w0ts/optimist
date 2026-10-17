@@ -29,16 +29,7 @@ static uint32_t pat_missing;                           /* patterns a scene named
 /* pattern (k, s)'s record -> buf (SEC_REC_MAX), its length; 0 none */
 static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
 {
-    int n;
-#if FELUCCA_PATTERNS
-    uint32_t i = SEC_PEND_PAT + PAT_N * k + s;
-    if (sec_pend_has(i)) {
-        memcpy(buf, sec_pend.data + sec_pend.off[i], sec_pend.len[i]);
-        return sec_pend.len[i];
-    }
-#endif
-    n = flash_ok ? slg_get(PAT_ID(k, s), buf) : 0;
-    return n > 0 ? (uint32_t)n : 0u;
+    return sec_fetch(FELUCCA_PATTERNS ? SEC_PEND_PAT + PAT_N * k + s : SEC_PEND_N, PAT_ID(k, s), buf);
 }
 
 /* a pattern record (n bytes) of track k -> t's steps and its LEN DIV SWING GATE, its automation into l (0: none) and
@@ -608,24 +599,15 @@ static uint32_t pat_free(uint32_t k)
  * keyed again (fx_rec_log.c: it pairs with the scene by the record's hash). -> 0 done, else said */
 static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
 {
-    uint32_t n, rl, dl, key;
-    int g;
+    uint32_t n, i, key, k2;
     s %= SEC_IDS;
     if (song.playing || transport_req) {
         ui_message("STOP FIRST");
         return 1;
     }
-    if (sec_pend_has(s)) {
-        n = sec_pend.len[s];
-        memcpy(sec_rbuf, sec_pend.data + sec_pend.off[s], n);
-    } else {
-        g = flash_ok ? slg_get(s, sec_rbuf) : 0;
-        n = g > 0 ? (uint32_t)g : 0u;
-    }
+    n = sec_fetch(s, s, sec_rbuf);
     if (n <= NTRK || !(sec_rbuf[0] & SEC_SCN) || k >= NTRK)
         return 1;
-    rl = fxr_sec_get(s);                               /* (its FX record, key first, into fxr_rbuf) */
-    dl = dlr_sec_get(s);                               /* (its LFO record, into dlr_rbuf) */
     key = proj_hash(sec_rbuf, n);
     if (sec_rbuf[n - NTRK + k] == (uint8_t)v)
         return 0;
@@ -634,15 +616,14 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
         ui_message("SAVE ERROR");
         return 1;
     }
-    if (rl > 4u && !memcmp(fxr_rbuf, &key, 4)) {
-        uint32_t k2 = proj_hash(sec_rbuf, n);
-        memcpy(fxr_rbuf, &k2, 4);
-        (void)fxr_sec_put(s, fxr_rbuf, rl);
-    }
-    if (dl > 4u && !memcmp(dlr_rbuf, &key, 4)) {
-        uint32_t k2 = proj_hash(sec_rbuf, n);
-        memcpy(dlr_rbuf, &k2, 4);
-        (void)dlr_sec_put(s, dlr_rbuf, dl);
+    k2 = proj_hash(sec_rbuf, n);
+    for (i = 0; i < 2u; i++) {                         /* its FX and LFO records (key first) keyed again */
+        const xrec_t *x = i ? &XR_DL : &XR_FX;
+        uint32_t rl = xrec_sec_get(x, s);
+        if (rl > 4u && !memcmp(x->buf, &key, 4)) {
+            memcpy(x->buf, &k2, 4);
+            (void)xrec_sec_put(x, s, x->buf, rl);
+        }
     }
     sec_gen++;                                         /* (a staged scene: read again) */
     return 0;

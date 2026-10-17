@@ -84,13 +84,9 @@ static uint32_t sn_work_rec(void) { return sec_encode(&autosave_buf, &autosave_d
 static uint32_t sn_sec_rec(uint32_t id)
 {
 #if SEC_LOGGED
-    int n;
-    if (id < SEC_IDS && sec_pend_has(id)) {           /* (one the log did not take: MEM FULL, still in RAM) */
-        memcpy(SN_REC, sec_pend.data + sec_pend.off[id], sec_pend.len[id]);
-        return sec_pend.len[id];
-    }
-    n = flash_ok ? slg_get(id, SN_REC) : 0;           /* (every id of the log: a 16-section snapshot from an */
-    return n > 0 ? (uint32_t)n : 0u;                   /* 8-section build keeps I..P) */
+    return sec_fetch(id < SEC_IDS ? id : SEC_PEND_N, id, SN_REC);   /* (the arena's: one the log did not take, MEM FULL;
+                                                       * every id of the log: a 16-section snapshot from an 8-section
+                                                       * build keeps I..P) */
 #else
     return id < 4u && proj_ok(&proj_slot[id]) ? sec_encode(&proj_slot[id], &proj_dl[id], SN_REC) : 0u;
 #endif
