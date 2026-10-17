@@ -99,7 +99,8 @@ static void lay_cell(uint32_t k, cell_t *c)
         }
     }
 }
-static void lay_draw_cards(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void lay_draw_cards(void)
 {
     cell_t c[4];
     uint32_t k, sig = hu(hu(hu(0x1A7u + lay.shown, lay.hot), settings.palette + lay.used * 8u), cards_2x2());
@@ -269,11 +270,12 @@ static void lay_paint(void)
         if (t->top)
             cv_rect(x, y, CARD_W, 3, t->top);
         op_case(b, t->lab, sizeof b);
-        cv_text(x + (CARD_W - text_w(&FONT_S, b)) / 2, y + (TILE_H - 16) / 2, &FONT_S, b, t->fg);
+        cv_texts(x + (CARD_W - text_w(&FONT_S, b)) / 2, y + (TILE_H - 16) / 2, b, t->fg);
     }
-    cv_text(4, LAY_SUB_Y, &FONT_S, op_case(b, lay_sub, sizeof b), C_GRAY);   /* (the key and scale, the chain...) */
+    cv_texts(4, LAY_SUB_Y, op_case(b, lay_sub, sizeof b), C_GRAY);   /* (the key and scale, the chain...) */
 }
-static void lay_draw_tiles(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void lay_draw_tiles(void)
 {
     tile_t *tl = lay_tl;
     uint32_t i, sig = hu(0x7117u, settings.palette);
@@ -324,19 +326,19 @@ static void tempo_draw(int32_t h)
                                                          * line; SYNC is a card; taller: the same, in the middle, the beat larger) */
     fmt_int(b, song.g[G_BPM]);
     x = cv_text(8, 6 + dy, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
-    cv_text(x + 6, 20 + dy, &FONT_S, "BPM", C_GRAY);
+    cv_texts(x + 6, 20 + dy, "BPM", C_GRAY);
     bx = 236 - 4 * bs - 18 < 150 ? 236 - 4 * bs - 18 : 150;   /* (the larger beat: its four boxes inside the screen) */
     for (i = 0; i < 4u; i++)                            /* the beat */
         cv_box(bx + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
     if (clk_nudge)
-        cv_text(bx, (short_ ? 25 : 32) + dy + bs - 16, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
+        cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;
     if (!value_long(&GP[G_SYNC], song.g[G_SYNC], b))    /* the clock followed: "Auto: USB" */
         param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);
-    cv_text(8, 40 + dy + bs - 16, &FONT_S, b, C_GRAY);
+    cv_texts(8, 40 + dy + bs - 16, b, C_GRAY);
     cv_box(80, 42 + dy + bs - 16, 16, 8, sy.src ? C_OK : C_BLACK);     /* RX: an external clock heard */
-    cv_text(100, 40 + dy + bs - 16, &FONT_S, "RX", sy.src ? C_OK : C_DIM);
+    cv_texts(100, 40 + dy + bs - 16, "RX", sy.src ? C_OK : C_DIM);
 }
 
 /* ---- the PATTERNS row's panel: the 4 x 16 session grid (PATTERNS-DESIGN 6.2), h rows from the panel's top */
@@ -360,7 +362,7 @@ static void song_grid_draw(int32_t h)
         uint16_t tc = trk_col(k);
         if (k == song.sel)
             cv_rect(0, y - 2, 240, 1, C_DIM), cv_rect(0, y + rh - 2, 240, 1, C_DIM);   /* (the selected track, its keys launch: lined) */
-        cv_text(3, y + (rh - 12) / 2, &FONT_S, trk_tag(k), k == song.sel ? C_WHITE : tc);
+        cv_texts(3, y + (rh - 12) / 2, trk_tag(k), k == song.sel ? C_WHITE : tc);
         for (i = 0; i < PAT_N; i++) {
             int32_t x = 26 + (int32_t)i * 13;
             uint16_t c = pat_cur[k] == i ? C_OK : pat_req[k] == i ? C_WARN : pat_has(k, i) ? col_shade(tc, 4u) : OP_SURF;

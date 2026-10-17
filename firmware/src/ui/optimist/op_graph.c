@@ -34,6 +34,12 @@
 #define CARD_W 57
 #define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
+/* text in the small face: the drawing files' most frequent call, its four arguments in registers (a call, never inlined:
+ * cv_text's fifth argument and the face at every call cost more); the end x */
+static __attribute__((noinline)) int32_t cv_texts(int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    return cv_text(x, y, &FONT_S, s, c);
+}
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
     const track_t *t = &trk[c % NTRK];
@@ -220,7 +226,7 @@ static void graph_fx(const page_t *pg, uint16_t c)
         cv_rect(x - 3, bot - h, 7, 1, nc);
         {
             const char *l = card_label(&e, b, sizeof b);
-            cv_text(x - text_w(&FONT_S, l) / 2, bot + 2, &FONT_S, l, C_GRAY);
+            cv_texts(x - text_w(&FONT_S, l) / 2, bot + 2, l, C_GRAY);
         }
     }
 }
@@ -361,9 +367,9 @@ static void graph_lane_of(int kit)
     }
     cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : lane_name(l), kit ? kit_col() : op_lane_col(l));
     if (GRAPH_H >= 58)
-        cv_text(4, 40 + ny - 6, &FONT_S, sub, C_GRAY);
+        cv_texts(4, 40 + ny - 6, sub, C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
-        cv_text(236 - text_w(&FONT_S, sub), 22, &FONT_S, sub, C_GRAY);
+        cv_texts(236 - text_w(&FONT_S, sub), 22, sub, C_GRAY);
 }
 static void graph_lane(void) { graph_lane_of(0); }
 /* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
@@ -375,16 +381,16 @@ static void graph_lane(void) { graph_lane_of(0); }
 static int32_t denv_tx;                                  /* the label row: where the source's tag starts (denv_time ends before it) */
 static void denv_head(uint32_t l, const char *right)
 {
-    cv_text(4, GR_TOP, &FONT_S, lane_name(l), op_lane_col(l));
+    cv_texts(4, GR_TOP, lane_name(l), op_lane_col(l));
     denv_tx = 236 - text_w(&FONT_S, right);
-    cv_text(denv_tx, GR_TOP, &FONT_S, right, C_GRAY);
+    cv_texts(denv_tx, GR_TOP, right, C_GRAY);
 }
 static void denv_time(uint32_t ms)                      /* the length, in the label row before the tag (the audit's #32: never on the baseline) */
 {
     char b[12];
     fmt_int(b, (int32_t)ms);
     str_cpy(b + str_len(b), "ms", 4);
-    cv_text(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, &FONT_S, b, C_GRAY);
+    cv_texts(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, b, C_GRAY);
 }
 #if DRUM_X0X
 static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
@@ -494,7 +500,7 @@ static void graph_denv(void)
     cv_line(0, GR_BOT + 1, 239, GR_BOT + 1, C_LINE);
     denv_head(l, tg);
     if (!dsnd_has_env(l)) {
-        cv_text(4, y0 + (h > 14 ? (h - 14) / 2 : 0), &FONT_S, "No envelope: level only", C_GRAY);
+        cv_texts(4, y0 + (h > 14 ? (h - 14) / 2 : 0), "No envelope: level only", C_GRAY);
         return;
     }
     if (h < 8)
@@ -643,8 +649,8 @@ static void draw_modal(void)
         cv_text(120 - text_w(fl, v) / 2, 12, fl, v, C_WHITE);
         cv_text(120 - text_w(ft, a) / 2, 50, ft, a, tc);
     }
-    cv_text(24, MODAL_H - 21, &FONT_S, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
-    cv_text(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, &FONT_S, "Save yes", C_WHITE);
+    cv_texts(24, MODAL_H - 21, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
+    cv_texts(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
     cv_blit(0, OP_PY);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
@@ -661,6 +667,6 @@ static void draw_toast(void)                             /* the result of a conf
     cv_begin((uint32_t)w, 36, C_BLACK);
     cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
     cv_rect(2, 2, w - 4, 32, OP_SURF);
-    cv_text(12, 10, &FONT_S, m, C_WHITE);
+    cv_texts(12, 10, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
 }

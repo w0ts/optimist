@@ -61,7 +61,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     uint16_t lc = knob_col(k, gld.bar), ink = on ? lc : vc;     /* (the cursor line: its text in the line's colour, no fill) */
     ty = gl_ty(y, GL_BH);                               /* (the text, then the bar, centred in the line) */
     by = gl_by(y);
-    cv_text(6, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
+    cv_texts(6, ty, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
     cut(b, v, 13);
     {
         const felucca_font_t *f = &FONT_S;              /* a read-out to read from afar (Bluetooth's STATE, DEVICE, MIDI): the large
@@ -73,7 +73,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
         cv_text(x, fy, f, b, ink);
     }
     if (uw)
-        cv_text(236 - uw, ty, &FONT_S, c->unit, on ? lc : C_DIM);
+        cv_texts(236 - uw, ty, c->unit, on ? lc : C_DIM);
     if (tog)
         gl_check(236 - GL_CK, ty + ((int32_t)FONT_S.h - GL_CK) / 2, (uint32_t)(c->gv > c->gmin), ink, C_BLACK);
     else if (bar) {
@@ -124,8 +124,8 @@ static void gl_cred_draw(int32_t y0)
     char b[16];
     for (i = 0; i < CRED_N; i++) {
         ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
-        cv_text(6, ty, &FONT_S, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
-        cv_text(236 - text_w(&FONT_S, CRED[i][1]), ty, &FONT_S, CRED[i][1], i ? C_HI : C_WHITE);
+        cv_texts(6, ty, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
+        cv_texts(236 - text_w(&FONT_S, CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
     }
 }
 static void gl_info_draw(int32_t y0)
@@ -143,11 +143,11 @@ static void gl_info_draw(int32_t y0)
         vc = c.col ? c.col : C_GRAY;
         ty = y + (ph - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
-        cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);
+        cv_texts(6, ty, nm_card(c.label, 0, b, sizeof b), C_GRAY);
         x = 236 - uw - text_w(&FONT_S, c.val);
-        cv_text(x, ty, &FONT_S, cut(lv, c.val, 13), vc);
+        cv_texts(x, ty, cut(lv, c.val, 13), vc);
         if (uw)
-            cv_text(236 - uw, ty, &FONT_S, c.unit, C_DIM);
+            cv_texts(236 - uw, ty, c.unit, C_DIM);
     }
 }
 static void gl_paint(void)

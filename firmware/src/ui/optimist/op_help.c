@@ -145,9 +145,9 @@ static void hl_post(void)
     cv_begin(240, HL_H, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
     if (off == 0xFFFFu)
-        cv_text(4, 2, &FONT_S, "Oct- locks it", C_AMB);
+        cv_texts(4, 2, "Oct- locks it", C_AMB);
     else if (off)
-        cv_text(4, 2, &FONT_S, ph_text(off, b), C_AMB);
+        cv_texts(4, 2, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);
 }
 #endif

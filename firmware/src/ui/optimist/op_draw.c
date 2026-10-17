@@ -263,11 +263,11 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     fmt_int(b + 6, (int32_t)song.sel + 1);
     bw = text_w(&FONT_S, b) + 8;
     cv_rect(2, 3, bw, 19, tc);
-    cv_text(6, 4, &FONT_S, b, C_BLACK);
-    x = cv_text(bw + 8, 4, &FONT_S, eng, tc);
+    cv_texts(6, 4, b, C_BLACK);
+    x = cv_texts(bw + 8, 4, eng, tc);
     snd_name(song.sel, c);                              /* (the preset as stored: never re-cased) */
     room = x + 8 < 228 ? (uint32_t)(236 - x - 8) / 8u : 1u;
-    cv_text(x + 8, 4, &FONT_S, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
+    cv_texts(x + 8, 4, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
 }
 /* the title's room in pixels: right of the title's x (lead: the badge and its gap, or the bare margin), left of the loop
  * position r and the tempo bpm */
@@ -419,12 +419,13 @@ static int32_t head_draw_title(const head_t *h, char *c)
     cut(c, h->t, h->room > 8 ? (uint32_t)h->room / 8u : 1u);   /* (fitted above) */
     n = str_len(c);
     if (!p || n < p || !str_eq(c + n - p, h->pos))
-        return cv_text(h->tx, 4, &FONT_S, c, h->mc);
+        return cv_texts(h->tx, 4, c, h->mc);
     c[n - p] = 0;
-    x = cv_text(h->tx, 4, &FONT_S, c, h->mc);
-    return cv_text(x, 4, &FONT_S, h->pos, C_GRAY);
+    x = cv_texts(h->tx, 4, c, h->mc);
+    return cv_texts(x, 4, h->pos, C_GRAY);
 }
-static void draw_head(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void draw_head(void)
 {
     head_t h;
     char c[32];
@@ -453,7 +454,7 @@ static void draw_head(void)
     if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
         draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */
     } else if (ui.msg_t) {
-        cv_text(4, 4, &FONT_S, op_case(c, ui.msg, sizeof c), h.mc);   /* (sentence case: "T1 cleared") */
+        cv_texts(4, 4, op_case(c, ui.msg, sizeof c), h.mc);   /* (sentence case: "T1 cleared") */
     } else {
         if (h.badge) {
             cv_rect(2, 3, h.bw, 19, h.tc);              /* the track's engine, in its colour */
@@ -461,10 +462,10 @@ static void draw_head(void)
         }
         tw = head_draw_title(&h, c);
         if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
-            cv_text(tw + 8, 4, &FONT_S, h.pr, h.tc);
-        cv_text(bx, 4, &FONT_S, h.bpm, C_HI);
+            cv_texts(tw + 8, 4, h.pr, h.tc);
+        cv_texts(bx, 4, h.bpm, C_HI);
         if (h.r[0])
-            cv_text(bx - 8 - text_w(&FONT_S, h.r), 4, &FONT_S, h.r, song.playing ? C_OK : C_DIM);
+            cv_texts(bx - 8 - text_w(&FONT_S, h.r), 4, h.r, song.playing ? C_OK : C_DIM);
         if (rec)
             cv_rect(bx - 16 - text_w(&FONT_S, h.r), 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }
@@ -573,15 +574,15 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
     if (!c->label)
         return;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + w - 3 - DR_W, 3, &FONT_S, "DR", C_GRAY);
+        cv_texts(x + w - 3 - DR_W, 3, "DR", C_GRAY);
     {
         const char *lab = card_label_n(c, u, b, sizeof b, nb);   /* (the names table's: in capitals, 6 at most) */
         text_st(x + (text_w(&FONT_S, lab) > w - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY), c->strike);
     }
     if (u[0])                                           /* the unit: the label row, right-aligned (never after the value) */
-        cv_text(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), card_rw(c)), 3, &FONT_S, u, C_DIM);
+        cv_texts(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), card_rw(c)), 3, u, C_DIM);
     if (c->kind == CK_ACT) {
-        cv_text(x + 3, 20, &FONT_S, cut(b, act_verb(c), (uint32_t)(w - 6) / 8u), act_col(c, hot));
+        cv_texts(x + 3, 20, cut(b, act_verb(c), (uint32_t)(w - 6) / 8u), act_col(c, hot));
         return;
     }
     text_st(x + 3, 20, &FONT_S, cut(b, v, (uint32_t)(w - 6) / 8u), vc, c->strike);
@@ -612,13 +613,13 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         return;
     uw += dw;
     if (c->dr)                                          /* the drum track's own value, a lane picked: tagged DR */
-        cv_text(x + BIG_W - 3 - DR_W, y + 2, &FONT_S, "DR", C_GRAY);
+        cv_texts(x + BIG_W - 3 - DR_W, y + 2, "DR", C_GRAY);
     {
         char l[16];
         text_st(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY), c->strike);
     }
     if (u[0])
-        cv_text(x + BIG_W - 3 - text_w(&FONT_S, u) - (c->mark ? 10 : 0) - dw, y + 2, &FONT_S, u, C_DIM);
+        cv_texts(x + BIG_W - 3 - text_w(&FONT_S, u) - (c->mark ? 10 : 0) - dw, y + 2, u, C_DIM);
     if (c->kind == CK_ACT) {
         const char *vb = act_verb(c);
         if (text_w(font_big(), vb) <= BIG_W - 10)
@@ -626,7 +627,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         else if (text_w(font_big(), vb) <= BIG_W - 4)   /* (a 7-letter verb, REVERSE: large too, from the card's edge) */
             cv_text(x + 2, y + 13, font_big(), vb, act_col(c, hot));
         else
-            cv_text(x + 5, y + 20, &FONT_S, cut(b, vb, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
+            cv_texts(x + 5, y + 20, cut(b, vb, 13), act_col(c, hot));   /* (CALIBRATE: the small face) */
         return;
     }
     if (text_w(font_big(), v) <= BIG_W - 10)
@@ -824,7 +825,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         snd_title_row(i, nm);                           /* (the drum track's pages by what they hold, as the header) */
     else
         s->name(i, nm);
-    cv_text(LC_NAME_X, y + 1, &FONT_S, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
+    cv_texts(LC_NAME_X, y + 1, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
         cv_rect(70, y + 5, 7, 7, song_row_col(i));
     for (k = 0; k < 4u; k++)
@@ -833,7 +834,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
     for (k = 0; k < 4u; k++) {
         int32_t x = L.x[k], gw = (k < 3u ? L.x[k + 1u] : LC_END(wide)) - x - 2;   /* (the form: to the next cell's place) */
         if (L.t[k][0])
-            cv_text(x, y + 1, &FONT_S, L.t[k], on ? C_WHITE : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
+            cv_texts(x, y + 1, L.t[k], on ? C_WHITE : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
         draw_gauge(x, y + 16, gw > LC_P - 2 && k == 3u ? LC_P - 2 : gw, gh, &c[k], on ? C_WHITE : c[k].col ? c[k].col : C_AMB,
                    on ? cur_trough(bar) : C_LINE);
     }
@@ -1008,8 +1009,8 @@ static void draw_ring(void)
     str_cpy(b + 6, rh.lane >= 0 ? lane_name((uint32_t)rh.lane) : trk_tag(rh.trk), sizeof b - 6u);   /* (a lane: "Clear SNARE") */
     if (rh.motion)
         str_cpy(b + str_len(b), " locks", sizeof b - str_len(b));   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
-    cv_text(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, &FONT_S, b, tc);
-    cv_text(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
+    cv_texts(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, b, tc);
+    cv_texts(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, "Keep holding", C_GRAY);
     cv_blit(0, OP_PY);
 }
 static void draw_overlay(uint32_t ov)

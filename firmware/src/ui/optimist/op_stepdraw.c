@@ -91,7 +91,7 @@ static void sg_drums(const track_t *t)
         if (y < SG_TOP || y + lh > SG_TOP + SG_H)
             continue;                                   /* (shifted out of the grid: sg_shift) */
         cv_rect(2, y, 3, lh - 1, l == sel ? C_WHITE : c);   /* the lane: its colour chip and its code, as the mixer's */
-        cv_text(6, y + (lh - 11) / 2 - 2, &FONT_S, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
+        cv_texts(6, y + (lh - 11) / 2 - 2, lane_code(l), l == sel ? C_WHITE : c);   /* (the user, 2026-10-11; its 10 rows of ink in the row) */
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &SGD(t)[idx % NSTEP];
@@ -275,7 +275,7 @@ static void roll_label(int32_t n, uint16_t c)           /* a row's name, "C4" fo
         note_name(b, (uint32_t)n);
     else
         str_cpy(b, N_NOTE[n % 12], 3);
-    cv_text(2 - sg_ox, NY(n) + (rg.rh - 16) / 2, &FONT_S, b, c);
+    cv_texts(2 - sg_ox, NY(n) + (rg.rh - 16) / 2, b, c);
 }
 /* the gutter: every row named when the rows are tall enough (11 px), else the Cs, then the rows with a note in the
  * window where they do not touch a name above */
@@ -565,7 +565,8 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
     lh = SG_LY0(sel + 1u) - y;
     return y >= top && y + lh <= lim ? 0 : top - y;
 }
-static void step_frame(void)
+/* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
+static __attribute__((noinline)) void step_frame(void)
 {
     static uint8_t on, info, was_held;
     static uint32_t isig;
@@ -601,8 +602,8 @@ static void step_frame(void)
     if (inf && hs(hs(1u, sg_info[0]), sg_info[1]) != isig) {
         isig = hs(hs(1u, sg_info[0]), sg_info[1]);
         cv_begin(240, SG_INFO_H, C_BLACK);
-        cv_text(4, 2, &FONT_S, sg_info[0], C_HI);
-        cv_text(4, 2 + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
+        cv_texts(4, 2, sg_info[0], C_HI);
+        cv_texts(4, 2 + SG_INFO_DY, sg_info[1], C_GRAY);
         cv_blit(0, SP_Y + SG_INFO_Y);
         if (ui.toast_t)
             ui.sig[4] = 0;                              /* (a toast over it is drawn again) */
