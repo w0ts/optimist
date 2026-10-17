@@ -374,110 +374,46 @@ static const fxr_store_t *fxr_of(const project_t *p)
     return m && m->psum == p->sum ? m : 0;
 }
 
+/* a TLV's header before its m bytes (0: none, nothing written) at o + n + 2 -> the stored form's length so far */
+static __attribute__((noinline)) uint32_t fxr_tlv(uint8_t *o, uint32_t n, uint32_t id, uint32_t m)
+{
+    if (m)
+        o[n] = (uint8_t)id, o[n + 1u] = (uint8_t)m, n += 2u + m;
+    return n;
+}
 /* the working FX state -> o (FXR_MAX), its length; 0: nothing to keep */
 static uint32_t fxr_encode(uint8_t *o)
 {
-    uint8_t map[NTRK][INS_N];
+    uint8_t map[NTRK][INS_N], mm[INS_N];
     uint32_t k, n = FXR_HEAD, any = 0;
     o[0] = FXR_VER;
     o[1] = FXR_F_INS;
     fxr_head(o + 2);                                   /* (the sends, then the inserts held: above) */
     for (k = 0; k < FX_NSLOT; k++)
         any |= (uint32_t)(o[2u + k] != FXS_OLD[k]);
-    for (k = 1; k < FXT_N; k++) {                      /* each type's TLV (fx_slots.c fxs_tlv) */
-        uint32_t m = fxs_tlv(k, o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)k, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the drum lanes' PAN MUTE SOLO (drum_mix.c): a TLV of its own, a reader of before skips it */
-        uint32_t m = dlm_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)DLM_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the sequencer mutes (seq/seq_mute.c): a TLV of its own, none when nothing is muted */
-        uint32_t m = smute_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)SMUTE_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
+    for (k = 1; k < FXT_N; k++)                        /* each type's TLV (fx_slots.c fxs_tlv) */
+        n = fxr_tlv(o, n, k, fxs_tlv(k, o + n + 2u));
+    n = fxr_tlv(o, n, DLM_TLV, dlm_tlv(o + n + 2u));   /* the drum lanes' PAN MUTE SOLO (drum_mix.c): a reader of before
+                                                        * skips it */
+    n = fxr_tlv(o, n, SMUTE_TLV, smute_tlv(o + n + 2u));   /* the sequencer mutes (seq/seq_mute.c), none when nothing is
+                                                            * muted */
 #if GEN_ON
-    {   /* the note generators (seq/gen.c): a TLV of its own, none when every slot is off at its defaults */
-        uint32_t m = gen_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)GEN_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
+    n = fxr_tlv(o, n, GEN_TLV, gen_tlv(o + n + 2u));   /* the note generators (seq/gen.c), none when every slot is off at
+                                                        * its defaults */
 #endif
-    {   /* the parts' VOICES (above) */
-        uint32_t m = vcnt_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)VCNT_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
+    n = fxr_tlv(o, n, VCNT_TLV, vcnt_tlv(o + n + 2u)); /* the parts' VOICES (above) */
 #if FELUCCA_USB_AUDIO
-    {   /* the USB input track (above) */
-        uint32_t m = ut_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)UT_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
+    n = fxr_tlv(o, n, UT_TLV, ut_tlv(o + n + 2u));     /* the USB input track (above) */
 #endif
-    {   /* the FX returns (above), as the drum lanes' */
-        uint32_t m = fxret_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)FXRET_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the returns holding another type (fx_slots.c rt_tlv) */
-        uint32_t m = rt_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)RET_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the sends between the returns (fx_slots.c rs_tlv) */
-        uint32_t m = rs_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)RSND_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the master's slots (above), as the tracks' */
-        uint8_t mm[INS_N];
-        uint32_t m;
-        (void)mst_map(mm);
-        m = mst_tlv(mm, o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)MST_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the drum lanes' slots (above) */
-        uint32_t m = lin_tlv(o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)LIN_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
-    {   /* the track slots (above): only when the read-back's ins_map would not give them (no record so far: as one
-         * with none is read) */
-        uint32_t m;
-        (void)ins_map(o + 2, !(any || n > FXR_HEAD), map);
-        m = ins_tlv(map, o + n + 2u);
-        if (m) {
-            o[n] = (uint8_t)INS_TLV, o[n + 1u] = (uint8_t)m;
-            n += 2u + m;
-        }
-    }
+    n = fxr_tlv(o, n, FXRET_TLV, fxret_tlv(o + n + 2u));   /* the FX returns (above), as the drum lanes' */
+    n = fxr_tlv(o, n, RET_TLV, rt_tlv(o + n + 2u));    /* the returns holding another type (fx_slots.c rt_tlv) */
+    n = fxr_tlv(o, n, RSND_TLV, rs_tlv(o + n + 2u));   /* the sends between the returns (fx_slots.c rs_tlv) */
+    (void)mst_map(mm);                                 /* the master's slots (above), as the tracks' */
+    n = fxr_tlv(o, n, MST_TLV, mst_tlv(mm, o + n + 2u));
+    n = fxr_tlv(o, n, LIN_TLV, lin_tlv(o + n + 2u));   /* the drum lanes' slots (above) */
+    (void)ins_map(o + 2, !(any || n > FXR_HEAD), map); /* the track slots (above): only when the read-back's ins_map would
+                                                        * not give them (no record so far: as one with none is read) */
+    n = fxr_tlv(o, n, INS_TLV, ins_tlv(map, o + n + 2u));
     return any || n > FXR_HEAD ? n : 0u;
 }
 /* n bytes at a (0: none) -> the working FX state; all: the slot layouts too, the master's and the tracks' (a load; a
