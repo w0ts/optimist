@@ -193,7 +193,7 @@ static void track_defaults(track_t *t)
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
 enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX };
 static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX"};
-static const struct { uint8_t kind, e; const char *name; } BANK[] = {
+static const struct __attribute__((packed)) { uint8_t kind : 4, e : 4; const char *name; } BANK[] = {   /* (5 bytes an entry: an engine UID < 16) */
     {BK_BASS, 0, "808 BOOM"}, {BK_BASS, 0, "808 DIRTY"}, {BK_BASS, 0, "808 SLIDE"}, {BK_BASS, 0, "SUB BASS"},
     {BK_BASS, 0, "PLUGG BASS"}, {BK_BASS, 0, "REESE"}, {BK_BASS, 0, "WOBBLE"}, {BK_BASS, 0, "ACID 303"},
     {BK_BASS, 1, "FM BASS"}, {BK_BASS, 2, "CZ BASS"}, {BK_BASS, 6, "FAT BASS"}, {BK_BASS, 0, "FUNK BASS"},
@@ -259,7 +259,9 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_PAD, 8, "GRAIN PAD"},
 #endif
 };
+_Static_assert(ENG_UID_N <= 16u && BK_FX < 16, "BANK: an entry's kind and engine UID in a byte");
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
+static uint32_t bank_eng(uint32_t i) { return eng_slot_built(BANK[i].e); }   /* entry i's engine slot */
 /* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
  * registry.h; a sample set left out takes its presets along). bank_ix: list position -> BANK entry */
 static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each entry in its engine */
@@ -275,7 +277,7 @@ static void bank_resolve(void)
         bank_pi[i] = 0xFF;
         if (!eng_built(BANK[i].e))
             continue;
-        e = ENGINES[eng_slot_built(BANK[i].e)];
+        e = ENGINES[bank_eng(i)];
         for (k = 0; k < e->npresets; k++)
             if (str_eq(e->presets[k].name, BANK[i].name))
                 bank_pi[i] = (uint8_t)k;
@@ -286,14 +288,14 @@ static void bank_resolve(void)
     for (i = 1; i < bank_n; i++) {                   /* the Optimist UI: by instrument, then as BANK has them (the user,
                                                       * 2026-10-12: "presets should be sorted by instrument") */
         uint8_t x = bank_ix[i];
-        uint32_t ex = eng_slot_built(BANK[x].e);
-        for (k = i; k > 0 && eng_slot_built(BANK[bank_ix[k - 1]].e) > ex; k--)
+        uint32_t ex = bank_eng(x);
+        for (k = i; k > 0 && bank_eng(bank_ix[k - 1]) > ex; k--)
             bank_ix[k] = bank_ix[k - 1];
         bank_ix[k] = x;
     }
 #endif
     for (i = 0; i < NENGINES; i++) {
-        for (k = 0; k < bank_n && eng_slot_built(BANK[bank_ix[k]].e) != i; k++)
+        for (k = 0; k < bank_n && bank_eng(bank_ix[k]) != i; k++)
             ;
         if (k == bank_n)
             bank_init[bank_ni++] = (uint8_t)i;
@@ -308,7 +310,7 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
     if (!bank_ready)
         bank_resolve();
     for (i = 0; i < NBANK; i++)
-        if (eng_slot_built(BANK[bank_ix[i]].e) == TSEL->eng_req && bank_pi[bank_ix[i]] == TSEL->preset)
+        if (bank_eng(bank_ix[i]) == TSEL->eng_req && bank_pi[bank_ix[i]] == TSEL->preset)
             cur = i;
     for (i = 0; i < bank_ni; i++)
         if (bank_init[i] == TSEL->eng_req)
@@ -348,7 +350,7 @@ static uint32_t preset_all_at(uint32_t n, uint32_t *k)
         return bank_init[n - NBANK];
     }
     *k = bank_pi[bank_ix[n]];
-    return eng_slot_built(BANK[bank_ix[n]].e);
+    return bank_eng(bank_ix[n]);
 }
 /* the whole list's name of a sound as the lists show it, below; the favorites' view of the list (core/favorites.c):
  * with LIST FAV the list is the marked sounds only. preset_pos / preset_at / preset_go's index are the list as shown;
