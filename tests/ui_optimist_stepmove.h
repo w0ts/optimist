@@ -67,9 +67,13 @@ static void step_move_synth_tests(void)
     }
 #endif
     turn(EN_PRESET, 1);
-    check(t->step[5].note[0] == 60 && t->step[4].note[0] == 70, "step move: ... on over a note: they swap, nothing lost");
-    turn(EN_PRESET, -2);
-    check(t->step[3].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 3, "step move: PRESETS left twice: back");
+    check(t->step[4].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 4, "step move: touching a note: the next detent is the snap (nothing moves)");
+    turn(EN_PRESET, 1);
+    check(t->step[5].note[0] == 60 && t->step[4].note[0] == 70, "step move: ... the one after: past it, they swap, nothing lost");
+    turn(EN_PRESET, -1);
+    turn(EN_PRESET, -1);
+    turn(EN_PRESET, -1);
+    check(t->step[3].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 3, "step move: PRESETS left three times (the snap, past, on): back");
     kup(WK(3));
     check(!st.held && t->step[3].time == ST_NOTE && t->step[3].note[0] == 60, "step move: let go: not toggled, nothing held");
     kdown(WK(5));
@@ -116,7 +120,8 @@ static void step_move_synth_tests(void)
     t->step[7].time = ST_TIE;
     kdown(WK(3));
     turn(EN_PRESET, 3);
-    check(t->step[4].note[0] == 60 && t->step[5].time == ST_TIE && t->step[6].note[0] == 55 && t->step[7].time == ST_TIE, "step move: a note stops short of a tied note (its ties safe)");
+    check(t->step[4].note[0] == 55 && t->step[5].time == ST_TIE && t->step[6].note[0] == 60 && t->step[7].time == ST_TIE && st.held == 1u << 6,
+          "step move: on, the snap at the tied note, then past it: the two notes swap whole, ties and all");
     kup(WK(3));
     /* ALGORITHM: the pitch */
     stm_open(0, 16);
@@ -185,7 +190,7 @@ static void step_move_notes_tests(void)
     frames(HOLD_FRAMES);
     ui.force = 1;
     frames(3);
-    check(sm_count(C_NOTE) == 0, "step notes: one note: no selection colour");
+    check(sm_count(C_NOTE) > 0, "step notes: one note held: drawn in the selection colour (the user, 2026-10-17)");
     turn(EN_SELECT, 1);
     check(st.nsel == 0 && (hp_count() < 2u || st.hp == 1u), "step notes: one note: SELECT keeps its meaning (the card pages)");
     kup(WK(3));

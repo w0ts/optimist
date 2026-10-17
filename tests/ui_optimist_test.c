@@ -257,6 +257,7 @@ static void reset_ui(void)
     fm1_in.notes = 0;
     op_disarm();
     ui.msg_t = 0;
+    st.pk = PK_NONE;                                    /* (no note picked: its selection colour would show on the next roll) */
     smute_trk = 0;                                      /* (nothing muted: SHIFT + a key mutes since 2026-10-16) */
     smute_lane = 0;
     memset(snd_mem, 0, sizeof snd_mem);                 /* (a power-on's page memory: SOUND's, the held step's, STEP's row) */
@@ -2633,6 +2634,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 #include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
+#include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -2796,6 +2798,7 @@ int main(int argc, char **argv)
     cards_pic_tests();
     step_cards_tests();
     picker_tests();
+    overlap_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();

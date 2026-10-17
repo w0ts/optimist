@@ -49,6 +49,9 @@ static struct {
     uint8_t pk;                         /* the note picker: the step picked (KNOB 1, the cards down), PK_NONE none */
     uint8_t pk_trk;                     /* ... on this track */
     uint8_t latch;                      /* SAVE on a picked note: its step held as by a finger (its cards); HOME lets go */
+    uint8_t snap;                       /* a synth note moved to touch another: the detent that reached it (the step it
+                                         * touches + 1, | 0x80 moving left), the next one goes past; 0 none */
+    uint8_t snapl;                      /* ... grown by LENGTH to touch another: the step it touches + 1; 0 none */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
 #define LOCK_NONE 0xFFu
 #define PK_NONE 0xFFu
@@ -155,16 +158,211 @@ static uint32_t step_note_len(const track_t *t, uint32_t start)   /* a note and 
         n++;
     return n;
 }
+/* ---- a note over another (the user, 2026-10-17: "we should be able to extend / move a note past another one in synth seq,
+ * some snapping that helps feel when the note touches"). A note sounds on through its TIEs and through the carry steps that
+ * name it (SF_CARRY, seq.c note_span), so two notes overlap: the steps where both sound are carry steps (or TIEs while
+ * nothing starts and nothing ends there). LENGTH grows a note through the next one this way, and back (olp_len); the
+ * detent where it reaches the next note does nothing (the snap, st.snap). Within the pattern: no wrap */
+typedef struct {
+    uint8_t n, note[4];
+} olp_set_t;
+static int olp_has(const olp_set_t *s, uint32_t x)
+{
+    uint32_t i;
+    for (i = 0; i < s->n; i++)
+        if (s->note[i] == x)
+            return 1;
+    return 0;
+}
+static int olp_add(olp_set_t *s, uint32_t x)              /* 0: no room (4 notes) */
+{
+    if (olp_has(s, x))
+        return 1;
+    if (s->n >= 4u)
+        return 0;
+    s->note[s->n++] = (uint8_t)x;
+    return 1;
+}
+static int olp_eq(const olp_set_t *a, const olp_set_t *b)
+{
+    uint32_t i;
+    if (a->n != b->n)
+        return 0;
+    for (i = 0; i < a->n; i++)
+        if (!olp_has(b, a->note[i]))
+            return 0;
+    return 1;
+}
+/* step s as it sounds, the notes of x left out: prev what goes on into it (x out); snd what sounds in it, start what
+ * starts there, out what goes on past it (its own ends taken off) */
+static void olp_step(const step_t *s, const olp_set_t *prev, const olp_set_t *x, olp_set_t *snd, olp_set_t *start, olp_set_t *out)
+{
+    uint32_t k;
+    snd->n = start->n = out->n = 0;
+    if (s->time == ST_TIE) {
+        *snd = *out = *prev;
+        return;
+    }
+    if (s->time != ST_NOTE)
+        return;
+    for (k = 0; k < s->n && k < 4u; k++) {
+        uint32_t nt = s->note[k];
+        if (olp_has(x, nt))
+            continue;
+        (void)olp_add(snd, nt);
+        if (!(s->flags & SF_CARRY) || s->rat || !olp_has(prev, nt))
+            (void)olp_add(start, nt);
+        if (!ngate_of(s, k))
+            (void)olp_add(out, nt);
+    }
+}
+static uint32_t olp_ext(const track_t *t, uint32_t a)    /* the steps the notes starting at a sound (the longest, rounded up) */
+{
+    const step_t *s = &t->step[a];
+    uint32_t k, m = 1, e;
+    for (k = 0; k < s->n && k < 4u; k++) {
+        e = (note_span(t, a, k) + 127u) / 128u;
+        m = e > m ? e : m;
+    }
+    return m;
+}
+/* the step that holds the notes of D in the place of o (o: the step there now, its notes sounding snd and starting
+ * start): its started notes first with their level, ratchet and own end, then those carried on; 0 none fits */
+static const char *olp_build(const step_t *o, const olp_set_t *start, const olp_set_t *carry, step_t *nw)
+{
+    uint32_t k, i;
+    memset(nw, 0, sizeof *nw);
+    if (start->n + carry->n > 4u)
+        return "STEP FULL";
+    nw->time = ST_NOTE;
+    if (o->time == ST_NOTE) {
+        nw->flags = (uint8_t)(o->flags & ~SF_CARRY);
+        nw->vel = o->vel;
+    }
+    for (k = 0; o->time == ST_NOTE && k < o->n && k < 4u; k++) {   /* (the started notes as they were) */
+        if (!olp_has(start, o->note[k]))
+            continue;
+        i = nw->n++;
+        nw->note[i] = o->note[k];
+        nw->lvl = (uint8_t)(nw->lvl | ((o->lvl >> (2u * k)) & 3u) << (2u * i));
+        nw->rat = (uint8_t)(nw->rat | ((o->rat >> (2u * k)) & 3u) << (2u * i));
+        nw->ngate[i] = o->ngate[k];
+    }
+    for (k = 0; k < carry->n; k++) {                    /* (then those going on: their own end if they had one here) */
+        uint32_t j;
+        i = nw->n++;
+        nw->note[i] = carry->note[k];
+        nw->lvl = (uint8_t)(nw->lvl | LV_NORM << (2u * i));
+        for (j = 0; o->time == ST_NOTE && j < o->n && j < 4u; j++)
+            if (o->note[j] == carry->note[k])
+                nw->ngate[i] = o->ngate[j];
+    }
+    if (carry->n) {
+        if (nw->rat)
+            return "RATCHET HERE";                      /* (a ratcheted step carries nothing on: seq.c seq_goes_on) */
+        nw->flags |= SF_CARRY;
+    }
+    return 0;
+}
+/* the notes starting at a (x: they) sound L steps; the steps after a written again so the others sound as before. wr 0:
+ * only checked. -> 0 fine, else why not (the toast) */
+static const char *olp_pass(track_t *t, uint32_t a, uint32_t L, uint32_t end, int wr)
+{
+    const step_t *h = &t->step[a];
+    olp_set_t x = {0}, prev = {0}, snd, start, out, pd, d;
+    uint32_t j, k, own;
+    for (k = 0; k < h->n && k < 4u; k++)
+        (void)olp_add(&x, h->note[k]);
+    pd = x;                                             /* (what goes on out of a: x, unless it ends in it) */
+    for (j = a + 1u; j <= a + end && j < trk_len(t); j++) {
+        step_t o = t->step[j], nw;
+        const char *why;
+        olp_set_t carry = {0};
+        olp_step(&o, &prev, &x, &snd, &start, &out);
+        d = snd;
+        for (k = 0; j < a + L && k < x.n; k++) {
+            if (olp_has(&snd, x.note[k]))
+                return "SAME NOTE";                     /* (one pitch twice at once) */
+            if (!olp_add(&d, x.note[k]))
+                return "STEP FULL";
+        }
+        for (k = 0; k < d.n; k++)
+            if (olp_has(&pd, d.note[k]) && !olp_has(&start, d.note[k]))
+                (void)olp_add(&carry, d.note[k]);
+        for (k = 0, own = 0; o.time == ST_NOTE && k < o.n && k < 4u; k++)
+            own |= ngate_of(&o, k) && olp_has(&d, o.note[k]);   /* (a note ending inside it: a TIE would lose that) */
+        if (!start.n && !own && olp_eq(&d, &pd)) {       /* (nothing starts, nothing ends: a TIE, or nothing at all) */
+            memset(&nw, 0, sizeof nw);
+            nw.time = d.n ? ST_TIE : ST_REST;
+            if (!d.n && o.time == ST_REST)
+                nw = o;
+        } else if (!start.n && !carry.n) {
+            memset(&nw, 0, sizeof nw);
+            nw.time = ST_REST;                          /* (what sounded ends here) */
+        } else if ((why = olp_build(&o, &start, &carry, &nw)) != 0) {
+            return why;
+        }
+        if (wr)
+            t->step[j] = nw;
+        prev = out;
+        pd.n = 0;                                       /* (what goes on out of the step as written) */
+        for (k = 0; nw.time == ST_TIE && k < d.n; k++)
+            (void)olp_add(&pd, d.note[k]);
+        for (k = 0; nw.time == ST_NOTE && k < nw.n; k++)
+            if (!ngate_of(&nw, k))
+                (void)olp_add(&pd, nw.note[k]);
+    }
+    return 0;
+}
+static const char *olp_len(track_t *t, uint32_t a, uint32_t L)   /* the notes at a sound L steps (IRQ off) */
+{
+    uint32_t old = olp_ext(t, a), end = old > L ? old : L;
+    const char *why = olp_pass(t, a, L, end, 0);
+    if (why)
+        return why;
+    if (L != old) {                                     /* (whole steps now: the own ends of the notes at a go) */
+        memset(t->step[a].ngate, 0, sizeof t->step[a].ngate);
+#if FELUCCA_PLOCK
+        lock_drop(t, (a + old - 1u) % trk_len(t), P_SGATE);
+#endif
+    }
+    (void)olp_pass(t, a, L, end, 1);
+    return 0;
+}
+/* LENGTH over the next note: ext the steps the note at a sounds now, limit those it can have before the next note; the
+ * detent that would take it into the next note does nothing (st.snapl), the next one goes in */
+static void olp_resize(track_t *t, uint32_t a, int32_t d, uint32_t ext, uint32_t limit)
+{
+    int32_t L = (int32_t)ext + d;
+    const char *why;
+    if (d > 0 && ext <= limit && L > (int32_t)limit) {
+        if (st.snapl != a + limit + 1u) {
+            st.snapl = (uint8_t)(a + limit + 1u);       /* (touching it: the snap) */
+            L--;
+        } else {
+            st.snapl = 0;
+        }
+    }
+    why = olp_len(t, a, (uint32_t)clamp(L, 1, (int32_t)(trk_len(t) - a)));
+    if (why)
+        ui_message(why);
+}
 /* the length of the note at start d steps longer / shorter, as TIE steps after it (from Melodee 0dbe626, Kerem
- * Kilic, as SLOOP's ui_layers.c): longer through empty steps up to the next note or tie, shorter clears its ties */
+ * Kilic, as SLOOP's ui_layers.c): longer through empty steps up to the next note or tie, shorter clears its ties; past the
+ * next note (a snap first) or back from over it: olp_resize */
 static void step_note_resize(track_t *t, uint32_t start, int32_t d)
 {
-    uint32_t len = trk_len(t), old = step_note_len(t, start), limit = old, n, i;
+    uint32_t len = trk_len(t), old = step_note_len(t, start), limit = old, n, i, ext;
     while (limit < len) {
         const step_t *s = &t->step[(start + limit) % len];
         if (step_on(s) || s->time == ST_TIE || t->step[(start + limit + 1u) % len].time == ST_TIE)
             break;
         limit++;
+    }
+    ext = olp_ext(t, start);
+    if (ext > old || (d > 0 && old + (uint32_t)d > limit && start + limit < len && t->step[start + limit].time != ST_REST)) {
+        olp_resize(t, start, d, ext, limit);
+        return;
     }
     n = (uint32_t)clamp((int32_t)old + d, 1, (int32_t)limit);
     for (i = n; i < old; i++)
@@ -387,6 +585,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     st.held |= (uint16_t)bit;
     st.fdown |= (uint16_t)bit;
     st.fabs[w] = (uint8_t)idx;
+    st.snap = st.snapl = 0;                             /* (a new hold: no snap pending) */
     st.t_key[w] = fm1_ms;
     st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
 }
@@ -522,7 +721,20 @@ static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
     if (!step_on(x))
         return;
     k = x->n > 1u ? (st.nsel < x->n ? st.nsel : x->n - 1u) : 0u;
-    x->note[k] = (uint8_t)clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
+    {
+        uint32_t was = x->note[k], ext = (note_span(t, idx, k) + 127u) / 128u, j, c;
+        x->note[k] = (uint8_t)clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
+        for (j = idx + 1u; j < idx + ext && j < trk_len(t); j++) {   /* (over another note: the carry steps that name it
+                                                         * go with it, so it still sounds on through them) */
+            step_t *q = &t->step[j];
+            if (q->time != ST_NOTE || !(q->flags & SF_CARRY))
+                continue;
+            for (c = 0; c < q->n && c < 4u && q->note[c] != was; c++)
+                ;
+            if (c < q->n && c < 4u)
+                q->note[c] = x->note[k];
+        }
+    }
 }
 static void held_pitch(int32_t s)                       /* ALGORITHM on a held synth step: the selected note (the only one) up / down */
 {
@@ -640,6 +852,78 @@ static const char *held_move_refused(const track_t *t, int32_t d, const uint8_t 
     }
     return lo / 16 != hi / 16 ? "PAGE EDGE" : 0;
 }
+/* steps a .. a+n-1 and a+n .. a+n+m-1 exchanged (each keeps its order; IRQ off): by three reversals, no copy of a block */
+static void step_rev(track_t *t, uint32_t a, uint32_t b)   /* steps a .. b-1 reversed */
+{
+    while (a + 1u < b) {
+        step_t x = t->step[a];
+        t->step[a++] = t->step[--b];
+        t->step[b] = x;
+    }
+}
+static void blocks_swap(track_t *t, uint32_t a, uint32_t n, uint32_t m)
+{
+    step_rev(t, a, a + n);
+    step_rev(t, a + n, a + n + m);
+    step_rev(t, a, a + n + m);
+#if FELUCCA_AUTO
+    {
+        auto_list_t *l = AL(t);
+        uint32_t i;
+        for (i = 0; i < l->n && i < AUTO_MAX; i++) {    /* (the events go with their steps) */
+            uint32_t s = l->ev[i].place & AUTO_STEP, ns = s;
+            if (s >= a && s < a + n)
+                ns = s + m;
+            else if (s >= a + n && s < a + n + m)
+                ns = s - n;
+            l->ev[i].place = (uint8_t)((l->ev[i].place & ~AUTO_STEP) | ns);
+        }
+        auto_touch(trk_index(t));
+    }
+#endif
+}
+/* PRESETS on one held synth note next to another (the user, 2026-10-17: "move a note past another one"): the detent that
+ * reaches it does nothing (the snap: st.snap), the next one puts it past the whole note, ties and all (they swap places,
+ * each with its events). -> the held note's new first step, -1 not this case (an empty step next: as before), -2 refused (said) */
+static int32_t held_jump(track_t *t, uint32_t a, int32_t d)
+{
+    uint32_t len = trk_len(t), n = step_note_len(t, a), b, m, key;
+    if (t->step[a].time != ST_NOTE || a + n > len)
+        return -1;
+    if (d > 0) {
+        b = a + n;
+        if (b >= len || t->step[b].time == ST_REST)
+            return -1;
+        key = b + 1u;
+    } else {
+        if (!a || t->step[a - 1u].time == ST_REST)
+            return -1;
+        for (b = a - 1u; b && t->step[b].time == ST_TIE; b--)
+            ;
+        key = 0x80u | (b + 1u);
+    }
+    if (!step_on(&t->step[b]) || (t->step[b].flags & SF_CARRY) || (t->step[a].flags & SF_CARRY) || olp_ext(t, a) > n ||
+        olp_ext(t, b) > step_note_len(t, b)) {
+        ui_message("NOTES OVERLAP");                    /* (a note sounding over another: LENGTH them apart first) */
+        return -2;
+    }
+    m = step_note_len(t, b);
+    if (d > 0 ? b + m > len : b + m != a) {
+        ui_message(d > 0 ? "LAST STEP" : "FIRST STEP");
+        return -2;
+    }
+    if (st.snap != key) {                               /* (touching: this detent is the snap) */
+        st.snap = (uint8_t)key;
+        return (int32_t)a;
+    }
+    st.snap = 0;
+    if (d > 0) {
+        blocks_swap(t, a, n, m);
+        return (int32_t)(a + m);
+    }
+    blocks_swap(t, b, m, n);
+    return (int32_t)b;
+}
 static int held_move(int32_t d)                         /* every step held one step left (-1) / right (+1); 1 moved */
 {
     track_t *t = TSEL;
@@ -648,11 +932,25 @@ static int held_move(int32_t d)                         /* every step held one s
     const char *why;
     if (!k)
         return 0;
+    if (k == 1u && !is_drum(t)) {                       /* one synth note next to another: the snap, then past it */
+        int32_t at;
+        undo_mark(t, st.sess);
+        fm1_irq_off();
+        at = held_jump(t, st.fabs[w[0]], d);
+        fm1_irq_on();
+        if (at == -2)
+            return 0;
+        if (at >= 0) {
+            d = at - (int32_t)st.fabs[w[0]];            /* (where it went: the hold follows below) */
+            goto moved;
+        }
+    }
     why = held_move_refused(t, d, w, k);
     if (why) {
         ui_message(why);
         return 0;
     }
+    st.snap = 0;
     undo_mark(t, st.sess);
     fm1_irq_off();
     for (i = 0; i < k; i++) {
@@ -667,6 +965,7 @@ static int held_move(int32_t d)                         /* every step held one s
         }
     }
     fm1_irq_on();
+moved:                                                  /* (held_jump's: d where the note went, 0 the snap) */
     st.pend = 0;
     st.held = 0;
     for (i = 0; i < k; i++) {
@@ -851,7 +1150,7 @@ static void pk_walk(int32_t s)                          /* KNOB 1: s notes on, s
     }
     if ((uint32_t)i != st.pk || st.pk_trk != song.sel)
         st.sess = (undo_sess += 4u) | 3u;               /* (a note picked: its edits one undo level) */
-    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.nsel = 0;
+    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.nsel = 0, st.snap = st.snapl = 0;
     st.page = (uint8_t)(i / 16), st.follow = 0;
     op_repaint();
 }
