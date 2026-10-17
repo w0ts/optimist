@@ -1498,44 +1498,95 @@ static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lane
 static uint8_t held_key[NTRK][16];
 static int8_t held_dt[NTRK][16];
 static uint8_t in_key;
+/* who holds each of the arp's notes (bit i: held[i]): a key (arp_add; HOLD latches it) and / or the track's own
+ * sequencer (arp_seq_on: a step's note while it would sound, the arp playing it in real time as a key's). A note goes
+ * when neither does. Bits past nheld mean nothing (each add sets its own) */
+static uint16_t held_kb[NTRK], held_sq[NTRK];
+static void arp_keep(track_t *t, uint32_t keep)    /* the held notes whose bit is in keep stay, in order */
+{
+    uint32_t i, k = 0, ti = trk_index(t) % NTRK, kb = 0, sq = 0;
+    for (i = 0; i < t->nheld; i++)
+        if ((keep >> i) & 1u) {
+            held_key[ti][k] = held_key[ti][i];
+            held_dt[ti][k] = held_dt[ti][i];
+            kb |= ((held_kb[ti] >> i) & 1u) << k;
+            sq |= ((held_sq[ti] >> i) & 1u) << k;
+            t->held[k++] = t->held[i];
+        }
+    t->nheld = (uint8_t)k;
+    held_kb[ti] = (uint16_t)kb;
+    held_sq[ti] = (uint16_t)sq;
+}
+/* note into the held notes for a key (kb) or the sequencer (sq) -> its index, 16 none (a repeated note: its own,
+ * the source added) */
+static uint32_t arp_hold(track_t *t, uint32_t note, uint32_t sq)
+{
+    uint32_t i, ti = trk_index(t) % NTRK;
+    for (i = 0; i < t->nheld && t->held[i] != note; i++)
+        ;
+    if (i == t->nheld) {
+        if (i == 16u)
+            return 16u;
+        held_key[ti][i] = 0;
+        held_dt[ti][i] = 0;
+        held_kb[ti] &= (uint16_t)~(1u << i);
+        held_sq[ti] &= (uint16_t)~(1u << i);
+        t->held[t->nheld++] = (uint8_t)note;
+        if (t->nheld == 1u) {
+            t->arp_new = 1;                         /* the first note: now (or on the grid just ahead) */
+            t->arp_idx = 0xFFFFFFFFu;
+        }
+    }
+    if (sq)
+        held_sq[ti] |= (uint16_t)(1u << i);
+    else
+        held_kb[ti] |= (uint16_t)(1u << i);
+    return i;
+}
 static void arp_add(track_t *t, uint32_t note)
 {
-    uint32_t i;
+    uint32_t i, n, ti = trk_index(t) % NTRK;
     if (t->p[P_AHOLD] && t->arp_phys == 0u)
-        t->nheld = 0;                               /* new chord replaces the latched one */
+        arp_keep(t, held_sq[ti]);                   /* new chord replaces the latched one (the sequencer's stay) */
     t->arp_phys++;                                  /* every key-down: arp_remove counts every key-up */
-    for (i = 0; i < t->nheld; i++)
-        if (t->held[i] == note)
-            return;                                 /* repeated note-on: not a new note */
-    if (t->nheld < 16u) {
-        uint32_t k = (in_key - 1u) % 27u, ti = trk_index(t) % NTRK, hk;
+    n = t->nheld;
+    i = arp_hold(t, note, 0);
+    if (i == n) {                                   /* (a new note: where its key is) */
+        uint32_t k = (in_key - 1u) % 27u, hk;
         hk = in_key && kb_scaled(t) ? (in_key | (uint32_t)(kb_oct[k] + 3) << 5) : 0u;   /* (the key's octave: a
                                                     * CHORD+ note added after OCT moved, too) */
-        held_key[ti][t->nheld] = (uint8_t)hk;
-        held_dt[ti][t->nheld] = (int8_t)(hk ? (int32_t)note - kb_root[k] : 0);
-        t->held[t->nheld++] = (uint8_t)note;
-    }
-    if (t->nheld == 1u) {
-        t->arp_new = 1;                             /* the first note: now (or on the grid just ahead) */
-        t->arp_idx = 0xFFFFFFFFu;
+        held_key[ti][i] = (uint8_t)hk;
+        held_dt[ti][i] = (int8_t)(hk ? (int32_t)note - kb_root[k] : 0);
     }
 }
 
 static void arp_remove(track_t *t, uint32_t note)
 {
-    uint32_t i, k = 0;
+    uint32_t i, ti = trk_index(t) % NTRK;
     if (t->arp_phys)
         t->arp_phys--;
     if (t->p[P_AHOLD])
         return;
     for (i = 0; i < t->nheld; i++)
-        if (t->held[i] != note) {
-            held_key[trk_index(t) % NTRK][k] = held_key[trk_index(t) % NTRK][i];
-            held_dt[trk_index(t) % NTRK][k] = held_dt[trk_index(t) % NTRK][i];
-            t->held[k++] = t->held[i];
-        }
-    t->nheld = (uint8_t)k;
+        if (t->held[i] == note)
+            held_kb[ti] &= (uint16_t)~(1u << i);    /* (the sequencer may hold it still) */
+    arp_keep(t, (uint32_t)held_kb[ti] | held_sq[ti]);
 }
+/* the sequencer's side: a step's note while it would sound -> held by the arp, which plays it; its end -> 1 when the
+ * arp had it from the sequencer (dropped there), 0 when it did not (it sounds as it is: ARP turned on while it played) */
+static void arp_seq_on(track_t *t, uint32_t note) { arp_hold(t, note, 1); }
+static uint32_t arp_seq_off(track_t *t, uint32_t note)
+{
+    uint32_t i, ti = trk_index(t) % NTRK;
+    for (i = 0; i < t->nheld; i++)
+        if (t->held[i] == note && ((held_sq[ti] >> i) & 1u)) {
+            held_sq[ti] &= (uint16_t)~(1u << i);
+            arp_keep(t, (uint32_t)held_kb[ti] | held_sq[ti]);
+            return 1;
+        }
+    return 0;
+}
+static uint32_t seq_arp(const track_t *t) { return t->p[P_AMODE] && !is_drum(t); }   /* the track's steps through its arp */
 
 /* the next note of the arp: the held notes (sorted or as played) over OCT octaves, by MODE */
 static uint32_t arp_next(track_t *t)
@@ -1651,8 +1702,9 @@ static void arp_tick(track_t *t, uint32_t adv)
         t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 128u;
         trk_note_on(t, n, 100);
         seq_out_on(t, n, 100);
-        if (((song.rec >> trk_index(t)) & 1u) && song.playing)
-            rec_note(t, n, 100, 0, 0);
+        if (((song.rec >> trk_index(t)) & 1u) && song.playing && (held_kb[trk_index(t) % NTRK] & ((1u << t->nheld) - 1u)))
+            rec_note(t, n, 100, 0, 0);              /* (a key held: what you play; the steps' own arp is not recorded
+                                                     * back into them) */
     }
 }
 
@@ -2436,13 +2488,19 @@ static void seq_start(void)
 #endif
 }
 
+/* a seq note's end: out of the arp when it held it (seq_arp), else its voice and its MIDI note off */
+static void seq_note_end(track_t *t, uint32_t note)
+{
+    if (arp_seq_off(t, note))
+        return;
+    trk_note_off(t, note);
+    seq_out_off(t, note);
+}
 static void seq_release(track_t *t)
 {
     uint32_t i;
-    for (i = 0; i < t->seq_n; i++) {
-        trk_note_off(t, t->seq_notes[i]);
-        seq_out_off(t, t->seq_notes[i]);
-    }
+    for (i = 0; i < t->seq_n; i++)
+        seq_note_end(t, t->seq_notes[i]);
     if (is_drum(t))
         seq_out_track_off(t);                       /* the drum hits of the step: ended with it */
     t->seq_n = 0;
@@ -2456,8 +2514,7 @@ static void seq_end_notes(track_t *t, uint32_t gone)
     uint32_t i, n = 0, m = 0;
     for (i = 0; i < t->seq_n; i++)
         if ((gone >> i) & 1u) {
-            trk_note_off(t, t->seq_notes[i]);
-            seq_out_off(t, t->seq_notes[i]);
+            seq_note_end(t, t->seq_notes[i]);
         } else {
             m |= ((t->seq_nm >> i) & 1u) << n;
             t->seq_noff[n] = t->seq_noff[i];
@@ -2588,8 +2645,7 @@ static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
             keep |= 1u << k;
             t->seq_notes[n++] = (uint8_t)x;
         } else {
-            trk_note_off(t, x);
-            seq_out_off(t, x);
+            seq_note_end(t, x);
         }
     }
     t->seq_n = n;
@@ -2650,6 +2706,10 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
             skip |= 1u << i;                        /* (a roll plays it) */
     for (i = 0; i < s->n; i++)
         if (!(((skip | keep) >> i) & 1u)) {
+            if (seq_arp(t)) {                       /* ARP on: the arp plays the step's notes while they last */
+                arp_seq_on(t, s->note[i]);
+                continue;
+            }
 #if FELUCCA_CHORDPLUS
             if (!slide_in)                          /* (STRUM: a chord step's notes one after the other) */
                 trk_note_chord(t, s->note, s->n, i, step_vel(s, i));
@@ -2663,10 +2723,8 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         for (i = 0; i < t->seq_n; i++) {
             for (j = 0; j < s->n && s->note[j] != t->seq_notes[i]; j++)
                 ;
-            if (j == s->n) {
-                trk_note_off(t, t->seq_notes[i]);
-                seq_out_off(t, t->seq_notes[i]);
-            }
+            if (j == s->n)
+                seq_note_end(t, t->seq_notes[i]);
         }
     if (!keep)
         t->seq_n = 0;                               /* (seq_carry kept the ones going on) */
@@ -2751,8 +2809,8 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 #endif
         for (i = 0; i < s->n; i++) {
             uint32_t hits = 1u + ((s->rat >> (2u * i)) & 3u), h;
-            if (hits == 1u || roll_has(t, s->note[i]) || ((dup >> i) & 1u))
-                continue;
+            if (hits == 1u || roll_has(t, s->note[i]) || ((dup >> i) & 1u) || seq_arp(t))
+                continue;                           /* (ARP on: the arp plays the note on its own grid) */
             h = into * hits / slen;
             if (h > t->rat_done[i] && h < hits) {
                 uint32_t j;

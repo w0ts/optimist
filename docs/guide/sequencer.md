@@ -94,7 +94,7 @@ Every tool works on steps 1 to LEN. The events of a step (locks, motion, chance,
 
 ## The arpeggiator
 
-Hold ARP and hold a key (note repeat, locked to the tempo and swing); on the Optimist UI ARP held is a layer with KNOB RATE, ARP tapped opens its pages. Two pages of the track:
+Hold ARP and hold a key (note repeat, locked to the tempo and swing); on the Optimist UI ARP held is a layer with KNOB RATE, ARP tapped opens its pages. With ARP on, the track's own steps go through the arp too: a step's notes are held by the arp for as long as they would sound and it plays them in real time on its own grid, with keys held over them joining in. While recording, only what the keys play through the arp is recorded, never the steps' own arp. Two pages of the track:
 
 - **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD), RATE (1/4, 1/8, 1/16, 1/32, 8T, 16T; default 1/16), OCT (1 to 4), GATE.
 - **ARP 2:** SWG (swing), PROB (probability of a note), HOLD (on / off: keep the notes after the keys are let go) and ORD (NOTE or PLAY order).

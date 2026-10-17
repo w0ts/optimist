@@ -985,6 +985,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/arp_follow_cp_test" tests/arp_follow_test.c -lm
     run "arp follows TRN on latched notes, CHORD+ built (SLOOP #191)" "$OUT/arp_follow_cp_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/arp_seq_test" tests/arp_seq_test.c -lm
+    run "the arp plays the sequencer's notes as the keys' (in real time, its own grid; the steps' arp not recorded back)" "$OUT/arp_seq_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/midi_ch_test" tests/midi_ch_test.c -lm
