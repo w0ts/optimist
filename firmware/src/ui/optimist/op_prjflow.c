@@ -208,7 +208,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (kind > PR_USER)
         return;                                         /* (SLOOP, MEMORY: nothing to turn) */
 #if FELUCCA_FAVORITES
-    if (kind == PR_USER && k == 2u && s != OP_RESET && op_shift2(fm1_in.buttons)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
+    if (kind == PR_USER && k == 2u && s != OP_RESET && btn_held(B_OCTUP)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
         uint32_t slot = prj_slot_cur(kind);
         if (up_used(slot) && fav_user_set(slot, s > 0)) {
             settings_later = 1;                         /* (written once the audio is quiet: op_fav_mark) */

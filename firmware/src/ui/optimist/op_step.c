@@ -197,7 +197,7 @@ static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
     if (is_drum(t)) {                                   /* (SHIFT held: a ghost hit, SHIFT2 a hard one: the shifts' less / more) */
-        uint32_t lv = fm1_in.buttons & (1u << panel.btn[B_OCTDN]) ? LV_GHOST : fm1_in.buttons & (1u << panel.btn[B_OCTUP]) ? LV_HARD : LV_NORM;
+        uint32_t lv = btn_held(B_OCTDN) ? LV_GHOST : btn_held(B_OCTUP) ? LV_HARD : LV_NORM;
         dstep_set(&t->dstep[idx], lane_selected(), lv, 0);
     } else {
         step_t *s = &t->step[idx];
@@ -275,7 +275,7 @@ static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it:
 /* the keys' view of a step: the selected lane's hit; the drum track with SEQ held (SEQ + a key clears the whole step): any lane's */
 static int step_shown(const track_t *t, uint32_t idx)
 {
-    if (is_drum(t) && (fm1_in.buttons & (1u << panel.btn[B_SEQ])))
+    if (is_drum(t) && btn_held(B_SEQ))
         return dstep_lanes(&t->dstep[idx]) != 0u;
     return step_has(t, idx);
 }
@@ -1646,11 +1646,11 @@ static void step_foot(char *h, char *k, uint32_t n)
         return;
     }
     str_cpy(h, st.play ? "Seq steps  Home back" : "Seq play  Home back", n);
-    if (is_drum(TSEL) && (fm1_in.buttons & (1u << panel.btn[B_SEQ])) && !st.play) {
+    if (is_drum(TSEL) && btn_held(B_SEQ) && !st.play) {
         str_cpy(k, "Keys clear steps", n);              /* (the drum track: SEQ + a key clears its step) */
         return;
     }
-    str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && (fm1_in.buttons & (1u << panel.btn[B_SEQ]))) ? "Pick "
+    str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && btn_held(B_SEQ)) ? "Pick "
               : st.play ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_app(k, b, n);

@@ -573,7 +573,7 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     r %= MXR_N;
     if (!mx_item(r, k, &m))
         return;
-    if (op_shift(fm1_in.buttons) && mx_mute_toggle(r, &m))
+    if (btn_held(B_OCTDN) && mx_mute_toggle(r, &m))
         return;
     d = mx_desc(r, &m, &vp);
     if (!d || !vp || d->max == d->min)

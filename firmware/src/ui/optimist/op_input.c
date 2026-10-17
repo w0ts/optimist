@@ -448,10 +448,10 @@ static void layers_init(void)
 {
     ly_bit[LY_PLAY] = 0;
     lay_bits();                                         /* (LY_STEP: no button, STEP locks the layer: ui_input) */
-    dyn_bit[0] = 1u << panel.btn[B_OCTDN];
-    dyn_bit[1] = 1u << panel.btn[B_OCTUP];
-    ft_btn_mask = 1u << panel.btn[B_REC];
-    ft_drop_mask = 1u << panel.btn[B_PLAY];
+    dyn_bit[0] = (1u << panel.btn[B_OCTDN]);
+    dyn_bit[1] = (1u << panel.btn[B_OCTUP]);
+    ft_btn_mask = (1u << panel.btn[B_REC]);
+    ft_drop_mask = (1u << panel.btn[B_PLAY]);
 }
 
 /* ---- the octave: OCT- / OCT+ tapped (let go, nothing else used while they were down), with its toast */
@@ -613,21 +613,21 @@ static int op_presets_turn(void)
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (op_shift(fm1_in.buttons) || op_shift2(fm1_in.buttons))
+    if (btn_held(B_OCTDN) || btn_held(B_OCTUP))
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (a shift with PRESETS: no octave, no NO when let go) */
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k, CALIBRATE runs from YES */
-    } else if (op_shift(fm1_in.buttons)) {              /* SHIFT + PRESETS: nothing (the turn drained) */
-    } else if (ui.scr == SCR_STEP && op_shift2(fm1_in.buttons)) {   /* STEP: SHIFT2 + PRESETS: the window follows the playhead again
+    } else if (btn_held(B_OCTDN)) {              /* SHIFT + PRESETS: nothing (the turn drained) */
+    } else if (ui.scr == SCR_STEP && btn_held(B_OCTUP)) {   /* STEP: SHIFT2 + PRESETS: the window follows the playhead again
                                                          * (PRESETS alone scrolls the window) */
         st.follow = 1;
 #if FELUCCA_FAVORITES
-    } else if ((fm1_in.buttons & BIT(B_SAVE)) && fav_gesture_ok()) {   /* SAVE + PRESETS: the sound playing a favorite (right) or not (left) */
+    } else if (btn_held(B_SAVE) && fav_gesture_ok()) {   /* SAVE + PRESETS: the sound playing a favorite (right) or not (left) */
         op_fav_mark(s > 0);
         pre_toast_fav(0);
         op_clean &= ~BIT(B_SAVE);                       /* (SAVE let go: no YES) */
 #endif
-    } else if (op_shift2(fm1_in.buttons) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
+    } else if (btn_held(B_OCTUP) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
@@ -699,7 +699,7 @@ static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
 static int rec_knob(uint32_t row, uint32_t k, const cell_t *c)
 {
 #if FELUCCA_AUTO
-    if (!(fm1_in.buttons & (1u << panel.btn[B_REC])))
+    if (!btn_held(B_REC))
         return 0;
     if (!rh.knob) {
         if (rh.on && !rh.ring) {                        /* (the ring began: the press was undone already) */
@@ -728,7 +728,7 @@ static void op_knobs(uint32_t shift)
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
     int32_t s;
     cell_t c;
-    ui.shift = (fm1_in.buttons & BIT(B_LFO)) != 0u;     /* SHIFT = LFO held (the user): the cells' fine path */
+    ui.shift = btn_held(B_LFO);     /* SHIFT = LFO held (the user): the cells' fine path */
     if ((s = lay_knobs()) != 0) {                       /* a layer at work: its knobs (op_layers.c) */
         if (s == 2)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
@@ -737,7 +737,7 @@ static void op_knobs(uint32_t shift)
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
 #if FELUCCA_FAVORITES
-    if (op_shift2(fm1_in.buttons) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
+    if (btn_held(B_OCTUP) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
         op_fav_list(s > 0);
         pre_toast_fav(fav_list ? "FAVORITES ONLY" : "ALL SOUNDS");
         favsel = 1;
@@ -1112,8 +1112,8 @@ static void ui_leds(void)
     led_btn(nl, B_PLAY, play_led() || (song.playing && !song.rec && ft_on));
     led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink));
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while held on STEP (a ghost / hard hit) */
-        led_btn(nl, B_OCTDN, ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_OCTDN)) != 0u);
-        led_btn(nl, B_OCTUP, ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_OCTUP)) != 0u);
+        led_btn(nl, B_OCTDN, ui.scr == SCR_STEP && btn_held(B_OCTDN));
+        led_btn(nl, B_OCTUP, ui.scr == SCR_STEP && btn_held(B_OCTUP));
     } else {
         led_btn(nl, B_OCTDN, song.octave < 0 && ((avail >> B_OCTDN) & 1u));   /* (the octave shown only where it works) */
         led_btn(nl, B_OCTUP, song.octave > 0 && ((avail >> B_OCTUP) & 1u));

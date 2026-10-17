@@ -96,13 +96,13 @@ static void lay_bits(void)
     if (ly_ops_on != (uint8_t)fm6_sel())
         ly_ops_on = (uint8_t)fm6_sel();                 /* (seq.c: ENV is a layer on an FM6 track only) */
     for (l = LY_FX; l < LY_COUNT; l++) {
-        uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? 1u << panel.btn[LAYER_BTN[l]] : 0u;
+        uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? (1u << panel.btn[LAYER_BTN[l]]) : 0u;
         if (mst && (l == LY_ERASE || l == LY_ROLL || l == LY_OPS))
             v = 0;                                      /* (MASTER: no erase, repeat or operator keys on T1's data) */
         if (l != LY_STEP && LAYER_BTN[l] < NB && mx_master_dead(LAYER_BTN[l]))
             v = 0;                                      /* (the mixer's MASTER: no track button's layer) */
         if (l == LY_MIX && !off)
-            v |= 1u << panel.btn[B_PLAY];
+            v |= (1u << panel.btn[B_PLAY]);
         if (ly_bit[l] != v)
             ly_bit[l] = v;
     }
@@ -515,15 +515,15 @@ static void pat_layer_key(uint32_t k, int32_t w)
     if (lay.pmod == 10u) {                              /* the scenes: n launches, SAVE + n stores the loop, SHIFT + n clears */
         if (w >= LAY_NSCN)
             return;
-        if (fm1_in.buttons & (1u << panel.btn[B_SAVE]))
+        if (btn_held(B_SAVE))
             scene_store((uint32_t)w);
-        else if (op_shift(fm1_in.buttons))
+        else if (btn_held(B_OCTDN))
             scene_clear_ask((uint32_t)w);
         else
             scene_launch((uint32_t)w);
-    } else if (fm1_in.buttons & (1u << panel.btn[B_SAVE])) {   /* SAVE + n: the working pattern into slot n (asked) */
+    } else if (btn_held(B_SAVE)) {   /* SAVE + n: the working pattern into slot n (asked) */
         pat_store_ask(t, (uint32_t)w);
-    } else if (op_shift(fm1_in.buttons)) {              /* SHIFT + n: clear slot n (asked) */
+    } else if (btn_held(B_OCTDN)) {              /* SHIFT + n: clear slot n (asked) */
         pat_clear_ask(t, (uint32_t)w);
     } else {
         pat_launch_key(t, (uint32_t)w);
@@ -595,7 +595,7 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         scl_key(k);
         break;
     case LY_MIX:
-        if (fm1_in.buttons & (1u << panel.btn[B_PLAY])) {   /* PLAY held: the TEMPO page, a white key taps */
+        if (btn_held(B_PLAY)) {   /* PLAY held: the TEMPO page, a white key taps */
             tempo_key(w);
             break;
         }

@@ -266,7 +266,7 @@ static void name_ok(void)
 /* one UI frame of NAME (op_input.c ui_input): the keys (seq.c lk_q, as STEP's), the knobs, SAVE, HOME, PLAY */
 static void name_frame(uint32_t pressed, uint32_t held)
 {
-    uint32_t k, hb = 1u << panel.btn[B_HOME];
+    uint32_t k, hb = (1u << panel.btn[B_HOME]);
     int32_t s;
     if (nm.key && fm1_ms - nm.t >= NM_TAP_MS)          /* 0.8 s without a tap: the letter is kept */
         nm_commit();
