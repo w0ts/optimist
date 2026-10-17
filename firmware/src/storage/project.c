@@ -1424,18 +1424,17 @@ static persist_t persist_saved;
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-    (void)fxr_for(&proj_tmp.cur, 1);               /* the FX records' stores (fx_rec.c): bound now, never taken at */
-    (void)fxr_for(&autosave_buf, 1);               /* run time */
-    (void)dlr_for(&proj_tmp.cur, 1);               /* (and the LFO records', dlfo_rec.c) */
-    (void)dlr_for(&autosave_buf, 1);
+    static const project_t *const BOUND[] = {&proj_tmp.cur, &autosave_buf,
 #if SEC_LOGGED
-    (void)fxr_for(&sec_stage_p, 1);
-    (void)dlr_for(&sec_stage_p, 1);
+                                             &sec_stage_p,
 #endif
 #if FELUCCA_ARRANGER
-    (void)fxr_for(&song_keep, 1);
-    (void)dlr_for(&song_keep, 1);
+                                             &song_keep,
 #endif
+    };
+    uint32_t b;
+    for (b = 0; b < sizeof BOUND / sizeof BOUND[0]; b++)   /* the FX records' stores (fx_rec.c) and the LFO records' */
+        (void)fxr_for(BOUND[b], 1), (void)dlr_for(BOUND[b], 1);   /* (dlfo_rec.c): bound now, never taken at run time */
 #if FELUCCA_AUTO
     auto_init();                                   /* the working automation: none (auto_proj.c) */
     (void)auto_for(&proj_tmp.cur, 1);              /* the stores of the buffers a section passes through */
