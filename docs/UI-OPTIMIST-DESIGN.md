@@ -249,7 +249,9 @@ gestures one by one: guide/shortcuts.md). Where it differs from the table above 
 - **Favorite on / off: SAVE + PRESETS** (right a favorite, left not): saving the sound into the favorites (was
   SHIFT2 + PRESETS).
 - **The keys under the shifts**: black key n is drum lane n, the last upper key ACCENT, white keys 1-4 T1, T2, T3,
-  DR. **SHIFT + a key: its sequencer mute; SHIFT2 + a key: selects it.** STEP is the exception: its white keys are
+  DR. **SHIFT + a key: its sequencer mute; SHIFT2 + a key: selects it** (a lane key on the drum track: the inverse of
+  the key alone, and STEP inverted from the other screens, the user 2026-10-17: elsewhere the key alone plays, SHIFT2
+  selects silently; on STEP the key alone selects, SHIFT2 plays the lane and selects nothing). STEP is the exception: its white keys are
   steps (SHIFT / SHIFT2 + a white step key: a ghost / hard hit there, the only place; no ghost / hard from a held OCT
   while playing), the track there is ALGORITHM's. Not on the pages with no track (keys_none: GLOBAL, SYSTEM, PROJECT,
   SCOPE, SONG, MASTER) nor in a layer, whose keys are its own.

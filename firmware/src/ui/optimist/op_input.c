@@ -397,8 +397,16 @@ static void shift_keys(uint32_t notes, int mute)
             continue;
         }
         if (m == SMUTE_ACC || m < SMUTE_T0) {           /* a lane: the drum track, that lane */
+            uint32_t l = m == SMUTE_ACC ? DRUM_ACC : (uint32_t)m;
+            if (is_drum(TSEL) && ui.scr == SCR_STEP) {  /* STEP: the inverse of the key alone, which selects there (the user,
+                                                         * 2026-10-17: "on the seq the logic is inverted"): it sounds the
+                                                         * lane and selects nothing */
+                if (l != DRUM_ACC)
+                    audition_lane(l);
+                continue;
+            }
             track_select(TRK_DRUM);
-            lane_pick_from(m == SMUTE_ACC ? DRUM_ACC : (uint32_t)m, 1);
+            lane_pick_from(l, 1);                       /* (elsewhere the key alone plays it: SHIFT2 selects it, silent) */
         } else {
             track_select((uint32_t)(m - SMUTE_T0));
             ui.lane = 0;                                /* (DR itself: its kit) */

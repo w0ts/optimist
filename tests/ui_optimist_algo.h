@@ -167,6 +167,33 @@ static void algo_every_tests(void)
     fm1_in.buttons &= ~BT(B_OCTUP);
     frame();
     check(song.sel == 1u && song.octave == 0 && !smute_trk, "SHIFT2 + white key 2: T2 selected, nothing muted, no octave");
+    /* the drum track: SHIFT2 + a lane key is the key alone inverted, and STEP is inverted from the others (the user,
+     * 2026-10-17): off STEP the key alone plays, SHIFT2 + it selects (silent); on STEP the key alone selects, SHIFT2 + it
+     * sounds the lane and selects nothing */
+    song.sel = TRK_DRUM;
+    lane_select(0);
+    frame();
+    aud_lanes = 0, drums.hits = 0;
+    fm1_in.buttons |= BT(B_OCTUP);
+    frame();
+    kdown(key_of_lane(4));
+    ok = lane_selected() == 4u && !aud_lanes && !(drums.hits & 1u << 4) && kb_kind[key_of_lane(4)] != KS_DRUM;
+    kup(key_of_lane(4));
+    fm1_in.buttons &= ~BT(B_OCTUP);
+    frame();
+    check(ok, "the drum track, SOUND: SHIFT2 + a lane key selects it, silent (the key alone plays it)");
+    op_enter(SCR_STEP);
+    lane_select(0);
+    frames(2);
+    aud_lanes = 0, drums.hits = 0;
+    fm1_in.buttons |= BT(B_OCTUP);
+    frame();
+    kdown(key_of_lane(4));
+    ok = lane_selected() == 0u && ((aud_lanes | drums.hits) & 1u << 4) != 0u;
+    kup(key_of_lane(4));
+    fm1_in.buttons &= ~BT(B_OCTUP);
+    frame();
+    check(ok, "... STEP: SHIFT2 + a lane key sounds the lane, selects nothing (the key alone selects it)");
     song.sel = 0;
     reset_ui();
 }

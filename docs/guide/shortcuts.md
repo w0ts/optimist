@@ -26,7 +26,8 @@ Every button, knob and key gesture of the Optimist UI (builder item `UI`, value 
 | SELECT | mixer | the selected row's knob sets (MIX, INSERTS, SENDS) |
 | SELECT | GLOBAL, SYSTEM | a page of four lines |
 | SHIFT2 + a track key | a page with keys, not STEP | that track selected (the key plays nothing) |
-| SHIFT2 + a lane key | a page with keys | the drum track and that lane selected |
+| SHIFT2 + a lane key | a page with keys, not STEP | the drum track and that lane selected, silent (the key alone plays it) |
+| SHIFT2 + a lane key | the drum track's STEP | that lane heard, nothing selected (the key alone selects it there) |
 | OCT- and OCT+ tapped together | track pages | the track <-> MASTER (back to the page you left) |
 | OCT- and OCT+ tapped together | a synth track's STEP | **FOLD** the piano roll (see Steps) |
 | ENV, LFO, EDIT, FX, SCL, ARP tapped | a track | SOUND, that family's rows; again: its next row |
@@ -81,7 +82,7 @@ Every button, knob and key gesture of the Optimist UI (builder item `UI`, value 
 
 ## Steps (STEP)
 
-STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step key never mute or select there. The lane keys follow the shifts as everywhere. To change the track on STEP, use ALGORITHM.
+STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step key never mute or select there. A lane key alone selects its lane on STEP (it plays it elsewhere), so SHIFT2 + it is inverted too: it plays the lane without selecting it. SHIFT + a lane key mutes it, as everywhere. To change the track on STEP, use ALGORITHM.
 
 | Gesture | Where | Does |
 |---|---|---|

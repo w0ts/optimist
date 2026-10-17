@@ -47,21 +47,23 @@ static void acc_key_tests(void)
     lane_select(3);
     op_enter(SCR_STEP);
     frames(2);
+    kdown(DACC_KEY);
+    kup(DACC_KEY);
+    check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
+          "STEP, the last upper key: the ACCENT lane picked, silent");
+    lane_select(3);
     press(B_OCTUP);
     kdown(DACC_KEY);
     kup(DACC_KEY);
     release(B_OCTUP);
-    check(lane_selected() == DRUM_ACC && drums.hits == 0u && aud_lanes == 0u && ui.scr == SCR_STEP,
-          "STEP, SHIFT2 held + the last upper key: the ACCENT lane picked, silent");
+    check(lane_selected() == 3u && aud_lanes == 0u, "STEP, SHIFT2 + the last upper key: nothing (SHIFT2 sounds a lane on STEP; ACCENT has no sound)");
     for (i = 0; i < DRUM_LANES; i++) {                  /* a lane's black key picks its lane, the last upper key only the accent */
         lane_select(DRUM_ACC);
-        press(B_OCTUP);
         kdown(key_of_lane(i));
         kup(key_of_lane(i));
-        release(B_OCTUP);
         ok &= lane_selected() == i;
     }
-    check(ok, "... SHIFT2 + a lane's black key picks its sound");
+    check(ok, "... a lane's black key picks its sound");
     lane_select(3);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     dstep_set(&TDRUM->dstep[0], DRUM_ACC, LV_NORM, 0);
