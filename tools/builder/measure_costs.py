@@ -10,7 +10,7 @@ estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers
   python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR] [--jobs N]
 --missing measures only what costs.json lacks (new items, new pairs; the base again whenever it moved at all) and keeps the rest; --missing --check builds nothing and fails when something is lacking
 (CI). The builds are planned first (a pass that builds nothing), made --jobs at a time, each in its own build
-directory (build/slots/N; default: the Docker VM's CPUs less two, at most 8), with a progress line per build (done /
+directory (build/slots/N; default: this machine's CPUs natively, the Docker VM's less two, at most 8, in Docker), with a progress line per build (done /
 all, the time so far and the time left), then read back by the same pass. About 20 s a build under Docker on an arm64
 Mac (the one-file firmware: no build reuses another's objects); --jobs 1 builds one at a time in build/ as before.
 Not detected: an item whose code changed after it was measured (no item-to-source map): re-measure it with --only."""
@@ -181,10 +181,12 @@ def run_build(cfg, name, log):
 
 
 def default_jobs():
-    """the builds at once: the CPUs the toolchain runs on (the Docker VM's, else this machine's) less two, 1 to 8 (each
-    build is mostly one compiler process of the one-file firmware)"""
+    """the builds at once (each is mostly one compiler process of the one-file firmware): natively (Linux x86-64) this
+    machine's CPUs; in Docker the VM's less two, at most 8 (12 measured no faster on a 10-CPU VM, 2026-10-17)"""
     n = os.cpu_count() or 2
-    if C.in_container() and os.environ.get("OPTIMIST_IN_CONTAINER") != "1":     # (inside the image: its CPUs)
+    if not C.in_container():
+        return max(1, n)
+    if os.environ.get("OPTIMIST_IN_CONTAINER") != "1":                         # (inside the image: its CPUs)
         r = subprocess.run(["docker", "info", "--format", "{{.NCPU}}"], capture_output=True, text=True)
         n = int(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip().isdigit() else n
     return max(1, min(8, n - 2))
@@ -381,7 +383,7 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="with --missing: build nothing, exit 1 if anything lacks")
     ap.add_argument("--log", default=str(C.ROOT / "build" / "measure"), help="build logs")
     ap.add_argument("--jobs", "-j", type=int, metavar="N",
-                    help="builds at once (default: the Docker VM's CPUs less two, at most 8; 1: one by one, in build/)")
+                    help="builds at once (default: the CPUs natively; in Docker the VM's less two, at most 8; 1: one by one, in build/)")
     ap.add_argument("--part-mem", action="store_true",
                     help="measure engines.c part_mem with each engine that keeps a state there alone (configure.py PART_MEM)")
     a = ap.parse_args(argv)
