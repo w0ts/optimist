@@ -21,8 +21,9 @@ static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built
  * flash before the reply grows), 512 B of main RAM spared */
 #define ED_SMP_AT 16u
 #define ed_smp_buf (ed_out + ED_SMP_AT)
-_Static_assert(ED_SMP_AT + sizeof(smp_user_hdr_t) <= sizeof ed_out && ED_SMP_AT + 256u <= sizeof ed_out,
-               "ed_smp_buf: a WRITE's data, an END's header past the reply's first bytes");
+_Static_assert(ED_SMP_AT + sizeof(smp_user_hdr_t) <= sizeof ed_out && ED_SMP_AT + 256u <= sizeof ed_out &&
+               ED_SMP_AT + sizeof(up_rec_t) <= sizeof ed_out,
+               "ed_smp_buf: a WRITE's data, an END's header, an UP_PUT's record past the reply's first bytes");
 static uint8_t ed_smp_open[SMP_USER_SLOTS];        /* SMP_BEGIN done, END not yet: WRITE / END may act */
 static uint32_t ed_smp_slot(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SIZE; }
 static void ed_smp_inval(uint32_t k)
@@ -165,16 +166,17 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 1;
     }
     case ED_UP_PUT: {                                      /* slot, engine, name, values, pattern -> slot, rc */
-        static up_rec_t r;
+        up_rec_t *r = (up_rec_t *)(void *)ed_smp_buf;      /* (the record past the reply's first bytes, as a WRITE's data: no
+                                                            * static of its own, 216 B of main RAM spared) */
         uint32_t slot = 0;
         if (na < 1u)
             return 0;
-        rc = (uint32_t)up_parse(a, na, &r, &slot);
+        rc = (uint32_t)up_parse(a, na, r, &slot);
         if (!rc) {
             int16_t v[P_COUNT];
-            up_values(&r, v);                              /* each value inside its range */
-            up_vals_put(&r, v);
-            rc = ed_flash_busy() ? 3u : up_put(slot, &r) ? 2u : 0u;
+            up_values(r, v);                               /* each value inside its range */
+            up_vals_put(r, v);
+            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;
         }
         break;
     }
