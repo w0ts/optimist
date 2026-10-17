@@ -110,16 +110,18 @@ static void sec_pend_drop(uint32_t s)
     sec_pend_del(SEC_PEND_FX + s);
     sec_pend_del(s);
 }
-/* log record id -> buf (SEC_REC_MAX), its length (0 none): the arena's copy (index pi; SEC_PEND_N: none) when there is
- * one, else the log's */
-static uint32_t sec_fetch(uint32_t pi, uint32_t id, uint8_t *buf)
+/* log record id -> buf (max bytes: a longer one is none), its length (0 none): the arena's copy (index pi; SEC_PEND_N:
+ * none) when there is one, else the log's (no record there is longer than SEC_REC_MAX: sec_log.c) */
+static uint32_t sec_fetch(uint32_t pi, uint32_t id, uint8_t *buf, uint32_t max)
 {
     int n;
     if (sec_pend_has(pi)) {
+        if (sec_pend.len[pi] > max)
+            return 0;
         memcpy(buf, sec_pend.data + sec_pend.off[pi], sec_pend.len[pi]);
         return sec_pend.len[pi];
     }
-    n = flash_ok ? slg_get(id, buf) : 0;
+    n = flash_ok && slg_has(id) && slg.alen[id] <= max ? slg_get(id, buf) : 0;
     return n > 0 ? (uint32_t)n : 0u;
 }
 static int project_used(uint32_t s) { s %= SEC_IDS; return sec_pend_has(s) || slg_has(s); }

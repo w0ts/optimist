@@ -84,7 +84,7 @@ static uint32_t sn_work_rec(void) { return sec_encode(&autosave_buf, &autosave_d
 static uint32_t sn_sec_rec(uint32_t id)
 {
 #if SEC_LOGGED
-    return sec_fetch(id < SEC_IDS ? id : SEC_PEND_N, id, SN_REC);   /* (the arena's: one the log did not take, MEM FULL;
+    return sec_fetch(id < SEC_IDS ? id : SEC_PEND_N, id, SN_REC, SEC_REC_MAX);   /* (the arena's: one the log did not take, MEM FULL;
                                                        * every id of the log: a 16-section snapshot from an 8-section
                                                        * build keeps I..P) */
 #else
@@ -218,20 +218,12 @@ static uint32_t sn_xs_work(void)
 static uint32_t sn_xs_sec(uint32_t id)
 {
 #if SEC_LOGGED
-    uint32_t n = sn_sec_rec(id), key, k, rl = 0;
+    uint32_t n = sn_sec_rec(id), key, k, rl;
     if (!n)
         return 0;
     key = proj_hash(SN_REC, n);
-    if (id < SEC_IDS && sec_pend_has(SEC_IDS + id)) {
-        rl = sec_pend.len[SEC_IDS + id];
-        if (rl <= sizeof sx_rbuf)
-            memcpy(sx_rbuf, sec_pend.data + sec_pend.off[SEC_IDS + id], rl);
-        else
-            rl = 0;
-    } else if (flash_ok && slg_has(SX_ID0 + id) && slg.alen[SX_ID0 + id] <= sizeof sx_rbuf) {
-        int g = slg_get(SX_ID0 + id, sx_rbuf);
-        rl = g > 0 ? (uint32_t)g : 0u;
-    }
+    rl = sec_fetch(id < SEC_IDS ? SEC_IDS + id : SEC_PEND_N, SX_ID0 + id, sx_rbuf, sizeof sx_rbuf);   /* (the arena's
+                                                       * extras, else the log's) */
     if (rl <= 4u || (memcpy(&k, sx_rbuf, 4), k != key))
         return 0;
     for (k = 0; k < rl - 4u; k++)                       /* (down by 4: forward is safe; the libc has no memmove) */

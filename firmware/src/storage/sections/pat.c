@@ -29,7 +29,7 @@ static uint32_t pat_missing;                           /* patterns a scene named
 /* pattern (k, s)'s record -> buf (SEC_REC_MAX), its length; 0 none */
 static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
 {
-    return sec_fetch(FELUCCA_PATTERNS ? SEC_PEND_PAT + PAT_N * k + s : SEC_PEND_N, PAT_ID(k, s), buf);
+    return sec_fetch(FELUCCA_PATTERNS ? SEC_PEND_PAT + PAT_N * k + s : SEC_PEND_N, PAT_ID(k, s), buf, SEC_REC_MAX);
 }
 
 /* a pattern record (n bytes) of track k -> t's steps and its LEN DIV SWING GATE, its automation into l (0: none) and
@@ -605,7 +605,7 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
         ui_message("STOP FIRST");
         return 1;
     }
-    n = sec_fetch(s, s, sec_rbuf);
+    n = sec_fetch(s, s, sec_rbuf, SEC_REC_MAX);
     if (n <= NTRK || !(sec_rbuf[0] & SEC_SCN) || k >= NTRK)
         return 1;
     key = proj_hash(sec_rbuf, n);

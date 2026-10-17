@@ -41,18 +41,7 @@ static void xrec_log_get(const xrec_t *k, uint32_t id, uint32_t key, const proje
  * its length (0 none) */
 static uint32_t xrec_sec_get(const xrec_t *k, uint32_t id)
 {
-    uint32_t rl = 0;
-    if (id < SEC_IDS && sec_pend_has(k->pend0 + id)) {
-        rl = sec_pend.len[k->pend0 + id];
-        if (rl <= k->size)
-            memcpy(k->buf, sec_pend.data + sec_pend.off[k->pend0 + id], rl);
-        else
-            rl = 0;
-    } else if (flash_ok && slg_has(k->id0 + id) && slg.alen[k->id0 + id] <= k->size) {
-        int g = slg_get(k->id0 + id, k->buf);
-        rl = g > 0 ? (uint32_t)g : 0u;
-    }
-    return rl;
+    return sec_fetch(id < SEC_IDS ? k->pend0 + id : SEC_PEND_N, k->id0 + id, k->buf, k->size);
 }
 /* section s's record (n bytes in sec_rbuf, just put in the arena): its record beside it; 0 ok, 1 no room */
 static int xrec_pend(const xrec_t *k, uint32_t s, uint32_t n)
