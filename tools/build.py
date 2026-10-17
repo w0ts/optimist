@@ -553,7 +553,9 @@ def boot_order(dis):
     guard) before its first reference to fm1_main or recovery_main; recovery_main cannot reach dual_boot. The
     functions are noinline in a DUAL build (BOOT_ORDER): inlined, there is no call to read, and that is refused."""
     refs = boot_refs(dis)
-    missing = [f for f in BOOT_FUNCS if f not in refs]
+    ota = str(CFG_VALUES.get("FELUCCA_OTA", os.environ.get("FELUCCA_OTA", "1"))) != "0"
+    missing = [f for f in BOOT_FUNCS if f not in refs and (ota or f != "recovery_main")]   # (no OTA: no recovery
+                                                                                           # mode, main.c enters UBOOT)
     if missing:
         return [f"boot order: {missing} not found as functions (inlined or renamed?)"]
     errors = []
