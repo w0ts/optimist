@@ -233,7 +233,9 @@ static void roll_range(const track_t *t)
     a += ex, b += ex;
     rg.lo = a < 0 ? 0 : a;
     rg.hi = b;
-    ex = held_note();                                   /* the note being edited (a step held): always inside the rows, whatever OCT and the pattern say */
+    ex = held_note();                                   /* the note being edited (a step held, or picked): always inside the rows, whatever OCT and the pattern say */
+    if (ex < 0 && !st.held && pk_ok() && step_on(&t->step[st.pk]))
+        ex = t->step[st.pk].note[t->step[st.pk].n > 1u ? (st.nsel < t->step[st.pk].n ? st.nsel : t->step[st.pk].n - 1u) : 0u];
     if (ex >= 0 && ex < rg.lo)
         rg.hi -= rg.lo - ex, rg.lo = ex;
     else if (ex > rg.hi)
@@ -257,6 +259,25 @@ static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s)
         note = n >= 0 && n <= 127 ? n : note + d;
     }
     return note;
+}
+/* the synth note selected (the user, 2026-10-17: "in seq for drum we can see the selected note super well, for synth tracks
+ * not at all"): a held step's edited note, else the note picker's (nothing held): its step, pitch and the steps it sounds
+ * (over its ties and carry steps); 0 none. Drawn in C_NOTE its whole length, its row lined, its name in C_NOTE */
+static int roll_sel(const track_t *t, uint32_t *at, int32_t *nt, uint32_t *ext)
+{
+    int32_t i = held_first();
+    const step_t *s;
+    uint32_t k;
+    if (i < 0 && !st.held && pk_ok())
+        i = st.pk;
+    if (i < 0 || is_drum(t))
+        return 0;
+    s = &t->step[i];
+    if (!step_on(s))
+        return 0;
+    k = s->n > 1u ? (st.nsel < s->n ? st.nsel : s->n - 1u) : 0u;
+    *at = (uint32_t)i, *nt = s->note[k], *ext = (note_span(t, (uint32_t)i, k) + 127u) / 128u;
+    return 1;
 }
 #define NY(nt) (SG_TOP + sg_dy + (rg.n - 1 - rg.row[(nt) & 127]) * rg.rh)   /* (sg_dy: the roll moved so the edited note clears the cards) */
 static uint32_t roll_org(const track_t *t, uint32_t idx)   /* the note a step sounds: itself, or the one it ties */
@@ -344,16 +365,21 @@ static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octave
 }
 static void sg_roll(const track_t *t)
 {
-    uint32_t w, i, len = trk_len(t), gn;
+    uint32_t w, i, len = trk_len(t), gn, sat = 0, sext = 0, sel;
     uint64_t used = 0;
     uint16_t c = trk_col(song.sel);
-    int32_t m, h, ye;
+    int32_t m, h, ye, snt = -1;
     sg_prep(t);
     roll_range(t);
     m = rg.rh >= 6 ? 1 : 0;
     h = rg.rh >= 6 ? rg.rh - 2 : rg.rh - 1;
     ye = SG_TOP + sg_dy + rg.n * rg.rh;
     roll_ground(t, len);
+    sel = (uint32_t)roll_sel(t, &sat, &snt, &sext) && RV(snt);
+    if (sel) {                                          /* the selected note's row: lined above and below, as the drums' lane */
+        RR(0, NY(snt) - 1, 240, 1, col_shade(C_NOTE, 5u));
+        RR(0, NY(snt) + rg.rh - 1, 240, 1, col_shade(C_NOTE, 5u));
+    }
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w, tie;
         const step_t *s;
@@ -376,12 +402,12 @@ static void sg_roll(const track_t *t)
             int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
             uint32_t lv = (s->lvl >> (2u * i)) & 3u;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
-            if (!tie && held_note_sel(idx) == (int)i)
-                nc = C_NOTE;                            /* (the note SELECT picked on a held step of several: its own colour) */
 #if FELUCCA_AUTO
             if (!gn && step_muted(t, roll_org(t, idx), 0))
                 nc = col_shade(c, 2u);                  /* (a muted note: kept, dim; its ties too) */
 #endif
+            if (sel && nt == snt && idx >= sat && idx < sat + sext && (int32_t)w != sg_ph)
+                nc = C_NOTE;                            /* (the selected note, its whole length: its own colour) */
             if (!RV(nt))
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
@@ -407,6 +433,15 @@ static void sg_roll(const track_t *t)
         }
     }
     roll_names(used);
+    if (sel && rg.rh >= 11)
+        roll_label(snt, C_NOTE);                        /* (its name in the gutter, over the one drawn) */
+    if (sel && !st.held && sat / 16u == st.page) {      /* the picked note's step: framed in C_NOTE (a held one: white, below) */
+        int32_t x = RL_X + (int32_t)(sat % 16u) * RL_CW;
+        RR(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, RL_CW, 1, C_NOTE);
+        RR(x - 1, ye, RL_CW, 1, C_NOTE);
+        RR(x - 1, SG_TOP, 1, ye - SG_TOP, C_NOTE);
+        RR(x + RL_CW - 2, SG_TOP, 1, ye - SG_TOP, C_NOTE);
+    }
     for (i = 0; i < (pen_n ? (uint32_t)pen_n : 1u) && i < 4u; i++) {   /* the pick (what a tapped step takes): a white
                                                          * mark at the gutter's edge on its rows (the audit's #17: no
                                                          * longer in the header) */

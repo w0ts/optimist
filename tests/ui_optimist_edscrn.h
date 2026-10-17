@@ -226,6 +226,7 @@ static void edscrn_tests(void)
     scl_t c;
     reset_ui();
     song.sel = 0;
+    song.g[G_BPM] = 120;                                /* (the golden's tempo whatever the tests before left: web/test_web.mjs reads it) */
 #if FELUCCA_ED_SCRN
     for (s = 0; s < 2u; s++) {
         q[0] = 0, q[1] = (uint8_t)s;

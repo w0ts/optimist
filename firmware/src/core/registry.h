@@ -486,6 +486,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
 #endif
+#ifndef FELUCCA_SYS_DEBUG
+#define FELUCCA_SYS_DEBUG 1                /* the Optimist UI's SYSTEM debug pages: INTERNALS, USB STATS and INFO's clock,
+                                            * second core, drops, guard lines (op_project.c); off, INFO is CPU LOAD,
+                                            * UNDERRUNS, BATTERY. The builder's default is 0; the host tests keep them */
+#endif
 #ifndef FELUCCA_DRUM_STEP
 #define FELUCCA_DRUM_STEP 0                /* the drum track's SEQ layer as a TR step sequencer: one sound's 16 steps over
                                             * an overview of the 16 sounds, SEQ + EDIT picks the sound on the white keys,

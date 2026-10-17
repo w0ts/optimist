@@ -7,6 +7,10 @@
  * are the last field: a record of any older length reads whole, with none; a build without them reads ours as its prefix
  * (it saves it back shorter, so it forgets them). Included by project.c after sl24_guard.c (sl_word_in). */
 #include "../core/favorites.c"
+#define PERSIST_UA_SRC 24u                         /* the sources' room in the record: every one ua_tap.h has, and more */
+#if FELUCCA_USB_AUDIO
+_Static_assert(UAS_N <= PERSIST_UA_SRC, "the record holds every USB source");
+#endif
 typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
@@ -37,16 +41,20 @@ typedef struct {
                                                     * before it reads whole, with none (persist_upgrade) */
 #endif
 #if FELUCCA_USB_AUDIO
-    uint8_t ua_src[UA_ROUTE_N];                    /* appended last (io/usb/ua_tap.h): the USB capture channels' sources */
+    uint8_t ua_src[UA_ROUTE_N];                    /* appended (io/usb/ua_tap.h): the USB capture channels' sources, until
+                                                    * 2026-10-17 (UAR2, UAR1: read, converted; written 0) */
     uint32_t ua_mark;                              /* PERSIST_UA_MARK: they are set (else, or another build's layout: the
                                                     * defaults, T1 T2 T3 DRUMS) */
+    uint8_t ua_dst[PERSIST_UA_SRC];                /* appended after them: each source's channels (ua_tap.h ua_dst, UAD_*) */
+    uint32_t ua_mark3;                             /* PERSIST_UA_MARK3: they are set */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* the second-core test image only (system/dual.c, the console's dualcfg):
                                                     * after everything; a normal build reads it as a longer record's tail */
 #endif
 } persist_t;
-#define PERSIST_UA_MARK 0x32524155u                /* "UAR2": the list without -3 / -6 dB (ua_tap.h) */
+#define PERSIST_UA_MARK3 0x33524155u               /* "UAR3": each source's channels (ua_tap.h ua_dst) */
+#define PERSIST_UA_MARK 0x32524155u                /* "UAR2": each channel's source, the list without -3 / -6 dB */
 #define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_BLE
@@ -70,9 +78,11 @@ _Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(b
 static int persist_upgrade(persist_t *pp, int n)
 {
 #if FELUCCA_USB_AUDIO
-    if (n < (int)sizeof *pp)                         /* (first: a record from before the USB routing is whole without it) */
+    if (n < (int)__builtin_offsetof(persist_t, ua_dst))   /* (first: a record from before the USB routing is whole without it, */
         memset(pp->ua_src, 0, sizeof pp->ua_src), pp->ua_mark = 0;
-    if (n == (int)__builtin_offsetof(persist_t, ua_src))
+    if (n < (int)sizeof *pp)                         /* one from before the routing by source keeps its channels' sources) */
+        memset(pp->ua_dst, 0, sizeof pp->ua_dst), pp->ua_mark3 = 0;
+    if (n == (int)__builtin_offsetof(persist_t, ua_src) || n == (int)__builtin_offsetof(persist_t, ua_dst))
         n = (int)sizeof *pp;
 #endif
 #if FELUCCA_FAVORITES
@@ -146,27 +156,51 @@ static void persist_fav_save(persist_t *p)
 
 #if FELUCCA_USB_AUDIO
 /* the USB capture channels' sources of a record read (persist_boot; none, or out of range: the defaults), and out (settings_save) */
-static void persist_ua_load(const persist_t *p)
+/* a record of each channel's source (UAR2, UAR1) as each source's channels: the channels that took a source are its
+ * channels (MAIN L on 1 and MAIN R on 2: MASTER on 1+2), a set no destination has (1 and 3) its first channel */
+static void persist_ua_old(const persist_t *p)
 {
-    uint32_t c;
-    /* UAR1's indices: OFF ML MR M-3 M-6 T1 T2 T3 DRUMS BL BR B-3 B-6 DR1.. -> today's (each sum: L+R) */
-    static const uint8_t V1[13] = {UAS_OFF, UAS_MAIN_L, UAS_MAIN_R, UAS_MAIN_S, UAS_MAIN_S, UAS_T1, UAS_T2, UAS_T3,
-                                   UAS_DRUMS, UAS_DBUS_L, UAS_DBUS_R, UAS_DBUS_S, UAS_DBUS_S};
-    ua_route_default();
-    if (p->ua_mark != PERSIST_UA_MARK && p->ua_mark != PERSIST_UA_MARK1)
-        return;
+    /* UAR2's indices: OFF, MAIN L R L+R, T1 T2 T3 DRUMS, DRUM BUS L R L+R, DR1..; UAR1's: OFF, MAIN L R -3 -6, T1 T2 T3
+     * DRUMS, DRUM BUS L R -3 -6, DR1.. -> today's source (0xFF: none) */
+    static const uint8_t V2[11] = {0xFF, UAS_MAIN, UAS_MAIN, UAS_MAIN, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS, UAS_DBUS, UAS_DBUS, UAS_DBUS};
+    static const uint8_t V1[13] = {0xFF, UAS_MAIN, UAS_MAIN, UAS_MAIN, UAS_MAIN, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS, UAS_DBUS,
+                                   UAS_DBUS, UAS_DBUS, UAS_DBUS};
+    uint8_t m[UAS_N] = {0};
+    uint32_t c, s, d, nv = p->ua_mark == PERSIST_UA_MARK1 ? 13u : 11u;
     for (c = 0; c < UA_ROUTE_N; c++) {
         uint32_t v = p->ua_src[c];
-        if (p->ua_mark == PERSIST_UA_MARK1)
-            v = v < 13u ? V1[v] : v - 13u < DRUM_LANES ? UAS_DR1 + (v - 13u) : 0xFFu;
-        if (v < UAS_N)
-            ua_src[c] = (uint8_t)v;
+        s = v < nv ? (nv == 13u ? V1[v] : V2[v]) : v - nv < DRUM_LANES ? UAS_DR1 + (v - nv) : 0xFFu;
+        if (s < UAS_N)
+            m[s] |= (uint8_t)(1u << c);
+    }
+    for (s = 0; s < UAS_N; s++) {
+        for (d = UAD_N - 1u; d && UAD_MASK[d] != m[s]; d--)
+            ;
+        if (!d && m[s])                                 /* (no destination is that set: its first channel) */
+            d = (m[s] & 1u) ? UAD_1 : (m[s] & 2u) ? UAD_2 : (m[s] & 4u) ? UAD_3 : UAD_4;
+        ua_dst[s] = (uint8_t)d;
+    }
+}
+static void persist_ua_load(const persist_t *p)
+{
+    uint32_t s;
+    ua_route_default();
+    if (p->ua_mark3 == PERSIST_UA_MARK3) {
+        for (s = 0; s < UAS_N; s++)
+            ua_dst[s] = p->ua_dst[s];                   /* (out of range: ua_route_apply gives the default) */
+    } else if (p->ua_mark == PERSIST_UA_MARK || p->ua_mark == PERSIST_UA_MARK1) {
+        persist_ua_old(p);
+    } else {
+        return;
     }
     ua_route_apply();
 }
 static void persist_ua_save(persist_t *p)
 {
-    memcpy(p->ua_src, ua_src, sizeof p->ua_src);
-    p->ua_mark = PERSIST_UA_MARK;
+    memset(p->ua_src, 0, sizeof p->ua_src);
+    p->ua_mark = 0;                                     /* (an older build reads none: its defaults) */
+    memset(p->ua_dst, 0, sizeof p->ua_dst);
+    memcpy(p->ua_dst, ua_dst, sizeof ua_dst);
+    p->ua_mark3 = PERSIST_UA_MARK3;
 }
 #endif

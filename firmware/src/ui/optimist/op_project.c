@@ -362,9 +362,10 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_UA1, SI_UA2, SI_UA3, SI_UA4, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT };
+       SI_BLEFGT,
+       SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
 #define LOAD_AMBER 60
@@ -394,7 +395,7 @@ static void info_clear_counts(void)                     /* SHIFT + YES on INFO: 
     ovl.xrun0 = info_xruns();
     for (r = 0; r < OVL_NRING; r++)
         ovl.r[r].amax = 0;
-#if FELUCCA_CPU_GUARD
+#if FELUCCA_CPU_GUARD && FELUCCA_SYS_DEBUG
     info_shed0 = cg.sheds;
 #endif
 }
@@ -412,18 +413,27 @@ static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure'
     str_app(t, INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0]);
     c->label = t;
 }
-#if FELUCCA_CPU_GUARD
+#if FELUCCA_CPU_GUARD && FELUCCA_SYS_DEBUG
 static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REVERB", "NOTES"};
 #endif
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
+#if FELUCCA_USB_AUDIO
+#define UA_IT(s) SI_IF((s) < UAS_N, SI_UAS0 + (s))      /* USB AUDIO's line of source s, none past the last */
+_Static_assert(UAS_N <= 16u, "USB AUDIO: four rows of four sources");
+static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
+#else
+#define si_ua(it) 0
+#endif
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
+#if FELUCCA_SYS_DEBUG                                   /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
     {"INTERNALS", {SI_DIAG, SI_NONE, SI_NONE, SI_NONE}},   /* INFO split in two (the user, 2026-10-15): what a musician reads on INFO,
                                                          * the internals here (the last reset, flash, the second core) */
 #if FELUCCA_USB_AUDIO
     {"USB STATS", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* the USB audio glitch counters */
+#endif
 #endif
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
@@ -440,8 +450,13 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                                                          * (NONE / LAST), FORGET LAST (asked): LAST exists only with BLE_CENTRAL */
 #endif
 #if FELUCCA_USB_AUDIO
-    {"USB AUDIO", {SI_UA1, SI_UA2, SI_UA3, SI_UA4}},   /* what each capture channel carries (the user, 2026-10-15: "four lines that
-                                                         * allow to select the source for each of the 4 channels"; ua_tap.h; after BLUETOOTH: USB + BLUETOOTH stay one page) */
+    /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
+     * 3+4", and the drum lanes; ua_tap.h): a line a source, MASTER T1 T2 T3 | DRUMS, DRUM BUS, DR1 DR2 | DR3..DR6 | DR7..DR10;
+     * the rows one section over their pages (op_global.c gl_sid: a row named as the one before it goes on with it) */
+    {"USB AUDIO", {UA_IT(0), UA_IT(1), UA_IT(2), UA_IT(3)}},
+    {"USB AUDIO", {UA_IT(4), UA_IT(5), UA_IT(6), UA_IT(7)}},
+    {"USB AUDIO", {UA_IT(8), UA_IT(9), UA_IT(10), UA_IT(11)}},
+    {"USB AUDIO", {UA_IT(12), UA_IT(13), UA_IT(14), UA_IT(15)}},
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
@@ -531,6 +546,14 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
     cell_clear(c);
     c->kind = CK_VAL;
+#if FELUCCA_USB_AUDIO
+    if (si_ua(it)) {                                    /* a source's channels: text only, no bar (the list walks it) */
+        static char nm[UAS_N][6];                       /* (the lanes' names, DR1..DR10: a buffer each, the label is a pointer) */
+        c->label = ua_src_name(it - SI_UAS0, nm[it - SI_UAS0]);
+        str_cpy(c->val, ua_dst_name(ua_dst[it - SI_UAS0]), sizeof c->val);
+        return;
+    }
+#endif
     switch (it) {
     case SI_COLOR:
         cell_list(c, "COLOR", PALETTES[settings.palette % NPALETTES].name, NPALETTES - 1, (int32_t)(settings.palette % NPALETTES));
@@ -590,10 +613,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
     case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 2: NOW, MAX 5S, MAX (over 100: late) */
         int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
+        const char *nm = !FELUCCA_SYS_DEBUG ? "CPU LOAD" : DUAL_LOAD ? "CPU0" : "LOAD";   /* (without the debug pages: one
+                                                         * load, CPU0's, which waits for CPU1) */
         if (info_mode == OVL_NOW)
-            c->label = DUAL_LOAD ? "CPU0" : "LOAD";
+            c->label = nm;
         else
-            info_label(c, DUAL_LOAD ? "CPU0" : "LOAD");
+            info_label(c, nm);
         c->kind = CK_RO;
         fmt_int(c->val, pct);
         c->col = load_col(pct);
@@ -601,6 +626,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
         break;
     }
+#if FELUCCA_SYS_DEBUG
     case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
         uint32_t n = ovl_drops();
         sys_ro(c, "DROPS");
@@ -610,12 +636,20 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 0, 0, 1, n != 0u);
         break;
     }
-    case SI_XRUN: {                                     /* UNDERRUNS: USB audio's and MIDI in's losses, the total and where */
+#endif
+    case SI_XRUN: {                                     /* UNDERRUNS: USB audio's and MIDI in's losses, the total and where; without
+                                                         * the debug pages the drop-outs too (no DROPS line then) */
         static char u[16];
-        uint32_t nu = info_ua_xruns(), mi = ovl_midi_lost(), n = nu + mi - ovl.xrun0;
+        uint32_t nu = info_ua_xruns(), mi = ovl_midi_lost(), dr = FELUCCA_SYS_DEBUG ? 0u : ovl_drops(), n = nu + mi - ovl.xrun0 + dr;
         sys_ro(c, "UNDERRUNS");
         fmt_int(c->val, (int32_t)n);
         u[0] = 0;
+        if (n && dr && ovl_recent(fm1_ms, DROPS_RED_MS)) {   /* (a drop-out just now: red, as the header's mark) */
+            c->unit = "";
+            c->col = C_ERR;
+            cell_gauge(c, 0, 0, 1, 1);
+            break;
+        }
         if (n) {                                        /* (where, since boot: "USB3 MIDI1") */
             if (nu) {
                 str_cpy(u, " USB", sizeof u);
@@ -631,7 +665,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 0, 0, 1, n != 0u);
         break;
     }
-#if FELUCCA_CPU_GUARD
+#if FELUCCA_CPU_GUARD && FELUCCA_SYS_DEBUG
     case SI_GUARD: {                                    /* what the CPU guard eases now, and the voices it shed (cpuguard.c) */
         uint32_t n = cg.sheds - info_shed0, l = cg.level <= CG_TOP ? cg.level : CG_TOP;
         sys_ro(c, "GUARD");
@@ -650,6 +684,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
+#if FELUCCA_SYS_DEBUG
     case SI_CPU1: {                                     /* the second core: ON and its share of each audio half (dual_load.h), OFF and why, or not in the build */
 #if DUAL_LOAD
         int32_t pct = dual_c1_pct();
@@ -680,6 +715,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
         break;
     }
+#endif
     case SI_INFO:                                       /* the info page's one line (op_gldraw.c draws the page itself) */
         sys_ro(c, "INFO");
         break;
@@ -720,12 +756,14 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         c->unit = "github.com/w0ts/optimist";
         break;
+#if FELUCCA_SYS_DEBUG
     case SI_MHZ:
         sys_ro(c, "CLOCK");
         fmt_int(c->val, (int32_t)((cpu_khz + 500u) / 1000u));
         c->unit = "MHz";
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
+#endif
     case SI_HOLD:                                       /* a button held this long is a hold (op_state.c op_hold_ms) */
         c->label = "HOLD";
         fmt_int(c->val, (int32_t)op_hold_ms());
@@ -740,18 +778,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         sys_onoff(c, "CLK OUT", clko_on);
         c->col = clko_blocked() ? C_WARN : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
         break;
-#endif
-#if FELUCCA_USB_AUDIO
-    case SI_UA1:
-    case SI_UA2:
-    case SI_UA3:
-    case SI_UA4: {                                      /* a channel's source: text only, no bar (the list walks it) */
-        static const char *const CH[UA_ROUTE_N] = {"CH1", "CH2", "CH3", "CH4"};
-        char b[6];
-        c->label = CH[it - SI_UA1];
-        str_cpy(c->val, ua_src_name(ua_src[it - SI_UA1], b), sizeof c->val);
-        break;
-    }
 #endif
     case SI_CALIB:
         cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
@@ -781,6 +807,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static uint32_t fm1_irqoff_max;                         /* (hal/fm1_flash.h's counter, included after the UI in felucca.c: a tentative definition, the same object;
                                                          * bits 0-27 the ticks, 28-29 the operation: 1 read, 2 write, 3 erase) */
+#if FELUCCA_SYS_DEBUG                                   /* (the debug pages' read-outs, to INFO_RST's end: builder item SYS_DEBUG) */
 static void info_num(cell_t *c, uint32_t v, const char *unit)   /* a read-out's value: v (capped at 9999999) and its unit */
 {
     fmt_int(c->val, (int32_t)(v > 9999999u ? 9999999u : v));
@@ -947,13 +974,22 @@ static void sys_rst_cell(cell_t *c)
 #else
 #define INFO_RST 0u
 #endif
+#else
+#define INFO_UA 0u                                      /* (no INTERNALS, no USB STATS) */
+#define INFO_C1 0u
+#define INFO_RST 0u
+#endif
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
  *   INFO (page 0, what a musician reads): the clock, the CPU (KNOB 2: now, max 5 s, max), the 2ND CORE (ON + load, OFF + why, NOT IN
  *        BUILD), DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
+#if FELUCCA_SYS_DEBUG
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
+#else
+#define INFO_BASE 3u                                    /* (without the debug pages: CPU LOAD, UNDERRUNS, BATTERY) */
+#endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
 #define FELUCCA_STOCK_SUPPLY 0                          /* (system/supply.c's: the host tests include this file alone) */
@@ -962,13 +998,18 @@ static void sys_rst_cell(cell_t *c)
 #define INFO_DIAG (INFO_RST + 1u + INFO_SUP + INFO_C1)  /* INTERNALS' lines */
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
+#if FELUCCA_SYS_DEBUG
     static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_DROPS, SI_XRUN,
 #if FELUCCA_CPU_GUARD
                                             SI_GUARD,
 #endif
                                             SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; DROPS, UNDERRUNS: the overload monitor) */
+#else
+    static const uint8_t INFO[INFO_BASE] = {SI_CPU, SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
+#endif
     sys_it_cell(INFO[i % INFO_N], c);
 }
+#if FELUCCA_SYS_DEBUG
 static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
 {
     i %= INFO_DIAG;
@@ -1020,21 +1061,29 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
     sys_c1_cell(i - INFO_RST - 1u - INFO_SUP, c);
 #endif
 }
+#endif
 /* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */
 enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB };
-static uint32_t info_lines(uint32_t pg) { return pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : INFO_N; }
+static uint32_t info_lines(uint32_t pg)
+{
+    return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : INFO_N;
+}
 static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 {
+#if FELUCCA_SYS_DEBUG
 #if FELUCCA_USB_AUDIO
     if (pg == INFO_PG_USB) {
         sys_ua_cell(i % INFO_UA, c);
         return;
     }
 #endif
-    if (pg == INFO_PG_DIAG)
+    if (pg == INFO_PG_DIAG) {
         sys_diag_cell(i, c);
-    else
-        sys_info_cell(i, c);
+        return;
+    }
+#endif
+    (void)pg;
+    sys_info_cell(i, c);
 }
 /* setting it: a knob turned s (> 0 right), or 0: YES (steps round, toggles) */
 static void sys_set(uint32_t it, int32_t s)
@@ -1096,15 +1145,13 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #endif
 #endif
-#if FELUCCA_USB_AUDIO
-    case SI_UA1:
-    case SI_UA2:
-    case SI_UA3:
-    case SI_UA4:                                        /* (kept in the settings record: persist_rec.c ua_src) */
-        ua_src_step(it - SI_UA1, s);
-        break;
-#endif
     default:
+#if FELUCCA_USB_AUDIO
+        if (si_ua(it)) {                                /* (kept in the settings record: persist_rec.c ua_dst) */
+            ua_dst_step(it - SI_UAS0, s);
+            break;
+        }
+#endif
         return;
     }
     sys_dirty = 1;
@@ -1155,16 +1202,15 @@ static int sys_factory(uint32_t it)
         clko_on = 0;
         break;
 #endif
-#if FELUCCA_USB_AUDIO
-    case SI_UA1:
-    case SI_UA2:
-    case SI_UA3:
-    case SI_UA4:                                        /* (as before the setting: T1 T2 T3 DRUMS) */
-        ua_src[it - SI_UA1] = (uint8_t)(it == SI_UA4 ? UAS_DRUMS : UAS_T1 + (it - SI_UA1));
-        ua_route_apply();
-        break;
-#endif
     default:
+#if FELUCCA_USB_AUDIO
+        if (si_ua(it)) {                                /* (as before the setting: T1 T2 T3 DRUMS on 1 2 3 4, the rest NONE) */
+            uint32_t s = it - SI_UAS0;
+            ua_dst[s] = (uint8_t)(s == UAS_T1 ? UAD_1 : s == UAS_T2 ? UAD_2 : s == UAS_T3 ? UAD_3 : s == UAS_DRUMS ? UAD_4 : UAD_NONE);
+            ua_route_apply();
+            break;
+        }
+#endif
         return 0;                                       /* (BLE, the read-outs, PANEL: nothing) */
     }
     sys_dirty = 1;
@@ -1230,8 +1276,8 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty = 1;
         return 1;
     }
-    if (it == SI_NONE || it >= SI_INFO || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
-        return 0;
+    if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
+        return 0;                                       /* (the read-outs; USB AUDIO's lines, last, are settings) */
     sys_set(it, 0);
     return 1;
 }

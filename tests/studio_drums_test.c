@@ -53,6 +53,29 @@ int main(int argc,char **argv)
         if(v==0||v==2)assert(hits==4 && loud==1);
         else assert(hits==0 && drums.age==age0);
     }
+    /* CLICK AUTO (2026-10-17): it clicks while nothing else plays, decided as playing starts and each time the selected
+     * track's loop comes round. a: every track empty: every beat; b: a step set: none; c: empty at the start, a note
+     * recorded in the first loop (8 steps, 2 beats): the click stops when the loop comes round */
+    for(v=0;v<3;v++) {
+        uint32_t hits=0,c,wrote=0;
+        host_tracks_init();memset(&drums,0,sizeof drums);drums_set=-2;
+        for(c=0;c<NTRK;c++)steps_clear(&trk[c]);
+        song.g[G_BPM]=120;song.g[G_CLOCK]=3;song.rec=0;rec_wait=0;song.sel=0;trk[0].p[P_SLEN]=8;
+        if(v==1)dstep_set(&TDRUM->dstep[9],0,LV_NORM,0);
+        transport_req=1;
+        for(j=0;j<(FS*2u-FS/4u)/CTL;j++) {               /* up to just before beat 4 */
+            uint32_t a=drums.age;
+            if(v==2 && !wrote && song.playing && trk[0].seq_idx==3u) {   /* (the take's note, in the first loop) */
+                trk[0].step[5].n=1;trk[0].step[5].note[0]=60;trk[0].step[5].time=ST_NOTE;trk[0].step[5].vel=100;wrote=1;
+            }
+            mix_block(out,CTL);
+            for(k=0;k<NDRUM;k++)if(drums.v[k].age>a && (drums.v[k].note==76u||drums.v[k].note==77u)){hits++;break;}   /* (the wood block) */
+        }
+        transport_req=2;events_block(CTL);
+        if(v==0)assert(hits==4);
+        else if(v==1)assert(hits==0);
+        else assert(wrote && hits>=2 && hits<=3);           /* (the first loop's beats, then none: its note plays now) */
+    }
     /* LIVE record start. Stopped and armed, a project with notes: the first note starts the
      * loop and is step 1 */
     {
@@ -175,6 +198,6 @@ int main(int argc,char **argv)
     }
     transport_req=2;events_block(CTL);song.rec=0;
     if(f)fclose(f);
-    puts("drums: 16 lanes a step (levels, ratchets), the key / GM maps, every kit distinct, bounded audio and finite tails, metronome (OFF/REC/ON, accent), record: first note starts the loop, at once while playing, latency-compensated steps, free takes set the loop and tempo, arm follows the track PASS");
+    puts("drums: 16 lanes a step (levels, ratchets), the key / GM maps, every kit distinct, bounded audio and finite tails, metronome (OFF/REC/ON/AUTO, accent), record: first note starts the loop, at once while playing, latency-compensated steps, free takes set the loop and tempo, arm follows the track PASS");
     return 0;
 }

@@ -161,7 +161,7 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
         return "";
 #endif
 #if FELUCCA_MIDI_OUT
-    case MI_OUT: return bp_set[BPS_MOUT] ? "SEQ" : "KEYS";
+    case MI_OUT: return N_MOUT[(uint32_t)bp_set[BPS_MOUT] % 3u];
 #endif
 #if FELUCCA_MIDI_INCLK
     case MI_IN: return bp_set[BPS_MIN] ? "CLOCK" : "NOTES";
@@ -572,7 +572,7 @@ static void mi_set(uint32_t i, int32_t s)
         break;
 #endif
 #if FELUCCA_MIDI_OUT
-    case MI_OUT: bp_set[BPS_MOUT] = (int16_t)(s > 0 ? 1 : s < 0 ? 0 : !bp_set[BPS_MOUT]); break;
+    case MI_OUT: bp_set[BPS_MOUT] = (int16_t)(s ? clamp(bp_set[BPS_MOUT] + (s > 0 ? 1 : -1), MOUT_KEYS, MOUT_SEQ) : (bp_set[BPS_MOUT] + 1) % 3); break;
 #endif
 #if FELUCCA_MIDI_INCLK
     case MI_IN: bp_set[BPS_MIN] = (int16_t)(s > 0 ? 1 : s < 0 ? 0 : !bp_set[BPS_MIN]); break;

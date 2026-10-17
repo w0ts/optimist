@@ -312,8 +312,27 @@ typedef struct {
     const char *eng;                    /* the badge's text, "" none */
     uint16_t tc, mc;                    /* the badge's colour, the title's */
     uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
+    uint8_t batt;                       /* the battery icon at the right (head_batt), 0 none */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
+/* the battery in the header of GLOBAL and SYSTEM (the user, 2026-10-17: "battery icon in title bar in glo and system"):
+ * SLOOP's 3 bars (op_project.c sys_batt_bars), right of the tempo. 0: none here, 1: no reading yet, 2 + the bars */
+#define HEAD_BATT_W 16                  /* the icon (13) and its gap to the tempo */
+static uint32_t head_batt(void)
+{
+    if (ui.msg_t || lay.shown != LY_PLAY || name_on() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM))
+        return 0;
+    return song.batt_raw ? 2u + sys_batt_bars() : 1u;
+}
+static void head_batt_draw(int32_t x, uint32_t st)     /* the icon at x: an outline, its tip, a bar a third */
+{
+    uint16_t c = st == 1u ? C_DIM : st == 2u ? C_WARN : C_HI;   /* (no bar left: amber) */
+    uint32_t i;
+    cv_frame(x, 7, 11, 10, c);
+    cv_rect(x + 11, 10, 2, 4, c);
+    for (i = 0; st > 2u && i < st - 2u; i++)
+        cv_rect(x + 2 + (int32_t)i * 3, 9, 2, 6, c);
+}
 /* the badge of a page that is not a track's, and the title it leaves (the audit's #11): MASTER (the master FX, the mixer's
  * MASTER row, MASTER in a layer: the layer's name the title), a layer that is not the track's (its name; "Locked" the
  * title while HOME holds it open), NAME (the slot the title), the screen's (GLOBAL, SYSTEM: the page's name and n/N
@@ -402,8 +421,9 @@ static void head_make(head_t *h)
     }
     loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
     fmt_int(h->bpm, song.g[G_BPM]);
+    h->batt = (uint8_t)head_batt();
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
-    h->room = head_room(h->tx, h->bpm, h->r);
+    h->room = head_room(h->tx, h->bpm, h->r) - (h->batt ? HEAD_BATT_W : 0);
     if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
         head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
                                                          * user, 2026-10-14) */
@@ -435,10 +455,10 @@ static void draw_head(void)
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    bx = 236 - text_w(&FONT_S, h.bpm);
+    bx = 236 - text_w(&FONT_S, h.bpm) - (h.batt ? HEAD_BATT_W : 0);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
     sig = hs(sig, h.pr);
-    sig = hu(sig, h.muted);
+    sig = hu(hu(sig, h.muted), h.batt);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
     if (tf.t && !ui.msg_t && !name_on() && !master_sel()) {   /* (MASTER: its own badge, no track flash: #8) */
@@ -464,6 +484,8 @@ static void draw_head(void)
         if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
             cv_text(tw + 8, 4, &FONT_S, h.pr, h.tc);
         cv_text(bx, 4, &FONT_S, h.bpm, C_HI);
+        if (h.batt)
+            head_batt_draw(238 - 13, h.batt);
         if (h.r[0])
             cv_text(bx - 8 - text_w(&FONT_S, h.r), 4, &FONT_S, h.r, song.playing ? C_OK : C_DIM);
         if (rec)

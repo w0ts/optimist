@@ -2,7 +2,7 @@
 /* The horizontal mixer's rows (op_mixer.c), in the panel under the cards. The mixer shows ONE group at a time, the one
  * the cursor is in (the user, 2026-10-11: MASTER alone, or the four channels, or the drum sounds); ALGORITHM walks the
  * rows as before and the view follows it, drawn in place (cv_tall over the panel, no clear to black):
- *   MASTER     past T1 up: the master alone on the whole panel (164 px): its name, a tall VU meter (the level from the
+ *   MASTER     past T1 up: the master alone on the panel under its 2x2 cards (99 px; the header names it): a VU meter (the level from the
  *              left, its peak falling) over a dB scale, the compressor's gain reduction as an amber bar from the right
  *              with its dB (THRS or CEIL set: mc_gr_view), and under it the FX returns' meters, REV DLY CHO (those
  *              built; the user, 2026-10-12: the four channels' meters here were "useless", the channels' rows show
@@ -49,18 +49,18 @@
 #define MXS_SH 7
 #define MXS_VW 94
 #define MXS_VH 3
-#define MXM_X 8                         /* MASTER: the tall meter */
-#define MXM_W 224
-#define MXM_VY 24
-#define MXM_VH 14
+#define MXM_X 8                         /* MASTER: the tall meter (under the 2x2 cards: a panel of 99 rows, 117 without the help band; */
+#define MXM_W 224                       /* the header names MASTER, so no name line) */
+#define MXM_VY 4
+#define MXM_VH 10
 #define MXM_GX 32                       /* its reduction bar, "GR" at its left */
 #define MXM_GW 200
-#define MXM_GY 68
+#define MXM_GY 41
 #define MXM_GH 6
-#define MXM_CY 82                       /* the FX returns' meters: a line each */
-#define MXM_CP 22
-#define MXM_CH 10                       /* (a return's meter: as thick as its name reads) */
-#define MXM_CV 3                        /* its top under its name's line */
+#define MXM_CY 53                       /* the FX returns' meters: a line each, the third one's name ending on the panel's foot */
+#define MXM_CP 15
+#define MXM_CH 8                        /* (a return's meter: most of its name's height) */
+#define MXM_CV 4                        /* its top under its name's line */
 #define MX_LV 255u                      /* a level: 0 .. 255, the meter's whole width */
 enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row alone, past the drum sounds) */
 static struct {
@@ -158,7 +158,8 @@ static uint32_t mx_rets(uint8_t *ret)
             ret[n++] = (uint8_t)FXS_LN(t);
     return n;
 }
-/* MASTER alone: its name, the tall meter's dB scale (a tick each 6 dB, 0 -12 -24 -48 named), "GR", the returns' names */
+/* MASTER alone: the tall meter's dB scale (a tick each 6 dB, 0 -12 -24 -48 named), "GR", the returns' names (its name is the
+ * header's badge) */
 static void mx_paint_master(void)
 {
     static const int8_t DB[4] = {0, -12, -24, -48};
@@ -167,7 +168,6 @@ static void mx_paint_master(void)
     char b[8];
     cv_rect(0, OP_PH - 1, 240, 1, C_LINE);
     cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
-    cv_text(MXM_X, 2, &FONT_S, "MASTER", C_WHITE);
     for (i = 0; i <= 10u; i++)                          /* the scale: lg 5 .. 15 (op_draw.c meter_h), 6 dB a tick */
         cv_rect(MXM_X + (int32_t)((i * 4u + 4u) * MXM_W / 44u) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
     for (i = 0; i < 4u; i++) {

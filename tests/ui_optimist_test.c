@@ -257,6 +257,7 @@ static void reset_ui(void)
     fm1_in.notes = 0;
     op_disarm();
     ui.msg_t = 0;
+    st.pk = PK_NONE;                                    /* (no note picked: its selection colour would show on the next roll) */
     smute_trk = 0;                                      /* (nothing muted: SHIFT + a key mutes since 2026-10-16) */
     smute_lane = 0;
     memset(snd_mem, 0, sizeof snd_mem);                 /* (a power-on's page memory: SOUND's, the held step's, STEP's row) */
@@ -295,6 +296,14 @@ static int rows_ok(uint32_t scr, char *why)
 }
 /* every value on a screen has a form (op_cells.c cell_gauge): only names, actions and read-outs with no range are text */
 static uint32_t forms_bad, forms_seen;                /* forms_seen: a bit per GK_* kind met */
+static uint32_t sys_item_of(uint32_t r, uint32_t k)    /* SYSTEM's cell k of the page of line r: its SI_* item */
+{
+    uint32_t i = gl_line(1, r, k), e;
+    if (GL_DEV || i >= gl_n(1))
+        return SI_NONE;
+    e = gl_ent(1, i);
+    return sys_item(e >> 2, e & 3u);
+}
 static void forms_of(uint32_t scr)
 {
     uint32_t r, k, n;
@@ -312,8 +321,8 @@ static void forms_of(uint32_t scr)
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "MIDI") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
-                   (scr == SCR_SYSTEM && c.kind == CK_VAL && c.label && c.label[0] == 'C' && c.label[1] == 'H' &&
-                    c.label[2] >= '1' && c.label[2] <= '4' && !c.label[3]) ||   /* (USB AUDIO's sources: a list of names, text only) */
+                   (scr == SCR_SYSTEM && c.kind == CK_VAL && sys_item_of(r, k) >= SI_UAS0) ||   /* (USB AUDIO's channels: a list of
+                                                         * names, text only) */
                    (scr == SCR_SYSTEM && c.label && (!strcmp(c.label, "RECONNECT") || !strcmp(c.label, "LAST DEVICE"))) ||   /* (OFF / NONE or a device's name) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
@@ -2617,6 +2626,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
+#include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
@@ -2624,6 +2634,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 #include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
+#include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -2787,6 +2798,7 @@ int main(int argc, char **argv)
     cards_pic_tests();
     step_cards_tests();
     picker_tests();
+    overlap_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();
@@ -2798,8 +2810,12 @@ int main(int argc, char **argv)
     knobcol_tests();
     clkout_tests();
     uasel_tests();
-    core_row_tests();
+#if FELUCCA_SYS_DEBUG
+    core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
     overload_tests();
+#else
+    sysdbg_off_tests();
+#endif
     hold_tests();
     lane_preview_tests();
     step_pages_tests();

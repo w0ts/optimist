@@ -3,7 +3,7 @@
  * from under the header to the screen's foot (the page's title is the header's, next to the GLOBAL / SYSTEM badge:
  * "Channels 5/5", op_draw.c head_other; no title line here, the user, 2026-10-14). The 4 lines share the room down to the
  * help line evenly (gl_pitch). A line: the setting's name (no knob numbers, the user, 2026-10-15), its value on the right as the cards write it (amber: a read-out, or an action's
- * word: gl_val), the value's form under it: a bar over the screen's width, a segmented one for a short list, an on / off
+ * word: gl_val) in the large face when it fits (gl_big, 2026-10-17), the value's form under it: a bar over the screen's width, a segmented one for a short list, an on / off
  * value a square mark at the right instead (filled on, outlined off). The cursor line: no fill, its text (the number, the name,
  * the value) in the line's colour (the knob's with KNOB COLORS, else the track's; the user, 2026-10-14, "invert the highlight"). Lazy, as every band: drawn again when its signature changes. */
 #define GL_TOP OH_HEAD                  /* the list: under the header, to the help band (op_graph.c OP_FOOT) */
@@ -50,28 +50,50 @@ static uint32_t gl_tog(const cell_t *c)
     return c->kind == CK_VAL && c->gk == GK_PILL &&
            (str_eq(c->val, "ON") || str_eq(c->val, "OFF") || str_eq(c->val, "LINK") || str_eq(c->val, "NO CAL"));
 }
+/* the value in the large face (the user, 2026-10-17: "4 lines and yet font is too small"): every value that fits beside
+ * its name, the unit and the on / off mark (a value too long for it, "DRUM BUS L+R", keeps the small face) */
+static int gl_big(const char *name, const char *v, int32_t uw, uint32_t tog)
+{
+    return 6 + text_w(&FONT_S, name) + 12 + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+}
+/* line c's place from its top y: the name and the unit's text row (gl_lrow.ty), the value's (.fy, in the face .f), the bar's
+ * (.by); the name, the value and the unit's width as drawn */
+typedef struct {
+    const felucca_font_t *f;
+    int32_t ty, fy, by, uw;
+    char nm[16], v[16];
+} gl_lrow_t;
+static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
+{
+    char lv[14];
+    cut(r->nm, nm_card(c->label ? c->label : "", 0, r->nm, sizeof r->nm), 12);
+    cut(r->v, gl_text(c, lv), 13);
+    r->uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0;
+    r->f = &FONT_S;
+    r->ty = r->fy = gl_ty(y, GL_BH);                    /* (the text, then the bar, centred in the line) */
+    r->by = gl_by(y);
+    if (gl_big(r->nm, r->v, r->uw, gl_tog(c))) {        /* (the large value at the line's top, the name and the unit on its
+                                                         * baseline, the bar under it) */
+        r->f = font_big();
+        r->fy = y + 1;
+        r->ty = r->fy + (int32_t)font_big()->h / 2 - 4;
+        r->by = r->fy + (int32_t)font_big()->h - 2;
+    }
+}
 static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
 {
-    char b[16], lv[14];
-    const char *v = gl_text(c, lv);
+    gl_lrow_t r;
     uint16_t vc = c->kind == CK_RO || c->kind == CK_ACT ? (c->col ? c->col : c->kind == CK_RO ? C_GRAY : C_AMB) : knob_col(k, c->col ? c->col : C_HI);
-    int32_t uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0, x, ty, by;
+    int32_t uw, x, ty, by;
     uint32_t tog = gl_tog(c);                           /* on / off: the mark, no bar */
     uint32_t bar = c->kind != CK_ACT && c->gk != GK_NONE && !tog;
     uint16_t lc = knob_col(k, gld.bar), ink = on ? lc : vc;     /* (the cursor line: its text in the line's colour, no fill) */
-    ty = gl_ty(y, GL_BH);                               /* (the text, then the bar, centred in the line) */
-    by = gl_by(y);
-    cv_text(6, ty, &FONT_S, cut(b, nm_card(c->label ? c->label : "", 0, b, sizeof b), 12), on ? lc : C_GRAY);
-    cut(b, v, 13);
-    {
-        const felucca_font_t *f = &FONT_S;              /* a read-out to read from afar (Bluetooth's STATE, DEVICE, MIDI): the large
-                                                         * face when it fits beside the name (the user: small text is hard to read) */
-        int32_t fy = ty;
-        if (c->big && !uw && !tog && 6 + text_w(&FONT_S, c->label) + 12 + text_w(font_big(), b) <= 236)
-            f = font_big(), fy = ty - ((int32_t)font_big()->h - (int32_t)FONT_S.h) / 2;
-        x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
-        cv_text(x, fy, f, b, ink);
-    }
+    const char *b;
+    gl_lrow(c, y, &r);
+    uw = r.uw, ty = r.ty, by = r.by, b = r.v;
+    cv_text(6, ty, &FONT_S, r.nm, on ? lc : C_WHITE);
+    x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(r.f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
+    cv_text(x, r.fy, r.f, b, ink);
     if (uw)
         cv_text(236 - uw, ty, &FONT_S, c->unit, on ? lc : C_DIM);
     if (tog)
@@ -128,24 +150,34 @@ static void gl_cred_draw(int32_t y0)
         cv_text(236 - text_w(&FONT_S, CRED[i][1]), ty, &FONT_S, CRED[i][1], i ? C_HI : C_WHITE);
     }
 }
+#define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
 static void gl_info_draw(int32_t y0)
 {
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
-    int32_t ph = (GL_END - y0) / (int32_t)n, ty, uw, x;
+    int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, ty, fy, uw, x;
     char b[16], lv[14];
+    const char *nm;
     cell_t c;
-    if (ph > GL_INFO_PH)
-        ph = GL_INFO_PH;                                /* (a short page: a list's pitch, from the top) */
+    if (ph > cap)
+        ph = cap;                                       /* (a short page: a list's pitch, from the top) */
     for (i = 0; i < n; i++) {
         int32_t y = y0 + (int32_t)i * ph;
         uint16_t vc;
+        const felucca_font_t *f = &FONT_S;
         info_cell(pg, i, &c);
         vc = c.col ? c.col : C_GRAY;
-        ty = y + (ph - (int32_t)FONT_S.h) / 2;
+        ty = fy = y + (ph - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
-        cv_text(6, ty, &FONT_S, nm_card(c.label, 0, b, sizeof b), C_GRAY);
-        x = 236 - uw - text_w(&FONT_S, c.val);
-        cv_text(x, ty, &FONT_S, cut(lv, c.val, 13), vc);
+        nm = nm_card(c.label, 0, b, sizeof b);
+        cut(lv, c.val, 13);
+        if (ph >= GL_INFO_BIG && gl_big(nm, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */
+            f = font_big();
+            fy = y + (ph - (int32_t)font_big()->h) / 2;
+            ty = fy + (int32_t)font_big()->h / 2 - 4;
+        }
+        cv_text(6, ty, &FONT_S, nm, f == &FONT_S ? C_GRAY : C_WHITE);
+        x = 236 - uw - text_w(f, lv);
+        cv_text(x, fy, f, lv, vc);
         if (uw)
             cv_text(236 - uw, ty, &FONT_S, c.unit, C_DIM);
     }

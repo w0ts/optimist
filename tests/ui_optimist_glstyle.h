@@ -75,17 +75,22 @@ static int gls_no_title(void)
     for (s = 0; s < 2u; s++) {
         uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL;
         for (p = 0; p < gl_npg(s); p++) {
-            int32_t y, a, b;
+            int32_t y, a, b, top;
+            cell_t c;
+            gl_lrow_t lr;
             op_enter(scr);
             ui.row[scr] = (uint8_t)gl_pfirst(s, p);
             frame();
             if (gl_textpage())
                 continue;                               /* (INFO, CREDITS are read-outs from the top of the band, no 4-line pitch) */
-            for (y = OH_HEAD; y < OH_HEAD + gl_ty(gl_y0(), GL_BH); y++)
+            gl_cell(s, gl_pfirst(s, p), &c);
+            gl_lrow(&c, gl_y0(), &lr);                  /* (the first line's text: its name, or its value in the large face) */
+            top = lr.fy < lr.ty ? lr.fy : lr.ty;
+            for (y = OH_HEAD; y < OH_HEAD + top; y++)
                 if (gls_rowpx(y, 0, 240, &a, &b)) {
                     ok = 0;
                     if (getenv("GLSTYLE_DUMP"))
-                        printf("  glstyle: screen %u page %u: lit row %d (%d..%d), band from %d, first text %d\n", s, p, y, a, b, OH_HEAD, OH_HEAD + gl_ty(gl_y0(), GL_BH));
+                        printf("  glstyle: screen %u page %u: lit row %d (%d..%d), band from %d, first text %d\n", s, p, y, a, b, OH_HEAD, OH_HEAD + top);
                 }
         }
     }
@@ -131,13 +136,18 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
             uint32_t f = gl_pfirst(s, p), e = gl_pfirst(s, p + 1u);
             for (i = f; i < e; i++) {
                 cell_t c;
-                int32_t ly = gl_y0() + (int32_t)(i - f) * gl_pitch(), y = OH_HEAD + ly, by = OH_HEAD + gl_by(ly);
+                int32_t ly = gl_y0() + (int32_t)(i - f) * gl_pitch(), y = OH_HEAD + ly, by = OH_HEAD + gl_by(ly), ty0 = gl_ty(ly, GL_BH);
                 uint32_t cur = i == f && e - f > 1u ? f + 1u : f, tog, bar, r, lit = 0;
                 if (i == cur || (s && (sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_INFO || sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_CREDITS)))
                     continue;
                 ui.row[scr] = (uint8_t)cur;
                 frame();
                 gl_cell(s, i, &c);
+                {
+                    gl_lrow_t lr;                       /* (the bar's row: under the value, in whichever face it is) */
+                    gl_lrow(&c, ly, &lr);
+                    by = OH_HEAD + lr.by, ty0 = lr.ty;
+                }
                 tog = gl_tog(&c);
                 bar = c.kind != CK_ACT && c.gk != GK_NONE && !tog;
                 for (r = 0; r < (uint32_t)GL_BH; r++) {
@@ -161,7 +171,7 @@ static int gls_forms(uint32_t *bars, uint32_t *toggles)
                     ok &= lit == 0u;                    /* (no bar) */
                 }
                 if (tog) {                              /* the mark: a square at the right, outlined off, filled on */
-                    int32_t mx = 236 - GL_CK, my = OH_HEAD + gl_ty(ly, GL_BH) + ((int32_t)FONT_S.h - GL_CK) / 2;
+                    int32_t mx = 236 - GL_CK, my = OH_HEAD + ty0 + ((int32_t)FONT_S.h - GL_CK) / 2;
                     uint32_t on = c.gv > c.gmin;
                     ok &= screen[my * 240 + mx] != 0 && screen[(my + GL_CK - 1) * 240 + mx + GL_CK - 1] != 0;
                     ok &= (screen[(my + GL_CK / 2) * 240 + mx + GL_CK / 2] != 0) == (on != 0u);
@@ -345,7 +355,9 @@ static void glstyle_tests(void)
 #if FELUCCA_BLE
     check(gls_ble_enter(), "SYSTEM: YES on BLE from the joined USB + Bluetooth (Connections) page opens the devices");
 #endif
+#if FELUCCA_SYS_DEBUG
     check(gls_info_page(), "SYSTEM: INFO, the first page: the memory used / total as text read-outs, no bars");
+#endif
     check(gls_about_info(), "SYSTEM: About: version, build date and time, the chip, the repo link, on one page and fitting");
     check(gls_credits(), "SYSTEM: Credits, after About: the version, the upstreams by name, LICENSING.md for the rest, each line fitting");
     reset_ui();

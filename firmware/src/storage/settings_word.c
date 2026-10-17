@@ -16,7 +16,8 @@
  * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bit
  * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, so a record without it reads OFF, the default;
  * not in a 2.4 export), bits 27..28 2ND CORE (FELUCCA_DUAL, system/dual_mode.h: 0 AUTO, 1 OFF; a record without them
- * reads AUTO, the default), bits 29.. free; a build without a switch keeps its bit as read */
+ * reads AUTO, the default), bit 29 MIDI OUT's keys not sent (MOUT_SEQ, with bit 14; 0 with bit 14 = BOTH, 2.4's SEQ; not in a
+ * 2.4 export), bits 30.. free; a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -32,7 +33,8 @@ static uint32_t bp23_word(void)
     w = (w & ~0x1FFu) | lights_word();
 #endif
 #if FELUCCA_MIDI_OUT
-    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != 0) << 14;     /* (SLOOP 2.4: the same bits) */
+    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != MOUT_KEYS) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
+    w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ) << 29;   /* (ours: the keys not) */
 #endif
 #if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
     w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
@@ -71,7 +73,7 @@ static void bp23_from_word(uint32_t w)
     lights_from_word(w);
 #endif
 #if FELUCCA_MIDI_OUT
-    bp_set[BPS_MOUT] = (int16_t)((w >> 14) & 1u);
+    bp_set[BPS_MOUT] = (int16_t)(!((w >> 14) & 1u) ? MOUT_KEYS : ((w >> 29) & 1u) ? MOUT_SEQ : MOUT_BOTH);   /* (2.4's SEQ: BOTH) */
 #endif
 #if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
     bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);

@@ -62,6 +62,7 @@ static void pages_nav_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE, "D9: HOME tapped on the mixer: SCOPE, as before");
     tap(B_HOME);
+#if FELUCCA_SYS_DEBUG                                   /* (D2: the debug INFO page; SYS_DEBUG off: ui_optimist_sysdbg.h) */
     /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
     info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW, INFO's KNOB 2) */
@@ -89,6 +90,7 @@ static void pages_nav_tests(void)
     memset(&c2, 0, sizeof c2);
     sys_info_cell(2, &c2);
     check(!strcmp(c2.label, "2ND CORE") && !strcmp(c2.val, "NOT IN BUILD"), "D2: a single-core build: INFO's third line says NOT IN BUILD");
+#endif
 #endif
     /* D6 */
     reset_ui();

@@ -10,10 +10,11 @@
  *                        the channel (the first one when two have it); a channel no track has plays the selected
  *                        track (as before), unless its channel is OFF. Without: part ch, the drums on G_DRCH,
  *                        else the selected track.
- *   midi_key_out(...)    a key of the panel to MIDI OUT (always, as before; nothing on a channel that is OFF)
+ *   midi_key_out(...)    a key of the panel to MIDI OUT (KEYS and BOTH; not with SEQ, but its note off; nothing on a
+ *                        channel that is OFF)
  *
- *   MIDI OUT = SEQ (FELUCCA_MIDI_OUT, HOME menu; SLOOP 2.4): what the sequencer, the arp and the rolls play goes
- *   out too, on the track's channel (the drums on theirs). Rules (as 2.4):
+ *   MIDI OUT = BOTH (FELUCCA_MIDI_OUT, GLOBAL; SLOOP 2.4's SEQ, value 1) or SEQ (the sequencer alone, no keys, 2026-10-17):
+ *   what the sequencer, the arp and the rolls play goes out, on the track's channel (the drums on theirs). Rules (as 2.4):
  *     - every note is ended: a set of the notes sent per track, a note on again while it is on is ended first;
  *       a step's, a gate's, an arp note's, a roll's end sends its note-off; the drum hits end with the next step;
  *     - STOP ends what is still on, and so does MIDI OUT back to KEYS, a track's channel changed or set to OFF
@@ -52,8 +53,8 @@ static int midi_track_idx(uint32_t ch)
 #endif
 }
 
-/* a key of the panel: the note on / off on channel mc (0..15) to MIDI OUT; vel = 0 (a note off) */
-static void midi_key_out(uint32_t mc, uint32_t note, uint32_t vel)
+/* a note on / off on channel mc (0..15) to MIDI OUT; vel = 0 (a note off) */
+static void midi_note_out(uint32_t mc, uint32_t note, uint32_t vel)
 {
     if (mc == MCH_OFF)
         return;
@@ -61,6 +62,16 @@ static void midi_key_out(uint32_t mc, uint32_t note, uint32_t vel)
         midi_out_event(0x09u | (0x90u | mc) << 8 | note << 16 | vel << 24);
     else
         midi_out_event(0x08u | (0x80u | mc) << 8 | note << 16);
+}
+/* a key of the panel (or the editor's keyboard) to MIDI OUT: not with MIDI OUT = SEQ (the sequencer alone, the user,
+ * 2026-10-17); its note off always goes (an off for a note sent before the setting changed: no hanging note) */
+static void midi_key_out(uint32_t mc, uint32_t note, uint32_t vel)
+{
+#if FELUCCA_MIDI_OUT
+    if (vel && bp_set[BPS_MOUT] == MOUT_SEQ)
+        return;
+#endif
+    midi_note_out(mc, note, vel);
 }
 
 #if FELUCCA_MIDI_OUT
@@ -73,7 +84,7 @@ static void seq_out_off(const track_t *t, uint32_t note)
     if (note > 127u || !(mo_set[i][note >> 5] & (1u << (note & 31u))))
         return;
     mo_set[i][note >> 5] &= ~(1u << (note & 31u));
-    midi_key_out(mo_ch[i], note, 0u);
+    midi_note_out(mo_ch[i], note, 0u);
 }
 static void seq_out_track_off(const track_t *t)    /* every note of the track still on */
 {
@@ -82,7 +93,7 @@ static void seq_out_track_off(const track_t *t)    /* every note of the track st
         for (b = 0; mo_set[i][w]; b++)
             if (mo_set[i][w] & (1u << b)) {
                 mo_set[i][w] &= ~(1u << b);
-                midi_key_out(mo_ch[i], w * 32u + b, 0u);
+                midi_note_out(mo_ch[i], w * 32u + b, 0u);
             }
 }
 static int seq_out_held(const track_t *t, uint32_t note)    /* its note is on (a slide into it: one MIDI note) */
@@ -102,7 +113,7 @@ static void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
     mo_ch[i] = (uint8_t)ch;
     mo_set[i][note >> 5] |= 1u << (note & 31u);
     mo_any = 1;
-    midi_key_out(ch, note, vel ? vel & 127u : 1u);
+    midi_note_out(ch, note, vel ? vel & 127u : 1u);
 }
 static void seq_out_all_off(void)
 {

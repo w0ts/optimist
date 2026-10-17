@@ -406,11 +406,49 @@ static void t_in_clock(void)
     }
 }
 
+/* MIDI OUT = KEYS / BOTH / SEQ (the user, 2026-10-17): a key goes out with KEYS and BOTH, not with SEQ (the sequencer alone);
+ * the settings word: bit 14 the sequencer out (2.4's SEQ = our BOTH), bit 29 the keys not */
+static void t_keys_mode(void)
+{
+    static const char *const NM[3] = {"KEYS", "BOTH", "SEQ"};
+    uint32_t m, k;
+    char what[96];
+    for (m = MOUT_KEYS; m <= MOUT_SEQ; m++) {
+        reset();
+        bp_set[BPS_MOUT] = (int16_t)m;
+        for (k = 0; k < 16u; k += 4u)
+            step_note(&trk[1], k, 48);
+        bp_set[BPS_CH1] = 8;
+        fm1_in.notes = 1u << 7;                         /* a key held on track 1 */
+        blocks(2);
+        snprintf(what, sizeof what, "OUT = %s: the key %s out", NM[m], m == MOUT_SEQ ? "does not go" : "goes");
+        check(m == MOUT_SEQ ? ons[0] == 0u : ons[0] == 1u, what);
+        fm1_in.notes = 0;
+        blocks(2);
+        clear_out();
+        play_bars(1);
+        snprintf(what, sizeof what, "OUT = %s: track 2's steps %s out", NM[m], m == MOUT_KEYS ? "do not go" : "go");
+        check(m == MOUT_KEYS ? ons[7] == 0u : ons[7] >= 4u, what);
+        stop();
+        check(all_ended(), "(STOP: every note ended)");
+        bp23_from_word(0);
+        bp_set[BPS_MOUT] = (int16_t)m;
+        k = bp23_word();
+        snprintf(what, sizeof what, "settings word: %s is bit 14 %u, bit 29 %u, read back", NM[m], m != MOUT_KEYS, m == MOUT_SEQ);
+        bp_set[BPS_MOUT] = 0;
+        bp23_from_word(k);
+        check(((k >> 14) & 1u) == (m != MOUT_KEYS) && ((k >> 29) & 1u) == (m == MOUT_SEQ) && bp_set[BPS_MOUT] == (int16_t)m, what);
+    }
+    bp23_from_word(1u << 14);
+    check(bp_set[BPS_MOUT] == MOUT_BOTH, "settings word: a 2.4 / older word's SEQ (bit 14 alone) reads BOTH: keys and sequencer, as before");
+}
+
 int main(void)
 {
     t_word();
     t_ble_word();
     t_settings();
+    t_keys_mode();
     t_seq_out();
     t_chan_move();
     t_no_echo();

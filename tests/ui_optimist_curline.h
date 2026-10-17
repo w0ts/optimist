@@ -72,10 +72,17 @@ static int cl_gl(uint32_t scr, uint32_t colors)
         for (j = 0; j < gld.end - f; j++) {
             int32_t y = OH_HEAD + gl_y0() + (int32_t)j * gl_pitch(), h = gl_pitch() - 2;
             uint16_t lc = knob_col(j, trk_col(song.sel));
-            int32_t ty = OH_HEAD + gl_ty(gl_y0() + (int32_t)j * gl_pitch(), GL_BH), te = ty + (int32_t)FONT_S.h;   /* (the text rows: the bar under them keeps its colour) */
-            uint32_t lab = cl_count(24, ty, 120, te, lc), fill = cl_count(0, y, 3, y + h, lc) + cl_count(0, y, 3, y + h, C_WHITE);
+            cell_t c;
+            gl_lrow_t lr;
+            int32_t ty, te, nx;
+            uint32_t lab, fill;
+            gl_cell(s, f + j, &c);
+            gl_lrow(&c, gl_y0() + (int32_t)j * gl_pitch(), &lr);   /* (the name's rows and columns: a large value may reach left of x 120) */
+            ty = OH_HEAD + lr.ty, te = ty + (int32_t)FONT_S.h, nx = 6 + text_w(&FONT_S, lr.nm);
+            lab = cl_count(6, ty, nx, te, lc), fill = cl_count(0, y, 3, y + h, lc) + cl_count(0, y, 3, y + h, C_WHITE);
             ok &= fill == 0u && screen[(y + 1) * 240 + 1] == swap16(C_BLACK);   /* (no fill, whatever the line) */
-            ok &= j == k ? lab > 8u && cl_count(24, ty, 120, te, C_WHITE) == 0u : lab == 0u;   /* (the name in the line's colour on the cursor, grey elsewhere) */
+            ok &= j == k ? (lab > 8u || lr.nm[0] == ' ') && cl_count(6, ty, nx, te, C_WHITE) == 0u : lab == 0u;   /* (the name in the line's colour on
+                                                         * the cursor, white elsewhere; ABOUT's link line has a blank name) */
             if (!ok)
                 printf("  curline: %s line %u (cursor %u): label px %u, fill px %u\n", scr == SCR_SYSTEM ? "SYSTEM" : "GLOBAL", f + j, i, lab, fill);
         }
