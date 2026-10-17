@@ -1419,6 +1419,21 @@ static void sn_boot(void);                         /* snapshots.c */
 static uint32_t persist_view_kept;                 /* the settings record's last word as read, when not our VIEW */
 #endif
 #include "persist_rec.c"                      /* persist_t: the settings record's layout, persist_upgrade (older records) */
+#if FELUCCA_BLE
+/* the BLE fields of a record read (persist_boot) into the BLE code's copies, and out of them (settings_save, out 1) */
+static void persist_ble(persist_t *p, int out)
+{
+    static uint8_t *const K[4] = {ble_addr_kept, ble_rf_kept, ble_bond_kept, ble_dev_kept};
+    static const uint8_t N[4] = {sizeof p->ble_addr, sizeof p->ble_rf, sizeof p->ble_bond, sizeof p->ble_dev};
+    uint8_t *f = p->ble_addr;                      /* (in a row: PERSIST_BLE) */
+    uint32_t i;
+    for (i = 0; i < 4u; f += N[i++])
+        memcpy(out ? f : K[i], out ? K[i] : f, N[i]);
+}
+_Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_SIZE && sizeof ble_bond_kept == BLE_BOND_SIZE &&
+               sizeof ble_dev_kept == BLE_DEV_STORE_SIZE && BLE_DEV_STORE_SIZE < 256u && BLE_RF_COPY_SIZE < 256u,
+               "the BLE copies: the record's fields' sizes");
+#endif
 #if FELUCCA_FLASH
 static persist_t persist_saved;
 #endif
@@ -1525,10 +1540,7 @@ static void persist_boot(void)                    /* before settings_init / pane
                 arr_to_rec(&p.arrangement, &arrangement, 0);
 #endif
 #if FELUCCA_BLE
-            memcpy(ble_addr_kept, p.ble_addr, sizeof ble_addr_kept);
-            memcpy(ble_rf_kept, p.ble_rf, sizeof ble_rf_kept);
-            memcpy(ble_bond_kept, p.ble_bond, sizeof ble_bond_kept);
-            memcpy(ble_dev_kept, p.ble_dev, sizeof ble_dev_kept);
+            persist_ble(&p, 0);                    /* (the BLE address, trims, bond, devices) */
 #endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1619,10 +1631,7 @@ static void settings_save(void)
     p.dualcfg = dualcfg;
 #endif
 #if FELUCCA_BLE
-    memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
-    memcpy(p.ble_rf, ble_rf_kept, sizeof p.ble_rf);
-    memcpy(p.ble_bond, ble_bond_kept, sizeof p.ble_bond);
-    memcpy(p.ble_dev, ble_dev_kept, sizeof p.ble_dev);
+    persist_ble(&p, 1);
 #endif
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;                                    /* unchanged: no erase cycle */
