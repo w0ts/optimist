@@ -245,14 +245,14 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
     prj_slot_label(kind, s, l);
     if (op != PO_SAVE && !prj_slot_used(kind, s)) {
         str_cpy(m, l, sizeof m);
-        str_cpy(m + str_len(m), " IS EMPTY", sizeof m - str_len(m));
+        str_app(m, " IS EMPTY", sizeof m);
         ui.toast_next = 1;
         ui_say_st(0u, "SLOT ", m);
         ui.toast_next = 0;
         return;
     }
     str_cpy(t, WHAT[kind], sizeof t);                   /* the target: "PROJECT 3", "SNAPSHOT 2", "USER U18" */
-    str_cpy(t + str_len(t), l, sizeof t - str_len(t));
+    str_app(t, l, sizeof t);
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)s;
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
@@ -358,7 +358,7 @@ static uint32_t prj_bank_tap(uint32_t up)               /* 1: the tap was a bank
     cur = (nb << 4) + (cur & 15u);
     prj_slot_set(kind, cur < n ? cur : n - 1u);
     fmt_int(b, (int32_t)nb + 1);
-    str_cpy(b + str_len(b), "/", sizeof b - str_len(b));
+    str_app(b, "/", sizeof b);
     fmt_int(b + str_len(b), (int32_t)prj_banks(kind));
     ui.force = 1;
     ui.toast_next = 1;
@@ -442,7 +442,7 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
         up_name(s, pdp.name);
 #if FELUCCA_FAVORITES
         if (fav_user_has(s))
-            str_cpy(pdp.name + str_len(pdp.name), " *", sizeof pdp.name - str_len(pdp.name));   /* (a favorite: the star after its name) */
+            str_app(pdp.name, " *", sizeof pdp.name);   /* (a favorite: the star after its name) */
 #endif
         str_cpy(pdp.d1, "ENGINE", sizeof pdp.d1);
         str_cpy(pdp.d2, e < NENGINES ? ENGINES[e]->name : "NOT IN THIS BUILD", sizeof pdp.d2);
@@ -455,7 +455,7 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
         pdp.col1 = C_STATUS[st & 3u];
         if (bytes) {
             fmt_int(pdp.d2, (int32_t)((bytes + 512u) >> 10));
-            str_cpy(pdp.d2 + str_len(pdp.d2), " KB", sizeof pdp.d2 - str_len(pdp.d2));
+            str_app(pdp.d2, " KB", sizeof pdp.d2);
         }
     }
 #endif
@@ -500,9 +500,9 @@ static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_l
     pdp.danger = (uint8_t)prj_danger(kind, op, s);
     prj_slot_label(kind, s, l);
     str_cpy(pdp.head, PO_NAME[op], sizeof pdp.head);
-    str_cpy(pdp.head + str_len(pdp.head), " ", sizeof pdp.head - str_len(pdp.head));
-    str_cpy(pdp.head + str_len(pdp.head), kind == PR_USER ? "USER " : kind == PR_SNAP ? "SNAPSHOT " : "PROJECT ", sizeof pdp.head - str_len(pdp.head));
-    str_cpy(pdp.head + str_len(pdp.head), l, sizeof pdp.head - str_len(pdp.head));
+    str_app(pdp.head, " ", sizeof pdp.head);
+    str_app(pdp.head, kind == PR_USER ? "USER " : kind == PR_SNAP ? "SNAPSHOT " : "PROJECT ", sizeof pdp.head);
+    str_app(pdp.head, l, sizeof pdp.head);
     prj_info(kind, s);
     sig = hs(hs(hs(hs(hu(hu(hu(hu(hu(0x93u, kind), op), s), pdp.used), pdp.bar + settings.palette * 65536u), pdp.head), pdp.name), pdp.d1), pdp.d2);
     sig = hu(sig, pdp.danger | h << 8) | 1u;

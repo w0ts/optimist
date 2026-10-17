@@ -140,11 +140,11 @@ static void step_pick_name(char *b, uint32_t n)         /* "KICK", "C4 E4+" (b h
     b[0] = 0;
     for (i = 0; i < k && i < 2u; i++) {
         if (i)
-            str_cpy(b + str_len(b), " ", n - str_len(b));
+            str_app(b, " ", n);
         note_name(b + str_len(b), pick_note(i));
     }
     if (k > 2u)
-        str_cpy(b + str_len(b), "+", n - str_len(b));
+        str_app(b, "+", n);
 }
 
 /* ---- set and clear (callers hold the IRQ off where they say so) */
@@ -213,7 +213,7 @@ static void step_set(track_t *t, uint32_t idx)          /* an empty step takes t
 }
 /* step idx cleared (IRQ off): all = the whole step (HOME), else the drum lane's hit or the synth note; a synth
  * note's ties go with it; a step left empty keeps no nudge, lock or fill */
-static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
+static void step_wipe(track_t *t, uint32_t idx, int32_t all)
 {
     if (is_drum(t)) {
         dstep_t *d = &t->dstep[idx];
@@ -335,14 +335,13 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             return;
         st.held &= (uint16_t)~bit;
         if ((st.pend & bit) && fm1_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
+            dstep_t *d = &t->dstep[idx];
+            uint32_t l = lane_selected(), lv = dstep_lvl(d, l);
             undo_mark(t, st.sess);
             fm1_irq_off();
-            if (step_has(t, idx) && is_drum(t) && lane_selected() != DRUM_ACC && dstep_has(&t->dstep[idx], lane_selected()) &&
-                dstep_lvl(&t->dstep[idx], lane_selected()) <= LV_HARD && dstep_lvl(&t->dstep[idx], lane_selected()) != LV_GHOST &&
-                dstep_lvl(&t->dstep[idx], lane_selected()) != LV_SOFT)   /* a drum hit tapped: normal -> hard -> ghost -> off (the user, 2026-10-14) */
-                dstep_set(&t->dstep[idx], lane_selected(),
-                          dstep_lvl(&t->dstep[idx], lane_selected()) == LV_NORM ? LV_HARD : LV_GHOST,
-                          dstep_rat(&t->dstep[idx], lane_selected()));
+            if (is_drum(t) && l != DRUM_ACC && dstep_has(d, l) && (lv == LV_NORM || lv == LV_HARD))   /* a drum hit tapped: normal
+                                                         * -> hard -> ghost -> off (the user, 2026-10-14) */
+                dstep_set(d, l, lv == LV_NORM ? LV_HARD : LV_GHOST, dstep_rat(d, l));
             else if (step_has(t, idx))
                 is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
             else if (step_kept(t, idx))
@@ -390,19 +389,35 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     st.t_key[w] = fm1_ms;
     st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
 }
-/* the steps held, one by one: f(t, idx) for each within LEN (IRQ off, one undo level, edited: kept when let go) */
-static void held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
+static int32_t held_at(uint32_t w)                      /* the step white key w holds, within LEN; -1 none */
+{
+    uint32_t idx = st.page * 16u + w;
+    return ((st.held >> w) & 1u) && idx < trk_len(TSEL) ? (int32_t)idx : -1;
+}
+static track_t *held_open(void)                         /* an edit of the steps held: one undo level, no tap when let go, IRQ off */
 {
     track_t *t = TSEL;
-    uint32_t w;
     undo_mark(t, st.sess);
     st.pend &= (uint16_t)~st.held;
     fm1_irq_off();
-    for (w = 0; w < 16u; w++)
-        if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
-            f(t, st.page * 16u + w, s);
+    return t;
+}
+static void held_shut(void)                             /* ... done: IRQ on, the sequencer told */
+{
     fm1_irq_on();
     sync_reload = 1;
+}
+/* the steps held, one by one: f(t, idx) for each within LEN (IRQ off, one undo level, edited: kept when let go); -> how many */
+static uint32_t held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
+{
+    track_t *t = held_open();
+    uint32_t w, n = 0;
+    int32_t i;
+    for (w = 0; w < 16u; w++)
+        if ((i = held_at(w)) >= 0)
+            f(t, (uint32_t)i, s), n++;
+    held_shut();
+    return n;
 }
 /* a step held past the hold time (op_hold_ms, SYSTEM HOLD: what makes it a held step): only then do the cards show
  * by themselves; a quick tap toggles the step and shows none (the user, 2026-10-10: "in seq, we should show the plock
@@ -411,24 +426,14 @@ static int step_held_long(void) { return st.held && fm1_ms - st.t_down >= op_hol
 static int32_t held_first(void)                         /* the first step held (its values on the cards), -1 none */
 {
     uint32_t w;
-    for (w = 0; w < 16u; w++)
-        if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(TSEL))
-            return (int32_t)(st.page * 16u + w);
-    return -1;
+    int32_t i = -1;
+    for (w = 0; w < 16u && i < 0; w++)
+        i = held_at(w);
+    return i;
 }
 static void held_clear(void)                            /* a step held, HOME tapped: the steps cleared */
 {
-    uint32_t w, n = 0;
-    track_t *t = TSEL;
-    undo_mark(t, st.sess);
-    fm1_irq_off();
-    for (w = 0; w < 16u; w++)
-        if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
-            step_wipe(t, st.page * 16u + w, 1), n++;
-    fm1_irq_on();
-    st.pend = 0;
-    sync_reload = 1;
-    ui_message(n > 1u ? "STEPS CLEARED" : "STEP CLEARED");
+    ui_message(held_each(step_wipe, 1) > 1u ? "STEPS CLEARED" : "STEP CLEARED");   /* (the keys down stay no tap: pend) */
 }
 
 /* ---- the held steps' values: KNOB k (drums: 0 LEVEL, 1 RATCHET; synths: 0 NOTE, 1 LEVEL, 2 RATCHET, 3 LENGTH);
@@ -478,32 +483,35 @@ static void held_edit(uint32_t k, int32_t s)
         s = clamp(s, -16, 16);
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
 }
-/* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
- * to 0..127; the keyboard octave and FM6's paging stay. The cards come to the step's page, NOTE lit */
-static void held_octave(int32_t d)
+/* the notes of the steps held edited by f (s), the cards to the step's page, NOTE lit */
+static void held_notes(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
 {
     if (held_first() < 0)
         return;
     st.hp = 0;
     st.lock_pg = LOCK_NONE;
-    held_edit(0, 12 * d);
+    held_each(f, s);
     step_cards_show();
     ui.hot = 0;
     ui.hot_lit = 1;
 }
+/* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
+ * to 0..127; the keyboard octave and FM6's paging stay (a synth track's: edit_synth's NOTE, held_edit's packing) */
+static void held_octave(int32_t d) { held_notes(edit_synth, (uint16_t)(int16_t)(12 * d)); }
 
 /* ---- a held step moved (the user, 2026-10-16): PRESETS moves it left / right in time, ALGORITHM up / down (a synth step's
  * note a semitone, a drum hit to the lane above / below as drawn). The events of the step (its locks, motion, nudge,
  * chance, condition, fill) go with it; the neighbour it passes takes its place (a swap), nothing is lost. A held step that
  * would pass the pattern's first or last step, or a tied note's tie, stays and says so; the held keys follow their steps
  * (st.fabs), the window pages when they cross its edge. Several held: they move together, in one undo level. */
+static uint32_t nsel_of(const step_t *s) { return st.nsel < s->n ? st.nsel : s->n - 1u; }   /* the note SELECT picked (a note on) */
 static int held_note_sel(uint32_t idx)                  /* the held synth step idx of several notes: the note SELECT picked, else -1 */
 {
     const step_t *s;
     if (is_drum(TSEL) || ui.scr != SCR_STEP || idx / 16u != st.page || !((st.held >> (idx % 16u)) & 1u))
         return -1;
     s = &TSEL->step[idx % NSTEP];
-    return step_on(s) && s->n > 1u ? (int)(st.nsel < s->n ? st.nsel : s->n - 1u) : -1;
+    return step_on(s) && s->n > 1u ? (int)nsel_of(s) : -1;
 }
 static int32_t held_note(void)                          /* the note being edited on the first step held (synth), -1 none */
 {
@@ -512,7 +520,7 @@ static int32_t held_note(void)                          /* the note being edited
     if (i < 0 || is_drum(TSEL))
         return -1;
     s = &TSEL->step[i];
-    return step_on(s) ? s->note[s->n > 1u ? (st.nsel < s->n ? st.nsel : s->n - 1u) : 0u] : -1;
+    return step_on(s) ? s->note[nsel_of(s)] : -1;
 }
 static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s);   /* op_stepdraw.c: FOLD's next row */
 static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
@@ -521,20 +529,10 @@ static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
     uint32_t k;
     if (!step_on(x))
         return;
-    k = x->n > 1u ? (st.nsel < x->n ? st.nsel : x->n - 1u) : 0u;
+    k = nsel_of(x);
     x->note[k] = (uint8_t)clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
 }
-static void held_pitch(int32_t s)                       /* ALGORITHM on a held synth step: the selected note (the only one) up / down */
-{
-    if (held_first() < 0)
-        return;
-    st.hp = 0;
-    st.lock_pg = LOCK_NONE;
-    held_each(held_pitch_one, s);
-    step_cards_show();
-    ui.hot = 0;
-    ui.hot_lit = 1;
-}
+static void held_pitch(int32_t s) { held_notes(held_pitch_one, s); }   /* ALGORITHM on a held synth step: the selected note (the only one) up / down */
 #if FELUCCA_AUTO
 static void ev_block_shift(track_t *t, uint32_t a, uint32_t n, int32_t d)   /* the events of steps a .. a+n-1 move d (+-1), the step passed takes the vacated one */
 {
@@ -653,8 +651,7 @@ static int held_move(int32_t d)                         /* every step held one s
         ui_message(why);
         return 0;
     }
-    undo_mark(t, st.sess);
-    fm1_irq_off();
+    (void)held_open();
     for (i = 0; i < k; i++) {
         uint32_t a = st.fabs[w[i]], bl = held_block(t, a);
         if (is_drum(t)) {
@@ -745,9 +742,7 @@ static int held_lane(int32_t d)                         /* ALGORITHM on a held d
         return 0;
     }
     l2 = d > 0 ? l - 1u : l + 1u;
-    undo_mark(t, st.sess);
-    st.pend &= (uint16_t)~st.held;
-    fm1_irq_off();
+    (void)held_open();
     for (i = 0; i < k; i++)
         n += (uint32_t)held_lane_one(t, st.fabs[w[i]], l, l2);
     fm1_irq_on();
@@ -1125,8 +1120,8 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
  * OP_RESET (SHIFT + the knob) drops the step's events of the cell, both kinds */
 static void lock_turn_id(int32_t id, const param_desc_t *d, uint32_t k, int32_t s, int fine)
 {
-    track_t *t = TSEL;
-    int32_t step;
+    track_t *t;
+    int32_t step, i;
     uint32_t w, r = 0;
     if (id < 0) {
         if (d)
@@ -1134,14 +1129,11 @@ static void lock_turn_id(int32_t id, const param_desc_t *d, uint32_t k, int32_t 
         return;
     }
     step = fine || s == OP_RESET ? s : accel(EN_K1 + k, s, accel_range(d));
-    st.pend &= (uint16_t)~st.held;
-    undo_mark(t, st.sess);                              /* (a lock written or dropped: undone with the step, undo.c) */
-    fm1_irq_off();
+    t = held_open();                                    /* (a lock written or dropped: undone with the step, undo.c) */
     for (w = 0; w < 16u; w++)
-        if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
-            lock_step_put(t, st.page * 16u + w, (uint32_t)id, d, step, &r);
-    fm1_irq_on();
-    sync_reload = 1;
+        if ((i = held_at(w)) >= 0)
+            lock_step_put(t, (uint32_t)i, (uint32_t)id, d, step, &r);
+    held_shut();
     if (r & 1u)
         ui_message("NO LOCK LEFT");
     else if ((r & 2u) && !(r & 4u))
@@ -1186,23 +1178,19 @@ static void held_yes(void)
     else if (st.hp == 0u && is_drum(TSEL) && (ui.hot & 3u) >= 2u)
         id = held_lane_param(ui.hot & 3u, &d);
     if (i >= 0 && id >= 0 && lock_kind((uint32_t)id, i, &v)) {
-        track_t *t = TSEL;
+        track_t *t = held_open();
         uint32_t w, r = 0;
-        undo_mark(t, st.sess);
-        st.pend &= (uint16_t)~st.held;
-        fm1_irq_off();
         for (w = 0; w < 16u; w++)
-            if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t)) {
+            if ((i = held_at(w)) >= 0) {
 #if DLA_ON
                 if ((uint32_t)id & LOCK_LANE) {
-                    r |= lane_kind_toggle(t, st.page * 16u + w, lane_selected(), (uint32_t)id & 7u);
+                    r |= lane_kind_toggle(t, (uint32_t)i, lane_selected(), (uint32_t)id & 7u);
                     continue;
                 }
 #endif
-                r |= auto_kind_toggle(t, st.page * 16u + w, (uint32_t)id);
+                r |= auto_kind_toggle(t, (uint32_t)i, (uint32_t)id);
             }
-        fm1_irq_on();
-        sync_reload = 1;
+        held_shut();
         ui_message(r & 1u ? "HOLD: UNTIL THE NEXT" : r & 2u ? "THIS STEP ONLY" : "NO HOLD HERE");
         return;
     }
@@ -1464,7 +1452,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         if (k == 0u) {
             note_name(c->val, s->note[0]);
             if (s->n > 1u)
-                str_cpy(c->val + str_len(c->val), "+", sizeof c->val - str_len(c->val));
+                str_app(c->val, "+", sizeof c->val);
             cell_gauge(c, 0, 0, 127, s->note[0]);
             return;
         }
@@ -1476,7 +1464,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
             fmt_int(c->val, f < 0 ? (int32_t)n : f / 10);
             if (f >= 0) {
                 char d[3] = {'.', (char)('0' + f % 10), 0};
-                str_cpy(c->val + str_len(c->val), d, sizeof c->val - str_len(c->val));
+                str_app(c->val, d, sizeof c->val);
             }
             c->unit = "steps";
             cell_gauge(c, 0, 0, (int32_t)trk_len(t) * 10, f < 0 ? (int32_t)n * 10 : f);
@@ -1636,27 +1624,27 @@ static void step_foot(char *h, char *k, uint32_t n)
 #if FELUCCA_MICRO
         str_cpy(h, "Nudge ", n);
         if (step_micro(TSEL, (uint32_t)i) > 0)
-            str_cpy(h + str_len(h), "+", n - str_len(h));
+            str_app(h, "+", n);
         fmt_int(h + str_len(h), step_micro(TSEL, (uint32_t)i));
-        str_cpy(h + str_len(h), "  ", n - str_len(h));
+        str_app(h, "  ", n);
 #endif
 #if FELUCCA_CHANCE
-        str_cpy(h + str_len(h), "Chance ", n - str_len(h));
+        str_app(h, "Chance ", n);
         fmt_int(h + str_len(h), (int32_t)step_chance_of(TSEL, (uint32_t)i));
-        str_cpy(h + str_len(h), "%", n - str_len(h));
+        str_app(h, "%", n);
 #endif
         str_cpy(k, "Step ", n);
         fmt_int(k + 5, i + 1);
 #if FELUCCA_FILLS
         {
             static const char *const F[3] = {"", "  Fill only", "  No fill"};
-            str_cpy(k + str_len(k), F[step_fill(TSEL, (uint32_t)i) % 3u], n - str_len(k));
+            str_app(k, F[step_fill(TSEL, (uint32_t)i) % 3u], n);
         }
 #endif
 #if FELUCCA_COND
         if (step_cond(TSEL, (uint32_t)i)) {
-            str_cpy(k + str_len(k), "  ", n - str_len(k));
-            str_cpy(k + str_len(k), COND_NAME[step_cond(TSEL, (uint32_t)i) % (AUTO_NCOND + 1u)], n - str_len(k));
+            str_app(k, "  ", n);
+            str_app(k, COND_NAME[step_cond(TSEL, (uint32_t)i) % (AUTO_NCOND + 1u)], n);
         }
 #endif
         return;
@@ -1669,7 +1657,7 @@ static void step_foot(char *h, char *k, uint32_t n)
     str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && (fm1_in.buttons & (1u << panel.btn[B_SEQ]))) ? "Pick "
               : st.play ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
-    str_cpy(k + str_len(k), b, n - str_len(k));
+    str_app(k, b, n);
 }
 
 #if FELUCCA_KEYLIT

@@ -228,7 +228,7 @@ static void dev_line_text(char *out, uint32_t room, const char *line, uint32_t a
         at = n;
     str_cpy(words, line, at + 1u);
     op_case(out, words, room);
-    str_cpy(out + str_len(out), line + at, room - str_len(out));
+    str_app(out, line + at, room);
     while (out[0] && text_w(&FONT_S, out) > DEV_LINE_W)
         out[str_len(out) - 1u] = 0;
 }
@@ -409,7 +409,7 @@ static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure'
     static char b[2][16];
     char *t = b[base[3] == '1'];
     str_cpy(t, base, sizeof b[0]);
-    str_cpy(t + str_len(t), INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0] - str_len(t));
+    str_app(t, INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0]);
     c->label = t;
 }
 #if FELUCCA_CPU_GUARD
@@ -627,7 +627,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
                 fmt_int(u + str_len(u), (int32_t)(nu < 9999u ? nu : 9999u));
             }
             if (mi) {
-                str_cpy(u + str_len(u), " MIDI", sizeof u - str_len(u));
+                str_app(u, " MIDI", sizeof u);
                 fmt_int(u + str_len(u), (int32_t)(mi < 9999u ? mi : 9999u));
             }
         }
@@ -643,11 +643,11 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         str_cpy(c->val, CG_NAME[l], sizeof c->val);
         if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
-            str_cpy(c->val + str_len(c->val), " MAX", sizeof c->val - str_len(c->val));
+            str_app(c->val, " MAX", sizeof c->val);
             fmt_int(c->val + str_len(c->val), cg.vcap);
         }
         if (n && str_len(c->val) + 5u < sizeof c->val) {
-            str_cpy(c->val + str_len(c->val), " -", sizeof c->val - str_len(c->val));
+            str_app(c->val, " -", sizeof c->val);
             fmt_int(c->val + str_len(c->val), (int32_t)(n < 999u ? n : 999u));
         }
         c->unit = n ? "V" : "";
@@ -715,7 +715,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             break;
         }
         fmt_int(c->val, (int32_t)bars);
-        str_cpy(c->val + str_len(c->val), "/3 ", sizeof c->val - str_len(c->val));
+        str_app(c->val, "/3 ", sizeof c->val);
         fmt_int(c->val + str_len(c->val), song.batt_raw);
         c->unit = usb.config && !usb.suspended ? "USB" : "";
         c->col = bars == 0u ? C_WARN : 0;

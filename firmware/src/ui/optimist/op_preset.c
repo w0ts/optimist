@@ -44,8 +44,8 @@ static void pre_toast_drum(void)
     char m[30];
     uint32_t l = lane_selected(), on = (uint32_t)lane_presets();
     str_cpy(m, on ? lane_name(l) : "KIT", sizeof m);
-    str_cpy(m + str_len(m), on ? ": " : " ", sizeof m - str_len(m));
-    str_cpy(m + str_len(m), on ? lane_sound_name(l) : drum_kit_name(), sizeof m - str_len(m));
+    str_app(m, on ? ": " : " ", sizeof m);
+    str_app(m, on ? lane_sound_name(l) : drum_kit_name(), sizeof m);
     ui.toast_next = 1;
     ui_message(m);
     ui.toast_next = 0;
@@ -69,12 +69,12 @@ static void pre_toast(void)
     {
         uint32_t fk, fe = preset_at(cur, &fk);
         if (fav_entry(fe, fk))
-            str_cpy(m + str_len(m), " *", sizeof m - str_len(m));   /* (a favorite: the star after its name) */
+            str_app(m, " *", sizeof m);   /* (a favorite: the star after its name) */
     }
 #endif
-    str_cpy(m + str_len(m), " (", sizeof m - str_len(m));
-    str_cpy(m + str_len(m), en, sizeof m - str_len(m));
-    str_cpy(m + str_len(m), ")", sizeof m - str_len(m));
+    str_app(m, " (", sizeof m);
+    str_app(m, en, sizeof m);
+    str_app(m, ")", sizeof m);
     ui.toast_next = 1;
     ui_message(m);
     ui.toast_next = 0;
@@ -90,7 +90,7 @@ static void pre_toast_fav(const char *what)
     } else {
         snd_name(song.sel, nm);
         str_cpy(m, op_fav_here() ? "FAV + " : "FAV - ", sizeof m);
-        str_cpy(m + str_len(m), nm, sizeof m - str_len(m));
+        str_app(m, nm, sizeof m);
     }
     ui.toast_next = 1;
     ui_message(m);

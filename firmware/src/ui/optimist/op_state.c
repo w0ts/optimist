@@ -8,6 +8,11 @@
  * Every colour that can be one (tools/colors.json engines and kinds, KNOB_COL) holds white text at >= 3:1. */
 static uint16_t cur_bg(uint16_t c) { return c; }
 static uint16_t cur_trough(uint16_t c) { return col_shade(c, 3u); }
+static void str_app(char *d, const char *s, unsigned max)   /* s appended to d (a buffer of max), as str_cpy */
+{
+    unsigned n = str_len(d);
+    str_cpy(d + n, s, max - n);
+}
 enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
                                             "SCOPE", "GLOBAL"};

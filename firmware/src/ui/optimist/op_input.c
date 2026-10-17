@@ -1165,7 +1165,7 @@ static void ui_draw(void)
         } else {
             str_cpy(m, n == 1u ? "LOOP 1 BAR " : n == 2u ? "LOOP 2 BARS " : "LOOP 4 BARS ", sizeof m);
             fmt_int(m + str_len(m), song.g[G_BPM]);
-            str_cpy(m + str_len(m), " BPM", sizeof m - str_len(m));
+            str_app(m, " BPM", sizeof m);
             ui_message(m);
         }
     }
