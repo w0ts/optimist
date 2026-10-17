@@ -28,7 +28,8 @@ help:
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
 	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
 	@echo "make costs                     measure what tools/builder/costs.json lacks (new items); run after merging a batch"
-	@echo "make costs-all                 measure every item again (flash, RAM, pool, RAMTEXT; ~15 min) for the terminal and"
+	@echo "make costs-all [JOBS=n]        measure every item again (flash, RAM, pool, RAMTEXT; ~440 builds, JOBS at once,"
+	@echo "                              default the Docker VM's CPUs less two; a progress line with the time left) for the terminal and"
 	@echo "                              the web builder (tools/builder/costs.json, web/builder/data/); commit both"
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
 	@echo "                              tests, a final user-default build (EMU=1: then emu-check); docs/INTEGRATION.md"
@@ -92,7 +93,7 @@ costs: sdk
 
 # (every item, pair, group and check configuration again: what --missing keeps when an item's code changed)
 costs-all: sdk
-	$(PY) tools/builder/measure_costs.py
+	$(PY) tools/builder/measure_costs.py $(if $(JOBS),--jobs $(JOBS))
 	$(PY) tools/export_builder_web.py
 
 # (the integrator's routine: docs/INTEGRATION.md; tools/gate.py --help)

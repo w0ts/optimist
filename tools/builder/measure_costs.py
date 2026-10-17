@@ -7,14 +7,23 @@ parent on; PAIRS (an item whose cost depends on another's value) are measured to
 configurations (every profile, tools/builder/estimate/*.config) once each, for tests/builder_test.py to hold the
 estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers.
 
-  python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR]
+  python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR] [--jobs N]
 --missing measures only what costs.json lacks (new items, new pairs; the base again whenever it moved at all) and keeps the rest; --missing --check builds nothing and fails when something is lacking
-(CI). About 10 s a build (Docker); the whole registry takes ~12 minutes, --missing a few builds.
+(CI). The builds are planned first (a pass that builds nothing), made --jobs at a time, each in its own build
+directory (build/slots/N; default: the Docker VM's CPUs less two, at most 8), with a progress line per build (done /
+all, the time so far and the time left), then read back by the same pass. About 20 s a build under Docker on an arm64
+Mac (the one-file firmware: no build reuses another's objects); --jobs 1 builds one at a time in build/ as before.
 Not detected: an item whose code changed after it was measured (no item-to-source map): re-measure it with --only."""
 import argparse
+import contextlib
+import io
 import json
+import os
+import queue
+import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -150,8 +159,77 @@ def parent_on(p):
     return p.default if p.default else next(v for v, _ in p.choices if v)
 
 
+# ---- the builds: a plan pass lists them (building nothing), build_all() makes them in parallel, each in its own
+# build directory, and the real pass reads them back (the same code, so it asks for the same configurations)
+_PLAN = None            # a list during the plan pass: (cfg, name, log) of every build the run asks for
+_DONE = {}              # the configuration's items -> (ok, sizes, output) of the builds build_all() made
+SLOTS = C.ROOT / "build" / "slots"
+
+
+def _key(cfg):
+    return tuple(sorted(cfg.items()))
+
+
+def run_build(cfg, name, log):
+    """a measurement build -> (ok, sizes, output): recorded (and faked) in the plan pass, made already by
+    build_all(), else made here, in build/"""
+    if _PLAN is not None:
+        _PLAN.append((dict(cfg), name, log))
+        return True, {r: 0 for r in REG}, ""
+    got = _DONE.get(_key(cfg))
+    return got if got is not None else C.build(cfg, name, measure=True, log=log)
+
+
+def default_jobs():
+    """the builds at once: the CPUs the toolchain runs on (the Docker VM's, else this machine's) less two, 1 to 8 (each
+    build is mostly one compiler process of the one-file firmware)"""
+    n = os.cpu_count() or 2
+    if C.in_container() and os.environ.get("OPTIMIST_IN_CONTAINER") != "1":     # (inside the image: its CPUs)
+        r = subprocess.run(["docker", "info", "--format", "{{.NCPU}}"], capture_output=True, text=True)
+        n = int(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip().isdigit() else n
+    return max(1, min(8, n - 2))
+
+
+def clock(s):
+    s = int(s)
+    return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+
+
+def build_all(plan, jobs):
+    """make every planned build (once each), jobs at a time, each in a build directory of its own (SLOTS/N),
+    with a line per build: done / all, its time, the time so far and the time left"""
+    todo = list({_key(cfg): (cfg, name, log) for cfg, name, log in plan if _key(cfg) not in _DONE}.values())
+    if not todo:
+        return
+    free = queue.Queue()
+    for i in range(jobs):
+        free.put(SLOTS / str(i))
+
+    def one(job):
+        cfg, name, log = job
+        slot, t = free.get(), time.time()
+        try:
+            return job, C.build(cfg, name, measure=True, log=log, outdir=slot), time.time() - t
+        except Exception as e:                          # (a build that raises is a failed build, said in its line)
+            return job, (False, None, f"{type(e).__name__}: {e}"), time.time() - t
+        finally:
+            free.put(slot)
+
+    print(f"measure_costs: {len(todo)} builds, {jobs} at a time (build/slots/0..{jobs - 1}; --jobs N to change)",
+          flush=True)
+    t0, done = time.time(), 0
+    with ThreadPoolExecutor(jobs) as ex:
+        for fut in as_completed([ex.submit(one, j) for j in todo]):
+            (cfg, name, log), r, dt = fut.result()
+            _DONE[_key(cfg)] = r
+            done += 1
+            el = time.time() - t0
+            print(f"  [{done}/{len(todo)}] {name}{'' if r[0] and r[1] else ' FAILED (log ' + str(log) + ')'}  "
+                  f"{dt:.0f} s  |  {clock(el)} so far, ~{clock(el / done * (len(todo) - done))} left", flush=True)
+
+
 def measure(cfg, name, log):
-    ok, sizes, out = C.build(cfg, name, measure=True, log=log)
+    ok, sizes, out = run_build(cfg, name, log)
     if not ok or not sizes:
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
     check_terms(cfg, sizes, name)
@@ -271,7 +349,7 @@ def measure_checks(logd):
     configuration that does not build, which is the firmware's problem (tools/builder/verify.py), not the estimate's)"""
     out = {}
     for name, cfg in check_configs(probes=True).items():
-        ok, sizes, text = C.build(cfg, f"m-chk-{name}"[:16], measure=True, log=logd / f"check-{name}.log")
+        ok, sizes, text = run_build(cfg, f"m-chk-{name}"[:16], logd / f"check-{name}.log")
         out[name] = dict({"hash": f"{C.cfg_hash(cfg):08x}"}, **C.anchor_record(cfg))
         if ok and sizes:
             out[name]["sizes"] = {r: sizes[r] for r in REG}
@@ -302,6 +380,8 @@ def main(argv=None):
                     help="measure only the items and pairs costs.json lacks (and the base if it drifted)")
     ap.add_argument("--check", action="store_true", help="with --missing: build nothing, exit 1 if anything lacks")
     ap.add_argument("--log", default=str(C.ROOT / "build" / "measure"), help="build logs")
+    ap.add_argument("--jobs", "-j", type=int, metavar="N",
+                    help="builds at once (default: the Docker VM's CPUs less two, at most 8; 1: one by one, in build/)")
     ap.add_argument("--part-mem", action="store_true",
                     help="measure engines.c part_mem with each engine that keeps a state there alone (configure.py PART_MEM)")
     a = ap.parse_args(argv)
@@ -332,6 +412,23 @@ def main(argv=None):
     else:
         new_pairs = set()
     logd.mkdir(parents=True, exist_ok=True)
+    jobs = a.jobs or default_jobs()
+    if jobs > 1:                                        # plan, build them all in parallel, then the real pass
+        global _PLAN
+        _PLAN = []
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(a, old, logd, new_pairs, write=False)
+            plan = _PLAN
+        finally:
+            _PLAN = None
+        build_all(plan, jobs)
+    return run(a, old, logd, new_pairs, write=True)
+
+
+def run(a, old, logd, new_pairs, write):
+    """measure what a asks for (main's arguments; old: costs.json as it was) -> 0; write: False in the plan pass
+    (run_build only records the builds: nothing is written, no CPU model)"""
     t0 = time.time()
     base = measure(C.defaults(), "measure-base", logd / "base.log")
     if a.missing:
@@ -372,7 +469,8 @@ def main(argv=None):
             terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer, the automation store)
             out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
-        C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
+        if write:
+            C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     out["groups"] = {n: g for n, g in old.get("groups", {}).items() if n.split("|")[0] in GROUPS} \
         if a.only is not None else {}
     for gname, members in GROUPS.items():               # (before the pairs: their builds may hold several members)
@@ -409,6 +507,8 @@ def main(argv=None):
                                 "shared": {r: round((est[r] - s[r]) / (len(members) - 1)) for r in REG}}
         print(f"  group {vname}: {out['groups'][vname]['shared']} shared  ({time.time() - t0:.0f} s)", flush=True)
     out["checks"] = measure_checks(logd)
+    if not write:                                       # (the plan pass: the builds are listed, nothing is written)
+        return 0
     C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     print(f"measure_costs: {C.COSTS} ({time.time() - t0:.0f} s)")
     import cpu_costs                                    # the CPU guard's model follows the CPU baseline (CPU_GUARD)

@@ -23,6 +23,7 @@ import platform
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 # the rules (pure, shared with the web page), re-exported so configure.X works as before ("X as X": an explicit
@@ -274,11 +275,17 @@ def exact_sizes(cfg):
     return {r: e[r] for r in REGIONS} if isinstance(e, dict) and all(r in e for r in REGIONS) else None
 
 
+_EXACT_LOCK = threading.Lock()     # (measure_costs.py's parallel builds finish in threads of one process)
+
+
 def remember_sizes(cfg, sizes):
-    known = exact_builds()
-    known[exact_key(cfg)] = dict({r: sizes[r] for r in REGIONS}, **anchor_record(cfg))   # (an anchor: budget)
-    EXACT.parent.mkdir(parents=True, exist_ok=True)
-    EXACT.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
+    with _EXACT_LOCK:
+        known = exact_builds()
+        known[exact_key(cfg)] = dict({r: sizes[r] for r in REGIONS}, **anchor_record(cfg))   # (an anchor: budget)
+        EXACT.parent.mkdir(parents=True, exist_ok=True)
+        tmp = EXACT.with_name(f"{EXACT.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
+        os.replace(tmp, EXACT)      # (whole or not at all: another process may be reading it)
 
 
 def exact_anchors():
@@ -377,23 +384,27 @@ def _run(cmd, env, echo, on_line=None):
     return PR.stream(cmd, on_line=each, cwd=ROOT, env=env)
 
 
-def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None):
+def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None):
     """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
-    build.py arguments (--release X.Y); on_line: called with each output line while it builds"""
+    build.py arguments (--release X.Y); on_line: called with each output line while it builds; outdir: another
+    build directory inside the tree than build/ (OPTIMIST_BUILD_DIR: parallel measurement builds, one each)"""
     err, _, _ = validate(cfg)
     if err:
         msg = "configuration errors:\n  " + "\n  ".join(err)
         if echo:                                        # (the CLI: say why; it used to exit 1 with no word)
             print(msg, file=sys.stderr)
         return False, None, msg
-    cfgfile = ROOT / "build" / "builder.config"
+    bdir = Path(outdir) if outdir else ROOT / "build"
+    cfgfile = bdir / "builder.config"
     cfgfile.parent.mkdir(parents=True, exist_ok=True)
     cfgfile.write_text(dump(cfg, name))
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
+    if outdir:
+        env["OPTIMIST_BUILD_DIR"] = bdir.resolve().relative_to(ROOT.resolve()).as_posix()
     cmd = [build_python(), str(ROOT / "tools" / "build.py"), "--config", str(cfgfile),
            *(["--measure"] if measure else []), *extra]
     out, rc = "", 1
-    (ROOT / "build" / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
+    (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
         rc, out = _run(cmd, env, echo, on_line)
@@ -408,7 +419,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         Path(log).write_text(out)
     sizes = None
     try:
-        sizes = json.loads((ROOT / "build" / "sizes.json").read_text())
+        sizes = json.loads((bdir / "sizes.json").read_text())
     except (OSError, ValueError):
         pass
     if sizes and all(r in sizes for r in REGIONS):

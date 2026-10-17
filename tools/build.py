@@ -26,13 +26,24 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1]
 FW = SRC / "firmware"
-OUT = SRC / "build"
+def _out_dir():
+    """the build directory: build/, or OPTIMIST_BUILD_DIR (a directory inside the tree, relative to it: the parallel
+    measurement builds of tools/builder/measure_costs.py each have their own, build/slots/N)"""
+    rel = os.environ.get("OPTIMIST_BUILD_DIR") or "build"
+    out = (SRC / rel).resolve()
+    if out != SRC and SRC not in out.parents:
+        raise SystemExit(f"build: OPTIMIST_BUILD_DIR={rel}: a directory inside the tree")
+    return out
+
+
+OUT = _out_dir()
 GEN = OUT / "gen"
 # the host tests' headers (tests/run_tests.sh): every sample set, whatever profile build/gen was made for, so one
 # tests/golden.txt covers every preset and no profile hides a render (--host-headers)
 HOST_GEN = OUT / "gen-host"
 HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
+GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
@@ -210,7 +221,7 @@ BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCC
 BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
 def build_app():
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-I" + GEN_REL]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
                  "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK",
@@ -229,7 +240,7 @@ def build_app():
     if v in ("1", "2", "3"):
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
-    flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
+    flags += ["-include", f"{GEN_REL}/felucca_config.h"]   # the builder's configuration (tools/builder)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
@@ -318,7 +329,7 @@ def build_app():
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
-        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()),
+        units.append(("cc", *ACID_CFLAGS, "-I" + GEN_REL, *(f"-D{k}={v}" for k, v in x0x.items()),
                       *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
                       FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")

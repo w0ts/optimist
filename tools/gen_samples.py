@@ -37,8 +37,9 @@ import sampleio as sio  # noqa: E402
 from sampleio import detect_hz, hz_to_midi, ima_encode, key_split, onset, peak, read_any_wav, resample  # noqa: E402
 
 SRC = Path(__file__).resolve().parents[1]
-GENDIR = SRC / "build" / "genwav"
-CACHE = SRC / "build" / "gen_samples.cache"
+BUILD = SRC / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")   # (tools/build.py's: a parallel build's own)
+GENDIR = BUILD / "genwav"
+CACHE = BUILD / "gen_samples.cache"
 CC0 = SRC / "assets" / "samples-cc0"
 TR = 22050                                   # stored sample rate
 
