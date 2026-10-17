@@ -39,6 +39,7 @@
  * kit bank refuse meanwhile; a session left for 10 s ends by itself). An object is written only by its
  * COMMIT, after its CRC: a transfer cut short writes nothing. Done: no RAM copy goes back to flash (the
  * .noinit slots are dropped), the FM-1 restarts. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_out.h"
 enum { ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END };
 enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a section's record (sections.c); BK_PRJ:
@@ -407,50 +408,29 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         return BK_FM6_N;
     }
 #if SEC_LOGGED
-    if (o->kind == BK_PRJ)
-        return 0;                                     /* (written only: an older backup's slot) */
+    if (o->kind >= BK_SEC && o->kind <= BK_LOG) {     /* (BK_SEC, BK_PRJ, BK_LOG: the bytes in sec_rbuf) */
+        int n = 0;
+        if (o->kind == BK_PRJ || (o->kind == BK_LOG && o->id == BK_FXID))
+            n = 0;                                    /* (written only: an older backup's slot, its FXSL) */
 #if FELUCCA_AUTO
-    if (o->kind == BK_LOG && o->id == BK_XID) {
-        uint32_t n = bk_xs_pack(sec_rbuf);
-        if (!n)
-            return 0;
-        *crc = st_crc32(sec_rbuf, n);
-        return n;
-    }
+        else if (o->kind == BK_LOG && o->id == BK_XID)
+            n = (int)bk_xs_pack(sec_rbuf);
 #endif
-    if (o->kind == BK_LOG && o->id == BK_FXID)
-        return 0;                                     /* (FXSL: an older backup's, written only) */
-    if (o->kind == BK_LOG && (o->id == BK_FXID1 || o->id == BK_FXID2)) {
-        uint32_t n = o->id == BK_FXID1 ? bk_fx_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_fx_pack(sec_rbuf, BK_FX_SPLIT, 16);
-        *crc = n ? st_crc32(sec_rbuf, n) : 0u;
-        return n;
-    }
-    if (o->kind == BK_LOG && o->id == BK_DLID) {
-        uint32_t n = bk_dl_pack(sec_rbuf);
-        *crc = n ? st_crc32(sec_rbuf, n) : 0u;
-        return n;
-    }
-    if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID) {
-        uint32_t n = bk_pt_pack(o->id - BK_PID, sec_rbuf);
-        *crc = n ? st_crc32(sec_rbuf, n) : 0u;
-        return n;
-    }
-    if (o->kind == BK_LOG) {
-        int n = slg_get(o->id, sec_rbuf);
-        if (n <= 0)
-            return 0;
-        *crc = st_crc32(sec_rbuf, (uint32_t)n);
-        return (uint32_t)n;
-    }
-    if (o->kind == BK_SEC) {
-        int n;
-        if (!o->on || !project_used(o->id))
-            return 0;
-        if (sec_pend_has(o->id)) {
-            memcpy(sec_rbuf, sec_pend.data + sec_pend.off[o->id], sec_pend.len[o->id]);
-            n = sec_pend.len[o->id];
-        } else
+        else if (o->kind == BK_LOG && (o->id == BK_FXID1 || o->id == BK_FXID2))
+            n = (int)(o->id == BK_FXID1 ? bk_fx_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_fx_pack(sec_rbuf, BK_FX_SPLIT, 16));
+        else if (o->kind == BK_LOG && o->id == BK_DLID)
+            n = (int)bk_dl_pack(sec_rbuf);
+        else if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID)
+            n = (int)bk_pt_pack(o->id - BK_PID, sec_rbuf);
+        else if (o->kind == BK_LOG)
             n = slg_get(o->id, sec_rbuf);
+        else if (o->on && project_used(o->id)) {      /* (BK_SEC: pending in RAM, else the log's) */
+            if (sec_pend_has(o->id)) {
+                memcpy(sec_rbuf, sec_pend.data + sec_pend.off[o->id], sec_pend.len[o->id]);
+                n = sec_pend.len[o->id];
+            } else
+                n = slg_get(o->id, sec_rbuf);
+        }
         if (n <= 0)
             return 0;
         *crc = st_crc32(sec_rbuf, (uint32_t)n);
@@ -477,19 +457,24 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         return n;
     }
 }
-static void ed_b32(uint32_t v, uint32_t k) { while (k--) { ed_b(v); v >>= 7; } }
-static uint32_t ed_r32(const uint8_t *a, uint32_t k)
-{
-    uint32_t v = 0;
-    while (k--)
-        v |= (uint32_t)a[k] << (7u * k);
-    return v;
-}
 
 /* BK_LIST v2's end: what this build holds, for the editor's report before a restore (a backup from another build:
  * what plays a stand-in, what does not fit, what is skipped). The engine, kit and sample-set masks are by stable
  * UID (registry.h); a project naming an absent engine plays its fallback and keeps its settings (project.c) */
-static void bk_caps(void)
+#define BK7(v, k) (uint8_t)(((uint32_t)(v) >> (7u * (k))) & 127u)   /* group k of v's 7-bit groups */
+#define BK7X2(v) BK7(v, 0), BK7(v, 1)
+static const uint8_t BK_CAPS_K[] = {
+    BK7X2(__builtin_offsetof(project_t, t[0].engine)),        /* where a FUNB project names its engines, */
+    BK7X2(sizeof(proj_trk_t)),                                /* a track's size, the drum kit's place (t[3].p[PJ_E0]) */
+    BK7X2(__builtin_offsetof(project_t, t[TRK_DRUM].p[PJ_E0])),
+    BK7X2(__builtin_offsetof(project_t, t[0].p[PJ_E0])),      /* a part's SET / SRC (SAMPLE, GRAIN) */
+    BK7(PJ_NP, 0),                                            /* a section record's layout (sec_codec.c): values a */
+    BK7(PJ_E0, 0),                                            /* track, where EDIT starts, LEN's place */
+    BK7(P_SLEN, 0),
+    BK7(sizeof bk_bits, 0)                                    /* the builder's items (BUILD, 49) */
+};
+/* (noinline, as bk_commit_sec and bk_st_ok: inlined into ed_backup, each costs flash, 64 B, 48 B, 80 B) */
+static __attribute__((noinline)) void bk_caps(void)
 {
     uint32_t i, m = 0;
     uint64_t kits = 0;
@@ -506,23 +491,15 @@ static void bk_caps(void)
     ed_b(FELUCCA_SECTIONS);                                   /* project slots / song sections */
     for (i = 0; i < SMP_USER_SLOTS; i++)
         ed_b32(SMP_USER_CAP(i), 3);                           /* USR1..3 capacity, bytes */
-    ed_b32((uint32_t)__builtin_offsetof(project_t, t[0].engine), 2);   /* where a FUNB project names its engines, */
-    ed_b32((uint32_t)sizeof(proj_trk_t), 2);                  /* a track's size, the drum kit's place (t[3].p[PJ_E0]) */
-    ed_b32((uint32_t)__builtin_offsetof(project_t, t[TRK_DRUM].p[PJ_E0]), 2);
-    ed_b32((uint32_t)__builtin_offsetof(project_t, t[0].p[PJ_E0]), 2);   /* a part's SET / SRC (SAMPLE, GRAIN) */
-    ed_b32(PJ_NP, 1);                                         /* a section record's layout (sec_codec.c): values a */
-    ed_b32(PJ_E0, 1);                                         /* track, where EDIT starts, LEN's place */
-    ed_b32(P_SLEN, 1);
-    ed_b(sizeof bk_bits);                                     /* the builder's items (BUILD, 49) */
-    for (i = 0; i < sizeof bk_bits; i++)
-        ed_b(bk_bits[i]);
+    ed_bs(BK_CAPS_K, sizeof BK_CAPS_K);                       /* (the build's constants: a table, not a call each) */
+    ed_bs(bk_bits, sizeof bk_bits);
 }
 
 #if SEC_LOGGED
 #define BK_SEC_BUF(i, off) BK_OBJS[i].kind == BK_SEC || BK_OBJS[i].kind == BK_LOG ? sec_rbuf + (off) :
 /* a section's record (BK_SEC), or an older backup's project slot (BK_PRJ, any FUN* format: imported, its drum
  * record from DLNS restored before it), into the log: 0 ok, 2 not a section / project, 7 not written (MEM FULL) */
-static uint32_t bk_commit_sec(uint32_t i)
+static __attribute__((noinline)) uint32_t bk_commit_sec(uint32_t i)
 {
     uint32_t id = BK_OBJS[i].id, n = bk.len;
     if (BK_OBJS[i].kind != BK_PRJ && n > SEC_REC_MAX)
@@ -600,7 +577,7 @@ static int bk_panel_ok(const uint8_t *q)              /* a panel_t as stored: ra
     return 1;
 }
 #endif
-static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
+static __attribute__((noinline)) int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
 {
     uint32_t m = n >= 4u ? (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24 : 0u;
 #ifdef PERSIST_MAGIC
@@ -674,22 +651,22 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             first = na >= 2u && a[1] < BK_N ? a[1] : BK_N;    /* (past the end: no object, the caps) */
             end = BK_N - first > BK_PAGE ? first + BK_PAGE : BK_N;
         }
-        ed_b(a[0] >= 3u ? BK_VERSION : 2u);
-        ed_b(BK_N);
+        ed_b2(a[0] >= 3u ? BK_VERSION : 2u, BK_N);
         ed_b32(bk_switches(), 2);
-        for (i = 0; i < 4u; i++)
-            ed_b(PROJ_MAGIC >> (24u - 8u * i));               /* "FUNB" */
-        ed_b32(BK_CHUNK, 2);
+        {
+            static const uint8_t K[] = {BK7(PROJ_MAGIC >> 24, 0), BK7(PROJ_MAGIC >> 16, 0), BK7(PROJ_MAGIC >> 8, 0),
+                                        BK7(PROJ_MAGIC, 0), BK7X2(BK_CHUNK)};   /* "FUNB", the chunk */
+            ed_bs(K, sizeof K);
+        }
         if (a[0] >= 3u)
-            ed_b(first), ed_b(end - first);
+            ed_b2(first, end - first);
         for (i = first; i < end; i++) {
+            const bk_obj_t *o = &BK_OBJS[i];
             uint32_t len = bk_info(i, &crc);
-            ed_b((uint32_t)BK_OBJS[i].tag[0]), ed_b((uint32_t)BK_OBJS[i].tag[1]);
-            ed_b((uint32_t)BK_OBJS[i].tag[2]), ed_b((uint32_t)BK_OBJS[i].tag[3]);
-            ed_b(BK_OBJS[i].kind);
-            ed_b((BK_OBJS[i].on ? 1u : 0u) | (len ? 2u : 0u) | (BK_OBJS[i].kind != BK_USR && BK_OBJS[i].kind != BK_SNP ? 4u : 0u) |
-                 (BK_OBJS[i].kind == BK_USR && len && ((const smp_user_hdr_t *)smp_user_xip(BK_OBJS[i].id))->magic !=
-                  SMP_USER_MAGIC ? 8u : 0u));                  /* (8: the slot holds the FM6 user bank) */
+            ed_bs((const uint8_t *)o->tag, 4);
+            ed_b2(o->kind, (o->on ? 1u : 0u) | (len ? 2u : 0u) | (o->kind != BK_USR && o->kind != BK_SNP ? 4u : 0u) |
+                  (o->kind == BK_USR && len && ((const smp_user_hdr_t *)smp_user_xip(o->id))->magic != SMP_USER_MAGIC ? 8u : 0u));
+                                                              /* (8: the slot holds the FM6 user bank) */
             ed_b32(len, 3);
             ed_b32(crc, 5);
         }
@@ -741,9 +718,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             bk.crc = ed_r32(a + 4, 5);
             bk.got = 0;
         }
-        ed_b(i);
-        ed_b(rc);
-        return 1;
+        break;                                                 /* (-> i, rc) */
     case ED_BK_DATA:
         if (na < 10u || a[0] >= BK_N)
             return 0;
@@ -786,9 +761,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (BK_OBJS[i].kind == BK_FM6 && !dry)
             fm6_bank_find();                                   /* (VOICE U01..U32: the bank as written) */
         bk.obj = -1;
-        ed_b(i);
-        ed_b(rc);
-        return 1;
+        break;                                                 /* (-> i, rc) */
     case ED_BK_END:
         if (na < 1u)
             return 0;
@@ -801,7 +774,9 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b(0);
         return 1;
     default:
-        break;
+        return 0;
     }
-    return 0;
+    ed_b2(i, rc);                                             /* (BK_BEGIN, BK_COMMIT) */
+    return 1;
 }
+#define ED_BACKUP_FN ed_backup,             /* (editor.c: its table of commands) */

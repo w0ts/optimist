@@ -7,6 +7,7 @@
  * saves are (a flash erase silences the audio ~50 ms): rc 3 "stop first" (UP_PUT, UP_STORE, UP_ERASE, SMP_BEGIN,
  * SMP_ERASE), rc 5 for SMP_WRITE (its 3 is a failed write). SMP_END only programs the header (no erase). After
  * SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, editor.c ed_flash_busy, GPL-3.0-only) */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 static uint32_t ed_flash_busy(void) { return song.playing || transport_req; }
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
 static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
@@ -20,8 +21,9 @@ static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built
  * flash before the reply grows), 512 B of main RAM spared */
 #define ED_SMP_AT 16u
 #define ed_smp_buf (ed_out + ED_SMP_AT)
-_Static_assert(ED_SMP_AT + sizeof(smp_user_hdr_t) <= sizeof ed_out && ED_SMP_AT + 256u <= sizeof ed_out,
-               "ed_smp_buf: a WRITE's data, an END's header past the reply's first bytes");
+_Static_assert(ED_SMP_AT + sizeof(smp_user_hdr_t) <= sizeof ed_out && ED_SMP_AT + 256u <= sizeof ed_out &&
+               ED_SMP_AT + sizeof(up_rec_t) <= sizeof ed_out,
+               "ed_smp_buf: a WRITE's data, an END's header, an UP_PUT's record past the reply's first bytes");
 static uint8_t ed_smp_open[SMP_USER_SLOTS];        /* SMP_BEGIN done, END not yet: WRITE / END may act */
 static uint32_t ed_smp_slot(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SIZE; }
 static void ed_smp_inval(uint32_t k)
@@ -46,7 +48,8 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
     ed_smp_inval(k);
     return rc;
 }
-static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
+/* (noinline: inlined into ed_user, 32 B more flash) */
+static __attribute__((noinline)) int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 {
     const smp_user_hdr_t *h = (const smp_user_hdr_t *)ed_smp_buf;
     uint32_t i;
@@ -71,27 +74,24 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
     return usr_nz[k] ? 0 : 5;
 }
 
-/* a command of 11..21; 0 = not one of them, or a frame too short (no reply) */
+/* a command of 11..21; 0 = not one of them, or a frame too short (no reply). The ones that answer slot, rc break to
+ * the one reply at the end */
 static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
-    uint32_t i;
+    uint32_t i, rc = 0;
     switch (cmd) {
     case ED_SMP_BEGIN:                                     /* slot -> slot, rc */
-    case ED_SMP_ERASE: {
-        uint32_t rc;
+    case ED_SMP_ERASE:
         if (na < 1u || a[0] >= SMP_USER_SLOTS || !flash_ok)
             return 0;
         rc = ed_flash_busy() ? 3u : ed_smp_erase(a[0], cmd == ED_SMP_ERASE) ? 1u : 0u;
         ed_smp_open[a[0]] = (uint8_t)(cmd == ED_SMP_BEGIN && !rc);
-        ed_b(a[0]);
-        ed_b(rc);
         break;
-    }
     case ED_SMP_WRITE: {                                   /* slot, off (3 x 7 bit), pack7 data -> slot, off, rc */
-        uint32_t off, len, rc = 0, took;
+        uint32_t off, len, took;
         if (na < 5u || a[0] >= SMP_USER_SLOTS || !flash_ok)
             return 0;
-        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
+        off = ed_r32(a + 1, 3);
         len = ed_unpack7(a + 4, na - 4u, ed_smp_buf, 256u);
         if (off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_CAP(a[0]))
             rc = 1;
@@ -105,22 +105,16 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             if (!rc && fl_write(ed_smp_slot(a[0]) + off, ed_smp_buf, len))
                 rc = 3;
         }
-        ed_b(a[0]);
-        ed_b(off);
-        ed_b(off >> 7);
-        ed_b(off >> 14);
-        ed_b(rc);
-        break;
+        ed_b4(a[0], off, off >> 7, off >> 14); ed_b(rc);
+        return 1;
     }
     case ED_SMP_END:                                       /* slot, pack7 header -> slot, rc */
         if (na < 2u || a[0] >= SMP_USER_SLOTS || !flash_ok)
             return 0;
-        ed_b(a[0]);
-        ed_b((uint32_t)ed_smp_end(a[0], a + 1, na - 1u));
+        rc = (uint32_t)ed_smp_end(a[0], a + 1, na - 1u);
         break;
     case ED_SMP_INFO:                                      /* -> per slot: zones (0 = empty), name, data KiB */
-        ed_b(SMP_USER_SLOTS);
-        ed_b(SMP_USER_SIZE / 1024u);
+        ed_b2(SMP_USER_SLOTS, SMP_USER_SIZE / 1024u);
         for (i = 0; i < SMP_USER_SLOTS; i++) {
             const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(i);
             char nm[9] = {0};
@@ -133,7 +127,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         }
         for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 64 */
             ed_b(SMP_USER_CAP(i) / 1024u);
-        break;
+        return 1;
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */
         uint32_t s0, cnt;
         if (na < 2u)
@@ -144,23 +138,16 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             cnt = 0;
         else if (s0 + cnt > UP_SLOTS)
             cnt = UP_SLOTS - s0;
-        ed_b(s0);
-        ed_b(cnt);
-        ed_b(UP_SLOTS);
+        ed_b3(s0, cnt, UP_SLOTS);
         for (i = s0; i < s0 + cnt; i++) {
-            char nm[13] = {0};
-            uint32_t j, u = (uint32_t)up_used(i);
-            for (j = 0; u && j < 12u; j++)
-                nm[j] = up_rec(i)->name[j];
-            ed_b(u);
-            ed_b(u ? ed_up_eng(up_rec(i)->engine) : 0u);
-            ed_str(nm, 12);
+            uint32_t u = (uint32_t)up_used(i);
+            ed_b2(u, u ? ed_up_eng(up_rec(i)->engine) : 0u);
+            ed_str(u ? up_rec(i)->name : "", 12);          /* (12 at most: a name of 12 has no 0) */
         }
-        break;
+        return 1;
     }
     case ED_UP_GET: {                                      /* slot -> slot, used, engine, name, P_COUNT x v14, 16 x (note, flags) */
         int16_t v[P_COUNT];
-        char nm[13] = {0};
         const up_rec_t *r;
         uint32_t u;
         if (na < 1u || a[0] >= UP_SLOTS)
@@ -169,41 +156,36 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         u = (uint32_t)up_used(a[0]);
         if (u)
             up_values(r, v);                               /* today's P_* order, clamped */
-        for (i = 0; u && i < 12u; i++)
-            nm[i] = r->name[i];
-        ed_b(a[0]);
-        ed_b(u);
-        ed_b(u ? ed_up_eng(r->engine) : 0u);
-        ed_str(nm, 12);
+        ed_b3(a[0], u, u ? ed_up_eng(r->engine) : 0u);
+        ed_str(u ? r->name : "", 12);
         for (i = 0; i < P_COUNT; i++)
             ed_v(u ? v[i] : 0);
         for (i = 0; i < 16u; i++) {
-            ed_b(u ? r->note[i] : 0u);
-            ed_b(u ? r->flags[i] : 0u);
+            ed_b2(u ? r->note[i] : 0u, u ? r->flags[i] : 0u);
         }
-        break;
+        return 1;
     }
     case ED_UP_PUT: {                                      /* slot, engine, name, values, pattern -> slot, rc */
-        static up_rec_t r;
-        uint32_t slot = 0, rc;
+        up_rec_t *r = (up_rec_t *)(void *)ed_smp_buf;      /* (the record past the reply's first bytes, as a WRITE's data: no
+                                                            * static of its own, 216 B of main RAM spared) */
+        uint32_t slot = 0;
         if (na < 1u)
             return 0;
-        rc = (uint32_t)up_parse(a, na, &r, &slot);
+        rc = (uint32_t)up_parse(a, na, r, &slot);
         if (!rc) {
             int16_t v[P_COUNT];
-            up_values(&r, v);                              /* each value inside its range */
-            up_vals_put(&r, v);
-            rc = ed_flash_busy() ? 3u : up_put(slot, &r) ? 2u : 0u;
+            up_values(r, v);                               /* each value inside its range */
+            up_vals_put(r, v);
+            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;
         }
-        ed_b(a[0]);
-        ed_b(rc);
         break;
     }
     case ED_UP_STORE: {                                    /* slot, name -> slot, rc */
         char nm[13] = {0};
-        uint32_t n0, rc = 1;
+        uint32_t n0;
         if (na < 1u)
             return 0;
+        rc = 1;
         for (n0 = 0; 1u + n0 < na && a[1 + n0] && n0 < 13u; n0++)
             ;
         if (a[0] < UP_SLOTS && (!n0 || up_name_ok(a + 1, n0))) {   /* "" = automatic name */
@@ -212,24 +194,22 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             int r = ed_flash_busy() ? -3 : up_store(a[0], nm);
             rc = r == -3 ? 3u : r == 1 ? 1u : r ? 2u : 0u;   /* 1: the drum track is selected; 3: stop first */
         }
-        ed_b(a[0]);
-        ed_b(rc);
         break;
     }
     case ED_UP_LOAD:                                       /* slot -> slot, rc */
         if (na < 1u)
             return 0;
-        ed_b(a[0]);
-        ed_b(a[0] < UP_SLOTS && !up_load(a[0]) ? 0u : 1u);
+        rc = a[0] < UP_SLOTS && !up_load(a[0]) ? 0u : 1u;
         break;
     case ED_UP_ERASE:
         if (na < 1u)
             return 0;
-        ed_b(a[0]);
-        ed_b(a[0] >= UP_SLOTS ? 1u : ed_flash_busy() ? 3u : up_put(a[0], 0) ? 2u : 0u);
+        rc = a[0] >= UP_SLOTS ? 1u : ed_flash_busy() ? 3u : up_put(a[0], 0) ? 2u : 0u;
         break;
     default:
         return 0;
     }
+    ed_b2(a[0], rc);
     return 1;
 }
+#define ED_USER_FN ed_user,                 /* (editor.c: its table of commands) */

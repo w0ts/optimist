@@ -11,6 +11,7 @@
  *                                         lane's source), flags (bit 0 TUNE counts steps, not semitones (an X0X
  *                                         model); bit 1 a user sample: HIT START LEN apply; bit 2 (2026-10) the lane's sound has no
  *                                         per-sound DIST / COMP (an X0X kit's: drum_sends.c dsend_desc)), the lane's name */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_DRUM_SRCS = 50, ED_DRUM_SHOW };
 #define ED_SRC_PAGE 24u
 
@@ -33,16 +34,14 @@ static int ed_dsrc(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint32_t total = (uint32_t)DSD[8].max + 1u, i, n = 0, at;
         if (na < 1u)
             return 0;
-        ed_b(a[0]);
-        ed_b(total);
+        ed_b2(a[0], total);
         at = ed_n;
         ed_b(0);
         for (i = a[0]; i < total && n < ED_SRC_PAGE; i++, n++) {
             uint32_t src = dsnd_idx_src(i);
             if (!FELUCCA_DRUM_USR && src >= DL_USR && src < DL_KIT0)
                 src = 0xFFu;                              /* (the device steps over USR1..3: listed as absent) */
-            ed_b(src == 0xFFu ? 127u : src);
-            ed_b(src == 0xFFu ? 9u : ed_src_kind(src));
+            ed_b2(src == 0xFFu ? 127u : src, src == 0xFFu ? 9u : ed_src_kind(src));
             ed_str(DS_SRC_NAMES[i], 12);
         }
         ed_out[at] = (uint8_t)n;
@@ -65,15 +64,14 @@ static int ed_dsrc(uint32_t cmd, const uint8_t *a, uint32_t na)
             f |= 2u;
         if (!dsend_desc(a[0], 3u, &vp) && !dsend_desc(a[0], 4u, &vp))
             f |= 4u;                                      /* (SOUND 3 shows no DST / CMP: the editor hides them) */
-        ed_b(a[0]);
-        ed_b(m);
-        ed_b(m >> 7);
-        ed_b(f);
+        ed_b4(a[0], m, m >> 7, f);
         ed_str(LANE_NAME_OF(a[0]), 12);                     /* (its name, as the device shows it) */
         return 1;
     }
     return 0;
 }
+#define ED_DSRC_FN ed_dsrc,                 /* (editor.c: its table of commands) */
 #else
 #define ed_dsrc(cmd, a, na) 0
+#define ED_DSRC_FN
 #endif

@@ -19,8 +19,11 @@
  *             state (0 plain, 1 warn, 2 error, 3 ok, 4 other colour), danger, ask, gauge form (GK_*), gmin v14, gmax v14, gv v14,
  *             by-descriptor 0/1 and then fmt, min v14, max v14, def v14, then the action's object text
  * A bad screen or line, or the BLE devices list open on the device: no reply. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
+#include "ed_desc.h"          /* (DESC's body) */
 enum { ED_SCRN = 96 };
 #if FELUCCA_UI == 1 && FELUCCA_ED_SCRN
+#include "ed_cell.h"          /* (a card's bytes, SCRS's too) */
 static int scrn_ok(uint32_t s) { return s < 2u && !(s == 1u && GL_DEV); }
 static void scrn_line(uint32_t s, uint32_t i)
 {
@@ -33,24 +36,9 @@ static void scrn_line(uint32_t s, uint32_t i)
     ed_b(gl_pg(s, i));
     ed_str(t, 20);
     ed_str(sec, 12);
-    ed_b(c.kind);
-    ed_str(c.label, 14);
-    ed_str(c.val, 14);
-    ed_str(c.unit, 8);
-    ed_b(c.col == 0u ? 0u : c.col == C_WARN ? 1u : c.col == C_ERR ? 2u : c.col == C_OK ? 3u : 4u);
-    ed_b(c.danger);
-    ed_b(op_armed() && ui.arm_scr == (s ? SCR_SYSTEM : SCR_GLOBAL) && ui.arm_row == i);
-    ed_b(c.gk);
-    ed_v(c.gmin);
-    ed_v(c.gmax);
-    ed_v(c.gv);
-    ed_b(c.d != 0);
-    if (c.d) {
-        ed_b(c.d->fmt);
-        ed_v(c.d->min);
-        ed_v(c.d->max);
-        ed_v(c.d->def);
-    }
+    ed_cell_text(&c);                                  /* (ed_cell.h) */
+    ed_b4(ed_cell_col(&c), c.danger, op_armed() && ui.arm_scr == (s ? SCR_SYSTEM : SCR_GLOBAL) && ui.arm_row == i, c.gk);
+    ed_cell_bar(&c);
     ed_str(c.obj, 14);
 }
 /* the screen's own state a remote turn must not leave behind: a question the remote asked is the device's to show, it stays */
@@ -67,13 +55,13 @@ static int ed_scrn(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (na < 2u || !scrn_ok(s = a[1]))
         return 0;
     if (op == 0u) {
-        ed_b(0), ed_b(s), ed_b(gl_n(s)), ed_b(gl_npg(s));
+        ed_b4(0, s, gl_n(s), gl_npg(s));
         return 1;
     }
     if (na < 3u || (i = a[2]) >= gl_n(s))
         return 0;
     if (op == 1u) {
-        ed_b(1), ed_b(s), ed_b(i);
+        ed_b3(1, s, i);
         scrn_line(s, i);
         return 1;
     }
@@ -86,7 +74,7 @@ static int ed_scrn(uint32_t cmd, const uint8_t *a, uint32_t na)
         st = mode == 2u ? OP_RESET : ed_rv(a + 4);
         gl_turn(s, i, st, mode != 0u);
         ui.force = 1;
-        ed_b(2), ed_b(s), ed_b(i);
+        ed_b3(2, s, i);
         scrn_line(s, i);
         return 1;
     }
@@ -96,19 +84,19 @@ static int ed_scrn(uint32_t cmd, const uint8_t *a, uint32_t na)
             return 0;
         r = gl_yes(s, i, a[3] != 0u);
         ui.force = 1;
-        ed_b(3), ed_b(s), ed_b(i), ed_b(r != 0);
+        ed_b4(3, s, i, r != 0);
         scrn_line(s, i);
         return 1;
     }
 }
+#define ED_SCRN_FN ed_scrn,                 /* (editor.c: its table of commands) */
 static void ed_scrn_info(void)
 {
     ed_b(0x59);
-    ed_b(2);
-    ed_b(1);
-    ed_b(2);
+    ed_b3(2, 1, 2);
 }
 #else
 static int ed_scrn(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_SCRN_FN
 static void ed_scrn_info(void) {}
 #endif

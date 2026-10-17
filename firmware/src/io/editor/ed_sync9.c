@@ -19,6 +19,7 @@
  * only into a SysEx ring at most half full and while no request waits (sx_ready), so a reply never waits behind a
  * push; what did not fit stays different from its shadow and goes in a later window. The editor's own writes update
  * the shadows (ed9_known_*): nothing echoes back. Main loop only. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_PARAMS = 59, ED_STEPS, ED_LANE_PUSH, ED_TRACKS_PUSH, ED_SONG_PUSH, ED_SYNC_STATS };
 #ifndef ED9_ENDS
 #define ED9_ENDS (ed_w.ends)                     /* v12: a synth step pushed with its notes' own ends (WATCH bit 4) */
@@ -81,12 +82,16 @@ static uint32_t ed9_trk_sig(void)                       /* what TRACK (27) answe
         h = (h ^ (ed_eng(&trk[c]) | (uint32_t)trk[c].preset << 8)) * 16777619u;
     return (h ^ (song.rec & 15u) ^ (uint32_t)(song.solo & 15u) << 4) * 16777619u;
 }
-static uint32_t ed9_song_sig(void)
+static uint32_t ed9_secs(void)                          /* the sections stored: bit n = section A + n */
 {
     uint32_t i, m = 0;
     for (i = 0; i < FELUCCA_SECTIONS && i < 21u; i++)
         m |= (uint32_t)(project_used(i) != 0) << i;
-    return m ^ ed9_sig((const uint8_t *)&arrangement, 4u + (uint32_t)sizeof(arr_entry_t) * (arrangement.count % (ARR_STEPS + 1u))) * 0x9E3779B1u;
+    return m;
+}
+static uint32_t ed9_song_sig(void)
+{
+    return ed9_secs() ^ ed9_sig((const uint8_t *)&arrangement, 4u + (uint32_t)sizeof(arr_entry_t) * (arrangement.count % (ARR_STEPS + 1u))) * 0x9E3779B1u;
 }
 
 /* everything as it is now is known (WATCH from off) */
@@ -161,8 +166,7 @@ static int ed9_params(void)
         if (v == *sh)
             continue;
         *sh = v;
-        ed_b(where);
-        ed_b(id);
+        ed_b2(where, id);
         ed_v(v);
         n++;
     }
@@ -187,9 +191,7 @@ static int ed9_steps(void)
             return 0;
         first = i;
         ed_begin(ED_STEPS);
-        ed_b(t);
-        ed_b(first);
-        ed_b(0);                                         /* (the count, set below) */
+        ed_b3(t, first, 0);                                         /* (the count, set below) */
         for (cnt = 0; i < NSTEP && ed_n + per + 1u <= room; i++) {
             uint32_t h = ed9_step_sig(t, i);
             if (h == e9.st[t][i])
@@ -234,23 +236,25 @@ static int ed9_lane(void)                               /* LANE: one changed dru
 #else
 #define ed9_lane() 0
 #endif
+static void ed9_tracks_out(void)                       /* the TRACK (27) reply's bytes, the TRACKS push's */
+{
+    uint32_t c;
+    ed_b2(song.sel, NTRK);
+    for (c = 0; c < NTRK; c++) {
+        ed_b2(ed_eng(&trk[c]), trk[c].preset);
+        ed_v(c == TRK_DRUM ? song.g[G_DRLVL] : trk[c].p[P_LEVEL]);
+        ed_b2(trk[c].p[P_MUTE] != 0, (song.rec >> c) & 1u);
+    }
+    ed_b(song.solo & 15u);
+}
 static int ed9_tracks(void)                             /* TRACKS: an engine, preset, selection, arm or solo moved */
 {
-    uint32_t h = ed9_trk_sig(), c;
+    uint32_t h = ed9_trk_sig();
     if (h == e9.trk_sig || !ed9_room(48u))
         return 0;
     e9.trk_sig = h;
     ed_begin(ED_TRACKS_PUSH);
-    ed_b(song.sel);
-    ed_b(NTRK);
-    for (c = 0; c < NTRK; c++) {
-        ed_b(ed_eng(&trk[c]));
-        ed_b(trk[c].preset);
-        ed_v(c == TRK_DRUM ? song.g[G_DRLVL] : trk[c].p[P_LEVEL]);
-        ed_b(trk[c].p[P_MUTE] != 0);
-        ed_b((song.rec >> c) & 1u);
-    }
-    ed_b(song.solo & 15u);
+    ed9_tracks_out();
     ed9_send();
     return 1;
 }
@@ -282,23 +286,14 @@ static int ed9_song(uint32_t now)                       /* SONG: the sections st
         e9.snap_n++;
     e9.song_sig = s, e9.snap_sig = n;
     ed_begin(ED_SONG_PUSH);
-    {
-        uint32_t i, m = 0;
-        for (i = 0; i < FELUCCA_SECTIONS && i < 21u; i++)
-            m |= (uint32_t)(project_used(i) != 0) << i;
-        ed_b(m);
-        ed_b(m >> 7);
-        ed_b(m >> 14);
-    }
-    ed_b(arrangement.count);
-    ed_b(arrangement.loop);
-    ed_b(e9.snap_n & 127u);
+    ed_b32(ed9_secs(), 3);
+    ed_b3(arrangement.count, arrangement.loop, e9.snap_n);
     ed9_send();
     return 1;
 }
 
-/* main loop, while WATCH has bit 2: one scan a window */
-static void ed9_sync(uint32_t now)
+/* main loop, while WATCH has bit 2: one scan a window (noinline: inlined into editor.c ed_sync, 80 B more flash) */
+static __attribute__((noinline)) void ed9_sync(uint32_t now)
 {
     uint32_t n = 0, t0;
     if (now - e9.win_ms < ED9_WIN)
@@ -324,10 +319,4 @@ static void ed9_sync(uint32_t now)
 
 /* 64 SYNC_STATS (a measurement aid): scans, frames, bytes pushed (5 x 7 bit each), the longest scan and the sum of
  * all (us, 5 x 7 bit each), the stream's frames (5 x 7 bit), the master meter's halves scanned and missed (5 x 7 bit
- * each); 1 (any byte) resets them */
-static void ed9_b35(uint32_t v)
-{
-    uint32_t i;
-    for (i = 0; i < 5u; i++)
-        ed_b(v >> (7u * i));
-}
+ * each); 1 (any byte) resets them (editor.c: ed_b32 v, 5) */

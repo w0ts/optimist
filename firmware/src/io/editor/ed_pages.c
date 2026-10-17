@@ -5,6 +5,7 @@
  *                       family FAM_*, scope SC_* (0 a track's P_*, 1 a global G_*, 2 the engine's P_E*; others are the
  *                       device's own screens), shown 1 when the page is there for the selected track (page_shown: an
  *                       engine's own pages, the drum track's), an id 127 = an empty slot. At most ED_PG_PAGE a reply */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_PAGES = 52 };
 #define ED_PG_PAGE 24u
 
@@ -13,15 +14,12 @@ static int ed_pages(uint32_t cmd, const uint8_t *a, uint32_t na)
     uint32_t i, n = 0, at, k;
     if (cmd != ED_PAGES || na < 1u)
         return 0;
-    ed_b(a[0]);
-    ed_b(NPAGES);
+    ed_b2(a[0], NPAGES);
     at = ed_n;
     ed_b(0);
     for (i = a[0]; i < NPAGES && n < ED_PG_PAGE; i++, n++) {
         const page_t *pg = &PAGES[i];
-        ed_b(pg->fam);
-        ed_b(pg->scope);
-        ed_b((uint32_t)!!page_shown(pg));
+        ed_b3(pg->fam, pg->scope, (uint32_t)!!page_shown(pg));
         for (k = 0; k < 4u; k++)
             ed_b(page_id(pg, k) >= 0x80u ? 127u : page_id(pg, k));   /* (none; INSERTS' TYPE, DR's send levels: FX op 0) */
         ed_str(pg->title, 12);
@@ -29,3 +27,4 @@ static int ed_pages(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_out[at] = (uint8_t)n;
     return 1;
 }
+#define ED_PAGES_FN ed_pages,               /* (editor.c: its table of commands) */

@@ -55,17 +55,17 @@ static void ed_b(uint32_t v)
     if (ed_n < sizeof ed_out - 1u)
         ed_out[ed_n++] = (uint8_t)(v & 0x7Fu);
 }
+#include "ed_reply.h"          /* ed_b2..ed_b4: two to four bytes a call; ed_b32: 7-bit groups */
 static void ed_v(int32_t v)
 {
     uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192);
-    ed_b(u);
-    ed_b(u >> 7);
+    ed_b2(u, u >> 7);
 }
 static void ed_str(const char *s, uint32_t max)   /* ASCII, 0-terminated */
 {
     uint32_t i;
     for (i = 0; s && s[i] && i < max; i++)
-        ed_b((uint8_t)s[i] & 0x7Fu);
+        ed_b((uint8_t)s[i]);
     ed_b(0);
 }
 static void ed_send(void)
@@ -74,6 +74,7 @@ static void ed_send(void)
     ota_wire_send(ed_out, ed_n);
 }
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
+#include "ed_desc.h"           /* DESC's body (DESC, FXP, DLAN, STEPLANE; SCRN and SCRS its first four) */
 
 /* pack7 bytes (a byte of high bits, then up to 7 bytes) back into bytes: the sample slots, kits, backup, snapshots */
 static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t max)
@@ -94,35 +95,39 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #include "ed_status.c"         /* cmd 53: the transport, the steps playing, the meters */
 #if FELUCCA_MACROS
 #include "ed_macro.c"          /* cmd 65: what the performance macros make of the values (macro.c) */
+#else
+#define ED_MACRO_FN
 #endif
 #include "ed_undo.c"           /* v14: cmd 102 undo and redo, INFO tag 0x5F; ed_undo_edit marks the editor's own step writes */
 #if FELUCCA_AUTO
 #include "ed_stepx.c"          /* cmds 92, 93 (v11): the automation store; 72..77: SLOOP 2.4's step extras on it */
+#else
+#define ED_STEPX_FN
 #endif
 #if FELUCCA_PATTERNS
 #include "ed_pat.c"            /* cmds 79..82: the per-track patterns and scenes (storage/sections/pat.c) */
 #else
-#define ed_pat(cmd, a, na) 0
+#define ED_PAT_FN              /* (each file ED_*_FN: its handler in the tables of ed_handle) */
 #endif
 #if CZ_NUSER
 #include "ed_cz.c"             /* cmd 66: the CZ collection (nbank.c) */
 #else
-#define ed_cz(cmd, a, na) 0
+#define ED_CZ_FN
 #endif
 #if FELUCCA_SNAPSHOTS
 #include "ed_snap.c"           /* cmds 54..57: snapshots (list, save / load / clear / rename, export, import) */
 #else
-#define ed_snap(cmd, a, na) 0
+#define ED_SNAP_FN
 #endif
 #if FELUCCA_FLASH && FELUCCA_BACKUP
 #include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
 #else
-#define ed_backup(cmd, a, na) 0
+#define ED_BACKUP_FN
 #endif
 #if (FELUCCA_SL24_EXPORT || FELUCCA_SL24_EDIMPORT) && FELUCCA_FLASH
 #include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file); 90, 91 its import */
 #else
-#define ed_sl24(cmd, a, na) 0
+#define ED_SL24_FN
 #endif
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
@@ -182,15 +187,25 @@ static uint32_t ed_step_sig(const track_t *t, uint32_t i)   /* step i: all its b
     return h;
 }
 #include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes (out and in), DRUM_STEP bytes */
-static void ed_shadow(void)                              /* the editor is in sync */
+static void ed_shadow_mix(void)                          /* v4: the other tracks' mix as it is (TRACK_CHANGED) */
+{
+    uint32_t i;
+    for (i = 0; i < ED_NT; i++)
+        ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
+}
+static void ed_shadow_v(void)                            /* the selected track's parameters and the globals as they are */
 {
     uint32_t i;
     for (i = 0; i < ED_NV; i++)
         ed_w.v[i] = *ed_val(i);
+}
+static void ed_shadow(void)                              /* the editor is in sync */
+{
+    uint32_t i;
+    ed_shadow_v();
     for (i = 0; i < NSTEP; i++)
         ed_w.st[i] = ed_step_sig(TSEL, i);
-    for (i = 0; i < ED_NT; i++)
-        ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
+    ed_shadow_mix();
     ed_w.eng = (uint8_t)ed_eng(TSEL);
     ed_w.preset = TSEL->preset;
     ed_w.sel = song.sel;
@@ -267,9 +282,7 @@ static void ed_sync(void)                                /* main loop */
             return;
         ed_shadow();
         ed_begin(ED_RELOAD);
-        ed_b(ed_eng(TSEL));
-        ed_b(TSEL->preset);
-        ed_b(song.sel);
+        ed_b3(ed_eng(TSEL), TSEL->preset, song.sel);
         ed_send();
         return;
     }
@@ -285,8 +298,7 @@ static void ed_sync(void)                                /* main loop */
             return;
         ed_w.st[i] = h;
         ed_begin(ED_STEP_CHANGED);
-        ed_b(i);
-        ed_b(song.sel);
+        ed_b2(i, song.sel);
         ed_send();
         n++;
     }
@@ -300,8 +312,7 @@ static void ed_sync(void)                                /* main loop */
         ed_w.v[k] = v;
         ed_w.t[k] = (uint16_t)now;
         ed_begin(ED_CHANGED);
-        ed_b(k < P_COUNT ? 0u : 1u);
-        ed_b(k < P_COUNT ? k : k - P_COUNT);
+        ed_b2(k < P_COUNT ? 0u : 1u, k < P_COUNT ? k : k - P_COUNT);
         ed_v(v);
         ed_send();
         n++;
@@ -317,8 +328,7 @@ static void ed_sync(void)                                /* main loop */
         ed_w.tv[k] = v;
         ed_w.tt[k] = (uint16_t)now;
         ed_begin(ED_TRACK_CHANGED);
-        ed_b(tr);
-        ed_b(id);
+        ed_b2(tr, id);
         ed_v(v);
         ed_send();
         n++;
@@ -368,6 +378,42 @@ static const param_desc_t *ed_desc(uint32_t scope, uint32_t id, int16_t **vp)
     return 0;
 }
 
+/* the commands of the files, each tried in turn until one answers (its ED_*_FN: the handler, nothing when the build
+ * leaves the file out; one loop for them all, not a call each in ed_handle: 2026-10, the slim pass) */
+typedef int (*ed_cmd_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
+static const ed_cmd_t ED_FX_CMDS[] = {ED_FXS_FN ED_FXP_FN ED_DLAN_FN ED_SCRN_FN ED_SONGC_FN ED_TOOLS_FN ED_SCRS_FN ED_FAV_FN
+                                      ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_REC_FN ED_STEPLANE_FN 0};   /* 86..107 */
+/* 65 the macros' effect on the values; 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51
+ * drum sources; 52 pages; 53 status; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns;
+ * 72..77: step extras; 92, 93: the automation */
+static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_STATUS_FN ED_SNAP_FN
+                                   ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN 0};
+static int ed_cmds(const ed_cmd_t *t, uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: one of t answered */
+{
+    for (; *t; t++)
+        if ((*t)(cmd, a, na))
+            return 1;
+    return 0;
+}
+
+static void ed_vs(const int16_t *p, uint32_t n) { while (n--) ed_v(*p++); }   /* n values, v14 each */
+/* STEP_SET / TRACK_STEP: step i of track k written from the n bytes at a (8 or more: n, notes, time, flags, vel ..; fewer:
+ * only read), the editor's own (an undo level; no push of it) */
+static void ed_step_w(uint32_t k, uint32_t i, const uint8_t *a, uint32_t n)
+{
+    track_t *t = &trk[k];
+    if (n >= 8u) {
+        ed_undo_edit(t);
+        fm1_irq_off();
+        ed_step_in(t, i, a, n);
+        fm1_irq_on();
+        ui.force = 1;
+    }
+    if (k == song.sel)
+        ed_w.st[i] = ed_step_sig(t, i);
+    ed9_known_step(k, i);
+}
+
 static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0 and F7 */
 {
     uint32_t cmd = f[3], i;
@@ -379,40 +425,32 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     switch (cmd) {
     case ED_INFO:
         ed_str("FELUCCA " FELUCCA_VERSION, 24);
-        ed_b(NENGINES);
-        ed_b(P_COUNT);
-        ed_b(G_COUNT);
-        ed_b(NSTEP);
-        ed_b(P_E0);
+        ed_b4(NENGINES, P_COUNT, G_COUNT, NSTEP); ed_b(P_E0);
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
         ed_b(6);                                          /* v5: the protocol version */
         for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
             ed_b(eng_uid(i));
-        ed_b(0x53); ed_b(1); ed_b(3);   /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
+        ed_b3(0x53, 1, 3);              /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
                                          * after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
 #if FELUCCA_FX_REVERB
         ed_b(0x52); ed_b(3);            /* tag: the reverb's algorithms (rev_type.c): the mask of those built (bit
                                          * RT_x: 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8, 4 AIRWIN), then TYPE's scope and
                                          * id for DESC / GET / SET (127 127: one built, no TYPE) */
-        ed_b(REV_MASK);
-        ed_b(REV_MULTI ? ED_SC_RTYPE : 127u);
-        ed_b(REV_MULTI ? 0u : 127u);    /* (bp_set.c BPS_RTYPE) */
+        ed_b3(REV_MASK, REV_MULTI ? ED_SC_RTYPE : 127u, REV_MULTI ? 0u : 127u);   /* (bp_set.c BPS_RTYPE) */
 #endif
 #if FELUCCA_MIDI_CH || FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
         ed_b(0x54); ed_b(3);            /* tag: the MIDI settings at (scope ED_SC_RTYPE, id first + n): n 0..3 the channels of
                                          * tracks 1..3 and the drums (0 OFF, 1..16; the project's), 4 MIDI OUT (0 KEYS,
                                          * 1 SEQ), 5 MIDI IN (0 NOTES, 1 CLOCK); the mask says which are built (bit 0
                                          * channels, 1 OUT, 2 IN); the editor lists them with DESC / GET / SET */
-        ed_b((FELUCCA_MIDI_CH ? 1u : 0u) | (FELUCCA_MIDI_OUT ? 2u : 0u) | (FELUCCA_MIDI_INCLK ? 4u : 0u));
-        ed_b(ED_SC_RTYPE);
+        ed_b2((FELUCCA_MIDI_CH ? 1u : 0u) | (FELUCCA_MIDI_OUT ? 2u : 0u) | (FELUCCA_MIDI_INCLK ? 4u : 0u), ED_SC_RTYPE);
         ed_b(BPS_CH0);
 #endif
 #if FELUCCA_PATTERNS
         ed_b(0x55); ed_b(2);            /* tag: the per-track patterns (ed_pat.c, cmds 79..82): slots a track, scenes */
-        ed_b(PAT_N);
-        ed_b(SEC_IDS);
+        ed_b2(PAT_N, SEC_IDS);
 #endif
         ed_undo_info();                 /* tag 0x5F: undo and redo (v14, ed_undo.c) */
         ed_note_info();                 /* tag 0x60: notes (v14, ed_note.c) */
@@ -431,13 +469,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
-        for (i = 0; i < 5u; i++)                          /* the .config's hash, 5 x 7 bits */
-            ed_b(((uint32_t)FELUCCA_CFG_HASH >> (7u * i)) & 127u);
+        ed_b32((uint32_t)FELUCCA_CFG_HASH, 5);            /* the .config's hash, 5 x 7 bits */
         {
             static const uint8_t bits[] = FELUCCA_CFG_BITS;   /* bit n = registry item n built, 7 a byte */
             ed_b(sizeof bits);
-            for (i = 0; i < sizeof bits; i++)
-                ed_b(bits[i]);
+            ed_bs(bits, sizeof bits);
         }
         break;
     case ED_GET:
@@ -462,50 +498,28 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 ed9_known_p(song.sel, a[1]);
             }                                             /* (REVERB > TYPE: not pushed, nothing to skip) */
         }
-        ed_b(a[0]);
-        ed_b(a[1]);
+        ed_b2(a[0], a[1]);
         ed_v(*vp);
         break;
     case ED_DUMP:
-        for (i = 0; i < ED_NV; i++)                       /* the editor gets them all here */
-            ed_w.v[i] = *ed_val(i);
+        ed_shadow_v();                                     /* the editor gets them all here */
         ed9_known_track(song.sel);
         memcpy(e9.g, song.g, sizeof e9.g);
-        ed_b(ed_eng(TSEL));
-        ed_b(TSEL->preset);
-        for (i = 0; i < P_COUNT; i++)
-            ed_v(TSEL->p[i]);
-        for (i = 0; i < G_COUNT; i++)
-            ed_v(song.g[i]);
+        ed_b2(ed_eng(TSEL), TSEL->preset);
+        ed_vs(TSEL->p, P_COUNT);
+        ed_vs(song.g, G_COUNT);
         break;
     case ED_DESC:
         if (na < 2u || !(d = ed_desc(a[0], a[1], &vp)))
             return;
-        ed_b(a[0]);
-        ed_b(a[1]);
-        ed_b(d->fmt);
-        ed_v(d->min);
-        ed_v(d->max);
-        ed_v(d->def);
-        ed_str(d->label, 8);
-        ed_str(d->unit, 8);
-        if (d->fmt == F_ENUM && d->names)
-            for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)   /* (the 34 drum kits) */
-                ed_str(d->names[i], 8);
+        ed_b2(a[0], a[1]);
+        ed_desc_body(d);                                   /* (ed_desc.h) */
         break;
     case ED_STEP_GET:
     case ED_STEP_SET:
         if (na < 1u || a[0] >= NSTEP)
             return;
-        if (cmd == ED_STEP_SET && na >= 9u) {
-            ed_undo_edit(TSEL);
-            fm1_irq_off();
-            ed_step_in(TSEL, a[0], a + 1, na - 1u);
-            fm1_irq_on();
-            ui.force = 1;
-        }
-        ed_w.st[a[0]] = ed_step_sig(TSEL, a[0]);
-        ed9_known_step(song.sel, a[0]);
+        ed_step_w(song.sel, a[0], a + 1, cmd == ED_STEP_SET ? na - 1u : 0u);
         ed_b(a[0]);
         ed_step_out(TSEL, a[0], 1);
         break;
@@ -519,8 +533,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         apply_preset(a[1]);
         ed_load_after(&lb);
         ui.force = 1;
-        ed_b(ed_eng(TSEL));
-        ed_b(TSEL->preset);
+        ed_b2(ed_eng(TSEL), TSEL->preset);
         break;
     }
     case ED_PROJECT:                                       /* 0 = load, 1 = save, 2 = query; slot 0..FELUCCA_SECTIONS-1 (A..) */
@@ -528,8 +541,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             return;
 #if FELUCCA_ARRANGER
         if (a[0] < 2u && (song.playing || transport_req)) {
-            ed_b(a[0]); ed_b(a[1] % FELUCCA_SECTIONS); ed_b(project_used(a[1] % FELUCCA_SECTIONS));
-            ed_b(1);                                  /* optional status: transport busy */
+            ed_b4(a[0], a[1] % FELUCCA_SECTIONS, project_used(a[1] % FELUCCA_SECTIONS), 1);                                  /* optional status: transport busy */
             break;
         }
 #endif
@@ -537,8 +549,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             project_save(a[1] % FELUCCA_SECTIONS);
         else if (a[0] == 0u)
             project_load(a[1] % FELUCCA_SECTIONS);
-        ed_b(a[0]);
-        ed_b(a[1] % FELUCCA_SECTIONS);
+        ed_b2(a[0], a[1] % FELUCCA_SECTIONS);
 #if FELUCCA_SL24_SAFE
         ed_b((uint8_t)project_state(a[1] % FELUCCA_SECTIONS));   /* 0 empty, 1 used, 2 SLOOP 2.4's, 3 another's (kept) */
 #else
@@ -561,23 +572,23 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_str(ENGINES[a[0]]->page_title[i], 8);
         break;
     case ED_WATCH: {                                       /* on -> on */
-        uint32_t keep, v4was = ed_w.v4, v9was = ed_w.v9, stwas = ed_w.stream;
+        uint32_t keep, m, v4was = ed_w.v4, v9was = ed_w.v9, stwas = ed_w.stream;
         if (na < 1u)
             return;
         keep = ed_w.on && ed_w.resets == usb.resets && (a[0] & 1u);   /* already watching: the changes not yet */
-        ed_w.on = a[0] & 1u;                                          /* pushed stay pending (INFO tag 53 01 bit 0, */
-        ed_w.v4 = (uint8_t)(ed_w.on && (a[0] & 2u));     /* v4: also TRACK_CHANGED; the reply says it is known */
-        ed_w.v9 = (uint8_t)(ed_w.on && (a[0] & 4u));     /* v9: every track's changes, coalesced (ed_sync9.c) */
-        ed_w.stream = (uint8_t)(ed_w.on && (a[0] & 8u)); /* v9: the status stream (ed_status.c) */
-        ed_w.ends = (uint8_t)(ed_w.on && (a[0] & 16u));  /* v12: a synth step pushed with its notes' own ends */
+        m = a[0] & 1u ? a[0] & 31u : 0u;                              /* pushed stay pending (INFO tag 53 01 bit 0, */
+        ed_w.on = (uint8_t)(m & 1u);                                  /* Felucca 1.0.2 #65); bits 1..4 only while on */
+        ed_w.v4 = (uint8_t)(m >> 1 & 1u);                /* v4: also TRACK_CHANGED; the reply says it is known */
+        ed_w.v9 = (uint8_t)(m >> 2 & 1u);                /* v9: every track's changes, coalesced (ed_sync9.c) */
+        ed_w.stream = (uint8_t)(m >> 3 & 1u);            /* v9: the status stream (ed_status.c) */
+        ed_w.ends = (uint8_t)(m >> 4 & 1u);              /* v12: a synth step pushed with its notes' own ends */
         mt.master = ed_w.stream;                         /* (meters.c: the output's peak too) */
-        ed_w.resets = usb.resets;                        /* Felucca 1.0.2 #65) */
+        ed_w.resets = usb.resets;
         if (ed_w.on && !keep) {
             ed_shadow();
             ed9_shadow_all();
         } else if (keep && ed_w.v4 && !v4was) {
-            for (i = 0; i < ED_NT; i++)                    /* TRACK_CHANGED newly asked for: from the mix as it is */
-                ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
+            ed_shadow_mix();                               /* TRACK_CHANGED newly asked for: from the mix as it is */
         }
         if (keep && ed_w.v9 && !v9was)
             ed9_shadow_all();                              /* v9 newly asked for: from the device as it is */
@@ -587,7 +598,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 mt.ed[i] = 0;
             est.ms = fm1_ms - ED_STREAM_MS;
         }
-        ed_b(ed_w.on | ed_w.v4 << 1 | ed_w.v9 << 2 | ed_w.stream << 3 | ed_w.ends << 4);
+        ed_b(m);                                           /* (on, v4, v9, stream, ends: what is on) */
         break;
     }
     case ED_PING:
@@ -600,16 +611,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 ed_shadow();                               /* the editor re-reads it: no RELOAD for this */
             e9.trk_sig = ed9_trk_sig();                    /* (v9: nor a TRACKS push) */
         }
-        ed_b(song.sel);
-        ed_b(NTRK);
-        for (i = 0; i < NTRK; i++) {
-            ed_b(ed_eng(&trk[i]));
-            ed_b(trk[i].preset);
-            ed_v(i == TRK_DRUM ? song.g[G_DRLVL] : trk[i].p[P_LEVEL]);
-            ed_b(trk[i].p[P_MUTE] != 0);
-            ed_b((song.rec >> i) & 1u);
-        }
-        ed_b(song.solo & 15u);                            /* v5: the tracks soloed */
+        ed9_tracks_out();                                  /* (as the v9 TRACKS push; v5: the solo mask last) */
         break;
     case ED_TRACK_MIX: {                                   /* track [, level v14, mute] -> track, level, mute */
         track_t *t;
@@ -637,27 +639,14 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (na < 1u || a[0] >= NTRK)
             return;
         ed9_known_track(a[0]);                             /* (v9: the editor has them now) */
-        ed_b(a[0]);
-        ed_b(ed_eng(&trk[a[0]]));
-        ed_b(trk[a[0]].preset);
-        for (i = 0; i < P_COUNT; i++)
-            ed_v(trk[a[0]].p[i]);
+        ed_b3(a[0], ed_eng(&trk[a[0]]), trk[a[0]].preset);
+        ed_vs(trk[a[0]].p, P_COUNT);
         break;
     case ED_TRACK_STEP:                                    /* track, index [, step] -> track, index, step (as STEP_GET) */
         if (na < 2u || a[0] >= NTRK || a[1] >= NSTEP)
             return;
-        if (na >= 10u) {
-            ed_undo_edit(&trk[a[0]]);
-            fm1_irq_off();
-            ed_step_in(&trk[a[0]], a[1], a + 2, na - 2u);
-            fm1_irq_on();
-            ui.force = 1;
-        }
-        if (a[0] == song.sel)
-            ed_w.st[a[1]] = ed_step_sig(&trk[a[0]], a[1]);
-        ed9_known_step(a[0], a[1]);
-        ed_b(a[0]);
-        ed_b(a[1]);
+        ed_step_w(a[0], a[1], a + 2, na - 2u);
+        ed_b2(a[0], a[1]);
         ed_step_out(&trk[a[0]], a[1], 1);
         break;
     case ED_DRUM_STEP: {                                   /* index [, on 16 bits, lvl 32 bits, rat 32 bits as 7-bit groups]
@@ -693,20 +682,19 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_known(a[0], a[1]);
             ui.force = 1;
         }
-        ed_b(a[0]);
-        ed_b(a[1]);
+        ed_b2(a[0], a[1]);
         ed_v(t->p[a[1]]);
         break;
     }
     case ED_SYNC_STATS:                                    /* v9: what the sync costs (a measurement aid) */
-        ed9_b35(e9.scans);
-        ed9_b35(e9.frames);
-        ed9_b35(e9.bytes);
-        ed9_b35(e9.t_max / FM1_TICKS_PER_US);
-        ed9_b35(e9.t_sum / FM1_TICKS_PER_US);
-        ed9_b35(est.frames);
-        ed9_b35(mt.seen);
-        ed9_b35(mt.missed);
+        ed_b32(e9.scans, 5);                               /* (5 x 7 bits each) */
+        ed_b32(e9.frames, 5);
+        ed_b32(e9.bytes, 5);
+        ed_b32(e9.t_max / FM1_TICKS_PER_US, 5);
+        ed_b32(e9.t_sum / FM1_TICKS_PER_US, 5);
+        ed_b32(est.frames, 5);
+        ed_b32(mt.seen, 5);
+        ed_b32(mt.missed, 5);
         if (na)
             e9.scans = e9.frames = e9.bytes = e9.t_max = e9.t_sum = est.frames = mt.seen = mt.missed = 0;
         break;
@@ -717,22 +705,13 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed9_known_lanes();                             /* (v9: the editor's own lane writes: no LANE push) */
             break;
         }
-#if FELUCCA_MACROS
-        if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
-            break;
-#endif
-        if (ed_fxs(cmd, a, na) || ed_fxp(cmd, a, na) || ed_dlan(cmd, a, na) || ed_scrn(cmd, a, na) || ed_songc(cmd, a, na) || ed_tools(cmd, a, na) || ed_scrs(cmd, a, na) || ed_fav(cmd, a, na) || ed_scope(cmd, a, na) || ed_undo(cmd, a, na) || ed_note(cmd, a, na) || ed_solo(cmd, a, na) || ed_rec(cmd, a, na) || ed_steplane(cmd, a, na)) {   /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
+        if (ed_cmds(ED_FX_CMDS, cmd, a, na)) {            /* 86: the FX slots (v10); 94: the owners' slots, 95: the lanes' mix (v13) */
             ed9_known_fx();                                /* (the editor's own writes: no FX push) */
             if (!ed_reads(cmd, a, na))                     /* (a read changes nothing: ui.force clears the screen to black, */
                 ui.force = 1;                              /*  and the editor reads often: the panel flashed) */
             break;
         }
-        if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
-            !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na) && !ed_pat(cmd, a, na)
-#if FELUCCA_AUTO
-            && !ed_stepx(cmd, a, na)                       /* 72..77: step extras; 92, 93: the automation */
-#endif
-            )   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots; 66 the CZ collection; 78 SLOOP 2.4 export */
+        if (!ed_cmds(ED_CMDS, cmd, a, na))
             return;
         break;
     }

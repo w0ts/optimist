@@ -8,6 +8,7 @@
  *   37 v2  0x40 + lane [, pack7 lane + sends (12 + 3 B)]         -> 0x40 + lane, pack7 (15 B)
  *   39 v2  0x40 + slot                                           -> 0x40 + slot, used, pack7 kit + sends (196 + 48 B)
  *   40 v2  0x40 + slot, pack7 kit + sends (196 + 48 B; used 0: erase) -> 0x40 + slot, rc (as 40) */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #define ED_V2 0x40u
 #define ED_DL2_N (EDW_DL_N + 3u * DRUM_LSTORE)                 /* 252 (ed_drums.c: the wire's 16 lanes) */
 
@@ -59,9 +60,7 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
             uint16_t w;
             if (ed_unpack7(a + 1, na - 1u, b, 15u) != 15u)
                 return 0;
-            memcpy(n.ofs[l], b, DE_N);
-            n.src[l] = b[8];
-            memcpy(n.ref[l], b + 9, 3);
+            ed_lane_put(&n, l, b);
             dl_fix(&n);
             ed_snd_set(&w, b + 12, 1);
             fm1_irq_off();
@@ -88,8 +87,7 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
         memset(b, 0, sizeof b);
         edw_uk_put(&k, b);
         ed_snd_get(w, b + EDW_UK_N, DRUM_LANES);
-        ed_b(a[0]);
-        ed_b(used);
+        ed_b2(a[0], used);
         ed_pack7(b, ED_KIT2);
         return 1;
     }
@@ -103,8 +101,7 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
             if (!k.used || uk_valid(&k))
                 rc = song.playing || transport_req ? 3u : ukit_put_snd(a[0] & 15u, k.used ? &k : 0, w) ? 2u : 0u;
         }
-        ed_b(a[0]);
-        ed_b(rc);
+        ed_b2(a[0], rc);
         return 1;
     }
 #endif

@@ -19,6 +19,8 @@
  *       op 3  owner, slot                -> owner, slot, n, n x v14: every value of the slot
  *       op 4  owner, slot, i, v14        the value set (clamped) -> owner, slot, i, v14
  * A bad owner, slot or op: no reply. The returns' slot 0 first parameter is the line's RET level (G_CRET + line). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
+#include "ed_desc.h"          /* (DESC's body) */
 enum { ED_FXP = 94 };
 #if FELUCCA_ED_FXP                                       /* (the builder item ED_FXP; off: no command 94, INFO has no tag 0x57) */
 #define FXP_MST NTRK
@@ -282,15 +284,12 @@ static void fxp_set_type(uint32_t ow, uint32_t sl, uint32_t t)
 static void fxp_layout(uint32_t op, uint32_t ow)
 {
     uint32_t sl, k, ok = fxp_ok(ow);
-    ed_b(op);
-    ed_b(ow);
-    ed_b(fxp_slots(ow));
+    ed_b3(op, ow, fxp_slots(ow));
     for (sl = 0; sl < fxp_slots(ow); sl++) {
-        ed_b(fxp_type(ow, sl));
-        ed_b(fxp_n(ow, sl));
+        ed_b2(fxp_type(ow, sl), fxp_n(ow, sl));
     }
     for (k = 0; k < 5u; k++)
-        ed_b(ok >> (7u * k) & 0x7Fu);
+        ed_b(ok >> (7u * k));
     if (ow >= FXP_RET0 && ow < FXP_LANE0)              /* a return: its send line (0 CHO's, 1 DLY's, 2 REV's; 127 none): the
                                                         * line the tracks' send knob of it is (P_CHOR, P_DLY, P_REV) */
         ed_b(fxs_line[1u + (ow - FXP_RET0)] < 3u && fxs_slot[1u + (ow - FXP_RET0)] != FXT_NONE ? fxs_line[1u + (ow - FXP_RET0)] : 127u);
@@ -299,10 +298,7 @@ static void fxp_layout(uint32_t op, uint32_t ow)
 static void ed_fxp_info(void)
 {
     ed_b(0x57);
-    ed_b(3);
-    ed_b(1);
-    ed_b(FXP_USB_ON);
-    ed_b(FXP_NOWN);
+    ed_b4(3, 1, FXP_USB_ON, FXP_NOWN);
 }
 /* what the slots keep that no other push covers (the FX push's signature): the owners' settings and slots */
 static uint32_t ed_fxp_sig(uint32_t h)
@@ -367,7 +363,7 @@ static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)
     }
     if (op == 3u) {
         uint32_t n = fxp_n(ow, sl);
-        ed_b(3), ed_b(ow), ed_b(sl), ed_b(n);
+        ed_b4(3, ow, sl, n);
         for (i = 0; i < n; i++)
             fxp_loc(ow, sl, i, &vp), ed_v(*vp);
         return 1;
@@ -377,18 +373,9 @@ static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)
     i = a[3];
     d = fxp_loc(ow, sl, i, &vp);
     if (op == 2u) {
-        ed_b(2), ed_b(ow), ed_b(sl), ed_b(i);
-        if (!d)
-            return 1;
-        ed_b(d->fmt);
-        ed_v(d->min);
-        ed_v(d->max);
-        ed_v(d->def);
-        ed_str(d->label, 8);
-        ed_str(d->unit, 8);
-        if (d->fmt == F_ENUM && d->names)
-            for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)
-                ed_str(d->names[i], 8);
+        ed_b4(2, ow, sl, i);
+        if (d)
+            ed_desc_body(d);
         return 1;
     }
     if (!d || na < 6u)
@@ -396,12 +383,14 @@ static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na)
     fxp_put(ow, sl, i, ed_rv(a + 4));
     fxp_loc(ow, sl, i, &vp);
     ui.force = 1;
-    ed_b(4), ed_b(ow), ed_b(sl), ed_b(i);
+    ed_b4(4, ow, sl, i);
     ed_v(*vp);
     return 1;
 }
+#define ED_FXP_FN ed_fxp,                   /* (editor.c: its table of commands) */
 #else
 static int ed_fxp(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_FXP_FN
 static void ed_fxp_info(void) {}
 static uint32_t ed_fxp_sig(uint32_t h) { return h; }
 #endif

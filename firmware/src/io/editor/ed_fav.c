@@ -9,6 +9,7 @@
  *       op 2  engine, k, on        -> 2, engine, k, rc (0 as it was, 1 changed, 2 FULL: FAV_N factory marks), factory marks
  *       op 3  list                 -> 3, list (the PRESETS list shown: ALL or FAV), the device's own browsing follows it
  * A bad op, engine or k: no reply. INFO tag 0x5D: version 1, FAV_N. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_FAV = 100 };
 #if FELUCCA_FAVORITES && FELUCCA_ED_FAVS
 static uint32_t edf_n(uint32_t e) { return e == NENGINES ? (uint32_t)UP_SLOTS : e < NENGINES ? ENGINES[e]->npresets : 0u; }
@@ -23,7 +24,7 @@ static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint32_t u = 0;
         for (i = 0; i < UP_SLOTS; i++)
             u += (uint32_t)fav_user_has(i);
-        ed_b(0), ed_b(fav_count()), ed_b(FAV_N), ed_b(fav_list), ed_b(u);
+        ed_b4(0, fav_count(), FAV_N, fav_list); ed_b(u);
     }
         return 1;
     }
@@ -33,14 +34,14 @@ static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na)
         fav_list = a[1];
         settings_later = 1;
         ui.force = 1;
-        ed_b(3), ed_b(fav_list);
+        ed_b2(3, fav_list);
         return 1;
     }
     if (na < 2u || (e = a[1]) > NENGINES)
         return 0;
     n = edf_n(e);
     if (op == 1u) {
-        ed_b(1), ed_b(e), ed_b(n);
+        ed_b3(1, e, n);
         for (i = 0; i < n; i += 7u) {
             uint32_t b = 0, j;
             for (j = 0; j < 7u && i + j < n; j++)
@@ -57,18 +58,18 @@ static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na)
             settings_later = 1;
             ui.force = 1;
         }
-        ed_b(2), ed_b(e), ed_b(k), ed_b(r < 0 ? 2u : (uint32_t)r), ed_b(fav_count());
+        ed_b4(2, e, k, r < 0 ? 2u : (uint32_t)r); ed_b(fav_count());
     }
     return 1;
 }
+#define ED_FAV_FN ed_fav,                   /* (editor.c: its table of commands) */
 static void ed_fav_info(void)
 {
     ed_b(0x5D);
-    ed_b(2);
-    ed_b(1);
-    ed_b(FAV_N);
+    ed_b3(2, 1, FAV_N);
 }
 #else
 static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_FAV_FN
 static void ed_fav_info(void) {}
 #endif

@@ -13,6 +13,8 @@
  *       state: op, rc, track, lane, step, flags, level, ratchet, chance, cond, nudge + 64, fill, n, n x (i, kind 1 lock / 2 hold, v14)
  *       rc: 0 done, 1 refused, 2 the list is full, 3 no hit (D4), 4 nothing to do. A bad argument: no reply.
  * Writes mark the undo history (ed_undo_edit) and take the interrupt off (IRQ_SAVE / IRQ_RESTORE: they nest). INFO tag 0x62: version 1, a, b (the doc). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
+#include "ed_desc.h"          /* (DESC's body) */
 enum { ED_STEPLANE = 105, STL_MAX = 127 };
 static void ed9_known_step(uint32_t t, uint32_t i);   /* ed_sync9.c (included after this) */
 #define STL_ON (FELUCCA_ED_STEPLANE && FELUCCA_AUTO)
@@ -172,7 +174,7 @@ static void stl_visit_ev(void *ctx, uint32_t i, const stl_e *e)
     int32_t v = 0;
     uint32_t k = stl_event(x->t, x->step, x->lane, e, &v);
     if (k) {
-        ed_b(i), ed_b(k), ed_v(v);
+        ed_b2(i, k), ed_v(v);
         x->n++;
     }
 }
@@ -211,8 +213,7 @@ static void stl_state(uint32_t op, uint32_t rc, uint32_t track, uint32_t lane, u
     fill = step_fill(t, step) % 3u;
 #endif
     flags = (has ? 1u : 0u) | ((is_drum(t) ? has : 1) ? 2u : 0u) | (step >= trk_len(t) ? 4u : 0u);
-    ed_b(op), ed_b(rc), ed_b(track), ed_b(lane), ed_b(step), ed_b(flags), ed_b(lv), ed_b(rt), ed_b(chance);
-    ed_b(cond), ed_b((uint32_t)(nudge + 64)), ed_b(fill);
+    ed_b4(op, rc, track, lane); ed_b4(step, flags, lv, rt); ed_b4(chance, cond, (uint32_t)(nudge + 64), fill);
     at = ed_n;
     ed_b(0);
     x.t = t, x.step = step, x.lane = lane, x.n = 0;
@@ -335,7 +336,7 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     if (op == 0u) {
         n = stl_count(track, lane, &np);
-        ed_b(0), ed_b(track), ed_b(edl_out(lane)), ed_b(n), ed_b(np);
+        ed_b4(0, track, edl_out(lane), n); ed_b(np);
         return 1;
     }
     if (op == 1u) {
@@ -343,20 +344,12 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
             return 0;
         i = a[3];
         n = stl_walk(track, lane, i, &e, 0, 0);
-        ed_b(1), ed_b(track), ed_b(edl_out(lane)), ed_b(i);
+        ed_b4(1, track, edl_out(lane), i);
         if (i >= n)
             return 1;
-        ed_b(e.kind), ed_b(e.id), ed_b(e.page), ed_b(e.cell);
+        ed_b4(e.kind, e.id, e.page, e.cell);
         ed_str(e.title, 12);
-        ed_b(e.d->fmt);
-        ed_v(e.d->min);
-        ed_v(e.d->max);
-        ed_v(e.d->def);
-        ed_str(e.d->label, 8);
-        ed_str(e.d->unit, 8);
-        if (e.d->fmt == F_ENUM && e.d->names)
-            for (i = 0; i <= (uint32_t)(e.d->max - e.d->min) && i < 64u; i++)
-                ed_str(e.d->names[i], 8);
+        ed_desc_body(e.d);
         return 1;
     }
     if (na < 4u || a[3] >= NSTEP || (op == 3u && na < 7u) || (op == 4u && na < 7u) || (op >= 5u && na < 5u))
@@ -364,23 +357,14 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
     step = a[3];
     if (op != 2u) {
         ed_undo_edit(t);                                /* (it takes the interrupt off itself: it marks first) */
-        if (op == 3u) {
-            int32_t v = ed_rv(a + 5);
+        int32_t v = op <= 4u ? ed_rv(a + 5) : 0;        /* (SET, LOCK: the value) */
+        if (op != 3u && a[4] >= stl_walk(track, lane, a[4], &e, 0, 0)) {
+            rc = 1;                                     /* (LOCK, UNLOCK, KIND: no such entry) */
+        } else {
             IRQ_SAVE(ie2);
-            rc = stl_set(t, lane, step, a[4], v);
+            rc = op == 3u ? stl_set(t, lane, step, a[4], v) : stl_lock(t, lane, step, op, &e, v);
             auto_touch(trk_index(t));
             IRQ_RESTORE(ie2);
-        } else {
-            n = stl_walk(track, lane, a[4], &e, 0, 0);
-            if (a[4] >= n) {
-                rc = 1;
-            } else {
-                int32_t v = op == 4u ? ed_rv(a + 5) : 0;
-                IRQ_SAVE(ie3);
-                rc = stl_lock(t, lane, step, op, &e, v);
-                auto_touch(trk_index(t));
-                IRQ_RESTORE(ie3);
-            }
         }
         if (track == song.sel)
             ed_w.st[step] = ed_step_sig(t, step);
@@ -390,17 +374,15 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
     stl_state(op, rc, track, lane, step);
     return 1;
 }
+#define ED_STEPLANE_FN ed_steplane,         /* (editor.c: its table of commands) */
 static void ed_steplane_info(void)
 {
     uint32_t a = STL_UI | (FELUCCA_PLOCK ? 2u : 0u) | (DLA_ON && FELUCCA_PLOCK ? 4u : 0u) | (FELUCCA_MOTION ? 8u : 0u);
     uint32_t b = (FELUCCA_CHANCE ? 1u : 0u) | (FELUCCA_COND ? 2u : 0u) | (FELUCCA_MICRO ? 4u : 0u) | (FELUCCA_FILLS ? 8u : 0u);
-    ed_b(0x62);
-    ed_b(3);
-    ed_b(1);
-    ed_b(a);
-    ed_b(b);
+    ed_b4(0x62, 3, 1, a); ed_b(b);
 }
 #else
 static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_STEPLANE_FN
 static void ed_steplane_info(void) {}
 #endif

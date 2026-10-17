@@ -10,6 +10,7 @@
  *               2, 0, sc v14, add v14       every drum lane's REV send plays as clamp(send * sc / 64 + add, 0, 127),
  *                                           the send in a synth track's steps (level v of a lane is 4v + v / 8)
  *             A build without the macros does not answer: the editor shows the authored values only. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_MACRO = 65 };
 
 static int ed_macro(uint32_t cmd, const uint8_t *a, uint32_t na)
@@ -28,22 +29,23 @@ static int ed_macro(uint32_t cmd, const uint8_t *a, uint32_t na)
     for (id = 0; k < NPART && id < P_COUNT; id++) {
         int32_t e = mac_effective(k, id, trk[k].p[id]);
         if (e != trk[k].p[id]) {
-            ed_b(0), ed_b(id), ed_v(e);
+            ed_b2(0, id), ed_v(e);
             n++;
         }
     }
     for (id = 0; id < G_COUNT; id++) {
         int32_t e = mac_effective_g(id, song.g[id]);
         if (e != song.g[id]) {
-            ed_b(1), ed_b(id), ed_v(e);
+            ed_b2(1, id), ed_v(e);
             n++;
         }
     }
     mac_drev(&sc, &add);
     if (sc != 64 || add) {
-        ed_b(2), ed_b(0), ed_v(sc), ed_v(add);
+        ed_b2(2, 0), ed_v(sc), ed_v(add);
         n++;
     }
     ed_out[at] = (uint8_t)n;
     return 1;
 }
+#define ED_MACRO_FN ed_macro,               /* (editor.c: its table of commands) */

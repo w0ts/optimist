@@ -36,14 +36,10 @@
  *                bytes (<= 256)
  * rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 4 none, 6 too long, 8 not a SLOOP 2.4 project,
  * 9 busy (a restore holds the buffer). A begun import holds proj_tmp as a restore does (10 s without a command: let go). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_SL24_GET = 78, ED_SL24_PUT = 90, ED_SL24_BANK = 91 };
 
-static void ed_b7(uint32_t v, uint32_t n)                /* n 7-bit groups of v, low first */
-{
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        ed_b(v >> (7u * i));
-}
+#define ed_b7 ed_b32                                     /* n 7-bit groups of v, low first (ed_reply.h) */
 static uint32_t ed_g7(const uint8_t *a, uint32_t n)      /* n 7-bit groups, low first */
 {
     uint32_t i, v = 0;
@@ -114,8 +110,7 @@ static void ed_sl24_get(const uint8_t *a, uint32_t na)
         rc = off > len;
     }
     n = rc ? 0u : len - off < 256u ? len - off : 256u;
-    ed_b(part);
-    ed_b(rc);
+    ed_b2(part, rc);
     ed_b7(len, 3);
     ed_b7(crc, 5);
     w1 = lost & 0x3FFFu;                                  /* (the first word: bits 0..13) */
@@ -252,3 +247,4 @@ static int ed_sl24(uint32_t cmd, const uint8_t *a, uint32_t na)
     (void)a, (void)na;
     return 0;
 }
+#define ED_SL24_FN ed_sl24,                 /* (editor.c: its table of commands) */

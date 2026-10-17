@@ -8,6 +8,7 @@
  *       op 1 OFF  track, note
  *       op 2 ALL  track (127: every track)
  *       rc 0 done, 1 refused: the ring was full (nothing happened). A bad op, track, note or vel: no reply. INFO tag 0x60: version 1, quiet seconds (3). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_NOTE = 103, EDNOTE_QUIET_MS = 3000 };
 #if EDN_ON
 typedef struct {
@@ -59,9 +60,6 @@ static int ed_note(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (op == 2u) {
         if (track != 127u && track >= NTRK)
             return 0;
-        for (i = 0; i < EDN_HELD; i++)
-            if (ed_hn[i].used && (track == 127u || ed_hn[i].trk == track))
-                rc |= !ed_hn_off(&ed_hn[i]);
         note = 127u;
     } else {
         if (na < (op == 0u ? 4u : 3u) || track >= NTRK)
@@ -69,52 +67,51 @@ static int ed_note(uint32_t cmd, const uint8_t *a, uint32_t na)
         note = is_drum(&trk[track]) ? edl_in(a[2]) : a[2];   /* (the drum track: a lane, the wire's: ed_drums.c) */
         if (op == 0u && (a[3] == 0u || (is_drum(&trk[track]) && !(note < DRUM_LANES || (FELUCCA_DRUM_ACCENT && note == DRUM_ACC)))))
             return 0;
-        if (op == 1u) {
-            for (i = 0; i < EDN_HELD; i++)
-                if (ed_hn[i].used && ed_hn[i].trk == track && ed_hn[i].note == note)
-                    rc |= !ed_hn_off(&ed_hn[i]);
-        } else if (is_drum(&trk[track])) {              /* a one-shot: nothing is held */
-            rc = !ednote_push(EDN_OP_ON, track, note, a[3]);
-        } else {
-            for (i = 0; i < EDN_HELD; i++) {
-                if (!ed_hn[i].used)
-                    free_i = i;
-                else if (ed_hn[i].trk == track && ed_hn[i].note == note)
-                    old = i;
-            }
-            if (old == EDN_HELD && free_i == EDN_HELD) {   /* eight held: the first one goes (the oldest queued) */
-                uint32_t best = 0;
-                for (i = 1; i < EDN_HELD; i++)
-                    if ((int32_t)(ed_hn[i].age - ed_hn[best].age) < 0)
-                        best = i;
-                if (!ed_hn_off(&ed_hn[best]))
-                    rc = 1;
-                else
-                    free_i = best;
-            }
-            i = old != EDN_HELD ? old : free_i;
-            if (!rc && i < EDN_HELD && ednote_push(EDN_OP_ON, track, note, a[3])) {
-                ed_hn[i].used = 1, ed_hn[i].pend = 0, ed_hn[i].age = ++ed_hn_age;
-                ed_hn[i].trk = (uint8_t)track, ed_hn[i].note = (uint8_t)note;
-                ed_hn[i].end_ms = na >= 5u && a[4] ? (fm1_ms + (uint32_t)a[4] * 100u) | 1u : 0u;
-                ed_hn_resets = usb.resets;
-            } else {
+    }
+    if (op) {                                           /* OFF: the track's note; ALL: the track's notes (127: every track's) */
+        for (i = 0; i < EDN_HELD; i++)
+            if (ed_hn[i].used && (track == 127u || ed_hn[i].trk == track) && (op == 2u || ed_hn[i].note == note))
+                rc |= !ed_hn_off(&ed_hn[i]);
+    } else if (is_drum(&trk[track])) {                  /* a one-shot: nothing is held */
+        rc = !ednote_push(EDN_OP_ON, track, note, a[3]);
+    } else {
+        for (i = 0; i < EDN_HELD; i++) {
+            if (!ed_hn[i].used)
+                free_i = i;
+            else if (ed_hn[i].trk == track && ed_hn[i].note == note)
+                old = i;
+        }
+        if (old == EDN_HELD && free_i == EDN_HELD) {   /* eight held: the first one goes (the oldest queued) */
+            uint32_t best = 0;
+            for (i = 1; i < EDN_HELD; i++)
+                if ((int32_t)(ed_hn[i].age - ed_hn[best].age) < 0)
+                    best = i;
+            if (!ed_hn_off(&ed_hn[best]))
                 rc = 1;
-            }
+            else
+                free_i = best;
+        }
+        i = old != EDN_HELD ? old : free_i;
+        if (!rc && i < EDN_HELD && ednote_push(EDN_OP_ON, track, note, a[3])) {
+            ed_hn[i].used = 1, ed_hn[i].pend = 0, ed_hn[i].age = ++ed_hn_age;
+            ed_hn[i].trk = (uint8_t)track, ed_hn[i].note = (uint8_t)note;
+            ed_hn[i].end_ms = na >= 5u && a[4] ? (fm1_ms + (uint32_t)a[4] * 100u) | 1u : 0u;
+            ed_hn_resets = usb.resets;
+        } else {
+            rc = 1;
         }
     }
-    ed_b(op), ed_b(rc != 0), ed_b(track), ed_b(note), ed_b(ed_hn_n());
+    ed_b4(op, rc != 0, track, note); ed_b(ed_hn_n());
     return 1;
 }
+#define ED_NOTE_FN ed_note,                 /* (editor.c: its table of commands) */
 static void ed_note_info(void)
 {
-    ed_b(0x60);
-    ed_b(2);
-    ed_b(1);
-    ed_b(EDNOTE_QUIET_MS / 1000u);
+    ed_b4(0x60, 2, 1, EDNOTE_QUIET_MS / 1000u);
 }
 #else
 static void ed_note_tick(void) {}
 static int ed_note(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_NOTE_FN
 static void ed_note_info(void) {}
 #endif

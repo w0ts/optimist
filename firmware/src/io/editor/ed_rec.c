@@ -7,6 +7,7 @@
  *       track: the track that records / will record / takes the take, 127 when state is 0;
  *       rc 0 done, 1 refused (a song plays), 2 nothing done (a free take ended within 0.3 s). A bad op: no reply.
  *       INFO tag 0x63: version 1, flags bit 0 = the count-in exists (FELUCCA_REC_MODES). */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_REC = 107 };
 #if FELUCCA_ED_REC
 static uint32_t ed_rec_bits(void)
@@ -62,17 +63,16 @@ static int ed_rec(uint32_t cmd, const uint8_t *a, uint32_t na)
         ui.force = 1;
     }
     st = ed_rec_bits();
-    ed_b(a[0]), ed_b(rc), ed_b(st), ed_b(ed_rec_track(st));
+    ed_b4(a[0], rc, st, ed_rec_track(st));
     return 1;
 }
+#define ED_REC_FN ed_rec,                   /* (editor.c: its table of commands) */
 static void ed_rec_info(void)
 {
-    ed_b(0x63);
-    ed_b(2);
-    ed_b(1);
-    ed_b(FELUCCA_REC_MODES ? 1u : 0u);
+    ed_b4(0x63, 2, 1, FELUCCA_REC_MODES ? 1u : 0u);
 }
 #else
 static int ed_rec(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_REC_FN
 static void ed_rec_info(void) {}
 #endif

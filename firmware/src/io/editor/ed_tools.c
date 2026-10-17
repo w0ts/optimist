@@ -19,6 +19,7 @@
  *       op 8  mode (0 REPLACE 1 ADD 2 MASK)
  *       op 9  on (0 / 1), lane (127: keep the lane)      ON / OFF, the pattern untouched (OFF with what plays written: op 4)
  * rc 0 done. A bad op: no reply; the selected track is the device's (TRACK, 27). INFO tag 0x5B: version 1. */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_TOOLS = 98 };
 #if FELUCCA_UI == 1 && FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
 static void ed_tools_state(uint32_t op, uint32_t rc, const char *sa, const char *sb)
@@ -26,11 +27,10 @@ static void ed_tools_state(uint32_t op, uint32_t rc, const char *sa, const char 
     track_t *t = TSEL;
     gen_t g = *ng_cur();                                /* (the slot's settings; EUCLID's three values, ON only for EUCLID) */
     GEN_TYPES[g.type % GT_N].fit(&g, trk_len(t));
-    ed_b(op), ed_b(rc), ed_b(song.sel % NTRK), ed_b(edl_out(lane_selected()));
-    ed_b(trk_len(t) & 0x7Fu), ed_b(g.p[0]), ed_b(g.p[1]), ed_b(g.p[2]), ed_b(g.on && g.type == GT_EUCLID);
+    ed_b4(op, rc, song.sel % NTRK, edl_out(lane_selected())); ed_b4(trk_len(t), g.p[0], g.p[1], g.p[2]); ed_b(g.on && g.type == GT_EUCLID);
     ed_str(sa, 24);
     ed_str(sb, 24);
-    ed_b(g.type % GT_N), ed_b(g.mode % GM_N), ed_b(g.on != 0u);   /* (v2: the slot's generator, any type) */
+    ed_b3(g.type % GT_N, g.mode % GM_N, g.on != 0u);   /* (v2: the slot's generator, any type) */
 }
 static int ed_tools(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
@@ -75,25 +75,19 @@ static int ed_tools(uint32_t cmd, const uint8_t *a, uint32_t na)
             rc = 2u;                                    /* (the generator is on: the pattern is its, turn it off first) */
         else
             (void)tl_run(t, a[1], lane, a[3] != 0u, &sa, &sb, b);
-    } else if (op == 2u) {
-        if (na < 3u || a[1] > 2u)
+    } else if (op == 2u || op == 3u) {                  /* 2 EUCLID's value; 3 EUCLID ON here (the generator layer: the pattern untouched) */
+        if (op == 2u && (na < 3u || a[1] > 2u))
             return 0;
+        if (op == 3u && na >= 2u && a[1] < DRUM_LANES && is_drum(t))
+            lane_select(a[1]);
         fm1_irq_off();                                  /* (read, changed, written: one section, as the UI's ng_turn) */
         g = *ng_cur();
         if (g.type != GT_EUCLID)
             gen_defaults(&g, GT_EUCLID);
-        g.p[a[1]] = (uint8_t)clamp((int32_t)a[2], GEN_TYPES[GT_EUCLID].par[a[1]].min, ng_max(&GEN_TYPES[GT_EUCLID].par[a[1]], trk_len(t)));
-        GEN_TYPES[GT_EUCLID].fit(&g, trk_len(t));
-        ng_put(&g);
-        fm1_irq_on();
-    } else if (op == 3u) {                              /* EUCLID ON here (the generator layer: the pattern untouched) */
-        if (na >= 2u && a[1] < DRUM_LANES && is_drum(t))
-            lane_select(a[1]);
-        fm1_irq_off();
-        g = *ng_cur();
-        if (g.type != GT_EUCLID)
-            gen_defaults(&g, GT_EUCLID);
-        g.on = 1;
+        if (op == 2u)
+            g.p[a[1]] = (uint8_t)clamp((int32_t)a[2], GEN_TYPES[GT_EUCLID].par[a[1]].min, ng_max(&GEN_TYPES[GT_EUCLID].par[a[1]], trk_len(t)));
+        else
+            g.on = 1;
         GEN_TYPES[GT_EUCLID].fit(&g, trk_len(t));
         ng_put(&g);
         fm1_irq_on();
@@ -117,6 +111,7 @@ static int ed_tools(uint32_t cmd, const uint8_t *a, uint32_t na)
     ed_tools_state(op, rc, sa, sb);
     return 1;
 }
+#define ED_TOOLS_FN ed_tools,               /* (editor.c: its table of commands) */
 static void ed_tools_info(void)
 {
     ed_b(0x5B);
@@ -125,5 +120,6 @@ static void ed_tools_info(void)
 }
 #else
 static int ed_tools(uint32_t cmd, const uint8_t *a, uint32_t na) { (void)cmd, (void)a, (void)na; return 0; }
+#define ED_TOOLS_FN
 static void ed_tools_info(void) {}
 #endif

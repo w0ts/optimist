@@ -20,6 +20,7 @@
  *   75 MICRO_SET  track, step, nudge + 64 -> track, step, nudge + 64 (clamped to -32..31)
  *   76 FILL_GET   track                   -> track, 64 x condition (0 normal, 1 fill only, 2 no fill)
  *   77 FILL_SET   track, step, condition  -> track, step, condition */
+#include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_out.h"            /* (ED_PAYLOAD_N) */
 enum { ED_LOCK_GET = 72, ED_LOCK_SET, ED_MICRO_GET, ED_MICRO_SET, ED_FILL_GET, ED_FILL_SET };
 enum { ED_AUTO_GET = 92, ED_AUTO_SET = 93 };   /* (85 is kept for a push of the patterns: EDITOR_PROTOCOL.md) */
@@ -68,17 +69,12 @@ static int ed_auto(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (cmd == ED_AUTO_GET) {
         uint32_t first = na >= 2u ? a[1] : 0u;
         n = l->n;
-        ed_b(n & 127u);
-        ed_b(n >> 7);
-        ed_b((auto_w.on >> trk_index(t)) & 1u);
-        ed_b(first);
+        ed_b4(n, n >> 7, (auto_w.on >> trk_index(t)) & 1u, first);
         n = first < n ? n - first : 0u;
         n = n < ED_AUTO_PAGE ? n : ED_AUTO_PAGE;
         ed_b(n);
         for (i = first; i < first + n; i++) {
-            ed_b(l->ev[i].place);
-            ed_b(l->ev[i].param & 127u);
-            ed_b((uint32_t)l->ev[i].param >> 7);
+            ed_b3(l->ev[i].place, l->ev[i].param, (uint32_t)l->ev[i].param >> 7);
             ed_v(l->ev[i].value);
         }
         return 1;
@@ -93,7 +89,7 @@ static int ed_auto(uint32_t cmd, const uint8_t *a, uint32_t na)
     case 0:
     case 1: {
         const param_desc_t *d;
-        uint32_t pl = na >= 5u ? a[2] : 0x80u, sp = na >= 5u ? (uint32_t)a[3] | (uint32_t)a[4] << 7 : 0u;
+        uint32_t pl = na >= 5u ? a[2] : 0x80u, sp = na >= 5u ? ed_r32(a + 3, 2) : 0u;
         if (na < 5u || sp > 0xFFu || !ed_auto_ok(t, pl, sp, &d)) {
             rc = 1;
             break;
@@ -141,9 +137,7 @@ static int ed_auto(uint32_t cmd, const uint8_t *a, uint32_t na)
         fm1_irq_on();
     }
 #endif
-    ed_b(rc);
-    ed_b(l->n & 127u);
-    ed_b((uint32_t)l->n >> 7);
+    ed_b3(rc, l->n, (uint32_t)l->n >> 7);
     if (a[1] == 0u)
         ed_v(v);
     return 1;
@@ -167,8 +161,7 @@ static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b(0);
         for (i = 0; i < l->n; i++)
             if ((l->ev[i].place & AUTO_ONLY) && !AUTO_PSEUDO(l->ev[i].param) && mot_id(l->ev[i].param) < P_COUNT) {
-                ed_b(l->ev[i].place & AUTO_STEP);
-                ed_b(mot_id(l->ev[i].param));
+                ed_b2(l->ev[i].place & AUTO_STEP, mot_id(l->ev[i].param));
                 ed_v(l->ev[i].value);
                 n++;
             }
@@ -192,9 +185,7 @@ static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (!lock_get(t, a[1], a[2], &v))
             v = 0;
         fm1_irq_on();
-        ed_b(a[1]);
-        ed_b(a[2]);
-        ed_b((uint32_t)ok);
+        ed_b3(a[1], a[2], (uint32_t)ok);
         ed_v(v);
         return 1;
     }
@@ -217,10 +208,10 @@ static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
         else
             (void)step_fill_set(t, a[1], a[2]);
         fm1_irq_on();
-        ed_b(a[1]);
-        ed_b(cmd == ED_MICRO_SET ? (uint32_t)(step_micro(t, a[1]) + 64) : step_fill(t, a[1]));
+        ed_b2(a[1], cmd == ED_MICRO_SET ? (uint32_t)(step_micro(t, a[1]) + 64) : step_fill(t, a[1]));
         return 1;
     default:
         return 0;
     }
 }
+#define ED_STEPX_FN ed_stepx,               /* (editor.c: its table of commands) */
