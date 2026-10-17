@@ -504,6 +504,15 @@ static uint32_t sys_batt_bars(void)
 {
     return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
 }
+static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
+{
+    c->label = label;
+    c->kind = CK_RO;
+}
+static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OFF line */
+{
+    cell_list(c, label, on ? "ON" : "OFF", 1, on != 0u);
+}
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
     static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
@@ -524,9 +533,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     c->kind = CK_VAL;
     switch (it) {
     case SI_COLOR:
-        c->label = "COLOR";
-        str_cpy(c->val, PALETTES[settings.palette % NPALETTES].name, sizeof c->val);
-        cell_gauge(c, 1, 0, NPALETTES - 1, (int32_t)(settings.palette % NPALETTES));
+        cell_list(c, "COLOR", PALETTES[settings.palette % NPALETTES].name, NPALETTES - 1, (int32_t)(settings.palette % NPALETTES));
         break;
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
@@ -537,35 +544,25 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
 #if FELUCCA_LIGHTS
     case SI_LIGHTS:
-        c->label = "BUTTONS";
-        str_cpy(c->val, LV[lights_lvl & 3u], sizeof c->val);
-        cell_gauge(c, 1, 0, LIGHTS_N - 1, lights_lvl);
+        cell_list(c, "BUTTONS", LV[lights_lvl & 3u], LIGHTS_N - 1, lights_lvl);
         break;
     case SI_KEYS:
-        c->label = "KEYS";
-        str_cpy(c->val, KY[lights_keys & 3u], sizeof c->val);
-        cell_gauge(c, 1, 0, KEYS_N - 1, lights_keys);
+        cell_list(c, "KEYS", KY[lights_keys & 3u], KEYS_N - 1, lights_keys);
         break;
 #endif
     case SI_LOWCUT:
-        c->label = "LOWCUT";
-        str_cpy(c->val, LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], sizeof c->val);
-        cell_gauge(c, 1, 0, FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
+        cell_list(c, "LOWCUT", LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
         break;
 #if FELUCCA_CDC
     case SI_USB:
-        c->label = "SERIAL";
-        str_cpy(c->val, usb_serial ? "ON" : "OFF", sizeof c->val);
+        sys_onoff(c, "SERIAL", usb_serial);
         c->col = usb_serial == usb_cdc_on ? 0 : C_WARN;  /* (amber: a restart applies it) */
-        cell_gauge(c, 1, 0, 1, usb_serial != 0u);
         break;
 #endif
 #if FELUCCA_BLE
     case SI_BLE:
-        c->label = "BLUETOOTH";
-        str_cpy(c->val, !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : "ON", sizeof c->val);   /* (a link: STATE says it) */
+        cell_list(c, "BLUETOOTH", !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : "ON", 1, ble_on != 0u);   /* (a link: STATE says it) */
         c->col = ble_on && !ble_radio_ok() ? C_WARN : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
-        cell_gauge(c, 1, 0, 1, ble_on != 0u);
         break;
     case SI_BLEST:
         ble_state_cell(c);
@@ -606,8 +603,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
     case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
         uint32_t n = ovl_drops();
-        c->label = "DROPS";
-        c->kind = CK_RO;
+        sys_ro(c, "DROPS");
         fmt_int(c->val, (int32_t)n);
         c->col = !n ? C_OK : ovl_recent(fm1_ms, DROPS_RED_MS) ? C_ERR : C_WARN;
         c->unit = "";
@@ -617,8 +613,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_XRUN: {                                     /* UNDERRUNS: USB audio's and MIDI in's losses, the total and where */
         static char u[16];
         uint32_t nu = info_ua_xruns(), mi = ovl_midi_lost(), n = nu + mi - ovl.xrun0;
-        c->label = "UNDERRUNS";
-        c->kind = CK_RO;
+        sys_ro(c, "UNDERRUNS");
         fmt_int(c->val, (int32_t)n);
         u[0] = 0;
         if (n) {                                        /* (where, since boot: "USB3 MIDI1") */
@@ -639,8 +634,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_CPU_GUARD
     case SI_GUARD: {                                    /* what the CPU guard eases now, and the voices it shed (cpuguard.c) */
         uint32_t n = cg.sheds - info_shed0, l = cg.level <= CG_TOP ? cg.level : CG_TOP;
-        c->label = "GUARD";
-        c->kind = CK_RO;
+        sys_ro(c, "GUARD");
         str_cpy(c->val, CG_NAME[l], sizeof c->val);
         if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
             str_app(c->val, " MAX", sizeof c->val);
@@ -678,8 +672,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
         }
 #else
-        c->label = "2ND CORE";
-        c->kind = CK_RO;
+        sys_ro(c, "2ND CORE");
         str_cpy(c->val, "NOT IN BUILD", sizeof c->val);
         c->unit = "";
         c->col = C_DIM;
@@ -688,25 +681,20 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
     case SI_INFO:                                       /* the info page's one line (op_gldraw.c draws the page itself) */
-        c->label = "INFO";
-        c->kind = CK_RO;
+        sys_ro(c, "INFO");
         break;
     case SI_DIAG:                                       /* the INTERNALS page's one line (op_gldraw.c draws the page itself) */
-        c->label = "INTERNALS";
-        c->kind = CK_RO;
+        sys_ro(c, "INTERNALS");
         break;
     case SI_UAINFO:                                     /* the USB STATS page's one line */
-        c->label = "USB STATS";
-        c->kind = CK_RO;
+        sys_ro(c, "USB STATS");
         break;
     case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
-        c->label = "CREDITS";
-        c->kind = CK_RO;
+        sys_ro(c, "CREDITS");
         break;
     case SI_BATT: {                                     /* BATTERY: the bars out of 3 and the raw ADC count, no invented percentage */
         uint32_t bars = sys_batt_bars();
-        c->label = "BATTERY";
-        c->kind = CK_RO;
+        sys_ro(c, "BATTERY");
         c->unit = "";
         if (!song.batt_raw) {
             str_cpy(c->val, "NO READING", sizeof c->val);
@@ -723,8 +711,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */
-        c->label = "BUILD";
-        c->kind = CK_RO;
+        sys_ro(c, "BUILD");
         str_cpy(c->val, __DATE__, sizeof c->val);
         c->unit = __TIME__;
         break;
@@ -734,8 +721,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "github.com/w0ts/optimist";
         break;
     case SI_MHZ:
-        c->label = "CLOCK";
-        c->kind = CK_RO;
+        sys_ro(c, "CLOCK");
         fmt_int(c->val, (int32_t)((cpu_khz + 500u) / 1000u));
         c->unit = "MHz";
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
@@ -747,16 +733,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
         break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
-        c->label = "KNOB COLORS";                       /* (the settings list has the room: op_gldraw.c) */
-        str_cpy(c->val, knob_colors ? "ON" : "OFF", sizeof c->val);
-        cell_gauge(c, 1, 0, 1, knob_colors != 0u);
+        sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
-        c->label = "CLK OUT";
-        str_cpy(c->val, clko_on ? "ON" : "OFF", sizeof c->val);
+        sys_onoff(c, "CLK OUT", clko_on);
         c->col = clko_blocked() ? C_WARN : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
-        cell_gauge(c, 1, 0, 1, clko_on != 0u);
         break;
 #endif
 #if FELUCCA_USB_AUDIO
@@ -776,8 +758,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
-        c->label = "VERSION";
-        c->kind = CK_RO;
+        sys_ro(c, "VERSION");
         str_cpy(c->val, v + (str_len(v) > 9u && !memcmp(v, "OPTIMIST ", 9) ? 9u : 0u), sizeof c->val);  /* "OPTIMIST 0.1": 0.1 */
         c->unit = FELUCCA_COMMIT;                       /* (the commit it was built from, "" without) */
         break;

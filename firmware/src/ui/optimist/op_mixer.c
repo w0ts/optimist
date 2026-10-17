@@ -62,6 +62,13 @@ static struct {
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
 } mx;
 
+/* a list value's cell: its label, its text, the dots of 0..max at v (here: the first of the files that show one) */
+static void cell_list(cell_t *c, const char *label, const char *text, int32_t max, int32_t v)
+{
+    c->label = label;
+    str_cpy(c->val, text, sizeof c->val);
+    cell_gauge(c, 1, 0, max, v);
+}
 static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
 /* the mixer on its MASTER row: master has no instrument, so the track buttons (ENV LFO EDIT ARP SCL SEQ) are dark and
  * do nothing there, FX is the master FX (the user, 2026-10-12: "many buttons like env lfo are active while on master
@@ -73,10 +80,11 @@ static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
 #define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
-static int mx_master_dead(uint32_t b)
+static uint32_t mx_dead_mask(void)                      /* the buttons that do nothing here: a bit per B_* */
 {
-    return (b < 32u && (((master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS | 1u << B_FX : 0u)) >> b & 1u));
+    return (master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS | 1u << B_FX : 0u);
 }
+static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
  * its steps stop, the tails ring), SHIFT + its key or SHIFT + its volume card; the USB input's is its own (no sequencer).

@@ -1333,18 +1333,14 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
 #if FELUCCA_FILLS
     if (kd == 2) {
         v = (int32_t)(step_fill(TSEL, (uint32_t)i) % 3u);
-        c->label = "FILL";
-        str_cpy(c->val, FN[v], sizeof c->val);
-        cell_gauge(c, 1, 0, 2, v);
+        cell_list(c, "FILL", FN[v], 2, v);
         return;
     }
 #endif
 #if FELUCCA_COND
     if (kd == 3) {
         v = (int32_t)step_cond(TSEL, (uint32_t)i);
-        c->label = "COND";
-        str_cpy(c->val, COND_NAME[v % (AUTO_NCOND + 1u)], sizeof c->val);
-        cell_gauge(c, 1, 0, AUTO_NCOND, v);
+        cell_list(c, "COND", COND_NAME[v % (AUTO_NCOND + 1u)], AUTO_NCOND, v);
         return;
     }
 #endif

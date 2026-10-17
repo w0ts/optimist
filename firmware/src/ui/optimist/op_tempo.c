@@ -127,9 +127,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
 #if FELUCCA_REC_MODES
-    c->label = k ? "START" : "MODE";
-    str_cpy(c->val, k ? (rec_count ? "COUNT" : "NOTE") : (rec_tempo ? "TEMPO" : "FREE"), sizeof c->val);
-    cell_gauge(c, 1, 0, 1, k ? rec_count : rec_tempo);
+    cell_list(c, k ? "START" : "MODE", k ? (rec_count ? "COUNT" : "NOTE") : (rec_tempo ? "TEMPO" : "FREE"), 1, k ? rec_count : rec_tempo);
 #else
     cell_clear(c);                                      /* (REC MODES not in this build: the knob's frame alone) */
 #endif

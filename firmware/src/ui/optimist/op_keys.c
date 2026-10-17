@@ -23,13 +23,7 @@
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
-static uint32_t keys_white(uint32_t n)                  /* the first n white keys (the tiles, the steps) */
-{
-    uint32_t i, m = 0;
-    for (i = 0; i < n && i < 16u; i++)
-        m |= 1u << white_key(i);
-    return m;
-}
+static uint32_t keys_white(uint32_t n) { return keys_of(n < 16u ? (1u << n) - 1u : 0xFFFFu); }   /* the first n white keys (the tiles, the steps) */
 static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << white_key((uint32_t)w) : 0u; }
 static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX layer (op_layers.c glo_key) */
 {
@@ -97,9 +91,9 @@ static uint32_t step_dim(void)                          /* STEP, the keys steps:
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
         if (idx < len && !step_shown(t, idx))
-            m |= 1u << white_key(w);
+            m |= 1u << w;
     }
-    return m;
+    return keys_of(m);
 }
 /* SHIFT or SHIFT2 held alone (op_input.c shift_keys), past the hold time: the keys they name dim, the muted (SHIFT) or
  * the selected (SHIFT2) full */
@@ -197,17 +191,10 @@ static void keys_lit(uint32_t *f, uint32_t *d)
     if (keys_none())
         return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SONG, SCOPE: no track, the keys do nothing: dark) */
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
-        const track_t *t = TSEL;                        /* the white keys its steps, as on STEP (they are steps on every page) */
-        uint32_t len = trk_len(t), at = t->seq_idx % len;
+        uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
         for (k = 0; k < 27u; k++)
             *d |= lane_key(k) ? 1u << k : 0u;
-        *f |= 1u << key_of_lane(lane_selected());
-        for (k = 0; k < 16u; k++) {
-            uint32_t idx = st.page * 16u + k;
-            if (idx < len && (song.playing && idx == at ? blink : step_shown(t, idx)))
-                *f |= 1u << white_key(k);
-            else if (idx < len)
-                *d |= 1u << white_key(k);
-        }
+        *f |= 1u << key_of_lane(lane_selected()) | keys_of(on);
+        *d |= keys_of(in & ~on);
     }
 }
