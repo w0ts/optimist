@@ -34,6 +34,7 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
 enum { PO_LOAD, PO_SAVE, PO_DELETE };                    /* the operations, in the knob's order */
 static const char *const PO_NAME[3] = {"LOAD", "SAVE", "DELETE"};
+static const char *const PRJ_WHAT[3] = {"PROJECT ", "SNAPSHOT ", "USER "};   /* a slot row's target, by its kind */
 static const uint8_t PO_CODE[3] = {0, 2, 1};            /* up_ui, sn_ui: 0 load, 1 clear / erase, 2 save */
 #define PRJ_BANK 16u                                    /* the slots one bank holds: the 16 keys */
 #if SEC_LOGGED
@@ -208,7 +209,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (kind > PR_USER)
         return;                                         /* (SLOOP, MEMORY: nothing to turn) */
 #if FELUCCA_FAVORITES
-    if (kind == PR_USER && k == 2u && s != OP_RESET && op_shift2(fm1_in.buttons)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
+    if (kind == PR_USER && k == 2u && s != OP_RESET && btn_held(B_OCTUP)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
         uint32_t slot = prj_slot_cur(kind);
         if (up_used(slot) && fav_user_set(slot, s > 0)) {
             settings_later = 1;                         /* (written once the audio is quiet: op_fav_mark) */
@@ -240,19 +241,18 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
  * or clear in a free slot, a toast and no question */
 static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
 {
-    static const char *const WHAT[3] = {"PROJECT ", "SNAPSHOT ", "USER "};
     char l[8], t[16], m[16];
     prj_slot_label(kind, s, l);
     if (op != PO_SAVE && !prj_slot_used(kind, s)) {
         str_cpy(m, l, sizeof m);
-        str_cpy(m + str_len(m), " IS EMPTY", sizeof m - str_len(m));
+        str_app(m, " IS EMPTY", sizeof m);
         ui.toast_next = 1;
         ui_say_st(0u, "SLOT ", m);
         ui.toast_next = 0;
         return;
     }
-    str_cpy(t, WHAT[kind], sizeof t);                   /* the target: "PROJECT 3", "SNAPSHOT 2", "USER U18" */
-    str_cpy(t + str_len(t), l, sizeof t - str_len(t));
+    str_cpy(t, PRJ_WHAT[kind], sizeof t);                   /* the target: "PROJECT 3", "SNAPSHOT 2", "USER U18" */
+    str_app(t, l, sizeof t);
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)s;
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
@@ -358,7 +358,7 @@ static uint32_t prj_bank_tap(uint32_t up)               /* 1: the tap was a bank
     cur = (nb << 4) + (cur & 15u);
     prj_slot_set(kind, cur < n ? cur : n - 1u);
     fmt_int(b, (int32_t)nb + 1);
-    str_cpy(b + str_len(b), "/", sizeof b - str_len(b));
+    str_app(b, "/", sizeof b);
     fmt_int(b + str_len(b), (int32_t)prj_banks(kind));
     ui.force = 1;
     ui.toast_next = 1;
@@ -389,21 +389,22 @@ static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain:
     ui.force = 1;
     prj_ask(ui.row[SCR_PROJECT], kind, prj_op(), (uint32_t)s);
 }
-static void prj_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)
+static uint32_t keys_of(uint32_t m);                    /* op_input.c: a window's steps as white keys */
+static void prj_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)   /* (op_keys.c: *f and *d empty) */
 {
-    uint32_t kind = prj_kind(ui.row[SCR_PROJECT]), w;
+    uint32_t kind = prj_kind(ui.row[SCR_PROJECT]), w, u = 0, fr = 0;
     int32_t s;
     for (w = 0; w < 16u; w++) {
         s = prj_key_slot(kind, (int32_t)w);
-        if (s < 0)
-            continue;
+        if (s < 0 || ((uint32_t)s == prj_slot_cur(kind) && !blink))
+            continue;                                   /* (the selected one blinks) */
         if (prj_slot_used(kind, (uint32_t)s))
-            *f |= 1u << white_key(w);
+            u |= 1u << w;
         else
-            *d |= 1u << white_key(w);
-        if ((uint32_t)s == prj_slot_cur(kind) && !blink)
-            *f &= ~(1u << white_key(w)), *d &= ~(1u << white_key(w));   /* (the selected one blinks) */
+            fr |= 1u << w;
     }
+    *f |= keys_of(u);
+    *d |= keys_of(fr);
 }
 
 /* ---- the panel under the cards: the bank's slots as a strip, then the item's info */
@@ -442,7 +443,7 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
         up_name(s, pdp.name);
 #if FELUCCA_FAVORITES
         if (fav_user_has(s))
-            str_cpy(pdp.name + str_len(pdp.name), " *", sizeof pdp.name - str_len(pdp.name));   /* (a favorite: the star after its name) */
+            str_app(pdp.name, " *", sizeof pdp.name);   /* (a favorite: the star after its name) */
 #endif
         str_cpy(pdp.d1, "ENGINE", sizeof pdp.d1);
         str_cpy(pdp.d2, e < NENGINES ? ENGINES[e]->name : "NOT IN THIS BUILD", sizeof pdp.d2);
@@ -455,7 +456,7 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
         pdp.col1 = C_STATUS[st & 3u];
         if (bytes) {
             fmt_int(pdp.d2, (int32_t)((bytes + 512u) >> 10));
-            str_cpy(pdp.d2 + str_len(pdp.d2), " KB", sizeof pdp.d2 - str_len(pdp.d2));
+            str_app(pdp.d2, " KB", sizeof pdp.d2);
         }
     }
 #endif
@@ -500,9 +501,9 @@ static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_l
     pdp.danger = (uint8_t)prj_danger(kind, op, s);
     prj_slot_label(kind, s, l);
     str_cpy(pdp.head, PO_NAME[op], sizeof pdp.head);
-    str_cpy(pdp.head + str_len(pdp.head), " ", sizeof pdp.head - str_len(pdp.head));
-    str_cpy(pdp.head + str_len(pdp.head), kind == PR_USER ? "USER " : kind == PR_SNAP ? "SNAPSHOT " : "PROJECT ", sizeof pdp.head - str_len(pdp.head));
-    str_cpy(pdp.head + str_len(pdp.head), l, sizeof pdp.head - str_len(pdp.head));
+    str_app(pdp.head, " ", sizeof pdp.head);
+    str_app(pdp.head, PRJ_WHAT[kind % 3u], sizeof pdp.head);
+    str_app(pdp.head, l, sizeof pdp.head);
     prj_info(kind, s);
     sig = hs(hs(hs(hs(hu(hu(hu(hu(hu(0x93u, kind), op), s), pdp.used), pdp.bar + settings.palette * 65536u), pdp.head), pdp.name), pdp.d1), pdp.d2);
     sig = hu(sig, pdp.danger | h << 8) | 1u;

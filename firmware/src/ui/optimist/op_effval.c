@@ -276,8 +276,8 @@ static uint32_t effv_cell(cell_t *c)
             return 0;
         (void)effv_lane(lane_selected(), s->dest - 1u, &val, &mn, &mx);
 #endif
-    } else if (!is_drum(TSEL) && c->vp >= TSEL->p && c->vp < TSEL->p + P_COUNT) {   /* a synth part's value */
-        uint32_t k = effv_synth(song.sel, (uint32_t)(c->vp - TSEL->p), &val, &mn, &mx);
+    } else if (!is_drum(TSEL) && c->vp >= tsel()->p && c->vp < tsel()->p + P_COUNT) {   /* a synth part's value */
+        uint32_t k = effv_synth(song.sel, (uint32_t)(c->vp - tsel()->p), &val, &mn, &mx);
         if (!k)
             return 0;
         if (k == 1u && val == e)

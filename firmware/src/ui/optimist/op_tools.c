@@ -496,14 +496,12 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
 {
     gen_t g = *ng_cur();
     const gen_type_t *ty = &GEN_TYPES[g.type % GT_N];
-    uint32_t len = trk_len(TSEL);
+    uint32_t len = trk_len(tsel());
     ty->fit(&g, len);
     c->kind = CK_VAL;
     if (pg == 1u) {
         if (!k) {
-            c->label = "TYPE";
-            str_cpy(c->val, ty->name, sizeof c->val);
-            cell_gauge(c, 1, 0, GT_N - 1, g.type);
+            cell_list(c, "TYPE", ty->name, GT_N - 1, g.type);
             return;
         }
         {
@@ -515,13 +513,9 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
         return;
     }
     if (k == 0u) {                                      /* ON / OFF: heard at once, the pattern untouched */
-        c->label = "GEN";
-        str_cpy(c->val, g.on ? "ON" : "OFF", sizeof c->val);
-        cell_gauge(c, 1, 0, 1, g.on);
+        cell_list(c, "GEN", g.on ? "ON" : "OFF", 1, g.on);
     } else if (k == 1u) {
-        c->label = "MODE";
-        str_cpy(c->val, GEN_MODE[g.mode % GM_N], sizeof c->val);
-        cell_gauge(c, 1, 0, GM_N - 1, g.mode);
+        cell_list(c, "MODE", GEN_MODE[g.mode % GM_N], GM_N - 1, g.mode);
     } else if (k == 2u && g.on) {                       /* (the verb over its object: what plays, into the pattern; asks.
                                                          * OFF: nothing to write, no card) */
         cell_act(c, is_drum(TSEL) ? lane_code(lane_selected()) : trk_tag(song.sel), "WRITE", 0, 0);
@@ -535,7 +529,7 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
 {
     gen_t g;
     const gen_type_t *ty;
-    uint32_t len = trk_len(TSEL);
+    uint32_t len = trk_len(tsel());
     if (pg == 2u && k >= 2u)
         return;                                         /* (WRITE: a turn picks the card; the read-out) */
     fm1_irq_off();
@@ -562,7 +556,7 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
 static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRITE */
 {
     gen_t g = *ng_cur();
-    track_t *t = TSEL;
+    track_t *t = tsel();
     char a[12];
     if (k == 0u) {
         fm1_irq_off();                                  /* (read, toggled, written: one section, as ng_turn) */
@@ -605,12 +599,9 @@ static uint32_t tl_dbl_len(uint32_t len) { return 2u * len < NSTEP ? 2u * len : 
 /* steps 1..len after themselves, LEN x2 (64 at most), their events copied (the IRQ off; tl_ev_double(.., 1) said yes) */
 static void tl_double_do(track_t *t, uint32_t len)
 {
-    uint32_t nl = tl_dbl_len(len), i;
-    for (i = len; i < nl; i++)
-        if (is_drum(t))
-            t->dstep[i] = t->dstep[i - len];
-        else
-            t->step[i] = t->step[i - len];
+    uint32_t nl = tl_dbl_len(len), z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t);   /* (a drum step, a synth step) */
+    if (nl > len)
+        memcpy((uint8_t *)t->step + len * z, t->step, (nl - len) * z);
     (void)tl_ev_double(t, len, nl, 0);
     t->p[P_SLEN] = (int16_t)nl;
 }
@@ -622,15 +613,11 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 
     if (!pg) {
         if (k == 0u) {                                       /* (one card: its knob picks the tool, YES does it) */
             c->kind = CK_VAL;                                /* (a value cell: the turn reaches tl_turn, an action cell's would only pick it) */
-            c->label = "TOOL";
-            str_cpy(c->val, TS_NAME[tl.sel % TS_N], sizeof c->val);
-            cell_gauge(c, 1, 0, (int32_t)TS_N - 1, tl.sel);       /* (dots: the five tools) */
+            cell_list(c, "TOOL", TS_NAME[tl.sel % TS_N], (int32_t)TS_N - 1, tl.sel);       /* (dots: the five tools) */
         } else if (k == 1u) {                                  /* what it will work on: the track, or the picked drum lane */
             int32_t ln = tl_lane();
             c->kind = CK_VAL;
-            c->label = "ON";
-            str_cpy(c->val, ln >= 0 ? lane_name((uint32_t)ln) : trk_tag(song.sel), sizeof c->val);
-            cell_gauge(c, 1, 0, 1, 1);
+            cell_list(c, "ON", ln >= 0 ? lane_name((uint32_t)ln) : trk_tag(song.sel), 1, 1);
         }
         return;
     }
@@ -727,7 +714,7 @@ static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t half, const cha
 /* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
 static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
 {
-    track_t *t = TSEL;
+    track_t *t = tsel();
     int32_t lane = tl_lane();
     char b[24];
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *sa, *sb;

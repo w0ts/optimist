@@ -80,44 +80,39 @@ static void tempo_frame(uint32_t held)
 /* ---- the page's rows */
 static uint32_t rec_len_ix(void)                        /* the selected track's LEN as 1, 2, 4 bars: 0..2 */
 {
-    int32_t len = TSEL->p[P_SLEN];
+    int32_t len = tsel()->p[P_SLEN];
     return len > 32 ? 2u : len > 16 ? 1u : 0u;
 }
 static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
+/* row r's card k when it is a global value (G_*): BPM SWING SYNC (GLOBAL's list leaves SYNC out: CLK IN is on its MIDI
+ * page, op_global.c gl_has), CLICK, QUANT; -1 none */
+static int32_t tp_g(uint32_t r, uint32_t k)
+{
+    if (r == TPR_REC2)
+        return k == 0u ? G_RECQ : -1;
+    if (r)
+        return k == 3u ? G_CLOCK : -1;
+    return k == 0u ? G_BPM : k == 2u ? G_SWING : k == 3u && FELUCCA_MIDI_CLOCK ? G_SYNC : -1;
+}
 static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     static const char *const LEN[3] = {"1", "2", "4"};   /* (bars: the unit "bar", style guide 5) */
-    if (r == TPR_REC2) {                                /* QUANT, then free cells */
-        if (k == 0u)
-            cell_param(c, &GP[G_RECQ], &song.g[G_RECQ]);
-        else
-            cell_clear(c);
-        return;
-    }
-    if (!r) {
-        if (k == 0u)
-            cell_param(c, &GP[G_BPM], &song.g[G_BPM]);
-        else if (k == 2u)
-            cell_param(c, &GP[G_SWING], &song.g[G_SWING]);
-        else if (k == 3u && FELUCCA_MIDI_CLOCK)         /* (GLOBAL's list leaves it out: CLK IN is on its MIDI page, op_global.c gl_has) */
-            cell_param(c, &GP[G_SYNC], &song.g[G_SYNC]);
-        else if (k == 3u)
-            cell_clear(c);
-        else {                                          /* NUDGE: what OCT- / OCT+ do now, a read-out */
-            cell_clear(c);
-            c->label = "NUDGE";
-            c->kind = CK_RO;
-            str_cpy(c->val, clk_nudge < 0 ? "-3.9" : clk_nudge > 0 ? "+3.9" : "0", sizeof c->val);
-            c->unit = "%";
-            cell_gauge(c, 0, -1, 1, clk_nudge < 0 ? -1 : clk_nudge > 0 ? 1 : 0);
-        }
-        return;
-    }
-    if (k == 3u) {
-        cell_param(c, &GP[G_CLOCK], &song.g[G_CLOCK]);
+    int32_t g = tp_g(r, k);
+    if (g >= 0) {
+        cell_param(c, &GP[g], &song.g[g]);
         return;
     }
     cell_clear(c);
+    if (r == TPR_REC2 || (!r && k == 3u))
+        return;                                         /* (REC 2: QUANT, then free cells) */
+    if (!r) {                                           /* NUDGE: what OCT- / OCT+ do now, a read-out */
+        c->label = "NUDGE";
+        c->kind = CK_RO;
+        str_cpy(c->val, clk_nudge < 0 ? "-3.9" : clk_nudge > 0 ? "+3.9" : "0", sizeof c->val);
+        c->unit = "%";
+        cell_gauge(c, 0, -1, 1, clk_nudge < 0 ? -1 : clk_nudge > 0 ? 1 : 0);
+        return;
+    }
     c->kind = CK_VAL;
     if (k == 1u) {
         c->label = "LENGTH";
@@ -127,37 +122,24 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
 #if FELUCCA_REC_MODES
-    c->label = k ? "START" : "MODE";
-    str_cpy(c->val, k ? (rec_count ? "COUNT" : "NOTE") : (rec_tempo ? "TEMPO" : "FREE"), sizeof c->val);
-    cell_gauge(c, 1, 0, 1, k ? rec_count : rec_tempo);
+    cell_list(c, k ? "START" : "MODE", k ? (rec_count ? "COUNT" : "NOTE") : (rec_tempo ? "TEMPO" : "FREE"), 1, k ? rec_count : rec_tempo);
 #else
     cell_clear(c);                                      /* (REC MODES not in this build: the knob's frame alone) */
 #endif
 }
 static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
-    if (r == TPR_REC2) {
-        if (k == 0u)
-            val_turn(&GP[G_RECQ], &song.g[G_RECQ], k, s, fine);
+    int32_t g = tp_g(r, k);
+    if (g >= 0) {
+        val_turn(&GP[g], &song.g[g], k, s, fine);
         return;
     }
-    if (!r) {
-        if (k == 0u)
-            val_turn(&GP[G_BPM], &song.g[G_BPM], k, s, fine);
-        else if (k == 2u)
-            val_turn(&GP[G_SWING], &song.g[G_SWING], k, s, fine);
-        else if (k == 3u && FELUCCA_MIDI_CLOCK)
-            val_turn(&GP[G_SYNC], &song.g[G_SYNC], k, s, fine);
+    if (r != TPR_REC)
         return;
-    }
-    if (k == 3u) {
-        val_turn(&GP[G_CLOCK], &song.g[G_CLOCK], k, s, fine);
-        return;
-    }
     if (s == OP_RESET) {                                /* HOME held: the FACTORY value (the user, 2026-10-13): LENGTH 1 bar,
                                                          * MODE FREE, START NOTE (seq.c's, an empty settings word's) */
         if (k == 1u) {
-            TSEL->p[P_SLEN] = (int16_t)REC_LENS[0];
+            tsel()->p[P_SLEN] = (int16_t)REC_LENS[0];
             sync_reload = 1;
             return;
         }
@@ -171,7 +153,7 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (k == 1u) {                                      /* LENGTH: the selected track's, 1 / 2 / 4 bars */
-        TSEL->p[P_SLEN] = (int16_t)REC_LENS[clamp((int32_t)rec_len_ix() + (s > 0 ? 1 : -1), 0, 2)];
+        tsel()->p[P_SLEN] = (int16_t)REC_LENS[clamp((int32_t)rec_len_ix() + (s > 0 ? 1 : -1), 0, 2)];
         sync_reload = 1;
         return;
     }

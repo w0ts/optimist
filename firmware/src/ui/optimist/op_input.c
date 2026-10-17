@@ -448,10 +448,10 @@ static void layers_init(void)
 {
     ly_bit[LY_PLAY] = 0;
     lay_bits();                                         /* (LY_STEP: no button, STEP locks the layer: ui_input) */
-    dyn_bit[0] = 1u << panel.btn[B_OCTDN];
-    dyn_bit[1] = 1u << panel.btn[B_OCTUP];
-    ft_btn_mask = 1u << panel.btn[B_REC];
-    ft_drop_mask = 1u << panel.btn[B_PLAY];
+    dyn_bit[0] = (1u << panel.btn[B_OCTDN]);
+    dyn_bit[1] = (1u << panel.btn[B_OCTUP]);
+    ft_btn_mask = (1u << panel.btn[B_REC]);
+    ft_drop_mask = (1u << panel.btn[B_PLAY]);
 }
 
 /* ---- the octave: OCT- / OCT+ tapped (let go, nothing else used while they were down), with its toast */
@@ -613,21 +613,21 @@ static int op_presets_turn(void)
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (op_shift(fm1_in.buttons) || op_shift2(fm1_in.buttons))
+    if (btn_held(B_OCTDN) || btn_held(B_OCTUP))
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (a shift with PRESETS: no octave, no NO when let go) */
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k, CALIBRATE runs from YES */
-    } else if (op_shift(fm1_in.buttons)) {              /* SHIFT + PRESETS: nothing (the turn drained) */
-    } else if (ui.scr == SCR_STEP && op_shift2(fm1_in.buttons)) {   /* STEP: SHIFT2 + PRESETS: the window follows the playhead again
+    } else if (btn_held(B_OCTDN)) {              /* SHIFT + PRESETS: nothing (the turn drained) */
+    } else if (ui.scr == SCR_STEP && btn_held(B_OCTUP)) {   /* STEP: SHIFT2 + PRESETS: the window follows the playhead again
                                                          * (PRESETS alone scrolls the window) */
         st.follow = 1;
 #if FELUCCA_FAVORITES
-    } else if ((fm1_in.buttons & BIT(B_SAVE)) && fav_gesture_ok()) {   /* SAVE + PRESETS: the sound playing a favorite (right) or not (left) */
+    } else if (btn_held(B_SAVE) && fav_gesture_ok()) {   /* SAVE + PRESETS: the sound playing a favorite (right) or not (left) */
         op_fav_mark(s > 0);
         pre_toast_fav(0);
         op_clean &= ~BIT(B_SAVE);                       /* (SAVE let go: no YES) */
 #endif
-    } else if (op_shift2(fm1_in.buttons) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
+    } else if (btn_held(B_OCTUP) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
         !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
@@ -699,7 +699,7 @@ static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
 static int rec_knob(uint32_t row, uint32_t k, const cell_t *c)
 {
 #if FELUCCA_AUTO
-    if (!(fm1_in.buttons & (1u << panel.btn[B_REC])))
+    if (!btn_held(B_REC))
         return 0;
     if (!rh.knob) {
         if (rh.on && !rh.ring) {                        /* (the ring began: the press was undone already) */
@@ -728,7 +728,7 @@ static void op_knobs(uint32_t shift)
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
     int32_t s;
     cell_t c;
-    ui.shift = (fm1_in.buttons & BIT(B_LFO)) != 0u;     /* SHIFT = LFO held (the user): the cells' fine path */
+    ui.shift = btn_held(B_LFO);     /* SHIFT = LFO held (the user): the cells' fine path */
     if ((s = lay_knobs()) != 0) {                       /* a layer at work: its knobs (op_layers.c) */
         if (s == 2)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
@@ -737,7 +737,7 @@ static void op_knobs(uint32_t shift)
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
 #if FELUCCA_FAVORITES
-    if (op_shift2(fm1_in.buttons) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
+    if (btn_held(B_OCTUP) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
         op_fav_list(s > 0);
         pre_toast_fav(fav_list ? "FAVORITES ONLY" : "ALL SOUNDS");
         favsel = 1;
@@ -918,6 +918,7 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
     if (q != 0xFF && on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
+static void led_btn(uint8_t *nl, uint32_t b, int on) { led_put(nl, panel.btn[b], on); }   /* button b's LED */
 /* PLAY's second LED, green: a matrix site with no key (row PA5 = row bit 1, column 8; FM1_KEYMAP -1). Found on a unit by MAKU
  * (okumurari2/maku, GPL-3.0-only, firmware/src/ui_input.c LED_PLAY_GREEN: "found on the hardware at column 8, row PA9 (bit 1)")
  * and drawn by simonjohansson/fm1-emulator (fm1-panel.c); stock V15 lights it too (measured here in the emulator). It is a single
@@ -960,10 +961,33 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
 }
 /* the keys on STEP: the window's set steps (the drum track: the selected lane's), the playhead's key blinking, the
  * steps held; toggled to playing (or SEQ held): the keys down and the notes the track sounds (as KEYLIT) */
+static uint32_t keys_of(uint32_t m)                     /* the white keys of the steps of a window (a bit per step) */
+{
+    uint32_t w, k = 0;
+    for (w = 0; w < 16u; w++)
+        if ((m >> w) & 1u)
+            k |= 1u << white_key(w);
+    return k;
+}
+/* the window's steps lit (a bit per step): those set (step_shown), the playhead's blinking; *in: those inside LEN */
+static uint32_t step_win(uint32_t blink, uint32_t *in)
+{
+    const track_t *t = tsel();
+    uint32_t m = 0, w, len = trk_len(t), at = t->seq_idx % len;
+    *in = 0;
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = st.page * 16u + w;
+        if (idx < len)
+            *in |= 1u << w, m |= (uint32_t)step_shown(t, idx) << w;
+    }
+    if (song.playing && at / 16u == st.page)
+        m = blink ? m | 1u << (at % 16u) : m & ~(1u << (at % 16u));
+    return m;
+}
 static uint32_t step_leds(uint32_t blink)
 {
-    const track_t *t = TSEL;
-    uint32_t m = 0, w, len = trk_len(t), at = t->seq_idx % len;
+    const track_t *t = tsel();
+    uint32_t m = 0, in;
     if (!step_keys(fm1_in.buttons)) {
         m = fm1_in.notes;
         if (is_drum(t))
@@ -974,15 +998,7 @@ static uint32_t step_leds(uint32_t blink)
 #endif
         return m;
     }
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = st.page * 16u + w, on = idx < len && step_shown(t, idx);
-        if (song.playing && idx == at)
-            on = blink;                                 /* the playhead's key */
-        if ((st.held >> w) & 1u)
-            on = 1;
-        m |= (uint32_t)on << white_key(w);
-    }
-    return m;
+    return keys_of(step_win(blink, &in) | st.held);   /* (the playhead's key blinking, the steps held lit) */
 }
 /* ---- the buttons' half light (the user, 2026-10-11: "the buttons that are available should be half lit, for instance
  * no LFO on a drum lane"): a button that does something now glows dim (fm1_led_dim: the HAL's glow layer, under the
@@ -1064,16 +1080,10 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         m &= ~(1u << B_ARP | 1u << B_SCL);             /* (the drum track and its lanes: no arp, no scale; a held layer alone is no light, 2026-10-15) */
     if (ui.scr == SCR_STEP && !step_yes_any())
         m &= ~(1u << B_SAVE);                           /* (STEP: SAVE lit only where YES acts: a tool card, a toggle or GO, a held step) */
-    if (mx_on_usb())                                    /* the mixer's USB row: no track button, no FX (op_mixer.c) */
-        for (i = 0; i < NB; i++)
-            if (mx_master_dead(i))
-                m &= ~(1u << i);
-    if (master_sel()) {                                 /* MASTER (any page): no track button; FX the master FX */
-        for (i = 0; i < NB; i++)
-            if (mx_master_dead(i))
-                m &= ~(1u << i);
-        m |= 1u << B_FX;
-    }
+    m &= ~mx_dead_mask();                               /* the mixer's USB row: no track button, no FX; MASTER (any page): no
+                                                         * track button (op_mixer.c) */
+    if (master_sel())
+        m |= 1u << B_FX;                                /* (MASTER: FX the master FX) */
     return m;
 }
 static void keys_lit(uint32_t *f, uint32_t *d);         /* op_keys.c: the keys' lights */
@@ -1094,19 +1104,19 @@ static void ui_leds(void)
         ready = 1;
     }
     for (c = 0; c < NB; c++)
-        led_put(dl, panel.btn[c], (int)((avail >> c) & 1u));   /* (the half light: under the full light below) */
-    led_put(nl, panel.btn[op_screen_btn()], 1);
+        led_btn(dl, c, (int)((avail >> c) & 1u));       /* (the half light: under the full light below) */
+    led_btn(nl, op_screen_btn(), 1);
     if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
-        led_put(nl, panel.btn[LAYER_BTN[lay.shown]], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
-    led_put(nl, panel.btn[B_SAVE], armed && blink);     /* YES is asked for */
-    led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
-    led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink));
+        led_btn(nl, LAYER_BTN[lay.shown], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
+    led_btn(nl, B_SAVE, armed && blink);                /* YES is asked for */
+    led_btn(nl, B_PLAY, play_led() || (song.playing && !song.rec && ft_on));
+    led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink));
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while held on STEP (a ghost / hard hit) */
-        led_put(nl, panel.btn[B_OCTDN], ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_OCTDN)) != 0u);
-        led_put(nl, panel.btn[B_OCTUP], ui.scr == SCR_STEP && (fm1_in.buttons & BIT(B_OCTUP)) != 0u);
+        led_btn(nl, B_OCTDN, ui.scr == SCR_STEP && btn_held(B_OCTDN));
+        led_btn(nl, B_OCTUP, ui.scr == SCR_STEP && btn_held(B_OCTUP));
     } else {
-        led_put(nl, panel.btn[B_OCTDN], song.octave < 0 && ((avail >> B_OCTDN) & 1u));   /* (the octave shown only where it works) */
-        led_put(nl, panel.btn[B_OCTUP], song.octave > 0 && ((avail >> B_OCTUP) & 1u));
+        led_btn(nl, B_OCTDN, song.octave < 0 && ((avail >> B_OCTDN) & 1u));   /* (the octave shown only where it works) */
+        led_btn(nl, B_OCTUP, song.octave > 0 && ((avail >> B_OCTUP) & 1u));
     }
     if (lamp_on())
         nl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* PLAY's green LED (REC's red is its own button) */
@@ -1123,7 +1133,7 @@ static void ui_leds(void)
             led_put(bl, 14u + k, (int)((back >> k) & 1u));
         if (lights_lvl)
             for (k = 0; k < NB; k++)
-                led_put(bl, panel.btn[k], 1);
+                led_btn(bl, k, 1);
         for (c = 0; c < FM1_NCOL; c++)
             fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
         fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
@@ -1165,7 +1175,7 @@ static void ui_draw(void)
         } else {
             str_cpy(m, n == 1u ? "LOOP 1 BAR " : n == 2u ? "LOOP 2 BARS " : "LOOP 4 BARS ", sizeof m);
             fmt_int(m + str_len(m), song.g[G_BPM]);
-            str_cpy(m + str_len(m), " BPM", sizeof m - str_len(m));
+            str_app(m, " BPM", sizeof m);
             ui_message(m);
         }
     }
