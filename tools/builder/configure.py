@@ -495,9 +495,6 @@ def resolve_cli(a):
             print(f"warning: --set {s}: {m.group(1)} was dropped and the setting is ignored ({R.RETIRED[m.group(1)]})",
                   file=sys.stderr)
             continue
-        if m and m.group(1) in R.MIGRATE:                # (an item that became others, as a .config line)
-            cfg.update(R.MIGRATE[m.group(1)](int(m.group(2))))
-            continue
         if not m or m.group(1) not in R.ITEMS:
             raise ConfigError(f"--set {s}: KEY=number with a registry key")
         cfg[m.group(1)] = int(m.group(2))
