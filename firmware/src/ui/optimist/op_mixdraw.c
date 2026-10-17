@@ -191,34 +191,20 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     uint16_t c = mx_col(i);
     uint16_t cc = i >= MXR_LANE0 && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
     int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? 2 : MXL_TY;
+    uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
-    cv_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
-    if (mx_muted(i))                                    /* (a muted row: its name struck through, the user, 2026-10-15) */
-        strike_text(q.x + 6, cy, &FONT_S, mx_code(i), cc);
-    if (mx_is_usb(i)) {                                 /* the USB input: its name and whether it streams, its M badge */
+    text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
+    if (mx_is_usb(i) || i < MXR_LANE0) {                /* the USB input: its name and whether it streams; a channel: its engine
+                                                         * and preset; their M badge */
         uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
         mx_names(i, en, pr);
-        x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
-        if (mx_muted(i))
-            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, en, c);
-        cv_text(x + 8, q.y + MXL_TY, &FONT_S, pr, pc);
-        if (mx_muted(i))
-            cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
-    } else if (i < MXR_LANE0) {                         /* a channel: its engine and preset, its M / S badge */
-        mx_names(i, en, pr);
-        x = cv_text(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c);      /* ANALOG, in the row's colour ... */
-        if (mx_muted(i))
-            strike_text(MXL_VX, q.y + MXL_TY, &FONT_S, b, c);
-        if (pr[0]) {
-            uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
-            cv_text(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc);
-            if (mx_muted(i))
-                strike_text(x + 8, q.y + MXL_TY, &FONT_S, b, pc);
-        }
-        if (mx_muted(i))                                /* (muted: the M badge, the steps grey) */
+        x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c, mu);   /* ANALOG, in the row's colour ... (USB IN) */
+        if (pr[0])                                      /* (USB: "streaming" whole, never struck) */
+            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i));
+        if (mu)                                         /* (muted: the M badge, the steps grey) */
             cv_text(6, q.y + 18, &FONT_S, "M", C_WARN);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
