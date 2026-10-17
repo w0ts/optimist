@@ -10,7 +10,7 @@ estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers
   python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR] [--jobs N]
 --missing measures only what costs.json lacks (new items, new pairs; the base again whenever it moved at all) and keeps the rest; --missing --check builds nothing and fails when something is lacking
 (CI). The builds are planned first (a pass that builds nothing), made --jobs at a time, each in its own build
-directory (build/slots/N; default: this machine's CPUs natively, the Docker VM's less two, at most 8, in Docker), with a progress line per build (done /
+directory (build/slots/N; default: sized to the CPUs and the RAM, default_jobs), with a progress line per build (done /
 all, the time so far and the time left), then read back by the same pass. About 20 s a build under Docker on an arm64
 Mac (the one-file firmware: no build reuses another's objects); --jobs 1 builds one at a time in build/ as before.
 Not detected: an item whose code changed after it was measured (no item-to-source map): re-measure it with --only."""
@@ -180,16 +180,35 @@ def run_build(cfg, name, log):
     return got if got is not None else C.build(cfg, name, measure=True, log=log)
 
 
+BUILD_MB = 512          # RAM to allow one build: 5x its peak (~100 MB, the largest process, natively 2026-10-17)
+
+
+def available_mb():
+    """the RAM free for builds (Linux: MemAvailable; macOS: the physical RAM, the toolchain's VM is sized apart) or None"""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError):
+        pass
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // 2 ** 20
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
 def default_jobs():
-    """the builds at once (each is mostly one compiler process of the one-file firmware): natively (Linux x86-64) this
-    machine's CPUs; in Docker the VM's less two, at most 8 (12 measured no faster on a 10-CPU VM, 2026-10-17)"""
-    n = os.cpu_count() or 2
-    if not C.in_container():
-        return max(1, n)
-    if os.environ.get("OPTIMIST_IN_CONTAINER") != "1":                         # (inside the image: its CPUs)
-        r = subprocess.run(["docker", "info", "--format", "{{.NCPU}}"], capture_output=True, text=True)
-        n = int(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip().isdigit() else n
-    return max(1, min(8, n - 2))
+    """the builds at once (each is mostly one compiler process of the one-file firmware), sized to the CPUs and the RAM
+    the toolchain runs on: natively (Linux x86-64) this machine's CPUs and its free RAM / BUILD_MB; in Docker the VM's
+    CPUs less two and its RAM / BUILD_MB, at most 8 (12 measured no faster on a 10-CPU VM, 2026-10-17)"""
+    cpus, mb = os.cpu_count() or 2, available_mb()
+    if not C.in_container() or os.environ.get("OPTIMIST_IN_CONTAINER") == "1":   # (inside the image: its own view)
+        return max(1, min(cpus, mb // BUILD_MB if mb else cpus))
+    r = subprocess.run(["docker", "info", "--format", "{{.NCPU}} {{.MemTotal}}"], capture_output=True, text=True)
+    got = r.stdout.split() if r.returncode == 0 else []
+    if len(got) == 2 and all(x.isdigit() for x in got):
+        cpus, mb = int(got[0]), int(got[1]) // 2 ** 20
+    return max(1, min(8, cpus - 2, mb // BUILD_MB if mb else 8))
 
 
 def clock(s):
