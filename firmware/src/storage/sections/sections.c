@@ -296,10 +296,11 @@ static void sec_mem(uint32_t *pct, uint32_t *more)
 /* ---- the project slots (PROJECT page, the song studio, the editor): stopped, written at once */
 static void project_save(uint32_t slot)
 {
-    uint32_t s = slot % SEC_IDS, n;
+    uint32_t s = slot % SEC_IDS, n, key;
     int rc;
     if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
     n = sec_capture();
+    key = proj_hash(sec_rbuf, n);                      /* (the record's: its extras', FX and LFO records' key) */
 #if FELUCCA_PATTERNS
     if (!pat_store(s, !flash_ok, s == (uint32_t)live_sec))
         ui_message(flash_ok ? "SAVED" : "SAVED (RAM)");
@@ -313,14 +314,14 @@ static void project_save(uint32_t slot)
     rc = sec_room(s, n, s == (uint32_t)live_sec) ? slg_put(s, sec_rbuf, n, s == (uint32_t)live_sec) : 1;
 #if FELUCCA_AUTO
     if (!rc)                                           /* its extras beside it (keyed by the record just written) */
-        rc = sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
+        rc = sx_log_put(SX_ID0 + s, key, &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc)
         sec_pend_del(SEC_IDS + s);
 #endif
     if (!rc)                                           /* its FX record beside it (fx_rec_log.c) */
-        rc = fxr_log_put(FXR_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
+        rc = fxr_log_put(FXR_ID0 + s, key, &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc)                                           /* its drum lane LFO record (dlfo_rec_log.c) */
-        rc = dlr_log_put(DLR_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
+        rc = dlr_log_put(DLR_ID0 + s, key, &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc) {
         sec_pend_del(SEC_PEND_DL + s);
         sec_pend_del(SEC_PEND_FX + s);
@@ -495,28 +496,33 @@ static int section_cue(uint32_t s)
     return 1;
 }
 
+/* the arena's record i into the log as id (none: the log's cleared): 0 ok, slg_put's result */
+static int sec_pend_log(uint32_t id, uint32_t i)
+{
+    return slg_put(id, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1);
+}
 static void sections_write(void)                       /* the pending sections and the song into flash */
 {
     uint32_t i;
 #if FELUCCA_PATTERNS
     for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_FX; i++)  /* the patterns first: a scene names them (the FX */
-        if (sec_pend_has(i) && !slg_put(SEC_ID_PAT0 + i - SEC_PEND_PAT, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1))
+        if (sec_pend_has(i) && !sec_pend_log(SEC_ID_PAT0 + i - SEC_PEND_PAT, i))
             sec_pend_del(i);                           /*  records past them go with their sections, below) */
 #endif
     if (flash_ok)
         for (i = 0; i < SEC_IDS; i++)
             if (sec_pend_has(i)) {
-                int rc = slg_put(i, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1);
+                int rc = sec_pend_log(i, i);
 #if FELUCCA_AUTO
                 if (!rc)                               /* (its extras: the arena's, none: an older record cleared) */
-                    rc = slg_put(SX_ID0 + i, sec_pend.data + sec_pend.off[SEC_IDS + i], sec_pend.len[SEC_IDS + i], 1);
+                    rc = sec_pend_log(SX_ID0 + i, SEC_IDS + i);
                 if (!rc)
                     sec_pend_del(SEC_IDS + i);
 #endif
                 if (!rc)                               /* (its FX record: the arena's, none: an older one cleared) */
-                    rc = slg_put(FXR_ID0 + i, sec_pend.data + sec_pend.off[SEC_PEND_FX + i], sec_pend.len[SEC_PEND_FX + i], 1);
+                    rc = sec_pend_log(FXR_ID0 + i, SEC_PEND_FX + i);
                 if (!rc)                               /* (its LFO record: the same) */
-                    rc = slg_put(DLR_ID0 + i, sec_pend.data + sec_pend.off[SEC_PEND_DL + i], sec_pend.len[SEC_PEND_DL + i], 1);
+                    rc = sec_pend_log(DLR_ID0 + i, SEC_PEND_DL + i);
                 if (!rc) {
                     sec_pend_del(SEC_PEND_DL + i);
                     sec_pend_del(SEC_PEND_FX + i);
@@ -606,14 +612,19 @@ static void sec_service(void)
 }
 
 /* ---- the first start with the log: the four old project slots (FUN*, A/B objects) become sections A..D */
-static void sec_migrate(void)
+static __attribute__((noinline)) int sec_old_any(void)   /* old objects still in the area? */
 {
-    uint32_t i, s, any = 0;
-    for (s = 0; s < SEC_LOG_SECTORS; s++) {            /* old objects still in the area? */
+    uint32_t s, any = 0;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
         st_hdr_t h;
         any |= SEC_OLD(s, h);                          /* (another firmware's, kept: not an old slot of ours) */
     }
-    if (!any)
+    return any != 0;
+}
+static void sec_migrate(void)
+{
+    uint32_t i, s;
+    if (!sec_old_any())
         return;
     for (i = 0; i < 4u; i++) {
         st_hdr_t h;
@@ -673,21 +684,13 @@ static void sec_fx_rescue(void)
 #endif
 static void sec_boot(void)                             /* persist_boot */
 {
-    uint32_t s, logged = 0;
+    uint32_t s;
     if (!sec_pend_ok())
         sec_pend_clear();
     if (!flash_ok)
         return;
-    for (s = 0; s < SEC_LOG_SECTORS; s++) {            /* the log's own sectors (old objects are not erased here) */
-        sec_shead_t sh;
-        logged |= !st_read(slg_off(s), &sh, sizeof sh) && sh.magic == SEC_MAGIC;
-    }
-    {
-        st_hdr_t h;
-        int old = 0;
-        for (s = 0; s < SEC_LOG_SECTORS; s++)
-            old |= SEC_OLD(s, h);
-        if (old) {                                     /* scan what the log has, migrate, then the log as usual */
+    {                                                  /* (old objects are not erased here) */
+        if (sec_old_any()) {                           /* scan what the log has, migrate, then the log as usual */
             memset(&slg, 0, sizeof slg);
             slg.seq = slg.sseq = 1;
             for (s = 0; s < SEC_LOG_SECTORS; s++)
@@ -699,16 +702,12 @@ static void sec_boot(void)                             /* persist_boot */
             if (slg.head < SEC_LOG_SECTORS)
                 slg.fill = slg_scan(slg.head);
             sec_migrate();
-            old = 0;
-            for (s = 0; s < SEC_LOG_SECTORS; s++)
-                old |= SEC_OLD(s, h);
-            if (old) {                                 /* (cut short: the log stays shut, read only, until the next */
+            if (sec_old_any()) {                       /* (cut short: the log stays shut, read only, until the next */
                 slg.up = 0;                            /* start goes on; nothing may erase what still waits) */
                 return;
             }
         }
     }
-    (void)logged;
     slg_boot();
 #if FELUCCA_PATTERNS || FELUCCA_AUTO
     if (slg.up)
