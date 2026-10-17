@@ -99,7 +99,7 @@ static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: e
     o[FXRET_N] = (uint8_t)(fx_rmute & 7u);
     return any || o[FXRET_N] ? FXRET_TLV_N : 0u;
 }
-static void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every return at unity; a shorter one: as none) */
+static __attribute__((noinline)) void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every return at unity; a shorter one: as none) */
 {
     uint32_t k;
     for (k = 0; k < FXRET_N; k++)
@@ -306,7 +306,7 @@ static uint32_t ut_tlv(uint8_t *o)                     /* -> o (UT_TLV_N); 0: th
         o[UT_TLV_N0 + k - UTV_N0] = (uint8_t)(int8_t)ut.v[k];
     return UT_TLV_N;
 }
-static void ut_untlv(const uint8_t *a, uint32_t n)     /* (n short: the defaults) */
+static __attribute__((noinline)) void ut_untlv(const uint8_t *a, uint32_t n)     /* (n short: the defaults) */
 {
     uint32_t k;
     ut_defaults();
