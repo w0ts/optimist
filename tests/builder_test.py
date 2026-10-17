@@ -488,6 +488,9 @@ def refused(profile, sets, drop):
 def room_scenarios(prof, diag):
     tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
     base, _ = C.load_profile(prof)
+    if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
+        print(f"{tag}: the profile has BLE on already (user-default since 2026-10-17), not a case")
+        return
     sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
     withble = with_ble(base, diag)
     over, order, chosen = expected_room(withble, costs)

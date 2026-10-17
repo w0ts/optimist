@@ -178,6 +178,9 @@ async def main():
     for prof in ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums"):
         for diag in (0,):
             base, _ = C.load_profile(prof)
+            if base["BLE"]:                   # (BLE on in the profile already: ticking it would turn it off)
+                print(f"BLE ticked on {prof}: the profile has BLE on already (user-default since 2026-10-17), not a case")
+                continue
             tag = f"BLE ticked on {prof}{' with BLE_DIAG' if diag else ''}"
             withble = with_ble(base, diag)
             over, order, chosen = expected_room(withble, costs)
