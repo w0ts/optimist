@@ -108,11 +108,11 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     t->user = 0;
     if (t == TSEL)
         sync_reload = 1;
+    for (i = 0; i < P_E0; i++)                        /* the rest of the sound to its defaults (INIT, a preset: it */
+        if (!param_kept(i))                           /* sounds the same after any edit; not the pattern, not the mix) */
+            t->p[i] = TP[i].def;
     if (pi == PRESET_INIT || eng_first_playable(e) == PRESET_INIT) {
-        t->preset = 0;
-        for (i = 0; i < P_E0; i++)                    /* INIT: the track's sound and the engine's values to their */
-            if (!param_kept(i))                       /* defaults */
-                t->p[i] = TP[i].def;
+        t->preset = 0;                                /* INIT: the engine's values to their defaults too */
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = e->edit[i].def;
         for (i = P_E1PIT; i <= P_NLAST; i++)          /* ENV 1 MOD's depths at 0, ENV2's slots: DEST A the filter */
@@ -124,9 +124,6 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     t->preset = (uint8_t)pi;
     if (ENG_IS(e, FM6))
         fm6_cur[trk_index(t) % NPART] = 0;           /* its VOICE afresh: edits of the buffer go */
-    for (i = 0; i < P_E0; i++)                        /* the rest of the sound to its defaults: a preset */
-        if (!param_kept(i))
-            t->p[i] = TP[i].def;                     /* sounds the same after any edit (not the pattern, not the mix) */
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = (int16_t)e->presets[pi].e[i];
     t->p[P_ATK] = e->presets[pi].env[0];
