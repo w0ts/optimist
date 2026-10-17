@@ -596,11 +596,12 @@ _add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in + out", M, 49,
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI,
      desc="Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and "
           "pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work.")
-_add("MIDI_NOTEOUT", "FELUCCA_MIDI_OUT", "MIDI note out of the sequencer (HOME menu MIDI OUT = SEQ)", M, 199,
+_add("MIDI_NOTEOUT", "FELUCCA_MIDI_OUT", "MIDI note out of the sequencer (GLOBAL MIDI OUT = BOTH or SEQ)", M, 199,
      provenance=SLOOP_24,
-     desc="MIDI OUT = SEQ (SLOOP 2.4): what the sequencer, the arp and the rolls play also goes to MIDI out, each track on "
-          "its channel, every note ended (STOP, a channel changed, back to KEYS). Switched in the HOME menu (MIDI OUT "
-          "KEYS / SEQ). About 1.2 to 2.5 KB of flash, by build; off: the menu row goes and only the panel's keys go out.")
+     desc="MIDI OUT = BOTH (SLOOP 2.4's SEQ: the keys and the sequencer) or SEQ (the sequencer alone, no keys): what the "
+          "sequencer, the arp and the rolls play also goes to MIDI out, each track on its channel, every note ended (STOP, a "
+          "channel changed, back to KEYS). Switched on GLOBAL's MIDI page (MIDI OUT KEYS / BOTH / SEQ). About 1.2 to 2.5 KB of "
+          "flash, by build; off: the line goes and only the panel's keys go out.")
 # (bits 195, 196, 197 -- MIDI_CH, MIDI_OUT, MIDI_INCLK -- retired 2026-10: a MIDI channel for each track and MIDI IN = CLOCK
 #  are always built, the user's setting is the HOME menu, SYSTEM 1/3 and 2/3; MIDI OUT = SEQ is a builder item again since
 #  2026-10-11 as MIDI_NOTEOUT on bit 199 (the user: one item for note and clock out if both are small, two if either is
