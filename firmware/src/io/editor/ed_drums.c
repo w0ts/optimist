@@ -40,8 +40,11 @@ static void ed_lane_get(uint32_t l, uint8_t *b)
  * in them (a set keeps the device's) */
 #define EDW_DL_N 204u                                       /* ofs[16][8] src[16] ref[16][3] ukit name[8] rsv[3] */
 #define EDW_UK_N 196u                                       /* used base src[16] ref[16][3] ofs[16][8] rsv[2] */
-_Static_assert(DRUM_LSTORE == 16u && DRUM_LANES <= DRUM_LSTORE && sizeof(dlanes_t) == EDW_DL_N && sizeof(ukit_t) == EDW_UK_N,
+_Static_assert(DRUM_LSTORE == 16u && DRUM_LANES <= DRUM_LSTORE && sizeof(dlanes_t) == EDW_DL_N,
                "the editor's lane messages: 16 lanes wide");
+#if FELUCCA_DRUM_KITS                                       /* (ukit_t: drum_kits.c, built only with the user kits) */
+_Static_assert(sizeof(ukit_t) == EDW_UK_N, "the editor's user kit messages: 16 lanes wide");
+#endif
 static void edw_dl_put(const dlanes_t *d, uint8_t *b)       /* d -> its wire form (EDW_DL_N) */
 {
     uint32_t l;
