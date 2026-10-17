@@ -132,39 +132,23 @@ static void lay_undo_mark(track_t *t)
 }
 static void pattern_rotate(track_t *t, int32_t d)       /* every step one later (d > 0) / earlier */
 {
-    uint32_t len = trk_len(t), i;
+    uint32_t len = trk_len(t), z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t), m = (len - 1u) * z;
+    uint8_t *p = (uint8_t *)t->step, keep[sizeof(step_t)];   /* (the steps' bytes: a drum step and a synth step differ in size) */
     lay_undo_mark(t);
     fm1_irq_off();
-    if (is_drum(t)) {
-        dstep_t keep;
-        if (d > 0) {
-            keep = t->dstep[len - 1u];
-            for (i = len - 1u; i > 0; i--)
-                t->dstep[i] = t->dstep[i - 1u];
-            t->dstep[0] = keep;
-        } else {
-            keep = t->dstep[0];
-            for (i = 0; i + 1u < len; i++)
-                t->dstep[i] = t->dstep[i + 1u];
-            t->dstep[len - 1u] = keep;
-        }
+    if (d > 0) {
+        memcpy(keep, p + m, z);
+        memmove(p + z, p, m);
+        memcpy(p, keep, z);
     } else {
-        step_t keep;
-        if (d > 0) {
-            keep = t->step[len - 1u];
-            for (i = len - 1u; i > 0; i--)
-                t->step[i] = t->step[i - 1u];
-            t->step[0] = keep;
-        } else {
-            keep = t->step[0];
-            for (i = 0; i + 1u < len; i++)
-                t->step[i] = t->step[i + 1u];
-            t->step[len - 1u] = keep;
-        }
+        memcpy(keep, p, z);
+        memmove(p, p + z, m);
+        memcpy(p + m, keep, z);
     }
 #if FELUCCA_SEQTOOLS
     {
         uint8_t to[NSTEP];                              /* (the steps' events go with them: op_tools.c) */
+        uint32_t i;
         for (i = 0; i < len; i++)
             to[i] = (uint8_t)((i + (d > 0 ? 1u : len - 1u)) % len);
         tl_ev_move(t, len, to, -1);
@@ -175,7 +159,7 @@ static void pattern_rotate(track_t *t, int32_t d)       /* every step one later 
 }
 static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again after itself), or half */
 {
-    uint32_t len = trk_len(t), i;
+    uint32_t len = trk_len(t);
     char b[8];
 #if FELUCCA_SEQTOOLS
     if (d > 0 && len * 2u <= NSTEP && !tl_ev_double(t, len, 2u * len, 1)) {
@@ -186,11 +170,8 @@ static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again
     lay_undo_mark(t);
     fm1_irq_off();
     if (d > 0 && len * 2u <= NSTEP) {
-        for (i = 0; i < len; i++)                       /* (a drum step and a synth step differ in size) */
-            if (is_drum(t))
-                t->dstep[len + i] = t->dstep[i];
-            else
-                t->step[len + i] = t->step[i];
+        uint32_t z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t);   /* (a drum step and a synth step differ in size) */
+        memcpy((uint8_t *)t->step + len * z, t->step, len * z);
 #if FELUCCA_SEQTOOLS
         (void)tl_ev_double(t, len, 2u * len, 0);        /* (their events copied with them) */
 #endif

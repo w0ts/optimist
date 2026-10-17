@@ -605,12 +605,9 @@ static uint32_t tl_dbl_len(uint32_t len) { return 2u * len < NSTEP ? 2u * len : 
 /* steps 1..len after themselves, LEN x2 (64 at most), their events copied (the IRQ off; tl_ev_double(.., 1) said yes) */
 static void tl_double_do(track_t *t, uint32_t len)
 {
-    uint32_t nl = tl_dbl_len(len), i;
-    for (i = len; i < nl; i++)
-        if (is_drum(t))
-            t->dstep[i] = t->dstep[i - len];
-        else
-            t->step[i] = t->step[i - len];
+    uint32_t nl = tl_dbl_len(len), z = is_drum(t) ? sizeof(dstep_t) : sizeof(step_t);   /* (a drum step, a synth step) */
+    if (nl > len)
+        memcpy((uint8_t *)t->step + len * z, t->step, (nl - len) * z);
     (void)tl_ev_double(t, len, nl, 0);
     t->p[P_SLEN] = (int16_t)nl;
 }

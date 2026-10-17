@@ -72,10 +72,10 @@ static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
 /* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
+#define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
 static int mx_master_dead(uint32_t b)
 {
-    return (master_sel() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ)) ||
-           (mx_on_usb() && (b == B_ENV || b == B_LFO || b == B_EDIT || b == B_ARP || b == B_SCL || b == B_SEQ || b == B_FX));
+    return (b < 32u && (((master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS | 1u << B_FX : 0u)) >> b & 1u));
 }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
@@ -151,15 +151,20 @@ static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label,
     }
     return n + 1u;
 }
+static uint32_t mx_adds(mitem_t *it, uint32_t n, const mitem_t *a, uint32_t m)   /* m items of a table, as mx_add each */
+{
+    for (; m; m--, a++, n++)
+        if (n < MX_MAXI)
+            it[n] = *a;
+    return n;
+}
 /* the INS set (the track insert slots, 2026-10-12): S1 TYPE, S1's amount, S2 TYPE, S2's amount, as SOUND > INSERTS */
+static const mitem_t MX_INS[4] = {{0, MI_INST, 0, MG_INS}, {0, MI_INSA, 0, MG_INS}, {0, MI_INST, 1, MG_INS}, {0, MI_INSA, 1, MG_INS}};
 static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
 {
     if (!(FXT_BUILT & FXT_INSERT))
         return n;
-    n = mx_add(it, n, MG_INS, 0, MI_INST, 0);
-    n = mx_add(it, n, MG_INS, 0, MI_INSA, 0);
-    n = mx_add(it, n, MG_INS, 0, MI_INST, 1);
-    return mx_add(it, n, MG_INS, 0, MI_INSA, 1);
+    return mx_adds(it, n, MX_INS, 4);
 }
 /* a synth track: MUTE VOLUME PAN | its insert slots (S1 TYPE, amount, S2 TYPE, amount) | the sends, in the returns'
  * order */
@@ -254,18 +259,15 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 {
     uint32_t n = 0;
     if (r == MXR_MASTER) {                              /* its insert slots; DYN's; the returns; DUCK (the master FX screen's order) */
-        if (MST_OK) {                                   /* (fx-rework 2026-10-14: FILT DUST DYN are insert types) */
-            n = mx_add(it, n, MG_INS, 0, MI_MINST, 0);
-            n = mx_add(it, n, MG_INS, 0, MI_MINSA, 0);
-            n = mx_add(it, n, MG_INS, 0, MI_MINST, 1);
-            n = mx_add(it, n, MG_INS, 0, MI_MINSA, 1);
-        }
+        static const mitem_t INS[4] = {{0, MI_MINST, 0, MG_INS}, {0, MI_MINSA, 0, MG_INS}, {0, MI_MINST, 1, MG_INS},
+                                       {0, MI_MINSA, 1, MG_INS}};
+        if (MST_OK)                                     /* (fx-rework 2026-10-14: FILT DUST DYN are insert types) */
+            n = mx_adds(it, n, INS, 4);
 #if FELUCCA_MASTER_COMP
         if (MST_ON(FXT_DYN)) {                          /* (DYN in a master slot: its compressor and limiter) */
-            n = mx_add(it, n, MG_INS, "THRS", MI_GLOB, G_CTHR);
-            n = mx_add(it, n, MG_INS, "RATIO", MI_GLOB, G_CRAT);
-            n = mx_add(it, n, MG_INS, "GAIN", MI_GLOB, G_CGAIN);
-            n = mx_add(it, n, MG_INS, "CEIL", MI_GLOB, G_CCEIL);
+            static const mitem_t DYN[4] = {{"THRS", MI_GLOB, G_CTHR, MG_INS}, {"RATIO", MI_GLOB, G_CRAT, MG_INS},
+                                           {"GAIN", MI_GLOB, G_CGAIN, MG_INS}, {"CEIL", MI_GLOB, G_CCEIL, MG_INS}};
+            n = mx_adds(it, n, DYN, 4);
         }
 #endif
         n = mx_items_ret(it, n);
@@ -282,16 +284,11 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
 #if FELUCCA_USB_AUDIO
     if (mx_is_usb(r)) {                                 /* the USB input: VOLUME PAN FX ON | its insert slots | its sends
                                                          * (MUTE: SHIFT2 on VOLUME, as every row) */
+        static const mitem_t UT[7] = {{0, MI_UT, UTV_LVL, MG_MIX}, {0, MI_UT, UTV_PAN, MG_MIX}, {0, MI_UT, UTV_FXON, MG_MIX},
+                                      {0, MI_UTST, 0, MG_INS}, {0, MI_UTSA, 0, MG_INS}, {0, MI_UTST, 1, MG_INS},
+                                      {0, MI_UTSA, 1, MG_INS}};
         uint32_t k, t;
-        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_LVL);
-        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_PAN);
-        n = mx_add(it, n, MG_MIX, 0, MI_UT, UTV_FXON);
-        if (UT_OK) {
-            n = mx_add(it, n, MG_INS, 0, MI_UTST, 0);
-            n = mx_add(it, n, MG_INS, 0, MI_UTSA, 0);
-            n = mx_add(it, n, MG_INS, 0, MI_UTST, 1);
-            n = mx_add(it, n, MG_INS, 0, MI_UTSA, 1);
-        }
+        n = mx_adds(it, n, UT, UT_OK ? 7u : 3u);
         n = mx_items_ut_x(it, n);
         for (k = 0; k < 3u; k++)                        /* (its sends in the returns' order: fx_slots.c fxs_card) */
             if ((t = fxs_card(k)) != FXT_NONE)
@@ -300,15 +297,12 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     }
 #endif
     if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
-        n = mx_add(it, n, MG_MIX, "LEVEL", MI_LANE, DE_LEVEL);
-        n = mx_add(it, n, MG_MIX, "CUT", MI_LANE, DE_CUT);   /* (its PAN is the sends set's card 4) */
-        n = mx_add(it, n, MG_MIX, "DRIVE", MI_LANE, DE_DRIVE);   /* (the sound's own drive: a SOUND value) */
-        if (LIN_OK) {                                   /* its two insert slots (fx-rework: were DST CMP), as a track's */
-            n = mx_add(it, n, MG_INS, 0, MI_LANE, 21u);
-            n = mx_add(it, n, MG_INS, 0, MI_LANE, 19u);
-            n = mx_add(it, n, MG_INS, 0, MI_LANE, 22u);
-            n = mx_add(it, n, MG_INS, 0, MI_LANE, 20u);
-        }
+        static const mitem_t LN[7] = {{"LEVEL", MI_LANE, DE_LEVEL, MG_MIX}, {"CUT", MI_LANE, DE_CUT, MG_MIX},
+                                      {"DRIVE", MI_LANE, DE_DRIVE, MG_MIX},   /* (its PAN is the sends set's card 4; DRIVE the
+                                                         * sound's own drive: a SOUND value) */
+                                      {0, MI_LANE, 21u, MG_INS}, {0, MI_LANE, 19u, MG_INS}, {0, MI_LANE, 22u, MG_INS},
+                                      {0, MI_LANE, 20u, MG_INS}};   /* (its two insert slots, fx-rework: were DST CMP, as a track's) */
+        n = mx_adds(it, n, LN, LIN_OK ? 7u : 3u);
         {
             static const uint8_t S[3] = {16u, 17u, 18u};
             static const char *const L[3] = {"REV", "DLY", "CHO"};
@@ -474,6 +468,7 @@ static void mix_name(uint32_t r, char *b)
     else
         str_cpy(b, G[g & 7u], 12);
 }
+static int mx_is_vol(const mitem_t *m);
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     mitem_t m;
@@ -499,9 +494,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
-    c->strike |= (uint8_t)(((m.kind == MI_TRK && m.id == P_LEVEL) || (m.kind == MI_GLOB && m.id == G_DRLVL) ||
-                           (m.kind == MI_LANE && m.id == DE_LEVEL) || m.kind == MI_ACC || (m.kind == MI_UT && m.id == 0u)) &&
-                          mx_muted(r));   /* (the volume cards of a muted row) */
+    c->strike |= (uint8_t)(mx_is_vol(&m) && mx_muted(r));   /* (the volume cards of a muted row) */
     c->strike |= (uint8_t)(m.kind == MI_RET && (fx_rmute >> (m.id - G_CRET) & 1u));   /* (a muted return's card) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";

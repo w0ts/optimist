@@ -301,7 +301,7 @@ static void song_yes_mode(uint32_t k, int32_t s)
 }
 static void song_part_edit(uint32_t a, uint32_t ins)    /* INSERT (a copy after part a) or DELETE part a */
 {
-    uint32_t i, n = arrangement.count;
+    uint32_t n = arrangement.count;
     if (song.playing) {
         ui_message("STOP FIRST");
         return;
@@ -311,9 +311,7 @@ static void song_part_edit(uint32_t a, uint32_t ins)    /* INSERT (a copy after 
             ui_message("SONG FULL");
             return;
         }
-        for (i = n; i > a + 1u; i--)
-            arrangement.entry[i] = arrangement.entry[i - 1u];
-        arrangement.entry[a + 1u] = arrangement.entry[a];
+        memmove(&arrangement.entry[a + 1u], &arrangement.entry[a], (n > a ? n - a : 1u) * sizeof arrangement.entry[0]);   /* (part a twice) */
         arrangement.count = (uint8_t)(n + 1u);
         ui.row[SCR_SONG]++;                             /* (the cursor on the new part) */
     } else {
@@ -321,8 +319,8 @@ static void song_part_edit(uint32_t a, uint32_t ins)    /* INSERT (a copy after 
             ui_message("ONE PART LEFT");
             return;
         }
-        for (i = a; i + 1u < n; i++)
-            arrangement.entry[i] = arrangement.entry[i + 1u];
+        if (a + 1u < n)
+            memmove(&arrangement.entry[a], &arrangement.entry[a + 1u], (n - a - 1u) * sizeof arrangement.entry[0]);
         arrangement.count = (uint8_t)(n - 1u);
     }
     sg.dirty = 1;
