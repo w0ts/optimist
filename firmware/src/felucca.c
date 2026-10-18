@@ -108,6 +108,13 @@ static void dual_flash_leave(void);
 #ifndef FELUCCA_BLE_CENTRAL
 #define FELUCCA_BLE_CENTRAL 0    /* with BLE: the scanner for DEVICES' nearby rows (ble/ble_scan.c, io/midi/ble_devices.c) */
 #endif
+#ifndef FELUCCA_BT_INQ_PROBE
+#define FELUCCA_BT_INQ_PROBE 0   /* EXPERIMENTAL: the Bluetooth Classic inquiry probe (bt/bt_inq.c, docs/BT-CLASSIC-HW-FACTS.md
+                                  * §14): console btclk / btinq; needs the CDC console, no BLE */
+#endif
+#if FELUCCA_BT_INQ_PROBE && (!FELUCCA_CDC || FELUCCA_BLE)
+#error "BT_INQ_PROBE needs the CDC console (USB_MODE 1) and no BLE"
+#endif
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
 #endif

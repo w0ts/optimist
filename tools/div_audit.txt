@@ -282,3 +282,4 @@ src/engines/juno/juno_dsp.h:juno_res_at:(uint32_t)r->fb | FB_SCALE_T, a table of
 
 src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total
 src/fx/fx.c:__attribute__:e | the return feedback send's limiter: the divide (RS_FBT << 15) / e is the true arm of "e > RS_FBT", so e is above the threshold, never 0 (div_audit reads rs_fb_level's function as __attribute__)
+src/bt/bt_inq.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0

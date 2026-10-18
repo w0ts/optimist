@@ -194,6 +194,9 @@ def validate(cfg):
     if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
         err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
                          "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
+    if cfg.get("BT_INQ_PROBE") and (cfg["USB_MODE"] != 1 or cfg.get("BLE")):
+        err.append(Issue("the Bluetooth Classic probe prints on the CDC console and needs the radio to itself: "
+                         "USB_MODE 1 (CDC serial console) and BLE off", ["BT_INQ_PROBE", "USB_MODE", "BLE"]))
     if cfg["USB_MODE"] == 2:
         warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (the CDC "
                           "console goes; +12 KB pool)", ["USB_MODE"]))
@@ -379,7 +382,8 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 # 2026-10-14: SEQTOOLS (ui/optimist/op_tools.c) put 5.5 KB of flash into user-default's estimate, which has SLOOP's UI
 NEEDS = {"SEQTOOLS": {"UI": 1},
          "ED_SCRN": {"UI": 1}, "ED_SCRS": {"UI": 1}, "ED_SCOPE": {"UI": 1}, "ED_TOOLS": {"UI": 1, "SEQTOOLS": 1},   # (the web editor's commands that read the Optimist UI: nothing built with SLOOP's UI)
-         "ED_FAVS": {"FAVORITES": 1}}
+         "ED_FAVS": {"FAVORITES": 1},
+         "BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
 
 
 def counted(cfg, key):

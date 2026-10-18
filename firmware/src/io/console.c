@@ -288,6 +288,10 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 }
 #endif
 
+#if FELUCCA_BT_INQ_PROBE
+#include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic inquiry probe (btclk, btinq) */
+#endif
+
 #if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
 #include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
 
@@ -985,6 +989,9 @@ static void con_exec(const char *p)
                  "  blell [clear|regs]"
 #endif
 #endif
+#if FELUCCA_BT_INQ_PROBE
+                 "  btclk [run]  btinq [SECONDS|stop]"
+#endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
@@ -1027,6 +1034,12 @@ static void con_exec(const char *p)
     else if (con_word(&p, "blell"))
         con_blell(p);
 #endif
+#endif
+#if FELUCCA_BT_INQ_PROBE
+    else if (con_word(&p, "btclk"))
+        con_btclk(p);
+    else if (con_word(&p, "btinq"))
+        con_btinq(p);
 #endif
     else if (con_word(&p, "uboot")) {
         if (con_word(&p, "yes")) {

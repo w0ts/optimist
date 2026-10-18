@@ -753,7 +753,8 @@ def ble_rf_tables():
     survives a clean of build/) that matches is used as it is; FM1_STOCK_FWSC makes it again when it is missing, stale,
     or made from another firmware file (the same content)"""
     v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
-    if str(v) != "1":
+    probe = CFG_VALUES.get("FELUCCA_BT_INQ_PROBE", os.environ.get("FELUCCA_BT_INQ_PROBE", "0"))   # (the Classic probe
+    if str(v) != "1" and str(probe) != "1":                                                    #  starts the same radio)
         return
     import ble_rf_capture as cap
     try:

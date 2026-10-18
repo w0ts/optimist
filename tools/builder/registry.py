@@ -836,6 +836,19 @@ _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI dev
           "last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND "
           "with it. Without this item DEVICES shows NONE and the last device only. Not yet tested on an FM-1.",
      symbols=("ble_found",), tested="host and emulator only")
+_add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (console btclk / btinq)", M, 280,
+     default=0, experimental=True, target_only=True,
+     tested="host-tested (sync word, FHS, EIR) and emulator-tested (clock and interrupts only); not run on an FM-1",
+     notice="experimental: a Bluetooth Classic inquiry probe; no BLE in this build",
+     desc="Stage 1 of our own Bluetooth Classic stack (docs/BT-CLASSIC-HW-FACTS.md section 14), for testing on an "
+          "FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up "
+          "it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the "
+          "Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs "
+          "an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its "
+          "address, class, clock, signal and EIR name) and a status line a second. Nothing is connected, no audio. "
+          "About 15 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.3 KB of RAM and "
+          "6.3 KB of pool.",
+     symbols=("bti_st",))
 
 for _it in _ITEMS:
     if _it.group == "FX":
