@@ -750,10 +750,11 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
           "after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
-_add("CACHE_RAM", "FELUCCA_CACHE_RAM", "28 KB more memory from the data cache (for the undo history)", Y, 92, default=0,
+_add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
+     choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
      experimental=True, target_only=True,
      tested="on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, but flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache, 4 KB left)",
-     desc="Uses 7 of the 8 data-cache ways as 28 KB of RAM, as M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only "
+     desc="Uses 2, 4 or 7 of the 8 data-cache ways (4 KB each) as RAM; 7 is what M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only "
           "builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested "
           "at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main "
           "RAM has left), else everything is put back as it was and nothing uses it. It costs about 0.4 KB of flash and "

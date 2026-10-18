@@ -1093,7 +1093,19 @@
    }
   },
   "CACHE_RAM": {
-   "1": {
+   "2": {
+    "flash": 388,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 100
+   },
+   "4": {
+    "flash": 388,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 100
+   },
+   "7": {
     "flash": 388,
     "ram": 16,
     "pool": 0,

@@ -668,7 +668,7 @@ def check(img, syms, dis, rt):
                      + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
         if re.search(r"\sfm1_cache_set$", syms, re.M):   # EXPERIMENTAL CACHE_RAM (hal/fm1_cache.h)
             ucache = max(0, sym("_undo_cache_hi") - sym("_undo_cache_lo"))
-            notes.append(f"cache RAM: the undo ring's second part {ucache} B instead of main RAM's {uram} B when its "
+            notes.append(f"cache RAM: the undo ring's second part up to {ucache} B (CACHE_RAM ways x 4 KB) instead of main RAM's {uram} B when its "
                          f"boot test passes (pool {upool} B + {ucache} B); the checks here count the fallback")
         if ring < 1408:
             over.append(f"undo history ring {ring} B < 1408 B (FELUCCA_UNDO_HISTORY=0: the single level)")

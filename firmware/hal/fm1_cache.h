@@ -28,8 +28,15 @@
 #define FELUCCA_CACHE_RAM 0
 #endif
 
-#define FM1_CR_LO 0x01F28000u                         /* data ways 0..6 as RAM (7 x 4 KiB); way 7 stays a cache */
-#define FM1_CR_HI 0x01F2F000u
+/* FELUCCA_CACHE_RAM = the data ways used as RAM (2, 4 or 7: 8, 16 or 28 KiB), ways 0..n-1 at 0x01F28000 + way x 4 KiB;
+ * the top 8 - n ways stay a cache. 2026-10-18 on an FM-1, 7 ways: flash data reads over 16 KiB 57x slower (the flash
+ * data goes through this cache): fewer ways keep more cache */
+#if FELUCCA_CACHE_RAM && (FELUCCA_CACHE_RAM < 1 || FELUCCA_CACHE_RAM > 7)
+#error "FELUCCA_CACHE_RAM: 1..7 data ways (0 = off)"
+#endif
+#define FM1_CR_LO 0x01F28000u
+#define FM1_CR_HI (FM1_CR_LO + (uint32_t)FELUCCA_CACHE_RAM * 4096u)
+#define FM1_CR_KEEP ((0xFFu << FELUCCA_CACHE_RAM) & 0xFFu)   /* a way-mask byte: the ways kept as a cache */
 enum { FM1_CR_OFF, FM1_CR_OK, FM1_CR_BUSY, FM1_CR_REG, FM1_CR_BAD };   /* not built / ready / never idle / masks not
                                                                         * taken / memory test failed (both restored) */
 static struct {
@@ -72,7 +79,7 @@ static __attribute__((section(".ram_text"), noinline, used)) uint32_t fm1_cache_
     return 1;
 }
 
-/* the 28 KiB: each word its address pattern, then the complement; read back after the whole pass (aliased ways show).
+/* the n x 4 KiB: each word its address pattern, then the complement; read back after the whole pass (aliased ways show).
  * 0 = good, else the first failing address. Ends zeroed. */
 static uint32_t fm1_cache_test(void)
 {
@@ -99,7 +106,7 @@ static void fm1_cache_ram_init(void)
     fm1_cache.con = FM1_CACHE_CON;
     fm1_cache.dway0 = FM1_DCACHE_WAY;
     fm1_cache.iway0 = FM1_ICACHE_WAY;
-    dw = (fm1_cache.dway0 & 0xFF000000u) | 0x00808080u;
+    dw = (fm1_cache.dway0 & 0xFF000000u) | FM1_CR_KEEP | FM1_CR_KEEP << 8 | FM1_CR_KEEP << 16;
     iw = (fm1_cache.iway0 & 0xFFFF0000u) | 0x0000FFFFu;
     if (!set(dw, iw)) {
         fm1_cache.status = FM1_CR_BUSY;
