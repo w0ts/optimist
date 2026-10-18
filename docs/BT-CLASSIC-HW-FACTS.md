@@ -694,6 +694,36 @@ emitted for the init, now written as a list of plain stores. Not run on an FM-1.
 header, `linkcntl`, the TX/RX buffer flags, the hop indexes `txfreq`/`rxfreq`, RSSI0-3, `rx_clkn` and `rxbit`; the
 per-second line adds histograms of the pending words and of the full RX status words.
 
+### 14.4 Second run on an FM-1 (2026-10-18, probe 2, 63d2c8e0) [M:hw]
+
+Outputs: `optimist-work/btclassic/run2/`. The Pi `D8:3A:DD:DE:2A:93` about 1 m away.
+
+- **Inquiry scan (btscan) works both ways.** With the Pi searching (`bluetoothctl scan on`), the probe counted 26 IDs
+  (RX status `0x8F40`: a good packet, TYPE 0) and the Pi reported an Extended Inquiry Result for `50:FE:6E:C2:7A:7C`,
+  class `0x240404`, R1, RSSI −64 dBm, **name "OPTIMIST BT"**: our sync word, FHS (built by `bti_fhs_build`, clock
+  field filled by the engine) and EIR (DM3, `0x200C0`) are right on air. The engine answers the IDs by itself (§8.2).
+- **Inquiry (btinq) works.** FHS packets were received and parsed from nearby discoverable devices
+  (`30:95:87:19:3F:71` class `0x1A011C`, `E0:03:6B:A6:45:31` class `0x0C043C`), the Pi once, and a 171-byte DM5 EIR
+  ("Realtek Bluetooth"). So the ID trains go out on the right channels and responses are received: the TX side, the
+  hop tables (`frq=±2` loses everything), the exchange-entry parity (`odd` loses everything; even is right for the
+  inquirer) and the GIAC access code are confirmed.
+- **RX quality is the weak point.** Many receptions fail: `0x83xx` (high byte bits 15, 9, 8: the header's TYPE is
+  sensible, the payload is rejected; [I] CRC) and `0xB1xx` (bits 15, 13, 12, 8; the TYPE nibble random; [I] header or
+  sync failed). Most of the Pi's responses fail (with the Pi scanning continuously, `inqparms 18:18`, about 60 `B1xx`
+  in 10 s), while the other two devices' FHS mostly pass.
+- **The LE block's enable improves RX markedly** (`ble`: `0x2FC80` bit0, `0x28000` = 1 and the LE timing words
+  `0x28008–0x28018`, `0x28034` = `0x0A01`, as stock V15 writes them after the BR/EDR init): far more receptions and the
+  first decoded EIR. [I] one of those words (`0x28034`'s parameter, or the timing words) is shared by the two
+  engines' demodulator. Not separated: `ble` stays on until a reboot, so the later runs all had it.
+- **The carrier offset matters.** `PLL_COMP` beyond ±300 units loses even sync; with `ble`, −120 to −180 gave the
+  best runs (the Pi found at −120 once); the library's 9-step sweep also finds the two devices each run. ±150 without
+  `ble` did not help.
+- **Interrupts.** IRQ 40 pending words during a run: `0x800` (bit 11) about every 2 slots, then often a `0x000`
+  entry (nothing pending: the next entry after the acknowledge) and `0x200` the alarm; `0xA00` when they meet; `0x2`
+  per reception. `rxfreq` reads 130–206 (an index with flag bits [I]); `txfreq` reads 0. `rxbit` [9:0] of failed
+  receptions: both 85 and 399 us (both half-slots), so the failures are not tied to one half-slot.
+- The FHS's `dclk` print sign-extends 28 bits instead of 27: the values shown are wrong (fixed in the next probe).
+
 ---
 
 ## 15. Verdict for driving BR/EDR ourselves
