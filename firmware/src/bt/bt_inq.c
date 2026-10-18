@@ -68,7 +68,7 @@ static struct bti_stat bti_st = {BTI_MAGIC};
 
 /* the interrupts' ring: one FHS, EIR or ID each */
 #define BTI_RING 8u
-enum { BTI_K_FHS = 1, BTI_K_EIR = 2, BTI_K_ID = 3, BTI_K_PSTEP = 4, BTI_K_LMP = 5, BTI_K_CONN = 6 };
+enum { BTI_K_FHS = 1, BTI_K_EIR = 2, BTI_K_ID = 3, BTI_K_PSTEP = 4, BTI_K_LMP = 5, BTI_K_CONN = 6, BTI_K_ACL = 7 };
 struct bti_rx {
     uint8_t kind, type, idx, rxfreq;
     uint32_t clkn, stat, agc, len, rssi1;
@@ -105,7 +105,8 @@ static struct {
     uint8_t seen[16][6], last_addr[6], own[6];
     int32_t seen_clk[16];                          /* their clock offsets (remote CLK - our CLKN, slots): btpage */
     /* options */
-    uint8_t o_pat, o_agc, o_sweep, o_pwr, o_ble, o_prio, cur_prio;
+    uint8_t o_pat, o_agc, o_sweep, o_pwr, o_ble, o_prio, cur_prio, o_noclk, o_pcon, o_ppar;
+    int16_t o_pclk, o_padj;
     int8_t o_frq;
     int16_t o_pll, pll_now;
     uint16_t o_win;
@@ -545,7 +546,7 @@ static void bti_opts(const char *p, uint32_t *seconds)
     int ok = 0;
     uint32_t s;
     bti.o_pat = 0, bti.o_agc = 0xFFu, bti.o_win = 0, bti.o_frq = 0, bti.o_pll = 0, bti.o_sweep = 1, bti.o_pwr = 11u;
-    bti.o_ble = 1, bti.o_prio = BTI_RUN_PRIO;       /* (sweep by default: BR §14.4; pll=N alone fixes the offset) */
+    bti.o_ble = 1, bti.o_prio = BTI_RUN_PRIO, bti.o_noclk = 0, bti.o_pcon = 0, bti.o_pclk = 0, bti.o_ppar = 0xFFu, bti.o_padj = 0;       /* (sweep by default: BR §14.4; pll=N alone fixes the offset) */
     s = con_num(&p, &ok);
     if (ok && s >= 1u && s <= 120u)
         *seconds = s;
@@ -564,6 +565,16 @@ static void bti_opts(const char *p, uint32_t *seconds)
             bti.o_ble = 1;
         else if (con_word(&p, "noble"))
             bti.o_ble = 0;
+        else if (con_word(&p, "noclk"))            /* btpage: page without the last inquiry's clock estimate */
+            bti.o_noclk = 1;
+        else if (bti_opt_num(&p, "pcon", &v))      /* btpage: the piconet after the FHS (bt_page.c bp_page_rx) */
+            bti.o_pcon = (uint8_t)(v & 3);
+        else if (bti_opt_num(&p, "pclk", &v))      /* btpage: the piconet's clock offset after the FHS: N slots */
+            bti.o_pclk = (int16_t)v, bti.o_pcon = 4;
+        else if (bti_opt_num(&p, "padj", &v))      /* btpage: N slots added to the clock estimate */
+            bti.o_padj = (int16_t)v;
+        else if (bti_opt_num(&p, "ppar", &v))      /* btpage: the entries' parity after the FHS */
+            bti.o_ppar = (uint8_t)(v & 1);
         else if (bti_opt_num(&p, "prio", &v))
             bti.o_prio = (uint8_t)(v < 1 ? 1 : v > 6 ? 6 : v);
         else if (bti_opt_num(&p, "agc", &v))

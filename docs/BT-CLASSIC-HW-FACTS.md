@@ -746,6 +746,25 @@ Outputs: `optimist-work/btclassic/run3/`, flashes in `FLASHES.md`.
   2 with it: no measurable effect at run priority 5. The §14.4 improvement is more likely the RX priority and AGC.
   It stays on by default (stock's order), `noble` skips it on the first run after a boot.
 
+### 14.6 Probe 4: L2CAP, SDP, AVDTP, and a reliable page (2026-10-18) [M:hw]
+
+Outputs `optimist-work/btclassic/run4/`, flashes in `FLASHES.md` (probe4a-h).
+
+- **SDP works:** over the link, L2CAP (connection, configuration both ways, the Pi's information requests answered)
+  and an SDP ServiceSearchAttribute for 0x110B: the Pi's record, 83 bytes: class 0x110B, L2CAP PSM 0x0019, AVDTP
+  1.3, A2DP 1.4, features 0x000F, "Audio Sink". ACL goes out as DM1 fragments (LLID 2 then 1) through the same TX
+  buffer hand-over as LMP (§5.5) and comes in through the same RX buffers.
+- **AVDTP is blocked by security, as expected:** the L2CAP connection to PSM 0x19 is answered pending (authentication)
+  then 0x0003 (security block). The Pi's host asks for authentication; as our LMP features claim neither SSP nor
+  encryption, its controller falls back to a PIN, has none, and fails (HCI Auth Complete 0x06). Next: SSP (P-192)
+  or legacy PIN pairing, then E0.
+- **A reliable page with the inquiry's clock estimate (at the Pi's default page scan 18:2048):** the estimate must be
+  remote CLK − our RX CLKN **+ 1 slot** (the FHS is heard in our odd RX slot and its clock lacks CLK1). With +1 the
+  page connected on the first answer in 4 of 4 tries; with +0, +2, −2 or +4 the FHS got through (the device's second
+  ID) but the POLL was never answered; rounded to even it never got past the FHS. After the FHS the piconet takes
+  our own clock (offset 0) and the even entries, as the library does; the entries follow the estimate's parity during
+  the page.
+
 ---
 
 ## 15. Verdict for driving BR/EDR ourselves

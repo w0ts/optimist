@@ -12,7 +12,7 @@
 #define BP_OFF_RX0 1088u                           /* the connection's two RX buffers: the table's link_rx_bulk (BR §3) */
 #define BP_OFF_RX1 (1088u + 680u)
 #define BP_LT_ADDR 1u
-#define BP_TXQ 8u
+#define BP_TXQ 32u
 #define BP_SUPERVISION_MS 4000u                    /* no good packet for this long: the link is called lost */
 
 static struct {
@@ -21,7 +21,7 @@ static struct {
     int32_t est;                                   /* the device's clock offset estimate, slots */
     uint32_t page_ids, fhs_acked, conn_ms, last_good_ms, good, bad, nobuf, acl, lmp_in, lmp_out;
     uint32_t type_n[16];
-    uint8_t txq[BP_TXQ][BTL_MAX], txl[BP_TXQ];
+    uint8_t txq[BP_TXQ][BTL_MAX], txl[BP_TXQ], txllid[BP_TXQ];
     uint32_t txw, txr, stop_ms;
 } bp;
 
@@ -45,6 +45,15 @@ static void bp_addr_set(struct fm1_br_frame *f, const uint8_t a[6], const uint8_
     f->bch_hi = bch[4];
 }
 
+/* the exchange entries open on the slots of one parity (BR §3.1): in the page, the master's slots of the device's clock
+ * (the estimate's parity: probe 3b, an odd estimate was answered only on the odd entries); in the piconet, our own */
+static void bp_xchg(uint32_t parity)
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        fm1_br_xchg(bti_tab, i, FM1_BR_OFF_FRAME | ((i & 1u) == parity ? 0u : 1u << 12));
+}
+
 static void bp_program(void)                       /* BR §8.3 step 6 (the library's page resume) */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -54,6 +63,7 @@ static void bp_program(void)                       /* BR §8.3 step 6 (the libra
     f->miscntl = 0;
     f->wincntl = bti.o_win ? bti.o_win : 80u;
     f->txptr[tx] = BP_OFF_FHS;
+    f->txptr[tx ^ 1u] = BP_OFF_FHS;
     f->format = (uint8_t)(4u | bti.train << 7);
     f->linkcntl[tx] = 0x4002u;                     /* FHS */
     f->linkcntl[tx ^ 1u] = 0x4001u;                /* POLL */
@@ -61,6 +71,7 @@ static void bp_program(void)                       /* BR §8.3 step 6 (the libra
     f->txbufcntl[1] &= (uint8_t)~1u;
     f->txphdr[0] = 2u;
     f->txphdr[1] = 2u;
+    bp_xchg((uint32_t)bp.est & 1u);
     bp.sub = 0;
 }
 
@@ -115,8 +126,12 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
     } else if (bp.sub == 1) {                      /* its second ID (our FHS acknowledged): the piconet, POLL */
         pt = 1u, ff = 2u;
         bp.fhs_acked++;
-        bp_clkoff(f, 0);
+        /* the piconet's clock and slots after the FHS (pcon=N, an experiment: with an exact odd estimate, probe 4c's
+         * 0 / even got the FHS acknowledged 108 times and the POLL answered never; 4d's estimate / its parity the same):
+         * bit0 = the frame keeps the estimate (else 0, the library's), bit1 = the entries keep its parity (else even) */
+        bp_clkoff(f, bti.o_pcon == 4u ? bti.o_pclk : bti.o_pcon & 1u ? bp.est : 0);   /* (pclk=N: N slots) */
         bp_addr_set(f, bti.own, bp.obch);
+        bp_xchg(bti.o_ppar <= 1u ? bti.o_ppar : bti.o_pcon & 2u ? (uint32_t)bp.est & 1u : 0u);
         f->rxtog = 0;
         f->rxstat[0] |= 0x90u;
         f->rxstat[1] |= 0x90u;
@@ -130,7 +145,10 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
     f->linkcntl[tx] = (uint16_t)(pt | 0x4010u);
     f->linkcntl[tx ^ 1u] = (uint16_t)(pt | 0x4000u);
     f->txbufcntl[tx] &= (uint8_t)~1u;
-    bp_event(BTI_K_PSTEP, bp.sub, stat, 0, 0);
+    {
+        uint8_t ev[3] = {bp.sub, (uint8_t)(f->rxbit & 0xFFu), (uint8_t)((f->rxbit >> 8) & 3u)};
+        bp_event(BTI_K_PSTEP, bp.sub, stat, ev, 3);
+    }
     if (bp.sub > 2u)
         bp_conn_enter();
 }
@@ -153,8 +171,10 @@ static void bp_conn_rx(void)                       /* a packet in the connection
             bp.last_good_ms = fm1_ms;
             if (llid == 3u && len >= 1u && len <= BTL_MAX)
                 bp_event(BTI_K_LMP, i, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len);
-            else if (len)
+            else if (len && llid) {
                 bp.acl++;
+                bp_event(BTI_K_ACL, llid, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len > 240u ? 240u : len);
+            }
         } else {
             bp.bad++;
         }
@@ -207,6 +227,7 @@ static void bp_queue(const uint8_t *pdu, uint32_t len, const char *why)
     for (i = 0; i < len; i++)
         bp.txq[bp.txw % BP_TXQ][i] = pdu[i];
     bp.txl[bp.txw % BP_TXQ] = (uint8_t)len;
+    bp.txllid[bp.txw % BP_TXQ] = 3u;
     bp.txw++;
     con_puts("btpage: LMP out ");
     con_puts(btl_name(btl_opcode(pdu, len, &tid)));
@@ -234,11 +255,12 @@ static void bp_tx_service(void)                    /* the main loop: one LMP PDU
         for (k = 0; k < n; k++)
             bti_tab[(i ? BP_OFF_TX1 : BP_OFF_TX0) + k] = bp.txq[bp.txr % BP_TXQ][k];
         f->txptr[i] = (uint16_t)(i ? BP_OFF_TX1 : BP_OFF_TX0);
-        f->txphdr[i] = (uint16_t)(n << 3 | 1u << 2 | 3u);   /* LLID 3 (LMP), FLOW 1 */
+        f->txphdr[i] = (uint16_t)(n << 3 | 1u << 2 | bp.txllid[bp.txr % BP_TXQ]);   /* LLID 3 LMP, 2 / 1 L2CAP; FLOW 1 */
         f->linkcntl[i] = (uint16_t)((f->linkcntl[i] & 0x80B0u) | 3u | 0x4000u);   /* DM1 */
         f->txbufcntl[i] &= (uint8_t)~1u;
+        if (bp.txllid[bp.txr % BP_TXQ] == 3u)
+            bp.lmp_out++;
         bp.txr++;
-        bp.lmp_out++;
     }
     fm1_br_irqs_hold(0);
 }
@@ -284,6 +306,8 @@ static void bp_lmp_in(const struct bti_rx *r)
         bp_queue(out, n, "answer");
 }
 
+#include "bt_acl.c"                                /* stage 3: L2CAP and SDP over the link */
+
 static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / connection kinds */
 {
     if (r->kind == BTI_K_PSTEP) {
@@ -300,6 +324,7 @@ static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / conne
         con_hex(r->clkn, 7);
         con_puts(" pll=");
         con_dec(bti.pll_now);
+        bti_kv(" rxbit=", r->data[1] | (uint32_t)r->data[2] << 8);
         bti_kv(" rssi1=", r->rssi1);
         con_puts("\r\n");
     } else if (r->kind == BTI_K_CONN) {
@@ -314,6 +339,8 @@ static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / conne
         bp_queue(out, n, 0);
     } else if (r->kind == BTI_K_LMP) {
         bp_lmp_in(r);
+    } else if (r->kind == BTI_K_ACL) {
+        ba_in(r);
     }
 }
 
@@ -355,6 +382,7 @@ static void bp_print_sec(void)
 static void bp_poll(void)                          /* the main loop, page / connection modes */
 {
     bp_tx_service();
+    ba_poll();
     if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN) {
         if (fm1_ms - bp.last_good_ms > BP_SUPERVISION_MS) {
             con_puts("btpage: no good packet for 4 s: the link is lost\r\n");
@@ -410,9 +438,11 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bti_parity(lap, bp.rbch);
     bti_own_addr();
     bti_parity(bti.own[0] | (uint32_t)bti.own[1] << 8 | (uint32_t)bti.own[2] << 16, bp.obch);
-    bp.have_est = (uint8_t)bti_seen_clk(addr, &est);
-    bp.est = bp.have_est ? (est & ~1) : 0;          /* even, as the library hands it to the engine (BR §8.3: the
-                                                    * HCI offset << 1); an odd one moved the train to the odd slots */
+    bp.have_est = (uint8_t)(!bti.o_noclk && bti_seen_clk(addr, &est));
+    /* the estimate + 1 (padj=N adds more): the inquiry hears the FHS in our odd RX slot and the FHS clock lacks CLK1,
+     * so remote CLK - our CLKN comes out one short (probe 4g: +1 connected at once; +0, +2, -2, +4 got the FHS through
+     * but never the POLL answered); the exchange entries follow its parity (bp_xchg) */
+    bp.est = bp.have_est ? est + 1 + bti.o_padj : bti.o_padj;                /* the exact estimate; the exchange entries follow its parity (bp_xchg) */
     for (i = 0; i < 6u; i++)
         fh.addr[i] = bti.own[i];
     fh.eir = 0, fh.sr = 1, fh.cod = 0x240404u, fh.lt_addr = BP_LT_ADDR, fh.clk = 0, fh.psm = 0;
@@ -423,11 +453,15 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     f->rxptr[1] = FM1_BR_OFF_FHS;
     bp.page_ids = bp.fhs_acked = bp.good = bp.bad = bp.nobuf = bp.acl = bp.lmp_in = bp.lmp_out = 0;
     bp.setup_out = bp.setup_in = bp.stopping = 0;
+    ba_reset();
     bp.txw = bp.txr = 0;
     for (i = 0; i < 16u; i++)
         bp.type_n[i] = 0;
     bp_program();
     bti_go(slots);
+    fm1_br_irqs_hold(1);
+    bp_xchg((uint32_t)bp.est & 1u);                /* (bti_go opened the even ones) */
+    fm1_br_irqs_hold(0);
     return 1;
 }
 

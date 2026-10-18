@@ -1115,6 +1115,14 @@ job; ( jobin
     run "BT Classic probe LMP: the master's link set-up PDUs and the answers to a slave's requests (Core spec Vol 2 Part C)" "$OUT/bt_lmp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_l2cap_test" tests/bt_l2cap_test.c
+    run "BT Classic probe L2CAP / SDP: signalling frames, the search-attribute request, an A2DP sink record read" "$OUT/bt_l2cap_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_avdtp_test" tests/bt_avdtp_test.c
+    run "BT Classic probe AVDTP: commands, a sink endpoint picked, SBC capabilities read and chosen, SET_CONFIGURATION" "$OUT/bt_avdtp_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "BLE RF capture tool: the VM format, the trace cut into a program (windows, LUT, trims, scan, replay), V15's hash" early_out t_ble_rf
 ) >"$U.out" 2>&1 & jobbg
 # the stack with its WL82 baseband driver in the emulator's BLE engine model, a virtual central end to end (skipped
