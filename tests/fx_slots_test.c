@@ -480,14 +480,16 @@ static void t_dbus(void)
     memset(r_db, 0, sizeof r_db);
     base = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
     dry = render(FXS_DEF, 0, 0, 0, 0, 0, 0);
-    for (k = 0; k < 4u; k++) {                          /* each of DIST CHO DLY REV on the drum track alone: heard */
+    for (k = 0; k < 4u; k++) {   /* the drum track alone: its DIST heard; its own CHO DLY REV not (the bus sends nothing:
+                                  * they scale the lanes' sends, drum_sends.c dsend_kit, 2026-10-18) */
         static const char *const NM[4] = {"DIST", "CHO", "DLY", "REV"};
-        char m[120];
+        char m[140];
         memset(r_db, 0, sizeof r_db);
         r_db[k] = ALL[k];
         h = render(FXS_DEF, 0, 90, 60, 50, 80, 1);
-        snprintf(m, sizeof m, "the drum track's %s (%d): heard (the mix changes)", NM[k], ALL[k]);
-        check(m, h != base);
+        snprintf(m, sizeof m, k ? "the drum track's own %s (%d): unheard, the bus sends nothing (the mix as without it)"
+                                : "the drum track's %s (%d): heard (the mix changes)", NM[k], ALL[k]);
+        check(m, k ? h == base : h != base);
     }
     memset(r_db, 0, sizeof r_db);
     r_db[3] = 90;
@@ -542,20 +544,17 @@ static void t_dbus(void)
         ins_all(INS_D);
     }
 #endif
-    {   /* the drum track's sends: from the bus's mid, ramped over a block */
+    {   /* the drum bus sends nothing of its own (2026-10-18): the drum track's REV DLY CHO only scale the lanes' sends */
+        int32_t any = 0;
         for (i = 0; i < CTL; i++)
             mix_l[i] = 3000, mix_r[i] = 1000, send_r[i] = send_d[i] = send_c[i] = 0;
-        TDRUM->p[P_REV] = 127;
+        TDRUM->p[P_REV] = TDRUM->p[P_DLY] = TDRUM->p[P_CHOR] = 127;
+        dbus_run(CTL);
         dbus_run(CTL);
         for (i = 0; i < CTL; i++)
-            send_r[i] = 0;
-        dbus_run(CTL);
-        check("the drum track's REV send at 127: the bus's mid ((L + R) / 2), as a drum sound's own at its top",
-              send_r[0] == mulq15(2000, 127 * 258) && send_r[CTL - 1u] == send_r[0] && !send_d[0] && !send_c[0]);
-        TDRUM->p[P_REV] = 0;
-        dbus_run(CTL);
-        dbus_run(CTL);
-        check("... back to 0: no send left (dbus_snd 0)", !dbus_snd[2]);
+            any |= send_r[i] | send_d[i] | send_c[i];
+        check("the drum track's own REV DLY CHO at 127: the bus sends nothing (a loud bus, the three buses stay at 0)", !any);
+        TDRUM->p[P_REV] = TDRUM->p[P_DLY] = TDRUM->p[P_CHOR] = 0;
     }
     /* the record: each type's drum bus byte; a section takes them; none: 0; project_t keeps 0 there */
     fxs_set(FXS_DEF);

@@ -2105,9 +2105,8 @@ static int32_t dins_gr16(uint32_t k)
  *                signal, and one block after), FILTER an SVF state each, COMP one detector on L / R (stereo-linked)
  *                whose gain every channel takes, so the echoes duck with the drums. At the guard's QUALITY level they
  *                run on L / R only (the echoes take the bus before them: cpuguard.h, D9)
- *   CHO DLY REV  the drum track's bus sends, taken from the bus after its inserts (its mid, (L + R) / 2: a centred
- *                sound sends as a drum sound's own send at the same level), on top of each sound's own (D5); ramped
- *                over a block when the knob moves
+ *   (no sends)   the drum bus sends nothing of its own (2026-10-18, replacing D5's bus sends): the drum track's REV DLY
+ *                CHO scale each sound's own send (drum_sends.c dsend_kit)
  * At 0 each costs a compare a block; nothing here touches a sample then (the mix of before, sample for sample) */
 static int32_t *const DBUS_CH[5] = {mix_l, mix_r, send_r, send_d, send_c};
 #define DBUS_NC() (CG_LEVEL >= CG_L_QUALITY ? 2u : 5u)   /* the channels the inserts run on */
@@ -2201,32 +2200,9 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
 #endif
     (void)p, (void)live, (void)n, (void)nc;
 }
-static int32_t dbus_snd[3];                             /* the sends CHO DLY REV at the end of the last block (Q15) */
-static HOT2 __attribute__((noinline)) void dbus_sends(const int32_t *to, uint32_t n)
-{
-    uint32_t i, k;
-    int32_t m = 0, xmax, d[3];
-    for (k = 0; k < 3u; k++) {
-        m = to[k] > m ? to[k] : m, m = dbus_snd[k] > m ? dbus_snd[k] : m;
-        d[k] = to[k] - dbus_snd[k];
-    }
-    xmax = 0x7FFFFFFF / (m | 1);                        /* (mulq15 would overflow) */
-    for (i = 0; i < n; i++) {
-        int32_t x = clamp((mix_l[i] >> 1) + (mix_r[i] >> 1), -xmax, xmax);
-        if (dbus_snd[0] | d[0])
-            send_c[i] += mulq15(x, dbus_snd[0] + ((d[0] * (int32_t)(i + 1u)) >> CTL_LOG2));
-        if (dbus_snd[1] | d[1])
-            send_d[i] += mulq15(x, dbus_snd[1] + ((d[1] * (int32_t)(i + 1u)) >> CTL_LOG2));
-        if (dbus_snd[2] | d[2])
-            send_r[i] += mulq15(x, dbus_snd[2] + ((d[2] * (int32_t)(i + 1u)) >> CTL_LOG2));
-    }
-    for (k = 0; k < 3u; k++)
-        dbus_snd[k] = to[k];
-}
 static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
 {
-    const int16_t *p = TDRUM->p;
-    int32_t on = fx_on(TDRUM), to[3];
+    int32_t on = fx_on(TDRUM);
     uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, m, nc = DBUS_NC();
     ASTAGE0(0x98);
 #if DINS
@@ -2245,11 +2221,8 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
             }
     }
     ASTAGE0(0x99);
-    to[0] = on && FXS_ON(FXT_CHO) ? p[P_CHOR] * 258 : 0;
-    to[1] = on && FXS_ON(FXT_DLY) ? p[P_DLY] * 258 : 0;
-    to[2] = on && FXS_ON(FXT_REV) ? p[P_REV] * 258 : 0;
-    if (to[0] | to[1] | to[2] | dbus_snd[0] | dbus_snd[1] | dbus_snd[2])
-        dbus_sends(to, n);
+    /* (no send of its own since 2026-10-18, the user: "the main drum track sends actually send nothing": the drum track's
+     * REV DLY CHO are the lanes' multipliers, drum_sends.c dsend_kit; each sound sends, from its voice) */
     ASTAGE0(0x9A);
 #if FELUCCA_USB_AUDIO
     ua_dbus_tap(mix_l, mix_r, n);                       /* the drum bus for a USB channel that takes it (ua_tap.h) */

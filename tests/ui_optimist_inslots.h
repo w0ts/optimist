@@ -78,8 +78,7 @@ static void inslots_tests(void)
     check(!FELUCCA_FX_REVERB || (dsend_kit[0] < DKS_DEF && dsend_kit[2] == DKS_DEF), "... KNOB 1 turned: the REV level down, CHO's kept");
     dsend_kit[0] = dsend_kit[1] = dsend_kit[2] = DKS_DEF;
     r = ins_row("BUS SENDS");
-    SCR->cell(r < SCR->rows() ? r : 0u, 0, &c);
-    check(r < SCR->rows() && (!FELUCCA_FX_REVERB || c.vp == &TDRUM->p[P_REV]), "... BUS SENDS: the drum bus's own sends (REV first)");
+    check(r >= SCR->rows(), "... no BUS SENDS row: the drum bus sends nothing of its own (2026-10-18; its SENDS scale the lanes')");
     r = ins_row("INSERTS");
     SCR->cell(r < SCR->rows() ? r : 0u, 1, &c);
     check(r < SCR->rows() && (!FELUCCA_FX_DIST || c.vp == &TDRUM->p[P_DIST]), "... INSERTS: the drum bus's slots (S1's DST the bus's)");

@@ -96,7 +96,7 @@ static int32_t gr_h = 58;
 #define GRAPH_H gr_h
 static int has_graph(const page_t *pg)
 {
-    return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX || pg->graph == GR_INS || pg->graph == GR_BUS ||
+    return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX || pg->graph == GR_INS ||
            pg->graph == GR_LFO2 || pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP
 #if FELUCCA_INS_GATER
            || pg->graph == GR_GATE
@@ -195,7 +195,7 @@ static void graph_lfo(uint16_t col, uint32_t two)
     }
     cv_hline(mid, C_LINE);
 }
-/* a SOUND FX page's picture (SENDS, INSERTS, BUS SENDS, COMP, SLICER...): its own four values as needles (SLOOP's
+/* a SOUND FX page's picture (SENDS, INSERTS, COMP, SLICER...): its own four values as needles (SLOOP's
  * graph_fx's look), read from the page's own cells, so the needles are the cards' values in the cards' order (the audit's
  * #31: SLOOP's fx_needle read SLOOP's page order, CHO DLY REV under REV DLY CHO). Placed for the 2x2 cards: under each
  * card's column, the top card's needle left of the bottom one's (KNOB 1 x 32, KNOB 3 x 90 | KNOB 2 x 150, KNOB 4 x 208),
@@ -563,7 +563,6 @@ static __attribute__((noinline)) void draw_sound_graph(const page_t *pg)
         break;
     case GR_FX:
     case GR_INS:
-    case GR_BUS:
         graph_fx(pg, col);
         break;
     case GR_SCALE:

@@ -7,7 +7,8 @@
  *   #15  drum STEP, a step held: the selected lane's row under the cards, the grid back in place once they go
  *   #17  STEP: "Pattern 1/N" and bar.beat, never "Steps 1-16 C4"; a synth's pick marked in the roll's gutter
  *   #19  the drum track's EDIT pages: Lane, Body, Tone, Sends, Kit (never "Sound" five times)
- *   #20  its FX send pages: "Kit sends" (the kit's send levels) and "Bus sends", on a picked lane too
+ *   #20  its FX send page: "Kit sends" (the kit's send levels, every lane's sends scaled by them); no "Bus sends" since
+ *        2026-10-18 (the drum bus sends nothing)
  *   #24  (ui_optimist_mixer.h) a layer's "Home locks it" on the help line, never in the header
  *   #32  the drum ENV's length in the label row, nothing on the baseline
  *   #33  a 1x4 card with a long name and an empty card after it: two cards wide, the name whole
@@ -64,8 +65,8 @@ static void se_names_tests(void)
         check(!strncmp(t, "Lane ", 5), "#19: ... the header says it too (\"Lane 1/5\")");
     }
     se_drum_family(B_FX);
-    check(ui.scr == SCR_SOUND && se_rows_have("Kit sends", "Sends") && se_rows_have("Bus sends", "Bus send"),
-          "#20: the drum FX send pages \"Kit sends\" / \"Bus sends\" (was \"Sends\" / \"Bus send\")");
+    check(ui.scr == SCR_SOUND && se_rows_have("Kit sends", "Sends") && !se_rows_have("Bus sends", 0),
+          "#20: the drum FX send page \"Kit sends\" (was \"Sends\"); no \"Bus sends\": the drum bus sends nothing (2026-10-18)");
 #if DL_UI
     ui.lane = 1;
     lane_select(4);

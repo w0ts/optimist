@@ -317,8 +317,9 @@ static void snd_name_row(uint32_t r, char *b)
 /* the drum track's pages as the list and the header title them (the audit's #19, #20): the shared names stay what the
  * help line keys on ("SOUND", "SOUND 2", "SENDS"), the titles say what each page holds: the SOUND row (KIT LANE SRC
  * ACCENT) "Lane", then "Body" (TUNE DECAY SNAP CLICK), "Tone" (BEND CUT DRIVE LEVEL), "Sends" (the lane's), "Kit"; FX's
- * two send pages "Kit sends" (the kit's send levels, every lane's: "Lane sends" is past the titles' 9 letters) and
- * "Bus sends" (the drum bus's own; op_names.c), on a picked lane too (next to its own "Sends"). 0: no alias */
+ * send page "Kit sends" (the kit's send levels, every lane's sends scaled by them: "Lane sends" is past the titles' 9
+ * letters; the drum bus has no send of its own since 2026-10-18), on a picked lane too (next to its own "Sends"). 0: no
+ * alias */
 static const char *dr_alias(const page_t *pg)
 {
     if (!is_drum(TSEL) || !pg || str_eq(pg->title, "MAIN"))

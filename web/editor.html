@@ -3012,7 +3012,7 @@ const req = {
   sl24Get: (part, off, ext) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3), ...(ext ? [1] : [])]],   /* (ext, v12: send the second lost word) */
   /* v10 the FX slots (ed_fxs.c): op 0 get, 1 the four slots (type ids), 2 the COMP inserts' RATIO ATK REL, 3 a drum sound's insert
      (lane, kind 0 DIST / 1 COMP, amount) */
-  fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
+  fx: (op = 0, args = []) => [CMD.FX, [op & 7, ...args.map((x) => x & 0x7F)]],   /* (ops 0..6, ed_fxs.c; 6: the kit's send levels) */
   /* v13 FXP (ed_fxp.c): owner = 0..3 tracks, 4 master, 5 USB input, 6..8 returns, 9..24 drum sounds */
   stepLane: (op, tr, lane, ...rest) => [CMD.STEPLANE, [op & 0x7F, tr & 0x7F, lane & 0x7F, ...rest]],   /* 0 LIST, 1 DESC i, 2 STEP step, 3 SET step field v14, 4 LOCK step i v14, 5 UNLOCK step i, 6 KIND step i */
   undo: (op) => [CMD.UNDO, [op & 0x7F]],                       /* 0 GET, 1 UNDO, 2 REDO */
@@ -6488,7 +6488,7 @@ const TEXT = {
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
   macRow: "macro",
   fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry",
-  fxSndMode: "The selected sound's FX (its sends and inserts)", fxBusMode: "The drum bus's FX (all the drums together)", fxSlotsHelp: "The effect on each FX knob (one of each: loading one held elsewhere swaps the two)", fxCmpHelp: "The compressor inserts' settings (every track's, the drum bus's and the drum sounds')", fxEmpty: "Empty FX slot", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
+  fxSndMode: "The selected sound's FX (its sends and inserts)", fxBusMode: "The drum track's FX: its inserts on the drum bus, and its send levels (every sound's sends scaled)", fxKitHelp: "The drum track's send level: every drum sound's send to this effect, scaled (100 %: as the sounds' own knobs say). The drum bus sends nothing itself", fxSlotsHelp: "The effect on each FX knob (one of each: loading one held elsewhere swaps the two)", fxCmpHelp: "The compressor inserts' settings (every track's, the drum bus's and the drum sounds')", fxEmpty: "Empty FX slot", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
   dlSound: "Sound", dlSends: "The sound's sends (REV 4: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
@@ -11778,7 +11778,8 @@ function naKnob(label, aria) {
   return k;
 }
 /* v10: the drum strip's FX, SOUND (the selected sound's: its REV DLY CHO sends, DRUM_LANE v2, 0..31; its DST CMP inserts, FX op 3,
-   0..127) or BUS (the drum track's own amounts after the drum bus, TRACK_PARAM as a synth part's), in the slots' order */
+   0..127) or BUS (the drum track's inserts on the drum bus, TRACK_PARAM as a synth part's; its sends are the LEVELS that scale
+   every sound's sends, FX op 6: the drum bus sends nothing since 2026-10-18), in the slots' order */
 let drumFxMode = "sound";
 const LANE_FX = { [FXT.REV]: "rev", [FXT.DLY]: "dly", [FXT.CHO]: "cho", [FXT.DIST]: "dist", [FXT.COMP]: "comp" };
 const laneFxVal = (l, f) => (f === "dist" || f === "comp" ? (dev.fx[f][l] | 0) : laneSnd(l)[f] | 0);
@@ -11789,6 +11790,13 @@ function drumFxBlock(i, c, box) {
   c.fxk = dev.fx.slots.map((ty0, j) => {
     const ty = fxSend(j), l = labels[j], f = LANE_FX[ty];
     if (bus) {
+      const dsi = ty === FXT.REV ? 0 : ty === FXT.DLY ? 1 : ty === FXT.CHO ? 2 : -1;   /* (drum_sends.c dsend_kit: REV DLY CHO) */
+      if (dsi >= 0 && dev.fx && dev.fx.kit) {
+        const k = knob({ tip: true, label: fxpOn() && j ? "ABC"[j - 1] : l, aria: `DRUMS ${l} level`, help: t("fxKitHelp"), min: 0, max: 127, def: 127,
+          value: dev.fx.kit[dsi] | 0, fmt: (v) => `${Math.round((v * 100) / 127)} %`, set: (v) => setKitSend(dsi, v) });
+        k.el.dataset.kit = String(dsi);
+        return k;
+      }
       const id = ids[j];
       if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
@@ -11821,7 +11829,11 @@ function drumFxShow(c) {
       k.el.tabIndex = off ? -1 : 0;
     }
     if (k.el.classList.contains("na")) return;
-    if (c.fxmode === "bus") { if (!mixTouched("fx" + j, dev.mix.ntrk - 1)) k.value(x.fx[j] | 0, false); return; }
+    if (c.fxmode === "bus") {
+      if (k.el.dataset.kit != null) { if (dev.fx.kit && !mixTouched("kit" + k.el.dataset.kit, dev.mix.ntrk - 1)) k.value(dev.fx.kit[+k.el.dataset.kit] | 0, false); }
+      else if (!mixTouched("fx" + j, dev.mix.ntrk - 1)) k.value(x.fx[j] | 0, false);
+      return;
+    }
     k.el.setAttribute("aria-label", `${laneName(kl.sel)} ${slotLabels()[j]}`);
     if (!fxTouched(f, kl.sel)) k.value(laneFxVal(kl.sel, f), false);
   });
@@ -11837,6 +11849,19 @@ async function setLaneIns(l, f, v) {
     if (d !== dev || d.link.hasQueued(key) || performance.now() - (mixEdit.get(key) || 0) < 150) return;
     d.fx[f][l] = r[f][l];
     if (d.mix) updateStrip(d.mix.ntrk - 1);
+  } catch (e) { report(e); }
+}
+/* the drum track's send levels REV DLY CHO (FX op 6, drum_sends.c dsend_kit): every drum sound's send to that bus scaled by
+   it, 127 = 100 %; the drum bus itself sends nothing (2026-10-18) */
+async function setKitSend(n, v) {
+  if (!dev || !dev.fx || !dev.fx.kit) return;
+  const d = dev, key = "fxi:kit:0";
+  d.fx.kit = d.fx.kit.map((x, j) => (j === n ? v : x));
+  mixEdit.set(`kit${n}:${d.mix ? d.mix.ntrk - 1 : 0}`, performance.now());
+  try {
+    const r = parse[CMD.FX](await rq(req.fx(6, d.fx.kit), { key }));
+    if (d !== dev || d.link.hasQueued(key) || !r.kit) return;
+    d.fx.kit = r.kit;
   } catch (e) { report(e); }
 }
 /* the master strip's slot pickers (FX op 1, the swap rule as the device's) and the CMP card (FX op 2) */
