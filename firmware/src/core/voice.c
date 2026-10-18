@@ -694,8 +694,9 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
         } else {                                            /* legato: new pitch, same envelope */
             v->note = (uint8_t)note;
             v->pitch16 = (int32_t)note * 16;
-            if (vel > v->vel && nv == 1u)
-                v->vel = (uint8_t)vel;
+            if ((vel > v->vel || ENGINES[t->engine]->legato) && nv == 1u)
+                v->vel = (uint8_t)vel;                      /* (a slide engine: each note's own, a 303's accent is
+                                                             * per step) */
             glide_set(t, v, glide);
             if (ENGINES[t->engine]->legato)
                 ENGINES[t->engine]->legato(t, v);

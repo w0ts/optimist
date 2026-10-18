@@ -22,8 +22,8 @@ void acid_forget(int k)                            /* (engines.c part_mem_claim:
         acid_ready[k] = acid_gate[k] = 0;
 }
 
-/* our 8 EDIT values -> the 303's pots: CUT RESO ENV DEC ACC WAVE DRV SLD (the rest: X0X's defaults; DRV > 0 runs
- * the Soft drive) */
+/* our 8 EDIT values -> the 303's pots: CUT RESO ENV DEC ACC WAVE DRV SLD (the rest: X0X's defaults). WAVE 0..3:
+ * bit 0 the wave, bit 1 the drive type (0 Soft, 1 RAT); DRV > 0 runs it */
 static const uint8_t ACID_POT[8] = {BASS303_CUTOFF, BASS303_RESO, BASS303_ENVMOD, BASS303_DECAY, BASS303_ACCENT,
                                     BASS303_WAVE, BASS303_DRIVE, BASS303_SLIDE};
 
@@ -42,11 +42,17 @@ void acid_pots(int k, const int16_t *e)
 {
     bass303_t *b = acid_part(k);
     int i;
+    int16_t v, drv;
     if (!b)
         return;
-    for (i = 0; i < 8; i++)
-        if (bass303_get(b, ACID_POT[i]) != e[i])
-            bass303_set(b, ACID_POT[i], e[i]);
+    for (i = 0; i < 8; i++) {
+        v = ACID_POT[i] == BASS303_WAVE ? (int16_t)(e[i] & 1) : e[i];
+        if (bass303_get(b, ACID_POT[i]) != v)
+            bass303_set(b, ACID_POT[i], v);
+    }
+    drv = (e[5] & 2) ? BASS303_DRV_RAT : BASS303_DRV_SOFT;   /* (e[5]: WAVE) */
+    if (bass303_get(b, BASS303_DRVTYPE) != drv)
+        bass303_set(b, BASS303_DRVTYPE, drv);
 }
 
 void acid_note(int k, int note, int accent, int slide)

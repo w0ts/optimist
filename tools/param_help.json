@@ -277,7 +277,7 @@
       "SYMP": "Sympathetic strings", "BUZZ": "Bridge buzz"}},
     {"kind": "eng", "ctx": "ACID", "if": "FELUCCA_ENG_ACID", "params": {
       "CUT": "Filter cutoff", "RESO": "Filter resonance", "ENV": "Filter envelope amount", "DEC": "Filter envelope decay",
-      "ACC": "Accent amount", "WAVE": "Saw or square", "DRV": "Drive", "SLD": "Slide time"}},
+      "ACC": "Accent amount", "WAVE": "Wave, R: RAT drive", "DRV": "Drive (Soft or RAT)", "SLD": "Slide time"}},
     {"kind": "eng", "ctx": "NOISE", "if": "FELUCCA_ENG_NOISE", "params": {
       "MODE": "Noise source", "COLR": "White, pink or brown", "FREQ": "Filter frequency", "RES": "Filter resonance",
       "TRK": "Frequency key tracking", "DENS": "Crackle density", "DRFT": "Slow random drift",

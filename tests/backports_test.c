@@ -662,6 +662,34 @@ static void t_acid(void)
     check(acc > 0 && pk < 32768, "acid: the line plays, bounded");
     seq_stop();
 }
+
+/* ACID: WAVE 2 / 3 run the RAT drive (bit 1), 0 / 1 the Soft one; a plain note slid from an accented one is not
+ * accented (voice.c mono_play: a slide engine takes each note's own velocity) */
+static void t_acid_rat_accent(void)
+{
+    track_t *t = &trk[0];
+    const bass303_t *b;
+    int32_t out[CTL * 2];
+    reset(120);
+    host_preset(t, ENG_IX_ACID, 0);
+    t->p[P_VOICE] = V_LEGATO;
+    t->p[P_E0 + 5] = 3;                              /* WAVE: SQR R */
+    trk_note_on(t, 40, 127);
+    mix_block(out, CTL);
+    b = (const bass303_t *)acid_mem(0);
+    check(bass303_get(b, BASS303_DRVTYPE) == BASS303_DRV_RAT && bass303_get(b, BASS303_WAVE) == 1,
+          "acid: WAVE SQR R: square wave, the RAT drive");
+    check(b->accent_gain > 0.0f, "acid: velocity 127: the note is accented");
+    trk_note_on(t, 43, 100);                         /* held over the first: LEGATO slides */
+    mix_block(out, CTL);
+    check(t->v[0].vel == 100 && b->accent_gain == 0.0f, "acid: a plain note slid from an accented one: no accent");
+    trk_note_off(t, 40);
+    trk_note_off(t, 43);
+    t->p[P_E0 + 5] = 0;                              /* WAVE: SAW (Soft) */
+    mix_block(out, CTL);
+    check(bass303_get(b, BASS303_DRVTYPE) == BASS303_DRV_SOFT && bass303_get(b, BASS303_WAVE) == 0,
+          "acid: WAVE SAW: saw wave, the Soft drive (the stored 0 / 1 of before)");
+}
 #endif
 
 #if FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID && FELUCCA_ENG_FM6
@@ -756,6 +784,7 @@ int main(void)
 #endif
 #if FELUCCA_ENG_ACID
     t_acid();
+    t_acid_rat_accent();
 #endif
 #if FELUCCA_ENG_PHYS && FELUCCA_ENG_ACID && FELUCCA_ENG_FM6
     t_part_mem();

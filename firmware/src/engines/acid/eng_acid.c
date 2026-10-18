@@ -31,7 +31,9 @@ void acid_lite(int k, int on);
 #undef blep
 #endif
 
-static const char *const N_ACID_WAVE[] = {"SAW", "SQR"};
+/* WAVE also picks the drive (2026-10-18): SAW SQR run the Soft drive (the stored 0 / 1 of before), SAW R SQR R the
+ * RAT (acid_dsp.c acid_pots); DRV is the drive's amount either way */
+static const char *const N_ACID_WAVE[] = {"SAW", "SQR", "SAW R", "SQR R"};
 
 static int acid_k(const track_t *t) { return (int)(t - trk); }
 
@@ -142,7 +144,7 @@ static const engine_t ENG_ACID = {
         {"ENV", F_PCT, 0, 127, 64, 0, 0},
         {"DEC", F_PCT, 0, 127, 64, 0, 0},
         {"ACC", F_PCT, 0, 127, 64, 0, 0},
-        {"WAVE", F_ENUM, 0, 1, 0, N_ACID_WAVE, 0},
+        {"WAVE", F_ENUM, 0, 3, 0, N_ACID_WAVE, 0},
         {"DRV", F_PCT, 0, 127, 0, 0, 0},
         {"SLD", F_PCT, 0, 127, 21, 0, 0},
     },
