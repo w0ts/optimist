@@ -672,3 +672,36 @@ static void draw_toast(void)                             /* the result of a conf
     cv_texts(12, 10, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
 }
+#if FELUCCA_BLE && BLE_CENTRAL
+/* a Bluetooth pairing waiting for the other device's user to type the code, the devices list not on screen (the search
+ * for LAST runs while the list is closed: a Mac or phone that lost the bond is paired afresh then, with the code; the list
+ * shows the code in its own panel): the code over the panel, whatever screen is up, until the pairing ends (op_overlay 4).
+ * The user's report of 2026-10-18: the Mac asked for a PIN, nothing showed on the FM-1 */
+static int op_code_on(void) { return ble_connect_passkey() != BLE_NO_PASSKEY && !dev_listing(); }
+static uint32_t ble_code_sig(void) { return ble_connect_passkey(); }   /* (draw_overlay: drawn again for a new code) */
+static void draw_code(void)
+{
+    char d[7], nm[BLE_NAME_MAX + 12u];
+    const felucca_font_t *fl = font_big();
+    uint32_t v = ble_connect_passkey();
+    int32_t k;
+    for (k = 5; k >= 0; k--, v /= 10u)
+        d[k] = (char)('0' + v % 10u);
+    d[6] = 0;
+    str_cpy(nm, "Type it on ", sizeof nm);
+    ble_connect_name(nm + str_len(nm));                 /* (the name as advertised) */
+    while (nm[0] && text_w(&FONT_S, nm) > MODAL_W)
+        nm[str_len(nm) - 1u] = 0;
+    cv_begin(240, MODAL_H, C_BLACK);
+    cv_rect(8, 1, 224, MODAL_H - 2, C_HI);              /* (a frame as the modal's: nothing to answer here) */
+    cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
+    cv_text(120 - text_w(&FONT_S, "Bluetooth code") / 2, 12, &FONT_S, "Bluetooth code", C_GRAY);
+    cv_text(120 - text_w(fl, d) / 2, (int32_t)MODAL_H / 2 - 10, fl, d, C_WHITE);
+    cv_text(120 - text_w(&FONT_S, nm) / 2, MODAL_H - 26, &FONT_S, nm, C_GRAY);
+    cv_blit(0, OP_PY);
+}
+#else
+#define op_code_on() 0
+#define ble_code_sig() 0u
+static void draw_code(void) {}
+#endif

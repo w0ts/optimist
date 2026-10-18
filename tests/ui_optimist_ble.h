@@ -676,6 +676,54 @@ static void ble_page_tests(void)
     ble_dev_msg = 0;
     reset_ui();
 }
+#if BLE_CENTRAL
+/* the search for LAST with the devices list closed (the user on HOME, the mixer): a passkey pairing it starts (a Mac or
+ * phone that lost the bond: ble_central.c pairs afresh at once, with the passkey LAST is known to need) shows its code
+ * over the panel, whatever screen is up, until the pairing ends. The user's report of 2026-10-18: the Mac asked for a
+ * PIN, nothing showed on the FM-1 (the code was drawn only in the devices list, and the search runs only while that
+ * list is closed) */
+static void ble_bg_passkey_tests(void)
+{
+    static const uint8_t MAC[6] = {0x36, 0x36, 0x36, 0x36, 0x36, 0x36}, LTK[16] = {0x31}, RND[8] = {0x32};
+    uint32_t i, c0;
+    reset_ui();
+    ble_on = 1, ble_link = 0, ble_up = 1;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    ble_store_set_last(&ble_store, MAC, 0, "MacBook", BLE_KIND_MIDI);
+    ble_store_set_bond(&ble_store, LTK, RND, 0x3334, 1);
+    ble_store_set_mitm(&ble_store);
+    ble_store_select(&ble_store, BLE_SEL_LAST);
+    ui.force = 1;
+    frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    for (i = 0; i < 4u && ble_connect_phase() != 3u; i++) {   /* (RC_TRY: initiating to LAST) */
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    check(cenfk.connects == (int)c0 + 1 && cenfk.p.bonded && (cenfk.p.sec & BLE_PEER_MITM) && !dev_listing() &&
+              ui.scr == SCR_HOME, "background passkey: on HOME, the list closed: LAST (a Mac, bonded, needs a passkey) searched for");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cenfk.pairing = 1, cenfk.passkey = 123456u;      /* (its bond refused: a pairing afresh, the passkey ours to show) */
+    ble_devices_poll();
+    frames(2);
+    check(ble_connect_passkey() == 123456u && op_overlay() == 4u && px_in(40, (uint32_t)OP_PY + MODAL_H / 2u - 10u, 160, 24, C_WHITE),
+          "background passkey: the code over the panel on HOME, large, while the Mac's user types it");
+    ppm("opt-ble-background-passkey");
+    cenfk.pairing = 0, cenfk.passkey = BLE_NO_PASSKEY, cenfk.st = BLE_CS_READY;
+    ble_devices_poll();
+    ble_devices_poll();
+    frames(2);
+    check(op_overlay() != 4u && !strcmp(dev_status(), "CONNECTED MacBook"), "background passkey: typed: the code goes, CONNECTED MacBook");
+    cen_gone(BLE_CF_LOST);
+    ble_connect_none();
+    ble_store_reset(&ble_store);
+    ble_on = 0, ble_link = 0;
+    ble_dev_msg = 0;
+    reset_ui();
+}
+#endif
 static void ble_tests(void)
 {
     uint32_t kb;
@@ -705,6 +753,7 @@ static void ble_tests(void)
     ble_dev_tests();
 #if BLE_CENTRAL
     ble_dev_more_tests();
+    ble_bg_passkey_tests();
 #endif
 }
 #endif

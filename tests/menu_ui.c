@@ -155,6 +155,65 @@ static void ble_devices_security_tests(void)
     ble_on = 0;
 }
 
+/* pixels of colour col in the box (the screen as the panel holds it: swapped octets) */
+static uint32_t px_count(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)
+{
+    uint32_t i, j, n = 0;
+    for (j = y; j < y + h; j++)
+        for (i = x; i < x + w; i++)
+            n += swap16(screen[j * 240u + i]) == col;
+    return n;
+}
+
+/* the search for LAST with DEVICES closed (the user on any page): a passkey pairing it starts (a Mac or phone that lost
+ * the bond: ble_central.c pairs afresh at once, with the passkey LAST is known to need) shows its code over whatever is
+ * up, until the pairing ends. The user's report of 2026-10-18: the Mac asked for a PIN, nothing showed on the FM-1 (the
+ * code was drawn only inside the DEVICES list, and the search runs only while that list is closed) */
+static void ble_devices_bg_passkey_tests(void)
+{
+    static const uint8_t MAC[6] = {0x36, 0x36, 0x36, 0x36, 0x36, 0x36}, LTK[16] = {0x31}, RND[8] = {0x32};
+    uint32_t i, c0;
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    ble_store_set_last(&ble_store, MAC, 0, "MacBook", BLE_KIND_MIDI);
+    ble_store_set_bond(&ble_store, LTK, RND, 0x3334, 1);
+    ble_store_set_mitm(&ble_store);
+    ble_store_select(&ble_store, BLE_SEL_LAST);
+    menu_close();
+    ui.force = 1; frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    for (i = 0; i < 4u && ble_connect_phase() != 3u; i++) {   /* (RC_TRY: initiating to LAST) */
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    check(cenfk.connects == (int)c0 + 1 && cenfk.p.bonded && (cenfk.p.sec & BLE_PEER_MITM) && !ui.menu && !ble_devs_open,
+          "background passkey: DEVICES and the menu closed, LAST (a Mac, bonded, needs a passkey) searched for with its bond");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cenfk.pairing = 1, cenfk.passkey = 123456u;      /* (its bond refused: a pairing afresh, the passkey ours to show) */
+    ble_devices_poll();
+    check(ble_connect_passkey() == 123456u, "background passkey: the pairing waits for the Mac's user to type the code");
+    frames(2);
+    check(px_count(0, 90, 240, 60, C_HI) > 200u && px_count(0, 0, 240, 30, C_BLACK) == 240u * 30u,
+          "background passkey: the code is on screen, large, over the page (nothing of the page above it)");
+    ppm("ble-background-passkey");
+    cenfk.pairing = 0, cenfk.passkey = BLE_NO_PASSKEY, cenfk.st = BLE_CS_READY;
+    ble_devices_poll();
+    ble_devices_poll();
+    frames(2);
+    check(px_count(0, 0, 240, 30, C_BLACK) < 240u * 30u, "background passkey: typed: the code goes, the page is back (its head drawn)");
+    check(!strcmp(dev_status(), "CONNECTED MacBook"), "background passkey: ... CONNECTED MacBook");
+    cen_gone(BLE_CF_LOST);
+    ble_connect_none();
+    ble_store_reset(&ble_store);
+    ble_on = 0;
+    ble_link = 0;
+    ble_dev_msg = 0;
+    ui.force = 1; frames(2);
+}
+
 /* a link that is not made (0x3E: the FM-1 saw 2 in 6, blell-dev3 / dev4) is made again at once, up to 6 attempts:
  * CONNECTING (TRY n/6) meanwhile, never FAILED before the last; a link that had a pairing on it is not made again by
  * itself (one prompt on the phone per user action); a device that needed a passkey pairs with it at once next time */
@@ -660,6 +719,7 @@ static void menu_ui_tests(void)
         menu_close();
         ble_devices_tests();
         ble_devices_security_tests();
+        ble_devices_bg_passkey_tests();
         ble_devices_retry_tests();
         ble_devices_review_tests();
     }

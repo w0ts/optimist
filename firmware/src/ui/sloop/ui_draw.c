@@ -3,6 +3,9 @@
 /* Felucca UI drawing: status bar (top), columns + gauges, graphs, focus readout,
  * footer (steps + engine / preset / page). */
 static void draw_menu(void);
+#if FELUCCA_BLE
+static int ble_code_screen(void);                     /* ui_menu.c: a passkey pairing's code over any page */
+#endif
 static uint32_t str_hash(uint32_t h, const char *s);
 static int ov_on(void);                                /* ui_overview.c: VIEW ALL, a family at once */
 static void ov_frame(void);
@@ -1474,6 +1477,13 @@ static void ui_draw(void)
     }
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
+#endif
+#if FELUCCA_BLE
+    if (ble_code_screen()) {                            /* a Bluetooth pairing's code: over everything until it ends */
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
 #endif
     if (tp.on && !ui.menu) {                            /* PLAY held: the TEMPO page over whatever is up (ui_tempo.c) */
         tempo_draw();

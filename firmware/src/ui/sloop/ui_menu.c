@@ -354,6 +354,49 @@ static void devices_input(uint32_t ok)
     }
     enc_drop();
 }
+
+#if BLE_CENTRAL
+/* a passkey pairing waiting for the other device's user, with DEVICES not on screen (the search for LAST runs while the
+ * list is closed: a Mac or phone that lost the bond is paired afresh then, with the code; the list shows the code in
+ * its own status area): the code over the whole screen, whatever page is up, until the pairing ends; then the page
+ * again. 1: the screen is the code's (ui_draw draws nothing else) */
+static uint8_t pk_shown;                           /* the code is on screen */
+static uint32_t pk_drawn;                          /* ... this one */
+static int ble_code_screen(void)
+{
+    uint32_t pk = ble_connect_passkey(), v;
+    char d[7], nm[BLE_NAME_MAX + 12u];
+    int i;
+    if (pk == BLE_NO_PASSKEY || ui.menu == 3) {
+        if (pk_shown) {                             /* (gone: the page anew) */
+            pk_shown = 0;
+            lcd_fill(0, 0, 240, 240, C_BLACK);
+            ui.force = 1;
+        }
+        return 0;
+    }
+    if (pk_shown && pk == pk_drawn && !ui.force)
+        return 1;
+    pk_shown = 1;
+    pk_drawn = pk;
+    for (i = 5, v = pk; i >= 0; i--, v /= 10u)
+        d[i] = (char)('0' + v % 10u);
+    d[6] = 0;
+    str_cpy(nm, "TYPE IT ON ", sizeof nm);
+    ble_connect_name(nm + str_len(nm));
+    while (nm[0] && text_w(&FONT_S, nm) > 232)
+        nm[str_len(nm) - 1u] = 0;
+    lcd_fill(0, 0, 240, 240, C_BLACK);
+    cv_begin(240, 124, C_BLACK);
+    cv_text((240 - text_w(&FONT_S, "BLUETOOTH CODE")) / 2, 0, &FONT_S, "BLUETOOTH CODE", C_GRAY);
+    cv_text((240 - text_w(&FONT_L, d)) / 2, 44, &FONT_L, d, C_HI);
+    cv_text((240 - text_w(&FONT_S, nm)) / 2, 104, &FONT_S, nm, C_GRAY);
+    cv_blit(0, 50);
+    return 1;
+}
+#else
+static int ble_code_screen(void) { return 0; }     /* (no central role: no pairing of ours, no code) */
+#endif
 #endif
 
 static void draw_menu(void)

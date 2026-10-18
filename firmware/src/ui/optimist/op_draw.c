@@ -999,7 +999,7 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
 {
-    if ((op_overlay() != 1u && op_overlay() != 3u) || ui.sig[3] == 1u)
+    if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
     if (OP_PH > MODAL_H) {                              /* (2x2: the modal takes the whole panel) */
@@ -1009,7 +1009,7 @@ static void draw_under(void)
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
-static uint32_t op_overlay(void) { return rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
+static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
 /* REC held: the ring over the panel (SLOOP's hold screen's ring, copied: 36 px, 7 thick, filling clockwise from the
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
@@ -1038,13 +1038,16 @@ static void draw_ring(void)
 }
 static void draw_overlay(uint32_t ov)
 {
-    uint32_t sig = ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
+    uint32_t sig = ov == 4u ? hu(hu(5u, ble_code_sig()), settings.palette)
+                 : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
                  : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
         return;
     ui.sig[4] = sig;
-    if (ov == 3u)
+    if (ov == 4u)
+        draw_code();
+    else if (ov == 3u)
         draw_ring();
     else if (ov == 1u)
         draw_modal();
@@ -1055,6 +1058,8 @@ static void draw_overlay(uint32_t ov)
 static void op_frame_draw(void)
 {
     uint32_t ov = op_overlay();
+    if ((ov == 4u) != (ui.overlay == 4u))
+        ui.force = 1;                                   /* (a Bluetooth code comes or goes: over any screen, NAME too) */
     if (ui.force) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         memset(ui.sig, 0, sizeof ui.sig);
@@ -1079,7 +1084,7 @@ static void op_frame_draw(void)
     }
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
-    if (name_on()) {                                    /* NAME: the field, the keyboard, the hints (op_name.c) */
+    if (name_on() && ov != 4u) {                        /* NAME: the field, the keyboard, the hints (op_name.c) */
         name_draw();
         ui.force = 0;
         return;
@@ -1088,8 +1093,8 @@ static void op_frame_draw(void)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else if (ui.scr != SCR_STEP && !glo_cycle())
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
-    if (ov == 1u || ov == 3u) {
-        draw_overlay(ov);                               /* the modal, the REC ring: the whole panel */
+    if (ov == 1u || ov == 3u || ov == 4u) {
+        draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code: the whole panel */
     } else {
         uint32_t under = ui.sig[2];
         if (lay.shown != LY_PLAY)

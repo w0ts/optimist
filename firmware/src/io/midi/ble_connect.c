@@ -9,7 +9,7 @@
  *   security     pairing happens only when the peer asks (ble_central.c): Just Works, silent on both screens of ours
  *                (another FM-1, a controller). A peer that refuses again after Just Works (Insufficient
  *                Authentication: an iPhone app's MIDI characteristic) needs an authenticated pairing: the stack pairs
- *                again with a passkey on the same link (shown on the DEVICES status area; the phone's user types it);
+ *                again with a passkey on the same link (shown over any screen, in both UIs; the phone's user types it);
  *                only a peer that refuses that is left and connected to again at once, once, with the passkey from
  *                the start. That level is kept with LAST (and, until the next power-off, with the device picked), so
  *                its next pairing goes to the passkey straight away. A pairing that fails stops there: "FAILED: <why>"
@@ -417,11 +417,17 @@ static int ble_connect_last_up(void)
     return brc.to_last && brc.was_ready == 1 && ble_central_state() == BLE_CS_READY;
 }
 
-/* the passkey to show (0..999999) while our pairing waits for the phone's user, else BLE_NO_PASSKEY */
+/* the passkey to show (0..999999) while our pairing waits for the phone's user, else BLE_NO_PASSKEY. Both UIs show it
+ * over whatever screen is up, not only in the DEVICES list: the search for LAST runs while the list is closed, and a
+ * Mac or phone that lost the bond is paired afresh then, with the passkey LAST needs (2026-10-18: the Mac asked for a
+ * PIN, nothing showed on the FM-1) */
 static uint32_t ble_connect_passkey(void)
 {
     return ble_up && brc.phase == RC_LINK ? ble_central_passkey() : BLE_NO_PASSKEY;
 }
+
+/* the device being paired, as shown (terminated): its name as advertised, else its address */
+static void ble_connect_name(char out[BLE_NAME_MAX + 1u]) { rc_name(out); }
 
 /* what the radio's connecting out is, for the menu: 0 nothing, 1 setting up a link of ours, 2 pairing, 3 a failure
  * kept */
