@@ -13,7 +13,8 @@
 #define DLR_ID_AUTO (DLR_ID0 + 16u)
 _Static_assert(DLR_ID0 == FXR_ID_AUTO + 1u && DLR_ID_AUTO < SLG_IDS && SEC_IDS <= 16u, "the lane LFO records' log ids");
 static uint8_t dlr_rbuf[4u + DLR_MAX] __attribute__((section(".pool"), aligned(4)));
-_Static_assert(sizeof dlr_rbuf <= SEC_REC_MAX && sizeof dlr_rbuf <= 255u, "an LFO record: shorter than a section record, a byte's length");
+/* (the editor backup's DLF1 DLF2: u16 lengths since 2026-10-18, the lanes' LFO 2 and ENV2; DLFO's were a byte) */
+_Static_assert(sizeof dlr_rbuf <= SEC_REC_MAX && sizeof dlr_rbuf <= 0xFFFFu, "an LFO record: shorter than a section record");
 
 /* the log side: as the FX record's (fx_rec_log.c xrec_t) */
 static const xrec_t XR_DL = {dlr_rbuf, sizeof dlr_rbuf, SEC_PEND_DL, DLR_ID0, dlr_rec, dlr_from_rec};

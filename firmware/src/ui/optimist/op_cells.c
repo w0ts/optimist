@@ -247,11 +247,17 @@ static int lane_value_rec(uint32_t l, uint32_t id, int32_t v)
 #define LANE_LFO_UI (DLFO_ON && DL_UI)
 #define DL_LFO0 24u
 #if LANE_LFO_UI
-static const page_t LANE_LFO_PG[2] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
-                                      {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}}};
-static int16_t dlfv[DLF_N];                             /* the cells' values (dlfo_field: the lane's LFO, 8 bytes) */
-static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg == &LANE_LFO_PG[1]; }
-#define LFO_PGN 2u
+/* + LFO 2 and ENV2 (2026-10-18, lane_play.c: per hit), ids DL_LFO0 + DLF2_0 .., DL_LFO0 + DLE_0 .. */
+static const page_t LANE_LFO_PG[6] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
+                                      {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}},
+                                      {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {32, 33, 34, 35}},
+                                      {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {36, 37, 38, 39}},
+                                      {"ENV2", FAM_ENV, SC_DSND, GR_NONE, {40, 41, 42, 43}},
+                                      {"ENV2 DEST", FAM_ENV, SC_DSND, GR_NONE, {44, 45, 46, 47}}};
+_Static_assert(DL_LFO0 + DLF_ALL == 48u, "the lane's LFO, LFO 2, ENV2 ids: 24 .. 47");
+static int16_t dlfv[DLF_ALL];                           /* the cells' values (dlfo_field: the lane's LFO, LFO 2, ENV2) */
+static int lane_lfo_pg(const page_t *pg) { return pg >= &LANE_LFO_PG[0] && pg < &LANE_LFO_PG[6]; }
+#define LFO_PGN 6u
 #else
 #define lane_lfo_pg(pg) 0
 #define LFO_PGN 0u
@@ -260,6 +266,9 @@ static int lane_lfo_pg(const page_t *pg) { return pg == &LANE_LFO_PG[0] || pg ==
  * insert slots, fx-rework: S1 TYPE, its amount, S2 TYPE, its amount; were DRIVE DST CMP) and SENDS (its sends in the returns' order: LSEND0 + k, mapped by lane_send_vid), in place
  * of the drum track's, which stay as "DR INSERT", "DR SENDS" and the rest, tagged DR (cell_t dr). Never on DR itself */
 #define LSEND0 0x40u
+#if LANE_LFO_UI
+_Static_assert(DL_LFO0 + DLF_ALL <= LSEND0, "the lane's LFO ids: under the sends'");
+#endif
 #define LPAN_ID (LSEND0 + 3u)                          /* SENDS' card 4: the lane's PAN (drum_mix.c dlm_pan; the mixer's MI_LANE id 23: 19..22 are the lane inserts) */
 #define LPAN_VID 23u
 #define LINST_ID 0x50u                                 /* the lane's INSTRUMENT (drum_edit.c dl.ins: its sound's GM note, its name), the LANE row's knob 3 */
@@ -322,7 +331,7 @@ static const page_t *op_pg(uint32_t i)
     i -= NPAGES;
 #if LANE_LFO_UI
     if (i < LFO_PGN)
-        return &LANE_LFO_PG[i & 1u];
+        return &LANE_LFO_PG[i];
     i -= LFO_PGN;
 #endif
 #if DL_UI
@@ -370,10 +379,10 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
     const param_desc_t *d;
 #if LANE_LFO_UI
-    if (id >= DL_LFO0 && id < DL_LFO0 + DLF_N) {
+    if (id >= DL_LFO0 && id < DL_LFO0 + DLF_ALL) {
         dlfv[id - DL_LFO0] = (int16_t)dlfo_field(lane_selected(), id - DL_LFO0);
         *vp = &dlfv[id - DL_LFO0];
-        return &DLFO_DESC[id - DL_LFO0];
+        return dlfo_desc(id - DL_LFO0);
     }
 #endif
     if (!lane_snd()) {                                  /* the ACCENT lane has no sound: no value (its pages are not shown) */

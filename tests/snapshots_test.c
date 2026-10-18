@@ -1050,21 +1050,23 @@ int main(int argc, char **argv)
         }
         check("... each section loads its own LFOs", nn);
 #if !FELUCCA_MOTION
-        {   /* the backup: the sections, the autosave, the drum records and DLFO, into a wiped device */
-            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "DLFO"};
-            static uint8_t d[6][SEC_REC_MAX + 64];
-            int ix[6];
-            uint32_t ln[6], rc = 0;
+        {   /* the backup: the sections, the autosave, the drum records and DLF1 DLF2 (u16 lengths since 2026-10-18), into a
+             * wiped device; DLFO, an older backup's pack (u8 lengths), restored too */
+            static const char *const TAG[7] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "DLF1", "DLF2"};
+            static uint8_t d[7][SEC_REC_MAX + 64], old[2u * (SEC_REC_MAX + 64)];
+            int ix[7], ixo = bk_find("DLFO");
+            uint32_t ln[7], rc = 0, on = 0, at, j;
             uint8_t z[1] = {0};
-            for (k = 0, nn = 1; k < 6u; k++) {
+            for (k = 0, nn = 1; k < 7u; k++) {
                 ix[k] = bk_find(TAG[k]);
                 ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
-                nn &= ix[k] >= 0 && ln[k] > 0u;
+                nn &= ix[k] >= 0 && (k == 6u || ln[k] > 0u);   /* (DLF2: J..P and AUTO; SECTIONS 4 has AUTO there) */
             }
-            check("backup: DLFO (a raw log object) is listed with data beside the sections, AUTO and DLNS", nn);
+            check("backup: DLF1 DLF2 (raw log objects) listed with data beside the sections, AUTO and DLNS; DLFO listed (restore only)",
+                  nn && ln[5] + ln[6] > 0u && ixo >= 0);
             fresh_flash();
-            for (k = 0; k < 6u; k++)
-                rc |= bk_put(ix[k], d[k], ln[k]);
+            for (k = 0; k < 7u; k++)
+                rc |= ln[k] ? bk_put(ix[k], d[k], ln[k]) : 0u;
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
             power_cycle();
@@ -1072,9 +1074,26 @@ int main(int argc, char **argv)
             project_load(1);
             check("... written back into a wiped device, a restart: the work's and section B's LFOs",
                   rc == 0 && nn && dlfo_field(1, DLF_DEST1) == 2 && dlfo_field(1, DLF_AMT1) == 21);
+            for (k = 5; k < 7u; k++)                   /* (an older backup's DLFO: the same records, u8 lengths) */
+                for (at = 0; at < ln[k]; at += 3u + j) {
+                    j = d[k][at + 1u] | (uint32_t)d[k][at + 2u] << 8;
+                    old[on++] = d[k][at], old[on++] = (uint8_t)j;
+                    memcpy(old + on, d[k] + at + 3u, j);
+                    on += j;
+                }
+            fresh_flash();
+            for (k = 0, rc = 0; k < 5u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);
+            rc |= bk_put(ixo, old, on);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            power_cycle();
+            nn = dlfo_field(9, DLF_AMT2) == -30;
+            project_load(1);
+            check("... an older backup's DLFO (u8 lengths) restored: the same LFOs", rc == 0 && nn && dlfo_field(1, DLF_AMT1) == 21);
             fresh_flash();
             for (k = 1; k < 5u; k++)
-                rc |= bk_put(ix[k], d[k], ln[k]);      /* (a backup without DLFO, as an older firmware's) */
+                rc |= bk_put(ix[k], d[k], ln[k]);      /* (a backup without them, as an older firmware's) */
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
             power_cycle();
@@ -1082,11 +1101,11 @@ int main(int argc, char **argv)
             check("... a backup without it (an older firmware's): the sections and the work load with every LFO off",
                   !dlfo_any_live() && !slg_has(DLR_ID0 + 1u));
             fresh_flash();
-            d[5][0] = 17u;                             /* (an id past the autosave's) */
+            d[5][0] = 17u;                             /* (an id past DLF1's 0 .. 8) */
             rc = bk_put(ix[5], d[5], ln[5]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
-            check("... a DLFO object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(DLR_ID0));
+            check("... a DLF1 object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(DLR_ID0));
         }
 #endif
 #endif

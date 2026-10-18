@@ -604,7 +604,7 @@ static void fm6_engine_tests(void)
         n += ui.page == e2;
     }
     t->p[P_E4] = 1; ui.page = (uint8_t)e2; ui.force = 1; frame(); ppm("fm6-engine-edit2");
-    check(!n && ui.page != e2 && !page_shown(&PAGES[e2]), "FM6: EDIT 2 (nothing on it) not shown, PATCH is");
+    check(n && page_shown(&PAGES[e2]), "FM6: EDIT 2 shown: its LPF RES HPF (2026-10-18, the filter after FM6)");
     t->p[P_E4] = 0; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);
     for (i = 0; i < 4u; i++) { encs[panel.enc[EN_K1 + i]] = 1; frames(2); }
     check(t->p[P_E4] == 0, "FM6: the knobs of EDIT 1 beyond VOICE move nothing (the \"-\" values)");
@@ -1188,13 +1188,13 @@ int main(int argc, char **argv)
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV];
+        int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV], k0 = dsend_kit[0];
         check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_INS,
-              "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, INSERTS next");
-        encs[panel.enc[EN_K2]] = 5; frames(2);
-        check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
-              "... KNOB 2 (A: REV) edits the drum track's own REV send");
-        TDRUM->p[P_REV] = r0;
+              "drum track on FX: its page, the drum track's send levels, lit in the first row, INSERTS next");
+        encs[panel.enc[EN_K2]] = -5; frames(2);
+        check(dsend_kit[0] < k0 && TDRUM->p[P_REV] == r0 && trk[0].p[P_REV] == t0,
+              "... KNOB 2 (A: REV) turns the REV level: every lane's REV send scaled by it (the drum bus sends nothing)");
+        dsend_kit[0] = k0;
     }
     tap(B_FX); frames(2);
     {

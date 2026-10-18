@@ -73,12 +73,16 @@ static void t_cards(void)
         for (k = 0; k < 4u; k++) {
             uint32_t c = env1_card(e, k), j;
             ids[k] = env1_id(e, k);
+            if (E1K_KIND(c) == E1K_NONE) {             /* (an empty card, id 0xFF: FM6's past PIT and LPF, 2026-10-18) */
+                ok &= ids[k] == 0xFFu;
+                continue;
+            }
             ok &= ids[k] < P_COUNT;
             for (j = 0; j < k; j++)
                 ok &= ids[j] != ids[k];
             nflt += E1K_KIND(c) == E1K_FLT;
             nmv += E1K_KIND(c) == 0x40u;
-            if ((E1K_KIND(c) == 0x40u || E1K_KIND(c) == 0x50u) && !ENG_IS(ENGINES[e], FM6))   /* (FM6's cards past PIT are "-": no EDIT value but VOICE) */
+            if (E1K_KIND(c) == 0x40u || E1K_KIND(c) == 0x50u || E1K_KIND(c) == 0x60u)
                 ok &= ENGINES[e]->edit[E1K_ARG(c)].max > ENGINES[e]->edit[E1K_ARG(c)].min;   /* (a real value) */
         }
         ok &= nmv <= E1_NMV;
@@ -173,8 +177,8 @@ static void t_render(void)
         for (k = 0; k < 4u; k++) {
             uint32_t c = env1_card(e, k), kind = E1K_KIND(c);
             uint64_t h;
-            if (kind == 0x50u)
-                continue;                               /* (an alias: the EDIT value itself, checked by t_cards) */
+            if (kind == 0x50u || kind == E1K_NONE)
+                continue;                               /* (an alias: the EDIT value itself, checked by t_cards; an empty card) */
             h = card_run(e, 0, k, 0, &same);
             if (h != h0)
                 printf("     (at 0: %s card %u differs)\n", ENGINES[e]->name, k + 1u);

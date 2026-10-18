@@ -18,7 +18,8 @@
  * allocation (VOICE GLMODE PRIO ALLOC, VOICES: the voices in flight), MUTE (the mixer's), the FX bypass, the pattern's
  * LEN DIV SWING (the sequencer's own grid), the LFO DEST slots and the old ENV DEST / LFO depth ids (but the drum
  * track's COLOR and SPACE macro positions, kept in two of them) (their ids are the stored depths of before: auto.c
- * lfo_leg_ev), a value with no stored id (LFO 2's, GATER's PATTERN RATE SHAPE, JUNO's MODE: auto.c MOT_TAIL) */
+ * lfo_leg_ev), a value with no stored id (LFO 2's: auto.c MOT_TAIL; GATER's PATTERN RATE SHAPE, JUNO's MODE and the shapers' amounts have
+ * one since 2026-10-18) */
 static int auto_param(const track_t *t, uint32_t id)
 {
     if (is_drum(t) && (id == P_ED_FLT || id == P_ED_SHP))

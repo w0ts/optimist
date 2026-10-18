@@ -396,9 +396,10 @@ static void t_store(void)
         reset();
     }
 #if FELUCCA_AUTO
-    check("motion: DEPTH stored as P_ENG_END + 12, both ways; PATTERN not recordable",
+    check("motion: DEPTH stored as P_ENG_END + 12, PATTERN RATE SHAPE + 19 .. 21 (2026-10-18), both ways; all recordable",
           mot_sid(P_TGATE) == P_ENG_END + 12u && mot_id(P_ENG_END + 12u) == P_TGATE && motion_param(&trk[0], P_TGATE) &&
-              !motion_param(&trk[0], P_TGPAT));
+              mot_sid(P_TGPAT) == P_ENG_END + 19u && mot_id(P_ENG_END + 21u) == P_TGSHP && motion_param(&trk[0], P_TGPAT) &&
+              motion_param(&trk[0], P_TGRATE) && motion_param(&trk[0], P_TGSHP));
 #endif
 }
 

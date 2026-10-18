@@ -49,8 +49,9 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_PM(5), P_E1X + 1, 5, E1K_PM(3), P_E1X + 2, 3, LT_E4)   /* (no filter: TOP) */
 #define E1C_GRAIN E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)
-#define E1C_FM6 E1C(E1K_PIT, P_E1PIT, E1L_PIT, E1K_AL(5), P_E0 + 5, 5, \
-    E1K_AL(6), P_E0 + 6, 6, E1K_AL(7), P_E0 + 7, 7, LT_PIT)   /* (no filter, no EDIT value but VOICE: PIT, then the "-" cards) */
+#define E1C_FM6 E1C(E1K_PIT, P_E1PIT, E1L_PIT, E1K_PM(5), P_E1X + 0, 5, \
+    E1K_NONE, 0xFF, 0, E1K_NONE, 0xFF, 0, LT_PIT)   /* (PIT, then LPF: its filter, 2026-10-18, runs on the part once a
+                                                    * block: a part move from the newest voice, a filter envelope) */
 #define E1C_SLICE E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_MV(6), P_E1X + 0, 6, E1K_MV(3), P_E1X + 1, 3, LT_FLT)   /* (PTCH: START is read at the note-on only) */
 #define E1C_PHYS E1C(E1K_FLT, P_ED_FLT, 2, E1K_PIT, P_E1PIT, E1L_PIT, \

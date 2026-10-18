@@ -7,6 +7,7 @@
       "BEND": {"text": "Pitch drop after the hit", "if": "DL_ANY"}, "LEVEL": {"text": "Drum level (dB)", "if": "DL_ANY"}}},
     {"kind": "page", "ctx": "ENV 1 MOD", "params": {
       "FLT": "ENV 1 to the filter cutoff", "PIT": "ENV 1 to the pitch", "SHP": "ENV 1 to the wave shape",
+      "LPF": "ENV 1 closes / opens the LPF",
       "RES": "ENV 1 to the resonance", "IDX": "ENV 1 to the FM index", "FB": "ENV 1 to the FM feedback",
       "MDEC": "ENV 1 to the index decay", "DTN": "ENV 1 to the detune", "SUB": "ENV 1 to the sub level",
       "TONE": "ENV 1 to the tone", "DUTY": "ENV 1 to the pulse duty", "SWP": "ENV 1 to the pitch sweep",
@@ -378,7 +379,7 @@
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "SCREEN", "params": {
-      "COLOR": "Screen colours", "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
+      "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours"}},
     {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
@@ -447,6 +448,17 @@
     {"kind": "op", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
       "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
+    {"kind": "op", "ctx": "LFO 2", "if": "DL_ANY", "params": {
+      "PHS": "Lane LFO 2 start phase", "FADE": "Lane LFO 2 fade-in"}},
+    {"kind": "op", "ctx": "LFO2 DEST", "if": "DL_ANY", "params": {
+      "DEST": "What lane LFO 2 moves", "AMT": "How much it moves it",
+      "DEST2": "Its second destination", "AMT2": "How much it moves that"}},
+    {"kind": "op", "ctx": "ENV2", "if": "DL_ANY", "params": {
+      "ATK": "Rise, in 16th steps", "DEC": "Fall to SUS, in 16th steps",
+      "SUS": "Level it stays at", "RTRG": "Restart: PLAY or every N bars"}},
+    {"kind": "op", "ctx": "ENV2 DEST", "if": "DL_ANY", "params": {
+      "DEST": "What lane ENV2 moves", "AMT": "How much it moves it",
+      "DEST2": "Its second destination", "AMT2": "How much it moves that"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_PATTERNS", "params": {
       "T1": "T1's pattern in this scene", "T2": "T2's pattern in this scene", "T3": "T3's pattern in this scene",
       "DR": "DR's pattern in this scene"}},

@@ -24,7 +24,8 @@ static void drum_env_tests(void)
     n = SCR->rows();
     for (r = 0, only = 1; r < n; r++)
         only &= snd_page(r) && snd_page(r)->fam == FAM_ENV && snd_page(r)->scope == SC_DSND;
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && n == 1u && only, "the drum track, ENV: the lane's ENV row");
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && n == 3u && only && !strcmp(snd_page(1)->title, "ENV2") &&
+              !strcmp(snd_page(2)->title, "ENV2 DEST"), "the drum track, ENV: the lane's ENV row, then its ENV2 and ENV2 DEST (2026-10-18)");
     check(!strcmp(denv_label(0), "CLICK") && !strcmp(denv_label(1), "DECAY") && !strcmp(denv_label(2), "BEND") &&
           !strcmp(denv_label(3), "LEVEL"), "drum ENV, the 808's snare: CLICK DECAY BEND LEVEL");
     check(snd_graph_page(0) == snd_page(0) && op_screen_btn() == B_ENV, "drum ENV: its own graph, the ENV button's screen");

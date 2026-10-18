@@ -67,7 +67,11 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define BK_FXID1 0xEDu                        /* BK_LOG ids of FXR1, FXR2: the FX records' packs, sections A..I, then J..P and
                                                * the autosave (bk_fx_pack: u16 lengths; FXR_MAX outgrew one u8-length pack) */
 #define BK_FXID2 0xECu
-#define BK_DLID 0xEEu                         /* BK_LOG id of DLFO: the drum lane LFO records' pack (bk_dl_pack) */
+#define BK_DLID 0xEEu                         /* BK_LOG id of DLFO: the drum lane LFO records' pack of before (u8 lengths):
+                                               * restored, never read (DLF1 DLF2 since 2026-10-18) */
+#define BK_DLID1 0xEAu                        /* BK_LOG ids of DLF1, DLF2: the same records in two packs, u16 lengths (the
+                                               * lanes' LFO 2 and ENV2 took a record past 255 bytes) */
+#define BK_DLID2 0xE9u
 typedef struct {
     char tag[4];
     uint8_t kind, id, on;                     /* id: storage.c OBJ_* / USR slot; on: the build has it */
@@ -95,7 +99,10 @@ static const bk_obj_t BK_OBJS[] = {
                                                             * object: an older backup's, restored only) */
     {{'F', 'X', 'R', '1'}, BK_LOG, BK_FXID1, 1},          /* (the same records in two packs: A..I, then J..P and AUTO) */
     {{'F', 'X', 'R', '2'}, BK_LOG, BK_FXID2, 1},
-    {{'D', 'L', 'F', 'O'}, BK_LOG, BK_DLID, 1},           /* (the drum lanes' LFO records of the sections and the autosave, the same) */
+    {{'D', 'L', 'F', 'O'}, BK_LOG, BK_DLID, 1},           /* (the drum lanes' LFO records of the sections and the autosave, one
+                                                            * object: an older backup's, restored only) */
+    {{'D', 'L', 'F', '1'}, BK_LOG, BK_DLID1, 1},          /* (the same records in two packs: A..I, then J..P and AUTO) */
+    {{'D', 'L', 'F', '2'}, BK_LOG, BK_DLID2, 1},
 #else
     {{'P', 'R', 'J', '1'}, BK_ST, OBJ_PROJECT0, 1},
     {{'P', 'R', 'J', '2'}, BK_ST, OBJ_PROJECT0 + 1, 1},
@@ -330,36 +337,41 @@ static uint32_t bk_fx_pack(uint8_t *o, uint32_t lo, uint32_t hi)
         }
     return n;
 }
-/* DLFO (dlfo_rec_log.c): the drum lanes' LFO records the same way (u8 id, u8 length, the log record). An older firmware
- * has no such object: an editor restoring this backup there skips it, and the sections load with every LFO off */
-_Static_assert(17u * (2u + sizeof dlr_rbuf) <= SEC_REC_MAX, "DLFO: every LFO record fits a section record's buffer");
-static uint32_t bk_dl_pack(uint8_t *o)
+/* DLF1, DLF2 (dlfo_rec_log.c): the drum lanes' LFO records the same way as FXR1 FXR2 (ids lo..hi, u8 id, u16 length, the
+ * log record; 2026-10-18: the lanes' LFO 2 and ENV2 took a record past a byte's length). DLFO, an older backup's: u8
+ * lengths, every id in one object (restored only). An older firmware has no DLF1 DLF2: an editor restoring there skips
+ * them, and the sections load with every lane LFO off */
+_Static_assert((17u - BK_FX_SPLIT > BK_FX_SPLIT ? 17u - BK_FX_SPLIT : BK_FX_SPLIT) * (3u + sizeof dlr_rbuf) <= SEC_REC_MAX,
+               "DLF1 / DLF2: every LFO record of a pack fits a section record's buffer");
+static uint32_t bk_dl_pack(uint8_t *o, uint32_t lo, uint32_t hi)
 {
     uint32_t id, n = 0, rl;
-    for (id = 0; id <= 16u; id++)
+    for (id = lo; id <= hi; id++)
         if ((rl = dlr_sec_get(id)) > 4u) {
-            o[n++] = (uint8_t)id, o[n++] = (uint8_t)rl;
+            o[n++] = (uint8_t)id, o[n++] = (uint8_t)rl, o[n++] = (uint8_t)(rl >> 8);
             memcpy(o + n, dlr_rbuf, rl);
             n += rl;
         }
     return n;
 }
-static uint32_t bk_dl_commit(const uint8_t *b, uint32_t n)
+static uint32_t bk_dl_commit(const uint8_t *b, uint32_t n, uint32_t lo, uint32_t hi, uint32_t hl)   /* (hl: 2 u8, 3 u16 lengths) */
 {
     uint32_t at, id, rl, seen = 0;
-    for (at = 0; at < n; at += 2u + rl) {
+    for (at = 0; at < n; at += hl + rl) {
         id = b[at];
-        rl = at + 2u <= n ? b[at + 1u] : 0u;
-        if (rl <= 4u || id > 16u || ((seen >> id) & 1u) || rl > sizeof dlr_rbuf || at + 2u + rl > n)
+        rl = at + hl <= n ? b[at + 1u] | (hl == 3u ? (uint32_t)b[at + 2u] << 8 : 0u) : 0u;
+        if (rl <= 4u || id < lo || id > hi || ((seen >> id) & 1u) || rl > sizeof dlr_rbuf || at + hl + rl > n)
             return 2;
         seen |= 1u << id;
     }
-    for (id = 0; id <= 16u; id++)
+    for (id = lo; id <= hi; id++)
         if (!((seen >> id) & 1u) && dlr_sec_put(id, b, 0))
             return 7;
-    for (at = 0; at < n; at += 2u + b[at + 1u])
-        if (dlr_sec_put(b[at], b + at + 2u, b[at + 1u]))
+    for (at = 0; at < n; at += hl + rl) {
+        rl = b[at + 1u] | (hl == 3u ? (uint32_t)b[at + 2u] << 8 : 0u);
+        if (dlr_sec_put(b[at], b + at + hl, rl))
             return 7;
+    }
     return 0;
 }
 /* the pack b (n bytes) -> the log: 0 ok, 2 not one (nothing written), 7 not written. The sections and the autosave it
@@ -414,8 +426,10 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
 #endif
         else if (o->kind == BK_LOG && (o->id == BK_FXID1 || o->id == BK_FXID2))
             n = (int)(o->id == BK_FXID1 ? bk_fx_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_fx_pack(sec_rbuf, BK_FX_SPLIT, 16));
+        else if (o->kind == BK_LOG && (o->id == BK_DLID1 || o->id == BK_DLID2))
+            n = (int)(o->id == BK_DLID1 ? bk_dl_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_dl_pack(sec_rbuf, BK_FX_SPLIT, 16));
         else if (o->kind == BK_LOG && o->id == BK_DLID)
-            n = (int)bk_dl_pack(sec_rbuf);
+            n = 0;                                     /* (DLFO: restored only, never written) */
         else if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID)
             n = (int)bk_pt_pack(o->id - BK_PID, sec_rbuf);
         else if (o->kind == BK_LOG)
@@ -511,7 +525,11 @@ static __attribute__((noinline)) uint32_t bk_commit_sec(uint32_t i)
     if (BK_OBJS[i].kind == BK_LOG && id == BK_FXID2)
         return bk_fx_commit(BK_BUF, n, BK_FX_SPLIT, 16, 3);
     if (BK_OBJS[i].kind == BK_LOG && id == BK_DLID)
-        return bk_dl_commit(BK_BUF, n);
+        return bk_dl_commit(BK_BUF, n, 0, 16, 2);      /* (an older backup's DLFO: every id, u8 lengths) */
+    if (BK_OBJS[i].kind == BK_LOG && id == BK_DLID1)
+        return bk_dl_commit(BK_BUF, n, 0, BK_FX_SPLIT - 1u, 3);
+    if (BK_OBJS[i].kind == BK_LOG && id == BK_DLID2)
+        return bk_dl_commit(BK_BUF, n, BK_FX_SPLIT, 16, 3);
     if (BK_OBJS[i].kind == BK_LOG && id >= BK_PID && id < BK_XID)
         return bk_pt_commit(BK_BUF, n);
 #if FELUCCA_ARRANGER

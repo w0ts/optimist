@@ -507,6 +507,28 @@ static void filters(void)
     render(wave_l, FS / 2);
     p = peak(wave_l, 0, FS / 2);
     CHECK(p > 1000 && p < 2 * 8 * 24000, "FM6 LPF 60 RES 127: rings, bounded (peak %.0f)", p);
+    {   /* ENV 1 MOD's LPF card (env1_cards.h E1C_FM6: a part move, P_E1X): the filter moves with the envelope */
+        static int32_t a[FS / 4];
+        uint32_t k, diff = 0;
+        for (i = 0; i < 2u; i++) {
+            fresh();
+            memset(fm6_dc, 0, sizeof fm6_dc);
+            opp(2)[FO_OL] = 85;
+            T->p[P_E5] = 90;
+            T->p[P_E1X] = (int16_t)(i ? -60 : 0);
+            trk_note_on(T, 45, 100);
+            for (k = 0; k + CTL <= FS / 4; k += CTL) {   /* (the mix: part moves are applied around it, lfo_over_in) */
+                int32_t o[CTL * 2];
+                uint32_t j;
+                mix_block(o, CTL);
+                for (j = 0; j < CTL; j++)
+                    (i ? wave_l : a)[k + j] = o[2u * j];
+            }
+        }
+        for (k = 0; k < FS / 4; k++)
+            diff += a[k] != wave_l[k];
+        CHECK(diff > 1000, "FM6 ENV 1 on LPF (depth -60): the sound changes (%u samples differ)", diff);
+    }
 }
 
 int main(void)

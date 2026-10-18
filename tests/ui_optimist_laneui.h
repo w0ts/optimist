@@ -191,9 +191,10 @@ static void lane_lfo_tests(void)
     frame();
     check(((op_btn_avail() >> B_LFO) & 1u), "a lane selected: the LFO button half lit");
     tap(B_LFO);
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_LFO && SCR->rows() == 2u && !strcmp(snd_page(0)->title, "LFO") &&
-              !strcmp(snd_page(1)->title, "LFO DEST") && op_screen_btn() == B_LFO,
-          "LFO on a lane: the lane's LFO and LFO DEST, no other row");
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_LFO && SCR->rows() == 4u && !strcmp(snd_page(0)->title, "LFO") &&
+              !strcmp(snd_page(1)->title, "LFO DEST") && !strcmp(snd_page(2)->title, "LFO 2") &&
+              !strcmp(snd_page(3)->title, "LFO2 DEST") && op_screen_btn() == B_LFO,
+          "LFO on a lane: the lane's LFO, LFO DEST, LFO 2, LFO2 DEST (2026-10-18), no other row");
     turn(EN_K1, -3);                                    /* RATE down: from 60 */
     turn(EN_K2, 1);                                     /* WAVE: TRI */
     check(c->rate < DLFO_RATE_DEF && c->wave == 1u && dlfo_is_def(dlfo_get(2)), "KNOB 1, 2: the lane's RATE, WAVE (that lane only)");

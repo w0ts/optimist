@@ -301,7 +301,7 @@ static void t_record(void)
     set_lfo(9, 60, 0, 0, 0, 0, 0, DE_DRIVE + 1u, -1);
     memcpy(want, dlfo, sizeof want);
     n = dlfo_encode(a);
-    check("three lanes set: a record of 4 + 3 x 8 bytes (version 1, 8 a lane, the lanes 0 7 9)", n == 28u && a[0] == 1u && a[1] == 8u &&
+    check("three lanes set: a record of 4 + 3 x 24 bytes (version 1, 24 a lane: LFO, LFO 2, ENV2; the lanes 0 7 9)", n == 76u && a[0] == 1u && a[1] == 24u &&
           a[2] == 0x81u && a[3] == 0x02u);
     (void)dlfo_decode(0, 0);
     check("... read back: every field equal, the other lanes at the defaults", dlfo_decode(a, n) && !memcmp(dlfo, want, sizeof want));
@@ -309,16 +309,23 @@ static void t_record(void)
     memcpy(b2, a, n);
     b2[0] = 2;
     check("a newer version: refused whole, every LFO off", !dlfo_decode(b2, n) && !dlfo_any_live());
-    for (l = 0, k = 4; l < 3u; l++) {                  /* (a newer build's 10 bytes a lane: the 8 known, 2 skipped) */
-        memcpy(b2 + k, a + 4u + 8u * l, 8);
-        b2[k + 8u] = 0xEE, b2[k + 9u] = 0xEE;
-        k += 10u;
+    for (l = 0, k = 4; l < 3u; l++) {                  /* (a newer build's 26 bytes a lane: the 24 known, 2 skipped) */
+        memcpy(b2 + k, a + 4u + 24u * l, 24);
+        b2[k + 24u] = 0xEE, b2[k + 25u] = 0xEE;
+        k += 26u;
     }
-    b2[0] = 1, b2[1] = 10;
-    check("a longer entry (10 bytes a lane, a newer build's): the first 8 read, the rest skipped", dlfo_decode(b2, k) &&
+    b2[0] = 1, b2[1] = 26;
+    check("a longer entry (26 bytes a lane, a newer build's): the first 24 read, the rest skipped", dlfo_decode(b2, k) &&
           !memcmp(dlfo, want, sizeof want));
+    for (l = 0, k = 4; l < 3u; l++) {                  /* (8 bytes a lane: a record of before 2026-10-18, the LFO alone) */
+        memcpy(b2 + k, a + 4u + 24u * l, 8);
+        k += 8u;
+    }
+    b2[1] = 8;
+    check("an entry of before (8 bytes, the LFO alone): read, LFO 2 and ENV2 at their defaults", dlfo_decode(b2, k) &&
+          !memcmp(dlfo, want, sizeof want) && dlfo_is_def(&dlfo2[0]) && !memcmp(&denv[0], &DENV_DEF, sizeof denv[0]));
     for (l = 0, k = 4; l < 3u; l++) {                  /* (6 bytes a lane: no second slot) */
-        memcpy(b2 + k, a + 4u + 8u * l, 6);
+        memcpy(b2 + k, a + 4u + 24u * l, 6);
         k += 6u;
     }
     b2[1] = 6;
@@ -467,6 +474,58 @@ static void t_cost(void)
 }
 #endif
 
+#if DLFO_ON
+/* LFO 2 and ENV2 (2026-10-18, per hit): ENV2 ATK 0 DEC 16 SUS 0 RTRG 1BAR on CUT: each bar's first hit the most, falling to
+ * nothing at its 16th step, again at the next bar; LFO 2 alone acts as the LFO does, both add; their fields round trip */
+static void t_mod2(void)
+{
+    static uint8_t a[DLFO_ENC_MAX];
+    static dlfo_t w1[DRUM_LANES], w2[DRUM_LANES];
+    static denv_t we[DRUM_LANES];
+    uint32_t i, n, bar2 = 0xFFFFu, ok;
+    reset();
+    lane_on(16);
+    TDRUM->p[P_SLEN] = 16;
+    dlfo_field_set(L, DLE_ATK, 0), dlfo_field_set(L, DLE_DEC, 16), dlfo_field_set(L, DLE_SUS, 0);
+    dlfo_field_set(L, DLE_RTRG, 1), dlfo_field_set(L, DLE_DEST1, DE_CUT + 1), dlfo_field_set(L, DLE_AMT1, 63);
+    check("ENV2 on a lane: it acts (dlfo_on), LFO and LFO 2 at their defaults", ((dlfo_on >> L) & 1u) && dlfo_is_def(&dlfo[L]) &&
+          dlfo_is_def(&dlfo2[L]));
+    nh = 0;
+    transport_req = 1;
+    while (clk_beat < 8u)
+        run_block();
+    seq_stop();
+    for (i = 1; i < nh && bar2 == 0xFFFFu; i++)
+        if (hits[i].beat >= 4u)
+            bar2 = i;
+    printf("lfo: ENV2 CUT over the hits %d %d %d .. %d | %d\n", hits[0].o[DE_CUT], hits[1].o[DE_CUT], hits[2].o[DE_CUT],
+           bar2 < nh ? hits[bar2 - 1u].o[DE_CUT] : -99, bar2 < nh ? hits[bar2].o[DE_CUT] : -99);
+    check("ENV2: the bar's first hit the most, falling over the bar, again at the next (RTRG 1BAR)", nh >= 20u && bar2 < nh &&
+          hits[0].o[DE_CUT] > hits[2].o[DE_CUT] && hits[2].o[DE_CUT] > hits[bar2 - 1u].o[DE_CUT] &&
+          hits[bar2].o[DE_CUT] == hits[0].o[DE_CUT] && hits[bar2 - 1u].o[DE_CUT] <= 4);
+    reset();
+    lane_on(16);
+    dlfo_field_set(L, DLF2_0 + DLF_RATE, 90), dlfo_field_set(L, DLF2_0 + DLF_WAVE, 3);   /* (LFO 2: a square, not a multiple of the hits' rate) */
+    dlfo_field_set(L, DLF2_0 + DLF_DEST1, DE_DRIVE + 1), dlfo_field_set(L, DLF2_0 + DLF_AMT1, 63);
+    nh = 0;
+    transport_req = 1;
+    while (clk_beat < 4u)
+        run_block();
+    seq_stop();
+    for (i = 1, ok = 0; i < nh; i++)
+        ok |= hits[i].o[DE_DRIVE] != hits[0].o[DE_DRIVE];
+    check("LFO 2 alone: the lane's DRIVE moves from hit to hit", nh >= 8u && ok && ((dlfo_on >> L) & 1u));
+    set_lfo(L, 60, 0, 0, 0, DE_TUNE + 1u, 40, 0, 0);
+    dlfo_field_set(L, DLE_DEST2, DE_LEVEL + 1), dlfo_field_set(L, DLE_AMT2, -20), dlfo_field_set(L, DLE_RTRG, 3);
+    memcpy(w1, dlfo, sizeof w1), memcpy(w2, dlfo2, sizeof w2), memcpy(we, denv, sizeof we);
+    n = dlfo_encode(a);
+    (void)dlfo_decode(0, 0);
+    check("LFO, LFO 2 and ENV2 of a lane: read back from the record, every field", dlfo_decode(a, n) && !memcmp(dlfo, w1, sizeof w1) &&
+          !memcmp(dlfo2, w2, sizeof w2) && !memcmp(denv, we, sizeof we));
+    reset();
+}
+#endif
+
 int main(void)
 {
     outbuf = mmap(0, 2u * sizeof *outbuf, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
@@ -480,6 +539,9 @@ int main(void)
     t_sync();
 #endif
     t_record();
+#if DLFO_ON
+    t_mod2();
+#endif
     t_sl24_miss();
 #if DLFO_ON
     t_cost();
