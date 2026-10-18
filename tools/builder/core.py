@@ -380,6 +380,8 @@ NEEDS = {"SEQTOOLS": {"UI": 1},
          "ED_SCRN": {"UI": 1}, "ED_SCRS": {"UI": 1}, "ED_SCOPE": {"UI": 1}, "ED_TOOLS": {"UI": 1, "SEQTOOLS": 1},   # (the web editor's commands that read the Optimist UI: nothing built with SLOOP's UI)
          "ED_FAVS": {"FAVORITES": 1},
          "BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
+# (the web editor's ED_* commands: only editor.c's live dispatch calls them; ED_LIVE off builds ed_lite.c, none of them)
+NEEDS = {**NEEDS, **{k: {**NEEDS.get(k, {}), "ED_LIVE": 1} for k in R.ITEMS if k.startswith("ED_") and k != "ED_LIVE"}}
 
 
 def counted(cfg, key):
@@ -634,22 +636,21 @@ def is_last_kit(cfg, key):
 
 
 def savings_of(cfg, costs):
-    """what switching each built item off (or its smallest choice) would save, per region"""
+    """what switching each built item off (or its smallest choice) would save, per region: the sum model with it and
+    without it, so the options already off are not saved twice (a parent's delta is measured with its options at
+    their defaults: the web editor read +24.5 KB with live editing off, 7.2 KB measured, 2026-10-18)"""
     out = {}
+    total, _, _ = additive(cfg, costs)
     for k, it in R.ITEMS.items():
         if not built(cfg, k) or (it.parent and not built(cfg, it.parent)):
             continue
         alt = 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
         if alt == cfg[k]:
             continue
-        here = item_delta(costs, k, cfg[k]) if cfg[k] != it.default else {r: 0 for r in REGIONS}
-        there = item_delta(costs, k, alt) if alt != it.default else {r: 0 for r in REGIONS}
-        if here is None or there is None:
+        if any(v != it.default and item_delta(costs, k, v) is None for v in (cfg[k], alt)):
             continue
-        p_here, p_there = pair_delta(cfg, costs), pair_delta(dict(cfg, **{k: alt}), costs)
-        t_here, t_there = model_terms(cfg), model_terms(dict(cfg, **{k: alt}))
-        out[k] = {r: here.get(r, 0) - there.get(r, 0) + p_here[r] - p_there[r] + t_here[r] - t_there[r]
-                  for r in REGIONS}
+        there, _, _ = additive(dict(cfg, **{k: alt}), costs)
+        out[k] = {r: total[r] - there[r] for r in REGIONS}
     return out
 
 
