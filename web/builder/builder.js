@@ -54,6 +54,7 @@ const TEMPLATE = `
           <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
           <p class="o-small o-dim" id="keynote"></p>
           <p class="o-small" id="buildmsg" role="status"></p>
+          <div class="o-small" id="buildwatch" role="status" aria-live="polite" hidden></div>
           <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
             <p id="buildnote" class="o-small o-dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
           </details>
@@ -481,6 +482,69 @@ async function builtBefore(stem) {
   } catch (e) { return null; }   // (offline, rate-limited: ask for a build instead)
 }
 
+/* ---- the build watch: a request sent, the builder looks for its build on the cloud-builds branch (the installer's list:
+   tools/cloud_shelf.sh) until it is there, then offers it to the installer and the simulator. The build id is the cloud key's
+   first 16 digits, known before the issue is sent; kept in this browser, so a reload goes on watching. The public API is
+   60 calls an hour per network: one a check, every 40 s (2 min once GitHub says the limit is reached), 30 min at most */
+const WATCH_KEY = "optimist-builder-watch", WATCH_EVERY = 40000, WATCH_SLOW = 120000, WATCH_FOR = 30 * 60000;
+function watchSaved() {
+  try { const w = JSON.parse(localStorage.getItem(WATCH_KEY) || "null"); return w && /^[0-9a-f]{16}$/.test(w.id) && Date.now() - w.t0 < WATCH_FOR ? w : null; }
+  catch (e) { return null; }
+}
+function watchSave(w) { try { if (w) localStorage.setItem(WATCH_KEY, JSON.stringify(w)); else localStorage.removeItem(WATCH_KEY); } catch (e) { /* no storage */ } }
+/** the build of this id on the cloud-builds branch, or null (none yet); throws "limit" when GitHub refuses the check */
+async function shelfBuild(id) {
+  const r = await fetch(`https://api.github.com/repos/${S.repo}/branches/cloud-builds`, { signal: AbortSignal.timeout(8000) });
+  if (r.status === 404) return null;                   /* (no build on the branch yet) */
+  if (r.status === 403 || r.status === 429) throw new Error("limit");
+  if (!r.ok) return null;
+  const sha = ((await r.json()).commit || {}).sha;
+  if (!/^[0-9a-f]{40}$/.test(sha || "")) return null;
+  const ix = await fetch(`https://raw.githubusercontent.com/${S.repo}/${sha}/index.json`, { signal: AbortSignal.timeout(8000) });
+  if (!ix.ok) return null;
+  const b = ((await ix.json()).builds || []).find((x) => x && x.id === id);
+  return b ? { id, name: String(b.name || ""), sim: typeof b.sim === "string" && b.sim.endsWith(".wasm") } : null;
+}
+function watchGo(where, id) {
+  if (opts.onNavigate) opts.onNavigate(where, { build: id });
+  else location.href = where === "sim" ? `../editor/?sim=${id}#sim` : `../installer/?build=${id}`;
+}
+function watchShow(state, w, b) {
+  const box = $("buildwatch");
+  box.hidden = !state;
+  if (!state) { box.replaceChildren(); return; }
+  if (state === "ready") {
+    box.replaceChildren(el("b", { text: `Built: ${b.name || w.name || "your configuration"} (build id ${w.id}). ` }),
+      el("button", { type: "button", class: "primary", text: "Install on my FM-1", onclick: () => watchGo("install", w.id) }), " ",
+      b.sim ? el("button", { type: "button", text: "Try in the simulator", onclick: () => watchGo("sim", w.id) }) : el("span", { class: "o-dim", text: "(this build has no simulator)" }), " ",
+      el("button", { type: "button", class: "quiet", text: "Dismiss", onclick: () => { watchSave(null); watchShow(null); } }));
+    return;
+  }
+  const mins = Math.max(0, Math.round((WATCH_FOR - (Date.now() - w.t0)) / 60000));
+  box.replaceChildren(state === "timeout" ? `Build ${w.id} has not appeared in 30 minutes: see your request on GitHub (it may have failed). `
+    : `Waiting for build ${w.id}: submit the request on GitHub, then it takes a few minutes${state === "slow" ? " (GitHub limits the checks from this network: checking every 2 minutes)" : ""}. Watching ${mins} more min. `,
+    el("a", { href: `https://github.com/${S.repo}/issues?q=label%3Acloud-build`, target: "_blank", rel: "noopener", text: "the requests" }), " ",
+    el("button", { type: "button", class: "quiet", text: state === "timeout" ? "Dismiss" : "Stop watching", onclick: () => { watchStop(); watchSave(null); watchShow(null); } }));
+}
+function watchStop() { clearTimeout(S.watchT); S.watchT = 0; }
+/** watch for build id (the name for the message); checked at once, then every WATCH_EVERY */
+function watchBuild(id, name, t0 = Date.now()) {
+  const w = { id, name, t0 };
+  watchStop();
+  watchSave(w);
+  const tick = async () => {
+    if (Date.now() - w.t0 >= WATCH_FOR) { watchShow("timeout", w); watchSave(null); return; }
+    let slow = false;
+    try {
+      const b = await shelfBuild(id);
+      if (b) { watchSave(null); watchShow("ready", w, b); toast(`Your build ${id} is ready: install it, or try it in the simulator`, "ok"); return; }
+    } catch (e) { slow = e.message === "limit"; }
+    watchShow(slow ? "slow" : "wait", w);
+    S.watchT = setTimeout(tick, slow ? WATCH_SLOW : WATCH_EVERY);
+  };
+  tick();
+}
+
 async function cloudBuild() {
   const ev = S.view && S.view.eval;
   if (!ev || !buildState(ev).ok) return;
@@ -490,6 +554,14 @@ async function cloudBuild() {
   try {
     if (ev.key) {
       msg.textContent = "Looking for a build of this configuration…";
+      const id = ev.key.slice(0, 16);
+      let shelf = null;
+      try { shelf = await shelfBuild(id); } catch (e) { shelf = null; }
+      if (shelf) {
+        msg.textContent = "Built before.";
+        watchShow("ready", { id, name: S.name, t0: Date.now() }, shelf);
+        return;
+      }
       const url = await builtBefore(assetStem(S.name, ev.key));
       if (url) {
         msg.replaceChildren("Built before: ", el("a", { href: url, text: url.split("/").pop() }), " (install it with the installer: A .fwsc of yours).");
@@ -501,6 +573,7 @@ async function cloudBuild() {
     if (w) w.opener = null;
     msg.replaceChildren(w ? "Opened the request on GitHub: press Submit new issue there; the answer comes in that issue in a few minutes. " : "Open the request on GitHub: ",
       el("a", { href: issue, target: "_blank", rel: "noopener", text: w ? "(the link again)" : "the request" }));
+    if (ev.key) watchBuild(ev.key.slice(0, 16), S.name);   /* (no key, a local copy: the id is only known at build time) */
   } finally {
     S.building = false;
     $("build").disabled = !buildState(ev).ok;
@@ -701,13 +774,19 @@ async function start() {
   $("fit").disabled = false;
   $("reset").disabled = false;
   await choosePreset(S.default.id);           // (always the manifest's default: the last configuration is a choice)
-  const cloud = typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null;
-  if (cloud) await openCloud(cloud);          // (the installer's and the issue's link to a cloud build's configuration)
+  const cloud = S.pendingCloud || (typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null);
+  S.pendingCloud = null;
+  if (cloud) await openCloud(cloud);          // (the installer's and the simulator's Configuration, the issue's link)
   handle.readyFlag = true;
+  const w = watchSaved();                     /* a request sent before a reload: go on watching for its build */
+  if (w) watchBuild(w.id, w.name, w.t0);
 }
 
 const handle = {
   root, state: S, ready: pyReady, readyFlag: false, choosePreset, importText, setItem,
+  /** a cloud build's configuration into the builder (the installer's and the simulator's Configuration): loaded now, or
+   * once the builder has started (its default preset would replace it) */
+  openCloud: (stem) => { if (handle.readyFlag) return openCloud(stem); S.pendingCloud = stem; return Promise.resolve(); },
   call: (...a) => pyReady.then(() => call(...a)),
   /** the tab is shown: keyboard shortcuts on, Python started (the first time) */
   activate() {
@@ -717,7 +796,7 @@ const handle = {
   /** the tab is hidden: the shortcuts off (the page, the worker and the state stay) */
   deactivate() { active = false; document.removeEventListener("keydown", onKey); document.removeEventListener("click", onDocClick); },
   /** gone: the shortcuts off, the worker ended, the container emptied */
-  destroy() { handle.deactivate(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "o-ui"); },
+  destroy() { handle.deactivate(); watchStop(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "o-ui"); },
 };
 return handle;
 }

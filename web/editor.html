@@ -6722,16 +6722,18 @@ async function appMount(name, a) {
       const [mod, site] = await Promise.all([import("./installer/installer.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
       a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }),
         onNavigate: (where, detail) => (where === "about" ? $("about").showModal() : where === "sim" ? openSimBuild(detail && detail.build)
+          : where === "build" && detail ? openBuildConfig(detail)
           : showTab({ build: "build", editor: "mixer", backup: "projects" }[where] || "mixer")) });
       note.textContent = site ? "" : t("appNoSite");
     } else if (name === "sim") {
       const [mod, site] = await Promise.all([import("./sim/sim.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
       a.handle = mod.mountSim(host, { packages: (site && site.packages) || [], repo: site && site.repo, build: QS.get("sim"),
-        onNavigate: (where, detail) => (where === "install" ? openInstallBuild(detail && detail.build) : showTab(where)) });
+        onNavigate: (where, detail) => (where === "install" ? openInstallBuild(detail && detail.build) : where === "build" && detail ? openBuildConfig(detail) : showTab(where)) });
       note.textContent = "";
     } else {
       const mod = await import("./builder/builder.js");
-      a.handle = mod.mountBuilder(host, { onNavigate: (where) => showTab({ editor: "mixer", install: "install" }[where] || "mixer") });
+      a.handle = mod.mountBuilder(host, { onNavigate: (where, detail) => (where === "install" && detail ? openInstallBuild(detail.build)
+        : where === "sim" ? openSimBuild(detail && detail.build) : showTab({ editor: "mixer", install: "install" }[where] || "mixer")) });
       note.textContent = "";
     }
   } catch (e) {
@@ -6747,6 +6749,19 @@ function appShow(name) {
 }
 /* a cloud build from one app to the other: the installer's "Try it" opens it in the simulator, the simulator's "Install this
    build" in the installer (their openBuild; mounted first if they are not yet) */
+/* a build's configuration into the Build tab (the installer's and the simulator's Configuration): a cloud build's .config
+   (builder openCloud), or a flavour of the site (its preset); the builder takes it once it has started */
+async function openBuildConfig(detail) {
+  showTab("build");
+  const a = appState.build;
+  await (a && a.mounting);
+  if (!a || !a.handle || !detail) return;
+  if (detail.cloud) { a.handle.openCloud(detail.cloud); return; }
+  if (detail.preset) {
+    for (let k = 0; k < 600 && !a.handle.readyFlag; k++) await new Promise((r) => setTimeout(r, 100));   /* (Python starting: up to 60 s) */
+    if (a.handle.readyFlag) a.handle.choosePreset(detail.preset);
+  }
+}
 async function openSimBuild(id) { showTab("sim"); const a = appState.sim; await (a && a.mounting); if (id && a && a.handle && a.handle.openBuild) a.handle.openBuild(id); }
 async function openInstallBuild(id) { showTab("install"); const a = appState.install; await (a && a.mounting); if (id && a && a.handle && a.handle.openBuild) a.handle.openBuild(id); }
 function appSwitch(prev, name) {

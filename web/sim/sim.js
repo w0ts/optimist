@@ -56,7 +56,7 @@ export const TEXT = {
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
-  install: "Install this build on my FM-1", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
+  install: "Install this build on my FM-1", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
   load: "Load from FM-1", write: "Write to FM-1", saveFile: "Save to file", loadFile: "Load file",
   writeAsk: "Write the simulator's memory onto the FM-1? This replaces the projects, presets, kits and samples on the device.",
   writeDoing: "Writing", writeDone: "Written to the FM-1: objects",
@@ -176,6 +176,7 @@ export function mountSim(container, opts = {}) {
   el.power = h("button.o-btn.primary", { type: "button", onclick: () => (engine ? stop() : start()) }, TEXT.power);
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
+  el.config = h("button.o-btn.sm", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
   el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
   el.write = h("button.o-btn.sm", { type: "button", onclick: () => writeToDevice() }, TEXT.write);
   el.save = h("button.o-btn.sm", { type: "button", onclick: () => saveToFile() }, TEXT.saveFile);
@@ -194,7 +195,7 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.install, el.reset, el.file),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.install, el.config, el.reset, el.file),
     el.status,
     el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
@@ -245,9 +246,9 @@ export function mountSim(container, opts = {}) {
   function current() {
     if (!st.choice) return null;
     const [kind, id] = st.choice.split(":");
-    if (kind === "site") { const p = packages[Number(id)]; return p ? { title: p.title, url: p.sim, id: null } : null; }
+    if (kind === "site") { const p = packages[Number(id)]; return p ? { title: p.title, url: p.sim, id: null, flavour: p.id } : null; }
     const b = st.cloud && st.cloud.builds.find((x) => x.id === id);
-    return b && b.sim ? { title: `${b.name} (${b.id})`, url: cloudFileUrl(repo, st.cloud.sha, b.sim), id: b.id, sha256: b.simSha256 } : null;
+    return b && b.sim ? { title: `${b.name} (${b.id})`, url: cloudFileUrl(repo, st.cloud.sha, b.sim), id: b.id, stem: b.stem, sha256: b.simSha256 } : null;
   }
   function choose(v) { st.choice = v; st.wasm = null; if (engine) { stop().then(start); } }
 
@@ -428,6 +429,15 @@ export function mountSim(container, opts = {}) {
     } catch (e) { deviceError(e); }
     if (dev) dev.close(); st.midiTap = null;
     el.write.disabled = false;
+  }
+  /* the picked build's configuration in the builder, to look at it or change it and build again */
+  function configThis() {
+    const b = current();
+    if (!b) return;
+    const detail = b.stem ? { cloud: b.stem } : b.flavour ? { preset: `flavour:${b.flavour}` } : null;
+    if (!detail) return;
+    if (opts.onNavigate) opts.onNavigate("build", detail);
+    else location.href = `../builder/${detail.cloud ? `?cloud=${detail.cloud}` : ""}`;
   }
   function installThis() {
     const b = current();

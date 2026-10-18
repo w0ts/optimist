@@ -17,7 +17,7 @@
 //     repo,          "owner/name" whose cloud-builds branch lists the cloud builds (default: REPO's); build: a build
 //                    id to open that list on (default: the page's ?build=, which a cloud build's issue links to)
 //     onNavigate,    (where, detail) => void, where one of "build" "backup" "editor" "about", or "sim" with { build }
-//                    (a cloud build's "try it"): the host opens it (its tab, the
+//                    (a cloud build's "try it"), "build" with { cloud: stem } (its configuration): the host opens it (its tab, the
 //                    About box); without it those are plain links (links below). The rescue guide is always a link.
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
@@ -64,7 +64,7 @@ export const TEXT = {
   cloudSearch: "Build id or name", cloudLoading: "Loading the cloud builds…", cloudNone: "No cloud builds at the moment.",
   cloudNoMatch: "No cloud build matches this.", cloudFail: "Could not load the cloud builds: ",
   cloudPick: "Choose a build in the list.", cloudConfig: "configuration", cloudCopy: "Copy the build id",
-  cloudTitle: "cloud build ", cloudTry: "try it", cloudTryTip: "Run this build in the Simulator tab (in the browser, before flashing)",
+  cloudTitle: "cloud build ", cloudConfigTip: "Open its configuration in the builder (to look at it, or change it and build again)", cloudTry: "try it", cloudTryTip: "Run this build in the Simulator tab (in the browser, before flashing)",
   buildOwn: "Or build your own firmware: ", buildLink: "open the builder",
   pkgLoading: "Checking the package…", pkgReady: "Ready: ",
   pkgPickFile: "Choose a .fwsc file.",
@@ -437,7 +437,8 @@ export function mountInstaller(container, opts = {}) {
         h("button.o-btn.sm.quiet", { type: "button", title: TEXT.cloudCopy, onclick: () => copyId(b.id) }, "copy id"),
         b.sim ? h("a", { href: `${links.sim}?sim=${b.id}#sim`, title: TEXT.cloudTryTip,
           onclick: (ev) => { if (opts.onNavigate) { ev.preventDefault(); opts.onNavigate("sim", { build: b.id }); } } }, TEXT.cloudTry) : null,
-        h("a", { href: cfg(b), target: "_blank", rel: "noopener" }, TEXT.cloudConfig)))));
+        h("a", { href: cfg(b), target: "_blank", rel: "noopener", title: TEXT.cloudConfigTip,
+          onclick: (ev) => { if (opts.onNavigate) { ev.preventDefault(); opts.onNavigate("build", { cloud: b.stem }); } } }, TEXT.cloudConfig)))));
   }
   async function copyId(id) {
     try { await navigator.clipboard.writeText(id); el.cmsg.textContent = `Copied ${id}`; }
