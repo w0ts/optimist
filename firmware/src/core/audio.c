@@ -133,6 +133,31 @@ static uint32_t entry_wait(uint32_t t0)
     return (uint32_t)e / FM1_TICKS_PER_US;
 }
 
+/* Each CTL block is rendered into `aside`, then copied into the DMA's free half only while that half is still free:
+ * the same before and after the copy, no new pending, and less than 7/8 of a half since the entry (after M-VAVE's
+ * FM1 Open V13, app/board/audio.c, GPL-3.0-only, which commits the whole half at once: a second half buffer does not
+ * fit our RAM). Once late, the rest of the half is rendered (the voices go on) but not written: the half the DMA
+ * plays is never written into, so a late half repeats old audio instead of tearing. The copy runs with the
+ * interrupts off when they were on (a nested TIMER5 must not stretch it past the DMA). -> 1 written, 0 late */
+static int32_t aside[2u * CTL] __attribute__((aligned(4)));
+#define COMMIT_TICKS ((HALF_FRAMES * 7u / 8u) * 1000000u / FS * FM1_TICKS_PER_US)
+
+static uint32_t commit_block(uint32_t half, uint32_t b, uint32_t t0)
+{
+    volatile int32_t *dst = &abuf[half * HALF_WORDS + 2u * b];
+    uint32_t ie = fm1_icfg() & 0x200u, ok = 0, i;   /* (bit 9: the global enable cli / sti clear and set) */
+    fm1_irq_off();
+    if (fm1_audio_free_half() == half && !(fm1_audio_pending() & FM1_AUDIO_HALF) && fm1_ticks() - t0 < COMMIT_TICKS) {
+        for (i = 0; i < 2u * CTL; i++)
+            dst[i] = aside[i];
+        fm1_audio_sync();
+        ok = fm1_audio_free_half() == half && !(fm1_audio_pending() & FM1_AUDIO_HALF);
+    }
+    if (ie)
+        fm1_irq_on();
+    return ok;
+}
+
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
     uint8_t p = fm1_audio_pending();
@@ -146,7 +171,8 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     ASTAGE(0x10);
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, late, a = sync_anchor(t0), w = entry_wait(t0);
-        int32_t *o = &abuf[half * HALF_WORDS];
+        uint32_t ok = 1;                                   /* (each block rendered aside, then written: commit_block) */
+        fm1_audio_ack_half();                              /* (now: a new pending while we render = the DMA moved on) */
 #if FELUCCA_CPU_GUARD
         FAR(cg_pre)();                                     /* the predicted load; a shed it asked for (cpuguard.c) */
 #else
@@ -158,15 +184,20 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         ASTAGE(0x11);
         for (b = 0; b < HALF_FRAMES; b += CTL) {
             sync_out_t = a + (((HALF_FRAMES + b) * SY_TPS_Q8) >> 8);
-            audio_block(o + 2u * b, CTL);
+            audio_block(aside, CTL);
+            if (ok)
+                ok = commit_block(half, b, t0);
         }
         ASTAGE(0x71);
-        fm1_audio_ack_half();
+        if (fm1_audio_pending() & FM1_AUDIO_HALF) {
+            fm1_audio_ack_half();                          /* (the half we missed: not rendered again, as before) */
+            ok = 0;
+        }
+        late = !ok;                                        /* the DMA moved on while we rendered: a drop-out */
         audio_halves++;
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
         if (us > audio_max_us)
             audio_max_us = us;
-        late = fm1_audio_free_half() != half;              /* the DMA moved on while we rendered: a drop-out */
         ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
         felucca_dbg.pk_all = ovl_maxall_pct(OVL_CPU0);     /* (the same measures into the reset-kept record) */
         felucca_dbg.pk_5s = ovl_max5_pct(OVL_CPU0, fm1_ms);

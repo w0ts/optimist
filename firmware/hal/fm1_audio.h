@@ -86,4 +86,5 @@ FM1_INLINE void fm1_audio_ack_aux(uint8_t p)   /* the other three pendings */
 }
 FM1_INLINE uint32_t fm1_audio_free_half(void) { return ((FM1_ALNK_CON0 >> 15) & 1u) ^ 1u; }   /* 0 / 1 */
 FM1_INLINE void fm1_audio_ack_half(void) { FM1_ALNK_CON2 |= 0x08u; }
+FM1_INLINE void fm1_audio_sync(void) { __asm__ volatile("csync" ::: "memory"); }   /* the half's writes done before the DMA */
 FM1_INLINE void fm1_audio_stop(void) { FM1_ALNK_CON0 &= ~0x800u; }
