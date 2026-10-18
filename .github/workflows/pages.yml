@@ -50,6 +50,14 @@ jobs:
           for profile in $(python3 web/make_site.py --profiles); do
             python tools/optimist.py package --profile "$profile" --out dist
           done
+      - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+        with:
+          version: 6.0.12                      # (the Simulator tab: tools/sim.py --wasm; docs/SIMULATOR.md)
+      - name: The simulator of each flavour (web/flavours.json "sim")
+        run: |
+          for profile in $(python3 web/make_site.py --profiles); do
+            python tools/sim.py build --wasm --config "config/profiles/$profile.config" --out "dist/optimist-sim-$profile.wasm"
+          done
       - name: Make the site
         env:
           OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag

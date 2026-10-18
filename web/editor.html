@@ -1433,6 +1433,7 @@
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
     <button role="tab" data-tab="build" data-t="tabBuild" data-ic="ui_knob"></button>
     <button role="tab" data-tab="install" data-t="tabInstall" data-ic="port_usb_c"></button>
+    <button role="tab" data-tab="sim" data-t="tabSim" data-ic="symbol_waves"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
@@ -1477,6 +1478,7 @@
   <section id="connectcard" class="connectcard" aria-live="polite">
     <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
+    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="sim" data-t="devSim"></option></select></label></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="#install" data-t="installerLink"></a></p>
@@ -1518,6 +1520,7 @@
   <!-- the Install and Build tabs: the installer and the builder as modules, created on first use (appShow) -->
   <section class="panel appview o-host" id="p-install" data-tab="install" hidden><div class="appnote dim" id="install-note" role="status"></div><div id="install-host"></div></section>
   <section class="panel appview o-host" id="p-build" data-tab="build" hidden><div class="appnote dim" id="build-note" role="status"></div><div id="build-host"></div></section>
+  <section class="panel appview o-host" id="p-sim" data-tab="sim" hidden><div class="appnote dim" id="sim-note" role="status"></div><div id="sim-host"></div></section>
 
   <section class="panel" id="p-mixer" data-tab="mixer" data-dev hidden>
     <div class="mixer" id="mixer"></div>
@@ -6458,7 +6461,8 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabInstall: "Install", tabBuild: "Build", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
+  tabInstall: "Install", tabBuild: "Build", tabSim: "Simulator", appSimMissing: "The simulator module is not available here.",
+  devSource: "Device", devUsb: "FM-1 (USB)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
@@ -6643,7 +6647,7 @@ const TEXT = {
 };
 const t = (k) => TEXT[k] ?? k;   /* English only */
 let lastKey = null, lastArg = "";
-const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", lost: "warn" };
+const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", lost: "warn", simoff: "warn" };
 function sayK(k, arg = "") {
   lastKey = k; lastArg = arg;
   $("status").textContent = k === "ready" ? "" : t(k) + arg;   /* (ready: the Live light says it) */
@@ -6669,7 +6673,7 @@ $("helpbtn").addEventListener("click", () => openPop("help", 0));
    is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, a drum lane, the kit,
    the kit store, the FX buses (Delay, Reverb, Chorus). One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
    last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
-const APPS = ["install", "build"];                 /* the installer and the builder: modules shipped next to this page, loaded on first use */
+const APPS = ["install", "build", "sim"];          /* the installer, the builder and the simulator: modules shipped next to this page, loaded on first use */
 const TABS = [...SCREENS, ...APPS];
 const TAB_KEY = "felucca-editor-tab";
 const OLD_TABS = { sound: "sound", sequencer: "sequence", drums: "lane", tracks: null };
@@ -6687,7 +6691,7 @@ const hasTracks = () => !!dev && !!dev.info && !!dev.info.ntrk;
 /* ---- the one-page app: Install and Build are modules (web/installer/installer.js, web/builder/builder.js), imported on first use so that Pyodide and the
    installer's logic load only on demand. They are styled by the shared tokens (web/style/optimist.css), scoped to their panel and bridged to this page's own look.
    The installer needs the MIDI port to itself: the editor's device connection is released while that tab is shown and restored on leaving. */
-const appState = { install: null, build: null, resume: false, style: null };
+const appState = { install: null, build: null, sim: null, resume: false, style: null };
 const appBusy = () => !!(appState.install && appState.install.handle && appState.install.handle.busy);
 const APP_BRIDGE = `.o-host { overflow: visible; overflow-x: clip; --surface-0: var(--bg); --surface-1: var(--s1); --surface-2: var(--s2); --surface-3: var(--s3); --line-strong: var(--s3); --text: var(--fg); --text-dim: var(--dim); --text-mute: var(--mute);
   --accent: var(--trk); --accent-hi: var(--trk); --on-accent: var(--on); --on-track: var(--on); --font-ui: var(--font); --font-mono: var(--font);
@@ -6712,15 +6716,21 @@ async function appMount(name, a) {
     if (name === "install") {
       const [mod, site] = await Promise.all([import("./installer/installer.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
       a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }),
-        onNavigate: (where) => (where === "about" ? $("about").showModal() : showTab({ build: "build", editor: "mixer", backup: "projects" }[where] || "mixer")) });
+        onNavigate: (where, detail) => (where === "about" ? $("about").showModal() : where === "sim" ? openSimBuild(detail && detail.build)
+          : showTab({ build: "build", editor: "mixer", backup: "projects" }[where] || "mixer")) });
       note.textContent = site ? "" : t("appNoSite");
+    } else if (name === "sim") {
+      const [mod, site] = await Promise.all([import("./sim/sim.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
+      a.handle = mod.mountSim(host, { packages: (site && site.packages) || [], repo: site && site.repo, build: QS.get("sim"),
+        onNavigate: (where, detail) => (where === "install" ? openInstallBuild(detail && detail.build) : showTab(where)) });
+      note.textContent = "";
     } else {
       const mod = await import("./builder/builder.js");
       a.handle = mod.mountBuilder(host, { onNavigate: (where) => showTab({ editor: "mixer", install: "install" }[where] || "mixer") });
       note.textContent = "";
     }
   } catch (e) {
-    note.textContent = `${t(name === "install" ? "appInstallMissing" : "appBuildMissing")} (${e && e.message ? e.message : e})`;
+    note.textContent = `${t({ install: "appInstallMissing", sim: "appSimMissing" }[name] || "appBuildMissing")} (${e && e.message ? e.message : e})`;
     a.failed = true;
   }
 }
@@ -6730,6 +6740,10 @@ function appShow(name) {
   else if (a.failed) { a.failed = false; a.mounting = appMount(name, a); }
   Promise.resolve(a.mounting).then(() => { if (a.handle && a.handle.activate && tab === name) a.handle.activate(); });
 }
+/* a cloud build from one app to the other: the installer's "Try it" opens it in the simulator, the simulator's "Install this
+   build" in the installer (their openBuild; mounted first if they are not yet) */
+async function openSimBuild(id) { showTab("sim"); const a = appState.sim; await (a && a.mounting); if (id && a && a.handle && a.handle.openBuild) a.handle.openBuild(id); }
+async function openInstallBuild(id) { showTab("install"); const a = appState.install; await (a && a.mounting); if (id && a && a.handle && a.handle.openBuild) a.handle.openBuild(id); }
 function appSwitch(prev, name) {
   if (prev === name) return;
   if (APPS.includes(prev) && appState[prev] && appState[prev].handle && appState[prev].handle.deactivate) appState[prev].handle.deactivate();
@@ -6905,6 +6919,10 @@ let dev = null;        /* {link, input, output, info, pdesc[], gdesc[], names[][
 let busy = 0;          /* multi-request operations in progress: no polling */
 let dragging = null;   /* key of the slider being dragged */
 let wantConnected = false;
+/* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
+   pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
+const DEVSRC_KEY = "optimist-editor-device";
+let devSrc = (() => { try { return localStorage.getItem(DEVSRC_KEY) === "sim" ? "sim" : "usb"; } catch (e) { return "usb"; } })();
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
@@ -6998,6 +7016,7 @@ async function connect() {
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
+      else if (devSrc === "sim") access = (await import("./sim/sim.js")).simAccess();
       else {
         const m = await openMidi(navigator);
         if (m.st !== "ok") { sayK(m.st); return; }
@@ -7006,7 +7025,7 @@ async function connect() {
       access.onstatechange = onState;
     }
     const ports = findPorts(access);
-    if (!ports) { sayK("nodevice"); return; }
+    if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : "nodevice"); return; }
     const { input, output } = ports;
     const link = new Link((d) => output.send(d), {
       timeout: 300,
@@ -10726,7 +10745,19 @@ async function readDlMix() {
   const d = dev;
   if (!d || !d.info.dlan) return;
   const lanes = [], trk = [];
-  for (let l = 0; l < 16; l++) lanes.push(parse[CMD.DLAN](await rq(req.dlanVals(0, l))).vals);
+  /* the lanes the build has: 10 since 902249a8, 16 before. A lane after a build's last does not answer (ed_dlan.c: bad
+     arguments, no reply), so the ones after the 10th are asked quietly, once: the first silent one ends them, and the
+     count stays for this connection (the simulator found it: the editor stopped there with "No reply from the device") */
+  const nl = d.dlLanes || 16;
+  for (let l = 0; l < nl; l++) {
+    const probe = !d.dlLanes && l >= 10;
+    const v = await rq(req.dlanVals(0, l), probe ? { timeout: 400, retries: 0, quiet: true } : undefined)
+      .then((r) => parse[CMD.DLAN](r).vals, (e) => { if (probe) return null; throw e; });
+    if (!v) break;
+    lanes.push(v);
+  }
+  if (!d.dlLanes) d.dlLanes = lanes.length;
+  while (lanes.length < 16) lanes.push([0, 0, 0, 0]);     /* (a lane the build lacks: neutral, as the strips index 16) */
   for (let k = 0; k < 4; k++) trk.push(parse[CMD.DLAN](await rq(req.dlanVals(2, k))).vals[0]);
   /* the ACCENT lane (lane 16): a build without it does not answer (asked once: after that, a late answer never takes it away) */
   let acc = null;
@@ -13263,6 +13294,15 @@ $("czfile").addEventListener("change", () => {
 });
 
 $("connect").addEventListener("click", () => connect());
+$("devsrc").value = devSrc;
+$("devsrc").addEventListener("change", (e) => {   /* another device: let the current one go, ask the new source next time */
+  devSrc = e.target.value === "sim" ? "sim" : "usb";
+  try { localStorage.setItem(DEVSRC_KEY, devSrc); } catch (err) { /* no storage */ }
+  if (dev) disconnect();
+  if (access) access.onstatechange = null;
+  access = null;
+  if (wantConnected || devSrc === "sim") connect();
+});
 $("disconnect").addEventListener("click", () => { wantConnected = false; disconnect(); });
 applyText();
 tipAll();

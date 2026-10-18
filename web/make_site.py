@@ -185,6 +185,9 @@ def editor_modules(ed, out, site):
         shutil.copy(HERE / f, ed / f)
     for f in ("installer.js", "installer.css"):
         shutil.copy(HERE / "installer" / f, ed / "installer" / f)
+    (ed / "sim").mkdir(parents=True, exist_ok=True)
+    for f in ("sim.js", "sim-worklet.js", "sim.css"):    # the Simulator tab (web/sim/; docs/SIMULATOR.md)
+        shutil.copy(HERE / "sim" / f, ed / "sim" / f)
     (ed / "installer" / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     builder_site(out, ed / "builder")
 
@@ -198,7 +201,8 @@ def flavours_of(manifest):
         hits = sorted(map(Path, glob.glob(str(HERE.parent / f["file"]))), key=lambda p: p.stat().st_mtime)
         if not hits:
             raise SystemExit(f"{manifest}: flavour {f['id']}: no package matches {f['file']} (build its profile first)")
-        out.append({**f, "pkg": hits[-1]})
+        sims = sorted(map(Path, glob.glob(str(HERE.parent / f["sim"]))), key=lambda p: p.stat().st_mtime) if f.get("sim") else []
+        out.append({**f, "pkg": hits[-1], "sim": sims[-1] if sims else None})   # (its simulator: tools/sim.py --wasm)
     return out
 
 
@@ -221,6 +225,9 @@ def main(pkg, version, out, flavours=None):
                          "pkg": "../../firmware/" + name, "product": product,
                          "sha256": hashlib.sha256(raw).hexdigest()})   # the page checks the download against it
         files.append((Path(fl["pkg"]), name))
+        if fl.get("sim"):                               # the flavour's simulator (the Simulator tab: web/sim/sim.js)
+            packages[-1]["sim"] = "../../firmware/" + name.replace(".fwsc", ".wasm")
+            files.append((Path(fl["sim"]), name.replace(".fwsc", ".wasm")))
     stock = HERE / "stock" / STOCK_NAME              # M-VAVE's V15 (Apache-2.0): the installer's return to stock, no download
     stock_sha = hashlib.sha256(stock.read_bytes()).hexdigest()
     if stock_sha != STOCK_SHA256:

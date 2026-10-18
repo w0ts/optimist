@@ -14,7 +14,7 @@ default branch, so a request cannot change how it is read.
                                                       refused (an unknown key, a rule not met) -> DIR/reply.md, exit 1
   python3 tools/cloud_build.py reply KIND DIR         the comment for KIND (building, done, failed, error) -> DIR/reply.md
   python3 tools/cloud_build.py shelf add SHELF --files OUT --config FILE
-                                                      the build (OUT/<STEM>.fwsc, -ui.zip; env KEY STEM NAME COMMIT ISSUE
+                                                      the build (OUT/<STEM>.fwsc, -ui.zip, .wasm if any; env KEY STEM NAME COMMIT ISSUE
                                                       SHA256 SUMMARY_FILE) onto the checkout SHELF of the cloud-builds
                                                       branch: its files, <STEM>.config and index.json; then the prune
   python3 tools/cloud_build.py shelf prune SHELF      the builds older than RETAIN_DAYS (env, default 30) off SHELF;
@@ -200,6 +200,8 @@ def shelf_add(builds, entry):
     kept when this one has none, a request answered from the cache having no build summary)"""
     old = next((b for b in builds if b.get("key") == entry["key"]), {})
     new = dict(entry, sizes=entry["sizes"] or old.get("sizes") or {})
+    if not new.get("sim") and old.get("sim"):
+        new["sim"] = old["sim"]                         # (its simulator, from the first build of it)
     return [new] + [b for b in builds if b.get("key") != entry["key"]]
 
 
@@ -238,9 +240,9 @@ def read_index(shelf):
 def write_shelf(shelf, builds, dropped):
     """index.json of the builds kept; the files of the dropped ones removed (those a kept build names stay)"""
     shelf = Path(shelf)
-    keep = {b[k] for b in builds for k in ("fwsc", "ui", "config")}
+    keep = {b[k] for b in builds for k in ("fwsc", "ui", "config", "sim") if b.get(k)}
     for b in dropped:
-        for k in ("fwsc", "ui", "config"):
+        for k in ("fwsc", "ui", "config", "sim"):
             if b.get(k) and b[k] not in keep and "/" not in b[k]:
                 (shelf / b[k]).unlink(missing_ok=True)
     (shelf / "index.json").write_text(json.dumps({"version": 1, "retain_days": RETAIN_DAYS, "builds": builds},
@@ -266,6 +268,10 @@ def cmd_shelf(a):
         for k in ("fwsc", "ui"):
             shutil.copyfile(Path(a.files) / entry[k], shelf / entry[k])
         shutil.copyfile(a.config, shelf / entry["config"])
+        sim = Path(a.files) / f"{entry['stem']}.wasm"   # its simulator (tools/sim.py --wasm), when the build made one
+        if sim.is_file():
+            shutil.copyfile(sim, shelf / sim.name)
+            entry["sim"] = sim.name
         builds = shelf_add(builds, entry)
     kept, dropped = shelf_prune(builds, now, retain_days(os.environ))
     write_shelf(shelf, kept, dropped)

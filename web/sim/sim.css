@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The Simulator tab (web/sim/sim.js): the shared tokens only (style/optimist.css), as the installer */
+.os { display: grid; gap: var(--sp-3); max-width: 760px; }
+.os-bar { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2) var(--sp-3); }
+.os-pick { width: auto; max-width: 100%; }
+.os-status { margin: 0; min-height: 1.2em; }
+.os-status[data-kind="err"] { color: var(--err); }
+.os-device { display: flex; flex-wrap: wrap; gap: var(--sp-4); align-items: start; }
+.os-screen { width: 480px; max-width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: var(--surface-0, var(--surface-1));
+             border: 1px solid var(--line); }
+.os-panel { display: grid; gap: var(--sp-3); flex: 1 1 220px; min-width: 0; }
+.os-knobs { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.os-knob { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface-2); display: grid;
+           place-items: center; cursor: ns-resize; user-select: none; touch-action: none; font-family: var(--font-mono); }
+.os-knob:focus-visible { outline: 2px solid var(--accent); }
+.os-mlabel { display: grid; gap: 2px; font-size: var(--fs-s, 12px); color: var(--text-dim); }
+.os-btns { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: var(--sp-1); }
+.os-btn, .os-key { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r);
+                   padding: 6px 4px; cursor: pointer; user-select: none; touch-action: none; }
+.os-btn[data-on="1"], .os-key[data-on="1"] { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+.os-btn[data-on="2"], .os-key[data-on="2"] { box-shadow: inset 0 -3px 0 var(--accent); }
+.os-btn:active, .os-key:active { background: var(--surface-3); }
+.os-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 2px; }
+.os-key { font-family: var(--font-mono); padding: 18px 0 4px; }
+.os-help { margin: 0; }

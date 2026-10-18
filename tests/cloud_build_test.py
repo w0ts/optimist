@@ -134,7 +134,8 @@ with tempfile.TemporaryDirectory() as t:
     again = CB.shelf_add(builds, dict(e1, date="2026-10-19T00:00:00Z"))
     check("shelf add: newest first; the same key again replaces it (its date renewed, its sizes kept from the cache)",
           [b["key"] for b in builds] == [KEY, KEY2] and len(again) == 2 and again[0]["date"] == "2026-10-19T00:00:00Z"
-          and CB.shelf_add(builds, dict(e1, sizes={}))[0]["sizes"] == {"flash": 526224})
+          and CB.shelf_add(builds, dict(e1, sizes={}))[0]["sizes"] == {"flash": 526224}
+          and CB.shelf_add([dict(e1, sim=f"{stem1}.wasm")], e1)[0].get("sim") == f"{stem1}.wasm")
     kept, dropped = CB.shelf_prune(builds, now)
     check(f"shelf prune: a build older than {CB.RETAIN_DAYS} days goes, a fresh one stays; a bad date goes",
           [b["key"] for b in kept] == [KEY] and [b["key"] for b in dropped] == [KEY2]
@@ -142,7 +143,7 @@ with tempfile.TemporaryDirectory() as t:
     # the command, as the workflow runs it: add onto an empty checkout, then a prune that empties it
     shelf, out = t / "shelf", t / "out"
     out.mkdir()
-    for n in (f"{stem1}.fwsc", f"{stem1}-ui.zip"):
+    for n in (f"{stem1}.fwsc", f"{stem1}-ui.zip", f"{stem1}.wasm"):
         (out / n).write_bytes(b"x")
     (t / "request.config").write_text("ENG_FM6=0\n")
     shelf.mkdir()
@@ -155,7 +156,7 @@ with tempfile.TemporaryDirectory() as t:
     check("shelf add (command): the files and the .config on the branch, the index, the expired build dropped (printed)",
           q.returncode == 0 and (shelf / f"{stem1}.fwsc").is_file() and (shelf / f"{stem1}.config").read_text() == "ENG_FM6=0\n"
           and [b["id"] for b in idx["builds"]] == [KEY[:16]] and not (shelf / f"{stem2}.fwsc").exists()
-          and q.stdout.split() == [stem2])
+          and q.stdout.split() == [stem2] and idx["builds"][0].get("sim") == f"{stem1}.wasm" and (shelf / f"{stem1}.wasm").is_file())
     q = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "shelf", "prune", str(shelf)], capture_output=True,
                        text=True, env=dict(os.environ, RETAIN_DAYS="0"))
     q2 = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "shelf", "prune", str(shelf)], capture_output=True,

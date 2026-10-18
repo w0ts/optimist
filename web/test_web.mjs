@@ -2658,7 +2658,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 10 && js(tabs.slice(0, 2)) === js(["build", "install"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 11 && js(tabs.slice(0, 3)) === js(["build", "install", "sim"]) && js(tabs.slice(3)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
@@ -3262,6 +3262,9 @@ async function installerModule() {
   const cb = INST.cloudBuilds({ builds: [good, other, { ...good, stem: "../../x" }, { ...good, fwsc: "../a.fwsc" }, { ...good, sha256: "" }, null] });
   ok(cb.length === 2 && cb[0].flash === 526224 && cb[0].fwsc === `${cstem}.fwsc` && INST.cloudBuilds(null).length === 0,
     "installer: cloud builds: only well-formed entries of the index (stem, files, sha256), the flash size");
+  const withSim = INST.cloudBuilds({ builds: [{ ...good, sim: `${cstem}.wasm` }, { ...other, sim: "../evil.wasm" }] });
+  ok(withSim[0].sim === `${cstem}.wasm` && withSim[1].sim === null && cb[0].sim === null,
+    "installer: cloud builds: a build's simulator only as <stem>.wasm (the Simulator tab's try it)");
   ok(INST.matchCloud(cb, "").length === 2 && INST.matchCloud(cb, cid).length === 1 && INST.matchCloud(cb, ` key ${cid.slice(0, 6)} `)[0].id === cid
     && INST.matchCloud(cb, "`" + cid + "`").length === 1 && INST.matchCloud(cb, cid + "0".repeat(48)).length === 1
     && INST.matchCloud(cb, "x0x drums")[0].name === "x0x drums" && INST.matchCloud(cb, "nothing").length === 0,

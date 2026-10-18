@@ -165,6 +165,19 @@ jobs:
           mv dist/optimist-*-ui.zip "out/$STEM-ui.zip"
           mv dist/optimist-*.fwsc "out/$STEM.fwsc"
           cp dist/summary.json out/summary.json
+      - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+        with:
+          version: 6.0.12
+      - name: Its simulator (the Simulator tab; a failure leaves the build without one, not failed)
+        env:
+          STEM: ${{ needs.request.outputs.stem }}
+        run: |
+          if python tools/sim.py build --wasm --config work/request.config --out "out/$STEM.wasm"; then
+            echo "simulator: out/$STEM.wasm"
+          else
+            echo "::warning::the simulator of this configuration did not build: the firmware is published without one"
+            rm -f "out/$STEM.wasm"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: firmware

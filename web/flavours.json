@@ -5,7 +5,8 @@
       "title": "Synth",
       "description": "Optimist Synth, the default build: the synth engines (X0X, ACID, JUNO, PHYS, NOISE), the dual core, the Optimist UI, Bluetooth MIDI, USB audio and the full web editor.",
       "profile": "synth",
-      "file": "dist/optimist-*-synth.fwsc"
+      "file": "dist/optimist-*-synth.fwsc",
+      "sim": "dist/optimist-sim-synth.wasm"
     }
   ]
 }

@@ -16,7 +16,8 @@
 //     source,        the tag or commit the site was made from ("" when unknown): the Source link
 //     repo,          "owner/name" whose cloud-builds branch lists the cloud builds (default: REPO's); build: a build
 //                    id to open that list on (default: the page's ?build=, which a cloud build's issue links to)
-//     onNavigate,    (where) => void, where one of "build" "backup" "editor" "about": the host opens it (its tab, the
+//     onNavigate,    (where, detail) => void, where one of "build" "backup" "editor" "about", or "sim" with { build }
+//                    (a cloud build's "try it"): the host opens it (its tab, the
 //                    About box); without it those are plain links (links below). The rescue guide is always a link.
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
@@ -30,7 +31,7 @@ const REPO = "https://github.com/w0ts/optimist";
 const LOADER_MARK = "FELUCCA-LOADER-1";             /* firmware/loader: in every package this page installs (make_site.py) */
 const isOta = (id) => /^ota-/i.test(id.model);
 const STEP1_READS = 74;                             /* the reads of step 1 on a real FM-1 (SLOOP 2.0's loader) */
-const DEFAULT_LINKS = { build: "../builder/", backup: "../editor/#backup", editor: "../editor/", about: "../../LICENSING.md" };
+const DEFAULT_LINKS = { build: "../builder/", backup: "../editor/#backup", editor: "../editor/", sim: "../editor/", about: "../../LICENSING.md" };
 
 /* every text on the page (English only). Checked against OPTIMIST.md ("Install", "Rescue, going back, credits"),
    README.md ("Your data and SLOOP 2.4") and the code (firmware/src/system/recovery.c, bootguard.h, main.c) */
@@ -63,7 +64,7 @@ export const TEXT = {
   cloudSearch: "Build id or name", cloudLoading: "Loading the cloud builds…", cloudNone: "No cloud builds at the moment.",
   cloudNoMatch: "No cloud build matches this.", cloudFail: "Could not load the cloud builds: ",
   cloudPick: "Choose a build in the list.", cloudConfig: "configuration", cloudCopy: "Copy the build id",
-  cloudTitle: "cloud build ",
+  cloudTitle: "cloud build ", cloudTry: "try it", cloudTryTip: "Run this build in the Simulator tab (in the browser, before flashing)",
   buildOwn: "Or build your own firmware: ", buildLink: "open the builder",
   pkgLoading: "Checking the package…", pkgReady: "Ready: ",
   pkgPickFile: "Choose a .fwsc file.",
@@ -198,7 +199,8 @@ export function cloudBuilds(index) {
     && b.fwsc === `${b.stem}.fwsc` && b.config === `${b.stem}.config` && /^[0-9a-f]{64}$/.test(b.sha256 || ""))
     .map((b) => ({ id: b.id, stem: b.stem, name: String(b.name || "custom").slice(0, 32), date: String(b.date || "").slice(0, 20),
       commit: /^[0-9a-f]{40}$/.test(b.commit || "") ? b.commit : "", sha256: b.sha256, fwsc: b.fwsc, config: b.config,
-      flash: b.sizes && Number.isInteger(b.sizes.flash) ? b.sizes.flash : null }));
+      flash: b.sizes && Number.isInteger(b.sizes.flash) ? b.sizes.flash : null,
+      sim: b.sim === `${b.stem}.wasm` ? b.sim : null }));   /* (its simulator: web/sim/sim.js) */
 }
 
 /** the builds a search keeps: a build id (or its start, 4+ digits, spaces and a "key" word ignored) or part of a name */
@@ -268,6 +270,7 @@ export function mountInstaller(container, opts = {}) {
   const repo = opts.repo || REPO.replace("https://github.com/", "");
   const fetchFn = opts.fetch || ((...a) => fetch(...a));
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("build") : null);
+  let wantedNow = null;                               /* (openBuild's id, while the list loads) */
   addStyle(container.ownerDocument);
 
   const st = { access: null, choice: wanted ? "cloud" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0,
@@ -410,7 +413,8 @@ export function mountInstaller(container, opts = {}) {
     renderCloud();
     try { st.cloud = await loadCloud(repo, fetchFn); }
     catch (e) { st.cloud = { err: e.message, builds: [] }; renderCloud(); st.cloud = null; return; }
-    const hit = wanted ? matchCloud(st.cloud.builds, wanted) : [];
+    const want = wantedNow || wanted;
+    const hit = want ? matchCloud(st.cloud.builds, want) : [];
     if (hit.length === 1 && st.choice === "cloud") { pickCloud(hit[0]); return; }
     renderCloud();
   }
@@ -431,6 +435,8 @@ export function mountInstaller(container, opts = {}) {
       h("span.oi-cmeta.o-dim", {}, [b.date.slice(0, 10), b.commit ? `from ${b.commit.slice(0, 7)}` : null, b.flash ? `flash ${b.flash.toLocaleString("en")} B` : null].filter(Boolean).join(" · ")),
       h("span.oi-cacts", {},
         h("button.o-btn.sm.quiet", { type: "button", title: TEXT.cloudCopy, onclick: () => copyId(b.id) }, "copy id"),
+        b.sim ? h("a", { href: `${links.sim}?sim=${b.id}#sim`, title: TEXT.cloudTryTip,
+          onclick: (ev) => { if (opts.onNavigate) { ev.preventDefault(); opts.onNavigate("sim", { build: b.id }); } } }, TEXT.cloudTry) : null,
         h("a", { href: cfg(b), target: "_blank", rel: "noopener" }, TEXT.cloudConfig)))));
   }
   async function copyId(id) {
@@ -620,5 +626,14 @@ export function mountInstaller(container, opts = {}) {
   return {
     unmount() { window.removeEventListener("beforeunload", beforeUnload); if (st.access) st.access.onstatechange = null; container.replaceChildren(); },
     get busy() { return st.busy; },
+    /** a cloud build chosen from outside (the simulator's "Install this build"): the list opened on its id */
+    openBuild(id) {
+      if (st.busy || !/^[0-9a-f]{16}$/.test(id || "")) return;
+      el.csearch.value = id;
+      st.choice = "cloud";
+      syncChoice();
+      if (st.cloud && !st.cloud.loading) { const hit = matchCloud(st.cloud.builds, id); if (hit.length === 1) { pickCloud(hit[0]); return; } renderCloud(); }
+      else { wantedNow = id; loadChoice(); }
+    },
   };
 }
