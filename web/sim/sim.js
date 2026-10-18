@@ -65,7 +65,10 @@ export const TEXT = {
   loadingFile: "Loading the file…", loadedFile: "Loaded from the file: objects", loadFileFail: "Could not load the file: ",
   loadNeedsRun: "Start the simulator first, then load into it.",
   loadNoMidi: "This browser has no Web MIDI: use Chrome or Edge to read the FM-1.",
-  loadFinding: "Looking for the FM-1 over USB…", loadNoDevice: "No FM-1 found over USB. Connect it (Chrome or Edge), and run Optimist on it.",
+  loadFinding: "Looking for the FM-1 over USB…",
+  loadAllow: "Allow MIDI for this page: the browser asks in a small bubble by the address bar (\"Use your MIDI devices\", with SysEx).",
+  loadNoAllow: "No answer to the browser's MIDI question (the bubble by the address bar): allow it, then press the button again.",
+  loadMidiDenied: "MIDI is blocked for this page: allow it in the site settings (the icon at the left of the address bar), then press the button again.", loadNoDevice: "No FM-1 found over USB. Connect it (Chrome or Edge), and run Optimist on it.",
   loadDoing: "Reading", loadFinishing: "Writing it in…", loadDone: "Loaded from the FM-1: objects", loadSkipped: "skipped, this build cannot read",
   loadNoAnswer: "The FM-1 did not answer. Check it is the right device and runs Optimist (the web editor should connect to it too).",
   loadNoBackup: "This FM-1's firmware has no editor Backup, so its memory cannot be read. Flash a current build (with the editor) first.",
@@ -384,7 +387,18 @@ export function mountSim(container, opts = {}) {
      Throws with a user message if there is no Web MIDI, no device, or the device does not answer (old firmware). */
   async function openDevice() {
     if (typeof navigator === "undefined" || typeof navigator.requestMIDIAccess !== "function") throw new Error(TEXT.loadNoMidi);
-    const acc = await navigator.requestMIDIAccess({ sysex: true });
+    /* the browser asks once per site address (a new one: the local site's port) with a small bubble by the address bar;
+       till it is answered the request just waits: say so, and give up after a minute instead of looking stuck */
+    let perm = null;
+    try { perm = (await navigator.permissions.query({ name: "midi", sysex: true })).state; } catch (e) { perm = null; }
+    if (perm === "denied") throw new Error(TEXT.loadMidiDenied);
+    if (perm === "prompt") say(TEXT.loadAllow);
+    let timer = 0;
+    const acc = await Promise.race([
+      navigator.requestMIDIAccess({ sysex: true }).catch(() => { throw new Error(TEXT.loadMidiDenied); }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(TEXT.loadNoAllow)), 60000); }),
+    ]).finally(() => clearTimeout(timer));
+    say(TEXT.loadFinding);
     const port = (m) => [...m.values()].find((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
     const input = port(acc.inputs), output = port(acc.outputs);
     if (!input || !output) throw new Error(TEXT.loadNoDevice);
@@ -399,7 +413,8 @@ export function mountSim(container, opts = {}) {
   }
   function deviceError(e) {
     const msg = e && e.message || String(e);
-    say(/command 43/.test(msg) ? TEXT.loadNoBackup : [TEXT.loadNoMidi, TEXT.loadNoDevice, TEXT.loadNoAnswer].includes(msg) ? msg : TEXT.loadFail + msg, "err");
+    say(/command 43/.test(msg) ? TEXT.loadNoBackup : [TEXT.loadNoMidi, TEXT.loadNoDevice, TEXT.loadNoAnswer, TEXT.loadMidiDenied, TEXT.loadNoAllow].includes(msg)
+      ? msg : TEXT.loadFail + msg, "err");
   }
   /* "Load from FM-1": read the real device's whole user memory into the running simulator (the sim restarts on it). */
   async function loadFromDevice() {
