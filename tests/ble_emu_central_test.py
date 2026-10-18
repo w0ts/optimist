@@ -17,11 +17,10 @@ writes, pairing required as Apple's peripherals do, optionally a resolvable priv
              reboot by resolving its new address with the IRK the pairing gave
   none       NONE picked while connected: the link left (our terminate), no search afterwards
   iphone     an iPhone-like peripheral (`auth`: its MIDI characteristic needs an authenticated link, as the iPhone
-             showed on the FM-1): Just Works first (silent), its Pairing Failed after the keys and Insufficient
-             Authentication again -> the FM-1 pairs again on the same link with passkey entry (DisplayOnly, MITM),
-             shows the passkey; the virtual phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's smp_passkey) and
-             types it -> the encryption paused and restarted with the new key (LL_PAUSE_ENC), authenticated,
-             subscribed, notes, one connection; LAST keeps the authenticated bond and that it needs MITM; reboot ->
+             showed on the FM-1; it can type): one pairing, passkey entry at once (DisplayOnly, MITM; since
+             2026-10-18 no Just Works before it, whose second alert macOS dropped), the passkey shown; the virtual
+             phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's smp_passkey) and types it -> authenticated,
+             subscribed, notes, one connection, no encryption pause (the link was plain); LAST keeps the authenticated bond and that it needs MITM; reboot ->
              it reconnects with that LTK (authenticated, no pairing, no passkey), the data length exchanged before
              its LL_ENC_REQ (the model's iPhone, as blell-dev6: its own LL_LENGTH_REQ otherwise, and any PDU of ours
              during the encryption start makes it leave with MIC Failure 0x3D)
@@ -187,7 +186,7 @@ def none_checks(diag, fwsc, tmp, flash, spec, name):
 
 
 def iphone_checks(diag, fwsc, tmp, on):
-    """an iPhone-like peripheral (auth): Just Works refused -> passkey entry typed by its user -> authenticated, LAST
+    """an iPhone-like peripheral (auth): passkey entry at once, typed by its user -> authenticated, LAST
     with the level; reboot -> its authenticated LTK; and a passkey typed wrong: one failure, no loop"""
     syms = E.elf_symbols(fwsc, ("ble_store", "smp_passkey"))
     if "smp_passkey" not in syms:
@@ -204,15 +203,13 @@ def iphone_checks(diag, fwsc, tmp, on):
     p = peripheral(out, name)
     typed = re.findall(r"^ble_passkey typed=(\d{6})", out, re.M)
     print(f"    (iphone pick: {p})")
-    check("iphone: Just Works first (no passkey, nothing to type), its Pairing Failed after the keys, refused again",
-          num(p, "late_fails") == 1 and num(p, "auth_errors") >= 2, str(p))
-    check("iphone: paired again on the same link with passkey entry; the passkey on the FM-1's screen (smp_passkey) "
-          f"typed by the phone's user ({typed})", num(p, "passkey_waits") == 1 and len(typed) == 1 and
-          p.get("passkey") == typed[0], str(p))
-    check("iphone: the new key through the encryption pause (LL_PAUSE_ENC_REQ / RSP), authenticated (passkey bond), "
-          "subscribed; exactly one connection (no reconnection, no pairing loop)",
+    check("iphone: one pairing, passkey entry at once (no Just Works before it, no late Pairing Failed); the passkey on "
+          f"the FM-1's screen (smp_passkey) typed by the phone's user ({typed})", num(p, "late_fails") == 0 and
+          num(p, "passkey_waits") == 1 and len(typed) == 1 and p.get("passkey") == typed[0], str(p))
+    check("iphone: authenticated (passkey bond), subscribed; exactly one connection (no reconnection, no pairing loop), "
+          "no encryption pause (the link was plain)",
           num(p, "auth_pairings") == 1 and p.get("authenticated") == "1" and p.get("subscribed") == "1" and
-          num(p, "conns") == 1 and num(p, "pauses") == 1 and "LL_PAUSE_ENC_RSP" in p.get("ll", ""), str(p))
+          num(p, "conns") == 1 and num(p, "pauses") == 0, str(p))
     check(f"iphone: its notes play the synth ({loud(out)} non-silent frames), the FM-1's key reaches it",
           loud(out) > 1000 and num(p, "ntf") > 3 and num(p, "writes") >= 1, str(p))
     st = store_read(out, syms)
