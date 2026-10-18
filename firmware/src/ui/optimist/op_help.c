@@ -146,13 +146,117 @@ static uint32_t hl_dest(char *b)
     }
     return 0x10000u | (uint32_t)TSEL->eng_req << 8 | v;
 }
+/* where an automated value's change comes from (the user, 2026-10-18: "when on a automated parameter to know in the
+ * bottom line where autom/plock/mod come from"): the sources acting on cell c's value now, as words into b (64 bytes), each
+ * a bit of the result (0: none). A synth part's value: LOCK (a lock in force, auto_base.c lk_param), MOTION (moved by a
+ * hold, motion_active), the modulation slots aimed at it (LFO A / B, LFO2 A / B, ENV2 A / B: their DEST its LT_*, or FLT
+ * SHP on the engine's cutoff and shape cards; an AMT 0 slot does nothing), ENV1 (an ENV 1 MOD card moving it), MACRO (a
+ * macro off home changes it). A drum lane's value: LOCK MOTION (dla), its LFO, LFO 2, ENV2 slots */
+static void hl_word(char *b, const char *w)
+{
+    uint32_t n = str_len(b);
+    if (n)
+        b[n++] = ' ';
+    str_cpy(b + n, w, 64 - n);
+}
+#if !(FELUCCA_MOTION || FELUCCA_PLOCK)
+#define AB_ON(k, id) 0
+#endif
+static uint32_t hl_src_synth(uint32_t id, char *b)
+{
+    static const char *const SL[3][2] = {{"LFO-A", "LFO-B"}, {"LFO2-A", "LFO2-B"}, {"ENV2-A", "ENV2-B"}};
+    const track_t *t = TSEL;
+    uint32_t k = song.sel % NTRK, m = 0, j, s, n;
+    int32_t dc = effv_dest(t, 0), ds = effv_dest(t, 1);
+#if FELUCCA_PLOCK
+    for (j = 0; j < lk_n[k] && j < NLOCK; j++)
+        if (lk_param[k][j] == id)
+            m |= 1u, hl_word(b, "LOCK");
+#endif
+    if (!(m & 1u) && id < P_COUNT && AB_ON(k, id))
+        m |= 2u, hl_word(b, "MOTION");
+    for (j = 0; j < 3u; j++) {                          /* LFO, LFO 2, ENV2's two slots each */
+        uint32_t f = j == 0u ? P_L1DA : j == 1u ? P_L2DA : P_COUNT;
+#if FELUCCA_ANALOG2
+        if (j == 2u)
+            f = P_N2DA;
+#endif
+        for (s = 0; f < P_COUNT && s < 2u; s++) {
+            int32_t d = t->p[f + 2u * s];
+            uint32_t q = P_COUNT;
+            if (!d || !t->p[f + 2u * s + 1u])
+                continue;
+            if (d == LT_FLT)
+                q = dc >= 0 ? (uint32_t)dc : P_COUNT;
+            else if (d == LT_SHP)
+                q = ds >= 0 ? (uint32_t)ds : P_COUNT;
+            else if (!LT_CLASSIC(d))
+                (void)lo_dest(t, d, &q);
+            if (q == id)
+                m |= 4u << j, hl_word(b, SL[j][s]);
+        }
+    }
+    for (n = 0; n < 4u; n++) {                          /* ENV 1 MOD's cards: a move of this EDIT value, FLT SHP on the cards */
+        uint32_t c = env1_card(t->eng_req, n), cid = env1_id(t->eng_req, n);
+        if (cid >= P_COUNT || !t->p[cid])
+            continue;
+        if ((E1K_MOVES(c) && id == P_E0 + E1K_ARG(c)) || (E1K_KIND(c) == E1K_FLT && (int32_t)id == dc) ||
+            (E1K_KIND(c) == E1K_SHP && (int32_t)id == ds)) {
+            m |= 0x20u, hl_word(b, "ENV1");
+            break;
+        }
+    }
+#if FELUCCA_MACROS
+    if (id < P_COUNT && mac_effective(k, id, t->p[id]) != t->p[id])
+        m |= 0x40u, hl_word(b, "MACRO");
+#endif
+    return m;
+}
+static uint32_t hl_src(char *b)
+{
+    cell_t c;
+    uint32_t m = 0;
+    b[0] = 0;
+    if (glo_cycle() || hl_menu() || (ui.scr == SCR_STEP && st.held))
+        return 0;
+    SCREENS[ui.scr % SCR_N].cell(ui.row[ui.scr], hl.k, &c);
+    if (c.kind != CK_VAL || !c.vp)
+        return 0;
+#if DL_UI
+    if (c.vp >= dsv && c.vp < dsv + DE_N) {             /* a drum lane value */
+        uint32_t l = lane_selected() % DRUM_LANES, v = (uint32_t)(c.vp - dsv), j, s;
+#if DLA_ON
+        if ((dla.lm[l] >> v) & 1u)
+            m |= 1u, hl_word(b, "LOCK");
+        else if ((dla.hm[l] >> v) & 1u)
+            m |= 2u, hl_word(b, "MOTION");
+#endif
+#if DLFO_ON
+        for (j = 0; j < 3u; j++)
+            for (s = 0; s < LFO_NSLOT; s++) {
+                const lfo_slot_t *q = j == 0u ? &dlfo[l].s[s] : j == 1u ? &dlfo2[l].s[s] : &denv[l].s[s];
+                static const char *const SL[3][2] = {{"LFO-A", "LFO-B"}, {"LFO2-A", "LFO2-B"}, {"ENV2-A", "ENV2-B"}};
+                if (q->dest == v + 1u && q->amt)
+                    m |= 4u << j, hl_word(b, SL[j][s]);
+            }
+#endif
+        (void)j, (void)s;
+        return m;
+    }
+#endif
+    if (!is_drum(TSEL) && c.vp >= tsel()->p && c.vp < tsel()->p + P_COUNT)
+        return hl_src_synth((uint32_t)(c.vp - tsel()->p), b);
+    return 0;
+}
 /* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the band is cleared (nothing else
  * ever draws on it: no band to draw again) */
 static void hl_pre(uint32_t ov)
 {
     int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u && ov != 4u;
-    if (vis && !hl_menu() && !lay_hint_t && !hl_text())
-        vis = 0;                                        /* (a value with no line: nothing; a menu keeps its empty line) */
+    if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
+        char w[64];
+        vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
+    }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
     if (vis == hl.on)
         return;
     hl.on = (uint8_t)vis;
@@ -165,13 +269,25 @@ static void hl_pre(uint32_t ov)
 /* after the bands: the line, when what it says changed */
 static void hl_post(void)
 {
-    char b[64];
-    uint32_t off, sig, dst;
+    char b[64], w[64], t[PH_LINE];
+    uint32_t off, sig, dst, src;
     if (!hl.on)
         return;
     off = lay_hint_t ? 0xFFFFu : hl_text();             /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
     dst = lay_hint_t ? 0u : hl_dest(b);                 /* (a DEST on an engine value: its engine and name) */
-    sig = hu(hu(hu(0x4E1Fu, settings.palette), off), dst);
+    src = lay_hint_t ? 0u : hl_src(w);                  /* (an automated value: where its change comes from) */
+    sig = hu(hu(hu(hu(0x4E1Fu, settings.palette), off), dst), src);
+    if (src) {                                          /* the sources first ("LOCK LFO-A: Filter cutoff"), cut to the band */
+        uint32_t n = str_len(w);
+        if (dst || (off && off != 0xFFFFu)) {
+            str_cpy(w + n, ": ", 64 - n);
+            str_cpy(w + n + 2u, dst ? b : ph_text(off, t), 64 - n - 2u);
+        }
+        for (n = str_len(w); n > 1u && text_w(&FONT_S, w) > 232; n--)
+            w[n - 1u] = 0;
+        str_cpy(b, w, sizeof b);
+        dst = 1;                                        /* (drawn as the composed line below) */
+    }
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;

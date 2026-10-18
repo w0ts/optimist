@@ -545,6 +545,25 @@ static void main_page_tests(void)
     ok &= TSEL->eng_req != e;
     *TSEL = keep;
     check(ok, "the SOUND row: KNOB 2 the next sound, KNOB 1 the next engine");
+#if FELUCCA_PARAM_HELP
+    {   /* where an automated value's change comes from (hl_src): LFO A on the MAIN page's first card (ANALOG: CUT, P_E4) */
+        char b[64];
+        uint32_t m;
+        memset(snd_mem, 0, sizeof snd_mem);             /* (EDIT on MAIN again: the SOUND row was the last shown) */
+        go_home();
+        tap(B_EDIT);
+        hl.k = 0;
+        m = hl_src(b);
+        check(!m, "an untouched value: no source on the help line");
+        TSEL->p[P_L1DA] = (int16_t)(LT_E1 + (main_pg.id[0] - P_E0));
+        TSEL->p[P_L1AA] = 30;
+        m = hl_src(b);
+        check(main_pg.id[0] >= P_E0 && main_pg.id[0] <= P_E7 && m && strstr(b, "LFO-A"),
+              "LFO A aimed at MAIN's first value: the help line says LFO-A");
+        TSEL->p[P_L1AA] = 0;
+        check(!hl_src(b), "... its AMT at 0: no source");
+    }
+#endif
     memset(snd_mem, 0, sizeof snd_mem);
     go_home();
     memcpy(trk, keep_all, sizeof keep_all);
