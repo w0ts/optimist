@@ -724,6 +724,28 @@ Outputs: `optimist-work/btclassic/run2/`. The Pi `D8:3A:DD:DE:2A:93` about 1 m a
   receptions: both 85 and 399 us (both half-slots), so the failures are not tied to one half-slot.
 - The FHS's `dclk` print sign-extends 28 bits instead of 27: the values shown are wrong (fixed in the next probe).
 
+### 14.5 Probe 3 on the FM-1: a page that connects, LMP set up (2026-10-18) [M:hw]
+
+Outputs: `optimist-work/btclassic/run3/`, flashes in `FLASHES.md`.
+
+- **btpage D8:3A:DD:DE:2A:93 connected** (master, LT_ADDR 1, no clock estimate: both trains): the Pi's ID, our FHS,
+  its second ID, our POLL, its NULL (§8.3, exactly the library's three steps). The link then ran on the engine's own
+  POLL / NULL for 40 s (about 22 good packets a second, NULL from the Pi, 3 % bad) until we sent LMP_detach.
+- **LMP (bt_lmp.c):** we sent features_req, version_req, host_connection_req; the Pi answered features_res
+  (`BF FE CF FE DB FF 7B 87`), version_res (LMP 0x09 = 5.0, company 0x0131, subversion 0x6119), accepted(51); we sent
+  setup_complete, it sent setup_complete, then name_req, which we answered "OPTIMIST BT". **The Pi's btmon: Connect
+  Request from our address, Accept, Connect Complete, MGMT Device Connected; at our detach, Disconnect Complete reason
+  0x13.** So the TX buffer hand-over (§5.5: payload, `txphdr` LLID 3, `linkcntl` DM1, clear `txbufNcntl` bit0), the
+  engine's polling of an empty buffer, the RX buffers in the connection (`rxbufNcntl` bit0 = full) and ARQ all work
+  as mapped.
+- **The clock estimate must be even** (the library's HCI offset << 1): with an odd one the page answers came only
+  with the odd exchange entries and the POLL step never completed (the master's slots moved by one).
+- **Run priority 5** (above the audio) for IRQ 40 / 41 during a run; changed through the ICFG priority field only:
+  rewriting the vectors after boot faulted (the RAM top is write-guarded).
+- **The LE block's enable (`noble` A/B right after a boot):** inquiry found 3 devices including the Pi without it and
+  2 with it: no measurable effect at run priority 5. The §14.4 improvement is more likely the RX priority and AGC.
+  It stays on by default (stock's order), `noble` skips it on the first run after a boot.
+
 ---
 
 ## 15. Verdict for driving BR/EDR ourselves

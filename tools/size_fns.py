@@ -77,7 +77,7 @@ OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c"
             "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic inquiry probe (BT_INQ_PROBE): its interrupts and the main loop's prints
-            "bt/bt_inq.c", "bt/bt_inq_core.c"]
+            "bt/bt_inq.c", "bt/bt_inq_core.c", "bt/bt_page.c", "bt/bt_lmp.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",

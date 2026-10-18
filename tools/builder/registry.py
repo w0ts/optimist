@@ -847,10 +847,11 @@ _add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (c
           "an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its "
           "address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an "
           "inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns "
-          "(entries, RX gain, window, frequency, carrier offset) and bttrace prints their first interrupts. Nothing is "
-          "connected, no audio. "
-          "About 19 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.4 KB of RAM and "
-          "10.5 KB of pool.",
+          "(entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. "
+          "btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host "
+          "connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. "
+          "About 26 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.8 KB of RAM and "
+          "13 KB of pool.",
      symbols=("bti_st",))
 
 for _it in _ITEMS:

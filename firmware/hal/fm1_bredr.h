@@ -223,6 +223,17 @@ static void fm1_br_irq_attach(uint32_t prio)
     fm1_irq_hold(FM1_IRQ_BREDR, 1);
     fm1_irq_hold(FM1_IRQ_BT_SLOT, 1);
 }
+/* both lines' priority changed at run time (IRQs off): the ICFG priority field only. The vectors are not written
+ * again: the RAM top holding them is write-guarded after boot (fm1_guard_lock_top; rewriting one faulted on the FM-1) */
+static void fm1_br_irq_prio(uint32_t prio)
+{
+    static const uint8_t n[2] = {FM1_IRQ_BREDR, FM1_IRQ_BT_SLOT};
+    uint32_t i, sh;
+    for (i = 0; i < 2u; i++) {
+        sh = (n[i] & 7u) * 4u;
+        FM1_ICFG(n[i]) = (FM1_ICFG(n[i]) & ~(0xEu << sh)) | ((prio & 7u) << 1) << sh;
+    }
+}
 FM1_INLINE void fm1_br_irqs_hold(int hold)
 {
     fm1_irq_hold(FM1_IRQ_BREDR, hold);
