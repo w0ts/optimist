@@ -3305,6 +3305,30 @@ async function installerModule() {
     "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
   ok(/--t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")) && /--ok: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")),
     "web style: one colour on every page (the blue --t1): the track names and an OK are that blue");
+  /* the cloud builds (the cloud-builds branch's index.json, tools/cloud_build.py shelf) */
+  const cid = "e1fb1e6cc99a2056", cstem = `optimist-synth-${cid}`, csha = "1".repeat(40);
+  const good = { id: cid, key: cid + "0".repeat(48), stem: cstem, name: "Synth", commit: "a".repeat(40), date: "2026-10-18T06:25:00Z", sha256: "e".repeat(64),
+    sizes: { flash: 526224 }, fwsc: `${cstem}.fwsc`, ui: `${cstem}-ui.zip`, config: `${cstem}.config` };
+  const other = { ...good, id: "abcd000000000000", stem: "optimist-x0x-drums-abcd000000000000", name: "x0x drums",
+    fwsc: "optimist-x0x-drums-abcd000000000000.fwsc", config: "optimist-x0x-drums-abcd000000000000.config" };
+  const cb = INST.cloudBuilds({ builds: [good, other, { ...good, stem: "../../x" }, { ...good, fwsc: "../a.fwsc" }, { ...good, sha256: "" }, null] });
+  ok(cb.length === 2 && cb[0].flash === 526224 && cb[0].fwsc === `${cstem}.fwsc` && INST.cloudBuilds(null).length === 0,
+    "installer: cloud builds: only well-formed entries of the index (stem, files, sha256), the flash size");
+  ok(INST.matchCloud(cb, "").length === 2 && INST.matchCloud(cb, cid).length === 1 && INST.matchCloud(cb, ` key ${cid.slice(0, 6)} `)[0].id === cid
+    && INST.matchCloud(cb, "`" + cid + "`").length === 1 && INST.matchCloud(cb, cid + "0".repeat(48)).length === 1
+    && INST.matchCloud(cb, "x0x drums")[0].name === "x0x drums" && INST.matchCloud(cb, "nothing").length === 0,
+    "installer: cloud search: a pasted build id (or its start, or the full key, backticks and a 'key' word ignored), or part of a name");
+  const calls = [];
+  const fakeFetch = (routes) => async (url) => { calls.push(url); const r = routes[url];
+    return r === undefined ? { ok: false, status: 404 } : { ok: true, status: 200, json: async () => r }; };
+  const api = "https://api.github.com/repos/me/o/branches/cloud-builds";
+  const lc = await INST.loadCloud("me/o", fakeFetch({ [api]: { commit: { sha: csha } }, [`https://raw.githubusercontent.com/me/o/${csha}/index.json`]: { builds: [good] } }));
+  const none = await INST.loadCloud("me/o", fakeFetch({}));
+  let limit = "";
+  try { await INST.loadCloud("me/o", async () => ({ ok: false, status: 403 })); } catch (e) { limit = e.message; }
+  ok(lc.sha === csha && lc.builds.length === 1 && calls.includes(`https://raw.githubusercontent.com/me/o/${csha}/index.json`)
+    && none.builds.length === 0 && /limit/.test(limit) && INST.cloudFileUrl("me/o", csha, `${cstem}.fwsc`).endsWith(`/${csha}/${cstem}.fwsc`),
+    "installer: cloud list: the branch's commit from the API, index.json and the files from raw by that commit; no branch = none; the rate limit said");
   const mod = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
   ok(/export function mountInstaller\(container, opts = \{\}\)/.test(mod) && !/innerHTML/.test(mod) && !/confirm\(/.test(mod) && /showModal\(\)/.test(mod),
     "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");

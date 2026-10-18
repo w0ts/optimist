@@ -13,6 +13,16 @@ default branch, so a request cannot change how it is read.
                                                       --json` at that commit said -> the key and the asset stem;
                                                       refused (an unknown key, a rule not met) -> DIR/reply.md, exit 1
   python3 tools/cloud_build.py reply KIND DIR         the comment for KIND (building, done, failed, error) -> DIR/reply.md
+  python3 tools/cloud_build.py shelf add SHELF --files OUT --config FILE
+                                                      the build (OUT/<STEM>.fwsc, -ui.zip; env KEY STEM NAME COMMIT ISSUE
+                                                      SHA256 SUMMARY_FILE) onto the checkout SHELF of the cloud-builds
+                                                      branch: its files, <STEM>.config and index.json; then the prune
+  python3 tools/cloud_build.py shelf prune SHELF      the builds older than RETAIN_DAYS (env, default 30) off SHELF;
+                                                      their stems -> stdout (one a line: the workflow drops their assets)
+
+The cloud-builds branch is where the web installer finds the builds: GitHub's release downloads send no CORS header,
+so a page cannot fetch them; raw.githubusercontent.com does. The branch is one commit, replaced at each change (its
+history does not grow), and deleted when the last build on it expires.
 
 Outputs for the workflow go to $GITHUB_OUTPUT (KEY=value lines) when it is set, and to stdout.
 """
@@ -20,11 +30,15 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 RELEASE_TAG = "cloud-builds"            # the pre-release whose assets are the builds, named by asset_stem()
+SHELF_BRANCH = "cloud-builds"           # the branch the web installer reads them from (index.json + the files)
+RETAIN_DAYS = 30                        # a build not asked for again in this many days leaves the branch and the release
 MAX_BODY = 20000                        # an issue body longer than this is not a request of the builder's
 SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 KEY = re.compile(r"[0-9a-f]{64}")
@@ -141,10 +155,15 @@ def reply(kind, env):
             rows = [f"{quiet(r)} {v:,}" for r, v in s.items() if isinstance(v, int)] if isinstance(s, dict) else []
             sizes = "\n\nSizes: " + ", ".join(rows) if rows else ""
         cached = "This configuration was built before: here it is again." if env.get("CACHED") == "true" else "Done."
-        return (f"{cached}\n\n- Firmware: [{env.get('STEM')}.fwsc]({base}.fwsc)\n"
+        site = f"https://{owner.lower()}.github.io/{name}/webapp"
+        build_id = env.get("KEY", "")[:16]
+        return (f"{cached} Build id `{build_id}`.\n\n"
+                f"- **[Install it]({site}/installer/?build={build_id})** with the web installer (or paste the build id "
+                "in its *A cloud build* list)\n"
+                f"- [Its configuration in the web builder]({site}/builder/?cloud={env.get('STEM', '')})\n"
+                f"- Firmware: [{env.get('STEM')}.fwsc]({base}.fwsc) (`python3 tools/optimist.py flash FILE.fwsc`)\n"
                 f"- The web editor's sidecar: [{env.get('STEM')}-ui.zip]({base}-ui.zip)\n\n"
-                f"Install it with the [web installer](https://{owner.lower()}.github.io/{name}/webapp/installer/) "
-                "(*Choose* > *A .fwsc of yours*) or `python3 tools/optimist.py flash FILE.fwsc`. "
+                f"Kept {RETAIN_DAYS} days after the last request for it. "
                 f"Built from `{env.get('COMMIT', '')[:12]}`, cloud key `{env.get('KEY', '')}`.{sizes}" +
                 (f"\n\nSHA-256 of the .fwsc: `{env['SHA256']}`" if re.fullmatch(r"[0-9a-f]{64}", env.get("SHA256", "")) else ""))
     if kind == "failed":
@@ -155,6 +174,81 @@ def reply(kind, env):
         return (f"The request could not be processed (a step of the workflow failed, not your configuration): "
                 f"[the log]({run}). A maintainer will look; the issue stays open.")
     raise ValueError(f"reply: unknown kind {kind!r}")
+
+
+def shelf_entry(env, now):
+    """the index.json entry of a build from the workflow's env (KEY, STEM, NAME, COMMIT, ISSUE, SHA256, SUMMARY_FILE)"""
+    key, stem = env.get("KEY", ""), env.get("STEM", "")
+    if not KEY.fullmatch(key) or not re.fullmatch(r"optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}", stem) or not stem.endswith(key[:16]):
+        raise ValueError(f"shelf: a key and its stem, got {key!r} {stem!r}")
+    sizes = {}
+    if env.get("SUMMARY_FILE") and Path(env["SUMMARY_FILE"]).is_file():
+        s = json.loads(Path(env["SUMMARY_FILE"]).read_text()).get("sizes") or {}
+        sizes = {quiet(r): v for r, v in s.items() if isinstance(v, int)} if isinstance(s, dict) else {}
+    issue = env.get("ISSUE", "")
+    return {"id": key[:16], "key": key, "stem": stem, "name": safe_name(env.get("NAME")),
+            "commit": env.get("COMMIT", "") if SHA.fullmatch(env.get("COMMIT", "")) else "",
+            "date": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "issue": int(issue) if issue.isdigit() else None,
+            "sha256": env.get("SHA256", "") if re.fullmatch(r"[0-9a-f]{64}", env.get("SHA256", "")) else "",
+            "sizes": sizes, "fwsc": f"{stem}.fwsc", "ui": f"{stem}-ui.zip", "config": f"{stem}.config"}
+
+
+def shelf_add(builds, entry):
+    """-> the builds with this one first (an earlier copy of the same key replaced: its date is the new one; its sizes
+    kept when this one has none, a request answered from the cache having no build summary)"""
+    old = next((b for b in builds if b.get("key") == entry["key"]), {})
+    new = dict(entry, sizes=entry["sizes"] or old.get("sizes") or {})
+    return [new] + [b for b in builds if b.get("key") != entry["key"]]
+
+
+def shelf_prune(builds, now, days=RETAIN_DAYS):
+    """-> (kept, dropped): the builds of the last `days` days, and the others"""
+    edge = now - timedelta(days=days)
+    def fresh(b):
+        try:
+            return datetime.strptime(b.get("date", ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) >= edge
+        except ValueError:
+            return False
+    return [b for b in builds if fresh(b)], [b for b in builds if not fresh(b)]
+
+
+def read_index(shelf):
+    f = Path(shelf) / "index.json"
+    return json.loads(f.read_text()).get("builds", []) if f.is_file() else []
+
+
+def write_shelf(shelf, builds, dropped):
+    """index.json of the builds kept; the files of the dropped ones removed (those a kept build names stay)"""
+    shelf = Path(shelf)
+    keep = {b[k] for b in builds for k in ("fwsc", "ui", "config")}
+    for b in dropped:
+        for k in ("fwsc", "ui", "config"):
+            if b.get(k) and b[k] not in keep and "/" not in b[k]:
+                (shelf / b[k]).unlink(missing_ok=True)
+    (shelf / "index.json").write_text(json.dumps({"version": 1, "retain_days": RETAIN_DAYS, "builds": builds},
+                                                 indent=1) + "\n")
+
+
+def retain_days(env):
+    v = env.get("RETAIN_DAYS", "")
+    return int(v) if v.isdigit() and int(v) > 0 else RETAIN_DAYS
+
+
+def cmd_shelf(a):
+    shelf, now = Path(a.shelf), datetime.now(timezone.utc)
+    shelf.mkdir(parents=True, exist_ok=True)
+    builds = read_index(shelf)
+    if a.action == "add":
+        entry = shelf_entry(os.environ, now)
+        for k in ("fwsc", "ui"):
+            shutil.copyfile(Path(a.files) / entry[k], shelf / entry[k])
+        shutil.copyfile(a.config, shelf / entry["config"])
+        builds = shelf_add(builds, entry)
+    kept, dropped = shelf_prune(builds, now, retain_days(os.environ))
+    write_shelf(shelf, kept, dropped)
+    for b in dropped:
+        print(b["stem"])
+    return 0
 
 
 def output(**kv):
@@ -219,7 +313,15 @@ def main(argv=None):
     p.add_argument("kind", choices=("building", "done", "failed", "error"))
     p.add_argument("dir")
     p.set_defaults(fn=cmd_reply)
+    p = sub.add_parser("shelf", help="a build onto the cloud-builds branch's checkout, or the expired ones off it")
+    p.add_argument("action", choices=("add", "prune"))
+    p.add_argument("shelf")
+    p.add_argument("--files", help="add: the directory with <STEM>.fwsc and <STEM>-ui.zip")
+    p.add_argument("--config", help="add: the request's .config")
+    p.set_defaults(fn=cmd_shelf)
     a = ap.parse_args(argv)
+    if a.cmd == "shelf" and a.action == "add" and not (a.files and a.config):
+        ap.error("shelf add needs --files and --config")
     return a.fn(a)
 
 

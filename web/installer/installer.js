@@ -14,6 +14,8 @@
 //                    the return to stock in step 4 without a download; none: the user's own file only
 //     version,       the site's version ("0.1"); shown with the package
 //     source,        the tag or commit the site was made from ("" when unknown): the Source link
+//     repo,          "owner/name" whose cloud-builds branch lists the cloud builds (default: REPO's); build: a build
+//                    id to open that list on (default: the page's ?build=, which a cloud build's issue links to)
 //     onNavigate,    (where) => void, where one of "build" "backup" "editor" "about": the host opens it (its tab, the
 //                    About box); without it those are plain links (links below). The rescue guide is always a link.
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
@@ -56,6 +58,12 @@ export const TEXT = {
   idUpdate: "in update mode", idOther: "another firmware",
   chooseLegend: "Firmware to install",
   useFile: "A file on this computer (.fwsc)", fileLabel: "Package file",
+  useCloud: "A cloud build",
+  cloudDesc: "Made by the builder's Build in the cloud; each is kept 30 days after it was last asked for.",
+  cloudSearch: "Build id or name", cloudLoading: "Loading the cloud builds…", cloudNone: "No cloud builds at the moment.",
+  cloudNoMatch: "No cloud build matches this.", cloudFail: "Could not load the cloud builds: ",
+  cloudPick: "Choose a build in the list.", cloudConfig: "configuration", cloudCopy: "Copy the build id",
+  cloudTitle: "cloud build ",
   buildOwn: "Or build your own firmware: ", buildLink: "open the builder",
   pkgLoading: "Checking the package…", pkgReady: "Ready: ",
   pkgPickFile: "Choose a .fwsc file.",
@@ -177,6 +185,47 @@ export function errorText(e) {
   return TEXT.error + (e && e.message ? e.message : String(e));
 }
 
+/* ---- the cloud builds (docs/CLOUD-BUILD.md): the cloud-builds branch's index.json and files (tools/cloud_build.py
+   shelf). Read at the branch's commit (the API, which sends CORS), then from raw.githubusercontent.com by that commit:
+   release downloads send no CORS header, and a branch name there is cached for minutes */
+export const CLOUD_BRANCH = "cloud-builds";
+const CLOUD_ID = /^[0-9a-f]{16}$/, CLOUD_STEM = /^optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}$/;
+
+/** the index's builds that are well formed (the branch is written by the workflow, but read as untrusted) */
+export function cloudBuilds(index) {
+  const list = index && Array.isArray(index.builds) ? index.builds : [];
+  return list.filter((b) => b && CLOUD_ID.test(b.id) && CLOUD_STEM.test(b.stem) && b.stem.endsWith(b.id)
+    && b.fwsc === `${b.stem}.fwsc` && b.config === `${b.stem}.config` && /^[0-9a-f]{64}$/.test(b.sha256 || ""))
+    .map((b) => ({ id: b.id, stem: b.stem, name: String(b.name || "custom").slice(0, 32), date: String(b.date || "").slice(0, 20),
+      commit: /^[0-9a-f]{40}$/.test(b.commit || "") ? b.commit : "", sha256: b.sha256, fwsc: b.fwsc, config: b.config,
+      flash: b.sizes && Number.isInteger(b.sizes.flash) ? b.sizes.flash : null }));
+}
+
+/** the builds a search keeps: a build id (or its start, 4+ digits, spaces and a "key" word ignored) or part of a name */
+export function matchCloud(builds, query) {
+  const text = String(query || "").trim().toLowerCase(), id = text.replace(/^(build|key|id)\s*/, "").replace(/[\s`]+/g, "");
+  if (!text) return builds;
+  if (/^[0-9a-f]{4,64}$/.test(id)) {
+    const byId = builds.filter((b) => b.id.startsWith(id.slice(0, 16)));
+    if (byId.length) return byId;
+  }
+  return builds.filter((b) => b.name.toLowerCase().includes(text) || b.stem.includes(text));
+}
+
+export const cloudFileUrl = (repo, sha, name) => `https://raw.githubusercontent.com/${repo}/${sha}/${encodeURIComponent(name)}`;
+
+/** -> { sha, builds }: the branch's commit and its builds; no branch (none built, or all expired): no builds */
+export async function loadCloud(repo, fetchFn = fetch) {
+  const r = await fetchFn(`https://api.github.com/repos/${repo}/branches/${CLOUD_BRANCH}`, { headers: { Accept: "application/vnd.github+json" } });
+  if (r.status === 404) return { sha: "", builds: [] };
+  if (!r.ok) throw new Error(r.status === 403 ? "GitHub's limit of requests from this network, try again in an hour" : `HTTP ${r.status}`);
+  const sha = ((await r.json()).commit || {}).sha || "";
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("no commit on the cloud-builds branch");
+  const ix = await fetchFn(cloudFileUrl(repo, sha, "index.json"));
+  if (!ix.ok) throw new Error(`index.json: HTTP ${ix.status}`);
+  return { sha, builds: cloudBuilds(await ix.json()) };
+}
+
 /* fm1ota.js's Updater, unchanged, that also keeps the address of the last read (its serve() hands it to onProgress;
    install() and write() pass only the count on), for a bar that follows the write */
 class TrackedUpdater extends Updater {
@@ -216,9 +265,13 @@ export function mountInstaller(container, opts = {}) {
   const nav = (typeof navigator !== "undefined" && navigator) || {};
   const midiOf = opts.midi || (typeof nav.requestMIDIAccess === "function" ? (o) => nav.requestMIDIAccess(o) : null);
   const secure = typeof isSecureContext === "undefined" || isSecureContext;
+  const repo = opts.repo || REPO.replace("https://github.com/", "");
+  const fetchFn = opts.fetch || ((...a) => fetch(...a));
+  const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("build") : null);
   addStyle(container.ownerDocument);
 
-  const st = { access: null, choice: packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0 };
+  const st = { access: null, choice: wanted ? "cloud" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0,
+    cloud: null, cloudPick: null };
   const el = {};
   const link = (where, text) => h("a", { href: links[where], ...(/^https?:/.test(links[where]) ? { target: "_blank", rel: "noopener" } : {}),
     onclick: (ev) => { if (opts.onNavigate && where !== "docs") { ev.preventDefault(); opts.onNavigate(where); } } }, text);
@@ -240,11 +293,16 @@ export function mountInstaller(container, opts = {}) {
   const radios = packages.map((p, i) => choiceRow(String(i), p.title, p.description, p.product));
   el.file = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.fileLabel, onchange: () => { st.choice = "file"; syncChoice(); loadChoice(); } });
   const fileRow = choiceRow("file", TEXT.useFile, null, null, el.file);
+  el.csearch = h("input.oi-csearch", { type: "search", placeholder: TEXT.cloudSearch, "aria-label": TEXT.cloudSearch, value: wanted || "",
+    spellcheck: "false", autocomplete: "off", oninput: () => renderCloud(), onfocus: () => { if (st.choice !== "cloud") { st.choice = "cloud"; syncChoice(); loadChoice(); } } });
+  el.clist = h("ul.oi-clist");
+  el.cmsg = h("p.oi-cmsg.o-dim", { role: "status", "aria-live": "polite" });
+  const cloudRow = choiceRow("cloud", TEXT.useCloud, TEXT.cloudDesc, null, h("div.oi-cloud", {}, el.csearch, el.cmsg, el.clist));
   el.stockRow = choiceRow("stock", TEXT.stockTitle, TEXT.stockNote, "FM-1_015");
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
   const step2 = card(2, TEXT.s2,
-    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), radios, fileRow, el.stockRow),
+    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), radios, cloudRow, fileRow, el.stockRow),
     el.pkginfo,
     h("p.o-dim", {}, TEXT.buildOwn, link("build", TEXT.buildLink)));
 
@@ -301,7 +359,8 @@ export function mountInstaller(container, opts = {}) {
   }
   function syncChoice() {
     for (const r of root.querySelectorAll(".oi-radio")) r.checked = r.value === st.choice;
-    el.file.disabled = st.busy;
+    el.file.disabled = el.csearch.disabled = st.busy;
+    for (const b of el.clist.querySelectorAll("button")) b.disabled = st.busy;
     for (const r of root.querySelectorAll(".oi-radio")) r.disabled = st.busy;
   }
 
@@ -311,7 +370,9 @@ export function mountInstaller(container, opts = {}) {
     st.pkg = null; st.pkgErr = "";
     render();
     if (st.choice === "stock") { st.pkg = st.stock || null; render(); return; }
-    say(el.pkginfo, st.choice === "file" && !(el.file.files && el.file.files[0]) ? TEXT.pkgPickFile : TEXT.pkgLoading);
+    if (st.choice === "cloud" && !st.cloud) loadCloudList();
+    say(el.pkginfo, st.choice === "file" && !(el.file.files && el.file.files[0]) ? TEXT.pkgPickFile
+      : st.choice === "cloud" && !st.cloudPick ? TEXT.cloudPick : TEXT.pkgLoading);
     try {
       let pkg;
       if (st.choice === "file") {
@@ -319,6 +380,14 @@ export function mountInstaller(container, opts = {}) {
         if (!f) return;
         pkg = await checkPackage(new Uint8Array(await f.arrayBuffer()));
         pkg.title = pkg.stock ? TEXT.stockTitle : f.name;
+      } else if (st.choice === "cloud") {
+        const b = st.cloudPick;
+        if (!b) return;
+        const r = await fetchFn(cloudFileUrl(repo, st.cloud.sha, b.fwsc));
+        if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
+        pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()));
+        if (pkg.stock || (pkg.sha256 && pkg.sha256 !== b.sha256)) throw codeError("badpkg", `sha256 ${pkg.sha256}, expected ${b.sha256}`);
+        pkg.title = `${b.name} (${TEXT.cloudTitle}${b.id})`;
       } else {
         const meta = packages[Number(st.choice)];
         const r = await fetch(meta.pkg);
@@ -334,6 +403,39 @@ export function mountInstaller(container, opts = {}) {
       if (e && e.detail && e.code === "badpkg") log(e.detail);
     }
     render();
+  }
+  /* ---- the cloud builds: the list (loaded once, when the choice is first made), the search, the pick */
+  async function loadCloudList() {
+    st.cloud = { loading: true, builds: [] };
+    renderCloud();
+    try { st.cloud = await loadCloud(repo, fetchFn); }
+    catch (e) { st.cloud = { err: e.message, builds: [] }; renderCloud(); st.cloud = null; return; }
+    const hit = wanted ? matchCloud(st.cloud.builds, wanted) : [];
+    if (hit.length === 1 && st.choice === "cloud") { pickCloud(hit[0]); return; }
+    renderCloud();
+  }
+  function pickCloud(b) {
+    if (st.busy) return;
+    st.cloudPick = b; st.choice = "cloud";
+    syncChoice(); renderCloud(); loadChoice();
+  }
+  function renderCloud() {
+    const c = st.cloud;
+    if (!c) { el.cmsg.textContent = ""; el.clist.replaceChildren(); return; }
+    const shown = matchCloud(c.builds, el.csearch.value);
+    el.cmsg.textContent = c.loading ? TEXT.cloudLoading : c.err ? TEXT.cloudFail + c.err : !c.builds.length ? TEXT.cloudNone : !shown.length ? TEXT.cloudNoMatch : "";
+    const cfg = (b) => `${links.build}${links.build.includes("?") ? "&" : "?"}cloud=${b.stem}`;
+    el.clist.replaceChildren(...shown.map((b) => h("li.oi-cbuild", { "data-on": st.cloudPick && st.cloudPick.id === b.id ? "1" : null },
+      h("button.oi-cpick", { type: "button", "aria-pressed": String(!!(st.cloudPick && st.cloudPick.id === b.id)), disabled: st.busy, onclick: () => pickCloud(b) },
+        h("b", {}, b.name), " ", h("code.oi-cid", {}, b.id)),
+      h("span.oi-cmeta.o-dim", {}, [b.date.slice(0, 10), b.commit ? `from ${b.commit.slice(0, 7)}` : null, b.flash ? `flash ${b.flash.toLocaleString("en")} B` : null].filter(Boolean).join(" · ")),
+      h("span.oi-cacts", {},
+        h("button.o-btn.sm.quiet", { type: "button", title: TEXT.cloudCopy, onclick: () => copyId(b.id) }, "copy id"),
+        h("a", { href: cfg(b), target: "_blank", rel: "noopener" }, TEXT.cloudConfig)))));
+  }
+  async function copyId(id) {
+    try { await navigator.clipboard.writeText(id); el.cmsg.textContent = `Copied ${id}`; }
+    catch (e) { el.cmsg.textContent = `Build id: ${id}`; }     // (no clipboard here: shown instead)
   }
   async function loadStock(own = false) {   /* own: the copy the site keeps (opts.stock), else the file chosen */
     const f = !own && el.stockFile.files && el.stockFile.files[0];
@@ -366,7 +468,7 @@ export function mountInstaller(container, opts = {}) {
     el.find.disabled = st.busy || !midiOf || !secure;
     el.stockWarn.hidden = !(p && p.stock);
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
-      source && !p.stock && st.choice !== "file" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
+      source && !p.stock && st.choice !== "file" && st.choice !== "cloud" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
       p.sha256 ? [" · sha256 ", h("code.oi-sha", {}, p.sha256)] : []] : []).flat());
   }
 

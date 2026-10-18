@@ -8,6 +8,7 @@ names are the web builder's (web/builder/logic.js assetStem), and the issue URL 
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -106,6 +107,113 @@ with tempfile.TemporaryDirectory() as t:
     check("reply done: a summary with a null size still answers", "ram 1,234" in CB.reply("done", dict(env, SUMMARY_FILE=str(Path(t) / "s.json"))))
 check("reply error: the run link, the issue stays open", env["RUN_URL"] in CB.reply("error", env))
 check("reply building / failed: the run link", env["RUN_URL"] in CB.reply("building", env) and env["RUN_URL"] in CB.reply("failed", env))
+
+check("reply done: the installer opened on the build id, the builder on its configuration",
+      f"/webapp/installer/?build={KEY[:16]}" in done and f"/webapp/builder/?cloud={env['STEM']}" in done)
+
+# ---- the cloud-builds branch (the installer's list): add, replace, prune, the files
+from datetime import datetime, timedelta, timezone
+now = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+KEY2 = "cd" * 32
+stem1, stem2 = CB.asset_stem("synth", KEY), CB.asset_stem("minimal", KEY2)
+with tempfile.TemporaryDirectory() as t:
+    t = Path(t)
+    (t / "s.json").write_text(json.dumps({"sizes": {"flash": 526224, "ram": None}}))
+    e1 = CB.shelf_entry({"KEY": KEY, "STEM": stem1, "NAME": "Synth [x](y)", "COMMIT": SHA, "ISSUE": "7", "SHA256": "e" * 64,
+                         "SUMMARY_FILE": str(t / "s.json")}, now)
+    check("shelf entry: id = the key's 16 digits, the files by the stem, safe name, numeric sizes only",
+          e1["id"] == KEY[:16] and e1["fwsc"] == f"{stem1}.fwsc" and e1["config"] == f"{stem1}.config"
+          and "[" not in e1["name"] and e1["sizes"] == {"flash": 526224} and e1["issue"] == 7 and e1["date"] == "2026-10-18T12:00:00Z")
+    try:
+        CB.shelf_entry({"KEY": KEY, "STEM": "../../evil", "COMMIT": SHA}, now)
+        check("shelf entry: a stem that is not the key's is refused", False)
+    except ValueError:
+        check("shelf entry: a stem that is not the key's is refused", True)
+    e2 = CB.shelf_entry({"KEY": KEY2, "STEM": stem2, "NAME": "minimal", "COMMIT": SHA}, now - timedelta(days=31))
+    builds = CB.shelf_add(CB.shelf_add([], e2), e1)
+    again = CB.shelf_add(builds, dict(e1, date="2026-10-19T00:00:00Z"))
+    check("shelf add: newest first; the same key again replaces it (its date renewed, its sizes kept from the cache)",
+          [b["key"] for b in builds] == [KEY, KEY2] and len(again) == 2 and again[0]["date"] == "2026-10-19T00:00:00Z"
+          and CB.shelf_add(builds, dict(e1, sizes={}))[0]["sizes"] == {"flash": 526224})
+    kept, dropped = CB.shelf_prune(builds, now)
+    check(f"shelf prune: a build older than {CB.RETAIN_DAYS} days goes, a fresh one stays; a bad date goes",
+          [b["key"] for b in kept] == [KEY] and [b["key"] for b in dropped] == [KEY2]
+          and CB.shelf_prune([dict(e1, date="?")], now)[0] == [])
+    # the command, as the workflow runs it: add onto an empty checkout, then a prune that empties it
+    shelf, out = t / "shelf", t / "out"
+    out.mkdir()
+    for n in (f"{stem1}.fwsc", f"{stem1}-ui.zip"):
+        (out / n).write_bytes(b"x")
+    (t / "request.config").write_text("ENG_FM6=0\n")
+    shelf.mkdir()
+    (shelf / f"{stem2}.fwsc").write_bytes(b"old")
+    (shelf / "index.json").write_text(json.dumps({"builds": [e2]}))
+    run_env = dict(os.environ, KEY=KEY, STEM=stem1, NAME="synth", COMMIT=SHA, ISSUE="7", SHA256="e" * 64)
+    q = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "shelf", "add", str(shelf), "--files", str(out),
+                        "--config", str(t / "request.config")], capture_output=True, text=True, env=run_env)
+    idx = json.loads((shelf / "index.json").read_text())
+    check("shelf add (command): the files and the .config on the branch, the index, the expired build dropped (printed)",
+          q.returncode == 0 and (shelf / f"{stem1}.fwsc").is_file() and (shelf / f"{stem1}.config").read_text() == "ENG_FM6=0\n"
+          and [b["id"] for b in idx["builds"]] == [KEY[:16]] and not (shelf / f"{stem2}.fwsc").exists()
+          and q.stdout.split() == [stem2])
+    q = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "shelf", "prune", str(shelf)], capture_output=True,
+                       text=True, env=dict(os.environ, RETAIN_DAYS="0"))
+    q2 = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "shelf", "prune", str(shelf)], capture_output=True,
+                        text=True, env=dict(os.environ))
+    check("shelf prune (command): RETAIN_DAYS=0 is not a setting (default kept); the fresh build stays",
+          q.returncode == 0 and q.stdout == "" and q2.stdout == "" and (shelf / f"{stem1}.fwsc").is_file())
+
+# ---- tools/cloud_shelf.sh against a bare repository (GitHub's part: SHELF_URL, a stub gh that logs its calls)
+with tempfile.TemporaryDirectory() as t:
+    t = Path(t)
+    subprocess.run(["git", "init", "-q", "--bare", str(t / "remote.git")], check=True)
+    (t / "gh").write_text(f'#!/bin/sh\necho "$@" >> {t / "gh.log"}\n')
+    (t / "gh").chmod(0o755)
+    run = t / "run"
+    (run / "tools").mkdir(parents=True)
+    for f in ("cloud_build.py", "cloud_shelf.sh"):
+        (run / "tools" / f).write_bytes((ROOT / "tools" / f).read_bytes())
+    (run / "work").mkdir()
+    (run / "work" / "request.config").write_text("ENG_FM6=0\n")
+    sh_env = dict(os.environ, SHELF_URL=f"file://{t / 'remote.git'}", GH=str(t / "gh"), COMMIT=SHA, ISSUE="7",
+                  GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+    def shelf_sh(action, **env):
+        return subprocess.run(["bash", "tools/cloud_shelf.sh", action], cwd=run, capture_output=True, text=True,
+                              env=dict(sh_env, **env))
+
+    def remote(*args):
+        return subprocess.run(["git", "--git-dir", str(t / "remote.git"), *args], capture_output=True, text=True).stdout
+
+    results = []
+    for key, stem in ((KEY, stem1), (KEY2, stem2)):
+        shutil.rmtree(run / "out", ignore_errors=True)
+        (run / "out").mkdir()
+        for n in (f"{stem}.fwsc", f"{stem}-ui.zip"):
+            (run / "out" / n).write_bytes(key.encode())
+        results.append(shelf_sh("add", KEY=key, STEM=stem, NAME="x"))
+    files = remote("ls-tree", "--name-only", "cloud-builds").split()
+    idx = json.loads(remote("show", "cloud-builds:index.json") or "{}")
+    check("cloud_shelf.sh add: a new branch, then a second build; one commit, both builds, the index newest first",
+          all(r.returncode == 0 for r in results) and remote("rev-list", "--count", "cloud-builds").strip() == "1"
+          and {f"{stem1}.fwsc", f"{stem2}-ui.zip", f"{stem2}.config", "index.json"} <= set(files)
+          and [b["id"] for b in idx.get("builds", [])] == [KEY2[:16], KEY[:16]])
+    r = shelf_sh("prune")
+    check("cloud_shelf.sh prune: nothing expired, nothing pushed", r.returncode == 0 and "nothing expired" in r.stdout
+          and not (t / "gh.log").exists())
+    # (expire them: rewrite the dates on the branch as another run would have left them)
+    work = t / "edit"
+    subprocess.run(["git", "clone", "-q", f"file://{t / 'remote.git'}", "-b", "cloud-builds", str(work)], check=True)
+    old = json.loads((work / "index.json").read_text())
+    old["builds"] = [dict(b, date="2020-01-01T00:00:00Z") for b in old["builds"]]
+    (work / "index.json").write_text(json.dumps(old))
+    subprocess.run(["git", "-C", str(work), "commit", "-qam", "old"], check=True, env=sh_env)
+    subprocess.run(["git", "-C", str(work), "push", "-q", "origin", "cloud-builds"], check=True)
+    r = shelf_sh("prune")
+    log = (t / "gh.log").read_text() if (t / "gh.log").exists() else ""
+    check("cloud_shelf.sh prune: the last builds expired -> the branch deleted, their release assets deleted",
+          r.returncode == 0 and remote("branch", "--list", "cloud-builds").strip() == ""
+          and f"release delete-asset cloud-builds {stem1}.fwsc -y" in log and f"{stem2}-ui.zip" in log)
 
 # ---- the workflow's steps on a real profile, at this checkout's HEAD
 profile = (ROOT / "config" / "profiles" / "synth.config").read_text()

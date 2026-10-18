@@ -135,6 +135,9 @@ ok(L.repoOf({ repo: "me/optimist" }) === "me/optimist" && L.repoOf({ repo: "x/y?
   && new URL(L.cloudIssueUrl("me/o", SHA, "", "p<a>d")).searchParams.get("title") === "Cloud build: pad"
   && L.cloudIssueUrl("me/o", SHA, "", "").startsWith("https://github.com/me/o/issues/new?template=cloud-build.yml&"),
   "cloud build: the repository from build-info, the issue form's URL (commit, configuration, title)");
+ok(L.cloudConfigUrl("me/o", "optimist-synth-e1fb1e6cc99a2056") === "https://raw.githubusercontent.com/me/o/cloud-builds/optimist-synth-e1fb1e6cc99a2056.config"
+  && L.cloudConfigUrl("me/o", "../x") === null && L.cloudConfigUrl("me/o", "optimist-synth-e1fb") === null && L.cloudConfigUrl("me/o", null) === null,
+  "cloud build: ?cloud=<stem> -> its .config on the cloud-builds branch; anything else is not fetched");
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN
   && /^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v\d+\.\d+\.\d+\/full\/$/.test(L.PYODIDE_CDN), "Pyodide: the pinned CDN version; a test may only point at this site");

@@ -46,6 +46,21 @@
                                  margin-right: var(--sp-2); cursor: pointer; }
 .oi-file::file-selector-button:hover { background: var(--surface-3); }
 .oi-pkg { overflow-wrap: anywhere; }
+/* the cloud builds: a search, then one row a build (pick, id, date, configuration link) */
+.oi-cloud { grid-column: 2; display: grid; gap: var(--sp-2); min-width: 0; }
+.oi-csearch { font: inherit; font-family: var(--font-mono); color: var(--text); background: var(--surface-2); border: 1px solid var(--line);
+              border-radius: var(--r); padding: 4px 8px; max-width: 100%; width: 28ch; }
+.oi-cmsg:empty { display: none; }
+.oi-cmsg { margin: 0; }
+.oi-clist { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 18rem; overflow: auto; }
+.oi-cbuild { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); padding: var(--sp-1) var(--sp-2); background: var(--surface-2); }
+.oi-cbuild[data-on] { box-shadow: inset 3px 0 0 var(--accent); }
+.oi-cpick { font: inherit; color: var(--text); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.oi-cpick b { font-weight: 400; }
+.oi-cpick:hover b, .oi-cpick[aria-pressed="true"] b { text-decoration: underline; }
+.oi-cid { font-family: var(--font-mono); color: var(--text-dim); user-select: all; }
+.oi-cmeta { font-variant-numeric: tabular-nums; }
+.oi-cacts { margin-left: auto; display: flex; gap: var(--sp-2); align-items: baseline; }
 
 /* 3 Install: the button, the four phases, the bar, the result */
 .oi-go { width: 100%; margin: 0 0 var(--sp-3); }

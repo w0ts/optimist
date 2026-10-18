@@ -9,11 +9,18 @@
 # the runner as in build.yml. The token is given only to the steps that call gh, never to code of the requested
 # commit; the build job is read-only and only restores the toolchain cache (never saves it: release.yml and pages.yml
 # share that key). Actions are pinned to commit SHAs. One author: at most MAX_PER_DAY requests in 24 hours.
+#
+# Each build also goes onto the cloud-builds branch (tools/cloud_shelf.sh: the files, its .config and index.json),
+# where the web installer lists and fetches it: release downloads send no CORS header, raw.githubusercontent.com does.
+# A build not asked for again in RETAIN_DAYS leaves the branch and the release (the daily run, job prune).
 name: cloud-build
 
 on:
   issues:
     types: [opened, reopened]
+  schedule:
+    - cron: "17 3 * * *"                     # the expired builds off the cloud-builds branch and release (job prune)
+  workflow_dispatch:
 
 permissions: {}
 
@@ -28,6 +35,7 @@ env:
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   REPO: ${{ github.repository }}
   MAX_PER_DAY: "5"
+  RETAIN_DAYS: "30"
 
 jobs:
   request:
@@ -198,6 +206,19 @@ jobs:
         run: |
           gh release download cloud-builds --pattern "$STEM.fwsc" --dir check
           echo "sha256=$(sha256sum "check/$STEM.fwsc" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: request
+          path: work
+      - name: The files of a build made before (from the release)
+        if: needs.build.result == 'skipped'
+        run: gh release download cloud-builds --pattern "$STEM.fwsc" --pattern "$STEM-ui.zip" --dir out
+      - name: Onto the cloud-builds branch (the web installer's list)
+        env:
+          NAME: ${{ needs.request.outputs.name }}
+          SUMMARY_FILE: out/summary.json
+          SHA256: ${{ steps.sum.outputs.sha256 }}
+        run: bash tools/cloud_shelf.sh add
       - name: Answer and close
         env:
           SUMMARY_FILE: out/summary.json
@@ -226,3 +247,19 @@ jobs:
         run: |
           python3 tools/cloud_build.py reply failed work
           gh issue comment "$ISSUE" --body-file work/reply.md
+
+  prune:
+    # (the daily run, or by hand: the builds not asked for in RETAIN_DAYS off the cloud-builds branch and release)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: The expired builds off the branch and the release
+        run: bash tools/cloud_shelf.sh prune

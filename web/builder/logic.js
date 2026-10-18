@@ -128,7 +128,11 @@ export const commitOf = (info) => (info && typeof info.commit === "string" && /^
 
 /** the GitHub repository cloud builds are asked of (build-info.json "repo", which the site's workflow writes) */
 export const DEFAULT_REPO = "w0ts/optimist";
-export const repoOf = (info) => (info && typeof info.repo === "string" && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(info.repo) ? info.repo : DEFAULT_REPO);
+/** the .config of a cloud build on the cloud-builds branch (tools/cloud_build.py shelf; the installer links here with
+ * ?cloud=<stem>), else null for anything that is not a build's stem */
+export const cloudConfigUrl = (repo, stem) => (/^optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}$/.test(stem || "")
+  ? `https://raw.githubusercontent.com/${repo}/cloud-builds/${stem}.config` : null);
+export const repoOf =(info) => (info && typeof info.repo === "string" && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(info.repo) ? info.repo : DEFAULT_REPO);
 
 /** a cloud build's release assets: <stem>.fwsc and <stem>-ui.zip (tools/cloud_build.py asset_stem says the same) */
 export const CLOUD_RELEASE = "cloud-builds";

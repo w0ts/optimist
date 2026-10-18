@@ -227,6 +227,7 @@ def main(pkg, version, out, flavours=None):
         raise SystemExit(f"{stock}: sha256 {stock_sha}, not M-VAVE's V15 ({STOCK_SHA256})")
     files.append((stock, STOCK_NAME))
     site = {"version": version, "source": source_ref(), "packages": packages,
+            "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
             "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
     meta = json.dumps(site)
     for mark in ("/*INSTALLER*/", "/*META*/"):

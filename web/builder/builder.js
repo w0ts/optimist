@@ -6,7 +6,7 @@
 // messages and the details are the menu's (tools/builder/menu.py); every rule runs in Python (py-worker.js ->
 // tools/builder/web_api.py). docs/BUILDER-WEB.md.
 import {
-  CLOUD_RELEASE, PYODIDE_VERSION, REGIONS, SORTS, assetStem, barModel, fmtK, built, cloudIssueUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  CLOUD_RELEASE, PYODIDE_VERSION, REGIONS, SORTS, assetStem, barModel, fmtK, built, cloudConfigUrl, cloudIssueUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, treeOf,
 } from "./logic.js";
 
@@ -51,7 +51,7 @@ const TEMPLATE = `
             <button type="button" id="download" class="primary" disabled>Download .config</button>
             <button type="button" id="build" disabled aria-describedby="buildmsg">Build in the cloud</button>
           </div>
-          <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key">-</code></p>
+          <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
           <p class="o-small o-dim" id="keynote"></p>
           <p class="o-small" id="buildmsg" role="status"></p>
           <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
@@ -443,7 +443,7 @@ function renderResult() {
   const ev = S.view.eval;
   $("hash").textContent = ev.cfg_hash || "-";
   $("key").textContent = ev.key || "-";
-  $("key").title = ev.key || "";
+  $("key").title = ev.key ? `${ev.key} (click: copy)` : "";
   $("keynote").textContent = ev.key ? `The key of this configuration at the site's commit ${S.commit.slice(0, 12)} (sha256 of "${S.reg.key_tag}", the commit and the canonical form).`
     : "The cloud key will be computed at build time (this page does not know the commit it would be built from).";
   $("canon").textContent = ev.canonical || "";
@@ -604,6 +604,18 @@ async function importText(text, source) {
   if (r.ok) { $("bpreset").value = ""; $("presetdesc").textContent = ""; }
 }
 
+/* a cloud build's configuration (?cloud=<stem>), from the cloud-builds branch, loaded as an import */
+async function openCloud(stem) {
+  const url = cloudConfigUrl(S.repo, stem);
+  if (!url) { say(`Not a cloud build: ${stem.slice(0, 64)}`); return; }
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(r.status === 404 ? "not on the cloud-builds branch (expired?)" : `HTTP ${r.status}`);
+    await importText(await r.text(), `cloud build ${stem.slice(-16)}`);
+    toast(`Loaded the configuration of cloud build ${stem.slice(-16)}`, "ok");
+  } catch (e) { say(`Cloud build ${stem.slice(-16)}: ${e.message}`); }
+}
+
 function wire() {
   $("bpreset").addEventListener("change", (e) => choosePreset(e.target.value));
   $("name").addEventListener("change", async (e) => { S.name = e.target.value.trim() || "custom"; await refresh(); });
@@ -617,6 +629,8 @@ function wire() {
   $("reset").addEventListener("click", () => choosePreset(S.default.id));
   $("propsclose").addEventListener("click", () => { S.fitOpen = false; S.preview = null; renderProposals(); renderBars(); });
   $("keychip").addEventListener("click", copyKey);
+  $("key").addEventListener("click", copyKey);      // (the key shows cut short: selecting it would copy only what shows)
+  $("key").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copyKey(); } });
   $("how").addEventListener("click", (e) => openPop("The size estimate", [howText(), "Each gauge: used / limit in KiB (1K = 1,024 B), the exact bytes on hover; past the limit the bar turns red and the overflow shows after the numbers."], e.currentTarget));
   if (!hasPopover) $("bpop").hidden = true;   // (an older browser: the popover by hand, closed by a click elsewhere or Esc: onDocClick / onKey, while active)
   $("fit").addEventListener("click", showProposals);
@@ -687,6 +701,8 @@ async function start() {
   $("fit").disabled = false;
   $("reset").disabled = false;
   await choosePreset(S.default.id);           // (always the manifest's default: the last configuration is a choice)
+  const cloud = typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null;
+  if (cloud) await openCloud(cloud);          // (the installer's and the issue's link to a cloud build's configuration)
   handle.readyFlag = true;
 }
 
