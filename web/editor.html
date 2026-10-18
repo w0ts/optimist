@@ -1424,7 +1424,7 @@
   .tiles button.auto { background: var(--mk-auto); color: #000; } .tiles button.auto::after { background: #000; outline-color: var(--mk-auto); }
   .dgrid button.lk, .dgrid button.on.lk, .dgrid button.on.l1.lk, .dgrid button.on.l2.lk, .dgrid button.on.l3.lk { background: var(--mk-auto); color: #000; box-shadow: inset 0 0 0 2px #000; }
   #mixer .strip .ov i.auto { background: var(--mk-auto); }
-  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=mixer]):not(.navh:first-of-type) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install and Build do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
+  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
 </style>
 </head>
 <body>
