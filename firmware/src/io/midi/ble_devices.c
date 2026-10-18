@@ -51,6 +51,17 @@ static void ble_store_changed(void)              /* saved with the settings (the
     ble_store_save(&ble_store, ble_dev_kept);
     settings_later = 1;
 }
+/* a bond's keys (a pairing just made, ble_connect.c rc_keys): to flash now, not once quiet (2026-10-18, the user: the
+ * Mac asked for the passkey after every boot; a reboot soon after pairing lost the keys). Playing: once stopped */
+static void settings_save(void);                 /* (storage/project.c) */
+static void ble_keys_save(void)
+{
+    ble_store_save(&ble_store, ble_dev_kept);
+    if (song.playing)
+        settings_later = 1;
+    else
+        settings_save();
+}
 
 /* the radio scans while DEVICES is open and BLUETOOTH is ON (the link layer keeps "scan wanted" across a connection
  * and an OFF / ON: ble_ll_scan) */

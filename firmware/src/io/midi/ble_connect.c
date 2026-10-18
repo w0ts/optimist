@@ -290,7 +290,7 @@ static void rc_keys(void)                         /* a pairing's keys, once the 
         ble_store_set_bond(&ble_store, k.ltk, k.rand, k.ediv, (k.has & BLE_KEYS_AUTH) != 0u);
     if (k.has & BLE_KEYS_ID)
         ble_store_set_id(&ble_store, k.irk, k.id, k.id_rand);
-    ble_store_changed();
+    ble_keys_save();                              /* (to flash now: a reboot soon after must find them) */
 }
 
 /* refused again after Just Works: the same device again at once, pairing with a passkey (once per attempt) -> 1 */

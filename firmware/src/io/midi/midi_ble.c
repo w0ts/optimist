@@ -199,12 +199,15 @@ BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t lt
     ble_bond_new = 1;
 }
 
-static void ble_bond_poll(void)                 /* main loop: a new bond goes out with the settings, once quiet */
+static void ble_bond_poll(void)                 /* main loop: a new bond to flash now (playing: once stopped) */
 {
     if (!ble_bond_new)
         return;
     ble_bond_new = 0;
-    settings_later = 1;
+    if (song.playing)
+        settings_later = 1;
+    else
+        settings_save();                        /* (2026-10-18: a reboot soon after pairing lost it) */
 }
 
 static void ble_bond_restore(void)              /* after ble_init: the kept bond is the link layer's key again */
