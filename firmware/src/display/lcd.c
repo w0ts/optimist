@@ -101,9 +101,9 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     lcd_data(px, w * h * 2u);
 }
 
-/* ST7789V init: reset, then 16-bit colour, scan direction and IPS inversion;
- * voltage and gamma stay at the defaults. Format: cmd, n, n data bytes;
- * cmd 0x00 = wait (data byte: ~ms). */
+/* ST7789V init: reset, then 16-bit colour, scan direction, the panel's porch, voltages, frame rate and gamma as
+ * M-VAVE sets them (FM1 Open V13, app/board/lcd.inc display_setup, GPL-3.0-only), IPS inversion.
+ * Format: cmd, n, n data bytes; cmd 0x00 = wait (data byte: ~ms). */
 static const uint8_t LCD_SEQ[] = {
     0x01, 0,                     /* SWRESET */
     0x00, 1, 150,
@@ -111,6 +111,17 @@ static const uint8_t LCD_SEQ[] = {
     0x00, 1, 120,
     0x3A, 1, 0x55,               /* COLMOD: RGB565 */
     0x36, 1, 0x00,               /* MADCTL: top-left origin, RGB order */
+    0xB2, 5, 0x0C, 0x0C, 0x0C, 0x00, 0x33,   /* PORCTRL */
+    0xB7, 1, 0x56,               /* GCTRL: VGH / VGL */
+    0xBB, 1, 0x18,               /* VCOMS */
+    0xC0, 1, 0x2C,               /* LCMCTRL */
+    0xC2, 1, 0x01,               /* VDVVRHEN */
+    0xC3, 1, 0x1F,               /* VRHS */
+    0xC4, 1, 0x20,               /* VDVS */
+    0xC6, 1, 0x0F,               /* FRCTRL2: 60 Hz */
+    0xD0, 2, 0xA6, 0xA1,         /* PWCTRL1 */
+    0xE0, 14, 0xD0, 0x0D, 0x14, 0x0B, 0x0B, 0x07, 0x3A, 0x44, 0x50, 0x08, 0x13, 0x13, 0x2D, 0x32,   /* PVGAMCTRL */
+    0xE1, 14, 0xD0, 0x0D, 0x14, 0x0B, 0x0B, 0x07, 0x3A, 0x44, 0x50, 0x08, 0x13, 0x13, 0x2D, 0x32,   /* NVGAMCTRL */
     0x21, 0,                     /* INVON: IPS panel */
     0x13, 0,                     /* NORON */
 };
