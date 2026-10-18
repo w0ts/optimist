@@ -592,6 +592,20 @@ static void ins_put(uint32_t k, const uint8_t *s)
     IRQ_RESTORE(ie);
 }
 /* track k's slot holding type t: 1 S1, 2 S2, 0 none (or not built) */
+/* a TYPE knob's new list index v (from old, the list list of n): the type the other slot holds is skipped, in the turn's
+ * direction, never taken from it (the user, 2026-10-18: "it should not STEAL FX from S1, it should skip it. same for all
+ * inserts": the master's, the USB input's, the drum lanes'; a track's: op_cells.c ins_skip, which also skips the types
+ * with no instance free); none left that way: old. The loaders still swap for the editor and a load */
+static int32_t fx_type_skip(const uint8_t *list, uint32_t n, uint32_t other, int32_t old, int32_t v)
+{
+    int32_t dir = v > old ? 1 : -1, i;
+    if (v == old || other == FXT_NONE)
+        return v;
+    for (i = v; i >= 0 && i < (int32_t)n; i += dir)
+        if (list[i] != other)
+            return i;
+    return old;
+}
 static uint32_t ins_has(uint32_t k, uint32_t t)
 {
     k %= NTRK;
@@ -769,6 +783,13 @@ static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* (ids: UT_ID_T
     *vp = &ut_tv[s];
     return &ut_td[s];
 }
+static int32_t ut_type_turn(uint32_t s, int32_t v)      /* the input's slot s TYPE turned to entry v: the other's skipped */
+{
+    int16_t *p;
+    s &= 1u;
+    (void)ut_desc(UT_ID_TY + s, &p);
+    return fx_type_skip(ut_list, (uint32_t)ut_td[s].max + 1u, ut.slot[s ^ 1u], *p, v);
+}
 static uint32_t ut_has(uint32_t t)                      /* the input's slot holding type t: 1 S1, 2 S2, 0 none (or not built) */
 {
     return !(t < FXT_N && (UT_OK >> t & 1u)) ? 0u : ut.slot[0] == t ? 1u : ut.slot[1] == t ? 2u : 0u;
@@ -880,6 +901,14 @@ static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp)
     lin_td[s].max = (int16_t)(n - 1u);
     *vp = &lin_v[2u + s];
     return &lin_td[s];
+}
+/* lane l's slot s TYPE turned to list entry v: the other slot's type skipped (fx_type_skip; drum_sends.c dsend_set, a knob) */
+static int32_t lin_type_turn(uint32_t l, uint32_t s, int32_t v)
+{
+    int16_t *p;
+    l %= DRUM_LANES, s &= 1u;
+    (void)lin_desc(l, 2u + s, &p);
+    return fx_type_skip(lin_list, (uint32_t)lin_td[s].max + 1u, lin_slot[l][s ^ 1u], *p, v);
 }
 /* lane l's value id set to v (a TYPE: a list index; the other slot's type swaps the two, their amounts with them) */
 static void lin_set(uint32_t l, uint32_t id, int32_t v)
@@ -1305,10 +1334,19 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
     *vp = &fxs_v[k & 3u];
     return &FXS_DESC[k & 3u];
 }
-/* a TYPE cell of SC_FXSLOT (id) set to list entry v: the master's slots (MST INS); 1 done */
+/* a TYPE cell of SC_FXSLOT (id) set to list entry v by a knob: the master's slots (MST INS), the other slot's type
+ * skipped (fx_type_skip; the old entry from mst_desc, the slot as it is); 1 done */
+static int mst_type_turn(uint32_t s, int32_t v)         /* (the mixer's MASTER row too) */
+{
+    int16_t *p;
+    s &= 1u;
+    (void)mst_desc(s, &p);
+    return fx_type_skip(mst_list, (uint32_t)mst_d[s].max + 1u, mst_slot[s ^ 1u], *p, v);
+}
 static int fxs_type_set(uint32_t id, int32_t v)
 {
     if (id >= FXS_ID_MST && id < FXS_ID_MST + INS_N) {
+        v = mst_type_turn(id - FXS_ID_MST, v);
         mst_load(id - FXS_ID_MST, mst_list[(uint32_t)v % MST_NLIST]);
         return 1;
     }

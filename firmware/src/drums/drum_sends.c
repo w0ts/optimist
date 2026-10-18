@@ -47,6 +47,7 @@ static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
 static uint8_t dins_amt[2][DRUM_LANES];
 static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp);   /* fx_slots.c: ids 0, 1 the amounts, 2, 3 the TYPEs */
 static void lin_set(uint32_t l, uint32_t id, int32_t v);
+static int32_t lin_type_turn(uint32_t l, uint32_t s, int32_t v);   /* (fx_slots.c: a knob skips the other slot's type) */
 
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
 typedef struct {
@@ -253,6 +254,8 @@ static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t
     uint32_t w = dsend[l % DRUM_LANES], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
     uint32_t x = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
     if (id >= 3u) {
+        if (id - 3u >= 2u)                              /* (a TYPE: the other slot's type skipped, never taken) */
+            v = lin_type_turn(l, id - 5u, v);
         lin_set(l, id - 3u, v);                        /* (the slots: fx_slots.c) */
         return;
     }

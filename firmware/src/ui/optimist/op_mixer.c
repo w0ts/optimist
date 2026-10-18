@@ -580,12 +580,13 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 #if FELUCCA_USB_AUDIO
     else if (m.kind == MI_UTST) {                       /* the USB input's slot TYPE: as a track's (no reset) */
         if (s != OP_RESET)
-            ut_load(m.id, ut_list[(uint32_t)param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))) % FXT_N]);
+            ut_load(m.id, ut_list[(uint32_t)ut_type_turn(m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d)))) %
+                                  FXT_N]);   /* (the other slot's type skipped) */
     }
 #endif
     else if (m.kind == MI_MINST) {                      /* MASTER's slot TYPE: as a track's */
         if (s != OP_RESET)
-            mst_load(m.id, mst_list[(uint32_t)param_step(d, *vp, s) % MST_NLIST]);
+            mst_load(m.id, mst_list[(uint32_t)mst_type_turn(m.id, param_step(d, *vp, s)) % MST_NLIST]);   /* (the other's skipped) */
     } else if (m.kind == MI_INST) {                       /* a slot's TYPE: skips the other slot's type and the unavailable (no reset) */
         if (s != OP_RESET)
             ins_load(mx_trk_of(r), m.id,
