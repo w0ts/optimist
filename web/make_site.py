@@ -217,11 +217,14 @@ def flavours_of(manifest):
 
 
 def published_profiles():
-    """the profiles marked "# publish: yes" (config/profiles): the flavours a release offers on the site"""
-    out = set()
+    """the profiles marked "# publish: yes" (config/profiles): the flavours a release offers on the site -> {id: its
+    "# name:" (else the id)}"""
+    out = {}
     for f in (HERE.parent / "config" / "profiles").glob("*.config"):
-        if re.search(r"^#\s*publish:\s*yes\b", f.read_text(encoding="utf-8"), re.M | re.I):
-            out.add(f.stem)
+        text = f.read_text(encoding="utf-8")
+        if re.search(r"^#\s*publish:\s*yes\b", text, re.M | re.I):
+            m = re.search(r"^#\s*name:\s*(.+?)\s*$", text, re.M)
+            out[f.stem] = m.group(1) if m else f.stem
     return out
 
 
@@ -248,7 +251,7 @@ def releases_of(folder, manifest=HERE / "flavours.json"):
             if not m or m.group(1) not in published:
                 continue                                 # (a shipped-only profile, or not a release package)
             t = titled.get(m.group(1), {})
-            flavours.append({"id": m.group(1), "title": t.get("title", m.group(1).replace("-", " ")),
+            flavours.append({"id": m.group(1), "title": t.get("title", published[m.group(1)]),
                              "description": t.get("description", ""), "pkg": f})
         if flavours:
             flavours.sort(key=lambda f: (rank.get(f["id"], len(rank)), f["id"]))

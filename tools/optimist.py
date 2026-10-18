@@ -150,7 +150,10 @@ def named_package(since=0.0):
 
 def cmd_package(a):
     cfg, name = load_config(a)
-    return C.package(cfg, name, Path(a.out).expanduser(), echo=True, summary=a.summary, release=a.release)
+    # (a release package is named by its profile's id, optimist-0.1-everything-that-fits: the site matches releases' files
+    # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
+    stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
+    return C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
 
 
 def cmd_config(a):
