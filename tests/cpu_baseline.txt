@@ -198,7 +198,6 @@ cpu/fx/ins_worst 2661
 cpu/fx/part_dust 1240
 cpu/fx/dbus_dust 939
 cpu/fx/dbus_sfld 974
-cpu/fx/dbus_wrap 940
 cpu/fx/dbus_rect 981
 cpu/fx/dbus_harm 1017
 cpu/fx/dbus_ring 947
@@ -206,7 +205,6 @@ cpu/fx/dbus_subo 974
 cpu/fx/dbus_slew 913
 cpu/fx/part_lim 1291
 cpu/fx/part_sfld 1254
-cpu/fx/part_wrap 1237
 cpu/fx/part_rect 1249
 cpu/fx/part_harm 1285
 cpu/fx/part_ring 1226
@@ -219,7 +217,6 @@ cpu/fx/dvoice_fuzz 575
 cpu/fx/dvoice_phsr 602
 cpu/fx/dvoice_frmt 648
 cpu/fx/dvoice_sfld 581
-cpu/fx/dvoice_wrap 566
 cpu/fx/dvoice_rect 604
 cpu/fx/dvoice_harm 636
 cpu/fx/dvoice_ring 570

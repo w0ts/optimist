@@ -172,7 +172,6 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TGSHP] = PD("SHAPE", F_PCT, 0, 127, 0),     /*   hard .. smooth */
     /* the shapers (2026-10-18, insfx.c ifx_drive ifx_mod) */
     [P_TSFLD] = PD("SFLD", F_PCT, 0, 127, 0),      /* the drive into the sine folder */
-    [P_TWRAP] = PD("WRAP", F_PCT, 0, 127, 0),      /* the drive into the wrap */
     [P_TRECT] = PD("RECT", F_PCT, 0, 127, 0),      /* the rectified share, then its drive */
     [P_THARM] = PD("HARM", F_PCT, 0, 127, 0),      /* the drive into v + v^2/2 + v^3/4 */
     [P_TRING] = PD("RING", F_PCT, 0, 127, 0),      /* the ring's sine: 26 Hz .. 2.6 kHz */

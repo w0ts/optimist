@@ -1448,14 +1448,6 @@
     "ramtext": -336
    }
   },
-  "INS_WRAP": {
-   "1": {
-    "flash": 2644,
-    "ram": 2560,
-    "pool": 152,
-    "ramtext": -336
-   }
-  },
   "INS_RECT": {
    "1": {
     "flash": 2792,
@@ -4034,12 +4026,6 @@
   "UI=1,INS_SFOLD=1": {
    "flash": 3580,
    "ram": 176,
-   "pool": 0,
-   "ramtext": 28
-  },
-  "UI=1,INS_WRAP=1": {
-   "flash": 3580,
-   "ram": 240,
    "pool": 0,
    "ramtext": 28
   },

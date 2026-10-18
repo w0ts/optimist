@@ -20,7 +20,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
        FXT_JUNO,             /* (2026-10-14: JUNO CHORUS, fx/junocho/juno_cho.h; a builder count, fxi.c, as CHRS ECHO) */
        FXT_EQ3,              /* (2026-10-15, fx-pool: EQ3, the three-band DJ EQ, fx/insfx/eq3.c, any number) */
        FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,   /* (2026-10-18: the shapers, insfx.c, a builder
-                                                                                * item each) */
+                                                                                * item each; WRAP dropped the same day: its
+                                                                                * id and LIN_T index reserved, never built) */
        FXT_N };
 /* fx-rework (2026-10-14): COMP is DYN, the compressor, its make-up and the brickwall limiter as one effect (the
  * master's COMP + LIMIT: master_comp.c), on any insert slot; FILT is the track FILTER and the master DJ filter in one
@@ -56,7 +57,7 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                    (FELUCCA_INS_CHORUS > 0 ? FXT_BIT(FXT_CHRS) : 0u) | (FELUCCA_INS_DELAY > 0 ? FXT_BIT(FXT_ECHO) : 0u) | \
                    (FELUCCA_INS_GATER ? FXT_BIT(FXT_GATE) : 0u) | (FELUCCA_FX_DUST ? FXT_BIT(FXT_DUST) : 0u) | \
                    (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u) | (FELUCCA_INS_EQ3 ? FXT_BIT(FXT_EQ3) : 0u) | \
-                   (FELUCCA_INS_SFOLD ? FXT_BIT(FXT_SFLD) : 0u) | (FELUCCA_INS_WRAP ? FXT_BIT(FXT_WRAP) : 0u) |     \
+                   (FELUCCA_INS_SFOLD ? FXT_BIT(FXT_SFLD) : 0u) |                                                \
                    (FELUCCA_INS_RECT ? FXT_BIT(FXT_RECT) : 0u) | (FELUCCA_INS_HARM ? FXT_BIT(FXT_HARM) : 0u) |      \
                    (FELUCCA_INS_RING ? FXT_BIT(FXT_RING) : 0u) | (FELUCCA_INS_SUBOCT ? FXT_BIT(FXT_SUBO) : 0u) |    \
                    (FELUCCA_INS_SLEW ? FXT_BIT(FXT_SLEW) : 0u))
@@ -102,7 +103,7 @@ static const uint8_t FXT_AMT[FXT_N] = {
     0xFF,
 #endif
 #if INS_FX
-    FXT_AMT_NEW(FELUCCA_INS_SFOLD, P_TSFLD), FXT_AMT_NEW(FELUCCA_INS_WRAP, P_TWRAP), FXT_AMT_NEW(FELUCCA_INS_RECT, P_TRECT),
+    FXT_AMT_NEW(FELUCCA_INS_SFOLD, P_TSFLD), 0xFF, FXT_AMT_NEW(FELUCCA_INS_RECT, P_TRECT),
     FXT_AMT_NEW(FELUCCA_INS_HARM, P_THARM), FXT_AMT_NEW(FELUCCA_INS_RING, P_TRING), FXT_AMT_NEW(FELUCCA_INS_SUBOCT, P_TSUBO),
     FXT_AMT_NEW(FELUCCA_INS_SLEW, P_TSLEW),
 #else
@@ -1148,7 +1149,7 @@ static int rt_any(void)                                /* a return holds a type 
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
                    FELUCCA_INS_PHASER + (FELUCCA_INS_FLANGER > 0) + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
                    (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0) + \
-                   FELUCCA_INS_EQ3 + FELUCCA_INS_SFOLD + FELUCCA_INS_WRAP + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
+                   FELUCCA_INS_EQ3 + FELUCCA_INS_SFOLD + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
                    FELUCCA_INS_RING + FELUCCA_INS_SUBOCT + FELUCCA_INS_SLEW)
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];

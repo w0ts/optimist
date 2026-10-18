@@ -324,14 +324,14 @@ static void t_specific(void)
 /* the shapers' own (2026-10-18): what each does to a sine, a square; a drum voice's slot runs them */
 static void t_shapers(void)
 {
-    static const uint8_t DRV[3] = {FXT_SFLD, FXT_WRAP, FXT_HARM};
+    static const uint8_t DRV[2] = {FXT_SFLD, FXT_HARM};
     double t0, t1, f1, f2, h1, h2;
     char w[140];
     uint32_t i, k;
-    for (k = 0; k < 3u; k++) {                          /* SFLD WRAP HARM: harmonics rise with the amount */
+    for (k = 0; k < 2u; k++) {                          /* SFLD HARM: harmonics rise with the amount */
         reset();
         sine(60000, 220);
-        run_part(DRV[k], 10, 10, 0);                    /* (10: under 1x of drive, before WRAP's first jump) */
+        run_part(DRV[k], 10, 10, 0);                    /* (10: under 1x of drive) */
         t0 = thd(y, 220);
         reset();
         run_part(DRV[k], 127, 127, 0);
@@ -375,9 +375,9 @@ static void t_shapers(void)
     check(w, f1 < 0.5 && f2 > 0.8);
 #if DINS
     {                                                   /* a drum voice's S1 (fx.c dins_one), each shaper of LIN_T */
-        static const uint8_t DV[6] = {FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};
+        static const uint8_t DV[5] = {FXT_SFLD, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};
         int ok = 1;
-        for (k = 0; k < 6u; k++) {
+        for (k = 0; k < 5u; k++) {
             sine(200000, 220);
             memcpy(y, x, sizeof y);
             dins_rest(0, 0, DV[k], 127);
@@ -386,7 +386,7 @@ static void t_shapers(void)
             ok &= !same(x, y, 0) && peak(y) < (1 << 21);
             dins_rest(0, 0, FXT_NONE, 0);
         }
-        check("a drum sound's slot: SFLD WRAP RECT HARM RING SLEW run on its voice (changed, bounded)", ok);
+        check("a drum sound's slot: SFLD RECT HARM RING SLEW run on its voice (changed, bounded)", ok);
     }
 #endif
     reset();

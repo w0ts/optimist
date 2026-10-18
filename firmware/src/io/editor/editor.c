@@ -152,7 +152,7 @@ static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY,
 #if INS_FX
                                    , P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO, P_TGATE   /* (the
                                                                   * further inserts') */
-                                   , P_TSFLD, P_TWRAP, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW   /* (the shapers') */
+                                   , P_TSFLD, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW   /* (the shapers') */
 #endif
 #if FELUCCA_FX_DUST
                                    , P_TDUST                                                    /* (DUST's, 2026-10-14) */

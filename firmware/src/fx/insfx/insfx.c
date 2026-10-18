@@ -24,7 +24,6 @@
  * The shapers (2026-10-18, FOLD's state, its fade and rest; ifx_drive: FOLD's drive, low band, tone and make-up):
  *   SFLD  the drive into a sine folder (sin of the drive's quarter turns: round folds, fewer aliases than FOLD's corners;
  *         Felucca's PHASE FOLD shape, eng_phase.c), 0.5x .. ~13x
- *   WRAP  the drive wrapped at the clip's full scale (a 16-bit overflow: a jump to the other rail, a harsh buzz)
  *   RECT  1..64 the negative half folded up (clean -> half-wave -> full-wave: the octave up), 64..127 its drive 1x .. 8x
  *         into the soft clip (an Octavia); a DC blocker after
  *   HARM  the drive into a soft clip v, then v + v^2 / 2 + v^3 / 4 (the octave and the twelfth, louder as the drive
@@ -76,10 +75,10 @@ AINL int ifx_quiet(uint8_t *q, const int32_t *b, uint32_t n)
     return *q >= IFX_QUIET;
 }
 
-/* ---- FOLD, FUZZ, the shapers SFLD WRAP RECT HARM: DIST's drive (fx.c dist_gains: relative to the peak, the low band
+/* ---- FOLD, FUZZ, the shapers SFLD RECT HARM: DIST's drive (fx.c dist_gains: relative to the peak, the low band
  * dry, the tone, the make-up) into another shape; RING SUB SLEW (ifx_mod): the same state, fade and rest. a: the amount
  * (0: fading out at the last one) */
-#define IFX_DRV (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_SFOLD || FELUCCA_INS_WRAP || FELUCCA_INS_RECT || \
+#define IFX_DRV (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || \
                  FELUCCA_INS_HARM)
 #define IFX_MOD (FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
 #if IFX_DRV || IFX_MOD
@@ -99,9 +98,6 @@ static ifx_drv_t ifx_fuzz[IFX_NI];
 #endif
 #if FELUCCA_INS_SFOLD
 static ifx_drv_t ifx_sfld[IFX_NI];
-#endif
-#if FELUCCA_INS_WRAP
-static ifx_drv_t ifx_wrap[IFX_NI];
 #endif
 #if FELUCCA_INS_RECT
 static ifx_drv_t ifx_rect[IFX_NI];
@@ -138,7 +134,7 @@ AINL int ifx_drv_idle(ifx_drv_t *s, int32_t a, const int32_t *b, uint32_t n)
 #if IFX_DRV
 #define IFX_FOLD_D(a) (1 + ((((a) - 1) * 183) >> 8))   /* FOLD's DST: 1 .. 91 (0.5x .. 12.8x, Felucca's 1x .. 12.8x) */
 #define IFX_RECT_D(a) ((a) <= 64 ? 19 : 19 + ((((a) - 64) * 236) >> 8))   /* RECT's DST: 1x to 64, then .. 77 (7.8x) */
-enum { IFX_FOLD, IFX_FUZZ, IFX_SFLD, IFX_WRAP, IFX_RECT, IFX_HARM };   /* ifx_drive's shapes */
+enum { IFX_FOLD, IFX_FUZZ, IFX_SFLD, IFX_RECT, IFX_HARM };   /* ifx_drive's shapes */
 static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t shp, int32_t a, int32_t *b, uint32_t n)
 {
     dist_g_t g;
@@ -164,8 +160,6 @@ static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t shp,
             y -= dc >> 8;
         } else if (FELUCCA_INS_SFOLD && shp == IFX_SFLD) {
             y = sine_i((uint32_t)u << 15);              /* 32768 a quarter turn: sin(u pi / 2), round folds beyond */
-        } else if (FELUCCA_INS_WRAP && shp == IFX_WRAP) {
-            y = (int32_t)(((uint32_t)u + 32768u) & 0xFFFFu) - 32768;   /* u while |u| < 32768, wrapped to the other rail beyond */
         } else if (FELUCCA_INS_RECT && shp == IFX_RECT) {
             y = u < 0 ? -u : u;                         /* (to 64: 1x, |u| < 2^15; the step below fits 32 bits) */
             if (r < 32768)
@@ -259,9 +253,6 @@ AINL ifx_drv_t *ifx_sh_st(uint32_t ty, uint32_t i)
 #if FELUCCA_INS_SFOLD
     case FXT_SFLD: return &ifx_sfld[i];
 #endif
-#if FELUCCA_INS_WRAP
-    case FXT_WRAP: return &ifx_wrap[i];
-#endif
 #if FELUCCA_INS_RECT
     case FXT_RECT: return &ifx_rect[i];
 #endif
@@ -291,7 +282,7 @@ AINL void ifx_sh_run(ifx_drv_t *s, uint32_t ty, int32_t a, int32_t *b, uint32_t 
     }
 #endif
 #if IFX_DRV
-    ifx_drive(s, ty == FXT_SFLD ? IFX_SFLD : ty == FXT_WRAP ? IFX_WRAP : ty == FXT_RECT ? IFX_RECT : IFX_HARM, a, b, n);
+    ifx_drive(s, ty == FXT_SFLD ? IFX_SFLD : ty == FXT_RECT ? IFX_RECT : IFX_HARM, a, b, n);
 #endif
     (void)s, (void)ty, (void)a, (void)b, (void)n;
 }

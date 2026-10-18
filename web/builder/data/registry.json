@@ -1793,30 +1793,6 @@
     "provenance_line": ""
    },
    {
-    "key": "INS_WRAP",
-    "flag": "FELUCCA_INS_WRAP",
-    "label": "WRAP insert (wavewrapper)",
-    "group": "FX: any number (each track its own)",
-    "bit": 344,
-    "default": 0,
-    "parent": null,
-    "desc": "A wavewrapper type (WRAP): past full scale the wave jumps to the other side instead of folding back, a harsh digital buzz; clean at low settings, more jumps as WRAP rises. 0 is off.",
-    "experimental": false,
-    "notice": "On any insert slot (tracks, drum sounds but SUB, drum bus, master, returns). Tested in the host tests only, not on a device.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [
-     "ifx_wrap"
-    ],
-    "no_image": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
     "key": "INS_RECT",
     "flag": "FELUCCA_INS_RECT",
     "label": "RECT insert (rectifier, octave up)",
@@ -4730,7 +4706,6 @@
    "INS_FORMANT",
    "INS_WIDTH",
    "INS_SFOLD",
-   "INS_WRAP",
    "INS_RECT",
    "INS_HARM",
    "INS_RING",

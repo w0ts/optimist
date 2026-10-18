@@ -319,9 +319,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_SFOLD
 #define FELUCCA_INS_SFOLD 0                /* SFLD: a sine wavefolder (round folds, Felucca's PHASE FOLD shape) */
 #endif
-#ifndef FELUCCA_INS_WRAP
-#define FELUCCA_INS_WRAP 0                 /* WRAP: the drive wrapped around (an overflow: a jump, not a fold) */
-#endif
 #ifndef FELUCCA_INS_RECT
 #define FELUCCA_INS_RECT 0                 /* RECT: full-wave rectified, an octave up (an Octavia fuzz) */
 #endif

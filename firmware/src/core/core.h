@@ -145,7 +145,7 @@ typedef struct {
 #define TFLT_ON (FELUCCA_TRK_FILT || FELUCCA_FX_DJF)
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
-#define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_WRAP || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
+#define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
 #define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS || FELUCCA_INS_EQ3 || INS_SH)
 /* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
 #define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
@@ -227,9 +227,9 @@ enum {                          /* per-track parameters */
     P_TEQ,
 #endif
 #if INS_FX
-    /* the shapers' amounts (2026-10-18, fx/insfx/insfx.c; fx_slots.c FXT_SH0 ..): 0 off .. 127, as FOLD's. All seven exist
+    /* the shapers' amounts (2026-10-18, fx/insfx/insfx.c; fx_slots.c FXT_SH0 ..): 0 off .. 127, as FOLD's. All six exist
      * when any further type is built. Not part of a sound nor of a user preset; the FX record keeps them (a TLV a type) */
-    P_TSFLD, P_TWRAP, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW,
+    P_TSFLD, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW,
 #endif
     /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts

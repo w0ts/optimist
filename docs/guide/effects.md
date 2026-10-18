@@ -49,16 +49,15 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | JUNO | the Juno-106 chorus (below) | MIX, 127 the Juno's chorus on | `JUNO CHO` |
 | EQ3 | a three-band DJ equaliser (below) | ON or OFF | `EQ3`, `EQ3 FREQ` |
 | SFLD | a sine wavefolder: FOLD with round folds, softer and with fewer aliases | the drive into the folder | none |
-| WRAP | a wavewrapper: past full scale the wave jumps to the other side, a harsh buzz | the drive into the wrap | none |
 | RECT | a rectifier: the octave up (an Octavia) | up to 64 half-wave to full-wave, then its drive | none |
 | HARM | a harmonic exciter: the octave and the twelfth over each note | the drive | none |
 | RING | a ring modulator | the sine's pitch, 26 Hz .. 2.6 kHz | none |
 | SUB | an octave down, for one-note lines (a chord gives a rough sub) | the sub's level | none |
 | SLEW | a slew limiter: edges rounded into ramps, a dull crunch | light .. heavy | none |
 
-A drum sound can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, WRAP, RECT, HARM, RING and SLEW (not SUB). Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
+A drum sound can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW (not SUB). Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
-Each type is a builder item (DIST `FX_DIST`; DYN `MASTER_COMP`; FILT, DJ filter `FX_DJF`; DUST `FX_DUST`; `INS_FOLD`, `INS_FUZZ`, `INS_PHASER`, `INS_FLANGER`, `INS_FORMANT`, `INS_WIDTH`, `INS_GATER`, `INS_CHORUS`, `INS_DELAY`, `INS_JCHORUS`; the shapers `INS_SFOLD`, `INS_WRAP`, `INS_RECT`, `INS_HARM`, `INS_RING`, `INS_SUBOCT`, `INS_SLEW`). Only the types the build has appear in the lists. A project that names a type this build lacks keeps it, unheard.
+Each type is a builder item (DIST `FX_DIST`; DYN `MASTER_COMP`; FILT, DJ filter `FX_DJF`; DUST `FX_DUST`; `INS_FOLD`, `INS_FUZZ`, `INS_PHASER`, `INS_FLANGER`, `INS_FORMANT`, `INS_WIDTH`, `INS_GATER`, `INS_CHORUS`, `INS_DELAY`, `INS_JCHORUS`; the shapers `INS_SFOLD`, `INS_RECT`, `INS_HARM`, `INS_RING`, `INS_SUBOCT`, `INS_SLEW`). Only the types the build has appear in the lists. A project that names a type this build lacks keeps it, unheard.
 
 ### DYN: compressor and limiter
 

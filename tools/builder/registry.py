@@ -34,6 +34,7 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "INS_WRAP": "the WRAP insert (a wavewrapper) was dropped the day it came, 2026-10-18; its bit 344 and type id 20 stay unused",
     "SPLASH": "the dinghy boot logo is always built (retired 2026-10-15: no ring-only logo, no off; any old SPLASH value is ignored)",
     "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
     "SIZE": "the UI, stores and editor are always built for size (minsize; retired 2026-10, no -Os-everywhere choice)",
@@ -464,10 +465,6 @@ _add("INS_SFOLD", "FELUCCA_INS_SFOLD", "SFLD insert (sine wavefolder)", F, 343, 
      desc="A sine wavefolder type (SFLD): like FOLD but the folds are round (a sine of the drive), so it sings and "
           "aliases less; soft saturation at first, then more and more folds as SFLD rises. 0 is off.",
      symbols=("ifx_sfld",), notice="The shape of Felucca 1.5.5's PHASE FOLD by Leo Kuroshita (GPL-3.0)." + _SH_NOTE)
-_add("INS_WRAP", "FELUCCA_INS_WRAP", "WRAP insert (wavewrapper)", F, 344, default=0,
-     desc="A wavewrapper type (WRAP): past full scale the wave jumps to the other side instead of folding back, a "
-          "harsh digital buzz; clean at low settings, more jumps as WRAP rises. 0 is off.",
-     symbols=("ifx_wrap",), notice=_SH_NOTE.strip())
 _add("INS_RECT", "FELUCCA_INS_RECT", "RECT insert (rectifier, octave up)", F, 345, default=0,
      desc="A rectifier type (RECT): up to the middle the wave's lower half is folded up (half-wave, then full-wave: the "
           "octave up of an Octavia), past the middle it is driven into a soft clip. 0 is off.",
