@@ -53,7 +53,7 @@ export const TEXT = {
   what: "",
   build: "Build", site: "The site's build", cloud: "Cloud builds",
   themeLabel: "Theme",
-  power: "Start", stop: "Stop", starting: "Starting…", stopped: "Stopped.",
+  power: "Start", stop: "Stop", starting: "Starting…", clickToStart: "Click anywhere (or press a key) to start: the browser lets the sound start only after one.", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
@@ -173,11 +173,13 @@ export function mountSim(container, opts = {}) {
   const links = { install: "../installer/", ...(opts.links || {}) };
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("sim") : null);
   addStyle(container.ownerDocument);
+  let active = false;                                  /* (the tab shown: activate / deactivate) */
   const st = { choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null };
   const el = {};
 
   el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
-  el.power = h("button.o-btn.primary", { type: "button", onclick: () => (engine ? stop() : start()) }, TEXT.power);
+  el.power = h("button.o-btn.primary", { type: "button",
+    onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }, TEXT.power);
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
   el.config = h("button.o-btn.sm", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
@@ -246,6 +248,23 @@ export function mountSim(container, opts = {}) {
     st.choice = hit.length === 1 ? `cloud:${hit[0].id}` : st.choice || (packages.length ? "site:0" : null);
     options();
     if (!st.choice) say(TEXT.nosim);
+    autoStart();
+  }
+  /* the simulator starts by itself when its tab is shown and a build is there (the user, 2026-10-18: "the emu should auto
+     start"), unless the user stopped it in this page; the sound waits for the page's first click or key when the browser
+     wants one (its autoplay rule: a tab opened by a click counts) */
+  function autoStart() {
+    if (active && !engine && !st.starting && !st.userStopped && current()) start();
+  }
+  function waitGesture() {
+    say(TEXT.clickToStart);
+    const go = () => {
+      document.removeEventListener("pointerdown", go, true);
+      document.removeEventListener("keydown", go, true);
+      if (st.ctx) st.ctx.resume().then(() => { if (st.ctx.state === "running" && el.status.textContent === TEXT.clickToStart) say(""); }, () => {});
+    };
+    document.addEventListener("pointerdown", go, true);
+    document.addEventListener("keydown", go, true);
   }
   function current() {
     if (!st.choice) return null;
@@ -261,6 +280,8 @@ export function mountSim(container, opts = {}) {
     const b = current();
     if (!b) { say(TEXT.nosim, "err"); return; }
     if (typeof AudioWorkletNode === "undefined") { say(TEXT.noaudio, "err"); return; }
+    if (st.starting) return;
+    st.starting = true;
     say(TEXT.starting);
     el.power.disabled = true;
     try {
@@ -273,9 +294,12 @@ export function mountSim(container, opts = {}) {
         st.ctx = new AudioContext({ sampleRate: 44100, latencyHint: "interactive" });
         await st.ctx.audioWorklet.addModule(new URL("sim-worklet.js", import.meta.url).href);
       }
-      await st.ctx.resume();
+      /* (without a gesture the browser keeps the context suspended and resume() may never settle: wait a moment only) */
+      await Promise.race([st.ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 400))]);
       await boot(b);
+      if (st.ctx.state !== "running") waitGesture();
     } catch (e) { say(TEXT.loadfail + (e && e.message || e), "err"); }
+    st.starting = false;
     el.power.disabled = false;
   }
   async function boot(b) {
@@ -290,7 +314,7 @@ export function mountSim(container, opts = {}) {
   function onMessage(m, b) {
     if (m.type === "ready") {
       st.info = m.info; buildPanel(m.info);
-      say("");                                      /* (running: the Stop button says it; no status line) */
+      say(st.ctx && st.ctx.state !== "running" ? TEXT.clickToStart : "");   /* (running: the Stop button says it) */
       el.power.textContent = TEXT.stop;
       setConnected(true);
     } else if (m.type === "frame") {
@@ -617,7 +641,6 @@ export function mountSim(container, opts = {}) {
   }
   const kd = (e) => onKey(e, true), ku = (e) => onKey(e, false);
   const releaseAll = () => { for (const [id, v] of st.keysDown) { if (id[0] === "k") send("key", v, 0); else send("button", Number(id.slice(1)), 0); } st.keysDown.clear(); };
-  let active = false;
 
   loadBuilds();
   return {
@@ -626,6 +649,7 @@ export function mountSim(container, opts = {}) {
       active = true;
       document.addEventListener("keydown", kd); document.addEventListener("keyup", ku); window.addEventListener("blur", releaseAll);
       if (st.node) st.node.port.postMessage({ type: "frame" });
+      autoStart();
     },
     deactivate() { active = false; releaseAll(); document.removeEventListener("keydown", kd); document.removeEventListener("keyup", ku); window.removeEventListener("blur", releaseAll); },
     async unmount() { this.deactivate(); await stop(); if (st.ctx) await st.ctx.close(); container.replaceChildren(); },
