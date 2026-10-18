@@ -649,7 +649,9 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
     if (pg->scope == SC_FXSLOT) {                       /* a track slot's own value (EQ3's bands): recording, a step event */
         int32_t b = sa_find(song.sel % NTRK, vp);
         if (b >= 0 && sa_knob(song.sel % NTRK, (uint32_t)b, v, was) == 2) {
-            motion_full = 0;
+#if FELUCCA_MOTION
+            motion_full = 0;                            /* (motion.c's flag: a build with PLOCK and no MOTION has none) */
+#endif
             ui_message("MOTION FULL");
         }
     }
