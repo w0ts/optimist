@@ -450,6 +450,11 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DDLA_ON=0 -o "$OUT/lane_auto_old" tests/lane_auto_test.c -lm
     run "drum lane motion and locks read by a build that does not play them (DLA_ON 0): kept through every form, none heard, the render as without them, the track's own events played, MISS: LANE MOTION" "$OUT/lane_auto_old"
 ) >"$U.out" 2>&1 & jobbg
+# slot-relative automation (builder item SLOT_AUTO, seq/auto_slot.c): locks and motion on an insert slot's own values
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/slot_auto_test" tests/slot_auto_test.c -lm
+    run "slot-relative automation (SLOT_AUTO): the ids, EQ3's bands by (slot, parameter), a lock / hold / both heard, STOP lets go, YES, the knob, a swap clears that slot" "$OUT/slot_auto_test"
+) >"$U.out" 2>&1 & jobbg
 # POLY notes' own ends (seq/ngate.h) beside the drum lanes' events: the stored forms, save / load, patterns, the editor, 2.4
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/ngate_store_test" tests/ngate_store_test.c -lm

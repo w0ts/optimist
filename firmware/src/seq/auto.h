@@ -44,11 +44,18 @@
                                           * automation may break) */
 #define AUTO_TAIL2 (AUTO_LANE0 + AUTO_LANE_N)
 #define AUTO_TAIL2_N (AUTO_COND - AUTO_TAIL2)
+/* slot-relative ids (builder item SLOT_AUTO, seq/auto_slot.c): insert slot s's parameter i of the list's own track, the
+ * second tail range's last 32 ids (0xDC .. 0xFB; its first 16 stay the stored tail's: auto.c MOT_TAIL2) */
+#define AUTO_SLOTP0 (AUTO_TAIL2 + 16u)
+#define AUTO_SLOTP(s, i) (AUTO_SLOTP0 + (((uint32_t)(s) & 1u) << 4 | ((uint32_t)(i) & 15u)))
+#define AUTO_IS_SLOTP(p) ((uint32_t)(p) - AUTO_SLOTP0 < 32u)
+#define AUTO_SLOTP_B(p) ((uint32_t)(p) - AUTO_SLOTP0)
 #define AUTO_IS_LANE(p) ((uint32_t)(p) - AUTO_LANE0 < AUTO_LANE_N)
 #define AUTO_LANE(l, v) (AUTO_LANE0 + (((uint32_t)(l) & 15u) << 3 | ((uint32_t)(v) & 7u)))
 #define AUTO_LANE_L(p) (((uint32_t)(p) - AUTO_LANE0) >> 3)
 #define AUTO_LANE_V(p) (((uint32_t)(p) - AUTO_LANE0) & 7u)
-_Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND && AUTO_TAIL2_N == 48u, "lane ids, then the second tail range, below the pseudo-parameters");
+_Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND && AUTO_TAIL2_N == 48u && AUTO_SLOTP0 + 32u == AUTO_COND,
+               "lane ids, then the second tail range (its last 32 the slot-relative ids), below the pseudo-parameters");
 /* a synth note's own end in the stored forms only (seq/ngate.h: the working lists never hold one): note slot k of the
  * step, AUTO_NGATE0 + k, step-only, value 1..127 (1/128 of the step). Past every build's stored track ids (auto.c
  * MOT_TAIL_END), below the drum lanes' ids: an older build keeps them and plays none */

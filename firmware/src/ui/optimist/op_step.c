@@ -1270,9 +1270,14 @@ static void held_fill(void)                             /* normal -> fill only -
 
 /* ---- locks: a page button with a step held makes that page's cells the steps' events (the automation store) */
 /* page pg's cells are locks on this track: its sound pages; on the drum track the selected lane's SOUND, SOUND 2 and
- * ENV too (their values TUNE .. LEVEL: lane locks, DLA_ON), not SOUND 3, SOURCE, KIT nor the lane's LFO */
+ * ENV too (their values TUNE .. LEVEL: lane locks, DLA_ON), not SOUND 3, SOURCE, KIT nor the lane's LFO; SLOT_AUTO: the
+ * track's EQ3 pages too (FX, not a SOUND row: their bands are slot values, seq/auto_slot.c) */
 static int lock_pg_ok(const page_t *pg)
 {
+#if SLOT_AUTO
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_TEQ && pg->id[0] < FXS_ID_TEQ + 6u)
+        return page_shown(pg);
+#endif
     if (!sound_page(pg))
         return 0;
     return pg->scope != SC_DSND || (DLA_ON && pg->id[0] < DE_N);
@@ -1307,6 +1312,7 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
  * drum track's SOUND, SOUND 2 and ENV pages the selected lane's value v: LOCK_LANE | v (seq/auto_lane.c, the lane's
  * locks and motion events, heard at its hits) */
 #define LOCK_LANE 0x100
+#define LOCK_SLOT 0x200                                 /* | s x 16 + i: track slot s's value i (seq/auto_slot.c, SLOT_AUTO) */
 static int32_t lock_param(const page_t *pg, uint32_t k, const param_desc_t **d)
 {
     int16_t *vp;
@@ -1317,8 +1323,14 @@ static int32_t lock_param(const page_t *pg, uint32_t k, const param_desc_t **d)
     if (pg->scope == SC_DSND)
         return page_id(pg, k) < DE_N ? (int32_t)(LOCK_LANE | page_id(pg, k)) : -1;
 #endif
-    if (vp < tsel()->p || vp >= tsel()->p + P_COUNT)
+    if (vp < tsel()->p || vp >= tsel()->p + P_COUNT) {
+#if SLOT_AUTO
+        int32_t b = sa_find(trk_index(tsel()) % NTRK, vp);
+        return b >= 0 ? (int32_t)(LOCK_SLOT | (uint32_t)b) : -1;
+#else
         return -1;
+#endif
+    }
     return lock_ok(tsel(), (uint32_t)(vp - tsel()->p)) ? (int32_t)(vp - tsel()->p) : -1;
 }
 /* the first step held's event of cell k: 1 step-only (a lock), 2 a hold event (motion), 0 none; its value into *v */
@@ -1328,6 +1340,10 @@ static uint32_t lock_kind(uint32_t id, int32_t i, int32_t *v)
     if (id & LOCK_LANE)
         return lane_lock_get(tsel(), (uint32_t)i, lane_selected(), id & 7u, v) ? 1u :
                lane_hold_get(tsel(), (uint32_t)i, lane_selected(), id & 7u, v) ? 2u : 0u;
+#endif
+#if SLOT_AUTO
+    if (id & LOCK_SLOT)
+        return sa_lock_get(tsel(), (uint32_t)i, id & 31u, v) ? 1u : sa_hold_get(tsel(), (uint32_t)i, id & 31u, v) ? 2u : 0u;
 #endif
     return lock_get(tsel(), (uint32_t)i, id, v) ? 1u : hold_get(tsel(), (uint32_t)i, id, v) ? 2u : 0u;
 }
@@ -1353,6 +1369,15 @@ static void lock_cell_id(int32_t id, const param_desc_t *d, cell_t *c)
         if (!q)
             v = dl.ofs[lane_selected()][id & 7];
         c->vp = &dsv[id & 7];
+    } else
+#endif
+#if SLOT_AUTO
+    if (id & LOCK_SLOT) {
+        const param_desc_t *sd;
+        int16_t *p = sa_vp(trk_index(tsel()) % NTRK, ((uint32_t)id & 31u) >> 4, (uint32_t)id & 15u, &sd);
+        if (!q)
+            v = p ? *p : 0;
+        c->vp = p;
     } else
 #endif
     {
@@ -1394,6 +1419,28 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
             v = dl.ofs[l][dv];
         rc = lane_lock_set(t, idx, l, dv, param_step(d, v, step));
         *r |= rc == LANE_NOHIT ? 2u : rc ? 4u : 1u;
+        return;
+    }
+#endif
+#if SLOT_AUTO
+    if (id & LOCK_SLOT) {
+        uint32_t b = id & 31u;
+        const param_desc_t *sd;
+        int16_t *p = sa_vp(trk_index(t) % NTRK, b >> 4, b & 15u, &sd);
+        if (step == OP_RESET) {
+            sa_drop(t, idx, b);
+            return;
+        }
+        if (!p)
+            return;
+        if (!sa_lock_get(t, idx, b, &v) && sa_hold_get(t, idx, b, &v)) {
+            (void)sa_put(t, idx % NSTEP, b, clamp(param_step(d, v, step), d->min, d->max));
+            *r |= 4u;                                   /* (the hold event's value) */
+            return;
+        }
+        if (!sa_lock_get(t, idx, b, &v))
+            v = *p;
+        *r |= sa_lock_set(t, idx, b, clamp(param_step(d, v, step), d->min, d->max)) ? 4u : 1u;
         return;
     }
 #endif
@@ -1484,6 +1531,12 @@ static void held_yes(void)
 #if DLA_ON
                 if ((uint32_t)id & LOCK_LANE) {
                     r |= lane_kind_toggle(t, (uint32_t)i, lane_selected(), (uint32_t)id & 7u);
+                    continue;
+                }
+#endif
+#if SLOT_AUTO
+                if ((uint32_t)id & LOCK_SLOT) {
+                    r |= sa_kind_toggle(t, (uint32_t)i, (uint32_t)id & 31u);
                     continue;
                 }
 #endif

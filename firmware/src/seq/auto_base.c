@@ -78,6 +78,9 @@ static void motion_restore(track_t *t)
         dla_locks_off();
     }
 #endif
+#if SLOT_AUTO
+    sa_restore(k);                                           /* (the insert slots' values: auto_slot.c) */
+#endif
 }
 static void motion_restore_all(void)                         /* PLAY, STOP (seq.c, the ISR): every track */
 {

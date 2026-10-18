@@ -604,6 +604,9 @@ static uint32_t ins_has(uint32_t k, uint32_t t)
     return !(t < FXT_N && INS_ON(k, t)) ? 0u : ins_slot[k][0] == t ? 1u : 2u;
 }
 /* type t into track k's slot s (INSERTS, the mixer, the editor): the type the other slot holds swaps them (D3) */
+#if SLOT_AUTO
+static void sa_slot_clear(uint32_t k, uint32_t s);          /* (seq/auto_slot.c) */
+#endif
 static void ins_load(uint32_t k, uint32_t s, uint32_t t)
 {
     uint8_t v[INS_N];
@@ -612,6 +615,12 @@ static void ins_load(uint32_t k, uint32_t s, uint32_t t)
     if (t != FXT_NONE && v[s ^ 1u] == t)
         v[s ^ 1u] = v[s];
     v[s] = (uint8_t)t;
+#if SLOT_AUTO
+    if (v[0] != ins_slot[k][0])
+        sa_slot_clear(k, 0);                                 /* (another device: its slot automation goes, ruled) */
+    if (v[1] != ins_slot[k][1])
+        sa_slot_clear(k, 1);
+#endif
     ins_put(k, v);
 }
 /* track k's slot s's amount (a P_* id: the type's), 0xFF: empty or not built */

@@ -645,6 +645,15 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
     if ((pg->scope == SC_TRACK || pg->scope == SC_ENGINE) && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
         auto_knob_base(TSEL, (uint32_t)(vp - TSEL->p), v);   /* (the new patch: a lock in force lets go) */
 #endif                                                  /* (a MACRO's motion: SLOOP's macro_ui.c, not here yet) */
+#if SLOT_AUTO
+    if (pg->scope == SC_FXSLOT) {                       /* a track slot's own value (EQ3's bands): recording, a step event */
+        int32_t b = sa_find(song.sel % NTRK, vp);
+        if (b >= 0 && sa_knob(song.sel % NTRK, (uint32_t)b, v, was) == 2) {
+            motion_full = 0;
+            ui_message("MOTION FULL");
+        }
+    }
+#endif
     if (pg->scope == SC_FXSLOT && fxs_type_set(id, v))  /* MST INS: the master's S1 / S2 TYPE (fx_slots.c) */
         return;
     if (pg->scope == SC_FXSLOT && id < FX_NSLOT)        /* FX > SLOTS: load the type (a type held elsewhere swaps) */

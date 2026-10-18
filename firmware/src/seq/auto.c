@@ -27,6 +27,11 @@ typedef struct {
 static auto_store_t auto_w;              /* the working project's */
 #define AUTO_L(k) (&auto_w.l[(uint32_t)(k) % NTRK])
 #define AL(t) AUTO_L(trk_index(t))
+#if SLOT_AUTO
+static void sa_event(uint32_t k, const auto_ev_t *e, uint32_t mo);   /* (auto_slot.c, included at the end) */
+static void sa_locks_off(uint32_t k);
+static void sa_restore(uint32_t k);
+#endif
 
 /* Motion's old form, kept as a stored form (motion_flash.c's MOTN record, sec_codec.c's SEC_MOT chunk, a V1 pattern
  * record's chunk): at most 64 hold events for the four tracks together, place = track << 6 | step */
@@ -298,6 +303,13 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
     if (k == TRK_DRUM)
         dla_locks_off();                             /* (the last step's lane locks let go) */
 #endif
+#if SLOT_AUTO
+    sa_locks_off(k);                                 /* (the last step's slot locks let go: auto_slot.c) */
+#if FELUCCA_MOTION
+    if (mo && idx == 0u)
+        sa_restore(k);                               /* (each pass from the devices' values, as motion_pass) */
+#endif
+#endif
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         const auto_ev_t *e = &l->ev[i];
         if ((e->place & AUTO_STEP) != idx)
@@ -314,6 +326,16 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
                 dla_event(e, mo);
 #else
                 dla_event(e, 0);
+#endif
+            continue;
+        }
+#endif
+#if SLOT_AUTO
+        if (AUTO_IS_SLOTP(e->param)) {               /* (a slot's parameter: auto_slot.c, before mot_id, which has none) */
+#if FELUCCA_MOTION
+            sa_event(k, e, mo);
+#else
+            sa_event(k, e, 0);
 #endif
             continue;
         }
@@ -577,4 +599,7 @@ static uint32_t auto_kind_toggle(track_t *t, uint32_t idx, uint32_t id)
 }
 #if DLA_ON
 #include "auto_lane.c"         /* the drum lanes' motion and locks: the UIs' calls */
+#endif
+#if SLOT_AUTO
+#include "auto_slot.c"         /* the insert slots' parameters by (slot, number): SLOT_AUTO */
 #endif

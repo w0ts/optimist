@@ -147,6 +147,8 @@ typedef struct {
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
 #define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
 #define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS || FELUCCA_INS_EQ3 || INS_SH)
+/* slot-relative automation (builder item SLOT_AUTO: seq/auto_slot.c) */
+#define SLOT_AUTO (FELUCCA_SLOT_AUTO && FELUCCA_INS_EQ3 && FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
 /* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
 #define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
 enum {                          /* per-track parameters */
