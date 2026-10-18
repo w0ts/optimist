@@ -1092,6 +1092,14 @@
     "ramtext": 136
    }
   },
+  "CACHE_RAM": {
+   "1": {
+    "flash": 388,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 100
+   }
+  },
   "ASM": {
    "0": {
     "flash": -708,

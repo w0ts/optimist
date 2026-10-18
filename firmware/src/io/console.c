@@ -672,6 +672,17 @@ static void con_boot(void)
     con_kx("prev_loop_id", fm1_aloop_prev);             /* core.h LOOP_GUARD: a loop that hit its bound (0: none) */
     con_kx("loop_id", fm1_aloop);                       /* (this boot so far) */
     con_kv("ms", (int32_t)fm1_ms);
+#if FELUCCA_CACHE_RAM
+    /* hal/fm1_cache.h: 1 ready, 2 never idle, 3 masks not taken, 4 memory test failed (then restored); the registers
+     * as the boot loader left them (CACHE_CON bit 9: the cache on for external RAM) and after */
+    con_kv("cache_ram", (int32_t)fm1_cache.status);
+    con_kx("cache_con_boot", fm1_cache.con);
+    con_kx("dcache_way_boot", fm1_cache.dway0);
+    con_kx("icache_way_boot", fm1_cache.iway0);
+    con_kx("dcache_way", fm1_cache.dway);
+    con_kx("icache_way", fm1_cache.iway);
+    con_kx("cache_ram_bad_at", fm1_cache.bad_at);
+#endif
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
     con_kv("cpu1_stage", (int32_t)fm1_dual_mb.stage);
@@ -908,14 +919,18 @@ static void con_params(void)
  * emulator has no memory timing). The same loop (a sine lookup's stride, 2 KiB, int16 reads) over SINE where this
  * build put it, a main RAM range (trk, read only) and a pool range (st_buf, read only); the best of 8 runs of 4,096
  * reads each, in tenths of a ns a read (timer 4, 24 MHz: ~4 ns steps over the run). Interrupts stay on (the audio
- * runs): repeat it, compare the figures with each other, not with a datasheet. CPU0, the loop's code from flash */
-static uint32_t con_tab_run(const int16_t *t, int32_t *sum)   /* (the sum is printed: every read is kept) */
+ * runs): repeat it, compare the figures with each other, not with a datasheet. CPU0, the loop's code from flash.
+ * The flash lines read the app's first 2 / 16 KiB (constants are read the same way): with CACHE_RAM the data cache
+ * keeps one 4 KiB way, so a 16 KiB figure worse with it than without means the flash's data goes through the data
+ * cache (and the audio's flash tables would pay); the same figure, that it does not (hal/fm1_cache.h) */
+extern const int16_t _xip_org[];                     /* (app.ld: the app's first byte in flash) */
+static uint32_t con_tab_run(const int16_t *t, uint32_t mask, int32_t *sum)   /* (the sum is printed: every read kept) */
 {
     uint32_t r, i, k, t0, d, best = 0xFFFFFFFFu;
     for (r = 0; r < 8u; r++) {
         int32_t a = 0;
         t0 = fm1_ticks();
-        for (i = 0, k = 0; i < 4096u; i++, k = (k + 37u) & 1023u)
+        for (i = 0, k = 0; i < 4096u; i++, k = (k + 37u) & mask)
             a += t[k];
         d = fm1_ticks() - t0;
         *sum += a;
@@ -924,22 +939,28 @@ static uint32_t con_tab_run(const int16_t *t, int32_t *sum)   /* (the sum is pri
     }
     return best * 10000u / (FM1_TICKS_PER_US * 4096u);
 }
-static void con_tab_line(const char *name, const void *at, int32_t *sum)
+static void con_tab_line(const char *name, const void *at, uint32_t mask, int32_t *sum)
 {
     con_puts(name);
     con_hex((uint32_t)(uintptr_t)at, 8);
     con_puts("  ");
-    con_dec((int32_t)con_tab_run((const int16_t *)at, sum));
+    con_dec((int32_t)con_tab_run((const int16_t *)at, mask, sum));
     con_puts(" (0.1 ns a read)\r\n");
 }
 static void con_tabbench(void)
 {
     int32_t sum = 0;
-    con_tab_line("SINE      ", SINE, &sum);
-    con_tab_line("main RAM  ", &trk[0], &sum);
+    con_tab_line("SINE      ", SINE, 1023u, &sum);
+    con_tab_line("main RAM  ", &trk[0], 1023u, &sum);
 #if FELUCCA_FLASH
-    con_tab_line("pool      ", st_buf, &sum);        /* (storage.c: IN_POOL) */
+    con_tab_line("pool      ", st_buf, 1023u, &sum);  /* (storage.c: IN_POOL) */
 #endif
+#if FELUCCA_CACHE_RAM
+    if (fm1_cache_ram_ok())                           /* (the undo history's: read only) */
+        con_tab_line("cache RAM ", (const void *)(uintptr_t)FM1_CR_LO, 1023u, &sum);
+#endif
+    con_tab_line("flash 2K  ", _xip_org, 1023u, &sum);
+    con_tab_line("flash 16K ", _xip_org, 8191u, &sum);
     con_puts("(checksum ");
     con_dec(sum);
     con_puts(")\r\n");

@@ -142,6 +142,20 @@ caps it. The builder's Reserve items keep a minimum of it (and of free app flash
 
 Free **app flash** is not used by anything: it is the room to add features. Your saves never use it.
 
+### 2.2 Cache RAM (EXPERIMENTAL `CACHE_RAM`, off by default)
+
+The chip's caches have their own memory: 8 instruction-cache ways at 0x01F20000 and 8 data-cache ways at
+0x01F28000, 4 KiB each. M-VAVE's FM-1 firmware (V15) keeps one data way as a cache and uses the other seven
+(0x01F28000..0x01F2F000, 28 KiB) as RAM, as the AC79 SDK does for a flash-only build whose SDRAM is never switched on (`cpu/wl82/sdk_ld_sfc.c`
+FREE_DACHE_WAY = 7; 0 in its SDRAM link); V15 itself puts only 32 bytes there. With the builder's `CACHE_RAM` Optimist does the same at
+start-up (`hal/fm1_cache.h`: the SDK's sequence, from RAM, before CPU1 and the interrupts), tests the 28 KiB and, when
+the test passes, gives them to the undo history in place of main RAM's leftover (`.cache_ram` in app.ld is empty: an
+object placed there must check `fm1_cache_ram_ok()`). On a failed test the way masks are put back and nothing uses it.
+Not known yet [unmeasured]: whether the FM-1 reads flash constants through the data cache (then keeping one data way
+could cost the audio CPU: the CDC console's `tabbench` "flash 16K" line, with the item off and on, settles it), and
+whether the cache RAM can be used by DMA or by CPU1 (nothing there uses either). The emulator maps the whole 64 KiB as
+plain RAM and has no cache timing.
+
 ## 3. Two builds, measured
 
 | Build | Flash app (of 581,564) | Main RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) | Undo ring |

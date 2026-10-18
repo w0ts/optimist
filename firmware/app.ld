@@ -9,6 +9,7 @@
  * RAM  : .ram_hot2 (more of the audio path, core.h HOT2: RAMTEXT is full), then .data/.bss (96 KiB)
  * POOL : big zero-initialised buffers (FX lines, canvases), section .pool
  * STACKS with 256-byte guard bands; NOINIT survives resets and UBOOT entry.
+ * CACHE: 0x01F28000..0x01F2F000, data-cache ways as RAM (EXPERIMENTAL FELUCCA_CACHE_RAM, hal/fm1_cache.h).
  * 0x01C7FD50.. is reserved: boot_info, boot-state mailbox, vector table. */
 MEMORY
 {
@@ -17,6 +18,9 @@ MEMORY
     RAM    (rwx) : ORIGIN = 0x01C08000, LENGTH = 96K
     POOL   (rw)  : ORIGIN = 0x01C20000, LENGTH = 0x54000
     NOINIT (rw)  : ORIGIN = 0x01C7C000, LENGTH = 0x3D50
+    /* data-cache ways 0..6 as RAM: usable only with FELUCCA_CACHE_RAM and after its boot test passed
+     * (hal/fm1_cache.h fm1_cache_ram_ok); otherwise they are the cache's own memory */
+    CACHE  (rw)  : ORIGIN = 0x01F28000, LENGTH = 28K
 }
 SECTIONS
 {
@@ -36,6 +40,10 @@ SECTIONS
     _pi_load = LOADADDR(.pool_init);
     .pool (NOLOAD) : { _pz_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
     .noinit (NOLOAD) : { *(.noinit) *(.noinit.*) } > NOINIT     /* (.noinit.* last: a new one moves nothing) */
+    /* cache RAM (EXPERIMENTAL, hal/fm1_cache.h): zeroed by its boot test, not by main.c. Only for an object whose
+     * every user checks fm1_cache_ram_ok() first (without it, or when the test fails, it is not RAM); empty today:
+     * the undo history takes what follows (undo.c) */
+    .cache_ram (NOLOAD) : { _cr_start = .; *(.cache_ram .cache_ram.*) . = ALIGN(4); _cr_end = .; } > CACHE
     /* the undo history's ring (undo.c, FELUCCA_UNDO_HISTORY): the memory nothing is linked into, so it
      * grows and shrinks with the build. The pool after .pool up to its last 8 KiB (build.py keeps those
      * spare), then main RAM after .bss. Not a section; main.c does not clear it (undo.c needs no zeros).
@@ -47,6 +55,8 @@ SECTIONS
     _undo_pool_hi = ORIGIN(POOL) + LENGTH(POOL) - 8192;
     _undo_ram_lo = _bss_end;
     _undo_ram_hi = ORIGIN(RAM) + LENGTH(RAM);
+    _undo_cache_lo = _cr_end;                   /* with the cache RAM (its test passed): this replaces main RAM's part */
+    _undo_cache_hi = ORIGIN(CACHE) + LENGTH(CACHE);
     _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;
     _guard1 = 0x01C7A000; _sstack_lo = 0x01C7A100; _sstack_top = 0x01C7C000;
     /DISCARD/ : { *(.comment) *(.note*) }

@@ -20,6 +20,7 @@ static void dual_flash_leave(void);
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+#include "fm1_cache.h"               /* EXPERIMENTAL cache RAM (FELUCCA_CACHE_RAM): 7 data-cache ways as 28 KiB of RAM */
 #include "core/backports.h"          /* (before the HAL: FELUCCA_LIGHTS, hal/fm1_input.h) */
 #include "fm1_input.h"
 #include "fm1_timer.h"

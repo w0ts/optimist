@@ -197,7 +197,16 @@ static uint32_t undo_arena_set(uint8_t *plo, uint8_t *phi, uint8_t *rlo, uint8_t
 }
 #ifdef __PI32V2__
 extern uint8_t _undo_pool_lo[], _undo_pool_hi[], _undo_ram_lo[], _undo_ram_hi[];   /* app.ld */
+#if FELUCCA_CACHE_RAM
+/* EXPERIMENTAL cache RAM (hal/fm1_cache.h): when its boot test passed, its 28 KiB (after .cache_ram) are the second
+ * segment instead of main RAM's leftover; else main RAM's as without it */
+extern uint8_t _undo_cache_lo[], _undo_cache_hi[];
+#define UNDO_ARENA() (fm1_cache_ram_ok()                                                                  \
+    ? undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_cache_lo, _undo_cache_hi, FELUCCA_UNDO_CAP)      \
+    : undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP))
+#else
 #define UNDO_ARENA() undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP)
+#endif
 #else
 #ifndef UNDO_HOST_ARENA
 #define UNDO_HOST_ARENA 16384u           /* the host build: a stand-in for the leftover memory */

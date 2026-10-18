@@ -573,6 +573,8 @@ void fm1_cstart(void)
         *d = *s;                                /* the audio path (core.h HOT), before any IRQ */
     for (s = _rh2_load, d = _rh2_start; d < _rh2_end; s++, d++)
         *d = *s;                                /* its overflow into RAM (core.h HOT2) */
+    fm1_cache_ram_init();                       /* EXPERIMENTAL cache RAM (hal/fm1_cache.h): needs .ram_text, before the
+                                                 * guards, CPU1 and any interrupt; nothing without FELUCCA_CACHE_RAM */
     fm1_mailbox_clear();
 #if FELUCCA_DUAL
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE);   /* the bus and PC guards after CPU1's start

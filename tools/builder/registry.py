@@ -750,6 +750,16 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
           "after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
+_add("CACHE_RAM", "FELUCCA_CACHE_RAM", "28 KB more memory from the data cache (for the undo history)", Y, 92, default=0,
+     experimental=True, target_only=True,
+     tested="emulator-tested only (it has no cache timing); not checked on an FM-1",
+     desc="Uses 7 of the 8 data-cache ways as 28 KB of RAM, as M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only "
+          "builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested "
+          "at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main "
+          "RAM has left), else everything is put back as it was and nothing uses it. It costs about 0.4 KB of flash and "
+          "0.1 KB of fast RAM code. "
+          "Off until checked on an FM-1: whether the flash's data reads use the data cache (then the sound's tables "
+          "in flash could cost CPU) is not known; the console's tabbench (flash 16K) and boot lines show it.")
 _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y, 56, target_only=True,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
