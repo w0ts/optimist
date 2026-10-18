@@ -2054,54 +2054,6 @@
     "provenance_line": "fm-106 (PatttF/fm-106) @ be74757 by PatttF (GPL-3.0-only)"
    },
    {
-    "key": "INS_EQ3",
-    "flag": "FELUCCA_INS_EQ3",
-    "label": "EQ3 insert (three-band DJ EQ)",
-    "group": "FX: any number (each track its own)",
-    "bit": 143,
-    "default": 0,
-    "parent": null,
-    "desc": "A three-band equaliser type, like Ableton's EQ Three, for any insert slot (a track's, a drum sound's, the master's) and the returns (EQ3): LO MID HI from KILL (the left end) to +6 dB, the crossovers FREQ LO (250 Hz) and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
-    "experimental": false,
-    "notice": "Tested in the host tests only, not on a device.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [
-     "eq3_run"
-    ],
-    "no_image": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "SLOT_AUTO",
-    "flag": "FELUCCA_SLOT_AUTO",
-    "label": "locks and motion on a track insert's own values (EQ3 bands)",
-    "group": "FX: any number (each track its own)",
-    "bit": 351,
-    "default": 0,
-    "parent": null,
-    "desc": "A held step locks, and motion recording records, the values of the device in a track's insert slot that are not track values (today EQ3's LO MID HI FREQ L FREQ H), by slot and parameter number rather than by a global id. Loading another device into the slot clears that slot's events. Needs EQ3, the automation store and PLOCK or MOTION. The FX > EQ3 pages become lock pages with a step held.",
-    "experimental": true,
-    "notice": "Experimental: tested in the host tests only, not on a device.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [
-     "sa_event"
-    ],
-    "no_image": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
     "key": "RET_FB",
     "flag": "FELUCCA_RET_FB",
     "label": "return feedback sends (B to A, C to A, C to B)",
@@ -4758,8 +4710,6 @@
    "INS_RING",
    "INS_SUBOCT",
    "INS_SLEW",
-   "INS_EQ3",
-   "SLOT_AUTO",
    "RET_FB",
    "INS_GATER"
   ],
