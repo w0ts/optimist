@@ -291,7 +291,8 @@
       "SRC": "Grain source", "POS": "Position in the sample", "SIZE": "Grain size", "DENS": "Grains per second",
       "PTCH": "Grain pitch", "SPRD": "Position spread", "RAND": "Random pitch / reverse", "TONE": "Tone (low-pass)"}},
     {"kind": "eng", "ctx": "FM6", "if": "FELUCCA_ENG_FM6", "params": {
-      "VOICE": "DX7 voice"}},
+      "VOICE": "DX7 voice", "LPF": "Low-pass after FM6: 0 open", "RES": "Low-pass resonance",
+      "HPF": "High-pass after FM6: 0 off"}},
     {"kind": "eng", "ctx": "SUPER", "if": "FELUCCA_ENG_SUPER && !FELUCCA_ANALOG2", "params": {
       "SUPR": "Saw copies", "SDTN": "Copy spread", "MIX": "Copies level", "DRFT": "Pitch drift",
       "SUB": "Sub octave level", "CUT": "Filter cutoff", "RES": "Filter resonance", "FTYP": "Filter type"}},

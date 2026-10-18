@@ -470,8 +470,48 @@ static void sysex_pending(void)
 #endif
 }
 
+/* LPF RES HPF (eng_fm6.c fm6_flt, 2026-10-18): at 0 the part plays sample for sample as before (RES alone does nothing);
+ * LPF takes the upper harmonics away, HPF the fundamental; RES 127 with LPF stays bounded */
+static void filters(void)
+{
+    static int32_t dry[FS / 2];
+    double h_dry, h_lp, f_dry, f_hp, p;
+    uint32_t i, same = 1;
+    for (i = 0; i < 4u; i++) {                           /* dry, RES alone, LPF 100, HPF 100 */
+        fresh();
+        memset(fm6_dc, 0, sizeof fm6_dc);                /* (fresh() leaves the part's DC and filter states) */
+        opp(2)[FO_OL] = 85;                              /* (OP2 into OP1: a bright tone with harmonics) */
+        T->p[P_E5] = (int16_t)(i == 2u ? 100 : 0);
+        T->p[P_E6] = (int16_t)(i == 1u ? 127 : 0);
+        T->p[P_E7] = (int16_t)(i == 3u ? 100 : 0);
+        trk_note_on(T, 45, 100);                         /* (A2, 110 Hz) */
+        render(i ? wave_l : dry, FS / 2);
+        if (i == 0u)
+            h_dry = tone(dry, 4000, FS / 2, 110 * 9), f_dry = tone(dry, 4000, FS / 2, 110);
+        else if (i == 1u)
+            for (uint32_t k = 0; k < FS / 2; k++)
+                same &= wave_l[k] == dry[k];
+        else if (i == 2u)
+            h_lp = tone(wave_l, 4000, FS / 2, 110 * 9), p = peak(wave_l, 0, FS / 2);
+        else
+            f_hp = tone(wave_l, 4000, FS / 2, 110);
+    }
+    CHECK(same, "FM6 filter: LPF and HPF at 0 (RES 127): the part sample for sample as without");
+    CHECK(h_lp < h_dry * 0.25, "FM6 LPF 100: the 9th harmonic down (%.1f dB)", db(h_lp / h_dry));
+    CHECK(f_hp < f_dry * 0.5, "FM6 HPF 100: the fundamental down (%.1f dB)", db(f_hp / f_dry));
+    CHECK(p < 2 * 8 * 24000, "FM6 LPF 100: bounded (peak %.0f)", p);
+    fresh();
+    opp(2)[FO_OL] = 85;
+    T->p[P_E5] = 60, T->p[P_E6] = 127;
+    trk_note_on(T, 45, 100);
+    render(wave_l, FS / 2);
+    p = peak(wave_l, 0, FS / 2);
+    CHECK(p > 1000 && p < 2 * 8 * 24000, "FM6 LPF 60 RES 127: rings, bounded (peak %.0f)", p);
+}
+
 int main(void)
 {
+    filters();
     sysex_pending();
     algorithms();
     voices();

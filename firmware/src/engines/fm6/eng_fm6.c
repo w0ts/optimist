@@ -1473,7 +1473,38 @@ static void fm6_block(track_t *t)                        /* per part and block: 
  * about 20 Hz); with no voice it starts afresh */
 static struct {
     int32_t x1, y1;                                      /* the last input; the last output << 8 */
+    int32_t l1, l2, h1, h2;                              /* LPF's and HPF's trapezoidal SVF states (fm6_flt) */
 } fm6_dc[NPART];
+/* LPF RES HPF (2026-10-18, the user: "a filter after the fm6 ... I know it is not standard"): on the part after the DC
+ * filter, not on each voice; EDIT 6..8 (EDIT 2..5 were MOD M.TIM C.TIM ENGINE until f0f74c5f: a load bakes what an old
+ * project holds there into the voice, so they stay empty). 0 is off (open) for LPF and HPF, as every FM6 sound stored before has it, so an old
+ * sound plays sample for sample (nothing runs); LPF closes the low-pass from 20 kHz with the amount (its cutoff 127 - LPF on
+ * the SVF's scale), RES its peak, HPF opens a high-pass (no peak). Half the signal through the SVF (its +-150000 range: the
+ * voices' sum reaches 8 x VOICE_FS), doubled back */
+static void fm6_flt(track_t *t, uint32_t p, int32_t *out, uint32_t n)
+{
+    int32_t lpf = t->p[P_E5], res = t->p[P_E6], hpf = t->p[P_E7], l1, l2, h1, h2;
+    tsvf_t cl, ch;
+    uint32_t i;
+    if (lpf <= 0 && hpf <= 0) {
+        fm6_dc[p].l1 = fm6_dc[p].l2 = fm6_dc[p].h1 = fm6_dc[p].h2 = 0;   /* (off: from rest when it comes back) */
+        return;
+    }
+    tsvf_coef(&cl, (127 - clamp(lpf, 0, 127)) << 8, clamp(res, 0, 127));
+    tsvf_coef(&ch, clamp(hpf, 0, 127) << 8, 0);
+    l1 = fm6_dc[p].l1, l2 = fm6_dc[p].l2, h1 = fm6_dc[p].h1, h2 = fm6_dc[p].h2;
+    for (i = 0; i < n; i++) {
+        int32_t x = out[i] >> 1, bp;
+        if (lpf > 0)
+            x = tsvf_lp(&cl, x, &l1, &l2);
+        if (hpf > 0) {
+            int32_t lo = tsvf_tick(&ch, x, &h1, &h2, &bp);
+            x = x - 2 * bp - lo;                         /* (the high-pass: in - k bp - lp, k 2 at RES 0) */
+        }
+        out[i] = x * 2;
+    }
+    fm6_dc[p].l1 = l1, fm6_dc[p].l2 = l2, fm6_dc[p].h1 = h1, fm6_dc[p].h2 = h2;
+}
 
 static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 {
@@ -1481,6 +1512,7 @@ static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
     int32_t x1 = fm6_dc[p].x1, y = fm6_dc[p].y1;
     if (!nr) {
         fm6_dc[p].x1 = fm6_dc[p].y1 = 0;
+        fm6_dc[p].l1 = fm6_dc[p].l2 = fm6_dc[p].h1 = fm6_dc[p].h2 = 0;
         return;
     }
     for (i = 0; i < n; i++) {
@@ -1491,6 +1523,7 @@ static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
     }
     fm6_dc[p].x1 = x1;
     fm6_dc[p].y1 = y;
+    fm6_flt(t, p, out, n);
 }
 
 /* ------------------------------------------------------------ the engine --- */
@@ -1512,19 +1545,19 @@ static const preset_t FM6_PRESETS[] = {
 };
 
 static const engine_t ENG_FM6 = {
-    "FM6", {"PATCH", "-"},                               /* (EDIT 2 has no value: params.c page_shown leaves it out) */
+    "FM6", {"PATCH", "FILT"},                            /* (EDIT 2: the filter after the part, fm6_flt) */
     {
         {"VOICE", F_ENUM, 0, FM6_NVOICE - 1, 0, N_FM6V, 0},
+        {"-", F_INT, 0, 0, 0, 0, 0},                     /* (EDIT 2..5: empty, an old project's MOD .. ENGINE baked) */
         {"-", F_INT, 0, 0, 0, 0, 0},
         {"-", F_INT, 0, 0, 0, 0, 0},
         {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
+        {"LPF", F_PCT, 0, 127, 0, 0, 0},                 /* (fm6_flt: 0 open) */
+        {"RES", F_PCT, 0, 127, 0, 0, 0},
+        {"HPF", F_PCT, 0, 127, 0, 0, 0},                 /* (0 off) */
     },
     FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
-    0x5D7F, {0}, NVOICE, fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
+    0x5D7F, {P_E0, P_E5, P_E6, P_E7}, NVOICE,             /* (MAIN: VOICE LPF RES HPF) */ fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
     fm6_post,
 };
 
