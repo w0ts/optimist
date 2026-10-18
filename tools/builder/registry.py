@@ -845,9 +845,12 @@ _add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (c
           "it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the "
           "Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs "
           "an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its "
-          "address, class, clock, signal and EIR name) and a status line a second. Nothing is connected, no audio. "
-          "About 15 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.3 KB of RAM and "
-          "6.3 KB of pool.",
+          "address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an "
+          "inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns "
+          "(entries, RX gain, window, frequency, carrier offset) and bttrace prints their first interrupts. Nothing is "
+          "connected, no audio. "
+          "About 19 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.4 KB of RAM and "
+          "10.5 KB of pool.",
      symbols=("bti_st",))
 
 for _it in _ITEMS:

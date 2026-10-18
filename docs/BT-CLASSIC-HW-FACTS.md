@@ -662,6 +662,38 @@ The `fm1-emulator-ble` (`feat/ble-engine`) binary stops current builds at boot (
 `feat/upstream-merge` sibling also stopped once at a store-immediate form (`0xEA7B`, a negative offset) the compiler
 emitted for the init, now written as a list of plain stores. Not run on an FM-1.
 
+### 14.2 First run on an FM-1 (2026-10-18, package eca11986) [M:hw]
+
+- **1a passes on hardware:** CLKN `0x0 -> 0x12D8` in 3,015 ms = 1,600 slots/s; 260 alarms (about 268 expected), late
+  at most 1 slot; slot timer 0 fired 3 times; no unknown IRQ 40 bit; the latch read back 0 at once (0 polls); the
+  fine count up to 163 us. So the slot clock, the alarm, the slot timers and both interrupt lines behave as §2 and §6
+  say.
+- **1b (inquiry, 10.24 s, a Raspberry Pi `D8:3A:DD:DE:2A:93` in inquiry and page scan about 1 m away):** the engine
+  runs: IRQ 40 about 1,590 times a second (one a slot) while only 86 of them are the alarm and **1 in total has the RX
+  bit**; the A/B train flipped every 2.56 s; one RX status `0x83xx` (bits 15, 9, 8 of the high byte, against `0x8F` for
+  a good packet), no FHS, no EIR. [I] `0x83` = the sync word found, header or payload not accepted: possibly the Pi's
+  FHS (which carries the GIAC access code) received badly. Which pending bit fires every slot was not recorded.
+- Ranked causes and the second probe's test for each: §14.3.
+
+### 14.3 The second probe (btscan, options, bttrace)
+
+1. **RX gain at the top step.** The first probe set `RXGAIN0` = 15 and kept it; the library starts at 8 and steps it
+   by RSSI1 per packet (§4, §8.1). At 1 m a strong FHS may saturate the receiver while the sync word still
+   correlates. Now: start at 8 and follow RSSI1; `agc=N` fixes it.
+2. **What the radio sends, and on which channel.** Unknown whether the IDs leave at the right frequency (an offset in
+   the channel code, §7.1), with BR modulation (§10.4) or at all. `btscan` runs stock V15's measured inquiry-scan
+   frame (§8.2) as "OPTIMIST BT": with the Pi searching, the IDs it hears are counted (our receiver and access code
+   checked on their own) and the Pi listing the name checks our FHS and EIR transmission. `frq=+-N` moves every hop
+   table entry, `pll=+-N` / `sweep` the carrier (the library's own sweep, §7.1).
+3. **The exchange entries.** Even entries open (the library's flag 0) is [I] for the master side: `odd`, `all`.
+4. **The LE block.** Stock enables `0x2FC80` bit0 and `0x28000` after the BR/EDR init; the library does it only with
+   the LE module, so [I] not needed: `ble` adds it.
+5. **The receive window** (`wincntl`, units [I] us): `win=N`.
+
+`bttrace` keeps the first 96 interrupts that are not the alarm alone: the pending word, both buffers' RX status and
+header, `linkcntl`, the TX/RX buffer flags, the hop indexes `txfreq`/`rxfreq`, RSSI0-3, `rx_clkn` and `rxbit`; the
+per-second line adds histograms of the pending words and of the full RX status words.
+
 ---
 
 ## 15. Verdict for driving BR/EDR ourselves

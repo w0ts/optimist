@@ -990,7 +990,7 @@ static void con_exec(const char *p)
 #endif
 #endif
 #if FELUCCA_BT_INQ_PROBE
-                 "  btclk [run]  btinq [SECONDS|stop]"
+                 "  btclk [run]  btinq|btscan [SECONDS] [even|odd|all agc=N win=N frq=N pll=N sweep pwr=N ble]|stop  bttrace [N]"
 #endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))
@@ -1039,7 +1039,11 @@ static void con_exec(const char *p)
     else if (con_word(&p, "btclk"))
         con_btclk(p);
     else if (con_word(&p, "btinq"))
-        con_btinq(p);
+        con_btrun(p, BTI_M_INQ);
+    else if (con_word(&p, "btscan"))
+        con_btrun(p, BTI_M_SCAN);
+    else if (con_word(&p, "bttrace"))
+        con_bttrace(p);
 #endif
     else if (con_word(&p, "uboot")) {
         if (con_word(&p, "yes")) {

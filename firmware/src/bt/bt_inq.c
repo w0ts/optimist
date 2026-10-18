@@ -8,12 +8,21 @@
  *       with the stored trims (hal/fm1_ble.h, the VM only), the BR/EDR init (BR §10.2), then 3 s of the slot clock
  *       (expect +1,600 a second), the 18-slot alarm (IRQ 40 bit 9) and slot timer 0 every 1,600 slots (IRQ 41).
  *       Nothing is transmitted. `btclk` prints the result (bti_st: the emulator check reads it)
- *   1b  `btinq [SECONDS]`: an inquiry with the GIAC (BR §8.1; default 10.24 s): one frame, procedure 8, ID trains by
- *       the engine, FHS and EIR responses printed as `btinq:` lines, a status line a second, an RX status histogram
+ *   1b  `btinq [SECONDS] [OPTIONS]`: an inquiry with the GIAC (BR §8.1; default 10.24 s): one frame, procedure 8, ID
+ *       trains by the engine, FHS and EIR responses printed as `btinq:` lines, a status line a second
+ *   1c  `btscan [SECONDS] [OPTIONS]`: an inquiry scan as stock V15 runs it (BR §8.2, its frame as measured): a phone or
+ *       a computer searching finds "OPTIMIST BT" (a random address each boot); the IDs heard are counted
  *
- * The interrupts copy what came into a ring and re-arm; the main loop (bti_poll) decodes and prints. Nothing here
+ *   OPTIONS (the hardware's unknowns, BR §12): even | odd | all (the exchange entries open), agc=N (a fixed RX gain
+ *   step 0-15; default: start at 8 and follow each packet's RSSI, as the library), win=N (the receive window),
+ *   frq=+-N (every hop table entry moved by N channels), pll=+-N (the carrier offset, in the library's crystal units),
+ *   sweep (pll through the library's 9 steps, one a 1.28 s), pwr=N (TX level 0-11), ble (the LE block's enable too, as
+ *   stock V15 runs it beside the BR/EDR one)
+ *   `bttrace [N]` prints the first interrupts of the last run (pending bits, buffers, hop indexes, RX status, RSSI).
+ *
+ * The interrupts copy what came into rings and re-arm; the main loop (bti_poll) decodes and prints. Nothing here
  * writes flash. */
-#include "fm1_ble.h"                               /* the radio's start-up (fm1_ble_rf_init) */
+#include "fm1_ble.h"                               /* the radio's start-up (fm1_ble_rf_init), the LE block's init */
 #include "fm1_bredr.h"                             /* the BR/EDR block */
 #include "../ble/ble_vm.c"                         /* the stored trims in stock V15's VM (read only) */
 #include "bt_inq_core.c"
@@ -32,37 +41,62 @@ void ble_wl82_rx_irq(void) {}
 #define BTI_IRQ_PRIO 2u                            /* the library's (BR §9.3): below the audio (3) */
 #define BTI_CLK FM1_BR_CLK_MASK
 
-static uint8_t bti_tab[FM1_BR_TAB_SIZE] IN_POOL __attribute__((aligned(4)));   /* zeroed (the pool); the engine's DMA */
+/* the table (BR §3), then our own TX buffers inside the engine's 32 KB window */
+#define BTI_OFF_FHS_TX 4200u                       /* the inquiry scan's FHS payload (18 B) */
+#define BTI_OFF_EIR_TX 4224u                       /* its EIR (25 B as stock's) */
+#define BTI_TAB_ALLOC 4480u
+static uint8_t bti_tab[BTI_TAB_ALLOC] IN_POOL __attribute__((aligned(4)));   /* zeroed (the pool); the engine's DMA */
+static uint8_t bti_le_bb[64] IN_POOL __attribute__((aligned(4)));    /* the LE block's RAM window, no links (`ble`) */
 
-/* ---- what the probe saw (the emulator check reads it: tests/bt_inq_emu_test.py) */
+/* ---- what the probe saw (the emulator check reads the first 17 words: tests/bt_inq_emu_test.py) */
 enum { BTI_IDLE, BTI_CLK_RUN, BTI_CLK_DONE, BTI_INQ_RUN, BTI_INQ_DONE, BTI_NO_TRIMS = 0xE1, BTI_LATCH_HUNG = 0xE2 };
 #define BTI_MAGIC 0x31495442u                      /* "BTI1" */
+#define BTI_NH 8u
 struct bti_stat {
     uint32_t magic, phase, rf_up;
     uint32_t clk0, clk1, ms0, ms1, fine_max;       /* 1a: CLKN and ms at the start and the end */
     uint32_t irq40, alarms, rx_irqs, other40;      /* IRQ 40: entries, bit 9, bit 1, the other known bits */
     uint32_t unknown40, irq41, slot0, latch_spins; /* unknown pending bits seen (OR), IRQ 41 entries, timer 0 */
     uint32_t alarm_late;                           /* the largest CLKN at the alarm minus its slot */
-    uint32_t fhs, eir, dropped, trains;            /* 1b */
-    uint32_t hist_key[8], hist_n[8], hist_other;   /* 1b: RX status high bytes seen and their counts */
+    uint32_t fhs, eir, dropped, trains, ids;       /* 1b / 1c */
+    uint32_t rs_key[BTI_NH], rs_n[BTI_NH], rs_other;   /* RX status words (all 16 bits) seen and their counts */
+    uint32_t pd_key[BTI_NH], pd_n[BTI_NH], pd_other;   /* IRQ 40 pending words seen and their counts */
 };
 static struct bti_stat bti_st = {BTI_MAGIC};
 
-/* the interrupts' ring: one FHS or EIR each */
+/* the interrupts' ring: one FHS, EIR or ID each */
 #define BTI_RING 8u
+enum { BTI_K_FHS = 1, BTI_K_EIR = 2, BTI_K_ID = 3 };
 struct bti_rx {
-    uint8_t kind, type, idx, pad;                  /* kind 1 FHS, 2 EIR */
-    uint32_t clkn, stat, agc, len;
+    uint8_t kind, type, idx, rxfreq;
+    uint32_t clkn, stat, agc, len, rssi1;
     uint8_t data[240];
 };
 static struct bti_rx bti_ring[BTI_RING] IN_POOL;
 static volatile uint32_t bti_rw, bti_rr;
 
+/* the first interrupts of a run (bttrace) */
+#define BTI_TRACE 96u
+struct bti_tr {
+    uint32_t t, pend;                              /* TIMER4 ticks, IRQ 40 pending */
+    uint16_t rxstat[2], rxphdr[2], linkcntl[2], rssi[4], rx_clkn_lo, rxbit;
+    uint8_t rxtog, txtog, txfreq, rxfreq, txbufcntl[2], rxbufcntl[2];
+};
+static struct bti_tr bti_trace[BTI_TRACE] IN_POOL;
+static volatile uint32_t bti_tn;
+
+enum { BTI_M_INQ, BTI_M_SCAN };
 static struct {
-    uint32_t end_clkn, next_slot0, train_clkn, last_rx_clkn, inq_slots, sec_ms, sec_clk, alarm_at;
-    uint8_t bredr_up, want_eir, train, nseen;
-    uint8_t seen[16][6], last_addr[6];
+    uint32_t end_clkn, next_slot0, train_clkn, last_rx_clkn, inq_slots, sec_ms, sec_clk, alarm_at, sweep_clkn;
+    uint8_t bredr_up, want_eir, train, nseen, mode, agc, sweep_i, le_up;
+    uint8_t seen[16][6], last_addr[6], own[6];
+    /* options */
+    uint8_t o_pat, o_agc, o_sweep, o_pwr, o_ble;
+    int8_t o_frq;
+    int16_t o_pll, pll_now;
+    uint16_t o_win;
 } bti;
+static const int8_t bti_sweep_tb[9] = {-120, -80, -40, -20, 0, 20, 40, 80, -120};   /* BR §7.1 (the library's steps) */
 
 static uint32_t bti_clkn(void)
 {
@@ -78,6 +112,23 @@ static void bti_alarm_arm(uint32_t slots)          /* BR §6.4 (its slot kept: n
 {
     bti.alarm_at = (bti_clkn() + slots) & BTI_CLK;
     fm1_br_alarm_at(bti.alarm_at);
+}
+
+static void bti_count(uint32_t *key, uint32_t *n, uint32_t *other, uint32_t v)
+{
+    uint32_t i;
+    for (i = 0; i < BTI_NH; i++) {
+        if (n[i] && key[i] == v) {
+            n[i]++;
+            return;
+        }
+        if (!n[i]) {
+            key[i] = v;
+            n[i] = 1;
+            return;
+        }
+    }
+    (*other)++;
 }
 
 /* ---- the radio and the BR/EDR block */
@@ -107,33 +158,65 @@ static void bti_bredr_up(void)
     uint32_t i;
     if (bti.bredr_up)
         return;
-    for (i = 0; i < FM1_BR_TAB_SIZE; i++)
+    for (i = 0; i < BTI_TAB_ALLOC; i++)
         bti_tab[i] = 0;
     fm1_br_init(bti_tab);
     fm1_br_irqs_hold(0);
     bti.bredr_up = 1;
 }
 
-/* ---- interrupts */
-static void bti_hist(uint32_t hi)
+static void bti_le_up(void)                        /* `ble`: the LE block enabled as stock V15 does after BR/EDR (BLE-HW-FACTS §5.5), no link */
 {
     uint32_t i;
-    for (i = 0; i < 8u; i++) {
-        if (bti_st.hist_n[i] && bti_st.hist_key[i] == hi) {
-            bti_st.hist_n[i]++;
-            return;
-        }
-        if (!bti_st.hist_n[i]) {
-            bti_st.hist_key[i] = hi;
-            bti_st.hist_n[i] = 1;
-            return;
-        }
+    if (bti.le_up)
+        return;
+    for (i = 0; i < sizeof bti_le_bb; i++)
+        bti_le_bb[i] = 0;
+    fm1_ble_bb_init((uint32_t)(uintptr_t)bti_le_bb, sizeof bti_le_bb);
+    bti.le_up = 1;
+}
+
+static void bti_frq_table(void)                    /* frq_table[0] (BR §7.1), moved by frq=N */
+{
+    uint32_t i;
+    for (i = 0; i < 79u; i++) {
+        int32_t ch = (int32_t)(i < 40u ? 2u * i : 2u * (i - 40u) + 1u) + bti.o_frq;
+        bti_tab[FM1_BR_OFF_FRQ + i] = (uint8_t)(ch < 0 ? 0 : ch > 80 ? 80 : ch);
     }
-    bti_st.hist_other++;
+}
+
+/* ---- interrupts */
+static void bti_trace_add(uint32_t pend)
+{
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    struct bti_tr *t;
+    uint32_t i;
+    if (bti_tn >= BTI_TRACE)
+        return;
+    t = &bti_trace[bti_tn];
+    t->t = fm1_ticks();
+    t->pend = pend;
+    for (i = 0; i < 2u; i++) {
+        t->rxstat[i] = f->rxstat[i];
+        t->rxphdr[i] = f->rxphdr[i];
+        t->linkcntl[i] = f->linkcntl[i];
+        t->txbufcntl[i] = f->txbufcntl[i];
+        t->rxbufcntl[i] = f->rxbufcntl[i];
+    }
+    for (i = 0; i < 4u; i++)
+        t->rssi[i] = f->rssi[i];
+    t->rx_clkn_lo = f->rx_clkn_lo;
+    t->rxbit = f->rxbit;
+    t->rxtog = f->rxtog;
+    t->txtog = f->txtog;
+    t->txfreq = f->txfreq;
+    t->rxfreq = f->rxfreq;
+    bti_tn++;
 }
 
 static void bti_push(uint32_t kind, uint32_t idx, uint32_t stat, uint32_t clkn, const uint8_t *src, uint32_t len)
 {
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
     struct bti_rx *r;
     uint32_t i;
     if (bti_rw - bti_rr >= BTI_RING) {
@@ -148,6 +231,8 @@ static void bti_push(uint32_t kind, uint32_t idx, uint32_t stat, uint32_t clkn, 
     r->len = len;
     r->clkn = clkn;
     r->agc = fm1_br_agc3();
+    r->rssi1 = f->rssi[1];
+    r->rxfreq = f->rxfreq;
     for (i = 0; i < len; i++)
         r->data[i] = src[i];
     RING_PUBLISH();
@@ -159,6 +244,18 @@ static int bti_is_data(uint32_t type)              /* DM1 DH1 DM3 DH3 DM5 DH5: a
     return type == 3u || type == 4u || type == 10u || type == 11u || type == 14u || type == 15u;
 }
 
+static void bti_agc_follow(struct fm1_br_frame *f)   /* BR §4 RSSI1: step up below 800, down above 1,100 */
+{
+    uint32_t r = f->rssi[1];
+    if (bti.o_agc != 0xFFu)
+        return;
+    if (r < 800u && bti.agc < 15u)
+        bti.agc++;
+    else if (r > 1100u && bti.agc > 0)
+        bti.agc--;
+    f->rxgain0 = bti.agc;
+}
+
 static void bti_rx_frame(void)                     /* BR §8.1 "On IRQ 40 RX": the filled buffer is rxtog ^ 1 */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -167,27 +264,39 @@ static void bti_rx_frame(void)                     /* BR §8.1 "On IRQ 40 RX": t
     if (clkn == bti.last_rx_clkn)
         return;                                    /* (this frame has nothing new: BR §6.2) */
     bti.last_rx_clkn = clkn;
-    bti_hist(stat >> 8);
+    bti_count(bti_st.rs_key, bti_st.rs_n, &bti_st.rs_other, stat);
+    if ((stat >> 8) == 0x8Fu)
+        bti_agc_follow(f);
+    if (bti.mode == BTI_M_SCAN) {                  /* an inquiry scan hears IDs (BR §8.2); the engine answers */
+        if ((stat >> 8) == 0x8Fu && type == 0) {
+            bti_st.ids++;
+            if (bti_st.ids <= 8u)
+                bti_push(BTI_K_ID, idx, stat, clkn, 0, 0);
+        }
+        return;
+    }
     f->linkcntl[idx] &= (uint16_t)~(1u << 14);
     if ((stat >> 8) == 0x8Fu && type == 2u) {      /* an FHS (BR §5.4) */
-        bti_push(1, idx, stat, clkn, bti_tab + FM1_BR_OFF_FHS, 18u);
+        bti_push(BTI_K_FHS, idx, stat, clkn, bti_tab + FM1_BR_OFF_FHS, 18u);
         bti_st.fhs++;
         bti.want_eir = (uint8_t)((bti_tab[FM1_BR_OFF_FHS + 7] >> 2) & 1u);   /* its EIR bit (BR §8.4) */
         if (!bti.want_eir)
             fm1_br_eir_arm(0);
     } else if ((stat >> 8) == 0x8Fu && bti.want_eir && bti_is_data(type)) {
         len = (f->rxphdr[idx] >> 3) & 0x3FFu;      /* (BR §4 rxphdr: [12:3] length) */
-        bti_push(2, idx, stat, clkn, bti_tab + FM1_BR_OFF_EIR, len > 240u ? 240u : len);
+        bti_push(BTI_K_EIR, idx, stat, clkn, bti_tab + FM1_BR_OFF_EIR, len > 240u ? 240u : len);
         bti_st.eir++;
         bti.want_eir = 0;
         fm1_br_eir_arm(0);
         fm1_br_con_or(1u << 11);
+    } else if ((stat >> 8) != 0x8Fu) {
+        bti_push(BTI_K_ID, idx, stat, clkn, 0, 0);   /* (anything else: shown as heard, with its status) */
     }
     f->rxbufcntl[idx] &= (uint8_t)~1u;             /* re-armed (BR §5.5) */
     f->linkcntl[idx] |= 1u << 14;
 }
 
-static void bti_inq_stop(void)                     /* (from the alarm or the console) */
+static void bti_run_stop(void)                     /* (from the alarm or the console) */
 {
     uint32_t i;
     for (i = 0; i < 16u; i++)
@@ -199,6 +308,13 @@ static void bti_inq_stop(void)                     /* (from the alarm or the con
         bti_st.phase = BTI_INQ_DONE;
 }
 
+static void bti_pll(int32_t units)                 /* BR §4 PLL_COMP = units x 2^20 / 24,000 */
+{
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    bti.pll_now = (int16_t)units;
+    f->pll_comp = (uint32_t)(units * 1048576 / 24000);
+}
+
 static void bti_alarm(void)                        /* the 18-slot housekeeping (BR §6.4, §8.1) */
 {
     uint32_t now = bti_clkn(), late = (now - bti.alarm_at) & BTI_CLK;
@@ -206,16 +322,23 @@ static void bti_alarm(void)                        /* the 18-slot housekeeping (
         bti_st.alarm_late = late;
     if (bti_st.phase == BTI_INQ_RUN) {
         struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
-        if (((now - bti.train_clkn) & BTI_CLK) >= 4096u) {   /* the A/B train every 2.56 s (BR §7.1) */
+        if (bti.mode == BTI_M_INQ && ((now - bti.train_clkn) & BTI_CLK) >= 4096u) {   /* A/B every 2.56 s (BR §7.1) */
             bti.train_clkn = now;
             bti.train ^= 1u;
             f->format = (uint8_t)((f->format & 0x7Fu) | bti.train << 7);
             bti_st.trains++;
         }
-        bti.want_eir = 0;                          /* (an EIR not come by now will not) */
-        fm1_br_eir_arm(1);
+        if (bti.o_sweep && ((now - bti.sweep_clkn) & BTI_CLK) >= 2048u) {
+            bti.sweep_clkn = now;
+            bti.sweep_i = (uint8_t)((bti.sweep_i + 1u) % 9u);
+            bti_pll(bti.o_pll + bti_sweep_tb[bti.sweep_i]);
+        }
+        if (bti.mode == BTI_M_INQ) {
+            bti.want_eir = 0;                      /* (an EIR not come by now will not) */
+            fm1_br_eir_arm(1);
+        }
         if (((bti.end_clkn - now) & BTI_CLK) > (BTI_CLK >> 1)) {   /* past the end */
-            bti_inq_stop();
+            bti_run_stop();
             return;
         }
     }
@@ -227,7 +350,14 @@ void bti_bt_irq(void)                              /* IRQ 40 (BR §6.2), via isr
 {
     uint32_t p = fm1_br_ipnd();
     bti_st.irq40++;
+    if (bti_st.phase == BTI_INQ_RUN) {
+        bti_count(bti_st.pd_key, bti_st.pd_n, &bti_st.pd_other, p);
+        if (p != (1u << 9))
+            bti_trace_add(p);
+    }
     bti_st.unknown40 |= p & ~(uint32_t)FM1_BR_IPND_KNOWN;
+    if (p & ~(uint32_t)FM1_BR_IPND_KNOWN)          /* (acknowledged too: an unacknowledged bit would hold the line) */
+        fm1_br_iack(p & ~(uint32_t)FM1_BR_IPND_KNOWN & 0xFFFFu);
     if (p & 1u)
         fm1_br_iack(1u);
     if (p & 2u) {
@@ -270,10 +400,12 @@ static void bti_attach(void)                       /* at boot, IRQs off (main.c)
 }
 
 /* ---- 1a */
+static int bti_busy(void) { return bti_st.phase == BTI_CLK_RUN || bti_st.phase == BTI_INQ_RUN; }
+
 static int bti_clk_start(void)
 {
     uint32_t keep_rf = bti_st.rf_up, i;
-    if (bti_st.phase == BTI_CLK_RUN || bti_st.phase == BTI_INQ_RUN)
+    if (bti_busy())
         return 0;
     for (i = 0; i < sizeof bti_st / 4u; i++)
         ((uint32_t *)&bti_st)[i] = 0;
@@ -339,7 +471,85 @@ static void bti_clk_print(void)
     con_puts("\r\n");
 }
 
-/* ---- 1b (BR §8.1 start, §14 1b) */
+/* ---- the options */
+static int bti_opt_num(const char **p, const char *key, int32_t *v)   /* "key=N" or "key=-N" */
+{
+    const char *s = *p, *k = key;
+    int ok = 0, neg = 0;
+    uint32_t n;
+    while (*s == ' ')
+        s++;
+    while (*k && *s == *k)
+        s++, k++;
+    if (*k || *s != '=')
+        return 0;
+    s++;
+    if (*s == '-' || *s == '+')
+        neg = *s++ == '-';
+    n = con_num(&s, &ok);
+    if (!ok)
+        return 0;
+    *v = neg ? -(int32_t)n : (int32_t)n;
+    *p = s;
+    return 1;
+}
+
+static void bti_opts(const char *p, uint32_t *seconds)
+{
+    int32_t v;
+    int ok = 0;
+    uint32_t s;
+    bti.o_pat = 0, bti.o_agc = 0xFFu, bti.o_win = 0, bti.o_frq = 0, bti.o_pll = 0, bti.o_sweep = 0, bti.o_pwr = 11u;
+    bti.o_ble = 0;
+    s = con_num(&p, &ok);
+    if (ok && s >= 1u && s <= 120u)
+        *seconds = s;
+    for (;;) {
+        if (con_word(&p, "even"))
+            bti.o_pat = 0;
+        else if (con_word(&p, "odd"))
+            bti.o_pat = 1;
+        else if (con_word(&p, "all"))
+            bti.o_pat = 2;
+        else if (con_word(&p, "sweep"))
+            bti.o_sweep = 1;
+        else if (con_word(&p, "ble"))
+            bti.o_ble = 1;
+        else if (bti_opt_num(&p, "agc", &v))
+            bti.o_agc = (uint8_t)(v < 0 ? 0 : v > 15 ? 15 : v);
+        else if (bti_opt_num(&p, "win", &v))
+            bti.o_win = (uint16_t)v;
+        else if (bti_opt_num(&p, "frq", &v))
+            bti.o_frq = (int8_t)(v < -10 ? -10 : v > 10 ? 10 : v);
+        else if (bti_opt_num(&p, "pll", &v))
+            bti.o_pll = (int16_t)(v < -1000 ? -1000 : v > 1000 ? 1000 : v);
+        else if (bti_opt_num(&p, "pwr", &v))
+            bti.o_pwr = (uint8_t)(v < 0 ? 0 : v > 11 ? 11 : v);
+        else
+            break;
+    }
+}
+
+static void bti_opts_print(void)
+{
+    static const char *const pat[3] = {"even", "odd", "all"};
+    con_puts(" [");
+    con_puts(pat[bti.o_pat]);
+    if (bti.o_agc == 0xFFu)
+        con_puts(" agc=follow");
+    else
+        bti_kv(" agc=", bti.o_agc);
+    bti_kv(" win=", fm1_br_frame(bti_tab, 0)->wincntl);
+    con_puts(" frq=");
+    con_dec(bti.o_frq);
+    con_puts(" pll=");
+    con_dec(bti.o_pll);
+    con_puts(bti.o_sweep ? " sweep" : "");
+    bti_kv(" pwr=", bti.o_pwr);
+    con_puts(bti.o_ble ? " ble]" : "]");
+}
+
+/* ---- 1b, 1c (BR §8.1, §8.2, §14) */
 static void bti_frame_defaults(struct fm1_br_frame *f)   /* BR §4 "allocator default" */
 {
     fm1_br_frame_clear(f);
@@ -353,60 +563,110 @@ static void bti_frame_defaults(struct fm1_br_frame *f)   /* BR §4 "allocator de
     f->aclprio = 0x1414u;
     f->escoprio = 0x1D1Du;
     f->bufcntl = 0x202Cu;
-    f->pll_comp = 0;                               /* (no stored crystal offset: BR §4, BLE-HW-FACTS §14.5) */
-    f->rxgain0 = 15u;
-    f->txpwer = 16u + 11u;                         /* level 11, stock V15's (BR §11) */
-    f->txset = 16u + 11u;
+    bti.agc = bti.o_agc == 0xFFu ? 8u : bti.o_agc;   /* (the library's first step: 8) */
+    f->rxgain0 = bti.agc;
+    f->txpwer = 16u + bti.o_pwr;                   /* (level 11: stock V15's, BR §11) */
+    f->txset = 16u + bti.o_pwr;
 }
 
-static int bti_inq_start(uint32_t slots)
+static void bti_giac(struct fm1_br_frame *f)       /* the GIAC's access code (BR §5.3), UAP 0 (the spec's DCI) */
 {
-    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
     uint8_t bch[5];
-    uint32_t i;
-    if (bti_st.phase == BTI_CLK_RUN || bti_st.phase == BTI_INQ_RUN)
-        return 0;
-    if (!bti_radio_up())
-        return 0;
-    bti_bredr_up();
-    fm1_br_irqs_hold(1);
-    bti_frame_defaults(f);
-    fm1_br_eir_rx(FM1_BR_OFF_EIR, 1);              /* BR §8.1 step 2 */
-    f->wincntl = 70u;                              /* step 3 */
-    f->lmprxptr[0] = FM1_BR_OFF_FHS;
-    f->lmprxptr[1] = FM1_BR_OFF_FHS;
-    f->rxptr[0] = FM1_BR_OFF_FHS;
-    f->rxptr[1] = FM1_BR_OFF_FHS;
-    f->clk_off_lo = 0;                             /* step 4 */
-    f->clk_off_hi = 0;
     f->bdaddr[0] = (uint16_t)(BTI_GIAC & 0xFFFFu);
-    f->bdaddr[1] = (uint16_t)(BTI_GIAC >> 16);     /* (UAP 0: the spec's DCI) */
+    f->bdaddr[1] = (uint16_t)(BTI_GIAC >> 16);
     f->bdaddr[2] = 0;
     bti_parity(BTI_GIAC, bch);
     f->bch_lo = (uint16_t)(bch[0] | bch[1] << 8);
     f->bch_mid = (uint16_t)(bch[2] | bch[3] << 8);
     f->bch_hi = bch[4];
-    bti.train = 0;
-    f->format = 8u;                                /* step 5: inquiry, train A */
-    f->linkcntl[f->txtog & 1u] = 0x4000u;          /* ID */
+}
+
+static const uint8_t bti_eir_tx[25] = {12, 0x09, 'O', 'P', 'T', 'I', 'M', 'I', 'S', 'T', ' ', 'B', 'T'};   /* + zeros */
+
+static void bti_own_addr(void)                     /* a random address for this boot (LAP outside 0x9E8B00-3F) */
+{
+    uint32_t r;
+    if (bti.own[0] | bti.own[1] | bti.own[2])
+        return;
+    do
+        r = fm1_ble_rng32();
+    while (((r & 0xFFFFC0u) == 0x9E8B00u) || (r & 0xFFFFFFu) == 0);
+    bti.own[0] = (uint8_t)r, bti.own[1] = (uint8_t)(r >> 8), bti.own[2] = (uint8_t)(r >> 16);
+    r = fm1_ble_rng32();
+    bti.own[3] = (uint8_t)r, bti.own[4] = (uint8_t)(r >> 8), bti.own[5] = (uint8_t)((r >> 16) & 0xFCu);
+}
+
+static int bti_run_start(uint32_t mode, uint32_t slots)
+{
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    uint32_t i, open;
+    if (bti_busy())
+        return 0;
+    if (!bti_radio_up())
+        return 0;
+    bti_bredr_up();
+    if (bti.o_ble)
+        bti_le_up();
+    fm1_br_irqs_hold(1);
+    bti_frq_table();
+    bti_frame_defaults(f);
+    bti.mode = (uint8_t)mode;
+    bti_giac(f);
+    f->clk_off_lo = 0;
+    f->clk_off_hi = 0;
+    if (mode == BTI_M_INQ) {                       /* BR §8.1 steps 2-5 */
+        fm1_br_eir_rx(FM1_BR_OFF_EIR, 1);
+        f->wincntl = bti.o_win ? bti.o_win : 70u;
+        f->lmprxptr[0] = FM1_BR_OFF_FHS;
+        f->lmprxptr[1] = FM1_BR_OFF_FHS;
+        f->rxptr[0] = FM1_BR_OFF_FHS;
+        f->rxptr[1] = FM1_BR_OFF_FHS;
+        f->format = 8u;                            /* inquiry, train A */
+        f->linkcntl[f->txtog & 1u] = 0x4000u;      /* ID */
+    } else {                                       /* BR §8.2: stock V15's inquiry-scan frame as measured */
+        struct bti_fhs fh;
+        bti_own_addr();
+        for (i = 0; i < 6u; i++)
+            fh.addr[i] = bti.own[i];
+        fh.eir = 1, fh.sr = 1, fh.cod = 0x240404u, fh.lt_addr = 0, fh.clk = 0, fh.psm = 0;
+        bti_fhs_build(&fh, bti_tab + BTI_OFF_FHS_TX);
+        for (i = 0; i < sizeof bti_eir_tx; i++)
+            bti_tab[BTI_OFF_EIR_TX + i] = bti_eir_tx[i];
+        fm1_br_eir_tx(sizeof bti_eir_tx, 10u, BTI_OFF_EIR_TX);   /* 25 bytes, DM3, as stock */
+        f->txphdr[0] = (uint16_t)(sizeof bti_eir_tx << 3 | 3u);
+        f->txphdr[1] = (uint16_t)(sizeof bti_eir_tx << 3 | 3u);
+        f->txptr[0] = BTI_OFF_FHS_TX;
+        f->txptr[1] = BTI_OFF_FHS_TX;
+        f->wincntl = bti.o_win ? bti.o_win : 0x8022u;
+        f->format = 11u;                           /* inquiry scan */
+        f->linkcntl[0] = 0x4102u;                  /* FHS, an EIR follows */
+        f->linkcntl[1] = 0x4112u;
+    }
     f->rxbufcntl[0] = 0;
     f->rxbufcntl[1] = 0;
-    for (i = 0; i < 8u; i++)
-        bti_st.hist_key[i] = bti_st.hist_n[i] = 0;
-    bti_st.hist_other = bti_st.fhs = bti_st.eir = bti_st.dropped = bti_st.trains = 0;
-    bti_st.rx_irqs = bti_st.irq40 = bti_st.alarms = 0;
+    for (i = 0; i < sizeof bti_st / 4u; i++)       /* (keep the 1a figures: the first 17 words) */
+        if (i >= 17u)
+            ((uint32_t *)&bti_st)[i] = 0;
+    bti_st.rx_irqs = bti_st.irq40 = bti_st.alarms = bti_st.other40 = bti_st.unknown40 = 0;
+    bti_tn = 0;
     bti_rr = bti_rw;
     bti.nseen = 0;
     bti.want_eir = 0;
+    bti.train = 0;
+    bti.sweep_i = 0;
+    bti_pll(bti.o_pll + (bti.o_sweep ? bti_sweep_tb[0] : 0));
     bti.last_rx_clkn = 0xFFFFFFFFu;
     bti.inq_slots = slots;
     bti.train_clkn = bti_clkn();
+    bti.sweep_clkn = bti.train_clkn;
     bti.end_clkn = (bti.train_clkn + slots) & BTI_CLK;
     bti.sec_ms = fm1_ms;
     bti.sec_clk = bti.train_clkn;
     bti_st.phase = BTI_INQ_RUN;
-    for (i = 0; i < 16u; i++)                      /* even entries open (BR §3.1, flag 0) */
-        fm1_br_xchg(bti_tab, i, FM1_BR_OFF_FRAME | ((i & 1u) ? 1u << 12 : 0u));
+    for (i = 0; i < 16u; i++) {                    /* BR §3.1: even (flag 0), odd (1) or all (2) entries open */
+        open = bti.o_pat == 2u || (i & 1u) == bti.o_pat;
+        fm1_br_xchg(bti_tab, i, FM1_BR_OFF_FRAME | (open ? 0u : 1u << 12));
+    }
     bti_alarm_arm(18u);
     fm1_br_irqs_hold(0);
     return 1;
@@ -434,19 +694,22 @@ static int bti_new(const uint8_t a[6])
     return 1;
 }
 
-static void bti_rssi(uint32_t agc)                 /* BR §10.3: -1 - bits 5:0, and the gain index (table not transcribed) */
+static void bti_rssi(const struct bti_rx *r)       /* BR §10.3: -1 - bits 5:0, the gain index (table not transcribed) */
 {
     con_puts(" rssi_raw=0x");
-    con_hex(agc & 0x3FFFu, 4);
+    con_hex(r->agc & 0x3FFFu, 4);
     con_puts(" (");
-    con_dec(-1 - (int32_t)(agc & 63u));
-    bti_kv(" g", (agc >> 8) & 63u);
-    con_puts(")");
+    con_dec(-1 - (int32_t)(r->agc & 63u));
+    bti_kv(" g", (r->agc >> 8) & 63u);
+    bti_kv(") rssi1=", r->rssi1);
+    bti_kv(" rxf=", r->rxfreq);
 }
+
+static const char *bti_tag(void) { return bti.mode == BTI_M_SCAN ? "btscan: " : "btinq: "; }
 
 static void bti_print_rx(const struct bti_rx *r)
 {
-    if (r->kind == 1u) {
+    if (r->kind == BTI_K_FHS) {
         struct bti_fhs fh;
         bti_fhs_parse(r->data, &fh);
         ble_cpy(bti.last_addr, fh.addr, 6);
@@ -461,10 +724,10 @@ static void bti_print_rx(const struct bti_rx *r)
         con_hex(fh.clk, 7);
         con_puts(" dclk=");                        /* remote CLK - our RX CLKN, slots, 28-bit signed (BR §6.1) */
         con_dec((int32_t)(((fh.clk << 1) - r->clkn) << 4) >> 4);
-        bti_rssi(r->agc);
+        bti_rssi(r);
         bti_kv(" eir=", fh.eir);
         con_puts("\r\n");
-    } else {
+    } else if (r->kind == BTI_K_EIR) {
         char name[33];
         uint32_t n = bti_eir_name(r->data, r->len, name, sizeof name);
         con_puts("btinq: EIR ");
@@ -477,27 +740,54 @@ static void bti_print_rx(const struct bti_rx *r)
             con_puts("\"");
         }
         con_puts("\r\n");
+    } else {
+        con_puts(bti_tag());
+        con_puts("heard stat=0x");
+        con_hex(r->stat, 4);
+        con_puts(" clkn=0x");
+        con_hex(r->clkn, 7);
+        bti_rssi(r);
+        con_puts("\r\n");
     }
+}
+
+static void bti_print_hist(const char *k, const uint32_t *key, const uint32_t *n, uint32_t other, uint32_t digits)
+{
+    uint32_t i;
+    con_puts(k);
+    for (i = 0; i < BTI_NH && n[i]; i++) {
+        con_hex(key[i], digits);
+        bti_kv(":", n[i]);
+        con_putc(' ');
+    }
+    bti_kv("other:", other);
+    con_puts("}");
 }
 
 static void bti_print_sec(void)
 {
-    uint32_t now = bti_clkn(), i;
-    bti_kv("btinq: 1s clk+", (now - bti.sec_clk) & BTI_CLK);
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    uint32_t now = bti_clkn();
+    con_puts(bti_tag());
+    bti_kv("1s clk+", (now - bti.sec_clk) & BTI_CLK);
     bti.sec_clk = now;
     bti_kv(" irq40=", bti_st.irq40);
     bti_kv(" rx=", bti_st.rx_irqs);
     bti_kv(" alm=", bti_st.alarms);
-    con_puts(" stat{");
-    for (i = 0; i < 8u && bti_st.hist_n[i]; i++) {
-        con_hex(bti_st.hist_key[i], 2);
-        bti_kv(":", bti_st.hist_n[i]);
-        con_putc(' ');
-    }
-    bti_kv("other:", bti_st.hist_other);
-    bti_kv("} fhs=", bti_st.fhs);
+    bti_kv(" o40=", bti_st.other40);
+    con_puts(" u40=0x");
+    con_hex(bti_st.unknown40, 8);
+    bti_print_hist(" pend{", bti_st.pd_key, bti_st.pd_n, bti_st.pd_other, 8);
+    bti_print_hist(" rs{", bti_st.rs_key, bti_st.rs_n, bti_st.rs_other, 4);
+    bti_kv(" fhs=", bti_st.fhs);
     bti_kv(" eir=", bti_st.eir);
+    bti_kv(" ids=", bti_st.ids);
     bti_kv(" drop=", bti_st.dropped);
+    bti_kv(" txf=", f->txfreq);
+    bti_kv(" rxf=", f->rxfreq);
+    bti_kv(" agc=", f->rxgain0);
+    con_puts(" pll=");
+    con_dec(bti.pll_now);
     con_puts(" train=");
     con_putc(bti.train ? 'B' : 'A');
     con_puts("\r\n");
@@ -529,13 +819,17 @@ static void bti_poll(void)                         /* the main loop */
     } else if (bti_st.phase == BTI_INQ_DONE && !done_printed) {
         done_printed = 1;
         bti_print_sec();
-        bti_kv("btinq: done ", bti.inq_slots * 5u / 8u);
-        bti_kv(" ms, devices=", bti.nseen);
-        con_puts("\r\n");
+        con_puts(bti_tag());
+        bti_kv("done ", bti.inq_slots * 5u / 8u);
+        if (bti.mode == BTI_M_INQ)
+            bti_kv(" ms, devices=", bti.nseen);
+        else
+            bti_kv(" ms, IDs heard=", bti_st.ids);
+        con_puts(" ('bttrace' for the first interrupts)\r\n");
     }
 }
 
-/* ---- the console: btclk [run], btinq [SECONDS | stop] */
+/* ---- the console: btclk [run], btinq / btscan [SECONDS] [OPTIONS] | stop, bttrace [N] */
 static void con_btclk(const char *p)
 {
     if (con_word(&p, "run")) {
@@ -548,21 +842,79 @@ static void con_btclk(const char *p)
         bti_clk_print();
 }
 
-static void con_btinq(const char *p)
+static void con_btrun(const char *p, uint32_t mode)
 {
-    uint32_t s;
-    int ok = 0;
+    uint32_t s = mode == BTI_M_INQ ? 0 : 30u;
     if (con_word(&p, "stop")) {
         fm1_br_irqs_hold(1);
-        bti_inq_stop();
+        bti_run_stop();
         fm1_br_irqs_hold(0);
         return;
     }
-    s = con_num(&p, &ok);
-    if (!bti_inq_start(ok && s >= 1u && s <= 120u ? s * 1600u : 16384u)) {   /* default 10.24 s (the spec's) */
-        con_puts("btinq: not started (busy, or no RF trims: 'btclk')\r\n");
+    bti_opts(p, &s);
+    if (!bti_run_start(mode, s ? s * 1600u : 16384u)) {   /* the inquiry's default: 10.24 s (the spec's) */
+        con_puts("not started (busy, or no RF trims: 'btclk')\r\n");
         return;
     }
-    bti_kv("btinq: inquiry (GIAC) for ", bti.inq_slots * 5u / 8u);
-    con_puts(" ms: make a device discoverable\r\n");
+    con_puts(bti_tag());
+    if (mode == BTI_M_INQ) {
+        bti_kv("inquiry (GIAC) for ", bti.inq_slots * 5u / 8u);
+        con_puts(" ms: make a device discoverable");
+    } else {
+        bti_kv("inquiry scan for ", bti.inq_slots * 5u / 8u);
+        con_puts(" ms as \"OPTIMIST BT\" ");
+        bti_addr(bti.own);
+        con_puts(": search from a phone or computer");
+    }
+    bti_opts_print();
+    con_puts("\r\n");
+}
+
+static void con_bttrace(const char *p)
+{
+    uint32_t i, n, k, t0;
+    int ok = 0;
+    n = con_num(&p, &ok);
+    if (!ok || n > bti_tn)
+        n = bti_tn;
+    t0 = n ? bti_trace[0].t : 0;
+    bti_kv("bttrace: ", bti_tn);
+    con_puts(" kept: us pend tog(r/t) f(t/r) rxstat0/1 rxphdr0/1 linkcntl0/1 txbuf rxbuf rssi0-3 rxclk rxbit\r\n");
+    for (i = 0; i < n; i++) {
+        const struct bti_tr *t = &bti_trace[i];
+        bti_kv("", (t->t - t0) / FM1_TICKS_PER_US);
+        con_puts(" ");
+        con_hex(t->pend, 8);
+        bti_kv(" ", t->rxtog);
+        bti_kv("/", t->txtog);
+        bti_kv(" ", t->txfreq);
+        bti_kv("/", t->rxfreq);
+        for (k = 0; k < 2u; k++) {
+            con_puts(k ? "/" : " ");
+            con_hex(t->rxstat[k], 4);
+        }
+        for (k = 0; k < 2u; k++) {
+            con_puts(k ? "/" : " ");
+            con_hex(t->rxphdr[k], 4);
+        }
+        for (k = 0; k < 2u; k++) {
+            con_puts(k ? "/" : " ");
+            con_hex(t->linkcntl[k], 4);
+        }
+        con_puts(" ");
+        con_hex(t->txbufcntl[0], 2);
+        con_hex(t->txbufcntl[1], 2);
+        con_puts(" ");
+        con_hex(t->rxbufcntl[0], 2);
+        con_hex(t->rxbufcntl[1], 2);
+        for (k = 0; k < 4u; k++) {
+            con_puts(k ? "/" : " ");
+            con_hex(t->rssi[k], 4);
+        }
+        con_puts(" ");
+        con_hex(t->rx_clkn_lo, 4);
+        con_puts(" ");
+        con_hex(t->rxbit, 4);
+        con_puts("\r\n");
+    }
 }

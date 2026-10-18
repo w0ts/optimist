@@ -85,6 +85,39 @@ void bti_fhs_parse(const uint8_t p[18], struct bti_fhs *f)
     f->psm = (uint8_t)bti_bits(p, 141, 3);
 }
 
+static void bti_put(uint8_t *p, uint32_t at, uint32_t n, uint32_t v)   /* n <= 26 bits at bit at, LSB first */
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        uint8_t m = (uint8_t)(1u << ((at + i) & 7u));
+        if ((v >> i) & 1u)
+            p[(at + i) >> 3] |= m;
+        else
+            p[(at + i) >> 3] &= (uint8_t)~m;
+    }
+}
+
+void bti_fhs_build(const struct bti_fhs *f, uint8_t p[18])
+{
+    uint8_t par[5];
+    uint32_t lap = f->addr[0] | (uint32_t)f->addr[1] << 8 | (uint32_t)f->addr[2] << 16, i;
+    bti_parity(lap, par);
+    for (i = 0; i < 4u; i++)
+        p[i] = par[i];
+    bti_put(p, 32, 2, par[4]);
+    bti_put(p, 34, 24, lap);
+    bti_put(p, 58, 1, f->eir);
+    bti_put(p, 59, 1, 0);
+    bti_put(p, 60, 2, f->sr);
+    bti_put(p, 62, 2, 2u);
+    bti_put(p, 64, 8, f->addr[3]);
+    bti_put(p, 72, 16, f->addr[4] | (uint32_t)f->addr[5] << 8);
+    bti_put(p, 88, 24, f->cod);
+    bti_put(p, 112, 3, f->lt_addr);
+    bti_put(p, 115, 26, f->clk);
+    bti_put(p, 141, 3, f->psm);
+}
+
 uint32_t bti_eir_name(const uint8_t *eir, uint32_t len, char *name, uint32_t max)
 {
     uint32_t i = 0, best = 0, n = 0, k;

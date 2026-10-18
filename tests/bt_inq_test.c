@@ -73,6 +73,21 @@ int main(void)
     check("FHS: class 0x240404, EIR 1, SR R1, reserved 10b, LT_ADDR 0, clock field 0, page scan mode 0",
           f.cod == 0x240404u && f.eir == 1 && f.sr == 1 && f.reserved == 2 && f.lt_addr == 0 && f.clk == 0 &&
               f.psm == 0);
+    {
+        uint8_t again[18];
+        struct bti_fhs g = f;
+        g.parity_lo = 0, g.parity_hi = 0, g.reserved = 0;   /* (computed by the builder) */
+        memset(again, 0xA5, sizeof again);
+        bti_fhs_build(&g, again);
+        check("FHS built from V15's parsed fields = V15's 18 bytes (parity computed, reserved 10b)",
+              !memcmp(again, fhs, 18));
+        g.clk = 0x3FFFFFF, g.lt_addr = 7, g.psm = 5, g.cod = 0xABCDEF, g.sr = 2, g.eir = 0;
+        bti_fhs_build(&g, again);
+        bti_fhs_parse(again, &f);
+        check("FHS: build then parse keeps every field (all-ones clock, LT_ADDR 7, PSM 5)",
+              f.clk == 0x3FFFFFF && f.lt_addr == 7 && f.psm == 5 && f.cod == 0xABCDEF && f.sr == 2 && f.eir == 0 &&
+                  f.reserved == 2 && !memcmp(f.addr, g.addr, 6));
+    }
     check("EIR: V15's name \"FM-1\" (complete local name, its trailing 0 dropped)",
           bti_eir_name(eir, sizeof eir, name, sizeof name) == 4 && !strcmp(name, "FM-1"));
     check("EIR: the complete name wins over the shortened one",

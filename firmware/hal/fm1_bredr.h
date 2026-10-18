@@ -112,6 +112,11 @@ FM1_INLINE uint32_t fm1_br_agc3(void) { return FM1_BR_AGC3; }
 FM1_INLINE void fm1_br_con_or(uint32_t bits) { FM1_BR_CON |= bits; }
 /* BR §2.2, §8.1: the EIR receive buffer at table offset off, armed (1) or not (0) */
 FM1_INLINE void fm1_br_eir_rx(uint32_t off, int armed) { FM1_BR_EIRRX = (off & 0xFFFFu) | (armed ? 0x80000000u : 0u); }
+/* BR §2.2, §8.2: the EIR an inquiry scan sends after its FHS: len bytes of packet type `type` at table offset off */
+FM1_INLINE void fm1_br_eir_tx(uint32_t len, uint32_t type, uint32_t off)
+{
+    FM1_BR_REG(0x200C0u) = (len & 0xFFFu) << 20 | (type & 15u) << 16 | (off & 0xFFFFu);
+}
 FM1_INLINE void fm1_br_eir_arm(int armed)
 {
     if (armed)

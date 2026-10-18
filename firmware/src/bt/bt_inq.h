@@ -30,6 +30,9 @@ struct bti_fhs {
 
 void bti_parity(uint32_t lap, uint8_t out[5]);
 void bti_fhs_parse(const uint8_t p[18], struct bti_fhs *f);
+/* the 18 bytes of an FHS from f's address, EIR bit, SR, class, LT_ADDR, clock and page scan mode; the parity field is
+ * computed from the address's LAP and the reserved field written 10b (the spec's), whatever f holds there */
+void bti_fhs_build(const struct bti_fhs *f, uint8_t p[18]);
 /* the name in an EIR's data (len bytes, the significant part ends at a 0 length) -> its length (0: none), copied
  * to name (at most max - 1 bytes, printable ASCII only, '.' for others, 0-terminated) */
 uint32_t bti_eir_name(const uint8_t *eir, uint32_t len, char *name, uint32_t max);
