@@ -1056,6 +1056,15 @@ static void test_smp(void)
     r = c_frame(6, &n);
     check("SMP: our Identity Information (an IRK), after the EncKey", r && n == 17 && r[0] == 0x08 &&
           memcmp(r + 1, zero16, 16));
+    {
+        uint8_t irk[16], again[16];
+        smp_own_irk(irk);
+        memset(hw.rnd, 0xC3, sizeof hw.rnd);
+        smp_own_irk(again);
+        check("SMP: our IRK is our own fixed one, the same at every pairing (macOS refuses a new IRK for an "
+              "identity it bonded: \"already paired, with a different irk\")",
+              r && !memcmp(r + 1, irk, 16) && !memcmp(irk, again, 16));
+    }
     r = c_frame(6, &n);
     check("SMP: our Identity Address Information: our random static address (type 1)",
           r && n == 8 && r[0] == 0x09 && r[1] == 1 && !memcmp(r + 2, ADDR, 6));

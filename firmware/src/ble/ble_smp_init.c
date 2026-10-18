@@ -1,23 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The Security Manager as initiator (BLE_CENTRAL: we are the master of the link; Core Specification Vol 3 Part H),
  * part of ble_smp.c (included there: it shares bsmp, smp_send, smp_c1, smp_cut). LE legacy pairing with bonding, and
- * only when the peripheral asks (a Security Request, Insufficient Authentication / Encryption: ble_central.c), at the
- * level it needs:
- *   Just Works      (mitm 0) Pairing Request NoInputNoOutput, bonding, no MITM: TK = 0, nothing on either screen of
- *                   ours. What a peripheral that only wants an encrypted link gets (another FM-1 with
- *                   BLE_MIDI_NEED_ENC, most controllers);
- *   passkey entry   (mitm 1) Pairing Request DisplayOnly, bonding + MITM (2.3.5.3, Table 2.8): a responder that can
- *                   type (KeyboardOnly / KeyboardDisplay: a phone) gets a passkey we show (0..999999, random, TK = the
- *                   passkey); its user types it. The keys are authenticated (MITM protection, security mode 1 level
- *                   3, Vol 3 Part C 10.2.1). A responder that cannot type would make it Just Works: we refuse with
- *                   Authentication Requirements (0x03) instead of a pairing it will refuse anyway.
+ * only when the peripheral asks (a Security Request, Insufficient Authentication / Encryption: ble_central.c). Our
+ * Pairing Request is always DisplayOnly, bonding + MITM (2.3.5.3, Table 2.8); the responder's IO capability picks:
+ *   passkey entry   a responder that can type (KeyboardOnly / KeyboardDisplay: a Mac, a phone) gets a passkey we show
+ *                   (0..999999, random, TK = the passkey); its user types it. The keys are authenticated (MITM
+ *                   protection, security mode 1 level 3, Vol 3 Part C 10.2.1). Asked in the first pairing, not after
+ *                   a Just Works one: macOS drops an alert that comes right after another (2026-10-18, the window
+ *                   vanished before the passkey could be typed);
+ *   Just Works      a responder that cannot type (another FM-1, most controllers): TK = 0, nothing on either screen
+ *                   of ours. Unless the host knows the peer needs MITM (mitm 1): then we refuse with Authentication
+ *                   Requirements (0x03) instead of a pairing it will refuse anyway.
  * Neither side asks for Secure Connections, so legacy pairing is used:
  *   Pairing Request -> the responder's Pairing Response (a key size under 7 fails) -> our Mconfirm = c1(TK, Mrand, ...)
  *   -> its Sconfirm (with a passkey: once its user typed it) -> our Mrand -> its Srand, checked against Sconfirm ->
  *   STK = s1(TK, Srand, Mrand) cut to the key size -> the LL encryption with the STK started by us (EDIV 0, Rand 0) ->
  *   phase 3: the responder's keys first (its LTK, EDIV, Rand: the bond; its IRK and identity address: finding it again
  *   behind a resolvable private address), then ours (an LTK, EDIV and Rand we never use: a peripheral cannot start
- *   encryption; an IRK and our static identity address) -> the keys to the firmware (ble_app_central_keys, with
+ *   encryption; our IRK (smp_own_irk) and our static identity address) -> the keys to the firmware (ble_app_central_keys, with
  *   BLE_KEYS_AUTH after a passkey) and the host told (ble_central_*).
  * The 30 s SMP timeout (3.4, from our last command: the user types within it) ends the link. A Pairing Failed either
  * way ends the pairing (the host decides). Context: the BLE interrupts' (the passkey is read by the main loop). */
@@ -52,7 +52,7 @@ static void smp_init_fail(uint8_t why, int send)
 }
 
 /* start a pairing as initiator (the host: a Security Request, an authentication error, a bond the peer lost); mitm:
- * the peer needs an authenticated link (passkey entry), else Just Works */
+ * the peer needs an authenticated link (Just Works refused), else a passkey only if it can type */
 static void ble_smp_pair(int mitm)
 {
     uint8_t *r = bsmp.preq;
@@ -62,9 +62,9 @@ static void ble_smp_pair(int mitm)
     bsmp.init = 1;
     bsmp.mitm = (uint8_t)(mitm != 0);
     r[0] = SMP_PAIR_REQ;
-    r[1] = mitm ? IO_DISPLAY_ONLY : IO_NONE;    /* IO capability: a display (the FM-1's screen), or none */
+    r[1] = IO_DISPLAY_ONLY;                     /* IO capability: a display (the FM-1's screen) */
     r[2] = 0x00;                                /* no OOB data */
-    r[3] = (uint8_t)(SMP_AUTH_BOND | (mitm ? SMP_AUTH_MITM : 0u));   /* no Secure Connections, no keypress */
+    r[3] = SMP_AUTH_BOND | SMP_AUTH_MITM;       /* no Secure Connections, no keypress */
     r[4] = 16;                                  /* our largest key size */
     r[5] = SMP_KD_ENC | SMP_KD_ID;              /* ours to them (initiator key distribution) */
     r[6] = SMP_KD_ENC | SMP_KD_ID;              /* theirs to us (responder key distribution) */
@@ -75,16 +75,16 @@ static void ble_smp_pair(int mitm)
         BLE_DG(ble_dgc.si_mitm_req++);
 }
 
-/* the method (2.3.5.1, Table 2.8 with us DisplayOnly): passkey entry when MITM was asked and the responder can type */
+/* the method (2.3.5.1, Table 2.8 with us DisplayOnly and MITM asked): passkey entry when the responder can type */
 static int smp_init_passkey_method(const uint8_t *rsp)
 {
-    return bsmp.mitm && ((bsmp.preq[3] | rsp[3]) & SMP_AUTH_MITM) &&
-           (rsp[1] == IO_KEYBOARD_ONLY || rsp[1] == IO_KEYBOARD_DISPLAY);
+    return rsp[1] == IO_KEYBOARD_ONLY || rsp[1] == IO_KEYBOARD_DISPLAY;
 }
 
 static void smp_init_rsp(const uint8_t *p)
 {
     uint8_t c[17], k[4];
+    int pk = smp_init_passkey_method(p);
     BLE_DG(ble_dgc.si_rsp_io = p[1]);
     BLE_DG(ble_dgc.si_rsp_auth = p[3]);
     if (p[4] < 7u || p[4] > 16u) {
@@ -92,7 +92,7 @@ static void smp_init_rsp(const uint8_t *p)
         return;
     }
     BLE_DG(ble_dgc.si_pair_rsp++);
-    if (bsmp.mitm && !smp_init_passkey_method(p)) {
+    if (bsmp.mitm && !pk) {
         smp_init_fail(SMP_E_AUTH_REQ, 1);       /* (Just Works would not satisfy it: refused at once) */
         return;
     }
@@ -101,7 +101,7 @@ static void smp_init_rsp(const uint8_t *p)
     bsmp.bond = (p[3] & 3u) == SMP_AUTH_BOND;
     bsmp.ours = (uint8_t)(p[5] & bsmp.preq[5]);  /* what the responder agreed to take from us / give us */
     bsmp.theirs = (uint8_t)(p[6] & bsmp.preq[6]);
-    if (bsmp.mitm) {                            /* passkey entry: we display, its user types (TK = the passkey) */
+    if (pk) {                                   /* passkey entry: we display, its user types (TK = the passkey) */
         ble_hw_rand(k, 4);
         smp_passkey = ((uint32_t)k[0] | (uint32_t)k[1] << 8 | (uint32_t)k[2] << 16 | (uint32_t)k[3] << 24) % 1000000u;
         ble_smp_passkey_tk(smp_passkey, bsmp.tk);
@@ -161,7 +161,7 @@ static void smp_init_our_keys(void)
     if (bsmp.ours & SMP_KD_ID) {
         uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
         e[0] = SMP_ID_INFO;
-        ble_hw_rand(e + 1, 16);
+        smp_own_irk(e + 1);
         m[0] = SMP_ID_ADDR;
         m[1] = (uint8_t)(t & 1u);
         ble_cpy(m + 2, own, 6);

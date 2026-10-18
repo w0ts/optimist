@@ -10,7 +10,7 @@
  *   the LL encryption with the STK (EDIV 0, Rand 0: ble_host_ltk); once it runs, phase 3: we hand out our LTK,
  *   EDIV and Rand (Encryption Information, Master Identification) and, when the central asks for it, our identity
  *   (Identity Information: an IRK, Identity Address Information: our static address; we never use a private
- *   address, so the IRK is random and only lets the central file us by identity), then take the central's keys:
+ *   address, so the IRK only lets the central file us by identity: smp_own_irk), then take the central's keys:
  *   its IRK and identity address go to the firmware (ble_app_peer_id: what finds a device behind a resolvable
  *   private address, docs/BLE-DEVICES-DESIGN.md §3.3, §4.4); its LTK and CSRK are not kept (we find a returning
  *   central by EDIV / Rand). The bond is one key slot (ble_host_set_key) and goes to the firmware to keep across
@@ -126,6 +126,20 @@ static void smp_c1(const uint8_t r[16], uint8_t out[16])
     ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t >> 1 & 1u), peer, (uint8_t)(t & 1u), own, out);
 }
 
+/* our IRK: the same at every pairing, in either role, made from our static address (no private address of ours
+ * exists, so it only names us). A peer that bonded us refuses a new IRK for the same identity address: macOS,
+ * "already paired, with a different irk ... Unpair first" (2026-10-18), and the FM-1 then asked for the passkey at
+ * every power-on */
+static void smp_own_irk(uint8_t irk[16])
+{
+    static const uint8_t K[16] = {'O', 'p', 't', 'i', 'm', 'i', 's', 't', ' ', 'I', 'R', 'K', ' ', 'v', '1', 0};
+    uint8_t own[6], peer[6], in[16];
+    (void)ble_ll_addrs(own, peer);
+    ble_zero(in, 16);
+    ble_cpy(in, own, 6);
+    ble_aes128(K, in, irk);
+}
+
 #if BLE_CENTRAL
 #include "ble_smp_init.c"                       /* the initiator (the master of the link) */
 #endif
@@ -207,7 +221,7 @@ static void smp_our_keys(void)
     if (bsmp.ours & SMP_KD_ID) {                /* (Core Vol 3 Part H 3.6.4, 3.6.5) */
         uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
         e[0] = SMP_ID_INFO;
-        ble_hw_rand(e + 1, 16);                 /* an IRK we never hash with: no private address of ours exists */
+        smp_own_irk(e + 1);
         m[0] = SMP_ID_ADDR;
         m[1] = (uint8_t)(t & 1u);               /* 0 public, 1 random static */
         ble_cpy(m + 2, own, 6);
