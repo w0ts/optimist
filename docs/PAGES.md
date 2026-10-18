@@ -65,8 +65,8 @@ publishes whatever the manifest lists. `python3 web/make_site.py --profiles` pri
 
 ## How the firmware gets there
 
-`.github/workflows/pages.yml` runs on a push to `main` or `optimist`, on a push of a `v*` tag, and by hand (Actions > pages > Run
-workflow). It downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`, the same as
+`.github/workflows/pages.yml` runs on a push to `main` and by hand (Actions > pages > Run workflow); a published release
+asks for a run on `main` (its `redeploy` job), since the github-pages environment deploys from `main` only. It downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`, the same as
 `build.yml`; nothing of them is stored in the repository or published), builds each listed profile, makes the site and
 deploys it with `actions/upload-pages-artifact` and `actions/deploy-pages` (actions pinned to commit SHAs;
 permissions: contents read, pages write, id-token write). Without that toolchain a CI build is not possible; the
@@ -75,10 +75,8 @@ fallback would be a site with the editor only and a link to the release's packag
 ## Enable it (once)
 
 1. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
-2. Settings > Environments > github-pages > Deployment branches and tags: the default branch is allowed already; add the
-   tag pattern `v*` (a tag run is refused otherwise) and, if you push from a branch that is not the repository default
-   (the workflow runs on `main` and on `optimist`), add that branch too. Which branch is the default is shown in
-   Settings > Branches; today the only branch on GitHub is `main`, and it is the default.
+2. Settings > Environments > github-pages > Deployment branches and tags: nothing to add. The default branch (`main`) is
+   allowed already, and the workflow deploys from it only (a run on a tag or another branch would be refused).
 3. Push (or run the workflow by hand: Actions > pages > Run workflow). The URL is printed by the `deploy` job. If the
    `site` job fails in `configure-pages` with "Get Pages site failed", step 1 is missing.
 

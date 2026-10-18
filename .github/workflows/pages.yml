@@ -7,16 +7,17 @@
 # toolchain is downloaded on the runner as build.yml does. The editor needs no firmware. Details: docs/PAGES.md.
 #
 # Needs Pages enabled with the source "GitHub Actions" (Settings > Pages); on a private repository that needs a
-# plan that allows Pages for private repositories. Written for the repository once it is public; not run yet.
+# plan that allows Pages for private repositories. The github-pages environment deploys from main only (its
+# protection rule, 2026-10-18): the site is built on main alone, and a published release asks for a run on main
+# (workflow_dispatch) instead of deploying from its tag, which the rule refuses.
 # Pages serves the site under /<repository>/ : every URL in the site is relative, so that works.
 name: pages
 
 on:
   push:
-    branches: [main, optimist]
-    tags: ["v*"]
+    branches: [main]
   release:
-    types: [published]                     # (its packages join the installer's list)
+    types: [published]                     # (its packages join the installer's list: a run on main, job redeploy)
   workflow_dispatch:
 
 permissions:
@@ -32,7 +33,19 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  redeploy:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: A run on main (the environment deploys from main only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+
   site:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
