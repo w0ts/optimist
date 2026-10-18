@@ -66,7 +66,8 @@ static uint32_t ed_fx_sig(void)
     return ed_dlan_sig(ed_fxp_sig(h));                 /* (v13: the owners' slots and settings, ed_fxp.c; the lanes' mix, LFOs and mutes, ed_dlan.c) */
 }
 
-static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (fx_slots.c
+static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+                                             127, 127, 127, 127, 127, 127, 127};   /* (+ the shapers) */   /* (fx_slots.c
                                                         * fxs_lane_id's table) */
 /* one entry per FX type: a new type (the fx-pool branch adds 18, EQ3) trips this until its entry is added here and in
  * fx_slots.c fxs_lane_id (127: no SOUND 3 value) */

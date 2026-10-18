@@ -95,7 +95,9 @@ CONCEPTS = [
 
 FX_NAMES = {"FXT_DIST": "DIST", "FXT_COMP": "DYN", "FXT_FILT": "FILT", "FXT_FOLD": "FOLD", "FXT_FUZZ": "FUZZ",
             "FXT_PHSR": "PHSR", "FXT_FLNG": "FLNG", "FXT_FRMT": "FRMT", "FXT_WIDE": "WIDE", "FXT_CHRS": "CHRS",
-            "FXT_ECHO": "ECHO", "FXT_GATE": "GATER", "FXT_DUST": "DUST", "FXT_JUNO": "JUNO"}
+            "FXT_ECHO": "ECHO", "FXT_GATE": "GATER", "FXT_DUST": "DUST", "FXT_JUNO": "JUNO",
+            "FXT_SFLD": "SFLD", "FXT_WRAP": "WRAP", "FXT_RECT": "RECT", "FXT_HARM": "HARM", "FXT_RING": "RING",
+            "FXT_SUBO": "SUB", "FXT_SLEW": "SLEW"}
 
 
 def read(rel):
