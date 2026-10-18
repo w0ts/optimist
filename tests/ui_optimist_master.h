@@ -317,9 +317,13 @@ static void layout_tests(void)
     reset_ui();
     song.sel = 0;
     frames(3);
-    y = mx_row_y(MXR_T1);
-    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col(MXR_T1)) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH + 4 <= MXL_VY,
+    y = mx_row_y((MXR_T1 + 1u));
+    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col((MXR_T1 + 1u))) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH + 4 <= MXL_VY,
           "mixer row: the engine's name in the track's colour on its text line, the steps and a thin VU under it");
+    y = mx_row_y(MXR_T1);
+    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col(MXR_T1)) && px_in(0, y, 240, 1, mx_col(MXR_T1)) &&
+              !px_in(4, y + 2u, 232, MXL_H - 4u, col_shade(mx_col(MXR_T1), 3u)),
+          "... the selected row: framed in its colour on black, no tinted ground (the user, 2026-10-18)");
     tap(B_LFO);
     frames(3);
     check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND LFO: the picture fills the panel, no rows (2026-10-12)");

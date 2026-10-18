@@ -38,7 +38,7 @@ static void cc_hue_tests(void)
             ok = 0;
         }
     check(ok, "SUPER is >= 15 degrees from every other engine and kit-kind colour");
-    check(cl_contrast(sup) >= 3.0, "SUPER holds white text at >= 3:1");
+    check(cl_ink_ok(sup), "SUPER: its ink (ink_on) is the better of black and white");
 }
 static void cc_mute_tiles_tests(void)
 {

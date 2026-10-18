@@ -157,7 +157,7 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
         if ((uint32_t)k >= n && !on)                    /* (unlit: outlined on black) */
             cv_frame(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), C_LINE);
         else
-            cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? C_WHITE : C_GRAY) : cur_trough(bdp.bar));
+            cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? cur_ink(bdp.bar) : C_GRAY) : cur_trough(bdp.bar));
 }
 /* a row's text: NONE's is our words (sentence case), a device's name stays as it advertises itself */
 static void dev_row_text(char *out, uint32_t room, uint32_t row, const char *nm)
@@ -192,9 +192,9 @@ static void dev_paint(void)                             /* the panel's band in i
         uint32_t bars;
         ble_dev_row(i, bdp.last, bdp.near, nm, &tag, &chosen, &bars);
         if (on)
-            cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: the track's colour, text white */
+            cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: the track's colour, its ink */
         if (chosen)
-            cv_rect(4, y + 7, 6, 6, on ? C_WHITE : C_HI);   /* the choice (NONE or LAST) */
+            cv_rect(4, y + 7, 6, 6, on ? cur_ink(bdp.bar) : C_HI);   /* the choice (NONE or LAST) */
         if (i && (!tag[0] || str_len(tag) <= 4u)) {      /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
             dev_bars(wide - 22, y, bars, on);
             right = wide - 28;
@@ -204,12 +204,12 @@ static void dev_paint(void)                             /* the panel's band in i
         if (tag[0]) {
             op_case(b, tag, sizeof b);
             right -= text_w(&FONT_S, b);
-            cv_text(right, y + 1, &FONT_S, b, on ? C_WHITE : C_GRAY);
+            cv_text(right, y + 1, &FONT_S, b, on ? cur_ink(bdp.bar) : C_GRAY);
             right -= 8;
         }
         room = right - 16;
         dev_row_text(b, sizeof b, i, nm);
-        cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? C_WHITE : chosen ? C_HI : C_GRAY);
+        cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? cur_ink(bdp.bar) : chosen ? C_HI : C_GRAY);
     }
     if (bdp.n > bdp.shown) {                            /* where the window is in the list */
         cv_rect(238, 0, 1, (int32_t)rows_h, C_LINE);

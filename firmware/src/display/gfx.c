@@ -63,6 +63,17 @@ static void palette_set(uint32_t i)
         pal[k] = PALETTES[i % NPALETTES].c[k];
 }
 
+/* the text colour on a filled background bg: black or white, whichever contrasts more (WCAG: black when bg's relative
+ * luminance is over 0.179). sRGB's curve as 0.75 x^2 + 0.25 x^3, x in 1/1024, the threshold 184 / 1024 (the middle of
+ * the range that agrees with WCAG's exact choice over the 565 space but at near ties: tests/ui_optimist_curline.h) (the user,
+ * 2026-10-18: text on a coloured background "very hard to read") */
+#define INK_LIN(x) ((3u * (x) * (x) + (x) * (x) / 1024u * (x)) / 4096u)
+static uint16_t ink_on(uint16_t bg)
+{
+    uint32_t r = (bg >> 11) * 1024u / 31u, g = ((bg >> 5) & 63u) * 1024u / 63u, b = (bg & 31u) * 1024u / 31u;
+    return 2126u * INK_LIN(r) + 7152u * INK_LIN(g) + 722u * INK_LIN(b) > 184u * 10000u ? C_BLACK : C_WHITE;
+}
+
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
 
 static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)

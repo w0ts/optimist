@@ -235,7 +235,7 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
         else
             cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, box);
         if (boxed)                                      /* (its ink, rows 2..11, in the box's middle) */
-            cv_texts(px[op] - 4, py[op] - 7, n, on || ((car >> op) & 1u && !mute) ? C_BLACK : mute ? C_DIM : C_HI);
+            cv_texts(px[op] - 4, py[op] - 7, n, on || ((car >> op) & 1u && !mute) ? ink_on(box) : mute ? C_DIM : C_HI);
     }
     str_cpy(b, "Alg ", sizeof b);                       /* "Alg 5", the feedback */
     fmt_int(b + 4, v[FV_ALG] + 1);

@@ -49,8 +49,8 @@ static void mixer_views_tests(void)
     while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
     ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_LN &&
-         px_in(0, OP_PY, 120, 10, col_shade(lane_col(0), 3u));
-    check(ok, "past DR: the 16 drum sounds, in place, the kick's cell tinted");
+         px_in(0, OP_PY, 240, 1, lane_col(0));
+    check(ok, "past DR: the drum lanes, in place, the kick's row framed");
     ok = algo_step_inplace(-1) && mx_row() == MXR_DR && mxd.first == MXR_T1;
     check(ok, "... back up: the channels, DR selected");
     reset_ui();

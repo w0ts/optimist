@@ -91,7 +91,9 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     const char *b;
     gl_lrow(c, y, &r);
     uw = r.uw, ty = r.ty, by = r.by, b = r.v;
-    cv_texts(6, ty, r.nm, on ? lc : C_WHITE);
+    x = text_st(6, ty, &FONT_S, r.nm, on ? lc : C_WHITE, c->strike);   /* (a muted track's volume: struck, PAGE_LINES) */
+    if (c->dr)
+        cv_texts(x + 8, ty, "DR", C_GRAY);              /* (the drum track's own value, a lane picked: as the cards tag it) */
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(r.f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
     cv_text(x, r.fy, r.f, b, ink);
     if (uw)
@@ -228,3 +230,33 @@ static void gl_draw(void)
     ui.sig[2] = sig;
     cv_tall(GL_TOP, GL_BAND, C_BLACK, gl_paint);
 }
+
+/* PAGE_LINES (op_draw.c pl_on): a screen's cursor row as GLOBAL's lines, value k on line k (its knob), the hot one in the
+ * line's colour as GLOBAL's cursor line; a cell with no label leaves its line empty. The header names the row and its n/N */
+#if FELUCCA_PAGE_LINES
+static cell_t pl_c[4];
+static void pl_paint(void)
+{
+    uint32_t k;
+    for (k = 0; k < 4u; k++)
+        if (pl_c[k].label)
+            gl_line_draw(k, gl_y0() + (int32_t)k * gl_pitch(), &pl_c[k], ui.hot_lit && ui.hot == k);
+}
+static void pl_draw(void)
+{
+    uint32_t k, row = ui.row[ui.scr];
+    uint32_t sig = hu(hu(hu(hu(0x9E15u + ui.scr, row), ui.hot * 2u + ui.hot_lit), trk_col(song.sel) + settings.palette * 65536u),
+                      knob_colors);
+    for (k = 0; k < 4u; k++) {
+        SCR->cell(row, k, &pl_c[k]);
+        sig = hc(sig, &pl_c[k]);
+    }
+    if (sig == ui.sig[2])
+        return;
+    ui.sig[2] = sig;
+    gld.bar = trk_col(song.sel);
+    cv_tall(GL_TOP, GL_BAND, C_BLACK, pl_paint);
+}
+#else
+static void pl_draw(void) {}
+#endif

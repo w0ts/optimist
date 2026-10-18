@@ -4,10 +4,12 @@
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
 /* the cursor row's background: the line's colour at full strength (the user, 2026-10-14: the dark tint was not
- * recognisable); the row's text is white, its bars white on a trough 3/8 of the colour (docs/UI-OPTIMIST-DESIGN.md look).
- * Every colour that can be one (tools/colors.json engines and kinds, KNOB_COL) holds white text at >= 3:1. */
+ * recognisable); the row's text and bars are its ink, black or white, whichever reads better on it (gfx.c ink_on; the
+ * user, 2026-10-18: white on a light colour was hard to read), the bars on a trough of the colour away from the ink:
+ * 3/8 under white, 5/8 under black (docs/UI-OPTIMIST-DESIGN.md look) */
 static uint16_t cur_bg(uint16_t c) { return c; }
-static uint16_t cur_trough(uint16_t c) { return col_shade(c, 3u); }
+static uint16_t cur_ink(uint16_t c) { return ink_on(cur_bg(c)); }
+static uint16_t cur_trough(uint16_t c) { return col_shade(c, cur_ink(c) == C_WHITE ? 3u : 5u); }
 static void str_app(char *d, const char *s, unsigned max)   /* s appended to d (a buffer of max), as str_cpy */
 {
     unsigned n = str_len(d);

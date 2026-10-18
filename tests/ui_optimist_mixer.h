@@ -61,12 +61,14 @@ static void mixer_walk_tests(void)
     check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
     ui.force = 1;
     frame();
-    check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == (ACC_UI ? 0u : 120u) && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
-              px_in(ACC_UI ? 0 : 120, mx_row_y(MXR_LN - 1u), 120, 10, col_shade(ACC_UI ? C_HI : lane_col(15), 3u)),
-          "past DR the view is the 16 drum sounds, two columns of eight; the selected lane tinted in its colour (the last: the 16th, right; with the ACCENT lane built, its row across the foot)");
+    check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
+              px_in(0, mx_row_y(MXR_LN - 1u), 240, 1, ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u)) &&
+              !px_in(0, mx_row_y(MXR_LN - 1u) + 2u, 240, 3, col_shade(ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u), 3u)),
+          "past DR the view is every drum lane, one column (2026-10-18); the selected lane framed in its colour, no tinted ground");
     ppm("opt-mixer-h-lane16");
-    ok = mx_row_x(MXR_LANE0 + 15u) == 120u && mx_row_y(MXR_LANE0 + 15u) > mx_row_y(MXR_LANE0 + 14u);
-    check(ok, "the 16th lane is still the right column's last row");
+    for (ok = 1, i = MXR_LANE0 + 1u; i < MXR_LN; i++)
+        ok &= mx_row_x(i) == 0u && mx_row_y(i) > mx_row_y(i - 1u);
+    check(ok && mx_row_y(MXR_LN - 1u) + 13u <= (uint32_t)(OP_PY + OP_PH), "every lane in the one column, top down, the last on the screen");
     for (i = 0, ok = 1; i < DRUM_UILANES; i++) {        /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
         ok &= mx_row() == MXR_LN - 2u - i;
@@ -457,9 +459,9 @@ static void mixer_rows_tests(void)
     turn(EN_ALGO, 3);
     frame();
     y = mx_row_y(MXR_LANE0 + 2u);
-    check(mx_row() == MXR_LANE0 + 2u && px_in(MXS_VX, y + MXS_SY, 5, MXS_SH, lane_col(2)), "the snare lane's cell: its own hit");
+    check(mx_row() == MXR_LANE0 + 2u && px_in(MXL_VX, y + MXS_SY, 5, 4, lane_col(2)), "the snare lane's cell: its own hit");
     y = mx_row_y(MXR_LANE0 + 3u);
-    check(y + MXS_SY + MXS_SH <= 240u && !px_in(MXS_VX, y + MXS_SY, 5, MXS_SH, lane_col(3)), "the clap lane's cell: none");
+    check(y + MXS_SY + 4 <= 240u && !px_in(MXL_VX, y + MXS_SY, 5, 4, lane_col(3)), "the clap lane's cell: none");
     ppm("opt-mixer-sounds");
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     song.sel = 0;

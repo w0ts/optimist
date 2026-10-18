@@ -115,10 +115,12 @@ static __attribute__((noinline)) void lay_draw_cards(void)
 }
 
 /* ---- the tiles */
+/* a filled tile's label is its ink (black or white, gfx.c ink_on), whatever the caller passed: the fills are track
+ * colours and their shades, black text was unreadable on the darker ones (the user, 2026-10-18) */
 static void tile_set(tile_t *t, const char *lab, uint16_t bg, uint16_t fg, uint16_t top)
 {
     str_cpy(t->lab, lab, sizeof t->lab);
-    t->bg = bg, t->fg = fg, t->top = top;
+    t->bg = bg, t->fg = bg != OP_SURF ? ink_on(bg) : fg, t->top = top;
 }
 static void tiles_keys(tile_t *tl, uint32_t erase)      /* ERASE, REPEAT: the keys' sounds, lit while held */
 {

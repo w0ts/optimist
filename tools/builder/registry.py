@@ -661,6 +661,12 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
           "always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About "
           "5.5 KB of flash (UI=1: 7.7 KB, its own lines too; the texts packed), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
+_add("PAGE_LINES", "FELUCCA_PAGE_LINES", "pages as lines (GLOBAL's look), not 2x2 cards + list", U, 342, default=1,
+     desc="The Optimist UI (UI=1): a screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's "
+          "pages without a graph) shows its cursor row as four lines, as GLOBAL and SYSTEM do: the value's name, the "
+          "value large on the right, its bar across the screen; KNOB k is line k, SELECT the next row (the header names "
+          "it and its n/N). Screens with a picture (ENV, LFO, ARP, the FX needles, TEMPO, SCOPE) keep the 2x2 cards over "
+          "it, the mixer its 1x4 cards. Off: the 2x2 cards with the row list under them, as before. No data change.")
 _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
      desc="The Optimist UI (UI=1): SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
           "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "

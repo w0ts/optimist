@@ -39,16 +39,11 @@
 #define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
-#define MXS_ROWS 8u                     /* SOUNDS: eight lanes a column, two columns */
-#define MXS_NROW (MXS_ROWS + (uint32_t)ACC_UI)   /* ... and under them, the ACCENT lane's row across both, a ninth row of the
-                                         * same height (the audit's #34; core.h DRUM_UILANES) */
-#define MXS_W 120
-#define MXS_VX 22                       /* a lane's steps and meter, from its cell's left */
-#define MXS_SP 6                        /* a step's pitch, its cell 5 */
-#define MXS_SY 3
-#define MXS_SH 7
-#define MXS_VW 94
-#define MXS_VH 3
+#define MXS_NROW DRUM_UILANES          /* SOUNDS: the drum lanes in one column, a row each, the ACCENT lane last (the user,
+                                         * 2026-10-18: all 11 on one screen; 13 px rows over the help band, 14 without) */
+#define MXS_SY 2                        /* a lane's steps: their y in the row (the channels' pitch, MXL_SP), the meter under them */
+#define MXS_VH 2
+#define MXS_TY (-2)                     /* a lane's code: its 16 px cell from 2 px over the row (the caps' ink inside it) */
 #define MXM_X 8                         /* MASTER: the tall meter (under the 2x2 cards: a panel of 99 rows, 117 without the help band; */
 #define MXM_W 224                       /* the header names MASTER, so no name line) */
 #define MXM_VY 4
@@ -97,15 +92,14 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
         q->sx = MXL_VX, q->sy = MXL_SY, q->sp = MXL_SP, q->sh = MXL_SH;
         q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
-        uint32_t l = r - MXR_LANE0, row = mx_is_acc(r) ? MXS_ROWS : l % MXS_ROWS;
-        q->x = mx_is_acc(r) ? 0 : (int32_t)(l / MXS_ROWS) * MXS_W;   /* (the ACCENT lane: the ninth row, across both columns) */
+        uint32_t row = r - MXR_LANE0;                   /* (the ACCENT lane: DRUM_ACC, the last row) */
         q->y = (int32_t)row * OP_PH / (int32_t)MXS_NROW;
         q->h = (int32_t)(row + 1u) * OP_PH / (int32_t)MXS_NROW - q->y;
-        q->w = mx_is_acc(r) ? 240 : MXS_W;
-        q->sx = MXS_VX, q->sy = MXS_SY, q->sp = MXS_SP, q->sh = MXS_SH;
-        q->vx = MXS_VX, q->vy = q->h - 4, q->vw = MXS_VW, q->vh = MXS_VH;   /* (the meter over the row's rule: 18 px rows, 16) */
-        if (mx_is_acc(r)) {                             /* (no sound, no meter: its steps over the width, as a channel's) */
-            q->sx = MXL_VX, q->sp = MXL_SP, q->sh = q->h - 6;
+        q->w = 240;
+        q->sx = MXL_VX, q->sy = MXS_SY, q->sp = MXL_SP, q->sh = q->h - 7;
+        q->vx = MXL_VX, q->vy = q->h - 4, q->vw = MXL_VW, q->vh = MXS_VH;   /* (the meter over the row's rule) */
+        if (mx_is_acc(r)) {                             /* (no sound, no meter: its steps taller) */
+            q->sh = q->h - 5;
             q->vw = 0;
         }
     }
@@ -139,10 +133,11 @@ static void mx_names(uint32_t r, char *eng, char *pre)
 static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y);
 static uint32_t mx_gr_px(uint32_t r, int32_t w);
+/* the selected row: framed in its colour on black, no fill (the user, 2026-10-18: the tinted ground made it hard to read);
+ * its code and preset white */
 static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
 {
     if (i == mx_row()) {
-        cv_rect(q->x, q->y, q->w, q->h - 1, col_shade(c, 3u));
         cv_frame(q->x, q->y, q->w, q->h - 1, c);
     } else {
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
@@ -190,7 +185,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mrect_t q;
     uint16_t c = mx_col(i);
     uint16_t cc = i >= MXR_LANE0 && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
-    int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? 2 : MXL_TY;
+    int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? MXS_TY : MXL_TY;
     uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
@@ -218,8 +213,6 @@ static void mx_paint(void)                              /* the group in view (cv
         mx_paint_master();
         return;
     }
-    if (mxd.first == MXR_LANE0)
-        cv_rect(MXS_W - 1, 0, 1, (int32_t)MXS_ROWS * OP_PH / (int32_t)MXS_NROW, C_LINE);   /* (the two columns) */
     for (i = mxd.first; i < mxd.last; i++)
         mx_paint_row(i);
 }
@@ -387,7 +380,7 @@ static void mx_steps(uint32_t r)
         return;
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, sig;
-    uint16_t c = mx_col(r), bg = r == mx_row() ? col_shade(c, 3u) : C_BLACK;
+    uint16_t bg = C_BLACK;
     mrect_t q;
     if (r == MXR_MASTER)
         return;

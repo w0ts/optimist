@@ -253,6 +253,7 @@ static void tflash_tick(void)
     if (ui.master)
         tf.t = 0;                                       /* (MASTER picked meanwhile: its own badge) */
 }
+#define BADGE_UL_Y 21                   /* the header's badge: its text in its colour on black, a 1 px line under it */
 static void draw_head_flash(uint16_t tc)                /* the header while tf.t runs: TRACK 2, ANALOG, the preset */
 {
     char b[16], c[32];
@@ -262,8 +263,8 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     str_cpy(b, "TRACK ", sizeof b);
     fmt_int(b + 6, (int32_t)song.sel + 1);
     bw = text_w(&FONT_S, b) + 8;
-    cv_rect(2, 3, bw, 19, tc);
-    cv_texts(6, 4, b, C_BLACK);
+    cv_texts(6, 4, b, tc);                              /* (the badge's look: head_badge_draw) */
+    cv_rect(2, BADGE_UL_Y, bw, 1, tc);
     x = cv_texts(bw + 8, 4, eng, tc);
     snd_name(song.sel, c);                              /* (the preset as stored: never re-cased) */
     room = x + 8 < 228 ? (uint32_t)(236 - x - 8) / 8u : 1u;
@@ -478,8 +479,10 @@ static __attribute__((noinline)) void draw_head(void)
         cv_texts(4, 4, op_case(c, ui.msg, sizeof c), h.mc);   /* (sentence case: "T1 cleared") */
     } else {
         if (h.badge) {
-            cv_rect(2, 3, h.bw, 19, h.tc);              /* the track's engine, in its colour */
-            text_st(2 + HEAD_PAD, 4, &FONT_S, h.eng, C_BLACK, h.muted);   /* (a muted track: struck through) */
+            text_st(2 + HEAD_PAD, 4, &FONT_S, h.eng, h.tc, h.muted);   /* the track's engine, in its colour (a muted track:
+                                                                         * struck through) */
+            cv_rect(2, BADGE_UL_Y, h.bw, 1, h.tc);     /* underlined: no fill (the user, 2026-10-18: black on the colour was
+                                                         * often impossible to read on the FM-1) */
         }
         tw = head_draw_title(&h, c);
         if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
@@ -587,6 +590,7 @@ static uint16_t card_vc(uint32_t k, const cell_t *c, uint32_t hot)
     return c->dim ? C_DIM : hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_GRAY) : knob_col(k, c->col ? c->col : C_HI);
 }
 /* a 1x4 card w px wide (w; a name with an empty card after it two cards wide: draw_card_band) */
+#define CARD_BIG_Y 13                   /* a 1x4 card's value in the large face: its y (the ink between the label and the bar) */
 static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_t hot)
 {
     char b[16], v[16], nb[12];
@@ -607,7 +611,11 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
         cv_texts(x + 3, 20, cut(b, act_verb(c), (uint32_t)(w - 6) / 8u), act_col(c, hot));
         return;
     }
-    text_st(x + 3, 20, &FONT_S, cut(b, v, (uint32_t)(w - 6) / 8u), vc, c->strike);
+    if (!c->ak && text_w(font_big(), v) <= w - 6)      /* (the large face where it fits, as the 2x2 cards: the user,
+                                                         * 2026-10-18, the mixer's small values were hard to read) */
+        text_st(x + 3, CARD_BIG_Y, font_big(), v, vc, c->strike);
+    else
+        text_st(x + 3, 20, &FONT_S, cut(b, v, (uint32_t)(w - 6) / 8u), vc, c->strike);
     if (c->ak) {                                        /* two bars: entered, then the actual value (op_effval.c) */
         draw_gauge(x + 4, EFFV_Y1 - 4, w - 8, 2, c, vc, C_LINE);
         effv_bar(x + 4, EFFV_Y1, w - 8, c, hot);
@@ -842,13 +850,13 @@ static __attribute__((noinline)) void draw_row(uint32_t i, int32_t y, uint32_t o
     const screen_t *s = SCR;
     int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
-        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, text white */
+        cv_rect(0, y, wide, rh - 1, cur_bg(bar));       /* the cursor row: the track's colour, its ink (cur_ink) */
     y += (rh - ROW_H) / 2;
     if (ui.scr == SCR_SOUND)
         snd_title_row(i, nm);                           /* (the drum track's pages by what they hold, as the header) */
     else
         s->name(i, nm);
-    cv_texts(LC_NAME_X, y + 1, nm_title(nm, b, sizeof b), on ? C_WHITE : C_GRAY);   /* "ENV to": the header's title */
+    cv_texts(LC_NAME_X, y + 1, nm_title(nm, b, sizeof b), on ? cur_ink(bar) : C_GRAY);   /* "ENV to": the header's title */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
         cv_rect(70, y + 5, 7, 7, song_row_col(i));
     for (k = 0; k < 4u; k++)
@@ -857,8 +865,8 @@ static __attribute__((noinline)) void draw_row(uint32_t i, int32_t y, uint32_t o
     for (k = 0; k < 4u; k++) {
         int32_t x = L.x[k], gw = (k < 3u ? L.x[k + 1u] : LC_END(wide)) - x - 2;   /* (the form: to the next cell's place) */
         if (L.t[k][0])
-            cv_texts(x, y + 1, L.t[k], on ? C_WHITE : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
-        draw_gauge(x, y + 16, gw > LC_P - 2 && k == 3u ? LC_P - 2 : gw, gh, &c[k], on ? C_WHITE : c[k].col ? c[k].col : C_AMB,
+            cv_texts(x, y + 1, L.t[k], on ? cur_ink(bar) : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
+        draw_gauge(x, y + 16, gw > LC_P - 2 && k == 3u ? LC_P - 2 : gw, gh, &c[k], on ? cur_ink(bar) : c[k].col ? c[k].col : C_AMB,
                    on ? cur_trough(bar) : C_LINE);
     }
 }
@@ -907,18 +915,14 @@ static void list_paint(void)
         cv_rect(237, lst.top + (LIST_H - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
     }
 }
-static void draw_list(void)
+/* the picture row cur of the screen shows over its rows: 0 none, 1 SOUND's graph, 2 the session grid (SONG's PATTERNS
+ * row), 3 the tempo, 4 FM6's algorithm, 5 the SOUND row's presets */
+static uint32_t row_pic(uint32_t cur)
 {
-    const screen_t *s = SCR;
-    uint32_t n = s->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
-    uint16_t bar = trk_col(song.sel);
     const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
-    int32_t top = 0, rh = ROW_H;
-    uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
-                                                         * grid (SONG's PATTERNS row), 3 the tempo */
-    char nm[12];
-    cell_t c;
-    pic = gp ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;
+    uint32_t pic = gp && !(FELUCCA_PAGE_LINES && gp->graph == GR_DSND) ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;   /* (PAGE_LINES:
+                                                         * the drum lane's picture, its name and kit again, gives way to the
+                                                         * lines: the user, 2026-10-18) */
     if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
         pic = 4u;                                       /* FM6's rows: the algorithm (op_fm6draw.c) */
     else if (ui.scr == SCR_SOUND && !snd_page(cur))
@@ -927,6 +931,34 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
+    return pic;
+}
+/* the builder's PAGE_LINES (the user, 2026-10-18): a screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the
+ * master FX ...) shows its cursor row as GLOBAL's four lines (op_gldraw.c pl_draw), from under the header to the help
+ * line, KNOB k line k, SELECT the next row; no 2x2 cards, no row list. Off: the cards and the list under them */
+static int pl_on(void)
+{
+#if FELUCCA_PAGE_LINES
+    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE &&
+           !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
+#if FELUCCA_BLE
+           && !dev_listing()
+#endif
+        ;
+#else
+    return 0;
+#endif
+}
+static void draw_list(void)
+{
+    const screen_t *s = SCR;
+    uint32_t n = s->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
+    uint16_t bar = trk_col(song.sel);
+    const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
+    int32_t top = 0, rh = ROW_H;
+    uint32_t pic = row_pic(cur);                        /* the picture over the rows (row_pic) */
+    char nm[12];
+    cell_t c;
     if (pic && ui.scr != SCR_SONG) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
                                                          * graph"; ARP "is the same as lfo/env. no list"); the header names
                                                          * the row and its n/N, SELECT walks them. SONG keeps its rows under
@@ -1055,6 +1087,7 @@ static void draw_overlay(uint32_t ov)
         draw_toast();
 }
 
+static void pl_draw(void);                              /* op_gldraw.c */
 static void op_frame_draw(void)
 {
     uint32_t ov = op_overlay();
@@ -1073,7 +1106,7 @@ static void op_frame_draw(void)
     {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
                                                          * that changes (a layer on STEP, the NAME screen) */
         static uint8_t was_full;
-        uint32_t full = (ui.scr == SCR_STEP || glo_cycle()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
+        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
@@ -1091,7 +1124,7 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else if (ui.scr != SCR_STEP && !glo_cycle())
+    else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on())
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
     if (ov == 1u || ov == 3u || ov == 4u) {
         draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code: the whole panel */
@@ -1107,6 +1140,8 @@ static void op_frame_draw(void)
             step_frame();                               /* the grid / the roll, the cards over it: op_stepdraw.c */
         else if (glo_cycle())
             gl_draw();                                  /* GLOBAL, SYSTEM: the settings list (op_gldraw.c) */
+        else if (pl_on())
+            pl_draw();                                  /* PAGE_LINES: the cursor row as four lines (op_gldraw.c) */
 #if FELUCCA_BLE
         else if (dev_listing())
             dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */

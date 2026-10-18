@@ -2798,6 +2798,7 @@ static void led_tests(void)
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_stepauto.h"                    /* a step with automation: its own colour (STEP grid, roll, mixer strips) */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
+#include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
 
@@ -2830,6 +2831,13 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+#if FELUCCA_PAGE_LINES
+    plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */
+    fuzz(5000, 4242);
+    check(!band_hits, "PAGE_LINES: 5000 random frames, no blit in the help band but the help line's");
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
 #if FELUCCA_PLOCK
     if (getenv("PLOCK_AUDIT"))                          /* (the p-lock / motion list, ui_optimist_lockaudit.h) */
         return (int)lock_audit();

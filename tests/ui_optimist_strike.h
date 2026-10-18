@@ -46,10 +46,10 @@ static void strike_tests(void)
     frames(2);
     bw = text_w(&FONT_S, head_badge((char[24]){0}, 24)) ;
     sy = 4 + (int32_t)FONT_S.h / 2 - 1;
-    check(strike_run(2 + HEAD_PAD, sy, bw, C_BLACK), "muted: the header badge is struck, black across the badge");
+    check(strike_run(2 + HEAD_PAD, sy, bw, -1), "muted: the header badge is struck, its colour across the text (no fill, 2026-10-18)");
     trk[1].p[P_MUTE] = 0;
     frames(2);
-    check(!strike_run(2 + HEAD_PAD, sy, bw, C_BLACK), "unmuted: the header badge has no line");
+    check(!strike_run(2 + HEAD_PAD, sy, bw, -1), "unmuted: the header badge has no line");
     op_enter(SCR_HOME);
     ui.row[SCR_HOME] = r;
     frames(2);

@@ -480,6 +480,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
 #endif
+#ifndef FELUCCA_PAGE_LINES
+#define FELUCCA_PAGE_LINES 0               /* the Optimist UI's screens of rows with no picture as GLOBAL's four lines (a row
+                                            * a page, KNOB k line k), not 2x2 cards over a row list (op_gldraw.c pl_draw).
+                                            * The builder's default is 1; the host tests keep the cards (ui_optimist_plines.h) */
+#endif
 #ifndef FELUCCA_SYS_DEBUG
 #define FELUCCA_SYS_DEBUG 1                /* the Optimist UI's SYSTEM debug pages: INTERNALS, USB STATS and INFO's clock,
                                             * second core, drops, guard lines (op_project.c); off, INFO is CPU LOAD,

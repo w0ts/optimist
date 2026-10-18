@@ -1,35 +1,40 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the cursor row of every vertical list (fix/cursor-line, 2026-10-14; the user: the orange bar with
  * grey text was hard to read, then: the dark tint is not recognisable). The row's background is the colour the context uses at
- * FULL strength (the track's colour on a track list), and the row's text is white: no black ink. Every colour that can be that background (the engine and kit-kind
- * colours, the knob colours) holds white text at a WCAG contrast >= 3:1, computed here from the RGB565 values. */
+ * FULL strength (the track's colour on a track list), and the row's text is its ink, black or white, whichever contrasts more
+ * (gfx.c ink_on; the user, 2026-10-18: white on a light colour was hard to read). ink_on's choice is checked against WCAG's,
+ * computed here exactly from the RGB565 values, for every colour that can be that background (engines, kit kinds, knobs). */
 static double cl_lin(uint32_t v8)                       /* an 8-bit sRGB channel, linear */
 {
     double v = (double)v8 / 255.0;
     return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4);
 }
-static double cl_contrast(uint16_t c)                   /* white on c (the 565 fields widened as the panel does) */
+static double cl_lum(uint16_t c)                        /* c's relative luminance (the 565 fields widened as the panel does) */
 {
     uint32_t r = (c >> 11) & 31u, g = (c >> 5) & 63u, b = c & 31u;
-    double l = 0.2126 * cl_lin(r << 3 | r >> 2) + 0.7152 * cl_lin(g << 2 | g >> 4) + 0.0722 * cl_lin(b << 3 | b >> 2);
-    return 1.05 / (l + 0.05);
+    return 0.2126 * cl_lin(r << 3 | r >> 2) + 0.7152 * cl_lin(g << 2 | g >> 4) + 0.0722 * cl_lin(b << 3 | b >> 2);
+}
+/* ink_on(c) is the ink of the higher contrast, but where the two are within 5 % (either reads the same) */
+static int cl_ink_ok(uint16_t c)
+{
+    double l = cl_lum(c), w = 1.05 / (l + 0.05), k = (l + 0.05) / 0.05;
+    uint16_t want = k > w ? C_BLACK : C_WHITE;
+    int ok = ink_on(c) == want || (w > k ? w / k : k / w) < 1.05;
+    if (!ok)
+        printf("  curline: colour %04X: white %.2f, black %.2f, ink_on %s\n", c, w, k, ink_on(c) == C_BLACK ? "black" : "white");
+    return ok;
 }
 static int cl_palette_contrast(void)
 {
     uint32_t i;
     uint16_t kinds[4] = {COL_KIND_SYNTH, COL_KIND_SAMPLED, COL_KIND_X0X, COL_KIND_USERKIT};
-    int ok = 1;
+    int ok = ink_on(C_BLACK) == C_WHITE && ink_on(C_WHITE) == C_BLACK;
     for (i = 0; i < NENGINES; i++)
-        if (cl_contrast(ENG_COL[i]) < 3.0) {
-            printf("  curline: engine %u colour %04X: contrast %.2f\n", i, ENG_COL[i], cl_contrast(ENG_COL[i]));
-            ok = 0;
-        }
+        ok &= cl_ink_ok(ENG_COL[i]);
     for (i = 0; i < 4u; i++)
-        if (cl_contrast(kinds[i]) < 3.0 || cl_contrast(KNOB_COL[i]) < 3.0) {
-            printf("  curline: kind %04X (%.2f) or knob %04X (%.2f) under 3:1\n", kinds[i], cl_contrast(kinds[i]), KNOB_COL[i],
-                   cl_contrast(KNOB_COL[i]));
-            ok = 0;
-        }
+        ok &= cl_ink_ok(kinds[i]) & cl_ink_ok(KNOB_COL[i]);
+    for (i = 0; i < 65536u; i += 97u)                   /* (a sweep of the whole 565 space) */
+        ok &= cl_ink_ok((uint16_t)i);
     return ok;
 }
 static uint32_t cl_count(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t col)   /* pixels of col in the box */
@@ -41,11 +46,13 @@ static uint32_t cl_count(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_
             n += screen[y * 240 + x] == swap16(col);
     return n;
 }
-/* the row at screen y, h px high: its left margin is the full colour, its text white (and some of it), no black ink */
+/* the row at screen y, h px high: its left margin is the full colour, its text the colour's ink (and some of it), none of
+ * the other ink */
 static int cl_row(const char *what, int32_t y, int32_t h, uint16_t full, uint16_t bg)
 {
+    uint16_t ink = ink_on(full), other = ink == C_WHITE ? C_BLACK : C_WHITE;
     int ok = bg == full && screen[(y + 1) * 240 + 1] == swap16(full) && cl_count(0, y, 3, y + h, full) == (uint32_t)(3 * h) &&
-             cl_count(4, y, 236, y + h, C_WHITE) > 20u && cl_count(4, y, 236, y + h, C_BLACK) == 0u;
+             cl_count(4, y, 236, y + h, ink) > 20u && cl_count(4, y, 236, y + h, other) == 0u;
     if (!ok)
         printf("  curline: %s: bg %04X full %04X, margin %04X, white %u, black %u, full-colour margin px %u\n", what, bg, full,
                swap16(screen[(y + 1) * 240 + 1]), cl_count(4, y, 236, y + h, C_WHITE), cl_count(4, y, 236, y + h, C_BLACK),
@@ -111,11 +118,11 @@ static void curline_tests(void)
 {
     uint32_t r, found = 0;
     reset_ui();
-    check(cl_palette_contrast(), "cursor colours: white text on every engine, kit-kind and knob colour holds >= 3:1 (WCAG)");
+    check(cl_palette_contrast(), "cursor colours: ink_on picks WCAG's better ink on every engine, kit-kind and knob colour, and over the 565 space");
     song.sel = 0;
     check(cl_gl(SCR_GLOBAL, 0u) && cl_gl(SCR_GLOBAL, 1u), "GLOBAL: the cursor line has no fill, its text is the line's colour (the others' names grey)");
     check(cl_gl(SCR_SYSTEM, 0u) && cl_gl(SCR_SYSTEM, 1u), "SYSTEM: the cursor line has no fill, its text is the line's colour (the others' names grey)");
-    check(cl_list("PROJECT", SCR_PROJECT, 0u, 4u), "PROJECT: the cursor row is the track's colour at full strength, its text white");
+    check(cl_list("PROJECT", SCR_PROJECT, 0u, 4u), "PROJECT: the cursor row is the track's colour at full strength, its text the colour's ink");
     for (r = 0; r < 4u; r++) {                          /* a SOUND list: the first rows of SOUND with no picture */
         uint32_t i;
         op_enter(SCR_SOUND);
@@ -125,7 +132,7 @@ static void curline_tests(void)
             frame();
             if (lst.shown > 0u && lst.pic == 0u) {
                 found = 1;
-                check(cl_list("SOUND", SCR_SOUND, i, 3u), "SOUND: a row list's cursor row is the track's colour at full strength, its text white");
+                check(cl_list("SOUND", SCR_SOUND, i, 3u), "SOUND: a row list's cursor row is the track's colour at full strength, its text the colour's ink");
             }
         }
         if (found)

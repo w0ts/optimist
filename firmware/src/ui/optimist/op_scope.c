@@ -160,7 +160,7 @@ static void scope_tabs(void)                            /* the sources under the
         scope_src_name(r, nm);
         if (r == cur)
             cv_rect(x + 1, 0, 46, SC_TAB_H, scope_col(r));
-        cv_texts(x + (48 - text_w(&FONT_S, op_case(b, nm, sizeof b))) / 2, 1, b, r == cur ? C_BLACK : scope_col(r));
+        cv_texts(x + (48 - text_w(&FONT_S, op_case(b, nm, sizeof b))) / 2, 1, b, r == cur ? ink_on(scope_col(r)) : scope_col(r));
     }
     cv_blit(0, SC_TAB_Y);
 }

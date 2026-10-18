@@ -242,16 +242,16 @@ static void geo_fx_needles(void)
     check(gp && ok, "#31 SOUND FX: the needles are the page's own values (KNOB 1 full, KNOB 2 none), under the 2x2 cards, named");
     reset_ui();
 }
-/* #34: the mixer's ACCENT lane a ninth row across both columns */
+/* #34: the mixer's ACCENT lane the last row of the lanes' column (2026-10-18: one column) */
 static void geo_accent_row(void)
 {
 #if ACC_UI
     mrect_t a, l;
     mx_rect(MXR_LN - 1u, &a);
-    mx_rect(MXR_LANE0 + 7u, &l);
+    mx_rect(MXR_LN - 2u, &l);
     check(mx_is_acc(MXR_LN - 1u) && a.x == 0 && a.w == 240 && a.y == l.y + l.h && a.y + a.h == OP_PH && a.h >= l.h - 1 && a.h <= l.h + 1 &&
-              a.sx + 16 * a.sp <= 240 && a.sx + 15 * a.sp > MXS_W,
-          "#34 the mixer's ACCENT lane: a ninth row across both columns, as tall as a lane's, its steps over the width");
+              a.sx + 16 * a.sp <= 240 && a.sx == l.sx && a.sp == l.sp && l.h >= 13,
+          "#34 the mixer's ACCENT lane: the last row, as tall as a lane's (13 px at least), its steps under the lanes'");
 #endif
 }
 /* #25: FM6's ENV held map: the operators' boxes at least 12 rows tall, every algorithm */
