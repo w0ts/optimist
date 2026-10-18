@@ -94,7 +94,7 @@ Installing custom firmware is at your own risk. **Back up first** (below).
 
 1. Connect the FM-1 by USB and install the `.fwsc`:
    - command line: `pip install mido python-rtmidi`, then `python tools/fm1_install.py path/to/optimist-<version>.fwsc` (`--info` shows the connected FM-1);
-you    - or the web installer: the hosted one (see [Releases and the hosted site](#releases-and-the-hosted-site)), or a local copy: `make web` builds the site (no firmware in it: a cloud build or a `.fwsc` of yours), serves it on `127.0.0.1` and opens the editor; the installer is at `http://localhost:8766/webapp/installer/` (Web MIDI needs a secure context; BUILDING.md, "Installing").
+you    - or the web installer: the hosted one (see [Releases and the hosted site](#releases-and-the-hosted-site)), or a local copy: `make web` builds the site (no firmware in it: a cloud build or a `.fwsc` of yours; its Simulator tab runs a local simulator, which `make web` offers to build when there is none, `make web SIM=1` always: needs Emscripten), serves it on `127.0.0.1` and opens the editor; the installer is at `http://localhost:8766/webapp/installer/` (Web MIDI needs a secure context; BUILDING.md, "Installing").
 2. Wait for "Done". If the install is cut off, the FM-1 stays in update mode: install again and it finishes.
 
 **Going back and recovery** (OPTIMIST.md, "Rescue, going back, credits"):

@@ -15,9 +15,10 @@
                                                          profile first unless a PACKAGE is given (--no-build: the
                                                          newest build/optimist-*.fwsc as it is); asks first
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
-  python tools/optimist.py web [--port N] [--no-open]   the local installer, builder and web editor: builds the site (no
-                                                         firmware in it: cloud builds or a .fwsc of yours), serves it on
-                                                         127.0.0.1:8766, opens the editor
+  python tools/optimist.py web [--port N] [--no-open] [--sim] [--profile P | --config F]   the local installer, builder,
+                                                         simulator and web editor: builds the site (no firmware in it:
+                                                         cloud builds or a .fwsc of yours; the local simulator, built
+                                                         with --sim or when asked), serves it on 127.0.0.1:8766
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
   python tools/optimist.py gate [--config F] [--set K=V] [--emu]   the integrator's gate (tools/gate.py --help)
@@ -240,6 +241,7 @@ def cmd_emu(a):
 
 WEB_PORT = 8766
 WEB_SITE = ROOT / "build" / "optimist-site"
+WEB_SIM = ROOT / "build" / "sim" / "web" / "optimist-sim.wasm"   # the local simulator (tools/sim.py --wasm), its .json beside it
 
 
 def web_urls(port):
@@ -263,16 +265,61 @@ def web_open(url):
     return True
 
 
+def web_sim(a):
+    """the local simulator for the site's Simulator tab -> [{id, title, sim}] or []: the one built before (build/sim/web/), or
+    built now: --sim always, else asked when there is none and this is a terminal (a no, no emcc, a failed build: the site
+    goes on without it). The configuration: --profile / --config (default the default profile, as make build)"""
+    meta = WEB_SIM.with_suffix(".json")
+    if a.config:
+        cfg, name = Path(a.config).expanduser(), Path(a.config).stem
+    else:
+        name = a.profile or DEFAULT_PROFILE
+        cfg = C.profile_path(name)
+    want = a.sim
+    if not want and not WEB_SIM.is_file():
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                want = input(f"No local simulator yet. Build the Simulator of {name} now (about a minute; needs emcc)? [y/N] ").strip().lower() in ("y", "yes")
+            except EOFError:
+                want = False
+        else:
+            print(f"(no local simulator: `make web SIM=1` builds the Simulator of {name})")
+    if want:
+        if not shutil.which("emcc"):
+            print("optimist: the simulator needs Emscripten (emcc): `brew install emscripten` (macOS), or emsdk; "
+                  "the site goes on without it", file=sys.stderr)
+        else:
+            print(f"simulator: building {name} (tools/sim.py --wasm)...", flush=True)
+            WEB_SIM.parent.mkdir(parents=True, exist_ok=True)
+            r = subprocess.run([str(deps.venv_python()), str(ROOT / "tools" / "sim.py"), "build", "--wasm", "--config", str(cfg),
+                                "--out", str(WEB_SIM)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            if r.returncode or not WEB_SIM.is_file():
+                print("optimist: the simulator did not build (the site goes on without it):\n" +
+                      "\n".join((r.stderr or "").strip().splitlines()[-6:]), file=sys.stderr)
+                WEB_SIM.unlink(missing_ok=True)
+            else:
+                meta.write_text(json.dumps({"config": name, "date": time.strftime("%Y-%m-%d %H:%M")}) + "\n")
+    if not WEB_SIM.is_file():
+        return []
+    try:
+        m = json.loads(meta.read_text())
+    except (OSError, ValueError):
+        m = {}
+    return [{"id": "local", "title": f"Local build: {m.get('config', '?')}" + (f" ({m['date']})" if m.get("date") else ""),
+             "sim": WEB_SIM}]
+
+
 def cmd_web(a):
     """Build the local site (web/make_site.py --local: no firmware bundled; the installer offers cloud builds and a .fwsc
-    of yours) and serve it on 127.0.0.1 until Ctrl-C."""
+    of yours; the Simulator tab the local simulator, web_sim) and serve it on 127.0.0.1 until Ctrl-C."""
     import functools
     import http.server
     sys.path.insert(0, str(ROOT / "web"))
     import make_site
     site = Path(a.site) if a.site else WEB_SITE
+    sims = web_sim(a)
     try:
-        make_site.main("dev", site)
+        make_site.main("dev", site, sims=sims)
     except SystemExit as e:
         print(f"optimist: the site was not built: {e}", file=sys.stderr)
         return 1
@@ -513,6 +560,9 @@ def parser():
     p.add_argument("--port", type=int, default=WEB_PORT, help=f"the port (default {WEB_PORT})")
     p.add_argument("--site", help="where to write the site (default build/optimist-site)")
     p.add_argument("--no-open", action="store_true", help="do not open the editor in a browser")
+    p.add_argument("--sim", action="store_true", help="build the local simulator first (Emscripten; else asked when none)")
+    p.add_argument("--profile", help=f"the simulator's profile (default {DEFAULT_PROFILE})")
+    p.add_argument("--config", help="the simulator's .config instead of a profile")
     p.set_defaults(fn=cmd_web)
     p = sub.add_parser("cpu", help="the audio load of a running FM-1 from its serial console (cpu --help)",
                        add_help=False)

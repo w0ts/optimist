@@ -78,3 +78,9 @@ The venv's Python (the generators need Pillow) and `emcc` (Emscripten). The test
 sound after a key, the editor's INFO, GET / SET / DESC, PROJECT save and load across a restart, BK_LIST, a backup of
 the working project restored into a blank flash (and the restart it asks for), the UBOOT SysEx, and prints the wall time
 a simulated second takes.
+
+## The local site
+
+`make web` serves the local simulator in its Simulator tab (`build/sim/web/optimist-sim.wasm`, the default profile or
+`PROFILE=`): built with `make web SIM=1`, or when `make web` asks because there is none (a terminal only; no, no `emcc` or a
+failed build: the site goes on without it). `tools/optimist.py web --sim [--profile P | --config F]`.

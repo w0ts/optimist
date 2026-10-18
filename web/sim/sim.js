@@ -4,6 +4,7 @@
 //
 //   mountSim(container, {
 //     packages,   the site's flavours [{ id, title, sim }]: sim a URL of the flavour's .wasm (make_site.py)
+//     sims,       simulators that come with no package [{ id, title, sim }] (the local one: make web)
 //     repo,       "owner/name": the cloud builds with a simulator (the cloud-builds branch, installer.js loadCloud)
 //     build,      a cloud build id to open (default: the page's ?sim=)
 //     onNavigate, (where, detail) => void: "install" with { build } (Install this build); without it a link
@@ -164,7 +165,7 @@ function addStyle(doc) {
 }
 
 export function mountSim(container, opts = {}) {
-  const packages = (opts.packages || []).filter((p) => p.sim);
+  const packages = [...(opts.packages || []).filter((p) => p.sim), ...(opts.sims || []).filter((p) => p && p.sim)];   /* (sims: the local one) */
   const repo = opts.repo || "w0ts/optimist";
   const links = { install: "../installer/", ...(opts.links || {}) };
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("sim") : null);

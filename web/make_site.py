@@ -269,11 +269,12 @@ def package_entry(path, name, flavour, release="", date=""):
             "sha256": hashlib.sha256(raw).hexdigest()}   # the page checks the download against it
 
 
-def main(version, out, flavours=None, releases=None):
+def main(version, out, flavours=None, releases=None, sims=None):
     """flavours: the development packages, flavours_of(manifest) (this commit's build); releases: releases_of(DIR); neither:
-    a site with no firmware (the local one)"""
+    a site with no firmware (the local one). sims: [{id, title, sim}] simulators with no package (the local one, make web):
+    the Simulator tab lists them, the installer does not"""
     out = Path(out)
-    flavours, releases = flavours or [], releases or []
+    flavours, releases, sims = flavours or [], releases or [], sims or []
     html = (HERE / "installer" / "index.html").read_text(encoding="utf-8")
     ver = re.sub(r"[^A-Za-z0-9.-]", "-", version)
     packages, files = [], []
@@ -294,7 +295,12 @@ def main(version, out, flavours=None, releases=None):
     if stock_sha != STOCK_SHA256:
         raise SystemExit(f"{stock}: sha256 {stock_sha}, not M-VAVE's V15 ({STOCK_SHA256})")
     files.append((stock, STOCK_NAME))
-    site = {"version": version, "source": source_ref(), "packages": packages,
+    sim_list = []
+    for x in sims:                                      # (a simulator alone: no firmware to install from it)
+        name = f"optimist-sim-{x['id']}.wasm"
+        sim_list.append({"id": x["id"], "title": x["title"], "sim": "../../firmware/" + name})
+        files.append((Path(x["sim"]), name))
+    site = {"version": version, "source": source_ref(), "packages": packages, "sims": sim_list,
             "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
             "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
     meta = json.dumps(site)
@@ -306,7 +312,7 @@ def main(version, out, flavours=None, releases=None):
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
-    for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")):   # only the current packages
+    for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")) + list(fw.glob("optimist-*.wasm")):   # only the current packages
         old.unlink()
     shutil.rmtree(fw / "r", ignore_errors=True)
     (inst / "index.html").write_text(html, encoding="utf-8")

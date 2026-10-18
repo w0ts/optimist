@@ -6727,7 +6727,7 @@ async function appMount(name, a) {
       note.textContent = site ? "" : t("appNoSite");
     } else if (name === "sim") {
       const [mod, site] = await Promise.all([import("./sim/sim.js"), fetch("installer/site.json").then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
-      a.handle = mod.mountSim(host, { packages: (site && site.packages) || [], repo: site && site.repo, build: QS.get("sim"),
+      a.handle = mod.mountSim(host, { packages: (site && site.packages) || [], sims: (site && site.sims) || [], repo: site && site.repo, build: QS.get("sim"),
         onNavigate: (where, detail) => (where === "install" ? openInstallBuild(detail && detail.build) : where === "build" && detail ? openBuildConfig(detail) : showTab(where)) });
       note.textContent = "";
     } else {

@@ -237,7 +237,7 @@ with tempfile.TemporaryDirectory() as wd:
     import make_site
     calls, opened = [], []
     saved_site, saved_serve, saved_open = make_site.main, http.server.ThreadingHTTPServer.serve_forever, optimist.web_open
-    make_site.main = lambda v, o: calls.append((v, str(o)))
+    make_site.main = lambda v, o, sims=None: calls.append((v, str(o)))
     http.server.ThreadingHTTPServer.serve_forever = lambda self: (_ for _ in ()).throw(KeyboardInterrupt())
     optimist.web_open = lambda url: opened.append(url) or True
     try:
@@ -431,10 +431,13 @@ with tempfile.TemporaryDirectory() as d:
               and sj["packages"][0]["date"].startswith("2026-10-15"))
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
               all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
-        ms.main("dev", Path(d) / "site4")
-        check("the local site (make web): no firmware at all", json.loads(
-              (Path(d) / "site4/webapp/installer/site.json").read_text(encoding="utf-8"))["packages"] == []
-              and not list((Path(d) / "site4/firmware").glob("optimist-*.fwsc")))
+        (Path(d) / "x.wasm").write_bytes(b"\0asm")
+        ms.main("dev", Path(d) / "site4", sims=[{"id": "local", "title": "Local build: synth", "sim": Path(d) / "x.wasm"}])
+        sj4 = json.loads((Path(d) / "site4/webapp/installer/site.json").read_text(encoding="utf-8"))
+        check("the local site (make web): no firmware at all, its simulator alone (sims: the Simulator tab, not the installer)",
+              sj4["packages"] == [] and not list((Path(d) / "site4/firmware").glob("optimist-*.fwsc"))
+              and sj4["sims"] == [{"id": "local", "title": "Local build: synth", "sim": "../../firmware/optimist-sim-local.wasm"}]
+              and (Path(d) / "site4/firmware/optimist-sim-local.wasm").is_file())
         check("icon: the site ships the icon files and every page links one relatively",
               all((site / n).is_file() for n in ms.ICONS) and 'href="../../icon.svg"' in page and
               'href="../../icon.svg"' in (site / "webapp/editor/index.html").read_text(encoding="utf-8") and
